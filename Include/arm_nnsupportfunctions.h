@@ -2164,6 +2164,30 @@ arm_cmsis_nn_status arm_elementwise_mul_acc_s16(const int16_t *input_1_vect,
                                                 const int32_t out_activation_max,
                                                 const int32_t block_size);
 
+
+/**
+ * @brief fp16 elementwise multiplication with fp16 output
+ * @param[in]       lhs                 pointer to input vector 1
+ * @param[in]       rhs                 pointer to input vector 2
+ * @param[in,out]   dst                 pointer to output vector
+ * @param[in]       rhs_cols            number of samples per batch
+ * @param[in]       rhs_rows            number of samples per batch
+ * @param[in]       activation_min      minimum value to clamp output to
+ * @param[in]       activation_max      maximum value to clamp output to
+ * @return          The function returns ARM_CMSIS_NN_SUCCESS
+ * @details         Supported framework: TensorFlow Lite micro
+ */
+ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
+    const float16_t *lhs,
+    const float16_t *rhs,
+    const float16_t *bias,
+    float16_t       *dst,
+    const int32_t    rhs_cols,
+    const int32_t    rhs_rows,
+    const float16_t  activation_min,
+    const float16_t  activation_max
+);
+
 /**
  * @brief Check if a broadcast is required between 2 cmsis_nn_dims.
  * @param[in]       shape_1             pointer to input tensor 1
