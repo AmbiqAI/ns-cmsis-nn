@@ -3054,6 +3054,85 @@ arm_cmsis_nn_status arm_maximum_s8(const cmsis_nn_context *ctx,
                                    int8_t *output_data,
                                    const cmsis_nn_dims *output_dims);
 
+/**
+ * @brief Expands the size of the input by adding constant values before and after the data, in all dimensions.
+ *
+ * @param[in]   input                      Pointer to input data
+ * @param[out]  output                     Pointer to output data
+ * @param[in]   pad_value                  Value to pad with
+ * @param[in]   input_size                 Input tensor dimensions
+ * @param[in]   pre_pad                    Padding to apply before data in each dimension
+ * @param[in]   post_pad                   Padding to apply after data in each dimension
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_pad_s16(
+    const int16_t *input,
+    int16_t *output,
+    const int16_t pad_value,
+    const cmsis_nn_dims *input_size,
+    const cmsis_nn_dims *pre_pad,
+    const cmsis_nn_dims *post_pad
+);
+
+/**
+* @brief Elementwise binary minimum with 16bit data.
+*
+* @param[in]   ctx                   Temporary scratch buffer
+*                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+* @param[in]   input_1_data          Pointer to input1 tensor
+* @param[in]   input_1_dims          Input1 tensor dimensions
+* @param[in]   input_2_data          Pointer to input2 tensor
+* @param[in]   input_2_dims          Input2 tensor dimensions
+* @param[out]  output_data           Pointer to the output tensor
+* @param[in]   output_dims           Output tensor dimensions
+*
+* @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+*
+* @details
+*    1. Supported framework: TensorFlow Lite Micro
+*
+*/
+arm_cmsis_nn_status arm_minimum_s16(
+    const cmsis_nn_context *ctx,
+    const int16_t *input_1_data,
+    const cmsis_nn_dims *input_1_dims,
+    const int16_t *input_2_data,
+    const cmsis_nn_dims *input_2_dims,
+    int16_t *output_data,
+    const cmsis_nn_dims *output_dims
+);
+
+/**
+* @brief Elementwise binary maximum with 16bit data.
+*
+* @param[in]   ctx                   Temporary scratch buffer
+*                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+* @param[in]   input_1_data          Pointer to input1 tensor
+* @param[in]   input_1_dims          Input1 tensor dimensions
+* @param[in]   input_2_data          Pointer to input2 tensor
+* @param[in]   input_2_dims          Input2 tensor dimensions
+* @param[out]  output_data           Pointer to the output tensor
+* @param[in]   output_dims           Output tensor dimensions
+*
+* @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+*
+* @details
+*    1. Supported framework: TensorFlow Lite Micro
+*
+*/
+arm_cmsis_nn_status arm_maximum_s16(
+    const cmsis_nn_context *ctx,
+    const int16_t *input_1_data,
+    const cmsis_nn_dims *input_1_dims,
+    const int16_t *input_2_data,
+    const cmsis_nn_dims *input_2_dims,
+    int16_t *output_data,
+    const cmsis_nn_dims *output_dims
+);
+
+
 #ifdef __cplusplus
 }
 #endif

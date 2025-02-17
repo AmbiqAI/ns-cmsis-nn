@@ -1206,6 +1206,45 @@ __STATIC_FORCEINLINE void arm_memset_s8(int8_t *dst, const int8_t val, uint32_t 
 #endif
 }
 
+/**
+ * @brief           s16 fill optimized for MVE
+ * @param[in, out]  dst         Destination pointer
+ * @param[in]       val         Value to set
+ * @param[in]       block_size  Number of values to copy.
+ *
+ */
+__STATIC_FORCEINLINE void arm_fill_s16(int16_t *dst, const int16_t val, uint32_t block_size)
+{
+#if defined(ARM_MATH_MVEI)
+
+    uint32_t count = block_size / 8;
+    uint32_t rem   = block_size % 8;
+
+    __asm volatile(
+        "    vdup.16                q0, %[set_val]              \n"
+        "   wlstp.16                lr, %[cnt], 1f              \n"
+        "2:                                                     \n"
+        "   vstrh.16                q0, [%[in]], #16            \n"
+        "   letp                    lr, 2b                      \n"
+        "1:                                                     \n"
+        : [in] "+r"(dst)
+        : [cnt] "r"(count), [set_val] "r"(val)
+        : "q0", "memory", "r14"
+    );
+
+    for (uint32_t i = 0; i < rem; i++)
+    {
+        dst[i] = val;
+    }
+#else
+    for (uint32_t i = 0; i < block_size; i++)
+    {
+        dst[i] = val;
+    }
+#endif
+}
+
+
 #if defined(ARM_MATH_DSP)
 
 /**
