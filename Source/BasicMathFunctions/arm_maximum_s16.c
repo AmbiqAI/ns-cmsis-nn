@@ -48,12 +48,12 @@ arm_max_no_broadcast_s16(const int16_t *input_1, const int16_t *input_2, int16_t
     {
         mve_pred16_t p = vctp16q(flat_size);
 
-        int16x8_t vec1 = vldrbq_z_s16(input_1, p);
+        int16x8_t vec1 = vldrhq_z_s16(input_1, p);
         input_1 += 8;
-        int16x8_t vec2 = vldrbq_z_s16(input_2, p);
+        int16x8_t vec2 = vldrhq_z_s16(input_2, p);
         input_2 += 8;
 
-        vstrbq_p_s16(output, vmaxq_s16(vec1, vec2), p);
+        vstrhq_p_s16(output, vmaxq_s16(vec1, vec2), p);
         output += 8;
         flat_size -= 8;
     }
@@ -79,10 +79,10 @@ arm_max_scalar_s16(const int16_t *input_1, const int16_t *input_2, int16_t *outp
     while (flat_size > 0)
     {
         mve_pred16_t p = vctp16q(flat_size);
-        int16x8_t vec = vldrbq_z_s16(input_2, p);
+        int16x8_t vec = vldrhq_z_s16(input_2, p);
         input_2 += 8;
 
-        vstrbq_p_s16(output, vmaxq_s16(scalar_vec, vec), p);
+        vstrhq_p_s16(output, vmaxq_s16(scalar_vec, vec), p);
         output += 8;
         flat_size -= 8;
     }

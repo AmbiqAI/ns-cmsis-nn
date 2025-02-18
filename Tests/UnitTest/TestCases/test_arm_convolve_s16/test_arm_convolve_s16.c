@@ -52,7 +52,7 @@ void int16xint8_arm_convolve_s16(void)
     const int64_t *int64_bias_data = int16xint8_biases;
     const cmsis_nn_bias_data bias_data = {int64_bias_data, false};
     const int8_t *kernel_data = int16xint8_weights;
-    const int16_t *input_data = int16xint8_input;
+    const int16_t *input_data = int16xint8_input_tensor;
     const int16_t *output_ref = int16xint8_output_ref;
     const int32_t output_ref_size = INT16XINT8_DST_SIZE;
 

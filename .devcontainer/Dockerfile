@@ -1,4 +1,4 @@
-FROM python:3.10-bullseye as tflm-ci
+FROM python:3.10-bullseye as ns-cmsis-nn-ci
 
 RUN apt-get update
 
@@ -16,3 +16,12 @@ RUN ln -s /usr/bin/clang-format-16 /usr/bin/clang-format
 
 # Needed when the docker container is used with GitHub actions.
 RUN git config --global --add safe.directory /github/workspace
+
+# Install flatbuffers (flatc)
+RUN \
+    git clone https://github.com/google/flatbuffers.git /tmp/flatbuffers && \
+    cd /tmp/flatbuffers && \
+    cmake -G "Unix Makefiles" && \
+    make && \
+    make install && \
+    rm -rf flatbuffers

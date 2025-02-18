@@ -1207,35 +1207,24 @@ __STATIC_FORCEINLINE void arm_memset_s8(int8_t *dst, const int8_t val, uint32_t 
 }
 
 /**
- * @brief           s16 fill optimized for MVE
- * @param[in, out]  dst         Destination pointer
- * @param[in]       val         Value to set
- * @param[in]       block_size  Number of values to copy.
- *
+ * @brief           memset optimized for MVE for 16-bit data.
+ * @param[in, out]  dst         Destination pointer.
+ * @param[in]       val         16-bit value to set.
+ * @param[in]       block_size  Number of int16_t values to set.
  */
-__STATIC_FORCEINLINE void arm_fill_s16(int16_t *dst, const int16_t val, uint32_t block_size)
+__STATIC_FORCEINLINE void arm_memset_s16(int16_t *dst, const int16_t val, uint32_t block_size)
 {
 #if defined(ARM_MATH_MVEI)
-
-    uint32_t count = block_size / 8;
-    uint32_t rem   = block_size % 8;
-
     __asm volatile(
-        "    vdup.16                q0, %[set_val]              \n"
-        "   wlstp.16                lr, %[cnt], 1f              \n"
-        "2:                                                     \n"
-        "   vstrh.16                q0, [%[in]], #16            \n"
-        "   letp                    lr, 2b                      \n"
-        "1:                                                     \n"
-        : [in] "+r"(dst)
-        : [cnt] "r"(count), [set_val] "r"(val)
-        : "q0", "memory", "r14"
-    );
-
-    for (uint32_t i = 0; i < rem; i++)
-    {
-        dst[i] = val;
-    }
+                   "   vdup.16                 q0, %[set_val]             \n"  /* Duplicate 'val' into all 8 lanes of q0 */
+                   "   wlstp.16                lr, %[cnt], 1f             \n"  /* Initialize loop predicate using the number of halfwords */
+                   "2:                                                    \n"
+                   "   vstrh.16                q0, [%[in]], #16           \n"  /* Store eight int16_t (16 bytes) from q0; post-increment pointer by 16 bytes */
+                   "   letp                    lr, 2b                     \n"  /* Loop: decrement predicate counter and branch if not done */
+                   "1:                                                    \n"
+                   : [in] "+r"(dst)
+                   : [cnt] "r"(block_size), [set_val] "r"(val)
+                   : "q0", "memory", "r14");
 #else
     for (uint32_t i = 0; i < block_size; i++)
     {
@@ -1704,6 +1693,19 @@ __STATIC_FORCEINLINE void arm_memcpy_s8(int8_t *__RESTRICT dst, const int8_t *__
 #else
     memcpy(dst, src, block_size);
 #endif
+}
+
+
+/**
+ * @brief           memcpy optimized for MVE
+ * @param[in, out]  dst         Destination pointer
+ * @param[in]       src         Source pointer.
+ * @param[in]       block_size  Number of values to copy.
+ *
+ */
+__STATIC_FORCEINLINE void arm_memcpy_s16(int16_t *__RESTRICT dst, const int16_t *__RESTRICT src, uint32_t block_size)
+{
+    arm_memcpy_s8((int8_t *)dst, (const int8_t *)src, block_size*sizeof(int16_t));
 }
 
 /**
@@ -2191,18 +2193,42 @@ arm_cmsis_nn_status arm_elementwise_mul_s16_batch_offset(const int16_t *input_1_
  *
  * @details   Supported framework: TensorFlow Lite micro
  */
-arm_cmsis_nn_status arm_elementwise_mul_acc_s16(const int16_t *input_1_vect,
-                                                const int16_t *input_2_vect,
-                                                const int32_t input_1_offset,
-                                                const int32_t input_2_offset,
-                                                int16_t *output,
-                                                const int32_t out_offset,
-                                                const int32_t out_mult,
-                                                const int32_t out_shift,
-                                                const int32_t out_activation_min,
-                                                const int32_t out_activation_max,
-                                                const int32_t block_size);
+arm_cmsis_nn_status arm_elementwise_mul_acc_s16(
+    const int16_t *input_1_vect,
+    const int16_t *input_2_vect,
+    const int32_t input_1_offset,
+    const int32_t input_2_offset,
+    int16_t *output,
+    const int32_t out_offset,
+    const int32_t out_mult,
+    const int32_t out_shift,
+    const int32_t out_activation_min,
+    const int32_t out_activation_max,
+    const int32_t block_size
+);
 
+
+/**
+ * @brief Check if a broadcast is required between 2 cmsis_nn_dims.
+ * @param[in]       shape_1             pointer to input tensor 1
+ * @param[in]       shape_2             pointer to input tensor 2
+ * @return          The function returns 1 if a broadcast is required, or 0 if not.
+ *
+ * @details   Compares each dimension and returns 1 if any dimension does not match.
+ *            This function does not check that broadcast rules are met.
+ */
+__STATIC_FORCEINLINE int32_t arm_check_broadcast_required(const cmsis_nn_dims *shape_1, const cmsis_nn_dims *shape_2)
+{
+    if ((shape_1->n != shape_2->n) || (shape_1->h != shape_2->h) || (shape_1->w != shape_2->w) ||
+        (shape_1->c != shape_2->c))
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+#if defined(ARM_FLOAT16_SUPPORTED)
 
 /**
  * @brief fp16 elementwise multiplication with fp16 output
@@ -2227,25 +2253,7 @@ arm_cmsis_nn_status arm_elementwise_mul_acc_s16(const int16_t *input_1_vect,
     const float16_t  activation_max
 );
 
-/**
- * @brief Check if a broadcast is required between 2 cmsis_nn_dims.
- * @param[in]       shape_1             pointer to input tensor 1
- * @param[in]       shape_2             pointer to input tensor 2
- * @return          The function returns 1 if a broadcast is required, or 0 if not.
- *
- * @details   Compares each dimension and returns 1 if any dimension does not match.
- *            This function does not check that broadcast rules are met.
- */
-__STATIC_FORCEINLINE int32_t arm_check_broadcast_required(const cmsis_nn_dims *shape_1, const cmsis_nn_dims *shape_2)
-{
-    if ((shape_1->n != shape_2->n) || (shape_1->h != shape_2->h) || (shape_1->w != shape_2->w) ||
-        (shape_1->c != shape_2->c))
-    {
-        return 1;
-    }
-
-    return 0;
-}
+#endif /*defined(ARM_FLOAT16_SUPPORTED)*/
 
 #ifdef __cplusplus
 }

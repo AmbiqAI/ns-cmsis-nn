@@ -61,6 +61,7 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s16(
 )
 {
     (void)bias_dims;
+    (void)ctx;
 
     int32_t batch_cnt = input_dims->n;
 

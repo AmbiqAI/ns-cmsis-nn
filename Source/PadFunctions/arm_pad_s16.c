@@ -65,20 +65,20 @@ arm_cmsis_nn_status arm_pad_s16(const int16_t *input,
     const int32_t row_block_size = output_size.w * output_size.c;
     const int32_t col_block_size = output_size.c;
 
-    arm_fill_s16(output, pad_value, batch_block_size * pre_pad->n);
+    arm_memset_s16(output, pad_value, batch_block_size * pre_pad->n);
     output += batch_block_size * pre_pad->n;
     for (int32_t b = 0; b < input_size->n; b++)
     {
 
-        arm_fill_s16(output, pad_value, row_block_size * pre_pad->h);
+        arm_memset_s16(output, pad_value, row_block_size * pre_pad->h);
         output += row_block_size * pre_pad->h;
         for (int32_t y = 0; y < input_size->h; y++)
         {
-            arm_fill_s16(output, pad_value, col_block_size * pre_pad->w);
+            arm_memset_s16(output, pad_value, col_block_size * pre_pad->w);
             output += col_block_size * pre_pad->w;
             if (input_size->c == output_size.c)
             {
-                arm_memcpy_s8((int8_t *)output, (const int8_t *)input, input_size->w * input_size->c * sizeof(int16_t));
+                arm_memcpy_s16(output, input, input_size->w * input_size->c);
                 output += input_size->w * input_size->c;
                 input += input_size->w * input_size->c;
             }
@@ -86,26 +86,26 @@ arm_cmsis_nn_status arm_pad_s16(const int16_t *input,
             {
                 for (int32_t x = 0; x < input_size->w; x++)
                 {
-                    arm_fill_s16(output, pad_value, pre_pad->c);
+                    arm_memset_s16(output, pad_value, pre_pad->c);
                     output += pre_pad->c;
 
-                    arm_memcpy_s8((int8_t *)output, (const int8_t *)input, input_size->c * sizeof(int16_t));
+                    arm_memcpy_s16(output, input, input_size->c);
                     output += input_size->c;
                     input += input_size->c;
 
-                    arm_fill_s16(output, pad_value, post_pad->c);
+                    arm_memset_s16(output, pad_value, post_pad->c);
                     output += post_pad->c;
                 }
             }
 
-            arm_fill_s16(output, pad_value, col_block_size * post_pad->w);
+            arm_memset_s16(output, pad_value, col_block_size * post_pad->w);
             output += col_block_size * post_pad->w;
         }
 
-        arm_fill_s16(output, pad_value, row_block_size * post_pad->h);
+        arm_memset_s16(output, pad_value, row_block_size * post_pad->h);
         output += row_block_size * post_pad->h;
     }
-    arm_fill_s16(output, pad_value, batch_block_size * post_pad->n);
+    arm_memset_s16(output, pad_value, batch_block_size * post_pad->n);
 
     return ARM_CMSIS_NN_SUCCESS;
 }

@@ -19,4 +19,6 @@ cbor
 numpy
 packaging
 tensorflow
-tf-keras ~= 2.16
+tf-keras == 2.17
+# tflite-micro is only required on Linux
+tflite-micro; platform_system == 'Linux'

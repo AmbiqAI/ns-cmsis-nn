@@ -43,7 +43,7 @@ args:
     -c  Target cpu. Takes multiple arguments as a comma seperated list. eg cortex-m3,cortex-m7,cortex-m55 (default: cortex-m55)
     -o  Optimization level. (default: '-Ofast')
     -q  Quiet mode. This reduces the amount of info printed from building and running cmsis-unit tests.
-    -b  Disable CMake build. Only works with previously built targets. Designed to quickly rerun cpu targets. 
+    -b  Disable CMake build. Only works with previously built targets. Designed to quickly rerun cpu targets.
     -r  Disable running the unit tests. Designed to test build only or allow user to manually run individual test cases outside of this script.
     -e  Disable environment setup. This flag will stop the script from attempting to download dependencies. This is just a quiet mode to reduce print outs.
     -a  Use Arm Compiler that is previously available on machine. Ensure compiler directory is added to path and export CC.
@@ -102,9 +102,9 @@ Setup_Environment() {
         echo "Arm GCC already installed. If you wish to install a new version, please delete the old folder."
     else
         if [[ ${UNAME_M} == x86_64 ]]; then
-            GCC_URL="https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-arm-none-eabi.tar.xz"
+            GCC_URL="https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz"
         elif [[ ${UNAME_M} == aarch64 ]]; then
-            GCC_URL="https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-aarch64-arm-none-eabi.tar.xz"
+            GCC_URL="https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-aarch64-arm-none-eabi.tar.xz"
         fi
 
         TEMPFILE=$(mktemp -d)/temp_file

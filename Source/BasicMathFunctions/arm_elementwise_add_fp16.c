@@ -47,7 +47,9 @@
   *
   */
 
- arm_cmsis_nn_status arm_elementwise_add_fp16(
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+
+arm_cmsis_nn_status arm_elementwise_add_fp16(
     const float16_t *input_1_vect,
     const float16_t *input_2_vect,
     float16_t *output,
@@ -55,8 +57,6 @@
     const float16_t out_activation_max,
     const int32_t block_size
 ) {
-
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
 
     int32_t count = block_size;
 
@@ -81,7 +81,21 @@
         count -= 8;
     }
 
- #else  // #if defined(ARM_MATH_MVEI)
+    return (ARM_CMSIS_NN_SUCCESS);
+}
+
+#else
+#if defined(ARM_FLOAT16_SUPPORTED)
+
+arm_cmsis_nn_status arm_elementwise_add_fp16(
+    const float16_t *input_1_vect,
+    const float16_t *input_2_vect,
+    float16_t *output,
+    const float16_t out_activation_min,
+    const float16_t out_activation_max,
+    const int32_t block_size
+) {
+
     float16_t sum;
 
     for(int32_t i = 0; i < block_size; i++)
@@ -91,10 +105,11 @@
         sum = MIN(sum, out_activation_max);
         output[i] = sum;
     }
-
-#endif // #if defined(ARM_MATH_MVEI)
     return (ARM_CMSIS_NN_SUCCESS);
- }
+}
+
+#endif /* defined(ARM_FLOAT16_SUPPORTED */
+#endif /* defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE) */
 
  /**
   * @} end of Doxygen group
