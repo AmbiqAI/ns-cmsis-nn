@@ -2,6 +2,7 @@ name: Build NS-CMSIS-NN CI Docker Image
 
 on:
   workflow_call:
+  workflow_dispatch: # Allow manual triggering
   schedule:
     - cron: '0 16 * * 1' # 8 AM PST every Monday
 
