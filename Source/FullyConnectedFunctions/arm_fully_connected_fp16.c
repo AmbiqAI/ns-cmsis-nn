@@ -2,6 +2,7 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
+#if defined(ARM_FLOAT16_SUPPORTED)
 
 arm_cmsis_nn_status arm_fully_connected_fp16(
     const cmsis_nn_context *ctx,
@@ -41,19 +42,4 @@ arm_cmsis_nn_status arm_fully_connected_fp16(
     return (ARM_CMSIS_NN_SUCCESS);
 }
 
-
-
-
-// case kTfLiteFloat16: {
-//     const float16_t* bias_data = tflite::micro::GetOptionalTensorData<float16_t>(bias);
-//     ambiq_fc_fp16(
-//         FullyConnectedParamsFloat(params->activation),
-//         tflite::micro::GetTensorShape(input),
-//         tflite::micro::GetTensorData<float16_t>(input),
-//         tflite::micro::GetTensorShape(filter),
-//         tflite::micro::GetTensorData<float16_t>(filter),
-//         tflite::micro::GetTensorShape(bias), bias_data,
-//         tflite::micro::GetTensorShape(output),
-//         tflite::micro::GetTensorData<float16_t>(output));
-//     break;
-//   }
+#endif /* defined(ARM_FLOAT16_SUPPORTED) */
