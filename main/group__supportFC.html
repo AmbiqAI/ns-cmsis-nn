@@ -139,6 +139,11 @@ Functions</h2></td></tr>
 <tr class="memitem:ga7b0851befe3767409a7d36b74b36faa5"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportFC.html#ga7b0851befe3767409a7d36b74b36faa5">arm_nn_vec_mat_mul_result_acc_s16</a> (const int16_t *lhs, const int8_t *rhs, const int64_t *effective_bias, int16_t *dst, const int32_t dst_multiplier, const int32_t dst_shift, const int32_t rhs_cols, const int32_t rhs_rows, const int32_t batches, const int32_t batch_offset)</td></tr>
 <tr class="memdesc:ga7b0851befe3767409a7d36b74b36faa5"><td class="mdescLeft">&#160;</td><td class="mdescRight">The result of the multiplication is accumulated to the passed result buffer. Multiplies a matrix by a "batched" vector (i.e. a matrix with a batch dimension composed by input vectors independent from each other).  <br /></td></tr>
 <tr class="separator:ga7b0851befe3767409a7d36b74b36faa5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gac0d20ebdc1f1eb0ba5bbee61b2d70049"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportFC.html#gac0d20ebdc1f1eb0ba5bbee61b2d70049">arm_nn_vec_mat_mult_t_fp16</a> (const float16_t *lhs, const float16_t *rhs, const float16_t *bias, float16_t *dst, const int32_t rhs_cols, const int32_t rhs_rows, const float16_t activation_min, const float16_t activation_max)</td></tr>
+<tr class="memdesc:gac0d20ebdc1f1eb0ba5bbee61b2d70049"><td class="mdescLeft">&#160;</td><td class="mdescRight">fp16 elementwise multiplication with fp16 output  <br /></td></tr>
+<tr class="separator:gac0d20ebdc1f1eb0ba5bbee61b2d70049"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga3c7fab112c9e3c7078a836c6b6810ceb"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportFC.html#ga3c7fab112c9e3c7078a836c6b6810ceb">arm_nn_vec_mat_mult_t_per_ch_s16</a> (const int16_t *lhs, const int8_t *rhs, const int64_t *bias, int16_t *dst, const int32_t *dst_multiplier, const int32_t *dst_shift, const int32_t rhs_cols, const int32_t rhs_rows, const int32_t activation_min, const int32_t activation_max)</td></tr>
+<tr class="separator:ga3c7fab112c9e3c7078a836c6b6810ceb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga899b14405558500b6675bbfd896f4a11"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportFC.html#ga899b14405558500b6675bbfd896f4a11">arm_nn_vec_mat_mult_t_per_ch_s8</a> (const int8_t *lhs, const int8_t *rhs, const int32_t *kernel_sum, const int32_t *bias, int8_t *dst, const int32_t lhs_offset, const int32_t dst_offset, const int32_t *dst_multiplier, const int32_t *dst_shift, const int32_t rhs_cols, const int32_t rhs_rows, const int32_t activation_min, const int32_t activation_max, const int32_t address_offset, const int32_t rhs_offset)</td></tr>
 <tr class="memdesc:ga899b14405558500b6675bbfd896f4a11"><td class="mdescLeft">&#160;</td><td class="mdescRight">s8 Vector by Matrix (transposed) multiplication using per channel quantization for output  <br /></td></tr>
 <tr class="separator:ga899b14405558500b6675bbfd896f4a11"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -252,6 +257,162 @@ Functions</h2></td></tr>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>The function returns <code>ARM_CMSIS_NN_SUCCESS</code> </dd></dl>
+
+</div>
+</div>
+<a id="gac0d20ebdc1f1eb0ba5bbee61b2d70049" name="gac0d20ebdc1f1eb0ba5bbee61b2d70049"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gac0d20ebdc1f1eb0ba5bbee61b2d70049">&#9670;&#160;</a></span>arm_nn_vec_mat_mult_t_fp16()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_nn_vec_mat_mult_t_fp16 </td>
+          <td>(</td>
+          <td class="paramtype">const float16_t *&#160;</td>
+          <td class="paramname"><em>lhs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const float16_t *&#160;</td>
+          <td class="paramname"><em>rhs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const float16_t *&#160;</td>
+          <td class="paramname"><em>bias</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float16_t *&#160;</td>
+          <td class="paramname"><em>dst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>rhs_cols</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>rhs_rows</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const float16_t&#160;</td>
+          <td class="paramname"><em>activation_min</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const float16_t&#160;</td>
+          <td class="paramname"><em>activation_max</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>fp16 elementwise multiplication with fp16 output </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">lhs</td><td>pointer to input vector 1 </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">rhs</td><td>pointer to input vector 2 </td></tr>
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">dst</td><td>pointer to output vector </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">rhs_cols</td><td>number of samples per batch </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">rhs_rows</td><td>number of samples per batch </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">activation_min</td><td>minimum value to clamp output to </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">activation_max</td><td>maximum value to clamp output to </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The function returns ARM_CMSIS_NN_SUCCESS</dd></dl>
+<p>Supported framework: TensorFlow Lite micro </p>
+
+</div>
+</div>
+<a id="ga3c7fab112c9e3c7078a836c6b6810ceb" name="ga3c7fab112c9e3c7078a836c6b6810ceb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga3c7fab112c9e3c7078a836c6b6810ceb">&#9670;&#160;</a></span>arm_nn_vec_mat_mult_t_per_ch_s16()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_nn_vec_mat_mult_t_per_ch_s16 </td>
+          <td>(</td>
+          <td class="paramtype">const int16_t *&#160;</td>
+          <td class="paramname"><em>lhs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int8_t *&#160;</td>
+          <td class="paramname"><em>rhs</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int64_t *&#160;</td>
+          <td class="paramname"><em>bias</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int16_t *&#160;</td>
+          <td class="paramname"><em>dst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t *&#160;</td>
+          <td class="paramname"><em>dst_multiplier</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t *&#160;</td>
+          <td class="paramname"><em>dst_shift</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>rhs_cols</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>rhs_rows</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>activation_min</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>activation_max</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
 
 </div>
 </div>

@@ -1,5 +1,6 @@
 var group__groupElementwise =
 [
+    [ "arm_elementwise_add_fp16", "group__groupElementwise.html#ga81888eb4510fd0a64c8c9a1643d13bd7", null ],
     [ "arm_elementwise_add_s16", "group__groupElementwise.html#ga451e24fa9bf97b58d9da95ed8bbf5438", null ],
     [ "arm_elementwise_add_s8", "group__groupElementwise.html#ga8f59d6176c7a049cfe8605c80e6e7e8c", null ],
     [ "arm_elementwise_mul_acc_s16", "group__groupElementwise.html#gad838647ccac0201dd1be97b6a50a28af", null ],

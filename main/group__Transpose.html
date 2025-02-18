@@ -136,12 +136,74 @@ $(document).ready(function(){initNavTree('group__Transpose.html',''); initResiza
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:ga53be6eeb55d9fc83bad3eb8ff106006d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Transpose.html#ga53be6eeb55d9fc83bad3eb8ff106006d">arm_transpose_s16</a> (const int16_t *input, int16_t *const output, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *const input_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *const output_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__transpose__params">cmsis_nn_transpose_params</a> *const transpose_params)</td></tr>
+<tr class="memdesc:ga53be6eeb55d9fc83bad3eb8ff106006d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Basic s16 transpose function.  <br /></td></tr>
+<tr class="separator:ga53be6eeb55d9fc83bad3eb8ff106006d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga627b52a75fe48dadc1cb4a23f856b2e3"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Transpose.html#ga627b52a75fe48dadc1cb4a23f856b2e3">arm_transpose_s8</a> (const int8_t *input, int8_t *const output, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *const input_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *const output_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__transpose__params">cmsis_nn_transpose_params</a> *const transpose_params)</td></tr>
 <tr class="memdesc:ga627b52a75fe48dadc1cb4a23f856b2e3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Basic transpose function.  <br /></td></tr>
 <tr class="separator:ga627b52a75fe48dadc1cb4a23f856b2e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Description</h2>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="ga53be6eeb55d9fc83bad3eb8ff106006d" name="ga53be6eeb55d9fc83bad3eb8ff106006d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga53be6eeb55d9fc83bad3eb8ff106006d">&#9670;&#160;</a></span>arm_transpose_s16()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_transpose_s16 </td>
+          <td>(</td>
+          <td class="paramtype">const int16_t *&#160;</td>
+          <td class="paramname"><em>input_data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int16_t *const&#160;</td>
+          <td class="paramname"><em>output_data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *const&#160;</td>
+          <td class="paramname"><em>input_dims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *const&#160;</td>
+          <td class="paramname"><em>output_dims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__transpose__params">cmsis_nn_transpose_params</a> *const&#160;</td>
+          <td class="paramname"><em>transpose_params</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Basic s16 transpose function. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_data</td><td>Input (activation) data pointer. Data type: int16 </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">output_data</td><td>Output data pointer. Data type: int16 </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_dims</td><td>Input (activation) tensor dimensions. Format: [N, H, W, C_IN] </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_dims</td><td>Output tensor dimensions. Format may be arbitrary relative to input format. The output dimension will depend on the permutation dimensions. In other words the out dimensions are the result of applying the permutation to the input dimensions. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">transpose_params</td><td>Transpose parameters. Contains permutation dimensions.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The function returns either <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or, <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion. </dd></dl>
+
+</div>
+</div>
 <a id="ga627b52a75fe48dadc1cb4a23f856b2e3" name="ga627b52a75fe48dadc1cb4a23f856b2e3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga627b52a75fe48dadc1cb4a23f856b2e3">&#9670;&#160;</a></span>arm_transpose_s8()</h2>
 

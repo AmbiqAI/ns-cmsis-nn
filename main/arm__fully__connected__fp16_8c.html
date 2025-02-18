@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
 <meta http-equiv="X-UA-Compatible" content="IE=11"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>CMSIS-NN: Pad Layer Functions:</title>
+<title>CMSIS-NN: arm_fully_connected_fp16.c File Reference</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css" />
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -102,7 +102,7 @@ var searchBox = new SearchBox("searchBox", "search/",'.html');
 </div>
 <script type="text/javascript">
 /* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
-$(document).ready(function(){initNavTree('group__Pad.html',''); initResizable(); });
+$(document).ready(function(){initNavTree('arm__fully__connected__fp16_8c.html',''); initResizable(); });
 /* @license-end */
 </script>
 <div id="doc-content">
@@ -130,62 +130,93 @@ $(document).ready(function(){initNavTree('group__Pad.html',''); initResizable();
 <div class="header">
   <div class="summary">
 <a href="#func-members">Functions</a>  </div>
-  <div class="headertitle"><div class="title">Pad Layer Functions:<div class="ingroups"><a class="el" href="group__Public.html">Public</a></div></div></div>
+  <div class="headertitle"><div class="title">arm_fully_connected_fp16.c File Reference</div></div>
 </div><!--header-->
 <div class="contents">
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:ga0bfd7a93a781aeb221fd8142414383fb"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Pad.html#ga0bfd7a93a781aeb221fd8142414383fb">arm_pad_s16</a> (const int16_t *input, int16_t *output, const int16_t pad_value, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *input_size, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *pre_pad, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *post_pad)</td></tr>
-<tr class="memdesc:ga0bfd7a93a781aeb221fd8142414383fb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Expands the size of the input by adding constant values before and after the data, in all dimensions.  <br /></td></tr>
-<tr class="separator:ga0bfd7a93a781aeb221fd8142414383fb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga5782d361307794acd336274f2e14fc3e"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Pad.html#ga5782d361307794acd336274f2e14fc3e">arm_pad_s8</a> (const int8_t *input, int8_t *output, const int8_t pad_value, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *input_size, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *pre_pad, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *post_pad)</td></tr>
-<tr class="memdesc:ga5782d361307794acd336274f2e14fc3e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Expands the size of the input by adding constant values before and after the data, in all dimensions.  <br /></td></tr>
-<tr class="separator:ga5782d361307794acd336274f2e14fc3e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7521782e4a58a815ce6fa975a4fbb6a6"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="arm__fully__connected__fp16_8c.html#a7521782e4a58a815ce6fa975a4fbb6a6">arm_fully_connected_fp16</a> (const <a class="el" href="group__genPubTypes.html#structcmsis__nn__context">cmsis_nn_context</a> *ctx, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__fc__params">cmsis_nn_fc_params</a> *fc_params, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *input_dims, const float16_t *input, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *filter_dims, const float16_t *kernel, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *bias_dims, const float16_t *bias, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *output_dims, float16_t *output, const float16_t out_activation_min, const float16_t out_activation_max)</td></tr>
+<tr class="separator:a7521782e4a58a815ce6fa975a4fbb6a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
-<a name="details" id="details"></a><h2 class="groupheader">Description</h2>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="ga0bfd7a93a781aeb221fd8142414383fb" name="ga0bfd7a93a781aeb221fd8142414383fb"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga0bfd7a93a781aeb221fd8142414383fb">&#9670;&#160;</a></span>arm_pad_s16()</h2>
+<a id="a7521782e4a58a815ce6fa975a4fbb6a6" name="a7521782e4a58a815ce6fa975a4fbb6a6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7521782e4a58a815ce6fa975a4fbb6a6">&#9670;&#160;</a></span>arm_fully_connected_fp16()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_pad_s16 </td>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_fully_connected_fp16 </td>
           <td>(</td>
-          <td class="paramtype">const int16_t *&#160;</td>
+          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__context">cmsis_nn_context</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__fc__params">cmsis_nn_fc_params</a> *&#160;</td>
+          <td class="paramname"><em>fc_params</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
+          <td class="paramname"><em>input_dims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const float16_t *&#160;</td>
           <td class="paramname"><em>input</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">int16_t *&#160;</td>
+          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
+          <td class="paramname"><em>filter_dims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const float16_t *&#160;</td>
+          <td class="paramname"><em>kernel</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
+          <td class="paramname"><em>bias_dims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const float16_t *&#160;</td>
+          <td class="paramname"><em>bias</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
+          <td class="paramname"><em>output_dims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float16_t *&#160;</td>
           <td class="paramname"><em>output</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const int16_t&#160;</td>
-          <td class="paramname"><em>pad_value</em>, </td>
+          <td class="paramtype">const float16_t&#160;</td>
+          <td class="paramname"><em>out_activation_min</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
-          <td class="paramname"><em>input_size</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
-          <td class="paramname"><em>pre_pad</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
-          <td class="paramname"><em>post_pad</em>&#160;</td>
+          <td class="paramtype">const float16_t&#160;</td>
+          <td class="paramname"><em>out_activation_max</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -194,86 +225,6 @@ Functions</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
-
-<p>Expands the size of the input by adding constant values before and after the data, in all dimensions. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Pointer to input data </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Pointer to output data </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">pad_value</td><td>Value to pad with </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">input_size</td><td>Input tensor dimensions </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">pre_pad</td><td>Padding to apply before data in each dimension </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">post_pad</td><td>Padding to apply after data in each dimension</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>The function returns <code>ARM_CMSIS_NN_SUCCESS</code> </dd></dl>
-
-</div>
-</div>
-<a id="ga5782d361307794acd336274f2e14fc3e" name="ga5782d361307794acd336274f2e14fc3e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga5782d361307794acd336274f2e14fc3e">&#9670;&#160;</a></span>arm_pad_s8()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_pad_s8 </td>
-          <td>(</td>
-          <td class="paramtype">const int8_t *&#160;</td>
-          <td class="paramname"><em>input</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int8_t *&#160;</td>
-          <td class="paramname"><em>output</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const int8_t&#160;</td>
-          <td class="paramname"><em>pad_value</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
-          <td class="paramname"><em>input_size</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
-          <td class="paramname"><em>pre_pad</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
-          <td class="paramname"><em>post_pad</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Expands the size of the input by adding constant values before and after the data, in all dimensions. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Pointer to input data </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Pointer to output data </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">pad_value</td><td>Value to pad with </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">input_size</td><td>Input tensor dimensions </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">pre_pad</td><td>Padding to apply before data in each dimension </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">post_pad</td><td>Padding to apply after data in each dimension</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>The function returns <code>ARM_CMSIS_NN_SUCCESS</code> </dd></dl>
 
 </div>
 </div>
@@ -282,6 +233,7 @@ Functions</h2></td></tr>
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
+    <li class="navelem"><a class="el" href="dir_74389ed8173ad57b461b9d623a1f3867.html">Source</a></li><li class="navelem"><a class="el" href="dir_d7ec0fdb5df8fcce4899107716be47ee.html">FullyConnectedFunctions</a></li><li class="navelem"><a class="el" href="arm__fully__connected__fp16_8c.html">arm_fully_connected_fp16.c</a></li>
     <li class="footer">
       <script type="text/javascript">
         <!--

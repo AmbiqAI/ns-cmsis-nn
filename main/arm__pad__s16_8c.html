@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
 <meta http-equiv="X-UA-Compatible" content="IE=11"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>CMSIS-NN: Globals</title>
+<title>CMSIS-NN: arm_pad_s16.c File Reference</title>
 <link href="doxygen.css" rel="stylesheet" type="text/css" />
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -102,7 +102,7 @@ var searchBox = new SearchBox("searchBox", "search/",'.html');
 </div>
 <script type="text/javascript">
 /* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
-$(document).ready(function(){initNavTree('globals_a.html',''); initResizable(); });
+$(document).ready(function(){initNavTree('arm__pad__s16_8c.html',''); initResizable(); });
 /* @license-end */
 </script>
 <div id="doc-content">
@@ -127,33 +127,25 @@ $(document).ready(function(){initNavTree('globals_a.html',''); initResizable(); 
 </div>
 </div>
 
+<div class="header">
+  <div class="summary">
+<a href="#func-members">Functions</a>  </div>
+  <div class="headertitle"><div class="title">arm_pad_s16.c File Reference</div></div>
+</div><!--header-->
 <div class="contents">
-<div class="textblock">Here is a list of all functions, variables, defines, enums, and typedefs with links to the files they belong to:</div>
-
-<h3><a id="index_a" name="index_a"></a>- a -</h3><ul>
-<li>ACCUM_BITS&#160;:&#160;<a class="el" href="arm__softmax__s8_8c.html#a401e2dfaf6a8f0ef34f15295e026fd79">arm_softmax_s8.c</a>, <a class="el" href="arm__softmax__u8_8c.html#a401e2dfaf6a8f0ef34f15295e026fd79">arm_softmax_u8.c</a>, <a class="el" href="arm__nn__softmax__common__s8_8c.html#a401e2dfaf6a8f0ef34f15295e026fd79">arm_nn_softmax_common_s8.c</a></li>
-<li>arm_avgpool_s16()&#160;:&#160;<a class="el" href="group__Pooling.html#gaef71369175ef4058ba098e96ea988068">arm_avgpool_s16.c</a>, <a class="el" href="group__Pooling.html#gaef71369175ef4058ba098e96ea988068">arm_nnfunctions.h</a></li>
-<li>arm_avgpool_s16_get_buffer_size()&#160;:&#160;<a class="el" href="group__GetBufferSizePooling.html#gac5f8a447fac56e1c48f353a746ec411a">arm_nnfunctions.h</a>, <a class="el" href="group__GetBufferSizePooling.html#gac5f8a447fac56e1c48f353a746ec411a">arm_avgpool_get_buffer_sizes_s16.c</a></li>
-<li>arm_avgpool_s16_get_buffer_size_dsp()&#160;:&#160;<a class="el" href="group__GetBufferSizePooling.html#gaa39ef5937a6a35da5674fa20615cff9a">arm_nnfunctions.h</a>, <a class="el" href="group__GetBufferSizePooling.html#gaa39ef5937a6a35da5674fa20615cff9a">arm_avgpool_get_buffer_sizes_s16.c</a></li>
-<li>arm_avgpool_s16_get_buffer_size_mve()&#160;:&#160;<a class="el" href="group__GetBufferSizePooling.html#ga818b3f2926a4abb2ec017c146397ebd8">arm_nnfunctions.h</a>, <a class="el" href="group__GetBufferSizePooling.html#ga818b3f2926a4abb2ec017c146397ebd8">arm_avgpool_get_buffer_sizes_s16.c</a></li>
-<li>arm_avgpool_s8()&#160;:&#160;<a class="el" href="group__Pooling.html#ga0c62a0d440fe6d79aaae77c75b55459d">arm_avgpool_s8.c</a>, <a class="el" href="group__Pooling.html#ga0c62a0d440fe6d79aaae77c75b55459d">arm_nnfunctions.h</a></li>
-<li>arm_avgpool_s8_get_buffer_size()&#160;:&#160;<a class="el" href="group__GetBufferSizePooling.html#ga08263590a94c39b4c1c199501ca166e4">arm_avgpool_get_buffer_sizes_s8.c</a>, <a class="el" href="group__GetBufferSizePooling.html#ga08263590a94c39b4c1c199501ca166e4">arm_nnfunctions.h</a></li>
-<li>arm_avgpool_s8_get_buffer_size_dsp()&#160;:&#160;<a class="el" href="group__GetBufferSizePooling.html#ga510eddda1be0c18c5715e486dced693d">arm_avgpool_get_buffer_sizes_s8.c</a>, <a class="el" href="group__GetBufferSizePooling.html#ga510eddda1be0c18c5715e486dced693d">arm_nnfunctions.h</a></li>
-<li>arm_avgpool_s8_get_buffer_size_mve()&#160;:&#160;<a class="el" href="group__GetBufferSizePooling.html#ga22d4b7701855c62ae9e684901f9463de">arm_avgpool_get_buffer_sizes_s8.c</a>, <a class="el" href="group__GetBufferSizePooling.html#ga22d4b7701855c62ae9e684901f9463de">arm_nnfunctions.h</a></li>
-<li>ARM_CMSIS_NN_ARG_ERROR&#160;:&#160;<a class="el" href="group__genPubTypes.html#gga67ac3e1e650a7040b0f706fb83ea6184a36cebf184635d8a5c74c0057fa64e042">arm_nn_types.h</a></li>
-<li>ARM_CMSIS_NN_FAILURE&#160;:&#160;<a class="el" href="group__genPubTypes.html#gga67ac3e1e650a7040b0f706fb83ea6184ad6600c226cdc8eba643b0eab5104b5a0">arm_nn_types.h</a></li>
-<li>ARM_CMSIS_NN_NO_IMPL_ERROR&#160;:&#160;<a class="el" href="group__genPubTypes.html#gga67ac3e1e650a7040b0f706fb83ea6184a4b6c02556982295a76f113e1cbed9400">arm_nn_types.h</a></li>
-<li>ARM_CMSIS_NN_SUCCESS&#160;:&#160;<a class="el" href="group__genPubTypes.html#gga67ac3e1e650a7040b0f706fb83ea6184a3ba593df6b92214112a5e752c95ae016">arm_nn_types.h</a></li>
-<li>ARM_MATH_DSP&#160;:&#160;<a class="el" href="arm__nn__vec__mat__mult__t__fp16_8c.html#add82b9486b01d8005965d98869f31d31">arm_nn_vec_mat_mult_t_fp16.c</a></li>
-<li>ARM_MATH_MVE_FLOAT16&#160;:&#160;<a class="el" href="arm__nn__vec__mat__mult__t__fp16_8c.html#aded869b887865696bb302181fb656f90">arm_nn_vec_mat_mult_t_fp16.c</a></li>
-<li>ARM_SIGMOID&#160;:&#160;<a class="el" href="group__genPubTypes.html#gga7f41aa78cd9a0552fae9b348ee4831a0a49b307e029715fbaa6f3101c806b8c54">arm_nn_types.h</a></li>
-<li>ARM_TANH&#160;:&#160;<a class="el" href="group__genPubTypes.html#gga7f41aa78cd9a0552fae9b348ee4831a0ac24e4db95c986f16c10dca71a4b4e1c5">arm_nn_types.h</a></li>
-</ul>
+<table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
+Functions</h2></td></tr>
+<tr class="memitem:ga0bfd7a93a781aeb221fd8142414383fb"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Pad.html#ga0bfd7a93a781aeb221fd8142414383fb">arm_pad_s16</a> (const int16_t *input, int16_t *output, const int16_t pad_value, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *input_size, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *pre_pad, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *post_pad)</td></tr>
+<tr class="memdesc:ga0bfd7a93a781aeb221fd8142414383fb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Expands the size of the input by adding constant values before and after the data, in all dimensions.  <br /></td></tr>
+<tr class="separator:ga0bfd7a93a781aeb221fd8142414383fb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table>
 </div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
+    <li class="navelem"><a class="el" href="dir_74389ed8173ad57b461b9d623a1f3867.html">Source</a></li><li class="navelem"><a class="el" href="dir_4eec757c5eb96d2c7e52d9312a016773.html">PadFunctions</a></li><li class="navelem"><a class="el" href="arm__pad__s16_8c.html">arm_pad_s16.c</a></li>
     <li class="footer">
       <script type="text/javascript">
         <!--
