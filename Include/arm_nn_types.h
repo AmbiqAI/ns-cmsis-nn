@@ -213,6 +213,11 @@ typedef struct
     const int16_t *one_by_one_lut;
 } cmsis_nn_softmax_lut_s16;
 
+typedef struct
+{
+    const int32_t axis;
+
+} cmsis_nn_concatenation_params;
 /** CMSIS-NN object for quantization parameters */
 typedef struct
 {
