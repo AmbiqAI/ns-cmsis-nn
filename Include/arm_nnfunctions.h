@@ -2778,13 +2778,12 @@ void arm_concatenation_s8(const int8_t *const *input_data,
  *
  */
 void arm_concatenation_s16(const int16_t *const *input_data,
-    const int32_t inputs_count,
-    const int32_t *input_concat_dims,
-    const int32_t axis,
-    int16_t *output_data,
-    const int32_t output_dims,
-    const int32_t *output_shape);
-
+                           const int32_t inputs_count,
+                           const int32_t *input_concat_dims,
+                           const int32_t axis,
+                           int16_t *output_data,
+                           const int32_t output_dims,
+                           const int32_t *output_shape);
 
 /**
  * @defgroup SVDF SVDF Functions
@@ -3212,6 +3211,50 @@ arm_cmsis_nn_status arm_logistic_s16(int16_t *input,
                                      const int32_t input_size,
                                      int32_t input_multiplier,
                                      int32_t input_left_shift);
+
+#if defined(ARM_FLOAT16_SUPPORTED)
+
+/**
+ * @brief Fully-connected layer function for float16
+ *
+ * @param[in]  ctx                Function context (e.g. temporary buffer). Check the function
+ *                               definition file to see if an additional buffer is required.
+ *                               Optional function arm_fully_connected_fp16_get_buffer_size() provides the buffer
+ *                               size if an additional buffer is required.
+ *                               The caller is expected to clear the buffer, if applicable, for security
+ * reasons.
+ * @param[in]  fc_params          Pointer to the fully-connected layer parameters
+ * @param[in]  input_dims         Pointer to the input tensor dimensions
+ * @param[in]  input              Pointer to the input tensor
+ * @param[in]  kernel_dims        Pointer to the kernel tensor dimensions
+ * @param[in]  kernel             Pointer to the kernel tensor
+ * @param[in]  bias_dims          Pointer to the bias tensor dimensions
+ * @param[in]  bias               Pointer to the bias tensor
+ * @param[in]  output_dims        Pointer to the output tensor dimensions
+ * @param[out] output             Pointer to the output tensor
+ * @param[in]  out_activation_min Minimum value to clamp the output to
+ * @param[in]  out_activation_max Maximum value to clamp the output to
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite Micro
+ *
+ */
+arm_cmsis_nn_status arm_fully_connected_fp16(const cmsis_nn_context *ctx,
+                                             const cmsis_nn_fc_params *fc_params,
+                                             const cmsis_nn_dims *input_dims,
+                                             const float16_t *input,
+                                             const cmsis_nn_dims *filter_dims,
+                                             const float16_t *kernel,
+                                             const cmsis_nn_dims *bias_dims,
+                                             const float16_t *bias,
+                                             const cmsis_nn_dims *output_dims,
+                                             float16_t *output,
+                                             const float16_t out_activation_min,
+                                             const float16_t out_activation_max);
+
+#endif /*defined(ARM_FLOAT16_SUPPORTED)*/
 
 #ifdef __cplusplus
 }
