@@ -136,6 +136,12 @@ $(document).ready(function(){initNavTree('group__Concatenation.html',''); initRe
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:ga22b4ba8d574482e06b68e538ec2084a7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Concatenation.html#ga22b4ba8d574482e06b68e538ec2084a7">arm_concatenation_s16</a> (const int16_t *const *input_data, const int32_t inputs_count, const int32_t *input_concat_dims, const int32_t axis, int16_t *output_data, const int32_t output_dims, const int32_t *output_shape)</td></tr>
+<tr class="memdesc:ga22b4ba8d574482e06b68e538ec2084a7"><td class="mdescLeft">&#160;</td><td class="mdescRight">int16/uint16 concatenation function to be used for concatenating N-tensors along the target axis  <br /></td></tr>
+<tr class="separator:ga22b4ba8d574482e06b68e538ec2084a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gafded00022e18ef802464935a9794089b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Concatenation.html#gafded00022e18ef802464935a9794089b">arm_concatenation_s8</a> (const int8_t *const *input_data, const int32_t inputs_count, const int32_t *input_concat_dims, const int32_t axis, int8_t *output_data, const int32_t output_dims, const int32_t *output_shape)</td></tr>
+<tr class="memdesc:gafded00022e18ef802464935a9794089b"><td class="mdescLeft">&#160;</td><td class="mdescRight">int8/uint8 concatenation function to be used for concatenating N-tensors along the target axis  <br /></td></tr>
+<tr class="separator:gafded00022e18ef802464935a9794089b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaf2ec7d439726caa96e0b3dc989b34d64"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Concatenation.html#gaf2ec7d439726caa96e0b3dc989b34d64">arm_concatenation_s8_w</a> (const int8_t *input, const uint16_t input_x, const uint16_t input_y, const uint16_t input_z, const uint16_t input_w, int8_t *output, const uint32_t offset_w)</td></tr>
 <tr class="memdesc:gaf2ec7d439726caa96e0b3dc989b34d64"><td class="mdescLeft">&#160;</td><td class="mdescRight">int8/uint8 concatenation function to be used for concatenating N-tensors along the W axis (Batch size) This function should be called for each input tensor to concatenate. The argument offset_w will be used to store the input tensor in the correct position in the output tensor  <br /></td></tr>
 <tr class="separator:gaf2ec7d439726caa96e0b3dc989b34d64"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -151,6 +157,152 @@ Functions</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Description</h2>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="ga22b4ba8d574482e06b68e538ec2084a7" name="ga22b4ba8d574482e06b68e538ec2084a7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga22b4ba8d574482e06b68e538ec2084a7">&#9670;&#160;</a></span>arm_concatenation_s16()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void arm_concatenation_s16 </td>
+          <td>(</td>
+          <td class="paramtype">const int16_t *const *&#160;</td>
+          <td class="paramname"><em>input_data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>inputs_count</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t *&#160;</td>
+          <td class="paramname"><em>input_concat_dims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>axis</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int16_t *&#160;</td>
+          <td class="paramname"><em>output_data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_dims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t *&#160;</td>
+          <td class="paramname"><em>output_shape</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>int16/uint16 concatenation function to be used for concatenating N-tensors along the target axis </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_data</td><td>Pointer to input tensors </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">inputs_count</td><td>Number of input tensors </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_concat_dims</td><td>Dimensions of the input tensors along the target axis </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">axis</td><td>Target axis to concatenate the input tensors </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">output_data</td><td>Pointer to output tensor </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_dims</td><td>Output tensor dimensions </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_shape</td><td>Output tensor shape</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section note"><dt>Note</dt><dd>This function, data layout independent, can be used to concatenate either int16 or uint16 tensors because it does not involve any arithmetic operation </dd></dl>
+
+</div>
+</div>
+<a id="gafded00022e18ef802464935a9794089b" name="gafded00022e18ef802464935a9794089b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gafded00022e18ef802464935a9794089b">&#9670;&#160;</a></span>arm_concatenation_s8()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void arm_concatenation_s8 </td>
+          <td>(</td>
+          <td class="paramtype">const int8_t *const *&#160;</td>
+          <td class="paramname"><em>input_data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>inputs_count</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t *&#160;</td>
+          <td class="paramname"><em>input_concat_dims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>axis</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int8_t *&#160;</td>
+          <td class="paramname"><em>output_data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_dims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t *&#160;</td>
+          <td class="paramname"><em>output_shape</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>int8/uint8 concatenation function to be used for concatenating N-tensors along the target axis </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_data</td><td>Pointer to input tensors </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">inputs_count</td><td>Number of input tensors </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_concat_dims</td><td>Dimensions of the input tensors along the target axis </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">axis</td><td>Target axis to concatenate the input tensors </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">output_data</td><td>Pointer to output tensor </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_dims</td><td>Output tensor dimensions </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_shape</td><td>Output tensor shape</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section note"><dt>Note</dt><dd>This function, data layout independent, can be used to concatenate either int8 or uint8 tensors because it does not involve any arithmetic operation </dd></dl>
+
+</div>
+</div>
 <a id="gaf2ec7d439726caa96e0b3dc989b34d64" name="gaf2ec7d439726caa96e0b3dc989b34d64"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gaf2ec7d439726caa96e0b3dc989b34d64">&#9670;&#160;</a></span>arm_concatenation_s8_w()</h2>
 

@@ -6,6 +6,7 @@ var annotated_dup =
     [ "cmsis_nn_activation", "group__genPubTypes.html#structcmsis__nn__activation", "group__genPubTypes_structcmsis__nn__activation" ],
     [ "cmsis_nn_bias_data", "group__genPubTypes.html#structcmsis__nn__bias__data", "group__genPubTypes_structcmsis__nn__bias__data" ],
     [ "cmsis_nn_bmm_params", "group__genPubTypes.html#structcmsis__nn__bmm__params", "group__genPubTypes_structcmsis__nn__bmm__params" ],
+    [ "cmsis_nn_concatenation_params", "group__genPubTypes.html#structcmsis__nn__concatenation__params", "group__genPubTypes_structcmsis__nn__concatenation__params" ],
     [ "cmsis_nn_context", "group__genPubTypes.html#structcmsis__nn__context", "group__genPubTypes_structcmsis__nn__context" ],
     [ "cmsis_nn_conv_params", "group__genPubTypes.html#structcmsis__nn__conv__params", "group__genPubTypes_structcmsis__nn__conv__params" ],
     [ "cmsis_nn_dims", "group__genPubTypes.html#structcmsis__nn__dims", "group__genPubTypes_structcmsis__nn__dims" ],

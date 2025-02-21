@@ -136,6 +136,9 @@ $(document).ready(function(){initNavTree('group__Acti.html',''); initResizable()
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:ga65e9929b6a1f7a7806dd6eab0175e720"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga65e9929b6a1f7a7806dd6eab0175e720">arm_logistic_s16</a> (int16_t *input, int16_t *output, const int32_t input_size, int32_t input_multiplier, int32_t input_left_shift)</td></tr>
+<tr class="memdesc:ga65e9929b6a1f7a7806dd6eab0175e720"><td class="mdescLeft">&#160;</td><td class="mdescRight">Logistic activation function for s16.  <br /></td></tr>
+<tr class="separator:ga65e9929b6a1f7a7806dd6eab0175e720"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga5f84aed104cadf145fd3d15144f3c93e"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga5f84aed104cadf145fd3d15144f3c93e">arm_nn_activation_s16</a> (const int16_t *input, int16_t *output, const int32_t size, const int32_t left_shift, const <a class="el" href="group__genPubTypes.html#ga7f41aa78cd9a0552fae9b348ee4831a0">arm_nn_activation_type</a> type)</td></tr>
 <tr class="memdesc:ga5f84aed104cadf145fd3d15144f3c93e"><td class="mdescLeft">&#160;</td><td class="mdescRight">s16 neural network activation function using direct table look-up  <br /></td></tr>
 <tr class="separator:ga5f84aed104cadf145fd3d15144f3c93e"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -152,6 +155,65 @@ Functions</h2></td></tr>
 <a name="details" id="details"></a><h2 class="groupheader">Description</h2>
 <p>Perform activation layers, including ReLU (Rectified Linear Unit), sigmoid and tanh </p>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="ga65e9929b6a1f7a7806dd6eab0175e720" name="ga65e9929b6a1f7a7806dd6eab0175e720"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga65e9929b6a1f7a7806dd6eab0175e720">&#9670;&#160;</a></span>arm_logistic_s16()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_logistic_s16 </td>
+          <td>(</td>
+          <td class="paramtype">int16_t *&#160;</td>
+          <td class="paramname"><em>input</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int16_t *&#160;</td>
+          <td class="paramname"><em>output</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>input_size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int32_t&#160;</td>
+          <td class="paramname"><em>input_multiplier</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int32_t&#160;</td>
+          <td class="paramname"><em>input_left_shift</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Logistic activation function for s16. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Pointer to the input tensor </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Pointer to the output tensor </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_size</td><td>Number of elements in the input tensor </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_multiplier</td><td>Input quantization multiplier </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_left_shift</td><td>Input quantization shift within the range [0, 31] </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The function returns <code>ARM_CMSIS_NN_ARG_ERROR</code> Argument error check failed <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation </dd></dl>
+
+</div>
+</div>
 <a id="ga5f84aed104cadf145fd3d15144f3c93e" name="ga5f84aed104cadf145fd3d15144f3c93e"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga5f84aed104cadf145fd3d15144f3c93e">&#9670;&#160;</a></span>arm_nn_activation_s16()</h2>
 

@@ -98,6 +98,9 @@ var group__genPubTypes =
       [ "exp_lut", "group__genPubTypes.html#a66c4fc32840cf08b4176ff0ca8f6ab87", null ],
       [ "one_by_one_lut", "group__genPubTypes.html#a93be118b369f801f5d90e51fa7cb563d", null ]
     ] ],
+    [ "cmsis_nn_concatenation_params", "group__genPubTypes.html#structcmsis__nn__concatenation__params", [
+      [ "axis", "group__genPubTypes.html#a2de33d5f2fa0911c3e5e067fb9ce71d1", null ]
+    ] ],
     [ "cmsis_nn_scaling", "group__genPubTypes.html#structcmsis__nn__scaling", [
       [ "multiplier", "group__genPubTypes.html#aa48e56822ed6e4a79d6c8c3b688ca8d3", null ],
       [ "shift", "group__genPubTypes.html#aa6938a602935fbbccbe0e9125ff01421", null ]
