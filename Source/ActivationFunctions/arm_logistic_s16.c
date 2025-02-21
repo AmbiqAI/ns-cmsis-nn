@@ -151,7 +151,7 @@ arm_cmsis_nn_status arm_logistic_s16(
   // Non-MVE (scalar) version.
   for (int32_t i = 0; i < input_size; i++) {
     int32_t input_data = ((input[i] * input_multiplier + round) >> input_left_shift);
-    uint32_t abs_input_data = (uint32_t)abs(input_data);
+    uint32_t abs_input_data = (uint32_t)(input_data >= 0 ? input_data : -input_data);
     uint32_t uh = abs_input_data >> 9;
     uint32_t result;
     if (uh >= 255) {
