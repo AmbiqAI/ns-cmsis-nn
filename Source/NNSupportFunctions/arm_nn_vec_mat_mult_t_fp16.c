@@ -32,9 +32,6 @@
 #include <arm_mve.h>
 #include "arm_nnsupportfunctions.h"
 
-#define ARM_MATH_DSP 1
-#define ARM_MATH_MVE_FLOAT16 1
-
 /**
  * @ingroup groupSupport
  */
