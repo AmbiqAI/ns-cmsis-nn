@@ -43,4 +43,4 @@ arm_cmsis_nn_status arm_fully_connected_fp16(
     return (ARM_CMSIS_NN_SUCCESS);
 }
 
-#endif /*defined(ARM_FLOAT16_SUPPORTED)*/
+#endif /* defined(ARM_FLOAT16_SUPPORTED) */

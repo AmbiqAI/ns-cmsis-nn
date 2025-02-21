@@ -65,6 +65,9 @@ __STATIC_FORCEINLINE float16_t vec_add_across_f16_mve(float16x8_t in)
  * Refer header file for details.
  *
  */
+
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+
 arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
     const float16_t *lhs,
     const float16_t *rhs,
@@ -75,8 +78,6 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
     const float16_t  activation_min,
     const float16_t  activation_max
 ) {
-
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
 
     const int32_t unroll_factor = 4;
     const int32_t row_unroll = rhs_rows / unroll_factor;
@@ -187,11 +188,51 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
         *dst++ = sum;
     }
 
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
 #else
+#if defined(ARM_FLOAT16_SUPPORTED)
 
+arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
+    const float16_t *lhs,
+    const float16_t *rhs,
+    const float16_t *bias,
+    float16_t       *dst,
+    const int32_t    rhs_cols,
+    const int32_t    rhs_rows,
+    const float16_t  activation_min,
+    const float16_t  activation_max
+) {
 
+    for (int i = 0; i < rhs_rows; i++)
+    {
+        const float16_t *lhs_ptr = lhs;
+        const float16_t *rhs_ptr = rhs + i;
+        float16_t sum = 0.0f;
 
-#endif
+        for (int j = 0; j < rhs_cols; j++)
+        {
+            sum += lhs_ptr[j] * rhs_ptr[j * rhs_rows];
+        }
+
+        if (bias)
+        {
+            sum += bias[i];
+        }
+
+        sum = MAX(sum, activation_min);
+        sum = MIN(sum, activation_max);
+
+        dst[i] = sum;
+    }
 
     return ARM_CMSIS_NN_SUCCESS;
 }
+
+#endif /* defined(ARM_FLOAT16_SUPPORTED */
+#endif /* defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE) */
+
+ /**
+  * @} end of Doxygen group
+  */
