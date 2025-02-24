@@ -3195,22 +3195,6 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
                                     int16_t *output_data,
                                     const cmsis_nn_dims *output_dims);
 
-/**
- * @brief Logistic activation function for s16
- * @param[in]  input              Pointer to the input tensor
- * @param[out] output             Pointer to the output tensor
- * @param[in]  input_size         Number of elements in the input tensor
- * @param[in]  input_multiplier   Input quantization multiplier
- * @param[in]  input_left_shift   Input quantization shift within the range [0, 31]
- * @return                        The function returns
- *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> Argument error check failed
- *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
- */
-arm_cmsis_nn_status arm_logistic_s16(int16_t *input,
-                                     int16_t *output,
-                                     const int32_t input_size,
-                                     int32_t input_multiplier,
-                                     int32_t input_left_shift);
 
 #if defined(ARM_FLOAT16_SUPPORTED)
 
