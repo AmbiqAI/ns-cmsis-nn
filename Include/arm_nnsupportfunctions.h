@@ -1690,6 +1690,22 @@ __STATIC_FORCEINLINE void arm_memcpy_s8(int8_t *__RESTRICT dst, const int8_t *__
                    : [in] "+r"(src), [out] "+r"(dst)
                    : [cnt] "r"(block_size)
                    : "q0", "memory", "r14");
+
+// #elif defined(ARM_MATH_DSP)
+//     // TODO: Verify if this is faster than the default implementation
+//     // TODO: Update for loop to handle if block_size is not multiple of 4
+//     // Use DSP intrinsics to copy in 4-byte (int32_t) chunks.
+//     int32_t j = 0;
+//     for (; j <= block_size - 4; j += 4)
+//     {
+//         *(int32_t *)(dst + j) = *(const int32_t *)(src + j);
+//     }
+//     // Copy any remaining bytes.
+//     for (; j < copy_size; j++)
+//     {
+//         dst[j] = src[j];
+//     }
+//     dst += copy_size;
 #else
     memcpy(dst, src, block_size);
 #endif

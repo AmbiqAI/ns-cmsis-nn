@@ -1903,19 +1903,17 @@ arm_cmsis_nn_status arm_fully_connected_s16(const cmsis_nn_context *ctx,
  * @details
  *    - Supported framework: TensorFlow Lite
  */
-arm_cmsis_nn_status arm_fully_connected_per_channel_s16(
-    const cmsis_nn_context *ctx,
-    const cmsis_nn_fc_params *fc_params,
-    const cmsis_nn_per_channel_quant_params *quant_params,
-    const cmsis_nn_dims *input_dims,
-    const int16_t *input_data,
-    const cmsis_nn_dims *filter_dims,
-    const int8_t *kernel,
-    const cmsis_nn_dims *bias_dims,
-    const int64_t *bias_data,
-    const cmsis_nn_dims *output_dims,
-    int16_t *output_data
-);
+arm_cmsis_nn_status arm_fully_connected_per_channel_s16(const cmsis_nn_context *ctx,
+                                                        const cmsis_nn_fc_params *fc_params,
+                                                        const cmsis_nn_per_channel_quant_params *quant_params,
+                                                        const cmsis_nn_dims *input_dims,
+                                                        const int16_t *input_data,
+                                                        const cmsis_nn_dims *filter_dims,
+                                                        const int8_t *kernel,
+                                                        const cmsis_nn_dims *bias_dims,
+                                                        const int64_t *bias_data,
+                                                        const cmsis_nn_dims *output_dims,
+                                                        int16_t *output_data);
 
 /**
  * @brief s16 Fully Connected layer wrapper function
@@ -1953,19 +1951,17 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s16(
  *   - Supported framework: TensorFlow Lite
  */
 
-arm_cmsis_nn_status arm_fully_connected_wrapper_s16(
-    const cmsis_nn_context *ctx,
-    const cmsis_nn_fc_params *fc_params,
-    const cmsis_nn_quant_params *quant_params,
-    const cmsis_nn_dims *input_dims,
-    const int16_t *input_data,
-    const cmsis_nn_dims *filter_dims,
-    const int8_t *filter_data,
-    const cmsis_nn_dims *bias_dims,
-    const int64_t *bias_data,
-    const cmsis_nn_dims *output_dims,
-    int16_t *output_data
-);
+arm_cmsis_nn_status arm_fully_connected_wrapper_s16(const cmsis_nn_context *ctx,
+                                                    const cmsis_nn_fc_params *fc_params,
+                                                    const cmsis_nn_quant_params *quant_params,
+                                                    const cmsis_nn_dims *input_dims,
+                                                    const int16_t *input_data,
+                                                    const cmsis_nn_dims *filter_dims,
+                                                    const int8_t *filter_data,
+                                                    const cmsis_nn_dims *bias_dims,
+                                                    const int64_t *bias_data,
+                                                    const cmsis_nn_dims *output_dims,
+                                                    int16_t *output_data);
 
 /**
  * @brief Get size of additional buffer required by arm_fully_connected_s16().
@@ -2549,14 +2545,11 @@ arm_cmsis_nn_status arm_transpose_s8(const int8_t *input_data,
  *                      <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
  *
  */
-arm_cmsis_nn_status arm_transpose_s16(
-    const int16_t *input_data,
-    int16_t *const output_data,
-    const cmsis_nn_dims *const input_dims,
-    const cmsis_nn_dims *const output_dims,
-    const cmsis_nn_transpose_params *const transpose_params
-);
-
+arm_cmsis_nn_status arm_transpose_s16(const int16_t *input_data,
+                                      int16_t *const output_data,
+                                      const cmsis_nn_dims *const input_dims,
+                                      const cmsis_nn_dims *const output_dims,
+                                      const cmsis_nn_transpose_params *const transpose_params);
 
 /**
  * @defgroup Concatenation Concatenation Functions
@@ -2745,6 +2738,53 @@ void arm_concatenation_s8_w(const int8_t *input,
                             const uint16_t input_w,
                             int8_t *output,
                             const uint32_t offset_w);
+
+/**
+ * @brief int8/uint8 concatenation function to be used for concatenating N-tensors along the target axis
+ *
+ * @param[in]  input_data          Pointer to input tensors
+ * @param[in]  inputs_count        Number of input tensors
+ * @param[in]  input_concat_dims   Dimensions of the input tensors along the target axis
+ * @param[in]  axis                Target axis to concatenate the input tensors
+ * @param[out] output_data         Pointer to output tensor
+ * @param[in]  output_dims         Output tensor dimensions
+ * @param[in]  output_shape        Output tensor shape
+ *
+ * @note This function, data layout independent, can be used to concatenate either int8 or uint8 tensors because it
+ *      does not involve any arithmetic operation
+ *
+ */
+void arm_concatenation_s8(const int8_t *const *input_data,
+                          const int32_t inputs_count,
+                          const int32_t *input_concat_dims,
+                          const int32_t axis,
+                          int8_t *output_data,
+                          const int32_t output_dims,
+                          const int32_t *output_shape);
+
+/**
+ * @brief int16/uint16 concatenation function to be used for concatenating N-tensors along the target axis
+ *
+ * @param[in]  input_data          Pointer to input tensors
+ * @param[in]  inputs_count        Number of input tensors
+ * @param[in]  input_concat_dims   Dimensions of the input tensors along the target axis
+ * @param[in]  axis                Target axis to concatenate the input tensors
+ * @param[out] output_data         Pointer to output tensor
+ * @param[in]  output_dims         Output tensor dimensions
+ * @param[in]  output_shape        Output tensor shape
+ *
+ * @note This function, data layout independent, can be used to concatenate either int16 or uint16 tensors because it
+ *      does not involve any arithmetic operation
+ *
+ */
+void arm_concatenation_s16(const int16_t *const *input_data,
+                           const int32_t inputs_count,
+                           const int32_t *input_concat_dims,
+                           const int32_t axis,
+                           int16_t *output_data,
+                           const int32_t output_dims,
+                           const int32_t *output_shape);
+
 /**
  * @defgroup SVDF SVDF Functions
  *
@@ -2757,11 +2797,14 @@ void arm_concatenation_s8_w(const int8_t *input,
  *                                    definition file to see if an additional buffer is required.
  *                                    Optional function arm_fully_connected_s8_get_buffer_size() provides the buffer
  *                                    size if an additional buffer is required.
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ *                                    The caller is expected to clear the buffer, if applicable, for security
+ * reasons.
  * @param[in]   input_ctx             Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ *                                    The caller is expected to clear the buffer, if applicable, for security
+ * reasons.
  * @param[in]   output_ctx            Temporary output scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ *                                    The caller is expected to clear the buffer, if applicable, for security
+ * reasons.
  * @param[in]   svdf_params           SVDF Parameters
  *                                    Range of svdf_params->input_offset  : [-128, 127]
  *                                    Range of svdf_params->output_offset  : [-128, 127]
@@ -3093,71 +3136,125 @@ arm_cmsis_nn_status arm_maximum_s8(const cmsis_nn_context *ctx,
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  */
-arm_cmsis_nn_status arm_pad_s16(
-    const int16_t *input,
-    int16_t *output,
-    const int16_t pad_value,
-    const cmsis_nn_dims *input_size,
-    const cmsis_nn_dims *pre_pad,
-    const cmsis_nn_dims *post_pad
-);
+arm_cmsis_nn_status arm_pad_s16(const int16_t *input,
+                                int16_t *output,
+                                const int16_t pad_value,
+                                const cmsis_nn_dims *input_size,
+                                const cmsis_nn_dims *pre_pad,
+                                const cmsis_nn_dims *post_pad);
 
 /**
-* @brief Elementwise binary minimum with 16bit data.
-*
-* @param[in]   ctx                   Temporary scratch buffer
-*                                    The caller is expected to clear the buffer, if applicable, for security reasons.
-* @param[in]   input_1_data          Pointer to input1 tensor
-* @param[in]   input_1_dims          Input1 tensor dimensions
-* @param[in]   input_2_data          Pointer to input2 tensor
-* @param[in]   input_2_dims          Input2 tensor dimensions
-* @param[out]  output_data           Pointer to the output tensor
-* @param[in]   output_dims           Output tensor dimensions
-*
-* @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
-*
-* @details
-*    1. Supported framework: TensorFlow Lite Micro
-*
-*/
-arm_cmsis_nn_status arm_minimum_s16(
-    const cmsis_nn_context *ctx,
-    const int16_t *input_1_data,
-    const cmsis_nn_dims *input_1_dims,
-    const int16_t *input_2_data,
-    const cmsis_nn_dims *input_2_dims,
-    int16_t *output_data,
-    const cmsis_nn_dims *output_dims
-);
+ * @brief Elementwise binary minimum with 16bit data.
+ *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor
+ * @param[in]   output_dims           Output tensor dimensions
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite Micro
+ *
+ */
+arm_cmsis_nn_status arm_minimum_s16(const cmsis_nn_context *ctx,
+                                    const int16_t *input_1_data,
+                                    const cmsis_nn_dims *input_1_dims,
+                                    const int16_t *input_2_data,
+                                    const cmsis_nn_dims *input_2_dims,
+                                    int16_t *output_data,
+                                    const cmsis_nn_dims *output_dims);
 
 /**
-* @brief Elementwise binary maximum with 16bit data.
-*
-* @param[in]   ctx                   Temporary scratch buffer
-*                                    The caller is expected to clear the buffer, if applicable, for security reasons.
-* @param[in]   input_1_data          Pointer to input1 tensor
-* @param[in]   input_1_dims          Input1 tensor dimensions
-* @param[in]   input_2_data          Pointer to input2 tensor
-* @param[in]   input_2_dims          Input2 tensor dimensions
-* @param[out]  output_data           Pointer to the output tensor
-* @param[in]   output_dims           Output tensor dimensions
-*
-* @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
-*
-* @details
-*    1. Supported framework: TensorFlow Lite Micro
-*
-*/
-arm_cmsis_nn_status arm_maximum_s16(
-    const cmsis_nn_context *ctx,
-    const int16_t *input_1_data,
-    const cmsis_nn_dims *input_1_dims,
-    const int16_t *input_2_data,
-    const cmsis_nn_dims *input_2_dims,
-    int16_t *output_data,
-    const cmsis_nn_dims *output_dims
-);
+ * @brief Elementwise binary maximum with 16bit data.
+ *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor
+ * @param[in]   output_dims           Output tensor dimensions
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite Micro
+ *
+ */
+arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
+                                    const int16_t *input_1_data,
+                                    const cmsis_nn_dims *input_1_dims,
+                                    const int16_t *input_2_data,
+                                    const cmsis_nn_dims *input_2_dims,
+                                    int16_t *output_data,
+                                    const cmsis_nn_dims *output_dims);
 
+/**
+ * @brief Logistic activation function for s16
+ * @param[in]  input              Pointer to the input tensor
+ * @param[out] output             Pointer to the output tensor
+ * @param[in]  input_size         Number of elements in the input tensor
+ * @param[in]  input_multiplier   Input quantization multiplier
+ * @param[in]  input_left_shift   Input quantization shift within the range [0, 31]
+ * @return                        The function returns
+ *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> Argument error check failed
+ *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ */
+arm_cmsis_nn_status arm_logistic_s16(int16_t *input,
+                                     int16_t *output,
+                                     const int32_t input_size,
+                                     int32_t input_multiplier,
+                                     int32_t input_left_shift);
+
+#if defined(ARM_FLOAT16_SUPPORTED)
+
+/**
+ * @brief Fully-connected layer function for float16
+ *
+ * @param[in]  ctx                Function context (e.g. temporary buffer). Check the function
+ *                               definition file to see if an additional buffer is required.
+ *                               Optional function arm_fully_connected_fp16_get_buffer_size() provides the buffer
+ *                               size if an additional buffer is required.
+ *                               The caller is expected to clear the buffer, if applicable, for security
+ * reasons.
+ * @param[in]  fc_params          Pointer to the fully-connected layer parameters
+ * @param[in]  input_dims         Pointer to the input tensor dimensions
+ * @param[in]  input              Pointer to the input tensor
+ * @param[in]  kernel_dims        Pointer to the kernel tensor dimensions
+ * @param[in]  kernel             Pointer to the kernel tensor
+ * @param[in]  bias_dims          Pointer to the bias tensor dimensions
+ * @param[in]  bias               Pointer to the bias tensor
+ * @param[in]  output_dims        Pointer to the output tensor dimensions
+ * @param[out] output             Pointer to the output tensor
+ * @param[in]  out_activation_min Minimum value to clamp the output to
+ * @param[in]  out_activation_max Maximum value to clamp the output to
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite Micro
+ *
+ */
+arm_cmsis_nn_status arm_fully_connected_fp16(const cmsis_nn_context *ctx,
+                                             const cmsis_nn_fc_params *fc_params,
+                                             const cmsis_nn_dims *input_dims,
+                                             const float16_t *input,
+                                             const cmsis_nn_dims *filter_dims,
+                                             const float16_t *kernel,
+                                             const cmsis_nn_dims *bias_dims,
+                                             const float16_t *bias,
+                                             const cmsis_nn_dims *output_dims,
+                                             float16_t *output,
+                                             const float16_t out_activation_min,
+                                             const float16_t out_activation_max);
+
+#endif /*defined(ARM_FLOAT16_SUPPORTED)*/
 
 #ifdef __cplusplus
 }

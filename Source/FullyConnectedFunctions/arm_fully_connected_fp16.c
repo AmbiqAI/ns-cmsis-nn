@@ -1,8 +1,9 @@
-#include <arm_fp16.h>
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
 #if defined(ARM_FLOAT16_SUPPORTED)
+
+#include <arm_fp16.h>
 
 arm_cmsis_nn_status arm_fully_connected_fp16(
     const cmsis_nn_context *ctx,
