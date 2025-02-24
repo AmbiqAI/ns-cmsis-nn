@@ -20,7 +20,7 @@
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
  * Title:        arm_leaky_relu_s16.c
- * Description:  Leaky ReLU function for int8_t data type
+ * Description:  Leaky ReLU function for int16_t data type
  *
  * $Date:        21 February 2025
  * $Revision:    V.1.0.0
@@ -43,7 +43,7 @@
  */
 
 /*
- * Leaky ReLU activation function for int8_t data type.
+ * Leaky ReLU activation function for int16_t data type.
  *
  * Refer header file for details.
  *
