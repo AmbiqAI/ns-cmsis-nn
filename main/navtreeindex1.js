@@ -1,5 +1,8 @@
 var NAVTREEINDEX1 =
 {
+"group__genPubTypes.html#gga7f41aa78cd9a0552fae9b348ee4831a0ac24e4db95c986f16c10dca71a4b4e1c5":[3,0,0,24,1],
+"group__genPubTypes.html#structcmsis__nn__activation":[3,0,0,8],
+"group__genPubTypes.html#structcmsis__nn__bias__data":[3,0,0,2],
 "group__genPubTypes.html#structcmsis__nn__bmm__params":[3,0,0,14],
 "group__genPubTypes.html#structcmsis__nn__concatenation__params":[3,0,0,18],
 "group__genPubTypes.html#structcmsis__nn__context":[3,0,0,1],

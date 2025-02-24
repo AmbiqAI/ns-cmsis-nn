@@ -136,6 +136,14 @@ $(document).ready(function(){initNavTree('group__Acti.html',''); initResizable()
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:ga7c2f32e589df7a59a0b18bf64cc21ed1"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga7c2f32e589df7a59a0b18bf64cc21ed1">arm_leaky_relu_s16</a> (const int16_t *input, const int32_t input_offset, const int32_t output_offset, const int32_t output_multiplier_alpha, const int32_t output_shift_alpha, const int32_t output_multiplier_identity, const int32_t output_shift_identity, int16_t *output, const int32_t output_size)</td></tr>
+<tr class="memdesc:ga7c2f32e589df7a59a0b18bf64cc21ed1"><td class="mdescLeft">&#160;</td><td class="mdescRight">S16 Leaky ReLU activation function.  <br /></td></tr>
+<tr class="separator:ga7c2f32e589df7a59a0b18bf64cc21ed1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga7fbf725056b227fff58bd4bce306f5e6"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga7fbf725056b227fff58bd4bce306f5e6">arm_leaky_relu_s8</a> (const int8_t *input, const int32_t input_offset, const int32_t output_offset, const int32_t output_multiplier_alpha, const int32_t output_shift_alpha, const int32_t output_multiplier_identity, const int32_t output_shift_identity, int8_t *output, const int32_t output_size)</td></tr>
+<tr class="memdesc:ga7fbf725056b227fff58bd4bce306f5e6"><td class="mdescLeft">&#160;</td><td class="mdescRight">S8 Leaky ReLU activation function.  <br /></td></tr>
+<tr class="separator:ga7fbf725056b227fff58bd4bce306f5e6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga4e57cbe215722e9509a75f923a8fcb04"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga4e57cbe215722e9509a75f923a8fcb04">arm_logistic_s16_default</a> (int16_t *input, int16_t *output, const int32_t input_size, int32_t input_multiplier, int32_t input_left_shift)</td></tr>
+<tr class="separator:ga4e57cbe215722e9509a75f923a8fcb04"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga65e9929b6a1f7a7806dd6eab0175e720"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga65e9929b6a1f7a7806dd6eab0175e720">arm_logistic_s16</a> (int16_t *input, int16_t *output, const int32_t input_size, int32_t input_multiplier, int32_t input_left_shift)</td></tr>
 <tr class="memdesc:ga65e9929b6a1f7a7806dd6eab0175e720"><td class="mdescLeft">&#160;</td><td class="mdescRight">Logistic activation function for s16.  <br /></td></tr>
 <tr class="separator:ga65e9929b6a1f7a7806dd6eab0175e720"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -155,6 +163,180 @@ Functions</h2></td></tr>
 <a name="details" id="details"></a><h2 class="groupheader">Description</h2>
 <p>Perform activation layers, including ReLU (Rectified Linear Unit), sigmoid and tanh </p>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="ga7c2f32e589df7a59a0b18bf64cc21ed1" name="ga7c2f32e589df7a59a0b18bf64cc21ed1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga7c2f32e589df7a59a0b18bf64cc21ed1">&#9670;&#160;</a></span>arm_leaky_relu_s16()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_leaky_relu_s16 </td>
+          <td>(</td>
+          <td class="paramtype">const int16_t *&#160;</td>
+          <td class="paramname"><em>input</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>input_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_multiplier_alpha</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_shift_alpha</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_multiplier_identity</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_shift_identity</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int16_t *&#160;</td>
+          <td class="paramname"><em>output</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>S16 Leaky ReLU activation function. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Pointer to the input buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_offset</td><td>Input tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_offset</td><td>Output tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_multiplier_alpha</td><td>Output multiplier for the alpha parameter </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_shift_alpha</td><td>Output shift for the alpha parameter </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_multiplier_identity</td><td>Output multiplier for the identity parameter </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_shift_identity</td><td>Output shift for the identity parameter </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Pointer to the output buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_size</td><td>Number of elements in the input tensor </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The function returns ARM_MATH_SUCCESS </dd></dl>
+
+</div>
+</div>
+<a id="ga7fbf725056b227fff58bd4bce306f5e6" name="ga7fbf725056b227fff58bd4bce306f5e6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga7fbf725056b227fff58bd4bce306f5e6">&#9670;&#160;</a></span>arm_leaky_relu_s8()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_leaky_relu_s8 </td>
+          <td>(</td>
+          <td class="paramtype">const int8_t *&#160;</td>
+          <td class="paramname"><em>input</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>input_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_multiplier_alpha</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_shift_alpha</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_multiplier_identity</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_shift_identity</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int8_t *&#160;</td>
+          <td class="paramname"><em>output</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>S8 Leaky ReLU activation function. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Pointer to the input buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_offset</td><td>Input tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_offset</td><td>Output tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_multiplier_alpha</td><td>Output multiplier for the alpha parameter </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_shift_alpha</td><td>Output shift for the alpha parameter </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_multiplier_identity</td><td>Output multiplier for the identity parameter </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_shift_identity</td><td>Output shift for the identity parameter </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Pointer to the output buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_size</td><td>Number of elements in the input tensor </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The function returns ARM_MATH_SUCCESS </dd></dl>
+
+</div>
+</div>
 <a id="ga65e9929b6a1f7a7806dd6eab0175e720" name="ga65e9929b6a1f7a7806dd6eab0175e720"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga65e9929b6a1f7a7806dd6eab0175e720">&#9670;&#160;</a></span>arm_logistic_s16()</h2>
 
@@ -211,6 +393,52 @@ Functions</h2></td></tr>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>The function returns <code>ARM_CMSIS_NN_ARG_ERROR</code> Argument error check failed <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation </dd></dl>
+
+</div>
+</div>
+<a id="ga4e57cbe215722e9509a75f923a8fcb04" name="ga4e57cbe215722e9509a75f923a8fcb04"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga4e57cbe215722e9509a75f923a8fcb04">&#9670;&#160;</a></span>arm_logistic_s16_default()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_logistic_s16_default </td>
+          <td>(</td>
+          <td class="paramtype">int16_t *&#160;</td>
+          <td class="paramname"><em>input</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int16_t *&#160;</td>
+          <td class="paramname"><em>output</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>input_size</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int32_t&#160;</td>
+          <td class="paramname"><em>input_multiplier</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int32_t&#160;</td>
+          <td class="paramname"><em>input_left_shift</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
 
 </div>
 </div>
