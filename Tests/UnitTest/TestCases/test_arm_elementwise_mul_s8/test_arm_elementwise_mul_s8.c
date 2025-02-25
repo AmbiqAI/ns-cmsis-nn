@@ -20,7 +20,77 @@
 #include "unity.h"
 
 #include "../TestData/mul/test_data.h"
+#include "../TestData/elementwise_mul_1_s8/test_data.h"
+#include "../TestData/elementwise_mul_2_s8/test_data.h"
 #include "../Utils/validate.h"
+
+void mul_arm_elementwise_mul_2_s8(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int8_t output[ELEMENTWISE_MUL_2_S8_DST_SIZE] = {0};
+
+    const int8_t *input_data1 = elementwise_mul_2_s8_lhs_input_tensor;
+    const int8_t *input_data2 = elementwise_mul_2_s8_rhs_input_tensor;
+    
+    const int32_t input_1_offset = ELEMENTWISE_MUL_2_S8_LHS_OFFSET;
+    const int32_t input_2_offset = ELEMENTWISE_MUL_2_S8_RHS_OFFSET;
+
+    const int32_t out_offset = ELEMENTWISE_MUL_2_S8_OUTPUT_OFFSET;
+    const int32_t out_mult = ELEMENTWISE_MUL_2_S8_OUTPUT_MULTIPLIER;
+    const int32_t out_shift = ELEMENTWISE_MUL_2_S8_OUTPUT_SHIFT;
+
+    const int32_t out_activation_min = ELEMENTWISE_MUL_2_S8_ACTIVATION_MIN;
+    const int32_t out_activation_max = ELEMENTWISE_MUL_2_S8_ACTIVATION_MAX;
+
+    arm_cmsis_nn_status result = arm_elementwise_mul_s8(input_data1,
+                                                        input_data2,
+                                                        input_1_offset,
+                                                        input_2_offset,
+                                                        output,
+                                                        out_offset,
+                                                        out_mult,
+                                                        out_shift,
+                                                        out_activation_min,
+                                                        out_activation_max,
+                                                        ELEMENTWISE_MUL_2_S8_DST_SIZE);
+
+    TEST_ASSERT_EQUAL(expected, result);
+    TEST_ASSERT_TRUE(validate(output, elementwise_mul_2_s8_output, ELEMENTWISE_MUL_2_S8_DST_SIZE));
+}
+
+void mul_arm_elementwise_mul_1_s8(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int8_t output[ELEMENTWISE_MUL_1_S8_DST_SIZE] = {0};
+
+    const int8_t *input_data1 = elementwise_mul_1_s8_lhs_input_tensor;
+    const int8_t *input_data2 = elementwise_mul_1_s8_rhs_input_tensor;
+    
+    const int32_t input_1_offset = ELEMENTWISE_MUL_1_S8_LHS_OFFSET;
+    const int32_t input_2_offset = ELEMENTWISE_MUL_1_S8_RHS_OFFSET;
+
+    const int32_t out_offset = ELEMENTWISE_MUL_1_S8_OUTPUT_OFFSET;
+    const int32_t out_mult = ELEMENTWISE_MUL_1_S8_OUTPUT_MULTIPLIER;
+    const int32_t out_shift = ELEMENTWISE_MUL_1_S8_OUTPUT_SHIFT;
+
+    const int32_t out_activation_min = ELEMENTWISE_MUL_1_S8_ACTIVATION_MIN;
+    const int32_t out_activation_max = ELEMENTWISE_MUL_1_S8_ACTIVATION_MAX;
+
+    arm_cmsis_nn_status result = arm_elementwise_mul_s8(input_data1,
+                                                        input_data2,
+                                                        input_1_offset,
+                                                        input_2_offset,
+                                                        output,
+                                                        out_offset,
+                                                        out_mult,
+                                                        out_shift,
+                                                        out_activation_min,
+                                                        out_activation_max,
+                                                        ELEMENTWISE_MUL_1_S8_DST_SIZE);
+
+    TEST_ASSERT_EQUAL(expected, result);
+    TEST_ASSERT_TRUE(validate(output, elementwise_mul_1_s8_output, ELEMENTWISE_MUL_1_S8_DST_SIZE));
+}
 
 void mul_arm_elementwise_mul_s8(void)
 {

@@ -46,7 +46,6 @@
  * Refer header file for details.
  *
  */
-
 arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
                                            const int8_t *input_2_vect,
                                            const int32_t input_1_offset,
@@ -60,39 +59,78 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
                                            const int32_t block_size)
 {
 
-    int32_t loop_count;
 #if defined(ARM_MATH_MVEI)
+    // Process 16 elements per iteration (full 128-bit utilization for int8_t)
+    uint32_t nonpredicate_loops = block_size / 8;
+    int32_t predicate_elements = block_size % 8;
 
-    loop_count = (block_size + 3) / 4;
-    uint32_t num_elements = block_size;
-
-    for (int i = 0; i < loop_count; i++)
+    // Pre-compute constants for vectorized operations
+    const int32x4_t out_mult_vec = vdupq_n_s32(out_mult);
+    const int32x4_t out_shift_vec = vdupq_n_s32(out_shift);
+    const int16_t casted_input_1_offset = (int16_t)input_1_offset;
+    const int16_t casted_input_2_offset = (int16_t)input_2_offset;
+    //NOTE: key optimization comes from processing 8 elements at a time
+    //and performing a 16 bit add of the input offsets
+    //this conforms to the tensorflowlite 8-bit quantization specification
+    //but it will not conform to general runtimes which allow greater than 8-bit int offsets 
+    for (size_t i = 0; i < nonpredicate_loops; i++)
     {
-        mve_pred16_t p = vctp32q(num_elements);
+        int16x8_t in16_1_a = vldrbq_s16(input_1_vect);
+        in16_1_a = vaddq_n_s16(in16_1_a, casted_input_1_offset);
 
+        int16x8_t in16_2_a = vldrbq_s16(input_2_vect);
+        in16_2_a = vaddq_n_s16(in16_2_a, casted_input_2_offset);
+
+
+        int32x4_t res_a = vmullbq_int_s16(in16_1_a, in16_2_a);
+        res_a = arm_requantize_mve_32x4(res_a, out_mult_vec, out_shift_vec);
+
+        int32x4_t res_b = vmulltq_int_s16(in16_1_a, in16_2_a);
+        res_b = arm_requantize_mve_32x4(res_b, out_mult_vec, out_shift_vec);
+
+        //narrow from 32 bit to 16 bit
+        int16x8_t half0 = vdupq_n_s16(0);
+        half0 = vqmovnbq_s32(half0, res_a); 
+        half0 = vqmovntq_s32(half0, res_b); 
+        half0 = vaddq_n_s16(half0, (int16_t)out_offset);
+
+        half0 = vmaxq_s16(half0, vdupq_n_s16(out_activation_min));
+        half0 = vminq_s16(half0, vdupq_n_s16(out_activation_max));
+
+        //perfom 64 bit store
+        vstrbq_s16(output, half0);
+
+        input_1_vect += 8;
+        input_2_vect += 8;
+        output += 8;
+    }
+    
+    //handle leftover elements
+    while (predicate_elements > 0) {
+
+        mve_pred16_t p = vctp32q(predicate_elements);
         int32x4_t input_1 = vldrbq_z_s32(input_1_vect, p);
-        input_1 = vaddq_n_s32(input_1, input_1_offset);
-
         int32x4_t input_2 = vldrbq_z_s32(input_2_vect, p);
+        
+        input_1 = vaddq_n_s32(input_1, input_1_offset);
         input_2 = vaddq_n_s32(input_2, input_2_offset);
-
+        
         int32x4_t res_0 = vmulq_s32(input_1, input_2);
-
-        res_0 = arm_requantize_mve_32x4(res_0, vdupq_n_s32(out_mult), vdupq_n_s32(out_shift));
-
-        res_0 += vdupq_n_s32(out_offset);
-
+        res_0 = arm_requantize_mve_32x4(res_0, out_mult_vec, out_shift_vec);
+        res_0 = vaddq_n_s32(res_0, out_offset);
         res_0 = vmaxq_s32(res_0, vdupq_n_s32(out_activation_min));
         res_0 = vminq_s32(res_0, vdupq_n_s32(out_activation_max));
-
+        
         vstrbq_p_s32(output, res_0, p);
+        
         input_1_vect += 4;
         input_2_vect += 4;
         output += 4;
-        num_elements -= 4;
+        predicate_elements -= 4;
     }
 
 #else
+    int32_t loop_count;
     int32_t input_1;
     int32_t input_2;
     int32_t mul_res;
