@@ -104,8 +104,7 @@ arm_cmsis_nn_status arm_convolve_s16(
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-// #if defined(ARM_MATH_MVEI)
-#if 1
+#if defined(ARM_MATH_MVEI)
     const int32_t rhs_rows = output_dims->c;
 #endif
 
@@ -185,13 +184,13 @@ arm_cmsis_nn_status arm_convolve_s16(
                     }
 
                     lhs_rows++;
-// #if defined(ARM_MATH_MVEI)
-#if 1
+#if defined(ARM_MATH_MVEI)
+
                     // im2col += aligned_rhs_cols_offset;
                     /* Computation is filed for every 4 columns */
                     if (lhs_rows == 4)
                     {
-                        arm_nn_mat_mult_nt_t_s16_align(
+                        arm_nn_mat_mult_nt_t_s16(
                             buffer_a,
                             filter_data_ptr,
                             bias_data_ptr,
@@ -240,21 +239,21 @@ arm_cmsis_nn_status arm_convolve_s16(
             /* Handle left over columns */
             if (lhs_rows != 0)
             {
-// #if defined(ARM_MATH_MVEI)
-#if 1
-                arm_nn_mat_mult_nt_t_s16_align(buffer_a,
-                                        filter_data_ptr,
-                                        bias_data_ptr,
-                                        out,
-                                        output_mult_ptr,
-                                        output_shift_ptr,
-                                        lhs_rows,
-                                        output_ch_per_group,
-                                        rhs_cols,
-                                        out_activation_min,
-                                        out_activation_max,
-                                        output_ch
-                                        );
+#if defined(ARM_MATH_MVEI)
+                arm_nn_mat_mult_nt_t_s16(
+                    buffer_a,
+                    filter_data_ptr,
+                    bias_data_ptr,
+                    out,
+                    output_mult_ptr,
+                    output_shift_ptr,
+                    lhs_rows,
+                    output_ch_per_group,
+                    rhs_cols,
+                    out_activation_min,
+                    out_activation_max,
+                    output_ch
+                    );
                 out += lhs_rows * output_ch;
                 lhs_rows = 0;
                 im2col = buffer_a;

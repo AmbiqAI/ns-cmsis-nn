@@ -617,7 +617,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                                              const int32_t rhs_rows,
                                              const int32_t rhs_cols,
                                              const int32_t activation_min,
-                                             const int32_t activation_max);
+                                             const int32_t activation_max,
+                                             const int32_t output_ch);
 
 /**
  * @brief General Matrix-multiplication function with int8 input and int32 output.
