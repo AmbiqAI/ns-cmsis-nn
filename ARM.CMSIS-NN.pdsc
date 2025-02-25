@@ -37,6 +37,7 @@
         <file category="header" name="Include/arm_nn_types.h"/>
         <file category="header" name="Include/arm_nnfunctions.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>
+        <file category="header" name="Include/arm_nnactivations.h"/>
         <file category="header" name="Include/arm_nn_tables.h"/>
         <file category="header" name="Include/arm_nn_math_types.h"/>
 
@@ -110,6 +111,8 @@
         <file category="source" name="Source/ActivationFunctions/arm_relu_q7.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_nn_activation_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_logistic_s16.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_leaky_relu_s8.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_leaky_relu_s16.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_s8.c"/>
         <file category="source" name="Source/TransposeFunctions/arm_transpose_s8.c"/>
         <file category="source" name="Source/TransposeFunctions/arm_transpose_s16.c"/>
