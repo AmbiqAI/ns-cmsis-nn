@@ -96,7 +96,7 @@ arm_cmsis_nn_status arm_convolve_s16(
     const int32_t groups = input_ch / kernel_ch;
     const int32_t output_ch_per_group = output_ch / groups;
 
-    const int32_t remainder = rhs_cols % 4;
+    // const int32_t remainder = rhs_cols % 4;
     // const int32_t aligned_rhs_cols = remainder != 0 ? rhs_cols + 4 - remainder : rhs_cols;
 
     if (input_ch % groups != 0 || output_ch % groups != 0)
@@ -104,9 +104,9 @@ arm_cmsis_nn_status arm_convolve_s16(
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-#if defined(ARM_MATH_MVEI)
-    const int32_t rhs_rows = output_dims->c;
-#endif
+// #if defined(ARM_MATH_MVEI)
+//     const int32_t rhs_rows = output_dims->c;
+// #endif
 
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {
