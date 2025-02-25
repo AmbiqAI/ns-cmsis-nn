@@ -60,16 +60,40 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
                                            const int32_t block_size)
 {
 
-    int32_t loop_count;
 #if defined(ARM_MATH_MVEI)
+    uint32_t nonpredicate_loops = block_size/4;
+    uint32_t predicate_elements = block_size % 4;
 
-    loop_count = (block_size + 3) / 4;
-    uint32_t num_elements = block_size;
+    const int32x4_t out_mult_vec = vdupq_n_s32(out_mult);
+    const int32x4_t out_shift_vec = vdupq_n_s32(out_shift);
+    const int32x4_t out_min_vec = vdupq_n_s32(out_activation_min);
+    const int32x4_t out_max_vec = vdupq_n_s32(out_activation_max);
+    const int32x4_t out_offset_vec = vdupq_n_s32(out_offset);
 
-    for (int i = 0; i < loop_count; i++)
+    for (size_t i = 0; i < nonpredicate_loops; i++)
     {
-        mve_pred16_t p = vctp32q(num_elements);
+        int32x4_t input_1 = vldrbq_s32(input_1_vect);
+        input_1 = vaddq_n_s32(input_1, input_1_offset);
 
+        int32x4_t input_2 = vldrbq_s32(input_2_vect);
+        input_2 = vaddq_n_s32(input_2, input_2_offset);
+
+        int32x4_t res_0 = vmulq_s32(input_1, input_2);
+
+        res_0 = arm_requantize_mve_32x4(res_0, out_mult_vec, out_shift_vec);
+
+        res_0 += out_offset_vec;
+
+        res_0 = vmaxq_s32(res_0, out_min_vec);
+        res_0 = vminq_s32(res_0, out_max_vec);
+
+        vstrbq_s32(output, res_0);
+        input_1_vect += 4;
+        input_2_vect += 4;
+        output += 4;
+    }
+    if (predicate_elements) {
+        mve_pred16_t p = vctp32q(predicate_elements);
         int32x4_t input_1 = vldrbq_z_s32(input_1_vect, p);
         input_1 = vaddq_n_s32(input_1, input_1_offset);
 
@@ -89,10 +113,10 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
         input_1_vect += 4;
         input_2_vect += 4;
         output += 4;
-        num_elements -= 4;
     }
 
 #else
+    int32_t loop_count;
     int32_t input_1;
     int32_t input_2;
     int32_t mul_res;
