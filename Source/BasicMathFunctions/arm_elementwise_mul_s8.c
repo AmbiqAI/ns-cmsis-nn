@@ -117,20 +117,61 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
         res_d = vaddq_s32(res_d, out_offset_vec);
 
         // Apply min/max bounds
-        res_a = vmaxq_s32(res_a, out_min_vec);
-        res_a = vminq_s32(res_a, out_max_vec);
-        res_b = vmaxq_s32(res_b, out_min_vec);
-        res_b = vminq_s32(res_b, out_max_vec);
-        res_c = vmaxq_s32(res_c, out_min_vec);
-        res_c = vminq_s32(res_c, out_max_vec);
-        res_d = vmaxq_s32(res_d, out_min_vec);
-        res_d = vminq_s32(res_d, out_max_vec);
+        //res_a = vmaxq_s32(res_a, out_min_vec);
+        //res_a = vminq_s32(res_a, out_max_vec);
+        //res_b = vmaxq_s32(res_b, out_min_vec);
+        //res_b = vminq_s32(res_b, out_max_vec);
+        //res_c = vmaxq_s32(res_c, out_min_vec);
+        //res_c = vminq_s32(res_c, out_max_vec);
+        //res_d = vmaxq_s32(res_d, out_min_vec);
+        //res_d = vminq_s32(res_d, out_max_vec);
 
+
+        // 8) Now we have 16 total lanes of int32 in r0..r3.
+        //    Narrow from 32->16 in two 8-lane chunks:
+        //    a) Combine r0 & r1 into one int16x8_t
+        //    b) Combine r2 & r3 into another int16x8_t
+
+        // First int16x8_t:
+        //
+        int16x8_t half0 = vdupq_n_s16(0);
+        half0 = vqmovnbq_s32(half0, res_a); // saturate bottom 4 lanes
+        half0 = vqmovntq_s32(half0, res_b); // saturate top 4 lanes
+
+        // Second int16x8_t:
+        int16x8_t half1 = vdupq_n_s16(16);
+
+        //uint16x8_t offset = {0,4,1,5,2,6,3,7};
+        half1 = vqmovnbq_s32(half1, res_c);
+        half1 = vqmovntq_s32(half1, res_d);
+
+        // 9) Now narrow from 16->8 in one 16-lane vector:
+        //    a) combine half0 => bottom 8 lanes
+        //    b) combine half1 => top 8 lanes
+        int8x16_t out_vec = vdupq_n_s8(0);
+        out_vec = vqmovnbq_s16(out_vec, half0); // saturate bottom half
+        out_vec = vqmovntq_s16(out_vec, half1); // saturate top half
+
+        //uint8x16_t offset = {0,4,1,5,2,6,3,7};
+
+        //uint8x16_t offset = {8,12,9,13,10,14,11,15};
+
+        uint8x16_t big_offset = {0, 8, 4, 12,1,9,5,13,2,10,6,14,3,11,7,15};
+
+        //vstrbq_scatter_offset_s16(output, offset, half0);
+        //vstrbq_scatter_offset_s16(output+8, offset, half1);
+        vstrbq_scatter_offset_s8(output, big_offset, out_vec);
+        //vstrbq_s16(output, half0);
+        //vstrbq_s16(output + 8, half1);
         // Store results
-        vstrbq_s32(output, res_a);
-        vstrbq_s32(output + 4, res_b);
-        vstrbq_s32(output + 8, res_c);
-        vstrbq_s32(output + 12, res_d);
+        //vstrbq_s32(output, res_a);
+        //vstrbq_s32(output + 4, res_b);
+        //vstrbq_s32(output + 8, res_c);
+        //vstrbq_s32(output + 12, res_d);
+
+        // 10) Store all 16 results
+        //vstrbq_s8(output, out_vec);
+        
         
         // Update pointers
         input_1_vect += 16;
