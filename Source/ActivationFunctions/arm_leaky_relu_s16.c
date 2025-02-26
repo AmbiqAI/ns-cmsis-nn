@@ -135,7 +135,7 @@ arm_cmsis_nn_status arm_leaky_relu_s16(const int16_t *input,
             val = arm_nn_requantize(input_i32, output_multiplier_alpha, output_shift_alpha);
         }
         val += output_offset;
-        val = CLAMP(val, quantized_min, quantized_max);
+        val = CLAMP(val, quantized_max, quantized_min);
         output_data[i] = (int16_t)val;
     }
 

@@ -28,8 +28,6 @@
  *
  * -------------------------------------------------------------------- */
 
-#include <arm_fp16.h>
-#include <arm_mve.h>
 #include "arm_nnsupportfunctions.h"
 
 /**
@@ -57,17 +55,12 @@ __STATIC_FORCEINLINE float16_t vec_add_across_f16_mve(float16x8_t in)
     return acc;
 }
 
-#endif
-
 /*
  * fp16 vector(lhs) by fp16 matrix (transposed) multiplication
  *
  * Refer header file for details.
  *
  */
-
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-
 arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
     const float16_t *lhs,
     const float16_t *rhs,
@@ -194,6 +187,12 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
 #else
 #if defined(ARM_FLOAT16_SUPPORTED)
 
+/*
+ * fp16 vector(lhs) by fp16 matrix (transposed) multiplication
+ *
+ * Refer header file for details.
+ *
+ */
 arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
     const float16_t *lhs,
     const float16_t *rhs,
