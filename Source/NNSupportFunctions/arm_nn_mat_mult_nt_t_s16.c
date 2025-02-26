@@ -58,9 +58,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                                              const int32_t activation_max,
                                              const int32_t output_ch)
 {
-#if defined(ARM_MATH_MVEI)
-
     const uint32_t rhs_rows_offset = (uint32_t) output_ch * sizeof(int16_t);
+#if defined(ARM_MATH_MVEI)
     const uint32x4_t scatter_offset = {
         0, (uint32_t)rhs_rows_offset, (uint32_t)rhs_rows_offset * 2, (uint32_t)rhs_rows_offset * 3};
 
