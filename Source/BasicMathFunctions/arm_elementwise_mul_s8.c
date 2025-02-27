@@ -69,9 +69,6 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
     const int32x4_t out_shift_vec = vdupq_n_s32(out_shift);
     const int32x4_t out_min_vec = vdupq_n_s32(out_activation_min);
     const int32x4_t out_max_vec = vdupq_n_s32(out_activation_max);
-    const int32x4_t input_1_offset_vec = vdupq_n_s32(input_1_offset);
-    const int32x4_t input_2_offset_vec = vdupq_n_s32(input_2_offset);
-    const int32x4_t out_offset_vec = vdupq_n_s32(out_offset);
 
     // Main loop - process 16 elements at a time (4 vectors of 4 elements each)
     for (size_t i = 0; i < nonpredicate_loops; i++)
@@ -79,29 +76,29 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
         // First batch of 4 elements
         int32x4_t input_1_a = vldrbq_s32(input_1_vect);
         int32x4_t input_2_a = vldrbq_s32(input_2_vect);
-        input_1_a = vaddq_s32(input_1_a, input_1_offset_vec);
-        input_2_a = vaddq_s32(input_2_a, input_2_offset_vec);
+        input_1_a = vaddq_n_s32(input_1_a, input_1_offset);
+        input_2_a = vaddq_n_s32(input_2_a, input_2_offset);
         int32x4_t res_a = vmulq_s32(input_1_a, input_2_a);
         
         // Second batch of 4 elements
         int32x4_t input_1_b = vldrbq_s32(input_1_vect + 4);
         int32x4_t input_2_b = vldrbq_s32(input_2_vect + 4);
-        input_1_b = vaddq_s32(input_1_b, input_1_offset_vec);
-        input_2_b = vaddq_s32(input_2_b, input_2_offset_vec);
+        input_1_b = vaddq_n_s32(input_1_b, input_1_offset);
+        input_2_b = vaddq_n_s32(input_2_b, input_2_offset);
         int32x4_t res_b = vmulq_s32(input_1_b, input_2_b);
         
         // Third batch of 4 elements
         int32x4_t input_1_c = vldrbq_s32(input_1_vect + 8);
         int32x4_t input_2_c = vldrbq_s32(input_2_vect + 8);
-        input_1_c = vaddq_s32(input_1_c, input_1_offset_vec);
-        input_2_c = vaddq_s32(input_2_c, input_2_offset_vec);
+        input_1_c = vaddq_n_s32(input_1_c, input_1_offset);
+        input_2_c = vaddq_n_s32(input_2_c, input_2_offset);
         int32x4_t res_c = vmulq_s32(input_1_c, input_2_c);
         
         // Fourth batch of 4 elements
         int32x4_t input_1_d = vldrbq_s32(input_1_vect + 12);
         int32x4_t input_2_d = vldrbq_s32(input_2_vect + 12);
-        input_1_d = vaddq_s32(input_1_d, input_1_offset_vec);
-        input_2_d = vaddq_s32(input_2_d, input_2_offset_vec);
+        input_1_d = vaddq_n_s32(input_1_d, input_1_offset);
+        input_2_d = vaddq_n_s32(input_2_d, input_2_offset);
         int32x4_t res_d = vmulq_s32(input_1_d, input_2_d);
 
         // Requantize all batches
@@ -111,10 +108,10 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
         res_d = arm_requantize_mve_32x4(res_d, out_mult_vec, out_shift_vec);
 
         // Add offset and apply activation functions
-        res_a = vaddq_s32(res_a, out_offset_vec);
-        res_b = vaddq_s32(res_b, out_offset_vec);
-        res_c = vaddq_s32(res_c, out_offset_vec);
-        res_d = vaddq_s32(res_d, out_offset_vec);
+        res_a = vaddq_n_s32(res_a, out_offset);
+        res_b = vaddq_n_s32(res_b, out_offset);
+        res_c = vaddq_n_s32(res_c, out_offset);
+        res_d = vaddq_n_s32(res_d, out_offset);
 
         int16x8_t half0 = vdupq_n_s16(0);
         //narrow from 32 bit to 16 bit
@@ -148,12 +145,12 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
             int32x4_t input_1 = vldrbq_z_s32(input_1_vect, p);
             int32x4_t input_2 = vldrbq_z_s32(input_2_vect, p);
             
-            input_1 = vaddq_s32(input_1, input_1_offset_vec);
-            input_2 = vaddq_s32(input_2, input_2_offset_vec);
+            input_1 = vaddq_n_s32(input_1, input_1_offset);
+            input_2 = vaddq_n_s32(input_2, input_2_offset);
             
             int32x4_t res_0 = vmulq_s32(input_1, input_2);
             res_0 = arm_requantize_mve_32x4(res_0, out_mult_vec, out_shift_vec);
-            res_0 = vaddq_s32(res_0, out_offset_vec);
+            res_0 = vaddq_n_s32(res_0, out_offset);
             res_0 = vmaxq_s32(res_0, out_min_vec);
             res_0 = vminq_s32(res_0, out_max_vec);
             
@@ -171,12 +168,12 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
             int32x4_t input_1 = vldrbq_z_s32(input_1_vect, p);
             int32x4_t input_2 = vldrbq_z_s32(input_2_vect, p);
             
-            input_1 = vaddq_s32(input_1, input_1_offset_vec);
-            input_2 = vaddq_s32(input_2, input_2_offset_vec);
+            input_1 = vaddq_n_s32(input_1, input_1_offset);
+            input_2 = vaddq_n_s32(input_2, input_2_offset);
             
             int32x4_t res_0 = vmulq_s32(input_1, input_2);
             res_0 = arm_requantize_mve_32x4(res_0, out_mult_vec, out_shift_vec);
-            res_0 = vaddq_s32(res_0, out_offset_vec);
+            res_0 = vaddq_n_s32(res_0, out_offset);
             res_0 = vmaxq_s32(res_0, out_min_vec);
             res_0 = vminq_s32(res_0, out_max_vec);
             
