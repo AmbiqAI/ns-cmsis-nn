@@ -62,6 +62,7 @@ void int16xint8_arm_convolve_s16(void)
     input_dims.c = INT16XINT8_IN_CH;
     filter_dims.w = INT16XINT8_FILTER_X;
     filter_dims.h = INT16XINT8_FILTER_Y;
+    filter_dims.c = INT16XINT8_IN_CH;
     output_dims.w = INT16XINT8_OUTPUT_W;
     output_dims.h = INT16XINT8_OUTPUT_H;
     output_dims.c = INT16XINT8_OUT_CH;
@@ -152,6 +153,8 @@ void requantize_s64_arm_convolve_s16(void)
     input_dims.c = REQUANTIZE_S64_IN_CH;
     filter_dims.w = REQUANTIZE_S64_FILTER_X;
     filter_dims.h = REQUANTIZE_S64_FILTER_Y;
+    filter_dims.c = REQUANTIZE_S64_IN_CH;
+    
     output_dims.w = REQUANTIZE_S64_OUTPUT_W;
     output_dims.h = REQUANTIZE_S64_OUTPUT_H;
     output_dims.c = REQUANTIZE_S64_OUT_CH;
@@ -242,6 +245,8 @@ void int16xint8_dilation_1_arm_convolve_s16(void)
     input_dims.c = INT16XINT8_DILATION_1_IN_CH;
     filter_dims.w = INT16XINT8_DILATION_1_FILTER_X;
     filter_dims.h = INT16XINT8_DILATION_1_FILTER_Y;
+    filter_dims.c = INT16XINT8_DILATION_1_IN_CH;
+    
     output_dims.w = INT16XINT8_DILATION_1_OUTPUT_W;
     output_dims.h = INT16XINT8_DILATION_1_OUTPUT_H;
     output_dims.c = INT16XINT8_DILATION_1_OUT_CH;
@@ -332,6 +337,8 @@ void int16xint8_dilation_2_arm_convolve_s16(void)
     input_dims.c = INT16XINT8_DILATION_2_IN_CH;
     filter_dims.w = INT16XINT8_DILATION_2_FILTER_X;
     filter_dims.h = INT16XINT8_DILATION_2_FILTER_Y;
+    filter_dims.c = INT16XINT8_DILATION_2_IN_CH;
+    
     output_dims.w = INT16XINT8_DILATION_2_OUTPUT_W;
     output_dims.h = INT16XINT8_DILATION_2_OUTPUT_H;
     output_dims.c = INT16XINT8_DILATION_2_OUT_CH;
@@ -422,6 +429,7 @@ void int16xint8_dilation_3_arm_convolve_s16(void)
     input_dims.c = INT16XINT8_DILATION_3_IN_CH;
     filter_dims.w = INT16XINT8_DILATION_3_FILTER_X;
     filter_dims.h = INT16XINT8_DILATION_3_FILTER_Y;
+    filter_dims.c = INT16XINT8_DILATION_3_IN_CH;
     output_dims.w = INT16XINT8_DILATION_3_OUTPUT_W;
     output_dims.h = INT16XINT8_DILATION_3_OUTPUT_H;
     output_dims.c = INT16XINT8_DILATION_3_OUT_CH;
@@ -500,6 +508,7 @@ void buffer_size_arm_convolve_s16(void)
     input_dims.c = INT16XINT8_DILATION_3_IN_CH;
     filter_dims.w = INT16XINT8_DILATION_3_FILTER_X;
     filter_dims.h = INT16XINT8_DILATION_3_FILTER_Y;
+    filter_dims.c = INT16XINT8_DILATION_3_IN_CH;
     output_dims.w = INT16XINT8_DILATION_3_OUTPUT_W;
     output_dims.h = INT16XINT8_DILATION_3_OUTPUT_H;
     output_dims.c = INT16XINT8_DILATION_3_OUT_CH;
@@ -537,6 +546,7 @@ void buffer_size_mve_arm_convolve_s16(void)
     input_dims.c = INT16XINT8_DILATION_3_IN_CH;
     filter_dims.w = INT16XINT8_DILATION_3_FILTER_X;
     filter_dims.h = INT16XINT8_DILATION_3_FILTER_Y;
+    filter_dims.c = INT16XINT8_DILATION_3_IN_CH;
     output_dims.w = INT16XINT8_DILATION_3_OUTPUT_W;
     output_dims.h = INT16XINT8_DILATION_3_OUTPUT_H;
     output_dims.c = INT16XINT8_DILATION_3_OUT_CH;
@@ -576,6 +586,8 @@ void buffer_size_dsp_arm_convolve_s16(void)
     input_dims.c = INT16XINT8_DILATION_3_IN_CH;
     filter_dims.w = INT16XINT8_DILATION_3_FILTER_X;
     filter_dims.h = INT16XINT8_DILATION_3_FILTER_Y;
+    filter_dims.c = INT16XINT8_DILATION_3_IN_CH;
+    
     output_dims.w = INT16XINT8_DILATION_3_OUTPUT_W;
     output_dims.h = INT16XINT8_DILATION_3_OUTPUT_H;
     output_dims.c = INT16XINT8_DILATION_3_OUT_CH;
@@ -626,6 +638,8 @@ void int16xint8_spill_arm_convolve_s16(void)
     input_dims.c = INT16XINT8_SPILL_IN_CH;
     filter_dims.w = INT16XINT8_SPILL_FILTER_X;
     filter_dims.h = INT16XINT8_SPILL_FILTER_Y;
+    filter_dims.c = INT16XINT8_SPILL_IN_CH;
+    
     output_dims.w = INT16XINT8_SPILL_OUTPUT_W;
     output_dims.h = INT16XINT8_SPILL_OUTPUT_H;
     output_dims.c = INT16XINT8_SPILL_OUT_CH;
@@ -716,6 +730,7 @@ void int16xint8_spill2_arm_convolve_s16(void)
     input_dims.c = INT16XINT8_SPILL2_IN_CH;
     filter_dims.w = INT16XINT8_SPILL2_FILTER_X;
     filter_dims.h = INT16XINT8_SPILL2_FILTER_Y;
+    filter_dims.c = INT16XINT8_SPILL2_IN_CH;
     output_dims.w = INT16XINT8_SPILL2_OUTPUT_W;
     output_dims.h = INT16XINT8_SPILL2_OUTPUT_H;
     output_dims.c = INT16XINT8_SPILL2_OUT_CH;
@@ -806,6 +821,7 @@ void int16xint8xint32_1_arm_convolve_s16(void)
     input_dims.c = INT16XINT8XINT32_1_IN_CH;
     filter_dims.w = INT16XINT8XINT32_1_FILTER_X;
     filter_dims.h = INT16XINT8XINT32_1_FILTER_Y;
+    filter_dims.c = INT16XINT8XINT32_1_IN_CH;
     output_dims.w = INT16XINT8XINT32_1_OUTPUT_W;
     output_dims.h = INT16XINT8XINT32_1_OUTPUT_H;
     output_dims.c = INT16XINT8XINT32_1_OUT_CH;
@@ -896,6 +912,7 @@ void int16xint8xint32_2_arm_convolve_s16(void)
     input_dims.c = INT16XINT8XINT32_2_IN_CH;
     filter_dims.w = INT16XINT8XINT32_2_FILTER_X;
     filter_dims.h = INT16XINT8XINT32_2_FILTER_Y;
+    filter_dims.c = INT16XINT8XINT32_2_IN_CH;
     output_dims.w = INT16XINT8XINT32_2_OUTPUT_W;
     output_dims.h = INT16XINT8XINT32_2_OUTPUT_H;
     output_dims.c = INT16XINT8XINT32_2_OUT_CH;
@@ -986,6 +1003,7 @@ void int16xint8xint32_3_arm_convolve_s16(void)
     input_dims.c = INT16XINT8XINT32_3_IN_CH;
     filter_dims.w = INT16XINT8XINT32_3_FILTER_X;
     filter_dims.h = INT16XINT8XINT32_3_FILTER_Y;
+    filter_dims.c = INT16XINT8XINT32_3_IN_CH;
     output_dims.w = INT16XINT8XINT32_3_OUTPUT_W;
     output_dims.h = INT16XINT8XINT32_3_OUTPUT_H;
     output_dims.c = INT16XINT8XINT32_3_OUT_CH;
@@ -1076,6 +1094,7 @@ void int16xint8xint32_4_arm_convolve_s16(void)
     input_dims.c = INT16XINT8XINT32_4_IN_CH;
     filter_dims.w = INT16XINT8XINT32_4_FILTER_X;
     filter_dims.h = INT16XINT8XINT32_4_FILTER_Y;
+    filter_dims.c = INT16XINT8XINT32_4_IN_CH;
     output_dims.w = INT16XINT8XINT32_4_OUTPUT_W;
     output_dims.h = INT16XINT8XINT32_4_OUTPUT_H;
     output_dims.c = INT16XINT8XINT32_4_OUT_CH;
@@ -1166,6 +1185,7 @@ void int16xint8xint32_5_arm_convolve_s16(void)
     input_dims.c = INT16XINT8XINT32_5_IN_CH;
     filter_dims.w = INT16XINT8XINT32_5_FILTER_X;
     filter_dims.h = INT16XINT8XINT32_5_FILTER_Y;
+    filter_dims.c = INT16XINT8XINT32_5_IN_CH;
     output_dims.w = INT16XINT8XINT32_5_OUTPUT_W;
     output_dims.h = INT16XINT8XINT32_5_OUTPUT_H;
     output_dims.c = INT16XINT8XINT32_5_OUT_CH;
@@ -1256,6 +1276,7 @@ void int16xint8xint32_6_arm_convolve_s16(void)
     input_dims.c = INT16XINT8XINT32_6_IN_CH;
     filter_dims.w = INT16XINT8XINT32_6_FILTER_X;
     filter_dims.h = INT16XINT8XINT32_6_FILTER_Y;
+    filter_dims.c = INT16XINT8XINT32_6_IN_CH;
     output_dims.w = INT16XINT8XINT32_6_OUTPUT_W;
     output_dims.h = INT16XINT8XINT32_6_OUTPUT_H;
     output_dims.c = INT16XINT8XINT32_6_OUT_CH;
