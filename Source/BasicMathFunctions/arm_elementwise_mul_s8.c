@@ -69,6 +69,8 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
     const int32x4_t out_shift_vec = vdupq_n_s32(out_shift);
     const int32x4_t out_min_vec = vdupq_n_s32(out_activation_min);
     const int32x4_t out_max_vec = vdupq_n_s32(out_activation_max);
+    const int16_t casted_input_1_offset = (int16_t)input_1_offset;
+    const int16_t casted_input_2_offset = (int16_t)input_2_offset;
 
     // Main loop - process 16 elements at a time (4 vectors of 4 elements each)
     for (size_t i = 0; i < nonpredicate_loops; i++)
@@ -76,28 +78,30 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
         //swap to instead load 8 elements at a time
         const uint16x8_t offset_16x8 = {0,4,1,5,2,6,3,7};
         int16x8_t in16_1_a = vldrbq_gather_offset_s16(input_1_vect, offset_16x8);
-        int16x8_t in16_1_b = vldrbq_gather_offset_s16(input_1_vect + 8, offset_16x8);
-
+        in16_1_a = vaddq_n_s16(in16_1_a, casted_input_1_offset);
         int16x8_t in16_2_a = vldrbq_gather_offset_s16(input_2_vect,offset_16x8);
-        int16x8_t in16_2_b = vldrbq_gather_offset_s16(input_2_vect + 8,offset_16x8);
+        in16_2_a = vaddq_n_s16(in16_2_a, casted_input_2_offset);
 
-        in16_1_a = vaddq_n_s16(in16_1_a, (int16_t)input_1_offset);
-        in16_1_b = vaddq_n_s16(in16_1_b, (int16_t)input_1_offset);
-        in16_2_a = vaddq_n_s16(in16_2_a, (int16_t)input_2_offset);
-        in16_2_b = vaddq_n_s16(in16_2_b, (int16_t)input_2_offset);
+
 
         int32x4_t res_a = vmullbq_int_s16(in16_1_a, in16_2_a);
+        res_a = arm_requantize_mve_32x4(res_a, out_mult_vec, out_shift_vec);
+
+        int16x8_t in16_1_b = vldrbq_gather_offset_s16(input_1_vect + 8, offset_16x8);
+        in16_1_b = vaddq_n_s16(in16_1_b, casted_input_1_offset);
+
         int32x4_t res_b = vmulltq_int_s16(in16_1_a, in16_2_a);
+        res_b = arm_requantize_mve_32x4(res_b, out_mult_vec, out_shift_vec);
+        int16x8_t in16_2_b = vldrbq_gather_offset_s16(input_2_vect + 8,offset_16x8);
+        in16_2_b = vaddq_n_s16(in16_2_b, casted_input_2_offset);
 
         int32x4_t res_c = vmullbq_int_s16(in16_1_b, in16_2_b);
-        int32x4_t res_d = vmulltq_int_s16(in16_1_b, in16_2_b);
+        res_c = arm_requantize_mve_32x4(res_c, out_mult_vec, out_shift_vec);
 
+        int32x4_t res_d = vmulltq_int_s16(in16_1_b, in16_2_b);
+        res_d = arm_requantize_mve_32x4(res_d, out_mult_vec, out_shift_vec);
 
         // Requantize all batches
-        res_a = arm_requantize_mve_32x4(res_a, out_mult_vec, out_shift_vec);
-        res_b = arm_requantize_mve_32x4(res_b, out_mult_vec, out_shift_vec);
-        res_c = arm_requantize_mve_32x4(res_c, out_mult_vec, out_shift_vec);
-        res_d = arm_requantize_mve_32x4(res_d, out_mult_vec, out_shift_vec);
 
         // Add offset and apply activation functions
         res_a = vaddq_n_s32(res_a, out_offset);
