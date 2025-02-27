@@ -29,7 +29,6 @@
  * -------------------------------------------------------------------- */
 
 #include "arm_nnsupportfunctions.h"
-#include <arm_mve.h>
 /**
  * @ingroup groupSupport
  */
@@ -352,6 +351,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
     (void)lhs_rows;
     (void)rhs_rows;
     (void)rhs_cols;
+    (void)row_address_offset;
 
     return ARM_CMSIS_NN_NO_IMPL_ERROR;
 #endif
