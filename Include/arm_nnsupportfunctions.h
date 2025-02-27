@@ -600,12 +600,22 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int8_t *lhs,
  * @param[in]  rhs_cols           Number of LHS/RHS input columns
  * @param[in]  activation_min     Minimum value to clamp down the output. Range : int16
  * @param[in]  activation_max     Maximum value to clamp up the output. Range : int16
- *
+ * @param[in]  row_address_offset Address offset between rows in output. NOTE: Only used for MVEI extension.
+ * 
  * @details MVE implementation only.
  *
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> or
  *                                  <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> if not for MVE
- *
+ *      |------row_address_offset------| 
+ *      |____rhs_rows__________________|
+ *      |               |              |
+ *      |               |              | 
+ *      |               |              |   
+ *      |               |              |
+ *      |               |              | lhs_rows
+ *      |               |              |
+ *      |               |              |
+ *      |_______________|______________|
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                                              const int8_t *rhs,
@@ -618,9 +628,9 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                                              const int32_t rhs_cols,
                                              const int32_t activation_min,
                                              const int32_t activation_max,
-                                             const int32_t output_ch);
+                                             const int32_t row_address_offset);
 
-/**
+/*
  * @brief General Matrix-multiplication function with int8 input and int32 output.
  *        This function assumes:
  *        - LHS input matrix NOT transposed (nt)
@@ -639,7 +649,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
  *
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
- */
+ */     
 arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_s32(const int8_t *lhs,
                                                 const int8_t *rhs,
                                                 int32_t *dst,
@@ -649,7 +659,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_s32(const int8_t *lhs,
                                                 const int32_t lhs_offset,
                                                 const int32_t dst_idx_offset);
 
-/**
+/*
  * @brief s4 Vector by Matrix (transposed) multiplication
  *
  * @param[in]      lhs             Input left-hand side vector

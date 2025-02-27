@@ -56,11 +56,11 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                                              const int32_t rhs_cols,
                                              const int32_t activation_min,
                                              const int32_t activation_max,
-                                             const int32_t output_ch)
+                                             const int32_t row_address_offset)
 {
     
 #if defined(ARM_MATH_MVEI)
-    const uint32_t rhs_rows_offset = (uint32_t) output_ch * sizeof(int16_t);    
+    const uint32_t rhs_rows_offset = (uint32_t) row_address_offset * sizeof(int16_t);    
     const uint32x4_t scatter_offset = {
         0, (uint32_t)rhs_rows_offset, (uint32_t)rhs_rows_offset * 2, (uint32_t)rhs_rows_offset * 3};
 
@@ -203,7 +203,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
         }
 
         lhs += 4 * rhs_cols;
-        dst += (4 * output_ch - rhs_rows);
+        dst += (4 * row_address_offset - rhs_rows);
     }
 
     if (is_int32_bias)
@@ -271,7 +271,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                 acc_n0 = MIN(acc_n0, activation_max);
                 *dst++ = (int16_t)acc_n0;
             }
-            dst += (output_ch - rhs_rows);
+            dst += (row_address_offset - rhs_rows);
         }
     }
     else
@@ -335,7 +335,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                 *dst++ = (int16_t)acc_n0;
             }
             lhs += rhs_cols;
-            dst += (output_ch - rhs_rows);
+            dst += (row_address_offset - rhs_rows);
         }
     }
 
