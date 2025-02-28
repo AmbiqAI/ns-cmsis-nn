@@ -154,7 +154,6 @@ Functions</h2></td></tr>
 <tr class="memdesc:ga29c9201fd0b0a003e9b50f4c62051899"><td class="mdescLeft">&#160;</td><td class="mdescRight">s16 Vector by s16 Matrix (transposed) multiplication  <br /></td></tr>
 <tr class="separator:ga29c9201fd0b0a003e9b50f4c62051899"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaaf9b8b660e2ad47197bcea8c91a87e2c"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportFC.html#gaaf9b8b660e2ad47197bcea8c91a87e2c">arm_nn_vec_mat_mult_t_s4</a> (const int8_t *lhs, const int8_t *packed_rhs, const int32_t *bias, int8_t *dst, const int32_t lhs_offset, const int32_t dst_offset, const int32_t dst_multiplier, const int32_t dst_shift, const int32_t rhs_cols, const int32_t rhs_rows, const int32_t activation_min, const int32_t activation_max)</td></tr>
-<tr class="memdesc:gaaf9b8b660e2ad47197bcea8c91a87e2c"><td class="mdescLeft">&#160;</td><td class="mdescRight">s4 Vector by Matrix (transposed) multiplication  <br /></td></tr>
 <tr class="separator:gaaf9b8b660e2ad47197bcea8c91a87e2c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaff86eb02f09a2f49f452b1da945b3a2b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportFC.html#gaff86eb02f09a2f49f452b1da945b3a2b">arm_nn_vec_mat_mult_t_s8</a> (const int8_t *lhs, const int8_t *rhs, const int32_t *kernel_sum, const int32_t *bias, int8_t *dst, const int32_t lhs_offset, const int32_t dst_offset, const int32_t dst_multiplier, const int32_t dst_shift, const int32_t rhs_cols, const int32_t rhs_rows, const int32_t activation_min, const int32_t activation_max, const int32_t address_offset, const int32_t rhs_offset)</td></tr>
 <tr class="memdesc:gaff86eb02f09a2f49f452b1da945b3a2b"><td class="mdescLeft">&#160;</td><td class="mdescRight">s8 Vector by Matrix (transposed) multiplication  <br /></td></tr>
@@ -818,26 +817,6 @@ Functions</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
-
-<p>s4 Vector by Matrix (transposed) multiplication </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">lhs</td><td>Input left-hand side vector </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">packed_rhs</td><td>Input right-hand side matrix (transposed) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">bias</td><td>Input bias </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">dst</td><td>Output vector </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">lhs_offset</td><td>Offset to be added to the input values of the left-hand side vector. Range: -127 to 128 </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">dst_offset</td><td>Offset to be added to the output values. Range: -127 to 128 </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">dst_multiplier</td><td>Output multiplier </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">dst_shift</td><td>Output shift </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">rhs_cols</td><td>Number of columns in the right-hand side input matrix </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">rhs_rows</td><td>Number of rows in the right-hand side input matrix </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">activation_min</td><td>Minimum value to clamp the output to. Range: int8 </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">activation_max</td><td>Maximum value to clamp the output to. Range: int8</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>The function returns <code>ARM_CMSIS_NN_SUCCESS</code> </dd></dl>
 
 </div>
 </div>
