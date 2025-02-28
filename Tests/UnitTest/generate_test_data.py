@@ -588,30 +588,6 @@ def load_testdata_sets(regenerate_input, regenerate_weights, regenerate_biases, 
                                           dilation_x=2,
                                           dilation_y=2,
                                           interpreter=interpreter)
-    dataset = 'int16xint8_group2'
-    testdata_sets[dataset] = ConvSettings(dataset,
-                                          type_of_test,
-                                          regenerate_weights,
-                                          regenerate_input,
-                                          regenerate_biases,
-                                          schema_file,
-                                          in_ch=6,
-                                          out_ch=8,
-                                          groups=2,
-                                          x_in=17,
-                                          y_in=32,
-                                          w_x=2,
-                                          w_y=4,
-                                          stride_x=3,
-                                          stride_y=2,
-                                          pad=False,
-                                          generate_bias=False,
-                                          randmin=TestSettings.INT16_MIN,
-                                          randmax=TestSettings.INT16_MAX,
-                                          out_activation_min=TestSettings.INT16_MIN,
-                                          out_activation_max=TestSettings.INT16_MAX,
-                                          int16xint8=True,
-                                          interpreter=interpreter)
     dataset = 'int16xint8'
     testdata_sets[dataset] = ConvSettings(dataset,
                                           type_of_test,
@@ -3350,14 +3326,12 @@ def main():
         regenerate_biases = True
         regenerate_weights = True
         regenerate_input = True
-    # test_type = 'conv'
-    # testdataset = 'int16xint8_group2'
+
     testdata_sets = load_testdata_sets(regenerate_input,
                                        regenerate_weights,
                                        regenerate_biases,
                                        schema_file,
                                        args.interpreter)
-    
 
     if args.run_all_testsets:
         for testset_name, testset_generator in testdata_sets.items():
