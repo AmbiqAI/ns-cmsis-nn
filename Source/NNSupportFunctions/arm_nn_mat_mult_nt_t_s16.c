@@ -29,7 +29,6 @@
  * -------------------------------------------------------------------- */
 
 #include "arm_nnsupportfunctions.h"
-
 /**
  * @ingroup groupSupport
  */
@@ -55,11 +54,12 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                                              const int32_t rhs_rows,
                                              const int32_t rhs_cols,
                                              const int32_t activation_min,
-                                             const int32_t activation_max)
+                                             const int32_t activation_max,
+                                             const int32_t row_address_offset)
 {
+    
 #if defined(ARM_MATH_MVEI)
-
-    const uint32_t rhs_rows_offset = (uint32_t)rhs_rows * sizeof(int16_t);
+    const uint32_t rhs_rows_offset = (uint32_t) row_address_offset * sizeof(int16_t);    
     const uint32x4_t scatter_offset = {
         0, (uint32_t)rhs_rows_offset, (uint32_t)rhs_rows_offset * 2, (uint32_t)rhs_rows_offset * 3};
 
@@ -69,11 +69,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
 
     const int32_t rhs_cols_fast = is_int32_bias ? rhs_cols : (rhs_cols > MAX_COL_COUNT ? MAX_COL_COUNT : rhs_cols);
     const int32_t rhs_cols_slow = rhs_cols - MAX_COL_COUNT;
-
     int i_items = 0;
     for (; i_items <= (lhs_rows - 4); i_items += 4)
     {
-        for (int i = 0; i < rhs_rows; i++)
+        for (int i = 0; i < rhs_rows; i++) // Loop over the output channels
         {
             int32_t acc_n0 = 0;
             int32_t acc_n1 = 0;
@@ -202,7 +201,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
         }
 
         lhs += 4 * rhs_cols;
-        dst += (3 * rhs_rows);
+        dst += (4 * row_address_offset - rhs_rows);
     }
 
     if (is_int32_bias)
@@ -213,7 +212,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
             int32_t acc[4];
             const int32_t *multipliers = dst_multipliers;
             const int32_t *shifts = dst_shifts;
-            for (int i = 0; i < rhs_rows; i++)
+            for (int i = 0; i < rhs_rows; i++) // Loop over the output channels per group
             {
                 int32_t acc_n0 = 0;
                 const int16_t *ip_row_0 = lhs;
@@ -239,7 +238,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                                : [cnt] "r"(rhs_cols)
                                : "q0", "q1", "memory", "r14");
     #endif
-                if (bias_s32)
+                if ( bias_s32)
                 {
                     acc_n0 += bias_s32[i];
                 }
@@ -270,6 +269,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                 acc_n0 = MIN(acc_n0, activation_max);
                 *dst++ = (int16_t)acc_n0;
             }
+            dst += (row_address_offset - rhs_rows);
         }
     }
     else
@@ -333,6 +333,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                 *dst++ = (int16_t)acc_n0;
             }
             lhs += rhs_cols;
+            dst += (row_address_offset - rhs_rows);
         }
     }
 
@@ -349,6 +350,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
     (void)lhs_rows;
     (void)rhs_rows;
     (void)rhs_cols;
+    (void)row_address_offset;
 
     return ARM_CMSIS_NN_NO_IMPL_ERROR;
 #endif

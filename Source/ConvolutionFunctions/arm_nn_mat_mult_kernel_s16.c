@@ -55,7 +55,8 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
                                     const int32_t activation_max,
                                     const int32_t num_col_a,
                                     const cmsis_nn_bias_data *const bias_data,
-                                    int16_t *out_0)
+                                    int16_t *out_0,
+                                    const int32_t row_address_offset)
 {
 #if !defined(ARM_MATH_MVEI)
     const int64_t *bias_s64 = (const int64_t *)bias_data->data;
@@ -64,8 +65,7 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
 
     const int32_t num_col_a_fast = is_int32_bias ? num_col_a : (num_col_a > MAX_COL_COUNT ? MAX_COL_COUNT : num_col_a);
     const int32_t num_col_a_slow = num_col_a - MAX_COL_COUNT;
-
-    int16_t *out_1 = out_0 + output_ch;
+    int16_t *out_1 = out_0 + row_address_offset;
     int32_t row_count = output_ch / 2;
     const int8_t *ip_a0 = input_a;
 
@@ -359,6 +359,7 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
     (void)num_col_a;
     (void)bias_data;
     (void)out_0;
+    (void)row_address_offset;
 
     return NULL;
 #endif
