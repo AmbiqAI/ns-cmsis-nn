@@ -360,6 +360,7 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
     (void)num_col_a;
     (void)bias_data;
     (void)out_0;
+    (void)row_address_offset;
 
     return NULL;
 #endif
