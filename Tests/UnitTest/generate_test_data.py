@@ -588,6 +588,56 @@ def load_testdata_sets(regenerate_input, regenerate_weights, regenerate_biases, 
                                           dilation_x=2,
                                           dilation_y=2,
                                           interpreter=interpreter)
+    dataset = 'int16xint8_group2'
+    testdata_sets[dataset] = ConvSettings(dataset,
+                                          type_of_test,
+                                          regenerate_weights,
+                                          regenerate_input,
+                                          regenerate_biases,
+                                          schema_file,
+                                          in_ch=6,
+                                          out_ch=8,
+                                          groups=2,
+                                          x_in=23,
+                                          y_in=18,
+                                          w_x=2,
+                                          w_y=3,
+                                          stride_x=2,
+                                          stride_y=3,
+                                          pad=False,
+                                          generate_bias=False,
+                                          randmin=TestSettings.INT16_MIN,
+                                          randmax=TestSettings.INT16_MAX,
+                                          out_activation_min=TestSettings.INT16_MIN,
+                                          out_activation_max=TestSettings.INT16_MAX,
+                                          int16xint8=True,
+                                          interpreter=interpreter)
+
+    dataset = 'int16xint8_group_depthwise'
+    testdata_sets[dataset] = ConvSettings(dataset,
+                                          type_of_test,
+                                          regenerate_weights,
+                                          regenerate_input,
+                                          regenerate_biases,
+                                          schema_file,
+                                          in_ch=8,
+                                          out_ch=8,
+                                          groups=8,
+                                          x_in=24,
+                                          y_in=17,
+                                          w_x=3,
+                                          w_y=4,
+                                          stride_x=1,
+                                          stride_y=1,
+                                          pad=False,
+                                          generate_bias=False,
+                                          randmin=TestSettings.INT16_MIN,
+                                          randmax=TestSettings.INT16_MAX,
+                                          out_activation_min=TestSettings.INT16_MIN,
+                                          out_activation_max=TestSettings.INT16_MAX,
+                                          int16xint8=True,
+                                          interpreter=interpreter)
+    
     dataset = 'int16xint8'
     testdata_sets[dataset] = ConvSettings(dataset,
                                           type_of_test,
@@ -3326,7 +3376,8 @@ def main():
         regenerate_biases = True
         regenerate_weights = True
         regenerate_input = True
-
+    # test_type = 'conv'
+    # testdataset= 'int16xint8_group_depthwise'
     testdata_sets = load_testdata_sets(regenerate_input,
                                        regenerate_weights,
                                        regenerate_biases,
