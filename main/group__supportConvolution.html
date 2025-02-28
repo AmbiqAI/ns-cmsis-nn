@@ -136,9 +136,9 @@ $(document).ready(function(){initNavTree('group__supportConvolution.html',''); i
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:ga283ab5595039bebb0de321bc935928a1"><td class="memItemLeft" align="right" valign="top">int16_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportConvolution.html#ga283ab5595039bebb0de321bc935928a1">arm_nn_mat_mult_kernel_s16</a> (const int8_t *input_a, const int16_t *input_b, const int32_t output_ch, const int32_t *out_shift, const int32_t *out_mult, const int32_t activation_min, const int32_t activation_max, const int32_t num_col_a, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__bias__data">cmsis_nn_bias_data</a> *const bias_data, int16_t *out_0, const int32_t row_address_offset)</td></tr>
-<tr class="memdesc:ga283ab5595039bebb0de321bc935928a1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Matrix-multiplication function for convolution with per-channel requantization for 16 bits convolution.  <br /></td></tr>
-<tr class="separator:ga283ab5595039bebb0de321bc935928a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gac4a9067f3e3b4af2a1036dcfb9a60bdc"><td class="memItemLeft" align="right" valign="top">int16_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportConvolution.html#gac4a9067f3e3b4af2a1036dcfb9a60bdc">arm_nn_mat_mult_kernel_s16</a> (const int8_t *input_a, const int16_t *input_b, const int32_t output_ch, const int32_t *out_shift, const int32_t *out_mult, const int32_t activation_min, const int32_t activation_max, const int32_t num_col_a, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__bias__data">cmsis_nn_bias_data</a> *const bias_data, int16_t *out_0)</td></tr>
+<tr class="memdesc:gac4a9067f3e3b4af2a1036dcfb9a60bdc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Matrix-multiplication function for convolution with per-channel requantization for 16 bits convolution.  <br /></td></tr>
+<tr class="separator:gac4a9067f3e3b4af2a1036dcfb9a60bdc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga89d46677ad9046bee67cee7add8e9c04"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportConvolution.html#ga89d46677ad9046bee67cee7add8e9c04">arm_nn_depthwise_conv_nt_t_padded_s8</a> (const int8_t *lhs, const int8_t *rhs, const int32_t input_offset, const int32_t active_ch, const int32_t total_ch, const int32_t *out_shift, const int32_t *out_mult, const int32_t out_offset, const int32_t activation_min, const int32_t activation_max, const uint16_t row_x_col, const int32_t *const output_bias, int8_t *out)</td></tr>
 <tr class="memdesc:ga89d46677ad9046bee67cee7add8e9c04"><td class="mdescLeft">&#160;</td><td class="mdescRight">Depthwise convolution of transposed rhs matrix with 4 lhs matrices. To be used in padded cases where the padding is -lhs_offset(Range: int8). Dimensions are the same for lhs and rhs.  <br /></td></tr>
 <tr class="separator:ga89d46677ad9046bee67cee7add8e9c04"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -163,9 +163,9 @@ Functions</h2></td></tr>
 <tr class="memitem:gabaf719e35dc69b5e49e6a5c6b5f4f245"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportConvolution.html#gabaf719e35dc69b5e49e6a5c6b5f4f245">arm_nn_mat_mult_nt_interleaved_t_even_s4</a> (const int8_t *lhs, const int8_t *packed_rhs, const int32_t *bias, int8_t *dst, const int32_t *dst_multipliers, const int32_t *dst_shifts, const int32_t lhs_rows, const int32_t rhs_rows, const int32_t rhs_cols, const int32_t lhs_offset, const int32_t dst_offset, const int32_t activation_min, const int32_t activation_max, const int32_t lhs_cols_offset)</td></tr>
 <tr class="memdesc:gabaf719e35dc69b5e49e6a5c6b5f4f245"><td class="mdescLeft">&#160;</td><td class="mdescRight">General Matrix-multiplication function with per-channel requantization. This function assumes:  <br /></td></tr>
 <tr class="separator:gabaf719e35dc69b5e49e6a5c6b5f4f245"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gab02571e3244d9a96f7809037aeb6479f"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportConvolution.html#gab02571e3244d9a96f7809037aeb6479f">arm_nn_mat_mult_nt_t_s16</a> (const int16_t *lhs, const int8_t *rhs, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__bias__data">cmsis_nn_bias_data</a> *bias_data, int16_t *dst, const int32_t *dst_multipliers, const int32_t *dst_shifts, const int32_t lhs_rows, const int32_t rhs_rows, const int32_t rhs_cols, const int32_t activation_min, const int32_t activation_max, const int32_t row_address_offset)</td></tr>
-<tr class="memdesc:gab02571e3244d9a96f7809037aeb6479f"><td class="mdescLeft">&#160;</td><td class="mdescRight">General Matrix-multiplication function with per-channel requantization and int16 input (LHS) and output. This function assumes:  <br /></td></tr>
-<tr class="separator:gab02571e3244d9a96f7809037aeb6479f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gabd91877357d8c36954d00c33add65e1d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportConvolution.html#gabd91877357d8c36954d00c33add65e1d">arm_nn_mat_mult_nt_t_s16</a> (const int16_t *lhs, const int8_t *rhs, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__bias__data">cmsis_nn_bias_data</a> *bias_data, int16_t *dst, const int32_t *dst_multipliers, const int32_t *dst_shifts, const int32_t lhs_rows, const int32_t rhs_rows, const int32_t rhs_cols, const int32_t activation_min, const int32_t activation_max)</td></tr>
+<tr class="memdesc:gabd91877357d8c36954d00c33add65e1d"><td class="mdescLeft">&#160;</td><td class="mdescRight">General Matrix-multiplication function with per-channel requantization and int16 input (LHS) and output. This function assumes:  <br /></td></tr>
+<tr class="separator:gabd91877357d8c36954d00c33add65e1d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga9a5bbacc830176ced95c98d2d4100041"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportConvolution.html#ga9a5bbacc830176ced95c98d2d4100041">arm_nn_mat_mult_nt_t_s4</a> (const int8_t *lhs, const int8_t *packed_rhs, const int32_t *bias, int8_t *dst, const int32_t *dst_multipliers, const int32_t *dst_shifts, const int32_t lhs_rows, const int32_t rhs_rows, const int32_t rhs_cols, const int32_t lhs_offset, const int32_t dst_offset, const int32_t activation_min, const int32_t activation_max, const int32_t lhs_cols_offset)</td></tr>
 <tr class="memdesc:ga9a5bbacc830176ced95c98d2d4100041"><td class="mdescLeft">&#160;</td><td class="mdescRight">General Matrix-multiplication function with per-channel requantization. This function assumes:  <br /></td></tr>
 <tr class="separator:ga9a5bbacc830176ced95c98d2d4100041"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -173,6 +173,7 @@ Functions</h2></td></tr>
 <tr class="memdesc:ga6e946ce01dca21f5d1b2f6d1dfeabb4a"><td class="mdescLeft">&#160;</td><td class="mdescRight">General Matrix-multiplication function with per-channel requantization. This function assumes:  <br /></td></tr>
 <tr class="separator:ga6e946ce01dca21f5d1b2f6d1dfeabb4a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gae6a91b1c854a59478f251e5209fef17a"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportConvolution.html#gae6a91b1c854a59478f251e5209fef17a">arm_nn_mat_mult_nt_t_s8_s32</a> (const int8_t *lhs, const int8_t *rhs, int32_t *dst, const int32_t lhs_rows, const int32_t rhs_rows, const int32_t rhs_cols, const int32_t lhs_offset, const int32_t dst_idx_offset)</td></tr>
+<tr class="memdesc:gae6a91b1c854a59478f251e5209fef17a"><td class="mdescLeft">&#160;</td><td class="mdescRight">General Matrix-multiplication function with int8 input and int32 output. This function assumes:  <br /></td></tr>
 <tr class="separator:gae6a91b1c854a59478f251e5209fef17a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga4150aa4b2a79efccc2a1258bda068ba9"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__supportConvolution.html#ga4150aa4b2a79efccc2a1258bda068ba9">arm_nn_transpose_conv_row_s8_s32</a> (const int8_t *lhs, const int8_t *rhs, int32_t *output_start, const int32_t output_index, const int32_t output_max, const int32_t rhs_rows, const int32_t rhs_cols, const int32_t input_channels, const int32_t output_channels, const int32_t lhs_offset, const int32_t row_offset, const int32_t input_x, const int32_t stride_x, const int32_t skip_rows_top, const int32_t skip_rows_bottom)</td></tr>
 <tr class="memdesc:ga4150aa4b2a79efccc2a1258bda068ba9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Row of s8 scalars multiplicated with a s8 matrix ad accumulated into a s32 rolling scratch buffer. Helpfunction for transposed convolution.  <br /></td></tr>
@@ -832,7 +833,6 @@ Functions</h2></td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">quant_params</td><td>Pointer to per-channel quantization parameters </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">bias</td><td>Pointer to optional per-channel bias </td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Pointer to output where int8 results are stored. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">row_address_offset</td><td>Address offset between rows in output. </td></tr>
   </table>
   </dd>
 </dl>
@@ -929,8 +929,8 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="ga283ab5595039bebb0de321bc935928a1" name="ga283ab5595039bebb0de321bc935928a1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga283ab5595039bebb0de321bc935928a1">&#9670;&#160;</a></span>arm_nn_mat_mult_kernel_s16()</h2>
+<a id="gac4a9067f3e3b4af2a1036dcfb9a60bdc" name="gac4a9067f3e3b4af2a1036dcfb9a60bdc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gac4a9067f3e3b4af2a1036dcfb9a60bdc">&#9670;&#160;</a></span>arm_nn_mat_mult_kernel_s16()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -993,13 +993,7 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">int16_t *&#160;</td>
-          <td class="paramname"><em>out_0</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const int32_t&#160;</td>
-          <td class="paramname"><em>row_address_offset</em>&#160;</td>
+          <td class="paramname"><em>out_0</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -1166,8 +1160,8 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="gab02571e3244d9a96f7809037aeb6479f" name="gab02571e3244d9a96f7809037aeb6479f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gab02571e3244d9a96f7809037aeb6479f">&#9670;&#160;</a></span>arm_nn_mat_mult_nt_t_s16()</h2>
+<a id="gabd91877357d8c36954d00c33add65e1d" name="gabd91877357d8c36954d00c33add65e1d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gabd91877357d8c36954d00c33add65e1d">&#9670;&#160;</a></span>arm_nn_mat_mult_nt_t_s16()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1236,13 +1230,7 @@ Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">const int32_t&#160;</td>
-          <td class="paramname"><em>activation_max</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const int32_t&#160;</td>
-          <td class="paramname"><em>row_address_offset</em>&#160;</td>
+          <td class="paramname"><em>activation_max</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -1270,27 +1258,12 @@ Functions</h2></td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">rhs_rows</td><td>Number of RHS input rows </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">rhs_cols</td><td>Number of LHS/RHS input columns </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">activation_min</td><td>Minimum value to clamp down the output. Range : int16 </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">activation_max</td><td>Maximum value to clamp up the output. Range : int16 </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">row_address_offset</td><td>Address offset between rows in output. NOTE: Only used for MVEI extension.</td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">activation_max</td><td>Maximum value to clamp up the output. Range : int16</td></tr>
   </table>
   </dd>
 </dl>
 <p>MVE implementation only.</p>
-<dl class="section return"><dt>Returns</dt><dd>The function returns <code>ARM_CMSIS_NN_SUCCESS</code> or <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> if not for MVE |---&mdash;row_address_offset---&mdash;| |____rhs_rows__________________| <table class="markdownTable">
-<tr class="markdownTableHead">
-<th class="markdownTableHeadNone"></th><th class="markdownTableHeadNone"></th></tr>
-<tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone"></td></tr>
-<tr class="markdownTableRowEven">
-<td class="markdownTableBodyNone"></td><td class="markdownTableBodyNone"></td></tr>
-</table>
-| | | lhs_rows <table class="markdownTable">
-<tr class="markdownTableHead">
-<th class="markdownTableHeadNone"></th><th class="markdownTableHeadNone"></th></tr>
-<tr class="markdownTableRowOdd">
-<td class="markdownTableBodyNone">_______________   </td><td class="markdownTableBodyNone">______________   </td></tr>
-</table>
-</dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>The function returns <code>ARM_CMSIS_NN_SUCCESS</code> or <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> if not for MVE </dd></dl>
 
 </div>
 </div>
@@ -1618,6 +1591,27 @@ Functions</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
+
+<p>General Matrix-multiplication function with int8 input and int32 output. This function assumes: </p>
+<ul>
+<li>LHS input matrix NOT transposed (nt)</li>
+<li>RHS input matrix transposed (t)</li>
+</ul>
+<dl class="section note"><dt>Note</dt><dd>Dst/output buffer must be zeroed out before calling this function.</dd></dl>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">lhs</td><td>Pointer to the LHS input matrix </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">rhs</td><td>Pointer to the RHS input matrix </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">dst</td><td>Pointer to the output matrix with "m" rows and "n" columns </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">lhs_rows</td><td>Number of LHS input rows </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">rhs_rows</td><td>Number of LHS input columns/RHS input rows </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">rhs_cols</td><td>Number of RHS input columns </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">lhs_offset</td><td>Offset to be applied to the LHS input value </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">dst_idx_offset</td><td>Offset between subsequent output results</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The function returns <code>ARM_CMSIS_NN_SUCCESS</code> </dd></dl>
 
 </div>
 </div>
