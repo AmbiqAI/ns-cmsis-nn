@@ -43,7 +43,7 @@ void setUp(void)
  * The name must be exactly like this
  */
 void tearDown(void) {}
-
+void test_int16xint8_group2_arm_convolve_s16(void) { int16xint8_group2_arm_convolve_s16(); }
 void test_int16xint8_arm_convolve_s16(void) { int16xint8_arm_convolve_s16(); }
 void test_requantize_s64_arm_convolve_s16(void) { requantize_s64_arm_convolve_s16(); }
 void test_int16xint8_dilation_1_arm_convolve_s16(void) { int16xint8_dilation_1_arm_convolve_s16(); }

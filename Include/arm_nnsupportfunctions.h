@@ -329,7 +329,8 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
                                     const int32_t activation_max,
                                     const int32_t num_col_a,
                                     const cmsis_nn_bias_data *const bias_data,
-                                    int16_t *out_0);
+                                    int16_t *out_0,
+                                    const int32_t row_address_offset);
 
 /**
  * @brief General Vector by Matrix multiplication with requantization and storage of result.
@@ -343,6 +344,7 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
  * @param[in]       quant_params          Pointer to per-channel quantization parameters
  * @param[in]       bias                  Pointer to optional per-channel bias
  * @param[out]      output                Pointer to output where int8 results are stored.
+ * @param[in]       row_address_offset Address offset between rows in output.
  * @return     The function performs matrix(row_base_ref) multiplication with vector(col_base_ref) and
  *             scaled result is stored in memory.
  *

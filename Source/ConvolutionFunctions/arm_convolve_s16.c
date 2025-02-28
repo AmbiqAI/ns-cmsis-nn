@@ -212,18 +212,20 @@ arm_cmsis_nn_status arm_convolve_s16(
                     /* Computation is filed for every 2 columns */
                     if (lhs_rows == 2)
                     {
-                        out = arm_nn_mat_mult_kernel_s16(filter_data_ptr,
+                        arm_nn_mat_mult_kernel_s16(filter_data_ptr,
                                                         buffer_a,
                                                         output_ch_per_group,
-                                                        output_shift,
-                                                        output_mult,
+                                                        output_shift_ptr,
+                                                        output_mult_ptr,
                                                         out_activation_min,
                                                         out_activation_max,
                                                         rhs_cols,
-                                                        bias_data,
-                                                        out);
+                                                        bias_data_ptr,
+                                                        out,
+                                                        output_ch);
 
                         /* Counter reset */
+                        out += lhs_rows * output_ch;
                         im2col = buffer_a;
                         lhs_rows = 0;
                     }
@@ -259,9 +261,9 @@ arm_cmsis_nn_status arm_convolve_s16(
                 im2col = buffer_a;
 #else // #if defined(ARM_MATH_MVEI)
 
-                const int64_t *bias_s64 = (const int64_t *)bias_data->data;
-                const int32_t *bias_s32 = (const int32_t *)bias_data->data;
-                const bool is_int32_bias = bias_data->is_int32_bias;
+                const int64_t *bias_s64 = (const int64_t *)bias_data_ptr->data;
+                const int32_t *bias_s32 = (const int32_t *)bias_data_ptr->data;
+                const bool is_int32_bias = bias_data_ptr->is_int32_bias;
                 const int8_t *ker_a = filter_data_ptr;
                 int i;
 
@@ -336,7 +338,8 @@ arm_cmsis_nn_status arm_convolve_s16(
 #endif // #if defined(ARM_MATH_MVEI)
             } 
             filter_data_ptr += output_ch_per_group * rhs_cols;
-            bias_data_ptr->data += output_ch_per_group;
+            if (bias_data->data != NULL)
+                bias_data_ptr->data += output_ch_per_group;
             output_mult_ptr += output_ch_per_group;
             output_shift_ptr += output_ch_per_group;
         } // i_group
