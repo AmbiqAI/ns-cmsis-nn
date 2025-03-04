@@ -28,6 +28,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include <stdio.h>
 #include "arm_nnsupportfunctions.h"
 
 /**
@@ -67,47 +68,59 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
 
     #if defined(ARM_MATH_MVEI)
     int32_t row_loop_cnt = rhs_rows / 4;
-    int32_t col_loop_cnt = (rhs_cols_fast + 7) / 8;
 
     for (int32_t i_row_loop_count = 0; i_row_loop_count < row_loop_cnt; i_row_loop_count++)
     {
-        int32_t col_cnt = rhs_cols_fast;
-
-        const int16_t *lhs_ptr = lhs;
-        const int8_t *rhs_ptr_0 = rhs;
-        const int8_t *rhs_ptr_1 = rhs + rhs_cols;
-        const int8_t *rhs_ptr_2 = rhs + rhs_cols * 2;
-        const int8_t *rhs_ptr_3 = rhs + rhs_cols * 3;
 
         int32_t result_0 = 0;
         int32_t result_1 = 0;
         int32_t result_2 = 0;
         int32_t result_3 = 0;
 
-        for (int i_col_loop_cnt = 0; i_col_loop_cnt < col_loop_cnt; i_col_loop_cnt++)
-        {
-            mve_pred16_t pred = vctp16q(col_cnt);
-            col_cnt -= 8;
+        const int16_t *lhs_ptr = lhs;
+        const int8_t *rhs_ptr_0 = rhs;
+        const int8_t *rhs_ptr_1 = rhs_ptr_0 + rhs_cols;
+        const int8_t *rhs_ptr_2 = rhs_ptr_1 + rhs_cols;
+        const int8_t *rhs_ptr_3 = rhs_ptr_2 + rhs_cols;
+        rhs = rhs_ptr_3 + rhs_cols;
 
-            int16x8_t lhs_input = vldrhq_z_s16(lhs_ptr, pred);
+        __ASM volatile(
+            " .p2align 2                                 \n"
+            "   wlstp.16        lr, %[cnt], 1f           \n"
+            "   mov             %[out0], 0               \n"
+            "   mov             %[out1], 0               \n"
+            "   mov             %[out2], 0               \n"
+            "   mov             %[out3], 0               \n"
+            "   vldrh.s16       q0, [%[col]], #16        \n"
+            "2:                                          \n"
+            "   vldrb.s16        q1, [%[row0]], #8       \n"
+            "   vmladava.s16     %[out0], q0, q1         \n"
+            "   vldrb.s16        q2, [%[row1]], #8       \n"
+            "   vmladava.s16     %[out1], q0, q2         \n"
+            "   vldrb.s16       q3, [%[row2]], #8       \n"
+            "   vmladava.s16     %[out2], q0, q3         \n"
+            "   vldrb.s16        q4, [%[row3]], #8       \n"
+            "   vmladava.s16     %[out3], q0, q4         \n"
+            "   vldrh.s16        q0, [%[col]], #16       \n"
+            "   letp            lr, 2b                   \n"
+            "1:                                          \n"
+        :
+            [col] "+r"(lhs_ptr),
+            [row0] "+r"(rhs_ptr_0),
+            [row1] "+r"(rhs_ptr_1),
+            [row2] "+r"(rhs_ptr_2),
+            [row3] "+r"(rhs_ptr_3),
+            [out0] "=Te"(result_0),
+            [out1] "=Te"(result_1),
+            [out2] "=Te"(result_2),
+            [out3] "=Te"(result_3)
+        :
+            [cnt] "r"(rhs_cols_fast)
+        :
+            "q0", "q1", "q2", "q3", "q4", "memory", "r14"
+        );
 
-            int16x8_t rhs_input_0 = vldrbq_z_s16(rhs_ptr_0, pred);
-            int16x8_t rhs_input_1 = vldrbq_z_s16(rhs_ptr_1, pred);
-            int16x8_t rhs_input_2 = vldrbq_z_s16(rhs_ptr_2, pred);
-            int16x8_t rhs_input_3 = vldrbq_z_s16(rhs_ptr_3, pred);
-
-            result_0 = vmladavaq_s16(result_0, lhs_input, rhs_input_0);
-            result_1 = vmladavaq_s16(result_1, lhs_input, rhs_input_1);
-            result_2 = vmladavaq_s16(result_2, lhs_input, rhs_input_2);
-            result_3 = vmladavaq_s16(result_3, lhs_input, rhs_input_3);
-
-            lhs_ptr += 8;
-
-            rhs_ptr_0 += 8;
-            rhs_ptr_1 += 8;
-            rhs_ptr_2 += 8;
-            rhs_ptr_3 += 8;
-        }
+        lhs_ptr -= 8;  // Fix lhs_ptr by subtracting 8
 
         int64_t result_64_0 = result_0;
         int64_t result_64_1 = result_1;
@@ -116,6 +129,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
 
         if (rhs_cols > MAX_COL_COUNT)
         {
+
             for (int i_rhs_cols = MAX_COL_COUNT; i_rhs_cols < rhs_cols; i_rhs_cols++)
             {
                 const int16_t lhs_temp = *lhs_ptr++;
@@ -159,33 +173,38 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
         tmp = MIN(tmp, activation_max);
         *dst++ = (int16_t)tmp;
 
-        rhs += 4 * rhs_cols;
     }
 
     for (int8_t rows_left = rhs_rows & 0x3; rows_left > 0; rows_left--)
     {
         int32_t result = 0;
 
-        col_loop_cnt = (rhs_cols_fast + 7) / 8;
-
         const int16_t *lhs_ptr = lhs;
         const int8_t *rhs_ptr = rhs;
+        rhs += rhs_cols;
 
-        int32_t col_cnt = (int32_t)rhs_cols_fast;
+        __ASM volatile(
+            " .p2align 2                                 \n"
+            "   wlstp.16        lr, %[cnt], 1f           \n"
+            "   mov             %[out0], 0               \n"
+            "   vldrh.s16       q0, [%[col]], #16        \n"
+            "2:                                          \n"
+            "   vldrb.s16        q1, [%[row0]], #8       \n"
+            "   vmladava.s16     %[out0], q0, q1         \n"
+            "   vldrh.s16        q0, [%[col]], #16       \n"
+            "   letp            lr, 2b                   \n"
+            "1:                                          \n"
+        :
+            [col] "+r"(lhs_ptr),
+            [row0] "+r"(rhs_ptr),
+            [out0] "=Te"(result)
+        :
+            [cnt] "r"(rhs_cols_fast)
+        :
+            "q0", "q1", "q2", "q3", "q4", "memory", "r14"
+        );
 
-        for (int i_col_loop_cnt = 0; i_col_loop_cnt < col_loop_cnt; i_col_loop_cnt++)
-        {
-            mve_pred16_t pred = vctp16q(col_cnt);
-            col_cnt -= 8;
-
-            int16x8_t lhs_input = vldrhq_z_s16(lhs_ptr, pred);
-            int16x8_t rhs_input = vldrbq_z_s16(rhs_ptr, pred);
-
-            result = vmladavaq_p_s16(result, lhs_input, rhs_input, pred);
-
-            lhs_ptr += 8;
-            rhs_ptr += 8;
-        }
+        lhs_ptr -= 8;  // Fix lhs_ptr by subtracting 8
 
         int64_t result_64 = result;
 
@@ -210,7 +229,6 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
         tmp = MIN(tmp, activation_max);
         *dst++ = (int16_t)tmp;
 
-        rhs += rhs_cols;
     }
 
     #else // ARM_MATH_MVEI
