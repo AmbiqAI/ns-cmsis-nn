@@ -451,7 +451,7 @@ Functions</h2></td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">input_dims</td><td>Input (activation) tensor dimensions. Format: [N, H, W, C_IN] Input dimension is taken as Nx(H * W * C_IN) </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">input_data</td><td>Input (activation) data pointer. Data type: int16 </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">filter_dims</td><td>Two dimensional filter dimensions. Format: [N, C] N : accumulation depth and equals (H * W * C_IN) from input_dims C : output depth and equals C_OUT in output_dims H &amp; W : Not used </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">filter_data</td><td>Filter data pointer. Data type: int8 </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">kernel</td><td>Filter data pointer. Data type: int8 </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">bias_dims</td><td>Bias tensor dimensions. Format: [C_OUT] N, H, W : Not used </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">bias_data</td><td>Bias data pointer. Data type: int64 </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">output_dims</td><td>Output tensor dimensions. Format: [N, C_OUT] N : Batches C_OUT : Output depth H &amp; W : Not used. </td></tr>
