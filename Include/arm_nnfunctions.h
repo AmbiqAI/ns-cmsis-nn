@@ -1886,7 +1886,7 @@ arm_cmsis_nn_status arm_fully_connected_s16(const cmsis_nn_context *ctx,
  *                               N : accumulation depth and equals (H * W * C_IN) from input_dims
  *                               C : output depth and equals C_OUT in output_dims
  *                               H & W : Not used
- * @param[in]      filter_data   Filter data pointer. Data type: int8
+ * @param[in]      kernel        Filter data pointer. Data type: int8
  * @param[in]      bias_dims     Bias tensor dimensions. Format: [C_OUT]
  *                               N, H, W : Not used
  * @param[in]      bias_data     Bias data pointer. Data type: int64
@@ -3205,12 +3205,11 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
  *                               definition file to see if an additional buffer is required.
  *                               Optional function arm_fully_connected_fp16_get_buffer_size() provides the buffer
  *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security
- * reasons.
+ *                               The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]  fc_params          Pointer to the fully-connected layer parameters
  * @param[in]  input_dims         Pointer to the input tensor dimensions
  * @param[in]  input              Pointer to the input tensor
- * @param[in]  kernel_dims        Pointer to the kernel tensor dimensions
+ * @param[in]  filter_dims        Pointer to the kernel tensor dimensions
  * @param[in]  kernel             Pointer to the kernel tensor
  * @param[in]  bias_dims          Pointer to the bias tensor dimensions
  * @param[in]  bias               Pointer to the bias tensor
