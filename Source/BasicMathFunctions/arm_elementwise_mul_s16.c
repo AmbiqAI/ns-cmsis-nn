@@ -66,7 +66,6 @@ arm_cmsis_nn_status arm_elementwise_mul_s16(const int16_t *input_1_vect,
 #if defined(ARM_MATH_MVEI)
 
     loop_count = block_size;
-
     while (loop_count > 0)
     {
         mve_pred16_t pred = vctp32q(loop_count);

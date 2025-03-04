@@ -23,6 +23,7 @@ import Lib.op_pooling
 import Lib.op_pad
 import Lib.op_maximum_minimum
 import Lib.op_transpose
+import Lib.op_elementwise_mul
 import tensorflow as tf
 import numpy as np
 from tensorflow.lite.python.interpreter import Interpreter
@@ -184,6 +185,8 @@ def get_op_type(op_type_string):
         return Lib.op_conv.Op_conv
     elif op_type_string == "batch_matmul":
         return Lib.op_batch_matmul.Op_batch_matmul
+    elif op_type_string == "elementwise_mul":
+        return Lib.op_elementwise_mul.Op_elementwise_mul
     elif op_type_string == "fully_connected":
         return Lib.op_fully_connected.Op_fully_connected
     elif op_type_string == "avgpool" or op_type_string == "maxpool":
