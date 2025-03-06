@@ -44,19 +44,22 @@ static arm_cmsis_nn_status
 arm_max_no_broadcast_s16(const int16_t *input_1, const int16_t *input_2, int16_t *output, int32_t flat_size)
 {
 #if defined(ARM_MATH_MVEI)
-    while (flat_size > 0)
-    {
-        mve_pred16_t p = vctp16q(flat_size);
 
-        int16x8_t vec1 = vldrhq_z_s16(input_1, p);
-        input_1 += 8;
-        int16x8_t vec2 = vldrhq_z_s16(input_2, p);
-        input_2 += 8;
+    __ASM volatile(
+        " .p2align 2                              \n"
+        "   wlstp.16         lr, %[cnt], 1f       \n"
+        "2:                                       \n"
+        "   vldrh.16         q0, [%[in1]], #16    \n"
+        "   vldrh.16         q1, [%[in2]], #16    \n"
+        "   vmax.s16         q2, q0, q1           \n"
+        "   vstrh.16         q2, [%[out]], #16    \n"
+        "   letp            lr, 2b                \n"
+        "1:                                       \n"
+        : [in1] "+r"(input_1), [in2] "+r"(input_2), [out] "+r"(output)
+        : [cnt] "r"(flat_size)
+        : "q0", "q1", "q2", "memory", "r14"
+    );
 
-        vstrhq_p_s16(output, vmaxq_s16(vec1, vec2), p);
-        output += 8;
-        flat_size -= 8;
-    }
 #else
     while (flat_size > 0)
     {
@@ -74,18 +77,22 @@ static arm_cmsis_nn_status
 arm_max_scalar_s16(const int16_t *input_1, const int16_t *input_2, int16_t *output, int32_t flat_size)
 {
 #if defined(ARM_MATH_MVEI)
-    int16x8_t scalar_vec = vdupq_n_s16(*input_1);
 
-    while (flat_size > 0)
-    {
-        mve_pred16_t p = vctp16q(flat_size);
-        int16x8_t vec = vldrhq_z_s16(input_2, p);
-        input_2 += 8;
+    __ASM volatile(
+        " .p2align 2                              \n"
+        "   wlstp.16         lr, %[cnt], 1f       \n"
+        "   vdup.16          q0, %[in1]           \n"
+        "2:                                       \n"
+        "   vldrh.16         q1, [%[in2]], #16    \n"
+        "   vmax.s16         q2, q0, q1           \n"
+        "   vstrh.16         q2, [%[out]], #16    \n"
+        "   letp             lr, 2b               \n"
+        "1:                                       \n"
+        : [in2] "+r"(input_2), [out] "+r"(output)
+        : [in1] "r"(*input_1), [cnt] "r"(flat_size)
+        : "q0", "q1", "q2", "memory", "r14"
+    );
 
-        vstrhq_p_s16(output, vmaxq_s16(scalar_vec, vec), p);
-        output += 8;
-        flat_size -= 8;
-    }
 #else
 int16_t in1 = *input_1;
     while (flat_size > 0)

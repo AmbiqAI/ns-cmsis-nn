@@ -44,19 +44,22 @@ static arm_cmsis_nn_status
 arm_max_no_broadcast_s8(const int8_t *input_1, const int8_t *input_2, int8_t *output, int32_t flat_size)
 {
 #if defined(ARM_MATH_MVEI)
-    while (flat_size > 0)
-    {
-        mve_pred16_t p = vctp8q(flat_size);
 
-        int8x16_t vec1 = vldrbq_z_s8(input_1, p);
-        input_1 += 16;
-        int8x16_t vec2 = vldrbq_z_s8(input_2, p);
-        input_2 += 16;
+    __ASM volatile(
+        " .p2align 2                             \n"
+        "   wlstp.8         lr, %[cnt], 1f       \n"
+        "2:                                      \n"
+        "   vldrb.8         q0, [%[in1]], #16    \n"
+        "   vldrb.8         q1, [%[in2]], #16    \n"
+        "   vmax.s8         q2, q0, q1           \n"
+        "   vstrb.8         q2, [%[out]], #16    \n"
+        "   letp            lr, 2b               \n"
+        "1:                                      \n"
+        : [in1] "+r"(input_1), [in2] "+r"(input_2), [out] "+r"(output)
+        : [cnt] "r"(flat_size)
+        : "q0", "q1", "q2", "memory", "r14"
+    );
 
-        vstrbq_p_s8(output, vmaxq_s8(vec1, vec2), p);
-        output += 16;
-        flat_size -= 16;
-    }
 #else
     while (flat_size > 0)
     {
@@ -74,18 +77,22 @@ static arm_cmsis_nn_status
 arm_max_scalar_s8(const int8_t *input_1, const int8_t *input_2, int8_t *output, int32_t flat_size)
 {
 #if defined(ARM_MATH_MVEI)
-    int8x16_t scalar_vec = vdupq_n_s8(*input_1);
 
-    while (flat_size > 0)
-    {
-        mve_pred16_t p = vctp8q(flat_size);
-        int8x16_t vec = vldrbq_z_s8(input_2, p);
-        input_2 += 16;
+    __ASM volatile(
+        " .p2align 2                             \n"
+        "   wlstp.8         lr, %[cnt], 1f       \n"
+        "   vdup.8          q0, %[in1]           \n"
+        "2:                                      \n"
+        "   vldrb.8         q1, [%[in2]], #16    \n"
+        "   vmax.s8         q2, q0, q1           \n"
+        "   vstrb.8         q2, [%[out]], #16    \n"
+        "   letp            lr, 2b               \n"
+        "1:                                      \n"
+        : [in2] "+r"(input_2), [out] "+r"(output)
+        : [in1] "r"(*input_1), [cnt] "r"(flat_size)
+        : "q0", "q1", "q2", "memory", "r14"
+    );
 
-        vstrbq_p_s8(output, vmaxq_s8(scalar_vec, vec), p);
-        output += 16;
-        flat_size -= 16;
-    }
 #else
     int8_t in1 = *input_1;
     while (flat_size > 0)
