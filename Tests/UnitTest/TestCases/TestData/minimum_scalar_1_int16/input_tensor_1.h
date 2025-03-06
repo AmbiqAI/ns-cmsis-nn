@@ -3,4 +3,4 @@
 #pragma once
 #include <stdint.h>
 
-const int16_t minimum_scalar_1_int16_input_tensor_1[1] = {29999};
+const int16_t minimum_scalar_1_int16_input_tensor_1[1] = {-107};
