@@ -60,26 +60,33 @@ arm_cmsis_nn_status arm_elementwise_add_fp16(
 
     int32_t count = block_size;
 
-    while (count > 0)
-    {
-
-        mve_pred16_t pred = vctp32q(count);
-
-        float16x8_t vect_1 = vld1q_z_f16(input_1_vect, pred);
-        float16x8_t vect_2 = vld1q_z_f16(input_2_vect, pred);
-        float16x8_t rst = vaddq_x_f16(input_1_vect, input_2_vect, pred);
-
-        input_1_vect += 8;
-        input_2_vect += 8;
-
-        rst = vminnmq_x_f16(rst, vdupq_n_s32(out_activation_max));
-        rst = vmaxnmq_x_f16(rst, vdupq_n_s32(out_activation_min));
-
-        vstrhq_p_f16(output, rst, pred);
-
-        output += 8;
-        count -= 8;
-    }
+    __ASM volatile(
+        " .p2align 2                                 \n"
+        "   wlstp.16         lr, %[cnt], 1f          \n"
+        // Place min and max into q4 and q5
+        "   vdup.16          q4, %[min]              \n"
+        "   vdup.16          q5, %[max]              \n"
+        "2:                                          \n"
+        "   vldrh.16         q1, [%[lhs]], #16       \n"
+        "   vldrh.16         q2, [%[rhs]], #16       \n"
+        "   vadd.f16         q3, q1, q2              \n"
+        // Clamp the result
+        "   vminnm.f16       q3, q3, q5              \n"
+        "   vmaxnm.f16       q3, q3, q4              \n"
+        "   vstrh.16         q3, [%[dst]], #16       \n"
+        "   letp             lr, 2b                  \n"
+        "1:                                          \n"
+    :
+        [lhs] "+r"(input_1_vect),
+        [rhs] "+r"(input_2_vect),
+        [dst] "+r"(output),
+        [cnt] "+r"(count)
+    :
+        [min] "r"(out_activation_min),
+        [max] "r"(out_activation_max)
+    :
+        "q1", "q2", "q3", "q4", "q5", "memory", "r14"
+    );
 
     return (ARM_CMSIS_NN_SUCCESS);
 }
