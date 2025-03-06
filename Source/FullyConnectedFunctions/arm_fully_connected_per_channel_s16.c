@@ -65,15 +65,6 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s16(
 
     int32_t batch_cnt = input_dims->n;
 
-// #if defined(ARM_MATH_MVEI)
-//     if (ctx->buf == NULL)
-//     {
-//         return (ARM_CMSIS_NN_ARG_ERROR);
-//     }
-// #endif
-
-    // const int32_t *kernel_sum = (const int32_t *)ctx->buf;
-
     while (batch_cnt)
     {
 
@@ -82,16 +73,12 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s16(
             kernel,
             bias_data,
             output_data,
-            // fc_params->input_offset,
-            // fc_params->output_offset,
             quant_params->multiplier,
             quant_params->shift,
             filter_dims->n, /* col_dim or accum_depth */
             output_dims->c, /* row_dim or output_depth */
             fc_params->activation.min,
             fc_params->activation.max
-            // 1L,
-            // fc_params->filter_offset
         );
 
         input_data += filter_dims->n;
