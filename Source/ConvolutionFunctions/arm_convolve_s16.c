@@ -105,10 +105,8 @@ arm_cmsis_nn_status arm_convolve_s16(
 
     int32_t stride_edge = input_x - (output_x-1) * stride_x + (stride_y-1) * input_x;
     uint16_t offset_v[8] = {0,0,0,0,0,0,0,0};
-    uint16_t offset_v1[8] = {0,0,0,0,0,0,0,0};
-    int kernel_xy= kernel_x * kernel_y;
 
-    if (kernel_xy < 9)
+    if (rhs_cols < 9)
     {
         for (int i = 0; i < kernel_y; i++)
         {
@@ -117,14 +115,13 @@ arm_cmsis_nn_status arm_convolve_s16(
             {
                 int jd= j * dilation_x;
                 int idx = (i*kernel_x+j);
-                offset_v[idx] = (id * input_x + jd) * input_ch;
-                offset_v[idx] *= sizeof(int16_t);
+                for (int c = 0; c < kernel_ch; c++)
+                {
+                    offset_v[idx] = (id * input_x + jd) * input_ch + c;
+                    offset_v[idx] *= sizeof(int16_t);
+                }
+                
             }
-        }
-
-        for (int i = 0; i < kernel_xy; i++)
-        {
-            offset_v1[i] = i * kernel_ch;
         }
     }
     uint16x8_t offset_src = {
@@ -132,24 +129,13 @@ arm_cmsis_nn_status arm_convolve_s16(
         offset_v[2], offset_v[3],
         offset_v[4], offset_v[5],
         offset_v[6], offset_v[7]};
-    uint16x8_t offset_dst = {
-            offset_v1[0], offset_v1[1],
-            offset_v1[2], offset_v1[3],
-            offset_v1[4], offset_v1[5],
-            offset_v1[6], offset_v1[7]};
-    mve_pred16_t p = vctp16q(kernel_xy);
+
+    mve_pred16_t p = vctp16q(rhs_cols);
     // define the case for optimized conv2d implementation
     int case_conv=0;
-    if ((kernel_xy < 9) && ((groups > 1) || (input_ch==1)) && (pad_x == 0) && (pad_y == 0))
+    if ((kernel_ch==1) && (rhs_cols < 9) && ((groups > 1) || (input_ch==1)) && (pad_x == 0) && (pad_y == 0))
     {
-        if (kernel_ch==1)
-        {
-            case_conv=1;
-        }
-        else
-        {
-            case_conv=2;
-        }
+        case_conv=1;
     }
 
 #endif
@@ -215,18 +201,6 @@ arm_cmsis_nn_status arm_convolve_s16(
                     {
                         int16x8_t in = vldrhq_gather_offset_z_s16(input_data_pr, offset_src, p);
                         vst1q_p_s16(im2col, in, p);
-                        int32_t stride = (i_out_x != output_x - 1) ? stride_x : stride_edge ;
-                        input_data_pr += input_ch * stride;
-                        im2col += rhs_cols;
-                    }
-                    else if (case_conv==2)
-                    {
-                        for (int c = 0; c < kernel_ch; c++)
-                        {
-                            int16x8_t in = vldrhq_gather_offset_z_s16(input_data_pr+c, offset_src, p);
-                            vstrhq_scatter_shifted_offset_p_s16(im2col+c, offset_dst, in, p);
-
-                        }
                         int32_t stride = (i_out_x != output_x - 1) ? stride_x : stride_edge ;
                         input_data_pr += input_ch * stride;
                         im2col += rhs_cols;
