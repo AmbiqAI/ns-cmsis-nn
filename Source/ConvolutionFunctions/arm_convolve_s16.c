@@ -47,6 +47,13 @@
  * are multiples of 4 or atleast greater than 4.
  *
  */
+#if defined(ARM_MATH_MVEI)
+typedef enum
+{
+    CONV_KERNEL_SIZE_LESS_THAN_9 = 0,
+    CONV_GENERAL = 1,
+}CONV_CASES_T;
+#endif
 arm_cmsis_nn_status arm_convolve_s16(
     const cmsis_nn_context *ctx,
     const cmsis_nn_conv_params *conv_params,
@@ -60,6 +67,7 @@ arm_cmsis_nn_status arm_convolve_s16(
     const cmsis_nn_dims *output_dims,
     int16_t *output_data)
 {
+    
     (void)bias_dims;
 
     if (ctx->buf == NULL)
@@ -104,8 +112,7 @@ arm_cmsis_nn_status arm_convolve_s16(
 #if defined(ARM_MATH_MVEI)
 
     int32_t stride_edge = input_x - (output_x-1) * stride_x + (stride_y-1) * input_x;
-    uint16_t offset_v[8] = {0,0,0,0,0,0,0,0};
-
+    uint16x8_t offset_src;
     if (rhs_cols < 9)
     {
         for (int i = 0; i < kernel_y; i++)
@@ -117,25 +124,20 @@ arm_cmsis_nn_status arm_convolve_s16(
                 int idx = (i*kernel_x+j);
                 for (int c = 0; c < kernel_ch; c++)
                 {
-                    offset_v[idx] = (id * input_x + jd) * input_ch + c;
-                    offset_v[idx] *= sizeof(int16_t);
+                    offset_src[idx] = (id * input_x + jd) * input_ch + c;
+                    offset_src[idx] *= sizeof(int16_t);
                 }
                 
             }
         }
     }
-    uint16x8_t offset_src = {
-        offset_v[0], offset_v[1],
-        offset_v[2], offset_v[3],
-        offset_v[4], offset_v[5],
-        offset_v[6], offset_v[7]};
-
+    
     mve_pred16_t p = vctp16q(rhs_cols);
     // define the case for optimized conv2d implementation
-    int case_conv=0;
+    CONV_CASES_T case_conv = CONV_GENERAL;
     if ((kernel_ch==1) && (rhs_cols < 9) && ((groups > 1) || (input_ch==1)) && (pad_x == 0) && (pad_y == 0))
     {
-        case_conv=1;
+        case_conv=CONV_KERNEL_SIZE_LESS_THAN_9;
     }
 
 #endif
@@ -197,17 +199,17 @@ arm_cmsis_nn_status arm_convolve_s16(
                     */ 
                     
                     #if defined(ARM_MATH_MVEI)
-                    if (case_conv==1)
-                    {
-                        int16x8_t in = vldrhq_gather_offset_z_s16(input_data_pr, offset_src, p);
-                        vst1q_p_s16(im2col, in, p);
-                        int32_t stride = (i_out_x != output_x - 1) ? stride_x : stride_edge ;
-                        input_data_pr += input_ch * stride;
-                        im2col += rhs_cols;
-                    }
-                    else
-                    #endif
-                    {
+                    switch (case_conv) {
+                        case CONV_KERNEL_SIZE_LESS_THAN_9:
+                        
+                            int16x8_t in = vldrhq_gather_offset_z_s16(input_data_pr, offset_src, p);
+                            vst1q_p_s16(im2col, in, p);
+                            int32_t stride = (i_out_x != output_x - 1) ? stride_x : stride_edge ;
+                            input_data_pr += input_ch * stride;
+                            im2col += rhs_cols;
+                            
+                            break;
+                        default:
                         for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
                         {
                             for (int32_t i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
@@ -229,7 +231,32 @@ arm_cmsis_nn_status arm_convolve_s16(
                                 im2col += kernel_ch;
                             }
                         }
+                        break;
                     }
+                    #else
+                    for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
+                    {
+                        for (int32_t i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
+                        {
+                            const int32_t k_y = base_idx_y + dilation_y * i_ker_y;
+                            const int32_t k_x = base_idx_x + dilation_x * i_ker_x;
+
+                            if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
+                            {
+                                /* Filling 0 for out-of-bound paddings */
+                                arm_memset_s8((int8_t *)im2col, 0, sizeof(int16_t) * (uint32_t)kernel_ch);
+                            }
+                            else
+                            {
+                                arm_memcpy_s8((int8_t *)im2col,
+                                            (const int8_t *)(input_data + (k_y * input_x + k_x) * input_ch + i_group * kernel_ch),
+                                            (uint32_t)kernel_ch * sizeof(int16_t));
+                            }
+                            im2col += kernel_ch;
+                        }
+                    }
+
+                    #endif
                     lhs_rows++;
 #if defined(ARM_MATH_MVEI)
 

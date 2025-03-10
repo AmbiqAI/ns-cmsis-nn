@@ -68,8 +68,7 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
         (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1)
     )
     {
-        return arm_convolve_1x1_s16_ns_np_nd(ctx,
-                                             conv_params,
+        return arm_convolve_1x1_s16_ns_np_nd(conv_params,
                                              quant_params,
                                              input_dims,
                                              input_data,
@@ -95,7 +94,8 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
                                 output_data);
     }
 #else
-    return arm_convolve_s16(ctx,
+    return arm_convolve_s16(
+        ctx,
         conv_params,
         quant_params,
         input_dims,

@@ -686,7 +686,7 @@ arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
  *    2. Additional memory is required for optimization. Refer to argument 'ctx' for details.
  *
  */
-arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(
     const cmsis_nn_conv_params *conv_params,
     const cmsis_nn_per_channel_quant_params *quant_params,
     const cmsis_nn_dims *input_dims,
