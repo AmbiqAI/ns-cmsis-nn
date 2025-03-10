@@ -78,11 +78,11 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s16(
         int32_t result_2 = 0;
         int32_t result_3 = 0;
 
-        register const int16_t *lhs_ptr asm("r4") = lhs;
-        register const int8_t *rhs_ptr_0 asm("r0") = rhs;
-        register const int8_t *rhs_ptr_1 asm("r1") = rhs_ptr_0 + rhs_cols;
-        register const int8_t *rhs_ptr_2 asm("r2") = rhs_ptr_1 + rhs_cols;
-        register const int8_t *rhs_ptr_3 asm("r3") = rhs_ptr_2 + rhs_cols;
+        register const int16_t *lhs_ptr __ASM("r4") = lhs;
+        register const int8_t *rhs_ptr_0 __ASM("r0") = rhs;
+        register const int8_t *rhs_ptr_1 __ASM("r1") = rhs_ptr_0 + rhs_cols;
+        register const int8_t *rhs_ptr_2 __ASM("r2") = rhs_ptr_1 + rhs_cols;
+        register const int8_t *rhs_ptr_3 __ASM("r3") = rhs_ptr_2 + rhs_cols;
 
         __ASM volatile(
             " .p2align 2                                 \n"
@@ -195,8 +195,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s16(
     {
         int32_t result = 0;
 
-        register const int16_t *lhs_ptr asm("r4") = lhs;
-        register const int8_t *rhs_ptr asm("r0") = rhs;
+        register const int16_t *lhs_ptr __ASM("r4") = lhs;
+        register const int8_t *rhs_ptr __ASM("r0") = rhs;
 
         __ASM volatile(
             " .p2align 2                                 \n"
