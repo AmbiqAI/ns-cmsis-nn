@@ -3,4 +3,4 @@
 #pragma once
 #include <stdint.h>
 
-const int32_t int16xint8_kernel_less_than_9_output_shift[8] = {-8, -9, -8, -8, -8, -9, -8, -8};
+const int32_t int16xint8_kernel_less_than_9_output_shift[6] = {-8, -8, -8, -8, -8, -8};

@@ -3,5 +3,5 @@
 #pragma once
 #include <stdint.h>
 
-const int32_t int16xint8_kernel_less_than_9_output_mult[8] =
-    {1129633144, 2101918987, 1231933015, 1167055013, 1239998554, 2006291314, 1158910757, 1262488257};
+const int32_t int16xint8_kernel_less_than_9_output_mult[6] =
+    {1980335903, 2140320779, 2084336171, 1599479828, 2114244907, 1862640634};

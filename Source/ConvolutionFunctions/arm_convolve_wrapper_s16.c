@@ -60,6 +60,8 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
                                              int16_t *output_data)
 {
 #if defined(ARM_MATH_MVEI)
+    int kernel_size = filter_dims->w * filter_dims->h * filter_dims->c;
+    
     if (
         (input_dims->c == filter_dims->c) &&  \
         (conv_params->stride.w == 1) && (conv_params->stride.h == 1) && \
@@ -78,6 +80,20 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
                                              bias_data,
                                              output_dims,
                                              output_data);
+    }
+    else if ( (kernel_size < 9) && (conv_params->padding.h == 0) && (conv_params->padding.w== 0))
+    {
+        return arm_convolve_s16_fast_small_kernel(
+            conv_params,
+            quant_params,
+            input_dims,
+            input_data,
+            filter_dims,
+            filter_data,
+            bias_dims,
+            bias_data,
+            output_dims,
+            output_data);
     }
     else
     {

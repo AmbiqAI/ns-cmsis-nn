@@ -47,13 +47,7 @@
  * are multiples of 4 or atleast greater than 4.
  *
  */
-#if defined(ARM_MATH_MVEI)
-typedef enum
-{
-    CONV_KERNEL_SIZE_LESS_THAN_9 = 0,
-    CONV_GENERAL = 1,
-}CONV_CASES_T;
-#endif
+
 arm_cmsis_nn_status arm_convolve_s16(
     const cmsis_nn_context *ctx,
     const cmsis_nn_conv_params *conv_params,
@@ -109,38 +103,6 @@ arm_cmsis_nn_status arm_convolve_s16(
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-#if defined(ARM_MATH_MVEI)
-
-    int32_t stride_edge = input_x - (output_x-1) * stride_x + (stride_y-1) * input_x;
-    uint16x8_t offset_src;
-    if (rhs_cols < 9)
-    {
-        for (int i = 0; i < kernel_y; i++)
-        {
-            int id = i * dilation_y;
-            for (int j = 0; j < kernel_x; j++)
-            {
-                int jd= j * dilation_x;
-                int idx = (i*kernel_x+j);
-                for (int c = 0; c < kernel_ch; c++)
-                {
-                    offset_src[idx] = (id * input_x + jd) * input_ch + c;
-                    offset_src[idx] *= sizeof(int16_t);
-                }
-                
-            }
-        }
-    }
-    
-    mve_pred16_t p = vctp16q(rhs_cols);
-    // define the case for optimized conv2d implementation
-    CONV_CASES_T case_conv = CONV_GENERAL;
-    if ((kernel_ch==1) && (rhs_cols < 9) && ((groups > 1) || (input_ch==1)) && (pad_x == 0) && (pad_y == 0))
-    {
-        case_conv=CONV_KERNEL_SIZE_LESS_THAN_9;
-    }
-
-#endif
 
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {
@@ -170,9 +132,7 @@ arm_cmsis_nn_status arm_convolve_s16(
                     
                     output + i_group * output_ch_per_group
             */
-            #if defined(ARM_MATH_MVEI)
-            int16_t *input_data_pr= (int16_t*) input_data + i_group * kernel_ch;
-            #endif
+
             int16_t *out = output_data + output_ch_per_group * i_group;
             for (int32_t i_out_y = 0; i_out_y < output_y; i_out_y++)
             {
@@ -197,43 +157,7 @@ arm_cmsis_nn_status arm_convolve_s16(
                     At every group, filter_data_ptr points to
                         filter + i_group * output_ch_per_group * rhs_cols
                     */ 
-                    
-                    #if defined(ARM_MATH_MVEI)
-                    switch (case_conv) {
-                        case CONV_KERNEL_SIZE_LESS_THAN_9:
-                        
-                            int16x8_t in = vldrhq_gather_offset_z_s16(input_data_pr, offset_src, p);
-                            vst1q_p_s16(im2col, in, p);
-                            int32_t stride = (i_out_x != output_x - 1) ? stride_x : stride_edge ;
-                            input_data_pr += input_ch * stride;
-                            im2col += rhs_cols;
-                            
-                            break;
-                        default:
-                        for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
-                        {
-                            for (int32_t i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
-                            {
-                                const int32_t k_y = base_idx_y + dilation_y * i_ker_y;
-                                const int32_t k_x = base_idx_x + dilation_x * i_ker_x;
-
-                                if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
-                                {
-                                    /* Filling 0 for out-of-bound paddings */
-                                    arm_memset_s8((int8_t *)im2col, 0, sizeof(int16_t) * (uint32_t)kernel_ch);
-                                }
-                                else
-                                {
-                                    arm_memcpy_s8((int8_t *)im2col,
-                                                (const int8_t *)(input_data + (k_y * input_x + k_x) * input_ch + i_group * kernel_ch),
-                                                (uint32_t)kernel_ch * sizeof(int16_t));
-                                }
-                                im2col += kernel_ch;
-                            }
-                        }
-                        break;
-                    }
-                    #else
+        
                     for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
                     {
                         for (int32_t i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
@@ -255,8 +179,6 @@ arm_cmsis_nn_status arm_convolve_s16(
                             im2col += kernel_ch;
                         }
                     }
-
-                    #endif
                     lhs_rows++;
 #if defined(ARM_MATH_MVEI)
 
