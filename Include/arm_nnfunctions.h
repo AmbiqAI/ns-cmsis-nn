@@ -680,7 +680,6 @@ arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
  *
  * @details
  *    1. Supported framework: TensorFlow Lite micro
- *    2. Additional memory is required for optimization. Refer to argument 'ctx' for details.
  *
  */
 arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(
@@ -721,7 +720,6 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(
  *
  * @details
  *    1. Supported framework: TensorFlow Lite micro
- *    2. Additional memory is required for optimization. Refer to argument 'ctx' for details.
  *
  */
 arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
