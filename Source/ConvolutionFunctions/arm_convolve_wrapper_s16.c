@@ -60,16 +60,8 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
                                              int16_t *output_data)
 {
 #if defined(ARM_MATH_MVEI)
-    typedef enum
-    {
-        CASE_CONV_1X1 = 0,
-        CASE_CONV_SMALL_KERNEL = 1,
-        CASE_CONV_GENERAL = 2,
-    } 
-    CASE_CONV_T;
-    CASE_CONV_T case_conv;
 
-    if (
+    if ( // CASE_CONV_1X1
         (input_dims->c == filter_dims->c) &&  \
         (conv_params->stride.w == 1) && (conv_params->stride.h == 1) && \
         (conv_params->padding.w == 0) && (conv_params->padding.h == 0) && \
@@ -77,36 +69,22 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
         (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1)
     )
     {
-        case_conv = CASE_CONV_1X1;
+        return arm_convolve_1x1_s16_ns_np_nd(
+            conv_params,
+            quant_params,
+            input_dims,
+            input_data,
+            filter_dims,
+            filter_data,
+            bias_dims,
+            bias_data,
+            output_dims,
+            output_data);
     }
-    else if ( ((filter_dims->w * filter_dims->h * filter_dims->c) < 9) && (conv_params->padding.h == 0) && (conv_params->padding.w== 0))
-    {
-        case_conv = CASE_CONV_SMALL_KERNEL;
-    }
-    else
-    {
-        case_conv = CASE_CONV_GENERAL;
-    }
-
-
-    switch (case_conv)
-    {
-
-        case CASE_CONV_1X1:
-            return arm_convolve_1x1_s16_ns_np_nd(conv_params,
-                                                 quant_params,
-                                                 input_dims,
-                                                 input_data,
-                                                 filter_dims,
-                                                 filter_data,
-                                                 bias_dims,
-                                                 bias_data,
-                                                 output_dims,
-                                                 output_data);
-            break;
-
-        case CASE_CONV_SMALL_KERNEL:
-            return arm_convolve_s16_fast_small_kernel(
+    else if ( // CASE_CONV_SMALL_KERNEL 
+        ((filter_dims->w * filter_dims->h * filter_dims->c) < 9) && (conv_params->padding.h == 0) && (conv_params->padding.w== 0))
+    { 
+        return arm_convolve_s16_fast_small_kernel(
                 conv_params,
                 quant_params,
                 input_dims,
@@ -117,21 +95,22 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
                 bias_data,
                 output_dims,
                 output_data);
-            break;
-        default: // CASE_CONV_GENERAL:
-            return arm_convolve_s16(ctx,
-                                    conv_params,
-                                    quant_params,
-                                    input_dims,
-                                    input_data,
-                                    filter_dims,
-                                    filter_data,
-                                    bias_dims,
-                                    bias_data,
-                                    output_dims,
-                                    output_data);
-            break;
     }
+    else // CASE_CONV_GENERAL
+    {
+        return arm_convolve_s16(ctx,
+                                conv_params,
+                                quant_params,
+                                input_dims,
+                                input_data,
+                                filter_dims,
+                                filter_data,
+                                bias_dims,
+                                bias_data,
+                                output_dims,
+                                output_data);
+    }
+
 
 #else
     return arm_convolve_s16(
