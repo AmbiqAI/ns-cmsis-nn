@@ -1,5 +1,7 @@
 var NAVTREEINDEX1 =
 {
+"group__genPubTypes.html#gga67ac3e1e650a7040b0f706fb83ea6184ad6600c226cdc8eba643b0eab5104b5a0":[3,0,0,23,3],
+"group__genPubTypes.html#gga7f41aa78cd9a0552fae9b348ee4831a0a49b307e029715fbaa6f3101c806b8c54":[3,0,0,24,0],
 "group__genPubTypes.html#gga7f41aa78cd9a0552fae9b348ee4831a0ac24e4db95c986f16c10dca71a4b4e1c5":[3,0,0,24,1],
 "group__genPubTypes.html#structcmsis__nn__activation":[3,0,0,8],
 "group__genPubTypes.html#structcmsis__nn__bias__data":[3,0,0,2],
