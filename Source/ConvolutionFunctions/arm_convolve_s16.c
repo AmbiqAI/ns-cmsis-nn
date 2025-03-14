@@ -47,6 +47,7 @@
  * are multiples of 4 or atleast greater than 4.
  *
  */
+
 arm_cmsis_nn_status arm_convolve_s16(
     const cmsis_nn_context *ctx,
     const cmsis_nn_conv_params *conv_params,
@@ -60,6 +61,7 @@ arm_cmsis_nn_status arm_convolve_s16(
     const cmsis_nn_dims *output_dims,
     int16_t *output_data)
 {
+    
     (void)bias_dims;
 
     if (ctx->buf == NULL)
@@ -96,17 +98,11 @@ arm_cmsis_nn_status arm_convolve_s16(
     const int32_t groups = input_ch / kernel_ch;
     const int32_t output_ch_per_group = output_ch / groups;
 
-    // const int32_t remainder = rhs_cols % 4;
-    // const int32_t aligned_rhs_cols = remainder != 0 ? rhs_cols + 4 - remainder : rhs_cols;
-
     if (input_ch % groups != 0 || output_ch % groups != 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-// #if defined(ARM_MATH_MVEI)
-//     const int32_t rhs_rows = output_dims->c;
-// #endif
 
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {
@@ -136,6 +132,7 @@ arm_cmsis_nn_status arm_convolve_s16(
                     
                     output + i_group * output_ch_per_group
             */
+
             int16_t *out = output_data + output_ch_per_group * i_group;
             for (int32_t i_out_y = 0; i_out_y < output_y; i_out_y++)
             {
@@ -160,6 +157,7 @@ arm_cmsis_nn_status arm_convolve_s16(
                     At every group, filter_data_ptr points to
                         filter + i_group * output_ch_per_group * rhs_cols
                     */ 
+        
                     for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
                     {
                         for (int32_t i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
@@ -181,7 +179,6 @@ arm_cmsis_nn_status arm_convolve_s16(
                             im2col += kernel_ch;
                         }
                     }
-
                     lhs_rows++;
 #if defined(ARM_MATH_MVEI)
 
