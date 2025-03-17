@@ -1,32 +1,32 @@
 /*
-* SPDX-FileCopyrightText: Copyright 2020-2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
-*
-* SPDX-License-Identifier: Apache-2.0
-*
-* Licensed under the Apache License, Version 2.0 (the License); you may
-* not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an AS IS BASIS, WITHOUT
-* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
+ * SPDX-FileCopyrightText: Copyright 2020-2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the License); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an AS IS BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 /* ----------------------------------------------------------------------
-* Project:      CMSIS NN Library
-* Title:        arm_nn_vec_mat_mult_t_s16
-* Description:  s16 vector by s8 matrix (transposed) multiplication
-*
-* $Date:        19 June 2024
-* $Revision:    V.2.4.0
-*
-* Target :  Arm(R) M-Profile Architecture
-*
-* -------------------------------------------------------------------- */
+ * Project:      CMSIS NN Library
+ * Title:        arm_nn_vec_mat_mult_t_s16
+ * Description:  s16 vector by s8 matrix (transposed) multiplication
+ *
+ * $Date:        19 June 2024
+ * $Revision:    V.2.4.0
+ *
+ * Target :  Arm(R) M-Profile Architecture
+ *
+ * -------------------------------------------------------------------- */
 
 #include <stdio.h>
 #include "arm_nnsupportfunctions.h"
@@ -42,21 +42,21 @@
 
 
 /*
-* s16 vector(lhs) by s8 matrix (transposed) multiplication
-*
-* Refer header file for details.
-*
-*/
+ * s16 vector(lhs) by s8 matrix (transposed) multiplication
+ *
+ * Refer header file for details.
+ *
+ */
 arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
-                                            const int8_t *rhs,
-                                            const int64_t *bias,
-                                            int16_t *dst,
-                                            const int32_t dst_multiplier,
-                                            const int32_t dst_shift,
-                                            const int32_t rhs_cols,
-                                            const int32_t rhs_rows,
-                                            const int32_t activation_min,
-                                            const int32_t activation_max)
+                                              const int8_t *rhs,
+                                              const int64_t *bias,
+                                              int16_t *dst,
+                                              const int32_t dst_multiplier,
+                                              const int32_t dst_shift,
+                                              const int32_t rhs_cols,
+                                              const int32_t rhs_rows,
+                                              const int32_t activation_min,
+                                              const int32_t activation_max)
 {
 #if defined(ARM_MATH_DSP)
 
