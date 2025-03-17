@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Cache tests downloads
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             Tests/UnitTest/downloads
@@ -36,7 +36,7 @@ jobs:
           args: /bin/sh -c "cd ./Tests/UnitTest && ./build_and_run_tests.sh -c cortex-m4,cortex-m55"
 
       - name: Save tests downloads cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             Tests/UnitTest/downloads
