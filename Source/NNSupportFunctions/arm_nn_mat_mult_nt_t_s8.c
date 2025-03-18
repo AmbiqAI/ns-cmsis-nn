@@ -93,6 +93,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int8_t *lhs,
     #else
             // Note: If operand initialization is moved around, use '&' constraint to
             // specify earlyclobber operands.
+            //
             __ASM volatile(" .p2align 2                             \n"
                            "   wlstp.8         lr, %[cnt], 1f       \n"
                            "   mov             %[sum], 0            \n"

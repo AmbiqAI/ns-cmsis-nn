@@ -47,7 +47,26 @@
  *
  */
 
-arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
+#if defined(ARM_MATH_MVEI)
+static arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_1x1_image(const cmsis_nn_context *weight_sum_ctx,
+                                            const int8_t *lhs,
+                                            const int8_t *rhs,
+                                            const int32_t *bias,
+                                            int8_t *dst,
+                                            const int32_t *dst_multipliers,
+                                            const int32_t *dst_shifts,
+                                            const int32_t lhs_rows,
+                                            const int32_t rhs_rows,
+                                            const int32_t rhs_cols,
+                                            const int32_t lhs_offset,
+                                            const int32_t dst_offset,
+                                            const int32_t activation_min,
+                                            const int32_t activation_max,
+                                            const int32_t row_address_offset,
+                                            const int32_t lhs_cols_offset);
+
+arm_cmsis_nn_status arm_convolve_1_x_1_out_s8(const cmsis_nn_context *ctx,
+                                    const cmsis_nn_context *weight_sum_ctx,
                                     const cmsis_nn_conv_params *conv_params,
                                     const cmsis_nn_per_channel_quant_params *quant_params,
                                     const cmsis_nn_dims *input_dims,
@@ -68,6 +87,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
     }
     int16_t *buffer_a = (int16_t *)ctx->buf;
 
+
     const int32_t input_batches = input_dims->n;
     const uint16_t input_x = input_dims->w;
     const uint16_t input_y = input_dims->h;
@@ -77,6 +97,8 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
     const uint16_t kernel_ch = filter_dims->c;
     const uint16_t output_x = output_dims->w;
     const uint16_t output_y = output_dims->h;
+    //special impl for Nx1x1xC only
+
     const uint16_t output_ch = output_dims->c;
 
     const uint16_t pad_x = conv_params->padding.w;
@@ -119,6 +141,11 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
     const int32_t remainder = rhs_cols % 4;
     const int32_t aligned_rhs_cols = remainder != 0 ? rhs_cols + 4 - remainder : rhs_cols;
 
+    if (output_x != 1 || output_y != 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {
 
@@ -140,6 +167,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
         const int32_t *output_shift_ptr = &output_shift[0];
 
         /* This part implements the im2col function */
+
         for (int32_t i_group = 0; i_group < groups; i_group++)
         {
             int8_t *out = output_data + i_group * output_ch_per_group;
@@ -209,87 +237,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                         }
                     }
                     lhs_rows++;
-
-#if defined(ARM_MATH_MVEI)
                     im2col_buf += aligned_rhs_cols_offset;
-
-                    /* Computation is filed for every 4 columns */
-                    if (lhs_rows == 4)
-                    {
-                        arm_nn_mat_mult_nt_t_s8((int8_t *)buffer_a,
-                                                filter_data_ptr,
-                                                bias_data_ptr,
-                                                out,
-                                                output_mult_ptr,
-                                                output_shift_ptr,
-                                                lhs_rows,
-                                                output_ch_per_group,
-                                                rhs_cols,
-                                                input_offset,
-                                                out_offset,
-                                                out_activation_min,
-                                                out_activation_max,
-                                                output_ch,
-                                                aligned_rhs_cols);
-
-                        out += lhs_rows * output_ch;
-
-                        lhs_rows = 0;
-                        im2col_buf = (int8_t *)buffer_a;
-                    }
-#else
-    #if defined(ARM_MATH_DSP)
-                    /* Copy one column with input offset and no ordering */
-                    arm_s8_to_s16_unordered_with_offset(
-                        im2col_buf - rhs_cols, im2col_buf_start_s16, rhs_cols, (int16_t)input_offset);
-    #else
-
-                    arm_q7_to_q15_with_offset(
-                        im2col_buf - rhs_cols, im2col_buf_start_s16, rhs_cols, (int16_t)input_offset);
-
-    #endif
-                    im2col_buf_start_s16 += aligned_rhs_cols;
-
-                    if (lhs_rows == 2)
-                    {
-                        if (groups > 1)
-                        {
-                            out = arm_nn_mat_mult_kernel_row_offset_s8_s16(filter_data_ptr,
-                                                                           buffer_a,
-                                                                           output_ch_per_group,
-                                                                           output_shift_ptr,
-                                                                           output_mult_ptr,
-                                                                           out_offset,
-                                                                           out_activation_min,
-                                                                           out_activation_max,
-                                                                           rhs_cols,
-                                                                           aligned_rhs_cols,
-                                                                           bias_data_ptr,
-                                                                           output_ch,
-                                                                           out);
-                        }
-                        else
-                        {
-                            out = arm_nn_mat_mult_kernel_s8_s16(filter_data_ptr,
-                                                                buffer_a,
-                                                                output_ch_per_group,
-                                                                output_shift_ptr,
-                                                                output_mult_ptr,
-                                                                out_offset,
-                                                                out_activation_min,
-                                                                out_activation_max,
-                                                                rhs_cols,
-                                                                aligned_rhs_cols,
-                                                                bias_data_ptr,
-                                                                out);
-                        }
-
-                        /* counter reset */
-                        im2col_buf_start_s16 = buffer_a;
-                        im2col_buf = (int8_t *)buffer_a + aligned_rhs_cols * 2;
-                        lhs_rows = 0;
-                    }
-#endif
                 }
             }
 
@@ -298,11 +246,12 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                 return ARM_CMSIS_NN_NO_IMPL_ERROR;
             }
 
-            /* Handle left over columns */
+            //there is only one column in the Bx1x1xC case
             if (lhs_rows != 0)
             {
 #if defined(ARM_MATH_MVEI)
-                arm_nn_mat_mult_nt_t_s8((int8_t *)buffer_a,
+                arm_nn_mat_mult_nt_t_s8_1x1_image(weight_sum_ctx,
+                                        (int8_t *)buffer_a,
                                         filter_data_ptr,
                                         bias_data_ptr,
                                         out,
@@ -395,6 +344,184 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+
 /**
  * @} end of NNConv group
  */
+
+arm_cmsis_nn_status arm_convolve_weight_sum(
+        int32_t* vector_sum_buf,
+        const int8_t *rhs,
+        cmsis_nn_dims *filter_dims,
+        cmsis_nn_dims *output_dims, 
+        const int32_t lhs_offset,
+        const int32_t *bias_data ) 
+{
+
+    const uint16_t kernel_x = filter_dims->w;
+    const uint16_t kernel_y = filter_dims->h;
+    const uint16_t kernel_ch = filter_dims->c;
+    const uint16_t rhs_rows = output_dims->c;
+    const uint16_t rhs_cols = kernel_x * kernel_y * kernel_ch;
+    //skip rhs_offset 
+    uint32_t rhs_offset = 0;
+    arm_vector_sum_s8(vector_sum_buf, rhs_cols, rhs_rows, rhs, lhs_offset, rhs_offset, bias_data);
+    return ARM_CMSIS_NN_SUCCESS;
+}
+static arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_1x1_image(const cmsis_nn_context *weight_sum_ctx,
+                                            const int8_t *lhs,
+                                            const int8_t *rhs,
+                                            const int32_t *bias,
+                                            int8_t *dst,
+                                            const int32_t *dst_multipliers,
+                                            const int32_t *dst_shifts,
+                                            const int32_t lhs_rows,
+                                            const int32_t rhs_rows,
+                                            const int32_t rhs_cols,
+                                            const int32_t lhs_offset,
+                                            const int32_t dst_offset,
+                                            const int32_t activation_min,
+                                            const int32_t activation_max,
+                                            const int32_t row_address_offset,
+                                            const int32_t lhs_cols_offset)
+{
+
+#if defined(ARM_MATH_MVEI)
+
+    (void)bias;
+    (void)row_address_offset;
+    (void)lhs_cols_offset;
+    (void)lhs_offset;
+    //lhs rows is 1
+    if (lhs_rows != 1) {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    const int32_t *weights_sums = (int32_t *) (weight_sum_ctx->buf);
+
+    int out_idx;
+    const int num_elems = 4;
+    for (out_idx = 0; out_idx < rhs_rows; out_idx+=num_elems)
+    {
+        int32_t acc_n0 = 0;
+        int32_t acc_n1 = 0;
+        int32_t acc_n2 = 0;
+        int32_t acc_n3 = 0;
+        const int8_t *row_base = lhs;
+        const int8_t *col_base = rhs + out_idx * rhs_cols;
+        const int8_t *ip_col_1 = col_base + rhs_cols;
+        const int8_t *ip_col_2 = col_base + (2 * rhs_cols);
+        const int8_t *ip_col_3 = col_base + (3 * rhs_cols);
+
+#if defined(ARM_MATH_AUTOVECTORIZE)
+        for (int j = 0; j < rhs_cols; j++)
+        {
+            int8_t row = lhs[j];
+
+            acc_n0 += row *col_base[j];
+            acc_n1 += row *ip_col_1[j];
+            acc_n2 += row *ip_col_2[j];
+
+            sum_tmp += col_base[j];
+            sum_tmp_1 += ip_col_1[j];
+            sum_tmp_2 += ip_col_2[j];
+        }
+#else
+        // Note: If operand initialization is moved around, use '&' constraint to
+        // specify earlyclobber operands.
+        //
+        __ASM volatile(" .p2align 2                             \n"
+                       "   wlstp.8         lr, %[cnt], 1f       \n"
+                       "   mov             %[out0], 0           \n"
+                       "   mov             %[out1], 0           \n"
+                       "   mov             %[out2], 0           \n"
+                       "   mov             %[out3], 0           \n"
+                       "   vldrb.8         q0, [%[row]], #16    \n"
+                       "2:                                      \n"
+                       "   vldrb.8         q1, [%[col0]], #16   \n"
+                       "   vmladava.s8    %[out0], q0, q1       \n"
+                       "   vldrb.8         q2, [%[col1]], #16   \n"
+                       "   vmladava.s8     %[out1], q0, q2      \n"
+                       "   vldrb.8         q3, [%[col2]], #16   \n"
+                       "   vmladava.s8     %[out2], q0, q3      \n"
+                       "   vldrb.8         q3, [%[col3]], #16   \n"
+                       "   vmladava.s8     %[out3], q0, q3      \n"
+                       "   vldrb.8         q0, [%[row]], #16    \n"
+                       "   letp            lr, 2b               \n"
+                       "1:                                      \n"
+                       : [row] "+r"(row_base),
+                         [col0] "+r"(col_base),
+                         [col1] "+r"(ip_col_1),
+                         [col2] "+r"(ip_col_2),
+                         [col3] "+r"(ip_col_3),
+                         [out0] "=Te"(acc_n0),
+                         [out1] "=Te"(acc_n1),
+                         [out2] "=Te"(acc_n2),
+                         [out3] "=Te"(acc_n3)
+                       : [cnt] "r"(rhs_cols)
+                       : "q0", "q1", "q2", "q3", "memory", "r14");
+#endif
+        int32x4_t res = {acc_n0, acc_n1, acc_n2, acc_n3};
+        int32x4_t sum_tmps = vldrwq_s32(weights_sums + out_idx);
+        res = vaddq_s32(res, sum_tmps);
+        int32x4_t vec_dst_mults = vldrwq_s32(dst_multipliers + out_idx);
+        int32x4_t vec_dst_shfts = vldrwq_s32(dst_shifts + out_idx);
+        res = arm_requantize_mve_32x4(res, vec_dst_mults, vec_dst_shfts);
+
+        res = vaddq_n_s32(res, dst_offset);
+
+        res = vmaxq_s32(res, vdupq_n_s32(activation_min));
+        res = vminq_s32(res, vdupq_n_s32(activation_max));
+        vstrbq_s32(dst, res);
+        dst += num_elems;
+    }
+
+    const int32_t *multipliers = dst_multipliers;
+    const int32_t *shifts = dst_shifts;
+    //finish last rows that aren't multiple of 4
+    out_idx -= num_elems;
+    for (; out_idx < rhs_rows; out_idx++)
+    {
+        int32_t acc_n0 = 0;
+        const int8_t *lhs_vec = lhs;
+        const int8_t *col_base = rhs + out_idx * rhs_cols;
+
+#if defined(ARM_MATH_AUTOVECTORIZE)
+        for (int j = 0; j < rhs_cols; j++)
+        {
+            int32_t col = col_base[j];
+            acc_n0 += lhs_vec[j] * col;
+        }
+#else
+        __ASM volatile(" .p2align 2                             \n"
+                       "   wlstp.8         lr, %[cnt], 1f       \n"
+                       "   mov             %[out0], 0            \n"
+                       "   vldrb.8         q0, [%[col]], #16    \n"
+                       "2:                                      \n"
+                       "   vldrb.8         q1, [%[row0]], #16   \n"
+                       "   vmladava.s8    %[out0], q0, q1       \n"
+                       "   vldrb.8         q0, [%[col]], #16    \n"
+                       "   letp            lr, 2b               \n"
+                       "1:                                      \n"
+                       : [col] "+r"(col_base), [row0] "+r"(lhs_vec), [out0] "=Te"(acc_n0)
+                       : [cnt] "r"(rhs_cols)
+                       : "q0", "q1", "memory", "r14");
+#endif
+        int32_t sum_tmp = weights_sums[out_idx];
+        acc_n0 += sum_tmp;
+        acc_n0 = arm_nn_requantize(acc_n0, multipliers[out_idx], shifts[out_idx]);
+        acc_n0 += dst_offset;
+        acc_n0 = MAX(acc_n0, activation_min);
+        acc_n0 = MIN(acc_n0, activation_max);
+        *dst++ = (int8_t)acc_n0;
+    }
+
+#else
+#pragma error "only MVE supported"
+#endif
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+/**
+ * @} end of Doxygen group
+ */
+#endif

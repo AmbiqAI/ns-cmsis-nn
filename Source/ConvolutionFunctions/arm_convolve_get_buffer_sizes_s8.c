@@ -104,6 +104,13 @@ int32_t arm_convolve_s8_get_buffer_size(const cmsis_nn_dims *input_dims, const c
 #endif
 }
 
+
+int32_t arm_convolve_s8_get_weights_sum_size(const cmsis_nn_dims *output_dims)
+{
+    const int32_t weights_sums_size = output_dims->c * (int32_t)sizeof(int32_t);
+    return weights_sums_size;
+}
+
 int32_t arm_convolve_1_x_n_s8_get_buffer_size(const cmsis_nn_conv_params *conv_params,
                                               const cmsis_nn_dims *input_dims,
                                               const cmsis_nn_dims *filter_dims,

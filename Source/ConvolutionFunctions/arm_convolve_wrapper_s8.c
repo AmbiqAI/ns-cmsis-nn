@@ -107,6 +107,29 @@ arm_cmsis_nn_status arm_convolve_wrapper_s8(const cmsis_nn_context *ctx,
                                      output_dims,
                                      output_data);
     }
+/*
+#if defined(ARM_MATH_MVEI)
+    //mve optimization of Bx1x1xC case
+    else if ((output_dims->h == 1) && (output_dims->w == 1) && 
+             ((conv_params->stride.w * input_dims->c) % 4 == 0) && (input_dims->c == filter_dims->c))
+    {
+
+        return arm_convolve_1_x_1_out_s8(ctx,
+                                     weight_sum_ctx,
+                                     conv_params,
+                                     quant_params,
+                                     input_dims,
+                                     input_data,
+                                     filter_dims,
+                                     filter_data,
+                                     bias_dims,
+                                     bias_data,
+                                     NULL,
+                                     output_dims,
+                                     output_data);
+    }
+#endif 
+*/
     else
     {
         return arm_convolve_s8(ctx,

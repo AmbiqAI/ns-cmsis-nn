@@ -465,6 +465,15 @@ int32_t arm_convolve_s4_get_buffer_size(const cmsis_nn_dims *input_dims, const c
 int32_t arm_convolve_s8_get_buffer_size(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims);
 
 /**
+ * @brief Get the required buffer size for s8 convolution weight sum 
+ *
+ * @param[in]       output_dims            Output (activation) tensor dimensions. Format: [N, H, W, C_COUT]
+ * @return          The function returns required weight sum buffer size(bytes)
+ *
+ */
+int32_t arm_convolve_s8_get_weights_sum_size(const cmsis_nn_dims *output_dims);
+
+/**
  * @brief Wrapper to select optimal transposed convolution algorithm depending on parameters.
  * @param[in, out] ctx                   Function context that contains the additional buffer if required by the
  *                                       function.
@@ -979,6 +988,64 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
                                           const cmsis_nn_dims *output_dims,
                                           int8_t *output_data);
 
+/**
+ * @brief Bx1x1xC convolution
+ *
+ * @param[in, out] ctx           Function context that contains the additional buffer if required by the function.
+ *                               arm_convolve_1_x_1_out_s8_get_buffer_size will return the buffer_size if required
+ *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      conv_params   Convolution parameters (e.g. strides, dilations, pads,...).
+ *                               Range of conv_params->input_offset  : [-127, 128]
+ *                               Range of conv_params->output_offset : [-128, 127]
+ * @param[in]      quant_params  Per-channel quantization info.
+ *                               It contains the multiplier and shift values to be applied to each output channel
+ * @param[in]      input_dims    Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      input_data    Input (activation) data pointer. Data type: int8
+ * @param[in]      filter_dims   Filter tensor dimensions. Format: [C_OUT, 1, WK, C_IN] where WK is the horizontal
+ *                               spatial filter dimension
+ * @param[in]      filter_data   Filter data pointer. Data type: int8
+ * @param[in]      bias_dims     Bias tensor dimensions. Format: [C_OUT]
+ * @param[in]      bias_data     Optional bias data pointer. Data type: int32
+ * @param[in]      output_dims   Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output_data   Output data pointer. Data type: int8
+ *
+ * @return     The function returns either
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *
+ * @details
+ *   - Supported framework : TensorFlow Lite Micro
+ *   - The following constrains on the arguments apply
+ *      -# input_dims->n equals 1
+ *      -# ouput_dims->w is a multiple of 4
+ *      -# Explicit constraints(since it is for 1xN convolution)
+ *      -## input_dims->h equals 1
+ *      -## output_dims->h equals 1
+ *      -## filter_dims->h equals 1
+ *@todo  Remove constraint on output_dims->w to make the function generic.
+ *
+ */
+arm_cmsis_nn_status arm_convolve_weight_sum(
+        int32_t* vector_sum_buf,
+        const int8_t *rhs,
+        cmsis_nn_dims *filter_dims,
+        cmsis_nn_dims *output_dims, 
+        const int32_t lhs_offset,
+        const int32_t *bias_data );
+
+arm_cmsis_nn_status arm_convolve_1_x_1_out_s8(const cmsis_nn_context *ctx,
+                                    const cmsis_nn_context *weight_sum_ctx,
+                                    const cmsis_nn_conv_params *conv_params,
+                                    const cmsis_nn_per_channel_quant_params *quant_params,
+                                    const cmsis_nn_dims *input_dims,
+                                    const int8_t *input_data,
+                                    const cmsis_nn_dims *filter_dims,
+                                    const int8_t *filter_data,
+                                    const cmsis_nn_dims *bias_dims,
+                                    const int32_t *bias_data,
+                                    const cmsis_nn_dims *upscale_dims,
+                                    const cmsis_nn_dims *output_dims,
+                                    int8_t *output_data);
 /**
  * @brief 1xn convolution for s4 weights
  *
