@@ -832,7 +832,6 @@ Functions</h2></td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">quant_params</td><td>Pointer to per-channel quantization parameters </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">bias</td><td>Pointer to optional per-channel bias </td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Pointer to output where int8 results are stored. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">row_address_offset</td><td>Address offset between rows in output. </td></tr>
   </table>
   </dd>
 </dl>
@@ -1022,6 +1021,7 @@ Functions</h2></td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">num_col_a</td><td>number of columns of A </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">bias_data</td><td>pointer to struct with bias vector. The length of this vector is equal to the number of output columns (or RHS input rows). The vector can be int32 or int64 indicated by a flag in the struct. </td></tr>
     <tr><td class="paramdir">[in,out]</td><td class="paramname">out_0</td><td>pointer to output </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">row_address_offset</td><td>Address offset between rows in output. </td></tr>
   </table>
   </dd>
 </dl>
