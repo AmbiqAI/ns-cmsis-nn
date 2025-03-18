@@ -50,6 +50,7 @@
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1x1_s4_fast.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1x1_s4.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1x1_s8.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1x1_out_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_fast_s16.c"/>
@@ -57,6 +58,8 @@
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_get_buffer_sizes_s16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_get_buffer_sizes_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_get_buffer_sizes_s4.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_convolve_weight_sum_s8.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_convolve_weight_sum_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_wrapper_s4.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s4_opt.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s4.c"/>
@@ -134,6 +137,7 @@
         <file category="source" name="Source/NNSupportFunctions/arm_nn_mat_mult_nt_t_s4.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_mat_mult_nt_interleaved_t_even_s4.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_mat_mult_nt_t_s8.c"/>
+        <file category="source" name="Source/NNSupportFunctions/arm_nn_mat_mult_nt_t_1x1_out_s8.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_mat_mult_nt_t_s16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_mat_mult_nt_t_s8_s32.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s16.c"/>

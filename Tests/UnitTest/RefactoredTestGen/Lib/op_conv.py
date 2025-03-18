@@ -57,11 +57,11 @@ def generate_data(tflite_fname, params):
         tensor_details = interpreter.get_tensor_details()
 
         if params["generate_bias"]:
-            filter_index = 1
-            bias_index = 2
+            filter_index = 2 
+            bias_index = 1 
         else:
-            filter_index = 2
-            bias_index = 1
+            filter_index = 1  
+            bias_index = 2 
 
         filter_layer = tensor_details[filter_index]
         scales["scaling_factors"] = filter_layer['quantization_parameters']['scales']
@@ -228,8 +228,6 @@ class Op_conv(Lib.op_utils.Op_type):
 
     def generate_data_json(shapes, params):
 
-        if params["weights_data_type"] != "int4_t":
-            raise RuntimeError("Only int4 weights support json generated models")
 
         tensors = {}
         effective_scales = {}
@@ -316,12 +314,13 @@ class Op_conv(Lib.op_utils.Op_type):
         weights = np.random.randint(
             params["weights_min"], params["weights_max"], size=shapes["weight_shape"])
 
-        uneven = weights.size % 2
-        if uneven:
-            weights = np.append(weights, 0)
 
-        temp = np.reshape(weights, (weights.size // 2, 2)).astype(np.uint8)
-        weights = 0xff & ((0xf0 & (temp[:, 1] << 4)) | (temp[:, 0] & 0xf))
+        if params['weights_data_type'] == 'int4_t':
+            uneven = weights.size % 2
+            if uneven:
+                weights = np.append(weights, 0)
+            temp = np.reshape(weights, (weights.size // 2, 2)).astype(np.uint8)
+            weights = 0xff & ((0xf0 & (temp[:, 1] << 4)) | (temp[:, 0] & 0xf))
         tensors["input_weights"] = weights
 
         return Lib.op_utils.Generated_data(generated_params, tensors, scales, effective_scales, aliases)

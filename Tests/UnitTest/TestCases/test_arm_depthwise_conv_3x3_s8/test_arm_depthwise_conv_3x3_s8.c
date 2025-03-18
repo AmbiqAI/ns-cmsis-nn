@@ -48,8 +48,10 @@ void depthwise_kernel_3x3_arm_depthwise_conv_3x3_s8(void)
     input_dims.w = DEPTHWISE_KERNEL_3X3_INPUT_W;
     input_dims.h = DEPTHWISE_KERNEL_3X3_INPUT_H;
     input_dims.c = DEPTHWISE_KERNEL_3X3_IN_CH;
+    filter_dims.n = 1;
     filter_dims.w = DEPTHWISE_KERNEL_3X3_FILTER_X;
     filter_dims.h = DEPTHWISE_KERNEL_3X3_FILTER_Y;
+    filter_dims.c = DEPTHWISE_KERNEL_3X3_OUT_CH;
     output_dims.w = DEPTHWISE_KERNEL_3X3_OUTPUT_W;
     output_dims.h = DEPTHWISE_KERNEL_3X3_OUTPUT_H;
     output_dims.c = DEPTHWISE_KERNEL_3X3_OUT_CH;
@@ -107,7 +109,22 @@ void depthwise_kernel_3x3_arm_depthwise_conv_3x3_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = dw_conv_params.input_offset;
+    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
     result = arm_depthwise_conv_wrapper_s8(&ctx,
+                                           &weights_sum_ctx,
                                            &dw_conv_params,
                                            &quant_params,
                                            &input_dims,
@@ -118,6 +135,11 @@ void depthwise_kernel_3x3_arm_depthwise_conv_3x3_s8(void)
                                            bias_data,
                                            &output_dims,
                                            output);
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
 
     if (ctx.buf)
     {
@@ -150,8 +172,10 @@ void depthwise_kernel_3x3_arm_depthwise_conv_3x3_1_s8(void)
     input_dims.w = DEPTHWISE_KERNEL_3X3_INPUT_W;
     input_dims.h = DEPTHWISE_KERNEL_3X3_INPUT_H;
     input_dims.c = DEPTHWISE_KERNEL_3X3_IN_CH;
+    filter_dims.n = 1;
     filter_dims.w = DEPTHWISE_KERNEL_3X3_FILTER_X + 1;
     filter_dims.h = DEPTHWISE_KERNEL_3X3_FILTER_Y;
+    filter_dims.c = DEPTHWISE_KERNEL_3X3_OUT_CH;
     output_dims.w = DEPTHWISE_KERNEL_3X3_OUTPUT_W;
     output_dims.h = DEPTHWISE_KERNEL_3X3_OUTPUT_H;
     output_dims.c = DEPTHWISE_KERNEL_3X3_OUT_CH;
@@ -208,7 +232,22 @@ void depthwise_kernel_3x3_arm_depthwise_conv_3x3_1_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = dw_conv_params.input_offset;
+    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
     result = arm_depthwise_conv_wrapper_s8(&ctx,
+                                           &weights_sum_ctx,
                                            &dw_conv_params,
                                            &quant_params,
                                            &input_dims,
@@ -220,6 +259,11 @@ void depthwise_kernel_3x3_arm_depthwise_conv_3x3_1_s8(void)
                                            &output_dims,
                                            output);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     if (ctx.buf)
     {
         memset(ctx.buf, 0, buf_size);
@@ -251,8 +295,10 @@ void depthwise_kernel_3x3_null_bias_arm_depthwise_conv_3x3_null_bias_s8(void)
     input_dims.w = DEPTHWISE_KERNEL_3X3_NULL_BIAS_INPUT_W;
     input_dims.h = DEPTHWISE_KERNEL_3X3_NULL_BIAS_INPUT_H;
     input_dims.c = DEPTHWISE_KERNEL_3X3_NULL_BIAS_IN_CH;
+    filter_dims.n = 1;
     filter_dims.w = DEPTHWISE_KERNEL_3X3_NULL_BIAS_FILTER_X;
     filter_dims.h = DEPTHWISE_KERNEL_3X3_NULL_BIAS_FILTER_Y;
+    filter_dims.c = DEPTHWISE_KERNEL_3X3_NULL_BIAS_OUT_CH;
     output_dims.w = DEPTHWISE_KERNEL_3X3_NULL_BIAS_OUTPUT_W;
     output_dims.h = DEPTHWISE_KERNEL_3X3_NULL_BIAS_OUTPUT_H;
     output_dims.c = DEPTHWISE_KERNEL_3X3_NULL_BIAS_OUT_CH;
@@ -310,7 +356,22 @@ void depthwise_kernel_3x3_null_bias_arm_depthwise_conv_3x3_null_bias_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = dw_conv_params.input_offset;
+    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
     result = arm_depthwise_conv_wrapper_s8(&ctx,
+                                           &weights_sum_ctx,
                                            &dw_conv_params,
                                            &quant_params,
                                            &input_dims,
@@ -322,6 +383,12 @@ void depthwise_kernel_3x3_null_bias_arm_depthwise_conv_3x3_null_bias_s8(void)
                                            &output_dims,
                                            output);
 
+
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     if (ctx.buf)
     {
         memset(ctx.buf, 0, buf_size);
@@ -353,8 +420,10 @@ void stride2pad1_arm_depthwise_conv_3x3_s8(void)
     input_dims.w = STRIDE2PAD1_INPUT_W;
     input_dims.h = STRIDE2PAD1_INPUT_H;
     input_dims.c = STRIDE2PAD1_IN_CH;
+    filter_dims.n = 1;
     filter_dims.w = STRIDE2PAD1_FILTER_X;
     filter_dims.h = STRIDE2PAD1_FILTER_Y;
+    filter_dims.c = STRIDE2PAD1_OUT_CH;
     output_dims.w = STRIDE2PAD1_OUTPUT_W;
     output_dims.h = STRIDE2PAD1_OUTPUT_H;
     output_dims.c = STRIDE2PAD1_OUT_CH;
@@ -400,7 +469,7 @@ void stride2pad1_arm_depthwise_conv_3x3_s8(void)
 
     memset(output, 0, sizeof(output));
 
-    const int32_t buf_size =
+    int32_t buf_size =
         arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims);
 
 #if defined(ARM_MATH_MVEI)
@@ -408,11 +477,26 @@ void stride2pad1_arm_depthwise_conv_3x3_s8(void)
 #else
     TEST_ASSERT_EQUAL(buf_size, 0);
 #endif
-
+    buf_size +=1000;
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = dw_conv_params.input_offset;
+    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
     result = arm_depthwise_conv_wrapper_s8(&ctx,
+                                           &weights_sum_ctx,
                                            &dw_conv_params,
                                            &quant_params,
                                            &input_dims,
@@ -423,6 +507,12 @@ void stride2pad1_arm_depthwise_conv_3x3_s8(void)
                                            bias_data,
                                            &output_dims,
                                            output);
+
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
 
     if (ctx.buf)
     {
@@ -445,8 +535,10 @@ void buffer_size_mve_arm_depthwise_conv_3x3_s8(void)
     input_dims.w = DEPTHWISE_KERNEL_3X3_NULL_BIAS_INPUT_W;
     input_dims.h = DEPTHWISE_KERNEL_3X3_NULL_BIAS_INPUT_H;
     input_dims.c = DEPTHWISE_KERNEL_3X3_NULL_BIAS_IN_CH;
+    filter_dims.n = 1;
     filter_dims.w = DEPTHWISE_KERNEL_3X3_NULL_BIAS_FILTER_X;
     filter_dims.h = DEPTHWISE_KERNEL_3X3_NULL_BIAS_FILTER_Y;
+    filter_dims.c = DEPTHWISE_KERNEL_3X3_NULL_BIAS_OUT_CH;
     output_dims.w = DEPTHWISE_KERNEL_3X3_NULL_BIAS_OUTPUT_W;
     output_dims.h = DEPTHWISE_KERNEL_3X3_NULL_BIAS_OUTPUT_H;
     output_dims.c = DEPTHWISE_KERNEL_3X3_NULL_BIAS_OUT_CH;
@@ -484,8 +576,10 @@ void buffer_size_dsp_arm_depthwise_conv_3x3_s8(void)
     input_dims.w = DEPTHWISE_KERNEL_3X3_NULL_BIAS_INPUT_W;
     input_dims.h = DEPTHWISE_KERNEL_3X3_NULL_BIAS_INPUT_H;
     input_dims.c = DEPTHWISE_KERNEL_3X3_NULL_BIAS_IN_CH;
+    filter_dims.n = 1;
     filter_dims.w = DEPTHWISE_KERNEL_3X3_NULL_BIAS_FILTER_X;
     filter_dims.h = DEPTHWISE_KERNEL_3X3_NULL_BIAS_FILTER_Y;
+    filter_dims.c = DEPTHWISE_KERNEL_3X3_NULL_BIAS_OUT_CH;
     output_dims.w = DEPTHWISE_KERNEL_3X3_NULL_BIAS_OUTPUT_W;
     output_dims.h = DEPTHWISE_KERNEL_3X3_NULL_BIAS_OUTPUT_H;
     output_dims.c = DEPTHWISE_KERNEL_3X3_NULL_BIAS_OUT_CH;

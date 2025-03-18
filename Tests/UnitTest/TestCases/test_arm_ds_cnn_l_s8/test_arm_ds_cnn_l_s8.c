@@ -56,6 +56,7 @@ int ds_cnn_l_s8_get_buffer_size(void)
     input_dims.w = CONV_2D_1_INPUT_W;
     input_dims.c = CONV_2D_1_IN_CH;
 
+    filter_dims.n = CONV_2D_1_OUT_CH;
     filter_dims.h = CONV_2D_1_FILTER_H;
     filter_dims.w = CONV_2D_1_FILTER_W;
     filter_dims.c = CONV_2D_1_IN_CH;
@@ -83,14 +84,17 @@ int ds_cnn_l_s8_get_buffer_size(void)
     dw_conv_params.stride.h = DEPTHWISE_CONV_2D_2_STRIDE_H;
     dw_conv_params.stride.w = DEPTHWISE_CONV_2D_2_STRIDE_W;
 
+    filter_dims.n = 1;
     filter_dims.h = DEPTHWISE_CONV_2D_2_FILTER_H;
     filter_dims.w = DEPTHWISE_CONV_2D_2_FILTER_W;
+    filter_dims.c = DEPTHWISE_CONV_2D_2_OUT_CH;
 
     input_dims.n = 1;
     input_dims.h = DEPTHWISE_CONV_2D_2_INPUT_H;
     input_dims.w = DEPTHWISE_CONV_2D_2_INPUT_W;
     input_dims.c = DEPTHWISE_CONV_2D_2_OUT_CH;
 
+    output_dims.n = 1;
     output_dims.h = DEPTHWISE_CONV_2D_2_OUTPUT_H;
     output_dims.w = DEPTHWISE_CONV_2D_2_OUTPUT_W;
     output_dims.c = DEPTHWISE_CONV_2D_2_OUT_CH;
@@ -109,12 +113,20 @@ int ds_cnn_l_s8_get_buffer_size(void)
     input_dims.w = DEPTHWISE_CONV_2D_4_INPUT_W;
     input_dims.c = DEPTHWISE_CONV_2D_4_IN_CH;
 
-    filter_dims.h = DEPTHWISE_CONV_2D_4_FILTER_H;
+    //jc edit
+    filter_dims.n = 1;
     filter_dims.w = DEPTHWISE_CONV_2D_4_FILTER_W;
+    //filter_dims.h = DEPTHWISE_CONV_2D_4_FILTER_H;
+    //filter_dims.c = DEPTHWISE_CONV_2D_4_IN_CH;
+    filter_dims.h = 1;
+    filter_dims.c = DEPTHWISE_CONV_2D_4_IN_CH;
 
     output_dims.n = 1;
+    output_dims.w = DEPTHWISE_CONV_2D_4_OUTPUT_H;
+
+    //output_dims.h = DEPTHWISE_CONV_2D_4_OUTPUT_H;
+    //output_dims.c = DEPTHWISE_CONV_2D_4_OUT_CH;
     output_dims.h = 1;
-    output_dims.w = DEPTHWISE_CONV_2D_4_OUTPUT_W;
     output_dims.c = DEPTHWISE_CONV_2D_4_OUTPUT_H;
 
     size = arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims);
@@ -128,6 +140,7 @@ void ds_cnn_l_s8_inference(void)
 {
     /* Test for a complete int8 DS_CNN_L keyword spotting network from https://github.com/ARM-software/ML-zoo &
      * Tag: 22.02 */
+
     cmsis_nn_context ctx;
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
 
@@ -169,6 +182,7 @@ void ds_cnn_l_s8_inference(void)
     in_out_dim_0.w = CONV_2D_1_INPUT_W;
     in_out_dim_0.c = CONV_2D_1_IN_CH;
 
+    conv_filter_dims.n = CONV_2D_1_OUT_CH;
     conv_filter_dims.h = CONV_2D_1_FILTER_H;
     conv_filter_dims.w = CONV_2D_1_FILTER_W;
     conv_filter_dims.c = CONV_2D_1_IN_CH;
@@ -179,7 +193,16 @@ void ds_cnn_l_s8_inference(void)
     in_out_dim_1.c = CONV_2D_1_OUT_CH;
     bias_dims.c = CONV_2D_1_OUT_CH;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&in_out_dim_1);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = conv_params.input_offset; 
+    const int8_t *kernel_data = ds_cnn_l_layer_1_conv_2d_weights;
+    const int32_t *bias_data = ds_cnn_l_layer_1_conv_2d_bias;
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&in_out_dim_0, &conv_filter_dims, &in_out_dim_1, lhs_offset,  bias_data);
     arm_cmsis_nn_status status = arm_convolve_wrapper_s8(&ctx,
+                                                         &weights_sum_ctx,
                                                          &conv_params,
                                                          &quant_params,
                                                          &in_out_dim_0,
@@ -191,6 +214,11 @@ void ds_cnn_l_s8_inference(void)
                                                          &in_out_dim_1,
                                                          in_out_buf_0);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     /***************************** Depthwise Separable Block 1 *************** */
     // Layer 1 - DW Conv
     cmsis_nn_dw_conv_params dw_conv_params;
@@ -209,9 +237,12 @@ void ds_cnn_l_s8_inference(void)
     quant_params.multiplier = (int32_t *)ds_cnn_l_layer_2_depthwise_conv_2d_output_mult;
     quant_params.shift = (int32_t *)ds_cnn_l_layer_2_depthwise_conv_2d_output_shift;
 
+    dw_conv_filter_dims.n = 1;
     dw_conv_filter_dims.h = DEPTHWISE_CONV_2D_2_FILTER_H;
     dw_conv_filter_dims.w = DEPTHWISE_CONV_2D_2_FILTER_W;
+    dw_conv_filter_dims.c = in_out_dim_0.c;
 
+    in_out_dim_0.n = 1;
     in_out_dim_0.h = DEPTHWISE_CONV_2D_2_OUTPUT_H;
     in_out_dim_0.w = DEPTHWISE_CONV_2D_2_OUTPUT_W;
     in_out_dim_0.c = DEPTHWISE_CONV_2D_2_OUT_CH;
@@ -219,7 +250,25 @@ void ds_cnn_l_s8_inference(void)
     // Same for all layers in DS block
     bias_dims.c = in_out_dim_0.c;
 
+
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&in_out_dim_0);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    lhs_offset = dw_conv_params.input_offset;
+    kernel_data = ds_cnn_l_layer_2_depthwise_conv_2d_weights;
+    bias_data = ds_cnn_l_layer_2_depthwise_conv_2d_bias;
+    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
+                            ctx.buf,
+                            ds_cnn_l_layer_2_depthwise_conv_2d_weights,
+                            &dw_conv_params,
+                            &in_out_dim_1,
+                            &dw_conv_filter_dims,
+                            &in_out_dim_0,
+                            lhs_offset,
+                            ds_cnn_l_layer_2_depthwise_conv_2d_bias);
+
     status |= arm_depthwise_conv_wrapper_s8(&ctx,
+                                            &weights_sum_ctx,
                                             &dw_conv_params,
                                             &quant_params,
                                             &in_out_dim_1,
@@ -230,16 +279,24 @@ void ds_cnn_l_s8_inference(void)
                                             ds_cnn_l_layer_2_depthwise_conv_2d_bias,
                                             &in_out_dim_0,
                                             in_out_buf_1);
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
 
     // Layer 2 - Conv
 
     // Common params for Conv in rest of DS blocks
+    in_out_dim_1.n = 1;
     in_out_dim_1.h = in_out_dim_0.h;
     in_out_dim_1.w = in_out_dim_0.w;
     in_out_dim_1.c = in_out_dim_0.c;
+
+    conv_filter_dims.n = in_out_dim_0.c;
     conv_filter_dims.h = CONV_2D_3_FILTER_H;
     conv_filter_dims.w = CONV_2D_3_FILTER_W;
-    conv_filter_dims.c = CONV_2D_3_IN_CH;
+    conv_filter_dims.c = in_out_dim_1.c;
 
     conv_params.padding.h = CONV_2D_3_PAD_H;
     conv_params.padding.w = CONV_2D_3_PAD_W;
@@ -253,7 +310,16 @@ void ds_cnn_l_s8_inference(void)
     quant_params.multiplier = (int32_t *)ds_cnn_l_layer_3_conv_2d_output_mult;
     quant_params.shift = (int32_t *)ds_cnn_l_layer_3_conv_2d_output_shift;
 
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&in_out_dim_1);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    lhs_offset = conv_params.input_offset; 
+
+    kernel_data = ds_cnn_l_layer_3_conv_2d_weights;
+    bias_data = ds_cnn_l_layer_3_conv_2d_bias;
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&in_out_dim_0,&conv_filter_dims, &in_out_dim_1, lhs_offset,  bias_data);
     status |= arm_convolve_wrapper_s8(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &in_out_dim_0,
@@ -265,6 +331,11 @@ void ds_cnn_l_s8_inference(void)
                                       &in_out_dim_1,
                                       in_out_buf_0);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     /***************************** Depthwise Separable Block 2 *************** */
     // Common params for DW conv in subsequent layers
     dw_conv_params.padding.h = DEPTHWISE_CONV_2D_4_PAD_H;
@@ -279,7 +350,24 @@ void ds_cnn_l_s8_inference(void)
     quant_params.multiplier = (int32_t *)ds_cnn_l_layer_4_depthwise_conv_2d_output_mult;
     quant_params.shift = (int32_t *)ds_cnn_l_layer_4_depthwise_conv_2d_output_shift;
 
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&in_out_dim_0);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    lhs_offset = dw_conv_params.input_offset;
+    kernel_data = ds_cnn_l_layer_4_depthwise_conv_2d_weights;
+    bias_data = ds_cnn_l_layer_4_depthwise_conv_2d_bias;
+    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
+                            ctx.buf,
+                            ds_cnn_l_layer_4_depthwise_conv_2d_weights,
+                            &dw_conv_params,
+                            &in_out_dim_1,
+                            &dw_conv_filter_dims,
+                            &in_out_dim_0,
+                            lhs_offset,
+                            ds_cnn_l_layer_4_depthwise_conv_2d_bias);
+
     status |= arm_depthwise_conv_wrapper_s8(&ctx,
+                                            &weights_sum_ctx,
                                             &dw_conv_params,
                                             &quant_params,
                                             &in_out_dim_1,
@@ -291,6 +379,11 @@ void ds_cnn_l_s8_inference(void)
                                             &in_out_dim_0,
                                             in_out_buf_1);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     // Layer specific params
     conv_params.input_offset = CONV_2D_5_INPUT_OFFSET;
     conv_params.output_offset = CONV_2D_5_OUTPUT_OFFSET;
@@ -298,7 +391,15 @@ void ds_cnn_l_s8_inference(void)
     quant_params.multiplier = (int32_t *)ds_cnn_l_layer_5_conv_2d_output_mult;
     quant_params.shift = (int32_t *)ds_cnn_l_layer_5_conv_2d_output_shift;
 
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&in_out_dim_1);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    lhs_offset = conv_params.input_offset; 
+    kernel_data = ds_cnn_l_layer_5_conv_2d_weights;
+    bias_data = ds_cnn_l_layer_5_conv_2d_bias;
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&in_out_dim_0,&conv_filter_dims, &in_out_dim_1, lhs_offset,  bias_data);
     status |= arm_convolve_wrapper_s8(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &in_out_dim_0,
@@ -310,6 +411,11 @@ void ds_cnn_l_s8_inference(void)
                                       &in_out_dim_1,
                                       in_out_buf_0);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     /***************************** Depthwise Separable Block 3 *************** */
     // Layer specific
     dw_conv_params.input_offset = DEPTHWISE_CONV_2D_6_INPUT_OFFSET;
@@ -318,7 +424,24 @@ void ds_cnn_l_s8_inference(void)
     quant_params.multiplier = (int32_t *)ds_cnn_l_layer_6_depthwise_conv_2d_output_mult;
     quant_params.shift = (int32_t *)ds_cnn_l_layer_6_depthwise_conv_2d_output_shift;
 
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&in_out_dim_0);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    lhs_offset = dw_conv_params.input_offset;
+    kernel_data = ds_cnn_l_layer_6_depthwise_conv_2d_weights;
+    bias_data = ds_cnn_l_layer_6_depthwise_conv_2d_bias;
+    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
+                            ctx.buf,
+                            ds_cnn_l_layer_6_depthwise_conv_2d_weights,
+                            &dw_conv_params,
+                            &in_out_dim_1,
+                            &dw_conv_filter_dims,
+                            &in_out_dim_0,
+                            lhs_offset,
+                            ds_cnn_l_layer_6_depthwise_conv_2d_bias);
+
     status |= arm_depthwise_conv_wrapper_s8(&ctx,
+                                            &weights_sum_ctx,
                                             &dw_conv_params,
                                             &quant_params,
                                             &in_out_dim_1,
@@ -330,13 +453,26 @@ void ds_cnn_l_s8_inference(void)
                                             &in_out_dim_0,
                                             in_out_buf_1);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     // Layer specific params
     conv_params.input_offset = CONV_2D_7_INPUT_OFFSET;
     conv_params.output_offset = CONV_2D_7_OUTPUT_OFFSET;
     quant_params.multiplier = (int32_t *)ds_cnn_l_layer_7_conv_2d_output_mult;
     quant_params.shift = (int32_t *)ds_cnn_l_layer_7_conv_2d_output_shift;
 
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&in_out_dim_1);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    lhs_offset = conv_params.input_offset; 
+    kernel_data = ds_cnn_l_layer_7_conv_2d_weights;
+    bias_data = ds_cnn_l_layer_7_conv_2d_bias;
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&in_out_dim_0,&conv_filter_dims, &in_out_dim_1, lhs_offset,  bias_data);
     status |= arm_convolve_wrapper_s8(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &in_out_dim_0,
@@ -348,6 +484,11 @@ void ds_cnn_l_s8_inference(void)
                                       &in_out_dim_1,
                                       in_out_buf_0);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     /***************************** Depthwise Separable Block 4 *************** */
     // Layer specific
     dw_conv_params.input_offset = DEPTHWISE_CONV_2D_8_INPUT_OFFSET;
@@ -356,7 +497,24 @@ void ds_cnn_l_s8_inference(void)
     quant_params.multiplier = (int32_t *)ds_cnn_l_layer_8_depthwise_conv_2d_output_mult;
     quant_params.shift = (int32_t *)ds_cnn_l_layer_8_depthwise_conv_2d_output_shift;
 
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&in_out_dim_0);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    lhs_offset = dw_conv_params.input_offset;
+    kernel_data = ds_cnn_l_layer_8_depthwise_conv_2d_weights;
+    bias_data = ds_cnn_l_layer_8_depthwise_conv_2d_bias;
+    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
+                            ctx.buf,
+                            ds_cnn_l_layer_8_depthwise_conv_2d_weights,
+                            &dw_conv_params,
+                            &in_out_dim_1,
+                            &dw_conv_filter_dims,
+                            &in_out_dim_0,
+                            lhs_offset,
+                            ds_cnn_l_layer_8_depthwise_conv_2d_bias);
+
     status |= arm_depthwise_conv_wrapper_s8(&ctx,
+                                            &weights_sum_ctx,
                                             &dw_conv_params,
                                             &quant_params,
                                             &in_out_dim_1,
@@ -368,13 +526,27 @@ void ds_cnn_l_s8_inference(void)
                                             &in_out_dim_0,
                                             in_out_buf_1);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
+
     conv_params.input_offset = CONV_2D_9_INPUT_OFFSET;
     conv_params.output_offset = CONV_2D_9_OUTPUT_OFFSET;
 
     quant_params.multiplier = (int32_t *)ds_cnn_l_layer_9_conv_2d_output_mult;
     quant_params.shift = (int32_t *)ds_cnn_l_layer_9_conv_2d_output_shift;
 
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&in_out_dim_1);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    lhs_offset = conv_params.input_offset; 
+    kernel_data = ds_cnn_l_layer_9_conv_2d_weights;
+    bias_data = ds_cnn_l_layer_9_conv_2d_bias;
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&in_out_dim_0,&conv_filter_dims, &in_out_dim_1, lhs_offset,  bias_data);
     status |= arm_convolve_wrapper_s8(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &in_out_dim_0,
@@ -386,6 +558,11 @@ void ds_cnn_l_s8_inference(void)
                                       &in_out_dim_1,
                                       in_out_buf_0);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     /***************************** Depthwise Separable Block 5 *************** */
     dw_conv_params.input_offset = DEPTHWISE_CONV_2D_10_INPUT_OFFSET;
     dw_conv_params.output_offset = DEPTHWISE_CONV_2D_10_OUTPUT_OFFSET;
@@ -393,7 +570,24 @@ void ds_cnn_l_s8_inference(void)
     quant_params.multiplier = (int32_t *)ds_cnn_l_layer_10_depthwise_conv_2d_output_mult;
     quant_params.shift = (int32_t *)ds_cnn_l_layer_10_depthwise_conv_2d_output_shift;
 
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&in_out_dim_0);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    lhs_offset = dw_conv_params.input_offset;
+    kernel_data = ds_cnn_l_layer_10_depthwise_conv_2d_weights;
+    bias_data = ds_cnn_l_layer_10_depthwise_conv_2d_bias;
+    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
+                            ctx.buf,
+                            ds_cnn_l_layer_10_depthwise_conv_2d_weights,
+                            &dw_conv_params,
+                            &in_out_dim_1,
+                            &dw_conv_filter_dims,
+                            &in_out_dim_0,
+                            lhs_offset,
+                            ds_cnn_l_layer_10_depthwise_conv_2d_bias);
+
     status |= arm_depthwise_conv_wrapper_s8(&ctx,
+                                            &weights_sum_ctx,
                                             &dw_conv_params,
                                             &quant_params,
                                             &in_out_dim_1,
@@ -405,13 +599,27 @@ void ds_cnn_l_s8_inference(void)
                                             &in_out_dim_0,
                                             in_out_buf_1);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
+
     conv_params.input_offset = CONV_2D_11_INPUT_OFFSET;
     conv_params.output_offset = CONV_2D_11_OUTPUT_OFFSET;
 
     quant_params.multiplier = (int32_t *)ds_cnn_l_layer_11_conv_2d_output_mult;
     quant_params.shift = (int32_t *)ds_cnn_l_layer_11_conv_2d_output_shift;
 
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&in_out_dim_1);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    lhs_offset = conv_params.input_offset; 
+    kernel_data = ds_cnn_l_layer_11_conv_2d_weights;
+    bias_data = ds_cnn_l_layer_11_conv_2d_bias;
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&in_out_dim_0,&conv_filter_dims, &in_out_dim_1, lhs_offset,  bias_data);
     status |= arm_convolve_wrapper_s8(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &in_out_dim_0,
@@ -423,6 +631,11 @@ void ds_cnn_l_s8_inference(void)
                                       &in_out_dim_1,
                                       in_out_buf_0);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     /***************************** Average Pool *************** */
 
     cmsis_nn_pool_params pool_params;

@@ -33,12 +33,10 @@ void kernel1x1_arm_convolve_1x1_s8_fast(void)
     int8_t output[KERNEL1X1_DST_SIZE] = {0};
 
     cmsis_nn_context ctx;
+    cmsis_nn_context weights_sum_ctx;  // New weights-sum context.
     cmsis_nn_conv_params conv_params;
     cmsis_nn_per_channel_quant_params quant_params;
-    cmsis_nn_dims input_dims;
-    cmsis_nn_dims filter_dims;
-    cmsis_nn_dims bias_dims;
-    cmsis_nn_dims output_dims;
+    cmsis_nn_dims input_dims, filter_dims, bias_dims, output_dims;
 
     const int32_t *bias_data = kernel1x1_biases;
     const int8_t *input_data = kernel1x1_input;
@@ -77,7 +75,16 @@ void kernel1x1_arm_convolve_1x1_s8_fast(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    {
+        int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+        weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+        weights_sum_ctx.size = weights_sum_buf_size;
+        uint32_t lhs_offset = conv_params.input_offset;
+        arm_convolve_weight_sum(weights_sum_ctx.buf, kernel1x1_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+    }
+
     arm_cmsis_nn_status result = arm_convolve_1x1_s8_fast(&ctx,
+                                                          &weights_sum_ctx,
                                                           &conv_params,
                                                           &quant_params,
                                                           &input_dims,
@@ -89,9 +96,13 @@ void kernel1x1_arm_convolve_1x1_s8_fast(void)
                                                           &output_dims,
                                                           output);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     if (ctx.buf)
     {
-        // The caller is responsible to clear the scratch buffers for security reasons if applicable.
         memset(ctx.buf, 0, buf_size);
         free(ctx.buf);
     }
@@ -105,12 +116,10 @@ void kernel1x1_stride_x_arm_convolve_1x1_s8(void)
     int8_t output[KERNEL1X1_STRIDE_X_DST_SIZE] = {0};
 
     cmsis_nn_context ctx;
+    cmsis_nn_context weights_sum_ctx;
     cmsis_nn_conv_params conv_params;
     cmsis_nn_per_channel_quant_params quant_params;
-    cmsis_nn_dims input_dims;
-    cmsis_nn_dims filter_dims;
-    cmsis_nn_dims bias_dims;
-    cmsis_nn_dims output_dims;
+    cmsis_nn_dims input_dims, filter_dims, bias_dims, output_dims;
 
     const int32_t *bias_data = kernel1x1_stride_x_biases;
     const int8_t *input_data = kernel1x1_stride_x_input;
@@ -147,11 +156,19 @@ void kernel1x1_stride_x_arm_convolve_1x1_s8(void)
     quant_params.multiplier = (int32_t *)kernel1x1_stride_x_output_mult;
     quant_params.shift = (int32_t *)kernel1x1_stride_x_output_shift;
 
-    const int32_t buf_size = arm_convolve_1x1_s8_fast_get_buffer_size(&input_dims);
+    //const int32_t buf_size = arm_convolve_1x1_s8_fast_get_buffer_size(&input_dims);
     ctx.buf = NULL;
     ctx.size = 0;
 
+    {
+        int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+        weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+        weights_sum_ctx.size = weights_sum_buf_size;
+        uint32_t lhs_offset = conv_params.input_offset;
+        arm_convolve_weight_sum(weights_sum_ctx.buf, kernel1x1_stride_x_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+    }
     arm_cmsis_nn_status result = arm_convolve_1x1_s8_fast(&ctx,
+                                                          &weights_sum_ctx,
                                                           &conv_params,
                                                           &quant_params,
                                                           &input_dims,
@@ -162,16 +179,22 @@ void kernel1x1_stride_x_arm_convolve_1x1_s8(void)
                                                           bias_data,
                                                           &output_dims,
                                                           output);
-
-    if (ctx.buf)
+    if (weights_sum_ctx.buf)
     {
-        // The caller is responsible to clear the scratch buffers for security reasons if applicable.
-        memset(ctx.buf, 0, buf_size);
-        free(ctx.buf);
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
     }
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, result);
 
+    {
+        int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+        weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+        weights_sum_ctx.size = weights_sum_buf_size;
+        uint32_t lhs_offset = conv_params.input_offset;
+        arm_convolve_weight_sum(weights_sum_ctx.buf, kernel1x1_stride_x_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+    }
     result = arm_convolve_1x1_s8(&ctx,
+                                 &weights_sum_ctx,
                                  &conv_params,
                                  &quant_params,
                                  &input_dims,
@@ -182,8 +205,12 @@ void kernel1x1_stride_x_arm_convolve_1x1_s8(void)
                                  bias_data,
                                  &output_dims,
                                  output);
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     TEST_ASSERT_EQUAL(expected, result);
-
     TEST_ASSERT_TRUE(validate(output, kernel1x1_stride_x_output_ref, KERNEL1X1_STRIDE_X_DST_SIZE));
 }
 
@@ -193,12 +220,10 @@ void kernel1x1_stride_x_y_arm_convolve_1x1_s8(void)
     int8_t output[KERNEL1X1_STRIDE_X_Y_DST_SIZE] = {0};
 
     cmsis_nn_context ctx;
+    cmsis_nn_context weights_sum_ctx;
     cmsis_nn_conv_params conv_params;
     cmsis_nn_per_channel_quant_params quant_params;
-    cmsis_nn_dims input_dims;
-    cmsis_nn_dims filter_dims;
-    cmsis_nn_dims bias_dims;
-    cmsis_nn_dims output_dims;
+    cmsis_nn_dims input_dims, filter_dims, bias_dims, output_dims;
 
     const int32_t *bias_data = kernel1x1_stride_x_y_biases;
     const int8_t *input_data = kernel1x1_stride_x_y_input;
@@ -235,12 +260,19 @@ void kernel1x1_stride_x_y_arm_convolve_1x1_s8(void)
     quant_params.multiplier = (int32_t *)kernel1x1_stride_x_y_output_mult;
     quant_params.shift = (int32_t *)kernel1x1_stride_x_y_output_shift;
 
-    const int32_t buf_size =
-        arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    const int32_t buf_size = arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
+    {
+        int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+        weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+        weights_sum_ctx.size = weights_sum_buf_size;
+        uint32_t lhs_offset = conv_params.input_offset;
+        arm_convolve_weight_sum(weights_sum_ctx.buf, kernel1x1_stride_x_y_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+    }
     arm_cmsis_nn_status result = arm_convolve_wrapper_s8(&ctx,
+                                                         &weights_sum_ctx,
                                                          &conv_params,
                                                          &quant_params,
                                                          &input_dims,
@@ -251,18 +283,28 @@ void kernel1x1_stride_x_y_arm_convolve_1x1_s8(void)
                                                          bias_data,
                                                          &output_dims,
                                                          output);
-    TEST_ASSERT_TRUE(validate(output, kernel1x1_stride_x_y_output_ref, KERNEL1X1_STRIDE_X_Y_DST_SIZE));
-
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     if (ctx.buf)
     {
-        // The caller is responsible to clear the scratch buffers for security reasons if applicable.
         memset(ctx.buf, 0, buf_size);
         free(ctx.buf);
-        ctx.size = 0;
     }
+    TEST_ASSERT_TRUE(validate(output, kernel1x1_stride_x_y_output_ref, KERNEL1X1_STRIDE_X_Y_DST_SIZE));
     memset(output, 0, sizeof(output));
 
+    {
+        int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+        weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+        weights_sum_ctx.size = weights_sum_buf_size;
+        uint32_t lhs_offset = conv_params.input_offset;
+        arm_convolve_weight_sum(weights_sum_ctx.buf, kernel1x1_stride_x_y_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+    }
     result = arm_convolve_1x1_s8(&ctx,
+                                 &weights_sum_ctx,
                                  &conv_params,
                                  &quant_params,
                                  &input_dims,
@@ -273,23 +315,24 @@ void kernel1x1_stride_x_y_arm_convolve_1x1_s8(void)
                                  bias_data,
                                  &output_dims,
                                  output);
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     TEST_ASSERT_EQUAL(expected, result);
-
     TEST_ASSERT_TRUE(validate(output, kernel1x1_stride_x_y_output_ref, KERNEL1X1_STRIDE_X_Y_DST_SIZE));
 }
-
 void kernel1x1_stride_x_y_1_arm_convolve_1x1_s8(void)
 {
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
     int8_t output[KERNEL1X1_STRIDE_X_Y_1_DST_SIZE] = {0};
 
     cmsis_nn_context ctx;
+    cmsis_nn_context weights_sum_ctx;
     cmsis_nn_conv_params conv_params;
     cmsis_nn_per_channel_quant_params quant_params;
-    cmsis_nn_dims input_dims;
-    cmsis_nn_dims filter_dims;
-    cmsis_nn_dims bias_dims;
-    cmsis_nn_dims output_dims;
+    cmsis_nn_dims input_dims, filter_dims, bias_dims, output_dims;
 
     const int32_t *bias_data = kernel1x1_stride_x_y_1_biases;
     const int8_t *input_data = kernel1x1_stride_x_y_1_input;
@@ -329,7 +372,15 @@ void kernel1x1_stride_x_y_1_arm_convolve_1x1_s8(void)
     ctx.size = 0;
     ctx.buf = NULL;
 
+    {
+        int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+        weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+        weights_sum_ctx.size = weights_sum_buf_size;
+        uint32_t lhs_offset = conv_params.input_offset;
+        arm_convolve_weight_sum(weights_sum_ctx.buf, kernel1x1_stride_x_y_1_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+    }
     arm_cmsis_nn_status result = arm_convolve_1x1_s8(&ctx,
+                                                     &weights_sum_ctx,
                                                      &conv_params,
                                                      &quant_params,
                                                      &input_dims,
@@ -340,10 +391,15 @@ void kernel1x1_stride_x_y_1_arm_convolve_1x1_s8(void)
                                                      bias_data,
                                                      &output_dims,
                                                      output);
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     TEST_ASSERT_EQUAL(expected, result);
-
     TEST_ASSERT_TRUE(validate(output, kernel1x1_stride_x_y_1_output_ref, KERNEL1X1_STRIDE_X_Y_1_DST_SIZE));
 }
+
 
 void kernel1x1_stride_x_y_2_arm_convolve_1x1_s8(void)
 {
@@ -351,12 +407,10 @@ void kernel1x1_stride_x_y_2_arm_convolve_1x1_s8(void)
     int8_t output[KERNEL1X1_STRIDE_X_Y_2_DST_SIZE] = {0};
 
     cmsis_nn_context ctx;
+    cmsis_nn_context weights_sum_ctx;
     cmsis_nn_conv_params conv_params;
     cmsis_nn_per_channel_quant_params quant_params;
-    cmsis_nn_dims input_dims;
-    cmsis_nn_dims filter_dims;
-    cmsis_nn_dims bias_dims;
-    cmsis_nn_dims output_dims;
+    cmsis_nn_dims input_dims, filter_dims, bias_dims, output_dims;
 
     const int32_t *bias_data = kernel1x1_stride_x_y_2_biases;
     const int8_t *input_data = kernel1x1_stride_x_y_2_input;
@@ -396,7 +450,15 @@ void kernel1x1_stride_x_y_2_arm_convolve_1x1_s8(void)
     ctx.size = 0;
     ctx.buf = NULL;
 
+    {
+        int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+        weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+        weights_sum_ctx.size = weights_sum_buf_size;
+        uint32_t lhs_offset = conv_params.input_offset;
+        arm_convolve_weight_sum(weights_sum_ctx.buf, kernel1x1_stride_x_y_2_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+    }
     arm_cmsis_nn_status result = arm_convolve_1x1_s8(&ctx,
+                                                     &weights_sum_ctx,
                                                      &conv_params,
                                                      &quant_params,
                                                      &input_dims,
@@ -407,8 +469,12 @@ void kernel1x1_stride_x_y_2_arm_convolve_1x1_s8(void)
                                                      bias_data,
                                                      &output_dims,
                                                      output);
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     TEST_ASSERT_EQUAL(expected, result);
-
     TEST_ASSERT_TRUE(validate(output, kernel1x1_stride_x_y_2_output_ref, KERNEL1X1_STRIDE_X_Y_2_DST_SIZE));
 }
 

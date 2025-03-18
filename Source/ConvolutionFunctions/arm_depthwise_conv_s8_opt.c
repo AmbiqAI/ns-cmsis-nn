@@ -49,6 +49,7 @@
  */
 
 arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
+                                              const cmsis_nn_context *weight_sum_ctx,
                                               const cmsis_nn_dw_conv_params *dw_conv_params,
                                               const cmsis_nn_per_channel_quant_params *quant_params,
                                               const cmsis_nn_dims *input_dims,
@@ -74,6 +75,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 #ifdef ARM_MATH_DSP
+    (void)weight_sum_ctx;
     (void)bias_dims;
     const int32_t input_x = input_dims->w;
     const int32_t input_y = input_dims->h;
@@ -95,6 +97,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
 
     #ifdef ARM_MATH_MVEI
     /* Generate two columns from the input tensor */
+    int32_t* weight_sum_buf = (int32_t *)weight_sum_ctx->buf;
     int8_t *lhs_buffer = (int8_t *)buffer_a;
     int8_t *out = output;
     int buffer_count = 0;
@@ -138,7 +141,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
                     const int32_t block_offset = i_ch * CH_IN_BLOCK_MVE;
                     lhs_buffer = (int8_t *)buffer_a;
 
-                    arm_nn_depthwise_conv_nt_t_s8(lhs_buffer,
+                    arm_nn_depthwise_conv_nt_t_s8(weight_sum_buf + block_offset,
+                                                  lhs_buffer,
                                                   kernel + block_offset,
                                                   input_offset,
                                                   active_ch,
@@ -172,21 +176,17 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
                 const int8_t *col_0 = lhs_buffer + (kernel_size * CH_IN_BLOCK_MVE * i_buf) + (i_loop_cnt * 4);
                 const int8_t *row_0 = kernel + offset;
                 int32x4_t out_0 = vdupq_n_s32(0);
-                if (bias)
-                {
-                    out_0 = vldrwq_s32(&bias[offset]);
-                }
 
                 for (int i_ker = 0; i_ker < kernel_size; i_ker++)
                 {
                     const int32x4_t ker_0 = vldrbq_s32(row_0);
                     int32x4_t ip_0 = vldrbq_s32(col_0);
-                    ip_0 = vaddq_n_s32(ip_0, input_offset);
                     out_0 += vmulq_s32(ip_0, ker_0);
-
                     col_0 += CH_IN_BLOCK_MVE;
                     row_0 += input_ch;
                 }
+                mve_pred16_t p = vctp32q((uint32_t)num_ch_to_process);
+                out_0 += vldrwq_z_s32(&weight_sum_buf[offset], p);
 
                 const int32x4_t mult = vldrwq_s32(&output_mult[offset]);
                 const int32x4_t shift = vldrwq_s32(&output_shift[offset]);
@@ -195,7 +195,6 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
                 out_0 = vaddq_n_s32(out_0, output_offset);
                 out_0 = vmaxq_s32(out_0, vdupq_n_s32(output_activation_min));
                 out_0 = vminq_s32(out_0, vdupq_n_s32(output_activation_max));
-                mve_pred16_t p = vctp32q((uint32_t)num_ch_to_process);
                 vstrbq_p_s32(out, out_0, p);
 
                 out += 4;
