@@ -40,6 +40,7 @@
  * @{
  */
 
+
 /*
  * s16 vector(lhs) by s8 matrix (transposed) multiplication
  *
@@ -78,11 +79,10 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
         int32_t result_3 = 0;
 
         const int16_t *lhs_ptr = lhs;
-        const int8_t *rhs_ptr_0 = rhs;
-        const int8_t *rhs_ptr_1 = rhs_ptr_0 + rhs_cols;
-        const int8_t *rhs_ptr_2 = rhs_ptr_1 + rhs_cols;
-        const int8_t *rhs_ptr_3 = rhs_ptr_2 + rhs_cols;
-        rhs = rhs_ptr_3 + rhs_cols;
+        register const int8_t *rhs_ptr_0 __ASM("r0") = rhs;
+        register const int8_t *rhs_ptr_1 __ASM("r1") = rhs_ptr_0 + rhs_cols;
+        register const int8_t *rhs_ptr_2 __ASM("r2") = rhs_ptr_1 + rhs_cols;
+        register const int8_t *rhs_ptr_3 __ASM("r3") = rhs_ptr_2 + rhs_cols;
 
         __ASM volatile(
             " .p2align 2                                 \n"
@@ -91,17 +91,16 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
             "   mov             %[out1], 0               \n"
             "   mov             %[out2], 0               \n"
             "   mov             %[out3], 0               \n"
-            "   vldrh.s16       q0, [%[col]], #16        \n"
             "2:                                          \n"
+            "   vldrh.s16       q0, [%[col]], #16        \n"
             "   vldrb.s16        q1, [%[row0]], #8       \n"
             "   vmladava.s16     %[out0], q0, q1         \n"
             "   vldrb.s16        q2, [%[row1]], #8       \n"
             "   vmladava.s16     %[out1], q0, q2         \n"
-            "   vldrb.s16       q3, [%[row2]], #8       \n"
+            "   vldrb.s16        q3, [%[row2]], #8       \n"
             "   vmladava.s16     %[out2], q0, q3         \n"
             "   vldrb.s16        q4, [%[row3]], #8       \n"
             "   vmladava.s16     %[out3], q0, q4         \n"
-            "   vldrh.s16        q0, [%[col]], #16       \n"
             "   letp            lr, 2b                   \n"
             "1:                                          \n"
         :
@@ -120,8 +119,6 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
             "q0", "q1", "q2", "q3", "q4", "memory", "r14"
         );
 
-        lhs_ptr -= 8;  // Fix lhs_ptr by subtracting 8
-
         int64_t result_64_0 = result_0;
         int64_t result_64_1 = result_1;
         int64_t result_64_2 = result_2;
@@ -130,14 +127,32 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
         if (rhs_cols > MAX_COL_COUNT)
         {
 
-            for (int i_rhs_cols = MAX_COL_COUNT; i_rhs_cols < rhs_cols; i_rhs_cols++)
-            {
-                const int16_t lhs_temp = *lhs_ptr++;
+            int rem_cols = rhs_cols - MAX_COL_COUNT;
+            int32_t col_loop_cnt = (rem_cols + 7) / 8;
 
-                result_64_0 += *rhs_ptr_0++ * lhs_temp;
-                result_64_1 += *rhs_ptr_1++ * lhs_temp;
-                result_64_2 += *rhs_ptr_2++ * lhs_temp;
-                result_64_3 += *rhs_ptr_3++ * lhs_temp;
+            for (int i_col_loop_cnt = 0; i_col_loop_cnt < col_loop_cnt; i_col_loop_cnt++)
+            {
+                mve_pred16_t pred = vctp16q(rem_cols);
+                rem_cols -= 8;
+
+                int16x8_t lhs_input = vldrhq_z_s16(lhs_ptr, pred);
+
+                int16x8_t rhs_input_0 = vldrbq_z_s16(rhs_ptr_0, pred);
+                int16x8_t rhs_input_1 = vldrbq_z_s16(rhs_ptr_1, pred);
+                int16x8_t rhs_input_2 = vldrbq_z_s16(rhs_ptr_2, pred);
+                int16x8_t rhs_input_3 = vldrbq_z_s16(rhs_ptr_3, pred);
+
+                result_64_0 = vmlaldavaq_s16(result_64_0, lhs_input, rhs_input_0);
+                result_64_1 = vmlaldavaq_s16(result_64_1, lhs_input, rhs_input_1);
+                result_64_2 = vmlaldavaq_s16(result_64_2, lhs_input, rhs_input_2);
+                result_64_3 = vmlaldavaq_s16(result_64_3, lhs_input, rhs_input_3);
+
+                lhs_ptr += 8;
+
+                rhs_ptr_0 += 8;
+                rhs_ptr_1 += 8;
+                rhs_ptr_2 += 8;
+                rhs_ptr_3 += 8;
             }
         }
 
@@ -173,25 +188,25 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
         tmp = MIN(tmp, activation_max);
         *dst++ = (int16_t)tmp;
 
+        rhs += 4 * rhs_cols;
+
     }
 
     for (int8_t rows_left = rhs_rows & 0x3; rows_left > 0; rows_left--)
     {
         int32_t result = 0;
 
-        const int16_t *lhs_ptr = lhs;
-        const int8_t *rhs_ptr = rhs;
-        rhs += rhs_cols;
+        register const int16_t *lhs_ptr __ASM("r4") = lhs;
+        register const int8_t *rhs_ptr __ASM("r0") = rhs;
 
         __ASM volatile(
             " .p2align 2                                 \n"
             "   wlstp.16        lr, %[cnt], 1f           \n"
             "   mov             %[out0], 0               \n"
-            "   vldrh.s16       q0, [%[col]], #16        \n"
             "2:                                          \n"
+            "   vldrh.s16       q0, [%[col]], #16        \n"
             "   vldrb.s16        q1, [%[row0]], #8       \n"
             "   vmladava.s16     %[out0], q0, q1         \n"
-            "   vldrh.s16        q0, [%[col]], #16       \n"
             "   letp            lr, 2b                   \n"
             "1:                                          \n"
         :
@@ -204,8 +219,6 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
             "q0", "q1", "q2", "q3", "q4", "memory", "r14"
         );
 
-        lhs_ptr -= 8;  // Fix lhs_ptr by subtracting 8
-
         int64_t result_64 = result;
 
         if (bias)
@@ -215,11 +228,23 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
 
         if (rhs_cols > MAX_COL_COUNT)
         {
-            for (int i_rhs_cols = MAX_COL_COUNT; i_rhs_cols < rhs_cols; i_rhs_cols++)
-            {
-                const int16_t lhs_temp = *lhs_ptr++;
 
-                result_64 += *rhs_ptr++ * lhs_temp;
+            int rem_cols = rhs_cols - MAX_COL_COUNT;
+            int32_t col_loop_cnt = (rem_cols + 7) / 8;
+
+            for (int i_col_loop_cnt = 0; i_col_loop_cnt < col_loop_cnt; i_col_loop_cnt++)
+            {
+                mve_pred16_t pred = vctp16q(rem_cols);
+                rem_cols -= 8;
+
+                int16x8_t lhs_input = vldrhq_z_s16(lhs_ptr, pred);
+
+                int16x8_t rhs_input_0 = vldrbq_z_s16(rhs_ptr, pred);
+
+                result_64 = vmlaldavaq_s16(result_64, lhs_input, rhs_input_0);
+
+                lhs_ptr += 8;
+                rhs_ptr += 8;
             }
         }
 
@@ -228,6 +253,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
         tmp = MAX(tmp, activation_min);
         tmp = MIN(tmp, activation_max);
         *dst++ = (int16_t)tmp;
+        rhs += rhs_cols;
 
     }
 

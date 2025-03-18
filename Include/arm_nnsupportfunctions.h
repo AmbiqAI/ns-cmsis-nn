@@ -311,6 +311,7 @@ int8_t *arm_nn_mat_mult_s8(const int8_t *input_row,
  *                              of output columns (or RHS input rows). The vector can be int32 or int64 indicated by a
  *                              flag in the struct.
  * @param[in,out]   out_0       pointer to output
+ * @param[in]       row_address_offset    Address offset between rows in output.
  * @return     The function returns one of the two
  *              1. The incremented output pointer for a successful operation or
  *              2. NULL if implementation is not available.
@@ -344,7 +345,6 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
  * @param[in]       quant_params          Pointer to per-channel quantization parameters
  * @param[in]       bias                  Pointer to optional per-channel bias
  * @param[out]      output                Pointer to output where int8 results are stored.
- * @param[in]       row_address_offset    Address offset between rows in output.
  * @return     The function performs matrix(row_base_ref) multiplication with vector(col_base_ref) and
  *             scaled result is stored in memory.
  *
@@ -603,16 +603,16 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int8_t *lhs,
  * @param[in]  activation_min     Minimum value to clamp down the output. Range : int16
  * @param[in]  activation_max     Maximum value to clamp up the output. Range : int16
  * @param[in]  row_address_offset Address offset between rows in output. NOTE: Only used for MVEI extension.
- * 
+ *
  * @details MVE implementation only.
  *
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> or
  *                                  <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> if not for MVE
- *      |------row_address_offset------| 
+ *      |------row_address_offset------|
  *      |____rhs_rows__________________|
  *      |               |              |
- *      |               |              | 
- *      |               |              |   
+ *      |               |              |
+ *      |               |              |
  *      |               |              |
  *      |               |              | lhs_rows
  *      |               |              |
@@ -651,7 +651,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
  *
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
- */     
+ */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_s32(const int8_t *lhs,
                                                 const int8_t *rhs,
                                                 int32_t *dst,
@@ -2263,6 +2263,7 @@ __STATIC_FORCEINLINE int32_t arm_check_broadcast_required(const cmsis_nn_dims *s
  * @brief fp16 elementwise multiplication with fp16 output
  * @param[in]       lhs                 pointer to input vector 1
  * @param[in]       rhs                 pointer to input vector 2
+ * @param[in]       bias                pointer to bias
  * @param[in,out]   dst                 pointer to output vector
  * @param[in]       rhs_cols            number of samples per batch
  * @param[in]       rhs_rows            number of samples per batch

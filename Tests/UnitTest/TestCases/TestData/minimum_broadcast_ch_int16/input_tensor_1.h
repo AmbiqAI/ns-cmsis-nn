@@ -3,19 +3,5 @@
 #pragma once
 #include <stdint.h>
 
-const int16_t minimum_broadcast_ch_int16_input_tensor_1[16] = {-31912,
-                                                               16134,
-                                                               2273,
-                                                               -17843,
-                                                               -25054,
-                                                               -21923,
-                                                               21768,
-                                                               -11439,
-                                                               5190,
-                                                               17222,
-                                                               -11631,
-                                                               -28818,
-                                                               -20543,
-                                                               22992,
-                                                               -19738,
-                                                               29294};
+const int16_t minimum_broadcast_ch_int16_input_tensor_1[16] =
+    {-47, -29, 1, -80, 106, 86, -13, -14, 119, 82, 62, 0, -17, 91, -120, -35};
