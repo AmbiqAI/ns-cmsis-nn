@@ -37,6 +37,9 @@
 #include "../TestData/stride2pad1/test_data.h"
 #include "../Utils/validate.h"
 #include "../TestData/fc_conv_int8_dilated/test_data.h"
+#include "../TestData/fc_conv_int8_diff_channels/test_data.h"
+#include "../TestData/fc_conv_int8_non_4_multiple/test_data.h"
+#include "../TestData/fc_conv_int8_1x1_kernel/test_data.h"
 //#include "../TestData/fc_conv_int8_dilated/input_weights.h"
 
 void basic_arm_convolve_s8(void)
@@ -1282,31 +1285,6 @@ void conv_refactored_fc_conv_dilated(void)
     quant_params.shift = (int32_t *)fc_conv_int8_dilated_output_shift;
     arm_cmsis_nn_status result;
     int32_t buf_size;
-    /*
-    buf_size = arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
-    ctx.buf = malloc(buf_size);
-    ctx.size = 0;
-    result = arm_convolve_s8(&ctx,
-                                                 &conv_params,
-                                                 &quant_params,
-                                                 &input_dims,
-                                                 input_data,
-                                                 &filter_dims,
-                                                 fc_conv_int8_dilated_weights,
-                                                 &bias_dims,
-                                                 bias_data,
-                                                 NULL,
-                                                 &output_dims,
-                                                 output);
-
-    if (ctx.buf)
-    {
-        memset(ctx.buf, 0, buf_size);
-        free(ctx.buf);
-    }
-    TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
-    */
     memset(output, 0, sizeof(output));
 
 
@@ -1331,7 +1309,6 @@ void conv_refactored_fc_conv_dilated(void)
                                      kernel_data,
                                      &bias_dims,
                                      bias_data,
-                                     NULL,
                                      &output_dims,
                                      output);
 
@@ -1345,6 +1322,250 @@ void conv_refactored_fc_conv_dilated(void)
 }
 
 
+void conv_refactored_fc_conv_int8_diff_channels(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int8_t output[FC_CONV_INT8_DIFF_CHANNELS_DST_SIZE] = {0};
+
+    cmsis_nn_context ctx;
+    cmsis_nn_context weights_sum_ctx;
+    cmsis_nn_conv_params conv_params;
+    cmsis_nn_per_channel_quant_params quant_params;
+    cmsis_nn_dims input_dims;
+    cmsis_nn_dims filter_dims;
+    cmsis_nn_dims bias_dims;
+    cmsis_nn_dims output_dims;
+
+    const int32_t *bias_data = fc_conv_int8_diff_channels_biases;
+    const int8_t *kernel_data = fc_conv_int8_diff_channels_weights;
+    const int8_t *input_data = fc_conv_int8_diff_channels_input_tensor;
+    const int8_t *output_ref = fc_conv_int8_diff_channels_output_ref;
+    const int32_t output_ref_size = FC_CONV_INT8_DIFF_CHANNELS_DST_SIZE;
+
+    input_dims.n = FC_CONV_INT8_DIFF_CHANNELS_INPUT_BATCHES;
+    input_dims.w = FC_CONV_INT8_DIFF_CHANNELS_INPUT_W;
+    input_dims.h = FC_CONV_INT8_DIFF_CHANNELS_INPUT_H;
+    input_dims.c = FC_CONV_INT8_DIFF_CHANNELS_IN_CH;
+    filter_dims.w = FC_CONV_INT8_DIFF_CHANNELS_FILTER_X;
+    filter_dims.h = FC_CONV_INT8_DIFF_CHANNELS_FILTER_Y;
+    filter_dims.c = FC_CONV_INT8_DIFF_CHANNELS_IN_CH;
+    output_dims.w = FC_CONV_INT8_DIFF_CHANNELS_OUTPUT_W;
+    output_dims.h = FC_CONV_INT8_DIFF_CHANNELS_OUTPUT_H;
+    output_dims.c = FC_CONV_INT8_DIFF_CHANNELS_OUT_CH;
+
+    conv_params.padding.w = FC_CONV_INT8_DIFF_CHANNELS_PAD_X;
+    conv_params.padding.h = FC_CONV_INT8_DIFF_CHANNELS_PAD_Y;
+    conv_params.stride.w = FC_CONV_INT8_DIFF_CHANNELS_STRIDE_X;
+    conv_params.stride.h = FC_CONV_INT8_DIFF_CHANNELS_STRIDE_Y;
+    conv_params.dilation.w = FC_CONV_INT8_DIFF_CHANNELS_DILATION_X;
+    conv_params.dilation.h = FC_CONV_INT8_DIFF_CHANNELS_DILATION_Y;
+
+    conv_params.input_offset = FC_CONV_INT8_DIFF_CHANNELS_INPUT_OFFSET;
+    conv_params.output_offset = FC_CONV_INT8_DIFF_CHANNELS_OUTPUT_OFFSET;
+    conv_params.activation.min = FC_CONV_INT8_DIFF_CHANNELS_OUT_ACTIVATION_MIN;
+    conv_params.activation.max = FC_CONV_INT8_DIFF_CHANNELS_OUT_ACTIVATION_MAX;
+    quant_params.multiplier = (int32_t *)fc_conv_int8_diff_channels_output_mult;
+    quant_params.shift = (int32_t *)fc_conv_int8_diff_channels_output_shift;
+    arm_cmsis_nn_status result;
+    int32_t buf_size;
+    memset(output, 0, sizeof(output));
+
+
+    buf_size = arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    ctx.buf = malloc(buf_size);
+    ctx.size = 0;
+
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = conv_params.input_offset; 
+    
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&filter_dims, &output_dims, lhs_offset,  bias_data);
+
+    result = arm_convolve_1_x_1_out_s8(&ctx,
+                                     &weights_sum_ctx,
+                                     &conv_params,
+                                     &quant_params,
+                                     &input_dims,
+                                     input_data,
+                                     &filter_dims,
+                                     kernel_data,
+                                     &bias_dims,
+                                     bias_data,
+                                     &output_dims,
+                                     output);
+
+    if (ctx.buf)
+    {
+        memset(ctx.buf, 0, buf_size);
+        free(ctx.buf);
+    }
+    TEST_ASSERT_EQUAL(expected, result);
+    TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
+}
+
+void conv_refactored_fc_conv_int8_non_4_multiple(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int8_t output[FC_CONV_INT8_NON_4_MULTIPLE_DST_SIZE] = {0};
+
+    cmsis_nn_context ctx;
+    cmsis_nn_context weights_sum_ctx;
+    cmsis_nn_conv_params conv_params;
+    cmsis_nn_per_channel_quant_params quant_params;
+    cmsis_nn_dims input_dims;
+    cmsis_nn_dims filter_dims;
+    cmsis_nn_dims bias_dims;
+    cmsis_nn_dims output_dims;
+
+    const int32_t *bias_data = fc_conv_int8_non_4_multiple_biases;
+    const int8_t *kernel_data = fc_conv_int8_non_4_multiple_weights;
+    const int8_t *input_data = fc_conv_int8_non_4_multiple_input_tensor;
+    const int8_t *output_ref = fc_conv_int8_non_4_multiple_output_ref;
+    const int32_t output_ref_size = FC_CONV_INT8_NON_4_MULTIPLE_DST_SIZE;
+
+    input_dims.n = FC_CONV_INT8_NON_4_MULTIPLE_INPUT_BATCHES;
+    input_dims.w = FC_CONV_INT8_NON_4_MULTIPLE_INPUT_W;
+    input_dims.h = FC_CONV_INT8_NON_4_MULTIPLE_INPUT_H;
+    input_dims.c = FC_CONV_INT8_NON_4_MULTIPLE_IN_CH;
+    filter_dims.w = FC_CONV_INT8_NON_4_MULTIPLE_FILTER_X;
+    filter_dims.h = FC_CONV_INT8_NON_4_MULTIPLE_FILTER_Y;
+    filter_dims.c = FC_CONV_INT8_NON_4_MULTIPLE_IN_CH;
+    output_dims.w = FC_CONV_INT8_NON_4_MULTIPLE_OUTPUT_W;
+    output_dims.h = FC_CONV_INT8_NON_4_MULTIPLE_OUTPUT_H;
+    output_dims.c = FC_CONV_INT8_NON_4_MULTIPLE_OUT_CH;
+
+    conv_params.padding.w = FC_CONV_INT8_NON_4_MULTIPLE_PAD_X;
+    conv_params.padding.h = FC_CONV_INT8_NON_4_MULTIPLE_PAD_Y;
+    conv_params.stride.w = FC_CONV_INT8_NON_4_MULTIPLE_STRIDE_X;
+    conv_params.stride.h = FC_CONV_INT8_NON_4_MULTIPLE_STRIDE_Y;
+    conv_params.dilation.w = FC_CONV_INT8_NON_4_MULTIPLE_DILATION_X;
+    conv_params.dilation.h = FC_CONV_INT8_NON_4_MULTIPLE_DILATION_Y;
+
+    conv_params.input_offset = FC_CONV_INT8_NON_4_MULTIPLE_INPUT_OFFSET;
+    conv_params.output_offset = FC_CONV_INT8_NON_4_MULTIPLE_OUTPUT_OFFSET;
+    conv_params.activation.min = FC_CONV_INT8_NON_4_MULTIPLE_OUT_ACTIVATION_MIN;
+    conv_params.activation.max = FC_CONV_INT8_NON_4_MULTIPLE_OUT_ACTIVATION_MAX;
+    quant_params.multiplier = (int32_t *)fc_conv_int8_non_4_multiple_output_mult;
+    quant_params.shift = (int32_t *)fc_conv_int8_non_4_multiple_output_shift;
+    arm_cmsis_nn_status result;
+    int32_t buf_size;
+    memset(output, 0, sizeof(output));
+
+
+    buf_size = arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    ctx.buf = malloc(buf_size);
+    ctx.size = 0;
+
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = conv_params.input_offset; 
+    
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&filter_dims, &output_dims, lhs_offset,  bias_data);
+
+    result = arm_convolve_1_x_1_out_s8(&ctx,
+                                     &weights_sum_ctx,
+                                     &conv_params,
+                                     &quant_params,
+                                     &input_dims,
+                                     input_data,
+                                     &filter_dims,
+                                     kernel_data,
+                                     &bias_dims,
+                                     bias_data,
+                                     &output_dims,
+                                     output);
+
+    if (ctx.buf)
+    {
+        memset(ctx.buf, 0, buf_size);
+        free(ctx.buf);
+    }
+    TEST_ASSERT_EQUAL(expected, result);
+    TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
+}
+
+void conv_refactored_fc_conv_int8_1x1_kernel(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int8_t output[FC_CONV_INT8_1X1_KERNEL_DST_SIZE] = {0};
+
+    cmsis_nn_context ctx;
+    cmsis_nn_context weights_sum_ctx;
+    cmsis_nn_conv_params conv_params;
+    cmsis_nn_per_channel_quant_params quant_params;
+    cmsis_nn_dims input_dims;
+    cmsis_nn_dims filter_dims;
+    cmsis_nn_dims bias_dims;
+    cmsis_nn_dims output_dims;
+
+    const int32_t *bias_data = fc_conv_int8_1x1_kernel_biases;
+    const int8_t *kernel_data = fc_conv_int8_1x1_kernel_weights;
+    const int8_t *input_data = fc_conv_int8_1x1_kernel_input_tensor;
+    const int8_t *output_ref = fc_conv_int8_1x1_kernel_output_ref;
+    const int32_t output_ref_size = FC_CONV_INT8_1X1_KERNEL_DST_SIZE;
+
+    input_dims.n = FC_CONV_INT8_1X1_KERNEL_INPUT_BATCHES;
+    input_dims.w = FC_CONV_INT8_1X1_KERNEL_INPUT_W;
+    input_dims.h = FC_CONV_INT8_1X1_KERNEL_INPUT_H;
+    input_dims.c = FC_CONV_INT8_1X1_KERNEL_IN_CH;
+    filter_dims.w = FC_CONV_INT8_1X1_KERNEL_FILTER_X;
+    filter_dims.h = FC_CONV_INT8_1X1_KERNEL_FILTER_Y;
+    filter_dims.c = FC_CONV_INT8_1X1_KERNEL_IN_CH;
+    output_dims.w = FC_CONV_INT8_1X1_KERNEL_OUTPUT_W;
+    output_dims.h = FC_CONV_INT8_1X1_KERNEL_OUTPUT_H;
+    output_dims.c = FC_CONV_INT8_1X1_KERNEL_OUT_CH;
+
+    conv_params.padding.w = FC_CONV_INT8_1X1_KERNEL_PAD_X;
+    conv_params.padding.h = FC_CONV_INT8_1X1_KERNEL_PAD_Y;
+    conv_params.stride.w = FC_CONV_INT8_1X1_KERNEL_STRIDE_X;
+    conv_params.stride.h = FC_CONV_INT8_1X1_KERNEL_STRIDE_Y;
+    conv_params.dilation.w = FC_CONV_INT8_1X1_KERNEL_DILATION_X;
+    conv_params.dilation.h = FC_CONV_INT8_1X1_KERNEL_DILATION_Y;
+
+    conv_params.input_offset = FC_CONV_INT8_1X1_KERNEL_INPUT_OFFSET;
+    conv_params.output_offset = FC_CONV_INT8_1X1_KERNEL_OUTPUT_OFFSET;
+    conv_params.activation.min = FC_CONV_INT8_1X1_KERNEL_OUT_ACTIVATION_MIN;
+    conv_params.activation.max = FC_CONV_INT8_1X1_KERNEL_OUT_ACTIVATION_MAX;
+    quant_params.multiplier = (int32_t *)fc_conv_int8_1x1_kernel_output_mult;
+    quant_params.shift = (int32_t *)fc_conv_int8_1x1_kernel_output_shift;
+    arm_cmsis_nn_status result;
+    int32_t buf_size;
+    memset(output, 0, sizeof(output));
+    //TODO need to skip the wrapper here because this case is not handled by the 1x1 image, because it has 1x1 kernel
+    buf_size = arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
+    ctx.buf = malloc(buf_size);
+    ctx.size = 0;
+
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = conv_params.input_offset; 
+    
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&filter_dims, &output_dims, lhs_offset,  bias_data);
+
+    result = arm_convolve_1_x_1_out_s8(&ctx,
+                                     &weights_sum_ctx,
+                                     &conv_params,
+                                     &quant_params,
+                                     &input_dims,
+                                     input_data,
+                                     &filter_dims,
+                                     kernel_data,
+                                     &bias_dims,
+                                     bias_data,
+                                     &output_dims,
+                                     output);
+
+    if (ctx.buf)
+    {
+        memset(ctx.buf, 0, buf_size);
+        free(ctx.buf);
+    }
+    TEST_ASSERT_EQUAL(expected, result);
+    TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
+}
 void buffer_size_arm_convolve_s8(void)
 {
     cmsis_nn_conv_params conv_params;

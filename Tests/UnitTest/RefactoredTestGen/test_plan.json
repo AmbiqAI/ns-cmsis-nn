@@ -28,6 +28,51 @@
         "dilation_x": 1,
         "dilation_y": 27,
         "padding": "VALID"
+      },
+      {
+        "name": "fc_conv_int8_diff_channels",
+        "input_batches": 1,
+        "in_ch": 96,
+        "out_ch": 16,
+        "input_w": 1,
+        "input_h": 3,
+        "filter_x": 1,
+        "filter_y": 3,
+        "stride_x": 1,
+        "stride_y": 1,
+        "dilation_x": 1,
+        "dilation_y": 1,
+        "padding": "VALID"
+      },
+      {
+        "name": "fc_conv_int8_non_4_multiple",
+        "input_batches": 1,
+        "in_ch": 77,
+        "out_ch": 33,
+        "input_w": 1,
+        "input_h": 5,
+        "filter_x": 1,
+        "filter_y": 5,
+        "stride_x": 1,
+        "stride_y": 1,
+        "dilation_x": 1,
+        "dilation_y": 1,
+        "padding": "VALID"
+      },
+      {
+        "name": "fc_conv_int8_1x1_kernel",
+        "input_batches": 1,
+        "in_ch": 20,
+        "out_ch": 20,
+        "input_w": 1,
+        "input_h": 1,
+        "filter_x": 1,
+        "filter_y": 1,
+        "stride_x": 1,
+        "stride_y": 1,
+        "dilation_x": 1,
+        "dilation_y": 1,
+        "padding": "VALID"
       }
     ] 
   },

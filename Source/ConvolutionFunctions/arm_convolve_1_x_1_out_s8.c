@@ -75,7 +75,6 @@ arm_cmsis_nn_status arm_convolve_1_x_1_out_s8(const cmsis_nn_context *ctx,
                                     const int8_t *filter_data,
                                     const cmsis_nn_dims *bias_dims,
                                     const int32_t *bias_data,
-                                    const cmsis_nn_dims *upscale_dims,
                                     const cmsis_nn_dims *output_dims,
                                     int8_t *output_data)
 {
@@ -129,11 +128,6 @@ arm_cmsis_nn_status arm_convolve_1_x_1_out_s8(const cmsis_nn_context *ctx,
     uint32_t y_rshift = 0;
     uint32_t x_rshift = 0;
 
-    if (upscale_dims)
-    {
-        y_rshift = upscale_dims->h == 2 ? 1 : 0;
-        x_rshift = upscale_dims->w == 2 ? 1 : 0;
-    }
 
     const int32_t input_x_rshifted = input_x >> x_rshift;
     const int32_t input_y_rshifted = input_y >> y_rshift;
@@ -149,16 +143,10 @@ arm_cmsis_nn_status arm_convolve_1_x_1_out_s8(const cmsis_nn_context *ctx,
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {
 
-#if defined(ARM_MATH_MVEI)
         const int32_t aligned_rhs_cols_offset = aligned_rhs_cols - rhs_cols;
 
         /* Generate up to four columns from the input tensor a GEMM computation */
         int8_t *im2col_buf = (int8_t *)buffer_a;
-#else
-        /* Use as a ping-pong buffer for unordered elements */
-        int8_t *im2col_buf = (int8_t *)buffer_a + aligned_rhs_cols * 2;
-        int16_t *im2col_buf_start_s16 = buffer_a;
-#endif
         int32_t lhs_rows = 0;
 
         const int8_t *filter_data_ptr = &filter_data[0];
@@ -177,63 +165,24 @@ arm_cmsis_nn_status arm_convolve_1_x_1_out_s8(const cmsis_nn_context *ctx,
                 {
                     const int32_t base_idx_x = stride_x * i_out_x - pad_x;
                     const int32_t base_idx_y = stride_y * i_out_y - pad_y;
-
-                    if (y_rshift == 1 || x_rshift == 1)
+                    for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
                     {
-                        // Fill complete buf with -input_offset
-                        arm_memset_s8(
-                            im2col_buf, (int8_t)-input_offset, sizeof(int8_t) * kernel_ch * kernel_x * kernel_y);
-                        for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
+                        for (int32_t i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
                         {
                             const int32_t k_y = base_idx_y + dilation_y * i_ker_y;
+                            const int32_t k_x = base_idx_x + dilation_x * i_ker_x;
 
-                            //  Don't copy data when padding, or for every second row if stride_y == 2
-                            if ((k_y < 0 || k_y >= input_y) || (k_y % 2 && y_rshift == 1))
+                            if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
                             {
-                                im2col_buf += kernel_ch * kernel_x;
+                                arm_memset_s8(im2col_buf, (int8_t)-input_offset, sizeof(int8_t) * kernel_ch);
                             }
                             else
                             {
-                                const int32_t k_y_rshifted = k_y >> y_rshift;
-                                for (int32_t i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
-                                {
-                                    const int32_t k_x = base_idx_x + dilation_x * i_ker_x;
-
-                                    // Don't copy data when padding, or for every second element if stride_x == 2
-                                    if ((k_x >= 0 && k_x < input_x) && ((k_x % 2 == 0) || x_rshift == 0))
-                                    {
-                                        const int32_t k_x_rshifted = k_x >> x_rshift;
-                                        arm_memcpy_s8(im2col_buf,
-                                                      input_data +
-                                                          (k_y_rshifted * input_x_rshifted + k_x_rshifted) * input_ch,
-                                                      sizeof(int8_t) * kernel_ch);
-                                    }
-                                    im2col_buf += kernel_ch;
-                                }
+                                arm_memcpy_s8(im2col_buf,
+                                              input_data + (k_y * input_x + k_x) * input_ch + i_group * kernel_ch,
+                                              sizeof(int8_t) * kernel_ch);
                             }
-                        }
-                    }
-                    else
-                    {
-                        for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
-                        {
-                            for (int32_t i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
-                            {
-                                const int32_t k_y = base_idx_y + dilation_y * i_ker_y;
-                                const int32_t k_x = base_idx_x + dilation_x * i_ker_x;
-
-                                if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
-                                {
-                                    arm_memset_s8(im2col_buf, (int8_t)-input_offset, sizeof(int8_t) * kernel_ch);
-                                }
-                                else
-                                {
-                                    arm_memcpy_s8(im2col_buf,
-                                                  input_data + (k_y * input_x + k_x) * input_ch + i_group * kernel_ch,
-                                                  sizeof(int8_t) * kernel_ch);
-                                }
-                                im2col_buf += kernel_ch;
-                            }
+                            im2col_buf += kernel_ch;
                         }
                     }
                     lhs_rows++;
@@ -249,7 +198,6 @@ arm_cmsis_nn_status arm_convolve_1_x_1_out_s8(const cmsis_nn_context *ctx,
             //there is only one column in the Bx1x1xC case
             if (lhs_rows != 0)
             {
-#if defined(ARM_MATH_MVEI)
                 arm_nn_mat_mult_nt_t_s8_1x1_image(weight_sum_ctx,
                                         (int8_t *)buffer_a,
                                         filter_data_ptr,
@@ -270,65 +218,6 @@ arm_cmsis_nn_status arm_convolve_1_x_1_out_s8(const cmsis_nn_context *ctx,
                 out += lhs_rows * output_ch;
                 lhs_rows = 0;
                 im2col_buf = (int8_t *)buffer_a;
-#else // #if defined(ARM_MATH_MVEI)
-
-                const int8_t *ker_a = filter_data_ptr;
-                int i;
-
-                for (i = 0; i < output_ch_per_group; i++)
-                {
-                    /* Load the accumulator with bias first */
-                    int32_t sum = 0;
-                    if (bias_data_ptr)
-                    {
-                        sum = bias_data_ptr[i];
-                    }
-
-                    const int16_t *ip_as_col = buffer_a;
-
-    #if defined(ARM_MATH_DSP)
-                    /* 4 multiply and accumulates are done in one loop. */
-                    uint16_t col_count = rhs_cols / 4;
-                    while (col_count)
-                    {
-                        int32_t ker_a1, ker_a2;
-                        int32_t ip_b1, ip_b2;
-
-                        ker_a = read_and_pad_reordered(ker_a, &ker_a1, &ker_a2);
-
-                        ip_b1 = arm_nn_read_q15x2_ia(&ip_as_col);
-                        sum = SMLAD(ker_a1, ip_b1, sum);
-                        ip_b2 = arm_nn_read_q15x2_ia(&ip_as_col);
-                        sum = SMLAD(ker_a2, ip_b2, sum);
-
-                        col_count--;
-                    }
-                    /* Handle left over mac */
-                    col_count = rhs_cols & 0x3;
-    #else
-                    uint16_t col_count = rhs_cols;
-
-    #endif
-                    while (col_count)
-                    {
-                        int8_t ker_a1 = *ker_a++;
-                        int16_t ip_b1 = *ip_as_col++;
-
-                        sum += ker_a1 * ip_b1;
-                        col_count--;
-                    }
-
-                    sum = arm_nn_requantize(sum, output_mult_ptr[i], output_shift_ptr[i]);
-                    sum += out_offset;
-                    sum = MAX(sum, out_activation_min);
-                    sum = MIN(sum, out_activation_max);
-                    *out++ = (int8_t)sum;
-                }
-
-                im2col_buf_start_s16 = buffer_a;
-                im2col_buf = (int8_t *)buffer_a + aligned_rhs_cols * 2;
-                lhs_rows = 0;
-#endif // #if defined(ARM_MATH_MVEI)
             }
             filter_data_ptr += output_ch_per_group * rhs_cols;
             bias_data_ptr += output_ch_per_group;
@@ -386,8 +275,6 @@ static arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_1x1_image(const cmsis_nn_cont
                                             const int32_t lhs_cols_offset)
 {
 
-#if defined(ARM_MATH_MVEI)
-
     (void)bias;
     (void)row_address_offset;
     (void)lhs_cols_offset;
@@ -420,10 +307,7 @@ static arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_1x1_image(const cmsis_nn_cont
             acc_n0 += row *col_base[j];
             acc_n1 += row *ip_col_1[j];
             acc_n2 += row *ip_col_2[j];
-
-            sum_tmp += col_base[j];
-            sum_tmp_1 += ip_col_1[j];
-            sum_tmp_2 += ip_col_2[j];
+            acc_n3 += row *ip_col_3[j];
         }
 #else
         // Note: If operand initialization is moved around, use '&' constraint to
@@ -514,10 +398,6 @@ static arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_1x1_image(const cmsis_nn_cont
         acc_n0 = MIN(acc_n0, activation_max);
         *dst++ = (int8_t)acc_n0;
     }
-
-#else
-#pragma error "only MVE supported"
-#endif
     return ARM_CMSIS_NN_SUCCESS;
 }
 
