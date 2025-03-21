@@ -991,7 +991,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
  * @brief Bx1x1xC convolution
  *
  * @param[in, out] ctx           Function context that contains the additional buffer if required by the function.
- *                               arm_convolve_1_x_1_out_s8_get_buffer_size will return the buffer_size if required
+ *                               arm_convolve_1_x_1_image_s8_get_buffer_size will return the buffer_size if required
  *                               The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      conv_params   Convolution parameters (e.g. strides, dilations, pads,...).
  *                               Range of conv_params->input_offset  : [-127, 128]
@@ -1032,7 +1032,7 @@ arm_cmsis_nn_status arm_convolve_weight_sum(
         const int32_t lhs_offset,
         const int32_t *bias_data );
 
-arm_cmsis_nn_status arm_convolve_1_x_1_out_s8(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_convolve_1_x_1_image_s8(const cmsis_nn_context *ctx,
                                     const cmsis_nn_context *weight_sum_ctx,
                                     const cmsis_nn_conv_params *conv_params,
                                     const cmsis_nn_per_channel_quant_params *quant_params,

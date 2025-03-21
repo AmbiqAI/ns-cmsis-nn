@@ -48,6 +48,7 @@
  */
 
 #if defined(ARM_MATH_MVEI)
+
 static arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_1x1_image(const cmsis_nn_context *weight_sum_ctx,
                                             const int8_t *lhs,
                                             const int8_t *rhs,
@@ -65,7 +66,7 @@ static arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_1x1_image(const cmsis_nn_cont
                                             const int32_t row_address_offset,
                                             const int32_t lhs_cols_offset);
 
-arm_cmsis_nn_status arm_convolve_1_x_1_out_s8(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_convolve_1_x_1_image_s8(const cmsis_nn_context *ctx,
                                     const cmsis_nn_context *weight_sum_ctx,
                                     const cmsis_nn_conv_params *conv_params,
                                     const cmsis_nn_per_channel_quant_params *quant_params,
@@ -257,6 +258,7 @@ arm_cmsis_nn_status arm_convolve_weight_sum(
     arm_vector_sum_s8(vector_sum_buf, rhs_cols, rhs_rows, rhs, lhs_offset, rhs_offset, bias_data);
     return ARM_CMSIS_NN_SUCCESS;
 }
+
 static arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_1x1_image(const cmsis_nn_context *weight_sum_ctx,
                                             const int8_t *lhs,
                                             const int8_t *rhs,

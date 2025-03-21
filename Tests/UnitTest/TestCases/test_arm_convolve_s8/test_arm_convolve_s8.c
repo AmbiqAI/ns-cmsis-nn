@@ -1299,7 +1299,7 @@ void conv_refactored_fc_conv_dilated(void)
     
     arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&filter_dims, &output_dims, lhs_offset,  bias_data);
 
-    result = arm_convolve_1_x_1_out_s8(&ctx,
+    result = arm_convolve_1_x_1_image_s8(&ctx,
                                      &weights_sum_ctx,
                                      &conv_params,
                                      &quant_params,
@@ -1382,7 +1382,7 @@ void conv_refactored_fc_conv_int8_diff_channels(void)
     
     arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&filter_dims, &output_dims, lhs_offset,  bias_data);
 
-    result = arm_convolve_1_x_1_out_s8(&ctx,
+    result = arm_convolve_1_x_1_image_s8(&ctx,
                                      &weights_sum_ctx,
                                      &conv_params,
                                      &quant_params,
@@ -1464,7 +1464,7 @@ void conv_refactored_fc_conv_int8_non_4_multiple(void)
     
     arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&filter_dims, &output_dims, lhs_offset,  bias_data);
 
-    result = arm_convolve_1_x_1_out_s8(&ctx,
+    result = arm_convolve_1_x_1_image_s8(&ctx,
                                      &weights_sum_ctx,
                                      &conv_params,
                                      &quant_params,
@@ -1545,7 +1545,7 @@ void conv_refactored_fc_conv_int8_1x1_kernel(void)
     
     arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&filter_dims, &output_dims, lhs_offset,  bias_data);
 
-    result = arm_convolve_1_x_1_out_s8(&ctx,
+    result = arm_convolve_1_x_1_image_s8(&ctx,
                                      &weights_sum_ctx,
                                      &conv_params,
                                      &quant_params,
