@@ -110,6 +110,56 @@ int32_t arm_convolve_s8_get_weights_sum_size(const cmsis_nn_dims *output_dims)
     const int32_t weights_sums_size = output_dims->c * (int32_t)sizeof(int32_t);
     return weights_sums_size;
 }
+arm_cmsis_nn_status arm_convolve_weight_sum(
+        int32_t* vector_sum_buf,
+        const int8_t *rhs,
+        cmsis_nn_dims *input_dims,
+        cmsis_nn_dims *filter_dims,
+        cmsis_nn_dims *output_dims, 
+        const int32_t lhs_offset,
+        const int32_t *bias_data )
+{
+    const uint16_t kernel_x = filter_dims->w;
+    const uint16_t kernel_y = filter_dims->h;
+    const uint16_t kernel_ch = filter_dims->c;
+    const uint16_t output_channels = output_dims->c;
+    // Standard convolution: filter_dims->n equals output_channels.
+    // depthwise convolution: filterdims->n equals 1
+    // grouped convolution: filter_dims->n equals output_channels/filter_dims->n
+    //
+    //
+
+    //in this case, either we are a 1xhxwx1 convolution or a depthwise convolution
+    //both can be handled the same
+    //
+    const int groups = input_dims->c/filter_dims->c;
+    bool is_depthwise = (groups == 1) && (filter_dims->n == 1);
+
+    if (is_depthwise) {
+        //depthwise case does an extremely small sum
+        const uint16_t rhs_cols = kernel_x * kernel_y;
+        for (int i = 0; i < output_channels; i++) {
+            arm_vector_sum_s8(&vector_sum_buf[i], rhs_cols, 1, rhs, lhs_offset, 0, &bias_data[i]);
+            rhs += rhs_cols;
+        }
+    }
+    /*
+    else if (groups != 1) {
+        //for grouped case, only some of the input channels go to each output channel 
+        //we can determine 
+        const uint16_t rhs_cols = kernel_x * kernel_y * kernel_ch;
+        for (int i = 0; i < output_channels; i++) {
+            arm_vector_sum_s8(&vector_sum_buf[i], rhs_cols, 1, rhs, lhs_offset, 0, &bias_data[i]);
+            rhs += rhs_cols;
+        }
+    }
+    */
+    else {
+        const uint16_t rhs_cols = kernel_x * kernel_y * kernel_ch;
+        arm_vector_sum_s8(vector_sum_buf, rhs_cols, output_channels, rhs, lhs_offset, 0, bias_data);
+    }
+    return ARM_CMSIS_NN_SUCCESS;
+}
 
 int32_t arm_convolve_1_x_n_s8_get_buffer_size(const cmsis_nn_conv_params *conv_params,
                                               const cmsis_nn_dims *input_dims,

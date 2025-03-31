@@ -48,6 +48,7 @@
  */
 
 arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
+                                    const cmsis_nn_context *weight_sum_ctx,
                                     const cmsis_nn_conv_params *conv_params,
                                     const cmsis_nn_per_channel_quant_params *quant_params,
                                     const cmsis_nn_dims *input_dims,
@@ -61,6 +62,12 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                                     int8_t *output_data)
 {
     (void)bias_dims;
+    (void)weight_sum_ctx;
+
+    if (weight_sum_ctx->buf == NULL)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
 
     if (ctx->buf == NULL)
     {
@@ -135,6 +142,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
         int32_t lhs_rows = 0;
 
         const int8_t *filter_data_ptr = &filter_data[0];
+        const int32_t *weight_sum_data_ptr = weight_sum_ctx->buf;
         const int32_t *bias_data_ptr = &bias_data[0];
         const int32_t *output_mult_ptr = &output_mult[0];
         const int32_t *output_shift_ptr = &output_shift[0];
@@ -216,7 +224,8 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                     /* Computation is filed for every 4 columns */
                     if (lhs_rows == 4)
                     {
-                        arm_nn_mat_mult_nt_t_s8((int8_t *)buffer_a,
+                        arm_nn_mat_mult_nt_t_s8(weight_sum_data_ptr,
+                                                (int8_t *)buffer_a,
                                                 filter_data_ptr,
                                                 bias_data_ptr,
                                                 out,
@@ -302,7 +311,8 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
             if (lhs_rows != 0)
             {
 #if defined(ARM_MATH_MVEI)
-                arm_nn_mat_mult_nt_t_s8((int8_t *)buffer_a,
+                arm_nn_mat_mult_nt_t_s8(weight_sum_data_ptr,
+                                        (int8_t *)buffer_a,
                                         filter_data_ptr,
                                         bias_data_ptr,
                                         out,
@@ -382,6 +392,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
 #endif // #if defined(ARM_MATH_MVEI)
             }
             filter_data_ptr += output_ch_per_group * rhs_cols;
+            weight_sum_data_ptr += output_ch_per_group;
             bias_data_ptr += output_ch_per_group;
             output_mult_ptr += output_ch_per_group;
             output_shift_ptr += output_ch_per_group;

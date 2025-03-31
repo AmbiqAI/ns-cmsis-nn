@@ -50,10 +50,12 @@ void reverse_transpose_conv_1_arm_transpose_conv_s8(void)
     input_dims.w = REVERSE_TRANSPOSE_CONV_1_INPUT_W;
     input_dims.h = REVERSE_TRANSPOSE_CONV_1_INPUT_H;
     input_dims.c = REVERSE_TRANSPOSE_CONV_1_IN_CH;
+
     filter_dims.w = REVERSE_TRANSPOSE_CONV_1_FILTER_X;
     filter_dims.h = REVERSE_TRANSPOSE_CONV_1_FILTER_Y;
     filter_dims.n = REVERSE_TRANSPOSE_CONV_1_OUT_CH;
     filter_dims.c = REVERSE_TRANSPOSE_CONV_1_IN_CH;
+
     output_dims.n = REVERSE_TRANSPOSE_CONV_1_INPUT_BATCHES;
     output_dims.w = REVERSE_TRANSPOSE_CONV_1_OUTPUT_W;
     output_dims.h = REVERSE_TRANSPOSE_CONV_1_OUTPUT_H;
@@ -86,7 +88,14 @@ void reverse_transpose_conv_1_arm_transpose_conv_s8(void)
     reverse_conv_ctx.buf = malloc(reverse_conv_buf_size);
     reverse_conv_ctx.size = reverse_conv_buf_size;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = transpose_conv_params.input_offset; 
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&input_dims,&filter_dims, &output_dims, lhs_offset,  bias_data);
     arm_cmsis_nn_status result = arm_transpose_conv_wrapper_s8(&ctx,
+                                                               &weights_sum_ctx,
                                                                &reverse_conv_ctx,
                                                                &transpose_conv_params,
                                                                &quant_params,
@@ -99,6 +108,12 @@ void reverse_transpose_conv_1_arm_transpose_conv_s8(void)
                                                                &output_dims,
                                                                output);
 
+    if (weights_sum_ctx.buf)
+    {
+        // The caller is responsible to clear the scratch buffers for security reasons if applicable.
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     if (reverse_conv_ctx.buf)
     {
         // The caller is responsible to clear the scratch buffers for security reasons if applicable.
@@ -177,7 +192,14 @@ void reverse_transpose_conv_2_arm_transpose_conv_s8(void)
     reverse_conv_ctx.buf = malloc(reverse_conv_buf_size);
     reverse_conv_ctx.size = reverse_conv_buf_size;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = transpose_conv_params.input_offset; 
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&input_dims,&filter_dims, &output_dims, lhs_offset,  bias_data);
     arm_cmsis_nn_status result = arm_transpose_conv_wrapper_s8(&ctx,
+                                                               &weights_sum_ctx,
                                                                &reverse_conv_ctx,
                                                                &transpose_conv_params,
                                                                &quant_params,
@@ -267,7 +289,14 @@ void reverse_transpose_conv_3_arm_transpose_conv_s8(void)
     reverse_conv_ctx.buf = malloc(reverse_conv_buf_size);
     reverse_conv_ctx.size = reverse_conv_buf_size;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = transpose_conv_params.input_offset; 
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&input_dims,&filter_dims, &output_dims, lhs_offset,  bias_data);
     arm_cmsis_nn_status result = arm_transpose_conv_wrapper_s8(&ctx,
+                                                               &weights_sum_ctx,
                                                                &reverse_conv_ctx,
                                                                &transpose_conv_params,
                                                                &quant_params,
@@ -357,7 +386,14 @@ void reverse_transpose_conv_4_arm_transpose_conv_s8(void)
     reverse_conv_ctx.buf = malloc(reverse_conv_buf_size);
     reverse_conv_ctx.size = reverse_conv_buf_size;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = transpose_conv_params.input_offset; 
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&input_dims,&filter_dims, &output_dims, lhs_offset,  bias_data);
     arm_cmsis_nn_status result = arm_transpose_conv_wrapper_s8(&ctx,
+                                                               &weights_sum_ctx,
                                                                &reverse_conv_ctx,
                                                                &transpose_conv_params,
                                                                &quant_params,

@@ -46,6 +46,7 @@
  *
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
+                                          const cmsis_nn_context *weight_sum_ctx,
                                           const cmsis_nn_conv_params *conv_params,
                                           const cmsis_nn_per_channel_quant_params *quant_params,
                                           const cmsis_nn_dims *input_dims,
@@ -99,6 +100,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
     if (right_pad_num + no_pad_num + left_pad_num != output_x)
     {
         return arm_convolve_s8(ctx,
+                               weight_sum_ctx,
                                conv_params,
                                quant_params,
                                input_dims,
@@ -125,7 +127,8 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
         im2col += pad_size_left;
         arm_memcpy_s8(im2col, input_data, sizeof(int8_t) * num_elem_left);
 
-        arm_nn_mat_mult_nt_t_s8((int8_t *)ctx->buf,
+        arm_nn_mat_mult_nt_t_s8(weight_sum_ctx->buf,
+                                (int8_t *)ctx->buf,
                                 filter_data,
                                 bias_data,
                                 output_data,
@@ -155,7 +158,8 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
         input_start *= input_ch;
         lhs_rows = no_pad_num;
 
-        arm_nn_mat_mult_nt_t_s8(input_data + input_start,
+        arm_nn_mat_mult_nt_t_s8(weight_sum_ctx->buf,
+                                input_data + input_start,
                                 filter_data,
                                 bias_data,
                                 output_data,
@@ -189,7 +193,8 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
         im2col += num_elem_right;
         arm_memset_s8(im2col, (int8_t)-conv_params->input_offset, sizeof(int8_t) * (uint32_t)pad_size_right);
 
-        arm_nn_mat_mult_nt_t_s8((int8_t *)ctx->buf,
+        arm_nn_mat_mult_nt_t_s8(weight_sum_ctx->buf,
+                                (int8_t *)ctx->buf,
                                 filter_data,
                                 bias_data,
                                 output_data,
@@ -211,7 +216,8 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
         input_data += (input_x * input_ch);
     }
 #else
-    status = arm_convolve_s8(ctx,
+    status = arm_convolve_s8(weight_sum_ctx,
+                             ctx,
                              conv_params,
                              quant_params,
                              input_dims,

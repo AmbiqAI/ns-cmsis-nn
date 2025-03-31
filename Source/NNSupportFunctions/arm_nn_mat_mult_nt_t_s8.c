@@ -45,7 +45,8 @@
  * Refer header file for details.
  *
  */
-arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int8_t *lhs,
+arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
+                                            const int8_t *lhs,
                                             const int8_t *rhs,
                                             const int32_t *bias,
                                             int8_t *dst,
@@ -61,6 +62,9 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int8_t *lhs,
                                             const int32_t row_address_offset,
                                             const int32_t lhs_cols_offset)
 {
+    (void)lhs_offset;
+    (void)bias;
+
 
 #if defined(ARM_MATH_MVEI)
     int i_items = 0;
@@ -78,32 +82,25 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int8_t *lhs,
             const int8_t *ip_row_2 = lhs + (2 * lhs_cols_offset);
             const int8_t *ip_row_3 = lhs + (3 * lhs_cols_offset);
             const int8_t *col_base = rhs + i * rhs_cols;
-            int32_t sum_tmp = 0;
 
     #if defined(ARM_MATH_AUTOVECTORIZE)
             for (int j = 0; j < rhs_cols; j++)
             {
                 int32_t col = col_base[j];
-                sum_tmp += col;
                 acc_n0 += lhs_vec[j] * col;
                 acc_n1 += ip_row_1[j] * col;
                 acc_n2 += ip_row_2[j] * col;
                 acc_n3 += ip_row_3[j] * col;
             }
     #else
-            // Note: If operand initialization is moved around, use '&' constraint to
-            // specify earlyclobber operands.
-            //
             __ASM volatile(" .p2align 2                             \n"
                            "   wlstp.8         lr, %[cnt], 1f       \n"
-                           "   mov             %[sum], 0            \n"
                            "   mov             %[out0], 0           \n"
                            "   mov             %[out1], 0           \n"
                            "   mov             %[out2], 0           \n"
                            "   mov             %[out3], 0           \n"
                            "   vldrb.8         q0, [%[col]], #16    \n"
                            "2:                                      \n"
-                           "   vaddva.s8      %[sum], q0            \n"
                            "   vldrb.8         q1, [%[row0]], #16   \n"
                            "   vmladava.s8    %[out0], q0, q1       \n"
                            "   vldrb.8         q2, [%[row1]], #16   \n"
@@ -116,7 +113,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int8_t *lhs,
                            "   letp            lr, 2b               \n"
                            "1:                                      \n"
                            : [col] "+r"(col_base),
-                             [sum] "=Te"(sum_tmp),
                              [row0] "+r"(lhs_vec),
                              [row1] "+r"(ip_row_1),
                              [row2] "+r"(ip_row_2),
@@ -129,12 +125,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int8_t *lhs,
                            : "q0", "q1", "q2", "q3", "q4", "memory", "r14");
     #endif
             int32x4_t res = {acc_n0, acc_n1, acc_n2, acc_n3};
-            sum_tmp *= lhs_offset;
-            if (bias)
-            {
-                sum_tmp += bias[i];
-            }
-            res = vaddq_n_s32(res, sum_tmp);
+            res = vaddq_n_s32(res, weight_sum_buf[i]);
 
             res = arm_requantize_mve(res, dst_multipliers[i], dst_shifts[i]);
             res = vaddq_n_s32(res, dst_offset);
@@ -161,40 +152,29 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int8_t *lhs,
             int32_t acc_n0 = 0;
             const int8_t *lhs_vec = lhs;
             const int8_t *col_base = rhs + i * rhs_cols;
-            int32_t sum_tmp = 0;
-
     #if defined(ARM_MATH_AUTOVECTORIZE)
             for (int j = 0; j < rhs_cols; j++)
             {
-                int32_t col = col_base[j];
-                sum_tmp += col;
-                acc_n0 += lhs_vec[j] * col;
+                acc_n0 += lhs_vec[j] * col_base[j];
             }
     #else
             __ASM volatile(" .p2align 2                             \n"
                            "   wlstp.8         lr, %[cnt], 1f       \n"
-                           "   mov             %[sum], 0            \n"
                            "   mov             %[out0], 0            \n"
                            "   vldrb.8         q0, [%[col]], #16    \n"
                            "2:                                      \n"
-                           "   vaddva.s8      %[sum], q0            \n"
                            "   vldrb.8         q1, [%[row0]], #16   \n"
                            "   vmladava.s8    %[out0], q0, q1       \n"
                            "   vldrb.8         q0, [%[col]], #16    \n"
                            "   letp            lr, 2b               \n"
                            "1:                                      \n"
-                           : [col] "+r"(col_base), [sum] "=Te"(sum_tmp), [row0] "+r"(lhs_vec), [out0] "=Te"(acc_n0)
+                           : [col] "+r"(col_base), [row0] "+r"(lhs_vec), [out0] "=Te"(acc_n0)
                            : [cnt] "r"(rhs_cols)
                            : "q0", "q1", "memory", "r14");
     #endif
-            sum_tmp *= lhs_offset;
-            sum_tmp += acc_n0;
-            if (bias)
-            {
-                sum_tmp += bias[i];
-            }
+            /* Modified: Replace accumulation with precomputed value */
             const int32_t index = i & 0x3;
-            acc[index] = sum_tmp;
+            acc[index] = acc_n0 + weight_sum_buf[i];
 
             if (index == 3)
             {
@@ -233,22 +213,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int8_t *lhs,
         const int8_t *lhs_ptr = &lhs[0];
         int8_t *dst_ptr = &dst[0];
 
-        int32_t lhs_offset_contribution0 = 0;
-        int32_t lhs_offset_contribution1 = 0;
+        /* Modified: Use precomputed weight_sum_buf instead of summing rhs */
+        int32_t lhs_offset_contribution0 = weight_sum_buf[rhs_rows_idx];
+        int32_t lhs_offset_contribution1 = weight_sum_buf[rhs_rows_idx + 1];
 
-        for (int32_t x = 0; x < rhs_cols; ++x)
-        {
-            lhs_offset_contribution0 += rhs[x];
-            lhs_offset_contribution1 += rhs[x + rhs_cols];
-        }
-
-        lhs_offset_contribution0 *= lhs_offset;
-        lhs_offset_contribution1 *= lhs_offset;
-        if (bias)
-        {
-            lhs_offset_contribution0 += bias[rhs_rows_idx];
-            lhs_offset_contribution1 += bias[rhs_rows_idx + 1];
-        }
 
         int32_t lhs_rows_idx = lhs_rows >> 1;
 
@@ -629,22 +597,9 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int8_t *lhs,
         const int8_t *lhs_ptr = &lhs[0];
         int8_t *dst_ptr = &dst[0];
 
-        int32_t lhs_offset_contribution0 = 0;
-        int32_t lhs_offset_contribution1 = 0;
-
-        for (int32_t x = 0; x < rhs_cols; ++x)
-        {
-            lhs_offset_contribution0 += rhs[x];
-            lhs_offset_contribution1 += rhs[x + rhs_cols];
-        }
-
-        lhs_offset_contribution0 *= lhs_offset;
-        lhs_offset_contribution1 *= lhs_offset;
-        if (bias)
-        {
-            lhs_offset_contribution0 += bias[rhs_rows_idx];
-            lhs_offset_contribution1 += bias[rhs_rows_idx + 1];
-        }
+        /* Modified: Use weight_sum_buf instead of summing rhs */
+        int32_t lhs_offset_contribution0 = weight_sum_buf[rhs_rows_idx];
+        int32_t lhs_offset_contribution1 = weight_sum_buf[rhs_rows_idx + 1];
 
         int32_t lhs_rows_idx = lhs_rows >> 1;
 

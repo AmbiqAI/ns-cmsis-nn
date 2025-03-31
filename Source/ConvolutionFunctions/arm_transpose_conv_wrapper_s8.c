@@ -48,6 +48,7 @@
  *
  */
 arm_cmsis_nn_status arm_transpose_conv_wrapper_s8(const cmsis_nn_context *ctx,
+                                                  const cmsis_nn_context *weight_sum_ctx,
                                                   const cmsis_nn_context *reverse_conv_ctx,
                                                   const cmsis_nn_transpose_conv_params *transpose_conv_params,
                                                   const cmsis_nn_per_channel_quant_params *quant_params,
@@ -124,8 +125,8 @@ arm_cmsis_nn_status arm_transpose_conv_wrapper_s8(const cmsis_nn_context *ctx,
             }
             out_ptr += 2 * filter_size;
         }
-
         return arm_convolve_s8(ctx,
+                               weight_sum_ctx,
                                &conv_params,
                                quant_params,
                                &transposed_input_dims,

@@ -48,6 +48,7 @@
  */
 
 arm_cmsis_nn_status arm_convolve_wrapper_s8(const cmsis_nn_context *ctx,
+                                            const cmsis_nn_context *weight_sum_ctx,
                                             const cmsis_nn_conv_params *conv_params,
                                             const cmsis_nn_per_channel_quant_params *quant_params,
                                             const cmsis_nn_dims *input_dims,
@@ -66,6 +67,7 @@ arm_cmsis_nn_status arm_convolve_wrapper_s8(const cmsis_nn_context *ctx,
         if ((conv_params->stride.w == 1) && (conv_params->stride.h == 1))
         {
             return arm_convolve_1x1_s8_fast(ctx,
+                                            weight_sum_ctx,
                                             conv_params,
                                             quant_params,
                                             input_dims,
@@ -80,6 +82,7 @@ arm_cmsis_nn_status arm_convolve_wrapper_s8(const cmsis_nn_context *ctx,
         else
         {
             return arm_convolve_1x1_s8(ctx,
+                                       weight_sum_ctx,
                                        conv_params,
                                        quant_params,
                                        input_dims,
@@ -96,25 +99,6 @@ arm_cmsis_nn_status arm_convolve_wrapper_s8(const cmsis_nn_context *ctx,
              ((conv_params->stride.w * input_dims->c) % 4 == 0) && (input_dims->c == filter_dims->c))
     {
         return arm_convolve_1_x_n_s8(ctx,
-                                     conv_params,
-                                     quant_params,
-                                     input_dims,
-                                     input_data,
-                                     filter_dims,
-                                     filter_data,
-                                     bias_dims,
-                                     bias_data,
-                                     output_dims,
-                                     output_data);
-    }
-/*
-#if defined(ARM_MATH_MVEI)
-    //mve optimization of Bx1x1xC case
-    else if ((output_dims->h == 1) && (output_dims->w == 1) && 
-             ((conv_params->stride.w * input_dims->c) % 4 == 0) && (input_dims->c == filter_dims->c))
-    {
-
-        return arm_convolve_1_x_1_out_s8(ctx,
                                      weight_sum_ctx,
                                      conv_params,
                                      quant_params,
@@ -124,15 +108,33 @@ arm_cmsis_nn_status arm_convolve_wrapper_s8(const cmsis_nn_context *ctx,
                                      filter_data,
                                      bias_dims,
                                      bias_data,
-                                     NULL,
+                                     output_dims,
+                                     output_data);
+    }
+#if defined(ARM_MATH_MVEI)
+    //mve optimization of Bx1x1xC case
+    else if ((output_dims->h == 1) && (output_dims->w == 1) && 
+             ((conv_params->stride.w * input_dims->c) % 4 == 0) && (input_dims->c == filter_dims->c))
+    {
+
+        return arm_convolve_1_x_1_image_s8(ctx,
+                                     weight_sum_ctx,
+                                     conv_params,
+                                     quant_params,
+                                     input_dims,
+                                     input_data,
+                                     filter_dims,
+                                     filter_data,
+                                     bias_dims,
+                                     bias_data,
                                      output_dims,
                                      output_data);
     }
 #endif 
-*/
     else
     {
         return arm_convolve_s8(ctx,
+                               weight_sum_ctx,
                                conv_params,
                                quant_params,
                                input_dims,

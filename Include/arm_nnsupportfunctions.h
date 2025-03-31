@@ -539,6 +539,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
  *
  *  @note This operation also performs the broadcast bias addition before the requantization
  *
+ * @param[in]  weight_sum_buf     Pointer to the weight sum multiplied by lhs_offset and summed bias buffer 
  * @param[in]  lhs                Pointer to the LHS input matrix
  * @param[in]  rhs                Pointer to the RHS input matrix
  * @param[in]  bias               Pointer to the bias vector. The length of this vector is equal to the number of
@@ -562,7 +563,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  */
-arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int8_t *lhs,
+arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t* weight_sum_buf, 
+                                            const int8_t *lhs,
                                             const int8_t *rhs,
                                             const int32_t *bias,
                                             int8_t *dst,

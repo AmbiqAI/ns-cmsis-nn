@@ -239,25 +239,6 @@ arm_cmsis_nn_status arm_convolve_1_x_1_image_s8(const cmsis_nn_context *ctx,
  * @} end of NNConv group
  */
 
-arm_cmsis_nn_status arm_convolve_weight_sum(
-        int32_t* vector_sum_buf,
-        const int8_t *rhs,
-        cmsis_nn_dims *filter_dims,
-        cmsis_nn_dims *output_dims, 
-        const int32_t lhs_offset,
-        const int32_t *bias_data ) 
-{
-
-    const uint16_t kernel_x = filter_dims->w;
-    const uint16_t kernel_y = filter_dims->h;
-    const uint16_t kernel_ch = filter_dims->c;
-    const uint16_t rhs_rows = output_dims->c;
-    const uint16_t rhs_cols = kernel_x * kernel_y * kernel_ch;
-    //skip rhs_offset 
-    uint32_t rhs_offset = 0;
-    arm_vector_sum_s8(vector_sum_buf, rhs_cols, rhs_rows, rhs, lhs_offset, rhs_offset, bias_data);
-    return ARM_CMSIS_NN_SUCCESS;
-}
 
 static arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_1x1_image(const cmsis_nn_context *weight_sum_ctx,
                                             const int8_t *lhs,
