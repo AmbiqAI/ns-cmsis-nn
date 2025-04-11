@@ -39,9 +39,9 @@ import keras
 dtype_map = {
     "float32":   "float",
     "int8_t":    "int8_t",
-    "int8":      "int8_t",   # if you sometimes store "int8" in JSON or params
+    "int8":      "int8_t", 
     "int16_t":   "int16_t",
-    "int16":     "int16_t"   # same logic as int8 above
+    "int16":     "int16_t"
 }
 
 # Optional runtime interpreters
@@ -213,7 +213,7 @@ def generate(params, args, fpaths):
             c_type = map_dtype_to_c_type(raw_dtype)
 
         else:
-            # Some fallback if you have additional named tensors
+            # Some fallback
             c_type = "float"
 
         write_c_array(
@@ -280,17 +280,12 @@ def convert_keras_to_tflite(
 
         converter.representative_dataset = representative_dataset
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
-        # converter.inference_input_type = Lib.op_utils.get_tf_dtype(dtype)
-        # converter.inference_output_type = Lib.op_utils.get_tf_dtype(dtype)
         converter._experimental_disable_per_channel_quantization_for_dense_layers = per_tensor_quant_for_dense
         if dtype == "int8_t":
             converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
             converter.inference_input_type = Lib.op_utils.get_tf_dtype(dtype)
             converter.inference_output_type = Lib.op_utils.get_tf_dtype(dtype)
         elif dtype == "float32_to_int8_t":
-            #
-            # float32 inputs -> int8 outputs
-            #
             converter.inference_input_type = tf.float32
             converter.inference_output_type = tf.int8
             converter.target_spec.supported_ops = [
@@ -298,26 +293,16 @@ def convert_keras_to_tflite(
             ]
 
         elif dtype == "float32_to_int16_t":
-            #
-            # float32 inputs -> int16 outputs
-            #
             converter.inference_input_type = tf.float32
             converter.inference_output_type = tf.int16
-            # Typically for int16 quant, TFLite ops are still experimental.
-            # For example:
             converter.target_spec.supported_ops = [
-                # tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
                 tf.lite.OpsSet.TFLITE_BUILTINS,
                 tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
             ]
-            # If you want bias to be int32:
             if bias_dtype == "int32_t":
                 converter._experimental_full_integer_quantization_bias_type = tf.int32
 
         elif dtype == "int8_t_to_int8_t":
-            #
-            # int8 inputs -> int8 outputs
-            #
             converter.inference_input_type = tf.int8
             converter.inference_output_type = tf.int8
             converter.target_spec.supported_ops = [
@@ -327,14 +312,10 @@ def convert_keras_to_tflite(
                 converter._experimental_full_integer_quantization_bias_type = tf.int32
 
         elif dtype == "int16_t_to_int16_t":
-            #
-            # int16 inputs -> int16 outputs
-            #
             converter.inference_input_type = tf.int16
             converter.inference_output_type = tf.int16
-            # TFLite int16 quant is typically still in "EXPERIMENTAL" land.
             converter.target_spec.supported_ops = [
-                tf.lite.OpsSet.TFLITE_BUILTINS,  # for any ops that are not int16
+                tf.lite.OpsSet.TFLITE_BUILTINS,
                 tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
             ]
             if bias_dtype == "int32_t":
@@ -348,9 +329,8 @@ def convert_keras_to_tflite(
         elif dtype == "int16_t_to_float32":
             converter.inference_input_type = tf.int16
             converter.inference_output_type = tf.float32
-            # TFLite int16 quant is typically still in "EXPERIMENTAL" land.
             converter.target_spec.supported_ops = [
-                tf.lite.OpsSet.TFLITE_BUILTINS,  # for any ops that are not int16
+                tf.lite.OpsSet.TFLITE_BUILTINS,
                 tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
             ]
         else:

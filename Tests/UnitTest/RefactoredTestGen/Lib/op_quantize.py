@@ -34,15 +34,13 @@ def compute_multiplier_shift(scale):
     if scale == 0.0:
         return 0, 0
 
-    # frexp() returns significand in [0.5,1) and an exponent
     significand, exponent = math.frexp(scale)
 
-    # Convert the significand into a Q31 integer
     q31 = round(significand * (1 << 31))
 
     # If rounding pushed q31 to 2^31, reduce it by factor of 2 and increase exponent
     if q31 == (1 << 31):
-        q31 >>= 1  # same as q31 /= 2
+        q31 >>= 1 
         exponent += 1
 
     # The net 'shift' is exponent - 31
@@ -54,7 +52,7 @@ def compute_multiplier_shift(scale):
 class Op_quantize(Lib.op_utils.Op_type):
     def get_shapes(params):
         shapes = {}
-        # The real input shape for your op:
+
         shapes["input_tensor_1"] = (
             params["batch_1"],
             params["height_1"],
@@ -62,7 +60,6 @@ class Op_quantize(Lib.op_utils.Op_type):
             params["channel_1"]
         )
 
-        # Provide the same shape to representational_dataset unless you want something smaller:
         shapes["representational_dataset"] = (
             params["batch_1"],
             params["height_1"],
@@ -70,7 +67,6 @@ class Op_quantize(Lib.op_utils.Op_type):
             params["channel_1"]
         )
 
-        # Usually for a single-input op, you set:
         shapes["different_in_shapes"] = False
 
         return shapes
@@ -78,11 +74,10 @@ class Op_quantize(Lib.op_utils.Op_type):
 
     def generate_keras_model(shapes, params):
         model = keras.Sequential()
-        # Accept shape = (1,8,1) as (H,W,C)
         model.add(keras.Input(shape=(1,8,1)))
 
         # Flatten it to a 1D vector of length 8
-        model.add(keras.layers.Flatten())  # Now we have shape=(None, 8)
+        model.add(keras.layers.Flatten())
 
         # Insert Dense(8) with identity weights
         dense = keras.layers.Dense(units=8, use_bias=False, activation=None)
@@ -109,7 +104,6 @@ class Op_quantize(Lib.op_utils.Op_type):
         generated_params = {}
         aliases = {}
 
-        # 1. Figure out input shape from the test parameters (single input example).
         input_shape = (
             params["batch_1"],
             params["height_1"],
@@ -117,7 +111,6 @@ class Op_quantize(Lib.op_utils.Op_type):
             params["channel_1"]
         )
 
-        # 2. Determine input dtype from params["input_data_type"]
         input_dtype_str = params["input_data_type"]  # e.g. "int8_t_to_int8_t"
         output_dtype_str = ""
         if "_to_" in input_dtype_str:
@@ -127,7 +120,6 @@ class Op_quantize(Lib.op_utils.Op_type):
 
         input_dtype_tf = Lib.op_utils.get_tf_dtype(input_dtype_str)
 
-        # 3. Generate random data
         if input_dtype_tf == tf.float32:
             random_data = np.random.uniform(-1.0, 1.0, size=input_shape).astype(np.float32)
         elif input_dtype_tf == tf.int8:
@@ -139,7 +131,6 @@ class Op_quantize(Lib.op_utils.Op_type):
 
         tensors["input_tensor_1"] = random_data
 
-        # 4. Use TFLite interpreter to read quant info
         from tensorflow.lite.python.interpreter import Interpreter, OpResolverType
         interpreter = Interpreter(
             model_path=str(tflite_fname),
@@ -147,7 +138,6 @@ class Op_quantize(Lib.op_utils.Op_type):
         )
         interpreter.allocate_tensors()
 
-        # 4a. Input quant info
         input_details = interpreter.get_input_details()
         (input_scale, input_zero_point) = input_details[0]['quantization']
         scales["input_scale_" + output_dtype_str] = input_scale
@@ -155,7 +145,6 @@ class Op_quantize(Lib.op_utils.Op_type):
         generated_params["quant_input_scale_" + output_dtype_str] = input_scale
         generated_params["quant_input_zero_point_" + output_dtype_str] = input_zero_point
 
-        # 4b. Output quant info
         output_details = interpreter.get_output_details()
         (output_scale, output_zero_point) = output_details[0]['quantization']
         scales["output_scale_" + output_dtype_str] = output_scale
@@ -163,24 +152,18 @@ class Op_quantize(Lib.op_utils.Op_type):
         generated_params["quant_output_scale_" + output_dtype_str] = output_scale
         generated_params["quant_output_zero_point_" + output_dtype_str] = output_zero_point
 
-        # 5. If you're doing s8->s8 "requantization", compute multiplier & shift
         if (input_dtype_tf == tf.int8) and (output_dtype_str == "int8_t"):
-            # The float ratio is typically input_scale / output_scale
             ratio = 1.0
             if output_scale != 0.0:  # just to avoid division by zero
                 ratio = input_scale / output_scale
 
             multiplier, shift = compute_multiplier_shift(ratio)
-            # Store in generated_params so we can use them in config_data, etc.
             generated_params["requant_multiplier_s8_s8"] = multiplier
             generated_params["requant_shift_s8_s8"] = shift
-            # Also store or rename them however you like
 
-        # 6. Save shape-based info if needed
         out_shape = output_details[0]["shape"]
-        generated_params["output_shape"] = out_shape.tolist()  # e.g. [1,8]
+        generated_params["output_shape"] = out_shape.tolist()
 
-        # 7. Return all data
         return Lib.op_utils.Generated_data(
             generated_params,
             tensors,

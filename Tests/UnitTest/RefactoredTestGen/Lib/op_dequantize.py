@@ -26,7 +26,6 @@ import tf_keras as keras
 class Op_dequantize(Lib.op_utils.Op_type):
     def get_shapes(params):
         shapes = {}
-        # The real input shape for your op:
         shapes["input_tensor_1"] = (
             params["batch_1"],
             params["height_1"],
@@ -34,7 +33,6 @@ class Op_dequantize(Lib.op_utils.Op_type):
             params["channel_1"]
         )
 
-        # Provide the same shape to representational_dataset unless you want something smaller:
         shapes["representational_dataset"] = (
             params["batch_1"],
             params["height_1"],
@@ -42,7 +40,6 @@ class Op_dequantize(Lib.op_utils.Op_type):
             params["channel_1"]
         )
 
-        # Usually for a single-input op, you set:
         shapes["different_in_shapes"] = False
 
         return shapes
@@ -50,11 +47,10 @@ class Op_dequantize(Lib.op_utils.Op_type):
 
     def generate_keras_model(shapes, params):
         model = keras.Sequential()
-        # Accept shape = (1,8,1) as (H,W,C)
         model.add(keras.Input(shape=(1,8,1)))
 
         # Flatten it to a 1D vector of length 8
-        model.add(keras.layers.Flatten())  # Now we have shape=(None, 8)
+        model.add(keras.layers.Flatten())
 
         # Insert Dense(8) with identity weights
         dense = keras.layers.Dense(units=8, use_bias=False, activation=None)
@@ -79,7 +75,6 @@ class Op_dequantize(Lib.op_utils.Op_type):
         generated_params = {}
         aliases = {}
 
-        # 1. Figure out input shape from the test parameters (single input example).
         input_shape = (
             params["batch_1"],
             params["height_1"],
@@ -87,21 +82,14 @@ class Op_dequantize(Lib.op_utils.Op_type):
             params["channel_1"]
         )
 
-        # -------------------------------------------------------------------------
-        # 2. Determine the input dtype from params["input_data_type"] and generate
-        #    random data in an appropriate numeric range.
-        # -------------------------------------------------------------------------
         input_dtype_str = params["input_data_type"]  # e.g. "float32_to_int8", "int8_t_to_int8_t", "int16_t_to_int16_t"
         output_dtype_str = ""
         if "_to_" in input_dtype_str:
             tokens = input_dtype_str.split("_to_")
-            # tokens[0] is the "left" side
-            # tokens[1] is the "right" side
             input_dtype_str = tokens[0]
             output_dtype_str = tokens[1]
         input_dtype_tf = Lib.op_utils.get_tf_dtype(input_dtype_str)
 
-        # Generate random data according to the chosen dtype
         if input_dtype_tf == tf.int8:
             # Generate random int8 data in range [-128, 127]
             random_data = np.random.randint(-128, 128, size=input_shape).astype(np.int8)
@@ -109,15 +97,11 @@ class Op_dequantize(Lib.op_utils.Op_type):
             # Generate random int16 data in range [-32768, 32767]
             random_data = np.random.randint(-32768, 32768, size=input_shape).astype(np.int16)
         else:
-            # Fallback or raise an error for unsupported dtypes
             raise ValueError(f"Unsupported input dtype: {input_dtype_tf}")
 
         tensors["input_tensor_1"] = random_data
 
-        # -------------------------------------------------------------------------
-        # 3. Create a TFLite interpreter to read the scale and zero-point from
-        #    the TFLite file.
-        # -------------------------------------------------------------------------
+
         from tensorflow.lite.python.interpreter import Interpreter, OpResolverType
         interpreter = Interpreter(
             model_path=str(tflite_fname),
@@ -143,9 +127,8 @@ class Op_dequantize(Lib.op_utils.Op_type):
         
 
         out_shape = output_details[0]["shape"]
-        generated_params["output_shape"] = out_shape.tolist()  # for example
-
-        # 8. Return the data container
+        generated_params["output_shape"] = out_shape.tolist()
+        
         return Lib.op_utils.Generated_data(
             generated_params,
             tensors,
