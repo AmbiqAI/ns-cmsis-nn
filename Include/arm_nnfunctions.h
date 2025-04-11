@@ -3274,6 +3274,56 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
                                     int16_t *output_data,
                                     const cmsis_nn_dims *output_dims);
 
+void arm_quantize_f32_s8(
+  const float* input,
+  int8_t* output,
+  int32_t size,
+  int32_t zero_point,
+  float scale);
+
+void arm_quantize_f32_s16(
+  const float* input,
+  int16_t* output,
+  int32_t size,
+  int32_t zero_point,
+  float scale
+);
+
+void arm_requantize_s8_s8(
+  const int8_t *input,
+  int8_t* output,
+  int32_t size,
+  int32_t effective_scale_multiplier,
+  int32_t effective_scale_shift,
+  int32_t input_zeropoint,
+  int32_t output_zeropoint
+);
+
+void arm_requantize_s16_s16(
+  const int16_t *input,
+  int16_t* output,
+  int32_t size,
+  int32_t effective_scale_multiplier,
+  int32_t effective_scale_shift,
+  int32_t input_zeropoint,
+  int32_t output_zeropoint
+);
+
+void arm_dequantize_s8_f32(
+  const int8_t *input,
+  float *output,
+  int32_t size,
+  float scale,
+  int32_t zero_point
+);
+
+void arm_dequantize_s16_f32(
+  const int16_t *input,
+  float *output,
+  int32_t size,
+  float scale,
+  int32_t zero_point
+);
 
 #if defined(ARM_FLOAT16_SUPPORTED)
 

@@ -96,6 +96,8 @@ def get_tf_dtype(dtype):
         return tf.int8
     if dtype == "int16_t":
         return tf.int16
+    if dtype == "float32":
+        return tf.float32
     else:
         raise Exception(f"Unrecognized dtype '{dtype}'")
 
@@ -122,6 +124,8 @@ def get_dtype_len(dtype):
         return 4
     elif dtype == "int64_t" or dtype == "double":
         return 8
+    elif dtype == "float32":
+        return 4
     else:
         raise Exception(f"Unrecognized dtype '{dtype}'")
 
@@ -137,6 +141,8 @@ def get_dtype_max(dtype):
         return 2147483647
     elif dtype == "int64_t":
         return 9223372036854775807
+    elif dtype == "float32":
+        return 3.402823466e+38
     else:
         raise Exception(f"Unrecognized dtype '{dtype}'")
 
@@ -152,6 +158,9 @@ def get_dtype_min(dtype):
         return -2147483648
     elif dtype == "int64_t":
         return -9223372036854775808
+    elif dtype == "float32":
+        return -3.402823466e+38
+
     else:
         raise Exception(f"Unrecognized dtype '{dtype}'")
 
