@@ -193,36 +193,6 @@ def generate(params, args, fpaths):
     config_params = {key: val for key, val in params.items() if include_in_config(key)}
     write_config(fpaths["config_data"], config_params, params["name"], fpaths["test_data"], header)
 
-    # for name, tensor in data.tensors.items():
-    #     fpaths[name] = fpaths["data_folder"] / f"{name}.h"
-    #     # Distinguish input vs output
-    #     if name.startswith("input_tensor"):
-    #         # Force input dtype to "left side" of "float32_to_int16_t"
-    #         raw_dtype = params["input_data_type"]
-    #         if "_to_" in raw_dtype:
-    #             raw_dtype = raw_dtype.split("_to_", 1)[0]   # "float32"
-    #         c_type = map_dtype_to_c_type(raw_dtype)
-
-    #     elif name == "output":
-    #         # Force output dtype to "right side" of "float32_to_int16_t"
-    #         raw_dtype = params["input_data_type"]
-    #         if "_to_" in raw_dtype:
-    #             raw_dtype = raw_dtype.split("_to_", 1)[1]   # "int16_t"
-    #         c_type = map_dtype_to_c_type(raw_dtype)
-
-    #     else:
-    #         # Some fallback
-    #         c_type = "float"
-
-    #     write_c_array(
-    #         tensor, 
-    #         fpaths[name], 
-    #         c_type, 
-    #         params["name"], 
-    #         name, 
-    #         fpaths["test_data"], 
-    #         header
-    #     )
     for name, tensor in data.tensors.items():
         fpaths[name] = fpaths["data_folder"] / f"{name}.h"
 
@@ -325,10 +295,10 @@ def convert_keras_to_tflite(
         converter.representative_dataset = representative_dataset
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
         converter._experimental_disable_per_channel_quantization_for_dense_layers = per_tensor_quant_for_dense
-        converter.inference_input_type = Lib.op_utils.get_tf_dtype(dtype)
-        converter.inference_output_type = Lib.op_utils.get_tf_dtype(dtype)
         if dtype == "int8_t":
             converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+            converter.inference_input_type = Lib.op_utils.get_tf_dtype(dtype)
+            converter.inference_output_type = Lib.op_utils.get_tf_dtype(dtype)
         elif dtype == "float32_to_int8_t":
             converter.inference_input_type = tf.float32
             converter.inference_output_type = tf.int8
@@ -378,6 +348,8 @@ def convert_keras_to_tflite(
                 tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
             ]
         else:
+            converter.inference_input_type = Lib.op_utils.get_tf_dtype(dtype)
+            converter.inference_output_type = Lib.op_utils.get_tf_dtype(dtype)
             if bias_dtype == "int32_t":
                 converter._experimental_full_integer_quantization_bias_type = tf.int32
             converter.target_spec.supported_ops = [
