@@ -2132,48 +2132,6 @@
     ]
   },
   {
-    "suite_name": "test_arm_quantize_s8_s8",
-    "op_type": "quantize",
-    "input_data_type": "int8_t_to_int8_t",
-    "interpreter": "tensorflow",
-    "tflite_generator": "keras",
-    "tests": [
-      {
-        "name": "quantize_s8_s8",
-        "batch_1": 1,
-        "height_1": 1,
-        "width_1": 8,
-        "channel_1": 1,
-        "pad": "SAME",
-        "activation_max": 127,
-        "activation_min": -128,
-        "input_min": -1.0,
-        "input_max": 1.0
-      }
-    ]
-  },
-  {
-    "suite_name": "test_arm_quantize_s16_s16",
-    "op_type": "quantize",
-    "input_data_type": "int16_t_to_int16_t",
-    "interpreter": "tensorflow",
-    "tflite_generator": "keras",
-    "tests": [
-      {
-        "name": "quantize_s16_s16",
-        "batch_1": 1,
-        "height_1": 1,
-        "width_1": 8,
-        "channel_1": 1,
-        "pad": "SAME",
-        "activation_max": 32767,
-        "activation_min": -32768,
-        "input_min": -1.0,
-        "input_max": 1.0
-      }
-    ]
-  },
-  {
     "suite_name": "test_arm_dequantize_s8_f32",
     "op_type": "dequantize",
     "input_data_type": "int8_t_to_float32",

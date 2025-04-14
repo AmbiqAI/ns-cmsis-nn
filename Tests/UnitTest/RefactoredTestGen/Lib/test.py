@@ -136,28 +136,26 @@ def generate(params, args, fpaths):
         params[name + "_shift"] = shift
 
     # Get only the input data type (needed if it is a quantized or dequantized type e.g. "float32_to_int8" -> "float32")
-    raw_dtype = params["input_data_type"]
+    dtype = params["input_data_type"]
     # If the string has a '_to_' segment, strip off everything after '_to_'
-    if "_to_" in raw_dtype:
-        raw_dtype = raw_dtype.split("_to_", 1)[0]  # take only what comes before "_to_"
-    dtype = Lib.op_utils.get_tf_dtype(raw_dtype)
-
+    if "_to_" in dtype:
+        raw_dtype = dtype.split("_to_", 1)[0]  # take only what comes before "_to_"
+        dtype = Lib.op_utils.get_tf_dtype(raw_dtype)
+        minval = Lib.op_utils.get_dtype_min(dtype) if "input_min" not in params else params["input_min"]
+        maxval = Lib.op_utils.get_dtype_max(dtype) if "input_max" not in params else params["input_max"]
+    else:
+        minval = Lib.op_utils.get_dtype_min(dtype) if "input_min" not in params else params["input_min"]
+        maxval = Lib.op_utils.get_dtype_max(dtype) if "input_max" not in params else params["input_max"]
+        dtype = Lib.op_utils.get_tf_dtype(dtype)
     # Run reference model
-    minval = Lib.op_utils.get_dtype_min(dtype) if "input_min" not in params else params["input_min"]
-    maxval = Lib.op_utils.get_dtype_max(dtype) if "input_max" not in params else params["input_max"]
 
     # Initialize input tensors
     input_tensors = {}
     for shape_name, shape in shapes.items():
         if "input_tensor" in shape_name:
             if shape_name in data.tensors:
-                print("Using existing input tensor data")
                 input_tensors[shape_name] = data.tensors[shape_name]
             else:
-                print("Generating new input tensor data")
-                print("dtype is", dtype)
-                print("minval is ", minval)
-                print("maxval is ", maxval)
                 input_tensors[shape_name] = Lib.op_utils.generate_tf_tensor(shape, minval, maxval, decimals=0, datatype=dtype)
                 data.tensors[shape_name] = input_tensors[shape_name].numpy()
 
@@ -195,34 +193,80 @@ def generate(params, args, fpaths):
     config_params = {key: val for key, val in params.items() if include_in_config(key)}
     write_config(fpaths["config_data"], config_params, params["name"], fpaths["test_data"], header)
 
+    # for name, tensor in data.tensors.items():
+    #     fpaths[name] = fpaths["data_folder"] / f"{name}.h"
+    #     # Distinguish input vs output
+    #     if name.startswith("input_tensor"):
+    #         # Force input dtype to "left side" of "float32_to_int16_t"
+    #         raw_dtype = params["input_data_type"]
+    #         if "_to_" in raw_dtype:
+    #             raw_dtype = raw_dtype.split("_to_", 1)[0]   # "float32"
+    #         c_type = map_dtype_to_c_type(raw_dtype)
+
+    #     elif name == "output":
+    #         # Force output dtype to "right side" of "float32_to_int16_t"
+    #         raw_dtype = params["input_data_type"]
+    #         if "_to_" in raw_dtype:
+    #             raw_dtype = raw_dtype.split("_to_", 1)[1]   # "int16_t"
+    #         c_type = map_dtype_to_c_type(raw_dtype)
+
+    #     else:
+    #         # Some fallback
+    #         c_type = "float"
+
+    #     write_c_array(
+    #         tensor, 
+    #         fpaths[name], 
+    #         c_type, 
+    #         params["name"], 
+    #         name, 
+    #         fpaths["test_data"], 
+    #         header
+    #     )
     for name, tensor in data.tensors.items():
         fpaths[name] = fpaths["data_folder"] / f"{name}.h"
-        # Distinguish input vs output
-        if name.startswith("input_tensor"):
-            # Force input dtype to "left side" of "float32_to_int16_t"
-            raw_dtype = params["input_data_type"]
-            if "_to_" in raw_dtype:
-                raw_dtype = raw_dtype.split("_to_", 1)[0]   # "float32"
-            c_type = map_dtype_to_c_type(raw_dtype)
 
-        elif name == "output":
-            # Force output dtype to "right side" of "float32_to_int16_t"
-            raw_dtype = params["input_data_type"]
-            if "_to_" in raw_dtype:
-                raw_dtype = raw_dtype.split("_to_", 1)[1]   # "int16_t"
-            c_type = map_dtype_to_c_type(raw_dtype)
+        # 1) Detect OP type to decide how to pick data type
+        if params.get("op_type") in ("quantize", "dequantize"):
+            # For quantize/dequantize ops, use your new "X_to_Y" logic
+            if name.startswith("input_tensor"):
+                # Force input dtype to left side of "float32_to_int16_t" (e.g. "float32")
+                raw_dtype = params["input_data_type"]  # e.g. "float32_to_int16_t"
+                if "_to_" in raw_dtype:
+                    raw_dtype = raw_dtype.split("_to_", 1)[0]  # "float32"
+                c_type = map_dtype_to_c_type(raw_dtype)
+
+            elif name == "output":
+                # Force output dtype to right side of "float32_to_int16_t" (e.g. "int16_t")
+                raw_dtype = params["input_data_type"]
+                if "_to_" in raw_dtype:
+                    raw_dtype = raw_dtype.split("_to_", 1)[1]  # "int16_t"
+                c_type = map_dtype_to_c_type(raw_dtype)
+
+            else:
+                # Fallback if there are other input/output names
+                c_type = "float"
 
         else:
-            # Some fallback
-            c_type = "float"
+            # 2) For all other ops, use the original "get_dtype" logic
+            c_type = Lib.op_utils.get_dtype(name, params)
 
+        # 3) Preserve the clipping for output if specified in params
+        if (
+            name == "output"
+            and "out_activation_min" in params
+            and "out_activation_max" in params
+        ):
+            tensor = np.clip(tensor, params["out_activation_min"], params["out_activation_max"])
+
+        # 4) Write the array to a header file
         write_c_array(
-            tensor, 
-            fpaths[name], 
-            c_type, 
-            params["name"], 
-            name, 
-            fpaths["test_data"], 
+            tensor,
+            fpaths[name],
+            c_type,
+            params["name"],
+            name,
+            fpaths["test_data"],
             header
         )
 
@@ -281,10 +325,10 @@ def convert_keras_to_tflite(
         converter.representative_dataset = representative_dataset
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
         converter._experimental_disable_per_channel_quantization_for_dense_layers = per_tensor_quant_for_dense
+        converter.inference_input_type = Lib.op_utils.get_tf_dtype(dtype)
+        converter.inference_output_type = Lib.op_utils.get_tf_dtype(dtype)
         if dtype == "int8_t":
             converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-            converter.inference_input_type = Lib.op_utils.get_tf_dtype(dtype)
-            converter.inference_output_type = Lib.op_utils.get_tf_dtype(dtype)
         elif dtype == "float32_to_int8_t":
             converter.inference_input_type = tf.float32
             converter.inference_output_type = tf.int8
