@@ -2,6 +2,7 @@
 // Interpreter from tensorflow version 2.19.0 and revision v2.19.0-rc0-6-ge36baa30292.
 #pragma once
 
+#define QUANTIZE_F32_S8_OUTPUT_DATA_TYPE int8_t
 #define QUANTIZE_F32_S8_BATCH_1 1
 #define QUANTIZE_F32_S8_HEIGHT_1 1
 #define QUANTIZE_F32_S8_WIDTH_1 8
@@ -13,9 +14,6 @@
 #define QUANTIZE_F32_S8_INPUT_MAX 1.0
 #define QUANTIZE_F32_S8_QUANT_INPUT_SCALE_INT8_T 0.0
 #define QUANTIZE_F32_S8_QUANT_INPUT_ZERO_POINT_INT8_T 0
-#define QUANTIZE_F32_S8_QUANT_OUTPUT_SCALE_INT8_T 0.00345214013941586
+#define QUANTIZE_F32_S8_QUANT_OUTPUT_SCALE_INT8_T 0.0036106191109865904
 #define QUANTIZE_F32_S8_QUANT_OUTPUT_ZERO_POINT_INT8_T -128
-#define QUANTIZE_F32_S8_OUTPUT_SHAPE                                                                                   \
-    {                                                                                                                  \
-        1, 8,                                                                                                          \
-    }
+#define QUANTIZE_F32_S8_OUTPUT_LEN 8

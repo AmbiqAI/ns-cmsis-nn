@@ -112,11 +112,7 @@ class Op_quantize(Lib.op_utils.Op_type):
         )
 
         input_dtype_str = params["input_data_type"]  # e.g. "int8_t_to_int8_t"
-        output_dtype_str = ""
-        if "_to_" in input_dtype_str:
-            tokens = input_dtype_str.split("_to_")
-            input_dtype_str = tokens[0]
-            output_dtype_str = tokens[1]
+        output_dtype_str = params["output_data_type"]
 
         input_dtype_tf = Lib.op_utils.get_tf_dtype(input_dtype_str)
 
@@ -162,7 +158,7 @@ class Op_quantize(Lib.op_utils.Op_type):
             generated_params["requant_shift_s8_s8"] = shift
 
         out_shape = output_details[0]["shape"]
-        generated_params["output_shape"] = out_shape.tolist()
+        generated_params["output_len"] = int(np.prod(out_shape))
 
         return Lib.op_utils.Generated_data(
             generated_params,

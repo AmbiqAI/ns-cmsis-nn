@@ -3,4 +3,4 @@
 #pragma once
 #include <stdint.h>
 
-const int8_t dequantize_s8_f32_input_tensor_1[8] = {-13, 92, 92, 99, 87, 71, 101, -112};
+const int8_t dequantize_s8_f32_input_tensor_1[8] = {32, -27, 43, 122, -47, -78, -25, 122};

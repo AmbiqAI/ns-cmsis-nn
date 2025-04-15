@@ -36,13 +36,6 @@ import sys
 import math
 import keras
 
-dtype_map = {
-    "float32":   "float",
-    "int8_t":    "int8_t",
-    "int8":      "int8_t", 
-    "int16_t":   "int16_t",
-    "int16":     "int16_t"
-}
 
 # Optional runtime interpreters
 try:
@@ -96,22 +89,23 @@ def generate(params, args, fpaths):
             bias_dtype = params["bias_data_type"]
         else:
             bias_dtype = None
-        if op_type == Lib.op_dequantize:
+        
+        if op_type == Lib.op_quantize.Op_quantize or op_type == Lib.op_dequantize.Op_dequantize:
             convert_keras_to_tflite(fpaths["tflite"],
                                     keras_model,
-                                    quantize=False,
-                                    dtype=params["input_data_type"],
+                                    quantize=True,
+                                    input_dtype=params["input_data_type"],
                                     bias_dtype=bias_dtype,
                                     shape=shapes,
-                                    per_tensor_quant_for_dense=per_tensor_quant_for_dense)
+                                    per_tensor_quant_for_dense=per_tensor_quant_for_dense, output_dtype=params["output_data_type"])
         else:
             convert_keras_to_tflite(fpaths["tflite"],
                                     keras_model,
                                     quantize=True,
-                                    dtype=params["input_data_type"],
+                                    input_dtype=params["input_data_type"],
                                     bias_dtype=bias_dtype,
                                     shape=shapes,
-                                    per_tensor_quant_for_dense=per_tensor_quant_for_dense)
+                                    per_tensor_quant_for_dense=per_tensor_quant_for_dense, output_dtype=None)
 
         data = op_type.generate_data_tflite(fpaths["tflite"], params)
 
@@ -134,21 +128,12 @@ def generate(params, args, fpaths):
         mult, shift = quantize_scale(scale)
         params[name + "_multiplier"] = mult
         params[name + "_shift"] = shift
-
-    # Get only the input data type (needed if it is a quantized or dequantized type e.g. "float32_to_int8" -> "float32")
-    dtype = params["input_data_type"]
-    # If the string has a '_to_' segment, strip off everything after '_to_'
-    if "_to_" in dtype:
-        raw_dtype = dtype.split("_to_", 1)[0]  # take only what comes before "_to_"
-        dtype = Lib.op_utils.get_tf_dtype(raw_dtype)
-        minval = Lib.op_utils.get_dtype_min(dtype) if "input_min" not in params else params["input_min"]
-        maxval = Lib.op_utils.get_dtype_max(dtype) if "input_max" not in params else params["input_max"]
-    else:
-        minval = Lib.op_utils.get_dtype_min(dtype) if "input_min" not in params else params["input_min"]
-        maxval = Lib.op_utils.get_dtype_max(dtype) if "input_max" not in params else params["input_max"]
-        dtype = Lib.op_utils.get_tf_dtype(dtype)
+        
     # Run reference model
+    minval = Lib.op_utils.get_dtype_min(params["input_data_type"]) if "input_min" not in params else params["input_min"]
+    maxval = Lib.op_utils.get_dtype_max(params["input_data_type"]) if "input_max" not in params else params["input_max"]
 
+    dtype = Lib.op_utils.get_tf_dtype(params["input_data_type"])
     # Initialize input tensors
     input_tensors = {}
     for shape_name, shape in shapes.items():
@@ -198,28 +183,18 @@ def generate(params, args, fpaths):
 
         # 1) Detect OP type to decide how to pick data type
         if params.get("op_type") in ("quantize", "dequantize"):
-            # For quantize/dequantize ops, use your new "X_to_Y" logic
             if name.startswith("input_tensor"):
-                # Force input dtype to left side of "float32_to_int16_t" (e.g. "float32")
-                raw_dtype = params["input_data_type"]  # e.g. "float32_to_int16_t"
-                if "_to_" in raw_dtype:
-                    raw_dtype = raw_dtype.split("_to_", 1)[0]  # "float32"
-                c_type = map_dtype_to_c_type(raw_dtype)
+                dtype = params["input_data_type"]
 
             elif name == "output":
-                # Force output dtype to right side of "float32_to_int16_t" (e.g. "int16_t")
-                raw_dtype = params["input_data_type"]
-                if "_to_" in raw_dtype:
-                    raw_dtype = raw_dtype.split("_to_", 1)[1]  # "int16_t"
-                c_type = map_dtype_to_c_type(raw_dtype)
-
+                dtype = params["output_data_type"]
             else:
                 # Fallback if there are other input/output names
-                c_type = "float"
+                dtype = "float32_t"
 
         else:
             # 2) For all other ops, use the original "get_dtype" logic
-            c_type = Lib.op_utils.get_dtype(name, params)
+            dtype = Lib.op_utils.get_dtype(name, params)
 
         # 3) Preserve the clipping for output if specified in params
         if (
@@ -229,11 +204,15 @@ def generate(params, args, fpaths):
         ):
             tensor = np.clip(tensor, params["out_activation_min"], params["out_activation_max"])
 
+        # write float32_t as float for a valid C array in the header files. (float32_t is not recognized in stdint.h)
+        if dtype == "float32_t":
+            dtype = "float"
+            
         # 4) Write the array to a header file
         write_c_array(
             tensor,
             fpaths[name],
-            c_type,
+            dtype,
             params["name"],
             name,
             fpaths["test_data"],
@@ -270,16 +249,32 @@ def get_op_type(op_type_string):
     else:
         raise ValueError(f"Unknown op type '{op_type_string}'")
 
-
 def convert_keras_to_tflite(
-        output_fpath, keras_model, quantize, dtype, bias_dtype, shape, per_tensor_quant_for_dense=False):
-    """ Convert a model generated with keras to tflite-format """
-    keras_model.compile(loss=keras.losses.categorical_crossentropy,
-                        metrics=['accuracy'])
-    n_inputs = len(keras_model.inputs)
-    converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
-    if quantize:
+        output_fpath,
+        keras_model,
+        quantize,
+        input_dtype,
+        bias_dtype,
+        shape,
+        per_tensor_quant_for_dense=False,
+        output_dtype=None):
+    
+    # Default output_dtype to match input if not specified
+    if output_dtype is None:
+        print("output is none")
+        output_dtype = input_dtype
 
+    # Compile (required for some Keras -> TFLite conversions)
+    keras_model.compile(
+        loss=keras.losses.categorical_crossentropy,
+        metrics=['accuracy']
+    )
+
+    converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
+    n_inputs = len(keras_model.inputs)
+
+    if quantize:
+        # Create a representative dataset for post-training quantization
         if shape.get("different_in_shapes") is True:
             def representative_dataset():
                 for _ in range(100):
@@ -295,20 +290,12 @@ def convert_keras_to_tflite(
         converter.representative_dataset = representative_dataset
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
         converter._experimental_disable_per_channel_quantization_for_dense_layers = per_tensor_quant_for_dense
-        if dtype == "int8_t":
+        converter.inference_input_type = Lib.op_utils.get_tf_dtype(input_dtype)
+        converter.inference_output_type = Lib.op_utils.get_tf_dtype(output_dtype)
+        if input_dtype == "float32_t" and output_dtype == "int8_t":
             converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-            converter.inference_input_type = Lib.op_utils.get_tf_dtype(dtype)
-            converter.inference_output_type = Lib.op_utils.get_tf_dtype(dtype)
-        elif dtype == "float32_to_int8_t":
-            converter.inference_input_type = tf.float32
-            converter.inference_output_type = tf.int8
-            converter.target_spec.supported_ops = [
-                tf.lite.OpsSet.TFLITE_BUILTINS_INT8
-            ]
 
-        elif dtype == "float32_to_int16_t":
-            converter.inference_input_type = tf.float32
-            converter.inference_output_type = tf.int16
+        elif input_dtype == "float32_t" and output_dtype == "int16_t":
             converter.target_spec.supported_ops = [
                 tf.lite.OpsSet.TFLITE_BUILTINS,
                 tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
@@ -316,48 +303,37 @@ def convert_keras_to_tflite(
             if bias_dtype == "int32_t":
                 converter._experimental_full_integer_quantization_bias_type = tf.int32
 
-        elif dtype == "int8_t_to_int8_t":
-            converter.inference_input_type = tf.int8
-            converter.inference_output_type = tf.int8
-            converter.target_spec.supported_ops = [
-                tf.lite.OpsSet.TFLITE_BUILTINS_INT8
-            ]
+        elif input_dtype == "int8_t" and output_dtype == "int8_t":
+            converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
             if bias_dtype == "int32_t":
                 converter._experimental_full_integer_quantization_bias_type = tf.int32
 
-        elif dtype == "int16_t_to_int16_t":
-            converter.inference_input_type = tf.int16
-            converter.inference_output_type = tf.int16
+        elif input_dtype == "int16_t" and output_dtype == "int16_t":
             converter.target_spec.supported_ops = [
                 tf.lite.OpsSet.TFLITE_BUILTINS,
                 tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
             ]
             if bias_dtype == "int32_t":
                 converter._experimental_full_integer_quantization_bias_type = tf.int32
-        elif dtype == "int8_t_to_float32":
-            converter.inference_input_type = tf.int8
-            converter.inference_output_type = tf.float32
-            converter.target_spec.supported_ops = [
-                tf.lite.OpsSet.TFLITE_BUILTINS_INT8
-            ]
-        elif dtype == "int16_t_to_float32":
-            converter.inference_input_type = tf.int16
-            converter.inference_output_type = tf.float32
+
+        elif input_dtype == "int8_t" and output_dtype == "float32_t":
+            converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+
+        elif input_dtype == "int16_t" and output_dtype == "float32_t":
             converter.target_spec.supported_ops = [
                 tf.lite.OpsSet.TFLITE_BUILTINS,
                 tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
             ]
         else:
-            converter.inference_input_type = Lib.op_utils.get_tf_dtype(dtype)
-            converter.inference_output_type = Lib.op_utils.get_tf_dtype(dtype)
             if bias_dtype == "int32_t":
                 converter._experimental_full_integer_quantization_bias_type = tf.int32
             converter.target_spec.supported_ops = [
                 tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
             ]
-
+        # Perform the conversion
         tflite_model = converter.convert()
 
+    # Save the converted model
     output_fpath.parent.mkdir(parents=True, exist_ok=True)
     with output_fpath.open("wb") as f:
         f.write(tflite_model)
@@ -610,10 +586,3 @@ def get_header(generator, interpreter):
 
     return header
 
-
-def map_dtype_to_c_type(raw_dtype):
-    # Return the correct C type for a given "raw_dtype" string
-    if raw_dtype in dtype_map:
-        return dtype_map[raw_dtype]
-    else:
-        raise ValueError(f"Unhandled raw_dtype '{raw_dtype}' in map_dtype_to_c_type()")

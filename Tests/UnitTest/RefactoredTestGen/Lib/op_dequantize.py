@@ -82,12 +82,9 @@ class Op_dequantize(Lib.op_utils.Op_type):
             params["channel_1"]
         )
 
-        input_dtype_str = params["input_data_type"]  # e.g. "float32_to_int8", "int8_t_to_int8_t", "int16_t_to_int16_t"
-        output_dtype_str = ""
-        if "_to_" in input_dtype_str:
-            tokens = input_dtype_str.split("_to_")
-            input_dtype_str = tokens[0]
-            output_dtype_str = tokens[1]
+        input_dtype_str = params["input_data_type"]
+        output_dtype_str = params["output_data_type"]
+
         input_dtype_tf = Lib.op_utils.get_tf_dtype(input_dtype_str)
 
         if input_dtype_tf == tf.int8:
@@ -127,7 +124,7 @@ class Op_dequantize(Lib.op_utils.Op_type):
         
 
         out_shape = output_details[0]["shape"]
-        generated_params["output_shape"] = out_shape.tolist()
+        generated_params["output_len"] = int(np.prod(out_shape))
         
         return Lib.op_utils.Generated_data(
             generated_params,

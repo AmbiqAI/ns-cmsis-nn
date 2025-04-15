@@ -3,4 +3,4 @@
 #pragma once
 #include <stdint.h>
 
-const int8_t quantize_f32_s8_output[8] = {-128, -28, -128, 69, -1, 127, 127, -128};
+const int8_t quantize_f32_s8_output[8] = {-128, -128, -128, -128, -77, 57, 18, 109};

@@ -19,8 +19,7 @@
  #include "arm_nnfunctions.h"
  #include "unity.h"
 
- #include "../TestData/quantize_s8_s8/test_data.h"
- #include "../Utils/validate.h"
+#include "../Utils/validate.h"
 
 
 void test_arm_quantize_s8_s8(void)

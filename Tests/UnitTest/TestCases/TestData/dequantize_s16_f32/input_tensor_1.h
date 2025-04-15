@@ -3,4 +3,4 @@
 #pragma once
 #include <stdint.h>
 
-const int16_t dequantize_s16_f32_input_tensor_1[8] = {-22298, -23051, -7024, 27112, -18457, 19055, -5165, -27784};
+const int16_t dequantize_s16_f32_input_tensor_1[8] = {22080, -1140, -2371, 21970, -31030, -23352, 12163, -2752};

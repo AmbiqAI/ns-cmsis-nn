@@ -16,11 +16,9 @@
   * limitations under the License.
   */
  
- #include "arm_nnfunctions.h"
- #include "unity.h"
-
- #include "../TestData/quantize_s16_s16/test_data.h"
- #include "../Utils/validate.h"
+#include "arm_nnfunctions.h"
+#include "unity.h"
+#include "../Utils/validate.h"
 
 
 static int32_t reference_single_rounding(int32_t val,

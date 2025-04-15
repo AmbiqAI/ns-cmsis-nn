@@ -2,6 +2,7 @@
 // Interpreter from tensorflow version 2.19.0 and revision v2.19.0-rc0-6-ge36baa30292.
 #pragma once
 
+#define DEQUANTIZE_S8_F32_OUTPUT_DATA_TYPE float32_t
 #define DEQUANTIZE_S8_F32_BATCH_1 1
 #define DEQUANTIZE_S8_F32_HEIGHT_1 1
 #define DEQUANTIZE_S8_F32_WIDTH_1 8
@@ -9,11 +10,8 @@
 #define DEQUANTIZE_S8_F32_PAD SAME
 #define DEQUANTIZE_S8_F32_INPUT_MIN -128
 #define DEQUANTIZE_S8_F32_INPUT_MAX 127
-#define DEQUANTIZE_S8_F32_QUANT_INPUT_SCALE_FLOAT32 0.0034396513365209103
-#define DEQUANTIZE_S8_F32_QUANT_INPUT_ZERO_POINT_FLOAT32 -128
-#define DEQUANTIZE_S8_F32_QUANT_OUTPUT_SCALE_FLOAT32 0.0
-#define DEQUANTIZE_S8_F32_QUANT_OUTPUT_ZERO_POINT_FLOAT32 0
-#define DEQUANTIZE_S8_F32_OUTPUT_SHAPE                                                                                 \
-    {                                                                                                                  \
-        1, 8,                                                                                                          \
-    }
+#define DEQUANTIZE_S8_F32_QUANT_INPUT_SCALE_FLOAT32_T 0.0034535026643425226
+#define DEQUANTIZE_S8_F32_QUANT_INPUT_ZERO_POINT_FLOAT32_T -128
+#define DEQUANTIZE_S8_F32_QUANT_OUTPUT_SCALE_FLOAT32_T 0.0
+#define DEQUANTIZE_S8_F32_QUANT_OUTPUT_ZERO_POINT_FLOAT32_T 0
+#define DEQUANTIZE_S8_F32_OUTPUT_LEN 8

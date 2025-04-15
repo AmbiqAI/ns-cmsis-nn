@@ -25,14 +25,13 @@
 void test_arm_dequantize_s8_f32(void)
 {
     // from config_data.h
-    float   scale      = DEQUANTIZE_S8_F32_QUANT_INPUT_SCALE_FLOAT32;      // e.g. 2.725261e-05
-    int32_t zero_point = DEQUANTIZE_S8_F32_QUANT_INPUT_ZERO_POINT_FLOAT32; // e.g. 0
+    float   scale      = DEQUANTIZE_S8_F32_QUANT_INPUT_SCALE_FLOAT32_T;      // e.g. 2.725261e-05
+    int32_t zero_point = DEQUANTIZE_S8_F32_QUANT_INPUT_ZERO_POINT_FLOAT32_T; // e.g. 0
 
-    // We'll dequantize 8 elements
-    const int size = 8;
+    const int size = DEQUANTIZE_S8_F32_OUTPUT_LEN;
 
     // Prepare a buffer for the function output
-    float output_f32[8];
+    float output_f32[DEQUANTIZE_S8_F32_OUTPUT_LEN];
 
     // Call your custom function
     arm_dequantize_s8_f32(

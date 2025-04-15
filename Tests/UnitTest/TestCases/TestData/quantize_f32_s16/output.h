@@ -3,4 +3,4 @@
 #pragma once
 #include <stdint.h>
 
-const int16_t quantize_f32_s16_output[8] = {13344, 25664, 179, 15118, -14023, 17909, -1756, 20894};
+const int16_t quantize_f32_s16_output[8] = {-27623, 32767, 23589, -2070, -12845, 27322, -32768, 24016};

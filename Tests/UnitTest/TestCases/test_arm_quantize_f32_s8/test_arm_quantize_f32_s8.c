@@ -27,15 +27,15 @@ void test_arm_quantize_f32_s8(void)
     const float   scale      = QUANTIZE_F32_S8_QUANT_OUTPUT_SCALE_INT8_T;
     const int32_t zero_point = QUANTIZE_F32_S8_QUANT_OUTPUT_ZERO_POINT_INT8_T;
 
-    int8_t output[8];
+    int8_t output[QUANTIZE_F32_S8_OUTPUT_LEN];
 
     arm_quantize_f32_s8(
         quantize_f32_s8_input_tensor_1,  // float[8]
         output,                          // int8_t[8]
-        8,                               // number of elements
+        QUANTIZE_F32_S8_OUTPUT_LEN,                               // number of elements
         zero_point,                      // from config_data.h
         scale                            // from config_data.h
     );
 
-    TEST_ASSERT_EQUAL_INT8_ARRAY(quantize_f32_s8_output, output, 8);
+    TEST_ASSERT_EQUAL_INT8_ARRAY(quantize_f32_s8_output, output, QUANTIZE_F32_S8_OUTPUT_LEN);
 }
