@@ -3273,7 +3273,19 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
                                     const cmsis_nn_dims *input_2_dims,
                                     int16_t *output_data,
                                     const cmsis_nn_dims *output_dims);
+/**
+ * @defgroup Quantization Quantization Functions:
+ *
+ */
 
+/**
+ * @brief Quantize a floating-point array into int8_t format.
+ * @param[in]   input       Pointer to the input float array.
+ * @param[out]  output      Pointer to the output int8_t array.
+ * @param[in]   size        Number of elements in the arrays.
+ * @param[in]   zero_point  Zero point (offset) to apply during quantization.
+ * @param[in]   scale       Scale factor to apply during quantization.
+ */
 void arm_quantize_f32_s8(
   const float* input,
   int8_t* output,
@@ -3281,6 +3293,14 @@ void arm_quantize_f32_s8(
   int32_t zero_point,
   float scale);
 
+/**
+ * @brief Quantize a floating-point array into int16_t format.
+ * @param[in]   input       Pointer to the input float array.
+ * @param[out]  output      Pointer to the output int16_t array.
+ * @param[in]   size        Number of elements in the arrays.
+ * @param[in]   zero_point  Zero point (offset) to apply during quantization.
+ * @param[in]   scale       Scale factor to apply during quantization.
+ */
 void arm_quantize_f32_s16(
   const float* input,
   int16_t* output,
@@ -3289,6 +3309,16 @@ void arm_quantize_f32_s16(
   float scale
 );
 
+/**
+ * @brief Requantize an int8_t array to another int8_t range with a different scale.
+ * @param[in]   input                   Pointer to the input int8_t array.
+ * @param[out]  output                  Pointer to the output int8_t array.
+ * @param[in]   size                    Number of elements in the arrays.
+ * @param[in]   effective_scale_multiplier   Multiplier used for the scaling operation.
+ * @param[in]   effective_scale_shift   Right or left shift (depending on sign) applied after the multiplier.
+ * @param[in]   input_zeropoint         Zero point of the input data.
+ * @param[in]   output_zeropoint        Zero point of the output data.
+ */
 void arm_requantize_s8_s8(
   const int8_t *input,
   int8_t* output,
@@ -3299,6 +3329,16 @@ void arm_requantize_s8_s8(
   int32_t output_zeropoint
 );
 
+/**
+ * @brief Requantize an int16_t array to another int16_t range with a different scale.
+ * @param[in]   input                   Pointer to the input int16_t array.
+ * @param[out]  output                  Pointer to the output int16_t array.
+ * @param[in]   size                    Number of elements in the arrays.
+ * @param[in]   effective_scale_multiplier   Multiplier used for the scaling operation.
+ * @param[in]   effective_scale_shift   Right or left shift (depending on sign) applied after the multiplier.
+ * @param[in]   input_zeropoint         Zero point of the input data.
+ * @param[in]   output_zeropoint        Zero point of the output data.
+ */
 void arm_requantize_s16_s16(
   const int16_t *input,
   int16_t* output,
@@ -3309,6 +3349,14 @@ void arm_requantize_s16_s16(
   int32_t output_zeropoint
 );
 
+/**
+ * @brief Dequantize an int8_t array back to floating-point format.
+ * @param[in]   input       Pointer to the input int8_t array.
+ * @param[out]  output      Pointer to the output float array.
+ * @param[in]   size        Number of elements in the arrays.
+ * @param[in]   scale       Scale factor that was used during quantization.
+ * @param[in]   zero_point  Zero point (offset) that was used during quantization.
+ */
 void arm_dequantize_s8_f32(
   const int8_t *input,
   float *output,
@@ -3317,6 +3365,14 @@ void arm_dequantize_s8_f32(
   int32_t zero_point
 );
 
+/**
+ * @brief Dequantize an int16_t array back to floating-point format.
+ * @param[in]   input       Pointer to the input int16_t array.
+ * @param[out]  output      Pointer to the output float array.
+ * @param[in]   size        Number of elements in the arrays.
+ * @param[in]   scale       Scale factor that was used during quantization.
+ * @param[in]   zero_point  Zero point (offset) that was used during quantization.
+ */
 void arm_dequantize_s16_f32(
   const int16_t *input,
   float *output,

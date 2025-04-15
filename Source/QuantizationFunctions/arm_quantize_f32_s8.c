@@ -21,8 +21,8 @@
  * Title:        arm_quantize_f32_s8.c
  * Description:  float32 to int8 Quantization
  *
- * $Date:        5 Sep 2024
- * $Revision:    V.1.0.1
+ * $Date:        15 April 2025
+ * $Revision:    V.1.0.0
  *
  * Target :  Arm(R) M-Profile Architecture
  *
@@ -32,6 +32,21 @@
 #include "arm_nnfunctions.h"
 #include <math.h>
 
+/**
+ *  @ingroup Public
+ */
+
+/**
+ * @addtogroup Quantization
+ * @{
+ */
+
+/*
+ * float32_t to int8_t quantization function.
+ *
+ * Refer header file for details.
+ *
+ */
 void
 arm_quantize_f32_s8(
   const float* input,
@@ -65,3 +80,7 @@ arm_quantize_f32_s8(
   }
 #endif
 }
+
+/**
+ * @} end of Quantization group
+ */

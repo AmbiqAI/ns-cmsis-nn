@@ -21,17 +21,31 @@
  * Title:        arm_quantize_f32_s16.c
  * Description:  float32 to int16 Quantization
  *
- * $Date:        5 Sep 2024
- * $Revision:    V.1.0.1
+ * $Date:        15 April 2025
+ * $Revision:    V.1.0.0
  *
  * Target :  Arm(R) M-Profile Architecture
  *
  * -------------------------------------------------------------------- */
-
 #include "arm_nnsupportfunctions.h"
 #include "arm_nnfunctions.h"
 #include <math.h>
 
+/**
+ *  @ingroup Public
+ */
+
+/**
+ * @addtogroup Quantization
+ * @{
+ */
+
+/*
+ * float32_t to int16_t quantization function.
+ *
+ * Refer header file for details.
+ *
+ */
 void
 arm_quantize_f32_s16(
   const float* input,
@@ -43,8 +57,8 @@ arm_quantize_f32_s16(
 #if defined(ARM_MATH_MVEI)
   int32_t count = (size + 3) / 4;
   float mul_scale = 1.0f / scale;
-  int32x4_t max = vdupq_n_s32(32767);
-  int32x4_t min = vdupq_n_s32(-32768);
+  int32x4_t max = vdupq_n_s32(INT16_MAX);
+  int32x4_t min = vdupq_n_s32(INT16_MIN);
   for (int i = 0; i < count; i++) {
     mve_pred16_t pred = vctp32q(size);
     size -= 4;
@@ -65,3 +79,7 @@ arm_quantize_f32_s16(
   }
 #endif
 }
+
+/**
+ * @} end of Quantization group
+ */

@@ -35,7 +35,6 @@ option(LSTM                 "LSTM"                  ON)
 option(PAD                  "Pad"                   ON)
 option(TRANSPOSE            "Transpose"             ON)
 option(QUANTIZATION         "Quantization"          ON)
-option(DEQUANTIZATION       "Dequantization"        ON)
 
 
 # Always needed if any other module above is on.
@@ -96,10 +95,6 @@ endif()
 
 if (QUANTIZATION)
   add_subdirectory(QuantizationFunctions)
-endif()
-
-if (DEQUANTIZATION)
-  add_subdirectory(DequantizationFunctions)
 endif()
 
 # Keep NNSUPPORT at the end

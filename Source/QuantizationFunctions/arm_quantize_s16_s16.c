@@ -21,16 +21,31 @@
  * Title:        arm_quantize_s16_s16.c
  * Description:  int16 to int16 requantization
  *
- * $Date:        5 Sep 2024
- * $Revision:    V.1.0.1
+ * $Date:        15 April 2025
+ * $Revision:    V.1.0.0
  *
  * Target :  Arm(R) M-Profile Architecture
  *
  * -------------------------------------------------------------------- */
 
-#include "arm_nnsupportfunctions.h"
 #include "arm_nnfunctions.h"
+#include "arm_nnsupportfunctions.h"
 
+/**
+ *  @ingroup Public
+ */
+
+/**
+ * @addtogroup Quantization
+ * @{
+ */
+
+/*
+ * int16_t to int16_t requantization function.
+ *
+ * Refer header file for details.
+ *
+ */
 void
 arm_requantize_s16_s16(
   const int16_t *input,
@@ -67,3 +82,6 @@ arm_requantize_s16_s16(
   }
 #endif
 }
+/**
+ * @} end of Dequantization group
+ */

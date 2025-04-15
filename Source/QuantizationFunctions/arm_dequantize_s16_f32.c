@@ -21,15 +21,30 @@
  * Title:        arm_dequantize_s16_f32.c
  * Description:  int16 to float32 dequantization
  *
- * $Date:        5 Sep 2024
- * $Revision:    V.1.0.1
+ * $Date:        15 April 2025
+ * $Revision:    V.1.0.0
  *
  * Target :  Arm(R) M-Profile Architecture
  *
  * -------------------------------------------------------------------- */
 
+#include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
+/**
+ *  @ingroup Public
+ */
 
+/**
+ * @addtogroup Dequantization
+ * @{
+ */
+
+/*
+ * int16_t to float32_t dequantization function.
+ *
+ * Refer header file for details.
+ *
+ */
 void
 arm_dequantize_s16_f32(
   const int16_t *input,
@@ -70,3 +85,7 @@ arm_dequantize_s16_f32(
   }
 #endif
 }
+
+/**
+ * @} end of Dequantization group
+ */
