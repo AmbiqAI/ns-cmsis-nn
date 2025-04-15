@@ -1,5 +1,12 @@
 var NAVTREEINDEX1 =
 {
+"group__genPubTypes.html#afcad0cad68a7df22c9016799abeae31a":[3,0,0,4,0],
+"group__genPubTypes.html#afed698f0a4fe38ae9800c30e06f297f3":[3,0,0,20,8],
+"group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184":[3,0,0,23],
+"group__genPubTypes.html#ga7f41aa78cd9a0552fae9b348ee4831a0":[3,0,0,24],
+"group__genPubTypes.html#gga67ac3e1e650a7040b0f706fb83ea6184a36cebf184635d8a5c74c0057fa64e042":[3,0,0,23,1],
+"group__genPubTypes.html#gga67ac3e1e650a7040b0f706fb83ea6184a3ba593df6b92214112a5e752c95ae016":[3,0,0,23,0],
+"group__genPubTypes.html#gga67ac3e1e650a7040b0f706fb83ea6184a4b6c02556982295a76f113e1cbed9400":[3,0,0,23,2],
 "group__genPubTypes.html#gga67ac3e1e650a7040b0f706fb83ea6184ad6600c226cdc8eba643b0eab5104b5a0":[3,0,0,23,3],
 "group__genPubTypes.html#gga7f41aa78cd9a0552fae9b348ee4831a0a49b307e029715fbaa6f3101c806b8c54":[3,0,0,24,0],
 "group__genPubTypes.html#gga7f41aa78cd9a0552fae9b348ee4831a0ac24e4db95c986f16c10dca71a4b4e1c5":[3,0,0,24,1],

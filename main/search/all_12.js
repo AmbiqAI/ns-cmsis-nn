@@ -1,5 +1,9 @@
 var searchData=
 [
-  ['use_5ffast_5fdw_5fconv_5fs16_5ffunction_0',['USE_FAST_DW_CONV_S16_FUNCTION',['../arm__nnsupportfunctions_8h.html#aba6296ad262255bbd40e6467b643060a',1,'arm_nnsupportfunctions.h']]],
-  ['use_5fintrinsic_1',['USE_INTRINSIC',['../arm__nnactivations_8h.html#a710b6e009261290c6151f329cf409530',1,'USE_INTRINSIC():&#160;arm_nnactivations.h'],['../arm__nnfunctions_8h.html#a710b6e009261290c6151f329cf409530',1,'USE_INTRINSIC():&#160;arm_nnfunctions.h']]]
+  ['temp1_0',['temp1',['../group__genPubTypes.html#a2d581fce179cb2c1e6d47ac512bcb635',1,'cmsis_nn_lstm_context']]],
+  ['temp2_1',['temp2',['../group__genPubTypes.html#a56a0d3a71c6f4fe5e89247abc6697771',1,'cmsis_nn_lstm_context']]],
+  ['time_5fmajor_2',['time_major',['../group__genPubTypes.html#a74829caaad7e7abc7f8c2dfa3cea700e',1,'cmsis_nn_lstm_params']]],
+  ['time_5fsteps_3',['time_steps',['../group__genPubTypes.html#a56343a20df4d7e71c6b05bd13e60205c',1,'cmsis_nn_lstm_params']]],
+  ['todo_20list_4',['Todo List',['../todo.html',1,'']]],
+  ['transpose_20functions_5',['Transpose Functions',['../group__Transpose.html',1,'']]]
 ];

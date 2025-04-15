@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['reshape_20functions_0',['Reshape Functions',['../group__Reshape.html',1,'']]]
+  ['quantization_20functions_3a_0',['Quantization Functions:',['../group__Quantization.html',1,'']]]
 ];

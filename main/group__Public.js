@@ -10,6 +10,7 @@ var group__Public =
     [ "LSTM Layer Functions", "group__LSTM.html", "group__LSTM" ],
     [ "Pad Layer Functions:", "group__Pad.html", "group__Pad" ],
     [ "Pooling Functions", "group__Pooling.html", "group__Pooling" ],
+    [ "Quantization Functions:", "group__Quantization.html", "group__Quantization" ],
     [ "Reshape Functions", "group__Reshape.html", "group__Reshape" ],
     [ "Softmax Functions", "group__Softmax.html", "group__Softmax" ],
     [ "SVDF Functions", "group__SVDF.html", "group__SVDF" ],
