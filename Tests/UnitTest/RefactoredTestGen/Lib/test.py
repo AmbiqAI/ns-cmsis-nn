@@ -261,7 +261,6 @@ def convert_keras_to_tflite(
     
     # Default output_dtype to match input if not specified
     if output_dtype is None:
-        print("output is none")
         output_dtype = input_dtype
 
     # Compile (required for some Keras -> TFLite conversions)

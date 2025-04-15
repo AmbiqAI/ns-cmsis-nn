@@ -35,7 +35,7 @@
  */
 
 /**
- * @addtogroup Dequantization
+ * @addtogroup Quantization
  * @{
  */
 
@@ -87,5 +87,5 @@ arm_dequantize_s8_f32(
 }
 
 /**
- * @} end of Dequantization group
+ * @} end of Quantization group
  */
