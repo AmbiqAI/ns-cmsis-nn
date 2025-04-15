@@ -44,6 +44,7 @@ list(APPEND CMAKE_MODULE_PATH Source)
 
 # There is a dependency to CMSIS-Core.
 target_include_directories(cmsis-nn PUBLIC "${ROOT}/CMSIS/Core/Include")
+target_link_libraries(cmsis-nn PRIVATE m)
 
 if (BASICMATHSNN)
   add_subdirectory(BasicMathFunctions)
