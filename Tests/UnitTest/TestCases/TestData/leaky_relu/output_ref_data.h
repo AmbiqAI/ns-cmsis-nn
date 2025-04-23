@@ -2,4 +2,6 @@
 #pragma once
 #include <stdint.h>
 
-const int8_t leaky_relu_output_ref[10] = {-57, -70, -79, -86, -92, -94, -88, -54, -91, -56};
+const int8_t leaky_relu_output_ref[10] = {
+    -32, -16, -4, -1, 0, 0, 1, 4, 16, 127
+};

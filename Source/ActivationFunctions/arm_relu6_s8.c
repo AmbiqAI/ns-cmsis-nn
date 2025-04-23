@@ -47,7 +47,7 @@
  *
  */
 
-void arm_relu6_s8(int8_t *data, uint16_t size)
+void arm_relu6_default_s8(int8_t *data, uint16_t size)
 {
     int32_t i;
 
@@ -59,6 +59,55 @@ void arm_relu6_s8(int8_t *data, uint16_t size)
         data[i] = MIN(ip, 6);
     }
 }
+
+
+/*
+* ReLU6 activation function for int8_t data type.
+*
+* Refer header file for details.
+*
+*/
+arm_cmsis_nn_status arm_relu6_s8(
+    const int8_t *input,
+    const int8_t lower,
+    const int8_t upper,
+    int8_t *output,
+    const int32_t output_size)
+{
+
+int32_t flat_size = output_size;
+
+#if defined(ARM_MATH_MVEI)
+
+    __ASM volatile(
+        " .p2align 2                             \n"
+        "   wlstp.8         lr, %[cnt], 1f       \n"
+        "   vdup.8          q0, %[lower]         \n"
+        "   vdup.8          q1, %[upper]         \n"
+        "2:                                      \n"
+        "   vldrb.8         q2, [%[in]], #16     \n"
+        "   vmax.s8         q2, q2, q0           \n"
+        "   vmin.s8         q2, q2, q1           \n"
+        "   vstrb.8         q2, [%[out]], #16    \n"
+        "   letp            lr, 2b               \n"
+        "1:                                      \n"
+        : [in] "+r"(input), [out] "+r"(output)
+        : [lower] "r"(lower), [upper] "r"(upper), [cnt] "r"(flat_size)
+        : "q0", "q1", "q2", "memory", "r14"
+    );
+
+#else
+
+    for (int i = 0; i < flat_size; ++i)
+    {
+        output[i] = CLAMP(input[i], upper, lower);
+    }
+
+#endif
+
+return ARM_CMSIS_NN_SUCCESS;
+}
+
 
 /**
  * @} end of Acti group

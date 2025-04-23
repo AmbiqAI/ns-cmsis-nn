@@ -20,30 +20,26 @@
 #include <arm_nnfunctions.h>
 #include <arm_nnsupportfunctions.h>
 
-#include "../TestData/leaky_relu/test_data.h"
+#include "../TestData/relu6_basic/test_data.h"
 #include "../Utils/validate.h"
 
 #define REPEAT_NUM (2)
 
-void leaky_relu_arm_leaky_relu_s8(void)
+void relu6_basic_arm_relu6_s8(void)
 {
 
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
-    const int8_t *input_data = leaky_relu_input;
-    int8_t output[LEAKY_RELU_DST_SIZE];
+    const int8_t *input_data = relu6_basic_input_tensor;
+    int8_t output[RELU6_BASIC_OUTPUT_LEN];
 
-    arm_cmsis_nn_status result = arm_leaky_relu_s8(
+    arm_cmsis_nn_status result = arm_relu6_s8(
         input_data,
-        LEAKY_RELU_INPUT_OFFSET,
-        LEAKY_RELU_OUTPUT_OFFSET,
-        LEAKY_RELU_OUTPUT_MULT_ALPHA,
-        LEAKY_RELU_OUTPUT_SHIFT_ALPHA,
-        LEAKY_RELU_OUTPUT_MULT_IDENTITY,
-        LEAKY_RELU_OUTPUT_SHIFT_IDENTITY,
+        RELU6_BASIC_LOWER,
+        RELU6_BASIC_UPPER,
         output,
-        LEAKY_RELU_DST_SIZE
+        RELU6_BASIC_OUTPUT_LEN
     );
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate(output, leaky_relu_output_ref, LEAKY_RELU_DST_SIZE));
+    TEST_ASSERT_TRUE(validate(output, relu6_basic_output, RELU6_BASIC_OUTPUT_LEN));
 }
