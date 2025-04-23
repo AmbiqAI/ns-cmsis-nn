@@ -40,26 +40,6 @@
  * @{
  */
 
-/*
- *  Basic ReLU6 function
- *
- * Refer to header file for details.
- *
- */
-
-void arm_relu6_default_s8(int8_t *data, uint16_t size)
-{
-    int32_t i;
-
-    for (i = 0; i < size; i++)
-    {
-        int32_t ip = data[i];
-
-        ip = MAX(ip, 0);
-        data[i] = MIN(ip, 6);
-    }
-}
-
 
 /*
 * ReLU6 activation function for int8_t data type.
@@ -106,6 +86,19 @@ int32_t flat_size = output_size;
 #endif
 
 return ARM_CMSIS_NN_SUCCESS;
+}
+
+
+/*
+ *  Basic ReLU6 function
+ *
+ * Refer to header file for details.
+ *
+ */
+
+void arm_relu6_default_s8(int8_t *data, uint16_t size)
+{
+    arm_relu6_s8(data, 0, 6, data, size);
 }
 
 
