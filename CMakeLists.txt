@@ -21,10 +21,10 @@ set(CMSIS_OPTIMIZATION_LEVEL "-Ofast" CACHE STRING "Compiler optimization level.
 
 project(NSCMSISNN)
 
-add_library(ns-cmsis-nn STATIC)
+add_library(cmsis-nn STATIC)
 
-target_compile_options(ns-cmsis-nn PRIVATE ${CMSIS_OPTIMIZATION_LEVEL})
+target_compile_options(cmsis-nn PRIVATE ${CMSIS_OPTIMIZATION_LEVEL})
 
-target_include_directories(ns-cmsis-nn PUBLIC "Include")
+target_include_directories(cmsis-nn PUBLIC "Include")
 
 add_subdirectory(Source)
