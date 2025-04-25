@@ -60,3 +60,10 @@ void test_in_ch_one_out_ch_larger_one_arm_depthwise_conv_s8(void)
 {
     in_ch_one_out_ch_larger_one_arm_depthwise_conv_s8();
 }
+
+void test_weight_presum(void) { 
+    weight_presum();
+}
+void test_simple_dconv_no_bias(void) { 
+    simple_dconv_no_bias();
+}

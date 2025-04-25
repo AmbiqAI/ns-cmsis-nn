@@ -1046,6 +1046,17 @@ arm_cmsis_nn_status arm_convolve_weight_sum(
         const int32_t lhs_offset,
         const int32_t *bias_data );
 
+arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(
+        int32_t* vector_sum_buf,
+        int8_t* scratch_buf,
+        const int8_t *rhs,
+        const cmsis_nn_dw_conv_params *dw_conv_params,
+        cmsis_nn_dims *input_dims,
+        cmsis_nn_dims *filter_dims,
+        cmsis_nn_dims *output_dims, 
+        const int32_t lhs_offset,
+        const int32_t *bias_data );
+
 arm_cmsis_nn_status arm_convolve_1_x_1_image_s8(const cmsis_nn_context *ctx,
                                     const cmsis_nn_context *weight_sum_ctx,
                                     const cmsis_nn_conv_params *conv_params,

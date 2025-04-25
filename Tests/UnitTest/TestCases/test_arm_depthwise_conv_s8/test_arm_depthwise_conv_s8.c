@@ -633,3 +633,133 @@ void in_ch_one_out_ch_larger_one_arm_depthwise_conv_s8(void)
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, in_ch_one_out_ch_larger_one_output_ref, output_ref_size));
 }
+
+/* ------------------------------------------------------------------------ */
+/*  Weight–presum sanity-check (no convolution)                             */
+/* ------------------------------------------------------------------------ */
+void weight_presum(void)
+{
+    /* 2-out-ch × 3-in-ch, 1 × 1 kernel
+       kernel = {1,2,3 | 4,5,6}
+       bias    = {10,20}
+       lhs_off = 5  → expected sums = {10+5*(1+2+3)=40 , 20+5*(4+5+6)=95} */
+    const int8_t  kernel[6]   = {1, 2, 3, 4, 5, 6};
+    const int32_t bias[3]     = {10, 20, 11};
+    const uint32_t lhs_offset = 1;
+    static const cmsis_nn_dw_conv_params dw_conv_params = {
+        .padding        = { .w = 0, .h = 0 },
+        .stride         = { .w = 1, .h = 1 },
+        .dilation       = { .w = 1, .h = 1 },
+        .ch_mult        = 1,                 /* depth-multiplier             */
+        .input_offset   = 0,
+        .output_offset  = 0,
+        .activation     = { .min = -128, .max = 127 },
+    };
+
+    cmsis_nn_dims in_dims    = { .n = 1, .w = 1, .h = 2, .c = 3 };
+    cmsis_nn_dims filt_dims  = { .n = 1, .w = 1, .h = 2, .c = 3 };
+    cmsis_nn_dims out_dims   = { .n = 1, .w = 1, .h = 2, .c = 3 };
+
+    const int32_t buf_sz = arm_depthwise_conv_wrapper_s8_get_buffer_size(
+          &dw_conv_params, &in_dims, &filt_dims, &out_dims);
+    const int32_t scratch_size = arm_convolve_s8_get_weights_sum_size(&out_dims);
+    int32_t *sum_buf     = (int32_t *)malloc(buf_sz);
+    int8_t *scratch_buf = (int8_t *)malloc(scratch_size);
+
+
+
+    arm_depthwise_convolve_weight_sum(sum_buf,
+                            scratch_buf,
+                            kernel,
+                            &dw_conv_params,
+                            &in_dims,
+                            &filt_dims,
+                            &out_dims,
+                            lhs_offset,
+                            bias);
+    free(scratch_buf);
+
+    const int32_t expected[3] = {15,27,20};
+    TEST_ASSERT_EQUAL_INT32_ARRAY(expected, sum_buf, 3);
+
+    memset(sum_buf, 0, buf_sz);
+    free(sum_buf);
+}
+
+/* ------------------------------------------------------------------------ */
+/*  Tiny depth-wise conv, 2 × 1 kernel, no bias                             */
+/* ------------------------------------------------------------------------ */
+void simple_dconv_no_bias(void)
+{
+    const int8_t input[4]   = {1,1,2,2};               
+    const int8_t kernel[4]  = {1,3,2,4};              
+    int8_t       output[2]  = {0};
+    const int8_t ref[2]     = {8, 18};     
+
+    cmsis_nn_dims in_dims  = { .n = 1, .w = 2, .h = 1, .c = 2 };
+    cmsis_nn_dims filt_dims= { .n = 1, .w = 2, .h = 1, .c = 2 }; /* ch_mult=1 */
+    cmsis_nn_dims bias_dims= {};
+    cmsis_nn_dims out_dims = { .n = 1, .w = 1, .h = 1, .c = 2 };
+
+    cmsis_nn_dw_conv_params dw_conv_params = {
+        .padding  = { .w = 0, .h = 0 },
+        .stride   = { .w = 1, .h = 1 },
+        .dilation = { .w = 1, .h = 1 },
+        .ch_mult  = 1,
+        .input_offset  = 1,
+        .output_offset = 0,
+        .activation = { .min = -128, .max = 127 },
+    };
+
+    int32_t mult[2] = {~(1 << 31), ~(1<<31)};   /* Q31 ≈ 1.0 */
+    int32_t shift[2]= {0,0};
+    cmsis_nn_per_channel_quant_params q = {
+        .multiplier = mult,
+        .shift      = shift
+    };
+
+    int32_t* bias = 0;
+
+    const int32_t buf_sz = arm_depthwise_conv_wrapper_s8_get_buffer_size(
+          &dw_conv_params, &in_dims, &filt_dims, &out_dims);
+    const int32_t scratch_size = arm_convolve_s8_get_weights_sum_size(&out_dims);
+    int32_t *sum_buf     = (int32_t *)malloc(scratch_size);
+    int8_t *scratch_buf = (int8_t *)malloc(buf_sz);
+
+    uint32_t lhs_offset = dw_conv_params.input_offset;
+
+    cmsis_nn_context weights_sum_ctx, ctx;
+    weights_sum_ctx.buf = sum_buf;
+    weights_sum_ctx.size = buf_sz;
+
+    ctx.buf = scratch_buf;
+    ctx.size = 0;
+
+    arm_depthwise_convolve_weight_sum(sum_buf,
+                            scratch_buf,
+                            kernel,
+                            &dw_conv_params,
+                            &in_dims,
+                            &filt_dims,
+                            &out_dims,
+                            lhs_offset,
+                            bias);
+
+    arm_cmsis_nn_status res = arm_depthwise_conv_wrapper_s8(&ctx,
+                                       &weights_sum_ctx,
+                                       &dw_conv_params,
+                                       &q,
+                                       &in_dims,
+                                       input,
+                                       &filt_dims,
+                                       kernel,
+                                       &bias_dims,
+                                       bias,
+                                       &out_dims,
+                                       output);
+    free(scratch_buf);
+
+    free(sum_buf);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, res);
+    TEST_ASSERT_EQUAL_INT8_ARRAY(ref, output, 2);
+}
