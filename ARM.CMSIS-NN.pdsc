@@ -11,7 +11,7 @@
     </licenseSet>
   </licenseSets>
   <url>https://www.keil.com/pack/</url>
-  <repository type="git">https://github.com/AmbiqAI/cmsis-nn</repository>
+  <repository type="git">https://github.com/AmbiqAI/ns-cmsis-nn</repository>
 
   <releases>
     <release version="0.0.0">
