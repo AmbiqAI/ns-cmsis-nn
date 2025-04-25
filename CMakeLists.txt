@@ -19,7 +19,7 @@
 cmake_minimum_required(VERSION 3.15.6)
 set(CMSIS_OPTIMIZATION_LEVEL "-Ofast" CACHE STRING "Compiler optimization level.")
 
-project(NSCMSISNN)
+project(CMSISNN)
 
 add_library(cmsis-nn STATIC)
 
