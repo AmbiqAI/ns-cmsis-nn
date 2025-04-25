@@ -37,7 +37,6 @@
         <file category="header" name="Include/arm_nn_types.h"/>
         <file category="header" name="Include/arm_nnfunctions.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>
-        <file category="header" name="Include/arm_nnactivations.h"/>
         <file category="header" name="Include/arm_nn_tables.h"/>
         <file category="header" name="Include/arm_nn_math_types.h"/>
 
@@ -108,6 +107,7 @@
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_minimum_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_s16.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_relu_s8.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_relu6_s8.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_relu_q15.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_relu_q7.c"/>
@@ -173,7 +173,7 @@
         <file category="source" name="Source/SoftmaxFunctions/arm_softmax_u8.c"/>
         <file category="source" name="Source/PadFunctions/arm_pad_s8.c"/>
         <file category="source" name="Source/PadFunctions/arm_pad_s16.c"/>
-        
+
         <file category="source" name="Source/QuantizationFunctions/arm_dequantize_s8_f32.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_dequantize_s16_f32.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_quantize_f32_s8.c"/>

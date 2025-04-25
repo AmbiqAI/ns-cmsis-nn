@@ -57,7 +57,6 @@ class Op_fully_connected(Lib.op_utils.Op_type):
             w_max = Lib.op_utils.get_dtype_max("int4_t")
             b_min = Lib.op_utils.get_dtype_min("int8_t")
             b_max = Lib.op_utils.get_dtype_max("int8_t")
-            print("dadasdas")
         else:
             w_min = Lib.op_utils.get_dtype_min("int32_t")
             w_max = Lib.op_utils.get_dtype_max("int32_t")

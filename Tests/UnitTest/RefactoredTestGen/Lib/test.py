@@ -26,6 +26,8 @@ import Lib.op_transpose
 import Lib.op_elementwise_mul
 import Lib.op_quantize
 import Lib.op_dequantize
+import Lib.op_relu
+import Lib.op_relu6
 import tensorflow as tf
 import numpy as np
 from tensorflow.lite.python.interpreter import Interpreter
@@ -89,7 +91,7 @@ def generate(params, args, fpaths):
             bias_dtype = params["bias_data_type"]
         else:
             bias_dtype = None
-        
+
         if op_type == Lib.op_quantize.Op_quantize or op_type == Lib.op_dequantize.Op_dequantize:
             convert_keras_to_tflite(fpaths["tflite"],
                                     keras_model,
@@ -97,7 +99,8 @@ def generate(params, args, fpaths):
                                     input_dtype=params["input_data_type"],
                                     bias_dtype=bias_dtype,
                                     shape=shapes,
-                                    per_tensor_quant_for_dense=per_tensor_quant_for_dense, output_dtype=params["output_data_type"])
+                                    per_tensor_quant_for_dense=per_tensor_quant_for_dense,
+                                    output_dtype=params["output_data_type"])
         else:
             convert_keras_to_tflite(fpaths["tflite"],
                                     keras_model,
@@ -105,7 +108,8 @@ def generate(params, args, fpaths):
                                     input_dtype=params["input_data_type"],
                                     bias_dtype=bias_dtype,
                                     shape=shapes,
-                                    per_tensor_quant_for_dense=per_tensor_quant_for_dense, output_dtype=None)
+                                    per_tensor_quant_for_dense=per_tensor_quant_for_dense,
+                                    output_dtype=None)
 
         data = op_type.generate_data_tflite(fpaths["tflite"], params)
 
@@ -128,7 +132,7 @@ def generate(params, args, fpaths):
         mult, shift = quantize_scale(scale)
         params[name + "_multiplier"] = mult
         params[name + "_shift"] = shift
-        
+
     # Run reference model
     minval = Lib.op_utils.get_dtype_min(params["input_data_type"]) if "input_min" not in params else params["input_min"]
     maxval = Lib.op_utils.get_dtype_max(params["input_data_type"]) if "input_max" not in params else params["input_max"]
@@ -207,7 +211,7 @@ def generate(params, args, fpaths):
         # write float32_t as float for a valid C array in the header files. (float32_t is not recognized in stdint.h)
         if dtype == "float32_t":
             dtype = "float"
-            
+
         # 4) Write the array to a header file
         write_c_array(
             tensor,
@@ -246,6 +250,10 @@ def get_op_type(op_type_string):
         return Lib.op_quantize.Op_quantize
     elif op_type_string == "dequantize":
         return Lib.op_dequantize.Op_dequantize
+    elif op_type_string == "relu":
+        return Lib.op_relu.Op_relu
+    elif op_type_string == "relu6":
+        return Lib.op_relu6.Op_relu6
     else:
         raise ValueError(f"Unknown op type '{op_type_string}'")
 
@@ -258,7 +266,7 @@ def convert_keras_to_tflite(
         shape,
         per_tensor_quant_for_dense=False,
         output_dtype=None):
-    
+
     # Default output_dtype to match input if not specified
     if output_dtype is None:
         output_dtype = input_dtype
@@ -584,4 +592,3 @@ def get_header(generator, interpreter):
         raise Exception
 
     return header
-

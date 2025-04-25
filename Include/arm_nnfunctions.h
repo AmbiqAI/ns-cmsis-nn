@@ -697,7 +697,7 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(
 
 /**
  * @brief arm_convolve_s16_fast_small_kernel function. The kernel size is <=8
- 
+
  * @param[in]      conv_params    Convolution parameters (e.g. strides, dilations, pads,...).
  *                                conv_params->input_offset  : Not used
  *                                conv_params->output_offset : Not used
@@ -2225,18 +2225,124 @@ arm_cmsis_nn_status arm_elementwise_mul_s16(const int16_t *input_1_vect,
 void arm_relu_q7(int8_t *data, uint16_t size);
 
 /**
- * @brief s8 ReLU6 function
- * @param[in,out]   data        pointer to input
- * @param[in]       size        number of elements
- */
-void arm_relu6_s8(int8_t *data, uint16_t size);
-
-/**
  * @brief Q15 RELU function
  * @param[in,out]   data        pointer to input
  * @param[in]       size        number of elements
  */
-void arm_relu_q15(int16_t *data, uint16_t size);
+ void arm_relu_q15(int16_t *data, uint16_t size);
+
+/**
+ * @brief s8 ReLU6 activation function
+ * This uses 0 and 6 as lower and upper bounds w/ no quantization.
+ * @param[in,out]   data        pointer to input
+ * @param[in]       size        number of elements
+ */
+void arm_relu6_default_s8(int8_t *data, uint16_t size);
+
+/**
+ * @brief S8 ReLU activation function
+ * lower and upper bounds are quantized representations of 0 and 127
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier           Output multiplier
+ * @param[in]      output_shift                Output shift
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ */
+arm_cmsis_nn_status arm_relu_s8(const int8_t *input,
+                                const int32_t input_offset,
+                                const int32_t output_offset,
+                                const int32_t output_multiplier,
+                                const int32_t output_shift,
+                                int8_t *output,
+                                const int32_t output_size);
+
+/**
+ * @brief S8 ReLU6 activation function
+ * lower and upper bounds are quantized representations of 0 and 6
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      lower                       Lower bound for the activation
+ * @param[in]      upper                       Upper bound for the activation
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the input tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ */
+arm_cmsis_nn_status arm_relu6_s8(const int8_t *input,
+                                 const int8_t lower,
+                                 const int8_t upper,
+                                 int8_t *output,
+                                 const int32_t output_size);
+
+/**
+ * @brief S8 Leaky ReLU activation function
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier_alpha     Output multiplier for the alpha parameter
+ * @param[in]      output_shift_alpha          Output shift for the alpha parameter
+ * @param[in]      output_multiplier_identity  Output multiplier for the identity parameter
+ * @param[in]      output_shift_identity       Output shift for the identity parameter
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ *
+ */
+arm_cmsis_nn_status arm_leaky_relu_s8(const int8_t *input,
+                                      const int32_t input_offset,
+                                      const int32_t output_offset,
+                                      const int32_t output_multiplier_alpha,
+                                      const int32_t output_shift_alpha,
+                                      const int32_t output_multiplier_identity,
+                                      const int32_t output_shift_identity,
+                                      int8_t *output,
+                                      const int32_t output_size);
+
+/**
+ * @brief S16 Leaky ReLU activation function
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier_alpha     Output multiplier for the alpha parameter
+ * @param[in]      output_shift_alpha          Output shift for the alpha parameter
+ * @param[in]      output_multiplier_identity  Output multiplier for the identity parameter
+ * @param[in]      output_shift_identity       Output shift for the identity parameter
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the input tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ *
+ */
+arm_cmsis_nn_status arm_leaky_relu_s16(const int16_t *input,
+                                       const int32_t input_offset,
+                                       const int32_t output_offset,
+                                       const int32_t output_multiplier_alpha,
+                                       const int32_t output_shift_alpha,
+                                       const int32_t output_multiplier_identity,
+                                       const int32_t output_shift_identity,
+                                       int16_t *output,
+                                       const int32_t output_size);
+
+/**
+ * @brief Logistic activation function for s16
+ * @param[in]  input              Pointer to the input tensor
+ * @param[out] output             Pointer to the output tensor
+ * @param[in]  input_size         Number of elements in the input tensor
+ * @param[in]  input_multiplier   Input quantization multiplier
+ * @param[in]  input_left_shift   Input quantization shift within the range [0, 31]
+ * @return                        The function returns
+ *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> Argument error check failed
+ *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ */
+arm_cmsis_nn_status arm_logistic_s16(int16_t *input,
+                                     int16_t *output,
+                                     const int32_t input_size,
+                                     int32_t input_multiplier,
+                                     int32_t input_left_shift);
 
 /**
  * @brief s16 neural network activation function using direct table look-up
