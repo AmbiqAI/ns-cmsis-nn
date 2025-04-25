@@ -1,5 +1,7 @@
 var NAVTREEINDEX1 =
 {
+"group__genPubTypes.html#afc7f24c6d2ffbb0d512256b3d4e19630":[3,0,0,10,4],
+"group__genPubTypes.html#afc7f24c6d2ffbb0d512256b3d4e19630":[3,0,0,12,1],
 "group__genPubTypes.html#afcad0cad68a7df22c9016799abeae31a":[3,0,0,4,0],
 "group__genPubTypes.html#afed698f0a4fe38ae9800c30e06f297f3":[3,0,0,20,8],
 "group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184":[3,0,0,23],
@@ -82,8 +84,8 @@ var NAVTREEINDEX1 =
 "group__supportLSTM.html#gafdabd141d9632bcfc4bf16351d843772":[3,1,2,2],
 "group__supportSoftmax.html":[3,1,4],
 "group__supportSoftmax.html#gaa5632ba67b623b5dff0c4a2d8e2a9a3a":[3,1,4,0],
-"index.html":[0],
 "index.html":[],
+"index.html":[0],
 "index.html#Copyright":[0,7],
 "index.html#Examples":[0,4],
 "index.html#Framework":[0,3],
