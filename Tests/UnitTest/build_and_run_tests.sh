@@ -163,7 +163,9 @@ Run_Tests() {
     readarray -d '' tests < <(find ./build-${cpu}-${compiler}/ -iname "*.elf" -print0)
     for test in "${tests[@]}"
     do
+
         echo "Test: ${test}"
+        #output=$(FVP_Corstone_SSE-300_Ethos-U55 -C mps3_board.uart0.shutdown_on_eot=1 -C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.telnetterminal0.start_telnet=0 -C mps3_board.uart0.out_file="-" -C mps3_board.uart0.unbuffered_output=1 ${test} --plugin $PWD/downloads/corstone300_download/plugins/Linux64_GCC-9.3/TarmacTrace.so -C TRACE.TarmacTrace.trace-file=run.tarmac -C TRACE.TarmacTrace.unbuffered=1 )
         output=$(FVP_Corstone_SSE-300_Ethos-U55 -C mps3_board.uart0.shutdown_on_eot=1 -C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.telnetterminal0.start_telnet=0 -C mps3_board.uart0.out_file="-" -C mps3_board.uart0.unbuffered_output=1 ${test})
         echo "$output" | grep "0 Failures" -vqz
         if [[ $? -eq 0 ]]; then

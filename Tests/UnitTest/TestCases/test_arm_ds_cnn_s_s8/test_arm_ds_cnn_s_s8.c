@@ -233,7 +233,16 @@ void ds_cnn_s_s8_inference(void)
     lhs_offset = dw_conv_params.input_offset;
     kernel_data = ds_cnn_s_layer_2_depthwise_conv_2d_weights;
     bias_data = ds_cnn_s_layer_2_depthwise_conv_2d_bias;
-    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&in_out_dim_1, &dw_conv_filter_dims, &in_out_dim_0, lhs_offset, bias_data);
+    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
+                            ctx.buf,
+                            ds_cnn_s_layer_2_depthwise_conv_2d_weights,
+                            &dw_conv_params,
+                            &in_out_dim_1,
+                            &dw_conv_filter_dims,
+                            &in_out_dim_0,
+                            lhs_offset,
+                            ds_cnn_s_layer_2_depthwise_conv_2d_bias);
+
     status |= arm_depthwise_conv_wrapper_s8(&ctx,
                                             &weights_sum_ctx,
                                             &dw_conv_params,
@@ -308,7 +317,16 @@ void ds_cnn_s_s8_inference(void)
     lhs_offset = dw_conv_params.input_offset;
     kernel_data = ds_cnn_s_layer_4_depthwise_conv_2d_weights;
     bias_data = ds_cnn_s_layer_4_depthwise_conv_2d_bias;
-    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&in_out_dim_1, &dw_conv_filter_dims, &in_out_dim_0, lhs_offset, bias_data);
+    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
+                            ctx.buf,
+                            ds_cnn_s_layer_4_depthwise_conv_2d_weights,
+                            &dw_conv_params,
+                            &in_out_dim_1,
+                            &dw_conv_filter_dims,
+                            &in_out_dim_0,
+                            lhs_offset,
+                            ds_cnn_s_layer_4_depthwise_conv_2d_bias);
+
     status |= arm_depthwise_conv_wrapper_s8(&ctx,
                                             &weights_sum_ctx,
                                             &dw_conv_params,
@@ -369,7 +387,16 @@ void ds_cnn_s_s8_inference(void)
     lhs_offset = dw_conv_params.input_offset;
     kernel_data = ds_cnn_s_layer_6_depthwise_conv_2d_weights;
     bias_data = ds_cnn_s_layer_6_depthwise_conv_2d_bias;
-    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&in_out_dim_1, &dw_conv_filter_dims, &in_out_dim_0, lhs_offset, bias_data);
+    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
+                            ctx.buf,
+                            ds_cnn_s_layer_6_depthwise_conv_2d_weights,
+                            &dw_conv_params,
+                            &in_out_dim_1,
+                            &dw_conv_filter_dims,
+                            &in_out_dim_0,
+                            lhs_offset,
+                            ds_cnn_s_layer_6_depthwise_conv_2d_bias);
+
     status |= arm_depthwise_conv_wrapper_s8(&ctx,
                                             &weights_sum_ctx,
                                             &dw_conv_params,
@@ -429,7 +456,18 @@ void ds_cnn_s_s8_inference(void)
     lhs_offset = dw_conv_params.input_offset;
     kernel_data = ds_cnn_s_layer_8_depthwise_conv_2d_weights;
     bias_data = ds_cnn_s_layer_8_depthwise_conv_2d_bias;
-    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&in_out_dim_1, &dw_conv_filter_dims, &in_out_dim_0, lhs_offset, bias_data);
+    //note: if you have to come in here one more time to change things, you're changing
+    //the references to kernel, bias, input, output data to generic names 
+    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
+                            ctx.buf,
+                            ds_cnn_s_layer_8_depthwise_conv_2d_weights,
+                            &dw_conv_params,
+                            &in_out_dim_1,
+                            &dw_conv_filter_dims,
+                            &in_out_dim_0,
+                            lhs_offset,
+                            ds_cnn_s_layer_8_depthwise_conv_2d_bias);
+
     status |= arm_depthwise_conv_wrapper_s8(&ctx,
                                             &weights_sum_ctx,
                                             &dw_conv_params,

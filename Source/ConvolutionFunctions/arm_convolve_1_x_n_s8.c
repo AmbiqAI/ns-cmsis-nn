@@ -216,8 +216,8 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
         input_data += (input_x * input_ch);
     }
 #else
-    status = arm_convolve_s8(weight_sum_ctx,
-                             ctx,
+    status = arm_convolve_s8(ctx,
+                             weight_sum_ctx,
                              conv_params,
                              quant_params,
                              input_dims,

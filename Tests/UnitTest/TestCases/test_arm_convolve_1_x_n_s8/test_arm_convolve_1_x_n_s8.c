@@ -76,15 +76,15 @@ void conv_1_x_n_1_arm_convolve_s8(void)
     // Prepare weights_sum_ctx for arm_convolve_1_x_n_s8.
     {
         int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
-        weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+        weights_sum_ctx.buf = malloc(weights_sum_buf_size );
         weights_sum_ctx.size = weights_sum_buf_size;
         uint32_t lhs_offset = conv_params.input_offset;
         arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
     }
-
     int32_t buf_size = arm_convolve_1_x_n_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
+
 
     arm_cmsis_nn_status result = arm_convolve_1_x_n_s8(&ctx,
                                                        &weights_sum_ctx,
@@ -101,7 +101,6 @@ void conv_1_x_n_1_arm_convolve_s8(void)
 
     if (weights_sum_ctx.buf)
     {
-        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
         free(weights_sum_ctx.buf);
     }
     if (ctx.buf)

@@ -62,12 +62,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                                     int8_t *output_data)
 {
     (void)bias_dims;
-    (void)weight_sum_ctx;
 
-    if (weight_sum_ctx->buf == NULL)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
 
     if (ctx->buf == NULL)
     {
@@ -134,7 +129,13 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
 
         /* Generate up to four columns from the input tensor a GEMM computation */
         int8_t *im2col_buf = (int8_t *)buffer_a;
+        if (weight_sum_ctx->buf == NULL)
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+        const int32_t *weight_sum_data_ptr = weight_sum_ctx->buf;
 #else
+        (void)weight_sum_ctx;
         /* Use as a ping-pong buffer for unordered elements */
         int8_t *im2col_buf = (int8_t *)buffer_a + aligned_rhs_cols * 2;
         int16_t *im2col_buf_start_s16 = buffer_a;
@@ -142,7 +143,6 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
         int32_t lhs_rows = 0;
 
         const int8_t *filter_data_ptr = &filter_data[0];
-        const int32_t *weight_sum_data_ptr = weight_sum_ctx->buf;
         const int32_t *bias_data_ptr = &bias_data[0];
         const int32_t *output_mult_ptr = &output_mult[0];
         const int32_t *output_shift_ptr = &output_shift[0];
@@ -391,8 +391,10 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                 lhs_rows = 0;
 #endif // #if defined(ARM_MATH_MVEI)
             }
-            filter_data_ptr += output_ch_per_group * rhs_cols;
+#if defined(ARM_MATH_MVEI)
             weight_sum_data_ptr += output_ch_per_group;
+#endif
+            filter_data_ptr += output_ch_per_group * rhs_cols;
             bias_data_ptr += output_ch_per_group;
             output_mult_ptr += output_ch_per_group;
             output_shift_ptr += output_ch_per_group;

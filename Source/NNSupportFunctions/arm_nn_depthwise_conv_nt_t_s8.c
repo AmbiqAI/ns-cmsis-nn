@@ -28,6 +28,7 @@
  * -------------------------------------------------------------------- */
 
 #include "arm_nnsupportfunctions.h"
+#include "stdio.h"
 
 /**
  * @ingroup groupSupport
@@ -44,7 +45,8 @@
  * Refer header file for details.
  *
  */
-arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int8_t *lhs,
+arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t* weight_sum_buf,
+                                                  const int8_t *lhs,
                                                   const int8_t *rhs,
                                                   const int32_t input_offset,
                                                   const int32_t active_ch,
@@ -59,34 +61,37 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int8_t *lhs,
                                                   int8_t *out)
 {
 #if defined(ARM_MATH_MVEI)
-    const int32_t *bias = output_bias;
+    //not used currently with new weight sum approach
+    (void) input_offset;
+    (void) output_bias;
     int32_t loop_count = (active_ch + 3) / 4;
     uint32_t num_ch_to_process = active_ch;
+    const int32_t *weight_sum_base = weight_sum_buf;
+
 
     for (int i_loop_cnt = 0, offset = 0; i_loop_cnt < loop_count;
          num_ch_to_process -= 4, offset += 4, out += 4, i_loop_cnt++)
     {
-        int32x4_t out_0 = vdupq_n_s32(0);
-        if (bias)
-        {
-            out_0 = vldrwq_s32(bias);
-            bias += 4;
-        }
-        int32x4_t out_1 = out_0;
-        int32x4_t out_2 = out_0;
-        int32x4_t out_3 = out_0;
+        //TODO - looks like possible memory read error 
+        //not predicating based on number of lanes to use
+        //
+
+        int32x4_t base = vldrwq_s32(weight_sum_base + offset);
+        int32x4_t out_0 = base;
+        int32x4_t out_1 = base;
+        int32x4_t out_2 = base;
+        int32x4_t out_3 = base;
+
 
         const int8_t *rhs_0 = rhs + offset;
         const int8_t *lhs_0 = lhs + offset;
         const int8_t *lhs_1 = lhs + row_x_col * CH_IN_BLOCK_MVE + offset;
         const int8_t *lhs_2 = lhs + (row_x_col * CH_IN_BLOCK_MVE * 2) + offset;
         const int8_t *lhs_3 = lhs + (row_x_col * CH_IN_BLOCK_MVE * 3) + offset;
-        int32x4_t ker_sum = vdupq_n_s32(0);
 
         for (int i_row_x_col = 0; i_row_x_col < row_x_col; i_row_x_col++)
         {
             const int32x4_t ker_0 = vldrbq_s32(rhs_0);
-            ker_sum = vaddq_s32(ker_sum, ker_0);
 
             int32x4_t ip_0 = vldrbq_s32(lhs_0);
             out_0 += vmulq_s32(ip_0, ker_0);
@@ -107,12 +112,6 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int8_t *lhs,
 
             rhs_0 += total_ch;
         }
-
-        ker_sum = vmulq_n_s32(ker_sum, input_offset);
-        out_0 = ker_sum + out_0;
-        out_1 = ker_sum + out_1;
-        out_2 = ker_sum + out_2;
-        out_3 = ker_sum + out_3;
 
         const int32x4_t mult = vldrwq_s32(out_mult);
         const int32x4_t shift = vldrwq_s32(out_shift);
@@ -147,6 +146,7 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int8_t *lhs,
 
     return ARM_CMSIS_NN_SUCCESS;
 #else
+    (void)weight_sum_buf;
     (void)lhs;
     (void)rhs;
     (void)input_offset;

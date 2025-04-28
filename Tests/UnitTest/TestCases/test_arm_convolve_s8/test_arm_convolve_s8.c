@@ -43,67 +43,7 @@
 //#include "../TestData/fc_conv_int8_dilated/input_weights.h"
 
 
-#ifdef ARM_MATH_MVEI
-static arm_cmsis_nn_status cm55_conv_1x1_image(cmsis_nn_context *ctx,
-        cmsis_nn_conv_params *conv_params,
-        cmsis_nn_per_channel_quant_params *quant_params,
-        cmsis_nn_dims *input_dims,
-        cmsis_nn_dims *filter_dims,
-        cmsis_nn_dims *bias_dims,
-        cmsis_nn_dims *output_dims,
-        const int32_t *bias_data,
-        const int8_t *kernel_data,
-        const int8_t *input_data,
-        int8_t *output
-    );
-#endif
-
 static arm_cmsis_nn_status conv_1x1_image_wrapper(cmsis_nn_context *ctx,
-        cmsis_nn_conv_params *conv_params,
-        cmsis_nn_per_channel_quant_params *quant_params,
-        cmsis_nn_dims *input_dims,
-        cmsis_nn_dims *filter_dims,
-        cmsis_nn_dims *bias_dims,
-        cmsis_nn_dims *output_dims,
-        const int32_t *bias_data,
-        const int8_t *kernel_data,
-        const int8_t *input_data,
-        int8_t *output
-    )
-{
-    arm_cmsis_nn_status result;
-#ifdef ARM_MATH_MVEI
-    result =  cm55_conv_1x1_image(ctx,
-            conv_params,
-            quant_params,
-            input_dims,
-            filter_dims,
-            bias_dims,
-            output_dims,
-            bias_data,
-            kernel_data,
-            input_data,
-            output
-        );
-#else
-    result = arm_convolve_wrapper_s8(ctx,
-                                     NULL,
-                                     conv_params,
-                                     quant_params,
-                                     input_dims,
-                                     input_data,
-                                     filter_dims,
-                                     kernel_data,
-                                     bias_dims,
-                                     bias_data,
-                                     output_dims,
-                                     output);
-#endif
-    return result;
-}
-
-#ifdef ARM_MATH_MVEI
-static arm_cmsis_nn_status cm55_conv_1x1_image(cmsis_nn_context *ctx,
         cmsis_nn_conv_params *conv_params,
         cmsis_nn_per_channel_quant_params *quant_params,
         cmsis_nn_dims *input_dims,
@@ -125,7 +65,7 @@ static arm_cmsis_nn_status cm55_conv_1x1_image(cmsis_nn_context *ctx,
     arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,input_dims, filter_dims, output_dims, lhs_offset,  bias_data);
 
     arm_cmsis_nn_status result;
-    result = arm_convolve_1_x_1_image_s8(ctx,
+    result = arm_convolve_wrapper_s8(ctx,
                                      &weights_sum_ctx,
                                      conv_params,
                                      quant_params,
@@ -145,7 +85,6 @@ static arm_cmsis_nn_status cm55_conv_1x1_image(cmsis_nn_context *ctx,
     }
     return result;
 }
-#endif
 
 
 
@@ -174,9 +113,11 @@ void basic_arm_convolve_s8(void)
     input_dims.w = BASIC_INPUT_W;
     input_dims.h = BASIC_INPUT_H;
     input_dims.c = BASIC_IN_CH;
+
     filter_dims.w = BASIC_FILTER_X;
     filter_dims.h = BASIC_FILTER_Y;
     filter_dims.c = BASIC_IN_CH;
+
     output_dims.w = BASIC_OUTPUT_W;
     output_dims.h = BASIC_OUTPUT_H;
     output_dims.c = BASIC_OUT_CH;
@@ -454,6 +395,7 @@ void conv_2_arm_convolve_s8(void)
     buf_size = arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
+
 
     result = arm_convolve_wrapper_s8(&ctx,
                                      &weights_sum_ctx,
