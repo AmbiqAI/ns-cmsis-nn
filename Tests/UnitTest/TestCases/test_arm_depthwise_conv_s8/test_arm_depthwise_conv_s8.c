@@ -23,6 +23,7 @@
 #include "../TestData/depthwise_dilation/test_data.h"
 #include "../TestData/depthwise_mult_batches/test_data.h"
 #include "../TestData/depthwise_null_bias_1/test_data.h"
+#include "../TestData/depthwise_single_in_many_out_ch/test_data.h"
 #include "../TestData/in_ch_one_out_ch_larger_one/test_data.h"
 #include "../Utils/utils.h"
 #include "../Utils/validate.h"
@@ -768,4 +769,134 @@ void simple_dconv_no_bias(void)
     free(sum_buf);
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, res);
     TEST_ASSERT_EQUAL_INT8_ARRAY(ref, output, 2);
+}
+
+void single_in_many_out_ch(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int8_t output[DEPTHWISE_SINGLE_IN_MANY_OUT_CH_DST_SIZE] = {0};
+    cmsis_nn_context ctx;
+    cmsis_nn_dw_conv_params dw_conv_params;
+    cmsis_nn_per_channel_quant_params quant_params;
+    cmsis_nn_dims input_dims;
+    cmsis_nn_dims filter_dims;
+    cmsis_nn_dims bias_dims = {};
+    cmsis_nn_dims output_dims;
+    const int32_t output_ref_size = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_DST_SIZE;
+    const int32_t *bias_data = get_bias_address(depthwise_single_in_many_out_ch_biases, DEPTHWISE_SINGLE_IN_MANY_OUT_CH_OUT_CH);
+    
+    const int8_t *input_data = depthwise_single_in_many_out_ch_input_tensor;
+
+    //need to transpose weights as a hack because generated from conv kernel
+    const int8_t *conv_kernel_data = depthwise_single_in_many_out_ch_weights;
+    int8_t* kernel_data = malloc(DEPTHWISE_SINGLE_IN_MANY_OUT_CH_OUT_CH * DEPTHWISE_SINGLE_IN_MANY_OUT_CH_FILTER_X * DEPTHWISE_SINGLE_IN_MANY_OUT_CH_FILTER_Y);
+    //transpose from conv to dconv format
+
+    input_dims.n = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_INPUT_BATCHES;
+    input_dims.w = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_INPUT_W;
+    input_dims.h = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_INPUT_H;
+    input_dims.c = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_IN_CH;
+
+    filter_dims.n = 1;
+    filter_dims.w = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_FILTER_X;
+    filter_dims.h = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_FILTER_Y;
+    filter_dims.c = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_OUT_CH;
+
+    output_dims.n = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_INPUT_BATCHES;
+    output_dims.w = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_OUTPUT_W;
+    output_dims.h = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_OUTPUT_H;
+    output_dims.c = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_OUT_CH;
+    dw_conv_params.padding.w = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_PAD_X;
+    dw_conv_params.padding.h = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_PAD_Y;
+    dw_conv_params.stride.w = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_STRIDE_X;
+    dw_conv_params.stride.h = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_STRIDE_Y;
+    dw_conv_params.dilation.w = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_DILATION_X;
+    dw_conv_params.dilation.h = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_DILATION_Y;
+    //because we generated a convolution for this test, ch_mult is not generated
+    dw_conv_params.ch_mult = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_OUT_CH;
+
+    dw_conv_params.input_offset = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_INPUT_OFFSET;
+    dw_conv_params.output_offset = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_OUTPUT_OFFSET;
+    dw_conv_params.activation.min = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_OUT_ACTIVATION_MIN;
+    dw_conv_params.activation.max = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_OUT_ACTIVATION_MAX;
+    quant_params.multiplier = (int32_t *)depthwise_single_in_many_out_ch_output_mult;
+    quant_params.shift = (int32_t *)depthwise_single_in_many_out_ch_output_shift;
+
+    cmsis_nn_dims filter_input_dims;
+    filter_input_dims.n = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_OUT_CH;
+    filter_input_dims.w = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_FILTER_X;
+    filter_input_dims.h = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_FILTER_Y;
+    filter_input_dims.c = DEPTHWISE_SINGLE_IN_MANY_OUT_CH_IN_CH;
+
+    const uint32_t perm[4] = {3, 1, 2, 0};
+    const cmsis_nn_transpose_params transpose_params = {4, perm};
+    arm_cmsis_nn_status status = arm_transpose_s8(conv_kernel_data, kernel_data, &filter_input_dims, &filter_dims, &transpose_params);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+
+    ctx.buf = NULL;
+    ctx.size = 0;
+    arm_cmsis_nn_status result = arm_depthwise_conv_s8(&ctx,
+                                                       &dw_conv_params,
+                                                       &quant_params,
+                                                       &input_dims,
+                                                       input_data,
+                                                       &filter_dims,
+                                                       kernel_data,
+                                                       &bias_dims,
+                                                       bias_data,
+                                                       &output_dims,
+                                                       output);
+    if (ctx.buf)
+    {
+        memset(ctx.buf, 0, ctx.size);
+        free(ctx.buf);
+    }
+    TEST_ASSERT_EQUAL(expected, result);
+    TEST_ASSERT_TRUE(validate(output, depthwise_single_in_many_out_ch_output_ref, output_ref_size));
+    memset(output, 0, sizeof(output));
+    const int32_t buf_size =
+        arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims);
+    ctx.buf = malloc(buf_size);
+    ctx.size = buf_size;
+
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = dw_conv_params.input_offset;
+    result = arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
+    result = arm_depthwise_conv_wrapper_s8(&ctx,
+                                           &weights_sum_ctx,
+                                           &dw_conv_params,
+                                           &quant_params,
+                                           &input_dims,
+                                           input_data,
+                                           &filter_dims,
+                                           kernel_data,
+                                           &bias_dims,
+                                           bias_data,
+                                           &output_dims,
+                                           output);
+
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
+
+    if (ctx.buf)
+    {
+        memset(ctx.buf, 0, buf_size);
+        free(ctx.buf);
+    }
+    TEST_ASSERT_EQUAL(expected, result);
+    TEST_ASSERT_TRUE(validate(output, depthwise_single_in_many_out_ch_output_ref, output_ref_size));
 }

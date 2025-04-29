@@ -67,3 +67,7 @@ void test_weight_presum(void) {
 void test_simple_dconv_no_bias(void) { 
     simple_dconv_no_bias();
 }
+void test_single_in_many_out_ch(void) {
+    single_in_many_out_ch();
+}
+
