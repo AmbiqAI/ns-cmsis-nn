@@ -69,7 +69,7 @@ int32_t arm_transpose_conv_s8_get_buffer_size(const cmsis_nn_transpose_conv_para
     else
     {
         const int32_t buf_x = ((input_dims->w - 1) * transpose_conv_params->stride.w +
-                               MAX(filter_dims->w, transpose_conv_params->stride.h)) *
+                               MAX(filter_dims->w, transpose_conv_params->stride.w)) *
             out_dims->c;
         const int32_t buf_y = MAX(filter_dims->h, transpose_conv_params->stride.h);
         return buf_x * buf_y * sizeof(int32_t);
