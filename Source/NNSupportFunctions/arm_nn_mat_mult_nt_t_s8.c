@@ -63,10 +63,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                                             const int32_t lhs_cols_offset)
 {
     (void)lhs_offset;
-    (void)bias;
-
-
 #if defined(ARM_MATH_MVEI)
+    (void)bias;
     int i_items = 0;
     for (; i_items <= (lhs_rows - 4); i_items += 4)
     {
@@ -204,6 +202,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
     }
 
 #elif defined(ARM_MATH_DSP)
+    (void)weight_sum_buf;
     (void)row_address_offset;
     const int32_t rhs_off0 = rhs_cols - 4;
     const int32_t lhs_off0 = lhs_cols_offset - 4;
@@ -213,13 +212,21 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
         const int8_t *lhs_ptr = &lhs[0];
         int8_t *dst_ptr = &dst[0];
 
-        /* Modified: Use precomputed weight_sum_buf instead of summing rhs */
-        int32_t lhs_offset_contribution0 = weight_sum_buf[rhs_rows_idx];
-        int32_t lhs_offset_contribution1 = weight_sum_buf[rhs_rows_idx + 1];
-
-
+        int32_t lhs_offset_contribution0 = 0;
+        int32_t lhs_offset_contribution1 = 0;
+        for (int32_t x = 0; x < rhs_cols; ++x)
+        {
+            lhs_offset_contribution0 += rhs[x];
+            lhs_offset_contribution1 += rhs[x + rhs_cols];
+        }
+        lhs_offset_contribution0 *= lhs_offset;
+        lhs_offset_contribution1 *= lhs_offset;
+        if (bias)
+        {
+            lhs_offset_contribution0 += bias[rhs_rows_idx];
+            lhs_offset_contribution1 += bias[rhs_rows_idx + 1];
+        }
         int32_t lhs_rows_idx = lhs_rows >> 1;
-
         while (lhs_rows_idx)
         {
             const int8_t *rhs_ptr = &rhs[0];
@@ -597,9 +604,23 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
         const int8_t *lhs_ptr = &lhs[0];
         int8_t *dst_ptr = &dst[0];
 
-        /* Modified: Use weight_sum_buf instead of summing rhs */
-        int32_t lhs_offset_contribution0 = weight_sum_buf[rhs_rows_idx];
-        int32_t lhs_offset_contribution1 = weight_sum_buf[rhs_rows_idx + 1];
+        int32_t lhs_offset_contribution0 = 0;
+        int32_t lhs_offset_contribution1 = 0;
+
+        for (int32_t x = 0; x < rhs_cols; ++x)
+        {
+            lhs_offset_contribution0 += rhs[x];
+            lhs_offset_contribution1 += rhs[x + rhs_cols];
+        }
+
+        lhs_offset_contribution0 *= lhs_offset;
+        lhs_offset_contribution1 *= lhs_offset;
+        if (bias)
+        {
+            lhs_offset_contribution0 += bias[rhs_rows_idx];
+            lhs_offset_contribution1 += bias[rhs_rows_idx + 1];
+        }
+
 
         int32_t lhs_rows_idx = lhs_rows >> 1;
 
