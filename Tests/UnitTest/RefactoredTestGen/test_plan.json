@@ -73,6 +73,21 @@
         "dilation_x": 1,
         "dilation_y": 1,
         "padding": "VALID"
+      },
+      {
+        "name": "depthwise_single_in_many_out_ch",
+        "input_batches": 1,
+        "in_ch": 1,
+        "out_ch": 12,
+        "input_w": 49,
+        "input_h": 40,
+        "filter_x": 10,
+        "filter_y": 8,
+        "stride_x": 2,
+        "stride_y": 2,
+        "dilation_x": 1,
+        "dilation_y": 1,
+        "padding": "SAME"
       }
     ] 
   },
