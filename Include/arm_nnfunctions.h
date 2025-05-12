@@ -2935,6 +2935,8 @@ void arm_concatenation_s8_w(const int8_t *input,
  * @param[in]  output_dims         Output tensor dimensions
  * @param[in]  output_shape        Output tensor shape
  *
+ * @return     The function returns ARM_CMSIS_NN_SUCCESS
+ *
  * @note This function, data layout independent, can be used to concatenate either int8 or uint8 tensors because it
  *      does not involve any arithmetic operation
  *
@@ -2957,6 +2959,8 @@ arm_cmsis_nn_status arm_concatenation_s8(const int8_t *const *input_data,
  * @param[out] output_data         Pointer to output tensor
  * @param[in]  output_dims         Output tensor dimensions
  * @param[in]  output_shape        Output tensor shape
+ *
+ * @return     The function returns ARM_CMSIS_NN_SUCCESS
  *
  * @note This function, data layout independent, can be used to concatenate either int16 or uint16 tensors because it
  *      does not involve any arithmetic operation
@@ -3391,6 +3395,8 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
  * @param[in]   size        Number of elements in the arrays.
  * @param[in]   zero_point  Zero point (offset) to apply during quantization.
  * @param[in]   scale       Scale factor to apply during quantization.
+ *
+ * @return     The function returns ARM_CMSIS_NN_SUCCESS
  */
 arm_cmsis_nn_status arm_quantize_f32_s8(const float* input,
                                         int8_t* output,
@@ -3405,6 +3411,8 @@ arm_cmsis_nn_status arm_quantize_f32_s8(const float* input,
  * @param[in]   size        Number of elements in the arrays.
  * @param[in]   zero_point  Zero point (offset) to apply during quantization.
  * @param[in]   scale       Scale factor to apply during quantization.
+ *
+ * @return     The function returns ARM_CMSIS_NN_SUCCESS
  */
 arm_cmsis_nn_status arm_quantize_f32_s16(const float* input,
                                          int16_t* output,
@@ -3421,6 +3429,8 @@ arm_cmsis_nn_status arm_quantize_f32_s16(const float* input,
  * @param[in]   effective_scale_shift   Right or left shift (depending on sign) applied after the multiplier.
  * @param[in]   input_zeropoint         Zero point of the input data.
  * @param[in]   output_zeropoint        Zero point of the output data.
+ *
+ * @return     The function returns ARM_CMSIS_NN_SUCCESS
  */
 arm_cmsis_nn_status arm_requantize_s8_s8(const int8_t *input,
                                          int8_t* output,
@@ -3439,6 +3449,8 @@ arm_cmsis_nn_status arm_requantize_s8_s8(const int8_t *input,
  * @param[in]   effective_scale_shift   Right or left shift (depending on sign) applied after the multiplier.
  * @param[in]   input_zeropoint         Zero point of the input data.
  * @param[in]   output_zeropoint        Zero point of the output data.
+ *
+ * @return     The function returns ARM_CMSIS_NN_SUCCESS
  */
 arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
                                            int16_t* output,
@@ -3455,6 +3467,8 @@ arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
  * @param[in]   size        Number of elements in the arrays.
  * @param[in]   zero_point  Zero point (offset) that was used during quantization.
  * @param[in]   scale       Scale factor that was used during quantization.
+ *
+ * @return     The function returns ARM_CMSIS_NN_SUCCESS
  */
 arm_cmsis_nn_status arm_dequantize_s8_f32(const int8_t *input,
                                           float *output,
@@ -3469,6 +3483,8 @@ arm_cmsis_nn_status arm_dequantize_s8_f32(const int8_t *input,
  * @param[in]   size        Number of elements in the arrays.
  * @param[in]   zero_point  Zero point (offset) that was used during quantization.
  * @param[in]   scale       Scale factor that was used during quantization.
+ *
+ * @return     The function returns ARM_CMSIS_NN_SUCCESS
  */
 arm_cmsis_nn_status arm_dequantize_s16_f32(const int16_t *input,
                                            float *output,
