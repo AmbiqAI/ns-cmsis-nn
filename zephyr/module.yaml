@@ -1,4 +1,4 @@
-name: cmsis-nn
+name: ns-cmsis-nn
 build:
   cmake-ext: True
   kconfig-ext: True
