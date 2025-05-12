@@ -18,7 +18,7 @@
 #
 # Version: 1.0
 # Date: 2024-03-27
-# This bash script checks that ARM.CMSIS-NN.pdsc is up to date.
+# This bash script checks that ARM.NS-CMSIS-NN.pdsc is up to date.
 #
 # Pre-requisites:
 # - bash shell (for Windows: install git for Windows)
@@ -27,7 +27,7 @@
 LISTED_SOURCE_FILES=$(mktemp -d)/listed_src_files
 ACTUAL_SOURCE_FILES=$(mktemp -d)/actual_src_files
 
-cat ARM.CMSIS-NN.pdsc | grep 'file category="source" ' | sed -r -E 's/.*name="(.*)".*/\1/g' | sort > \
+cat ARM.NS-CMSIS-NN.pdsc | grep 'file category="source" ' | sed -r -E 's/.*name="(.*)".*/\1/g' | sort > \
                                                                                                    $LISTED_SOURCE_FILES
 git ls-files  ':(glob)Source/' | grep "\.c" | sort > $ACTUAL_SOURCE_FILES
 
