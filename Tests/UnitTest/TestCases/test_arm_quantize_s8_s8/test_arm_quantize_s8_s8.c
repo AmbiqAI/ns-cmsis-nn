@@ -15,7 +15,7 @@
   * See the License for the specific language governing permissions and
   * limitations under the License.
   */
- 
+
  #include "arm_nnfunctions.h"
  #include "unity.h"
 
@@ -24,6 +24,7 @@
 
 void test_arm_quantize_s8_s8(void)
 {
+    const arm_cmsis_nn_status expected_status = ARM_CMSIS_NN_SUCCESS;
     // Prepare test data
     const int8_t input[] = {-128, -64, 0, 63, 64, 127};
     enum { INPUT_LEN = (int)(sizeof(input) / sizeof(input[0])) };
@@ -53,17 +54,20 @@ void test_arm_quantize_s8_s8(void)
         }
         expected[i] = (int8_t)rounded;
     }
-    
+
     // Call the function under test
-    arm_requantize_s8_s8(input,
-                         output,
-                         INPUT_LEN,
-                         effective_scale_multiplier,
-                         effective_scale_shift,
-                         input_zeropoint,
-                         output_zeropoint);
+    arm_cmsis_nn_status result = arm_requantize_s8_s8(
+        input,
+        output,
+        INPUT_LEN,
+        effective_scale_multiplier,
+        effective_scale_shift,
+        input_zeropoint,
+        output_zeropoint
+    );
 
     // Verify the results
+    TEST_ASSERT_EQUAL(expected_status, result);
     for (size_t i = 0; i < INPUT_LEN; i++)
     {
         // For identity transform, output[i] should match input[i]

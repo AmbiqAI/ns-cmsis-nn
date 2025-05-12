@@ -2939,13 +2939,13 @@ void arm_concatenation_s8_w(const int8_t *input,
  *      does not involve any arithmetic operation
  *
  */
-void arm_concatenation_s8(const int8_t *const *input_data,
-                          const int32_t inputs_count,
-                          const int32_t *input_concat_dims,
-                          const int32_t axis,
-                          int8_t *output_data,
-                          const int32_t output_dims,
-                          const int32_t *output_shape);
+arm_cmsis_nn_status arm_concatenation_s8(const int8_t *const *input_data,
+                                         const int32_t inputs_count,
+                                         const int32_t *input_concat_dims,
+                                         const int32_t axis,
+                                         int8_t *output_data,
+                                         const int32_t output_dims,
+                                         const int32_t *output_shape);
 
 /**
  * @brief int16/uint16 concatenation function to be used for concatenating N-tensors along the target axis
@@ -2962,13 +2962,13 @@ void arm_concatenation_s8(const int8_t *const *input_data,
  *      does not involve any arithmetic operation
  *
  */
-void arm_concatenation_s16(const int16_t *const *input_data,
-                           const int32_t inputs_count,
-                           const int32_t *input_concat_dims,
-                           const int32_t axis,
-                           int16_t *output_data,
-                           const int32_t output_dims,
-                           const int32_t *output_shape);
+arm_cmsis_nn_status arm_concatenation_s16(const int16_t *const *input_data,
+                                         const int32_t inputs_count,
+                                         const int32_t *input_concat_dims,
+                                         const int32_t axis,
+                                         int16_t *output_data,
+                                         const int32_t output_dims,
+                                         const int32_t *output_shape);
 
 /**
  * @defgroup SVDF SVDF Functions
@@ -3392,12 +3392,11 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
  * @param[in]   zero_point  Zero point (offset) to apply during quantization.
  * @param[in]   scale       Scale factor to apply during quantization.
  */
-void arm_quantize_f32_s8(
-  const float* input,
-  int8_t* output,
-  int32_t size,
-  int32_t zero_point,
-  float scale);
+arm_cmsis_nn_status arm_quantize_f32_s8(const float* input,
+                                        int8_t* output,
+                                        int32_t size,
+                                        int32_t zero_point,
+                                        float scale);
 
 /**
  * @brief Quantize a floating-point array into int16_t format.
@@ -3407,13 +3406,11 @@ void arm_quantize_f32_s8(
  * @param[in]   zero_point  Zero point (offset) to apply during quantization.
  * @param[in]   scale       Scale factor to apply during quantization.
  */
-void arm_quantize_f32_s16(
-  const float* input,
-  int16_t* output,
-  int32_t size,
-  int32_t zero_point,
-  float scale
-);
+arm_cmsis_nn_status arm_quantize_f32_s16(const float* input,
+                                         int16_t* output,
+                                         int32_t size,
+                                         int32_t zero_point,
+                                         float scale);
 
 /**
  * @brief Requantize an int8_t array to another int8_t range with a different scale.
@@ -3425,15 +3422,13 @@ void arm_quantize_f32_s16(
  * @param[in]   input_zeropoint         Zero point of the input data.
  * @param[in]   output_zeropoint        Zero point of the output data.
  */
-void arm_requantize_s8_s8(
-  const int8_t *input,
-  int8_t* output,
-  int32_t size,
-  int32_t effective_scale_multiplier,
-  int32_t effective_scale_shift,
-  int32_t input_zeropoint,
-  int32_t output_zeropoint
-);
+arm_cmsis_nn_status arm_requantize_s8_s8(const int8_t *input,
+                                         int8_t* output,
+                                         int32_t size,
+                                         int32_t effective_scale_multiplier,
+                                         int32_t effective_scale_shift,
+                                         int32_t input_zeropoint,
+                                         int32_t output_zeropoint);
 
 /**
  * @brief Requantize an int16_t array to another int16_t range with a different scale.
@@ -3445,47 +3440,41 @@ void arm_requantize_s8_s8(
  * @param[in]   input_zeropoint         Zero point of the input data.
  * @param[in]   output_zeropoint        Zero point of the output data.
  */
-void arm_requantize_s16_s16(
-  const int16_t *input,
-  int16_t* output,
-  int32_t size,
-  int32_t effective_scale_multiplier,
-  int32_t effective_scale_shift,
-  int32_t input_zeropoint,
-  int32_t output_zeropoint
-);
+arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
+                                           int16_t* output,
+                                           int32_t size,
+                                           int32_t effective_scale_multiplier,
+                                           int32_t effective_scale_shift,
+                                           int32_t input_zeropoint,
+                                           int32_t output_zeropoint);
 
 /**
  * @brief Dequantize an int8_t array back to floating-point format.
  * @param[in]   input       Pointer to the input int8_t array.
  * @param[out]  output      Pointer to the output float array.
  * @param[in]   size        Number of elements in the arrays.
- * @param[in]   scale       Scale factor that was used during quantization.
  * @param[in]   zero_point  Zero point (offset) that was used during quantization.
+ * @param[in]   scale       Scale factor that was used during quantization.
  */
-void arm_dequantize_s8_f32(
-  const int8_t *input,
-  float *output,
-  int32_t size,
-  float scale,
-  int32_t zero_point
-);
+arm_cmsis_nn_status arm_dequantize_s8_f32(const int8_t *input,
+                                          float *output,
+                                          int32_t size,
+                                          int32_t zero_point,
+                                          float scale);
 
 /**
  * @brief Dequantize an int16_t array back to floating-point format.
  * @param[in]   input       Pointer to the input int16_t array.
  * @param[out]  output      Pointer to the output float array.
  * @param[in]   size        Number of elements in the arrays.
- * @param[in]   scale       Scale factor that was used during quantization.
  * @param[in]   zero_point  Zero point (offset) that was used during quantization.
+ * @param[in]   scale       Scale factor that was used during quantization.
  */
-void arm_dequantize_s16_f32(
-  const int16_t *input,
-  float *output,
-  int32_t size,
-  float scale,
-  int32_t zero_point
-);
+arm_cmsis_nn_status arm_dequantize_s16_f32(const int16_t *input,
+                                           float *output,
+                                           int32_t size,
+                                           int32_t zero_point,
+                                           float scale);
 
 #if defined(ARM_FLOAT16_SUPPORTED)
 

@@ -15,7 +15,7 @@
   * See the License for the specific language governing permissions and
   * limitations under the License.
   */
- 
+
 #include "arm_nnfunctions.h"
 #include "unity.h"
 #include "../Utils/validate.h"
@@ -40,6 +40,7 @@ static int32_t reference_single_rounding(int32_t val,
  */
 static void test_arm_quantize_s16_s16(void)
 {
+    const arm_cmsis_nn_status expected_status = ARM_CMSIS_NN_SUCCESS;
     // Prepare representative test data
     // Cover negative extremes, positive extremes, and some mid-range values
     const int16_t input[] = {
@@ -88,17 +89,20 @@ static void test_arm_quantize_s16_s16(void)
         }
         expected[i] = (int16_t)val;
     }
-    
+
     // Call the function under test
-    arm_requantize_s16_s16(input,
-                           output,
-                           INPUT_LEN,
-                           effective_scale_multiplier,
-                           effective_scale_shift,
-                           input_zeropoint,
-                           output_zeropoint);
+    arm_cmsis_nn_status result = arm_requantize_s16_s16(
+        input,
+        output,
+        INPUT_LEN,
+        effective_scale_multiplier,
+        effective_scale_shift,
+        input_zeropoint,
+        output_zeropoint
+    );
 
     // Verify the results
+    TEST_ASSERT_EQUAL(expected_status, result);
     for (size_t i = 0; i < INPUT_LEN; i++)
     {
         TEST_ASSERT_EQUAL_INT16_MESSAGE(expected[i], output[i],
