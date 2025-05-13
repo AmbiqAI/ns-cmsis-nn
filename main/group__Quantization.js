@@ -1,9 +1,9 @@
 var group__Quantization =
 [
-    [ "arm_dequantize_s16_f32", "group__Quantization.html#ga7fb3e61f7c8918542dbe54927da223ee", null ],
-    [ "arm_dequantize_s8_f32", "group__Quantization.html#ga6c0fda4ba2982189f95ebdcb514baf46", null ],
-    [ "arm_quantize_f32_s16", "group__Quantization.html#gaabf5e2151c6fa2bb1596c28c88262ad3", null ],
-    [ "arm_quantize_f32_s8", "group__Quantization.html#gaa731aaeb8fc9ef78dca6975697c908b8", null ],
-    [ "arm_requantize_s16_s16", "group__Quantization.html#gaa3ff323f98b4ac5587f0f045436fc292", null ],
-    [ "arm_requantize_s8_s8", "group__Quantization.html#ga3c1d5934e92b7a8663bbc54dfd8c4260", null ]
+    [ "arm_dequantize_s16_f32", "group__Quantization.html#ga24bc67baba890718563121f8d316aa95", null ],
+    [ "arm_dequantize_s8_f32", "group__Quantization.html#ga7cc017e5ecc21ddc3afd7da13dd96a21", null ],
+    [ "arm_quantize_f32_s16", "group__Quantization.html#gaabb1aa70b5ae9f95a998e1edd806dd39", null ],
+    [ "arm_quantize_f32_s8", "group__Quantization.html#gaef982c38dca56bd2e5b9d7c473e5c845", null ],
+    [ "arm_requantize_s16_s16", "group__Quantization.html#ga71a438389684491e83b96d40fef4d24d", null ],
+    [ "arm_requantize_s8_s8", "group__Quantization.html#ga069caa0e1010d8ad69901cd8ccda3ee2", null ]
 ];

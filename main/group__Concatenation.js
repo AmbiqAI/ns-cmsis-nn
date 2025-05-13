@@ -1,7 +1,7 @@
 var group__Concatenation =
 [
-    [ "arm_concatenation_s16", "group__Concatenation.html#ga22b4ba8d574482e06b68e538ec2084a7", null ],
-    [ "arm_concatenation_s8", "group__Concatenation.html#gafded00022e18ef802464935a9794089b", null ],
+    [ "arm_concatenation_s16", "group__Concatenation.html#ga589df330779b741b064dcfd9971369d2", null ],
+    [ "arm_concatenation_s8", "group__Concatenation.html#gacbbe3013213d799967e611f3472cbafe", null ],
     [ "arm_concatenation_s8_w", "group__Concatenation.html#gaf2ec7d439726caa96e0b3dc989b34d64", null ],
     [ "arm_concatenation_s8_x", "group__Concatenation.html#gac06ac3c87cad1cfb14aa24b19124fcfd", null ],
     [ "arm_concatenation_s8_y", "group__Concatenation.html#gaf0b76b039f66f34ec99503193a015ff6", null ],
