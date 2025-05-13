@@ -15,16 +15,16 @@
   * See the License for the specific language governing permissions and
   * limitations under the License.
   */
- 
+
  #include "arm_nnfunctions.h"
  #include "unity.h"
- 
+
  #include "../TestData/dequantize_s16_f32/test_data.h"
  #include "../Utils/validate.h"
- 
+
 void test_arm_dequantize_s16_f32(void)
 {
-    // from config_data.h
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
     float   scale      = DEQUANTIZE_S16_F32_QUANT_INPUT_SCALE_FLOAT32_T;      // e.g. 2.725261e-05
     int32_t zero_point = DEQUANTIZE_S16_F32_QUANT_INPUT_ZERO_POINT_FLOAT32_T; // e.g. 0
 
@@ -35,18 +35,17 @@ void test_arm_dequantize_s16_f32(void)
     float output_f32[DEQUANTIZE_S16_F32_OUTPUT_LEN];
 
     // Call your custom function
-    arm_dequantize_s16_f32(
-        dequantize_s16_f32_input_tensor_1, // the int16[] input
-        output_f32,                        // float[] output
+    arm_cmsis_nn_status result = arm_dequantize_s16_f32(
+        dequantize_s16_f32_input_tensor_1,
+        output_f32,
         size,
-        scale,
-        zero_point
+        zero_point,
+        scale
     );
 
-    // Compare with TFLite reference
-    // We'll allow some small tolerance for floating comparisons:
-    const float tolerance = 1e-5f;
+    TEST_ASSERT_EQUAL(expected, result);
 
+    const float tolerance = 1e-5f;
     for(int i = 0; i < size; i++)
     {
         TEST_ASSERT_FLOAT_WITHIN(tolerance,

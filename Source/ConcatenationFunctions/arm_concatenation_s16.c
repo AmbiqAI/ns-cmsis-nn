@@ -40,13 +40,13 @@
  * @{
  */
 
-void arm_concatenation_s16(const int16_t *const *input_data,
-                           const int32_t inputs_count,
-                           const int32_t *input_concat_dims,
-                           const int32_t axis,
-                           int16_t *output_data,
-                           const int32_t output_dims,
-                           const int32_t *output_shape
+arm_cmsis_nn_status arm_concatenation_s16(const int16_t *const *input_data,
+                                         const int32_t inputs_count,
+                                         const int32_t *input_concat_dims,
+                                         const int32_t axis,
+                                         int16_t *output_data,
+                                         const int32_t output_dims,
+                                         const int32_t *output_shape
 )
 {
 
@@ -76,6 +76,8 @@ void arm_concatenation_s16(const int16_t *const *input_data,
             output_data += copy_size;
         }
     }
+
+    return ARM_CMSIS_NN_SUCCESS;
 }
 
 /**

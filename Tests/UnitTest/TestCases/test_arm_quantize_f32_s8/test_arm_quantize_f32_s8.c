@@ -15,21 +15,22 @@
   * See the License for the specific language governing permissions and
   * limitations under the License.
   */
- 
+
  #include "arm_nnfunctions.h"
  #include "unity.h"
- 
+
  #include "../TestData/quantize_f32_s8/test_data.h"
  #include "../Utils/validate.h"
- 
+
 void test_arm_quantize_f32_s8(void)
 {
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
     const float   scale      = QUANTIZE_F32_S8_QUANT_OUTPUT_SCALE_INT8_T;
     const int32_t zero_point = QUANTIZE_F32_S8_QUANT_OUTPUT_ZERO_POINT_INT8_T;
 
     int8_t output[QUANTIZE_F32_S8_OUTPUT_LEN];
 
-    arm_quantize_f32_s8(
+    arm_cmsis_nn_status result = arm_quantize_f32_s8(
         quantize_f32_s8_input_tensor_1,  // float[8]
         output,                          // int8_t[8]
         QUANTIZE_F32_S8_OUTPUT_LEN,                               // number of elements
@@ -37,5 +38,6 @@ void test_arm_quantize_f32_s8(void)
         scale                            // from config_data.h
     );
 
+    TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_EQUAL_INT8_ARRAY(quantize_f32_s8_output, output, QUANTIZE_F32_S8_OUTPUT_LEN);
 }
