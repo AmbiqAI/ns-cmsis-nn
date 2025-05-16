@@ -28,6 +28,7 @@ import Lib.op_quantize
 import Lib.op_dequantize
 import Lib.op_relu
 import Lib.op_relu6
+import Lib.op_strided_slice
 import tensorflow as tf
 import numpy as np
 from tensorflow.lite.python.interpreter import Interpreter
@@ -254,6 +255,8 @@ def get_op_type(op_type_string):
         return Lib.op_relu.Op_relu
     elif op_type_string == "relu6":
         return Lib.op_relu6.Op_relu6
+    elif op_type_string == "strided_slice":
+        return Lib.op_strided_slice.Op_strided_slice
     else:
         raise ValueError(f"Unknown op type '{op_type_string}'")
 
