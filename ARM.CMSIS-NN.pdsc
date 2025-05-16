@@ -182,6 +182,7 @@
         <file category="source" name="Source/QuantizationFunctions/arm_quantize_s16_s16.c"/>
 
         <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s8.c"/>
+        <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s16.c"/>
 
       </files>
     </component>
