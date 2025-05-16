@@ -10,6 +10,7 @@ local_src += $(wildcard $(subdirectory)/Source/PoolingFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/QuantizationFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/ReshapeFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/SoftmaxFunctions/*.c)
+local_src += $(wildcard $(subdirectory)/Source/StridedSliceFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/SVDFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/TransposeFunctions/*.c)
 
