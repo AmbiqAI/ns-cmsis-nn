@@ -15,10 +15,12 @@
 # limitations under the License.
 #
 import os
+import Lib.op_add
 import Lib.op_lstm
 import Lib.op_conv
 import Lib.op_batch_matmul
 import Lib.op_fully_connected
+import Lib.op_mul
 import Lib.op_pooling
 import Lib.op_pad
 import Lib.op_maximum_minimum
@@ -229,6 +231,8 @@ def generate(params, args, fpaths):
 
 
 def get_op_type(op_type_string):
+    if op_type_string == "add":
+        return Lib.op_add.Op_add
     if op_type_string == "lstm":
         return Lib.op_lstm.Op_lstm
     elif op_type_string == "conv":
@@ -241,6 +245,8 @@ def get_op_type(op_type_string):
         return Lib.op_fully_connected.Op_fully_connected
     elif op_type_string == "avgpool" or op_type_string == "maxpool":
         return Lib.op_pooling.Op_pooling
+    elif op_type_string == "mul":
+        return Lib.op_mul.Op_mul
     if op_type_string == "pad":
         return Lib.op_pad.Op_pad
     elif op_type_string == "maximum_minimum":

@@ -41,7 +41,7 @@
  */
 
 /*
- * s8 element wise multiplication of two vectors
+ * s8 element wise multiplication of two vectors w/ same dimensions
  *
  * Refer header file for details.
  *
@@ -72,7 +72,7 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
     //NOTE: key optimization comes from processing 8 elements at a time
     //and performing a 16 bit add of the input offsets
     //this conforms to the tensorflowlite 8-bit quantization specification
-    //but it will not conform to general runtimes which allow greater than 8-bit int offsets 
+    //but it will not conform to general runtimes which allow greater than 8-bit int offsets
     for (size_t i = 0; i < nonpredicate_loops; i++)
     {
         int16x8_t in16_1_a = vldrbq_s16(input_1_vect);
@@ -90,8 +90,8 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
 
         //narrow from 32 bit to 16 bit
         int16x8_t half0 = vdupq_n_s16(0);
-        half0 = vqmovnbq_s32(half0, res_a); 
-        half0 = vqmovntq_s32(half0, res_b); 
+        half0 = vqmovnbq_s32(half0, res_a);
+        half0 = vqmovntq_s32(half0, res_b);
         half0 = vaddq_n_s16(half0, (int16_t)out_offset);
 
         half0 = vmaxq_s16(half0, vdupq_n_s16(out_activation_min));
@@ -104,25 +104,25 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
         input_2_vect += 8;
         output += 8;
     }
-    
+
     //handle leftover elements
     while (predicate_elements > 0) {
 
         mve_pred16_t p = vctp32q(predicate_elements);
         int32x4_t input_1 = vldrbq_z_s32(input_1_vect, p);
         int32x4_t input_2 = vldrbq_z_s32(input_2_vect, p);
-        
+
         input_1 = vaddq_n_s32(input_1, input_1_offset);
         input_2 = vaddq_n_s32(input_2, input_2_offset);
-        
+
         int32x4_t res_0 = vmulq_s32(input_1, input_2);
         res_0 = arm_requantize_mve_32x4(res_0, out_mult_vec, out_shift_vec);
         res_0 = vaddq_n_s32(res_0, out_offset);
         res_0 = vmaxq_s32(res_0, vdupq_n_s32(out_activation_min));
         res_0 = vminq_s32(res_0, vdupq_n_s32(out_activation_max));
-        
+
         vstrbq_p_s32(output, res_0, p);
-        
+
         input_1_vect += 4;
         input_2_vect += 4;
         output += 4;

@@ -125,6 +125,10 @@ add_subdirectory(TestCases/test_arm_quantize_s16_s16)
 add_subdirectory(TestCases/test_arm_dequantize_s8_f32)
 add_subdirectory(TestCases/test_arm_dequantize_s16_f32)
 add_subdirectory(TestCases/test_arm_strided_slice_s8)
+add_subdirectory(TestCases/test_arm_add_s8)
+add_subdirectory(TestCases/test_arm_mul_s8)
+
+
 
 set(MAKE_CMD "python3")
 set(MAKE_CMD_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/unittest_targets.py")

@@ -2078,6 +2078,85 @@ int32_t arm_fully_connected_s16_get_buffer_size_mve(const cmsis_nn_dims *filter_
  */
 
 /**
+ * @brief s8 elementwise add of two tensors
+ * @param[in]       input1_data        pointer to input tensor 1
+ * @param[in]       input1_dims        pointer to input tensor 1 dimensions
+ * @param[in]       input2_data        pointer to input tensor 2
+ * @param[in]       input2_dims        pointer to input tensor 2 dimensions
+ * @param[in]       input1_offset      offset for input 1. Range: -127 to 128
+ * @param[in]       input1_mult        multiplier for input 1
+ * @param[in]       input1_shift       shift for input 1
+ * @param[in]       input2_offset      offset for input 2. Range: -127 to 128
+ * @param[in]       input2_mult        multiplier for input 2
+ * @param[in]       input2_shift       shift for input 2
+ * @param[in]       left_shift         left shift applied to the result
+ * @param[out]      output_data        pointer to output tensor
+ * @param[in]       output_dims        pointer to output tensor dimensions
+ * @param[in]       out_offset         output offset. Range: -128 to 127
+ * @param[in]       out_mult           output multiplier
+ * @param[in]       out_shift          output shift
+ * @param[in]       out_activation_min minimum value to clamp output to. Min: -128
+ * @param[in]       out_activation_max maximum value to clamp output to. Max: 127
+ *
+ * @return     The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_add_s8(const int8_t *input1_data,
+                               const cmsis_nn_dims *input1_dims,
+                               const int8_t *input2_data,
+                               const cmsis_nn_dims *input2_dims,
+                               const int32_t input1_offset,
+                               const int32_t input1_mult,
+                               const int32_t input1_shift,
+                               const int32_t input2_offset,
+                               const int32_t input2_mult,
+                               const int32_t input2_shift,
+                               const int32_t left_shift,
+                               int8_t *output_data,
+                               const cmsis_nn_dims *output_dims,
+                               const int32_t out_offset,
+                               const int32_t out_mult,
+                               const int32_t out_shift,
+                               const int32_t out_activation_min,
+                               const int32_t out_activation_max);
+
+/**
+ * @brief s8 elementwise add of scalar and vector
+ * @param[in]       input_1_vect        pointer to input scalar
+ * @param[in]       input_2_vect        pointer to input vector
+ * @param[in]       input_1_offset      offset for input 1. Range: -127 to 128
+ * @param[in]       input_1_mult        multiplier for input 1
+ * @param[in]       input_1_shift       shift for input 1
+ * @param[in]       input_2_offset      offset for input 2. Range: -127 to 128
+ * @param[in]       input_2_mult        multiplier for input 2
+ * @param[in]       input_2_shift       shift for input 2
+ * @param[in]       left_shift          left shift applied to the result
+ * @param[out]      output              pointer to output vector
+ * @param[in]       out_offset          output offset. Range: -128 to 127
+ * @param[in]       out_mult            output multiplier
+ * @param[in]       out_shift           output shift
+ * @param[in]       out_activation_min  minimum value to clamp output to. Min: -128
+ * @param[in]       out_activation_max  maximum value to clamp output to. Max: 127
+ * @param[in]       block_size          number of samples
+ *
+ * @return     The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_add_scalar_s8(const int8_t *input_1_vect,
+                                      const int8_t *input_2_vect,
+                                      const int32_t input_1_offset,
+                                      const int32_t input_1_mult,
+                                      const int32_t input_1_shift,
+                                      const int32_t input_2_offset,
+                                      const int32_t input_2_mult,
+                                      const int32_t input_2_shift,
+                                      const int32_t left_shift,
+                                      int8_t *output,
+                                      const int32_t out_offset,
+                                      const int32_t out_mult,
+                                      const int32_t out_shift,
+                                      const int32_t out_activation_min,
+                                      const int32_t out_activation_max,
+                                      const int32_t block_size);
+/**
  * @brief s8 elementwise add of two vectors
  * @param[in]       input_1_vect        pointer to input vector 1
  * @param[in]       input_2_vect        pointer to input vector 2
@@ -2150,6 +2229,66 @@ arm_cmsis_nn_status arm_elementwise_add_s16(const int16_t *input_1_vect,
                                             const int32_t out_activation_min,
                                             const int32_t out_activation_max,
                                             const int32_t block_size);
+
+/**
+ * @brief s8 elementwise multiplication of two tensors
+ * @param[in]       input1_data        pointer to input tensor 1
+ * @param[in]       input1_dims        pointer to input tensor 1 dimensions
+ * @param[in]       input2_data        pointer to input tensor 2
+ * @param[in]       input2_dims        pointer to input tensor 2 dimensions
+ * @param[in]       input1_offset      offset for input 1. Range: -127 to 128
+ * @param[in]       input2_offset      offset for input 2. Range: -127 to 128
+ * @param[out]      output_data        pointer to output tensor
+ * @param[in]       output_dims        pointer to output tensor dimensions
+ * @param[in]       out_offset         output offset. Range: -128 to 127
+ * @param[in]       out_mult           output multiplier
+ * @param[in]       out_shift          output shift
+ * @param[in]       out_activation_min minimum value to clamp output to. Min: -128
+ * @param[in]       out_activation_max maximum value to clamp output to. Max: 127
+ *
+ * @return     The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_mul_s8(const int8_t *input1_data,
+                               const cmsis_nn_dims *input1_dims,
+                               const int8_t *input2_data,
+                               const cmsis_nn_dims *input2_dims,
+                               const int32_t input1_offset,
+                               const int32_t input2_offset,
+                               int8_t *output_data,
+                               const cmsis_nn_dims *output_dims,
+                               const int32_t out_offset,
+                               const int32_t out_mult,
+                               const int32_t out_shift,
+                               const int32_t out_activation_min,
+                               const int32_t out_activation_max);
+
+/**
+ * @brief s8 elementwise multiplication of scalar and vector
+ * @param[in]       input_1_vect        pointer to input scalar
+ * @param[in]       input_2_vect        pointer to input vector
+ * @param[in]       input_1_offset      offset for input 1. Range: -127 to 128
+ * @param[in]       input_2_offset      offset for input 2. Range: -127 to 128
+ * @param[out]      output              pointer to output vector
+ * @param[in]       out_offset          output offset. Range: -128 to 127
+ * @param[in]       out_mult            output multiplier
+ * @param[in]       out_shift           output shift
+ * @param[in]       out_activation_min  minimum value to clamp output to. Min: -128
+ * @param[in]       out_activation_max  maximum value to clamp output to. Max: 127
+ * @param[in]       block_size          number of samples
+ *
+ * @return     The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_mul_scalar_s8(const int8_t *input_1_vect,
+                                      const int8_t *input_2_vect,
+                                      const int32_t input_1_offset,
+                                      const int32_t input_2_offset,
+                                      int8_t *output,
+                                      const int32_t out_offset,
+                                      const int32_t out_mult,
+                                      const int32_t out_shift,
+                                      const int32_t out_activation_min,
+                                      const int32_t out_activation_max,
+                                      const int32_t block_size);
 
 /**
  * @brief s8 elementwise multiplication

@@ -16,7 +16,6 @@
 #
 import Lib.op_utils
 import tensorflow as tf
-import math
 import numpy as np
 
 from tensorflow.lite.python.interpreter import Interpreter
@@ -51,7 +50,6 @@ class Op_strided_slice(Lib.op_utils.Op_type):
     def generate_keras_model(shapes, params):
         inp_shape = shapes["input_tensor"]
         x = keras.Input(shape=inp_shape[1:], batch_size=inp_shape[0], name="input")
-        # apply a tf.strided_slice inside a Lambda
         y = tf.keras.layers.Lambda(
             lambda t: tf.strided_slice(
                 t,
@@ -71,14 +69,12 @@ class Op_strided_slice(Lib.op_utils.Op_type):
 
     @staticmethod
     def generate_data_tflite(tflite_fname, params):
-        # random input in the given shape
         input_shape = (
             params["batch_size"],
             params["input_h"],
             params["input_w"],
             params["input_c"],
         )
-        # I need to create random integer data for the input tensor
         inp_data = np.random.randint(
             low=0,
             high=127,
