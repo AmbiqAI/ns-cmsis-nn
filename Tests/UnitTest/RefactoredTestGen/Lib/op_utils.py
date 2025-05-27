@@ -185,3 +185,30 @@ def generate_quantize_per_channel_multiplier(params, scales):
         per_channel_shift.append(shift)
 
     return per_channel_multiplier, per_channel_shift
+
+
+def compute_multiplier_shift(scale):
+    """
+    Convert a float 'scale' into a Q31 'multiplier' and an integer 'shift'
+    so that:
+        int_val = (val * multiplier) * 2^shift / 2^31
+
+    Used to test requantize ops
+    """
+    if scale == 0.0:
+        return 0, 0
+
+    significand, exponent = math.frexp(scale)
+
+    # q31 = round(significand * (1 << 31))
+    q31 = int(math.floor(significand * (1 << 31) + 0.5))
+
+    # If rounding pushed q31 to 2^31, reduce it by factor of 2 and increase exponent
+    if q31 == (1 << 31):
+        q31 //= 2
+        exponent += 1
+
+    shift = exponent
+    multiplier = q31
+
+    return multiplier, shift

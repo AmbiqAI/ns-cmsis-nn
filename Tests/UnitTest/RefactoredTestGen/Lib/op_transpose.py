@@ -18,10 +18,7 @@ import Lib.op_utils
 import copy
 import tensorflow as tf
 import math
-import numpy as np
 
-from tensorflow.lite.python.interpreter import Interpreter
-from tensorflow.lite.python.interpreter import OpResolverType
 import tf_keras as keras
 
 

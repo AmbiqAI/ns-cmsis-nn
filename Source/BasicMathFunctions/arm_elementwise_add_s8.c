@@ -41,7 +41,7 @@
  */
 
 /*
- * s8 elementwise add
+ * s8 elementwise add for two vectors w/ same dimensions
  *
  * Refer header file for details.
  *

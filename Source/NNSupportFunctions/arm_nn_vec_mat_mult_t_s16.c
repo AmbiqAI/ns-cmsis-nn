@@ -28,7 +28,7 @@
  *
  * -------------------------------------------------------------------- */
 
-#include <stdio.h>
+// #include <stdio.h>
 #include "arm_nnsupportfunctions.h"
 
 /**

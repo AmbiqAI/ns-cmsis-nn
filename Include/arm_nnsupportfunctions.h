@@ -1361,6 +1361,22 @@ __STATIC_FORCEINLINE void read_pad_and_add_s8x2(const int8_t *source, int32_t *o
 /**
  * @brief read and expand one s8 word into two s16 words with no additional ordering.
  */
+__STATIC_FORCEINLINE void read_and_pad_reordered_scalar(const int8_t source, int32_t *out1, int32_t *out2)
+{
+    int32_t inA;
+    arm_memset_s8((int8_t *)&inA, source, sizeof(int32_t));
+    #ifndef ARM_MATH_BIG_ENDIAN
+    *out2 = SXTB16(ROR((uint32_t)inA, 8));
+    *out1 = SXTB16(inA);
+    #else
+    *out1 = SXTB16(ROR((uint32_t)inA, 8));
+    *out2 = SXTB16(inA);
+    #endif
+}
+
+/**
+ * @brief read and expand one s8 word into two s16 words with no additional ordering.
+ */
 __STATIC_FORCEINLINE const int8_t *read_and_pad_reordered(const int8_t *source, int32_t *out1, int32_t *out2)
 {
     int32_t inA = arm_nn_read_s8x4_ia(&source);

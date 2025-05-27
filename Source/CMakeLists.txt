@@ -35,6 +35,7 @@ option(LSTM                 "LSTM"                  ON)
 option(PAD                  "Pad"                   ON)
 option(TRANSPOSE            "Transpose"             ON)
 option(QUANTIZATION         "Quantization"          ON)
+option(STRIDEDSLICE         "Strided Slice"         ON)
 
 
 # Always needed if any other module above is on.
@@ -96,6 +97,10 @@ endif()
 
 if (QUANTIZATION)
   add_subdirectory(QuantizationFunctions)
+endif()
+
+if (STRIDEDSLICE)
+  add_subdirectory(StridedSliceFunctions)
 endif()
 
 # Keep NNSUPPORT at the end

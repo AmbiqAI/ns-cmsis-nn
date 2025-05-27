@@ -95,6 +95,11 @@
         <file category="source" name="Source/PoolingFunctions/arm_avgpool_get_buffer_sizes_s16.c"/>
         <file category="source" name="Source/PoolingFunctions/arm_avgpool_get_buffer_sizes_s8.c"/>
         <file category="source" name="Source/PoolingFunctions/arm_avgpool_s16.c"/>
+
+        <file category="source" name="Source/BasicMathFunctions/arm_add_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_mul_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_add_scalar_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_mul_scalar_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s16_batch_offset.c"/>
@@ -180,6 +185,10 @@
         <file category="source" name="Source/QuantizationFunctions/arm_quantize_f32_s16.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_quantize_s8_s8.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_quantize_s16_s16.c"/>
+
+        <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s8.c"/>
+        <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s16.c"/>
+
       </files>
     </component>
   </components>

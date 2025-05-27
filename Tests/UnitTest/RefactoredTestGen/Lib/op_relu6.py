@@ -16,38 +16,12 @@
 #
 import Lib.op_utils
 import tensorflow as tf
-import math
 import numpy as np
 
 from tensorflow.lite.python.interpreter import Interpreter
 from tensorflow.lite.python.interpreter import OpResolverType
 import tf_keras as keras
 
-def compute_multiplier_shift(scale):
-    """
-    Convert a float 'scale' into a Q31 'multiplier' and an integer 'shift'
-    so that:
-        int_val = (val * multiplier) * 2^shift / 2^31
-
-    Used to test requantize ops
-    """
-    if scale == 0.0:
-        return 0, 0
-
-    significand, exponent = math.frexp(scale)
-
-    q31 = round(significand * (1 << 31))
-
-    # If rounding pushed q31 to 2^31, reduce it by factor of 2 and increase exponent
-    if q31 == (1 << 31):
-        q31 >>= 1
-        exponent += 1
-
-    # The net 'shift' is exponent - 31
-    shift = exponent - 31
-    multiplier = q31
-
-    return multiplier, shift
 
 class Op_relu6(Lib.op_utils.Op_type):
 
@@ -117,7 +91,6 @@ class Op_relu6(Lib.op_utils.Op_type):
 
         tensors["input_tensor"] = random_data
 
-        from tensorflow.lite.python.interpreter import Interpreter, OpResolverType
         interpreter = Interpreter(
             model_path=str(tflite_fname),
             experimental_op_resolver_type=OpResolverType.BUILTIN_REF
@@ -142,7 +115,7 @@ class Op_relu6(Lib.op_utils.Op_type):
             if output_scale != 0.0:  # just to avoid division by zero
                 ratio = input_scale / output_scale
 
-            multiplier, shift = compute_multiplier_shift(ratio)
+            multiplier, shift = Lib.op_utils.compute_multiplier_shift(ratio)
             generated_params["output_multiplier"] = multiplier
             generated_params["output_shift"] = shift
 
