@@ -27,7 +27,6 @@
  * Target :  Arm(R) M-Profile Architecture
  *
  * -------------------------------------------------------------------- */
-
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 /**
