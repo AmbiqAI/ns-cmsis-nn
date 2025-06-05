@@ -7,6 +7,7 @@ var group__GetBufferSizeNNConv =
     [ "arm_convolve_s16_get_buffer_size", "group__GetBufferSizeNNConv.html#gaf8ee642967e4b1b05465621979de1baa", null ],
     [ "arm_convolve_s4_get_buffer_size", "group__GetBufferSizeNNConv.html#ga24715d51ff3f0fc127e39b95f8387e66", null ],
     [ "arm_convolve_s8_get_buffer_size", "group__GetBufferSizeNNConv.html#gac057b0749e2a6828ae21f762f3fa0c85", null ],
+    [ "arm_convolve_s8_get_weights_sum_size", "group__GetBufferSizeNNConv.html#ga53a86b7c9f53b8f091b3b81baaef426c", null ],
     [ "arm_convolve_wrapper_s16_get_buffer_size", "group__GetBufferSizeNNConv.html#ga818dfca6a26af7cc8abb91d43fb16930", null ],
     [ "arm_convolve_wrapper_s16_get_buffer_size_dsp", "group__GetBufferSizeNNConv.html#ga02801066bbac2f02861552963d768fa4", null ],
     [ "arm_convolve_wrapper_s16_get_buffer_size_mve", "group__GetBufferSizeNNConv.html#ga7b50bcf770926ce15d70aad0d027d309", null ],

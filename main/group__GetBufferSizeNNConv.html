@@ -169,6 +169,9 @@ Functions</h2></td></tr>
 <tr class="memitem:gac057b0749e2a6828ae21f762f3fa0c85"><td class="memItemLeft" align="right" valign="top">int32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__GetBufferSizeNNConv.html#gac057b0749e2a6828ae21f762f3fa0c85">arm_convolve_s8_get_buffer_size</a> (const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *input_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *filter_dims)</td></tr>
 <tr class="memdesc:gac057b0749e2a6828ae21f762f3fa0c85"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the required buffer size for s8 convolution function.  <br /></td></tr>
 <tr class="separator:gac057b0749e2a6828ae21f762f3fa0c85"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga53a86b7c9f53b8f091b3b81baaef426c"><td class="memItemLeft" align="right" valign="top">int32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__GetBufferSizeNNConv.html#ga53a86b7c9f53b8f091b3b81baaef426c">arm_convolve_s8_get_weights_sum_size</a> (const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *output_dims)</td></tr>
+<tr class="memdesc:ga53a86b7c9f53b8f091b3b81baaef426c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the required buffer size for s8 convolution and depthwise convolution weight sum.  <br /></td></tr>
+<tr class="separator:ga53a86b7c9f53b8f091b3b81baaef426c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga062640b4df1d7c0bcc8571a97b5f2734"><td class="memItemLeft" align="right" valign="top">int32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__GetBufferSizeNNConv.html#ga062640b4df1d7c0bcc8571a97b5f2734">arm_convolve_1_x_n_s8_get_buffer_size</a> (const <a class="el" href="group__genPubTypes.html#structcmsis__nn__conv__params">cmsis_nn_conv_params</a> *conv_params, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *input_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *filter_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *output_dims)</td></tr>
 <tr class="memdesc:ga062640b4df1d7c0bcc8571a97b5f2734"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the required additional buffer size for 1xn convolution.  <br /></td></tr>
 <tr class="separator:ga062640b4df1d7c0bcc8571a97b5f2734"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -218,13 +221,13 @@ Functions</h2></td></tr>
 <tr class="memdesc:ga0ee6e4c1a521657c35477ae0daf1c842"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the required buffer size for optimized s8 depthwise convolution function with constraint that in_channel equals out_channel.  <br /></td></tr>
 <tr class="separator:ga0ee6e4c1a521657c35477ae0daf1c842"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga100b66e41b8fdf1eeb0c108bca6b6deb"><td class="memItemLeft" align="right" valign="top">int32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__GetBufferSizeNNConv.html#ga100b66e41b8fdf1eeb0c108bca6b6deb">arm_depthwise_conv_wrapper_s8_get_buffer_size</a> (const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dw__conv__params">cmsis_nn_dw_conv_params</a> *dw_conv_params, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *input_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *filter_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *output_dims)</td></tr>
-<tr class="memdesc:ga100b66e41b8fdf1eeb0c108bca6b6deb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get size of additional buffer required by <a class="el" href="group__NNConv.html#gac85edb96c9e214c558a4bdb69883712d" title="Wrapper function to pick the right optimized s8 depthwise convolution function.">arm_depthwise_conv_wrapper_s8()</a>  <br /></td></tr>
+<tr class="memdesc:ga100b66e41b8fdf1eeb0c108bca6b6deb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get size of additional buffer required by <a class="el" href="group__NNConv.html#ga85a7e7a21a7f509c07773c3397bfff81" title="Wrapper function to pick the right optimized s8 depthwise convolution function.">arm_depthwise_conv_wrapper_s8()</a>  <br /></td></tr>
 <tr class="separator:ga100b66e41b8fdf1eeb0c108bca6b6deb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga9c60a9f3762d3ce1ab36f118ad74529b"><td class="memItemLeft" align="right" valign="top">int32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__GetBufferSizeNNConv.html#ga9c60a9f3762d3ce1ab36f118ad74529b">arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp</a> (const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dw__conv__params">cmsis_nn_dw_conv_params</a> *dw_conv_params, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *input_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *filter_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *output_dims)</td></tr>
-<tr class="memdesc:ga9c60a9f3762d3ce1ab36f118ad74529b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get size of additional buffer required by <a class="el" href="group__NNConv.html#gac85edb96c9e214c558a4bdb69883712d" title="Wrapper function to pick the right optimized s8 depthwise convolution function.">arm_depthwise_conv_wrapper_s8()</a> for processors with DSP extension. Refer to <a class="el" href="group__GetBufferSizeNNConv.html#ga100b66e41b8fdf1eeb0c108bca6b6deb" title="Get size of additional buffer required by arm_depthwise_conv_wrapper_s8()">arm_depthwise_conv_wrapper_s8_get_buffer_size()</a> for function argument details.  <br /></td></tr>
+<tr class="memdesc:ga9c60a9f3762d3ce1ab36f118ad74529b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get size of additional buffer required by <a class="el" href="group__NNConv.html#ga85a7e7a21a7f509c07773c3397bfff81" title="Wrapper function to pick the right optimized s8 depthwise convolution function.">arm_depthwise_conv_wrapper_s8()</a> for processors with DSP extension. Refer to <a class="el" href="group__GetBufferSizeNNConv.html#ga100b66e41b8fdf1eeb0c108bca6b6deb" title="Get size of additional buffer required by arm_depthwise_conv_wrapper_s8()">arm_depthwise_conv_wrapper_s8_get_buffer_size()</a> for function argument details.  <br /></td></tr>
 <tr class="separator:ga9c60a9f3762d3ce1ab36f118ad74529b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gadb59b0426b44c62f5b081bd91521e274"><td class="memItemLeft" align="right" valign="top">int32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__GetBufferSizeNNConv.html#gadb59b0426b44c62f5b081bd91521e274">arm_depthwise_conv_wrapper_s8_get_buffer_size_mve</a> (const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dw__conv__params">cmsis_nn_dw_conv_params</a> *dw_conv_params, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *input_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *filter_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *output_dims)</td></tr>
-<tr class="memdesc:gadb59b0426b44c62f5b081bd91521e274"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get size of additional buffer required by <a class="el" href="group__NNConv.html#gac85edb96c9e214c558a4bdb69883712d" title="Wrapper function to pick the right optimized s8 depthwise convolution function.">arm_depthwise_conv_wrapper_s8()</a> for Arm(R) Helium Architecture case. Refer to <a class="el" href="group__GetBufferSizeNNConv.html#ga100b66e41b8fdf1eeb0c108bca6b6deb" title="Get size of additional buffer required by arm_depthwise_conv_wrapper_s8()">arm_depthwise_conv_wrapper_s8_get_buffer_size()</a> for function argument details.  <br /></td></tr>
+<tr class="memdesc:gadb59b0426b44c62f5b081bd91521e274"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get size of additional buffer required by <a class="el" href="group__NNConv.html#ga85a7e7a21a7f509c07773c3397bfff81" title="Wrapper function to pick the right optimized s8 depthwise convolution function.">arm_depthwise_conv_wrapper_s8()</a> for Arm(R) Helium Architecture case. Refer to <a class="el" href="group__GetBufferSizeNNConv.html#ga100b66e41b8fdf1eeb0c108bca6b6deb" title="Get size of additional buffer required by arm_depthwise_conv_wrapper_s8()">arm_depthwise_conv_wrapper_s8_get_buffer_size()</a> for function argument details.  <br /></td></tr>
 <tr class="separator:gadb59b0426b44c62f5b081bd91521e274"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga531ba80b45164c94ac3a2f1217709636"><td class="memItemLeft" align="right" valign="top">int32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__GetBufferSizeNNConv.html#ga531ba80b45164c94ac3a2f1217709636">arm_transpose_conv_s8_get_buffer_size</a> (const <a class="el" href="group__genPubTypes.html#structcmsis__nn__transpose__conv__params">cmsis_nn_transpose_conv_params</a> *transpose_conv_params, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *input_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *filter_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *out_dims)</td></tr>
 <tr class="memdesc:ga531ba80b45164c94ac3a2f1217709636"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the required buffer size for ctx in s8 transpose conv function.  <br /></td></tr>
@@ -504,6 +507,33 @@ Functions</h2></td></tr>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>The function returns required buffer size(bytes) </dd></dl>
+
+</div>
+</div>
+<a id="ga53a86b7c9f53b8f091b3b81baaef426c" name="ga53a86b7c9f53b8f091b3b81baaef426c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga53a86b7c9f53b8f091b3b81baaef426c">&#9670;&#160;</a></span>arm_convolve_s8_get_weights_sum_size()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int32_t arm_convolve_s8_get_weights_sum_size </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
+          <td class="paramname"><em>output_dims</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the required buffer size for s8 convolution and depthwise convolution weight sum. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_dims</td><td>Output (activation) tensor dimensions. Format: [N, H, W, C_COUT] </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The function returns required weight sum buffer size(bytes) </dd></dl>
 
 </div>
 </div>
@@ -1411,7 +1441,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Get size of additional buffer required by <a class="el" href="group__NNConv.html#gac85edb96c9e214c558a4bdb69883712d" title="Wrapper function to pick the right optimized s8 depthwise convolution function.">arm_depthwise_conv_wrapper_s8()</a> </p>
+<p>Get size of additional buffer required by <a class="el" href="group__NNConv.html#ga85a7e7a21a7f509c07773c3397bfff81" title="Wrapper function to pick the right optimized s8 depthwise convolution function.">arm_depthwise_conv_wrapper_s8()</a> </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">dw_conv_params</td><td>Depthwise convolution parameters (e.g. strides, dilations, pads,...) Range of dw_conv_params-&gt;input_offset : [-127, 128] Range of dw_conv_params-&gt;input_offset : [-128, 127] </td></tr>
@@ -1463,7 +1493,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Get size of additional buffer required by <a class="el" href="group__NNConv.html#gac85edb96c9e214c558a4bdb69883712d" title="Wrapper function to pick the right optimized s8 depthwise convolution function.">arm_depthwise_conv_wrapper_s8()</a> for processors with DSP extension. Refer to <a class="el" href="group__GetBufferSizeNNConv.html#ga100b66e41b8fdf1eeb0c108bca6b6deb" title="Get size of additional buffer required by arm_depthwise_conv_wrapper_s8()">arm_depthwise_conv_wrapper_s8_get_buffer_size()</a> for function argument details. </p>
+<p>Get size of additional buffer required by <a class="el" href="group__NNConv.html#ga85a7e7a21a7f509c07773c3397bfff81" title="Wrapper function to pick the right optimized s8 depthwise convolution function.">arm_depthwise_conv_wrapper_s8()</a> for processors with DSP extension. Refer to <a class="el" href="group__GetBufferSizeNNConv.html#ga100b66e41b8fdf1eeb0c108bca6b6deb" title="Get size of additional buffer required by arm_depthwise_conv_wrapper_s8()">arm_depthwise_conv_wrapper_s8_get_buffer_size()</a> for function argument details. </p>
 <dl class="section note"><dt>Note</dt><dd>Intended for compilation on Host. If compiling for an Arm target, use <a class="el" href="group__GetBufferSizeNNConv.html#ga100b66e41b8fdf1eeb0c108bca6b6deb" title="Get size of additional buffer required by arm_depthwise_conv_wrapper_s8()">arm_depthwise_conv_wrapper_s8_get_buffer_size()</a>. </dd></dl>
 
 </div>
@@ -1506,7 +1536,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Get size of additional buffer required by <a class="el" href="group__NNConv.html#gac85edb96c9e214c558a4bdb69883712d" title="Wrapper function to pick the right optimized s8 depthwise convolution function.">arm_depthwise_conv_wrapper_s8()</a> for Arm(R) Helium Architecture case. Refer to <a class="el" href="group__GetBufferSizeNNConv.html#ga100b66e41b8fdf1eeb0c108bca6b6deb" title="Get size of additional buffer required by arm_depthwise_conv_wrapper_s8()">arm_depthwise_conv_wrapper_s8_get_buffer_size()</a> for function argument details. </p>
+<p>Get size of additional buffer required by <a class="el" href="group__NNConv.html#ga85a7e7a21a7f509c07773c3397bfff81" title="Wrapper function to pick the right optimized s8 depthwise convolution function.">arm_depthwise_conv_wrapper_s8()</a> for Arm(R) Helium Architecture case. Refer to <a class="el" href="group__GetBufferSizeNNConv.html#ga100b66e41b8fdf1eeb0c108bca6b6deb" title="Get size of additional buffer required by arm_depthwise_conv_wrapper_s8()">arm_depthwise_conv_wrapper_s8_get_buffer_size()</a> for function argument details. </p>
 <dl class="section note"><dt>Note</dt><dd>Intended for compilation on Host. If compiling for an Arm target, use <a class="el" href="group__GetBufferSizeNNConv.html#ga100b66e41b8fdf1eeb0c108bca6b6deb" title="Get size of additional buffer required by arm_depthwise_conv_wrapper_s8()">arm_depthwise_conv_wrapper_s8_get_buffer_size()</a>. </dd></dl>
 
 </div>
