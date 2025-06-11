@@ -89,7 +89,7 @@
         "dilation_y": 1,
         "padding": "SAME"
       }
-    ] 
+    ]
   },
   {
     "suite_name": "test_arm_convolve_s4",
@@ -2451,6 +2451,174 @@
       },
       {
         "name": "mul_ident_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 3,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_add_s16",
+    "op_type": "add",
+    "input_data_type": "int16_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int64_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "add_scalar_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 1,
+        "rhs_w": 1,
+        "rhs_c": 1,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_broadcast_h_s16",
+        "lhs_n": 1,
+        "lhs_h": 1,
+        "lhs_w": 2,
+        "lhs_c": 3,
+        "rhs_n": 1,
+        "rhs_h": 4,
+        "rhs_w": 2,
+        "rhs_c": 3,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_broadcast_w_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 1,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_broadcast_c_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 3,
+        "rhs_c": 1,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_broadcast_hc_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 1,
+        "rhs_n": 1,
+        "rhs_h": 1,
+        "rhs_w": 3,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_ident_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 3,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_mul_s16",
+    "op_type": "mul",
+    "input_data_type": "int16_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int64_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "mul_scalar_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 1,
+        "rhs_w": 1,
+        "rhs_c": 1,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_broadcast_h_s16",
+        "lhs_n": 1,
+        "lhs_h": 1,
+        "lhs_w": 2,
+        "lhs_c": 3,
+        "rhs_n": 1,
+        "rhs_h": 4,
+        "rhs_w": 2,
+        "rhs_c": 3,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_broadcast_w_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 1,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_broadcast_c_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 3,
+        "rhs_c": 1,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_broadcast_hc_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 1,
+        "rhs_n": 1,
+        "rhs_h": 1,
+        "rhs_w": 3,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_ident_s16",
         "lhs_n": 1,
         "lhs_h": 2,
         "lhs_w": 3,

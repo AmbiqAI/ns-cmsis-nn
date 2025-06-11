@@ -79,7 +79,10 @@ class Op_add(Lib.op_utils.Op_type):
         rhs_zp = in_det[1]["quantization_parameters"]["zero_points"][0]
         out_scale = out_det[0]["quantization_parameters"]["scales"][0]
         out_zp = out_det[0]["quantization_parameters"]["zero_points"][0]
-        left_shift = 20 # For int16 left_shift = 15
+        if params.get("input_data_type") == "int16_t":
+            left_shift = 15
+        else:
+            left_shift = 20
         twice_max_input_scale = 2 * max(lhs_scale, rhs_scale)
         lhs_multiplier = lhs_scale / twice_max_input_scale
         rhs_multiplier = rhs_scale / twice_max_input_scale

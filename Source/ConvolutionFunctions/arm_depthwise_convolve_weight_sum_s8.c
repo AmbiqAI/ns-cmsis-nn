@@ -21,7 +21,7 @@
  * Title:        arm_depthwise_convolve_weight_sum.c
  * Description:  s8 version of convolution using symmetric quantization.
  *
- * $Date:        30 April 2025 
+ * $Date:        30 April 2025
  * $Revision:    V.4.0.0
  *
  * Target :  Arm(R) M-Profile Architecture
@@ -31,16 +31,15 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
-arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(
-        int32_t* vector_sum_buf,
-        int8_t* scratch_buf,
-        const int8_t *rhs,
-        const cmsis_nn_dw_conv_params *dw_conv_params,
-        cmsis_nn_dims *input_dims,
-        cmsis_nn_dims *filter_dims,
-        cmsis_nn_dims *output_dims, 
-        const int32_t lhs_offset,
-        const int32_t *bias_data )
+arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t* vector_sum_buf,
+                                                      int8_t* scratch_buf,
+                                                      const int8_t *rhs,
+                                                      const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                      const cmsis_nn_dims *input_dims,
+                                                      const cmsis_nn_dims *filter_dims,
+                                                      const cmsis_nn_dims *output_dims,
+                                                      const int32_t lhs_offset,
+                                                      const int32_t *bias_data)
 {
 
 #if !defined(ARM_MATH_MVEI)
@@ -71,7 +70,7 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(
     int32_t ch_left = total_ch;
     const int8_t* rhs_base = rhs;
     const int8_t* rhs_runner = rhs_base;
-    
+
     if (bias_data)
     {
         memcpy(vector_sum_buf, bias_data, output_channels * sizeof(int32_t));

@@ -21,7 +21,7 @@
  * Title:        arm_convolve_weight_sum_s8.c
  * Description:  s8 version of convolution using symmetric quantization.
  *
- * $Date:        30 April 2025 
+ * $Date:        30 April 2025
  * $Revision:    V.4.0.0
  *
  * Target :  Arm(R) M-Profile Architecture
@@ -34,9 +34,9 @@
 arm_cmsis_nn_status arm_convolve_weight_sum(
         int32_t* vector_sum_buf,
         const int8_t *rhs,
-        cmsis_nn_dims *input_dims,
-        cmsis_nn_dims *filter_dims,
-        cmsis_nn_dims *output_dims, 
+        const cmsis_nn_dims *input_dims,
+        const cmsis_nn_dims *filter_dims,
+        const cmsis_nn_dims *output_dims,
         const int32_t lhs_offset,
         const int32_t *bias_data )
 {

@@ -468,7 +468,7 @@ int32_t arm_convolve_s4_get_buffer_size(const cmsis_nn_dims *input_dims, const c
 int32_t arm_convolve_s8_get_buffer_size(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims);
 
 /**
- * @brief Get the required buffer size for s8 convolution and depthwise convolution weight sum 
+ * @brief Get the required buffer size for s8 convolution and depthwise convolution weight sum
  *
  * @param[in]       output_dims            Output (activation) tensor dimensions. Format: [N, H, W, C_COUT]
  * @return          The function returns required weight sum buffer size(bytes)
@@ -1016,18 +1016,17 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
  *                <code>ARM_CMSIS_NN_SUCCESS</code> on success.
  *
  * @details
- *   - Supported framework : TensorFlow Lite Micro  
- *   - The buffer pointed to by @p vector_sum_buf must be at least  
+ *   - Supported framework : TensorFlow Lite Micro
+ *   - The buffer pointed to by @p vector_sum_buf must be at least
  *     <code>output_dims->c × sizeof(int32_t)</code> bytes.
  */
-arm_cmsis_nn_status arm_convolve_weight_sum(
-        int32_t* vector_sum_buf,
-        const int8_t *rhs,
-        cmsis_nn_dims *input_dims,
-        cmsis_nn_dims *filter_dims,
-        cmsis_nn_dims *output_dims, 
-        const int32_t lhs_offset,
-        const int32_t *bias_data );
+arm_cmsis_nn_status arm_convolve_weight_sum(int32_t* vector_sum_buf,
+                                            const int8_t *rhs,
+                                            const cmsis_nn_dims *input_dims,
+                                            const cmsis_nn_dims *filter_dims,
+                                            const cmsis_nn_dims *output_dims,
+                                            const int32_t lhs_offset,
+                                            const int32_t *bias_data);
 
 /**
  * @brief Pre-computes per-channel weight sums for a depthwise convolution
@@ -1046,27 +1045,26 @@ arm_cmsis_nn_status arm_convolve_weight_sum(
  *                <code>ARM_CMSIS_NN_SUCCESS</code> on success.
  *
  * @details
- *   - Supported framework : TensorFlow Lite Micro  
+ *   - Supported framework : TensorFlow Lite Micro
  */
-arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(
-        int32_t* vector_sum_buf,
-        int8_t* scratch_buf,
-        const int8_t *rhs,
-        const cmsis_nn_dw_conv_params *dw_conv_params,
-        cmsis_nn_dims *input_dims,
-        cmsis_nn_dims *filter_dims,
-        cmsis_nn_dims *output_dims, 
-        const int32_t lhs_offset,
-        const int32_t *bias_data );
+arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t* vector_sum_buf,
+                                                      int8_t* scratch_buf,
+                                                      const int8_t *rhs,
+                                                      const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                      const cmsis_nn_dims *input_dims,
+                                                      const cmsis_nn_dims *filter_dims,
+                                                      const cmsis_nn_dims *output_dims,
+                                                      const int32_t lhs_offset,
+                                                      const int32_t *bias_data);
 
 /**
  * @brief Optimised convolution for 1x1 output images (shape of BX1x1xC_OUT) for 8x8 computations
  *
  * @param[in,out] ctx             Function context that may supply an additional buffer for activation rearrangement.
- *                                
+ *
  * @param[in,out] weight_sum_ctx  Context holding the weight-sum buffer.
  * @param[in]     conv_params     Convolution parameters (stride, dilation, pad, offsets).
- *                                Range of conv_params->input_offset  : [-127, 128]  
+ *                                Range of conv_params->input_offset  : [-127, 128]
  *                                Range of conv_params->output_offset : [-128, 127]
  * @param[in]     quant_params    Per-channel quantisation multipliers and shifts.
  * @param[in]     input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
@@ -1082,24 +1080,24 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(
  *                <code>ARM_CMSIS_NN_SUCCESS</code> on success.
  *
  * @details
- *   - Supported framework : TensorFlow Lite Micro  
+ *   - Supported framework : TensorFlow Lite Micro
  *   - Optimised for Bx1×1xC output CNN layers.
- *   - Constraints:  
- *      -# @p output_dims->h and @p output_dims->w must equal 1  
- *      -# @p output_dims->c is expected to be a multiple of 4 for best performance  
+ *   - Constraints:
+ *      -# @p output_dims->h and @p output_dims->w must equal 1
+ *      -# @p output_dims->c is expected to be a multiple of 4 for best performance
  */
 arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
-                                    const cmsis_nn_context *weight_sum_ctx,
-                                    const cmsis_nn_conv_params *conv_params,
-                                    const cmsis_nn_per_channel_quant_params *quant_params,
-                                    const cmsis_nn_dims *input_dims,
-                                    const int8_t *input_data,
-                                    const cmsis_nn_dims *filter_dims,
-                                    const int8_t *filter_data,
-                                    const cmsis_nn_dims *bias_dims,
-                                    const int32_t *bias_data,
-                                    const cmsis_nn_dims *output_dims,
-                                    int8_t *output_data);
+                                            const cmsis_nn_context *weight_sum_ctx,
+                                            const cmsis_nn_conv_params *conv_params,
+                                            const cmsis_nn_per_channel_quant_params *quant_params,
+                                            const cmsis_nn_dims *input_dims,
+                                            const int8_t *input_data,
+                                            const cmsis_nn_dims *filter_dims,
+                                            const int8_t *filter_data,
+                                            const cmsis_nn_dims *bias_dims,
+                                            const int32_t *bias_data,
+                                            const cmsis_nn_dims *output_dims,
+                                            int8_t *output_data);
 /**
  * @brief 1xn convolution for s4 weights
  *
@@ -2201,7 +2199,7 @@ int32_t arm_fully_connected_s16_get_buffer_size_mve(const cmsis_nn_dims *filter_
  */
 
 /**
- * @brief s8 elementwise add of two tensors
+ * @brief s8 elementwise add of two tensors with support for broadcasting.
  * @param[in]       input1_data        pointer to input tensor 1
  * @param[in]       input1_dims        pointer to input tensor 1 dimensions
  * @param[in]       input2_data        pointer to input tensor 2
@@ -2317,6 +2315,86 @@ arm_cmsis_nn_status arm_elementwise_add_s8(const int8_t *input_1_vect,
                                            const int32_t block_size);
 
 /**
+ * @brief s16 elementwise add of two tensors with support for broadcasting.
+ * @param[in]       input1_data        pointer to input tensor 1
+ * @param[in]       input1_dims        pointer to input tensor 1 dimensions
+ * @param[in]       input2_data        pointer to input tensor 2
+ * @param[in]       input2_dims        pointer to input tensor 2 dimensions
+ * @param[in]       input1_offset      offset for input 1. Range: -127 to 128
+ * @param[in]       input1_mult        multiplier for input 1
+ * @param[in]       input1_shift       shift for input 1
+ * @param[in]       input2_offset      offset for input 2. Range: -127 to 128
+ * @param[in]       input2_mult        multiplier for input 2
+ * @param[in]       input2_shift       shift for input 2
+ * @param[in]       left_shift         left shift applied to the result
+ * @param[out]      output_data        pointer to output tensor
+ * @param[in]       output_dims        pointer to output tensor dimensions
+ * @param[in]       out_offset         output offset. Range: -128 to 127
+ * @param[in]       out_mult           output multiplier
+ * @param[in]       out_shift          output shift
+ * @param[in]       out_activation_min minimum value to clamp output to. Min: -128
+ * @param[in]       out_activation_max maximum value to clamp output to. Max: 127
+ *
+ * @return     The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_add_s16(const int16_t *input1_data,
+                                const cmsis_nn_dims *input1_dims,
+                                const int16_t *input2_data,
+                                const cmsis_nn_dims *input2_dims,
+                                const int32_t input1_offset,
+                                const int32_t input1_mult,
+                                const int32_t input1_shift,
+                                const int32_t input2_offset,
+                                const int32_t input2_mult,
+                                const int32_t input2_shift,
+                                const int32_t left_shift,
+                                int16_t *output_data,
+                                const cmsis_nn_dims *output_dims,
+                                const int32_t out_offset,
+                                const int32_t out_mult,
+                                const int32_t out_shift,
+                                const int32_t out_activation_min,
+                                const int32_t out_activation_max);
+
+/**
+ * @brief s16 elementwise add of scalar and vector
+ * @param[in]       input_1_vect        pointer to input scalar
+ * @param[in]       input_2_vect        pointer to input vector
+ * @param[in]       input_1_offset      offset for input 1. Not used.
+ * @param[in]       input_1_mult        multiplier for input 1
+ * @param[in]       input_1_shift       shift for input 1
+ * @param[in]       input_2_offset      offset for input 2. Not used.
+ * @param[in]       input_2_mult        multiplier for input 2
+ * @param[in]       input_2_shift       shift for input 2
+ * @param[in]       left_shift          left shift applied to the result
+ * @param[out]      output              pointer to output vector
+ * @param[in]       out_offset          output offset. Not used.
+ * @param[in]       out_mult            output multiplier
+ * @param[in]       out_shift           output shift
+ * @param[in]       out_activation_min  minimum value to clamp output to. Min: -32768
+ * @param[in]       out_activation_max  maximum value to clamp output to. Max: 32767
+ * @param[in]       block_size          number of samples
+ *
+ * @return     The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_add_scalar_s16(const int16_t *input_1_vect,
+                                       const int16_t *input_2_vect,
+                                       const int32_t input_1_offset,
+                                       const int32_t input_1_mult,
+                                       const int32_t input_1_shift,
+                                       const int32_t input_2_offset,
+                                       const int32_t input_2_mult,
+                                       const int32_t input_2_shift,
+                                       const int32_t left_shift,
+                                       int16_t *output,
+                                       const int32_t out_offset,
+                                       const int32_t out_mult,
+                                       const int32_t out_shift,
+                                       const int32_t out_activation_min,
+                                       const int32_t out_activation_max,
+                                       const int32_t block_size);
+
+/**
  * @brief s16 elementwise add of two vectors
  * @param[in]       input_1_vect        pointer to input vector 1
  * @param[in]       input_2_vect        pointer to input vector 2
@@ -2354,7 +2432,7 @@ arm_cmsis_nn_status arm_elementwise_add_s16(const int16_t *input_1_vect,
                                             const int32_t block_size);
 
 /**
- * @brief s8 elementwise multiplication of two tensors
+ * @brief s8 elementwise multiplication of two tensors with support for broadcasting.
  * @param[in]       input1_data        pointer to input tensor 1
  * @param[in]       input1_dims        pointer to input tensor 1 dimensions
  * @param[in]       input2_data        pointer to input tensor 2
@@ -2441,6 +2519,67 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
                                            const int32_t out_activation_min,
                                            const int32_t out_activation_max,
                                            const int32_t block_size);
+
+
+/**
+ * @brief s16 elementwise multiplication of two tensors with support for broadcasting.
+ * @param[in]       input1_data        pointer to input tensor 1
+ * @param[in]       input1_dims        pointer to input tensor 1 dimensions
+ * @param[in]       input2_data        pointer to input tensor 2
+ * @param[in]       input2_dims        pointer to input tensor 2 dimensions
+ * @param[in]       input1_offset      offset for input 1. Not used.
+ * @param[in]       input2_offset      offset for input 2. Not used.
+ * @param[out]      output_data        pointer to output tensor
+ * @param[in]       output_dims        pointer to output tensor dimensions
+ * @param[in]       out_offset         output offset. Not used.
+ * @param[in]       out_mult           output multiplier
+ * @param[in]       out_shift          output shift
+ * @param[in]       out_activation_min minimum value to clamp output to. Min: -32768
+ * @param[in]       out_activation_max maximum value to clamp output to. Max: 32767
+ *
+ * @return     The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_mul_s16(const int16_t *input1_data,
+                                const cmsis_nn_dims *input1_dims,
+                                const int16_t *input2_data,
+                                const cmsis_nn_dims *input2_dims,
+                                const int32_t input1_offset,
+                                const int32_t input2_offset,
+                                int16_t *output_data,
+                                const cmsis_nn_dims *output_dims,
+                                const int32_t out_offset,
+                                const int32_t out_mult,
+                                const int32_t out_shift,
+                                const int32_t out_activation_min,
+                                const int32_t out_activation_max);
+
+/**
+ * @brief s16 elementwise multiplication of scalar and vector
+ * @param[in]       input_1_vect        pointer to input scalar
+ * @param[in]       input_2_vect        pointer to input vector
+ * @param[in]       input_1_offset      offset for input 1. Not used.
+ * @param[in]       input_2_offset      offset for input 2. Not used.
+ * @param[out]      output              pointer to output vector
+ * @param[in]       out_offset          output offset. Not used.
+ * @param[in]       out_mult            output multiplier
+ * @param[in]       out_shift           output shift
+ * @param[in]       out_activation_min  minimum value to clamp output to. Min: -32768
+ * @param[in]       out_activation_max  maximum value to clamp output to. Max: 32767
+ * @param[in]       block_size          number of samples
+ *
+ * @return     The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_mul_scalar_s16(const int16_t *input_1_vect,
+                                       const int16_t *input_2_vect,
+                                       const int32_t input_1_offset,
+                                       const int32_t input_2_offset,
+                                       int16_t *output,
+                                       const int32_t out_offset,
+                                       const int32_t out_mult,
+                                       const int32_t out_shift,
+                                       const int32_t out_activation_min,
+                                       const int32_t out_activation_max,
+                                       const int32_t block_size);
 
 /**
  * @brief s16 elementwise multiplication
