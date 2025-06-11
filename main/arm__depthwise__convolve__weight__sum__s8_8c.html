@@ -136,13 +136,13 @@ $(document).ready(function(){initNavTree('arm__depthwise__convolve__weight__sum_
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:af45aec69e27f7b36d14fc3d839c4edb6"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="arm__depthwise__convolve__weight__sum__s8_8c.html#af45aec69e27f7b36d14fc3d839c4edb6">arm_depthwise_convolve_weight_sum</a> (int32_t *vector_sum_buf, int8_t *scratch_buf, const int8_t *rhs, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dw__conv__params">cmsis_nn_dw_conv_params</a> *dw_conv_params, <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *input_dims, <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *filter_dims, <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *output_dims, const int32_t lhs_offset, const int32_t *bias_data)</td></tr>
-<tr class="memdesc:af45aec69e27f7b36d14fc3d839c4edb6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Pre-computes per-channel weight sums for a depthwise convolution.  <br /></td></tr>
-<tr class="separator:af45aec69e27f7b36d14fc3d839c4edb6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2bbcd579ab2bc818361cf0a662853f95"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="arm__depthwise__convolve__weight__sum__s8_8c.html#a2bbcd579ab2bc818361cf0a662853f95">arm_depthwise_convolve_weight_sum</a> (int32_t *vector_sum_buf, int8_t *scratch_buf, const int8_t *rhs, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dw__conv__params">cmsis_nn_dw_conv_params</a> *dw_conv_params, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *input_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *filter_dims, const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *output_dims, const int32_t lhs_offset, const int32_t *bias_data)</td></tr>
+<tr class="memdesc:a2bbcd579ab2bc818361cf0a662853f95"><td class="mdescLeft">&#160;</td><td class="mdescRight">Pre-computes per-channel weight sums for a depthwise convolution.  <br /></td></tr>
+<tr class="separator:a2bbcd579ab2bc818361cf0a662853f95"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="af45aec69e27f7b36d14fc3d839c4edb6" name="af45aec69e27f7b36d14fc3d839c4edb6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af45aec69e27f7b36d14fc3d839c4edb6">&#9670;&#160;</a></span>arm_depthwise_convolve_weight_sum()</h2>
+<a id="a2bbcd579ab2bc818361cf0a662853f95" name="a2bbcd579ab2bc818361cf0a662853f95"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2bbcd579ab2bc818361cf0a662853f95">&#9670;&#160;</a></span>arm_depthwise_convolve_weight_sum()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -174,19 +174,19 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
+          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
           <td class="paramname"><em>input_dims</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
+          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
           <td class="paramname"><em>filter_dims</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
+          <td class="paramtype">const <a class="el" href="group__genPubTypes.html#structcmsis__nn__dims">cmsis_nn_dims</a> *&#160;</td>
           <td class="paramname"><em>output_dims</em>, </td>
         </tr>
         <tr>
@@ -226,8 +226,7 @@ Functions</h2></td></tr>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd><code>ARM_CMSIS_NN_ARG_ERROR</code> on invalid arguments, or <code>ARM_CMSIS_NN_SUCCESS</code> on success.</dd></dl>
 <ul>
-<li>Supported framework : TensorFlow Lite Micro <br  />
- </li>
+<li>Supported framework : TensorFlow Lite Micro </li>
 </ul>
 
 </div>
