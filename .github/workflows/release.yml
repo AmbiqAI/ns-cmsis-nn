@@ -1,0 +1,42 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  check-version-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from Include/arm_nn_types.h
+        id: version
+        run: |
+          MAJOR=$(grep -oP '#define NS_CMSIS_NN_VERSION_MAJOR\s+\(\K[0-9]+' Include/arm_nn_types.h)
+          MINOR=$(grep -oP '#define NS_CMSIS_NN_VERSION_MINOR\s+\(\K[0-9]+' Include/arm_nn_types.h)
+          PATCH=$(grep -oP '#define NS_CMSIS_NN_VERSION_PATCH\s+\(\K[0-9]+' Include/arm_nn_types.h)
+          HEADER_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "HEADER_VERSION=$HEADER_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check tag matches header version
+        run: |
+          TAG_VERSION=${GITHUB_REF##*/}
+          echo "Git tag: $TAG_VERSION"
+          echo "Header version: ${{ steps.version.outputs.HEADER_VERSION }}"
+          if [[ "$TAG_VERSION" != "${{ steps.version.outputs.HEADER_VERSION }}" ]]; then
+            echo "❌ Mismatch between tag and header version."
+            exit 1
+          fi
+          echo "✅ Tag matches header version."
+
+      - name: Create GitHub Release with changelog
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
