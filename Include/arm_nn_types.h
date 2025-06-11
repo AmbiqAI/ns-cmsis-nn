@@ -34,6 +34,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// Version information
+#define NS_CMSIS_NN_VERSION_MAJOR (7)
+#define NS_CMSIS_NN_VERSION_MINOR (2)
+#define NS_CMSIS_NN_VERSION_PATCH (0)
+
 /**
  * @defgroup genPubTypes Structure Types
  * @ingroup Public
@@ -56,6 +61,7 @@ typedef enum
     ARM_CMSIS_NN_NO_IMPL_ERROR = -2, /**<  No implementation available */
     ARM_CMSIS_NN_FAILURE = -3,       /**<  Logical error */
 } arm_cmsis_nn_status;
+
 
 /** CMSIS-NN object to contain the width and height of a tile */
 typedef struct

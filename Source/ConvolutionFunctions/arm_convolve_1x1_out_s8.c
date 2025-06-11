@@ -21,7 +21,7 @@
  * Title:        arm_convolve_1x1_out_s8.c
  * Description:  s8 version of convolution using symmetric quantization.
  *
- * $Date:        30 April 2025 
+ * $Date:        30 April 2025
  * $Revision:    V.4.0.0
  *
  * Target :  Arm(R) M-Profile Architecture
@@ -51,17 +51,17 @@
 
 
 arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
-                                    const cmsis_nn_context *weight_sum_ctx,
-                                    const cmsis_nn_conv_params *conv_params,
-                                    const cmsis_nn_per_channel_quant_params *quant_params,
-                                    const cmsis_nn_dims *input_dims,
-                                    const int8_t *input_data,
-                                    const cmsis_nn_dims *filter_dims,
-                                    const int8_t *filter_data,
-                                    const cmsis_nn_dims *bias_dims,
-                                    const int32_t *bias_data,
-                                    const cmsis_nn_dims *output_dims,
-                                    int8_t *output_data)
+                                            const cmsis_nn_context *weight_sum_ctx,
+                                            const cmsis_nn_conv_params *conv_params,
+                                            const cmsis_nn_per_channel_quant_params *quant_params,
+                                            const cmsis_nn_dims *input_dims,
+                                            const int8_t *input_data,
+                                            const cmsis_nn_dims *filter_dims,
+                                            const int8_t *filter_data,
+                                            const cmsis_nn_dims *bias_dims,
+                                            const int32_t *bias_data,
+                                            const cmsis_nn_dims *output_dims,
+                                            int8_t *output_data)
 {
     (void)bias_dims;
 

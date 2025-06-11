@@ -127,6 +127,8 @@ add_subdirectory(TestCases/test_arm_dequantize_s16_f32)
 add_subdirectory(TestCases/test_arm_strided_slice_s8)
 add_subdirectory(TestCases/test_arm_add_s8)
 add_subdirectory(TestCases/test_arm_mul_s8)
+add_subdirectory(TestCases/test_arm_add_s16)
+add_subdirectory(TestCases/test_arm_mul_s16)
 
 
 
