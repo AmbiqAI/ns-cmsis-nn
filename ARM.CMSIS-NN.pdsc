@@ -99,6 +99,7 @@
         <file category="source" name="Source/PoolingFunctions/arm_avgpool_get_buffer_sizes_s8.c"/>
         <file category="source" name="Source/PoolingFunctions/arm_avgpool_s16.c"/>
 
+        <file category="source" name="Source/BasicMathFunctions/arm_mean_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_mul_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_scalar_s8.c"/>

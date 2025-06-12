@@ -539,7 +539,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
  *
  *  @note This operation also performs the broadcast bias addition before the requantization
  *
- * @param[in]  weight_sum_buf     Pointer to the weight sum multiplied by lhs_offset and summed bias buffer 
+ * @param[in]  weight_sum_buf     Pointer to the weight sum multiplied by lhs_offset and summed bias buffer
  * @param[in]  lhs                Pointer to the LHS input matrix
  * @param[in]  rhs                Pointer to the RHS input matrix
  * @param[in]  bias               Pointer to the bias vector. The length of this vector is equal to the number of
@@ -563,7 +563,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  */
-arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t* weight_sum_buf, 
+arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t* weight_sum_buf,
                                             const int8_t *lhs,
                                             const int8_t *rhs,
                                             const int32_t *bias,
@@ -583,7 +583,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t* weight_sum_buf,
 
 
 /**
- * @brief General Matrix-multiplication function with per-channel requantization. 
+ * @brief General Matrix-multiplication function with per-channel requantization.
  *        Output is calculated with multiple channels in parallel, rather than multiple output indices in a single channel
  *        This function assumes:
  *        - LHS input matrix NOT transposed (nt)
@@ -591,7 +591,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t* weight_sum_buf,
  *
  *  @note This operation also performs the broadcast bias addition before the requantization
  *
- * @param[in]  weight_sum_buf     Pointer to the weight sum multiplied by lhs_offset and summed bias buffer 
+ * @param[in]  weight_sum_buf     Pointer to the weight sum multiplied by lhs_offset and summed bias buffer
  * @param[in]  lhs                Pointer to the LHS input matrix
  * @param[in]  rhs                Pointer to the RHS input matrix
  * @param[in]  bias               Pointer to the bias vector. The length of this vector is equal to the number of
@@ -997,7 +997,7 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_padded_s8(const int8_t *lhs,
  * @brief Depthwise convolution of transposed rhs matrix with 4 lhs matrices. To be used in non-padded cases.
  *        Dimensions are the same for lhs and rhs.
  *
- * @param[in]  weight_sum_buf      Pointer to the weight sum multiplied by lhs_offset and summed bias buffer 
+ * @param[in]  weight_sum_buf      Pointer to the weight sum multiplied by lhs_offset and summed bias buffer
  * @param[in]      lhs             Input left-hand side matrix
  * @param[in]      rhs             Input right-hand side matrix (transposed)
  * @param[in]      lhs_offset      LHS matrix offset(input offset). Range: -127 to 128
@@ -1991,6 +1991,38 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve_32x4(const int32x4_t val,
                                                right_shift);
     #endif
 }
+
+/**
+ * @brief Narrow four int32x4_t vectors to one int8x16_t with saturation.
+ *        Uses MVE intrinsics: vqmovnbq/ntq.
+ *
+ * @param[in]  acc0     First 4 lanes (int32)
+ * @param[in]  acc1     Next 4 lanes (int32)
+ * @param[in]  acc2     Next 4 lanes (int32)
+ * @param[in]  acc3     Final 4 lanes (int32)
+ *
+ * @return     int8x16_t packed and saturated output vector
+ */
+__STATIC_FORCEINLINE int8x16_t arm_narrow_mve_from_int32x4x4_to_int8x16(int32x4_t acc0,
+                                                                        int32x4_t acc1,
+                                                                        int32x4_t acc2,
+                                                                        int32x4_t acc3)
+{
+    int16x8_t acc16_lo, acc16_hi;
+    int8x16_t out;
+
+    acc16_lo = vqmovnbq_s32(acc16_lo, acc0);      // lanes [0..3]
+    acc16_lo = vqmovntq_s32(acc16_lo, acc1);      // lanes [4..7]
+
+    acc16_hi = vqmovnbq_s32(acc16_hi, acc2);      // lanes [8..11]
+    acc16_hi = vqmovntq_s32(acc16_hi, acc3);      // lanes [12..15]
+
+    out = vqmovnbq_s16(out, acc16_lo);            // lanes [0..7]
+    out = vqmovntq_s16(out, acc16_hi);            // lanes [8..15]
+
+    return out;
+}
+
 #endif
 
 // @note The following functions are used only for softmax layer, scaled bits = 5 assumed

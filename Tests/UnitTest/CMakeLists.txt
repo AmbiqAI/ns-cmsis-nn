@@ -129,6 +129,8 @@ add_subdirectory(TestCases/test_arm_add_s8)
 add_subdirectory(TestCases/test_arm_mul_s8)
 add_subdirectory(TestCases/test_arm_add_s16)
 add_subdirectory(TestCases/test_arm_mul_s16)
+add_subdirectory(TestCases/test_arm_mean_s8)
+
 
 
 
