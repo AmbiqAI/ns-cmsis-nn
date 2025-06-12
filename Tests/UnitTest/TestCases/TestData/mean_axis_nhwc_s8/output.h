@@ -3,4 +3,4 @@
 #pragma once
 #include <stdint.h>
 
-const int8_t mean_axis_nhwc_s8_output[1] = {109};
+const int8_t mean_axis_nhwc_s8_output[1] = {118};

@@ -3,4 +3,4 @@
 #pragma once
 #include <stdint.h>
 
-const int8_t mean_axis_h_s8_output[8] = {-10, 64, -52, 3, 89, 35, 54, 125};
+const int8_t mean_axis_h_s8_output[8] = {-89, 73, 50, 19, 69, 122, -68, -62};

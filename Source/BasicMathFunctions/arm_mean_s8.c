@@ -159,14 +159,17 @@ arm_cmsis_nn_status arm_mean_reduce_generic_s8(const int8_t *input_data,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-arm_cmsis_nn_status arm_mean_flatten_reduce_last_dims_mve_s8(const int8_t *input_data,
-                                                         int32_t input_offset,
-                                                         int8_t *output_data,
-                                                         int32_t out_offset,
-                                                         int32_t out_mult,
-                                                         int32_t out_shift,
-                                                         int32_t outer_size,
-                                                         int32_t inner_size)
+#if defined(ARM_MATH_MVEI)
+
+arm_cmsis_nn_status
+arm_mean_flatten_reduce_last_dims_mve_s8(const int8_t *input_data,
+                                         int32_t input_offset,
+                                         int8_t *output_data,
+                                         int32_t out_offset,
+                                         int32_t out_mult,
+                                         int32_t out_shift,
+                                         int32_t outer_size,
+                                         int32_t inner_size)
 {
     for (int i = 0; i < outer_size; ++i)
     {
@@ -197,14 +200,14 @@ arm_cmsis_nn_status arm_mean_flatten_reduce_last_dims_mve_s8(const int8_t *input
 }
 
 
-arm_cmsis_nn_status arm_mean_reduce_spatial_mve_s8(
-    const int8_t        *input_data,
-    const cmsis_nn_dims *input_dims,
-    int32_t              input_offset,
-    int8_t              *output_data,
-    int32_t              out_offset,
-    int32_t              out_mult,
-    int32_t              out_shift)
+arm_cmsis_nn_status
+arm_mean_reduce_spatial_mve_s8(const int8_t *input_data,
+                               const cmsis_nn_dims *input_dims,
+                               int32_t input_offset,
+                               int8_t *output_data,
+                               int32_t out_offset,
+                               int32_t out_mult,
+                               int32_t out_shift)
 {
     const int N       = input_dims->n;
     const int H       = input_dims->h;
@@ -302,6 +305,7 @@ arm_cmsis_nn_status arm_mean_reduce_spatial_mve_s8(
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+#endif // ARM_MATH_MVEI
 
 /*
  * s8 mean over the specified axis

@@ -3,4 +3,5 @@
 #pragma once
 #include <stdint.h>
 
-const int8_t mean_axis_h_s8_input_tensor[16] = {34, 5, -98, -45, 33, -66, -51, 73, -82, 77, -24, 19, 92, 97, 115, 116};
+const int8_t mean_axis_h_s8_input_tensor[16] =
+    {-96, 59, -2, 24, 127, 117, -53, -11, -87, 66, 83, -1, -10, 100, -89, -120};

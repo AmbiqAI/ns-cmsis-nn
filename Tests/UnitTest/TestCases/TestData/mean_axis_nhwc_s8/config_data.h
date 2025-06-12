@@ -4,7 +4,7 @@
 
 #define MEAN_AXIS_NHWC_S8_IN_DIM                                                                                       \
     {                                                                                                                  \
-        3, 2, 2, 4,                                                                                                    \
+        3, 17, 5, 4,                                                                                                   \
     }
 #define MEAN_AXIS_NHWC_S8_AXIS                                                                                         \
     {                                                                                                                  \
@@ -21,10 +21,10 @@
         1, 1, 1, 1,                                                                                                    \
     }
 #define MEAN_AXIS_NHWC_S8_AXIS_MASK 15
-#define MEAN_AXIS_NHWC_S8_INPUT_SIZE 48
+#define MEAN_AXIS_NHWC_S8_INPUT_SIZE 1020
 #define MEAN_AXIS_NHWC_S8_OUTPUT_SIZE 1
 #define MEAN_AXIS_NHWC_S8_INPUT_OFFSET 128
 #define MEAN_AXIS_NHWC_S8_OUTPUT_OFFSET -128
-#define MEAN_AXIS_NHWC_S8_OUTPUT_MULTIPLIER 1312718612
-#define MEAN_AXIS_NHWC_S8_OUTPUT_SHIFT -4
-#define MEAN_AXIS_NHWC_S8_REDUCTION_SIZE 48
+#define MEAN_AXIS_NHWC_S8_OUTPUT_MULTIPLIER 1076121372
+#define MEAN_AXIS_NHWC_S8_OUTPUT_SHIFT -8
+#define MEAN_AXIS_NHWC_S8_REDUCTION_SIZE 1020

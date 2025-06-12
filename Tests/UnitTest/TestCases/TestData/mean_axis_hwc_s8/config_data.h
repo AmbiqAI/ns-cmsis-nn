@@ -4,7 +4,7 @@
 
 #define MEAN_AXIS_HWC_S8_IN_DIM                                                                                        \
     {                                                                                                                  \
-        1, 2, 2, 4,                                                                                                    \
+        2, 3, 3, 4,                                                                                                    \
     }
 #define MEAN_AXIS_HWC_S8_AXIS                                                                                          \
     {                                                                                                                  \
@@ -14,17 +14,17 @@
 #define MEAN_AXIS_HWC_S8_ASYMMETRIC_QUANTIZE_INPUTS 0
 #define MEAN_AXIS_HWC_S8_OUT_DIM                                                                                       \
     {                                                                                                                  \
-        1, 1, 1, 1,                                                                                                    \
+        2, 1, 1, 1,                                                                                                    \
     }
 #define MEAN_AXIS_HWC_S8_AXIS_DIM                                                                                      \
     {                                                                                                                  \
         0, 1, 1, 1,                                                                                                    \
     }
 #define MEAN_AXIS_HWC_S8_AXIS_MASK 7
-#define MEAN_AXIS_HWC_S8_INPUT_SIZE 16
-#define MEAN_AXIS_HWC_S8_OUTPUT_SIZE 1
+#define MEAN_AXIS_HWC_S8_INPUT_SIZE 72
+#define MEAN_AXIS_HWC_S8_OUTPUT_SIZE 2
 #define MEAN_AXIS_HWC_S8_INPUT_OFFSET 128
 #define MEAN_AXIS_HWC_S8_OUTPUT_OFFSET -128
-#define MEAN_AXIS_HWC_S8_OUTPUT_MULTIPLIER 1523934732
-#define MEAN_AXIS_HWC_S8_OUTPUT_SHIFT -3
-#define MEAN_AXIS_HWC_S8_REDUCTION_SIZE 16
+#define MEAN_AXIS_HWC_S8_OUTPUT_MULTIPLIER 1729796880
+#define MEAN_AXIS_HWC_S8_OUTPUT_SHIFT -4
+#define MEAN_AXIS_HWC_S8_REDUCTION_SIZE 36
