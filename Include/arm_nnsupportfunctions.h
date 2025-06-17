@@ -2362,6 +2362,55 @@ __STATIC_FORCEINLINE int32_t arm_check_broadcast_required(const cmsis_nn_dims *s
     return 0;
 }
 
+/**
+ * @brief  Given a 4-D tensor with dimensions in_dims[0..3] = {N,H,W,C}
+ *         and a boolean mask axis_arr[0..3] indicating which dims the user
+ *         asked to reduce, returns the smallest suffix start index s∈[0..3]
+ *         such that:
+ *           • no axis_arr[d]==1 for d < s, and
+ *           • for every d ≥ s, either axis_arr[d]==1 or in_dims[d]==1.
+ *         If no such suffix exists, returns -1.
+ *
+ * @param[in] in_dims   4-element array {N, H, W, C}
+ * @param[in] axis_arr  4-element mask {axis_n, axis_h, axis_w, axis_c}
+ * @return  suffix start index (0..3), or –1 if generic path
+ */
+__STATIC_FORCEINLINE int32_t arm_mean_get_flatten_suffix_start_from_arrays(
+    const int32_t in_dims[4],
+    const int32_t axis_arr[4])
+{
+    // build declared mask: bit3=N, bit2=H, bit1=W, bit0=C
+    uint8_t declared = 0;
+    if (axis_arr[0]) declared |= 1 << 3;
+    if (axis_arr[1]) declared |= 1 << 2;
+    if (axis_arr[2]) declared |= 1 << 1;
+    if (axis_arr[3]) declared |= 1 << 0;
+
+    // scan suffix_start = 0..3
+    for (int32_t s = 0; s < 4; ++s)
+    {
+        // 1) no declared bits before s?
+        //    bits [3..(4-s)] form the suffix, so bits below that must be zero
+        if (declared & ~((uint8_t)0xFF >> s))
+            continue;
+
+        // 2) each position d>=s must be declared or in_dims[d]==1
+        int32_t ok = 1;
+        for (int32_t d = s; d < 4; ++d)
+        {
+            uint8_t bit = 1 << (3 - d);
+            if (!(declared & bit) && in_dims[d] != 1)
+            {
+                ok = 0;
+                break;
+            }
+        }
+        if (ok) return s;
+    }
+
+    return -1;
+}
+
 #if defined(ARM_FLOAT16_SUPPORTED)
 
 /**
