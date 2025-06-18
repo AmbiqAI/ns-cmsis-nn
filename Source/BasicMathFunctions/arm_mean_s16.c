@@ -19,9 +19,9 @@
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
  * Title:        arm_mean_s16
- * Description:  Elementwise add w/ support for broadcasting and scalar
+ * Description:  Mean reduction operator for quantized s16 tensors
  *
- * $Date:        23 May 2025
+ * $Date:        18 June 2025
  * $Revision:    V.1.0.0
  *
  * Target :  Arm(R) M-Profile Architecture
