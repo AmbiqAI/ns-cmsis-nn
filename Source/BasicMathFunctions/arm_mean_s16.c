@@ -75,6 +75,11 @@ arm_cmsis_nn_status arm_mean_reduce_generic_s16(const int16_t *input_data,
     const int out_W = output_dims->w;
     const int out_C = output_dims->c;
 
+    const int N_limit = axis_dims->n ? N : 1;
+    const int H_limit = axis_dims->h ? H : 1;
+    const int W_limit = axis_dims->w ? W : 1;
+    const int C_limit = axis_dims->c ? C : 1;
+
     for (int n = 0; n < out_N; ++n)
     for (int h = 0; h < out_H; ++h)
     for (int w = 0; w < out_W; ++w)
@@ -83,10 +88,10 @@ arm_cmsis_nn_status arm_mean_reduce_generic_s16(const int16_t *input_data,
         int32_t acc = 0;
         int32_t count = 0;
 
-        for (int ni = 0; ni < (axis_dims->n ? N : 1); ++ni)
-        for (int hi = 0; hi < (axis_dims->h ? H : 1); ++hi)
-        for (int wi = 0; wi < (axis_dims->w ? W : 1); ++wi)
-        for (int ci = 0; ci < (axis_dims->c ? C : 1); ++ci)
+        for (int ni = 0; ni < N_limit; ++ni)
+        for (int hi = 0; hi < H_limit; ++hi)
+        for (int wi = 0; wi < W_limit; ++wi)
+        for (int ci = 0; ci < C_limit; ++ci)
         {
             int idx_n = axis_dims->n ? ni : n;
             int idx_h = axis_dims->h ? hi : h;
@@ -100,7 +105,7 @@ arm_cmsis_nn_status arm_mean_reduce_generic_s16(const int16_t *input_data,
         acc += count * input_offset;
         acc = arm_nn_requantize(acc, out_mult, out_shift);
         acc += out_offset;
-        acc = MAX(MIN(acc, 32767), -32768);
+        acc = CLAMP(acc, 32767, -32768);
 
         int out_index = ((n * out_H + h) * out_W + w) * out_C + c;
         output_data[out_index] = (int16_t)acc;
@@ -120,10 +125,12 @@ arm_mean_flatten_reduce_last_dims_s16(const int16_t *input_data,
                                       int32_t outer_size,
                                       int32_t inner_size)
 {
+    const int32_t zp = input_offset * inner_size;
+
 #if defined(ARM_MATH_MVEI)
     for (int i = 0; i < outer_size; ++i)
     {
-        int32_t acc = 0;
+        int32_t acc = zp;
         int32_t base = i * inner_size;
 
         int j = 0;
@@ -138,10 +145,9 @@ arm_mean_flatten_reduce_last_dims_s16(const int16_t *input_data,
             acc += input_data[base + j];
         }
 
-        acc += inner_size * input_offset;
         acc = arm_nn_requantize(acc, out_mult, out_shift);
         acc += out_offset;
-        acc = MAX(MIN(acc, 32767), -32768);
+        acc = CLAMP(acc, 32767, -32768);
 
         output_data[i] = (int16_t)acc;
     }
@@ -151,16 +157,16 @@ arm_mean_flatten_reduce_last_dims_s16(const int16_t *input_data,
     // fallback to simple C implementation
     for (int i = 0; i < outer_size; ++i)
     {
-        int32_t acc = 0;
+        int32_t acc = zp;
         int32_t base = i * inner_size;
         for (int j = 0; j < inner_size; ++j)
         {
             acc += input_data[base + j];
         }
-        acc += inner_size * input_offset;
+
         acc  = arm_nn_requantize(acc, out_mult, out_shift);
         acc += out_offset;
-        acc  = MAX(MIN(acc, 32767), -32768);
+        acc  = CLAMP(acc, 32767, -32768);
         output_data[i] = (int16_t)acc;
     }
 
@@ -186,6 +192,7 @@ arm_mean_reduce_spatial_mve_s16(const int16_t *input_data,
     const int C       = input_dims->c;
     const int spatial = H * W;
 
+    const int32_t zp = input_offset * spatial;
 
     for (int n = 0; n < N; ++n)
     {
@@ -197,8 +204,8 @@ arm_mean_reduce_spatial_mve_s16(const int16_t *input_data,
         for (; c <= C - 8; c += 8)
         {
             // 2 32-bit accumulators for 8 lanes
-            int32x4_t acc0 = vdupq_n_s32(0);
-            int32x4_t acc1 = vdupq_n_s32(0);
+            int32x4_t acc0 = vdupq_n_s32(zp);
+            int32x4_t acc1 = vdupq_n_s32(zp);
 
             // Sum over spatial dims
             for (int i = 0; i < spatial; ++i)
@@ -213,11 +220,6 @@ arm_mean_reduce_spatial_mve_s16(const int16_t *input_data,
                 acc0 = vaddq_s32(acc0, lo32);
                 acc1 = vaddq_s32(acc1, hi32);
             }
-
-            // Add back zero-point bias for each element: input_offset × spatial
-            int32_t zp = input_offset * spatial;
-            acc0 = vaddq_n_s32(acc0, zp);
-            acc1 = vaddq_n_s32(acc1, zp);
 
             // Requantize (assumes 1/spatial already folded into out_mult/out_shift)
             acc0 = arm_requantize_mve(acc0, out_mult, out_shift);
@@ -238,18 +240,16 @@ arm_mean_reduce_spatial_mve_s16(const int16_t *input_data,
         // Scalar tail for channels < 8
         for (; c < C; ++c)
         {
-            int32_t acc = 0;
+            int32_t acc = zp;
             for (int i = 0; i < spatial; ++i)
             {
                 acc += in_ptr[i * C + c];
             }
-            // zero-point bias
-            acc += input_offset * spatial;
             // requantize
             acc  = arm_nn_requantize(acc, out_mult, out_shift);
             acc += out_offset;
             // clamp to int16
-            acc  = acc < -32768 ? -32768 : (acc > 32767 ? 32767 : acc);
+            acc = CLAMP(acc, 32767, -32768);
             out_ptr[c] = (int16_t)acc;
         }
     }
