@@ -21,8 +21,8 @@
  * Title:        arm_nnsupportfunctions.h
  * Description:  Public header file of support functions for CMSIS NN Library
  *
- * $Date:        08 Nov 2024
- * $Revision:    V.22.7.0
+ * $Date:        18 June 2025
+ * $Revision:    V.22.9.0
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
@@ -539,7 +539,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
  *
  *  @note This operation also performs the broadcast bias addition before the requantization
  *
- * @param[in]  weight_sum_buf     Pointer to the weight sum multiplied by lhs_offset and summed bias buffer 
+ * @param[in]  weight_sum_buf     Pointer to the weight sum multiplied by lhs_offset and summed bias buffer
  * @param[in]  lhs                Pointer to the LHS input matrix
  * @param[in]  rhs                Pointer to the RHS input matrix
  * @param[in]  bias               Pointer to the bias vector. The length of this vector is equal to the number of
@@ -563,7 +563,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  */
-arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t* weight_sum_buf, 
+arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t* weight_sum_buf,
                                             const int8_t *lhs,
                                             const int8_t *rhs,
                                             const int32_t *bias,
@@ -583,7 +583,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t* weight_sum_buf,
 
 
 /**
- * @brief General Matrix-multiplication function with per-channel requantization. 
+ * @brief General Matrix-multiplication function with per-channel requantization.
  *        Output is calculated with multiple channels in parallel, rather than multiple output indices in a single channel
  *        This function assumes:
  *        - LHS input matrix NOT transposed (nt)
@@ -591,7 +591,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t* weight_sum_buf,
  *
  *  @note This operation also performs the broadcast bias addition before the requantization
  *
- * @param[in]  weight_sum_buf     Pointer to the weight sum multiplied by lhs_offset and summed bias buffer 
+ * @param[in]  weight_sum_buf     Pointer to the weight sum multiplied by lhs_offset and summed bias buffer
  * @param[in]  lhs                Pointer to the LHS input matrix
  * @param[in]  rhs                Pointer to the RHS input matrix
  * @param[in]  bias               Pointer to the bias vector. The length of this vector is equal to the number of
@@ -997,7 +997,7 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_padded_s8(const int8_t *lhs,
  * @brief Depthwise convolution of transposed rhs matrix with 4 lhs matrices. To be used in non-padded cases.
  *        Dimensions are the same for lhs and rhs.
  *
- * @param[in]  weight_sum_buf      Pointer to the weight sum multiplied by lhs_offset and summed bias buffer 
+ * @param[in]  weight_sum_buf      Pointer to the weight sum multiplied by lhs_offset and summed bias buffer
  * @param[in]      lhs             Input left-hand side matrix
  * @param[in]      rhs             Input right-hand side matrix (transposed)
  * @param[in]      lhs_offset      LHS matrix offset(input offset). Range: -127 to 128
@@ -1650,8 +1650,31 @@ __STATIC_FORCEINLINE int32_t arm_nn_doubling_high_mult(const int32_t m1, const i
  *                  this function.
  *
  */
-__STATIC_FORCEINLINE int32_t arm_nn_doubling_high_mult_no_sat(const int32_t m1, const int32_t m2)
+__STATIC_FORCEINLINE int32_t arm_nn_doubling_high_mult_no_sat(int32_t m1, int32_t m2)
 {
+#ifdef CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY
+    // upper32bit_rounded(2*m1*m2)
+    //  == (2*m1*m2 + 0x80000000) >> 32
+    //  == (m1 * m2 + 0x40000000) >> 31
+    //  == (m1*m2) >> 31 + rounding,         where "rounding" is the 30-th bit of m1*m2
+    //
+    // Let the upper 32 bits of (m1 * m2) be "u" and the lower 32-bits "l".
+    // Then,
+    // (m1*m2) >> 31 + rounding
+    //  == ((u << 1) | (l >> 31)) + rounding
+    //  ==  (u << 1) + (l >> 31) + rounding          (bits are non-overlapping)
+    //  ==  (u << 1) + (l >> 31) + ((l >> 30) & 1)
+    //                             --------------- = Carry bit of l>>31
+    //
+    // These instructions require Thumb-2
+    __asm volatile("smull\t%1, %0, %0, %1\n\t"
+                   "lsrs\t%1, %1, #31\n\t"
+                   "adc\t%0, %1, %0, lsl #1\n\t"
+                   : "+r"(m1), "+r"(m2) /* We also garble m2 */
+                   :
+                   : "cc");
+    return m1;
+#else
     int32_t result = 0;
     union arm_nn_long_long mult;
 
@@ -1667,6 +1690,7 @@ __STATIC_FORCEINLINE int32_t arm_nn_doubling_high_mult_no_sat(const int32_t m1, 
     result = (int32_t)(mult.long_long >> 31);
 
     return result;
+#endif
 }
 
 /**
@@ -1679,6 +1703,29 @@ __STATIC_FORCEINLINE int32_t arm_nn_doubling_high_mult_no_sat(const int32_t m1, 
  */
 __STATIC_FORCEINLINE int32_t arm_nn_divide_by_power_of_two(const int32_t dividend, const int32_t exponent)
 {
+#ifdef CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY
+    // We use arithmetic right shift (ASR) as signed division. ASR rounds midpoints towards negative infinity.
+    // To correct this, we subtract 1 from negative numbers and unconditionally add the carry bit to both
+    // positive and negative numbers in the same way.
+
+    // GCC and Clang assemble this into a conditional "add r0, r0, r0 asr #31".
+    // INT32_MIN can be encoded into the immediate of a CMP instruction.
+    // I.e. this gives 3 instructions, no branch.
+    int32_t temp = dividend;
+    if (temp < 0 && temp != INT32_MIN)
+    {
+        temp--;
+    }
+    // INT32_MIN is even, so we do not depend on the decrement.
+
+    int32_t result;
+    __asm volatile("asrs\t%0, %1, %2\n\t"
+                   "adc\t%0, %0, 0\n\t" // rounding
+                   : "=r"(result)
+                   : "r"(temp), "r"(exponent)
+                   : "cc");
+    return result;
+#else
     int32_t result = 0;
     const int32_t remainder_mask = (1 << exponent) - 1;
     int32_t remainder = remainder_mask & dividend;
@@ -1698,6 +1745,7 @@ __STATIC_FORCEINLINE int32_t arm_nn_divide_by_power_of_two(const int32_t dividen
     }
 
     return result;
+#endif
 }
 
 /**
@@ -1721,7 +1769,7 @@ __STATIC_FORCEINLINE int32_t arm_nn_divide_by_power_of_two(const int32_t dividen
  */
 __STATIC_FORCEINLINE int32_t arm_nn_requantize(const int32_t val, const int32_t multiplier, const int32_t shift)
 {
-#ifdef CMSIS_NN_USE_SINGLE_ROUNDING
+#if defined(CMSIS_NN_USE_SINGLE_ROUNDING)
     const int64_t total_shift = 31 - shift;
     const int64_t new_val = val * (int64_t)multiplier;
 
@@ -1729,6 +1777,17 @@ __STATIC_FORCEINLINE int32_t arm_nn_requantize(const int32_t val, const int32_t 
     result = (result + 1) >> 1;
 
     return result;
+#elif defined(CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY)
+    if (shift >= 0)
+    {
+        // left shift
+        return arm_nn_doubling_high_mult_no_sat(val * (1 << shift), multiplier);
+    }
+    else
+    {
+        // right shift
+        return arm_nn_divide_by_power_of_two(arm_nn_doubling_high_mult_no_sat(val, multiplier), -shift);
+    }
 #else
     return arm_nn_divide_by_power_of_two(arm_nn_doubling_high_mult_no_sat(val * (1 << LEFT_SHIFT(shift)), multiplier),
                                          RIGHT_SHIFT(shift));
@@ -1991,6 +2050,38 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve_32x4(const int32x4_t val,
                                                right_shift);
     #endif
 }
+
+/**
+ * @brief Narrow four int32x4_t vectors to one int8x16_t with saturation.
+ *        Uses MVE intrinsics: vqmovnbq/ntq.
+ *
+ * @param[in]  acc0     First 4 lanes (int32)
+ * @param[in]  acc1     Next 4 lanes (int32)
+ * @param[in]  acc2     Next 4 lanes (int32)
+ * @param[in]  acc3     Final 4 lanes (int32)
+ *
+ * @return     int8x16_t packed and saturated output vector
+ */
+__STATIC_FORCEINLINE int8x16_t arm_narrow_mve_from_int32x4x4_to_int8x16(int32x4_t acc0,
+                                                                        int32x4_t acc1,
+                                                                        int32x4_t acc2,
+                                                                        int32x4_t acc3)
+{
+    int16x8_t acc16_lo, acc16_hi;
+    int8x16_t out;
+
+    acc16_lo = vqmovnbq_s32(acc16_lo, acc0);      // lanes [0..3]
+    acc16_lo = vqmovntq_s32(acc16_lo, acc1);      // lanes [4..7]
+
+    acc16_hi = vqmovnbq_s32(acc16_hi, acc2);      // lanes [8..11]
+    acc16_hi = vqmovntq_s32(acc16_hi, acc3);      // lanes [12..15]
+
+    out = vqmovnbq_s16(out, acc16_lo);            // lanes [0..7]
+    out = vqmovntq_s16(out, acc16_hi);            // lanes [8..15]
+
+    return out;
+}
+
 #endif
 
 // @note The following functions are used only for softmax layer, scaled bits = 5 assumed
@@ -2328,6 +2419,55 @@ __STATIC_FORCEINLINE int32_t arm_check_broadcast_required(const cmsis_nn_dims *s
     }
 
     return 0;
+}
+
+/**
+ * @brief  Given a 4-D tensor with dimensions in_dims[0..3] = {N,H,W,C}
+ *         and a boolean mask axis_arr[0..3] indicating which dims the user
+ *         asked to reduce, returns the smallest suffix start index s∈[0..3]
+ *         such that:
+ *           • no axis_arr[d]==1 for d < s, and
+ *           • for every d ≥ s, either axis_arr[d]==1 or in_dims[d]==1.
+ *         If no such suffix exists, returns -1.
+ *
+ * @param[in] in_dims   4-element array {N, H, W, C}
+ * @param[in] axis_arr  4-element mask {axis_n, axis_h, axis_w, axis_c}
+ * @return  suffix start index (0..3), or –1 if generic path
+ */
+__STATIC_FORCEINLINE int32_t arm_mean_get_flatten_suffix_start_from_arrays(
+    const int32_t in_dims[4],
+    const int32_t axis_arr[4])
+{
+    // build declared mask: bit3=N, bit2=H, bit1=W, bit0=C
+    uint8_t declared = 0;
+    if (axis_arr[0]) declared |= 1 << 3;
+    if (axis_arr[1]) declared |= 1 << 2;
+    if (axis_arr[2]) declared |= 1 << 1;
+    if (axis_arr[3]) declared |= 1 << 0;
+
+    // scan suffix_start = 0..3
+    for (int32_t s = 0; s < 4; ++s)
+    {
+        // 1) no declared bits before s?
+        //    bits [3..(4-s)] form the suffix, so bits below that must be zero
+        if (declared & ~((uint8_t)0xFF >> s))
+            continue;
+
+        // 2) each position d>=s must be declared or in_dims[d]==1
+        int32_t ok = 1;
+        for (int32_t d = s; d < 4; ++d)
+        {
+            uint8_t bit = 1 << (3 - d);
+            if (!(declared & bit) && in_dims[d] != 1)
+            {
+                ok = 0;
+                break;
+            }
+        }
+        if (ok) return s;
+    }
+
+    return -1;
 }
 
 #if defined(ARM_FLOAT16_SUPPORTED)

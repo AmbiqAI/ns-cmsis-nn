@@ -3661,6 +3661,61 @@ arm_cmsis_nn_status arm_pad_s8(const int8_t *input,
                                const cmsis_nn_dims *pre_pad,
                                const cmsis_nn_dims *post_pad);
 
+
+/**
+ * @brief Computes the mean of the input tensor along the specified axis.
+ * The output multipler and shift must have the output count folded into them.
+ *
+ * @param[in]   input_data          Pointer to input tensor
+ * @param[in]   input_dims          Input tensor dimensions
+ * @param[in]   input_offset        Input offset
+ * @param[in]   axis_dims           Axis dimensions to compute mean over
+ * @param[out]  output_data         Pointer to output tensor
+ * @param[in]   output_dims         Output tensor dimensions
+ * @param[in]   out_offset          Output offset
+ * @param[in]   out_mult            Output quantization multiplier
+ * @param[in]   out_shift           Output quantization shift
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_mean_s8(const int8_t *input_data,
+                               const cmsis_nn_dims *input_dims,
+                               const int32_t input_offset,
+                               const cmsis_nn_dims *axis_dims,
+                               int8_t *output_data,
+                               const cmsis_nn_dims *output_dims,
+                               const int32_t out_offset,
+                               const int32_t out_mult,
+                               const int32_t out_shift);
+
+/**
+ * @brief Computes the mean of the input tensor along the specified axis.
+ * The output multipler and shift must have the output count folded into them.
+ *
+ * @param[in]   input_data          Pointer to input tensor
+ * @param[in]   input_dims          Input tensor dimensions
+ * @param[in]   input_offset        Input offset
+ * @param[in]   axis_dims           Axis dimensions to compute mean over
+ * @param[out]  output_data         Pointer to output tensor
+ * @param[in]   output_dims         Output tensor dimensions
+ * @param[in]   out_offset          Output offset
+ * @param[in]   out_mult            Output quantization multiplier
+ * @param[in]   out_shift           Output quantization shift
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_mean_s16(const int16_t *input_data,
+                                 const cmsis_nn_dims *input_dims,
+                                 const int32_t input_offset,
+                                 const cmsis_nn_dims *axis_dims,
+                                 int16_t *output_data,
+                                 const cmsis_nn_dims *output_dims,
+                                 const int32_t out_offset,
+                                 const int32_t out_mult,
+                                 const int32_t out_shift);
+
 /**
  * @brief Elementwise binary minimum with 8bit data.
  *
