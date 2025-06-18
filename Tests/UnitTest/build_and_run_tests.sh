@@ -33,7 +33,7 @@ USE_GCC_FROM_DOWNLOAD=1
 
 ETHOS_U_CORE_PLATFORM_PATH=""
 CMSIS_5_PATH=""
-
+CMAKE_EXTRA_DEFS=""
 
 usage="
 Helper script to setup, build and run CMSIS-NN unit tests
@@ -52,11 +52,12 @@ args:
     -u  Path to ethos-u-core-platform
     -g  Disable the usage of GCC that is already from download directory. Requires gcc to be in path before calling script.
     -C  Path to cmsis 5
+    -D  Pass through a CMake -D argument, e.g. CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY=ON (default: empty)
 
     example usage: $(basename "$0") -c cortex-m3,cortex-m4 -o '-O2' -q
 "
 
-while getopts hc:o:qbreapfu:gC: flag
+while getopts hc:o:qbreapfu:gC:D: flag
 do
     case "${flag}" in
         h) echo "${usage}"
@@ -73,6 +74,7 @@ do
         u) ETHOS_U_CORE_PLATFORM_PATH="${OPTARG}";;
         g) USE_GCC_FROM_DOWNLOAD=0;;
         C) CMSIS_5_PATH="${OPTARG}";;
+        D) CMAKE_EXTRA_DEFS="${CMAKE_EXTRA_DEFS} -D${OPTARG}";;
     esac
 done
 
@@ -143,12 +145,22 @@ Build_Tests() {
     set -e
     echo "++ Building Tests"
     if [[ ${QUIET} -eq 0 ]]; then
-        cmake -S ./ -B build-${cpu}-${compiler} -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} -DTARGET_CPU=${cpu} -DCMSIS_PATH=${CMSIS_5_PATH} -DCMSIS_OPTIMIZATION_LEVEL=${OPTIMIZATION}
+        cmake -S ./ -B build-${cpu}-${compiler} \
+            -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} \
+            -DTARGET_CPU=${cpu} \
+            -DCMSIS_PATH=${CMSIS_5_PATH} \
+            -DCMSIS_OPTIMIZATION_LEVEL=${OPTIMIZATION} \
+            ${CMAKE_EXTRA_DEFS}
         cmake --build build-${cpu}-${compiler}/
 
         echo "Built successfully into build-${cpu}-${compiler}"
     else
-        cmake_command=$(cmake -S ./ -B build-${cpu}-${compiler} -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} -DTARGET_CPU=${cpu} -DCMSIS_PATH=${CMSIS_5_PATH} -DCMSIS_OPTIMIZATION_LEVEL=${OPTIMIZATION} 2>&1)
+        cmake_command=$(cmake -S ./ -B build-${cpu}-${compiler} \
+            -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} \
+            -DTARGET_CPU=${cpu} \
+            -DCMSIS_PATH=${CMSIS_5_PATH} \
+            -DCMSIS_OPTIMIZATION_LEVEL=${OPTIMIZATION} \
+            ${CMAKE_EXTRA_DEFS} 2>&1)
         make_command=$(cmake --build build-${cpu}-${compiler}/ 2>&1)
         echo "${cmake_command}" > build-${cpu}-${compiler}/cmake_command.txt
         echo "${make_command}" > build-${cpu}-${compiler}/make_command.txt
