@@ -1,6 +1,6 @@
 # NS-CMSIS-NN
 
-NS-CMSIS-NN is a specialized fork of Arm CMSIS-NN, tailored for Ambiq's Apollo family of ultra-low-power System-on-Chips (SoCs). This project enhances TFLM by optimizing it to leverage the advanced hardware intrinsics of the Apollo series, such as Matrix Vector Extensions (MVE) and Digital Signal Processing (DSP) instructions.
+NS-CMSIS-NN is a specialized fork of Arm CMSIS-NN, tailored for Ambiq's Apollo family of ultra-low-power System-on-Chips (SoCs). This project enhances TFLM by optimizing it to leverage the advanced hardware intrinsics of the Apollo series, such as M-Profile Vector Extensions (MVE) and Digital Signal Processing (DSP) instructions.
 
 CMSIS NN software library is a collection of efficient neural network kernels developed to maximize the
 performance and minimize the memory footprint of neural networks on Arm Cortex-M processors.

@@ -81,13 +81,15 @@ arm_cmsis_nn_status arm_mean_reduce_generic_s8(const int8_t *input_data,
     const int W_limit = axis_dims->w ? W : 1;
     const int C_limit = axis_dims->c ? C : 1;
 
+    const int count = N_limit * H_limit * W_limit * C_limit;
+    const int32_t zp = input_offset * count;
+
     for (int n = 0; n < out_N; ++n)
     for (int h = 0; h < out_H; ++h)
     for (int w = 0; w < out_W; ++w)
     for (int c = 0; c < out_C; ++c)
     {
-        int32_t acc = 0;
-        int32_t count = 0;
+        int32_t acc = zp;
 
         for (int ni = 0; ni < N_limit; ++ni)
         for (int hi = 0; hi < H_limit; ++hi)
@@ -101,9 +103,8 @@ arm_cmsis_nn_status arm_mean_reduce_generic_s8(const int8_t *input_data,
 
             int flat_index = ((idx_n * H + idx_h) * W + idx_w) * C + idx_c;
             acc += input_data[flat_index];
-            count++;
         }
-        acc += count * input_offset;
+
         acc = arm_nn_requantize(acc, out_mult, out_shift);
         acc += out_offset;
         acc = CLAMP(acc, 127, -128);
@@ -118,13 +119,13 @@ arm_cmsis_nn_status arm_mean_reduce_generic_s8(const int8_t *input_data,
 
 arm_cmsis_nn_status
 arm_mean_flatten_reduce_last_dims_s8(const int8_t *input_data,
-                                         int32_t input_offset,
-                                         int8_t *output_data,
-                                         int32_t out_offset,
-                                         int32_t out_mult,
-                                         int32_t out_shift,
-                                         int32_t outer_size,
-                                         int32_t inner_size)
+                                     int32_t input_offset,
+                                     int8_t *output_data,
+                                     int32_t out_offset,
+                                     int32_t out_mult,
+                                     int32_t out_shift,
+                                     int32_t outer_size,
+                                     int32_t inner_size)
 {
     const int32_t zp = input_offset * inner_size;
 
