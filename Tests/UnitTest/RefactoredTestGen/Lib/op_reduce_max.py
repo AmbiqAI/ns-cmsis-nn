@@ -124,8 +124,6 @@ class Op_reduce_max(Lib.op_utils.Op_type):
         # Compute base scale and quantize
         real_multiplier = input_scale / output_scale
         base_mult, base_shift = compute_multiplier_shift(real_multiplier)
-        print(f"Input scale: {input_scale}, Output scale: {output_scale}")
-        print(f"Computed multiplier: {base_mult}, shift: {base_shift} for scale: {real_multiplier}")
         real_multiplier = input_scale / output_scale
         out_mult, out_shift = compute_multiplier_shift(real_multiplier)
         generated_params["output_multiplier"] = out_mult
