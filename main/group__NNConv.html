@@ -1539,7 +1539,8 @@ Functions</h2></td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">filter_dims</td><td>Filter tensor dimensions. Format: [C_OUT, HK, WK, CK] where HK, WK and CK are the spatial filter dimensions. CK != C_IN is used for grouped convolution, in which case the required conditions are C_IN = N * CK and C_OUT = N * M for N groups of size M. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">filter_data</td><td>Filter data pointer. Data type: int8 </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">bias_dims</td><td>Bias tensor dimensions. Format: [C_OUT] </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">bias_data</td><td>Optional bias data pointer. Data type: int32 tranposed convolution. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">bias_data</td><td>Optional bias data pointer. Data type: int32 </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">upscale_dims</td><td>Upscale tensor dimensions for transpose. Format: [H_UP, W_UP] </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">output_dims</td><td>Output tensor dimensions. Format: [N, H, W, C_OUT] </td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">output_data</td><td>Output data pointer. Data type: int8</td></tr>
   </table>
@@ -2875,6 +2876,7 @@ Functions</h2></td></tr>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in,out]</td><td class="paramname">ctx</td><td>Function context (e.g. temporary buffer). Check the function definition file to see if an additional buffer is required. Optional function {API}_get_buffer_size() provides the buffer size if required. The caller is expected to clear the buffer, if applicable, for security reasons. </td></tr>
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">weight_sum_ctx</td><td>Function context that contains the weight sum buffer if required by the function. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">dw_conv_params</td><td>Depthwise convolution parameters (e.g. strides, dilations, pads,...) dw_conv_params-&gt;dilation is not used. Range of dw_conv_params-&gt;input_offset : [-127, 128] Range of dw_conv_params-&gt;output_offset : [-128, 127] </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">quant_params</td><td>Per-channel quantization info. It contains the multiplier and shift values to be applied to each output channel </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">input_dims</td><td>Input (activation) tensor dimensions. Format: [H, W, C_IN] Batch argument N is not used and assumed to be 1. </td></tr>
