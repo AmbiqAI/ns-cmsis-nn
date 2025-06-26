@@ -225,7 +225,6 @@ arm_reduce_max_spatial_s16(const int16_t *input_data,
                            const cmsis_nn_dims *output_dims)
 {
 
-#if defined(ARM_MATH_MVEI)
     (void)axis_dims;
     (void)output_dims;
 
@@ -235,13 +234,15 @@ arm_reduce_max_spatial_s16(const int16_t *input_data,
     const int32_t C       = input_dims->c;
     const int32_t spatial = H * W;
 
+#if defined(ARM_MATH_MVEI)
+
     for (int n = 0; n < N; ++n)
     {
         const int16_t *in_ptr  = input_data  + n * spatial * C;
         int16_t *out_ptr = output_data + n * C;
 
         int c = 0;
-        for (; c <= C - 16; c += 16)
+        for (; c <= C - 8; c += 8)
         {
 
             // Initialize max vector to INT16_MIN
@@ -272,63 +273,43 @@ arm_reduce_max_spatial_s16(const int16_t *input_data,
     return ARM_CMSIS_NN_SUCCESS;
 
 #elif defined(ARM_MATH_DSP)
-    (void)axis_dims;
-    (void)output_dims;
 
     for (int n = 0; n < N; ++n) {
-        const int16_t *base = input_data + n * spatial * C;
-        int16_t *out  = output_data + n * C;
+        const int16_t *base = input_data  + n * spatial * C;
+              int16_t *out  = output_data + n * C;
 
         for (int c = 0; c < C; ++c) {
-            // Start with the minimum possible s16 in both halves
-            int32_t max_pair0 = PKHBT(INT16_MIN, INT16_MIN, 16);
-            int32_t max_pair1 = max_pair0;
+            int32_t s = 0;
+            // pack two 16-bit lanes, both init to INT16_MIN
+            int32_t max_pair = PKHBT(INT16_MIN, INT16_MIN, 16);
 
-            int s = 0;
-            // Process groups of 4 spatial elements
-            for (; s <= spatial - 4; s += 4) {
-                // Load 4 bytes strided by C
+            // handle groups of 2 spatial elements at a time
+            for (; s <= spatial - 2; s += 2) {
+                // gather two samples
                 int16_t v0 = base[(s + 0) * C + c];
                 int16_t v1 = base[(s + 1) * C + c];
-                int16_t v2 = base[(s + 2) * C + c];
-                int16_t v3 = base[(s + 3) * C + c];
-
-                // Pack into two 16-bit lanes each
-                int32_t op0 = (int16_t)v0 | ((int16_t)v1 << 16);
-                int32_t op1 = (int16_t)v2 | ((int16_t)v3 << 16);
-
-                // Extract and compare lane-by-lane
-                int16_t  a0 = (int16_t)(op0 & 0xFFFF);
-                int16_t  a1 = (int16_t)((uint32_t)op0 >> 16);
-                int16_t  m0 = (int16_t)(max_pair0 & 0xFFFF);
-                int16_t  m1 = (int16_t)((uint32_t)max_pair0 >> 16);
-                m0 = (a0 > m0) ? a0 : m0;
-                m1 = (a1 > m1) ? a1 : m1;
-                max_pair0 = (uint32_t)( (uint16_t)m0 ) | ((uint32_t)(uint16_t)m1 << 16);
-
-                // Do the same for the second pair
-                a0 = (int16_t)(op1 & 0xFFFF);
-                a1 = (int16_t)((uint32_t)op1 >> 16);
-                m0 = (int16_t)(max_pair1 & 0xFFFF);
-                m1 = (int16_t)((uint32_t)max_pair1 >> 16);
-                m0 = (a0 > m0) ? a0 : m0;
-                m1 = (a1 > m1) ? a1 : m1;
-                max_pair1 = (uint32_t)( (uint16_t)m0 ) | ((uint32_t)(uint16_t)m1 << 16);
+                // pack *unsigned* to avoid sign-bleed
+                uint32_t op = (uint32_t)(uint16_t)v0
+                            | ((uint32_t)(uint16_t)v1 << 16);
+                // extract lanes and compare
+                int16_t a0 = (int16_t)( op        & 0xFFFF);
+                int16_t a1 = (int16_t)((op >> 16) & 0xFFFF);
+                int16_t m0 = (int16_t)( max_pair        & 0xFFFF);
+                int16_t m1 = (int16_t)((max_pair >> 16) & 0xFFFF);
+                m0 = MAX(m0, a0);
+                m1 = MAX(m1, a1);
+                max_pair = PKHBT(m0, m1, 16);
             }
 
-            // Collapse the two packed registers into a single int16_t
-            int16_t m = (int16_t)( (int16_t)(max_pair0 & 0xFFFF) );
-            int16_t t = (int16_t)( (int16_t)((uint32_t)max_pair0 >> 16) );
-            m = MAX(m, t);
-            t = (int16_t)( (int16_t)(max_pair1 & 0xFFFF) );
-            m = MAX(m, t);
-            t = (int16_t)( (int16_t)((uint32_t)max_pair1 >> 16) );
+            // collapse the two lanes into one int16
+            int16_t m = (int16_t)( max_pair        & 0xFFFF);
+            int16_t t = (int16_t)((max_pair >> 16) & 0xFFFF);
             m = MAX(m, t);
 
-            // Handle any tail elements
+            // process any tail
             for (; s < spatial; ++s) {
                 int16_t v = base[s * C + c];
-                if (v > m) m = v;
+                m = MAX(m, v);
             }
 
             out[c] = m;

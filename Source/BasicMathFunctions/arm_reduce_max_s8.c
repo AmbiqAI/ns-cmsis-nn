@@ -233,7 +233,6 @@ arm_reduce_max_spatial_s8(const int8_t *input_data,
                           const cmsis_nn_dims *output_dims)
 {
 
-#if defined(ARM_MATH_MVEI)
     (void)axis_dims;
     (void)output_dims;
 
@@ -242,6 +241,8 @@ arm_reduce_max_spatial_s8(const int8_t *input_data,
     const int32_t W       = input_dims->w;
     const int32_t C       = input_dims->c;
     const int32_t spatial = H * W;
+
+#if defined(ARM_MATH_MVEI)
 
     for (int n = 0; n < N; ++n)
     {
@@ -280,65 +281,66 @@ arm_reduce_max_spatial_s8(const int8_t *input_data,
     return ARM_CMSIS_NN_SUCCESS;
 
 #elif defined(ARM_MATH_DSP)
-    (void)axis_dims;
-    (void)output_dims;
 
     for (int n = 0; n < N; ++n) {
         const int8_t *base = input_data + n * spatial * C;
-        int8_t *out  = output_data + n * C;
+        int8_t *out        = output_data + n * C;
 
         for (int c = 0; c < C; ++c) {
-            // Start with the minimum possible s8 in both halves
+            int s = 0;
+            // Two 16-bit lanes per reg, init both to INT8_MIN
             int32_t max_pair0 = PKHBT(INT8_MIN, INT8_MIN, 16);
             int32_t max_pair1 = max_pair0;
 
-            int s = 0;
-            // Process groups of 4 spatial elements
+            // Process in blocks of 4 spatial elements
             for (; s <= spatial - 4; s += 4) {
-                // Load 4 bytes strided by C
                 int8_t v0 = base[(s + 0) * C + c];
                 int8_t v1 = base[(s + 1) * C + c];
                 int8_t v2 = base[(s + 2) * C + c];
                 int8_t v3 = base[(s + 3) * C + c];
 
-                // Pack into two 16-bit lanes each
-                int32_t op0 = (int16_t)v0 | ((int16_t)v1 << 16);
-                int32_t op1 = (int16_t)v2 | ((int16_t)v3 << 16);
+                // PACK WITH UNSIGNED CASTS to avoid sign-extension bleeding
+                uint32_t op0 = (uint32_t)(uint16_t)v0
+                             | ((uint32_t)(uint16_t)v1 << 16);
+                uint32_t op1 = (uint32_t)(uint16_t)v2
+                             | ((uint32_t)(uint16_t)v3 << 16);
 
-                // Extract and compare lane-by-lane
-                int16_t  a0 = (int16_t)(op0 & 0xFFFF);
-                int16_t  a1 = (int16_t)((uint32_t)op0 >> 16);
-                int16_t  m0 = (int16_t)(max_pair0 & 0xFFFF);
-                int16_t  m1 = (int16_t)((uint32_t)max_pair0 >> 16);
-                m0 = (a0 > m0) ? a0 : m0;
-                m1 = (a1 > m1) ? a1 : m1;
-                max_pair0 = (uint32_t)( (uint16_t)m0 ) | ((uint32_t)(uint16_t)m1 << 16);
-
-                // Do the same for the second pair
-                a0 = (int16_t)(op1 & 0xFFFF);
-                a1 = (int16_t)((uint32_t)op1 >> 16);
-                m0 = (int16_t)(max_pair1 & 0xFFFF);
-                m1 = (int16_t)((uint32_t)max_pair1 >> 16);
-                m0 = (a0 > m0) ? a0 : m0;
-                m1 = (a1 > m1) ? a1 : m1;
-                max_pair1 = (uint32_t)( (uint16_t)m0 ) | ((uint32_t)(uint16_t)m1 << 16);
+                // lane‐wise max on op0 → max_pair0
+                {
+                  int16_t a0 = (int16_t)(op0        & 0xFFFF);
+                  int16_t a1 = (int16_t)(op0 >> 16);
+                  int16_t m0 = (int16_t)(max_pair0 & 0xFFFF);
+                  int16_t m1 = (int16_t)(max_pair0 >> 16);
+                  m0 = MAX(m0, a0);
+                  m1 = MAX(m1, a1);
+                  max_pair0 = PKHBT(m0, m1, 16);
+                }
+                // lane‐wise max on op1 → max_pair1
+                {
+                  int16_t a0 = (int16_t)(op1        & 0xFFFF);
+                  int16_t a1 = (int16_t)(op1 >> 16);
+                  int16_t m0 = (int16_t)(max_pair1 & 0xFFFF);
+                  int16_t m1 = (int16_t)(max_pair1 >> 16);
+                  m0 = MAX(m0, a0);
+                  m1 = MAX(m1, a1);
+                  max_pair1 = PKHBT(m0, m1, 16);
+                }
             }
 
-            // Collapse the two packed registers into a single int8_t
-            int8_t m = (int8_t)( (int16_t)(max_pair0 & 0xFFFF) );
-            int8_t t = (int8_t)( (int16_t)((uint32_t)max_pair0 >> 16) );
+            // Collapse our two pairs into one scalar max
+            int8_t m = (int8_t)( (int16_t)(max_pair0        & 0xFFFF) );
+            int8_t t = (int8_t)( (int16_t)((max_pair0 >> 16) & 0xFFFF) );
             m = MAX(m, t);
-            t = (int8_t)( (int16_t)(max_pair1 & 0xFFFF) );
+            t = (int8_t)( (int16_t)(max_pair1        & 0xFFFF) );
             m = MAX(m, t);
-            t = (int8_t)( (int16_t)((uint32_t)max_pair1 >> 16) );
+            t = (int8_t)( (int16_t)((max_pair1 >> 16) & 0xFFFF) );
             m = MAX(m, t);
 
-            // Handle any tail elements
+            // Handle any leftover “tail” elements
             for (; s < spatial; ++s) {
-                int8_t v = base[s * C + c];
-                if (v > m) m = v;
+              int8_t v = base[s * C + c];
+              m = MAX(m, v);
             }
-
             out[c] = m;
         }
     }
