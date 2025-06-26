@@ -107,10 +107,9 @@ arm_cmsis_nn_status arm_reduce_max_generic_s16(const int16_t *input_data,
  * @brief Flatten last dims reduce max operator for quantized s16 tensors.
  *
  * @param[in]  input_data     Pointer to input tensor
- * @param[in]  input_dims     Input tensor dimensions (4D NHWC)
- * @param[in]  axis_dims      4D binary axis mask (1 = reduce)
  * @param[out] output_data    Pointer to output buffer
- * @param[in]  output_dims    Output tensor dimensions
+ * @param[in]  outer_size     Size of the outer dimension (number of blocks)
+ * @param[in]  inner_size     Size of the inner dimension (number of elements in each block)
  *
  * @return     ARM_CMSIS_NN_SUCCESS on success
  */
