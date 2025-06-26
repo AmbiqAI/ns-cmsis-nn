@@ -32,6 +32,7 @@ import Lib.op_relu
 import Lib.op_relu6
 import Lib.op_strided_slice
 import Lib.op_mean
+import Lib.op_reduce_max
 import tensorflow as tf
 import numpy as np
 from tensorflow.lite.python.interpreter import Interpreter
@@ -266,6 +267,8 @@ def get_op_type(op_type_string):
         return Lib.op_strided_slice.Op_strided_slice
     elif op_type_string == "mean":
         return Lib.op_mean.Op_mean
+    elif op_type_string == "reduce_max":
+        return Lib.op_reduce_max.Op_reduce_max
     else:
         raise ValueError(f"Unknown op type '{op_type_string}'")
 

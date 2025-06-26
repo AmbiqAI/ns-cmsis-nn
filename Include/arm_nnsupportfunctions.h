@@ -2434,7 +2434,7 @@ __STATIC_FORCEINLINE int32_t arm_check_broadcast_required(const cmsis_nn_dims *s
  * @param[in] axis_arr  4-element mask {axis_n, axis_h, axis_w, axis_c}
  * @return  suffix start index (0..3), or –1 if generic path
  */
-__STATIC_FORCEINLINE int32_t arm_mean_get_flatten_suffix_start_from_arrays(
+__STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(
     const int32_t in_dims[4],
     const int32_t axis_arr[4])
 {

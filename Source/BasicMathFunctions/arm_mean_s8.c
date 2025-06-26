@@ -36,7 +36,7 @@
  */
 
 /**
- * @addtogroup groupElementwise
+ * @addtogroup groupReduction
  * @{
  */
 
@@ -344,7 +344,7 @@ arm_cmsis_nn_status arm_mean_s8(const int8_t *input_data,
                              axis_dims->w ? 1 : 0,
                              axis_dims->c ? 1 : 0 };
 
-    int32_t suffix_start = arm_mean_get_flatten_suffix_start_from_arrays(in_dims, axis_arr);
+    int32_t suffix_start = arm_reduce_get_flatten_suffix_start_from_arrays(in_dims, axis_arr);
 
     // Check for flatten reduction axis=[N,H,W,C]
     if (suffix_start >= 0)
@@ -368,7 +368,7 @@ arm_cmsis_nn_status arm_mean_s8(const int8_t *input_data,
 #if defined(ARM_MATH_MVEI)
 
     // Check for spatial reduction axis=[H,W]
-    if (axis_dims->h && axis_dims->w)
+    if (!axis_dims->n && axis_dims->h && axis_dims->w && !axis_dims->c)
     {
         return arm_mean_reduce_spatial_mve_s8(input_data,
                                               input_dims,
