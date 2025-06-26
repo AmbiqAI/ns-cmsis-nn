@@ -2699,7 +2699,7 @@
       }
     ]
   },
-{
+  {
     "suite_name": "test_arm_mean_s16",
     "op_type": "mean",
     "input_data_type": "int16_t",
@@ -2764,6 +2764,126 @@
         "axis": [1, 2],
         "keep_dims": true,
         "asymmetric_quantize_inputs": 0
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_reduce_max_s8",
+    "op_type": "reduce_max",
+    "input_data_type": "int8_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int32_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "reduce_max_axis_c_s8",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_w_s8",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_h_s8",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_n_s8",
+        "in_dim": [2, 3, 2, 4],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_wc_s8",
+        "in_dim": [4, 5, 7, 4],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_hwc_s8",
+        "in_dim": [2, 3, 3, 4],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_nhwc_s8",
+        "in_dim": [3, 17, 5, 4],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_hw_s8",
+        "in_dim": [5, 10, 13, 4],
+        "axis": [1, 2],
+        "keep_dims": true
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_reduce_max_s16",
+    "op_type": "reduce_max",
+    "input_data_type": "int16_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int64_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "reduce_max_axis_c_s16",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_w_s16",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_h_s16",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_n_s16",
+        "in_dim": [2, 3, 2, 4],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_wc_s16",
+        "in_dim": [4, 5, 7, 4],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_hwc_s16",
+        "in_dim": [2, 3, 3, 4],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_nhwc_s16",
+        "in_dim": [3, 17, 5, 4],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_hw_s16",
+        "in_dim": [5, 10, 13, 4],
+        "axis": [1, 2],
+        "keep_dims": true
       }
     ]
   }

@@ -131,7 +131,8 @@ add_subdirectory(TestCases/test_arm_add_s16)
 add_subdirectory(TestCases/test_arm_mul_s16)
 add_subdirectory(TestCases/test_arm_mean_s8)
 add_subdirectory(TestCases/test_arm_mean_s16)
-
+add_subdirectory(TestCases/test_arm_reduce_max_s8)
+add_subdirectory(TestCases/test_arm_reduce_max_s16)
 
 
 
