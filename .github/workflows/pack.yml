@@ -1,4 +1,5 @@
 name: Build documentation and pack
+
 on:
   workflow_dispatch:
   pull_request:
@@ -13,10 +14,11 @@ concurrency:
 
 jobs:
   pack:
-    name: Generate pack
+    name: Generate & attach pack
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -24,7 +26,8 @@ jobs:
         run: |
           git fetch --tags --force
 
-      - uses: Open-CMSIS-Pack/gen-pack-action@main
+      - name: Generate pack
+        uses: Open-CMSIS-Pack/gen-pack-action@main
         with:
           doxygen-version: 1.9.6
           packchk-version: 1.4.1
@@ -35,9 +38,10 @@ jobs:
           gh-pages-branch: gh-pages
 
       - name: Get release version
-        if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
         id: ver
+        if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
         run: |
+          # strip "refs/tags/" and leading "v"
           TAG=${GITHUB_REF#refs/tags/}
           VERSION=${TAG#v}
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
