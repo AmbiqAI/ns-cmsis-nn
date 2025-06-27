@@ -2438,36 +2438,32 @@ __STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(
     const int32_t in_dims[4],
     const int32_t axis_arr[4])
 {
-    // build declared mask: bit3=N, bit2=H, bit1=W, bit0=C
-    uint8_t declared = 0;
-    if (axis_arr[0]) declared |= 1 << 3;
-    if (axis_arr[1]) declared |= 1 << 2;
-    if (axis_arr[2]) declared |= 1 << 1;
-    if (axis_arr[3]) declared |= 1 << 0;
+    uint8_t axis_mask =   (uint8_t)(axis_arr[0] & 1) << 3
+                        | (uint8_t)(axis_arr[1] & 1) << 2
+                        | (uint8_t)(axis_arr[2] & 1) << 1
+                        | (uint8_t)(axis_arr[3] & 1) << 0;
 
-    // scan suffix_start = 0..3
-    for (int32_t s = 0; s < 4; ++s)
-    {
-        // 1) no declared bits before s?
-        //    bits [3..(4-s)] form the suffix, so bits below that must be zero
-        if (declared & ~((uint8_t)0xFF >> s))
-            continue;
+    uint8_t input_mask =  (uint8_t)(in_dims[0] == 1) << 3
+                        | (uint8_t)(in_dims[1] == 1) << 2
+                        | (uint8_t)(in_dims[2] == 1) << 1
+                        | (uint8_t)(in_dims[3] == 1) << 0;
 
-        // 2) each position d>=s must be declared or in_dims[d]==1
-        int32_t ok = 1;
-        for (int32_t d = s; d < 4; ++d)
-        {
-            uint8_t bit = 1 << (3 - d);
-            if (!(declared & bit) && in_dims[d] != 1)
-            {
-                ok = 0;
-                break;
-            }
-        }
-        if (ok) return s;
+    uint8_t union_mask = axis_mask | input_mask;
+
+    if (axis_mask & 0x8) {
+        return (union_mask & 0xF) == 0xF ? 0 : -1;
     }
-
+    if (axis_mask & 0x4) {
+        return (union_mask & 0x7) == 0x7 ? 1 : -1;
+    }
+    if (axis_mask & 0x2) {
+        return (union_mask & 0x3) == 0x3 ? 2 : -1;
+    }
+    if (axis_mask & 0x1) {
+        return (union_mask & 0x1) == 0x1 ? 3 : -1;
+    }
     return -1;
+
 }
 
 #if defined(ARM_FLOAT16_SUPPORTED)
