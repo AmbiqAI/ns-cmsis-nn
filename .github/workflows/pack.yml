@@ -16,6 +16,7 @@ jobs:
   pack:
     name: Generate & attach pack
     runs-on: ubuntu-22.04
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -23,8 +24,7 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch tags
-        run: |
-          git fetch --tags --force
+        run: git fetch --tags --force
 
       - name: Generate pack
         uses: Open-CMSIS-Pack/gen-pack-action@main
@@ -37,27 +37,27 @@ jobs:
           gen-pack-output: ./output
           gh-pages-branch: gh-pages
 
+      # — only run these on the actual GitHub Release publish event —
       - name: Get release version
-        id: ver
         if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
+        id: ver
         run: |
-          # strip "refs/tags/" and leading "v"
-          TAG=${GITHUB_REF#refs/tags/}
-          VERSION=${TAG#v}
+          TAG=${GITHUB_REF#refs/tags/}       # strip refs/tags/
+          VERSION=${TAG#v}                   # strip leading "v"
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Rename pack file
         if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
         run: |
-          mv ./output/*.pack ./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack
+          mv ./output/*.pack \
+             ./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack
 
-      - name: Upload pack to GitHub Release
+      - name: Upload pack via GitHub CLI
         if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
-        uses: actions/upload-release-asset@v3
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack
-          asset_name: ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack
-          asset_content_type: application/octet-stream
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload \
+            "${{ github.event.release.tag_name }}" \
+            ./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack \
+            --clobber
