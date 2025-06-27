@@ -2438,41 +2438,32 @@ __STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(
     const int32_t in_dims[4],
     const int32_t axis_arr[4])
 {
-  // Build a 4‐bit mask of which dims are being reduced:
-  uint8_t axis_mask =  (uint8_t)(axis_arr[0] & 1) << 3
-                     | (uint8_t)(axis_arr[1] & 1) << 2
-                     | (uint8_t)(axis_arr[2] & 1) << 1
-                     | (uint8_t)(axis_arr[3] & 1) << 0;
+    uint8_t axis_mask =   (uint8_t)(axis_arr[0] & 1) << 3
+                        | (uint8_t)(axis_arr[1] & 1) << 2
+                        | (uint8_t)(axis_arr[2] & 1) << 1
+                        | (uint8_t)(axis_arr[3] & 1) << 0;
 
-  // Build a 4‐bit mask of which dims are trivial (size == 1)
-  uint8_t trivial_mask =  (uint8_t)(in_dims[0] == 1) << 3
-                       | (uint8_t)(in_dims[1] == 1) << 2
-                       | (uint8_t)(in_dims[2] == 1) << 1
-                       | (uint8_t)(in_dims[3] == 1) << 0;
+    uint8_t input_mask =  (uint8_t)(in_dims[0] == 1) << 3
+                        | (uint8_t)(in_dims[1] == 1) << 2
+                        | (uint8_t)(in_dims[2] == 1) << 1
+                        | (uint8_t)(in_dims[3] == 1) << 0;
 
-  // If any reduced dim is *not* trivial, we cannot flatten
-  if ((axis_mask & ~trivial_mask) != 0) {
+    uint8_t union_mask = axis_mask | input_mask;
+
+    if (axis_mask & 0x8) {
+        return (union_mask & 0xF) == 0xF ? 0 : -1;
+    }
+    if (axis_mask & 0x4) {
+        return (union_mask & 0x7) == 0x7 ? 1 : -1;
+    }
+    if (axis_mask & 0x2) {
+        return (union_mask & 0x3) == 0x3 ? 2 : -1;
+    }
+    if (axis_mask & 0x1) {
+        return (union_mask & 0x1) == 0x1 ? 3 : -1;
+    }
     return -1;
-  }
 
-  // We now require that axis_mask be of the form 0b0001, 0b0011, 0b0111 or 0b1111
-  // (i.e. a contiguous run of LSB bits).  If it's zero (no reduction) also bail.
-  if (axis_mask == 0) {
-    return -1;
-  }
-
-  // Compute k = number of trailing 1-bits
-  int k = 0;
-  while (k < 4 && (axis_mask & (1u << k))) {
-    ++k;
-  }
-  // Make sure there are no “holes”: axis_mask must be (1<<k)-1
-  if (axis_mask != (uint8_t)((1u << k) - 1)) {
-    return -1;
-  }
-
-  // s = 4−k is the first dimension of that suffix
-  return 4 - k;
 }
 
 #if defined(ARM_FLOAT16_SUPPORTED)
