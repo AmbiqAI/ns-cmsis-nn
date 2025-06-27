@@ -34,26 +34,26 @@ jobs:
           gen-pack-output: ./output
           gh-pages-branch: gh-pages
 
-    - name: Get release version
-      if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
-      id: ver
-      run: |
-        TAG=${GITHUB_REF#refs/tags/}
-        VERSION=${TAG#v}
-        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+      - name: Get release version
+        if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
+        id: ver
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG#v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
-    - name: Rename pack file
-      if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
-      run: |
-        mv ./output/*.pack ./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack
+      - name: Rename pack file
+        if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
+        run: |
+          mv ./output/*.pack ./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack
 
-    - name: Upload pack to GitHub Release
-      if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
-      uses: actions/upload-release-asset@v3
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack
-        asset_name: ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack
-        asset_content_type: application/octet-stream
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload pack to GitHub Release
+        if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
+        uses: actions/upload-release-asset@v3
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack
+          asset_name: ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
