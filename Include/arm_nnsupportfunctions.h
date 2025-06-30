@@ -2067,8 +2067,9 @@ __STATIC_FORCEINLINE int8x16_t arm_narrow_mve_from_int32x4x4_to_int8x16(int32x4_
                                                                         int32x4_t acc2,
                                                                         int32x4_t acc3)
 {
-    int16x8_t acc16_lo, acc16_hi;
-    int8x16_t out;
+    int16x8_t acc16_lo = vdupq_n_s16(0);
+    int16x8_t acc16_hi = vdupq_n_s16(0);
+    int8x16_t out = vdupq_n_s8(0);
 
     acc16_lo = vqmovnbq_s32(acc16_lo, acc0);      // lanes [0..3]
     acc16_lo = vqmovntq_s32(acc16_lo, acc1);      // lanes [4..7]

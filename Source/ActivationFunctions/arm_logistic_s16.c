@@ -212,3 +212,7 @@ arm_cmsis_nn_status arm_logistic_s16(int16_t *input,
 
     return ARM_CMSIS_NN_SUCCESS;
 }
+
+/**
+ * @} end of Doxygen group
+ */

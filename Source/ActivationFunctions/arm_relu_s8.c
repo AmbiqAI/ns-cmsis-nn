@@ -106,3 +106,7 @@ arm_cmsis_nn_status arm_relu_s8(const int8_t *input,
 
     return ARM_CMSIS_NN_SUCCESS;
 }
+
+/**
+ * @} end of Doxygen group
+ */
