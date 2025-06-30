@@ -1,7 +1,7 @@
 function writeHeader() {
-    document.write('Version 7.3.2-dev2');
+    document.write('Version 7.4.1-dev1');
 };
 
 function writeFooter()  {
-    document.write('Generated on Fri Jun 27 2025 17:24:10 for CMSIS-NN 7.3.2-dev2+g0579e3e. Copyright &copy; 2025 Arm Limited (or its affiliates). All rights reserved.');
+    document.write('Generated on Mon Jun 30 2025 14:46:44 for CMSIS-NN 7.4.1-dev1+g15da54e. Copyright &copy; 2025 Arm Limited (or its affiliates). All rights reserved.');
 };
