@@ -33,7 +33,7 @@
 #include "Internal/arm_nn_compiler.h"
 #include "arm_nn_math_types.h"
 #include "arm_nn_types.h"
-
+#include <string.h>
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -2494,6 +2494,33 @@ __STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(
 );
 
 #endif /*defined(ARM_FLOAT16_SUPPORTED)*/
+
+// void depthwise_weight_rearrange(const int8_t *original_weights, int8_t *rearranged_weights,
+//                                 const int channels, const int kernel_h, const int kernel_w)
+// {
+//     int vector_size = 16;
+//     int total_kernels = kernel_h * kernel_w;
+//     memset(rearranged_weights, 0, channels * total_kernels);
+//     for (int ch = 0; ch < channels; ch += vector_size)
+//     {
+//         for (int kh = 0; kh < kernel_h; kh++)
+//         {
+//             for (int kw = 0; kw < kernel_w; kw++)
+//             {
+//                 for (int v = 0; v < vector_size; v++)
+//                 {
+//                     if ((ch + v) < channels)
+//                     {
+//                         int src_idx = (ch + v) * kernel_h * kernel_w + kh * kernel_w + kw;
+//                         int dst_idx = (kh * kernel_w + kw) * channels + ch + v;
+//                         rearranged_weights[dst_idx] = original_weights[src_idx];
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }
+// // depthwise_weight_rearrange(original_weights, rearranged_weights, channels, kernel_h, kernel_w);
 
 #ifdef __cplusplus
 }
