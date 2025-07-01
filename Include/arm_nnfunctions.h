@@ -1685,6 +1685,41 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
                                               int8_t *output_data);
 
 /**
+ * @brief Optimized s8 depthwise convolution function with constraint that in_channel equals out_channel.
+ *        Refer arm_depthwise_conv_s8() for function argument details.
+ *
+ * @return     The function returns one of the following
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or
+ *                                                      ch_mult != 1
+ *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ *
+ * @note       If number of channels is not a multiple of 4, upto 3 elements outside the boundary will be read out
+ *             for the following if MVE optimizations(Arm Helium Technology) are used.
+ *               - Output shift
+ *               - Output multiplier
+ *               - Output bias
+ *               - kernel
+ * @details
+ *    - Supported framework: TensorFlow Lite
+ *    - The following constrains on the arguments apply
+ *        -# Number of input channel equals number of output channels or ch_mult equals 1
+ *    - Reccomended when number of channels is 4 or greater.
+ *
+ */
+arm_cmsis_nn_status arm_depthwise_conv_s8_direct(const cmsis_nn_context *ctx,
+                                              const cmsis_nn_context *weight_sum_ctx,
+                                              const cmsis_nn_dw_conv_params *dw_conv_params,
+                                              const cmsis_nn_per_channel_quant_params *quant_params,
+                                              const cmsis_nn_dims *input_dims,
+                                              const int8_t *input_data,
+                                              const cmsis_nn_dims *filter_dims,
+                                              const int8_t *filter_data,
+                                              const cmsis_nn_dims *bias_dims,
+                                              const int32_t *bias_data,
+                                              const cmsis_nn_dims *output_dims,
+                                              int8_t *output_data);
+
+/**
  * @brief Optimized s4 depthwise convolution function with constraint that in_channel equals out_channel.
  *        Refer arm_depthwise_conv_s4() for function argument details.
  *

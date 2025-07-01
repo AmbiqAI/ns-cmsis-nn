@@ -418,9 +418,10 @@ class ConvSettings(TestSettings):
         else:
             self.calculate_padding(self.x_output, self.y_output, self.x_input, self.y_input)
 
-        self.generate_c_array(self.input_data_file_prefix, input_data, datatype=datatype)
         self.generate_c_array(
             self.weight_data_file_prefix, interpreter.get_tensor(filter_layer['index']), pack=self.int4_weights)
+        
+        self.generate_c_array(self.input_data_file_prefix, input_data, datatype=datatype)
 
         self.scaling_factors = filter_layer['quantization_parameters']['scales']
         per_channel_multiplier, per_channel_shift = self.generate_quantize_per_channel_multiplier()
