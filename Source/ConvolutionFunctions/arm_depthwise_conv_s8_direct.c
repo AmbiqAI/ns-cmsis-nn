@@ -69,9 +69,9 @@ void print_vector(int32x4_t vector) {
 * can be dropped into arm_nnfunctions.c and called through
 *     arm_depthwise_conv_s8()
 */
-arm_cmsis_nn_status arm_depthwise_conv_s8_direct(const cmsis_nn_context     *ctx,
+arm_cmsis_nn_status arm_depthwise_conv_s8_direct(const cmsis_nn_context                   *ctx,
                                     const cmsis_nn_context                  *weight_sum_ctx,
-                                    const cmsis_nn_dw_conv_params           *dw_params,
+                                    const cmsis_nn_dw_conv_params           *dw_conv_params,
                                     const cmsis_nn_per_channel_quant_params *quant_params,
                                     const cmsis_nn_dims                     *input_dims,
                                     const int8_t                            *input_data,
@@ -82,76 +82,121 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_direct(const cmsis_nn_context     *ctx
                                     const cmsis_nn_dims                     *output_dims,
                                     int8_t                                  *output_data)
 {
-   (void)ctx;                            
-   (void)bias_dims;
-   (void)filter_dims;
-   (void)weight_sum_ctx;
-   
-   const int32_t in_h  = input_dims->h;
-   const int32_t in_w  = input_dims->w;
-   const int32_t ch    = input_dims->c;       
-   const int32_t out_h = output_dims->h;
-   const int32_t out_w = output_dims->w;
-
-   if (ch & (CH_BLOCK - 1))          
-       return ARM_CMSIS_NN_ARG_ERROR;
-   const int32_t input_offset           = dw_params->input_offset;  
-   const int32_t output_offset          = dw_params->output_offset;
-   const int32_t output_activation_min  = dw_params->activation.min;
-   const int32_t output_activation_max  = dw_params->activation.max;
-   const int32_t n_block = ch >> 2;    
-   for (int32_t oy = 0; oy < out_h; ++oy)
-   {
-       for (int32_t ox = 0; ox < out_w; ++ox)
-       {
-           
-           for (int32_t g = 0; g < n_block; ++g)
-           {
-               
-               int32x4_t acc = load_bias4(bias_data, 4 * g);
-            for (int32_t ky = 0; ky < 3; ++ky)
+    (void)ctx;                            
+    (void)bias_dims;
+    (void)filter_dims;
+    (void)weight_sum_ctx;
+    const int32_t in_h  = input_dims->h;
+    const int32_t in_w  = input_dims->w;
+    const int32_t ch    = input_dims->c;          
+    const int32_t out_h = output_dims->h;
+    const int32_t out_w = output_dims->w;
+    if (ch & (CH_BLOCK - 1))
+        return ARM_CMSIS_NN_ARG_ERROR;      
+    const int32_t input_offset          = dw_conv_params->input_offset;  
+    const int32_t output_offset         = dw_conv_params->output_offset;
+    const int32_t act_min               = dw_conv_params->activation.min;
+    const int32_t act_max               = dw_conv_params->activation.max;
+    const int32_t g_cnt = ch >> 2;         
+    const int32_t minus_io = -input_offset; 
+    for (int32_t g = 0; g < g_cnt; ++g)
+    {
+        const int8_t *kw = filter_data + 4 * g;           
+        int32x4_t w00 = vldrbq_s32(kw + 0 * ch);
+        int32x4_t w01 = vldrbq_s32(kw + 1 * ch);
+        int32x4_t w02 = vldrbq_s32(kw + 2 * ch);
+        int32x4_t w10 = vldrbq_s32(kw + 3 * ch);
+        int32x4_t w11 = vldrbq_s32(kw + 4 * ch);
+        int32x4_t w12 = vldrbq_s32(kw + 5 * ch);
+        int32x4_t w20 = vldrbq_s32(kw + 6 * ch);
+        int32x4_t w21 = vldrbq_s32(kw + 7 * ch);
+        int32x4_t w22 = vldrbq_s32(kw + 8 * ch);
+        int32x4_t bias4 = load_bias4(bias_data, 4 * g);
+        int32x4_t io_vec = vdupq_n_s32(input_offset);
+        int32x4_t wsum1 = vaddq_s32(vaddq_s32(w00, w01), w02);
+        int32x4_t wsum2 = vaddq_s32(vaddq_s32(w10, w11), w12);
+        int32x4_t wsum3 = vaddq_s32(vaddq_s32(w20, w21), w22);
+        int32x4_t wsum  = vaddq_s32(vaddq_s32(wsum1, wsum2), wsum3);
+        bias4 = vaddq_s32(bias4, vmulq_s32(io_vec, wsum));
+        const int32_t *mult_g  = quant_params->multiplier + 4 * g;
+        const int32_t *shift_g = quant_params->shift      + 4 * g;
+        for (int32_t oy = 0; oy < out_h; ++oy)
+        {
+            const int32_t iy0 = oy - 1;
+            const int32_t iy1 = oy;
+            const int32_t iy2 = oy + 1;
+            const bool row0 = (iy0 >= 0);
+            const bool row2 = (iy2 < in_h);
+            for (int32_t ox = 0; ox < out_w; ++ox)
             {
-                const int32_t iy = oy + ky - 1;               
-                const bool    row_ok = (iy >= 0) && (iy < in_h);
-                const int8_t *w_row = filter_data + (ky * 3 * ch) + 4 * g;
-                for (int32_t kx = 0; kx < 3; ++kx)
+                const int32_t ix0 = ox - 1;
+                const int32_t ix2 = ox + 1;
+                int32x4_t acc = bias4;
+                if (row0)
                 {
-                    const int32_t ix = ox + kx - 1;
-                    const bool    col_ok = (ix >= 0) && (ix < in_w);
-                    const bool    in_ok  = row_ok && col_ok;
-                    int32x4_t in_s32;
-                    if (in_ok)
-                    {
-                        const int8_t *in_ptr = input_data + ((iy * in_w + ix) * ch) + 4 * g;
-                        in_s32 = vldrbq_s32(in_ptr);
-                        in_s32 = vaddq_n_s32(in_s32, input_offset);
-                    }
-                    else
-                    {
-                        in_s32 = vdupq_n_s32(0);
-                    }
-                    const int8_t *w_ptr = w_row + kx * ch;
-                    int32x4_t     wt_s32 = vldrbq_s32(w_ptr);
-                    int32x4_t prod = vmulq_s32(in_s32, wt_s32);
-                    acc             = vaddq_s32(acc, prod);
+                    int32x4_t v = (ix0 >= 0)
+                        ? vldrbq_s32(input_data + ((iy0 * in_w + ix0) * ch) + 4 * g)
+                        : vdupq_n_s32(minus_io);
+                    acc = vaddq_s32(acc, vmulq_s32(v, w00));
+                    v = vldrbq_s32(input_data + ((iy0 * in_w + ox) * ch) + 4 * g);
+                    acc = vaddq_s32(acc, vmulq_s32(v, w01));
+                    v = (ix2 < in_w)
+                        ? vldrbq_s32(input_data + ((iy0 * in_w + ix2) * ch) + 4 * g)
+                        : vdupq_n_s32(minus_io);
+                    acc = vaddq_s32(acc, vmulq_s32(v, w02));
+                }
+                else
+                {
+                    int32x4_t pad = vdupq_n_s32(minus_io);
+                    acc = vaddq_s32(acc, vmulq_s32(pad, w00));
+                    acc = vaddq_s32(acc, vmulq_s32(pad, w01));
+                    acc = vaddq_s32(acc, vmulq_s32(pad, w02));
+                }
+                {
+                    int32x4_t v = (ix0 >= 0)
+                        ? vldrbq_s32(input_data + ((iy1 * in_w + ix0) * ch) + 4 * g)
+                        : vdupq_n_s32(minus_io);
+                    acc = vaddq_s32(acc, vmulq_s32(v, w10));
+                    v = vldrbq_s32(input_data + ((iy1 * in_w + ox) * ch) + 4 * g);
+                    acc = vaddq_s32(acc, vmulq_s32(v, w11));
+                    v = (ix2 < in_w)
+                        ? vldrbq_s32(input_data + ((iy1 * in_w + ix2) * ch) + 4 * g)
+                        : vdupq_n_s32(minus_io);
+                    acc = vaddq_s32(acc, vmulq_s32(v, w12));
+                }
+                if (row2)
+                {
+                    int32x4_t v = (ix0 >= 0)
+                        ? vldrbq_s32(input_data + ((iy2 * in_w + ix0) * ch) + 4 * g)
+                        : vdupq_n_s32(minus_io);
+                    acc = vaddq_s32(acc, vmulq_s32(v, w20));
+                    v = vldrbq_s32(input_data + ((iy2 * in_w + ox) * ch) + 4 * g);
+                    acc = vaddq_s32(acc, vmulq_s32(v, w21));
+                    v = (ix2 < in_w)
+                        ? vldrbq_s32(input_data + ((iy2 * in_w + ix2) * ch) + 4 * g)
+                        : vdupq_n_s32(minus_io);
+                    acc = vaddq_s32(acc, vmulq_s32(v, w22));
+                }
+                else
+                {
+                    int32x4_t pad = vdupq_n_s32(minus_io);
+                    acc = vaddq_s32(acc, vmulq_s32(pad, w20));
+                    acc = vaddq_s32(acc, vmulq_s32(pad, w21));
+                    acc = vaddq_s32(acc, vmulq_s32(pad, w22));
+                }
+                //requantise, add output offset, clamp 
+                int32x4_t mult  = vldrwq_s32(mult_g);
+                int32x4_t shift = vldrwq_s32(shift_g);
+                mve_pred16_t p  = vctp32q(CH_BLOCK);
+                acc = arm_requantize_mve_32x4(acc, mult, shift);
+                acc = vaddq_n_s32(acc, output_offset);
+                acc = vmaxq_s32(acc, vdupq_n_s32(act_min));
+                acc = vminq_s32(acc, vdupq_n_s32(act_max));
+                vstrbq_p_s32(output_data + ((oy * out_w + ox) * ch) + 4 * g, acc, p);
             }
-            }
-               int32x4_t mult  = vldrwq_s32(quant_params->multiplier + 4 * g);
-               int32x4_t shift = vldrwq_s32(quant_params->shift     + 4 * g);
-               mve_pred16_t p = vctp32q(CH_BLOCK);
-               acc = arm_requantize_mve_32x4(acc, mult, shift);
-               acc = vaddq_n_s32(acc, output_offset);
-               
-               acc = vmaxq_s32(acc, vdupq_n_s32(output_activation_min));
-               acc = vminq_s32(acc, vdupq_n_s32(output_activation_max));
-               print_vector(acc);
-               int8_t *out_p = output_data + ((oy * out_w + ox) * ch) + 4 * g;
-               vstrbq_p_s32(out_p, acc, p);
-               
-           } 
-       }
-   }
-   return ARM_CMSIS_NN_SUCCESS;
+        }
+    }
+    return ARM_CMSIS_NN_SUCCESS;
 }
 /**
  * @} end of NNConv group
