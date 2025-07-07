@@ -34,10 +34,10 @@
 #include "stdio.h"
 #include <inttypes.h>
 #ifndef CH_BLOCK
-#define CH_BLOCK 1024          /* choose 4-lane multiples: 4, 8, 12, 16 …   */
+#define CH_BLOCK 16          
 #endif
-#define PF_AHEAD 4
-#ifndef __pld                       /* portable prefetch wrapper            */
+#define PF_AHEAD 64
+#ifndef __pld                       
 #define __pld(addr) __builtin_prefetch((addr), 0, 3)
 #endif
 __STATIC_FORCEINLINE int32x4_t load_bias4(const int32_t *bias, int32_t idx)
