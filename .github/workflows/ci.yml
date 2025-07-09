@@ -44,7 +44,7 @@ jobs:
         uses: docker://ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
         with:
           args: >
-            /bin/sh -c "cd Tests/UnitTest && ./build_and_run_tests.sh -c ${{ matrix.core }}"
+            /bin/sh -c "cd Tests/UnitTest && ./build_and_run_tests.sh -q -c ${{ matrix.core }}"
 
       - name: Save tests-downloads cache
         if: steps.cache-downloads.outputs.cache-hit != 'true'
