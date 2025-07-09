@@ -33,7 +33,7 @@ jobs:
       - name: Run unit tests
         uses: docker://ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
         with:
-          args: /bin/sh -c "cd ./Tests/UnitTest && ./build_and_run_tests.sh -c cortex-m4,cortex-m55"
+          args: /bin/sh -c "cd ./Tests/UnitTest && ./build_and_run_tests.sh -c cortex-m0,cortex-m4,cortex-m55"
 
       - name: Save tests downloads cache
         uses: actions/cache@v4

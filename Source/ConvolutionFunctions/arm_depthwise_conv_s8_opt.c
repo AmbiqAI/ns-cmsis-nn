@@ -75,7 +75,6 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 #ifdef ARM_MATH_DSP
-    (void)weight_sum_ctx;
     (void)bias_dims;
     const int32_t input_x = input_dims->w;
     const int32_t input_y = input_dims->h;
@@ -207,6 +206,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
     }
 
     #else // ARM_MATH_DSP
+
     /* Run the following code in cores using DSP extension */
     int16_t *const col_buffer_start = buffer_a;
     int16_t *col_buffer = col_buffer_start;
@@ -402,6 +402,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
     }
     #endif
 #else
+    (void)weight_sum_ctx;
     /* Run the following code as reference implementation for Cortex-M0 and Cortex-M3 */
     return arm_depthwise_conv_s8(ctx,
                                  dw_conv_params,

@@ -224,6 +224,8 @@ arm_reduce_max_spatial_s16(const int16_t *input_data,
                            const cmsis_nn_dims *output_dims)
 {
 
+#if defined(ARM_MATH_MVEI)
+
     (void)axis_dims;
     (void)output_dims;
 
@@ -232,8 +234,6 @@ arm_reduce_max_spatial_s16(const int16_t *input_data,
     const int32_t W       = input_dims->w;
     const int32_t C       = input_dims->c;
     const int32_t spatial = H * W;
-
-#if defined(ARM_MATH_MVEI)
 
     for (int n = 0; n < N; ++n)
     {
@@ -272,6 +272,15 @@ arm_reduce_max_spatial_s16(const int16_t *input_data,
     return ARM_CMSIS_NN_SUCCESS;
 
 #elif defined(ARM_MATH_DSP)
+
+    (void)axis_dims;
+    (void)output_dims;
+
+    const int32_t N       = input_dims->n;
+    const int32_t H       = input_dims->h;
+    const int32_t W       = input_dims->w;
+    const int32_t C       = input_dims->c;
+    const int32_t spatial = H * W;
 
     for (int n = 0; n < N; ++n) {
         const int16_t *base = input_data  + n * spatial * C;
