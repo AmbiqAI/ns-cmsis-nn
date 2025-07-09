@@ -106,7 +106,7 @@ arm_cmsis_nn_status arm_add_scalar_s8(const int8_t *input_1_vect,
 #else
     int32_t loop_count;
     int32_t input_1 = scalar_val << left_shift;
-    int32_t input_1_1, input_1_2, input_1_3, input_1_4;
+
     int32_t input_2;
     int32_t sum;
 
@@ -114,6 +114,7 @@ arm_cmsis_nn_status arm_add_scalar_s8(const int8_t *input_1_vect,
 
     #if defined(ARM_MATH_DSP)
 
+    int32_t input_1_1, input_1_2, input_1_3, input_1_4;
     int32_t a_1, b_1, a_2, b_2;
 
     int32_t offset_1_packed, offset_2_packed;

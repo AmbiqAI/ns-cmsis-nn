@@ -598,6 +598,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
         }
     }
 #else
+    (void)weight_sum_buf;
     (void)row_address_offset;
     for (int32_t rhs_rows_idx = 0; rhs_rows_idx <= (rhs_rows - 2); rhs_rows_idx += 2)
     {
