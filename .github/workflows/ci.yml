@@ -1,7 +1,7 @@
 name: CI/CD Pipeline
 
 on:
-  workflow_dispatch:      # manual trigger
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -35,14 +35,16 @@ jobs:
             ${{ runner.os }}-tests-downloads-
 
       - name: Download deps (internal cache-checks)
-        run: |
-          cd Tests/UnitTest
-          ./build_and_run_tests.sh -rb
+        uses: docker://ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+        with:
+          args: >
+            /bin/sh -c "cd Tests/UnitTest && ./build_and_run_tests.sh -rb"
 
       - name: Build & run tests for ${{ matrix.core }}
-        run: |
-          cd Tests/UnitTest
-          ./build_and_run_tests.sh -q -c ${{ matrix.core }}
+        uses: docker://ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+        with:
+          args: >
+            /bin/sh -c "cd Tests/UnitTest && ./build_and_run_tests.sh -c ${{ matrix.core }}"
 
       - name: Save tests-downloads cache
         if: steps.cache-downloads.outputs.cache-hit != 'true'
