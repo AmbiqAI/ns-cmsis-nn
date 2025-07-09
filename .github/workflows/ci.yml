@@ -20,20 +20,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache tests downloads
+      - name: Restore tests-downloads cache
+        id: cache-downloads
         uses: actions/cache@v4
         with:
           path: Tests/UnitTest/downloads
-          key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt') }}
+          key: ${{ runner.os }}-tests-downloads-${{ hashFiles(
+            'Tests/UnitTest/requirements.txt',
+            'Tests/UnitTest/build_and_run_tests.sh'
+          ) }}
           restore-keys: |
             ${{ runner.os }}-tests-downloads-
 
+      - name: Always download (runs internal cache-checks)
+        run: |
+          cd Tests/UnitTest
+          ./build_and_run_tests.sh -rb
+
       - name: Build & run tests for ${{ matrix.core }}
-        uses: docker://ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+        run: |
+          cd Tests/UnitTest
+          ./build_and_run_tests.sh -c ${{ matrix.core }}
+
+      - name: Save tests-downloads cache
+        if: steps.cache-downloads.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
         with:
-          args: |
-            /bin/sh -c "\
-            cd Tests/UnitTest && \
-            ./build_and_run_tests.sh -r && \
-            ./build_and_run_tests.sh -c ${{ matrix.core }} \
-            "
+          path: Tests/UnitTest/downloads
+          key: ${{ runner.os }}-tests-downloads-${{ hashFiles(
+            'Tests/UnitTest/requirements.txt',
+            'Tests/UnitTest/build_and_run_tests.sh'
+          ) }}
