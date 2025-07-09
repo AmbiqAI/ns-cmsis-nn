@@ -206,6 +206,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
     }
 
     #else // ARM_MATH_DSP
+    (void)weight_sum_ctx;
 
     /* Run the following code in cores using DSP extension */
     int16_t *const col_buffer_start = buffer_a;

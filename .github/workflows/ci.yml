@@ -1,16 +1,20 @@
 name: CI/CD Pipeline
 
 on:
+  workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        core: [ cortex-m0, cortex-m4, cortex-m55 ]
 
     steps:
       - name: Checkout repository
@@ -19,25 +23,17 @@ jobs:
       - name: Cache tests downloads
         uses: actions/cache@v4
         with:
-          path: |
-            Tests/UnitTest/downloads
+          path: Tests/UnitTest/downloads
           key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-tests-downloads-
 
-      - name: Install and build
+      - name: Build & run tests for ${{ matrix.core }}
         uses: docker://ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
         with:
-          args: /bin/sh -c "cd ./Tests/UnitTest && ./build_and_run_tests.sh -r"
-
-      - name: Run unit tests
-        uses: docker://ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
-        with:
-          args: /bin/sh -c "cd ./Tests/UnitTest && ./build_and_run_tests.sh -c cortex-m0,cortex-m4,cortex-m55"
-
-      - name: Save tests downloads cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            Tests/UnitTest/downloads
-          key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt') }}
+          args: |
+            /bin/sh -c "\
+            cd Tests/UnitTest && \
+            ./build_and_run_tests.sh -r && \
+            ./build_and_run_tests.sh -c ${{ matrix.core }} \
+            "
