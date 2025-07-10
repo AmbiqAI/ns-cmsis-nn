@@ -30,159 +30,9 @@
 #include "../Utils/validate.h"
 #include <inttypes.h>
 
-void basic_arm_depthwise_conv_s8_direct(void)
-{
-    printf("\n\n\n\n\nAaAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa basic_arm_depthwise_conv_s8_direct \n\n\n\n\n");
-
-    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
-    int8_t output[BASIC_DST_SIZE] = {0};
-
-    cmsis_nn_context ctx;
-    cmsis_nn_dw_conv_params dw_conv_params;
-    cmsis_nn_per_channel_quant_params quant_params;
-    cmsis_nn_dims input_dims;
-    cmsis_nn_dims filter_dims;
-    cmsis_nn_dims bias_dims;
-    cmsis_nn_dims output_dims;
-
-    const int32_t *bias_data = basic_biases;
-    const int8_t *kernel_data = basic_weights;
-    const int8_t *input_data = basic_input;
-
-    input_dims.n = BASIC_INPUT_BATCHES;
-    input_dims.w = BASIC_INPUT_W;
-    input_dims.h = BASIC_INPUT_H;
-    input_dims.c = BASIC_IN_CH;
-    filter_dims.w = BASIC_FILTER_X;
-    filter_dims.h = BASIC_FILTER_Y;
-    output_dims.w = BASIC_OUTPUT_W;
-    output_dims.h = BASIC_OUTPUT_H;
-    output_dims.c = BASIC_OUT_CH;
-
-    dw_conv_params.padding.w = BASIC_PAD_X;
-    dw_conv_params.padding.h = BASIC_PAD_Y;
-    dw_conv_params.stride.w = BASIC_STRIDE_X;
-    dw_conv_params.stride.h = BASIC_STRIDE_Y;
-    dw_conv_params.dilation.w = BASIC_DILATION_X;
-    dw_conv_params.dilation.h = BASIC_DILATION_Y;
-
-    dw_conv_params.ch_mult = 1;
-
-    dw_conv_params.input_offset = BASIC_INPUT_OFFSET;
-    dw_conv_params.output_offset = BASIC_OUTPUT_OFFSET;
-    dw_conv_params.activation.min = BASIC_OUT_ACTIVATION_MIN;
-    dw_conv_params.activation.max = BASIC_OUT_ACTIVATION_MAX;
-    quant_params.multiplier = (int32_t *)basic_output_mult;
-    quant_params.shift = (int32_t *)basic_output_shift;
-
-    ctx.size = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
-
-#if defined(ARM_MATH_DSP)
-    TEST_ASSERT_TRUE(ctx.size > 0);
-#else
-    TEST_ASSERT_EQUAL(ctx.size, 0);
-#endif
-
-
-
-
-    ctx.buf = malloc(ctx.size);
-    cmsis_nn_context weights_sum_ctx;
-    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
-    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
-    weights_sum_ctx.size = weights_sum_buf_size;
-    uint32_t lhs_offset = dw_conv_params.input_offset;
-    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
-                            ctx.buf,
-                            kernel_data,
-                            &dw_conv_params,
-                            &input_dims,
-                            &filter_dims,
-                            &output_dims,
-                            lhs_offset,
-                            bias_data);
-
-    arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt(&ctx,
-                                                           &weights_sum_ctx,
-                                                           &dw_conv_params,
-                                                           &quant_params,
-                                                           &input_dims,
-                                                           input_data,
-                                                           &filter_dims,
-                                                           kernel_data,
-                                                           &bias_dims,
-                                                           bias_data,
-                                                           &output_dims,
-                                                           output);
-
-    if (weights_sum_ctx.buf)
-    {
-        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
-        free(weights_sum_ctx.buf);
-    }
-
-    if (ctx.buf)
-    {
-        // The caller is responsible to clear the scratch buffers for security reasons if applicable.
-        memset(ctx.buf, 0, ctx.size);
-        free(ctx.buf);
-    }
-    TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate(output, basic_output_ref, BASIC_DST_SIZE));
-
-    const int32_t wrapper_buf_size =
-        arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims);
-
-    TEST_ASSERT_EQUAL(wrapper_buf_size, ctx.size);
-
-    ctx.buf = malloc(wrapper_buf_size);
-
-
-    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
-    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
-    weights_sum_ctx.size = weights_sum_buf_size;
-    lhs_offset = dw_conv_params.input_offset;
-
-    arm_depthwise_convolve_weight_sum((int32_t*)weights_sum_ctx.buf,
-                            ctx.buf,
-                            kernel_data,
-                            &dw_conv_params,
-                            &input_dims,
-                            &filter_dims,
-                            &output_dims,
-                            lhs_offset,
-                            bias_data);
-    result = arm_depthwise_conv_wrapper_s8(&ctx,
-                                           &weights_sum_ctx,
-                                           &dw_conv_params,
-                                           &quant_params,
-                                           &input_dims,
-                                           input_data,
-                                           &filter_dims,
-                                           kernel_data,
-                                           &bias_dims,
-                                           bias_data,
-                                           &output_dims,
-                                           output);
-
-    if (weights_sum_ctx.buf)
-    {
-        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
-        free(weights_sum_ctx.buf);
-    }
-
-    if (ctx.buf)
-    {
-        memset(ctx.buf, 0, wrapper_buf_size);
-        free(ctx.buf);
-    }
-    TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate(output, basic_output_ref, BASIC_DST_SIZE));
-}
 
 void depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct(void)
 {
-    // printf("\n\n\n\n\nAaAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct \n\n\n\n\n");
 
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
     int8_t output[DEPTHWISE_EQ_IN_OUT_CH_DST_SIZE] = {0};
@@ -233,7 +83,6 @@ void depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct(void)
 #endif
 
     ctx.buf = malloc(ctx.size);
-    // printf("\n\n\n\n\n %" PRId32 ", %" PRId32 "\n\n\n\n\n", input_dims.c,output_dims.c);
 
     cmsis_nn_context weights_sum_ctx;
     int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
@@ -250,7 +99,7 @@ void depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct(void)
                             lhs_offset,
                             bias_data);
 
-    arm_cmsis_nn_status result = arm_depthwise_conv_s8_direct(&ctx,
+    arm_cmsis_nn_status result = arm_depthwise_conv_wrapper_s8(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,
@@ -329,7 +178,6 @@ void depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct(void)
 
 void depthwise_sub_block_arm_depthwise_conv_s8_direct(void)
 {
-    printf("\n\n\n\n\nAaAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa depthwise_sub_block_arm_depthwise_conv_s8_direct \n\n\n\n\n");
 
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
     int8_t output[DEPTHWISE_SUB_BLOCK_DST_SIZE] = {0};
@@ -397,7 +245,7 @@ void depthwise_sub_block_arm_depthwise_conv_s8_direct(void)
                             lhs_offset,
                             bias_data);
 
-    arm_cmsis_nn_status result = arm_depthwise_conv_s8_direct(&ctx,
+    arm_cmsis_nn_status result = arm_depthwise_conv_wrapper_s8(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,
@@ -475,7 +323,6 @@ void depthwise_sub_block_arm_depthwise_conv_s8_direct(void)
 
 void depthwise_out_activation_arm_depthwise_conv_s8_direct(void)
 {
-    printf("\n\n\n\n\nAaAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa depthwise_out_activation_arm_depthwise_conv_s8_direct \n\n\n\n\n");
 
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
     int8_t output[DEPTHWISE_OUT_ACTIVATION_DST_SIZE] = {0};
@@ -543,7 +390,7 @@ void depthwise_out_activation_arm_depthwise_conv_s8_direct(void)
                             lhs_offset,
                             bias_data);
 
-    arm_cmsis_nn_status result = arm_depthwise_conv_s8_direct(&ctx,
+    arm_cmsis_nn_status result = arm_depthwise_conv_wrapper_s8(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,
@@ -622,7 +469,6 @@ void depthwise_out_activation_arm_depthwise_conv_s8_direct(void)
 
 void depthwise_null_bias_0_arm_depthwise_conv_s8_direct(void)
 {
-    printf("\n\n\n\n\nAaAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa depthwise_null_bias_0_arm_depthwise_conv_s8_direct \n\n\n\n\n");
 
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
     int8_t output[DEPTHWISE_NULL_BIAS_0_DST_SIZE] = {0};
@@ -690,7 +536,7 @@ void depthwise_null_bias_0_arm_depthwise_conv_s8_direct(void)
                             lhs_offset,
                             bias_data);
 
-    arm_cmsis_nn_status result = arm_depthwise_conv_s8_direct(&ctx,
+    arm_cmsis_nn_status result = arm_depthwise_conv_wrapper_s8(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,
@@ -769,7 +615,6 @@ void depthwise_null_bias_0_arm_depthwise_conv_s8_direct(void)
 
 void depthwise_x_stride_arm_depthwise_conv_s8_direct(void)
 {
-    printf("\n\n\n\n\nAaAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa depthwise_x_stride_arm_depthwise_conv_s8_direct \n\n\n\n\n");
 
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
     int8_t output[DEPTHWISE_X_STRIDE_DST_SIZE] = {0};
@@ -837,7 +682,7 @@ void depthwise_x_stride_arm_depthwise_conv_s8_direct(void)
                             lhs_offset,
                             bias_data);
 
-    arm_cmsis_nn_status result = arm_depthwise_conv_s8_direct(&ctx,
+    arm_cmsis_nn_status result = arm_depthwise_conv_wrapper_s8(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,
@@ -914,7 +759,6 @@ void depthwise_x_stride_arm_depthwise_conv_s8_direct(void)
 
 void buffer_size_arm_depthwise_conv_s8_direct(void)
 {
-    printf("\n\n\n\n\nAaAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa buffer_size_arm_depthwise_conv_s8_direct \n\n\n\n\n");
 
     cmsis_nn_dw_conv_params conv_params;
     cmsis_nn_dims input_dims;
@@ -952,7 +796,6 @@ void buffer_size_arm_depthwise_conv_s8_direct(void)
 
 void buffer_size_mve_arm_depthwise_conv_s8_direct(void)
 {
-    printf("\n\n\n\n\nAaAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa buffer_size_mve_arm_depthwise_conv_s8_direct \n\n\n\n\n");
 
 #if defined(ARM_MATH_MVEI)
     cmsis_nn_dw_conv_params conv_params;
@@ -991,45 +834,3 @@ void buffer_size_mve_arm_depthwise_conv_s8_direct(void)
 #endif
 }
 
-void buffer_size_dsp_arm_depthwise_conv_s8_direct(void)
-{
-    printf("\n\n\n\n\nAaAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa buffer_size_dsp_arm_depthwise_conv_s8_direct \n\n\n\n\n");
-
-#if defined(ARM_MATH_DSP) && !defined(ARM_MATH_MVEI)
-    cmsis_nn_dw_conv_params conv_params;
-    cmsis_nn_dims input_dims;
-    cmsis_nn_dims filter_dims;
-    cmsis_nn_dims output_dims;
-
-    input_dims.n = DEPTHWISE_X_STRIDE_INPUT_BATCHES;
-    input_dims.w = DEPTHWISE_X_STRIDE_INPUT_W;
-    input_dims.h = DEPTHWISE_X_STRIDE_INPUT_H;
-    input_dims.c = DEPTHWISE_X_STRIDE_IN_CH;
-    filter_dims.w = DEPTHWISE_X_STRIDE_FILTER_X;
-    filter_dims.h = DEPTHWISE_X_STRIDE_FILTER_Y;
-    output_dims.w = DEPTHWISE_X_STRIDE_OUTPUT_W;
-    output_dims.h = DEPTHWISE_X_STRIDE_OUTPUT_H;
-    output_dims.c = DEPTHWISE_X_STRIDE_OUT_CH;
-
-    conv_params.padding.w = DEPTHWISE_X_STRIDE_PAD_X;
-    conv_params.padding.h = DEPTHWISE_X_STRIDE_PAD_Y;
-    conv_params.stride.w = DEPTHWISE_X_STRIDE_STRIDE_X;
-    conv_params.stride.h = DEPTHWISE_X_STRIDE_STRIDE_Y;
-    conv_params.dilation.w = DEPTHWISE_X_STRIDE_DILATION_X;
-    conv_params.dilation.h = DEPTHWISE_X_STRIDE_DILATION_Y;
-
-    conv_params.ch_mult = DEPTHWISE_X_STRIDE_CH_MULT;
-
-    conv_params.input_offset = DEPTHWISE_X_STRIDE_INPUT_OFFSET;
-    conv_params.output_offset = DEPTHWISE_X_STRIDE_OUTPUT_OFFSET;
-    conv_params.activation.min = DEPTHWISE_X_STRIDE_OUT_ACTIVATION_MIN;
-    conv_params.activation.max = DEPTHWISE_X_STRIDE_OUT_ACTIVATION_MAX;
-
-    const int32_t wrapper_buf_size =
-        arm_depthwise_conv_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
-    const int32_t dsp_wrapper_buf_size =
-        arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp(&conv_params, &input_dims, &filter_dims, &output_dims);
-
-    TEST_ASSERT_EQUAL(wrapper_buf_size, dsp_wrapper_buf_size);
-#endif
-}

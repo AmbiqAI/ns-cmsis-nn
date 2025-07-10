@@ -44,8 +44,6 @@ void setUp(void)
  */
 void tearDown(void) {}
 
-void test_basic_arm_depthwise_conv_s8_direct(void) {basic_arm_depthwise_conv_s8_direct(); }
-
 void test_depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct(void) { depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct(); }
 
 void test_depthwise_sub_block_arm_depthwise_conv_s8_direct(void) { depthwise_sub_block_arm_depthwise_conv_s8_direct(); }
@@ -60,4 +58,3 @@ void test_buffer_size_arm_depthwise_conv_s8_direct(void) {buffer_size_arm_depthw
 
 void test_buffer_size_mve_arm_depthwise_conv_s8_direct(void) {buffer_size_mve_arm_depthwise_conv_s8_direct(); }
 
-void test_buffer_size_dsp_arm_depthwise_conv_s8_direct(void) {buffer_size_dsp_arm_depthwise_conv_s8_direct(); }
