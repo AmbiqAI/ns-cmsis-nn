@@ -91,12 +91,15 @@ Setup_Environment() {
         fi
 
         TEMPFILE=$(mktemp -d)/temp_file
-        wget ${CORSTONE_URL} -O ${TEMPFILE} >&2
+        wget -q "${CORSTONE_URL}" -O "${TEMPFILE}" || {
+            echo "Download Corstone300 failed!" >&2
+            exit 1
+        }
 
         TEMPDIR=$(mktemp -d)
-        tar -C ${TEMPDIR} -xvzf ${TEMPFILE} >&2
+        tar -C ${TEMPDIR} -xzf ${TEMPFILE} >&2
         mkdir ${WORKING_DIR}/corstone300_download
-        ${TEMPDIR}/FVP_Corstone_SSE-300.sh --i-agree-to-the-contained-eula --no-interactive -d ${WORKING_DIR}/corstone300_download >&2
+        ${TEMPDIR}/FVP_Corstone_SSE-300.sh --i-agree-to-the-contained-eula --no-interactive -q -d ${WORKING_DIR}/corstone300_download >&2
     fi
 
     echo "++ Downloading GCC"
@@ -110,7 +113,10 @@ Setup_Environment() {
         fi
 
         TEMPFILE=$(mktemp -d)/temp_file
-        wget ${GCC_URL} -O ${TEMPFILE} >&2
+        wget -q ${GCC_URL} -O ${TEMPFILE} || {
+            echo "Download Arm GCC failed!" >&2
+            exit 1
+        }
         mkdir ${WORKING_DIR}/arm_gcc_download
 
         tar -C ${WORKING_DIR}/arm_gcc_download --strip-components=1 -xJf ${TEMPFILE} >&2
@@ -120,14 +126,14 @@ Setup_Environment() {
     if [[ -d ${WORKING_DIR}/CMSIS_5 ]]; then
         echo "CMSIS-5 already installed. If you wish to install a new version, please delete the old folder."
     else
-        git clone https://github.com/ARM-software/CMSIS_5.git
+        git clone --quiet --depth=1 https://github.com/ARM-software/CMSIS_5.git
     fi
 
     echo "++ Cloning Ethos-U core platform"
     if [[ -d ${WORKING_DIR}/ethos-u-core-platform ]]; then
         echo "Ethos-U core platform already installed. If you wish to install a new version, please delete the old folder."
     else
-        git clone https://review.mlplatform.org/ml/ethos-u/ethos-u-core-platform
+        git clone --quiet --depth=1 https://review.mlplatform.org/ml/ethos-u/ethos-u-core-platform
     fi
 
     echo "++ Setting up python environment"
@@ -136,7 +142,7 @@ Setup_Environment() {
     else
         python3 -m venv cmsis_nn_venv
         source cmsis_nn_venv/bin/activate
-        pip3 install -r ../requirements.txt
+        pip3 install --disable-pip-version-check -qq -r ../requirements.txt
         deactivate
     fi
 }
@@ -144,7 +150,9 @@ Setup_Environment() {
 Build_Tests() {
     set -e
     echo "++ Building Tests"
+
     if [[ ${QUIET} -eq 0 ]]; then
+
         cmake -S ./ -B build-${cpu}-${compiler} \
             -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} \
             -DTARGET_CPU=${cpu} \
@@ -155,15 +163,19 @@ Build_Tests() {
 
         echo "Built successfully into build-${cpu}-${compiler}"
     else
-        cmake_command=$(cmake -S ./ -B build-${cpu}-${compiler} \
+
+        mkdir -p build-${cpu}-${compiler}
+
+        cmake -S ./ -B build-${cpu}-${compiler} \
             -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} \
             -DTARGET_CPU=${cpu} \
             -DCMSIS_PATH=${CMSIS_5_PATH} \
             -DCMSIS_OPTIMIZATION_LEVEL=${OPTIMIZATION} \
-            ${CMAKE_EXTRA_DEFS} 2>&1)
-        make_command=$(cmake --build build-${cpu}-${compiler}/ 2>&1)
-        echo "${cmake_command}" > build-${cpu}-${compiler}/cmake_command.txt
-        echo "${make_command}" > build-${cpu}-${compiler}/make_command.txt
+            ${CMAKE_EXTRA_DEFS} \
+          > build-${cpu}-${compiler}/cmake_stdout.log
+
+        cmake --build build-${cpu}-${compiler}/ \
+          > build-${cpu}-${compiler}/make_stdout.log
 
         echo "Built successfully into build-${cpu}-${compiler}"
     fi

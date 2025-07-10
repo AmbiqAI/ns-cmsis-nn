@@ -1,6 +1,7 @@
 name: CI/CD Pipeline
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -9,35 +10,45 @@ on:
       - main
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        core:
+          - cortex-m0
+          - cortex-m4
+          - cortex-m55
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache tests downloads
+      - name: Restore tests-downloads cache
+        id: cache-downloads
         uses: actions/cache@v4
         with:
-          path: |
-            Tests/UnitTest/downloads
-          key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt') }}
+          path: Tests/UnitTest/downloads
+          key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
           restore-keys: |
             ${{ runner.os }}-tests-downloads-
 
-      - name: Install and build
+      - name: Download deps (internal cache-checks)
         uses: docker://ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
         with:
-          args: /bin/sh -c "cd ./Tests/UnitTest && ./build_and_run_tests.sh -r"
+          args: >
+            /bin/sh -c "cd Tests/UnitTest && ./build_and_run_tests.sh -rb"
 
-      - name: Run unit tests
+      - name: Build & run tests for ${{ matrix.core }}
         uses: docker://ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
         with:
-          args: /bin/sh -c "cd ./Tests/UnitTest && ./build_and_run_tests.sh -c cortex-m4,cortex-m55"
+          args: >
+            /bin/sh -c "cd Tests/UnitTest && ./build_and_run_tests.sh -q -c ${{ matrix.core }}"
 
-      - name: Save tests downloads cache
+      - name: Save tests-downloads cache
+        if: steps.cache-downloads.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
-          path: |
-            Tests/UnitTest/downloads
-          key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt') }}
+          path: Tests/UnitTest/downloads
+          key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
