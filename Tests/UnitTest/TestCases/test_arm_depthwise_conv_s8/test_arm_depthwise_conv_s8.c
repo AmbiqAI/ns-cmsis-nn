@@ -680,17 +680,13 @@ void weight_presum(void)
                             bias);
     free(scratch_buf);
 
-#if !defined(ARM_MATH_MVEI)
 
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, result);
-#else
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
     const int32_t expected[3] = {15,27,20};
     TEST_ASSERT_EQUAL_INT32_ARRAY(expected, sum_buf, 3);
-
     memset(sum_buf, 0, buf_sz);
     free(sum_buf);
-#endif
+
 }
 
 /* ------------------------------------------------------------------------ */
