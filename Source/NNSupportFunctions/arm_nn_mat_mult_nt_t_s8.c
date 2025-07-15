@@ -202,7 +202,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
     }
 
 #elif defined(ARM_MATH_DSP)
-
     (void)row_address_offset;
     const int32_t rhs_off0 = rhs_cols - 4;
     const int32_t lhs_off0 = lhs_cols_offset - 4;
@@ -214,13 +213,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
 
         int32_t lhs_offset_contribution0 = 0;
         int32_t lhs_offset_contribution1 = 0;
-        lhs_offset_contribution0 += weight_sum_buf[rhs_rows_idx];
-        lhs_offset_contribution1 += weight_sum_buf[rhs_rows_idx + 1];
-        if (bias)
-        {
-            lhs_offset_contribution0 += bias[rhs_rows_idx];
-            lhs_offset_contribution1 += bias[rhs_rows_idx + 1];
-        }
+
+        lhs_offset_contribution0 = weight_sum_buf[rhs_rows_idx];
+        lhs_offset_contribution1 = weight_sum_buf[rhs_rows_idx + 1];
+
         int32_t lhs_rows_idx = lhs_rows >> 1;
         while (lhs_rows_idx)
         {

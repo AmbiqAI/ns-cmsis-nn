@@ -52,7 +52,6 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t* vector_sum_buf,
 #if defined(ARM_MATH_DSP) && !defined(ARM_MATH_MVEI)
     const int32_t kernel_elems = (int32_t)filter_dims->h * filter_dims->w;
     const int32_t out_ch       = output_dims->c;
-    printf("\n \n \n in DSP \n \n \n");
     for (int32_t oc = 0; oc < out_ch; ++oc)
     {
         int32_t  ksum   = 0;
