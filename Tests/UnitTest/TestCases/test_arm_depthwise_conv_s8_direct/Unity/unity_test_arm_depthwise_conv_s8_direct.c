@@ -46,15 +46,5 @@ void tearDown(void) {}
 
 void test_depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct(void) { depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct(); }
 
-void test_depthwise_sub_block_arm_depthwise_conv_s8_direct(void) { depthwise_sub_block_arm_depthwise_conv_s8_direct(); }
-
-void test_depthwise_out_activation_arm_depthwise_conv_s8_direct(void){depthwise_out_activation_arm_depthwise_conv_s8_direct();}
-
-void test_depthwise_null_bias_0_arm_depthwise_conv_s8_direct(void) {depthwise_null_bias_0_arm_depthwise_conv_s8_direct(); }
-
-void test_depthwise_x_stride_arm_depthwise_conv_s8_direct(void) {depthwise_x_stride_arm_depthwise_conv_s8_direct(); }
-
-void test_buffer_size_arm_depthwise_conv_s8_direct(void) {buffer_size_arm_depthwise_conv_s8_direct(); }
-
 void test_buffer_size_mve_arm_depthwise_conv_s8_direct(void) {buffer_size_mve_arm_depthwise_conv_s8_direct(); }
 

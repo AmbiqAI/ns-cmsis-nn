@@ -165,7 +165,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
         
         else
 #endif
-        if (input_dims->c == 8 || input_dims->c == 256) //it should work for all channels (tests on cmsis unittests) 
+        if (input_dims->c % 4 == 0) // multiple of 4 in/out channels
         {
             status = arm_depthwise_conv_s8_direct(ctx,
                                                weight_sum_ctx,
