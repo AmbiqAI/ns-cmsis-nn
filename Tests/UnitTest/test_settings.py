@@ -53,7 +53,7 @@ class TestSettings(ABC):
 
     REQUIRED_MINIMUM_TENSORFLOW_VERSION = version.parse("2.10")
 
-    CLANG_FORMAT = 'clang-format-13 -i'  # For formatting generated headers.
+    CLANG_FORMAT = 'clang-format-12 -i'  # For formatting generated headers.
 
     def __init__(self,
                  dataset,
