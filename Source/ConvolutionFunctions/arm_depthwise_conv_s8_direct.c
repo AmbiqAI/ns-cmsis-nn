@@ -30,14 +30,8 @@
  * -------------------------------------------------------------------- */
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
-#include <arm_acle.h>
 
 
-
-__STATIC_FORCEINLINE int32x4_t load_bias4(const int32_t *bias, int32_t idx)
-{
-   return bias ? vldrwq_s32(bias + idx) : vdupq_n_s32(0);
-}
 /*******************************************************************************
 * Depth-wise 3 × 3 convolution, stride = 1, padding = SAME, channels multiple-of-4
 *   – input / weights  : int8_t
@@ -64,6 +58,14 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_direct(const cmsis_nn_context *ctx,
        const cmsis_nn_dims                     *output_dims,
        int8_t                                  *output_data)
 {
+#if !defined(ARM_MATH_MVEI)
+    return ARM_CMSIS_NN_NO_IMPL_ERROR;
+#endif
+
+if ((input_dims->c & 0x3) != 0 || input_dims->c != output_dims->c)
+{
+    return ARM_CMSIS_NN_ARG_ERROR;
+}
     (void)ctx;                            
     (void)bias_dims;
     (void)filter_dims;
@@ -92,8 +94,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_direct(const cmsis_nn_context *ctx,
         int32x4_t w20 = vldrbq_s32(kw + 6 * ch);
         int32x4_t w21 = vldrbq_s32(kw + 7 * ch);
         int32x4_t w22 = vldrbq_s32(kw + 8 * ch);
-        int32x4_t bias4 = load_bias4(weight_sum_base, 4 * g);
-
+        int32x4_t bias4 = weight_sum_base ? vldrwq_s32(weight_sum_base + 4 * g) : vdupq_n_s32(0);
 
         const int32_t *mult_g  = quant_params->multiplier + 4 * g;
         const int32_t *shift_g = quant_params->shift      + 4 * g;
