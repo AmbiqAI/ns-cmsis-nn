@@ -146,23 +146,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
                                                output_dims,
                                                output);
         }
-        
-        else if (input_dims->c % 16 == 0 && output_dims->c % 16 == 0)
-        {
-            status = arm_depthwise_conv_s8_direct(ctx,
-                                    weight_sum_ctx,
-                                    dw_conv_params,
-                                    quant_params,
-                                    input_dims,
-                                    input,
-                                    filter_dims,
-                                    filter,
-                                    bias_dims,
-                                    bias,
-                                    output_dims,
-                                    output);
-        }
-        
+                
         else
 #endif
         if (input_dims->c % 4 == 0) // multiple of 4 in/out channels
