@@ -149,8 +149,9 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
                 
         else
 #endif
-        if (input_dims->c % 4 == 0) // multiple of 4 in/out channels
+        if (input_dims->c % 4 == 0 && filter_dims->w == 3 && filter_dims->h == 3) // multiple of 4 in/out channels
         {
+#if defined ARM_MATH_MVEI
             status = arm_depthwise_conv_s8_direct(ctx,
                                                weight_sum_ctx,
                                                dw_conv_params,
@@ -163,7 +164,9 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
                                                bias,
                                                output_dims,
                                                output);
-        } else
+#endif
+        }
+         else
         {
             status = arm_depthwise_conv_s8_opt(ctx,
                                                weight_sum_ctx,

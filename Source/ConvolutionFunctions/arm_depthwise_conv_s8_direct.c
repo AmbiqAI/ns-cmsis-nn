@@ -45,6 +45,7 @@
 * can be dropped into arm_nnfunctions.c and called through
 *     arm_depthwise_conv_s8()
 */
+#if defined(ARM_MATH_MVEI)
 arm_cmsis_nn_status arm_depthwise_conv_s8_direct(const cmsis_nn_context *ctx,
        const cmsis_nn_context                  *weight_sum_ctx,
        const cmsis_nn_dw_conv_params           *dw_conv_params,
@@ -58,28 +59,26 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_direct(const cmsis_nn_context *ctx,
        const cmsis_nn_dims                     *output_dims,
        int8_t                                  *output_data)
 {
-#if !defined(ARM_MATH_MVEI)
-    return ARM_CMSIS_NN_NO_IMPL_ERROR;
-#endif
 
-if ((input_dims->c & 0x3) != 0 || input_dims->c != output_dims->c)
-{
-    return ARM_CMSIS_NN_ARG_ERROR;
-}
+
+    if ((input_dims->c & 0x3) != 0 || input_dims->c != output_dims->c)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     (void)ctx;                            
     (void)bias_dims;
     (void)filter_dims;
     (void)bias_data;
     const int32_t *weight_sum_base = weight_sum_ctx->buf;
-    const int32_t in_h  = input_dims->h;
-    const int32_t in_w  = input_dims->w;
-    const int32_t ch    = input_dims->c;          
+    const int32_t in_h = input_dims->h;
+    const int32_t in_w = input_dims->w;
+    const int32_t ch = input_dims->c;          
     const int32_t out_h = output_dims->h;
     const int32_t out_w = output_dims->w;    
-    const int32_t input_offset          = dw_conv_params->input_offset;  
-    const int32_t output_offset         = dw_conv_params->output_offset;
-    const int32_t act_min               = dw_conv_params->activation.min;
-    const int32_t act_max               = dw_conv_params->activation.max;
+    const int32_t input_offset = dw_conv_params->input_offset;  
+    const int32_t output_offset = dw_conv_params->output_offset;
+    const int32_t act_min = dw_conv_params->activation.min;
+    const int32_t act_max = dw_conv_params->activation.max;
     const int32_t g_cnt = ch >> 2;         
     const int32_t minus_io = -input_offset; 
     for (int32_t g = 0; g < g_cnt; ++g)
@@ -174,6 +173,8 @@ if ((input_dims->c & 0x3) != 0 || input_dims->c != output_dims->c)
     }
     return ARM_CMSIS_NN_SUCCESS;
 }
+#endif
+// 
 /**
  * @} end of NNConv group
  */
