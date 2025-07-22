@@ -31,6 +31,14 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
+/**
+ *  @ingroup Public
+ */
+
+/**
+ * @addtogroup NNConv
+ * @{
+ */
 
 /*******************************************************************************
 * Depth-wise 3 × 3 convolution, stride = 1, padding = SAME, channels multiple-of-4
@@ -40,10 +48,6 @@
 *   – per-channel requant (mult, shift) supplied by CMSIS-NN
 *   – no tail processing (ch % 4 == 0)
 *   – no extra scratch memory   (ctx->buf == 0)
-*
-* Public entry point follows the usual CMSIS-NN signature so that the function
-* can be dropped into arm_nnfunctions.c and called through
-*     arm_depthwise_conv_s8()
 */
 #if defined(ARM_MATH_MVEI)
 arm_cmsis_nn_status arm_depthwise_conv_s8_direct(const cmsis_nn_context *ctx,
@@ -174,7 +178,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_direct(const cmsis_nn_context *ctx,
     return ARM_CMSIS_NN_SUCCESS;
 }
 #endif
-// 
+
 /**
  * @} end of NNConv group
  */
