@@ -16,8 +16,8 @@
 # limitations under the License.
 #
 
-add_cmsis_nn_unit_test_executable(test_arm_depthwise_conv_s8_direct)
+add_cmsis_nn_unit_test_executable(test_arm_depthwise_conv_s8_direct_3x3_same_padding)
 
-target_sources(test_arm_depthwise_conv_s8_direct PRIVATE
-    Unity/unity_test_arm_depthwise_conv_s8_direct.c
-    Unity/TestRunner/unity_test_arm_depthwise_conv_s8_direct_runner.c)
+target_sources(test_arm_depthwise_conv_s8_direct_3x3_same_padding PRIVATE
+    Unity/unity_test_arm_depthwise_conv_s8_direct_3x3_same_padding.c
+    Unity/TestRunner/unity_test_arm_depthwise_conv_s8_direct_3x3_same_padding_runner.c)

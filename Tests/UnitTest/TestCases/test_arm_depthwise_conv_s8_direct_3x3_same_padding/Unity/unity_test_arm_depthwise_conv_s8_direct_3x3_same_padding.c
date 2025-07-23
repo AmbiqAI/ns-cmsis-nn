@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../test_arm_depthwise_conv_s8_direct.c"
+#include "../test_arm_depthwise_conv_s8_direct_3x3_same_padding.c"
 #include "unity.h"
 
 #ifdef USING_FVP_CORSTONE_300
@@ -44,7 +44,7 @@ void setUp(void)
  */
 void tearDown(void) {}
 
-void test_depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct(void) { depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct(); }
+void test_depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct_3x3_same_padding(void) { depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct_3x3_same_padding(); }
 
-void test_buffer_size_mve_arm_depthwise_conv_s8_direct(void) {buffer_size_mve_arm_depthwise_conv_s8_direct(); }
+void test_buffer_size_mve_arm_depthwise_conv_s8_direct_3x3_same_padding(void) {buffer_size_mve_arm_depthwise_conv_s8_direct_3x3_same_padding(); }
 

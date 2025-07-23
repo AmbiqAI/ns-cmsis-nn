@@ -153,7 +153,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
         dw_conv_params->stride.h == 1) // multiple of 4 in/out channels
         {
 #if defined ARM_MATH_MVEI
-            status = arm_depthwise_conv_s8_direct(ctx,
+            status = arm_depthwise_conv_s8_direct_3x3_same_padding(ctx,
                                                weight_sum_ctx,
                                                dw_conv_params,
                                                quant_params,

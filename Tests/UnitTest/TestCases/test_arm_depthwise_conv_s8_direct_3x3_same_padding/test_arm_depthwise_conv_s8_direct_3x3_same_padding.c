@@ -31,7 +31,7 @@
 #include <inttypes.h>
 
 
-void depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct(void)
+void depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct_3x3_same_padding(void)
 {
 
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
@@ -176,7 +176,7 @@ void depthwise_eq_in_out_ch_arm_depthwise_conv_s8_direct(void)
     TEST_ASSERT_TRUE(validate(output, depthwise_eq_in_out_ch_output_ref, DEPTHWISE_EQ_IN_OUT_CH_DST_SIZE));
 }
 
-void buffer_size_mve_arm_depthwise_conv_s8_direct(void)
+void buffer_size_mve_arm_depthwise_conv_s8_direct_3x3_same_padding(void)
 {
 
 #if defined(ARM_MATH_MVEI)
