@@ -154,6 +154,12 @@ Functions</h2></td></tr>
 <tr class="memitem:ga9ae180a44e18ee58936dba1e0564560b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Concatenation.html#ga9ae180a44e18ee58936dba1e0564560b">arm_concatenation_s8_z</a> (const int8_t *input, const uint16_t input_x, const uint16_t input_y, const uint16_t input_z, const uint16_t input_w, int8_t *output, const uint16_t output_z, const uint32_t offset_z)</td></tr>
 <tr class="memdesc:ga9ae180a44e18ee58936dba1e0564560b"><td class="mdescLeft">&#160;</td><td class="mdescRight">int8/uint8 concatenation function to be used for concatenating N-tensors along the Z axis This function should be called for each input tensor to concatenate. The argument offset_z will be used to store the input tensor in the correct position in the output tensor  <br /></td></tr>
 <tr class="separator:ga9ae180a44e18ee58936dba1e0564560b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaacb52af246e7da02772a328db56e660f"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Concatenation.html#gaacb52af246e7da02772a328db56e660f">arm_split_s16</a> (const int16_t *input_data, const int32_t input_dims, const int32_t *input_shape, const int32_t axis, const int32_t num_splits, const int32_t *split_dims, int16_t *const *output_data)</td></tr>
+<tr class="memdesc:gaacb52af246e7da02772a328db56e660f"><td class="mdescLeft">&#160;</td><td class="mdescRight">int16/uint16 split function to be used for splitting a tensor into multiple tensors along the target axis  <br /></td></tr>
+<tr class="separator:gaacb52af246e7da02772a328db56e660f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga9c3e496e0e58b7b936167a5b56cb9b7f"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Concatenation.html#ga9c3e496e0e58b7b936167a5b56cb9b7f">arm_split_s8</a> (const int8_t *input_data, const int32_t input_dims, const int32_t *input_shape, const int32_t axis, const int32_t num_splits, const int32_t *split_dims, int8_t *const *output_data)</td></tr>
+<tr class="memdesc:ga9c3e496e0e58b7b936167a5b56cb9b7f"><td class="mdescLeft">&#160;</td><td class="mdescRight">int8/uint8 split function to be used for splitting a tensor into multiple tensors along the target axis  <br /></td></tr>
+<tr class="separator:ga9c3e496e0e58b7b936167a5b56cb9b7f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Description</h2>
 <h2 class="groupheader">Function Documentation</h2>
@@ -646,6 +652,154 @@ Functions</h2></td></tr>
   </dd>
 </dl>
 <p><b> Input constraints</b> offset_z is less than output_z </p>
+
+</div>
+</div>
+<a id="gaacb52af246e7da02772a328db56e660f" name="gaacb52af246e7da02772a328db56e660f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaacb52af246e7da02772a328db56e660f">&#9670;&#160;</a></span>arm_split_s16()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_split_s16 </td>
+          <td>(</td>
+          <td class="paramtype">const int16_t *&#160;</td>
+          <td class="paramname"><em>input_data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>input_dims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t *&#160;</td>
+          <td class="paramname"><em>input_shape</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>axis</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>num_splits</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t *&#160;</td>
+          <td class="paramname"><em>split_dims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int16_t *const *&#160;</td>
+          <td class="paramname"><em>output_data</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>int16/uint16 split function to be used for splitting a tensor into multiple tensors along the target axis </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">input_data</td><td>Pointer to the flattened input tensor data. </td></tr>
+    <tr><td class="paramname">input_dims</td><td>Number of dimensions in input_shape. </td></tr>
+    <tr><td class="paramname">input_shape</td><td>Array of length input_dims describing the shape of input_data. </td></tr>
+    <tr><td class="paramname">axis</td><td>Axis along which to split (0 &lt;= axis &lt; input_dims). </td></tr>
+    <tr><td class="paramname">num_splits</td><td>Number of output tensors to produce. </td></tr>
+    <tr><td class="paramname">split_dims</td><td>Array of length num_splits giving size of each slice along axis. </td></tr>
+    <tr><td class="paramname">output_data</td><td>Array of pointers; output_data[i] points to storage for the i-th output tensor.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR if split_dims sum mismatch.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>This function, data layout independent, can be used to split either int8 or uint8 tensors because it does not involve any arithmetic operation. </dd></dl>
+
+</div>
+</div>
+<a id="ga9c3e496e0e58b7b936167a5b56cb9b7f" name="ga9c3e496e0e58b7b936167a5b56cb9b7f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga9c3e496e0e58b7b936167a5b56cb9b7f">&#9670;&#160;</a></span>arm_split_s8()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_split_s8 </td>
+          <td>(</td>
+          <td class="paramtype">const int8_t *&#160;</td>
+          <td class="paramname"><em>input_data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>input_dims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t *&#160;</td>
+          <td class="paramname"><em>input_shape</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>axis</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>num_splits</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t *&#160;</td>
+          <td class="paramname"><em>split_dims</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int8_t *const *&#160;</td>
+          <td class="paramname"><em>output_data</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>int8/uint8 split function to be used for splitting a tensor into multiple tensors along the target axis </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">input_data</td><td>Pointer to the flattened input tensor data. </td></tr>
+    <tr><td class="paramname">input_dims</td><td>Number of dimensions in input_shape. </td></tr>
+    <tr><td class="paramname">input_shape</td><td>Array of length input_dims describing the shape of input_data. </td></tr>
+    <tr><td class="paramname">axis</td><td>Axis along which to split (0 &lt;= axis &lt; input_dims). </td></tr>
+    <tr><td class="paramname">num_splits</td><td>Number of output tensors to produce. </td></tr>
+    <tr><td class="paramname">split_dims</td><td>Array of length num_splits giving size of each slice along axis. </td></tr>
+    <tr><td class="paramname">output_data</td><td>Array of pointers; output_data[i] points to storage for the i-th output tensor.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR if split_dims sum mismatch.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>This function, data layout independent, can be used to split either int8 or uint8 tensors because it does not involve any arithmetic operation. </dd></dl>
 
 </div>
 </div>
