@@ -3480,6 +3480,52 @@ arm_cmsis_nn_status arm_concatenation_s16(const int16_t *const *input_data,
                                          const int32_t *output_shape);
 
 /**
+ * @brief  int8/uint8 split function to be used for splitting a tensor into multiple tensors along the target axis
+ * @param  input_data      Pointer to the flattened input tensor data.
+ * @param  input_dims      Number of dimensions in input_shape.
+ * @param  input_shape     Array of length input_dims describing the shape of input_data.
+ * @param  axis            Axis along which to split (0 <= axis < input_dims).
+ * @param  num_splits      Number of output tensors to produce.
+ * @param  split_dims      Array of length num_splits giving size of each slice along axis.
+ * @param  output_data     Array of pointers; output_data[i] points to storage for the i-th output tensor.
+ *
+ * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR if split_dims sum mismatch.
+ *
+ * @note This function, data layout independent, can be used to split either int8 or uint8 tensors because it
+ *       does not involve any arithmetic operation.
+ */
+arm_cmsis_nn_status arm_split_s8(const int8_t *input_data,
+                                 const int32_t input_dims,
+                                 const int32_t *input_shape,
+                                 const int32_t axis,
+                                 const int32_t num_splits,
+                                 const int32_t *split_dims,
+                                 int8_t *const *output_data);
+
+/**
+ * @brief  int16/uint16 split function to be used for splitting a tensor into multiple tensors along the target axis
+ * @param  input_data      Pointer to the flattened input tensor data.
+ * @param  input_dims      Number of dimensions in input_shape.
+ * @param  input_shape     Array of length input_dims describing the shape of input_data.
+ * @param  axis            Axis along which to split (0 <= axis < input_dims).
+ * @param  num_splits      Number of output tensors to produce.
+ * @param  split_dims      Array of length num_splits giving size of each slice along axis.
+ * @param  output_data     Array of pointers; output_data[i] points to storage for the i-th output tensor.
+ *
+ * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR if split_dims sum mismatch.
+ *
+ * @note This function, data layout independent, can be used to split either int8 or uint8 tensors because it
+ *       does not involve any arithmetic operation.
+ */
+arm_cmsis_nn_status arm_split_s16(const int16_t *input_data,
+                                  const int32_t input_dims,
+                                  const int32_t *input_shape,
+                                  const int32_t axis,
+                                  const int32_t num_splits,
+                                  const int32_t *split_dims,
+                                  int16_t *const *output_data);
+
+/**
  * @defgroup SVDF SVDF Functions
  *
  */

@@ -88,6 +88,8 @@
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8_z.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s16.c"/>
+        <file category="source" name="Source/ConcatenationFunctions/arm_split_s8.c"/>
+        <file category="source" name="Source/ConcatenationFunctions/arm_split_s16.c"/>
 
         <file category="source" name="Source/SVDFunctions/arm_svdf_s8.c"/>
         <file category="source" name="Source/SVDFunctions/arm_svdf_state_s16_s8.c"/>
