@@ -69,7 +69,7 @@ arm_cmsis_nn_status arm_split_s16(const int16_t *input_data,
 
             // The number of elements to copy for this output.
             const int copy_size = split_dims[s] * base_inner_size;
-            const int16_t *out_ptr = output_data[s] + k * copy_size;
+            int16_t *out_ptr = output_data[s] + k * copy_size;
             arm_memcpy_s16(out_ptr, input_data, copy_size);
             input_data += copy_size;
         }
