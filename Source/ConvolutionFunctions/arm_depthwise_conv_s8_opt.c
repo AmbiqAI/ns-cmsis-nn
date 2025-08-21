@@ -403,9 +403,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
     }
     #endif
 #else
-    (void)weight_sum_ctx;
     /* Run the following code as reference implementation for Cortex-M0 and Cortex-M3 */
     return arm_depthwise_conv_s8(ctx,
+                                 weight_sum_ctx,
                                  dw_conv_params,
                                  quant_params,
                                  input_dims,
