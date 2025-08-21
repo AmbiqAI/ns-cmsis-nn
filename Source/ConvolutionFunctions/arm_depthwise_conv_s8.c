@@ -182,7 +182,7 @@ static void depthwise_conv_s8_generic(const int8_t *input,
                                       const uint16_t stride_x,
                                       const uint16_t stride_y,
                                       const int32_t *bias,
-                                      const int32_t *vector_sum, /* NEW: acc seed per OC: ksum*input_offset + bias */
+                                      const int32_t *vector_sum, 
                                       int8_t *output,
                                       const int32_t *output_shift,
                                       const int32_t *output_mult,
@@ -316,9 +316,13 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
     (void)bias_dims;
     (void)ctx;
 
+    const bool full_x = (dw_conv_params->padding.w == 0) &&
+                        (((output_dims->w - 1) * dw_conv_params->stride.w) + ((filter_dims->w - 1) * (int32_t)dilation_x) < input_dims->w);
+    const bool full_y = (dw_conv_params->padding.h == 0) &&
+                        (((output_dims->h - 1) * dw_conv_params->stride.h) + ((filter_dims->h - 1) * (int32_t)dilation_y) < input_dims->h);
+
     const int32_t *vector_sum = NULL;
-    if (weight_sum_ctx && weight_sum_ctx->buf &&
-        dw_conv_params->padding.w == 0 && dw_conv_params->padding.h == 0 && bias!=NULL) //if bias is null then fall back on original imepelementaion not to mess with receptive field sum
+    if (bias != NULL && weight_sum_ctx && weight_sum_ctx->buf && full_x && full_y)
     {
         vector_sum = (const int32_t *)weight_sum_ctx->buf;
     }
