@@ -145,7 +145,6 @@ void fully_connected_w_zp_arm_fully_connected_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
-#if defined(ARM_MATH_MVEI)
     int32_t *buf = ctx.buf;
     TEST_ASSERT_EQUAL(expected,
                       arm_vector_sum_s8(buf,
@@ -155,7 +154,6 @@ void fully_connected_w_zp_arm_fully_connected_s8(void)
                                         fc_params.input_offset,
                                         fc_params.filter_offset,
                                         bias_data));
-#endif
 
     arm_cmsis_nn_status result = arm_fully_connected_s8(&ctx,
                                                         &fc_params,

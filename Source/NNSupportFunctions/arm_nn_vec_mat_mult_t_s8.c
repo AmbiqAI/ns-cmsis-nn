@@ -203,6 +203,128 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
         }
 
 #elif defined(ARM_MATH_DSP)
+    if (kernel_sum != NULL)
+    {
+        const int32_t row_loop_cnt = rhs_rows / 2;
+
+        for (int32_t i = 0; i < row_loop_cnt; i++)
+        {
+            int32_t acc_0 = 0;
+            int32_t acc_1 = 0;
+            int32_t lhs_sum = 0;
+
+            const int32_t col_loop_cnt = rhs_cols / 4;
+
+            const int8_t *lhs_vec   = lhs;
+            const int8_t *rhs_0_ptr = rhs;
+            const int8_t *rhs_1_ptr = rhs + rhs_cols;
+            rhs += 2 * rhs_cols;
+
+            for (int32_t j = col_loop_cnt; j != 0; j--)
+            {
+                int32_t vec_0 = arm_nn_read_s8x4_ia(&lhs_vec);
+
+                int32_t pair = SXTB16((uint32_t)vec_0);
+                lhs_sum = SMLAD(pair, 0x00010001, lhs_sum);
+                pair = SXTB16(ROR((uint32_t)vec_0, 8));
+                lhs_sum = SMLAD(pair, 0x00010001, lhs_sum);
+
+                int32_t ker_0 = arm_nn_read_s8x4_ia(&rhs_0_ptr);
+                int32_t kpair = SXTB16((uint32_t)ker_0);
+                int32_t vpair = SXTB16((uint32_t)vec_0);
+                acc_0 = SMLAD(kpair, vpair, acc_0);
+                kpair = SXTB16(ROR((uint32_t)ker_0, 8));
+                vpair = SXTB16(ROR((uint32_t)vec_0, 8));
+                acc_0 = SMLAD(kpair, vpair, acc_0);
+
+                ker_0 = arm_nn_read_s8x4_ia(&rhs_1_ptr);
+                kpair = SXTB16((uint32_t)ker_0);
+                vpair = SXTB16((uint32_t)vec_0);
+                acc_1 = SMLAD(kpair, vpair, acc_1);
+                kpair = SXTB16(ROR((uint32_t)ker_0, 8));
+                vpair = SXTB16(ROR((uint32_t)vec_0, 8));
+                acc_1 = SMLAD(kpair, vpair, acc_1);
+            }
+
+            for (int32_t k = col_loop_cnt * 4; k < rhs_cols; k++)
+            {
+                const int32_t x = *lhs_vec++;
+                lhs_sum += x;
+
+                acc_0 += x * (*rhs_0_ptr++);
+                acc_1 += x * (*rhs_1_ptr++);
+            }
+
+            acc_0 += *kernel_sum + (lhs_sum * rhs_offset);
+            acc_1 += *(kernel_sum + 1) + (lhs_sum * rhs_offset);
+            kernel_sum += 2;
+
+            acc_0 = arm_nn_requantize(acc_0, dst_multiplier, dst_shift);
+            acc_1 = arm_nn_requantize(acc_1, dst_multiplier, dst_shift);
+
+            acc_0 += dst_offset;
+            acc_1 += dst_offset;
+
+            acc_0 = MAX(acc_0, activation_min);
+            acc_0 = MIN(acc_0, activation_max);
+            acc_1 = MAX(acc_1, activation_min);
+            acc_1 = MIN(acc_1, activation_max);
+
+            *dst = (int8_t)acc_0;
+            *(dst + address_offset) = (int8_t)acc_1;
+            dst += 2 * address_offset;
+        }
+
+        if (rhs_rows & 0x1)
+        {
+            int32_t acc_0 = 0;
+            int32_t lhs_sum = 0;
+
+            const int32_t col_loop_cnt = rhs_cols / 4;
+
+            const int8_t *lhs_vec = lhs;
+            const int8_t *rhs_ptr = rhs;
+
+            for (int32_t i = col_loop_cnt; i != 0; i--)
+            {
+                int32_t vec_0 = arm_nn_read_s8x4_ia(&lhs_vec);
+
+                int32_t pair = SXTB16((uint32_t)vec_0);
+                lhs_sum = SMLAD(pair, 0x00010001, lhs_sum);
+                pair = SXTB16(ROR((uint32_t)vec_0, 8));
+                lhs_sum = SMLAD(pair, 0x00010001, lhs_sum);
+
+                int32_t ker_0 = arm_nn_read_s8x4_ia(&rhs_ptr);
+
+                int32_t kpair = SXTB16((uint32_t)ker_0);
+                int32_t vpair = SXTB16((uint32_t)vec_0);
+                acc_0 = SMLAD(kpair, vpair, acc_0);
+                kpair = SXTB16(ROR((uint32_t)ker_0, 8));
+                vpair = SXTB16(ROR((uint32_t)vec_0, 8));
+                acc_0 = SMLAD(kpair, vpair, acc_0);
+            }
+
+            for (int32_t j = col_loop_cnt * 4; j < rhs_cols; j++)
+            {
+                const int32_t x = *lhs_vec++;
+                lhs_sum += x;
+                acc_0 += x * (*rhs_ptr++);
+            }
+
+
+            acc_0 += *kernel_sum++;
+            acc_0 += lhs_sum * rhs_offset;
+
+            acc_0 = arm_nn_requantize(acc_0, dst_multiplier, dst_shift);
+            acc_0 += dst_offset;
+            acc_0 = MAX(acc_0, activation_min);
+            acc_0 = MIN(acc_0, activation_max);
+            *dst = (int8_t)acc_0;
+            dst += address_offset;
+        }
+    }
+    else
+    {
         (void)kernel_sum;
 
         const int32_t row_loop_cnt = rhs_rows / 2;
@@ -233,7 +355,6 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
             {
                 int32_t vec_0 = arm_nn_read_s8x4_ia(&lhs_vec);
                 int32_t vec_1 = SXTAB16_RORn(lhs_offset_s16x2, (uint32_t)vec_0, 8);
-
                 vec_0 = SXTAB16(lhs_offset_s16x2, vec_0);
 
                 int32_t ker_0 = arm_nn_read_s8x4_ia(&rhs_0_ptr);
@@ -321,7 +442,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
             *dst = (int8_t)acc_0;
             dst += address_offset;
         }
-
+    }
 #else
         (void)kernel_sum;
 
