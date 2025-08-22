@@ -444,6 +444,87 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
         }
     }
 #else
+    if (kernel_sum != NULL)
+    {
+        const int32_t row_loop_cnt = rhs_rows / 3;
+
+        for (int32_t i_row_loop_cnt = 0; i_row_loop_cnt < row_loop_cnt; i_row_loop_cnt++)
+        {
+            const int8_t *lhs_ptr   = lhs;
+            const int8_t *rhs_ptr_0 = &rhs[0];
+            const int8_t *rhs_ptr_1 = &rhs[rhs_cols];
+            const int8_t *rhs_ptr_2 = &rhs[2 * rhs_cols];
+
+            int32_t res00 = 0;
+            int32_t res01 = 0;
+            int32_t res02 = 0;
+
+            int32_t lhs_sum = 0;
+
+            for (int32_t c = 0; c < rhs_cols; ++c)
+            {
+                const int32_t x = (int8_t)*lhs_ptr++;
+                lhs_sum += x;
+
+                res00 += x * (int8_t)*rhs_ptr_0++;
+                res01 += x * (int8_t)*rhs_ptr_1++;
+                res02 += x * (int8_t)*rhs_ptr_2++;
+            }
+
+            res00 += *kernel_sum + lhs_sum * rhs_offset;
+            res01 += *(kernel_sum + 1) + lhs_sum * rhs_offset;
+            res02 += *(kernel_sum + 2) + lhs_sum * rhs_offset;
+            kernel_sum += 3;
+
+            res00 = arm_nn_requantize(res00, dst_multiplier, dst_shift);
+            res01 = arm_nn_requantize(res01, dst_multiplier, dst_shift);
+            res02 = arm_nn_requantize(res02, dst_multiplier, dst_shift);
+
+            res00 += dst_offset;  res01 += dst_offset;  res02 += dst_offset;
+
+            res00 = MAX(res00, activation_min); res00 = MIN(res00, activation_max);
+            res01 = MAX(res01, activation_min); res01 = MIN(res01, activation_max);
+            res02 = MAX(res02, activation_min); res02 = MIN(res02, activation_max);
+
+            *dst = (int8_t)res00;
+            *(dst + address_offset) = (int8_t)res01;
+            *(dst + 2 * address_offset) = (int8_t)res02;
+            dst += 3 * address_offset;
+
+            rhs += 3 * rhs_cols;
+        }
+
+        const int loop_cnt = rhs_rows % 3;
+        for (int32_t r = 0; r < loop_cnt; r++)
+        {
+            const int8_t *lhs_ptr = lhs;
+            const int8_t *rhs_ptr = rhs;
+
+            int32_t acc = 0;
+            int32_t lhs_sum = 0;
+
+            for (int32_t c = 0; c < rhs_cols; ++c)
+            {
+                const int32_t x = (int8_t)*lhs_ptr++;
+                lhs_sum += x;
+                acc += x * (int8_t)*rhs_ptr++;
+            }
+
+            acc += *kernel_sum++;
+            acc += lhs_sum * rhs_offset;
+
+            acc = arm_nn_requantize(acc, dst_multiplier, dst_shift);
+            acc += dst_offset;
+            acc = MAX(acc, activation_min);
+            acc = MIN(acc, activation_max);
+
+            *dst = (int8_t)acc;
+            dst += address_offset;
+            rhs += rhs_cols;
+        }
+    }
+    else
+    {
         (void)kernel_sum;
 
         const int32_t row_loop_cnt = rhs_rows / 3;
@@ -545,6 +626,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
             dst += address_offset;
             rhs += rhs_cols;
         }
+    }
 #endif
     }
 
