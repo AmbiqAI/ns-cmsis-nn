@@ -589,31 +589,41 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
         }
     }
 #else
-    (void)weight_sum_buf;
+    // (void)weight_sum_buf;
+    const int32_t *kernel_sum = (const int32_t *)weight_sum_buf;
+    const int use_ws = (kernel_sum != NULL);
     (void)row_address_offset;
     for (int32_t rhs_rows_idx = 0; rhs_rows_idx <= (rhs_rows - 2); rhs_rows_idx += 2)
     {
         const int8_t *lhs_ptr = &lhs[0];
         int8_t *dst_ptr = &dst[0];
 
-        int32_t lhs_offset_contribution0 = 0;
-        int32_t lhs_offset_contribution1 = 0;
-
-        for (int32_t x = 0; x < rhs_cols; ++x)
+        int32_t lhs_offset_contribution0;
+        int32_t lhs_offset_contribution1;
+        if (use_ws)
         {
-            lhs_offset_contribution0 += rhs[x];
-            lhs_offset_contribution1 += rhs[x + rhs_cols];
+            lhs_offset_contribution0 = kernel_sum[rhs_rows_idx + 0];
+            lhs_offset_contribution1 = kernel_sum[rhs_rows_idx + 1];
         }
-
-        lhs_offset_contribution0 *= lhs_offset;
-        lhs_offset_contribution1 *= lhs_offset;
-        if (bias)
+        else
         {
-            lhs_offset_contribution0 += bias[rhs_rows_idx];
-            lhs_offset_contribution1 += bias[rhs_rows_idx + 1];
+            lhs_offset_contribution0 = 0;
+            lhs_offset_contribution1 = 0;
+
+            for (int32_t x = 0; x < rhs_cols; ++x)
+            {
+                lhs_offset_contribution0 += rhs[x];
+                lhs_offset_contribution1 += rhs[x + rhs_cols];
+            }
+
+            lhs_offset_contribution0 *= lhs_offset;
+            lhs_offset_contribution1 *= lhs_offset;
+            if (bias)
+            {
+                lhs_offset_contribution0 += bias[rhs_rows_idx + 0];
+                lhs_offset_contribution1 += bias[rhs_rows_idx + 1];
+            }
         }
-
-
         int32_t lhs_rows_idx = lhs_rows >> 1;
 
         while (lhs_rows_idx)
@@ -728,16 +738,23 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
         for (int32_t lhs_rows_idx = 0; lhs_rows_idx < lhs_rows; ++lhs_rows_idx)
         {
             const int8_t *rhs_ptr = &rhs[0];
-            int32_t res00 = 0;
-            if (bias)
+            int32_t res00;
+            if (use_ws)
             {
-                res00 = bias[rhs_rows - 1];
+                res00 = kernel_sum[rhs_rows - 1];
             }
-
+            else
+            {
+                res00 = 0;
+                if (bias)
+                {
+                    res00 = bias[rhs_rows - 1];
+                }
+            }
             for (int32_t rhs_cols_idx = rhs_cols; rhs_cols_idx != 0; rhs_cols_idx--)
             {
                 int32_t rhs_value = rhs_ptr[0];
-                int32_t lhs_value = lhs_ptr[0] + lhs_offset;
+                int32_t lhs_value = use_ws ? (int32_t)lhs_ptr[0] : (int32_t)lhs_ptr[0] + lhs_offset;
 
                 res00 += lhs_value * rhs_value;
 
