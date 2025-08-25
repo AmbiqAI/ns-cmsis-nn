@@ -1517,7 +1517,8 @@ int8_t *arm_nn_mat_mult_kernel_s8_s16(const int8_t *input_a,
                                       const int32_t num_col_a,
                                       const int32_t aligned_num_col_a,
                                       const int32_t *const output_bias,
-                                      int8_t *out_0);
+                                      int8_t *out_0,
+                                      const int32_t *kernel_sum);
 
 /**
  * @brief Matrix-multiplication function for convolution with per-channel requantization, supporting an address offset
@@ -1558,7 +1559,8 @@ int8_t *arm_nn_mat_mult_kernel_row_offset_s8_s16(const int8_t *input_a,
                                                  const int32_t aligned_num_col_a,
                                                  const int32_t *const output_bias,
                                                  const int32_t row_address_offset,
-                                                 int8_t *out_0);
+                                                 int8_t *out_0,
+                                                const int32_t *kernel_sum);
 
 /**
  * @brief Common softmax function for s8 input and s8 or s16 output

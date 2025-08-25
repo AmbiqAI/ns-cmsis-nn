@@ -48,8 +48,10 @@ int8_t *arm_nn_mat_mult_kernel_s8_s16(const int8_t *input_a,
                                       const int32_t num_col_a,
                                       const int32_t aligned_num_col_a,
                                       const int32_t *const output_bias,
-                                      int8_t *OPTIONAL_RESTRICT_KEYWORD out_0)
+                                      int8_t *OPTIONAL_RESTRICT_KEYWORD out_0,
+                                      const int32_t *kernel_sum)
 {
+(void)kernel_sum; //not supported yet
 #if !defined(ARM_MATH_MVEI)
     /* set up the second output pointers */
     int8_t *out_1 = out_0 + output_ch;

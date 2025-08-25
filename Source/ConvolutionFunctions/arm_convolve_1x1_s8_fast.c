@@ -109,7 +109,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
                                                             rhs_cols,
                                                             rhs_cols,
                                                             bias_data,
-                                                            out);
+                                                            out,
+                                                            weight_sum_ctx->buf);
                         im2col_buf = buffer_a;
                         lhs_rows = 0;
                     }
