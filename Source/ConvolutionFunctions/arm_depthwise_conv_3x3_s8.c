@@ -50,6 +50,7 @@
  */
 
 arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
+                                              const cmsis_nn_context *weight_sum_ctx, /* holds 9*C int32 entries if provided */
                                               const cmsis_nn_dw_conv_params *dw_conv_params,
                                               const cmsis_nn_per_channel_quant_params *quant_params,
                                               const cmsis_nn_dims *input_dims,
@@ -63,7 +64,7 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
 {
     (void)ctx;
     (void)bias_dims;
-
+    (void)weight_sum_ctx;
     const int32_t input_x = input_dims->w;
     const int32_t input_y = input_dims->h;
     const int32_t input_ch = input_dims->c;
@@ -107,7 +108,7 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
                 int32_t out_buff2 = 0;
                 int32_t out_buff3 = 0;
                 if (bias)
-                {
+            {
                     out_buff0 = *bias++;
                     out_buff1 = *bias++;
                     out_buff2 = *bias++;
@@ -248,22 +249,22 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
                 const int8_t *kernel_ptr = kernel + ker_h_start * (input_ch * 3) + in_ch;
 
                 for (int32_t ker_h = ker_h_start; ker_h < MIN(3, input_y - in_h); ++ker_h)
-                {
-                    if (ker_w_start == 0)
                     {
+                        if (ker_w_start == 0)
+                        {
                         out_buff += (*(input_ptr) + input_offset) * *(kernel_ptr);
-                    }
+                        }
 
                     out_buff += (*(input_ptr + input_ch) + input_offset) * *(kernel_ptr + input_ch);
 
                     if ((input_x - in_w) >= 3)
                     {
                         out_buff += (*(input_ptr + (input_ch << 1)) + input_offset) * *(kernel_ptr + (input_ch << 1));
-                    }
+                        }
 
                     input_ptr += (input_ch * input_x);
                     kernel_ptr += (input_ch * 3);
-                }
+                    }
 
                 out_buff = arm_nn_requantize(out_buff, output_mult[in_ch], output_shift[in_ch]);
                 out_buff += output_offset;
