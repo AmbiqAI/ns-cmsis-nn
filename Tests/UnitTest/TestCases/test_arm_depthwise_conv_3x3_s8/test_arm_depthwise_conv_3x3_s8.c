@@ -75,7 +75,11 @@ void depthwise_kernel_3x3_arm_depthwise_conv_3x3_s8(void)
     ctx.buf = NULL;
     ctx.size = 0;
 
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
     arm_cmsis_nn_status result = arm_depthwise_conv_3x3_s8(&ctx,
+                                                           &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,
                                                            &input_dims,
@@ -109,7 +113,6 @@ void depthwise_kernel_3x3_arm_depthwise_conv_3x3_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
-    cmsis_nn_context weights_sum_ctx;
     int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);
     weights_sum_ctx.size = weights_sum_buf_size;
@@ -198,8 +201,11 @@ void depthwise_kernel_3x3_arm_depthwise_conv_3x3_1_s8(void)
 
     ctx.buf = NULL;
     ctx.size = 0;
-
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
     arm_cmsis_nn_status result = arm_depthwise_conv_3x3_s8(&ctx,
+                                                           &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,
                                                            &input_dims,
@@ -232,7 +238,6 @@ void depthwise_kernel_3x3_arm_depthwise_conv_3x3_1_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
-    cmsis_nn_context weights_sum_ctx;
     int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);
     weights_sum_ctx.size = weights_sum_buf_size;
@@ -321,8 +326,12 @@ void depthwise_kernel_3x3_null_bias_arm_depthwise_conv_3x3_null_bias_s8(void)
 
     ctx.buf = NULL;
     ctx.size = 0;
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
 
     arm_cmsis_nn_status result = arm_depthwise_conv_3x3_s8(&ctx,
+                                                           &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,
                                                            &input_dims,
@@ -356,7 +365,6 @@ void depthwise_kernel_3x3_null_bias_arm_depthwise_conv_3x3_null_bias_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
-    cmsis_nn_context weights_sum_ctx;
     int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);
     weights_sum_ctx.size = weights_sum_buf_size;
@@ -446,8 +454,11 @@ void stride2pad1_arm_depthwise_conv_3x3_s8(void)
 
     ctx.buf = NULL;
     ctx.size = 0;
-
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
     arm_cmsis_nn_status result = arm_depthwise_conv_3x3_s8(&ctx,
+                                                           &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,
                                                            &input_dims,
@@ -481,7 +492,6 @@ void stride2pad1_arm_depthwise_conv_3x3_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
-    cmsis_nn_context weights_sum_ctx;
     int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);
     weights_sum_ctx.size = weights_sum_buf_size;
