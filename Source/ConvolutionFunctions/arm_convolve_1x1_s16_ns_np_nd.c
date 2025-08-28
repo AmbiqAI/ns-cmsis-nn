@@ -49,6 +49,7 @@
   */
 
  arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(
+    const cmsis_nn_context *weight_sum_ctx,
     const cmsis_nn_conv_params *conv_params,
     const cmsis_nn_per_channel_quant_params *quant_params,
     const cmsis_nn_dims *input_dims,
@@ -61,7 +62,7 @@
     int16_t *output_data)
  {
     (void)bias_dims;
-
+    (void)weight_sum_ctx;
     const int32_t input_batches = input_dims->n;
     const int32_t input_x = input_dims->w;
     const int32_t input_y = input_dims->h;

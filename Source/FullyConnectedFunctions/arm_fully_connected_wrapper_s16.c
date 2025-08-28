@@ -49,6 +49,7 @@
 
 arm_cmsis_nn_status arm_fully_connected_wrapper_s16(
     const cmsis_nn_context *ctx,
+    const cmsis_nn_context *weight_sum_ctx,
     const cmsis_nn_fc_params *fc_params,
     const cmsis_nn_quant_params *quant_params,
     const cmsis_nn_dims *input_dims,
@@ -61,7 +62,7 @@ arm_cmsis_nn_status arm_fully_connected_wrapper_s16(
     int16_t *output_data
 )
 {
-
+    (void)weight_sum_ctx;
     if (quant_params->is_per_channel)
     {
         const cmsis_nn_per_channel_quant_params per_channel_quant_params = {
@@ -71,6 +72,7 @@ arm_cmsis_nn_status arm_fully_connected_wrapper_s16(
 
         return arm_fully_connected_per_channel_s16(
             ctx,
+            weight_sum_ctx,
             fc_params,
             &per_channel_quant_params,
             input_dims,
@@ -88,6 +90,7 @@ arm_cmsis_nn_status arm_fully_connected_wrapper_s16(
         const cmsis_nn_per_tensor_quant_params per_tensor_quant_params = {*quant_params->multiplier,
                                                                           *quant_params->shift};
         return arm_fully_connected_s16(ctx,
+                                      weight_sum_ctx,
                                       fc_params,
                                       &per_tensor_quant_params,
                                       input_dims,

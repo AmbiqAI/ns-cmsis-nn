@@ -64,11 +64,16 @@ void fully_connected_int16_arm_fully_connected_s16(void)
     quant_params.multiplier = FULLY_CONNECTED_INT16_OUTPUT_MULTIPLIER;
     quant_params.shift = FULLY_CONNECTED_INT16_OUTPUT_SHIFT;
 
+    cmsis_nn_context weight_sum_ctx;
+    weight_sum_ctx.buf = NULL;
+    weight_sum_ctx.size = 0;
+
     int32_t buf_size = arm_fully_connected_s16_get_buffer_size(&filter_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
     arm_cmsis_nn_status result = arm_fully_connected_s16(&ctx,
+                                                         &weight_sum_ctx,
                                                          &fc_params,
                                                          &quant_params,
                                                          &input_dims,
@@ -128,12 +133,15 @@ void fully_connected_int16_big_arm_fully_connected_s16(void)
 
     quant_params.multiplier = FULLY_CONNECTED_INT16_BIG_OUTPUT_MULTIPLIER;
     quant_params.shift = FULLY_CONNECTED_INT16_BIG_OUTPUT_SHIFT;
-
+    cmsis_nn_context weight_sum_ctx;
+    weight_sum_ctx.buf = NULL;
+    weight_sum_ctx.size = 0;
     int32_t buf_size = arm_fully_connected_s16_get_buffer_size(&filter_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
     arm_cmsis_nn_status result = arm_fully_connected_s16(&ctx,
+                                                         &weight_sum_ctx,
                                                          &fc_params,
                                                          &quant_params,
                                                          &input_dims,
@@ -192,12 +200,15 @@ void fc_int16_slow_arm_fully_connected_s16(void)
 
     quant_params.multiplier = FC_INT16_SLOW_OUTPUT_MULTIPLIER;
     quant_params.shift = FC_INT16_SLOW_OUTPUT_SHIFT;
-
+    cmsis_nn_context weight_sum_ctx;
+    weight_sum_ctx.buf = NULL;
+    weight_sum_ctx.size = 0;
     int32_t buf_size = arm_fully_connected_s16_get_buffer_size(&filter_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
     arm_cmsis_nn_status result = arm_fully_connected_s16(&ctx,
+                                                         &weight_sum_ctx,
                                                          &fc_params,
                                                          &quant_params,
                                                          &input_dims,

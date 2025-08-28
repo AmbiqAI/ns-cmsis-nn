@@ -89,7 +89,7 @@ extern "C" {
  *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
  *
  */
-arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx, //TODO
                                             const cmsis_nn_conv_params *conv_params,
                                             const cmsis_nn_per_channel_quant_params *quant_params,
                                             const cmsis_nn_dims *input_dims,
@@ -262,6 +262,7 @@ int32_t arm_convolve_wrapper_s8_get_buffer_size_dsp(const cmsis_nn_conv_params *
  *
  */
 arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
+                                             const cmsis_nn_context *weight_sum_ctx,
                                              const cmsis_nn_conv_params *conv_params,
                                              const cmsis_nn_per_channel_quant_params *quant_params,
                                              const cmsis_nn_dims *input_dims,
@@ -345,7 +346,7 @@ int32_t arm_convolve_wrapper_s16_get_buffer_size_mve(const cmsis_nn_conv_params 
  *    2. Additional memory is required for optimization. Refer to argument 'ctx' for details.
  *
  */
-arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx, //TODO
                                     const cmsis_nn_conv_params *conv_params,
                                     const cmsis_nn_per_channel_quant_params *quant_params,
                                     const cmsis_nn_dims *input_dims,
@@ -386,7 +387,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
  *    2. Additional memory is required for optimization. Refer to argument 'ctx' for details.
  *
  */
-arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx, //TODO
                                          const cmsis_nn_conv_params *conv_params,
                                          const cmsis_nn_per_channel_quant_params *quant_params,
                                          const cmsis_nn_dims *input_dims,
@@ -561,7 +562,7 @@ arm_cmsis_nn_status arm_transpose_conv_wrapper_s8(const cmsis_nn_context *ctx,
  *    2. Additional memory is required for optimization. Refer to arguments 'ctx' and 'output_ctx' for details.
  *
  */
-arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx, //TODO
                                           const cmsis_nn_context *output_ctx,
                                           const cmsis_nn_transpose_conv_params *transpose_conv_params,
                                           const cmsis_nn_per_channel_quant_params *quant_params,
@@ -659,6 +660,7 @@ int32_t arm_transpose_conv_s8_get_buffer_size_mve(const cmsis_nn_dims *input_dim
  *
  */
 arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
+                                     const cmsis_nn_context *weight_sum_ctx,
                                      const cmsis_nn_conv_params *conv_params,
                                      const cmsis_nn_per_channel_quant_params *quant_params,
                                      const cmsis_nn_dims *input_dims,
@@ -696,7 +698,8 @@ arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
  *    1. Supported framework: TensorFlow Lite micro
  *
  */
-arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_conv_params *conv_params,
+arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *weight_sum_ctx, 
+                                                  const cmsis_nn_conv_params *conv_params, 
                                                   const cmsis_nn_per_channel_quant_params *quant_params,
                                                   const cmsis_nn_dims *input_dims,
                                                   const int16_t *input_data,
@@ -735,7 +738,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_conv_params *co
  *    1. Supported framework: TensorFlow Lite micro
  *
  */
-arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(const cmsis_nn_conv_params *conv_params,
+arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(const cmsis_nn_context *weight_sum_ctx,
+                                                       const cmsis_nn_conv_params *conv_params,
                                                        const cmsis_nn_per_channel_quant_params *quant_params,
                                                        const cmsis_nn_dims *input_dims,
                                                        const int16_t *input_data,
@@ -789,7 +793,7 @@ int32_t arm_convolve_s16_get_buffer_size(const cmsis_nn_dims *input_dims, const 
  *      -# conv_params->stride.w = conv_params->stride.h = 1
  *
  */
-arm_cmsis_nn_status arm_convolve_1x1_s4_fast(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_convolve_1x1_s4_fast(const cmsis_nn_context *ctx, //TODO
                                              const cmsis_nn_conv_params *conv_params,
                                              const cmsis_nn_per_channel_quant_params *quant_params,
                                              const cmsis_nn_dims *input_dims,
@@ -829,7 +833,7 @@ arm_cmsis_nn_status arm_convolve_1x1_s4_fast(const cmsis_nn_context *ctx,
  *      -# conv_params->padding.w = conv_params->padding.h = 0
  *
  */
-arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx, //TODO
                                         const cmsis_nn_conv_params *conv_params,
                                         const cmsis_nn_per_channel_quant_params *quant_params,
                                         const cmsis_nn_dims *input_dims,
@@ -1132,7 +1136,7 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
  *@todo  Remove constraint on output_dims->w to make the function generic.
  *
  */
-arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx, //TODO
                                           const cmsis_nn_conv_params *conv_params,
                                           const cmsis_nn_per_channel_quant_params *quant_params,
                                           const cmsis_nn_dims *input_dims,
@@ -1263,7 +1267,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
  * @details
  *    - Supported framework: TensorFlow Lite
  */
-arm_cmsis_nn_status arm_depthwise_conv_wrapper_s4(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_depthwise_conv_wrapper_s4(const cmsis_nn_context *ctx, //TODO
                                                   const cmsis_nn_dw_conv_params *dw_conv_params,
                                                   const cmsis_nn_per_channel_quant_params *quant_params,
                                                   const cmsis_nn_dims *input_dims,
@@ -1435,7 +1439,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
  * @details
  *    - Supported framework: TensorFlow Lite
  */
-arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx, //TODO
                                           const cmsis_nn_dw_conv_params *dw_conv_params,
                                           const cmsis_nn_per_channel_quant_params *quant_params,
                                           const cmsis_nn_dims *input_dims,
@@ -1477,6 +1481,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
  *    - Supported framework: TensorFlow Lite
  */
 arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
+                                           const cmsis_nn_context *weight_sum_ctx,
                                            const cmsis_nn_dw_conv_params *dw_conv_params,
                                            const cmsis_nn_per_channel_quant_params *quant_params,
                                            const cmsis_nn_dims *input_dims,
@@ -1522,6 +1527,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
  *        -# arm_depthwise_conv_fast_s16()  - Cortex-M CPUs with DSP extension only
  */
 arm_cmsis_nn_status arm_depthwise_conv_wrapper_s16(const cmsis_nn_context *ctx,
+                                                   const cmsis_nn_context *weight_sum_ctx,
                                                    const cmsis_nn_dw_conv_params *dw_conv_params,
                                                    const cmsis_nn_per_channel_quant_params *quant_params,
                                                    const cmsis_nn_dims *input_dims,
@@ -1597,6 +1603,7 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *
  */
 arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
+                                                const cmsis_nn_context *weight_sum_ctx,
                                                 const cmsis_nn_dw_conv_params *dw_conv_params,
                                                 const cmsis_nn_per_channel_quant_params *quant_params,
                                                 const cmsis_nn_dims *input_dims,
@@ -1707,7 +1714,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
  *    - Reccomended when number of channels is 4 or greater.
  *
  */
-arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx, //TODO
                                               const cmsis_nn_dw_conv_params *dw_conv_params,
                                               const cmsis_nn_per_channel_quant_params *quant_params,
                                               const cmsis_nn_dims *input_dims,
@@ -1790,7 +1797,7 @@ int32_t arm_depthwise_conv_s4_opt_get_buffer_size(const cmsis_nn_dims *input_dim
  * @details
  *    - Supported framework: TensorFlow Lite
  */
-arm_cmsis_nn_status arm_fully_connected_s4(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_fully_connected_s4(const cmsis_nn_context *ctx, //TODO
                                            const cmsis_nn_fc_params *fc_params,
                                            const cmsis_nn_per_tensor_quant_params *quant_params,
                                            const cmsis_nn_dims *input_dims,
@@ -1840,7 +1847,7 @@ arm_cmsis_nn_status arm_fully_connected_s4(const cmsis_nn_context *ctx,
  * @details
  *    - Supported framework: TensorFlow Lite
  */
-arm_cmsis_nn_status arm_fully_connected_s8(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_fully_connected_s8(const cmsis_nn_context *ctx, //TODO
                                            const cmsis_nn_fc_params *fc_params,
                                            const cmsis_nn_per_tensor_quant_params *quant_params,
                                            const cmsis_nn_dims *input_dims,
@@ -1890,7 +1897,7 @@ arm_cmsis_nn_status arm_fully_connected_s8(const cmsis_nn_context *ctx,
  * @details
  *    - Supported framework: TensorFlow Lite
  */
-arm_cmsis_nn_status arm_fully_connected_per_channel_s8(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_fully_connected_per_channel_s8(const cmsis_nn_context *ctx, //TODO
                                                        const cmsis_nn_fc_params *fc_params,
                                                        const cmsis_nn_per_channel_quant_params *quant_params,
                                                        const cmsis_nn_dims *input_dims,
@@ -1940,7 +1947,7 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s8(const cmsis_nn_context *c
  * @details
  *    - Supported framework: TensorFlow Lite
  */
-arm_cmsis_nn_status arm_fully_connected_wrapper_s8(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_fully_connected_wrapper_s8(const cmsis_nn_context *ctx, //TODO
                                                    const cmsis_nn_fc_params *fc_params,
                                                    const cmsis_nn_quant_params *quant_params,
                                                    const cmsis_nn_dims *input_dims,
@@ -2055,6 +2062,7 @@ int32_t arm_fully_connected_s8_get_buffer_size_mve(const cmsis_nn_dims *filter_d
  *    - Supported framework: TensorFlow Lite
  */
 arm_cmsis_nn_status arm_fully_connected_s16(const cmsis_nn_context *ctx,
+                                            const cmsis_nn_context *weight_sum_ctx,
                                             const cmsis_nn_fc_params *fc_params,
                                             const cmsis_nn_per_tensor_quant_params *quant_params,
                                             const cmsis_nn_dims *input_dims,
@@ -2105,6 +2113,7 @@ arm_cmsis_nn_status arm_fully_connected_s16(const cmsis_nn_context *ctx,
  *    - Supported framework: TensorFlow Lite
  */
 arm_cmsis_nn_status arm_fully_connected_per_channel_s16(const cmsis_nn_context *ctx,
+                                                        const cmsis_nn_context *weight_sum_ctx,
                                                         const cmsis_nn_fc_params *fc_params,
                                                         const cmsis_nn_per_channel_quant_params *quant_params,
                                                         const cmsis_nn_dims *input_dims,
@@ -2153,6 +2162,7 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s16(const cmsis_nn_context *
  */
 
 arm_cmsis_nn_status arm_fully_connected_wrapper_s16(const cmsis_nn_context *ctx,
+                                                    const cmsis_nn_context *weight_sum_ctx,
                                                     const cmsis_nn_fc_params *fc_params,
                                                     const cmsis_nn_quant_params *quant_params,
                                                     const cmsis_nn_dims *input_dims,

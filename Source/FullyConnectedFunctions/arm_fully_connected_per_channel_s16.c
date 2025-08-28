@@ -48,6 +48,7 @@
  */
 arm_cmsis_nn_status arm_fully_connected_per_channel_s16(
     const cmsis_nn_context *ctx,
+    const cmsis_nn_context *weight_sum_ctx,
     const cmsis_nn_fc_params *fc_params,
     const cmsis_nn_per_channel_quant_params *quant_params,
     const cmsis_nn_dims *input_dims,
@@ -62,7 +63,7 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s16(
 {
     (void)bias_dims;
     (void)ctx;
-
+    (void)weight_sum_ctx;
     int32_t batch_cnt = input_dims->n;
 
     while (batch_cnt)

@@ -71,8 +71,13 @@ void dw_int16xint8_arm_depthwise_conv_s16(void)
 
     ctx.buf = NULL;
     ctx.size = 0;
-
+    
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
+    
     arm_cmsis_nn_status result = arm_depthwise_conv_s16(&ctx,
+                                                        &weights_sum_ctx,
                                                         &dw_conv_params,
                                                         &quant_params,
                                                         &input_dims,
@@ -101,6 +106,7 @@ void dw_int16xint8_arm_depthwise_conv_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_depthwise_conv_wrapper_s16(&ctx,
+                                            &weights_sum_ctx,
                                             &dw_conv_params,
                                             &quant_params,
                                             &input_dims,
@@ -168,8 +174,13 @@ void dw_int16xint8_dilation_arm_depthwise_conv_s16(void)
 
     ctx.buf = NULL;
     ctx.size = 0;
-
+    
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
+    
     arm_cmsis_nn_status result = arm_depthwise_conv_s16(&ctx,
+                                                        &weights_sum_ctx,
                                                         &dw_conv_params,
                                                         &quant_params,
                                                         &input_dims,
@@ -198,6 +209,7 @@ void dw_int16xint8_dilation_arm_depthwise_conv_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_depthwise_conv_wrapper_s16(&ctx,
+                                            &weights_sum_ctx,
                                             &dw_conv_params,
                                             &quant_params,
                                             &input_dims,
@@ -265,8 +277,13 @@ void dw_int16xint8_mult4_arm_depthwise_conv_s16(void)
 
     ctx.buf = NULL;
     ctx.size = 0;
-
+    
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
+    
     arm_cmsis_nn_status result = arm_depthwise_conv_s16(&ctx,
+                                                        &weights_sum_ctx,
                                                         &dw_conv_params,
                                                         &quant_params,
                                                         &input_dims,
@@ -295,6 +312,7 @@ void dw_int16xint8_mult4_arm_depthwise_conv_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_depthwise_conv_wrapper_s16(&ctx,
+                                            &weights_sum_ctx,
                                             &dw_conv_params,
                                             &quant_params,
                                             &input_dims,
