@@ -19,7 +19,7 @@
 #include <arm_nnfunctions.h>
 #include <stdlib.h>
 #include <unity.h>
-
+#include <stdio.h>
 #include "../TestData/fully_connected_int4/test_data.h"
 #include "../TestData/fully_connected_int4_2/test_data.h"
 #include "../TestData/fully_connected_int4_3/test_data.h"
@@ -66,9 +66,15 @@ void fully_connected_int4_arm_fully_connected_s4(void)
     quant_params.multiplier = FULLY_CONNECTED_INT4_OUTPUT_MULTIPLIER;
     quant_params.shift = FULLY_CONNECTED_INT4_OUTPUT_SHIFT;
 
-    int32_t buf_size = 0;
+    const int32_t buf_size = arm_fully_connected_s8_get_buffer_size(&filter_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
+    arm_vector_sum_s4(ctx.buf,
+                      kernel_data,
+                      &input_dims,
+                      &output_dims,
+                      fc_params.input_offset,
+                      bias_data);
 
     arm_cmsis_nn_status result = arm_fully_connected_s4(&ctx,
                                                         &fc_params,
@@ -129,9 +135,16 @@ void fully_connected_int4_arm_fully_connected_s4_2(void)
     quant_params.multiplier = FULLY_CONNECTED_INT4_2_OUTPUT_MULTIPLIER;
     quant_params.shift = FULLY_CONNECTED_INT4_2_OUTPUT_SHIFT;
 
-    int32_t buf_size = 0;
+    const int32_t buf_size = arm_fully_connected_s8_get_buffer_size(&filter_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
+
+    arm_vector_sum_s4(ctx.buf,
+                      kernel_data,
+                      &input_dims,
+                      &output_dims,
+                      fc_params.input_offset,
+                      bias_data);
 
     arm_cmsis_nn_status result = arm_fully_connected_s4(&ctx,
                                                         &fc_params,
@@ -192,9 +205,16 @@ void fully_connected_int4_arm_fully_connected_s4_3(void)
     quant_params.multiplier = FULLY_CONNECTED_INT4_3_OUTPUT_MULTIPLIER;
     quant_params.shift = FULLY_CONNECTED_INT4_3_OUTPUT_SHIFT;
 
-    int32_t buf_size = 0;
+    const int32_t buf_size = arm_fully_connected_s8_get_buffer_size(&filter_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
+
+    arm_vector_sum_s4(ctx.buf,
+                      kernel_data,
+                      &input_dims,
+                      &output_dims,
+                      fc_params.input_offset,
+                      bias_data);
 
     arm_cmsis_nn_status result = arm_fully_connected_s4(&ctx,
                                                         &fc_params,
@@ -255,9 +275,16 @@ void fully_connected_int4_arm_fully_connected_s4_4(void)
     quant_params.multiplier = FULLY_CONNECTED_INT4_4_OUTPUT_MULTIPLIER;
     quant_params.shift = FULLY_CONNECTED_INT4_4_OUTPUT_SHIFT;
 
-    int32_t buf_size = 0;
+    const int32_t buf_size = arm_fully_connected_s8_get_buffer_size(&filter_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
+
+    arm_vector_sum_s4(ctx.buf,
+                      kernel_data,
+                      &input_dims,
+                      &output_dims,
+                      fc_params.input_offset,
+                      bias_data);
 
     arm_cmsis_nn_status result = arm_fully_connected_s4(&ctx,
                                                         &fc_params,
@@ -318,9 +345,16 @@ void fully_connected_int4_arm_fully_connected_s4_5(void)
     quant_params.multiplier = FULLY_CONNECTED_INT4_5_OUTPUT_MULTIPLIER;
     quant_params.shift = FULLY_CONNECTED_INT4_5_OUTPUT_SHIFT;
 
-    int32_t buf_size = 0;
+    const int32_t buf_size = arm_fully_connected_s8_get_buffer_size(&filter_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
+
+    arm_vector_sum_s4(ctx.buf,
+                      kernel_data,
+                      &input_dims,
+                      &output_dims,
+                      fc_params.input_offset,
+                      bias_data);
 
     arm_cmsis_nn_status result = arm_fully_connected_s4(&ctx,
                                                         &fc_params,
@@ -381,9 +415,19 @@ void fully_connected_int4_arm_fully_connected_s4_6(void)
     quant_params.multiplier = FULLY_CONNECTED_INT4_6_OUTPUT_MULTIPLIER;
     quant_params.shift = FULLY_CONNECTED_INT4_6_OUTPUT_SHIFT;
 
-    int32_t buf_size = 0;
+    const int32_t buf_size = arm_fully_connected_s8_get_buffer_size(&filter_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
+
+    arm_vector_sum_s4(ctx.buf,
+                      kernel_data,
+                      &input_dims,
+                      &output_dims,
+                      fc_params.input_offset,
+                      bias_data);
+
+
+    // ((int32_t *)ctx.buf)[0] += 530;
 
     arm_cmsis_nn_status result = arm_fully_connected_s4(&ctx,
                                                         &fc_params,

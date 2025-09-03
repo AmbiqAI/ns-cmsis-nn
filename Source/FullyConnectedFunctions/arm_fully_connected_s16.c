@@ -47,7 +47,6 @@
  *
  */
 arm_cmsis_nn_status arm_fully_connected_s16(const cmsis_nn_context *ctx,
-                                            const cmsis_nn_context *weight_sum_ctx,
                                             const cmsis_nn_fc_params *fc_params,
                                             const cmsis_nn_per_tensor_quant_params *quant_params,
                                             const cmsis_nn_dims *input_dims,
@@ -62,7 +61,6 @@ arm_cmsis_nn_status arm_fully_connected_s16(const cmsis_nn_context *ctx,
     (void)bias_dims;
     (void)ctx;
     (void)fc_params->filter_offset;
-    (void)weight_sum_ctx;
     int32_t batch_cnt = input_dims->n;
 
     const int32_t reduced_multiplier = REDUCE_MULTIPLIER(quant_params->multiplier);
