@@ -48,6 +48,7 @@
  *
  */
 arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
+                                    const cmsis_nn_context *weight_sum_ctx,
                                     const cmsis_nn_conv_params *conv_params,
                                     const cmsis_nn_per_channel_quant_params *quant_params,
                                     const cmsis_nn_dims *input_dims,
@@ -65,6 +66,15 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+    const int32_t *vecsum = NULL;
+    bool use_vecsum = false;
+    if (weight_sum_ctx && weight_sum_ctx->buf)
+    {
+        vecsum = (const int32_t *)weight_sum_ctx->buf;
+        use_vecsum = true;
+    }
+
     int16_t *buffer_a = (int16_t *)ctx->buf;
 
     const int32_t input_batches = input_dims->n;
@@ -75,7 +85,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
     const uint16_t kernel_y = filter_dims->h;
     const uint16_t output_x = output_dims->w;
     const uint16_t output_y = output_dims->h;
-    const uint16_t output_ch = output_dims->c;
+    const uint16_t output_ch_u16 = output_dims->c;
 
     const uint16_t pad_x = conv_params->padding.w;
     const uint16_t pad_y = conv_params->padding.h;
@@ -119,7 +129,8 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
 
                         if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
                         {
-                            arm_memset_s8(im2col_buf, (int8_t)-input_offset, sizeof(int8_t) * input_ch);
+                            const int8_t pad_val = (int8_t)(-input_offset);
+                            arm_memset_s8(im2col_buf, pad_val, sizeof(int8_t) * input_ch);
                         }
                         else
                         {
@@ -133,16 +144,18 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
                 /* Computation is filed for every 4 columns */
                 if (lhs_rows == 4)
                 {
+                    const int32_t *bias_ptr = use_vecsum ? vecsum : bias_data;
+                    const int32_t matmul_input_offset = use_vecsum ? 0 : input_offset;
                     arm_nn_mat_mult_nt_t_s4((int8_t *)buffer_a,
                                             packed_filter_data,
-                                            bias_data,
+                                            bias_ptr,
                                             out,
                                             output_mult,
                                             output_shift,
                                             lhs_rows,
                                             rhs_rows,
                                             rhs_cols,
-                                            input_offset,
+                                            matmul_input_offset,
                                             out_offset,
                                             out_activation_min,
                                             out_activation_max,
@@ -158,16 +171,19 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
         /* Handle left over columns */
         if (lhs_rows != 0)
         {
+            const int32_t *bias_ptr = use_vecsum ? vecsum : bias_data;
+            const int32_t matmul_input_offset = use_vecsum ? 0 : input_offset;
+
             arm_nn_mat_mult_nt_t_s4((int8_t *)buffer_a,
                                     packed_filter_data,
-                                    bias_data,
+                                    bias_ptr,
                                     out,
                                     output_mult,
                                     output_shift,
                                     lhs_rows,
                                     rhs_rows,
                                     rhs_cols,
-                                    input_offset,
+                                    matmul_input_offset,
                                     out_offset,
                                     out_activation_min,
                                     out_activation_max,
@@ -198,14 +214,21 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
 
                         if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
                         {
-                            /* Filling 0 for out-of-bound paddings */
-                            memset(two_column_buf, 0, sizeof(int16_t) * input_ch);
+                            if (use_vecsum)
+                            {
+                                const int16_t pad = (int16_t)(-input_offset);
+                                for (int c = 0; c < input_ch; ++c) { two_column_buf[c] = pad; }
+                            }
+                            else
+                            {
+                                memset(two_column_buf, 0, sizeof(int16_t) * input_ch);
+                            }
                         }
                         else
                         {
-                            /* Copying the pixel data to column */
+                            const int32_t eff_offset = use_vecsum ? 0 : input_offset;
                             arm_q7_to_q15_with_offset(
-                                input_data + (k_y * input_x + k_x) * input_ch, two_column_buf, input_ch, input_offset);
+                                input_data + (k_y * input_x + k_x) * input_ch, two_column_buf, input_ch, eff_offset);
                         }
                         two_column_buf += input_ch;
                     }
@@ -214,16 +237,18 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
                 /* Computation is filed for every 2 columns */
                 if (lhs_rows == 2)
                 {
+                    const int32_t *bias_ptr = use_vecsum ? vecsum : bias_data;
+
                     out = arm_nn_mat_mult_kernel_s4_s16(packed_filter_data,
                                                         buffer_a,
-                                                        output_ch,
+                                                        output_ch_u16,
                                                         output_shift,
                                                         output_mult,
                                                         out_offset,
                                                         out_activation_min,
                                                         out_activation_max,
                                                         rhs_cols,
-                                                        bias_data,
+                                                        bias_ptr,
                                                         out);
 
                     /* counter reset */
@@ -244,11 +269,15 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
             const int8_t *ker_a_ptr = packed_filter_data;
             int i;
             int8_t spilled_ker_a = 0;
-            for (i = 0; i < output_ch; i++)
+            for (i = 0; i < output_ch_u16; i++)
             {
                 /* Load the accumulator with bias first */
                 int32_t sum = 0;
-                if (bias_data)
+                if (use_vecsum)
+                {
+                    sum = vecsum[i];
+                }
+                else if (bias_data)
                 {
                     sum = bias_data[i];
                 }
@@ -318,7 +347,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
 #endif
         /* Advance to the next batch */
         input_data += (input_x * input_y * input_ch);
-        output_data += (output_x * output_y * output_ch);
+        output_data += (output_x * output_y * output_ch_u16);
     }
 
     /* Return to application */

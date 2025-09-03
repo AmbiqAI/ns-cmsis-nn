@@ -89,7 +89,8 @@ extern "C" {
  *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
  *
  */
-arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx, //TODO
+arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx,
+                                            const cmsis_nn_context *weight_sum_ctx,
                                             const cmsis_nn_conv_params *conv_params,
                                             const cmsis_nn_per_channel_quant_params *quant_params,
                                             const cmsis_nn_dims *input_dims,
@@ -346,7 +347,8 @@ int32_t arm_convolve_wrapper_s16_get_buffer_size_mve(const cmsis_nn_conv_params 
  *    2. Additional memory is required for optimization. Refer to argument 'ctx' for details.
  *
  */
-arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx, //TODO
+arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
+                                    const cmsis_nn_context *weight_sum_ctx,
                                     const cmsis_nn_conv_params *conv_params,
                                     const cmsis_nn_per_channel_quant_params *quant_params,
                                     const cmsis_nn_dims *input_dims,
@@ -387,7 +389,8 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx, //TODO
  *    2. Additional memory is required for optimization. Refer to argument 'ctx' for details.
  *
  */
-arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx, //TODO
+arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,                                    
+                                         const cmsis_nn_context *weight_sum_ctx,
                                          const cmsis_nn_conv_params *conv_params,
                                          const cmsis_nn_per_channel_quant_params *quant_params,
                                          const cmsis_nn_dims *input_dims,
@@ -398,6 +401,36 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx, //TODO
                                          const int32_t *bias_data,
                                          const cmsis_nn_dims *output_dims,
                                          int8_t *output_data);
+/**
+ * @brief Compute the bias-folded per-output-channel weight sum for S4 convolution (OHWI layout).
+ *
+ * Computes, for each output channel o:
+ *    vector_sum_buf[o] = (bias_data ? bias_data[o] : 0) - lhs_offset * Σ_k W_s4[o, k]
+ * where W_s4 are int4 weights packed two per int8_t (lower nibble = index 2*n, upper nibble = 2*n+1).
+ *
+ * @param[out]      vector_sum_buf        Output buffer for folded terms. Length: output_dims->c. Element type: int32_t.
+ * @param[in]       weights_s4            Int4-packed kernel weights; two signed 4-bit values per int8_t byte (two's complement).
+ * @param[in]       input_dims            Input activation tensor dimensions. Format: [N, H_in, W_in, C_in] (uses C_in).
+ * @param[in]       filter_dims           Convolution kernel dimensions. Format: [K_h, K_w, C_in] (uses K_h, K_w).
+ * @param[in]       output_dims           Output activation tensor dimensions. Format: [N, H_out, W_out, C_out] (uses C_out).
+ * @param[in]       lhs_offset            Input zero-point (a.k.a. lhs/input offset) to be folded with the weight sums.
+ * @param[in]       bias_data             Optional per-output-channel bias. Length: output_dims->c. May be NULL.
+ * @return          The function returns ARM_CMSIS_NN_SUCCESS on success; ARM_CMSIS_NN_ARG_ERROR on invalid arguments.
+ *
+ * @details
+ * Layout assumption: weights are stored OHWI with O-major contiguous blocks. All K = K_h * K_w * C_in elements for a given
+ * output channel are contiguous. If your build stores a different layout (e.g., OIHW/HWIO/prepacked RHS), only the indexing
+ * used to traverse weights needs to be adapted; packing and sign-extension rules remain the same.
+ */
+arm_cmsis_nn_status arm_convolve_weight_sum_s4(
+    int32_t *vector_sum_buf,
+    const int8_t *weights_s4,
+    const cmsis_nn_dims *input_dims,
+    const cmsis_nn_dims *filter_dims,
+    const cmsis_nn_dims *output_dims,
+    const int32_t lhs_offset,
+    const int32_t *bias_data
+);
 
 /**
  * @brief Basic s8 convolution function
@@ -793,7 +826,8 @@ int32_t arm_convolve_s16_get_buffer_size(const cmsis_nn_dims *input_dims, const 
  *      -# conv_params->stride.w = conv_params->stride.h = 1
  *
  */
-arm_cmsis_nn_status arm_convolve_1x1_s4_fast(const cmsis_nn_context *ctx, //TODO
+arm_cmsis_nn_status arm_convolve_1x1_s4_fast(const cmsis_nn_context *ctx, 
+                                             const cmsis_nn_context *weight_sum_ctx,
                                              const cmsis_nn_conv_params *conv_params,
                                              const cmsis_nn_per_channel_quant_params *quant_params,
                                              const cmsis_nn_dims *input_dims,
@@ -833,7 +867,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s4_fast(const cmsis_nn_context *ctx, //TODO
  *      -# conv_params->padding.w = conv_params->padding.h = 0
  *
  */
-arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx, //TODO
+arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
+                                        const cmsis_nn_context *weighsum_ctx,
                                         const cmsis_nn_conv_params *conv_params,
                                         const cmsis_nn_per_channel_quant_params *quant_params,
                                         const cmsis_nn_dims *input_dims,
@@ -1136,7 +1171,8 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
  *@todo  Remove constraint on output_dims->w to make the function generic.
  *
  */
-arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx, //TODO
+arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
+                                          const cmsis_nn_context *weight_sum_ctx,
                                           const cmsis_nn_conv_params *conv_params,
                                           const cmsis_nn_per_channel_quant_params *quant_params,
                                           const cmsis_nn_dims *input_dims,
@@ -1267,7 +1303,8 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
  * @details
  *    - Supported framework: TensorFlow Lite
  */
-arm_cmsis_nn_status arm_depthwise_conv_wrapper_s4(const cmsis_nn_context *ctx, //TODO
+arm_cmsis_nn_status arm_depthwise_conv_wrapper_s4(const cmsis_nn_context *ctx, 
+                                                  const cmsis_nn_context *weight_sum_ctx,
                                                   const cmsis_nn_dw_conv_params *dw_conv_params,
                                                   const cmsis_nn_per_channel_quant_params *quant_params,
                                                   const cmsis_nn_dims *input_dims,
@@ -1439,7 +1476,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
  * @details
  *    - Supported framework: TensorFlow Lite
  */
-arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx, //TODO
+arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
+                                          const cmsis_nn_context *weight_sum_ctx,
                                           const cmsis_nn_dw_conv_params *dw_conv_params,
                                           const cmsis_nn_per_channel_quant_params *quant_params,
                                           const cmsis_nn_dims *input_dims,
@@ -1450,6 +1488,37 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx, //TODO
                                           const int32_t *bias,
                                           const cmsis_nn_dims *output_dims,
                                           int8_t *output);
+
+                                          /**
+ * @brief Compute the bias-folded per-output-channel weight sum for S4 depthwise convolution (HWIM layout).
+ *
+ * Computes, for each output channel oc:
+ *    vector_sum_buf[oc] = (bias_data ? bias_data[oc] : 0) - lhs_offset * Σ_s W_s4[s, oc]
+ * where W_s4 are int4 weights packed two per int8_t (lower nibble = index 2*n, upper nibble = 2*n+1),
+ * and s iterates over the K_h * K_w spatial positions. Out channels = input_dims->c * dw_params->ch_mult.
+ *
+ * @param[out]      vector_sum_buf        Output buffer for folded terms. Length: output_dims->c. Element type: int32_t.
+ * @param[in]       weights_s4            Int4-packed depthwise kernel weights; two signed 4-bit values per int8_t byte.
+ * @param[in]       input_dims            Input activation tensor dimensions. Format: [N, H_in, W_in, C_in] (uses C_in).
+ * @param[in]       filter_dims           Depthwise kernel dimensions. Format: [K_h, K_w, C_in, ch_mult] (uses K_h, K_w).
+ * @param[in]       output_dims           Output activation tensor dimensions. Format: [N, H_out, W_out, C_out] with C_out = C_in * ch_mult.
+ * @param[in]       lhs_offset            Input zero-point (lhs/input offset) to be folded with the weight sums.
+ * @param[in]       bias_data             Optional per-output-channel bias. Length: output_dims->c. May be NULL.
+ * @return          The function returns ARM_CMSIS_NN_SUCCESS on success; ARM_CMSIS_NN_ARG_ERROR on invalid arguments.
+ *
+ * @details
+ * Layout assumption: weights are stored HWIM with linear index:
+ *   (((h * K_w) + w) * C_in + i) * ch_mult + m
+ * which makes elem_index = s * C_out + oc with s in [0, K_h*K_w). If your depthwise layout differs (e.g., IHWM/OIHW),
+ * adapt the element indexing only; packing/sign-extension logic is unchanged.
+ */
+arm_cmsis_nn_status arm_depthwise_weight_sum_s4(int32_t *vector_sum_buf,
+                                                const int8_t *weights_s4,
+                                                const cmsis_nn_dims *input_dims,
+                                                const cmsis_nn_dims *filter_dims,
+                                                const cmsis_nn_dims *output_dims,
+                                                const int32_t lhs_offset,
+                                                const int32_t *bias_data);
 
 /**
  * @brief Basic s16 depthwise convolution function that doesn't have any constraints on the input dimensions.
@@ -1714,7 +1783,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
  *    - Reccomended when number of channels is 4 or greater.
  *
  */
-arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx, //TODO
+arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx, 
+                                              const cmsis_nn_context *weight_sum_ctx,
                                               const cmsis_nn_dw_conv_params *dw_conv_params,
                                               const cmsis_nn_per_channel_quant_params *quant_params,
                                               const cmsis_nn_dims *input_dims,

@@ -52,7 +52,8 @@ arm_cmsis_nn_status arm_nn_mat_mul_core_1x_s4(int32_t row_elements,
                                               const cmsis_nn_conv_params *conv_params,
                                               const cmsis_nn_per_channel_quant_params *quant_params,
                                               const int32_t *bias,
-                                              int8_t *output)
+                                              int8_t *output,
+                                              bool use_vecsum)
 {
 #if defined(ARM_MATH_MVEI)
     const int8_t *col_base = col_base_ref;
@@ -62,7 +63,9 @@ arm_cmsis_nn_status arm_nn_mat_mul_core_1x_s4(int32_t row_elements,
     const int32_t out_activation_min = conv_params->activation.min;
     const int32_t out_activation_max = conv_params->activation.max;
 
-    const uint8x16_t gather_offset = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7};
+    const int32_t eff_input_offset = use_vecsum ? 0 : conv_params->input_offset;
+
+    const uint8x16_t gather_offset = (uint8x16_t){0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7};
     const mve_pred16_t lower_nibble_mask = 21845; // 0101010101010101
 
     int32_t acc[4];
@@ -88,8 +91,11 @@ arm_cmsis_nn_status arm_nn_mat_mul_core_1x_s4(int32_t row_elements,
             acc_n0 = vmladavaq_p_s8(acc_n0, col_vec, lhs_vec, rmdr_mask);
         }
 
-        sum_tmp *= conv_params->input_offset;
-        acc_n0 += sum_tmp;
+        if (eff_input_offset != 0)
+        {
+            sum_tmp *= eff_input_offset;
+            acc_n0 += sum_tmp;
+        }
 
         const int32_t index = i & 0x3;
         acc[index] = acc_n0;
@@ -123,9 +129,9 @@ arm_cmsis_nn_status arm_nn_mat_mul_core_1x_s4(int32_t row_elements,
             acc_n0 += bias[i];
         }
         acc_n0 = arm_nn_requantize(acc_n0, output_mult[i], output_shift[i]);
-        acc_n0 += conv_params->output_offset;
-        acc_n0 = MAX(acc_n0, conv_params->activation.min);
-        acc_n0 = MIN(acc_n0, conv_params->activation.max);
+        acc_n0 += out_offset;
+        acc_n0 = MAX(acc_n0, out_activation_min);
+        acc_n0 = MIN(acc_n0, out_activation_max);
         *output++ = (int8_t)acc_n0;
     }
     return ARM_CMSIS_NN_SUCCESS;
@@ -140,6 +146,7 @@ arm_cmsis_nn_status arm_nn_mat_mul_core_1x_s4(int32_t row_elements,
     (void)quant_params;
     (void)bias;
     (void)output;
+    (void)use_vecsum;
     return ARM_CMSIS_NN_NO_IMPL_ERROR;
 #endif
 }

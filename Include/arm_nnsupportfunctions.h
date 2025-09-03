@@ -406,7 +406,8 @@ arm_cmsis_nn_status arm_nn_mat_mul_core_1x_s4(int32_t row_elements,
                                               const cmsis_nn_conv_params *conv_params,
                                               const cmsis_nn_per_channel_quant_params *quant_params,
                                               const int32_t *bias,
-                                              int8_t *output);
+                                              int8_t *output,
+                                              bool use_vecsum);
 
 /**
  * @brief Matrix-multiplication with requantization & activation function for four rows and one column
@@ -2468,6 +2469,31 @@ __STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(
     return -1;
 
 }
+
+static inline int8_t s4_from_u4(uint8_t u4)
+{
+    /* sign-extend 4-bit two's complement to int8 */
+    return (int8_t)((u4 & 0x8u) ? ((int)u4 - 16) : (int)u4);
+}
+
+static inline int8_t s4_unpack_elem(const int8_t *packed_s4, uint32_t elem_index)
+{
+    /* elem_index counts logical int4 elements. Two per byte. */
+    const uint32_t byte_index = elem_index >> 1;         /* /2 */
+    const uint8_t  byte_val   = (uint8_t)packed_s4[byte_index];
+
+    if ((elem_index & 1u) == 0u)
+    {
+        /* lower nibble */
+        return s4_from_u4(byte_val & 0x0Fu);
+    }
+    else
+    {
+        /* upper nibble */
+        return s4_from_u4((byte_val >> 4) & 0x0Fu);
+    }
+}
+
 
 #if defined(ARM_FLOAT16_SUPPORTED)
 
