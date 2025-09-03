@@ -47,6 +47,7 @@
  *
  */
 arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
+                                         const cmsis_nn_context *weight_sum_ctx,
                                          const cmsis_nn_conv_params *conv_params,
                                          const cmsis_nn_per_channel_quant_params *quant_params,
                                          const cmsis_nn_dims *input_dims,
@@ -59,7 +60,7 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
                                          int8_t *output_data)
 {
     (void)bias_dims;
-
+    (void)weight_sum_ctx;
 #if defined(ARM_MATH_MVEI)
 
     if (ctx->buf == NULL)

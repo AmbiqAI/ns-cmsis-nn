@@ -48,6 +48,7 @@
  */
 
 arm_cmsis_nn_status arm_convolve_1x1_s4_fast(const cmsis_nn_context *ctx,
+                                             const cmsis_nn_context *weight_sum_ctx,
                                              const cmsis_nn_conv_params *conv_params,
                                              const cmsis_nn_per_channel_quant_params *quant_params,
                                              const cmsis_nn_dims *input_dims,
@@ -68,7 +69,7 @@ arm_cmsis_nn_status arm_convolve_1x1_s4_fast(const cmsis_nn_context *ctx,
     (void)ctx;
     (void)filter_dims;
     (void)bias_dims;
-
+    (void)weight_sum_ctx;
     const int32_t lhs_rows = input_dims->w * input_dims->h * input_dims->n;
     const int32_t rhs_rows = output_dims->c;
     const int32_t rhs_cols = input_dims->c;
