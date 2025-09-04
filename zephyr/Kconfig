@@ -14,6 +14,29 @@ menuconfig NS_CMSIS_NN
 
 if NS_CMSIS_NN
 
+config NS_CMSIS_NN_ALL
+	bool "Enable all NS-CMSIS-NN kernels"
+	help
+	  When enabled, all NS-CMSIS-NN kernel groups are turned on.
+
+	# Safer than 'select': respects other symbols' dependencies,
+	# and users can still turn individual groups off if they really want.
+	imply NS_CMSIS_NN_ACTIVATION
+	imply NS_CMSIS_NN_BASICMATH
+	imply NS_CMSIS_NN_CONCATENATION
+	imply NS_CMSIS_NN_CONVOLUTION
+	imply NS_CMSIS_NN_FULLYCONNECTED
+	imply NS_CMSIS_NN_LSTM
+	imply NS_CMSIS_NN_NNSUPPORT
+	imply NS_CMSIS_NN_PAD
+	imply NS_CMSIS_NN_POOLING
+	imply NS_CMSIS_NN_QUANTIZATION
+	imply NS_CMSIS_NN_RESHAPE
+	imply NS_CMSIS_NN_SOFTMAX
+	imply NS_CMSIS_NN_STRIDED_SLICE
+	imply NS_CMSIS_NN_SVD
+	imply NS_CMSIS_NN_TRANSPOSE
+
 config NS_CMSIS_NN_ACTIVATION
 	bool "Activation"
 	imply NS_CMSIS_NN_NNSUPPORT
