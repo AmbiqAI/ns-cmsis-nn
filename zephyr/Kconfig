@@ -1,0 +1,113 @@
+# Copyright (c) 2025 Ambiq
+# SPDX-License-Identifier: Apache-2.0
+
+config ZEPHYR_NS_CMSIS_NN_MODULE
+	bool
+
+menuconfig NS_CMSIS_NN
+	bool "NS-CMSIS-NN Library Support"
+	depends on CPU_CORTEX_M
+	depends on !CMSIS_NN
+	select CMSIS_DSP
+	help
+	  This option enables the NS-CMSIS-NN library.
+
+if NS_CMSIS_NN
+
+config NS_CMSIS_NN_ACTIVATION
+	bool "Activation"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  This option enables the NN libraries for the activation layers
+	  It can perform activation layers, including ReLU (Rectified
+	  Linear Unit), sigmoid, and tanh.
+
+config NS_CMSIS_NN_BASICMATH
+	bool "Basic Math for NN"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  This option enables the NN libraries for the basic maths operations.
+	  It adds functionality for element-wise add and multiplication functions.
+
+config NS_CMSIS_NN_CONCATENATION
+	bool "Concatenation"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  This option enables the NN libraries for the concatenation layers.
+
+config NS_CMSIS_NN_CONVOLUTION
+	bool "Convolution"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  Collection of convolution, depthwise convolution functions and
+	  their variants. The convolution is implemented in 2 steps: im2col
+	  and GEMM. GEMM is performed with CMSIS-DSP arm_mat_mult similar options.
+
+config NS_CMSIS_NN_FULLYCONNECTED
+	bool "Fully Connected"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  Collection of fully-connected and matrix multiplication functions.
+
+config NS_CMSIS_NN_LSTM
+	bool "Long Short-Term Memory"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  This option enables the NN libraries for Long Short-Term Memory.
+
+config NS_CMSIS_NN_NNSUPPORT
+	bool "NN Support"
+	help
+	  When off, its default behavior is all tables are included.
+
+config NS_CMSIS_NN_PAD
+	bool "Pad"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  This option enables the NN libraries for the pad layers.
+
+config NS_CMSIS_NN_POOLING
+	bool "Pooling"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  This option enables pooling layers, including max pooling,
+	  and average pooling.
+
+config NS_CMSIS_NN_QUANTIZATION
+	bool "Quantization"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  This option enables quantization layers, including quantize
+	  and dequantize.
+
+config NS_CMSIS_NN_RESHAPE
+	bool "Reshape"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  This option enables the NN libraries for the reshape layers.
+
+config NS_CMSIS_NN_SOFTMAX
+	bool "Softmax"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  This option enables the NN libraries for the softmax layers (exp2 based).
+
+config NS_CMSIS_NN_STRIDED_SLICE
+	bool "Strided Slice"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  This option enables the NN libraries for the strided slice layers.
+
+config NS_CMSIS_NN_SVD
+	bool "SVD"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  This option enables the NN libraries for Single Value Decomposition Filter layers.
+
+config NS_CMSIS_NN_TRANSPOSE
+	bool "Transpose"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  This option enables the NN libraries for the transpose layers.
+
+endif #NS_CMSIS_NN
