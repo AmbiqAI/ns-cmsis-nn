@@ -1,0 +1,4 @@
+name: ns-cmsis-nn
+build:
+  cmake: zephyr
+  kconfig: zephyr/Kconfig
