@@ -150,18 +150,24 @@ Functions</h2></td></tr>
 <tr class="memitem:ga5f84aed104cadf145fd3d15144f3c93e"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga5f84aed104cadf145fd3d15144f3c93e">arm_nn_activation_s16</a> (const int16_t *input, int16_t *output, const int32_t size, const int32_t left_shift, const <a class="el" href="group__genPubTypes.html#ga7f41aa78cd9a0552fae9b348ee4831a0">arm_nn_activation_type</a> type)</td></tr>
 <tr class="memdesc:ga5f84aed104cadf145fd3d15144f3c93e"><td class="mdescLeft">&#160;</td><td class="mdescRight">s16 neural network activation function using direct table look-up  <br /></td></tr>
 <tr class="separator:ga5f84aed104cadf145fd3d15144f3c93e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gadab5a18c11daeb68766e708afe2fbf1d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#gadab5a18c11daeb68766e708afe2fbf1d">arm_relu6_s8</a> (const int8_t *input, const int8_t lower, const int8_t upper, int8_t *output, const int32_t output_size)</td></tr>
-<tr class="memdesc:gadab5a18c11daeb68766e708afe2fbf1d"><td class="mdescLeft">&#160;</td><td class="mdescRight">S8 ReLU6 activation function lower and upper bounds are quantized representations of 0 and 6.  <br /></td></tr>
-<tr class="separator:gadab5a18c11daeb68766e708afe2fbf1d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga40e600929ad9a493d5b634eb0ac7993f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga40e600929ad9a493d5b634eb0ac7993f">arm_relu6_default_s8</a> (int8_t *data, uint16_t size)</td></tr>
-<tr class="memdesc:ga40e600929ad9a493d5b634eb0ac7993f"><td class="mdescLeft">&#160;</td><td class="mdescRight">s8 ReLU6 activation function This uses 0 and 6 as lower and upper bounds w/ no quantization.  <br /></td></tr>
-<tr class="separator:ga40e600929ad9a493d5b634eb0ac7993f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab2849ee46d0a20a0c8aa6893b259089c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#gab2849ee46d0a20a0c8aa6893b259089c">arm_relu6_q7</a> (int8_t *data, uint16_t size)</td></tr>
+<tr class="memdesc:gab2849ee46d0a20a0c8aa6893b259089c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Q7 RELU6 function.  <br /></td></tr>
+<tr class="separator:gab2849ee46d0a20a0c8aa6893b259089c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gafc6c8b5546413c46e25f3bfbf99cb15b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#gafc6c8b5546413c46e25f3bfbf99cb15b">arm_relu_q15</a> (int16_t *data, uint16_t size)</td></tr>
 <tr class="memdesc:gafc6c8b5546413c46e25f3bfbf99cb15b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Q15 RELU function.  <br /></td></tr>
 <tr class="separator:gafc6c8b5546413c46e25f3bfbf99cb15b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga7048d8facd52dcefb14f6a2a87718cfb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga7048d8facd52dcefb14f6a2a87718cfb">arm_relu_q7</a> (int8_t *data, uint16_t size)</td></tr>
 <tr class="memdesc:ga7048d8facd52dcefb14f6a2a87718cfb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Q7 RELU function.  <br /></td></tr>
 <tr class="separator:ga7048d8facd52dcefb14f6a2a87718cfb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga6f863f953d84a2a767ccd6eb12ccc7f0"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga6f863f953d84a2a767ccd6eb12ccc7f0">arm_relu_generic_s16</a> (const int16_t *input, const int32_t input_offset, const int32_t output_offset, const int32_t output_multiplier, const int32_t output_shift, const int32_t act_min, const int32_t act_max, int16_t *output, const int32_t output_size)</td></tr>
+<tr class="memdesc:ga6f863f953d84a2a767ccd6eb12ccc7f0"><td class="mdescLeft">&#160;</td><td class="mdescRight">S16 ReLU activation function (generic version) This generic version allows to set custom lower and upper bounds to implement ReLU6, etc.  <br /></td></tr>
+<tr class="separator:ga6f863f953d84a2a767ccd6eb12ccc7f0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga20cb4b03e279e9e124dcfc7eb70e2114"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga20cb4b03e279e9e124dcfc7eb70e2114">arm_relu_s16</a> (const int16_t *input, const int32_t input_offset, const int32_t output_offset, const int32_t output_multiplier, const int32_t output_shift, int16_t *output, const int32_t output_size)</td></tr>
+<tr class="memdesc:ga20cb4b03e279e9e124dcfc7eb70e2114"><td class="mdescLeft">&#160;</td><td class="mdescRight">S16 ReLU activation function lower and upper bounds are quantized representations of 0 and 32767.  <br /></td></tr>
+<tr class="separator:ga20cb4b03e279e9e124dcfc7eb70e2114"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga82124161dac2412a244232866c9b49a5"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga82124161dac2412a244232866c9b49a5">arm_relu_generic_s8</a> (const int8_t *input, const int32_t input_offset, const int32_t output_offset, const int32_t output_multiplier, const int32_t output_shift, const int32_t act_min, const int32_t act_max, int8_t *output, const int32_t output_size)</td></tr>
+<tr class="memdesc:ga82124161dac2412a244232866c9b49a5"><td class="mdescLeft">&#160;</td><td class="mdescRight">S8 ReLU activation function (generic version) This generic version allows to set custom lower and upper bounds to implement ReLU6, etc.  <br /></td></tr>
+<tr class="separator:ga82124161dac2412a244232866c9b49a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga446d4939c52d4f79ee065a6448b09392"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga446d4939c52d4f79ee065a6448b09392">arm_relu_s8</a> (const int8_t *input, const int32_t input_offset, const int32_t output_offset, const int32_t output_multiplier, const int32_t output_shift, int8_t *output, const int32_t output_size)</td></tr>
 <tr class="memdesc:ga446d4939c52d4f79ee065a6448b09392"><td class="mdescLeft">&#160;</td><td class="mdescRight">S8 ReLU activation function lower and upper bounds are quantized representations of 0 and 127.  <br /></td></tr>
 <tr class="separator:ga446d4939c52d4f79ee065a6448b09392"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -508,14 +514,14 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="ga40e600929ad9a493d5b634eb0ac7993f" name="ga40e600929ad9a493d5b634eb0ac7993f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga40e600929ad9a493d5b634eb0ac7993f">&#9670;&#160;</a></span>arm_relu6_default_s8()</h2>
+<a id="gab2849ee46d0a20a0c8aa6893b259089c" name="gab2849ee46d0a20a0c8aa6893b259089c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gab2849ee46d0a20a0c8aa6893b259089c">&#9670;&#160;</a></span>arm_relu6_q7()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void arm_relu6_default_s8 </td>
+          <td class="memname">void arm_relu6_q7 </td>
           <td>(</td>
           <td class="paramtype">int8_t *&#160;</td>
           <td class="paramname"><em>data</em>, </td>
@@ -534,7 +540,7 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>s8 ReLU6 activation function This uses 0 and 6 as lower and upper bounds w/ no quantization. </p>
+<p>Q7 RELU6 function. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in,out]</td><td class="paramname">data</td><td>pointer to input </td></tr>
@@ -545,14 +551,101 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="gadab5a18c11daeb68766e708afe2fbf1d" name="gadab5a18c11daeb68766e708afe2fbf1d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gadab5a18c11daeb68766e708afe2fbf1d">&#9670;&#160;</a></span>arm_relu6_s8()</h2>
+<a id="ga6f863f953d84a2a767ccd6eb12ccc7f0" name="ga6f863f953d84a2a767ccd6eb12ccc7f0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga6f863f953d84a2a767ccd6eb12ccc7f0">&#9670;&#160;</a></span>arm_relu_generic_s16()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_relu6_s8 </td>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_relu_generic_s16 </td>
+          <td>(</td>
+          <td class="paramtype">const int16_t *&#160;</td>
+          <td class="paramname"><em>input</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>input_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_multiplier</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_shift</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>act_min</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>act_max</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int16_t *&#160;</td>
+          <td class="paramname"><em>output</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>S16 ReLU activation function (generic version) This generic version allows to set custom lower and upper bounds to implement ReLU6, etc. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Pointer to the input buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_offset</td><td>Input tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_offset</td><td>Output tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_multiplier</td><td>Output multiplier </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_shift</td><td>Output shift </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">act_min</td><td>Minimum value to clamp the output to </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">act_max</td><td>Maximum value to clamp the output to </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Pointer to the output buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_size</td><td>Number of elements in the tensor </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The function returns ARM_MATH_SUCCESS </dd></dl>
+
+</div>
+</div>
+<a id="ga82124161dac2412a244232866c9b49a5" name="ga82124161dac2412a244232866c9b49a5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga82124161dac2412a244232866c9b49a5">&#9670;&#160;</a></span>arm_relu_generic_s8()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_relu_generic_s8 </td>
           <td>(</td>
           <td class="paramtype">const int8_t *&#160;</td>
           <td class="paramname"><em>input</em>, </td>
@@ -560,14 +653,38 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const int8_t&#160;</td>
-          <td class="paramname"><em>lower</em>, </td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>input_offset</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const int8_t&#160;</td>
-          <td class="paramname"><em>upper</em>, </td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_multiplier</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_shift</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>act_min</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>act_max</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -589,14 +706,18 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>S8 ReLU6 activation function lower and upper bounds are quantized representations of 0 and 6. </p>
+<p>S8 ReLU activation function (generic version) This generic version allows to set custom lower and upper bounds to implement ReLU6, etc. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Pointer to the input buffer </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">lower</td><td>Lower bound for the activation </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">upper</td><td>Upper bound for the activation </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_offset</td><td>Input tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_offset</td><td>Output tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_multiplier</td><td>Output multiplier </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_shift</td><td>Output shift </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">act_min</td><td>Minimum value to clamp the output to </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">act_max</td><td>Maximum value to clamp the output to </td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Pointer to the output buffer </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">output_size</td><td>Number of elements in the input tensor </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_size</td><td>Number of elements in the tensor </td></tr>
   </table>
   </dd>
 </dl>
@@ -675,6 +796,79 @@ Functions</h2></td></tr>
   </table>
   </dd>
 </dl>
+
+</div>
+</div>
+<a id="ga20cb4b03e279e9e124dcfc7eb70e2114" name="ga20cb4b03e279e9e124dcfc7eb70e2114"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga20cb4b03e279e9e124dcfc7eb70e2114">&#9670;&#160;</a></span>arm_relu_s16()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_relu_s16 </td>
+          <td>(</td>
+          <td class="paramtype">const int16_t *&#160;</td>
+          <td class="paramname"><em>input</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>input_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_multiplier</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_shift</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int16_t *&#160;</td>
+          <td class="paramname"><em>output</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>S16 ReLU activation function lower and upper bounds are quantized representations of 0 and 32767. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Pointer to the input buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_offset</td><td>Input tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_offset</td><td>Output tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_multiplier</td><td>Output multiplier </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_shift</td><td>Output shift </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Pointer to the output buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_size</td><td>Number of elements in the tensor </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The function returns ARM_MATH_SUCCESS </dd></dl>
 
 </div>
 </div>
