@@ -49,6 +49,7 @@
  */
 // #include <stdio.h>
 arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
+    const cmsis_nn_context *ctx,
     const cmsis_nn_conv_params *conv_params,
     const cmsis_nn_per_channel_quant_params *quant_params,
     const cmsis_nn_dims *input_dims,
@@ -58,9 +59,10 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
     const cmsis_nn_dims *bias_dims,
     const cmsis_nn_bias_data *bias_data,
     const cmsis_nn_dims *output_dims,
-    int16_t *output_data) 
+    int16_t *output_data)
 {
 #if defined(ARM_MATH_MVEI)
+    (void)ctx;
     (void)bias_dims;
 
     const int32_t input_batches = input_dims->n;
@@ -72,7 +74,7 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
     const int32_t output_x = output_dims->w;
     const int32_t output_y = output_dims->h;
     const int32_t output_ch = output_dims->c;
-    
+
 
     const int32_t dilation_x = conv_params->dilation.w;
     const int32_t dilation_y = conv_params->dilation.h;
@@ -111,7 +113,7 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                     offset_src[idc] = (id * input_x + jd) * input_ch + c;
                     offset_src[idc] *= sizeof(int16_t);
                 }
-                
+
             }
         }
     }
@@ -128,15 +130,15 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
         const int32_t *bias_s32 = (const int32_t *)bias_data->data;
 
         for (int32_t i_group = 0; i_group < groups; i_group++){
-            /* 
+            /*
                 Output shape= [HK, WK, C_OUT]
                 where  C_OUT = groups * output_ch_per_group
-                Hence, at every group, output channel points to 
-                    
+                Hence, at every group, output channel points to
+
                     output + i_group * output_ch_per_group
             */
 
-            
+
             for (int c = 0; c < output_ch_per_group; c++)
             {
                 int16_t *input_data_pr = (int16_t*) input_data + i_group * kernel_ch;
@@ -150,14 +152,14 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                 int32_t reduced_multiplier=0;
                 int32_t multiplier = *output_mult_ptr++;
                 int32_t shift = *output_shift_ptr++;
-                
+
                 if (is_int32_bias)
                 {
                     if (bias_s32)
                     {
                         bias_s32_val = *bias_s32++;
                     }
-                    
+
                 }
                 else
                 {
@@ -167,12 +169,12 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                     }
                     reduced_multiplier = REDUCE_MULTIPLIER(multiplier);
                 }
-                
+
                 for (int32_t i_out_y = 0; i_out_y < output_y; i_out_y++)
                 {
                     for (int32_t i_out_x = 0; i_out_x < output_x-1; i_out_x++)
                     {
-                        /* 
+                        /*
                         Extract kernel_y * kernel_x * kernel_ch
                         and put it to a row of the im2col (input) matrix
                         im2col = [  kernel_y * kernel_x * kernel_ch;
@@ -180,15 +182,15 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                                     kernel_y * kernel_x * kernel_ch;
                                     kernel_y * kernel_x * kernel_ch ],
                         where lhs_rows = 4 in this example
-                        
+
                         Filter has the shape  [C_OUT, HK, WK, kernel_ch]
                         Think it as the shape [C_OUT, rhs_cols],
                             where rhs_cols = kernel_ch * HK * WK
 
                         At every group, filter_data_ptr points to
                             filter + i_group * output_ch_per_group * rhs_cols
-                        */ 
-                        
+                        */
+
                         int16x8_t in = vldrhq_gather_offset_z_s16(input_data_pr, offset_src, p);
                         input_data_pr += input_ch * stride_x;
                         int32_t result = vmladavq_s16(weight, in); // perform MAC
@@ -199,7 +201,7 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                             {
                                 result += bias_s32_val;
                             }
-                            
+
                             result = arm_nn_requantize(result, multiplier, shift);
 
                         }
@@ -220,7 +222,7 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                     }
                     // in the boundary of output_x
                     {
-                        
+
                         int16x8_t in = vldrhq_gather_offset_z_s16(input_data_pr, offset_src,p);
                         input_data_pr += input_ch * stride_edge;
                         int32_t result = vmladavq_s16(weight, in); // perform MAC
@@ -244,7 +246,7 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                             }
 
                             result = arm_nn_requantize_s64(acc_s64, reduced_multiplier, shift);
-             
+
                         }
                         result = MAX(result, out_activation_min);
                         result = MIN(result, out_activation_max);
@@ -256,18 +258,18 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                     {
                         return ARM_CMSIS_NN_NO_IMPL_ERROR;
                     }
-                    
+
                 }
-                
+
             } // (int c = 0; c < output_ch_per_group; c++)
         } // i_group
         /* Advance to the next batch */
-        
+
         input_data += (input_x * input_y * input_ch);
         output_data += (output_x * output_y * output_ch);
     }
 #else
-
+    (void)ctx;
     (void)conv_params;
     (void)quant_params;
     (void)input_dims;

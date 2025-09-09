@@ -672,6 +672,9 @@ arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
 
 /**
  * @brief Pointwise s16 convolution function: no stride, no padding, no dilation.
+ * @param[in, out] ctx            Function context that contains the additional buffer if required by the function.
+ *                                arm_convolve_s16_get_buffer_size will return the buffer_size if required.
+ *                                The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      conv_params    Convolution parameters (e.g. strides, dilations, pads,...).
  *                                conv_params->input_offset  : Not used
  *                                conv_params->output_offset : Not used
@@ -696,7 +699,8 @@ arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
  *    1. Supported framework: TensorFlow Lite micro
  *
  */
-arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_conv_params *conv_params,
+arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
+                                                  const cmsis_nn_conv_params *conv_params,
                                                   const cmsis_nn_per_channel_quant_params *quant_params,
                                                   const cmsis_nn_dims *input_dims,
                                                   const int16_t *input_data,
@@ -710,7 +714,9 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_conv_params *co
 
 /**
  * @brief arm_convolve_s16_fast_small_kernel function. The kernel size is <=8
-
+ * @param[in, out] ctx            Function context that contains the additional buffer if required by the function.
+ *                                arm_convolve_s16_get_buffer_size will return the buffer_size if required.
+ *                                The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      conv_params    Convolution parameters (e.g. strides, dilations, pads,...).
  *                                conv_params->input_offset  : Not used
  *                                conv_params->output_offset : Not used
@@ -735,7 +741,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_conv_params *co
  *    1. Supported framework: TensorFlow Lite micro
  *
  */
-arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(const cmsis_nn_conv_params *conv_params,
+arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(const cmsis_nn_context *ctx,
+                                                       const cmsis_nn_conv_params *conv_params,
                                                        const cmsis_nn_per_channel_quant_params *quant_params,
                                                        const cmsis_nn_dims *input_dims,
                                                        const int16_t *input_data,
