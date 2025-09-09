@@ -16,8 +16,8 @@
 # limitations under the License.
 #
 
-add_cmsis_nn_unit_test_executable(test_arm_relu6_s8)
+add_cmsis_nn_unit_test_executable(test_arm_relu_s16)
 
-target_sources(test_arm_relu6_s8 PRIVATE
-    Unity/unity_test_arm_relu6_s8.c
-    Unity/TestRunner/unity_test_arm_relu6_s8_runner.c)
+target_sources(test_arm_relu_s16 PRIVATE
+    Unity/unity_test_arm_relu_s16.c
+    Unity/TestRunner/unity_test_arm_relu_s16_runner.c)

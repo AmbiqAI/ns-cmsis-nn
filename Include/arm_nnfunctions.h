@@ -672,6 +672,9 @@ arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
 
 /**
  * @brief Pointwise s16 convolution function: no stride, no padding, no dilation.
+ * @param[in, out] ctx            Function context that contains the additional buffer if required by the function.
+ *                                arm_convolve_s16_get_buffer_size will return the buffer_size if required.
+ *                                The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      conv_params    Convolution parameters (e.g. strides, dilations, pads,...).
  *                                conv_params->input_offset  : Not used
  *                                conv_params->output_offset : Not used
@@ -696,7 +699,8 @@ arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
  *    1. Supported framework: TensorFlow Lite micro
  *
  */
-arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_conv_params *conv_params,
+arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
+                                                  const cmsis_nn_conv_params *conv_params,
                                                   const cmsis_nn_per_channel_quant_params *quant_params,
                                                   const cmsis_nn_dims *input_dims,
                                                   const int16_t *input_data,
@@ -710,7 +714,9 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_conv_params *co
 
 /**
  * @brief arm_convolve_s16_fast_small_kernel function. The kernel size is <=8
-
+ * @param[in, out] ctx            Function context that contains the additional buffer if required by the function.
+ *                                arm_convolve_s16_get_buffer_size will return the buffer_size if required.
+ *                                The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      conv_params    Convolution parameters (e.g. strides, dilations, pads,...).
  *                                conv_params->input_offset  : Not used
  *                                conv_params->output_offset : Not used
@@ -735,7 +741,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_conv_params *co
  *    1. Supported framework: TensorFlow Lite micro
  *
  */
-arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(const cmsis_nn_conv_params *conv_params,
+arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(const cmsis_nn_context *ctx,
+                                                       const cmsis_nn_conv_params *conv_params,
                                                        const cmsis_nn_per_channel_quant_params *quant_params,
                                                        const cmsis_nn_dims *input_dims,
                                                        const int16_t *input_data,
@@ -2730,19 +2737,18 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
 void arm_relu_q7(int8_t *data, uint16_t size);
 
 /**
+ * @brief Q7 RELU6 function
+ * @param[in,out]   data        pointer to input
+ * @param[in]       size        number of elements
+ */
+void arm_relu6_q7(int8_t *data, uint16_t size);
+
+/**
  * @brief Q15 RELU function
  * @param[in,out]   data        pointer to input
  * @param[in]       size        number of elements
  */
- void arm_relu_q15(int16_t *data, uint16_t size);
-
-/**
- * @brief s8 ReLU6 activation function
- * This uses 0 and 6 as lower and upper bounds w/ no quantization.
- * @param[in,out]   data        pointer to input
- * @param[in]       size        number of elements
- */
-void arm_relu6_default_s8(int8_t *data, uint16_t size);
+void arm_relu_q15(int16_t *data, uint16_t size);
 
 /**
  * @brief S8 ReLU activation function
@@ -2766,21 +2772,75 @@ arm_cmsis_nn_status arm_relu_s8(const int8_t *input,
                                 const int32_t output_size);
 
 /**
- * @brief S8 ReLU6 activation function
- * lower and upper bounds are quantized representations of 0 and 6
+ * @brief S8 ReLU activation function (generic version)
+ * This generic version allows to set custom lower and upper bounds to implement ReLU6, etc.
  *
  * @param[in]      input                       Pointer to the input buffer
- * @param[in]      lower                       Lower bound for the activation
- * @param[in]      upper                       Upper bound for the activation
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier           Output multiplier
+ * @param[in]      output_shift                Output shift
+ * @param[in]      act_min                     Minimum value to clamp the output to
+ * @param[in]      act_max                     Maximum value to clamp the output to
  * @param[out]     output                      Pointer to the output buffer
- * @param[in]      output_size                 Number of elements in the input tensor
+ * @param[in]      output_size                 Number of elements in the tensor
  * @return         The function returns ARM_MATH_SUCCESS
  */
-arm_cmsis_nn_status arm_relu6_s8(const int8_t *input,
-                                 const int8_t lower,
-                                 const int8_t upper,
-                                 int8_t *output,
+arm_cmsis_nn_status arm_relu_generic_s8(const int8_t *input,
+                                        const int32_t input_offset,
+                                        const int32_t output_offset,
+                                        const int32_t output_multiplier,
+                                        const int32_t output_shift,
+                                        const int32_t act_min,
+                                        const int32_t act_max,
+                                        int8_t *output,
+                                        const int32_t output_size);
+
+/**
+ * @brief S16 ReLU activation function
+ * lower and upper bounds are quantized representations of 0 and 32767
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier           Output multiplier
+ * @param[in]      output_shift                Output shift
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ */
+arm_cmsis_nn_status arm_relu_s16(const int16_t *input,
+                                 const int32_t input_offset,
+                                 const int32_t output_offset,
+                                 const int32_t output_multiplier,
+                                 const int32_t output_shift,
+                                 int16_t *output,
                                  const int32_t output_size);
+
+/**
+ * @brief S16 ReLU activation function (generic version)
+ * This generic version allows to set custom lower and upper bounds to implement ReLU6, etc.
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier           Output multiplier
+ * @param[in]      output_shift                Output shift
+ * @param[in]      act_min                     Minimum value to clamp the output to
+ * @param[in]      act_max                     Maximum value to clamp the output to
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ */
+arm_cmsis_nn_status arm_relu_generic_s16(const int16_t *input,
+                                         const int32_t input_offset,
+                                         const int32_t output_offset,
+                                         const int32_t output_multiplier,
+                                         const int32_t output_shift,
+                                         const int32_t act_min,
+                                         const int32_t act_max,
+                                         int16_t *output,
+                                         const int32_t output_size);
 
 /**
  * @brief S8 Leaky ReLU activation function

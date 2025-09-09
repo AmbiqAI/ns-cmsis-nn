@@ -3,6 +3,6 @@
 #pragma once
 #include <stdint.h>
 
-const int8_t relu_basic_output[10] = {
+const int16_t relu_basic_s16_output[10] = {
     1, 2, 3, 4, 5, 0, 0, 0, 0, 0
 };

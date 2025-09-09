@@ -94,6 +94,7 @@
         <file category="source" name="Source/SVDFunctions/arm_svdf_s8.c"/>
         <file category="source" name="Source/SVDFunctions/arm_svdf_state_s16_s8.c"/>
         <file category="source" name="Source/SVDFunctions/arm_svdf_get_buffer_sizes_s8.c"/>
+
         <file category="source" name="Source/PoolingFunctions/arm_max_pool_s8.c"/>
         <file category="source" name="Source/PoolingFunctions/arm_max_pool_s16.c"/>
         <file category="source" name="Source/PoolingFunctions/arm_avgpool_s8.c"/>
@@ -125,17 +126,22 @@
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_minimum_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_s16.c"/>
+
         <file category="source" name="Source/ActivationFunctions/arm_relu_s8.c"/>
-        <file category="source" name="Source/ActivationFunctions/arm_relu6_s8.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_relu_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_relu_q15.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_relu_q7.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_relu6_q7.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_nn_activation_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_logistic_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_leaky_relu_s8.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_leaky_relu_s16.c"/>
+
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_s8.c"/>
+
         <file category="source" name="Source/TransposeFunctions/arm_transpose_s8.c"/>
         <file category="source" name="Source/TransposeFunctions/arm_transpose_s16.c"/>
+
         <file category="source" name="Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_s4.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_s8.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_per_ch_s8.c"/>
