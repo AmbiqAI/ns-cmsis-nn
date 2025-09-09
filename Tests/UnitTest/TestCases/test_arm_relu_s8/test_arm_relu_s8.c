@@ -29,7 +29,7 @@ void relu_basic_arm_relu_s8(void)
 {
 
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
-    const int8_t *input_data = relu_basic_input_tensor;
+    const int8_t *input_data = relu_basic_s8_input_tensor;
     int8_t output[RELU_BASIC_S8_OUTPUT_LEN];
 
     arm_cmsis_nn_status result = arm_relu_s8(

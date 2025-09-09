@@ -29,7 +29,7 @@ void relu_basic_arm_relu_s16(void)
 {
 
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
-    const int16_t *input_data = relu_basic_input_tensor;
+    const int16_t *input_data = relu_basic_s16_input_tensor;
     int16_t output[RELU_BASIC_S16_OUTPUT_LEN];
 
     arm_cmsis_nn_status result = arm_relu_s16(
@@ -43,5 +43,5 @@ void relu_basic_arm_relu_s16(void)
     );
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate(output, relu_basic_s16_output, RELU_BASIC_S16_OUTPUT_LEN));
+    TEST_ASSERT_TRUE(validate_s16(output, relu_basic_s16_output, RELU_BASIC_S16_OUTPUT_LEN));
 }
