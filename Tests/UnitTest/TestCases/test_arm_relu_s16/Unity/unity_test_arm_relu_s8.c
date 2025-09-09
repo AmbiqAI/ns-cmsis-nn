@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../test_arm_relu6_s8.c"
+#include "../test_arm_relu_s16.c"
 #include "unity.h"
 
 #ifdef USING_FVP_CORSTONE_300
@@ -44,4 +44,4 @@ void setUp(void)
  */
 void tearDown(void) {}
 
-void test_relu6_basic_arm_relu6_s8(void) { relu6_basic_arm_relu6_s8(); }
+void test_relu_basic_arm_relu_s16(void) { relu_basic_arm_relu_s16(); }

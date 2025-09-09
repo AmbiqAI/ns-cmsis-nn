@@ -3,6 +3,6 @@
 #pragma once
 #include <stdint.h>
 
-const int8_t relu_basic_input_tensor[10] = {
-    1, 2, 3, 4, 5, -1, -2, -3, -4, -5
+const int8_t relu_basic_s8_output[10] = {
+    1, 2, 3, 4, 5, 0, 0, 0, 0, 0
 };

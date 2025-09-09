@@ -19,10 +19,10 @@
 
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
- * Title:        arm_relu_s8.c
- * Description:  ReLU functions for int8_t data type
+ * Title:        arm_relu_s16.c
+ * Description:  ReLU function for int16_t data type
  *
- * $Date:        23 April 2025
+ * $Date:        08 Sept 2025
  * $Revision:    V.1.0.0
  *
  * Target Processor:  Cortex-M cores
@@ -43,26 +43,26 @@
 */
 
 /*
-* ReLU activation functions for int8_t data type.
+* ReLU activation functions for int16_t data type.
 *
 * Refer header file for details.
 *
 */
-arm_cmsis_nn_status arm_relu_generic_s8(const int8_t *input,
-                                        const int32_t input_offset,
-                                        const int32_t output_offset,
-                                        const int32_t output_multiplier,
-                                        const int32_t output_shift,
-                                        const int32_t act_min,
-                                        const int32_t act_max,
-                                        int8_t *output,
-                                        const int32_t output_size)
+arm_cmsis_nn_status arm_relu_generic_s16(const int16_t *input,
+                                         const int32_t input_offset,
+                                         const int32_t output_offset,
+                                         const int32_t output_multiplier,
+                                         const int32_t output_shift,
+                                         const int32_t act_min,
+                                         const int32_t act_max,
+                                         int16_t *output,
+                                         const int32_t output_size)
 {
 
     int32_t flat_size = output_size;
 
-    const int32_t quantized_min = MAX(INT8_MIN, act_min);
-    const int32_t quantized_max = MIN(INT8_MAX, act_max);
+    const int32_t quantized_min = MAX(INT16_MIN, act_min);
+    const int32_t quantized_max = MIN(INT16_MAX, act_max);
 
 #if defined(ARM_MATH_MVEI)
     // Perform 4 operations in parallel
@@ -70,7 +70,7 @@ arm_cmsis_nn_status arm_relu_generic_s8(const int8_t *input,
     while (blkCnt > 0U)
     {
         mve_pred16_t res_pred = vctp32q((uint32_t)flat_size);
-        int32x4_t res = vldrbq_z_s32(input, res_pred);
+        int32x4_t res = vldrhq_z_s32(input, res_pred);
         // Subtract the input offset
         res = vsubq_s32(res, vdupq_n_s32(input_offset));
         // Multiply by the output multiplier
@@ -80,7 +80,7 @@ arm_cmsis_nn_status arm_relu_generic_s8(const int8_t *input,
         res = vmaxq_s32(res, vdupq_n_s32(quantized_min));
         res = vminq_s32(res, vdupq_n_s32(quantized_max));
         // Store the result
-        vstrbq_p_s32(output, res, res_pred);
+        vstrhq_p_s32(output, res, res_pred);
         // Increment pointers
         input += 4;
         output += 4;
@@ -101,7 +101,7 @@ arm_cmsis_nn_status arm_relu_generic_s8(const int8_t *input,
         // Clamp the result
         res = CLAMP(res, quantized_max, quantized_min);
         // Store the result
-        output[i] = (int8_t)res;
+        output[i] = (int16_t)res;
     }
 
 #endif
@@ -110,18 +110,18 @@ arm_cmsis_nn_status arm_relu_generic_s8(const int8_t *input,
 }
 
 
-arm_cmsis_nn_status arm_relu_s8(const int8_t *input,
-                                const int32_t input_offset,
-                                const int32_t output_offset,
-                                const int32_t output_multiplier,
-                                const int32_t output_shift,
-                                int8_t *output,
-                                const int32_t output_size)
+arm_cmsis_nn_status arm_relu_s16(const int16_t *input,
+                                 const int32_t input_offset,
+                                 const int32_t output_offset,
+                                 const int32_t output_multiplier,
+                                 const int32_t output_shift,
+                                 int16_t *output,
+                                 const int32_t output_size)
 {
     int32_t act_min = output_offset;
-    int32_t act_max = INT8_MAX;
+    int32_t act_max = INT16_MAX;
 
-    return arm_relu_generic_s8(
+    return arm_relu_generic_s16(
         input,
         input_offset,
         output_offset,
@@ -133,7 +133,6 @@ arm_cmsis_nn_status arm_relu_s8(const int8_t *input,
         output_size
     );
 }
-
 
 /**
  * @} end of Doxygen group
