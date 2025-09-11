@@ -92,7 +92,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
             int32_t acc_3 = 0;
 
             const int8_t *lhs_vec = lhs;
-            const int8_t *rhs_0_ptr = rhs;
+            const int8_t *rhs_0_ptr = rhs & ~(0x1f); // Align to 32 byte boundary
             const int8_t *rhs_1_ptr = rhs + rhs_cols;
             const int8_t *rhs_2_ptr = rhs_1_ptr + rhs_cols;
             const int8_t *rhs_3_ptr = rhs_2_ptr + rhs_cols;
@@ -111,8 +111,11 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
                 "   vaddva.s8      %[sum], q0                \n"
                 "   vldrb.8         q1, [%[row0]], #16       \n"
                 "   vmladava.s8     %[out0], q0, q1          \n"
+                "   vldrb.8         q2, [%[row0]], #16       \n"
                 "   vmladava.s8     %[out1], q0, q2          \n"
+                "   vldrb.8         q3, [%[row0]], #16       \n"
                 "   vmladava.s8     %[out2], q0, q3          \n"
+                "   vldrb.8         q4, [%[row0]], #16       \n"
                 "   vmladava.s8     %[out3], q0, q4          \n"
                 "   vldrb.8         q0, [%[col]], #16        \n"
                 "   letp            lr, 2b                   \n"
@@ -439,7 +442,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
             int32_t acc_3 = 0;
 
             const int8_t *lhs_vec = lhs;
-            const int8_t *rhs_0_ptr = rhs;
+            const int8_t *rhs_0_ptr = rhs & ~(0x1f); // Align to 32 byte boundary
             const int8_t *rhs_1_ptr = rhs_0_ptr + rhs_cols;
             const int8_t *rhs_2_ptr = rhs_1_ptr + rhs_cols;
             const int8_t *rhs_3_ptr = rhs_2_ptr + rhs_cols;
@@ -456,8 +459,11 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
                 "2:                                          \n"
                 "   vldrb.8         q1, [%[row0]], #16       \n"
                 "   vmladava.s8     %[out0], q0, q1          \n"
+                "   vldrb.8         q2, [%[row0]], #16       \n"
                 "   vmladava.s8     %[out1], q0, q2          \n"
+                "   vldrb.8         q3, [%[row0]], #16       \n"
                 "   vmladava.s8     %[out2], q0, q3          \n"
+                "   vldrb.8         q4, [%[row0]], #16       \n"
                 "   vmladava.s8     %[out3], q0, q4          \n"
                 "   vldrb.8         q0, [%[col]], #16        \n"
                 "   letp            lr, 2b                   \n"
