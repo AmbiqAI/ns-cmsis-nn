@@ -92,7 +92,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
             int32_t acc_3 = 0;
 
             const int8_t *lhs_vec = lhs;
-            const int8_t *rhs_0_ptr = rhs & ~(0x1f); // Align to 32 byte boundary
+            const int8_t *rhs_0_ptr = (int8_t*) ((uint32_t)rhs & ~(0x1f)); // Align to 32 byte boundary
             const int8_t *rhs_1_ptr = rhs + rhs_cols;
             const int8_t *rhs_2_ptr = rhs_1_ptr + rhs_cols;
             const int8_t *rhs_3_ptr = rhs_2_ptr + rhs_cols;
@@ -442,7 +442,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
             int32_t acc_3 = 0;
 
             const int8_t *lhs_vec = lhs;
-            const int8_t *rhs_0_ptr = rhs & ~(0x1f); // Align to 32 byte boundary
+            const int8_t *rhs_0_ptr = (int8_t*) ((uint32_t)rhs & ~(0x1f)); // Align to 32 byte boundary
             const int8_t *rhs_1_ptr = rhs_0_ptr + rhs_cols;
             const int8_t *rhs_2_ptr = rhs_1_ptr + rhs_cols;
             const int8_t *rhs_3_ptr = rhs_2_ptr + rhs_cols;
