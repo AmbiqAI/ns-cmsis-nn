@@ -133,8 +133,8 @@ add_subdirectory(TestCases/test_arm_mean_s8)
 add_subdirectory(TestCases/test_arm_mean_s16)
 add_subdirectory(TestCases/test_arm_reduce_max_s8)
 add_subdirectory(TestCases/test_arm_reduce_max_s16)
-
-
+add_subdirectory(TestCases/test_arm_hard_swish_s8)
+add_subdirectory(TestCases/test_arm_hard_swish_s16)
 
 set(MAKE_CMD "python3")
 set(MAKE_CMD_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/unittest_targets.py")

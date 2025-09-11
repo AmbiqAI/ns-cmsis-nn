@@ -1817,6 +1817,72 @@ __STATIC_FORCEINLINE int32_t arm_nn_requantize_s64(const int64_t val,
 }
 
 /**
+ * @brief       Saturing left shift for int16_t
+ * @param[in]   x       value to be shifted
+ * @param[in]   shift   number of bits to shift
+ * @return      shifted value
+ */
+__STATIC_FORCEINLINE int16_t arm_nn_sat_lshift_s16(int16_t x, int shift)
+{
+    if (shift <= 0) return x;  // only used for positive shifts here
+    int32_t v = ((int32_t)x) << shift;
+    v = CLAMP(v, INT16_MAX, INT16_MIN);
+    return (int16_t)v;
+}
+
+/**
+ * @brief       Saturating *Rounding* Doubling High Mul (s16)
+ * @details     Matches NEON SQRDMULH s16
+ * @param[in]   a       Multiplicand
+ * @param[in]   b       Multiplier
+ * @return      Result of multiplication.
+ */
+__STATIC_FORCEINLINE int16_t arm_nn_sqrdmulh_s16(int16_t a, int16_t b)
+{
+    // overflow case
+    if ((a == INT16_MIN) && (b == INT16_MIN)) return INT16_MAX;
+    int32_t ab = (int32_t)a * (int32_t)b;           /* Q0.15 * Q0.15 -> Q0.30 */
+    int32_t r  = (ab << 1) + (1 << 15);             /* doubling + rounding */
+    r >>= 16;                                       /* back to Q0.15 */
+    r = CLAMP(r, INT16_MAX, INT16_MIN);
+    return (int16_t)r;
+}
+
+/**
+ * @brief       Saturating **Non-rounded** Doubling High Mul (s16)
+ * @details     Matches NEON SQDMULH s16
+ * @param[in]   a       Multiplicand
+ * @param[in]   b       Multiplier
+ * @return      Result of multiplication.
+ */
+__STATIC_FORCEINLINE int16_t arm_nn_sqdmulh_s16(int16_t a, int16_t b)
+{
+    const bool overflow = (a == INT16_MIN) && (b == INT16_MIN);
+    int32_t ab = (int32_t)a * (int32_t)b;             // Q30
+    int32_t q15 = (ab / (1 << 15));                   // trunc toward zero (not >>)
+    if (overflow) q15 = INT16_MAX;
+    q15 = CLAMP(q15, INT16_MAX, INT16_MIN);
+    return (int16_t)q15;
+}
+
+/**
+ * @brief           Rounding divide by power of two (s16), midpoint away from zero.
+ * @details         Mirrors arm_nn_divide_by_power_of_two() semantics for s16.
+ * @param[in]       x         Dividend
+ * @param[in]       exponent  Divisor = power(2, exponent)
+ *                            Range: [0, 15]
+ * @return          Rounded result of division. Midpoint is rounded away from zero.
+ *
+ */
+__STATIC_FORCEINLINE int16_t arm_nn_divide_by_power_of_two_s16(int16_t x, int exponent)
+{
+    int32_t v = x;
+    int32_t r32 = arm_nn_divide_by_power_of_two(v, exponent);
+    r32 = CLAMP(r32, INT16_MAX, INT16_MIN);
+    return (int16_t)r32;
+}
+
+/**
  * @brief           memcpy optimized for MVE
  * @param[in, out]  dst         Destination pointer
  * @param[in]       src         Source pointer.
@@ -1895,7 +1961,7 @@ __STATIC_FORCEINLINE int32x4_t arm_doubling_high_mult_mve(const int32x4_t m1, co
 }
 
 /**
- * @brief           Vector rounding divide by power of two.
+ * @brief           Vector rounding divide by power of two for int32x4_t.
  * @param[in]       dividend - Dividend vector
  * @param[in]       exponent - Divisor = power(2, exponent)
  *                             Range: [0, 31]
@@ -1908,6 +1974,22 @@ __STATIC_FORCEINLINE int32x4_t arm_divide_by_power_of_two_mve(const int32x4_t di
     const int32x4_t fixup = vshrq_n_s32(vandq_s32(dividend, shift), 31);
     const int32x4_t fixed_up_dividend = vqaddq_s32(dividend, fixup);
     return vrshlq_s32(fixed_up_dividend, shift);
+}
+
+/**
+ * @brief           Vector rounding divide by power of two for int16x8_t.
+ * @param[in]       dividend - Dividend vector
+ * @param[in]       exponent - Divisor = power(2, exponent)
+ *                             Range: [0, 31]
+ * @return          Rounded result of division. Midpoint is rounded away from zero.
+ *
+ */
+__STATIC_FORCEINLINE int16x8_t arm_divide_by_power_of_two_mve_s16(const int16x8_t dividend, const int16_t exponent)
+{
+    const int16x8_t shift = vdupq_n_s16(-exponent);
+    const int16x8_t fixup = vshrq_n_s16(vandq_s16(dividend, shift), 15);
+    const int16x8_t fixed_up_dividend = vqaddq_s16(dividend, fixup);
+    return vrshlq_s16(fixed_up_dividend, shift);
 }
 
 /**
