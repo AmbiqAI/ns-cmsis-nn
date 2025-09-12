@@ -269,7 +269,6 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
         output_data += (output_x * output_y * output_ch);
     }
 #else
-    (void)ctx;
     (void)conv_params;
     (void)quant_params;
     (void)input_dims;
