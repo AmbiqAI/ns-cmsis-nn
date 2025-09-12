@@ -61,7 +61,6 @@
     const cmsis_nn_dims *output_dims,
     int16_t *output_data)
  {
-    (void)ctx;
     (void)bias_dims;
     (void)weight_sum_ctx;
     const int32_t input_batches = input_dims->n;

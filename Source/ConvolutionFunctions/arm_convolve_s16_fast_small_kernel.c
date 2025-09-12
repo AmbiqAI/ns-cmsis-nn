@@ -62,7 +62,6 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
     int16_t *output_data)
 {
 #if defined(ARM_MATH_MVEI)
-    (void)ctx;
     (void)bias_dims;
     (void)weight_sum_ctx;
     
