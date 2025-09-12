@@ -18,11 +18,11 @@
 
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
- * Title:        arm_logistic_s16.c
- * Description:  Logistic activation function for s16 using partial look-up tables
+ * Title:        arm_tanh_s16.c
+ * Description:  Tanh activation function for s16 using partial look-up tables
  *
- * $Date:        19 January 2024
- * $Revision:    V.2.0.0
+ * $Date:        12 September 2025
+ * $Revision:    V.1.0.0
  *
  * Target Processor:  Cortex-M cores
  *
@@ -43,12 +43,12 @@
  */
 
 /*
- * @brief Logistic activation function for s16
+ * @brief Tanh activation function for s16
  *
  * @note  Refer header file for details.
  *
  */
-arm_cmsis_nn_status arm_logistic_s16(
+arm_cmsis_nn_status arm_tanh_s16(
     int16_t *input,
     int16_t *output,
     const int32_t input_size,
@@ -71,7 +71,6 @@ arm_cmsis_nn_status arm_logistic_s16(
 
     while (blk_size > 0)
     {
-
         mve_pred16_t p = vctp16q(count);
         int32_t adv = (count > 8) ? 8 : count;
 
@@ -92,15 +91,15 @@ arm_cmsis_nn_status arm_logistic_s16(
         uint32x4_t abs_lo = vreinterpretq_u32_s32(vabsq_s32(scaled_lo));
         uint32x4_t abs_hi = vreinterpretq_u32_s32(vabsq_s32(scaled_hi));
 
-        /* Compute table index: uh = abs >> 9, and fractional part: ut = abs & 0x1FF. */
-        uint32x4_t uh_lo = vshrq_n_u32(abs_lo, 9);
-        uint32x4_t uh_hi = vshrq_n_u32(abs_hi, 9);
+        /* Compute table index: uh = abs >> 8, and fractional part: ut = abs & 0xFF. */
+        uint32x4_t uh_lo = vshrq_n_u32(abs_lo, 8);
+        uint32x4_t uh_hi = vshrq_n_u32(abs_hi, 8);
         uint16x8_t uh = vdupq_n_u16(0);
         uh = vmovnbq_u32(uh, uh_lo);
         uh = vmovntq_u32(uh, uh_hi);
 
-        uint32x4_t ut_lo = vandq_u32(abs_lo, vdupq_n_u32(0x1FF));
-        uint32x4_t ut_hi = vandq_u32(abs_hi, vdupq_n_u32(0x1FF));
+        uint32x4_t ut_lo = vandq_u32(abs_lo, vdupq_n_u32(0xFF));
+        uint32x4_t ut_hi = vandq_u32(abs_hi, vdupq_n_u32(0xFF));
 
         /* Sature when uh >= 255 */
         mve_pred16_t p_sat = vcmpltq_n_s16(vreinterpretq_s16_u16(uh), 255);
@@ -115,50 +114,50 @@ arm_cmsis_nn_status arm_logistic_s16(
         uint32x4_t ub_lo = vmovlbq_u16(ub);
         uint32x4_t ub_hi = vmovltq_u16(ub);
 
-        /* Interpolation: result = (ua << 9) + ut * (ub - ua). */
-        uint32x4_t interp_lo = vaddq_u32(vshlq_n_u32(ua_lo, 9), vmulq_u32(ut_lo, vsubq_u32(ub_lo, ua_lo)));
-        uint32x4_t interp_hi = vaddq_u32(vshlq_n_u32(ua_hi, 9), vmulq_u32(ut_hi, vsubq_u32(ub_hi, ua_hi)));
+        /* Interpolation: result = (ua << 8) + ut * (ub - ua). */
+        uint32x4_t interp_lo = vaddq_u32(vshlq_n_u32(ua_lo, 8), vmulq_u32(ut_lo, vsubq_u32(ub_lo, ua_lo)));
+        uint32x4_t interp_hi = vaddq_u32(vshlq_n_u32(ua_hi, 8), vmulq_u32(ut_hi, vsubq_u32(ub_hi, ua_hi)));
 
-        /* For values with index (uh) >= 255, saturate to maximum: 0x7FFF << 10 */
+        /* For values with index (uh) >= 255, saturate to maximum: 0xFFFF << 8 */
         p_sat = vcmpltq_n_s32(vreinterpretq_s32_u32(uh_lo), 255);
-        interp_lo = vpselq_u32(interp_lo, vdupq_n_u32(0x7FFF << 10), p_sat);
+        interp_lo = vpselq_u32(interp_lo, vdupq_n_u32(0xFFFF << 8), p_sat);
         p_sat = vcmpltq_n_s32(vreinterpretq_s32_u32(uh_hi), 255);
-        interp_hi = vpselq_u32(interp_hi, vdupq_n_u32(0x7FFF << 10), p_sat);
+        interp_hi = vpselq_u32(interp_hi, vdupq_n_u32(0xFFFF << 8), p_sat);
 
-        /* Sign correction:
-           - For non-negative scaled input: result = interp + (1 << 9).
-           - For negative scaled input: result = (1 << (16+9)) - interp + (1 << 9) - 1.
-        */
+        /* Tanh sign/center correction. */
+        const uint32x4_t center = vdupq_n_u32(1u << (14 + 9));   // 1<<23
         mve_pred16_t p_pos_lo = vcmpgeq_n_s32(scaled_lo, 0);
         mve_pred16_t p_pos_hi = vcmpgeq_n_s32(scaled_hi, 0);
 
-        uint32x4_t pos_res_lo = vaddq_n_u32(interp_lo, 1 << 9);
-        uint32x4_t pos_res_hi = vaddq_n_u32(interp_hi, 1 << 9);
+        // pos = (interp - center) + (1<<7)
+        uint32x4_t pos_lo = vaddq_n_u32(vsubq_u32(interp_lo, center), (1u << 7));
+        uint32x4_t pos_hi = vaddq_n_u32(vsubq_u32(interp_hi, center), (1u << 7));
 
-        uint32x4_t neg_base = vdupq_n_u32((1 << (16 + 9)));
-        uint32x4_t neg_res_lo = vsubq_u32(neg_base, interp_lo);
-        uint32x4_t neg_res_hi = vsubq_u32(neg_base, interp_hi);
-        neg_base = vdupq_n_u32((1 << 9) - 1);
-        neg_res_lo = vaddq_u32(neg_res_lo, neg_base);
-        neg_res_hi = vaddq_u32(neg_res_hi, neg_base);
+        // neg = (-interp + center) + ((1<<7) - 1)
+        uint32x4_t neg_lo = vaddq_u32(center,
+                               vaddq_n_u32(vreinterpretq_u32_s32(vnegq_s32(vreinterpretq_s32_u32(interp_lo))),
+                                           (1u << 7) - 1u));
+        uint32x4_t neg_hi = vaddq_u32(center,
+                               vaddq_n_u32(vreinterpretq_u32_s32(vnegq_s32(vreinterpretq_s32_u32(interp_hi))),
+                                           (1u << 7) - 1u));
 
-        uint32x4_t final_lo = vpselq_u32(pos_res_lo, neg_res_lo, p_pos_lo);
-        uint32x4_t final_hi = vpselq_u32(pos_res_hi, neg_res_hi, p_pos_hi);
+        uint32x4_t final_lo = vpselq_u32(pos_lo, neg_lo, p_pos_lo);
+        uint32x4_t final_hi = vpselq_u32(pos_hi, neg_hi, p_pos_hi);
 
-        /* Shift right by 10 to convert back to 16-bit range. */
-        final_lo = vshrq_n_u32(final_lo, 10);
-        final_hi = vshrq_n_u32(final_hi, 10);
+        /* Final >> 8 to Q15. */
+        final_lo = vshrq_n_u32(final_lo, 8);
+        final_hi = vshrq_n_u32(final_hi, 8);
 
         uint16x8_t vec_result = vdupq_n_u16(0);
         vec_result = vmovnbq_u32(vec_result, final_lo);
         vec_result = vmovntq_u32(vec_result, final_hi);
 
-        /* Store the results using a masked store */
+        /* Store masked */
         vst1q_p_s16(output, vreinterpretq_s16_u16(vec_result), p);
 
-        input += adv;
+        input  += adv;
         output += adv;
-        count -= adv;
+        count  -= adv;
         blk_size--;
     }
 
@@ -168,21 +167,23 @@ arm_cmsis_nn_status arm_logistic_s16(
     {
         int32_t input_data = ((input[i] * input_multiplier + round) >> input_left_shift);
         uint32_t abs_input_data = (uint32_t)(input_data >= 0 ? input_data : -input_data);
-        uint32_t uh = abs_input_data >> 9;
+        uint32_t uh = abs_input_data >> 8;
         uint32_t result;
         if (uh >= 255)
         {
-            result = 0x7FFF << 10;
+            result = 0xFFFF << 8;
         }
         else
         {
             uint32_t ua = sigmoid_table_uint16[uh];
             uint32_t ub = sigmoid_table_uint16[uh + 1];
-            uint32_t ut = abs_input_data & 0x1FF;
-            result = (ua << 9) + ut * (ub - ua);
+            uint32_t ut = abs_input_data & 0xFF;
+            result = (ua << 8) + ut * (ub - ua);
         }
-        result = (input_data >= 0) ? (result + (1 << 9)) : ((1 << (16 + 9)) - result + (1 << 9) - 1);
-        result >>= 10;
+        result = (input_data >= 0)
+                    ? (result - (1 << (14 + 9)) + (1 << (9 - 2)))
+                    : (-result + (1 << (14 + 9)) + (1 << (9 - 2)) - 1);
+        result >>= (9 - 1);
         output[i] = (int16_t)result;
     }
 

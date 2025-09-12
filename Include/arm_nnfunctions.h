@@ -2903,11 +2903,31 @@ arm_cmsis_nn_status arm_leaky_relu_s16(const int16_t *input,
  *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> Argument error check failed
  *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  */
-arm_cmsis_nn_status arm_logistic_s16(int16_t *input,
-                                     int16_t *output,
-                                     const int32_t input_size,
-                                     int32_t input_multiplier,
-                                     int32_t input_left_shift);
+arm_cmsis_nn_status arm_logistic_s16(
+    int16_t *input,
+    int16_t *output,
+    const int32_t input_size,
+    int32_t input_multiplier,
+    int32_t input_left_shift);
+
+/**
+ * @brief Tanh activation function for s16
+ * @param[in]  input              Pointer to the input tensor
+ * @param[out] output             Pointer to the output tensor
+ * @param[in]  input_size         Number of elements in the input tensor
+ * @param[in]  input_multiplier   Input quantization multiplier
+ * @param[in]  input_left_shift   Input quantization shift within the range [0, 31]
+ * @return                        The function returns
+ *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> Argument error check failed
+ *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ */
+arm_cmsis_nn_status arm_tanh_s16(
+    int16_t *input,
+    int16_t *output,
+    const int32_t input_size,
+    int32_t input_multiplier,
+    int32_t input_left_shift
+);
 
 /**
  * @brief s16 neural network activation function using direct table look-up
