@@ -2917,7 +2917,6 @@ arm_cmsis_nn_status arm_logistic_s16(int16_t *input,
  * @param[in]       left_shift  bit-width of the integer part, assumed to be smaller than 3.
  * @param[in]       type        type of activation functions
  * @return                      The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
-
  *
  * @details Supported framework: TensorFlow Lite for Microcontrollers.
  * This activation function must be bit precise congruent with the corresponding TFLM tanh and sigmoid activation
@@ -2928,6 +2927,134 @@ arm_cmsis_nn_status arm_nn_activation_s16(const int16_t *input,
                                           const int32_t size,
                                           const int32_t left_shift,
                                           const arm_nn_activation_type type);
+
+
+
+/**
+ * @brief S8 Hard-Swish activation function (compatibility version)
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier_fp        Output multiplier in fixed point format
+ * @param[in]      output_multiplier_exp       Exponent for output multiplier
+ * @param[in]      relu_multiplier_fp          ReLU6 multiplier in fixed point format
+ * @param[in]      relu_multiplier_exp         Exponent for ReLU6 multiplier
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ *
+ * @details This version is compatible with TFLite implementation of Hard-Swish.
+ * hires_input_scale = (1.0 / 128.0) * float(input_scale)
+ * relu_scale = 3.0 / 32768.0
+ * out_mul_real = hires_input_scale / float(output_scale)
+ * output_multiplier_fp, output_multiplier_exp = to_q15_exp(out_mul_real)
+ * relu_multiplier_fp, relu_multiplier_exp = to_q15_exp(relu_scale)
+ */
+arm_cmsis_nn_status arm_hard_swish_compat_s8(
+    const int8_t *input,
+    const int32_t input_offset,
+    const int32_t output_offset,
+    const int32_t output_multiplier_fp,
+    const int32_t output_multiplier_exp,
+    const int32_t relu_multiplier_fp,
+    const int32_t relu_multiplier_exp,
+    int8_t *output,
+    const int32_t output_size
+);
+
+/**
+ * @brief S8 Hard-Swish activation function (precise version)
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier           Output multiplier
+ * @param[in]      output_shift                Output shift
+ * @param[in]      relu_q3                     ReLU6 Q3 value
+ * @param[in]      relu_q6                     ReLU6 Q6 value
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ *
+ * @details This version uses int32_t for intermediate computations to provide better accuracy.
+ * relu_q3, relu_q6 = round(3 / input_scale), round(6 / input_scale)
+ * output_multiplier, output_shift = quantize_multiplier((input_scale**2) / (6.0 * output_scale))
+ */
+arm_cmsis_nn_status arm_hard_swish_precise_s8(
+    const int8_t *input,
+    const int32_t input_offset,
+    const int32_t output_offset,
+    const int32_t output_multiplier,
+    const int32_t output_shift,
+    const int32_t relu_q3,
+    const int32_t relu_q6,
+    int8_t *output,
+    const int32_t output_size
+);
+
+/**
+ * @brief S16 Hard-Swish activation function (compatibility version)
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier_fp        Output multiplier in fixed point format
+ * @param[in]      output_multiplier_exp       Exponent for output multiplier
+ * @param[in]      relu_multiplier_fp          ReLU6 multiplier in fixed point format
+ * @param[in]      relu_multiplier_exp         Exponent for ReLU6 multiplier
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ *
+ * @details This version is compatible with TFLite implementation of Hard-Swish.
+ * hires_input_scale = (1.0 / 128.0) * float(input_scale)
+ * relu_scale = 3.0 / 32768.0
+ * out_mul_real = hires_input_scale / float(output_scale)
+ * output_multiplier_fp, output_multiplier_exp = to_q15_exp(out_mul_real)
+ * relu_multiplier_fp, relu_multiplier_exp = to_q15_exp(relu_scale)
+ */
+arm_cmsis_nn_status arm_hard_swish_compat_s16(
+    const int16_t *input,
+    const int32_t input_offset,
+    const int32_t output_offset,
+    const int32_t output_multiplier_fp,
+    const int32_t output_multiplier_exp,
+    const int32_t relu_multiplier_fp,
+    const int32_t relu_multiplier_exp,
+    int16_t *output,
+    const int32_t output_size
+);
+
+/**
+ * @brief S16 Hard-Swish activation function (precise version)
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier           Output multiplier
+ * @param[in]      output_shift                Output shift
+ * @param[in]      relu_q3                     ReLU6 Q3 value
+ * @param[in]      relu_q6                     ReLU6 Q6 value
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ *
+ * @details This version uses int32_t for intermediate computations to provide better accuracy.
+ * relu_q3, relu_q6 = round(3 / input_scale), round(6 / input_scale)
+ * output_multiplier, output_shift = quantize_multiplier((input_scale**2) / (6.0 * output_scale))
+ */
+arm_cmsis_nn_status arm_hard_swish_precise_s16(
+    const int16_t *input,
+    const int32_t input_offset,
+    const int32_t output_offset,
+    const int32_t output_multiplier,
+    const int32_t output_shift,
+    const int32_t relu_q3,
+    const int32_t relu_q6,
+    int16_t *output,
+    const int32_t output_size
+);
 
 /**
  * @defgroup Pooling Pooling Functions

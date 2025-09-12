@@ -136,6 +136,10 @@
         <file category="source" name="Source/ActivationFunctions/arm_logistic_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_leaky_relu_s8.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_leaky_relu_s16.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_hard_swish_compat_s8.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_hard_swish_compat_s16.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_hard_swish_precise_s8.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_hard_swish_precise_s16.c"/>
 
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_s8.c"/>
 
