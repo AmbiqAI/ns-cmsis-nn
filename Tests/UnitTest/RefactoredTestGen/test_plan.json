@@ -2886,5 +2886,119 @@
         "keep_dims": true
       }
     ]
+  },
+  {
+    "suite_name": "test_arm_hard_swish_s8",
+    "op_type": "hard_swish",
+    "input_data_type": "int8_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "hard_swish_basic",
+        "pattern": "random_uniform",
+        "batch_size": 1,
+        "height_1": 2,
+        "width_1": 3,
+        "channel_1": 4
+      },
+      {
+        "name": "hard_swish_sweep_edges",
+        "pattern": "sweep_edges",
+        "batch_size": 1,
+        "height_1": 1,
+        "width_1": 64,
+        "channel_1": 1
+      },
+      {
+        "name": "hard_swish_plateau_edges",
+        "pattern": "plateau_edges",
+        "batch_size": 1,
+        "height_1": 1,
+        "width_1": 64,
+        "channel_1": 1
+      },
+      {
+        "name": "hard_swish_dense_mixture",
+        "pattern": "dense_mixture",
+        "batch_size": 1,
+        "height_1": 9,
+        "width_1": 7,
+        "channel_1": 5
+      },
+      {
+        "name": "hard_swish_adversarial_step",
+        "pattern": "adversarial_step",
+        "batch_size": 1,
+        "height_1": 1,
+        "width_1": 128,
+        "channel_1": 1
+      },
+      {
+        "name": "hard_swish_batched_wide",
+        "pattern": "random_uniform",
+        "batch_size": 3,
+        "height_1": 2,
+        "width_1": 8,
+        "channel_1": 7
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_hard_swish_s16",
+    "op_type": "hard_swish",
+    "input_data_type": "int8_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "hard_swish_basic_s16",
+        "pattern": "random_uniform",
+        "batch_size": 1,
+        "height_1": 2,
+        "width_1": 3,
+        "channel_1": 4
+      },
+      {
+        "name": "hard_swish_sweep_edges_s16",
+        "pattern": "sweep_edges",
+        "batch_size": 1,
+        "height_1": 1,
+        "width_1": 64,
+        "channel_1": 1
+      },
+      {
+        "name": "hard_swish_plateau_edges_s16",
+        "pattern": "plateau_edges",
+        "batch_size": 1,
+        "height_1": 1,
+        "width_1": 64,
+        "channel_1": 1
+      },
+      {
+        "name": "hard_swish_dense_mixture_s16",
+        "pattern": "dense_mixture",
+        "batch_size": 1,
+        "height_1": 9,
+        "width_1": 7,
+        "channel_1": 5
+      },
+      {
+        "name": "hard_swish_adversarial_step_s16",
+        "pattern": "adversarial_step",
+        "batch_size": 1,
+        "height_1": 1,
+        "width_1": 128,
+        "channel_1": 1
+      },
+      {
+        "name": "hard_swish_batched_wide_s16",
+        "pattern": "random_uniform",
+        "batch_size": 3,
+        "height_1": 2,
+        "width_1": 8,
+        "channel_1": 7
+      }
+    ]
   }
 ]

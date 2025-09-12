@@ -82,11 +82,12 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
             bias_dims,
             bias_data,
             output_dims,
-            output_data);
+            output_data
+        );
     }
-    else if ( // CASE_CONV_SMALL_KERNEL 
+    else if ( // CASE_CONV_SMALL_KERNEL
         ((filter_dims->w * filter_dims->h * filter_dims->c) < 9) && (conv_params->padding.h == 0) && (conv_params->padding.w== 0))
-    { 
+    {
         return arm_convolve_s16_fast_small_kernel(
                 weight_sum_ctx,
                 conv_params,

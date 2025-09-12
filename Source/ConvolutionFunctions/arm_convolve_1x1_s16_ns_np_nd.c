@@ -61,6 +61,7 @@
     const cmsis_nn_dims *output_dims,
     int16_t *output_data)
  {
+    (void)ctx;
     (void)bias_dims;
     (void)weight_sum_ctx;
     const int32_t input_batches = input_dims->n;
@@ -77,11 +78,11 @@
     const int32_t out_activation_max = conv_params->activation.max;
     int32_t *output_mult = quant_params->multiplier;
     int32_t *output_shift = quant_params->shift;
-    
+
     int32_t lhs_rows = output_x * output_y;
     int16_t *out = output_data;
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
-    {   
+    {
         arm_nn_mat_mult_nt_t_s16(input_data,
             filter_data,
             bias_data,
@@ -94,12 +95,12 @@
             out_activation_min,
             out_activation_max,
             output_dims->c);
-        
+
         if (out == NULL)
         {
             return ARM_CMSIS_NN_NO_IMPL_ERROR;
         }
-        
+
         /* Advance to the next batch */
         input_data += (input_x * input_y * input_ch);
         output_data += (output_x * output_y * output_ch);

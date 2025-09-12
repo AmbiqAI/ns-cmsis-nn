@@ -707,6 +707,9 @@ arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
 
 /**
  * @brief Pointwise s16 convolution function: no stride, no padding, no dilation.
+ * @param[in, out] ctx            Function context that contains the additional buffer if required by the function.
+ *                                arm_convolve_s16_get_buffer_size will return the buffer_size if required.
+ *                                The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      conv_params    Convolution parameters (e.g. strides, dilations, pads,...).
  *                                conv_params->input_offset  : Not used
  *                                conv_params->output_offset : Not used
@@ -746,7 +749,9 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *weight
 
 /**
  * @brief arm_convolve_s16_fast_small_kernel function. The kernel size is <=8
-
+ * @param[in, out] ctx            Function context that contains the additional buffer if required by the function.
+ *                                arm_convolve_s16_get_buffer_size will return the buffer_size if required.
+ *                                The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      conv_params    Convolution parameters (e.g. strides, dilations, pads,...).
  *                                conv_params->input_offset  : Not used
  *                                conv_params->output_offset : Not used
@@ -2839,19 +2844,18 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
 void arm_relu_q7(int8_t *data, uint16_t size);
 
 /**
+ * @brief Q7 RELU6 function
+ * @param[in,out]   data        pointer to input
+ * @param[in]       size        number of elements
+ */
+void arm_relu6_q7(int8_t *data, uint16_t size);
+
+/**
  * @brief Q15 RELU function
  * @param[in,out]   data        pointer to input
  * @param[in]       size        number of elements
  */
- void arm_relu_q15(int16_t *data, uint16_t size);
-
-/**
- * @brief s8 ReLU6 activation function
- * This uses 0 and 6 as lower and upper bounds w/ no quantization.
- * @param[in,out]   data        pointer to input
- * @param[in]       size        number of elements
- */
-void arm_relu6_default_s8(int8_t *data, uint16_t size);
+void arm_relu_q15(int16_t *data, uint16_t size);
 
 /**
  * @brief S8 ReLU activation function
@@ -2875,21 +2879,75 @@ arm_cmsis_nn_status arm_relu_s8(const int8_t *input,
                                 const int32_t output_size);
 
 /**
- * @brief S8 ReLU6 activation function
- * lower and upper bounds are quantized representations of 0 and 6
+ * @brief S8 ReLU activation function (generic version)
+ * This generic version allows to set custom lower and upper bounds to implement ReLU6, etc.
  *
  * @param[in]      input                       Pointer to the input buffer
- * @param[in]      lower                       Lower bound for the activation
- * @param[in]      upper                       Upper bound for the activation
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier           Output multiplier
+ * @param[in]      output_shift                Output shift
+ * @param[in]      act_min                     Minimum value to clamp the output to
+ * @param[in]      act_max                     Maximum value to clamp the output to
  * @param[out]     output                      Pointer to the output buffer
- * @param[in]      output_size                 Number of elements in the input tensor
+ * @param[in]      output_size                 Number of elements in the tensor
  * @return         The function returns ARM_MATH_SUCCESS
  */
-arm_cmsis_nn_status arm_relu6_s8(const int8_t *input,
-                                 const int8_t lower,
-                                 const int8_t upper,
-                                 int8_t *output,
+arm_cmsis_nn_status arm_relu_generic_s8(const int8_t *input,
+                                        const int32_t input_offset,
+                                        const int32_t output_offset,
+                                        const int32_t output_multiplier,
+                                        const int32_t output_shift,
+                                        const int32_t act_min,
+                                        const int32_t act_max,
+                                        int8_t *output,
+                                        const int32_t output_size);
+
+/**
+ * @brief S16 ReLU activation function
+ * lower and upper bounds are quantized representations of 0 and 32767
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier           Output multiplier
+ * @param[in]      output_shift                Output shift
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ */
+arm_cmsis_nn_status arm_relu_s16(const int16_t *input,
+                                 const int32_t input_offset,
+                                 const int32_t output_offset,
+                                 const int32_t output_multiplier,
+                                 const int32_t output_shift,
+                                 int16_t *output,
                                  const int32_t output_size);
+
+/**
+ * @brief S16 ReLU activation function (generic version)
+ * This generic version allows to set custom lower and upper bounds to implement ReLU6, etc.
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier           Output multiplier
+ * @param[in]      output_shift                Output shift
+ * @param[in]      act_min                     Minimum value to clamp the output to
+ * @param[in]      act_max                     Maximum value to clamp the output to
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ */
+arm_cmsis_nn_status arm_relu_generic_s16(const int16_t *input,
+                                         const int32_t input_offset,
+                                         const int32_t output_offset,
+                                         const int32_t output_multiplier,
+                                         const int32_t output_shift,
+                                         const int32_t act_min,
+                                         const int32_t act_max,
+                                         int16_t *output,
+                                         const int32_t output_size);
 
 /**
  * @brief S8 Leaky ReLU activation function
@@ -2966,7 +3024,6 @@ arm_cmsis_nn_status arm_logistic_s16(int16_t *input,
  * @param[in]       left_shift  bit-width of the integer part, assumed to be smaller than 3.
  * @param[in]       type        type of activation functions
  * @return                      The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
-
  *
  * @details Supported framework: TensorFlow Lite for Microcontrollers.
  * This activation function must be bit precise congruent with the corresponding TFLM tanh and sigmoid activation
@@ -2977,6 +3034,134 @@ arm_cmsis_nn_status arm_nn_activation_s16(const int16_t *input,
                                           const int32_t size,
                                           const int32_t left_shift,
                                           const arm_nn_activation_type type);
+
+
+
+/**
+ * @brief S8 Hard-Swish activation function (compatibility version)
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier_fp        Output multiplier in fixed point format
+ * @param[in]      output_multiplier_exp       Exponent for output multiplier
+ * @param[in]      relu_multiplier_fp          ReLU6 multiplier in fixed point format
+ * @param[in]      relu_multiplier_exp         Exponent for ReLU6 multiplier
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ *
+ * @details This version is compatible with TFLite implementation of Hard-Swish.
+ * hires_input_scale = (1.0 / 128.0) * float(input_scale)
+ * relu_scale = 3.0 / 32768.0
+ * out_mul_real = hires_input_scale / float(output_scale)
+ * output_multiplier_fp, output_multiplier_exp = to_q15_exp(out_mul_real)
+ * relu_multiplier_fp, relu_multiplier_exp = to_q15_exp(relu_scale)
+ */
+arm_cmsis_nn_status arm_hard_swish_compat_s8(
+    const int8_t *input,
+    const int32_t input_offset,
+    const int32_t output_offset,
+    const int32_t output_multiplier_fp,
+    const int32_t output_multiplier_exp,
+    const int32_t relu_multiplier_fp,
+    const int32_t relu_multiplier_exp,
+    int8_t *output,
+    const int32_t output_size
+);
+
+/**
+ * @brief S8 Hard-Swish activation function (precise version)
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier           Output multiplier
+ * @param[in]      output_shift                Output shift
+ * @param[in]      relu_q3                     ReLU6 Q3 value
+ * @param[in]      relu_q6                     ReLU6 Q6 value
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ *
+ * @details This version uses int32_t for intermediate computations to provide better accuracy.
+ * relu_q3, relu_q6 = round(3 / input_scale), round(6 / input_scale)
+ * output_multiplier, output_shift = quantize_multiplier((input_scale**2) / (6.0 * output_scale))
+ */
+arm_cmsis_nn_status arm_hard_swish_precise_s8(
+    const int8_t *input,
+    const int32_t input_offset,
+    const int32_t output_offset,
+    const int32_t output_multiplier,
+    const int32_t output_shift,
+    const int32_t relu_q3,
+    const int32_t relu_q6,
+    int8_t *output,
+    const int32_t output_size
+);
+
+/**
+ * @brief S16 Hard-Swish activation function (compatibility version)
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier_fp        Output multiplier in fixed point format
+ * @param[in]      output_multiplier_exp       Exponent for output multiplier
+ * @param[in]      relu_multiplier_fp          ReLU6 multiplier in fixed point format
+ * @param[in]      relu_multiplier_exp         Exponent for ReLU6 multiplier
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ *
+ * @details This version is compatible with TFLite implementation of Hard-Swish.
+ * hires_input_scale = (1.0 / 128.0) * float(input_scale)
+ * relu_scale = 3.0 / 32768.0
+ * out_mul_real = hires_input_scale / float(output_scale)
+ * output_multiplier_fp, output_multiplier_exp = to_q15_exp(out_mul_real)
+ * relu_multiplier_fp, relu_multiplier_exp = to_q15_exp(relu_scale)
+ */
+arm_cmsis_nn_status arm_hard_swish_compat_s16(
+    const int16_t *input,
+    const int32_t input_offset,
+    const int32_t output_offset,
+    const int32_t output_multiplier_fp,
+    const int32_t output_multiplier_exp,
+    const int32_t relu_multiplier_fp,
+    const int32_t relu_multiplier_exp,
+    int16_t *output,
+    const int32_t output_size
+);
+
+/**
+ * @brief S16 Hard-Swish activation function (precise version)
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier           Output multiplier
+ * @param[in]      output_shift                Output shift
+ * @param[in]      relu_q3                     ReLU6 Q3 value
+ * @param[in]      relu_q6                     ReLU6 Q6 value
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      output_size                 Number of elements in the tensor
+ * @return         The function returns ARM_MATH_SUCCESS
+ *
+ * @details This version uses int32_t for intermediate computations to provide better accuracy.
+ * relu_q3, relu_q6 = round(3 / input_scale), round(6 / input_scale)
+ * output_multiplier, output_shift = quantize_multiplier((input_scale**2) / (6.0 * output_scale))
+ */
+arm_cmsis_nn_status arm_hard_swish_precise_s16(
+    const int16_t *input,
+    const int32_t input_offset,
+    const int32_t output_offset,
+    const int32_t output_multiplier,
+    const int32_t output_shift,
+    const int32_t relu_q3,
+    const int32_t relu_q6,
+    int16_t *output,
+    const int32_t output_size
+);
 
 /**
  * @defgroup Pooling Pooling Functions
@@ -3587,6 +3772,52 @@ arm_cmsis_nn_status arm_concatenation_s16(const int16_t *const *input_data,
                                          int16_t *output_data,
                                          const int32_t output_dims,
                                          const int32_t *output_shape);
+
+/**
+ * @brief  int8/uint8 split function to be used for splitting a tensor into multiple tensors along the target axis
+ * @param  input_data      Pointer to the flattened input tensor data.
+ * @param  input_dims      Number of dimensions in input_shape.
+ * @param  input_shape     Array of length input_dims describing the shape of input_data.
+ * @param  axis            Axis along which to split (0 <= axis < input_dims).
+ * @param  num_splits      Number of output tensors to produce.
+ * @param  split_dims      Array of length num_splits giving size of each slice along axis.
+ * @param  output_data     Array of pointers; output_data[i] points to storage for the i-th output tensor.
+ *
+ * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR if split_dims sum mismatch.
+ *
+ * @note This function, data layout independent, can be used to split either int8 or uint8 tensors because it
+ *       does not involve any arithmetic operation.
+ */
+arm_cmsis_nn_status arm_split_s8(const int8_t *input_data,
+                                 const int32_t input_dims,
+                                 const int32_t *input_shape,
+                                 const int32_t axis,
+                                 const int32_t num_splits,
+                                 const int32_t *split_dims,
+                                 int8_t *const *output_data);
+
+/**
+ * @brief  int16/uint16 split function to be used for splitting a tensor into multiple tensors along the target axis
+ * @param  input_data      Pointer to the flattened input tensor data.
+ * @param  input_dims      Number of dimensions in input_shape.
+ * @param  input_shape     Array of length input_dims describing the shape of input_data.
+ * @param  axis            Axis along which to split (0 <= axis < input_dims).
+ * @param  num_splits      Number of output tensors to produce.
+ * @param  split_dims      Array of length num_splits giving size of each slice along axis.
+ * @param  output_data     Array of pointers; output_data[i] points to storage for the i-th output tensor.
+ *
+ * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR if split_dims sum mismatch.
+ *
+ * @note This function, data layout independent, can be used to split either int8 or uint8 tensors because it
+ *       does not involve any arithmetic operation.
+ */
+arm_cmsis_nn_status arm_split_s16(const int16_t *input_data,
+                                  const int32_t input_dims,
+                                  const int32_t *input_shape,
+                                  const int32_t axis,
+                                  const int32_t num_splits,
+                                  const int32_t *split_dims,
+                                  int16_t *const *output_data);
 
 /**
  * @defgroup SVDF SVDF Functions

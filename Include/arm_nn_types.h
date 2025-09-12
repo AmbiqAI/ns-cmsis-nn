@@ -36,8 +36,8 @@
 
 // Version information
 #define NS_CMSIS_NN_VERSION_MAJOR (7)
-#define NS_CMSIS_NN_VERSION_MINOR (4)
-#define NS_CMSIS_NN_VERSION_PATCH (1)
+#define NS_CMSIS_NN_VERSION_MINOR (7)
+#define NS_CMSIS_NN_VERSION_PATCH (0)
 
 /**
  * @defgroup genPubTypes Structure Types

@@ -20,7 +20,7 @@
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
  * Title:        arm_relu_s8.c
- * Description:  ReLU function for int8_t data type
+ * Description:  ReLU functions for int8_t data type
  *
  * $Date:        23 April 2025
  * $Revision:    V.1.0.0
@@ -43,24 +43,26 @@
 */
 
 /*
-* ReLU activation function for int8_t data type.
+* ReLU activation functions for int8_t data type.
 *
 * Refer header file for details.
 *
 */
-arm_cmsis_nn_status arm_relu_s8(const int8_t *input,
-                                const int32_t input_offset,
-                                const int32_t output_offset,
-                                const int32_t output_multiplier,
-                                const int32_t output_shift,
-                                int8_t *output,
-                                const int32_t output_size)
+arm_cmsis_nn_status arm_relu_generic_s8(const int8_t *input,
+                                        const int32_t input_offset,
+                                        const int32_t output_offset,
+                                        const int32_t output_multiplier,
+                                        const int32_t output_shift,
+                                        const int32_t act_min,
+                                        const int32_t act_max,
+                                        int8_t *output,
+                                        const int32_t output_size)
 {
 
     int32_t flat_size = output_size;
 
-    const int32_t quantized_min = MAX(INT8_MIN, input_offset);
-    const int32_t quantized_max = INT8_MAX;
+    const int32_t quantized_min = MAX(INT8_MIN, act_min);
+    const int32_t quantized_max = MIN(INT8_MAX, act_max);
 
 #if defined(ARM_MATH_MVEI)
     // Perform 4 operations in parallel
@@ -106,6 +108,32 @@ arm_cmsis_nn_status arm_relu_s8(const int8_t *input,
 
     return ARM_CMSIS_NN_SUCCESS;
 }
+
+
+arm_cmsis_nn_status arm_relu_s8(const int8_t *input,
+                                const int32_t input_offset,
+                                const int32_t output_offset,
+                                const int32_t output_multiplier,
+                                const int32_t output_shift,
+                                int8_t *output,
+                                const int32_t output_size)
+{
+    int32_t act_min = output_offset;
+    int32_t act_max = INT8_MAX;
+
+    return arm_relu_generic_s8(
+        input,
+        input_offset,
+        output_offset,
+        output_multiplier,
+        output_shift,
+        act_min,
+        act_max,
+        output,
+        output_size
+    );
+}
+
 
 /**
  * @} end of Doxygen group

@@ -20,7 +20,7 @@
 #include <arm_nnfunctions.h>
 #include <arm_nnsupportfunctions.h>
 
-#include "../TestData/relu_basic/test_data.h"
+#include "../TestData/relu_basic_s8/test_data.h"
 #include "../Utils/validate.h"
 
 #define REPEAT_NUM (2)
@@ -29,19 +29,19 @@ void relu_basic_arm_relu_s8(void)
 {
 
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
-    const int8_t *input_data = relu_basic_input_tensor;
-    int8_t output[RELU_BASIC_OUTPUT_LEN];
+    const int8_t *input_data = relu_basic_s8_input_tensor;
+    int8_t output[RELU_BASIC_S8_OUTPUT_LEN];
 
     arm_cmsis_nn_status result = arm_relu_s8(
         input_data,
-        RELU_BASIC_INPUT_OFFSET,
-        RELU_BASIC_OUTPUT_OFFSET,
-        RELU_BASIC_OUTPUT_MULTIPLIER,
-        RELU_BASIC_OUTPUT_SHIFT,
+        RELU_BASIC_S8_INPUT_OFFSET,
+        RELU_BASIC_S8_OUTPUT_OFFSET,
+        RELU_BASIC_S8_OUTPUT_MULTIPLIER,
+        RELU_BASIC_S8_OUTPUT_SHIFT,
         output,
-        RELU_BASIC_OUTPUT_LEN
+        RELU_BASIC_S8_OUTPUT_LEN
     );
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate(output, relu_basic_output, RELU_BASIC_OUTPUT_LEN));
+    TEST_ASSERT_TRUE(validate(output, relu_basic_s8_output, RELU_BASIC_S8_OUTPUT_LEN));
 }
