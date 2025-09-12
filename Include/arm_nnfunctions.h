@@ -2969,10 +2969,17 @@ arm_cmsis_nn_status arm_hard_swish_compat_s8(
  * @param[in]      input                       Pointer to the input buffer
  * @param[in]      input_offset                Input tensor zero offset
  * @param[in]      output_offset               Output tensor zero offset
+<<<<<<< HEAD
  * @param[in]      output_multiplier           Output multiplier
  * @param[in]      output_shift                Output shift
  * @param[in]      relu_q3                     ReLU6 Q3 value
  * @param[in]      relu_q6                     ReLU6 Q6 value
+=======
+ * @param[in]      output_multiplier_fp        Output multiplier in fixed point format
+ * @param[in]      output_multiplier_exp       Exponent for output multiplier
+ * @param[in]      relu_multiplier_fp          ReLU6 multiplier in fixed point format
+ * @param[in]      relu_multiplier_exp         Exponent for ReLU6 multiplier
+>>>>>>> 017bed3252978cec690b756c80a589dda00fc852
  * @param[out]     output                      Pointer to the output buffer
  * @param[in]      output_size                 Number of elements in the tensor
  * @return         The function returns ARM_MATH_SUCCESS
@@ -3032,10 +3039,17 @@ arm_cmsis_nn_status arm_hard_swish_compat_s16(
  * @param[in]      input                       Pointer to the input buffer
  * @param[in]      input_offset                Input tensor zero offset
  * @param[in]      output_offset               Output tensor zero offset
+<<<<<<< HEAD
  * @param[in]      output_multiplier           Output multiplier
  * @param[in]      output_shift                Output shift
  * @param[in]      relu_q3                     ReLU6 Q3 value
  * @param[in]      relu_q6                     ReLU6 Q6 value
+=======
+ * @param[in]      output_multiplier_fp        Output multiplier in fixed point format
+ * @param[in]      output_multiplier_exp       Exponent for output multiplier
+ * @param[in]      relu_multiplier_fp          ReLU6 multiplier in fixed point format
+ * @param[in]      relu_multiplier_exp         Exponent for ReLU6 multiplier
+>>>>>>> 017bed3252978cec690b756c80a589dda00fc852
  * @param[out]     output                      Pointer to the output buffer
  * @param[in]      output_size                 Number of elements in the tensor
  * @return         The function returns ARM_MATH_SUCCESS
