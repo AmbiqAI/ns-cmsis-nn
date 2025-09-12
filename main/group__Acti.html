@@ -136,6 +136,18 @@ $(document).ready(function(){initNavTree('group__Acti.html',''); initResizable()
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:gac40d004466d4c20972e3add3d44cd589"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#gac40d004466d4c20972e3add3d44cd589">arm_hard_swish_compat_s16</a> (const int16_t *input, const int32_t input_offset, const int32_t output_offset, const int32_t output_multiplier_fp, const int32_t output_multiplier_exp, const int32_t relu_multiplier_fp, const int32_t relu_multiplier_exp, int16_t *output, const int32_t output_size)</td></tr>
+<tr class="memdesc:gac40d004466d4c20972e3add3d44cd589"><td class="mdescLeft">&#160;</td><td class="mdescRight">S16 Hard-Swish activation function (compatibility version)  <br /></td></tr>
+<tr class="separator:gac40d004466d4c20972e3add3d44cd589"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga94a58ecf474ea00c87af645de6e447b4"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga94a58ecf474ea00c87af645de6e447b4">arm_hard_swish_compat_s8</a> (const int8_t *input, const int32_t input_offset, const int32_t output_offset, const int32_t output_multiplier_fp, const int32_t output_multiplier_exp, const int32_t relu_multiplier_fp, const int32_t relu_multiplier_exp, int8_t *output, const int32_t output_size)</td></tr>
+<tr class="memdesc:ga94a58ecf474ea00c87af645de6e447b4"><td class="mdescLeft">&#160;</td><td class="mdescRight">S8 Hard-Swish activation function (compatibility version)  <br /></td></tr>
+<tr class="separator:ga94a58ecf474ea00c87af645de6e447b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gad46994faf7dd85bf5d02e168c1a9570f"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#gad46994faf7dd85bf5d02e168c1a9570f">arm_hard_swish_precise_s16</a> (const int16_t *input, const int32_t input_offset, const int32_t output_offset, const int32_t output_multiplier, const int32_t output_shift, const int32_t relu_q3, const int32_t relu_q6, int16_t *output, const int32_t output_size)</td></tr>
+<tr class="memdesc:gad46994faf7dd85bf5d02e168c1a9570f"><td class="mdescLeft">&#160;</td><td class="mdescRight">S16 Hard-Swish activation function (precise version)  <br /></td></tr>
+<tr class="separator:gad46994faf7dd85bf5d02e168c1a9570f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga3711d3d1dfd120a286a44439e43ed021"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga3711d3d1dfd120a286a44439e43ed021">arm_hard_swish_precise_s8</a> (const int8_t *input, const int32_t input_offset, const int32_t output_offset, const int32_t output_multiplier, const int32_t output_shift, const int32_t relu_q3, const int32_t relu_q6, int8_t *output, const int32_t output_size)</td></tr>
+<tr class="memdesc:ga3711d3d1dfd120a286a44439e43ed021"><td class="mdescLeft">&#160;</td><td class="mdescRight">S8 Hard-Swish activation function (precise version)  <br /></td></tr>
+<tr class="separator:ga3711d3d1dfd120a286a44439e43ed021"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga7c2f32e589df7a59a0b18bf64cc21ed1"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__Acti.html#ga7c2f32e589df7a59a0b18bf64cc21ed1">arm_leaky_relu_s16</a> (const int16_t *input, const int32_t input_offset, const int32_t output_offset, const int32_t output_multiplier_alpha, const int32_t output_shift_alpha, const int32_t output_multiplier_identity, const int32_t output_shift_identity, int16_t *output, const int32_t output_size)</td></tr>
 <tr class="memdesc:ga7c2f32e589df7a59a0b18bf64cc21ed1"><td class="mdescLeft">&#160;</td><td class="mdescRight">S16 Leaky ReLU activation function.  <br /></td></tr>
 <tr class="separator:ga7c2f32e589df7a59a0b18bf64cc21ed1"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -175,6 +187,358 @@ Functions</h2></td></tr>
 <a name="details" id="details"></a><h2 class="groupheader">Description</h2>
 <p>Perform activation layers, including ReLU (Rectified Linear Unit), sigmoid and tanh </p>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="gac40d004466d4c20972e3add3d44cd589" name="gac40d004466d4c20972e3add3d44cd589"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gac40d004466d4c20972e3add3d44cd589">&#9670;&#160;</a></span>arm_hard_swish_compat_s16()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_hard_swish_compat_s16 </td>
+          <td>(</td>
+          <td class="paramtype">const int16_t *&#160;</td>
+          <td class="paramname"><em>input</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>input_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_multiplier_fp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_multiplier_exp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>relu_multiplier_fp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>relu_multiplier_exp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int16_t *&#160;</td>
+          <td class="paramname"><em>output</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>S16 Hard-Swish activation function (compatibility version) </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Pointer to the input buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_offset</td><td>Input tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_offset</td><td>Output tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_multiplier_fp</td><td>Output multiplier in fixed point format </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_multiplier_exp</td><td>Exponent for output multiplier </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">relu_multiplier_fp</td><td>ReLU6 multiplier in fixed point format </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">relu_multiplier_exp</td><td>Exponent for ReLU6 multiplier </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Pointer to the output buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_size</td><td>Number of elements in the tensor </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The function returns ARM_MATH_SUCCESS</dd></dl>
+<p>This version is compatible with TFLite implementation of Hard-Swish. hires_input_scale = (1.0 / 128.0) * float(input_scale) relu_scale = 3.0 / 32768.0 out_mul_real = hires_input_scale / float(output_scale) output_multiplier_fp, output_multiplier_exp = to_q15_exp(out_mul_real) relu_multiplier_fp, relu_multiplier_exp = to_q15_exp(relu_scale) </p>
+
+</div>
+</div>
+<a id="ga94a58ecf474ea00c87af645de6e447b4" name="ga94a58ecf474ea00c87af645de6e447b4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga94a58ecf474ea00c87af645de6e447b4">&#9670;&#160;</a></span>arm_hard_swish_compat_s8()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_hard_swish_compat_s8 </td>
+          <td>(</td>
+          <td class="paramtype">const int8_t *&#160;</td>
+          <td class="paramname"><em>input</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>input_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_multiplier_fp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_multiplier_exp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>relu_multiplier_fp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>relu_multiplier_exp</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int8_t *&#160;</td>
+          <td class="paramname"><em>output</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>S8 Hard-Swish activation function (compatibility version) </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Pointer to the input buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_offset</td><td>Input tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_offset</td><td>Output tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_multiplier_fp</td><td>Output multiplier in fixed point format </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_multiplier_exp</td><td>Exponent for output multiplier </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">relu_multiplier_fp</td><td>ReLU6 multiplier in fixed point format </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">relu_multiplier_exp</td><td>Exponent for ReLU6 multiplier </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Pointer to the output buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_size</td><td>Number of elements in the tensor </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The function returns ARM_MATH_SUCCESS</dd></dl>
+<p>This version is compatible with TFLite implementation of Hard-Swish. hires_input_scale = (1.0 / 128.0) * float(input_scale) relu_scale = 3.0 / 32768.0 out_mul_real = hires_input_scale / float(output_scale) output_multiplier_fp, output_multiplier_exp = to_q15_exp(out_mul_real) relu_multiplier_fp, relu_multiplier_exp = to_q15_exp(relu_scale) </p>
+
+</div>
+</div>
+<a id="gad46994faf7dd85bf5d02e168c1a9570f" name="gad46994faf7dd85bf5d02e168c1a9570f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad46994faf7dd85bf5d02e168c1a9570f">&#9670;&#160;</a></span>arm_hard_swish_precise_s16()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_hard_swish_precise_s16 </td>
+          <td>(</td>
+          <td class="paramtype">const int16_t *&#160;</td>
+          <td class="paramname"><em>input</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>input_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_multiplier</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_shift</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>relu_q3</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>relu_q6</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int16_t *&#160;</td>
+          <td class="paramname"><em>output</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>S16 Hard-Swish activation function (precise version) </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Pointer to the input buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_offset</td><td>Input tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_offset</td><td>Output tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_multiplier</td><td>Output multiplier </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_shift</td><td>Output shift </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">relu_q3</td><td>ReLU6 Q3 value </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">relu_q6</td><td>ReLU6 Q6 value </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Pointer to the output buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_size</td><td>Number of elements in the tensor </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The function returns ARM_MATH_SUCCESS</dd></dl>
+<p>This version uses int32_t for intermediate computations to provide better accuracy. relu_q3, relu_q6 = round(3 / input_scale), round(6 / input_scale) output_multiplier, output_shift = quantize_multiplier((input_scale**2) / (6.0 * output_scale)) </p>
+
+</div>
+</div>
+<a id="ga3711d3d1dfd120a286a44439e43ed021" name="ga3711d3d1dfd120a286a44439e43ed021"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga3711d3d1dfd120a286a44439e43ed021">&#9670;&#160;</a></span>arm_hard_swish_precise_s8()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__genPubTypes.html#ga67ac3e1e650a7040b0f706fb83ea6184">arm_cmsis_nn_status</a> arm_hard_swish_precise_s8 </td>
+          <td>(</td>
+          <td class="paramtype">const int8_t *&#160;</td>
+          <td class="paramname"><em>input</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>input_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_multiplier</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_shift</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>relu_q3</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>relu_q6</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int8_t *&#160;</td>
+          <td class="paramname"><em>output</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int32_t&#160;</td>
+          <td class="paramname"><em>output_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>S8 Hard-Swish activation function (precise version) </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Pointer to the input buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">input_offset</td><td>Input tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_offset</td><td>Output tensor zero offset </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_multiplier</td><td>Output multiplier </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_shift</td><td>Output shift </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">relu_q3</td><td>ReLU6 Q3 value </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">relu_q6</td><td>ReLU6 Q6 value </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Pointer to the output buffer </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">output_size</td><td>Number of elements in the tensor </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The function returns ARM_MATH_SUCCESS</dd></dl>
+<p>This version uses int32_t for intermediate computations to provide better accuracy. relu_q3, relu_q6 = round(3 / input_scale), round(6 / input_scale) output_multiplier, output_shift = quantize_multiplier((input_scale**2) / (6.0 * output_scale)) </p>
+
+</div>
+</div>
 <a id="ga7c2f32e589df7a59a0b18bf64cc21ed1" name="ga7c2f32e589df7a59a0b18bf64cc21ed1"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga7c2f32e589df7a59a0b18bf64cc21ed1">&#9670;&#160;</a></span>arm_leaky_relu_s16()</h2>
 
