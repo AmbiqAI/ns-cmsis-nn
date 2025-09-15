@@ -79,13 +79,13 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
     const uint16_t pad_x = conv_params->padding.w;
     const uint16_t stride_x = conv_params->stride.w;
 
-    const int32_t *vecsum = NULL;
-    int use_vecsum = 0;
+    const int32_t *eff_bias_ptr = bias_data;
+    int32_t  eff_input_offset = conv_params->input_offset;
     if (weight_sum_ctx && weight_sum_ctx->buf &&
         weight_sum_ctx->size >= (int32_t)(output_ch * (int32_t)sizeof(int32_t)))
     {
-        vecsum    = (const int32_t *)weight_sum_ctx->buf;
-        use_vecsum = 1;
+        eff_bias_ptr    = (const int32_t *)weight_sum_ctx->buf;
+        eff_input_offset = 0;
     }
 
     // Total pad for dilation of 1 
@@ -129,8 +129,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
                                                conv_params,
                                                quant_params,
                                                bias_data,
-                                               output_data,
-                                               0);
+                                               output_data);
             output_data += output_ch;
         }
 
@@ -145,19 +144,16 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
         input_start *= input_ch;
         lhs_rows = no_pad_num;
 
-        const int32_t *bias_ptr_for_central = use_vecsum ? vecsum : bias_data;
-        const int32_t  input_offset_for_central = use_vecsum ? 0 : conv_params->input_offset;
-
         arm_nn_mat_mult_nt_t_s4(input_data + input_start,
                                 filter_data,
-                                bias_ptr_for_central,
+                                eff_bias_ptr,
                                 output_data,
                                 quant_params->multiplier,
                                 quant_params->shift,
                                 lhs_rows,
                                 rhs_rows,
                                 rhs_cols,
-                                input_offset_for_central,
+                                eff_input_offset,
                                 conv_params->output_offset,
                                 conv_params->activation.min,
                                 conv_params->activation.max,
@@ -185,8 +181,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
                                                conv_params,
                                                quant_params,
                                                bias_data,
-                                               output_data,
-                                               0);
+                                               output_data);
             output_data += output_ch;
         }
         /* Advance to the next batch */

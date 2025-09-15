@@ -406,8 +406,7 @@ arm_cmsis_nn_status arm_nn_mat_mul_core_1x_s4(int32_t row_elements,
                                               const cmsis_nn_conv_params *conv_params,
                                               const cmsis_nn_per_channel_quant_params *quant_params,
                                               const int32_t *bias,
-                                              int8_t *output,
-                                              bool use_vecsum);
+                                              int8_t *output);
 
 /**
  * @brief Matrix-multiplication with requantization & activation function for four rows and one column
