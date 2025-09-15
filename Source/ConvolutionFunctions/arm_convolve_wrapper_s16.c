@@ -61,6 +61,7 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
                                              int16_t *output_data)
 {
 (void)weight_sum_ctx;
+(void)ctx;
 #if defined(ARM_MATH_MVEI)
 
     if ( // CASE_CONV_1X1
@@ -72,6 +73,7 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
     )
     {
         return arm_convolve_1x1_s16_ns_np_nd(
+            ctx,
             weight_sum_ctx,
             conv_params,
             quant_params,
@@ -89,6 +91,7 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
         ((filter_dims->w * filter_dims->h * filter_dims->c) < 9) && (conv_params->padding.h == 0) && (conv_params->padding.w== 0))
     {
         return arm_convolve_s16_fast_small_kernel(
+                ctx,
                 weight_sum_ctx,
                 conv_params,
                 quant_params,
