@@ -405,7 +405,6 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
         input_data += (input_x_rshifted * input_y_rshifted * input_ch);
         output_data += (output_x * output_y * output_ch);
     }
-    (void)weight_sum_ctx;
 
     /* Return to application */
     return ARM_CMSIS_NN_SUCCESS;

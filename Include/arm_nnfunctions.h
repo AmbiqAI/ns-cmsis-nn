@@ -407,7 +407,7 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
                                          const cmsis_nn_dims *output_dims,
                                          int8_t *output_data);
 /**
- * @brief Compute the bias-folded per-output-channel weight sum for S4 convolution (OHWI layout).
+ * @brief Compute the bias-folded per-output-channel weight sum for s4 convolution (OHWI layout).
  *
  * Computes, for each output channel o:
  *    vector_sum_buf[o] = (bias_data ? bias_data[o] : 0) - lhs_offset * Σ_k W_s4[o, k]

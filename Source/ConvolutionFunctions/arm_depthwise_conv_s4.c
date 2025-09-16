@@ -508,16 +508,13 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
     const int32_t dilation_x = dw_conv_params->dilation.w;
     const int32_t dilation_y = dw_conv_params->dilation.h;
 
-    const int32_t *vecsum = NULL;
-    bool use_vecsum = false;
+    const int32_t *eff_bias = bias;
+    int32_t eff_input_offset = dw_conv_params->input_offset;
     if (weight_sum_ctx && weight_sum_ctx->buf)
     {
-        vecsum = (const int32_t *)weight_sum_ctx->buf;
-        use_vecsum = true;
+        eff_bias = (const int32_t *)weight_sum_ctx->buf;
+        eff_input_offset = 0;
     }
-
-    const int32_t *bias_ptr = use_vecsum ? vecsum : bias;
-    const int32_t eff_input_offset = use_vecsum ? 0 : dw_conv_params->input_offset;
 
     depthwise_conv_s4_generic(input,
                               input_dims->n,
@@ -533,7 +530,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
                               dw_conv_params->padding.h,
                               dw_conv_params->stride.w,
                               dw_conv_params->stride.h,
-                              bias_ptr,
+                              eff_bias,
                               output,
                               quant_params->shift,
                               quant_params->multiplier,
