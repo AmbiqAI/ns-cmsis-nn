@@ -49,7 +49,7 @@
  *
  */
 arm_cmsis_nn_status arm_tanh_s16(
-    int16_t *input,
+    const int16_t *input,
     int16_t *output,
     const int32_t input_size,
     int32_t input_multiplier,

@@ -2904,7 +2904,7 @@ arm_cmsis_nn_status arm_leaky_relu_s16(const int16_t *input,
  *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  */
 arm_cmsis_nn_status arm_logistic_s16(
-    int16_t *input,
+    const int16_t *input,
     int16_t *output,
     const int32_t input_size,
     int32_t input_multiplier,
@@ -2922,7 +2922,7 @@ arm_cmsis_nn_status arm_logistic_s16(
  *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  */
 arm_cmsis_nn_status arm_tanh_s16(
-    int16_t *input,
+    const int16_t *input,
     int16_t *output,
     const int32_t input_size,
     int32_t input_multiplier,
