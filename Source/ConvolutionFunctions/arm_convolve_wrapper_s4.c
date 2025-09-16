@@ -60,7 +60,6 @@ arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx,
                                             const cmsis_nn_dims *output_dims,
                                             int8_t *output_data)
 {
-    (void)weight_sum_ctx;
     if ((conv_params->padding.w == 0) && (conv_params->padding.h == 0) && (filter_dims->w == 1) &&
         (filter_dims->h == 1) && (conv_params->dilation.w == 1 && conv_params->dilation.h == 1))
     {

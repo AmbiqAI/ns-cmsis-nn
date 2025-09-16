@@ -52,7 +52,7 @@ int8_t *arm_nn_mat_mult_kernel_row_offset_s8_s16(const int8_t *input_a,
                                                  int8_t *out_0,
                                                  const int32_t *kernel_sum) 
 {
-(void)kernel_sum; //not supported yet
+(void)kernel_sum;
 #if !defined(ARM_MATH_MVEI)
     /* set up the second output pointers */
     int8_t *out_1 = out_0 + row_address_offset;
