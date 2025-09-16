@@ -28,6 +28,7 @@ import Lib.op_transpose
 import Lib.op_elementwise_mul
 import Lib.op_quantize
 import Lib.op_dequantize
+import Lib.op_depthwise_conv
 import Lib.op_relu
 import Lib.op_relu6
 import Lib.op_strided_slice
@@ -269,6 +270,8 @@ def get_op_type(op_type_string):
         return Lib.op_mean.Op_mean
     elif op_type_string == "reduce_max":
         return Lib.op_reduce_max.Op_reduce_max
+    elif op_type_string == "depthwise_conv":
+        return Lib.op_depthwise_conv.Op_depthwise_conv
     else:
         raise ValueError(f"Unknown op type '{op_type_string}'")
 
