@@ -589,7 +589,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
         }
     }
 #else
-    // (void)weight_sum_buf;
     const int32_t *kernel_sum = (const int32_t *)weight_sum_buf;
     const int use_ws = (kernel_sum != NULL);
     (void)row_address_offset;

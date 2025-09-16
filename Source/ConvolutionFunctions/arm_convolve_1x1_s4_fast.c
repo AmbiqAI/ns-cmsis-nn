@@ -73,24 +73,24 @@ arm_cmsis_nn_status arm_convolve_1x1_s4_fast(const cmsis_nn_context *ctx,
     const int32_t rhs_rows = output_dims->c;
     const int32_t rhs_cols = input_dims->c;
 
-    const int32_t *bias_ptr = bias_data;
-    int32_t matmul_input_offset = conv_params->input_offset;
+    const int32_t *eff_bias = bias_data;
+    int32_t eff_input_offset = conv_params->input_offset;
     if (weight_sum_ctx && weight_sum_ctx->buf)
     {
-        bias_ptr = (const int32_t *)weight_sum_ctx->buf;
-        matmul_input_offset = 0;
+        eff_bias = (const int32_t *)weight_sum_ctx->buf;
+        eff_input_offset = 0;
     }
 
     arm_nn_mat_mult_nt_t_s4(input_data,
                             filter_data,
-                            bias_ptr,
+                            eff_bias,
                             output_data,
                             quant_params->multiplier,
                             quant_params->shift,
                             lhs_rows,
                             rhs_rows,
                             rhs_cols,
-                            matmul_input_offset,
+                            eff_input_offset,
                             conv_params->output_offset,
                             conv_params->activation.min,
                             conv_params->activation.max,
