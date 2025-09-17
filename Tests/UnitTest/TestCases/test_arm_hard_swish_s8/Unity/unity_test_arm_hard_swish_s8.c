@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../test_arm_relu6_s8.c"
+#include "../test_arm_hard_swish_s8.c"
 #include "unity.h"
 
 #ifdef USING_FVP_CORSTONE_300
@@ -44,4 +44,11 @@ void setUp(void)
  */
 void tearDown(void) {}
 
-void test_relu6_basic_arm_relu6_s8(void) { relu6_basic_arm_relu6_s8(); }
+/* Unity-visible test entry points */
+/* Unity test entry points (names starting with test_) */
+void test_hard_swish_basic(void)            { hard_swish_basic_arm_hard_swish_s8(); }
+void test_hard_swish_sweep_edges(void)      { hard_swish_sweep_edges_arm_hard_swish_s8(); }
+void test_hard_swish_plateau_edges(void)    { hard_swish_plateau_edges_arm_hard_swish_s8(); }
+void test_hard_swish_dense_mixture(void)    { hard_swish_dense_mixture_arm_hard_swish_s8(); }
+void test_hard_swish_adversarial_step(void) { hard_swish_adversarial_step_arm_hard_swish_s8(); }
+void test_hard_swish_batched_wide(void)     { hard_swish_batched_wide_arm_hard_swish_s8(); }
