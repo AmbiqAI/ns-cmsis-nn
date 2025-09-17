@@ -73,7 +73,7 @@ arm_cmsis_nn_status arm_clamp_s8(
         res = vmaxq_s8(res, qmin);
         res = vminq_s8(res, qmax);
         // Store
-        vstrbq_p_s16(output, res, pred);
+        vstrbq_p_s8(output, res, pred);
         // Increment pointers
         input += 16;
         output += 16;
