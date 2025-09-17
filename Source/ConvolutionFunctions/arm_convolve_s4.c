@@ -131,7 +131,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
 
                         if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
                         {
-                            arm_memset_s8(im2col_buf, -input_offset, sizeof(int8_t) * input_ch);
+                            arm_memset_s8(im2col_buf, (int8_t)-input_offset, sizeof(int8_t) * input_ch);
                         }
                         else
                         {
@@ -210,6 +210,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
 
                         if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
                         {
+                            /* Filling 0 for out-of-bound paddings or input_offset if weight_sum is used*/
                             for (int c = 0; c < input_ch; ++c) { two_column_buf[c] = pad_val; } //find a better way of doing this
                             //memset writes a single 8bit pattern and the buffer is 16bit 
                         }
