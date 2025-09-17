@@ -2177,3 +2177,32 @@ void conv_1_x_n_5_arm_convolve_s4(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
     TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
 }
+
+void convolve_int4_weight_presum_s4(void)
+{
+    const cmsis_nn_dims input_dims  = { .n = 1, .w = 1, .h = 1, .c = 3 };
+    const cmsis_nn_dims filter_dims = { .n = 2, .w = 1, .h = 1, .c = 3 };
+    const cmsis_nn_dims out_dims    = { .n = 1, .w = 1, .h = 1, .c = 2 };
+
+    const int32_t bias[2]    = {10, 20};
+    const int32_t lhs_offset = 5;
+    int8_t weights_s4[3];
+    weights_s4[0] = (int8_t)((1 & 0x0F) | ((2 & 0x0F) << 4));
+    weights_s4[1] = (int8_t)((3 & 0x0F) | ((4 & 0x0F) << 4));
+    weights_s4[2] = (int8_t)((5 & 0x0F) | ((6 & 0x0F) << 4));
+
+    int32_t sum_buf[2] = {0, 0};
+
+    arm_cmsis_nn_status result = arm_convolve_weight_sum_s4(
+        sum_buf,
+        weights_s4,
+        &input_dims,
+        &filter_dims,
+        &out_dims,
+        lhs_offset,
+        bias);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+    const int32_t expected[2] = {40, 95};
+    TEST_ASSERT_EQUAL_INT32_ARRAY(expected, sum_buf, 2);
+}
