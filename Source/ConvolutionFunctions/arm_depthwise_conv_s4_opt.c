@@ -95,12 +95,14 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
     const int32_t output_activation_max = dw_conv_params->activation.max;
     int16_t *buffer_a = (int16_t *)ctx->buf;
 
-    const int32_t *vecsum = NULL;
-    bool use_vecsum = false;
+    int8_t pad_val = 0;
+    const int32_t *eff_bias =  bias;
+    int32_t eff_input_offset = input_offset;
     if (weight_sum_ctx && weight_sum_ctx->buf)
     {
-        vecsum = (const int32_t *)weight_sum_ctx->buf;
-        use_vecsum = true;
+        eff_input_offset = 0;
+        eff_bias = (const int32_t *)weight_sum_ctx->buf;
+        pad_val = (int8_t)(-input_offset);
     }
 
 #ifdef ARM_MATH_MVEI
@@ -147,11 +149,10 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                 {
                     const int32_t block_offset = i_ch * S4_CH_IN_BLOCK_MVE;
                     lhs_buffer = (int8_t *)buffer_a;
-                    const int32_t eff_in_off = use_vecsum ? 0 : input_offset;
-                    const int32_t *bptr = use_vecsum ? (vecsum + block_offset) : (bias ? bias + block_offset : NULL);
+                    const int32_t *bptr = eff_bias + block_offset;
                     arm_nn_depthwise_conv_nt_t_s4(lhs_buffer,
                                                   kernel + (block_offset >> 1),
-                                                  eff_in_off,
+                                                  eff_input_offset,
                                                   active_ch,
                                                   input_ch,
                                                   output_shift + block_offset,
@@ -185,14 +186,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                 const int8_t *col_0 = lhs_buffer + (kernel_size * S4_CH_IN_BLOCK_MVE * i_buf) + (i_loop_cnt * 4);
                 const int8_t *row_0 = kernel + (offset >> 1);
                 int32x4_t out_0 = vdupq_n_s32(0);
-                if (use_vecsum)
-                {
-                    out_0 = vldrwq_s32(&vecsum[offset]);
-                }
-                else if (bias)
-                {
-                    out_0 = vldrwq_s32(&bias[offset]);
-                }
+                out_0 = vldrwq_s32(&eff_bias[offset]);
 
                 if (input_ch % 2)
                 {
@@ -218,7 +212,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                         }
 
                         int32x4_t ip_0 = vldrbq_s32(col_0);
-                        ip_0 = vaddq_n_s32(ip_0, use_vecsum ? 0 : input_offset);
+                        ip_0 = vaddq_n_s32(ip_0, eff_input_offset);
                         out_0 += vmulq_s32(ip_0, ker_0);
 
                         get_low_nibble = !get_low_nibble;
@@ -237,7 +231,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                         ker_0 = vshrq_n_s32(ker_0, 4);
 
                         int32x4_t ip_0 = vldrbq_s32(col_0);
-                        ip_0 = vaddq_n_s32(ip_0, use_vecsum ? 0 : input_offset);
+                        ip_0 = vaddq_n_s32(ip_0, eff_input_offset);
                         out_0 += vmulq_s32(ip_0, ker_0);
 
                         col_0 += S4_CH_IN_BLOCK_MVE;
@@ -266,10 +260,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
 #else
     int16_t *const col_buffer_start = buffer_a;
     int16_t *col_buffer = col_buffer_start;
-    const int32_t *const bias_start_pos = bias;
     const int32_t *const out_mult_start_pos = output_mult;
     const int32_t *const out_shift_start_pos = output_shift;
-    const int32_t *const acc_start_pos = use_vecsum ? vecsum : bias_start_pos;
+    const int32_t *const acc_start_pos = eff_bias;
     const uint16_t num_cols = kernel_x * kernel_y;
     uint16_t row_count;
     uint16_t row_shift = 0;
@@ -292,14 +285,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
             if (ker_y_start != 0)
             {
                 const int32_t cnt = (kernel_x * input_ch) * ker_y_start;
-                if (use_vecsum)
-                {
-                    for (int32_t t = 0; t < cnt; ++t) { col_buffer[index + t] = (int16_t)(-input_offset); }
-                }
-                else
-                {
-                    memset(&col_buffer[index], 0, cnt * sizeof(int16_t));
-                }
+                for (int32_t t = 0; t < cnt; ++t) { col_buffer[index + t] = (int16_t)(pad_val); }
                 index += (kernel_x * input_ch) * ker_y_start;
             }
 
@@ -312,21 +298,14 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                     const int32_t idx_x = base_idx_x + i_ker_x;
                     if (idx_x < 0 || idx_x >= input_x)
                     {
-                        if (use_vecsum)
-                        {
-                            for (int c = 0; c < input_ch; ++c) { col_buffer[index + c] = (int16_t)(-input_offset); }
-                        }
-                        else
-                        {
-                            memset(&col_buffer[index], 0, input_ch * sizeof(int16_t));
-                        }
+                        for (int c = 0; c < input_ch; ++c) { col_buffer[index + c] = (int16_t)(pad_val); }
                     }
                     else
                     {
                         arm_q7_to_q15_with_offset((int8_t *)input + (idx_y * input_x + idx_x) * input_ch,
                                                   &col_buffer[index],
                                                   input_ch,
-                                                  (int16_t)(use_vecsum ? 0 : input_offset));
+                                                  (int16_t)eff_input_offset);
                     }
                     index += input_ch;
                 }
@@ -336,14 +315,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
             if (diff != 0)
             {
                 const int32_t cnt = (kernel_x * input_ch) * diff;
-                if (use_vecsum)
-                {
-                    for (int32_t t = 0; t < cnt; ++t) { col_buffer[index + t] = (int16_t)(-input_offset); }
-                }
-                else
-                {
-                    memset(&col_buffer[index], 0, cnt * sizeof(int16_t));
-                }
+                for (int32_t t = 0; t < cnt; ++t) { col_buffer[index + t] = (int16_t)(pad_val); }
             }
 
             row_count = output_ch / 4;

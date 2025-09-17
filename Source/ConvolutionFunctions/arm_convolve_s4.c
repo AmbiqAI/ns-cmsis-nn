@@ -96,11 +96,11 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
 
     int8_t pad_val = 0;
     const int32_t *eff_bias =  bias_data;
-    int32_t eff_offset = input_offset;
+    int32_t eff_input_offset = input_offset;
 
     if (weight_sum_ctx && weight_sum_ctx->buf)
     {
-        eff_offset = 0;
+        eff_input_offset = 0;
         eff_bias = (const int32_t *)weight_sum_ctx->buf;
         pad_val = (int8_t)(-input_offset);
     }
@@ -154,7 +154,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
                                             lhs_rows,
                                             rhs_rows,
                                             rhs_cols,
-                                            eff_offset,
+                                            eff_input_offset,
                                             out_offset,
                                             out_activation_min,
                                             out_activation_max,
@@ -179,7 +179,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
                                     lhs_rows,
                                     rhs_rows,
                                     rhs_cols,
-                                    eff_offset,
+                                    eff_input_offset,
                                     out_offset,
                                     out_activation_min,
                                     out_activation_max,
@@ -217,7 +217,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
                         else
                         {
                             arm_q7_to_q15_with_offset(
-                                input_data + (k_y * input_x + k_x) * input_ch, two_column_buf, input_ch, eff_offset);
+                                input_data + (k_y * input_x + k_x) * input_ch, two_column_buf, input_ch, eff_input_offset);
                         }
                         two_column_buf += input_ch;
                     }
