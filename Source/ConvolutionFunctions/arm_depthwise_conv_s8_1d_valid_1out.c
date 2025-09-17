@@ -19,7 +19,7 @@
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
  * Title:        arm_depthwise_conv_s8_1d_valid_1out.c
- * Description:  Optimized s8 1D depthwise separable convolution function for
+ * Description:  Optimized tail function for s8 1D depthwise separable convolution function for
  *               height of 1, valid padding, stride of 1, and dilation of 1.
  *
  * $Date:        16 September 2025
