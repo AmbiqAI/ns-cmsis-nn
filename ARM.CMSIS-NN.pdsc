@@ -52,6 +52,9 @@
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1x1_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1x1_out_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s8.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s8_1d_valid.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s8_1d_valid_1out.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s8_1d_valid_wrapper.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_fast_s16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_wrapper_s16.c"/>
