@@ -2751,6 +2751,47 @@ void arm_relu6_q7(int8_t *data, uint16_t size);
 void arm_relu_q15(int16_t *data, uint16_t size);
 
 /**
+ * @brief S8 clamp function
+ * @param[in] input             Pointer to input
+ * @param[in] act_min           Minimum value to clamp to
+ * @param[in] act_max           Maximum value to clamp to
+ * @param[out] output           Pointer to output
+ * @param[in] output_size       Number of elements in the tensor
+ * @return    The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details This function clamps each element in the input tensor to the range.
+ * This can be useful for activations such as relu(0, 6), relu(-1,1), etc.
+ */
+arm_cmsis_nn_status arm_clamp_s8(
+    const int8_t *input,
+    const int8_t act_min,
+    const int8_t act_max,
+    int8_t *output,
+    const int32_t output_size
+);
+
+/**
+ * @brief S16 clamp function
+ * @param[in] input             Pointer to input
+ * @param[in] act_min           Minimum value to clamp to
+ * @param[in] act_max           Maximum value to clamp to
+ * @param[out] output           Pointer to output
+ * @param[in] output_size       Number of elements in the tensor
+ * @return    The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details This function clamps each element in the input tensor to the range.
+ * This can be useful for activations such as relu(0, 6), relu(-1,1), etc.
+ */
+arm_cmsis_nn_status arm_clamp_s16(
+    const int16_t *input,
+    const int16_t act_min,
+    const int16_t act_max,
+    int16_t *output,
+    const int32_t output_size
+);
+
+
+/**
  * @brief S8 ReLU activation function
  * lower and upper bounds are quantized representations of 0 and 127
  *
