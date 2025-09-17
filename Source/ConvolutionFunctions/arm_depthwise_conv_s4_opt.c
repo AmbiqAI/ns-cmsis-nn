@@ -111,7 +111,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
     int8_t *out = output;
     int buffer_count = 0;
     const int32_t kernel_size = kernel_x * kernel_y;
-
+    (void)pad_val;
     const int32_t ch_loop = (input_ch + (S4_CH_IN_BLOCK_MVE - 1)) / S4_CH_IN_BLOCK_MVE;
     int32_t remaining_ch = output_ch;
     int32_t active_ch = MIN(S4_CH_IN_BLOCK_MVE, remaining_ch);
