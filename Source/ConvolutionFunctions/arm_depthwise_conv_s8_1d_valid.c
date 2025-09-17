@@ -22,7 +22,7 @@
  * Description:  Optimized s8 1D depthwise separable convolution function for
  *               height of 1, valid padding, stride of 1, and dilation of 1.
  *
- * $Date:        22 March 2023
+ * $Date:        16 September 2025
  * $Revision:    V.3.5.0
  *
  * Target :  Arm(R) M-Profile Architecture
@@ -33,57 +33,14 @@
 #include "arm_nnsupportfunctions.h"
 
 #if defined(ARM_MATH_MVEI)
-static inline void arm_depthwise_conv_s8_1d_valid_1out(
-    const int32_t *weight_sum_base,
-    const int8_t  *lhs_col0,
-    const int8_t  *rhs,
-    int32_t        active_ch,
-    int32_t        total_ch,
-    const int32_t *out_shift,
-    const int32_t *out_mult, 
-    int32_t        out_offset,
-    int32_t        act_min,
-    int32_t        act_max,
-    int            kernel_x,
-    int8_t        *out_col)
-{
-    uint32_t rem = active_ch;
-
-    for (int off = 0; off < active_ch; off += 4, rem -= 4, out_col += 4)
-    {
-        mve_pred16_t p = vctp32q(rem);
-
-        int32x4_t acc  = vldrwq_z_s32(weight_sum_base + off, p);
-        int32x4_t mult = vldrwq_z_s32(out_mult         + off, p);
-        int32x4_t shft = vldrwq_z_s32(out_shift        + off, p);
-
-        // loop over taps
-        const int8_t *x_t = lhs_col0 + off;
-        const int8_t *w_t = rhs       + off;
-        for (int t = 0; t < kernel_x; ++t) {
-            int32x4_t xv = vldrbq_z_s32(x_t, p);
-            int32x4_t wv = vldrbq_z_s32(w_t, p);
-            acc = vaddq_s32(acc, vmulq_s32(xv, wv));
-            x_t += total_ch; 
-            w_t += total_ch;
-        }
-
-        acc = arm_requantize_mve_32x4(acc, mult, shft);
-        acc = vaddq_n_s32(acc, out_offset);
-        acc = vmaxq_s32(acc, vdupq_n_s32(act_min));
-        acc = vminq_s32(acc, vdupq_n_s32(act_max));
-        vstrbq_p_s32(out_col, acc, p);
-    }
-}
-
 arm_cmsis_nn_status arm_depthwise_conv_s8_1d_valid(const int32_t* weight_sum_buf,
         const int8_t *lhs,
-        const int8_t *rhs
+        const int8_t *rhs,
         const int32_t input_offset,
         const int32_t active_ch,
         const int32_t total_ch,
         const int32_t *out_shift,
-        const int32_t *out_mult
+        const int32_t *out_mult,
         const int32_t out_offset,
         const int32_t activation_min,
         const int32_t activation_max,
@@ -192,151 +149,3 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_1d_valid(const int32_t* weight_sum_buf
     return ARM_CMSIS_NN_SUCCESS;
 }
 #endif
-
-//this wrapper requires 1D valid kernel
-arm_cmsis_nn_status arm_depthwise_conv_s8_opt_1d_valid_wrapper(const cmsis_nn_context *ctx,
-    const cmsis_nn_context *weight_sum_ctx,
-    const cmsis_nn_dw_conv_params *dw_conv_params,
-    const cmsis_nn_per_channel_quant_params *quant_params,
-    const cmsis_nn_dims *input_dims,
-    const int8_t *input,
-    const cmsis_nn_dims *filter_dims,
-    const int8_t *kernel,
-    const cmsis_nn_dims *bias_dims,
-    const int32_t *bias,
-    const cmsis_nn_dims *output_dims,
-    int8_t *output)
-{
-    const int32_t input_ch = input_dims->c;
-    const int32_t output_ch = output_dims->c;
-
-    /* Check depth multiplier is 1 */
-    if (input_ch != output_ch)
-    {
-    return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
-#ifdef ARM_MATH_MVEI
-    (void)bias_dims;
-    (void)bias;
-    (void)ctx;
-
-    const int32_t input_y  = input_dims->h;
-    const int32_t kernel_x = filter_dims->w;
-    const int32_t kernel_y = filter_dims->h;
-    const int32_t pad_x    = dw_conv_params->padding.w;
-    const int32_t pad_y    = dw_conv_params->padding.h;
-    const int32_t stride_x = dw_conv_params->stride.w;
-    const int32_t stride_y = dw_conv_params->stride.h;
-    const int32_t *output_shift = quant_params->shift;
-    const int32_t *output_mult  = quant_params->multiplier;
-    const int32_t output_x = output_dims->w;
-    const int32_t output_y = output_dims->h;
-    const int32_t out_offset = dw_conv_params->output_offset;
-    const int32_t in_offset  = dw_conv_params->input_offset;
-    const int32_t act_min    = dw_conv_params->activation.min;
-    const int32_t act_max    = dw_conv_params->activation.max;
-
-    const bool is_1d_valid =
-        (input_dims->n == 1) &&
-        (input_y == 1) && (output_y == 1) &&
-        (kernel_y == 1) &&
-        (pad_x == 0) && (pad_y == 0) &&
-        (stride_x == 1) && (stride_y == 1) &&
-        (dw_conv_params->dilation.w == 1) && (dw_conv_params->dilation.h == 1) &&
-        (dw_conv_params->ch_mult == 1);
-
-    if (is_1d_valid)
-    {
-        // Vectorize across channels and compute 4 outputs per call, no im2col.
-        // Requirements:
-        // - weight_sum_ctx->buf must be precomputed by arm_depthwise_convolve_weight_sum() in init()
-        int32_t *weight_sum_buf = (int32_t *)weight_sum_ctx->buf;
-        if (weight_sum_buf == NULL)
-        {
-            return ARM_CMSIS_NN_ARG_ERROR;
-        }
-
-        const int32_t C = input_ch;          // channels
-        const int32_t Wout = output_x;       // width outputs
-
-        const int32_t ch_loop = (C + (CH_IN_BLOCK_MVE - 1)) / CH_IN_BLOCK_MVE;
-        int32_t remaining_ch = C;
-
-        for (int i_ch = 0; i_ch < ch_loop; i_ch++)
-        {
-            const int32_t block_offset = i_ch * CH_IN_BLOCK_MVE;
-            const int32_t active_ch = MIN(CH_IN_BLOCK_MVE, remaining_ch);
-            remaining_ch -= CH_IN_BLOCK_MVE;
-
-            // Slide across width in tiles of 4 outputs
-            int x0 = 0;
-            for (; x0 + 3 < Wout; x0 += 4)
-            {
-                // Base pointers into input/output at column x0 and channel block
-                const int8_t *lhs_base = input  + (x0 * C) + block_offset;
-                int8_t       *out_base = output + (x0 * C) + block_offset;
-
-                // Call 4-output sliding-window microkernel
-                arm_cmsis_nn_status status = arm_depthwise_conv_s8_1d_valid(
-                    weight_sum_buf + block_offset, 
-                    lhs_base,
-                    kernel + block_offset,
-                    in_offset,
-                    active_ch,
-                    C,
-                    output_shift + block_offset,
-                    output_mult  + block_offset,
-                    out_offset,
-                    act_min,
-                    act_max,
-                    kernel_x,
-                    NULL,             // unused (compensation folded in base[])
-                    out_base);
-
-                if (status != ARM_CMSIS_NN_SUCCESS) return status;
-            }
-
-            // Tail: 0..3 leftover outputs use 1-output sliding microkernel
-            for (; x0 < Wout; x0++)
-            {
-                const int8_t *lhs_col0 = input  + (x0 * C) + block_offset;
-                int8_t       *out_col  = output + (x0 * C) + block_offset;
-
-                arm_depthwise_conv_s8_1d_valid_1out(
-                    weight_sum_buf + block_offset,
-                    lhs_col0,
-                    kernel + block_offset,
-                    active_ch,
-                    C,
-                    output_shift + block_offset,
-                    output_mult  + block_offset,
-                    out_offset,
-                    act_min,
-                    act_max,
-                    kernel_x,
-                    out_col);
-            }
-        }
-
-        return ARM_CMSIS_NN_SUCCESS;
-    }
-    else {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-#else
-    (void)weight_sum_ctx;
-    /* Run the following code as reference implementation for Cortex-M0 and Cortex-M3 */
-    return arm_depthwise_conv_s8(ctx,
-                                dw_conv_params,
-                                quant_params,
-                                input_dims,
-                                input,
-                                filter_dims,
-                                kernel,
-                                bias_dims,
-                                bias,
-                                output_dims,
-                                output);
-#endif  // ARM_MATH_MVEI
-}

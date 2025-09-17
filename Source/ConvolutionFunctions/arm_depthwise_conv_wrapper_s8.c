@@ -153,18 +153,18 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
                 dw_conv_params->stride.w == 1 && dw_conv_params->stride.h == 1 &&
                 filter_dims->h == 1 && input_dims->h == 1 && output_dims->h == 1)
             {
-                status = arm_depthwise_conv_s8_opt_1d_valid_wrapper(ctx,
-                                                                    weight_sum_ctx,
-                                                                    dw_conv_params,
-                                                                    quant_params,
-                                                                    input_dims,
-                                                                    input,
-                                                                    filter_dims,
-                                                                    filter,
-                                                                    bias_dims,
-                                                                    bias,
-                                                                    output_dims,
-                                                                    output); 
+                status = arm_depthwise_conv_s8_1d_valid_wrapper(ctx,
+                                                                weight_sum_ctx,
+                                                                dw_conv_params,
+                                                                quant_params,
+                                                                input_dims,
+                                                                input,
+                                                                filter_dims,
+                                                                filter,
+                                                                bias_dims,
+                                                                bias,
+                                                                output_dims,
+                                                                output); 
             }
             else {
                 status = arm_depthwise_conv_s8_opt(ctx,

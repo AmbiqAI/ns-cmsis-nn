@@ -84,7 +84,7 @@ void basic_arm_depthwise_conv_s8_1d_valid_opt(void)
                             lhs_offset,
                             bias_data);
 
-    arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt_1d_valid_wrapper(&ctx,
+    arm_cmsis_nn_status result = arm_depthwise_conv_s8_1d_valid_wrapper(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,
@@ -240,7 +240,7 @@ void k1_1d_valid_40ch_31w_arm_depthwise_conv_s8_opt_1d_valid_wrapper(void)
                                 bias_data);
 
     // Test the 1D depthwise convolution wrapper function
-    arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt_1d_valid_wrapper(&ctx,
+    arm_cmsis_nn_status result = arm_depthwise_conv_s8_1d_valid_wrapper(&ctx,
                                                                            &weights_sum_ctx,
                                                                            &dw_conv_params,
                                                                            &quant_params,
@@ -399,7 +399,7 @@ void k3_1d_valid_40ch_29w_arm_depthwise_conv_s8_opt_1d_valid_wrapper(void)
                             lhs_offset,
                             bias_data);
 
-    arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt_1d_valid_wrapper(&ctx,
+    arm_cmsis_nn_status result = arm_depthwise_conv_s8_1d_valid_wrapper(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,
@@ -557,7 +557,7 @@ void k5_1d_valid_40ch_64w_arm_depthwise_conv_s8_opt_1d_valid_wrapper(void)
                             lhs_offset,
                             bias_data);
 
-    arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt_1d_valid_wrapper(&ctx,
+    arm_cmsis_nn_status result = arm_depthwise_conv_s8_1d_valid_wrapper(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,
@@ -716,7 +716,7 @@ void k7_1d_valid_37ch_127w_arm_depthwise_conv_s8_opt_1d_valid_wrapper(void)
                             lhs_offset,
                             bias_data);
 
-    arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt_1d_valid_wrapper(&ctx,
+    arm_cmsis_nn_status result = arm_depthwise_conv_s8_1d_valid_wrapper(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,
@@ -875,7 +875,7 @@ void edge_equal_k_1d_valid_33ch_3w_arm_depthwise_conv_s8_opt_1d_valid_wrapper(vo
                             lhs_offset,
                             bias_data);
 
-    arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt_1d_valid_wrapper(&ctx,
+    arm_cmsis_nn_status result = arm_depthwise_conv_s8_1d_valid_wrapper(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,
@@ -1034,7 +1034,7 @@ void wide_k3_1d_valid_35ch_255w_arm_depthwise_conv_s8_opt_1d_valid_wrapper(void)
                             lhs_offset,
                             bias_data);
 
-    arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt_1d_valid_wrapper(&ctx,
+    arm_cmsis_nn_status result = arm_depthwise_conv_s8_1d_valid_wrapper(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
                                                            &quant_params,

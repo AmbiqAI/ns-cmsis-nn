@@ -1275,7 +1275,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
  *    - No im2col transformation - direct tensor access for better performance
  *    - Vectorizes across channels and computes 4 outputs per call
  */
-arm_cmsis_nn_status arm_depthwise_conv_s8_opt_1d_valid_wrapper(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_depthwise_conv_s8_1d_valid_wrapper(const cmsis_nn_context *ctx,
                                                  const cmsis_nn_context *weight_sum_ctx,
                                                  const cmsis_nn_dw_conv_params *dw_conv_params,
                                                  const cmsis_nn_per_channel_quant_params *quant_params,
