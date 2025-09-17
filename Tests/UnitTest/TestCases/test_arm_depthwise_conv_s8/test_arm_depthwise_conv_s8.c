@@ -943,15 +943,15 @@ void single_in_many_out_ch(void)
 
     ctx.buf = NULL;
     ctx.size = 0;
-    const int32_t scratch_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
-    int32_t *sum_buf     = (int32_t *)malloc(scratch_size);
-    uint32_t lhs_offset = dw_conv_params.input_offset;
 
     cmsis_nn_context weights_sum_ctx;
-    weights_sum_ctx.buf = sum_buf;
-    weights_sum_ctx.size = scratch_size;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.size = weights_sum_buf_size;
 
-    arm_depthwise_convolve_weight_sum(sum_buf,
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    uint32_t lhs_offset = dw_conv_params.input_offset;
+
+    arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,
                             ctx.buf,
                             kernel_data,
                             &dw_conv_params,
@@ -978,7 +978,11 @@ void single_in_many_out_ch(void)
         memset(ctx.buf, 0, ctx.size);
         free(ctx.buf);
     }
-
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, depthwise_single_in_many_out_ch_output_ref, output_ref_size));
     memset(output, 0, sizeof(output));
@@ -987,7 +991,7 @@ void single_in_many_out_ch(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
-    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);
     weights_sum_ctx.size = weights_sum_buf_size;
     result = arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,

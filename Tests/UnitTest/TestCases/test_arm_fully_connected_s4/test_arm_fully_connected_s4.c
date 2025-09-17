@@ -426,9 +426,6 @@ void fully_connected_int4_arm_fully_connected_s4_6(void)
                       fc_params.input_offset,
                       bias_data);
 
-
-    // ((int32_t *)ctx.buf)[0] += 530;
-
     arm_cmsis_nn_status result = arm_fully_connected_s4(&ctx,
                                                         &fc_params,
                                                         &quant_params,
