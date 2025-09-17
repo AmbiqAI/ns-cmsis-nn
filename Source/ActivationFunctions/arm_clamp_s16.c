@@ -68,12 +68,12 @@ arm_cmsis_nn_status arm_clamp_s16(
     {
         // Load
         mve_pred16_t pred = vctp16q((uint32_t)flat_size);
-        int16x8_t res = vldrbq_z_s16(input, pred);
+        int16x8_t res = vldrhq_z_s16(input, pred);
         // Clamp
         res = vmaxq_s16(res, qmin);
         res = vminq_s16(res, qmax);
         // Store
-        vstrbq_p_s16(output, res, pred);
+        vstrhq_p_s16(output, res, pred);
         // Increment pointers
         input += 8;
         output += 8;
