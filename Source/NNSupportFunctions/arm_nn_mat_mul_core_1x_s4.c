@@ -123,9 +123,9 @@ arm_cmsis_nn_status arm_nn_mat_mul_core_1x_s4(int32_t row_elements,
             acc_n0 += bias[i];
         }
         acc_n0 = arm_nn_requantize(acc_n0, output_mult[i], output_shift[i]);
-        acc_n0 += out_offset;
-        acc_n0 = MAX(acc_n0, out_activation_min);
-        acc_n0 = MIN(acc_n0, out_activation_max);
+        acc_n0 += conv_params->output_offset;
+        acc_n0 = MAX(acc_n0, conv_params->activation.min);
+        acc_n0 = MIN(acc_n0, conv_params->activation.max);
         *output++ = (int8_t)acc_n0;
     }
     return ARM_CMSIS_NN_SUCCESS;
