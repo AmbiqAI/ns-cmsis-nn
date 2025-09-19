@@ -570,16 +570,17 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
     {
         const int8_t *lhs_ptr = &lhs[0];
         int8_t *dst_ptr = &dst[0];
-
+        int32_t eff_input_offset = weight_sum_buf ? 0 : lhs_offset;
+        const int32_t *eff_bias = weight_sum_buf ? weight_sum_buf : bias;
         for (int32_t lhs_rows_idx = 0; lhs_rows_idx < lhs_rows; ++lhs_rows_idx)
         {
             const int8_t *rhs_ptr = &rhs[0];
-            int32_t res00 = weight_sum_buf ? weight_sum_buf[rhs_rows - 1] : (bias ? bias[rhs_rows - 1] : 0);
+            int32_t res00 = eff_bias[rhs_rows - 1];
 
             for (int32_t rhs_cols_idx = 0; rhs_cols_idx < rhs_cols; ++rhs_cols_idx)
             {
                 int32_t rhs_value = rhs_ptr[0];
-                int32_t lhs_value = lhs_ptr[0] + (weight_sum_buf ? 0 : lhs_offset);
+                int32_t lhs_value = lhs_ptr[0] + eff_input_offset;
 
                 res00 += lhs_value * rhs_value;
 
@@ -743,16 +744,17 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
     {
         const int8_t *lhs_ptr = &lhs[0];
         int8_t *dst_ptr = &dst[0];
-
+        int32_t eff_input_offset = weight_sum_buf ? 0 : lhs_offset;
+        const int32_t *eff_bias = weight_sum_buf ? weight_sum_buf : bias;
         for (int32_t lhs_rows_idx = 0; lhs_rows_idx < lhs_rows; ++lhs_rows_idx)
         {
             const int8_t *rhs_ptr = &rhs[0];
-            int32_t res00 = weight_sum_buf ? weight_sum_buf[rhs_rows - 1] : (bias ? bias[rhs_rows - 1] : 0);
+            int32_t res00 = eff_bias[rhs_rows - 1];
 
             for (int32_t rhs_cols_idx = rhs_cols; rhs_cols_idx != 0; rhs_cols_idx--)
             {
                 int32_t rhs_value = rhs_ptr[0];
-                int32_t lhs_value = lhs_ptr[0] + (weight_sum_buf ? 0 : lhs_offset);
+                int32_t lhs_value = lhs_ptr[0] + (int8_t)eff_input_offset;
 
                 res00 += lhs_value * rhs_value;
 
