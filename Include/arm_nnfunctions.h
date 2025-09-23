@@ -2949,7 +2949,8 @@ arm_cmsis_nn_status arm_logistic_s16(
     int16_t *output,
     const int32_t input_size,
     int32_t input_multiplier,
-    int32_t input_left_shift);
+    int32_t input_left_shift
+);
 
 /**
  * @brief Tanh activation function for s16
@@ -3041,7 +3042,9 @@ arm_cmsis_nn_status arm_hard_swish_compat_s8(
  *
  * @details This version uses int32_t for intermediate computations to provide better accuracy.
  * relu_q3, relu_q6 = round(3 / input_scale), round(6 / input_scale)
- * output_multiplier, output_shift = quantize_multiplier((input_scale**2) / (6.0 * output_scale))
+ * prescale = min value to multiply input by to avoid overflow in intermediate computations
+ * M = ((input_scale**2) / (6.0 * output_scale)) * (1 << prescale)
+ * output_multiplier, output_shift = quantize_multiplier(M)
  */
 arm_cmsis_nn_status arm_hard_swish_precise_s8(
     const int8_t *input,
@@ -3073,7 +3076,9 @@ arm_cmsis_nn_status arm_hard_swish_precise_s8(
  *
  * @details This version uses int32_t for intermediate computations to provide better accuracy.
  * relu_q3, relu_q6 = round(3 / input_scale), round(6 / input_scale)
- * output_multiplier, output_shift = quantize_multiplier((input_scale**2) / (6.0 * output_scale))
+ * prescale = min value to multiply input by to avoid overflow in intermediate computations
+ * M = ((input_scale**2) / (6.0 * output_scale)) * (1 << prescale)
+ * output_multiplier, output_shift = quantize_multiplier(M)
  */
 arm_cmsis_nn_status arm_hard_swish_precise_s16(
     const int16_t *input,
