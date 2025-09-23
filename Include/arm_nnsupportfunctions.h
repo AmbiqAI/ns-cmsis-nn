@@ -1749,6 +1749,33 @@ __STATIC_FORCEINLINE int32_t arm_nn_divide_by_power_of_two(const int32_t dividen
 }
 
 /**
+ * @brief           Rounding divide by power of two for non-negative values.
+ * @param[in]       dividend - Dividend (assumed to be non-negative)
+ * @param[in]       exponent - Divisor = power(2, exponent)
+ *                             Range: [0, 31]
+ * @return          Rounded result of division. Midpoint is rounded away from zero.
+ *
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_nonneg_divide_by_pot_s32(int32_t dividend, int32_t exponent)
+{
+    if (exponent == 0) return dividend;  // exact, and avoids special carry handling
+
+#ifdef CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY
+    int32_t out;
+    __asm volatile(
+        "lsrs   %0, %1, %2   \n"   // out = x >> k;  C = bit(k-1) of x
+        "adc    %0, %0, #0   \n"   // out += C  (round-to-nearest, ties up)
+        : "=&r"(out)
+        : "r"(dividend), "r"(exponent)
+        : "cc");
+    return out;
+#else
+    uint32_t t = (uint32_t)dividend + (uint32_t)(1u << (exponent - 1));
+    return (int32_t)(t >> exponent);
+#endif
+}
+
+/**
  * @brief           Requantize a given value.
  * @details         Essentially returns (val * multiplier)/(2 ^ shift) with different rounding depending if
  *                  CMSIS_NN_USE_SINGLE_ROUNDING is defined or not.

@@ -2751,6 +2751,47 @@ void arm_relu6_q7(int8_t *data, uint16_t size);
 void arm_relu_q15(int16_t *data, uint16_t size);
 
 /**
+ * @brief S8 clamp function
+ * @param[in] input             Pointer to input
+ * @param[in] act_min           Minimum value to clamp to
+ * @param[in] act_max           Maximum value to clamp to
+ * @param[out] output           Pointer to output
+ * @param[in] output_size       Number of elements in the tensor
+ * @return    The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details This function clamps each element in the input tensor to the range.
+ * This can be useful for activations such as relu(0, 6), relu(-1,1), etc.
+ */
+arm_cmsis_nn_status arm_clamp_s8(
+    const int8_t *input,
+    const int8_t act_min,
+    const int8_t act_max,
+    int8_t *output,
+    const int32_t output_size
+);
+
+/**
+ * @brief S16 clamp function
+ * @param[in] input             Pointer to input
+ * @param[in] act_min           Minimum value to clamp to
+ * @param[in] act_max           Maximum value to clamp to
+ * @param[out] output           Pointer to output
+ * @param[in] output_size       Number of elements in the tensor
+ * @return    The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details This function clamps each element in the input tensor to the range.
+ * This can be useful for activations such as relu(0, 6), relu(-1,1), etc.
+ */
+arm_cmsis_nn_status arm_clamp_s16(
+    const int16_t *input,
+    const int16_t act_min,
+    const int16_t act_max,
+    int16_t *output,
+    const int32_t output_size
+);
+
+
+/**
  * @brief S8 ReLU activation function
  * lower and upper bounds are quantized representations of 0 and 127
  *
@@ -2903,11 +2944,32 @@ arm_cmsis_nn_status arm_leaky_relu_s16(const int16_t *input,
  *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> Argument error check failed
  *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  */
-arm_cmsis_nn_status arm_logistic_s16(int16_t *input,
-                                     int16_t *output,
-                                     const int32_t input_size,
-                                     int32_t input_multiplier,
-                                     int32_t input_left_shift);
+arm_cmsis_nn_status arm_logistic_s16(
+    const int16_t *input,
+    int16_t *output,
+    const int32_t input_size,
+    int32_t input_multiplier,
+    int32_t input_left_shift
+);
+
+/**
+ * @brief Tanh activation function for s16
+ * @param[in]  input              Pointer to the input tensor
+ * @param[out] output             Pointer to the output tensor
+ * @param[in]  input_size         Number of elements in the input tensor
+ * @param[in]  input_multiplier   Input quantization multiplier
+ * @param[in]  input_left_shift   Input quantization shift within the range [0, 31]
+ * @return                        The function returns
+ *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> Argument error check failed
+ *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ */
+arm_cmsis_nn_status arm_tanh_s16(
+    const int16_t *input,
+    int16_t *output,
+    const int32_t input_size,
+    int32_t input_multiplier,
+    int32_t input_left_shift
+);
 
 /**
  * @brief s16 neural network activation function using direct table look-up
@@ -2973,13 +3035,16 @@ arm_cmsis_nn_status arm_hard_swish_compat_s8(
  * @param[in]      output_shift                Output shift
  * @param[in]      relu_q3                     ReLU6 Q3 value
  * @param[in]      relu_q6                     ReLU6 Q6 value
+ * @param[in]      prescale                    Prescale to apply to input
  * @param[out]     output                      Pointer to the output buffer
  * @param[in]      output_size                 Number of elements in the tensor
  * @return         The function returns ARM_MATH_SUCCESS
  *
  * @details This version uses int32_t for intermediate computations to provide better accuracy.
  * relu_q3, relu_q6 = round(3 / input_scale), round(6 / input_scale)
- * output_multiplier, output_shift = quantize_multiplier((input_scale**2) / (6.0 * output_scale))
+ * prescale = min value to multiply input by to avoid overflow in intermediate computations
+ * M = ((input_scale**2) / (6.0 * output_scale)) * (1 << prescale)
+ * output_multiplier, output_shift = quantize_multiplier(M)
  */
 arm_cmsis_nn_status arm_hard_swish_precise_s8(
     const int8_t *input,
@@ -2989,40 +3054,8 @@ arm_cmsis_nn_status arm_hard_swish_precise_s8(
     const int32_t output_shift,
     const int32_t relu_q3,
     const int32_t relu_q6,
+    const int32_t prescale,
     int8_t *output,
-    const int32_t output_size
-);
-
-/**
- * @brief S16 Hard-Swish activation function (compatibility version)
- *
- * @param[in]      input                       Pointer to the input buffer
- * @param[in]      input_offset                Input tensor zero offset
- * @param[in]      output_offset               Output tensor zero offset
- * @param[in]      output_multiplier_fp        Output multiplier in fixed point format
- * @param[in]      output_multiplier_exp       Exponent for output multiplier
- * @param[in]      relu_multiplier_fp          ReLU6 multiplier in fixed point format
- * @param[in]      relu_multiplier_exp         Exponent for ReLU6 multiplier
- * @param[out]     output                      Pointer to the output buffer
- * @param[in]      output_size                 Number of elements in the tensor
- * @return         The function returns ARM_MATH_SUCCESS
- *
- * @details This version is compatible with TFLite implementation of Hard-Swish.
- * hires_input_scale = (1.0 / 128.0) * float(input_scale)
- * relu_scale = 3.0 / 32768.0
- * out_mul_real = hires_input_scale / float(output_scale)
- * output_multiplier_fp, output_multiplier_exp = to_q15_exp(out_mul_real)
- * relu_multiplier_fp, relu_multiplier_exp = to_q15_exp(relu_scale)
- */
-arm_cmsis_nn_status arm_hard_swish_compat_s16(
-    const int16_t *input,
-    const int32_t input_offset,
-    const int32_t output_offset,
-    const int32_t output_multiplier_fp,
-    const int32_t output_multiplier_exp,
-    const int32_t relu_multiplier_fp,
-    const int32_t relu_multiplier_exp,
-    int16_t *output,
     const int32_t output_size
 );
 
@@ -3036,13 +3069,16 @@ arm_cmsis_nn_status arm_hard_swish_compat_s16(
  * @param[in]      output_shift                Output shift
  * @param[in]      relu_q3                     ReLU6 Q3 value
  * @param[in]      relu_q6                     ReLU6 Q6 value
+ * @param[in]      prescale                    Prescale to apply to input
  * @param[out]     output                      Pointer to the output buffer
  * @param[in]      output_size                 Number of elements in the tensor
  * @return         The function returns ARM_MATH_SUCCESS
  *
  * @details This version uses int32_t for intermediate computations to provide better accuracy.
  * relu_q3, relu_q6 = round(3 / input_scale), round(6 / input_scale)
- * output_multiplier, output_shift = quantize_multiplier((input_scale**2) / (6.0 * output_scale))
+ * prescale = min value to multiply input by to avoid overflow in intermediate computations
+ * M = ((input_scale**2) / (6.0 * output_scale)) * (1 << prescale)
+ * output_multiplier, output_shift = quantize_multiplier(M)
  */
 arm_cmsis_nn_status arm_hard_swish_precise_s16(
     const int16_t *input,
@@ -3052,6 +3088,7 @@ arm_cmsis_nn_status arm_hard_swish_precise_s16(
     const int32_t output_shift,
     const int32_t relu_q3,
     const int32_t relu_q6,
+    const int32_t prescale,
     int16_t *output,
     const int32_t output_size
 );
