@@ -237,12 +237,22 @@ class Op_hard_swish(Lib.op_utils.Op_type):
         generated_params["relu_multiplier_exp"] = int(relu_exp)
 
         # Needed for precise hard-swish variant
-        M_real = (input_scale * input_scale) / (6.0 * output_scale)
-        multiplier, shift = Lib.op_utils.compute_multiplier_shift(M_real)
-        generated_params["output_multiplier"] = int(multiplier)
-        generated_params["output_shift"] = int(shift)
         generated_params["relu_q3"] = int(relu_q3)
         generated_params["relu_q6"] = int(relu_q6)
+
+        # Determine prescale to avoid overflow in precise variant
+        prod_max = 32767 * int(relu_q6)
+        prescale = 0
+        int16_max = np.iinfo(np.int16).max
+        while prod_max > int16_max:
+            prescale += 1
+            prod_max >>= 1
+        generated_params["prescale"] = int(prescale)
+        M_real = (input_scale * input_scale) / (6.0 * output_scale)
+        M_adj = M_real * (1 << prescale)
+        multiplier, shift = Lib.op_utils.compute_multiplier_shift(M_adj)
+        generated_params["output_multiplier"] = int(multiplier)
+        generated_params["output_shift"] = int(shift)
 
         # Keep these for debugging/inspection
         effective_scales["hires_input_scale"] = float(hires_input_scale)

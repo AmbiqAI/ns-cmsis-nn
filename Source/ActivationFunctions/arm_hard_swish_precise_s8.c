@@ -37,6 +37,7 @@ arm_cmsis_nn_status arm_hard_swish_precise_s8(
     const int32_t output_shift,
     const int32_t relu_q3,
     const int32_t relu_q6,
+    const int32_t prescale,
     int8_t *output,
     const int32_t output_size)
 {
@@ -68,6 +69,9 @@ arm_cmsis_nn_status arm_hard_swish_precise_s8(
         xr = vmaxq_s32(xr, vdupq_n_s32(0));
         xr = vminq_s32(xr, vdupq_n_s32(relu_q6));
 
+        // Prescale to prevent overflow in multiplication
+        xr = vrshlq_n_s32(xr, -prescale);
+
         // Integer product x * xr (unit: s_in^2)
         int32x4_t y = vmulq_s32(x, xr);
 
@@ -96,6 +100,9 @@ arm_cmsis_nn_status arm_hard_swish_precise_s8(
 
         // Compute xr = clamp(x + relu_q3, 0, relu_q6)
         int32_t xr = CLAMP(x + relu_q3, relu_q6, 0);
+
+        // Prescale to prevent overflow in multiplication
+        xr = arm_nn_nonneg_divide_by_pot_s32(xr, prescale);
 
         // Integer product x * xr (unit: s_in^2)
         int32_t y = x * xr;
