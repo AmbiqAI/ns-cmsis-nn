@@ -95,7 +95,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
     int32_t *output_shift = quant_params->shift;
 
     int8_t pad_val = 0;
-    const int32_t *eff_bias =  bias_data;
+    const int32_t *eff_bias = bias_data;
     int32_t eff_input_offset = input_offset;
 
     if (weight_sum_ctx && weight_sum_ctx->buf)
@@ -211,13 +211,14 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
                         if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
                         {
                             /* Filling 0 for out-of-bound paddings or input_offset if weight_sum is used*/
-                            for (int c = 0; c < input_ch; ++c) { two_column_buf[c] = pad_val; } //find a better way of doing this
-                            //memset writes a single 8bit pattern and the buffer is 16bit 
+                            arm_memset_s16(two_column_buf, pad_val, (uint32_t)input_ch);
                         }
                         else
                         {
-                            arm_q7_to_q15_with_offset(
-                                input_data + (k_y * input_x + k_x) * input_ch, two_column_buf, input_ch, eff_input_offset);
+                            arm_q7_to_q15_with_offset(input_data + (k_y * input_x + k_x) * input_ch,
+                                                      two_column_buf,
+                                                      input_ch,
+                                                      eff_input_offset);
                         }
                         two_column_buf += input_ch;
                     }

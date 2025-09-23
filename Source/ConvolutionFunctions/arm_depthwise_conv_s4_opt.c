@@ -96,7 +96,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
     int16_t *buffer_a = (int16_t *)ctx->buf;
 
     int8_t pad_val = 0;
-    const int32_t *eff_bias =  bias;
+    const int32_t *eff_bias = bias;
     int32_t eff_input_offset = input_offset;
     if (weight_sum_ctx && weight_sum_ctx->buf)
     {
@@ -284,8 +284,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
             int32_t index = 0;
             if (ker_y_start != 0)
             {
-                const int32_t cnt = (kernel_x * input_ch) * ker_y_start;
-                for (int32_t t = 0; t < cnt; ++t) { col_buffer[index + t] = (int16_t)(pad_val); }
+                arm_memset_s16(col_buffer, pad_val, (uint32_t)input_ch);
                 index += (kernel_x * input_ch) * ker_y_start;
             }
 
@@ -298,7 +297,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                     const int32_t idx_x = base_idx_x + i_ker_x;
                     if (idx_x < 0 || idx_x >= input_x)
                     {
-                        for (int c = 0; c < input_ch; ++c) { col_buffer[index + c] = (int16_t)(pad_val); }
+                        arm_memset_s16(col_buffer, pad_val, (uint32_t)input_ch);
                     }
                     else
                     {
@@ -314,8 +313,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
             const int diff = kernel_y - ker_y_end;
             if (diff != 0)
             {
-                const int32_t cnt = (kernel_x * input_ch) * diff;
-                for (int32_t t = 0; t < cnt; ++t) { col_buffer[index + t] = (int16_t)(pad_val); }
+                arm_memset_s16(col_buffer, pad_val, (uint32_t)input_ch);
             }
 
             row_count = output_ch / 4;
@@ -352,7 +350,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
 
                     while (col_count)
                     {
-#ifdef ARM_MATH_DSP
+    #ifdef ARM_MATH_DSP
                         int32_t ip_a1, ip_a2, ip_b1, ip_b2, op_a, op_b, op_c;
 
                         /* Read 4 weights */
@@ -382,7 +380,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                         op_b = PKHTB(ip_a1, ip_b1, 16);
                         sum_4 = SMLAD(op_a, op_b, sum_4);
 
-#else
+    #else
                         int8_t ker0, ker1, ker2, ker3, ker00, ker11;
 
                         ker00 = row_pos[0];
@@ -408,7 +406,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                         sum_3 += ker2 * col_pos[2 + input_ch];
                         sum_4 += ker3 * col_pos[3 + input_ch];
 
-#endif
+    #endif
                         row_pos += (input_ch);
                         col_pos += input_ch << 1;
 
@@ -547,7 +545,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                     row_shift += 2;
                     col_shift += 4;
 
-#ifdef ARM_MATH_DSP
+    #ifdef ARM_MATH_DSP
                     while (col_count)
                     {
                         /* General idea is to read 4 + 4 (input, kernel) pair and re-arrange them in the right order to
@@ -589,9 +587,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                     }
 
                     col_count = num_cols & 0x1;
-#else
+    #else
                     col_count = num_cols;
-#endif
+    #endif
                     while (col_count)
                     {
                         int8_t ker0, ker1, ker2, ker3, ker00, ker11;
