@@ -81,6 +81,7 @@
                     NAME_UP##_OUTPUT_SHIFT,                                                    \
                     NAME_UP##_RELU_Q3,                                                         \
                     NAME_UP##_RELU_Q6,                                                         \
+                    0, /* prescale */                                                          \
                     output,                                                                    \
                     output_size                                                                \
                 );                                                                             \

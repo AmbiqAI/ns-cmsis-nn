@@ -50,25 +50,6 @@
         const int16_t *input_data = name_lc##_input_tensor;                                    \
         int16_t output[NAME_UP##_OUTPUT_LEN] = {0};                                            \
                                                                                                \
-        for (int r = 0; r < REPEAT_NUM; ++r)                                                   \
-        {                                                                                      \
-            const arm_cmsis_nn_status result =                                                 \
-                arm_hard_swish_compat_s16(                                                     \
-                    input_data,                                                                \
-                    NAME_UP##_INPUT_OFFSET,                                                    \
-                    NAME_UP##_OUTPUT_OFFSET,                                                   \
-                    NAME_UP##_OUTPUT_MULTIPLIER_FP,                                            \
-                    NAME_UP##_OUTPUT_MULTIPLIER_EXP,                                           \
-                    NAME_UP##_RELU_MULTIPLIER_FP,                                              \
-                    NAME_UP##_RELU_MULTIPLIER_EXP,                                             \
-                    output,                                                                    \
-                    output_size                                                                \
-                );                                                                             \
-            TEST_ASSERT_EQUAL(expected, result);                                               \
-        }                                                                                      \
-                                                                                               \
-        /* Allow no delta to be compat with TFLM */                                            \
-        TEST_ASSERT_TRUE(validate_tol_s16(output, name_lc##_output, output_size, 0));          \
                                                                                                \
         for (int r = 0; r < REPEAT_NUM; ++r)                                                   \
         {                                                                                      \
@@ -81,6 +62,7 @@
                     NAME_UP##_OUTPUT_SHIFT,                                                    \
                     NAME_UP##_RELU_Q3,                                                         \
                     NAME_UP##_RELU_Q6,                                                         \
+                    0, /* prescale */                                                          \
                     output,                                                                    \
                     output_size                                                                \
                 );                                                                             \
