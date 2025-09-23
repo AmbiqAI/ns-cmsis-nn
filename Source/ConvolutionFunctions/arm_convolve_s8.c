@@ -63,7 +63,6 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
 {
     (void)bias_dims;
 
-
     if (ctx->buf == NULL)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
@@ -135,7 +134,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
         }
         const int32_t *weight_sum_data_ptr = weight_sum_ctx->buf;
 #else
-        const int32_t *weight_sum_data_ptr = weight_sum_ctx->buf;
+        (void)weight_sum_ctx;
         /* Use as a ping-pong buffer for unordered elements */
         int8_t *im2col_buf = (int8_t *)buffer_a + aligned_rhs_cols * 2;
         int16_t *im2col_buf_start_s16 = buffer_a;
@@ -275,8 +274,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                                                                            aligned_rhs_cols,
                                                                            bias_data_ptr,
                                                                            output_ch,
-                                                                           out,
-                                                                           weight_sum_data_ptr);
+                                                                           out);
                         }
                         else
                         {
@@ -291,8 +289,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                                                                 rhs_cols,
                                                                 aligned_rhs_cols,
                                                                 bias_data_ptr,
-                                                                out,
-                                                                weight_sum_data_ptr);
+                                                                out);
                         }
 
                         /* counter reset */
