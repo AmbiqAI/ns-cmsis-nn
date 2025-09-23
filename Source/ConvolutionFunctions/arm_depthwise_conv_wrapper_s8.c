@@ -149,9 +149,12 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
         else
 #endif
         {
-            if (dw_conv_params->padding.h == 0 && dw_conv_params->padding.w == 0 &&
-                dw_conv_params->stride.w == 1 && dw_conv_params->stride.h == 1 &&
-                filter_dims->h == 1 && input_dims->h == 1 && output_dims->h == 1)
+        if (dw_conv_params->padding.h == 0 && dw_conv_params->padding.w == 0 &&
+            dw_conv_params->stride.w  == 1 && dw_conv_params->stride.h  == 1 &&
+            (
+            (filter_dims->h == 1 && input_dims->h == 1 && output_dims->h == 1) ||
+            (filter_dims->w == 1 && input_dims->w == 1 && output_dims->w == 1)
+            ))
             {
                 status = arm_depthwise_conv_s8_1d_valid_wrapper(ctx,
                                                                 weight_sum_ctx,

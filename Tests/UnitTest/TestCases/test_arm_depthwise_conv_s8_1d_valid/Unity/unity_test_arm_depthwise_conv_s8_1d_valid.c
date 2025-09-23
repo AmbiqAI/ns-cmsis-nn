@@ -76,3 +76,33 @@ void test_wide_k3_1d_valid_35ch_255w_arm_depthwise_conv_s8_opt_1d_valid_wrapper(
 { 
     wide_k3_1d_valid_35ch_255w_arm_depthwise_conv_s8_opt_1d_valid_wrapper(); 
 }
+
+void test_wide_k5_1d_valid_35ch_256h_arm_depthwise_conv_s8_opt_1d_valid_wrapper(void)
+{
+    wide_k5_1d_valid_35ch_256h_arm_depthwise_conv_s8_opt_1d_valid_wrapper();
+}
+
+void test_k7_1d_valid_16ch_32h_arm_depthwise_conv_s8_opt_1d_valid_wrapper(void)
+{
+    k7_1d_valid_16ch_32h_arm_depthwise_conv_s8_opt_1d_valid_wrapper();
+}
+
+void test_edge_equal_k_1d_valid_8ch_3h_arm_depthwise_conv_s8_opt_1d_valid_wrapper(void)
+{
+    edge_equal_k_1d_valid_8ch_3h_arm_depthwise_conv_s8_opt_1d_valid_wrapper();
+}
+
+void test_small_k3_1d_valid_12ch_16h_arm_depthwise_conv_s8_opt_1d_valid_wrapper(void)
+{
+    small_k3_1d_valid_12ch_16h_arm_depthwise_conv_s8_opt_1d_valid_wrapper();
+}
+
+void test_medium_k5_1d_valid_20ch_80h_arm_depthwise_conv_s8_opt_1d_valid_wrapper(void)
+{
+    medium_k5_1d_valid_20ch_80h_arm_depthwise_conv_s8_opt_1d_valid_wrapper();
+}
+
+void test_large_k9_1d_valid_28ch_200h_arm_depthwise_conv_s8_opt_1d_valid_wrapper(void)
+{
+    large_k9_1d_valid_28ch_200h_arm_depthwise_conv_s8_opt_1d_valid_wrapper();
+}
