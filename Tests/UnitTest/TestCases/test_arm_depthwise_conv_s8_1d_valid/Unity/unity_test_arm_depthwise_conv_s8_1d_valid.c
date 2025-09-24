@@ -106,3 +106,8 @@ void test_large_k9_1d_valid_28ch_200h_arm_depthwise_conv_s8_opt_1d_valid_wrapper
 {
     large_k9_1d_valid_28ch_200h_arm_depthwise_conv_s8_opt_1d_valid_wrapper();
 }
+
+void test_edge_equal_k_1d_valid_128ch_15w_arm_depthwise_conv_s8_opt_1d_valid_wrapper(void)
+{
+    edge_equal_k_1d_valid_128ch_15w_arm_depthwise_conv_s8_opt_1d_valid_wrapper();
+}

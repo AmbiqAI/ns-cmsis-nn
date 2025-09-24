@@ -53,20 +53,39 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_1d_valid_1out(
     {
         mve_pred16_t p = vctp32q(rem);
 
-        int32x4_t acc  = vldrwq_z_s32(weight_sum_base + off, p);
+        int32x4_t base  = vldrwq_z_s32(weight_sum_base + off, p);
         int32x4_t mult = vldrwq_z_s32(out_mult         + off, p);
         int32x4_t shft = vldrwq_z_s32(out_shift        + off, p);
 
         // loop over taps
         const int8_t *x_t = lhs_col0 + off;
         const int8_t *w_t = rhs       + off;
-        for (int t = 0; t < kernel_x; ++t) {
-            int32x4_t xv = vldrbq_z_s32(x_t, p);
-            int32x4_t wv = vldrbq_z_s32(w_t, p);
-            acc = vaddq_s32(acc, vmulq_s32(xv, wv));
-            x_t += total_ch; 
-            w_t += total_ch;
+        
+        int32x4_t sum0 = vdupq_n_s32(0);
+        int32x4_t sum1 = vdupq_n_s32(0);
+        int t = 0;
+        // unroll loop by 2
+        for (; t + 1 < kernel_x; t += 2) {
+            int32x4_t xv0 = vldrbq_z_s32(x_t, p);
+            int32x4_t wv0 = vldrbq_z_s32(w_t, p);
+            int32x4_t xv1 = vldrbq_z_s32(x_t + total_ch, p);
+            int32x4_t wv1 = vldrbq_z_s32(w_t + total_ch, p);
+
+            sum0 = vaddq_s32(sum0, vmulq_s32(xv0, wv0));
+            sum1 = vaddq_s32(sum1, vmulq_s32(xv1, wv1));
+
+            x_t += 2 * total_ch;
+            w_t += 2 * total_ch;
         }
+
+        // odd-tail tap
+        if (t < kernel_x) {
+            const int32x4_t xv = vldrbq_z_s32(x_t, p);
+            const int32x4_t wv = vldrbq_z_s32(w_t, p);
+            sum0 = vaddq_s32(sum0, vmulq_s32(xv, wv));
+        }
+
+        int32x4_t acc = vaddq_s32(base, vaddq_s32(sum0, sum1));
 
         acc = arm_requantize_mve_32x4(acc, mult, shft);
         acc = vaddq_n_s32(acc, out_offset);

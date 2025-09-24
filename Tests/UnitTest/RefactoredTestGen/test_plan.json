@@ -3271,6 +3271,26 @@
         "bias_max": 127,
         "weights_min": -128,
         "weights_max": 127
+      },
+      {
+        "name": "edge_equal_k_1d_valid_128ch_15w",
+        "input_batches": 1,
+        "in_ch": 128,
+        "out_ch": 128,
+        "input_w": 15,
+        "input_h": 1,
+        "filter_x": 15,
+        "filter_y": 1,
+        "stride_x": 1,
+        "stride_y": 1,
+        "dilation_x": 1,
+        "dilation_y": 1,
+        "padding": "VALID",
+        "generate_bias": true,
+        "bias_min": -128,
+        "bias_max": 127,
+        "weights_min": -128,
+        "weights_max": 127
       }
       
     ]
