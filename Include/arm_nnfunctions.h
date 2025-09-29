@@ -1239,6 +1239,62 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
                                                   const cmsis_nn_dims *output_dims,
                                                   int8_t *output_data);
 
+
+
+
+/**
+ * @brief Optimized s8 1D depthwise convolution wrapper function for valid padding, height of 1, stride of 1, and dilation of 1.
+ *
+ * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
+ *                                 definition file to see if an additional buffer is required.
+ *                                 Optional function {API}_get_buffer_size() provides the buffer
+ *                                 size if required.
+ *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in, out] weight_sum_ctx  Function context that contains the weight sum buffer if required by the function.
+ * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
+ *                                 dw_conv_params->dilation is not used.
+ *                                 Range of dw_conv_params->input_offset : [-127, 128]
+ *                                 Range of dw_conv_params->output_offset : [-128, 127]
+ * @param[in]      quant_params    Per-channel quantization info.
+ *                                 It contains the multiplier and shift values to be applied to each
+ *                                 output channel
+ * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [H, W, C_IN]
+ *                                 Batch argument N is not used and assumed to be 1.
+ * @param[in]      input           Input (activation) data pointer. Data type: int8
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      kernel          Filter data pointer. Data type: int8
+ * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
+ * @param[in]      bias            Bias data pointer. Data type: int32
+ * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in, out] output          Output data pointer. Data type: int8
+ * @return     The function returns
+ *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion.
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> -  Argument error.
+ *
+ * @details
+ *    - Optimized for 1D depthwise convolution with specific constraints:
+ *        - Input height = 1, Output height = 1, Filter height = 1
+ *        - Valid padding (padding = 0)
+ *        - Stride = 1, Dilation = 1
+ *        - Channel multiplier = 1
+ *    - Uses MVE vectorized operations for Cortex-M55 with MVE extension
+ *    - Requires pre-computed weight sum buffer from arm_depthwise_convolve_weight_sum()
+ *    - No im2col transformation - direct tensor access for better performance
+ *    - Vectorizes across channels and computes 4 outputs per call
+ */
+arm_cmsis_nn_status arm_depthwise_conv_s8_1d_valid_wrapper(const cmsis_nn_context *ctx,
+                                                 const cmsis_nn_context *weight_sum_ctx,
+                                                 const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                 const cmsis_nn_per_channel_quant_params *quant_params,
+                                                 const cmsis_nn_dims *input_dims,
+                                                 const int8_t *input,
+                                                 const cmsis_nn_dims *filter_dims,
+                                                 const int8_t *kernel,
+                                                 const cmsis_nn_dims *bias_dims,
+                                                 const int32_t *bias,
+                                                 const cmsis_nn_dims *output_dims,
+                                                 int8_t *output);
+
 /**
  * @brief Wrapper function to pick the right optimized s4 depthwise convolution function
  *

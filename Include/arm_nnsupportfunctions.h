@@ -1038,6 +1038,84 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t* weight_sum_buf,
                                                   const int32_t *const output_bias,
                                                   int8_t *out);
 
+
+/**
+ * @brief Optimized s8 1D depthwise separable convolution function for valid padding.
+ *        Optimized for height of 1, stride of 1, and dilation of 1.
+ *
+ * @param[in]  weight_sum_buf      Pointer to the weight sum multiplied by input_offset and summed bias buffer
+ * @param[in]      lhs             Input left-hand side matrix
+ * @param[in]      rhs             Input right-hand side matrix (kernel weights)
+ * @param[in]      input_offset    LHS matrix offset (input offset). Range: -127 to 128
+ * @param[in]      active_ch       Subset of total_ch processed
+ * @param[in]      total_ch        Number of channels in LHS/RHS
+ * @param[in]      out_shift       Per channel output shift. Length of vector is equal to number of channels.
+ * @param[in]      out_mult        Per channel output multiplier. Length of vector is equal to number of channels.
+ * @param[in]      out_offset      Offset to be added to the output values. Range: -127 to 128
+ * @param[in]      activation_min  Minimum value to clamp the output to. Range: int8
+ * @param[in]      activation_max  Maximum value to clamp the output to. Range: int8
+ * @param[in]      row_x_col       Kernel size (kernel_x × kernel_y)
+ * @param[in]      output_bias     Per channel output bias. Length of vector is equal to number of channels.
+ * @param[in]      out             Output pointer
+ *
+ * @return         The function returns one of the two
+ *                  - ARM_CMSIS_NN_SUCCESS if successful
+ *                  - ARM_CMSIS_NN_ARG_ERROR if arguments are invalid
+ *
+ * @note           This function is optimized for 1D depthwise convolution with valid padding.
+ *                 Uses MVE vectorized operations for Cortex-M55 with MVE extension.
+ */
+arm_cmsis_nn_status arm_depthwise_conv_s8_1d_valid(const int32_t* weight_sum_buf,
+                                                   const int8_t *lhs,
+                                                   const int8_t *rhs,
+                                                   const int32_t input_offset,
+                                                   const int32_t active_ch,
+                                                   const int32_t total_ch,
+                                                   const int32_t *out_shift,
+                                                   const int32_t *out_mult,
+                                                   const int32_t out_offset,
+                                                   const int32_t activation_min,
+                                                   const int32_t activation_max,
+                                                   const uint16_t row_x_col,
+                                                   const int32_t *const output_bias,
+                                                   int8_t *out);
+
+
+/**
+ * @brief Optimized s8 1D depthwise separable convolution function for single output position.
+ *        Internal helper function for valid padding, stride of 1, and dilation of 1.
+ *
+ * @param[in]  weight_sum_base  Pointer to the weight sum multiplied by input_offset and summed bias buffer
+ * @param[in]  lhs_col0         Input left-hand side matrix column 0 (single position)
+ * @param[in]  rhs              Input right-hand side matrix (kernel weights)
+ * @param[in]  active_ch        Subset of total_ch processed
+ * @param[in]  total_ch         Number of channels in LHS/RHS
+ * @param[in]  out_shift        Per channel output shift. Length of vector is equal to number of channels.
+ * @param[in]  out_mult         Per channel output multiplier. Length of vector is equal to number of channels.
+ * @param[in]  out_offset       Offset to be added to the output values. Range: -127 to 128
+ * @param[in]  act_min          Minimum value to clamp the output to. Range: int8
+ * @param[in]  act_max          Maximum value to clamp the output to. Range: int8
+ * @param[in]  kernel_x         Kernel width size
+ * @param[out] out_col          Output pointer for single column
+ *
+ * @return         The function returns ARM_CMSIS_NN_SUCCESS
+ *
+ * @note           This is an internal helper function optimized for single output position processing.
+ *                 Uses MVE vectorized operations for Cortex-M55 with MVE extension.
+ */
+arm_cmsis_nn_status arm_depthwise_conv_s8_1d_valid_1out(const int32_t *weight_sum_base,
+                                                        const int8_t  *lhs_col0,
+                                                        const int8_t  *rhs,
+                                                        int32_t        active_ch,
+                                                        int32_t        total_ch,
+                                                        const int32_t *out_shift,
+                                                        const int32_t *out_mult, 
+                                                        int32_t        out_offset,
+                                                        int32_t        act_min,
+                                                        int32_t        act_max,
+                                                        int            kernel_x,
+                                                        int8_t        *out_col);
+
 /**
  * @brief Depthwise convolution of transposed rhs matrix with 4 lhs matrices. To be used in non-padded cases. rhs
  * consists of packed int4 data. Dimensions are the same for lhs and rhs.
