@@ -13,5 +13,13 @@ var group__groupReduction =
     [ "arm_reduce_max_s16", "group__groupReduction.html#gafd3d91949567b00d193aa6b676632a73", null ],
     [ "arm_reduce_max_s8", "group__groupReduction.html#ga333363ede6832774c0170dd2c9236262", null ],
     [ "arm_reduce_max_spatial_s16", "group__groupReduction.html#gacb1059e983e86475a91d6ac1a608da9b", null ],
-    [ "arm_reduce_max_spatial_s8", "group__groupReduction.html#ga0669f928abfb78fba9b01afe120137d3", null ]
+    [ "arm_reduce_max_spatial_s8", "group__groupReduction.html#ga0669f928abfb78fba9b01afe120137d3", null ],
+    [ "arm_reduce_min_flatten_last_dims_s16", "group__groupReduction.html#gae80fb7eb7ab2afc9fe149eb17c0d45d0", null ],
+    [ "arm_reduce_min_flatten_last_dims_s8", "group__groupReduction.html#gafc0198ea66ac8e8b0c8ef881c5b4b0cd", null ],
+    [ "arm_reduce_min_generic_s16", "group__groupReduction.html#ga286d9b481474064e8416749db6cb49ea", null ],
+    [ "arm_reduce_min_generic_s8", "group__groupReduction.html#ga15af82e92f648c616400e6d35658303f", null ],
+    [ "arm_reduce_min_s16", "group__groupReduction.html#gad4aa8e3e8e669cf544e511285b02dddf", null ],
+    [ "arm_reduce_min_s8", "group__groupReduction.html#gaeac1146d89ec9bdf4a1a62961c720b82", null ],
+    [ "arm_reduce_min_spatial_s16", "group__groupReduction.html#gaa03ab7abcd552fb80e5c3760b31a6cb4", null ],
+    [ "arm_reduce_min_spatial_s8", "group__groupReduction.html#ga24c969712a2be0852983637ba60ec004", null ]
 ];
