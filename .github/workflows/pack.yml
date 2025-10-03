@@ -1,15 +1,13 @@
 name: Build documentation and pack
 
 on:
-  # manual run still allowed
   workflow_dispatch:
-  # run exactly once per Release Please cycle — when the release is published
   release:
     types: [published]
 
-# needed for gh release upload and any content writes (e.g., gh-pages)
 permissions:
   contents: write
+  actions: write  
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,6 +29,8 @@ jobs:
 
       - name: Generate pack
         uses: Open-CMSIS-Pack/gen-pack-action@main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   
         with:
           doxygen-version: 1.9.6
           packchk-version: 1.4.1
@@ -40,13 +40,11 @@ jobs:
           gen-pack-output: ./output
           gh-pages-branch: gh-pages
 
-      # derive x.y.z from the tag (works for v7.8.0 and ns-cmsis-nn-v7.8.0)
       - name: Get release version
         id: ver
         run: |
           TAG='${{ github.event.release.tag_name }}'
           VERSION="$(printf '%s' "$TAG" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
-          echo "VERSION=$VERSION"
           echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Rename pack file
