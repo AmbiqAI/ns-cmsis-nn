@@ -13,6 +13,7 @@ REQUIRED_GEN_PACK_LIB="0.11.3"
 
 # Set default command line arguments
 DEFAULT_ARGS=(-c "v")
+: "${PACK_CHANGELOG_MODE:=full}"
 
 # Pack warehouse directory - destination
 # Default: ./output

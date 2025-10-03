@@ -32,6 +32,10 @@ set -o pipefail
 # Use the tag name without the prefix "v", e.g., 0.7.0
 REQUIRED_GEN_PACK_LIB="0.11.3"
 
+# Set default command line arguments
+DEFAULT_ARGS=(-c "v")
+: "${PACK_CHANGELOG_MODE:=full}"
+
 DIRNAME=$(dirname "$(readlink -f "$0")")
 GENDIR=../html
 REQ_DXY_VERSION="1.9.6"
