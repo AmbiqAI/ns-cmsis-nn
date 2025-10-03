@@ -37,12 +37,31 @@ jobs:
         if: ${{ steps.rp.outputs.release_created }}
         run: git fetch --tags --force
 
-      # Build docs and pack. Do NOT set a gh-pages branch here—Pages deploy happens below.
+      - name: Wait for release API to be ready
+        if: ${{ steps.rp.outputs.release_created }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          tag='${{ steps.rp.outputs.tag_name }}'
+          for i in {1..10}; do
+            if gh api repos/${{ github.repository }}/releases/tags/"$tag" >/dev/null 2>&1; then
+              echo "Release $tag is available."
+              exit 0
+            fi
+            echo "Waiting for release $tag (try $i/10)..."
+            sleep 3
+          done
+          echo "Release $tag not visible to API yet." >&2
+          exit 1
+
       - name: Generate pack and docs
         if: ${{ steps.rp.outputs.release_created }}
         uses: Open-CMSIS-Pack/gen-pack-action@main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACK_CHANGELOG_MODE: full
         with:
           doxygen-version: 1.9.6
           packchk-version: 1.4.1
@@ -50,9 +69,7 @@ jobs:
           doc-path: ./Documentation/html
           gen-pack-script: ./gen_pack.sh --no-preprocess
           gen-pack-output: ./output
-          # IMPORTANT: leave out gh-pages-branch so this action does NOT try to deploy Pages itself.
 
-      # Derive version safely (use output if provided; otherwise parse x.y.z from the tag)
       - name: Compute version
         if: ${{ steps.rp.outputs.release_created }}
         id: ver
