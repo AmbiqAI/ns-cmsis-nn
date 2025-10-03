@@ -4154,6 +4154,41 @@ arm_cmsis_nn_status arm_reduce_max_s16(const int16_t *input_data,
                                        const cmsis_nn_dims *output_dims);
 
 /**
+ * @brief Computes the min of the input tensor along the specified axis.
+ *
+ * @param[in]   input_data          Pointer to input tensor
+ * @param[in]   input_dims          Input tensor dimensions
+ * @param[in]   axis_dims           Axis dimensions to compute mean over
+ * @param[out]  output_data         Pointer to output tensor
+ * @param[in]   output_dims         Output tensor dimensions
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_reduce_min_s8(const int8_t *input_data,
+                                      const cmsis_nn_dims *input_dims,
+                                      const cmsis_nn_dims *axis_dims,
+                                      int8_t *output_data,
+                                      const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Computes the min of the input tensor along the specified axis.
+ *
+ * @param[in]   input_data          Pointer to input tensor
+ * @param[in]   input_dims          Input tensor dimensions
+ * @param[in]   axis_dims           Axis dimensions to compute mean over
+ * @param[out]  output_data         Pointer to output tensor
+ * @param[in]   output_dims         Output tensor dimensions
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_reduce_min_s16(const int16_t *input_data,
+                                       const cmsis_nn_dims *input_dims,
+                                       const cmsis_nn_dims *axis_dims,
+                                       int16_t *output_data,
+                                       const cmsis_nn_dims *output_dims);
+/**
  * @defgroup Quantization Quantization Functions:
  *
  */
