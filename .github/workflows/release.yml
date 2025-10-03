@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write        # tag, releases, uploads
+  pull-requests: write   # update/open release PRs
+  pages: write           # publish Pages
+  id-token: write        # OIDC for Pages deploy
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-please:
+    runs-on: ubuntu-22.04
+    steps:
+      # 1) Create/Update Release PR; on merge, tag + create release
+      - uses: googleapis/release-please-action@v4
+        id: rp
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # 2) Only do the rest when a NEW release was created by the step above
+      - name: Checkout code
+        if: ${{ steps.rp.outputs.release_created }}
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        if: ${{ steps.rp.outputs.release_created }}
+        run: git fetch --tags --force
+
+      # Build docs and pack. Do NOT set a gh-pages branch here—Pages deploy happens below.
+      - name: Generate pack and docs
+        if: ${{ steps.rp.outputs.release_created }}
+        uses: Open-CMSIS-Pack/gen-pack-action@main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          doxygen-version: 1.9.6
+          packchk-version: 1.4.1
+          gen-doc-script: ./Documentation/Doxygen/gen_doc.sh
+          doc-path: ./Documentation/html
+          gen-pack-script: ./gen_pack.sh --no-preprocess
+          gen-pack-output: ./output
+          # IMPORTANT: leave out gh-pages-branch so this action does NOT try to deploy Pages itself.
+
+      # Derive version safely (use output if provided; otherwise parse x.y.z from the tag)
+      - name: Compute version
+        if: ${{ steps.rp.outputs.release_created }}
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag='${{ steps.rp.outputs.tag_name }}'
+          version='${{ steps.rp.outputs.version }}'
+          if [[ -z "$version" ]]; then
+            version="$(printf '%s\n' "$tag" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
+          fi
+          echo "TAG=$tag" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Rename pack file
+        if: ${{ steps.rp.outputs.release_created }}
+        run: |
+          mv ./output/*.pack "./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack"
+
+      - name: Upload pack to GitHub Release
+        if: ${{ steps.rp.outputs.release_created }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload \
+            "${{ steps.ver.outputs.TAG }}" \
+            "./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack" \
+            --clobber
+
+      # 3) Publish docs to GitHub Pages (from ./Documentation/html)
+      - name: Setup Pages
+        if: ${{ steps.rp.outputs.release_created }}
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: ${{ steps.rp.outputs.release_created }}
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./Documentation/html
+
+      - name: Deploy to GitHub Pages
+        if: ${{ steps.rp.outputs.release_created }}
+        id: deploy
+        uses: actions/deploy-pages@v4

@@ -4,7 +4,7 @@
     ".": {
       "component": "ns-cmsis-nn",
       "release-type": "simple",
-      "include-component-in-tag": true,
+      "include-component-in-tag": false,
       "include-v-in-tag": true,
       "extra-files": [
         { "type": "generic", "path": "Include/arm_nn_types.h" }
