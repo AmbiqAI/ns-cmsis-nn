@@ -1,0 +1,23 @@
+{
+  "bootstrap-sha": "3c8b0f8e5e69161d6b382aec2a97f4c81412eace",
+  "packages": {
+    ".": {
+      "component": "ns-cmsis-nn",
+      "release-type": "simple",
+      "include-component-in-tag": true,
+      "include-v-in-tag": true,
+      "extra-files": [
+        { "type": "generic", "path": "Include/arm_nn_types.h" }
+      ],
+      "changelog-sections": [
+        { "type": "feat",     "section": "Features" },
+        { "type": "fix",      "section": "Bug Fixes" },
+        { "type": "perf",     "section": "Performance" },
+        { "type": "refactor", "section": "Refactoring" },
+        { "type": "docs",     "section": "Docs",  "hidden": true },
+        { "type": "test",     "section": "Tests", "hidden": true },
+        { "type": "chore",    "section": "Chores","hidden": true }
+      ]
+    }
+  }
+}
