@@ -16,23 +16,18 @@ jobs:
   pack:
     name: Generate & attach pack
     runs-on: ubuntu-22.04
-
-    # Only run on:
-    #  - release published, OR
-    #  - a merged PR that looks like a Release Please PR
-    if: >
-      github.event_name == 'release' ||
-      (
-        github.event_name == 'pull_request' &&
-        github.event.pull_request.merged == true &&
-        (
-          contains(toJson(github.event.pull_request.labels), 'autorelease: pending') ||  # before RP relabels
-          contains(toJson(github.event.pull_request.labels), 'autorelease: tagged')  ||  # after RP tags
-          startsWith(github.event.pull_request.head.ref, 'release-please--')         ||  # RP branch naming
-          (startsWith(github.event.pull_request.title, 'chore(') &&
-           contains(github.event.pull_request.title, ': release'))                       # RP default title pattern
-        )
-      )
+    if: ${{ github.event_name == 'release' ||
+            (github.event_name == 'pull_request' &&
+             github.event.action == 'closed' &&
+             github.event.pull_request.merged == true &&
+             (
+               contains(github.event.pull_request.labels.*.name, 'autorelease: pending') ||
+               contains(github.event.pull_request.labels.*.name, 'autorelease: tagged')  ||
+               startsWith(github.event.pull_request.head.ref, 'release-please--')        ||
+               (startsWith(github.event.pull_request.title, 'chore(') &&
+                contains(github.event.pull_request.title, ': release'))
+             ))
+          }}
 
     steps:
       - name: Checkout code
