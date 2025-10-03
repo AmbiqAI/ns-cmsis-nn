@@ -22,8 +22,8 @@
  * Description:  Public header file to contain the CMSIS-NN structs for the
  *               TensorFlowLite micro compliant functions
  *
- * $Date:        21 Oct 2024
- * $Revision:    V.3.5.0
+ * $Date:        03 Oct 2025
+ * $Revision:    "v7.8.0"  x-release-please-version
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
@@ -35,10 +35,9 @@
 #include <stdint.h>
 
 // Version information
-#define NS_CMSIS_NN_VERSION_MAJOR (7)
-#define NS_CMSIS_NN_VERSION_MINOR (8)
-#define NS_CMSIS_NN_VERSION_PATCH (0)
-
+#define NS_CMSIS_NN_VERSION_MAJOR (7) /* x-release-please-major */
+#define NS_CMSIS_NN_VERSION_MINOR (8) /* x-release-please-minor */
+#define NS_CMSIS_NN_VERSION_PATCH (0) /* x-release-please-patch */
 /**
  * @defgroup genPubTypes Structure Types
  * @ingroup Public
