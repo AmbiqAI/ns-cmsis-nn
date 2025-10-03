@@ -106,6 +106,8 @@
         <file category="source" name="Source/BasicMathFunctions/arm_mean_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_max_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_max_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_reduce_min_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_reduce_min_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_mul_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_scalar_s8.c"/>
