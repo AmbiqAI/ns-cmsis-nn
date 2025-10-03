@@ -1,12 +1,15 @@
 name: Build documentation and pack
 
 on:
+  # manual run still allowed
   workflow_dispatch:
-  pull_request:
-    branches: [main]
-    types: [closed]
+  # run exactly once per Release Please cycle — when the release is published
   release:
     types: [published]
+
+# needed for gh release upload and any content writes (e.g., gh-pages)
+permissions:
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,18 +19,6 @@ jobs:
   pack:
     name: Generate & attach pack
     runs-on: ubuntu-22.04
-    if: ${{ github.event_name == 'release' ||
-            (github.event_name == 'pull_request' &&
-             github.event.action == 'closed' &&
-             github.event.pull_request.merged == true &&
-             (
-               contains(github.event.pull_request.labels.*.name, 'autorelease: pending') ||
-               contains(github.event.pull_request.labels.*.name, 'autorelease: tagged')  ||
-               startsWith(github.event.pull_request.head.ref, 'release-please--')        ||
-               (startsWith(github.event.pull_request.title, 'chore(') &&
-                contains(github.event.pull_request.title, ': release'))
-             ))
-          }}
 
     steps:
       - name: Checkout code
@@ -49,23 +40,21 @@ jobs:
           gen-pack-output: ./output
           gh-pages-branch: gh-pages
 
-      # — only run these on the actual GitHub Release publish event —
+      # derive x.y.z from the tag (works for v7.8.0 and ns-cmsis-nn-v7.8.0)
       - name: Get release version
-        if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
         id: ver
         run: |
           TAG='${{ github.event.release.tag_name }}'
-          VERSION="${TAG#v}"
+          VERSION="$(printf '%s' "$TAG" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
+          echo "VERSION=$VERSION"
           echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Rename pack file
-        if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
         run: |
           mv ./output/*.pack \
-             ./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack
+             "./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack"
 
       - name: Upload pack via GitHub CLI
-        if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
