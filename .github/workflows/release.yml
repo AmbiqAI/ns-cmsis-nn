@@ -69,6 +69,8 @@ jobs:
           doc-path: ./Documentation/html
           gen-pack-script: ./gen_pack.sh --no-preprocess
           gen-pack-output: ./output
+          gh-pages-branch: ""
+          gh-pages-deploy: ""
 
       - name: Compute version
         if: ${{ steps.rp.outputs.release_created }}
