@@ -55,6 +55,11 @@ jobs:
           echo "Release $tag not visible to API yet." >&2
           exit 1
 
+      - name: Clean output dir
+        if: ${{ steps.rp.outputs.release_created }}
+        run: |
+          rm -f ./output/*.pack
+
       - name: Generate pack and docs
         if: ${{ steps.rp.outputs.release_created }}
         uses: Open-CMSIS-Pack/gen-pack-action@main
@@ -85,11 +90,6 @@ jobs:
           fi
           echo "TAG=$tag" >> "$GITHUB_OUTPUT"
           echo "VERSION=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Rename pack file
-        if: ${{ steps.rp.outputs.release_created }}
-        run: |
-          mv ./output/*.pack "./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack"
 
       - name: Upload pack to GitHub Release
         if: ${{ steps.rp.outputs.release_created }}
