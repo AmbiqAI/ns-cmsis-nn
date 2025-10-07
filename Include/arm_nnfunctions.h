@@ -3415,6 +3415,210 @@ void arm_softmax_u8(const uint8_t *input,
 void arm_reshape_s8(const int8_t *input, int8_t *output, const uint32_t total_size);
 
 /**
+ * @brief Space to Depth function for s8 data type
+ * @param[in]  input_data   Pointer to the input tensor. Data type: int8
+ * @param[in]  input_dims   Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]  block_size   Block size for space to depth transformation
+ * @param[out] output_data  Pointer to the output tensor. Data type: int8
+ * @param[in]  output_dims  Output tensor dimensions. Format: [N, H/block_size, W/block_size, C_IN*block_size*block_size]
+ * @return     The function returns either
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *
+ * @details
+ *    - Supported Framework: TensorFlow Lite
+ *
+ */
+arm_cmsis_nn_status
+arm_space_to_depth_s8(
+    const int8_t *input_data,
+    const cmsis_nn_dims *input_dims,
+    const int32_t block_size,
+    int8_t *output_data,
+    const cmsis_nn_dims *output_dims
+);
+
+/**
+ * @brief Space to Depth function for s16 data type
+ * @param[in]  input_data   Pointer to the input tensor. Data type: int16
+ * @param[in]  input_dims   Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]  block_size   Block size for space to depth transformation
+ * @param[out] output_data  Pointer to the output tensor. Data type: int16
+ * @param[in]  output_dims  Output tensor dimensions. Format: [N, H/block_size, W/block_size, C_IN*block_size*block_size]
+ * @return     The function returns either
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *
+ * @details
+ *    - Supported Framework: TensorFlow Lite
+ *
+ */
+arm_cmsis_nn_status
+arm_space_to_depth_s16(
+    const int16_t *input_data,
+    const cmsis_nn_dims *input_dims,
+    const int32_t block_size,
+    int16_t *output_data,
+    const cmsis_nn_dims *output_dims
+);
+
+/**
+ * @brief Depth to Space function for s8 data type
+ * @param[in]  input_data   Pointer to the input tensor. Data type: int8
+ * @param[in]  input_dims   Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]  block_size   Block size for depth to space transformation
+ * @param[out] output_data  Pointer to the output tensor. Data type: int8
+ * @param[in]  output_dims  Output tensor dimensions. Format: [N, H*block_size, W*block_size, C_IN/(block_size*block_size)]
+ * @return     The function returns either
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *
+ * @details
+ *    - Supported Framework: TensorFlow Lite
+ *
+ */
+arm_cmsis_nn_status
+arm_depth_to_space_s8(
+    const int8_t *input_data,
+    const cmsis_nn_dims *input_dims,
+    const int32_t block_size,
+    int8_t *output_data,
+    const cmsis_nn_dims *output_dims
+);
+
+/**
+ * @brief Depth to Space function for s16 data type
+ * @param[in]  input_data   Pointer to the input tensor. Data type: int16
+ * @param[in]  input_dims   Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]  block_size   Block size for depth to space transformation
+ * @param[out] output_data  Pointer to the output tensor. Data type: int16
+ * @param[in]  output_dims  Output tensor dimensions. Format: [N, H*block_size, W*block_size, C_IN/(block_size*block_size)]
+ * @return     The function returns either
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *
+ * @details
+ *    - Supported Framework: TensorFlow Lite
+ *
+ */
+arm_cmsis_nn_status
+arm_depth_to_space_s16(
+    const int16_t *input_data,
+    const cmsis_nn_dims *input_dims,
+    const int32_t block_size,
+    int16_t *output_data,
+    const cmsis_nn_dims *output_dims
+);
+
+/**
+ * @brief Space to Batch ND function for s8 data type
+ * @param[in]  input_data   Pointer to the input tensor. Data type: int8
+ * @param[in]  input_dims   Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]  block_shape  Block shape for space to batch transformation
+ * @param[in]  pad          Padding for height and width. Format: [n->top, h->left, w->bottom, c->right]
+ * @param[out] output_data  Pointer to the output tensor. Data type: int8
+ * @param[in]  output_dims  Output tensor dimensions. Format: [N*block_shape[0]*block_shape[1], (H + pad_top + pad_bottom)/block_shape[0], (W + pad_left + pad_right)/block_shape[1], C_IN]
+ * @param[in]  output_offset  Zero offset for the output tensor
+ * @return     The function returns either
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *
+ * @details
+ *    - Supported Framework: TensorFlow Lite
+ *
+ */
+arm_cmsis_nn_status
+arm_space_to_batch_nd_s8(
+    const int8_t *input_data,
+    const cmsis_nn_dims *input_dims,
+    const cmsis_nn_tile *block_shape,
+    const cmsis_nn_dims *pad, // n->top, h->left, w->bottom, c->right
+    int8_t *output_data,
+    const cmsis_nn_dims *output_dims,
+    const int32_t output_offset
+);
+
+/**
+ * @brief Space to Batch ND function for s16 data type
+ * @param[in]  input_data   Pointer to the input tensor. Data type: int16
+ * @param[in]  input_dims   Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]  block_shape  Block shape for space to batch transformation
+ * @param[in]  pad          Padding for height and width. Format: [n->top, h->left, w->bottom, c->right]
+ * @param[out] output_data  Pointer to the output tensor. Data type: int16
+ * @param[in]  output_dims  Output tensor dimensions. Format: [N*block_shape[0]*block_shape[1], (H + pad_top + pad_bottom)/block_shape[0], (W + pad_left + pad_right)/block_shape[1], C_IN]
+ * @param[in]  output_offset  Zero offset for the output tensor. NOT USED. Assume symmetric quantization for s16.
+ * @return     The function returns either
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *
+ * @details
+ *    - Supported Framework: TensorFlow Lite
+ *
+ */
+arm_cmsis_nn_status
+arm_space_to_batch_nd_s16(
+    const int16_t *input_data,
+    const cmsis_nn_dims *input_dims,
+    const cmsis_nn_tile *block_shape,
+    const cmsis_nn_dims *pad, // n->top, h->left, w->bottom, c->right
+    int16_t *output_data,
+    const cmsis_nn_dims *output_dims,
+    const int32_t output_offset
+);
+
+/**
+ * @brief Batch to Space ND function for s8 data type
+ * @param[in]  input_data   Pointer to the input tensor. Data type: int8
+ * @param[in]  input_dims   Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]  block_shape  Block shape for batch to space transformation
+ * @param[in]  crop         Cropping for height and width. Format: [n->top, h->left, w->bottom, c->right]
+ * @param[out] output_data  Pointer to the output tensor. Data type: int8
+ * @param[in]  output_dims  Output tensor dimensions. Format: [N/(block_shape[0]*block_shape[1]), H*block_shape[0] - crop_top - crop_bottom, W*block_shape[1] - crop_left - crop_right, C_IN]
+ * @return     The function returns either
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *
+ * @details
+ *    - Supported Framework: TensorFlow Lite
+ *
+ */
+arm_cmsis_nn_status
+arm_batch_to_space_nd_s8(
+    const int8_t *input_data,
+    const cmsis_nn_dims *input_dims,
+    const cmsis_nn_tile *block_shape,
+    const cmsis_nn_dims *crop, // n->top, h->left, w->bottom, c->right
+    int8_t *output_data,
+    const cmsis_nn_dims *output_dims
+);
+
+/**
+ * @brief Batch to Space ND function for s16 data type
+ * @param[in]  input_data   Pointer to the input tensor. Data type: int16
+ * @param[in]  input_dims   Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]  block_shape  Block shape for batch to space transformation
+ * @param[in]  crop         Cropping for height and width. Format: [n->top, h->left, w->bottom, c->right]
+ * @param[out] output_data  Pointer to the output tensor. Data type: int16
+ * @param[in]  output_dims  Output tensor dimensions. Format: [N/(block_shape[0]*block_shape[1]), H*block_shape[0] - crop_top - crop_bottom, W*block_shape[1] - crop_left - crop_right, C_IN]
+ * @return     The function returns either
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *
+ * @details
+ *    - Supported Framework: TensorFlow Lite
+ *
+ */
+arm_cmsis_nn_status
+arm_batch_to_space_nd_s16(
+    const int16_t *input_data,
+    const cmsis_nn_dims *input_dims,
+    const cmsis_nn_tile *block_shape,
+    const cmsis_nn_dims *crop, // n->top, h->left, w->bottom, c->right
+    int16_t *output_data,
+    const cmsis_nn_dims *output_dims
+);
+
+/**
  * @defgroup Transpose Transpose Functions
  *
  */

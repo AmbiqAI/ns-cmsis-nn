@@ -146,6 +146,14 @@
         <file category="source" name="Source/ActivationFunctions/arm_hard_swish_precise_s16.c"/>
 
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_s8.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_batch_to_space_nd_s8.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_batch_to_space_nd_s16.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_depth_to_space_s8.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_depth_to_space_s16.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_space_to_batch_nd_s8.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_space_to_batch_nd_s16.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_space_to_depth_s8.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_space_to_depth_s16.c"/>
 
         <file category="source" name="Source/TransposeFunctions/arm_transpose_s8.c"/>
         <file category="source" name="Source/TransposeFunctions/arm_transpose_s16.c"/>
