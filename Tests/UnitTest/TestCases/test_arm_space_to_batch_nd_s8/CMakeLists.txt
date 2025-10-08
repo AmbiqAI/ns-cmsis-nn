@@ -1,8 +1,11 @@
 #
-# SPDX-FileCopyrightText: Copyright 2025 Ambiq
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2025 Ambiq
 #
-
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+#
+# Licensed under the Ambiq Apollo SDK License.
+# See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
+#
 # Hard-swish unit test target
 add_cmsis_nn_unit_test_executable(test_arm_space_to_batch_nd_s8)
 

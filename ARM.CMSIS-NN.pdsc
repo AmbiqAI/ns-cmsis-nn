@@ -2,12 +2,15 @@
 
 <package schemaVersion="1.7.36" xmlns:xs="http://www.w3.org/2001/XMLSchema-instance" xs:noNamespaceSchemaLocation="https://raw.githubusercontent.com/Open-CMSIS-Pack/Open-CMSIS-Pack-Spec/v1.7.36/schema/PACK.xsd">
   <name>CMSIS-NN</name>
-  <description>CMSIS-NN software library of efficient neural network kernels</description>
-  <vendor>ARM</vendor>
+  <description>Ambiq optimized fork of CMSIS-NN</description>
+  <vendor>Ambiq</vendor>
   <license>LICENSE</license>
   <licenseSets>
-    <licenseSet id="all" default="true" gating="true">
-      <license name="LICENSE" title="Apache 2.0 open-source license" spdx="Apache-2.0"/>
+    <licenseSet id="Apache-2.0" default="true">
+      <license name="LICENSES/Apache-2.0.txt" title="Apache 2.0 open-source license" spdx="Apache-2.0"/>
+    </licenseSet>
+    <licenseSet id="Ambiq-Apollo-SDK" gating="true">
+      <license name="LICENSE" title="Ambiq Apollo SDK License" url="https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/LICENSE"/>
     </licenseSet>
   </licenseSets>
   <url>https://www.keil.com/pack/</url>

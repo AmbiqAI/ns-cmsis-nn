@@ -1,8 +1,10 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2010-2022
- * Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: 2025 Ambiq
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+ *
+ * Licensed under the Ambiq Apollo SDK License.
+ * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  */
 
 #include "unity.h"
