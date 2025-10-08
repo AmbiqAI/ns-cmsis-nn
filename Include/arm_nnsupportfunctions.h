@@ -1043,6 +1043,54 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t* weight_sum_buf,
  * @brief Optimized s8 1D depthwise separable convolution function for valid padding.
  *        Optimized for height of 1, stride of 1, and dilation of 1.
  *
+ * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
+ *                                 definition file to see if an additional buffer is required.
+ *                                 Optional function {API}_get_buffer_size() provides the buffer
+ *                                 size if required.
+ *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in, out] weight_sum_ctx  Function context that contains the weight sum buffer if required by the function.
+ * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
+ *                                 dw_conv_params->dilation is not used.
+ *                                 Range of dw_conv_params->input_offset : [-127, 128]
+ *                                 Range of dw_conv_params->output_offset : [-128, 127]
+ * @param[in]      quant_params    Per-channel quantization info.
+ *                                 It contains the multiplier and shift values to be applied to each
+ *                                 output channel
+ * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [1, W, C_IN]
+ *                                 Batch argument N is not used and assumed to be 1.
+ * @param[in]      input           Input (activation) data pointer. Data type: int8
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, 1, W, C_OUT]
+ * @param[in]      kernel          Filter data pointer. Data type: int8
+ * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
+ * @param[in]      bias            Bias data pointer. Data type: int32
+ * @param[in]      output_dims     Output tensor dimensions. Format: [1, 1, W, C_OUT]
+ * @param[in, out] output          Output data pointer. Data type: int8
+ * @return     The function returns
+ *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion.
+ *
+ * @return         The function returns one of the two
+ *                  - ARM_CMSIS_NN_SUCCESS if successful
+ *                  - ARM_CMSIS_NN_ARG_ERROR if arguments are invalid
+ *
+ * @note           This function is optimized for 1D depthwise convolution with valid padding.
+ */
+arm_cmsis_nn_status arm_depthwise_conv_1d_valid_s1_d1_s8(const cmsis_nn_context *ctx,
+                                                        const cmsis_nn_context *weight_sum_ctx,
+                                                        const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                        const cmsis_nn_per_channel_quant_params *quant_params,
+                                                        const cmsis_nn_dims *input_dims,
+                                                        const int8_t *input,
+                                                        const cmsis_nn_dims *filter_dims,
+                                                        const int8_t *kernel,
+                                                        const cmsis_nn_dims *bias_dims,
+                                                        const int32_t *bias,
+                                                        const cmsis_nn_dims *output_dims,
+                                                        int8_t *output);
+
+/**
+ * @brief Optimized s8 1D depthwise separable convolution microkernel.
+ *        Optimized for height of 1, stride of 1, and dilation of 1.
+ *
  * @param[in]  weight_sum_buf      Pointer to the weight sum multiplied by input_offset and summed bias buffer
  * @param[in]      lhs             Input left-hand side matrix
  * @param[in]      rhs             Input right-hand side matrix (kernel weights)
@@ -1065,7 +1113,7 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t* weight_sum_buf,
  * @note           This function is optimized for 1D depthwise convolution with valid padding.
  *                 Uses MVE vectorized operations for Cortex-M55 with MVE extension.
  */
-arm_cmsis_nn_status arm_depthwise_conv_s8_1d_valid(const int32_t* weight_sum_buf,
+arm_cmsis_nn_status arm_depthwise_conv_1d_valid_s1_d1_s8_sw(const int32_t* weight_sum_buf,
                                                    const int8_t *lhs,
                                                    const int8_t *rhs,
                                                    const int32_t input_offset,
@@ -1079,8 +1127,6 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_1d_valid(const int32_t* weight_sum_buf
                                                    const uint16_t row_x_col,
                                                    const int32_t *const output_bias,
                                                    int8_t *out);
-
-
 /**
  * @brief Optimized s8 1D depthwise separable convolution function for single output position.
  *        Internal helper function for valid padding, stride of 1, and dilation of 1.
@@ -1103,7 +1149,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_1d_valid(const int32_t* weight_sum_buf
  * @note           This is an internal helper function optimized for single output position processing.
  *                 Uses MVE vectorized operations for Cortex-M55 with MVE extension.
  */
-arm_cmsis_nn_status arm_depthwise_conv_s8_1d_valid_1out(const int32_t *weight_sum_base,
+arm_cmsis_nn_status arm_depthwise_conv_1d_valid_s1_d1_s8_1out(const int32_t *weight_sum_base,
                                                         const int8_t  *lhs_col0,
                                                         const int8_t  *rhs,
                                                         int32_t        active_ch,

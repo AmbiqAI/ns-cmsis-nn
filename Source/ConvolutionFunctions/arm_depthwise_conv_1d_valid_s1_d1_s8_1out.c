@@ -18,7 +18,7 @@
 
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
- * Title:        arm_depthwise_conv_s8_1d_valid_1out.c
+ * Title:        arm_depthwise_conv_1d_valid_s1_d1_s8_1out.c
  * Description:  Optimized tail function for s8 1D depthwise separable convolution function for
  *               height of 1, valid padding, stride of 1, and dilation of 1.
  *
@@ -33,7 +33,7 @@
 #include "arm_nnsupportfunctions.h"
 
 #if defined(ARM_MATH_MVEI)
-arm_cmsis_nn_status arm_depthwise_conv_s8_1d_valid_1out(
+arm_cmsis_nn_status arm_depthwise_conv_1d_valid_s1_d1_s8_1out(
     const int32_t *weight_sum_base,
     const int8_t  *lhs_col0,
     const int8_t  *rhs,

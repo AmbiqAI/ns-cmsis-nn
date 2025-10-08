@@ -1243,7 +1243,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
 
 
 /**
- * @brief Optimized s8 1D depthwise convolution wrapper function for valid padding, height of 1, stride of 1, and dilation of 1.
+ * @brief Wrapper function to pick the right optimized s8 depthwise convolution function with 1D constraints
  *
  * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
  *                                 definition file to see if an additional buffer is required.
@@ -1269,20 +1269,11 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
  * @param[in, out] output          Output data pointer. Data type: int8
  * @return     The function returns
  *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion.
- *                <code>ARM_CMSIS_NN_ARG_ERROR</code> -  Argument error.
  *
  * @details
- *    - Optimized for 1D depthwise convolution with specific constraints:
- *        - Input height = 1, Output height = 1, Filter height = 1
- *        - Valid padding (padding = 0)
- *        - Stride = 1, Dilation = 1
- *        - Channel multiplier = 1
- *    - Uses MVE vectorized operations for Cortex-M55 with MVE extension
- *    - Requires pre-computed weight sum buffer from arm_depthwise_convolve_weight_sum()
- *    - No im2col transformation - direct tensor access for better performance
- *    - Vectorizes across channels and computes 4 outputs per call
+ *    - Supported framework: TensorFlow Lite
  */
-arm_cmsis_nn_status arm_depthwise_conv_s8_1d_valid_wrapper(const cmsis_nn_context *ctx,
+arm_cmsis_nn_status arm_depthwise_conv_1d_wrapper_s8(const cmsis_nn_context *ctx,
                                                  const cmsis_nn_context *weight_sum_ctx,
                                                  const cmsis_nn_dw_conv_params *dw_conv_params,
                                                  const cmsis_nn_per_channel_quant_params *quant_params,
