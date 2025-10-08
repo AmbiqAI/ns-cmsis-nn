@@ -18,6 +18,7 @@ import os
 import Lib.op_add
 import Lib.op_lstm
 import Lib.op_conv
+import Lib.op_batch_space_depth
 import Lib.op_batch_matmul
 import Lib.op_fully_connected
 import Lib.op_mul
@@ -243,6 +244,14 @@ def get_op_type(op_type_string):
         return Lib.op_conv.Op_conv
     elif op_type_string == "batch_matmul":
         return Lib.op_batch_matmul.Op_batch_matmul
+    elif op_type_string == "space_to_depth":
+        return Lib.op_batch_space_depth.Op_space_to_depth
+    elif op_type_string == "depth_to_space":
+        return Lib.op_batch_space_depth.Op_depth_to_space
+    elif op_type_string == "space_to_batch_nd":
+        return Lib.op_batch_space_depth.Op_space_to_batch_nd
+    elif op_type_string == "batch_to_space_nd":
+        return Lib.op_batch_space_depth.Op_batch_to_space_nd
     elif op_type_string == "elementwise_mul":
         return Lib.op_elementwise_mul.Op_elementwise_mul
     elif op_type_string == "fully_connected":
