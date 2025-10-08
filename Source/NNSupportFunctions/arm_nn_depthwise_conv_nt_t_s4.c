@@ -67,6 +67,14 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s4(const int8_t *lhs,
     const uint32x4_t gather_offset = {0, 0, 1, 1};
     const mve_pred16_t lower_nibble_mask = 3855; // 0000111100001111
 
+    const uint32x4_t gather_even = {0, 0, 1, 1};   // lanes: b0,b0,b1,b1
+    const uint32x4_t gather_odd  = {0, 1, 1, 2};   // lanes: b0,b1,b1,b2
+
+    // Predicates: lanes 0&2 and lanes 1&3 (same idea as 0x0F0F/0xF0F0)
+    int32x4_t _idx = {0,1,2,3};
+    mve_pred16_t p_low_02 = vcmpeqq_n_s32(vandq_s32(_idx, vdupq_n_s32(1)), 0);  // lanes 0,2
+    mve_pred16_t p_low_13 = vcmpneq_n_s32(vandq_s32(_idx, vdupq_n_s32(1)), 0);  // lanes 1,3
+
     for (int i_loop_cnt = 0, offset = 0; i_loop_cnt < loop_count;
          num_ch_to_process -= 4, offset += 4, out += 4, i_loop_cnt++)
     {
@@ -93,20 +101,18 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s4(const int8_t *lhs,
             for (int i_row_x_col = 0; i_row_x_col < row_x_col; i_row_x_col++)
             {
                 int32x4_t ker_0;
-                if (get_low_nibble)
-                {
-                    ker_0 = vldrbq_gather_offset_s32(rhs_0, gather_offset);
-
-                    ker_0 = vrshlq_m_n_s32(ker_0, 28, lower_nibble_mask);
-                    ker_0 = vshrq_m_n_s32(ker_0, ker_0, 24, lower_nibble_mask);
-
-                    ker_0 = vshrq_n_s32(ker_0, 4);
-                }
-                else
-                {
-                    int8_t temp[] = {
-                        rhs_0[0] >> 4, (int8_t)(rhs_0[1] << 4) >> 4, rhs_0[1] >> 4, (int8_t)(rhs_0[2] << 4) >> 4};
-                    ker_0 = vldrbq_s32(temp);
+                if (get_low_nibble) {
+                    // normal phase: low nibble on lanes 0,2; high nibble on lanes 1,3
+                    ker_0 = vldrbq_gather_offset_s32(rhs_0, gather_even);
+                    ker_0 = vrshlq_m_n_s32(ker_0, 28, p_low_02);           // extract low on lanes 0,2
+                    ker_0 = vshrq_m_n_s32(ker_0, ker_0, 24, p_low_02);
+                    ker_0 = vshrq_n_s32(ker_0, 4);                         // high on lanes 1,3
+                } else {
+                    // flipped phase: low nibble should land in lanes 1,3; high in 0,2
+                    ker_0 = vldrbq_gather_offset_s32(rhs_0, gather_odd);
+                    ker_0 = vrshlq_m_n_s32(ker_0, 28, p_low_13);           // extract low on lanes 1,3
+                    ker_0 = vshrq_m_n_s32(ker_0, ker_0, 24, p_low_13);
+                    ker_0 = vshrq_n_s32(ker_0, 4);                         // high on lanes 0,2
                 }
 
                 ker_sum = vaddq_s32(ker_sum, ker_0);
