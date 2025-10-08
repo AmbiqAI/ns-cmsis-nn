@@ -1,3 +1,12 @@
+/*
+ * SPDX-FileCopyrightText: 2025 Ambiq
+ *
+ * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+ *
+ * Licensed under the Ambiq Apollo SDK License.
+ * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
+ */
+
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
  * Title:        arm_hard_swish_precise_s16.c
