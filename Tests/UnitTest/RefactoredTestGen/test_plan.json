@@ -1,5 +1,97 @@
 [
   {
+    "suite_name": "refactored_test_arm_convolve_s8",
+    "op_type": "conv",
+    "input_data_type": "int8_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int32_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "arena_size": 80000,
+    "input_scale": 0.006774,
+    "input_zp": -128,
+    "output_zp": 0,
+    "groups": 1,
+    "tests": [
+      {
+        "name": "fc_conv_int8_dilated",
+        "input_batches": 1,
+        "in_ch": 96,
+        "out_ch": 96,
+        "input_w": 1,
+        "input_h": 55,
+        "filter_x": 1,
+        "filter_y": 3,
+        "stride_x": 1,
+        "stride_y": 1,
+        "dilation_x": 1,
+        "dilation_y": 27,
+        "padding": "VALID"
+      },
+      {
+        "name": "fc_conv_int8_diff_channels",
+        "input_batches": 1,
+        "in_ch": 96,
+        "out_ch": 16,
+        "input_w": 1,
+        "input_h": 3,
+        "filter_x": 1,
+        "filter_y": 3,
+        "stride_x": 1,
+        "stride_y": 1,
+        "dilation_x": 1,
+        "dilation_y": 1,
+        "padding": "VALID"
+      },
+      {
+        "name": "fc_conv_int8_non_4_multiple",
+        "input_batches": 1,
+        "in_ch": 77,
+        "out_ch": 33,
+        "input_w": 1,
+        "input_h": 5,
+        "filter_x": 1,
+        "filter_y": 5,
+        "stride_x": 1,
+        "stride_y": 1,
+        "dilation_x": 1,
+        "dilation_y": 1,
+        "padding": "VALID"
+      },
+      {
+        "name": "fc_conv_int8_1x1_kernel",
+        "input_batches": 1,
+        "in_ch": 20,
+        "out_ch": 20,
+        "input_w": 1,
+        "input_h": 1,
+        "filter_x": 1,
+        "filter_y": 1,
+        "stride_x": 1,
+        "stride_y": 1,
+        "dilation_x": 1,
+        "dilation_y": 1,
+        "padding": "VALID"
+      },
+      {
+        "name": "depthwise_single_in_many_out_ch",
+        "input_batches": 1,
+        "in_ch": 1,
+        "out_ch": 12,
+        "input_w": 49,
+        "input_h": 40,
+        "filter_x": 10,
+        "filter_y": 8,
+        "stride_x": 2,
+        "stride_y": 2,
+        "dilation_x": 1,
+        "dilation_y": 1,
+        "padding": "SAME"
+      }
+    ]
+  },
+  {
     "suite_name": "test_arm_convolve_s4",
     "op_type": "conv",
     "input_data_type": "int8_t",
@@ -796,7 +888,6 @@
       }
     ]
   },
-
   {
     "suite_name": "test_arm_elementwise_mul_s8",
     "op_type": "elementwise_mul",
@@ -2088,7 +2179,6 @@
       }
     ]
   },
-
   {
     "suite_name": "test_arm_quantize_f32_s8",
     "op_type": "quantize",
@@ -2170,6 +2260,629 @@
         "pad": "SAME",
         "input_min": -32768,
         "input_max": 32767
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_strided_slice_s8",
+    "op_type": "strided_slice",
+    "input_data_type": "int8_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "slice_center_3x3",
+        "batch_size": 1,
+        "input_n": 1,
+        "input_h": 5,
+        "input_w": 5,
+        "input_c": 1,
+        "begin":    [0, 1, 2, 0],
+        "end":      [1, 4, 4, 1],
+        "strides":  [1, 1, 1, 1]
+      },
+      {
+        "name": "slice_strided_2x3",
+        "batch_size": 1,
+        "input_n": 1,
+        "input_h": 6,
+        "input_w": 6,
+        "input_c": 1,
+        "begin":    [0, 0, 0, 0],
+        "end":      [1, 6, 6, 1],
+        "strides":  [1, 2, 3, 1]
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_add_s8",
+    "op_type": "add",
+    "input_data_type": "int8_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int32_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "add_scalar_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 1,
+        "rhs_w": 1,
+        "rhs_c": 1,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_broadcast_h_s8",
+        "lhs_n": 1,
+        "lhs_h": 1,
+        "lhs_w": 2,
+        "lhs_c": 3,
+        "rhs_n": 1,
+        "rhs_h": 4,
+        "rhs_w": 2,
+        "rhs_c": 3,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_broadcast_w_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 1,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_broadcast_c_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 3,
+        "rhs_c": 1,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_broadcast_hc_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 1,
+        "rhs_n": 1,
+        "rhs_h": 1,
+        "rhs_w": 3,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_ident_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 3,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_mul_s8",
+    "op_type": "mul",
+    "input_data_type": "int8_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int32_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "mul_scalar_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 1,
+        "rhs_w": 1,
+        "rhs_c": 1,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_broadcast_h_s8",
+        "lhs_n": 1,
+        "lhs_h": 1,
+        "lhs_w": 2,
+        "lhs_c": 3,
+        "rhs_n": 1,
+        "rhs_h": 4,
+        "rhs_w": 2,
+        "rhs_c": 3,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_broadcast_w_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 1,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_broadcast_c_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 3,
+        "rhs_c": 1,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_broadcast_hc_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 1,
+        "rhs_n": 1,
+        "rhs_h": 1,
+        "rhs_w": 3,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_ident_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 3,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_add_s16",
+    "op_type": "add",
+    "input_data_type": "int16_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int64_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "add_scalar_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 1,
+        "rhs_w": 1,
+        "rhs_c": 1,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_broadcast_h_s16",
+        "lhs_n": 1,
+        "lhs_h": 1,
+        "lhs_w": 2,
+        "lhs_c": 3,
+        "rhs_n": 1,
+        "rhs_h": 4,
+        "rhs_w": 2,
+        "rhs_c": 3,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_broadcast_w_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 1,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_broadcast_c_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 3,
+        "rhs_c": 1,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_broadcast_hc_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 1,
+        "rhs_n": 1,
+        "rhs_h": 1,
+        "rhs_w": 3,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_ident_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 3,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_mul_s16",
+    "op_type": "mul",
+    "input_data_type": "int16_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int64_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "mul_scalar_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 1,
+        "rhs_w": 1,
+        "rhs_c": 1,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_broadcast_h_s16",
+        "lhs_n": 1,
+        "lhs_h": 1,
+        "lhs_w": 2,
+        "lhs_c": 3,
+        "rhs_n": 1,
+        "rhs_h": 4,
+        "rhs_w": 2,
+        "rhs_c": 3,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_broadcast_w_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 1,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_broadcast_c_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 3,
+        "rhs_c": 1,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_broadcast_hc_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 1,
+        "rhs_n": 1,
+        "rhs_h": 1,
+        "rhs_w": 3,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mul_ident_s16",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 3,
+        "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_mean_s8",
+    "op_type": "mean",
+    "input_data_type": "int8_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int32_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "mean_axis_c_s8",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [3],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mean_axis_w_s8",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [2],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mean_axis_h_s8",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [1],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mean_axis_n_s8",
+        "in_dim": [2, 3, 2, 4],
+        "axis": [0],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mean_axis_wc_s8",
+        "in_dim": [4, 5, 7, 4],
+        "axis": [2, 3],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mean_axis_hwc_s8",
+        "in_dim": [2, 3, 3, 4],
+        "axis": [1, 2, 3],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mean_axis_nhwc_s8",
+        "in_dim": [3, 17, 5, 4],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mean_axis_hw_s8",
+        "in_dim": [5, 10, 13, 4],
+        "axis": [1, 2],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_mean_s16",
+    "op_type": "mean",
+    "input_data_type": "int16_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int64_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "mean_axis_c_s16",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [3],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mean_axis_w_s16",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [2],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mean_axis_h_s16",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [1],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mean_axis_n_s16",
+        "in_dim": [2, 3, 2, 4],
+        "axis": [0],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mean_axis_wc_s16",
+        "in_dim": [4, 5, 7, 4],
+        "axis": [2, 3],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mean_axis_hwc_s16",
+        "in_dim": [2, 3, 3, 4],
+        "axis": [1, 2, 3],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mean_axis_nhwc_s16",
+        "in_dim": [3, 17, 5, 4],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "mean_axis_hw_s16",
+        "in_dim": [5, 10, 13, 4],
+        "axis": [1, 2],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_reduce_max_s8",
+    "op_type": "reduce_max",
+    "input_data_type": "int8_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int32_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "reduce_max_axis_c_s8",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_w_s8",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_h_s8",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_n_s8",
+        "in_dim": [2, 3, 2, 4],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_wc_s8",
+        "in_dim": [4, 5, 7, 4],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_hwc_s8",
+        "in_dim": [2, 3, 3, 4],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_nhwc_s8",
+        "in_dim": [3, 17, 5, 4],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_hw_s8",
+        "in_dim": [5, 10, 13, 4],
+        "axis": [1, 2],
+        "keep_dims": true
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_reduce_max_s16",
+    "op_type": "reduce_max",
+    "input_data_type": "int16_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int64_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "reduce_max_axis_c_s16",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_w_s16",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_h_s16",
+        "in_dim": [1, 2, 2, 4],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_n_s16",
+        "in_dim": [2, 3, 2, 4],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_wc_s16",
+        "in_dim": [4, 5, 7, 4],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_hwc_s16",
+        "in_dim": [2, 3, 3, 4],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_nhwc_s16",
+        "in_dim": [3, 17, 5, 4],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "reduce_max_axis_hw_s16",
+        "in_dim": [5, 10, 13, 4],
+        "axis": [1, 2],
+        "keep_dims": true
       }
     ]
   }

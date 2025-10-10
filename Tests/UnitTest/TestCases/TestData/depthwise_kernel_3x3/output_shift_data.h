@@ -4,3 +4,4 @@
 #include <stdint.h>
 
 const int32_t depthwise_kernel_3x3_output_shift[5] = {-9, -9, -9, -9, -9};
+const int32_t depthwise_kernel_3x3_perf_output_shift[8] = {-9, -9, -9, -9, -9, -9, -9, -9};

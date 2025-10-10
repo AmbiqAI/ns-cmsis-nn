@@ -35,7 +35,10 @@ option(LSTM                 "LSTM"                  ON)
 option(PAD                  "Pad"                   ON)
 option(TRANSPOSE            "Transpose"             ON)
 option(QUANTIZATION         "Quantization"          ON)
+option(STRIDEDSLICE         "Strided Slice"         ON)
 
+option(CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY
+       "Enable inline‐assembly version of the requantize routine" OFF)
 
 # Always needed if any other module above is on.
 option(NNSUPPORT            "NN Support"            ON)
@@ -45,6 +48,11 @@ list(APPEND CMAKE_MODULE_PATH Source)
 # There is a dependency to CMSIS-Core.
 target_include_directories(cmsis-nn PUBLIC "${ROOT}/CMSIS/Core/Include")
 target_link_libraries(cmsis-nn PRIVATE m)
+
+if(CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY)
+  target_compile_definitions(cmsis-nn
+    PUBLIC CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY)
+endif()
 
 if (BASICMATHSNN)
   add_subdirectory(BasicMathFunctions)
@@ -96,6 +104,10 @@ endif()
 
 if (QUANTIZATION)
   add_subdirectory(QuantizationFunctions)
+endif()
+
+if (STRIDEDSLICE)
+  add_subdirectory(StridedSliceFunctions)
 endif()
 
 # Keep NNSUPPORT at the end

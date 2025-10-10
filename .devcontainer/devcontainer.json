@@ -30,6 +30,9 @@
         "ghcr.io/devcontainers/features/github-cli:1": {
             "installDirectlyFromGitHubRelease": true,
             "version": "latest"
+        },
+        "ghcr.io/devcontainers-community/features/bazel:1": {
+
         }
     }
 }

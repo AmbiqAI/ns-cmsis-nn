@@ -16,7 +16,8 @@
 # limitations under the License.
 #
 
-cmake_minimum_required(VERSION 3.15.6)
+cmake_minimum_required(VERSION 3.5)
+cmake_policy(SET CMP0079 NEW)
 
 project(cmsis_nn_unit_tests VERSION 0.0.1)
 
@@ -71,6 +72,9 @@ function(add_cmsis_nn_unit_test_executable)
     set_property(GLOBAL PROPERTY cmsis_nn_unit_test_executables "${tmp}")
 endfunction(add_cmsis_nn_unit_test_executable)
 
+if (PERF_TEST EQUAL 1)
+    add_subdirectory(TestCases/Perf)
+endif()
 add_subdirectory(TestCases/test_arm_avgpool_s16)
 add_subdirectory(TestCases/test_arm_avgpool_s8)
 add_subdirectory(TestCases/test_arm_batch_matmul_s8)
@@ -124,6 +128,15 @@ add_subdirectory(TestCases/test_arm_quantize_s8_s8)
 add_subdirectory(TestCases/test_arm_quantize_s16_s16)
 add_subdirectory(TestCases/test_arm_dequantize_s8_f32)
 add_subdirectory(TestCases/test_arm_dequantize_s16_f32)
+add_subdirectory(TestCases/test_arm_strided_slice_s8)
+add_subdirectory(TestCases/test_arm_add_s8)
+add_subdirectory(TestCases/test_arm_mul_s8)
+add_subdirectory(TestCases/test_arm_add_s16)
+add_subdirectory(TestCases/test_arm_mul_s16)
+add_subdirectory(TestCases/test_arm_mean_s8)
+add_subdirectory(TestCases/test_arm_mean_s16)
+add_subdirectory(TestCases/test_arm_reduce_max_s8)
+add_subdirectory(TestCases/test_arm_reduce_max_s16)
 
 set(MAKE_CMD "python3")
 set(MAKE_CMD_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/unittest_targets.py")
@@ -131,6 +144,12 @@ set(MAKE_CMD_SCRIPT_OPTION "--download-and-generate-test-runners")
 MESSAGE(STATUS "Downloading Unity and generating test runners for CMSIS-NN unit tests if needed..")
 execute_process(COMMAND ${MAKE_CMD} ${MAKE_CMD_SCRIPT} ${MAKE_CMD_SCRIPT_OPTION}
                         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+if (PERF_TEST EQUAL 1)
+    set(PERF_MAKE_CMD_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/unittest_perf_targets.py")
+    execute_process(COMMAND ${MAKE_CMD} ${PERF_MAKE_CMD_SCRIPT} ${MAKE_CMD_SCRIPT_OPTION}
+                        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
 add_subdirectory(Unity)
 
 # Link common dependencies.

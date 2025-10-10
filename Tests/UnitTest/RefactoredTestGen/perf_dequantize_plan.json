@@ -1,0 +1,122 @@
+[
+  {
+    "suite_name": "perf_test_arm_dequantize_s8_f32",
+    "op_type": "dequantize",
+    "input_data_type": "int8_t",
+    "output_data_type": "float32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "perf_dequantize_int8_float32_tiny_edge1",
+        "batch_1": 1,
+        "height_1": 1,
+        "width_1": 13,
+        "channel_1": 1,
+        "pad": "SAME",
+        "input_min": -128,
+        "input_max": 127
+      },
+      {
+        "name": "perf_dequantize_int8_float32_tiny_edge2",
+        "batch_1": 1,
+        "height_1": 96,
+        "width_1": 1,
+        "channel_1": 1,
+        "pad": "SAME",
+        "input_min": -128,
+        "input_max": 127
+      },
+      {
+        "name": "perf_dequantize_int8_float32_tiny",
+        "batch_1": 1,
+        "height_1": 49,
+        "width_1": 10,
+        "channel_1": 8,
+        "pad": "SAME",
+        "input_min": -128,
+        "input_max": 127
+      },
+      {
+        "name": "perf_dequantize_int8_float32_avg",
+        "batch_1": 1,
+        "height_1": 96,
+        "width_1": 32,
+        "channel_1": 2,
+        "pad": "SAME",
+        "input_min": -128,
+        "input_max": 127
+      },
+      {
+        "name": "perf_dequantize_int8_float32_mobnet",
+        "batch_1": 1,
+        "height_1": 24,
+        "width_1": 24,
+        "channel_1": 12,
+        "pad": "SAME",
+        "input_min": -128,
+        "input_max": 127
+      }
+    ]
+  },
+  {
+    "suite_name": "perf_test_arm_dequantize_s16_f32",
+    "op_type": "dequantize",
+    "input_data_type": "int16_t",
+    "output_data_type": "float32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "perf_dequantize_int16_float32_tiny_edge1",
+        "batch_1": 1,
+        "height_1": 1,
+        "width_1": 13,
+        "channel_1": 1,
+        "pad": "SAME",
+        "input_min": -32768,
+        "input_max": 32767
+      },
+      {
+        "name": "perf_dequantize_int16_float32_tiny_edge2",
+        "batch_1": 1,
+        "height_1": 96,
+        "width_1": 1,
+        "channel_1": 1,
+        "pad": "SAME",
+        "input_min": -32768,
+        "input_max": 32767
+      },
+      {
+        "name": "perf_dequantize_int16_float32_tiny",
+        "batch_1": 1,
+        "height_1": 49,
+        "width_1": 10,
+        "channel_1": 8,
+        "pad": "SAME",
+        "input_min": -32768,
+        "input_max": 32767
+      },
+      {
+        "name": "perf_dequantize_int16_float32_avg",
+        "batch_1": 1,
+        "height_1": 96,
+        "width_1": 32,
+        "channel_1": 2,
+        "pad": "SAME",
+        "input_min": -32768,
+        "input_max": 32767
+      },
+      {
+        "name": "perf_dequantize_int16_float32_mobnet",
+        "batch_1": 1,
+        "height_1": 24,
+        "width_1": 24,
+        "channel_1": 12,
+        "pad": "SAME",
+        "input_min": -32768,
+        "input_max": 32767
+      }
+    ]
+  }
+]

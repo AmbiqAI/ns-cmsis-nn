@@ -48,6 +48,7 @@
  *
  */
 arm_cmsis_nn_status arm_convolve_1x1_s8(const cmsis_nn_context *ctx,
+                                        const cmsis_nn_context *weight_sum_ctx,
                                         const cmsis_nn_conv_params *conv_params,
                                         const cmsis_nn_per_channel_quant_params *quant_params,
                                         const cmsis_nn_dims *input_dims,
@@ -83,7 +84,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s8(const cmsis_nn_context *ctx,
         for (int i_output_h = 0; i_output_h < output_h; i_output_h++)
         {
             // Process one input row
-            arm_cmsis_nn_status result = arm_nn_mat_mult_nt_t_s8(input_data,
+            arm_cmsis_nn_status result = arm_nn_mat_mult_nt_t_s8(weight_sum_ctx->buf,
+                                                                 input_data,
                                                                  filter_data,
                                                                  bias_data,
                                                                  output_data,

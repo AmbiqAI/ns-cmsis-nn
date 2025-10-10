@@ -1,0 +1,1356 @@
+[    
+  {
+    "suite_name": "perf_test_arm_transpose_s8",
+    "op_type": "transpose",
+    "input_data_type": "int8_t",
+    "bias_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "perf_transpose_int8_default_tiny_edge1",
+        "in_dim": [
+          4,
+          2,
+          2,
+          3
+        ],
+        "perm": [
+          3,
+          2,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_default_tiny_edge2",
+        "in_dim": [
+          2,
+          3,
+          4,
+          2
+        ],
+        "perm": [
+          3,
+          2,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_default_tiny",
+        "in_dim": [
+          2,
+          49,
+          10,
+          8
+        ],
+        "perm": [
+          3,
+          2,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_default_avg",
+        "in_dim": [
+          2,
+          96,
+          96,
+          16
+        ],
+        "perm": [
+          3,
+          2,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_default_mobnet",
+        "in_dim": [
+          2,
+          56,
+          56,
+          32
+        ],
+        "perm": [
+          3,
+          2,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_default_large",
+        "in_dim": [
+          2,
+          256,
+          256,
+          16
+        ],
+        "perm": [
+          3,
+          2,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nhcw_tiny_edge1",
+        "in_dim": [
+          4,
+          2,
+          2,
+          3
+        ],
+        "perm": [
+          0,
+          1,
+          3,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nhcw_tiny_edge2",
+        "in_dim": [
+          2,
+          3,
+          4,
+          2
+        ],
+        "perm": [
+          0,
+          1,
+          3,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nhcw_tiny",
+        "in_dim": [
+          2,
+          49,
+          10,
+          8
+        ],
+        "perm": [
+          0,
+          1,
+          3,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nhcw_avg",
+        "in_dim": [
+          2,
+          96,
+          96,
+          16
+        ],
+        "perm": [
+          0,
+          1,
+          3,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nhcw_mobnet",
+        "in_dim": [
+          2,
+          56,
+          56,
+          32
+        ],
+        "perm": [
+          0,
+          1,
+          3,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nhcw_large",
+        "in_dim": [
+          2,
+          256,
+          256,
+          16
+        ],
+        "perm": [
+          0,
+          1,
+          3,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_wchn_tiny_edge1",
+        "in_dim": [
+          4,
+          2,
+          2,
+          3
+        ],
+        "perm": [
+          2,
+          3,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_wchn_tiny_edge2",
+        "in_dim": [
+          2,
+          3,
+          4,
+          2
+        ],
+        "perm": [
+          2,
+          3,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_wchn_tiny",
+        "in_dim": [
+          2,
+          49,
+          10,
+          8
+        ],
+        "perm": [
+          2,
+          3,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_wchn_avg",
+        "in_dim": [
+          2,
+          96,
+          96,
+          16
+        ],
+        "perm": [
+          2,
+          3,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_wchn_mobnet",
+        "in_dim": [
+          2,
+          56,
+          56,
+          32
+        ],
+        "perm": [
+          2,
+          3,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_wchn_large",
+        "in_dim": [
+          2,
+          256,
+          256,
+          16
+        ],
+        "perm": [
+          2,
+          3,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nchw_tiny_edge1",
+        "in_dim": [
+          4,
+          2,
+          2,
+          3
+        ],
+        "perm": [
+          0,
+          3,
+          1,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nchw_tiny_edge2",
+        "in_dim": [
+          2,
+          3,
+          4,
+          2
+        ],
+        "perm": [
+          0,
+          3,
+          1,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nchw_tiny",
+        "in_dim": [
+          2,
+          49,
+          10,
+          8
+        ],
+        "perm": [
+          0,
+          3,
+          1,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nchw_avg",
+        "in_dim": [
+          2,
+          96,
+          96,
+          16
+        ],
+        "perm": [
+          0,
+          3,
+          1,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nchw_mobnet",
+        "in_dim": [
+          2,
+          56,
+          56,
+          32
+        ],
+        "perm": [
+          0,
+          3,
+          1,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nchw_large",
+        "in_dim": [
+          2,
+          256,
+          256,
+          16
+        ],
+        "perm": [
+          0,
+          3,
+          1,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_chwn_tiny_edge1",
+        "in_dim": [
+          4,
+          2,
+          2,
+          3
+        ],
+        "perm": [
+          3,
+          1,
+          2,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_chwn_tiny_edge2",
+        "in_dim": [
+          2,
+          3,
+          4,
+          2
+        ],
+        "perm": [
+          3,
+          1,
+          2,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_chwn_tiny",
+        "in_dim": [
+          2,
+          49,
+          10,
+          8
+        ],
+        "perm": [
+          3,
+          1,
+          2,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_chwn_avg",
+        "in_dim": [
+          2,
+          96,
+          96,
+          16
+        ],
+        "perm": [
+          3,
+          1,
+          2,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_chwn_mobnet",
+        "in_dim": [
+          2,
+          56,
+          56,
+          32
+        ],
+        "perm": [
+          3,
+          1,
+          2,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_chwn_large",
+        "in_dim": [
+          2,
+          256,
+          256,
+          16
+        ],
+        "perm": [
+          3,
+          1,
+          2,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_matrix",
+        "in_dim": [
+          5,
+          20
+        ],
+        "perm": [
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_3dim_tiny_edge1",
+        "in_dim": [
+          5,
+          4,
+          3
+        ],
+        "perm": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_3dim_tiny_edge2",
+        "in_dim": [
+          5,
+          4,
+          3
+        ],
+        "perm": [
+          1,
+          2,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_ncwh_tiny_edge1",
+        "in_dim": [
+          4,
+          2,
+          2,
+          3
+        ],
+        "perm": [
+          0,
+          3,
+          2,
+          1
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_ncwh_tiny_edge2",
+        "in_dim": [
+          2,
+          3,
+          4,
+          2
+        ],
+        "perm": [
+          0,
+          3,
+          2,
+          1
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_ncwh_tiny",
+        "in_dim": [
+          2,
+          49,
+          10,
+          8
+        ],
+        "perm": [
+          0,
+          3,
+          2,
+          1
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_ncwh_avg",
+        "in_dim": [
+          2,
+          96,
+          96,
+          16
+        ],
+        "perm": [
+          0,
+          3,
+          2,
+          1
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_ncwh_mobnet",
+        "in_dim": [
+          2,
+          56,
+          56,
+          32
+        ],
+        "perm": [
+          0,
+          3,
+          2,
+          1
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_ncwh_large",
+        "in_dim": [
+          2,
+          256,
+          256,
+          16
+        ],
+        "perm": [
+          0,
+          3,
+          2,
+          1
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nwhc_tiny_edge1",
+        "in_dim": [
+          4,
+          2,
+          2,
+          3
+        ],
+        "perm": [
+          0,
+          2,
+          1,
+          3
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nwhc_tiny_edge2",
+        "in_dim": [
+          2,
+          3,
+          4,
+          2
+        ],
+        "perm": [
+          0,
+          2,
+          1,
+          3
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nwhc_tiny",
+        "in_dim": [
+          2,
+          49,
+          10,
+          8
+        ],
+        "perm": [
+          0,
+          2,
+          1,
+          3
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nwhc_avg",
+        "in_dim": [
+          2,
+          96,
+          96,
+          16
+        ],
+        "perm": [
+          0,
+          2,
+          1,
+          3
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nwhc_mobnet",
+        "in_dim": [
+          2,
+          56,
+          56,
+          32
+        ],
+        "perm": [
+          0,
+          2,
+          1,
+          3
+        ]
+      },
+      {
+        "name": "perf_transpose_int8_nwhc_large",
+        "in_dim": [
+          2,
+          256,
+          256,
+          16
+        ],
+        "perm": [
+          0,
+          2,
+          1,
+          3
+        ]
+      }
+    ]
+  },
+  {
+    "suite_name": "perf_test_arm_transpose_s16",
+    "op_type": "transpose",
+    "input_data_type": "int16_t",
+    "bias_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "perf_transpose_int16_default_tiny_edge1",
+        "in_dim": [
+          4,
+          2,
+          2,
+          3
+        ],
+        "perm": [
+          3,
+          2,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_default_tiny_edge2",
+        "in_dim": [
+          2,
+          3,
+          4,
+          2
+        ],
+        "perm": [
+          3,
+          2,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_default_tiny",
+        "in_dim": [
+          2,
+          49,
+          10,
+          8
+        ],
+        "perm": [
+          3,
+          2,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_default_avg",
+        "in_dim": [
+          2,
+          96,
+          96,
+          16
+        ],
+        "perm": [
+          3,
+          2,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_default_mobnet",
+        "in_dim": [
+          2,
+          56,
+          56,
+          32
+        ],
+        "perm": [
+          3,
+          2,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_default_large",
+        "in_dim": [
+          2,
+          256,
+          256,
+          16
+        ],
+        "perm": [
+          3,
+          2,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nhcw_tiny_edge1",
+        "in_dim": [
+          4,
+          2,
+          2,
+          3
+        ],
+        "perm": [
+          0,
+          1,
+          3,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nhcw_tiny_edge2",
+        "in_dim": [
+          2,
+          3,
+          4,
+          2
+        ],
+        "perm": [
+          0,
+          1,
+          3,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nhcw_tiny",
+        "in_dim": [
+          2,
+          49,
+          10,
+          8
+        ],
+        "perm": [
+          0,
+          1,
+          3,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nhcw_avg",
+        "in_dim": [
+          2,
+          96,
+          96,
+          16
+        ],
+        "perm": [
+          0,
+          1,
+          3,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nhcw_mobnet",
+        "in_dim": [
+          2,
+          56,
+          56,
+          32
+        ],
+        "perm": [
+          0,
+          1,
+          3,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nhcw_large",
+        "in_dim": [
+          2,
+          256,
+          256,
+          16
+        ],
+        "perm": [
+          0,
+          1,
+          3,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_wchn_tiny_edge1",
+        "in_dim": [
+          4,
+          2,
+          2,
+          3
+        ],
+        "perm": [
+          2,
+          3,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_wchn_tiny_edge2",
+        "in_dim": [
+          2,
+          3,
+          4,
+          2
+        ],
+        "perm": [
+          2,
+          3,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_wchn_tiny",
+        "in_dim": [
+          2,
+          49,
+          10,
+          8
+        ],
+        "perm": [
+          2,
+          3,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_wchn_avg",
+        "in_dim": [
+          2,
+          96,
+          96,
+          16
+        ],
+        "perm": [
+          2,
+          3,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_wchn_mobnet",
+        "in_dim": [
+          2,
+          56,
+          56,
+          32
+        ],
+        "perm": [
+          2,
+          3,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_wchn_large",
+        "in_dim": [
+          2,
+          256,
+          256,
+          16
+        ],
+        "perm": [
+          2,
+          3,
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nchw_tiny_edge1",
+        "in_dim": [
+          4,
+          2,
+          2,
+          3
+        ],
+        "perm": [
+          0,
+          3,
+          1,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nchw_tiny_edge2",
+        "in_dim": [
+          2,
+          3,
+          4,
+          2
+        ],
+        "perm": [
+          0,
+          3,
+          1,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nchw_tiny",
+        "in_dim": [
+          2,
+          49,
+          10,
+          8
+        ],
+        "perm": [
+          0,
+          3,
+          1,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nchw_avg",
+        "in_dim": [
+          2,
+          96,
+          96,
+          16
+        ],
+        "perm": [
+          0,
+          3,
+          1,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nchw_mobnet",
+        "in_dim": [
+          2,
+          56,
+          56,
+          32
+        ],
+        "perm": [
+          0,
+          3,
+          1,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nchw_large",
+        "in_dim": [
+          2,
+          256,
+          256,
+          16
+        ],
+        "perm": [
+          0,
+          3,
+          1,
+          2
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_chwn_tiny_edge1",
+        "in_dim": [
+          4,
+          2,
+          2,
+          3
+        ],
+        "perm": [
+          3,
+          1,
+          2,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_chwn_tiny_edge2",
+        "in_dim": [
+          2,
+          3,
+          4,
+          2
+        ],
+        "perm": [
+          3,
+          1,
+          2,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_chwn_tiny",
+        "in_dim": [
+          2,
+          49,
+          10,
+          8
+        ],
+        "perm": [
+          3,
+          1,
+          2,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_chwn_avg",
+        "in_dim": [
+          2,
+          96,
+          96,
+          16
+        ],
+        "perm": [
+          3,
+          1,
+          2,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_chwn_mobnet",
+        "in_dim": [
+          2,
+          56,
+          56,
+          32
+        ],
+        "perm": [
+          3,
+          1,
+          2,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_chwn_large",
+        "in_dim": [
+          2,
+          256,
+          256,
+          16
+        ],
+        "perm": [
+          3,
+          1,
+          2,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_matrix",
+        "in_dim": [
+          5,
+          20
+        ],
+        "perm": [
+          1,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_3dim_tiny_edge1",
+        "in_dim": [
+          5,
+          4,
+          3
+        ],
+        "perm": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_3dim_tiny_edge2",
+        "in_dim": [
+          5,
+          4,
+          3
+        ],
+        "perm": [
+          1,
+          2,
+          0
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_ncwh_tiny_edge1",
+        "in_dim": [
+          4,
+          2,
+          2,
+          3
+        ],
+        "perm": [
+          0,
+          3,
+          2,
+          1
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_ncwh_tiny_edge2",
+        "in_dim": [
+          2,
+          3,
+          4,
+          2
+        ],
+        "perm": [
+          0,
+          3,
+          2,
+          1
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_ncwh_tiny",
+        "in_dim": [
+          2,
+          49,
+          10,
+          8
+        ],
+        "perm": [
+          0,
+          3,
+          2,
+          1
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_ncwh_avg",
+        "in_dim": [
+          2,
+          96,
+          96,
+          16
+        ],
+        "perm": [
+          0,
+          3,
+          2,
+          1
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_ncwh_mobnet",
+        "in_dim": [
+          2,
+          56,
+          56,
+          32
+        ],
+        "perm": [
+          0,
+          3,
+          2,
+          1
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_ncwh_large",
+        "in_dim": [
+          2,
+          256,
+          256,
+          16
+        ],
+        "perm": [
+          0,
+          3,
+          2,
+          1
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nwhc_tiny_edge1",
+        "in_dim": [
+          4,
+          2,
+          2,
+          3
+        ],
+        "perm": [
+          0,
+          2,
+          1,
+          3
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nwhc_tiny_edge2",
+        "in_dim": [
+          2,
+          3,
+          4,
+          2
+        ],
+        "perm": [
+          0,
+          2,
+          1,
+          3
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nwhc_tiny",
+        "in_dim": [
+          2,
+          49,
+          10,
+          8
+        ],
+        "perm": [
+          0,
+          2,
+          1,
+          3
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nwhc_avg",
+        "in_dim": [
+          2,
+          96,
+          96,
+          16
+        ],
+        "perm": [
+          0,
+          2,
+          1,
+          3
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nwhc_mobnet",
+        "in_dim": [
+          2,
+          56,
+          56,
+          32
+        ],
+        "perm": [
+          0,
+          2,
+          1,
+          3
+        ]
+      },
+      {
+        "name": "perf_transpose_int16_nwhc_large",
+        "in_dim": [
+          2,
+          256,
+          256,
+          16
+        ],
+        "perm": [
+          0,
+          2,
+          1,
+          3
+        ]
+      }
+    ]
+  }
+]

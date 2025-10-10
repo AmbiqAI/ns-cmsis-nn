@@ -1,0 +1,602 @@
+[
+  {
+    "suite_name": "perf_test_arm_reduce_max_s8",
+    "op_type": "reduce_max",
+    "input_data_type": "int8_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int32_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "perf_reduce_max_axis_c_int8_tiny_edge1",
+        "in_dim": [1, 2, 13, 4],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_c_int8_tiny_edge2",
+        "in_dim": [1, 96, 2, 2],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_c_int8_tiny",
+        "in_dim": [1, 49, 10, 8],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_c_int8_avg",
+        "in_dim": [1, 96, 96, 16],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_c_int8_mobnet",
+        "in_dim": [1, 56, 56, 32],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_c_int8_large",
+        "in_dim": [1, 256, 256, 16],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_w_int8_tiny_edge1",
+        "in_dim": [1, 13, 2, 4],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_w_int8_tiny_edge2",
+        "in_dim": [1, 2, 96, 2],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_w_int8_tiny",
+        "in_dim": [1, 49, 10, 8],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_w_int8_avg",
+        "in_dim": [1, 96, 96, 16],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_w_int8_mobnet",
+        "in_dim": [1, 56, 56, 32],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_w_int8_large",
+        "in_dim": [1, 256, 256, 16],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_h_int8_tiny_edge1",
+        "in_dim": [1, 2, 13, 4],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_h_int8_tiny_edge2",
+        "in_dim": [1, 96, 2, 2],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_h_int8_tiny",
+        "in_dim": [1, 49, 10, 8],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_h_int8_avg",
+        "in_dim": [1, 96, 96, 16],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_h_int8_mobnet",
+        "in_dim": [1, 56, 56, 32],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_h_int8_large",
+        "in_dim": [1, 256, 256, 16],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_n_int8_tiny_edge1",
+        "in_dim": [2, 2, 13, 4],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_n_int8_tiny_edge2",
+        "in_dim": [2, 48, 2, 2],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_n_int8_tiny",
+        "in_dim": [2, 49, 10, 4],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_n_int8_avg",
+        "in_dim": [2, 96, 96, 8],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_n_int8_mobnet",
+        "in_dim": [2, 56, 56, 16],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_n_int8_large",
+        "in_dim": [2, 256, 256, 8],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_wc_int8_tiny_edge1",
+        "in_dim": [2, 2, 13, 4],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_wc_int8_tiny_edge2",
+        "in_dim": [2, 96, 2, 2],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_wc_int8_tiny",
+        "in_dim": [2, 49, 10, 4],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_wc_int8_avg",
+        "in_dim": [2, 96, 96, 8],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_wc_int8_mobnet",
+        "in_dim": [2, 56, 56, 16],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_wc_int8_large",
+        "in_dim": [2, 256, 256, 8],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hwc_int8_tiny_edge1",
+        "in_dim": [2, 2, 13, 4],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hwc_int8_tiny_edge2",
+        "in_dim": [2, 96, 2, 2],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hwc_int8_tiny",
+        "in_dim": [2, 49, 10, 4],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hwc_int8_avg",
+        "in_dim": [2, 96, 96, 8],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hwc_int8_mobnet",
+        "in_dim": [2, 56, 56, 16],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hwc_int8_large",
+        "in_dim": [2, 256, 256, 8],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_nhwc_int8_tiny_edge1",
+        "in_dim": [2, 2, 13, 4],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_nhwc_int8_tiny_edge2",
+        "in_dim": [2, 96, 2, 2],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_nhwc_int8_tiny",
+        "in_dim": [2, 49, 10, 4],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_nhwc_int8_avg",
+        "in_dim": [2, 96, 96, 8],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_nhwc_int8_mobnet",
+        "in_dim": [2, 56, 56, 16],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_nhwc_int8_large",
+        "in_dim": [2, 256, 256, 8],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hw_int8_tiny_edge1",
+        "in_dim": [2, 2, 13, 4],
+        "axis": [1, 2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hw_int8_tiny_edge2",
+        "in_dim": [2, 96, 2, 2],
+        "axis": [1, 2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hw_int8_tiny",
+        "in_dim": [2, 49, 10, 4],
+        "axis": [1, 2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hw_int8_avg",
+        "in_dim": [2, 96, 96, 8],
+        "axis": [1, 2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hw_int8_mobnet",
+        "in_dim": [2, 56, 56, 16],
+        "axis": [1, 2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hw_int8_large",
+        "in_dim": [2, 256, 256, 8],
+        "axis": [1, 2],
+        "keep_dims": true
+      }
+    ]
+  },
+  {
+    "suite_name": "perf_test_arm_reduce_max_s16",
+    "op_type": "reduce_max",
+    "input_data_type": "int16_t",
+    "weights_data_type": "int16_t",
+    "bias_data_type": "int32_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "perf_reduce_max_axis_c_int16_tiny_edge1",
+        "in_dim": [1, 2, 13, 4],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_c_int16_tiny_edge2",
+        "in_dim": [1, 96, 2, 2],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_c_int16_tiny",
+        "in_dim": [1, 49, 10, 8],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_c_int16_avg",
+        "in_dim": [1, 96, 96, 16],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_c_int16_mobnet",
+        "in_dim": [1, 56, 56, 32],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_c_int16_large",
+        "in_dim": [1, 256, 256, 16],
+        "axis": [3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_w_int16_tiny_edge1",
+        "in_dim": [1, 13, 2, 4],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_w_int16_tiny_edge2",
+        "in_dim": [1, 2, 96, 2],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_w_int16_tiny",
+        "in_dim": [1, 49, 10, 8],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_w_int16_avg",
+        "in_dim": [1, 96, 96, 16],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_w_int16_mobnet",
+        "in_dim": [1, 56, 56, 32],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_w_int16_large",
+        "in_dim": [1, 256, 256, 16],
+        "axis": [2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_h_int16_tiny_edge1",
+        "in_dim": [1, 2, 13, 4],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_h_int16_tiny_edge2",
+        "in_dim": [1, 96, 2, 2],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_h_int16_tiny",
+        "in_dim": [1, 49, 10, 8],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_h_int16_avg",
+        "in_dim": [1, 96, 96, 16],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_h_int16_mobnet",
+        "in_dim": [1, 56, 56, 32],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_h_int16_large",
+        "in_dim": [1, 256, 256, 16],
+        "axis": [1],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_n_int16_tiny_edge1",
+        "in_dim": [2, 2, 13, 4],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_n_int16_tiny_edge2",
+        "in_dim": [2, 48, 2, 2],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_n_int16_tiny",
+        "in_dim": [2, 49, 10, 4],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_n_int16_avg",
+        "in_dim": [2, 96, 96, 8],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_n_int16_mobnet",
+        "in_dim": [2, 56, 56, 16],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_n_int16_large",
+        "in_dim": [2, 256, 256, 8],
+        "axis": [0],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_wc_int16_tiny_edge1",
+        "in_dim": [2, 2, 13, 4],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_wc_int16_tiny_edge2",
+        "in_dim": [2, 96, 2, 2],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_wc_int16_tiny",
+        "in_dim": [2, 49, 10, 4],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_wc_int16_avg",
+        "in_dim": [2, 96, 96, 8],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_wc_int16_mobnet",
+        "in_dim": [2, 56, 56, 16],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_wc_int16_large",
+        "in_dim": [2, 256, 256, 8],
+        "axis": [2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hwc_int16_tiny_edge1",
+        "in_dim": [2, 2, 13, 4],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hwc_int16_tiny_edge2",
+        "in_dim": [2, 96, 2, 2],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hwc_int16_tiny",
+        "in_dim": [2, 49, 10, 4],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hwc_int16_avg",
+        "in_dim": [2, 96, 96, 8],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hwc_int16_mobnet",
+        "in_dim": [2, 56, 56, 16],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hwc_int16_large",
+        "in_dim": [2, 256, 256, 8],
+        "axis": [1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_nhwc_int16_tiny_edge1",
+        "in_dim": [2, 2, 13, 4],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_nhwc_int16_tiny_edge2",
+        "in_dim": [2, 96, 2, 2],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_nhwc_int16_tiny",
+        "in_dim": [2, 49, 10, 4],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_nhwc_int16_avg",
+        "in_dim": [2, 96, 96, 8],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_nhwc_int16_mobnet",
+        "in_dim": [2, 56, 56, 16],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_nhwc_int16_large",
+        "in_dim": [2, 256, 256, 8],
+        "axis": [0, 1, 2, 3],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hw_int16_tiny_edge1",
+        "in_dim": [2, 2, 13, 4],
+        "axis": [1, 2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hw_int16_tiny_edge2",
+        "in_dim": [2, 96, 2, 2],
+        "axis": [1, 2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hw_int16_tiny",
+        "in_dim": [2, 49, 10, 4],
+        "axis": [1, 2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hw_int16_avg",
+        "in_dim": [2, 96, 96, 8],
+        "axis": [1, 2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hw_int16_mobnet",
+        "in_dim": [2, 56, 56, 16],
+        "axis": [1, 2],
+        "keep_dims": true
+      },
+      {
+        "name": "perf_reduce_max_axis_hw_int16_large",
+        "in_dim": [2, 256, 256, 8],
+        "axis": [1, 2],
+        "keep_dims": true
+      }
+    ]
+  }
+]

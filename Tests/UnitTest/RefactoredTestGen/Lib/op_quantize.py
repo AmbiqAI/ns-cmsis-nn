@@ -74,17 +74,17 @@ class Op_quantize(Lib.op_utils.Op_type):
 
     def generate_keras_model(shapes, params):
         model = keras.Sequential()
-        model.add(keras.Input(shape=(1,8,1)))
+        model.add(keras.Input(shape=shapes["input_tensor_1"][1:]))
 
-        # Flatten it to a 1D vector of length 8
+        # Flatten it to a 1D vector
         model.add(keras.layers.Flatten())
 
-        # Insert Dense(8) with identity weights
-        dense = keras.layers.Dense(units=8, use_bias=False, activation=None)
+        # Insert Dense(params["height_1"] * params["width_1"] * params["channel_1"]) with identity weights
+        dense = keras.layers.Dense(units=params["height_1"] * params["width_1"] * params["channel_1"], use_bias=False, activation=None)
         model.add(dense)
-        dense.build((None,8))
+        dense.build((None,params["height_1"] * params["width_1"] * params["channel_1"]))
 
-        identity_weights = np.eye(8, dtype=np.float32)
+        identity_weights = np.eye(params["height_1"] * params["width_1"] * params["channel_1"], dtype=np.float32)
         dense.set_weights([identity_weights])
 
 

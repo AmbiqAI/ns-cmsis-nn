@@ -1,0 +1,84 @@
+[
+  {
+    "suite_name": "perf_test_softmax_s8",
+    "op_type": "softmax",
+    "input_data_type": "int8_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "input_integer_bits": 5,
+    "input_scale": 0.003922,
+    "tests": [
+      {  
+        "name": "perf_softmax_int8_tiny_edge1",
+        "num_rows": 1,
+        "row_size": 8
+      },
+      {  
+        "name": "perf_softmax_int8_tiny_edge2",
+        "num_rows": 96,
+        "row_size": 1
+      },
+      {  
+        "name": "perf_softmax_int8_tiny",
+        "num_rows": 10,
+        "row_size": 49
+      },
+      {  
+        "name": "perf_softmax_int8_avg",
+        "num_rows": 96,
+        "row_size": 96
+      },
+      {  
+        "name": "perf_softmax_int8_mobnet",
+        "num_rows": 56,
+        "row_size": 56
+      },
+      {  
+        "name": "perf_softmax_int8_large",
+        "num_rows": 256,
+        "row_size": 256
+      }
+    ]
+  },
+  {
+    "suite_name": "perf_test_softmax_s16",
+    "op_type": "softmax",
+    "input_data_type": "int16_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "input_integer_bits": 5,
+    "input_scale": 0.003922,
+    "tests": [
+      {  
+        "name": "perf_softmax_int16_tiny_edge1",
+        "num_rows": 1,
+        "row_size": 8
+      },
+      {  
+        "name": "perf_softmax_int16_tiny_edge2",
+        "num_rows": 96,
+        "row_size": 1
+      },
+      {  
+        "name": "perf_softmax_int16_tiny",
+        "num_rows": 10,
+        "row_size": 49
+      },
+      {  
+        "name": "perf_softmax_int16_avg",
+        "num_rows": 96,
+        "row_size": 96
+      },
+      {  
+        "name": "perf_softmax_int16_mobnet",
+        "num_rows": 56,
+        "row_size": 56
+      },
+      {  
+        "name": "perf_softmax_int16_large",
+        "num_rows": 256,
+        "row_size": 256
+      }
+    ]
+  }
+]

@@ -253,7 +253,11 @@ class Op_conv(Lib.op_utils.Op_type):
                 data_min = min(data_min, 0.0)
                 data_max = max(data_max, 0.0)
 
+                
                 scale = (data_max - data_min) / (pow(2, quantization_bit_range) - 1)
+                if (isinstance(scale, np.float64)):
+                    scale = scale.item()
+                
                 zero_point = -(round(data_max * scale)) - pow(2, quantization_bit_range - 1)
                 zero_point = max(zero_point, pow(quantization_bit_range - 1) - 1)
                 zero_point = min(zero_point, -pow(quantization_bit_range - 1))
@@ -261,6 +265,9 @@ class Op_conv(Lib.op_utils.Op_type):
             elif quantization_type.lower() == "symmetric":
                 absolute_max = max(abs(data_min), abs(data_max))
                 scale = absolute_max / (pow(2, quantization_bit_range - 1) - 1)
+                if (isinstance(scale, np.float64)):
+                    scale = scale.item()
+                    
                 zero_point = 0
 
             else:

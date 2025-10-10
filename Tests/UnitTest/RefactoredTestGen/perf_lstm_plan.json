@@ -1,0 +1,228 @@
+[
+  {
+    "suite_name": "perf_test_arm_lstm_unidirectional_s16",
+    "op_type": "lstm",
+    "input_data_type": "int16_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int64_t",
+    "interpreter": "tflite_micro",
+    "tflite_generator": "json",
+    "tests": [
+      {
+        "name": "perf_lstm_time_major_int16_tiny",
+        "time_major": true,
+        "batch_size": 1,
+        "time_steps": 10,
+        "input_size": 49,
+        "hidden_size": 8,
+        "json_template": "lstm_s16_tm.json"
+      },
+      {
+        "name": "perf_lstm_time_major_int16_avg",
+        "time_major": true,
+        "batch_size": 1,
+        "time_steps": 96,
+        "input_size": 96,
+        "hidden_size": 16,
+        "json_template": "lstm_s16_tm.json"
+      },
+      {
+        "name": "perf_lstm_time_major_int16_mobnet",
+        "time_major": true,
+        "batch_size": 1,
+        "time_steps": 56,
+        "input_size": 56,
+        "hidden_size": 32,
+        "json_template": "lstm_s16_tm.json"
+      },
+      {
+        "name": "perf_lstm_time_major_int16_large",
+        "time_major": true,
+        "batch_size": 1,
+        "time_steps": 256,
+        "input_size": 256,
+        "hidden_size": 32,
+        "json_template": "lstm_s16_tm.json"
+      },
+      {
+        "name": "perf_lstm_int16_tiny",
+        "time_major": false,
+        "batch_size": 1,
+        "time_steps": 10,
+        "input_size": 49,
+        "hidden_size": 8,
+        "json_template": "lstm_s16.json"
+      },
+      {
+        "name": "perf_lstm_int16_avg",
+        "time_major": false,
+        "batch_size": 1,
+        "time_steps": 96,
+        "input_size": 96,
+        "hidden_size": 16,
+        "json_template": "lstm_s16.json"
+      },
+      {
+        "name": "perf_lstm_int16_mobnet",
+        "time_major": false,
+        "batch_size": 1,
+        "time_steps": 56,
+        "input_size": 56,
+        "hidden_size": 32,
+        "json_template": "lstm_s16.json"
+      },
+      {
+        "name": "perf_lstm_int16_large",
+        "time_major": false,
+        "batch_size": 1,
+        "time_steps": 256,
+        "input_size": 256,
+        "hidden_size": 32,
+        "json_template": "lstm_s16.json"
+      },
+      {
+        "name": "perf_lstm_one_time_step_int16_tiny",
+        "time_major": false,
+        "batch_size": 3,
+        "time_steps": 1,
+        "input_size": 10,
+        "hidden_size": 8,
+        "json_template": "lstm_s16.json"
+      },
+      {
+        "name": "perf_lstm_one_time_step_int16_avg",
+        "time_major": false,
+        "batch_size": 3,
+        "time_steps": 1,
+        "input_size": 96,
+        "hidden_size": 16,
+        "json_template": "lstm_s16.json"
+      },
+      {
+        "name": "perf_lstm_one_time_step_int16_mobnet",
+        "time_major": false,
+        "batch_size": 3,
+        "time_steps": 1,
+        "input_size": 56,
+        "hidden_size": 32,
+        "json_template": "lstm_s16.json"
+      },
+      {
+        "name": "perf_lstm_one_time_step_int16_large",
+        "time_major": false,
+        "batch_size": 3,
+        "time_steps": 1,
+        "input_size": 256,
+        "hidden_size": 32,
+        "json_template": "lstm_s16.json"
+      }
+    ]
+  },
+  {
+    "suite_name": "perf_test_arm_lstm_unidirectional_s8",
+    "op_type": "lstm",
+    "input_data_type": "int8_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int32_t",
+    "interpreter": "tflite_micro",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "perf_lstm_time_major_int8_tiny",
+        "time_major": true,
+        "batch_size": 1,
+        "time_steps": 10,
+        "input_size": 49,
+        "hidden_size": 8
+      },
+      {
+        "name": "perf_lstm_time_major_int8_avg",
+        "time_major": true,
+        "batch_size": 1,
+        "time_steps": 96,
+        "input_size": 96,
+        "hidden_size": 16
+      },
+      {
+        "name": "perf_lstm_time_major_int8_mobnet",
+        "time_major": true,
+        "batch_size": 1,
+        "time_steps": 56,
+        "input_size": 56,
+        "hidden_size": 32
+      },
+      {
+        "name": "perf_lstm_time_major_int8_large",
+        "time_major": true,
+        "batch_size": 1,
+        "time_steps": 256,
+        "input_size": 256,
+        "hidden_size": 32
+      },
+      {
+        "name": "perf_lstm_int8_tiny",
+        "time_major": false,
+        "batch_size": 1,
+        "time_steps": 10,
+        "input_size": 49,
+        "hidden_size": 8
+      },
+      {
+        "name": "perf_lstm_int8_avg",
+        "time_major": false,
+        "batch_size": 1,
+        "time_steps": 96,
+        "input_size": 96,
+        "hidden_size": 16
+      },
+      {
+        "name": "perf_lstm_int8_mobnet",
+        "time_major": false,
+        "batch_size": 1,
+        "time_steps": 56,
+        "input_size": 56,
+        "hidden_size": 32
+      },
+      {
+        "name": "perf_lstm_int8_large",
+        "time_major": false,
+        "batch_size": 1,
+        "time_steps": 256,
+        "input_size": 256,
+        "hidden_size": 32
+      },
+      {
+        "name": "perf_lstm_one_time_step_int8_tiny",
+        "time_major": false,
+        "batch_size": 3,
+        "time_steps": 1,
+        "input_size": 10,
+        "hidden_size": 8
+      },
+      {
+        "name": "perf_lstm_one_time_step_int8_avg",
+        "time_major": false,
+        "batch_size": 3,
+        "time_steps": 1,
+        "input_size": 96,
+        "hidden_size": 16
+      },
+      {
+        "name": "perf_lstm_one_time_step_int8_mobnet",
+        "time_major": false,
+        "batch_size": 3,
+        "time_steps": 1,
+        "input_size": 56,
+        "hidden_size": 32
+      },
+      {
+        "name": "perf_lstm_one_time_step_int8_large",
+        "time_major": false,
+        "batch_size": 3,
+        "time_steps": 1,
+        "input_size": 256,
+        "hidden_size": 32
+      }
+    ]
+  }
+]

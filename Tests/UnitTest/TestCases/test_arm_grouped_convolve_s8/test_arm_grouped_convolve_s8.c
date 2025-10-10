@@ -50,9 +50,13 @@ void grouped_conv_arm_grouped_convolve_1_s8(void)
     input_dims.w = GROUPED_CONV_1_INPUT_W;
     input_dims.h = GROUPED_CONV_1_INPUT_H;
     input_dims.c = GROUPED_CONV_1_IN_CH;
+
+    filter_dims.n = GROUPED_CONV_1_OUT_CH;
     filter_dims.w = GROUPED_CONV_1_FILTER_X;
     filter_dims.h = GROUPED_CONV_1_FILTER_Y;
     filter_dims.c = GROUPED_CONV_1_FILTER_CH;
+
+    output_dims.n = GROUPED_CONV_1_INPUT_BATCHES;
     output_dims.w = GROUPED_CONV_1_OUTPUT_W;
     output_dims.h = GROUPED_CONV_1_OUTPUT_H;
     output_dims.c = GROUPED_CONV_1_OUT_CH;
@@ -75,7 +79,14 @@ void grouped_conv_arm_grouped_convolve_1_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = conv_params.input_offset; 
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&input_dims,&filter_dims, &output_dims, lhs_offset,  bias_data);
     arm_cmsis_nn_status result = arm_convolve_s8(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -88,6 +99,11 @@ void grouped_conv_arm_grouped_convolve_1_s8(void)
                                                  &output_dims,
                                                  output);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     if (ctx.buf)
     {
         // The caller is responsible to clear the scratch buffers for security reasons if applicable.
@@ -122,9 +138,13 @@ void grouped_conv_arm_grouped_convolve_2_s8(void)
     input_dims.w = GROUPED_CONV_2_INPUT_W;
     input_dims.h = GROUPED_CONV_2_INPUT_H;
     input_dims.c = GROUPED_CONV_2_IN_CH;
+
+    filter_dims.n = GROUPED_CONV_2_OUT_CH;
     filter_dims.w = GROUPED_CONV_2_FILTER_X;
     filter_dims.h = GROUPED_CONV_2_FILTER_Y;
     filter_dims.c = GROUPED_CONV_2_FILTER_CH;
+
+    input_dims.n = GROUPED_CONV_2_INPUT_BATCHES;
     output_dims.w = GROUPED_CONV_2_OUTPUT_W;
     output_dims.h = GROUPED_CONV_2_OUTPUT_H;
     output_dims.c = GROUPED_CONV_2_OUT_CH;
@@ -147,7 +167,14 @@ void grouped_conv_arm_grouped_convolve_2_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = conv_params.input_offset; 
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&input_dims,&filter_dims, &output_dims, lhs_offset,  bias_data);
     arm_cmsis_nn_status result = arm_convolve_s8(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -160,6 +187,11 @@ void grouped_conv_arm_grouped_convolve_2_s8(void)
                                                  &output_dims,
                                                  output);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     if (ctx.buf)
     {
         // The caller is responsible to clear the scratch buffers for security reasons if applicable.
@@ -194,9 +226,13 @@ void grouped_conv_arm_grouped_convolve_3_s8(void)
     input_dims.w = GROUPED_CONV_3_INPUT_W;
     input_dims.h = GROUPED_CONV_3_INPUT_H;
     input_dims.c = GROUPED_CONV_3_IN_CH;
+
+    filter_dims.n = GROUPED_CONV_3_OUT_CH;
     filter_dims.w = GROUPED_CONV_3_FILTER_X;
     filter_dims.h = GROUPED_CONV_3_FILTER_Y;
     filter_dims.c = GROUPED_CONV_3_FILTER_CH;
+
+    output_dims.n = GROUPED_CONV_3_INPUT_BATCHES;
     output_dims.w = GROUPED_CONV_3_OUTPUT_W;
     output_dims.h = GROUPED_CONV_3_OUTPUT_H;
     output_dims.c = GROUPED_CONV_3_OUT_CH;
@@ -219,7 +255,14 @@ void grouped_conv_arm_grouped_convolve_3_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = conv_params.input_offset; 
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&input_dims,&filter_dims, &output_dims, lhs_offset,  bias_data);
     arm_cmsis_nn_status result = arm_convolve_s8(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -232,6 +275,11 @@ void grouped_conv_arm_grouped_convolve_3_s8(void)
                                                  &output_dims,
                                                  output);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     if (ctx.buf)
     {
         // The caller is responsible to clear the scratch buffers for security reasons if applicable.
@@ -266,9 +314,13 @@ void grouped_conv_arm_grouped_convolve_4_s8(void)
     input_dims.w = GROUPED_CONV_4_INPUT_W;
     input_dims.h = GROUPED_CONV_4_INPUT_H;
     input_dims.c = GROUPED_CONV_4_IN_CH;
+
+    filter_dims.n = GROUPED_CONV_4_OUT_CH;
     filter_dims.w = GROUPED_CONV_4_FILTER_X;
     filter_dims.h = GROUPED_CONV_4_FILTER_Y;
     filter_dims.c = GROUPED_CONV_4_FILTER_CH;
+
+    output_dims.n = GROUPED_CONV_4_INPUT_BATCHES;
     output_dims.w = GROUPED_CONV_4_OUTPUT_W;
     output_dims.h = GROUPED_CONV_4_OUTPUT_H;
     output_dims.c = GROUPED_CONV_4_OUT_CH;
@@ -291,7 +343,14 @@ void grouped_conv_arm_grouped_convolve_4_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = conv_params.input_offset; 
+    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&input_dims,&filter_dims, &output_dims, lhs_offset,  bias_data);
     arm_cmsis_nn_status result = arm_convolve_s8(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -304,6 +363,11 @@ void grouped_conv_arm_grouped_convolve_4_s8(void)
                                                  &output_dims,
                                                  output);
 
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     if (ctx.buf)
     {
         // The caller is responsible to clear the scratch buffers for security reasons if applicable.

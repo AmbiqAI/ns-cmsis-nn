@@ -28,7 +28,6 @@
  * Target :  Arm(R) M-Profile Architecture
  *
  * -------------------------------------------------------------------- */
-
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -43,6 +42,7 @@
 
 #if defined(ARM_MATH_MVEI)
 static arm_cmsis_nn_status arm_depthwise_conv_to_conv_s8(const cmsis_nn_context *ctx,
+                                                         const cmsis_nn_context *weight_sum_ctx,
                                                          const cmsis_nn_dw_conv_params *dw_conv_params,
                                                          const cmsis_nn_per_channel_quant_params *quant_params,
                                                          const cmsis_nn_dims *input_dims,
@@ -67,10 +67,11 @@ static arm_cmsis_nn_status arm_depthwise_conv_to_conv_s8(const cmsis_nn_context 
     const cmsis_nn_transpose_params transpose_params = {4, perm};
 
     arm_cmsis_nn_status status = arm_transpose_s8(filter, w_buf, filter_dims, &filter_output_dims, &transpose_params);
-
+    //TODO - this code path is untested
     if (status == ARM_CMSIS_NN_SUCCESS)
     {
         status = arm_convolve_wrapper_s8(ctx,
+                                        weight_sum_ctx,
                                          &conv_params,
                                          quant_params,
                                          input_dims,
@@ -93,6 +94,7 @@ static arm_cmsis_nn_status arm_depthwise_conv_to_conv_s8(const cmsis_nn_context 
  *
  */
 arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
+                                                  const cmsis_nn_context *weight_sum_ctx,
                                                   const cmsis_nn_dw_conv_params *dw_conv_params,
                                                   const cmsis_nn_per_channel_quant_params *quant_params,
                                                   const cmsis_nn_dims *input_dims,
@@ -105,11 +107,13 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
                                                   int8_t *output)
 {
     arm_cmsis_nn_status status = ARM_CMSIS_NN_SUCCESS;
+    (void)weight_sum_ctx;
 
 #if defined(ARM_MATH_MVEI)
     if (input_dims->c == 1 && output_dims->c > CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD)
     {
         return arm_depthwise_conv_to_conv_s8(ctx,
+                                             weight_sum_ctx,
                                              dw_conv_params,
                                              quant_params,
                                              input_dims,
@@ -146,6 +150,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
 #endif
         {
             status = arm_depthwise_conv_s8_opt(ctx,
+                                               weight_sum_ctx,
                                                dw_conv_params,
                                                quant_params,
                                                input_dims,

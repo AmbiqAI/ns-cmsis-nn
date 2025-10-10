@@ -47,6 +47,7 @@
  *
  */
 arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
+                                             const cmsis_nn_context *weight_sum_ctx,
                                              const cmsis_nn_conv_params *conv_params,
                                              const cmsis_nn_per_channel_quant_params *quant_params,
                                              const cmsis_nn_dims *input_dims,
@@ -173,7 +174,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
     (void)ctx;
 #endif
 
-    arm_nn_mat_mult_nt_t_s8(input_data,
+    arm_nn_mat_mult_nt_t_s8(weight_sum_ctx->buf,
+                            input_data,
                             filter_data,
                             bias_data,
                             output_data,

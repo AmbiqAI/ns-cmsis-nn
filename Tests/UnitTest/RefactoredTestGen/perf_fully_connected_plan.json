@@ -1,0 +1,184 @@
+[
+  {
+    "suite_name": "perf_test_arm_fully_connected_s4",
+    "op_type": "fully_connected",
+    "input_data_type": "int8_t",
+    "weights_data_type": "int4_t",
+    "bias_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "json",
+    "w_type": "INT4",
+    "w_scale": 0.005,
+    "w_zp": 0,
+    "bias_scale": 0.00002,
+    "bias_zp": 0,
+    "output_scale": 0.1,
+    "input_scale": 0.1,
+    "tests": [
+      {
+        "name": "perf_fully_connected_int4_tiny",
+        "in_ch": 49,
+        "out_ch": 10,
+        "bias_min": -128,
+        "bias_max": 127,
+        "input_zp": 3,
+        "output_zp": -3
+      },
+      {
+        "name": "perf_fully_connected_int4_tiny_in",
+        "in_ch": 1,
+        "out_ch": 13,
+        "bias_min": -128,
+        "bias_max": 127,
+        "input_zp": 3,
+        "output_zp": -3
+      },
+      {
+        "name": "perf_fully_connected_int4_tiny_out",
+        "in_ch": 96,
+        "out_ch": 1,
+        "bias_min": -128,
+        "bias_max": 127,
+        "input_zp": 3,
+        "output_zp": -3
+      },
+      {
+        "name": "perf_fully_connected_int4_avg",
+        "in_ch": 96,
+        "out_ch": 96,
+        "bias_min": -128,
+        "bias_max": 127,
+        "input_zp": -4,
+        "output_zp": 16
+      },
+      {
+        "name": "perf_fully_connected_int4_mobnet",
+        "in_ch": 56,
+        "out_ch": 56,
+        "bias_min": -128,
+        "bias_max": 127,
+        "input_zp": 1,
+        "output_zp": 0
+      },
+      {
+        "name": "perf_fully_connected_int4_large",
+        "in_ch": 512,
+        "out_ch": 512,
+        "bias_min": -128,
+        "bias_max": 127,
+        "input_zp": -2,
+        "output_zp": 0
+      }
+    ]
+  },
+  {
+    "suite_name": "perf_test_arm_fully_connected_s8",
+    "op_type": "fully_connected",
+    "input_data_type": "int8_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "w_type": "INT8",
+    "shift_and_mult_data_type": "int32_t",
+    "tests": [
+      {
+        "name": "perf_fully_connected_int8_tiny",
+        "in_ch": 49,
+        "out_ch": 10,
+        "generate_bias": true,
+        "per_channel_quant": true
+      },
+      {
+        "name": "perf_fully_connected_int8_tiny_in",
+        "in_ch": 1,
+        "out_ch": 13,
+        "generate_bias": true,
+        "per_channel_quant": true
+      },
+      {
+        "name": "perf_fully_connected_int8_tiny_out",
+        "in_ch": 96,
+        "out_ch": 1,
+        "generate_bias": true,
+        "per_channel_quant": true
+      },
+      {
+        "name": "perf_fully_connected_int8_avg",
+        "in_ch": 96,
+        "out_ch": 96,
+        "generate_bias": true,
+        "per_channel_quant": true
+      },
+      {
+        "name": "perf_fully_connected_int8_mobnet",
+        "in_ch": 56,
+        "out_ch": 56,
+        "generate_bias": true,
+        "per_channel_quant": true
+      },
+      {
+        "name": "perf_fully_connected_int8_large",
+        "in_ch": 512,
+        "out_ch": 512,
+        "generate_bias": true,
+        "per_channel_quant": true
+      }
+    ]
+  },
+  {
+    "suite_name": "perf_test_arm_fully_connected_s16",
+    "op_type": "fully_connected",
+    "input_data_type": "int16_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "w_type": "INT8",
+    "shift_and_mult_data_type": "int32_t",
+    "tests": [
+      {
+        "name": "perf_fully_connected_int8_tiny",
+        "in_ch": 49,
+        "out_ch": 10,
+        "generate_bias": true,
+        "per_channel_quant": true
+      },
+      {
+        "name": "perf_fully_connected_int8_tiny_in",
+        "in_ch": 1,
+        "out_ch": 13,
+        "generate_bias": true,
+        "per_channel_quant": true
+      },
+      {
+        "name": "perf_fully_connected_int8_tiny_out",
+        "in_ch": 96,
+        "out_ch": 1,
+        "generate_bias": true,
+        "per_channel_quant": true
+      },
+      {
+        "name": "perf_fully_connected_int8_avg",
+        "in_ch": 96,
+        "out_ch": 96,
+        "generate_bias": true,
+        "per_channel_quant": true
+      },
+      {
+        "name": "perf_fully_connected_int8_mobnet",
+        "in_ch": 56,
+        "out_ch": 56,
+        "generate_bias": true,
+        "per_channel_quant": true
+      },
+      {
+        "name": "perf_fully_connected_int8_large",
+        "in_ch": 512,
+        "out_ch": 512,
+        "generate_bias": true,
+        "per_channel_quant": true
+      }
+    ]
+  }
+]

@@ -17,17 +17,23 @@
 import os
 import Lib.op_lstm
 import Lib.op_conv
+import Lib.op_add
 import Lib.op_batch_matmul
 import Lib.op_fully_connected
 import Lib.op_pooling
 import Lib.op_pad
 import Lib.op_maximum_minimum
+import Lib.op_mul
+import Lib.op_mean
+import Lib.op_strided_slice
 import Lib.op_transpose
 import Lib.op_elementwise_mul
 import Lib.op_quantize
 import Lib.op_dequantize
+import Lib.op_reduce_max
 import Lib.op_relu
 import Lib.op_relu6
+import Lib.op_softmax
 import tensorflow as tf
 import numpy as np
 from tensorflow.lite.python.interpreter import Interpreter
@@ -228,6 +234,8 @@ def generate(params, args, fpaths):
 
 
 def get_op_type(op_type_string):
+    if op_type_string == "add":
+        return Lib.op_add.Op_add
     if op_type_string == "lstm":
         return Lib.op_lstm.Op_lstm
     elif op_type_string == "conv":
@@ -240,6 +248,8 @@ def get_op_type(op_type_string):
         return Lib.op_fully_connected.Op_fully_connected
     elif op_type_string == "avgpool" or op_type_string == "maxpool":
         return Lib.op_pooling.Op_pooling
+    elif op_type_string == "mul":
+        return Lib.op_mul.Op_mul
     if op_type_string == "pad":
         return Lib.op_pad.Op_pad
     elif op_type_string == "maximum_minimum":
@@ -254,6 +264,14 @@ def get_op_type(op_type_string):
         return Lib.op_relu.Op_relu
     elif op_type_string == "relu6":
         return Lib.op_relu6.Op_relu6
+    elif op_type_string == "softmax":
+        return Lib.op_softmax.Op_softmax
+    elif op_type_string == "strided_slice":
+        return Lib.op_strided_slice.Op_strided_slice
+    elif op_type_string == "mean":
+        return Lib.op_mean.Op_mean
+    elif op_type_string == "reduce_max":
+        return Lib.op_reduce_max.Op_reduce_max
     else:
         raise ValueError(f"Unknown op type '{op_type_string}'")
 

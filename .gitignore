@@ -19,3 +19,4 @@ __pycache__
 # Output of the linkchecker tool
 linkchecker-out.csv
 .vscode
+.DS_Store

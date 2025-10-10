@@ -25,6 +25,7 @@ OPTIMIZATION="-Ofast"
 QUIET=0
 BUILD=1
 RUN=1
+PERF=1
 SETUP_ENVIRONMENT=1
 USE_ARM_COMPILER=0
 USE_PYTHON_VENV=1
@@ -33,7 +34,7 @@ USE_GCC_FROM_DOWNLOAD=1
 
 ETHOS_U_CORE_PLATFORM_PATH=""
 CMSIS_5_PATH=""
-
+CLEAN=0
 
 usage="
 Helper script to setup, build and run CMSIS-NN unit tests
@@ -45,6 +46,7 @@ args:
     -q  Quiet mode. This reduces the amount of info printed from building and running cmsis-unit tests.
     -b  Disable CMake build. Only works with previously built targets. Designed to quickly rerun cpu targets.
     -r  Disable running the unit tests. Designed to test build only or allow user to manually run individual test cases outside of this script.
+    -P  Exclude the performance tests in building and/or running.
     -e  Disable environment setup. This flag will stop the script from attempting to download dependencies. This is just a quiet mode to reduce print outs.
     -a  Use Arm Compiler that is previously available on machine. Ensure compiler directory is added to path and export CC.
     -p  Disable the usage of python venv from download directory. Requires dependencies to be install before calling script.
@@ -56,7 +58,7 @@ args:
     example usage: $(basename "$0") -c cortex-m3,cortex-m4 -o '-O2' -q
 "
 
-while getopts hc:o:qbreapfu:gC: flag
+while getopts hc:o:qbrPeapfu:gC:R flag
 do
     case "${flag}" in
         h) echo "${usage}"
@@ -66,6 +68,7 @@ do
         q) QUIET=1;;
         b) BUILD=0;;
         r) RUN=0;;
+        P) PERF=0;;
         e) SETUP_ENVIRONMENT=0;;
         a) USE_ARM_COMPILER=1;;
         p) USE_PYTHON_VENV=0;;
@@ -73,6 +76,7 @@ do
         u) ETHOS_U_CORE_PLATFORM_PATH="${OPTARG}";;
         g) USE_GCC_FROM_DOWNLOAD=0;;
         C) CMSIS_5_PATH="${OPTARG}";;
+        R) CLEAN=1;;
     esac
 done
 
@@ -98,7 +102,9 @@ Setup_Environment() {
     fi
 
     echo "++ Downloading GCC"
-    if [[ -d ${WORKING_DIR}/arm_gcc_download ]]; then
+    if [[ ${USE_GCC_FROM_DOWNLOAD} -eq 0 ]]; then
+        echo "Arm GCC already found in PATH. If you wish to install a new version, please remove it from the path or delete it entirely."
+    elif [[ -d ${WORKING_DIR}/arm_gcc_download ]]; then
         echo "Arm GCC already installed. If you wish to install a new version, please delete the old folder."
     else
         if [[ ${UNAME_M} == x86_64 ]]; then
@@ -135,20 +141,39 @@ Setup_Environment() {
         python3 -m venv cmsis_nn_venv
         source cmsis_nn_venv/bin/activate
         pip3 install -r ../requirements.txt
+
+        if [[ ${UNAME_M} != x86_64 ]]; then
+            TFLITE_MICRO_BUILD_DIR=/workspaces/tflite-micro
+            git clone https://github.com/tensorflow/tflite-micro.git ${TFLITE_MICRO_BUILD_DIR}
+            pushd ${TFLITE_MICRO_BUILD_DIR}
+            bazel build //python/tflite_micro:whl.dist
+            TFLITE_MICRO_WHL_NAME=$(cat ./bazel-bin/python/tflite_micro/whl.name)
+            pip install ./bazel-bin/python/tflite_micro/whl_dist/${TFLITE_MICRO_WHL_NAME}
+            popd
+        fi
+        
         deactivate
+    fi
+}
+
+Clean_Tests() {
+    echo "++ Removing Old Test Executables"
+    if [[ -d ./build-${cpu}-${compiler}/ ]]; then
+        rm -rf ./build-${cpu}-${compiler}/
     fi
 }
 
 Build_Tests() {
     set -e
     echo "++ Building Tests"
+    TARGET=`echo ${cpu} | sed -e "s/cortex-//"`
     if [[ ${QUIET} -eq 0 ]]; then
-        cmake -S ./ -B build-${cpu}-${compiler} -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} -DTARGET_CPU=${cpu} -DCMSIS_PATH=${CMSIS_5_PATH} -DCMSIS_OPTIMIZATION_LEVEL=${OPTIMIZATION}
+        cmake -S ./ -B build-${cpu}-${compiler} -DPERF_TEST=${PERF} -DCORE_INCLUDE=core_c${TARGET}.h -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} -DTARGET_CPU=${cpu} -DCMSIS_PATH=${CMSIS_5_PATH} -DCMSIS_OPTIMIZATION_LEVEL=${OPTIMIZATION}
         cmake --build build-${cpu}-${compiler}/
 
         echo "Built successfully into build-${cpu}-${compiler}"
     else
-        cmake_command=$(cmake -S ./ -B build-${cpu}-${compiler} -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} -DTARGET_CPU=${cpu} -DCMSIS_PATH=${CMSIS_5_PATH} -DCMSIS_OPTIMIZATION_LEVEL=${OPTIMIZATION} 2>&1)
+        cmake_command=$(cmake -S ./ -B build-${cpu}-${compiler} -DCORE_INCLUDE=core_c${TARGET}.h -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} -DTARGET_CPU=${cpu} -DCMSIS_PATH=${CMSIS_5_PATH} -DCMSIS_OPTIMIZATION_LEVEL=${OPTIMIZATION} 2>&1)
         make_command=$(cmake --build build-${cpu}-${compiler}/ 2>&1)
         echo "${cmake_command}" > build-${cpu}-${compiler}/cmake_command.txt
         echo "${make_command}" > build-${cpu}-${compiler}/make_command.txt
@@ -160,7 +185,18 @@ Build_Tests() {
 Run_Tests() {
     set +e
     echo "++ Running Unit Tests"
-    readarray -d '' tests < <(find ./build-${cpu}-${compiler}/ -iname "*.elf" -print0)
+
+    # bash readarray command
+    # readarray -d '' tests < <(find ./build-${cpu}-${compiler}/ -iname "*.elf" -print0)
+
+    # zsh compatible command--equivalent to the above readarray command
+
+    if [[ ${PERF} -eq 1 ]]; then
+        IFS=$'\n' tests=($(find ./build-${cpu}-${compiler}/ -iname "*.elf"))
+    elif [[ ${RUN} -eq 1 ]]; then
+        IFS=$'\n' tests=($(find ./build-${cpu}-${compiler}/ -iname "*.elf" | grep -v ".*perf.*"))
+    fi
+    
     for test in "${tests[@]}"
     do
         echo "Test: ${test}"
@@ -185,10 +221,12 @@ fi
 UNAME_M=$(uname -m)
 UNAME_S=$(uname -s)
 
+
 if [[ ${UNAME_S} != Linux ]]; then
     echo "Error: This script only supports Linux."
     exit 1
 fi
+
 
 mkdir -p downloads
 pushd downloads
@@ -200,7 +238,7 @@ if [[ ${SETUP_ENVIRONMENT} -eq 1 ]]; then
 fi
 
 if [[ ${USE_PYTHON_VENV} -eq 1 ]]; then
-    source cmsis_nn_venv/bin/activate
+    source ./cmsis_nn_venv/bin/activate
 fi
 
 if [[ -z "${ETHOS_U_CORE_PLATFORM_PATH}" ]]; then
@@ -235,6 +273,10 @@ if [[ ${BUILD} -eq 1 || ${RUN} -eq 1 ]]; then
             elif [[ ${UNAME_M} == aarch64 ]]; then
                 export PATH=${WORKING_DIR}/corstone300_download/models/Linux64_armv8l_GCC-9.3/:${PATH}
             fi
+        fi
+
+        if [[ ${CLEAN} -eq 1 ]]; then
+            Clean_Tests
         fi
 
         if [[ ${BUILD} -eq 1 ]]; then

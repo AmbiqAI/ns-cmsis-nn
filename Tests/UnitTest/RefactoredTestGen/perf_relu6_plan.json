@@ -1,0 +1,65 @@
+[
+  {
+    "suite_name": "perf_test_relu6_basic_s8",
+    "op_type": "relu6",
+    "input_data_type": "int8_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "perf_relu6_basic_int8_tiny_edge1",
+        "batch_size": 1,
+        "batch_1": 1,
+        "height_1": 1,
+        "width_1": 10,
+        "channel_1": 1,
+        "pad": "SAME"
+      },
+      {
+        "name": "perf_relu6_basic_int8_tiny_edge2",
+        "batch_size": 1,
+        "batch_1": 1,
+        "height_1": 96,
+        "width_1": 1,
+        "channel_1": 1,
+        "pad": "SAME"
+      },
+      {
+        "name": "perf_relu6_basic_int8_tiny",
+        "batch_size": 1,
+        "batch_1": 1,
+        "height_1": 49,
+        "width_1": 10,
+        "channel_1": 8,
+        "pad": "SAME"
+      },
+      {
+        "name": "perf_relu6_basic_int8_avg",
+        "batch_size": 1,
+        "batch_1": 1,
+        "height_1": 96,
+        "width_1": 96,
+        "channel_1": 16,
+        "pad": "SAME"
+      },
+      {
+        "name": "perf_relu6_basic_int8_mobnet",
+        "batch_size": 1,
+        "batch_1": 1,
+        "height_1": 56,
+        "width_1": 56,
+        "channel_1": 32,
+        "pad": "SAME"
+      },
+      {
+        "name": "perf_relu6_basic_int8_large",
+        "batch_size": 1,
+        "batch_1": 1,
+        "height_1": 256,
+        "width_1": 256,
+        "channel_1": 32,
+        "pad": "SAME"
+      }
+    ]
+  }
+]
