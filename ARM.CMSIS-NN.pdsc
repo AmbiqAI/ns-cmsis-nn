@@ -60,8 +60,10 @@
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_get_buffer_sizes_s16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_get_buffer_sizes_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_get_buffer_sizes_s4.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_convolve_weight_sum_s4.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_weight_sum_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_convolve_weight_sum_s8.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_convolve_weight_sum_s4.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_wrapper_s4.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s4_opt.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s4.c"/>
@@ -205,6 +207,7 @@
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_per_channel_s16.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_wrapper_s16.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_fp16.c"/>
+        <file category="source" name="Source/FullyConnectedFunctions/arm_vector_sum_s4.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_vector_sum_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_vector_sum_s8_s64.c"/>
         <file category="source" name="Source/LSTMFunctions/arm_lstm_unidirectional_s8.c"/>

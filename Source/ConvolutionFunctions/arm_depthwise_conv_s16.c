@@ -242,6 +242,7 @@ static void depthwise_conv_s16_generic_s16(const int16_t *input,
  *
  */
 arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
+                                           const cmsis_nn_context *weight_sum_ctx,
                                            const cmsis_nn_dw_conv_params *dw_conv_params,
                                            const cmsis_nn_per_channel_quant_params *quant_params,
                                            const cmsis_nn_dims *input_dims,
@@ -258,7 +259,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
 
     (void)bias_dims;
     (void)ctx;
-
+    (void)weight_sum_ctx;
     depthwise_conv_s16_generic_s16(input,
                                    input_dims->n,
                                    input_dims->w,

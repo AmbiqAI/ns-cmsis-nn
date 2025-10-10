@@ -48,6 +48,7 @@
  *
  */
 arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
+                                    const cmsis_nn_context *weight_sum_ctx,
                                     const cmsis_nn_conv_params *conv_params,
                                     const cmsis_nn_per_channel_quant_params *quant_params,
                                     const cmsis_nn_dims *input_dims,
@@ -65,6 +66,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
     int16_t *buffer_a = (int16_t *)ctx->buf;
 
     const int32_t input_batches = input_dims->n;
@@ -92,6 +94,16 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
     int32_t *output_mult = quant_params->multiplier;
     int32_t *output_shift = quant_params->shift;
 
+    int8_t pad_val = 0;
+    const int32_t *eff_bias = bias_data;
+    int32_t eff_input_offset = input_offset;
+
+    if (weight_sum_ctx && weight_sum_ctx->buf)
+    {
+        eff_input_offset = 0;
+        eff_bias = (const int32_t *)weight_sum_ctx->buf;
+        pad_val = (int8_t)(-input_offset);
+    }
     int i_batch;
     for (i_batch = 0; i_batch < input_batches; i_batch++)
     {
@@ -101,7 +113,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
         const int32_t rhs_rows = output_dims->c;
         int8_t *out = output_data;
         int32_t lhs_rows = 0;
-
+        (void)pad_val;
         /* This part implements the im2col function */
         for (int i_out_y = 0; i_out_y < output_y; i_out_y++)
         {
@@ -135,14 +147,14 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
                 {
                     arm_nn_mat_mult_nt_t_s4((int8_t *)buffer_a,
                                             packed_filter_data,
-                                            bias_data,
+                                            eff_bias,
                                             out,
                                             output_mult,
                                             output_shift,
                                             lhs_rows,
                                             rhs_rows,
                                             rhs_cols,
-                                            input_offset,
+                                            eff_input_offset,
                                             out_offset,
                                             out_activation_min,
                                             out_activation_max,
@@ -160,14 +172,14 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
         {
             arm_nn_mat_mult_nt_t_s4((int8_t *)buffer_a,
                                     packed_filter_data,
-                                    bias_data,
+                                    eff_bias,
                                     out,
                                     output_mult,
                                     output_shift,
                                     lhs_rows,
                                     rhs_rows,
                                     rhs_cols,
-                                    input_offset,
+                                    eff_input_offset,
                                     out_offset,
                                     out_activation_min,
                                     out_activation_max,
@@ -198,14 +210,15 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
 
                         if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
                         {
-                            /* Filling 0 for out-of-bound paddings */
-                            memset(two_column_buf, 0, sizeof(int16_t) * input_ch);
+                            /* Filling 0 for out-of-bound paddings or input_offset if weight_sum is used*/
+                            arm_memset_s16(two_column_buf, pad_val, (uint32_t)input_ch);
                         }
                         else
                         {
-                            /* Copying the pixel data to column */
-                            arm_q7_to_q15_with_offset(
-                                input_data + (k_y * input_x + k_x) * input_ch, two_column_buf, input_ch, input_offset);
+                            arm_q7_to_q15_with_offset(input_data + (k_y * input_x + k_x) * input_ch,
+                                                      two_column_buf,
+                                                      input_ch,
+                                                      eff_input_offset);
                         }
                         two_column_buf += input_ch;
                     }
@@ -223,7 +236,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
                                                         out_activation_min,
                                                         out_activation_max,
                                                         rhs_cols,
-                                                        bias_data,
+                                                        eff_bias,
                                                         out);
 
                     /* counter reset */
@@ -246,12 +259,9 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
             int8_t spilled_ker_a = 0;
             for (i = 0; i < output_ch; i++)
             {
-                /* Load the accumulator with bias first */
+                /* Load the accumulator with (sum of weights) * offset + bias first */
                 int32_t sum = 0;
-                if (bias_data)
-                {
-                    sum = bias_data[i];
-                }
+                sum = eff_bias[i];
 
                 const int16_t *ip_as_col = buffer_a;
 

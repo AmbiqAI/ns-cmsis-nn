@@ -75,7 +75,23 @@ void depthwise_2_arm_depthwise_conv_s8(void)
     ctx.buf = NULL;
     ctx.size = 0;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = dw_conv_params.input_offset;
+    arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
+
     arm_cmsis_nn_status result = arm_depthwise_conv_s8(&ctx,
+                                                       &weights_sum_ctx,
                                                        &dw_conv_params,
                                                        &quant_params,
                                                        &input_dims,
@@ -103,12 +119,19 @@ void depthwise_2_arm_depthwise_conv_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
-    cmsis_nn_context weights_sum_ctx;
-    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);
     weights_sum_ctx.size = weights_sum_buf_size;
-    uint32_t lhs_offset = dw_conv_params.input_offset;
-    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
+    arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
     result = arm_depthwise_conv_wrapper_s8(&ctx,
                                            &weights_sum_ctx,
                                            &dw_conv_params,
@@ -183,7 +206,23 @@ void depthwise_mult_batches_arm_depthwise_conv_s8(void)
     ctx.buf = NULL;
     ctx.size = 0;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = dw_conv_params.input_offset;
+    arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
+
     arm_cmsis_nn_status result = arm_depthwise_conv_s8(&ctx,
+                                                       &weights_sum_ctx,
                                                        &dw_conv_params,
                                                        &quant_params,
                                                        &input_dims,
@@ -211,12 +250,18 @@ void depthwise_mult_batches_arm_depthwise_conv_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
-    cmsis_nn_context weights_sum_ctx;
-    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);
     weights_sum_ctx.size = weights_sum_buf_size;
-    uint32_t lhs_offset = dw_conv_params.input_offset;
-    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+    arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
     result = arm_depthwise_conv_wrapper_s8(&ctx,
                                            &weights_sum_ctx,
                                            &dw_conv_params,
@@ -291,7 +336,23 @@ void depthwise_null_bias_1_arm_depthwise_conv_s8(void)
     ctx.buf = NULL;
     ctx.size = 0;
 
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = dw_conv_params.input_offset;
+    arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
+
     arm_cmsis_nn_status result = arm_depthwise_conv_s8(&ctx,
+                                                       &weights_sum_ctx,
                                                        &dw_conv_params,
                                                        &quant_params,
                                                        &input_dims,
@@ -319,12 +380,18 @@ void depthwise_null_bias_1_arm_depthwise_conv_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
-    cmsis_nn_context weights_sum_ctx;
-    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);
     weights_sum_ctx.size = weights_sum_buf_size;
-    uint32_t lhs_offset = dw_conv_params.input_offset;
-    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+    arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
     result = arm_depthwise_conv_wrapper_s8(&ctx,
                                            &weights_sum_ctx,
                                            &dw_conv_params,
@@ -399,8 +466,23 @@ void depthwise_dilation_arm_depthwise_conv_s8(void)
 
     ctx.buf = NULL;
     ctx.size = 0;
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = dw_conv_params.input_offset;
+    arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
 
     arm_cmsis_nn_status result = arm_depthwise_conv_s8(&ctx,
+                                                       &weights_sum_ctx,
                                                        &dw_conv_params,
                                                        &quant_params,
                                                        &input_dims,
@@ -428,12 +510,19 @@ void depthwise_dilation_arm_depthwise_conv_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
-    cmsis_nn_context weights_sum_ctx;
-    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);
     weights_sum_ctx.size = weights_sum_buf_size;
-    uint32_t lhs_offset = dw_conv_params.input_offset;
-    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
+    arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
     result = arm_depthwise_conv_wrapper_s8(&ctx,
                                            &weights_sum_ctx,
                                            &dw_conv_params,
@@ -577,7 +666,24 @@ void in_ch_one_out_ch_larger_one_arm_depthwise_conv_s8(void)
     quant_params.shift = (int32_t *)in_ch_one_out_ch_larger_one_output_shift;
     ctx.buf = NULL;
     ctx.size = 0;
+
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    weights_sum_ctx.size = weights_sum_buf_size;
+    uint32_t lhs_offset = dw_conv_params.input_offset;
+    arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
+
     arm_cmsis_nn_status result = arm_depthwise_conv_s8(&ctx,
+                                                       &weights_sum_ctx,
                                                        &dw_conv_params,
                                                        &quant_params,
                                                        &input_dims,
@@ -601,12 +707,18 @@ void in_ch_one_out_ch_larger_one_arm_depthwise_conv_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
-    cmsis_nn_context weights_sum_ctx;
-    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);
     weights_sum_ctx.size = weights_sum_buf_size;
-    uint32_t lhs_offset = dw_conv_params.input_offset;
-    arm_convolve_weight_sum(weights_sum_ctx.buf, kernel_data,&input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+    arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
     result = arm_depthwise_conv_wrapper_s8(&ctx,
                                            &weights_sum_ctx,
                                            &dw_conv_params,
@@ -680,17 +792,13 @@ void weight_presum(void)
                             bias);
     free(scratch_buf);
 
-#if !defined(ARM_MATH_MVEI)
 
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, result);
-#else
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
     const int32_t expected[3] = {15,27,20};
     TEST_ASSERT_EQUAL_INT32_ARRAY(expected, sum_buf, 3);
-
     memset(sum_buf, 0, buf_sz);
     free(sum_buf);
-#endif
+
 }
 
 /* ------------------------------------------------------------------------ */
@@ -835,7 +943,26 @@ void single_in_many_out_ch(void)
 
     ctx.buf = NULL;
     ctx.size = 0;
+
+    cmsis_nn_context weights_sum_ctx;
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_ctx.size = weights_sum_buf_size;
+
+    weights_sum_ctx.buf = malloc(weights_sum_buf_size);
+    uint32_t lhs_offset = dw_conv_params.input_offset;
+
+    arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,
+                            ctx.buf,
+                            kernel_data,
+                            &dw_conv_params,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            lhs_offset,
+                            bias_data);
+
     arm_cmsis_nn_status result = arm_depthwise_conv_s8(&ctx,
+                                                       &weights_sum_ctx,
                                                        &dw_conv_params,
                                                        &quant_params,
                                                        &input_dims,
@@ -851,6 +978,11 @@ void single_in_many_out_ch(void)
         memset(ctx.buf, 0, ctx.size);
         free(ctx.buf);
     }
+    if (weights_sum_ctx.buf)
+    {
+        memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
+        free(weights_sum_ctx.buf);
+    }
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, depthwise_single_in_many_out_ch_output_ref, output_ref_size));
     memset(output, 0, sizeof(output));
@@ -859,11 +991,9 @@ void single_in_many_out_ch(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
-    cmsis_nn_context weights_sum_ctx;
-    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);
     weights_sum_ctx.size = weights_sum_buf_size;
-    uint32_t lhs_offset = dw_conv_params.input_offset;
     result = arm_depthwise_convolve_weight_sum(weights_sum_ctx.buf,
                             ctx.buf,
                             kernel_data,

@@ -60,33 +60,46 @@ arm_cmsis_nn_status arm_fully_connected_s4(const cmsis_nn_context *ctx,
                                            int8_t *output)
 {
     (void)bias_dims;
-    (void)ctx;
     (void)fc_params->filter_offset;
+
+    const int32_t out_ch = output_dims->c;
+    const int32_t *eff_bias = bias;
+    int32_t eff_input_offset = fc_params->input_offset;
+    if (ctx && ctx->buf) {
+        eff_bias = (const int32_t *)ctx->buf;
+        eff_input_offset = 0;
+    }
+
 
     int32_t batch_cnt = input_dims->n;
 
     while (batch_cnt)
     {
-
-        arm_nn_vec_mat_mult_t_s4(input,
-                                 kernel,
-                                 bias,
-                                 output,
-                                 fc_params->input_offset,
-                                 fc_params->output_offset,
-                                 quant_params->multiplier,
-                                 quant_params->shift,
-                                 filter_dims->n, /* col_dim or accum_depth */
-                                 output_dims->c, /* row_dim or output_depth */
-                                 fc_params->activation.min,
-                                 fc_params->activation.max);
+        arm_cmsis_nn_status status = arm_nn_vec_mat_mult_t_s4(input,
+                                                          kernel,
+                                                          eff_bias,
+                                                          output,
+                                                          eff_input_offset,
+                                                          fc_params->output_offset,
+                                                          quant_params->multiplier,
+                                                          quant_params->shift,
+                                                          filter_dims->n, /* col_dim or accum_depth */
+                                                          out_ch, /* row_dim or output_depth */
+                                                          fc_params->activation.min,
+                                                          fc_params->activation.max);
+        if (status != ARM_CMSIS_NN_SUCCESS)
+        {
+            return status;
+        }
 
         input += filter_dims->n;
-        output += output_dims->c;
+        output += out_ch;
         batch_cnt--;
     }
+
     return (ARM_CMSIS_NN_SUCCESS);
 }
+
 
 /**
  * @} end of FC group

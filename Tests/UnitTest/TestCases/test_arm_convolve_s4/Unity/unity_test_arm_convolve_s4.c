@@ -66,3 +66,4 @@ void test_conv_1_x_n_2_arm_convolve_s4(void) { conv_1_x_n_2_arm_convolve_s4(); }
 void test_conv_1_x_n_3_arm_convolve_s4(void) { conv_1_x_n_3_arm_convolve_s4(); }
 void test_conv_1_x_n_4_arm_convolve_s4(void) { conv_1_x_n_4_arm_convolve_s4(); }
 void test_conv_1_x_n_5_arm_convolve_s4(void) { conv_1_x_n_5_arm_convolve_s4(); }
+void test_convolve_int4_weight_presum_s4(void) {convolve_int4_weight_presum_s4(); }

@@ -61,7 +61,6 @@ arm_cmsis_nn_status arm_fully_connected_wrapper_s16(
     int16_t *output_data
 )
 {
-
     if (quant_params->is_per_channel)
     {
         const cmsis_nn_per_channel_quant_params per_channel_quant_params = {

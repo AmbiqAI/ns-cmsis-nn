@@ -47,6 +47,7 @@
  */
 
 arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
+                                          const cmsis_nn_context *weight_sum_ctx,
                                           const cmsis_nn_conv_params *conv_params,
                                           const cmsis_nn_per_channel_quant_params *quant_params,
                                           const cmsis_nn_dims *input_dims,
@@ -78,7 +79,16 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
     const uint16_t pad_x = conv_params->padding.w;
     const uint16_t stride_x = conv_params->stride.w;
 
-    // Total pad for dilation of 1
+    const int32_t *eff_bias_ptr = bias_data;
+    int32_t  eff_input_offset = conv_params->input_offset;
+    if (weight_sum_ctx && weight_sum_ctx->buf &&
+        weight_sum_ctx->size >= (int32_t)(output_ch * (int32_t)sizeof(int32_t)))
+    {
+        eff_bias_ptr    = (const int32_t *)weight_sum_ctx->buf;
+        eff_input_offset = 0;
+    }
+
+    // Total pad for dilation of 1 
     const int32_t total_pad = ((output_x - 1) * stride_x + kernel_x - input_x);
     const int32_t asym_pad = total_pad % 2;
 
@@ -87,7 +97,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_FAILURE;
     }
 
-    const int32_t right_pad_num = pad_x + asym_pad != 0 ? MAX(1, (pad_x + asym_pad + stride_x - 1) / stride_x) : 0;
+    const int32_t right_pad_num = (pad_x + asym_pad) != 0 ? MAX(1, (pad_x + asym_pad + stride_x - 1) / stride_x) : 0;
     const int32_t left_pad_num = pad_x != 0 ? MAX(1, (pad_x + stride_x - 1) / stride_x) : 0;
     const int32_t no_pad_num = MAX(output_x - (right_pad_num + left_pad_num), 0);
 
@@ -133,16 +143,17 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
         /* Non padded elements */
         input_start *= input_ch;
         lhs_rows = no_pad_num;
+
         arm_nn_mat_mult_nt_t_s4(input_data + input_start,
                                 filter_data,
-                                bias_data,
+                                eff_bias_ptr,
                                 output_data,
                                 quant_params->multiplier,
                                 quant_params->shift,
                                 lhs_rows,
                                 rhs_rows,
                                 rhs_cols,
-                                conv_params->input_offset,
+                                eff_input_offset,
                                 conv_params->output_offset,
                                 conv_params->activation.min,
                                 conv_params->activation.max,
@@ -178,6 +189,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
     }
 #else
     status = arm_convolve_s4(ctx,
+                             weight_sum_ctx,
                              conv_params,
                              quant_params,
                              input_dims,

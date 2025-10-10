@@ -51,10 +51,8 @@ int8_t *arm_nn_mat_mult_kernel_row_offset_s8_s16(const int8_t *input_a,
                                                  const int32_t row_address_offset,
                                                  int8_t *out_0)
 {
-
 #if !defined(ARM_MATH_MVEI)
     /* set up the second output pointers */
-
     int8_t *out_1 = out_0 + row_address_offset;
     const int32_t *bias = output_bias;
 
