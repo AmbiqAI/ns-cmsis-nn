@@ -61,7 +61,28 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s16(
 )
 {
     (void)bias_dims;
-    (void)ctx;
+
+    const int32_t output_ch = output_dims->c;
+    const int64_t required_bytes = (int64_t)output_ch * (int64_t)sizeof(int32_t);
+
+    if ((ctx == NULL) || (ctx->buf == NULL) || (required_bytes > INT32_MAX))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    const int32_t required_size = (int32_t)required_bytes;
+
+    if ((ctx->size != 0) && (ctx->size < required_size))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    int32_t *reduced_multiplier = (int32_t *)ctx->buf;
+
+    for (int32_t i = 0; i < output_ch; ++i)
+    {
+        reduced_multiplier[i] = REDUCE_MULTIPLIER(quant_params->multiplier[i]);
+    }
 
     int32_t batch_cnt = input_dims->n;
 
@@ -73,7 +94,7 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s16(
             kernel,
             bias_data,
             output_data,
-            quant_params->multiplier,
+            reduced_multiplier,
             quant_params->shift,
             filter_dims->n, /* col_dim or accum_depth */
             output_dims->c, /* row_dim or output_depth */

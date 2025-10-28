@@ -2198,6 +2198,34 @@ int32_t arm_fully_connected_s16_get_buffer_size_dsp(const cmsis_nn_dims *filter_
 int32_t arm_fully_connected_s16_get_buffer_size_mve(const cmsis_nn_dims *filter_dims);
 
 /**
+ * @brief Get size of additional buffer required by arm_fully_connected_per_channel_s16().
+ * @param[in]      filter_dims             dimension of filter
+ * @return         The function returns    required buffer size in bytes
+ *
+ */
+int32_t arm_fully_connected_per_channel_s16_get_buffer_size(const cmsis_nn_dims *filter_dims);
+
+/**
+ * @brief Get size of additional buffer required by arm_fully_connected_per_channel_s16() for processors with DSP extension.
+ *        Refer to arm_fully_connected_per_channel_s16_get_buffer_size() for function argument details.
+ *
+ * @note       Intended for compilation on Host. If compiling for an Arm target, use
+ *             arm_fully_connected_per_channel_s16_get_buffer_size().
+ *
+ */
+int32_t arm_fully_connected_per_channel_s16_get_buffer_size_dsp(const cmsis_nn_dims *filter_dims);
+
+/**
+ * @brief Get size of additional buffer required by arm_fully_connected_per_channel_s16() for Arm(R) Helium Architecture case.
+ *        Refer to arm_fully_connected_per_channel_s16_get_buffer_size() for function argument details.
+ *
+ * @note       Intended for compilation on Host. If compiling for an Arm target, use
+ *             arm_fully_connected_per_channel_s16_get_buffer_size().
+ *
+ */
+int32_t arm_fully_connected_per_channel_s16_get_buffer_size_mve(const cmsis_nn_dims *filter_dims);
+
+/**
  * @defgroup groupElementwise Elementwise Functions
  *
  * Elementwise add and multiplication functions.

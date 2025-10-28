@@ -21,6 +21,8 @@
 #include <unity.h>
 
 #include "../TestData/fc_int16_slow/test_data.h"
+#include "../TestData/fc_per_channel_s16/test_data.h"
+#include "../TestData/fc_per_channel_s16_1/test_data.h"
 #include "../TestData/fully_connected_int16/test_data.h"
 #include "../TestData/fully_connected_int16_big/test_data.h"
 #include "../Utils/validate.h"
@@ -214,6 +216,178 @@ void fc_int16_slow_arm_fully_connected_s16(void)
         memset(ctx.buf, 0, buf_size);
         free(ctx.buf);
     }
+    TEST_ASSERT_EQUAL(expected, result);
+    TEST_ASSERT_TRUE(validate_s16(output, output_ref, output_ref_size));
+}
+
+void fc_per_channel_s16_arm_fully_connected_per_channel_s16(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int16_t output[FC_PER_CHANNEL_S16_DST_SIZE] = {0};
+
+    cmsis_nn_context ctx;
+    cmsis_nn_fc_params fc_params;
+    cmsis_nn_per_channel_quant_params quant_params;
+    cmsis_nn_dims input_dims;
+    cmsis_nn_dims filter_dims;
+    cmsis_nn_dims bias_dims;
+    cmsis_nn_dims output_dims;
+
+    const int64_t *bias_data = fc_per_channel_s16_biases;
+    const int8_t *kernel_data = fc_per_channel_s16_weights;
+    const int16_t *input_data = fc_per_channel_s16_input_tensor;
+    const int16_t *output_ref = fc_per_channel_s16_output_ref;
+    const int32_t output_ref_size = FC_PER_CHANNEL_S16_DST_SIZE;
+
+    input_dims.n = FC_PER_CHANNEL_S16_INPUT_BATCHES;
+    input_dims.w = FC_PER_CHANNEL_S16_INPUT_W;
+    input_dims.h = FC_PER_CHANNEL_S16_INPUT_H;
+    input_dims.c = FC_PER_CHANNEL_S16_IN_CH;
+    filter_dims.n = FC_PER_CHANNEL_S16_ACCUMULATION_DEPTH;
+    filter_dims.c = FC_PER_CHANNEL_S16_OUT_CH;
+    output_dims.n = FC_PER_CHANNEL_S16_INPUT_BATCHES;
+    output_dims.c = FC_PER_CHANNEL_S16_OUT_CH;
+
+    fc_params.input_offset = FC_PER_CHANNEL_S16_INPUT_OFFSET;
+    fc_params.filter_offset = 0;
+    fc_params.output_offset = FC_PER_CHANNEL_S16_OUTPUT_OFFSET;
+    fc_params.activation.min = FC_PER_CHANNEL_S16_OUT_ACTIVATION_MIN;
+    fc_params.activation.max = FC_PER_CHANNEL_S16_OUT_ACTIVATION_MAX;
+
+    quant_params.multiplier = (int32_t *)fc_per_channel_s16_output_mult;
+    quant_params.shift = (int32_t *)fc_per_channel_s16_output_shift;
+
+    const int32_t buf_size = arm_fully_connected_per_channel_s16_get_buffer_size(&filter_dims);
+    TEST_ASSERT_NOT_EQUAL(0, buf_size);
+    ctx.buf = malloc(buf_size);
+    ctx.size = buf_size;
+
+    arm_cmsis_nn_status result = arm_fully_connected_per_channel_s16(&ctx,
+                                                                     &fc_params,
+                                                                     &quant_params,
+                                                                     &input_dims,
+                                                                     input_data,
+                                                                     &filter_dims,
+                                                                     kernel_data,
+                                                                     &bias_dims,
+                                                                     bias_data,
+                                                                     &output_dims,
+                                                                     output);
+
+    TEST_ASSERT_EQUAL(expected, result);
+    TEST_ASSERT_TRUE(validate_s16(output, output_ref, output_ref_size));
+
+    cmsis_nn_quant_params generic_quant_params;
+    generic_quant_params.multiplier = quant_params.multiplier;
+    generic_quant_params.shift = quant_params.shift;
+    generic_quant_params.is_per_channel = 1;
+
+    memset(output, 0, sizeof(output));
+
+    result = arm_fully_connected_wrapper_s16(&ctx,
+                                             &fc_params,
+                                             &generic_quant_params,
+                                             &input_dims,
+                                             input_data,
+                                             &filter_dims,
+                                             kernel_data,
+                                             &bias_dims,
+                                             bias_data,
+                                             &output_dims,
+                                             output);
+
+    if (ctx.buf)
+    {
+        memset(ctx.buf, 0, buf_size);
+        free(ctx.buf);
+    }
+
+    TEST_ASSERT_EQUAL(expected, result);
+    TEST_ASSERT_TRUE(validate_s16(output, output_ref, output_ref_size));
+}
+
+void fc_per_channel_s16_batches_arm_fully_connected_per_channel_s16(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int16_t output[FC_PER_CHANNEL_S16_1_DST_SIZE] = {0};
+
+    cmsis_nn_context ctx;
+    cmsis_nn_fc_params fc_params;
+    cmsis_nn_per_channel_quant_params quant_params;
+    cmsis_nn_dims input_dims;
+    cmsis_nn_dims filter_dims;
+    cmsis_nn_dims bias_dims;
+    cmsis_nn_dims output_dims;
+
+    const int64_t *bias_data = fc_per_channel_s16_1_biases;
+    const int8_t *kernel_data = fc_per_channel_s16_1_weights;
+    const int16_t *input_data = fc_per_channel_s16_1_input_tensor;
+    const int16_t *output_ref = fc_per_channel_s16_1_output_ref;
+    const int32_t output_ref_size = FC_PER_CHANNEL_S16_1_DST_SIZE;
+
+    input_dims.n = FC_PER_CHANNEL_S16_1_INPUT_BATCHES;
+    input_dims.w = FC_PER_CHANNEL_S16_1_INPUT_W;
+    input_dims.h = FC_PER_CHANNEL_S16_1_INPUT_H;
+    input_dims.c = FC_PER_CHANNEL_S16_1_IN_CH;
+    filter_dims.n = FC_PER_CHANNEL_S16_1_ACCUMULATION_DEPTH;
+    filter_dims.c = FC_PER_CHANNEL_S16_1_OUT_CH;
+    output_dims.n = FC_PER_CHANNEL_S16_1_INPUT_BATCHES;
+    output_dims.c = FC_PER_CHANNEL_S16_1_OUT_CH;
+
+    fc_params.input_offset = FC_PER_CHANNEL_S16_1_INPUT_OFFSET;
+    fc_params.filter_offset = 0;
+    fc_params.output_offset = FC_PER_CHANNEL_S16_1_OUTPUT_OFFSET;
+    fc_params.activation.min = FC_PER_CHANNEL_S16_1_OUT_ACTIVATION_MIN;
+    fc_params.activation.max = FC_PER_CHANNEL_S16_1_OUT_ACTIVATION_MAX;
+
+    quant_params.multiplier = (int32_t *)fc_per_channel_s16_1_output_mult;
+    quant_params.shift = (int32_t *)fc_per_channel_s16_1_output_shift;
+
+    const int32_t buf_size = arm_fully_connected_per_channel_s16_get_buffer_size(&filter_dims);
+    TEST_ASSERT_NOT_EQUAL(0, buf_size);
+    ctx.buf = malloc(buf_size);
+    ctx.size = buf_size;
+
+    arm_cmsis_nn_status result = arm_fully_connected_per_channel_s16(&ctx,
+                                                                     &fc_params,
+                                                                     &quant_params,
+                                                                     &input_dims,
+                                                                     input_data,
+                                                                     &filter_dims,
+                                                                     kernel_data,
+                                                                     &bias_dims,
+                                                                     bias_data,
+                                                                     &output_dims,
+                                                                     output);
+
+    TEST_ASSERT_EQUAL(expected, result);
+    TEST_ASSERT_TRUE(validate_s16(output, output_ref, output_ref_size));
+
+    cmsis_nn_quant_params generic_quant_params;
+    generic_quant_params.multiplier = quant_params.multiplier;
+    generic_quant_params.shift = quant_params.shift;
+    generic_quant_params.is_per_channel = 1;
+
+    memset(output, 0, sizeof(output));
+
+    result = arm_fully_connected_wrapper_s16(&ctx,
+                                             &fc_params,
+                                             &generic_quant_params,
+                                             &input_dims,
+                                             input_data,
+                                             &filter_dims,
+                                             kernel_data,
+                                             &bias_dims,
+                                             bias_data,
+                                             &output_dims,
+                                             output);
+
+    if (ctx.buf)
+    {
+        memset(ctx.buf, 0, buf_size);
+        free(ctx.buf);
+    }
+
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate_s16(output, output_ref, output_ref_size));
 }
