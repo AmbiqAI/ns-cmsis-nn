@@ -55,6 +55,25 @@ int32_t arm_fully_connected_s16_get_buffer_size_mve(const cmsis_nn_dims *filter_
     return arm_fully_connected_s16_get_buffer_size(filter_dims);
 }
 
+int32_t arm_fully_connected_per_channel_s16_get_buffer_size_dsp(const cmsis_nn_dims *filter_dims)
+{
+    return filter_dims->c * (int32_t)sizeof(int32_t);
+}
+
+int32_t arm_fully_connected_per_channel_s16_get_buffer_size_mve(const cmsis_nn_dims *filter_dims)
+{
+    return arm_fully_connected_per_channel_s16_get_buffer_size_dsp(filter_dims);
+}
+
+int32_t arm_fully_connected_per_channel_s16_get_buffer_size(const cmsis_nn_dims *filter_dims)
+{
+#if defined(ARM_MATH_MVEI)
+    return arm_fully_connected_per_channel_s16_get_buffer_size_mve(filter_dims);
+#else
+    return arm_fully_connected_per_channel_s16_get_buffer_size_dsp(filter_dims);
+#endif
+}
+
 /**
  * @} end of GetBufferSizeFC group
  */
