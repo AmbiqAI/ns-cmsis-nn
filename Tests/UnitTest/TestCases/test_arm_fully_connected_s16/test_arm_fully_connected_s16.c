@@ -234,8 +234,8 @@ void fc_per_channel_s16_arm_fully_connected_per_channel_s16(void)
     cmsis_nn_dims output_dims;
 
     const int64_t *bias_data = fc_per_channel_s16_biases;
-    const int8_t *kernel_data = fc_per_channel_s16_weights_data;
-    const int16_t *input_data = fc_per_channel_s16_input_data;
+    const int8_t *kernel_data = fc_per_channel_s16_weights;
+    const int16_t *input_data = fc_per_channel_s16_input_tensor;
     const int16_t *output_ref = fc_per_channel_s16_output_ref;
     const int32_t output_ref_size = FC_PER_CHANNEL_S16_DST_SIZE;
 
@@ -320,8 +320,8 @@ void fc_per_channel_s16_batches_arm_fully_connected_per_channel_s16(void)
     cmsis_nn_dims output_dims;
 
     const int64_t *bias_data = fc_per_channel_s16_1_biases;
-    const int8_t *kernel_data = fc_per_channel_s16_1_weights_data;
-    const int16_t *input_data = fc_per_channel_s16_1_input_data;
+    const int8_t *kernel_data = fc_per_channel_s16_1_weights;
+    const int16_t *input_data = fc_per_channel_s16_1_input_tensor;
     const int16_t *output_ref = fc_per_channel_s16_1_output_ref;
     const int32_t output_ref_size = FC_PER_CHANNEL_S16_1_DST_SIZE;
 
