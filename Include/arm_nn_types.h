@@ -23,7 +23,7 @@
  *               TensorFlowLite micro compliant functions
  *
  * $Date:        03 Oct 2025
- * $Revision:    "v7.13.1"  x-release-please-version
+ * $Revision:    "v7.14.0"  x-release-please-version
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
@@ -36,8 +36,8 @@
 
 // Version information
 #define NS_CMSIS_NN_VERSION_MAJOR (7) /* x-release-please-major */
-#define NS_CMSIS_NN_VERSION_MINOR (13) /* x-release-please-minor */
-#define NS_CMSIS_NN_VERSION_PATCH (1) /* x-release-please-patch */
+#define NS_CMSIS_NN_VERSION_MINOR (14) /* x-release-please-minor */
+#define NS_CMSIS_NN_VERSION_PATCH (0) /* x-release-please-patch */
 /**
  * @defgroup genPubTypes Structure Types
  * @ingroup Public
