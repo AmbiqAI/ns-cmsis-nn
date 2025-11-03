@@ -8,14 +8,22 @@ This user manual describes the CMSIS NN software library, a collection of effici
 
 The library is divided into a number of functions each covering a specific category:
 
- - \ref NNConv
  - \ref Acti
- - \ref FC
- - \ref SVDF
- - \ref Pooling
- - \ref Softmax
  - \ref groupElementwise
+ - \ref Reduction
+ - \ref Comparison
+ - \ref Concatenation
+ - \ref NNConv
+ - \ref FC
  - \ref LSTM
+ - \ref Pad
+ - \ref Pooling
+ - \ref Quantization
+ - \ref Reshape
+ - \ref Softmax
+ - \ref StridedSlice
+ - \ref SVDF
+ - \ref Transpose
 
 The figure below illustrates the CMSIS-NN block diagram.
 

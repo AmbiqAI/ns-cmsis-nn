@@ -27,7 +27,7 @@
  */
 
 /**
- * @addtogroup groupReduction
+ * @addtogroup Reduction
  * @{
  */
 

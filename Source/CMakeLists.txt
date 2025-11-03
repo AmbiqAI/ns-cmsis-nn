@@ -29,6 +29,7 @@ option(ACTIVATION           "Activations"           ON)
 option(POOLING              "Pooling"               ON)
 option(SOFTMAX              "Softmax"               ON)
 option(BASICMATHSNN         "Basic Maths for NN"    ON)
+option(COMPARISON           "Comparison"            ON)
 option(RESHAPE              "Reshape"               ON)
 option(SVDF                 "SVDF"                  ON)
 option(LSTM                 "LSTM"                  ON)
@@ -56,6 +57,10 @@ endif()
 
 if (BASICMATHSNN)
   add_subdirectory(BasicMathFunctions)
+endif()
+
+if (COMPARISON)
+  add_subdirectory(ComparisonFunctions)
 endif()
 
 if (CONCATENATION)

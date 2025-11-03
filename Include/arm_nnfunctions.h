@@ -2750,6 +2750,304 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
                                     const cmsis_nn_dims *output_dims);
 
 /**
+ * @defgroup Comparison Comparison Functions
+ * @ingroup Public
+ * @brief Comparison operators with optional broadcasting support.
+ */
+
+/**
+ * @brief s8 elementwise comparison with support for broadcasting.
+ *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor (bool values)
+ * @param[in]   output_dims           Output tensor dimensions
+ * @param[in]   input_1_offset        Zero-point for input1 tensor
+ * @param[in]   input_1_mult          Multiplier for input1 tensor
+ * @param[in]   input_1_shift         Shift for input1 tensor
+ * @param[in]   input_2_offset        Zero-point for input2 tensor
+ * @param[in]   input_2_mult          Multiplier for input2 tensor
+ * @param[in]   input_2_shift         Shift for input2 tensor
+ * @param[in]   left_shift            Common left shift prior to requantization
+ * @param[in]   operation             Comparison operation to perform
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ */
+arm_cmsis_nn_status arm_comparison_s8(const cmsis_nn_context *ctx,
+                                      const int8_t *input_1_data,
+                                      const cmsis_nn_dims *input_1_dims,
+                                      const int8_t *input_2_data,
+                                      const cmsis_nn_dims *input_2_dims,
+                                      bool *output_data,
+                                      const cmsis_nn_dims *output_dims,
+                                      const int32_t input_1_offset,
+                                      const int32_t input_1_mult,
+                                      const int32_t input_1_shift,
+                                      const int32_t input_2_offset,
+                                      const int32_t input_2_mult,
+                                      const int32_t input_2_shift,
+                                      const int32_t left_shift,
+                                      arm_nn_compare_operation operation);
+
+/**
+ * @brief s16 elementwise comparison with support for broadcasting.
+ *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor (bool values)
+ * @param[in]   output_dims           Output tensor dimensions
+ * @param[in]   input_1_offset        Zero-point for input1 tensor
+ * @param[in]   input_1_mult          Multiplier for input1 tensor
+ * @param[in]   input_1_shift         Shift for input1 tensor
+ * @param[in]   input_2_offset        Zero-point for input2 tensor
+ * @param[in]   input_2_mult          Multiplier for input2 tensor
+ * @param[in]   input_2_shift         Shift for input2 tensor
+ * @param[in]   left_shift            Common left shift prior to requantization
+ * @param[in]   operation             Comparison operation to perform
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ */
+arm_cmsis_nn_status arm_comparison_s16(const cmsis_nn_context *ctx,
+                                       const int16_t *input_1_data,
+                                       const cmsis_nn_dims *input_1_dims,
+                                       const int16_t *input_2_data,
+                                       const cmsis_nn_dims *input_2_dims,
+                                       bool *output_data,
+                                       const cmsis_nn_dims *output_dims,
+                                       const int32_t input_1_offset,
+                                       const int32_t input_1_mult,
+                                       const int32_t input_1_shift,
+                                       const int32_t input_2_offset,
+                                       const int32_t input_2_mult,
+                                       const int32_t input_2_shift,
+                                       const int32_t left_shift,
+                                       arm_nn_compare_operation operation);
+
+/**
+ * @brief s8 elementwise equality comparison with support for broadcasting.
+ */
+arm_cmsis_nn_status arm_equal_s8(const cmsis_nn_context *ctx,
+                                 const int8_t *input_1_data,
+                                 const cmsis_nn_dims *input_1_dims,
+                                 const int8_t *input_2_data,
+                                 const cmsis_nn_dims *input_2_dims,
+                                 bool *output_data,
+                                 const cmsis_nn_dims *output_dims,
+                                 const int32_t input_1_offset,
+                                 const int32_t input_1_mult,
+                                 const int32_t input_1_shift,
+                                 const int32_t input_2_offset,
+                                 const int32_t input_2_mult,
+                                 const int32_t input_2_shift,
+                                 const int32_t left_shift);
+
+/**
+ * @brief s8 elementwise inequality comparison with support for broadcasting.
+ */
+arm_cmsis_nn_status arm_not_equal_s8(const cmsis_nn_context *ctx,
+                                     const int8_t *input_1_data,
+                                     const cmsis_nn_dims *input_1_dims,
+                                     const int8_t *input_2_data,
+                                     const cmsis_nn_dims *input_2_dims,
+                                     bool *output_data,
+                                     const cmsis_nn_dims *output_dims,
+                                     const int32_t input_1_offset,
+                                     const int32_t input_1_mult,
+                                     const int32_t input_1_shift,
+                                     const int32_t input_2_offset,
+                                     const int32_t input_2_mult,
+                                     const int32_t input_2_shift,
+                                     const int32_t left_shift);
+
+/**
+ * @brief s8 elementwise greater-than comparison with support for broadcasting.
+ */
+arm_cmsis_nn_status arm_greater_s8(const cmsis_nn_context *ctx,
+                                   const int8_t *input_1_data,
+                                   const cmsis_nn_dims *input_1_dims,
+                                   const int8_t *input_2_data,
+                                   const cmsis_nn_dims *input_2_dims,
+                                   bool *output_data,
+                                   const cmsis_nn_dims *output_dims,
+                                   const int32_t input_1_offset,
+                                   const int32_t input_1_mult,
+                                   const int32_t input_1_shift,
+                                   const int32_t input_2_offset,
+                                   const int32_t input_2_mult,
+                                   const int32_t input_2_shift,
+                                   const int32_t left_shift);
+
+/**
+ * @brief s8 elementwise greater-or-equal comparison with support for broadcasting.
+ */
+arm_cmsis_nn_status arm_greater_equal_s8(const cmsis_nn_context *ctx,
+                                         const int8_t *input_1_data,
+                                         const cmsis_nn_dims *input_1_dims,
+                                         const int8_t *input_2_data,
+                                         const cmsis_nn_dims *input_2_dims,
+                                         bool *output_data,
+                                         const cmsis_nn_dims *output_dims,
+                                         const int32_t input_1_offset,
+                                         const int32_t input_1_mult,
+                                         const int32_t input_1_shift,
+                                         const int32_t input_2_offset,
+                                         const int32_t input_2_mult,
+                                         const int32_t input_2_shift,
+                                         const int32_t left_shift);
+
+/**
+ * @brief s8 elementwise less-than comparison with support for broadcasting.
+ */
+arm_cmsis_nn_status arm_less_s8(const cmsis_nn_context *ctx,
+                                const int8_t *input_1_data,
+                                const cmsis_nn_dims *input_1_dims,
+                                const int8_t *input_2_data,
+                                const cmsis_nn_dims *input_2_dims,
+                                bool *output_data,
+                                const cmsis_nn_dims *output_dims,
+                                const int32_t input_1_offset,
+                                const int32_t input_1_mult,
+                                const int32_t input_1_shift,
+                                const int32_t input_2_offset,
+                                const int32_t input_2_mult,
+                                const int32_t input_2_shift,
+                                const int32_t left_shift);
+
+/**
+ * @brief s8 elementwise less-or-equal comparison with support for broadcasting.
+ */
+arm_cmsis_nn_status arm_less_equal_s8(const cmsis_nn_context *ctx,
+                                      const int8_t *input_1_data,
+                                      const cmsis_nn_dims *input_1_dims,
+                                      const int8_t *input_2_data,
+                                      const cmsis_nn_dims *input_2_dims,
+                                      bool *output_data,
+                                      const cmsis_nn_dims *output_dims,
+                                      const int32_t input_1_offset,
+                                      const int32_t input_1_mult,
+                                      const int32_t input_1_shift,
+                                      const int32_t input_2_offset,
+                                      const int32_t input_2_mult,
+                                      const int32_t input_2_shift,
+                                      const int32_t left_shift);
+
+/**
+ * @brief s16 elementwise equality comparison with support for broadcasting.
+ */
+arm_cmsis_nn_status arm_equal_s16(const cmsis_nn_context *ctx,
+                                  const int16_t *input_1_data,
+                                  const cmsis_nn_dims *input_1_dims,
+                                  const int16_t *input_2_data,
+                                  const cmsis_nn_dims *input_2_dims,
+                                  bool *output_data,
+                                  const cmsis_nn_dims *output_dims,
+                                  const int32_t input_1_offset,
+                                  const int32_t input_1_mult,
+                                  const int32_t input_1_shift,
+                                  const int32_t input_2_offset,
+                                  const int32_t input_2_mult,
+                                  const int32_t input_2_shift,
+                                  const int32_t left_shift);
+
+/**
+ * @brief s16 elementwise inequality comparison with support for broadcasting.
+ */
+arm_cmsis_nn_status arm_not_equal_s16(const cmsis_nn_context *ctx,
+                                      const int16_t *input_1_data,
+                                      const cmsis_nn_dims *input_1_dims,
+                                      const int16_t *input_2_data,
+                                      const cmsis_nn_dims *input_2_dims,
+                                      bool *output_data,
+                                      const cmsis_nn_dims *output_dims,
+                                      const int32_t input_1_offset,
+                                      const int32_t input_1_mult,
+                                      const int32_t input_1_shift,
+                                      const int32_t input_2_offset,
+                                      const int32_t input_2_mult,
+                                      const int32_t input_2_shift,
+                                      const int32_t left_shift);
+
+/**
+ * @brief s16 elementwise greater-than comparison with support for broadcasting.
+ */
+arm_cmsis_nn_status arm_greater_s16(const cmsis_nn_context *ctx,
+                                    const int16_t *input_1_data,
+                                    const cmsis_nn_dims *input_1_dims,
+                                    const int16_t *input_2_data,
+                                    const cmsis_nn_dims *input_2_dims,
+                                    bool *output_data,
+                                    const cmsis_nn_dims *output_dims,
+                                    const int32_t input_1_offset,
+                                    const int32_t input_1_mult,
+                                    const int32_t input_1_shift,
+                                    const int32_t input_2_offset,
+                                    const int32_t input_2_mult,
+                                    const int32_t input_2_shift,
+                                    const int32_t left_shift);
+
+/**
+ * @brief s16 elementwise greater-or-equal comparison with support for broadcasting.
+ */
+arm_cmsis_nn_status arm_greater_equal_s16(const cmsis_nn_context *ctx,
+                                          const int16_t *input_1_data,
+                                          const cmsis_nn_dims *input_1_dims,
+                                          const int16_t *input_2_data,
+                                          const cmsis_nn_dims *input_2_dims,
+                                          bool *output_data,
+                                          const cmsis_nn_dims *output_dims,
+                                          const int32_t input_1_offset,
+                                          const int32_t input_1_mult,
+                                          const int32_t input_1_shift,
+                                          const int32_t input_2_offset,
+                                          const int32_t input_2_mult,
+                                          const int32_t input_2_shift,
+                                          const int32_t left_shift);
+
+/**
+ * @brief s16 elementwise less-than comparison with support for broadcasting.
+ */
+arm_cmsis_nn_status arm_less_s16(const cmsis_nn_context *ctx,
+                                 const int16_t *input_1_data,
+                                 const cmsis_nn_dims *input_1_dims,
+                                 const int16_t *input_2_data,
+                                 const cmsis_nn_dims *input_2_dims,
+                                 bool *output_data,
+                                 const cmsis_nn_dims *output_dims,
+                                 const int32_t input_1_offset,
+                                 const int32_t input_1_mult,
+                                 const int32_t input_1_shift,
+                                 const int32_t input_2_offset,
+                                 const int32_t input_2_mult,
+                                 const int32_t input_2_shift,
+                                 const int32_t left_shift);
+
+/**
+ * @brief s16 elementwise less-or-equal comparison with support for broadcasting.
+ */
+arm_cmsis_nn_status arm_less_equal_s16(const cmsis_nn_context *ctx,
+                                       const int16_t *input_1_data,
+                                       const cmsis_nn_dims *input_1_dims,
+                                       const int16_t *input_2_data,
+                                       const cmsis_nn_dims *input_2_dims,
+                                       bool *output_data,
+                                       const cmsis_nn_dims *output_dims,
+                                       const int32_t input_1_offset,
+                                       const int32_t input_1_mult,
+                                       const int32_t input_1_shift,
+                                       const int32_t input_2_offset,
+                                       const int32_t input_2_mult,
+                                       const int32_t input_2_shift,
+                                       const int32_t left_shift);
+
+/**
  * @defgroup Acti Activation Functions
  *
  * Perform activation layers, including ReLU (Rectified Linear Unit),
@@ -4291,7 +4589,7 @@ arm_cmsis_nn_status arm_pad_s16(const int16_t *input,
 
 
 /**
- * @defgroup groupReduction Reduction Functions
+ * @defgroup Reduction Reduction Functions
  *
  */
 
