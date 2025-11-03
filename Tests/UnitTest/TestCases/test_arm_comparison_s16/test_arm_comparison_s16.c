@@ -79,7 +79,7 @@ void comparison_equal_ident_s16_arm_equal_s16(void)
 
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(
-        validate_bool_s16(output, comparison_equal_ident_s16_output_ref, COMPARISON_EQUAL_IDENT_S16_DST_SIZE));
+        validate_bool(output, comparison_equal_ident_s16_output_ref, COMPARISON_EQUAL_IDENT_S16_DST_SIZE));
 }
 
 void comparison_not_equal_scalar_s16_arm_not_equal_s16(void)
@@ -124,7 +124,7 @@ void comparison_not_equal_scalar_s16_arm_not_equal_s16(void)
                                                    COMPARISON_NOT_EQUAL_SCALAR_S16_LEFT_SHIFT);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate_bool_s16(
+    TEST_ASSERT_TRUE(validate_bool(
         output, comparison_not_equal_scalar_s16_output_ref, COMPARISON_NOT_EQUAL_SCALAR_S16_DST_SIZE));
 }
 
@@ -170,7 +170,7 @@ void comparison_greater_broadcast_h_s16_arm_greater_s16(void)
                                                  COMPARISON_GREATER_BROADCAST_H_S16_LEFT_SHIFT);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate_bool_s16(
+    TEST_ASSERT_TRUE(validate_bool(
         output, comparison_greater_broadcast_h_s16_output_ref, COMPARISON_GREATER_BROADCAST_H_S16_DST_SIZE));
 }
 
@@ -217,7 +217,7 @@ void comparison_greater_equal_broadcast_w_s16_arm_comparison_s16(void)
                                                     COMPARISON_GREATER_EQUAL_BROADCAST_W_S16_OPERATION);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate_bool_s16(output,
+    TEST_ASSERT_TRUE(validate_bool(output,
                                        comparison_greater_equal_broadcast_w_s16_output_ref,
                                        COMPARISON_GREATER_EQUAL_BROADCAST_W_S16_DST_SIZE));
 }
@@ -264,7 +264,7 @@ void comparison_less_broadcast_c_s16_arm_less_s16(void)
                                               COMPARISON_LESS_BROADCAST_C_S16_LEFT_SHIFT);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate_bool_s16(
+    TEST_ASSERT_TRUE(validate_bool(
         output, comparison_less_broadcast_c_s16_output_ref, COMPARISON_LESS_BROADCAST_C_S16_DST_SIZE));
 }
 
@@ -310,7 +310,7 @@ void comparison_less_equal_broadcast_hw_s16_arm_less_equal_s16(void)
                                                     COMPARISON_LESS_EQUAL_BROADCAST_HW_S16_LEFT_SHIFT);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate_bool_s16(output,
+    TEST_ASSERT_TRUE(validate_bool(output,
                                        comparison_less_equal_broadcast_hw_s16_output_ref,
                                        COMPARISON_LESS_EQUAL_BROADCAST_HW_S16_DST_SIZE));
 }

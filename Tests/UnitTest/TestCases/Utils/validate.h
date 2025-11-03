@@ -71,33 +71,7 @@ static inline int validate_s16(int16_t *act, const int16_t *ref, int size)
     return test_passed;
 }
 
-static inline int validate_bool_s8(const bool *act, const bool *ref, int size)
-{
-    int test_passed = true;
-    int count = 0;
-
-    for (int i = 0; i < size; ++i)
-    {
-        int actual = act[i] ? 1 : 0;
-        int expected = ref[i] ? 1 : 0;
-
-        if (actual != expected)
-        {
-            count++;
-            printf("ERROR at pos %d: Act(bool): %d Ref(bool): %d\r\n", i, actual, expected);
-            test_passed = false;
-        }
-    }
-
-    if (!test_passed)
-    {
-        printf("%d of %d failed\r\n", count, size);
-    }
-
-    return test_passed;
-}
-
-static inline int validate_bool_s16(const bool *act, const bool *ref, int size)
+static inline int validate_bool(const bool *act, const bool *ref, int size)
 {
     int test_passed = true;
     int count = 0;
