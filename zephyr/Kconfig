@@ -23,6 +23,7 @@ config NS_CMSIS_NN_ALL
 	# and users can still turn individual groups off if they really want.
 	imply NS_CMSIS_NN_ACTIVATION
 	imply NS_CMSIS_NN_BASICMATH
+	imply NS_CMSIS_NN_COMPARISON
 	imply NS_CMSIS_NN_CONCATENATION
 	imply NS_CMSIS_NN_CONVOLUTION
 	imply NS_CMSIS_NN_FULLYCONNECTED
@@ -51,6 +52,13 @@ config NS_CMSIS_NN_BASICMATH
 	help
 	  This option enables the NN libraries for the basic maths operations.
 	  It adds functionality for element-wise add and multiplication functions.
+
+config NS_CMSIS_NN_COMPARISON
+	bool "Comparison"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  Enables the NN comparison kernels (equal, not-equal, greater/less than,
+	  with broadcast support) for int8 and int16 tensors.
 
 config NS_CMSIS_NN_CONCATENATION
 	bool "Concatenation"

@@ -36,6 +36,7 @@ import Lib.op_strided_slice
 import Lib.op_mean
 import Lib.op_reduce_max
 import Lib.op_reduce_min
+import Lib.op_comparisons
 import tensorflow as tf
 import numpy as np
 from tensorflow.lite.python.interpreter import Interpreter
@@ -108,7 +109,8 @@ def generate(params, args, fpaths):
                                     bias_dtype=bias_dtype,
                                     shape=shapes,
                                     per_tensor_quant_for_dense=per_tensor_quant_for_dense,
-                                    output_dtype=params["output_data_type"])
+                                    output_dtype=params["output_data_type"],
+                                    asymmetric_quantize_inputs=params.get("asymmetric_quantize_inputs"))
         else:
             convert_keras_to_tflite(fpaths["tflite"],
                                     keras_model,
@@ -117,7 +119,8 @@ def generate(params, args, fpaths):
                                     bias_dtype=bias_dtype,
                                     shape=shapes,
                                     per_tensor_quant_for_dense=per_tensor_quant_for_dense,
-                                    output_dtype=None)
+                                    output_dtype=None,
+                                    asymmetric_quantize_inputs=params.get("asymmetric_quantize_inputs"))
 
         data = op_type.generate_data_tflite(fpaths["tflite"], params)
 
@@ -184,7 +187,8 @@ def generate(params, args, fpaths):
             "suite_name", "name", "input_data_type", "op_type", "input_data_type", "weights_data_type",
             "bias_data_type", "shift_and_mult_data_type", "interpreter", "tflite_generator", "json_template",
             "groups", "generate_bias", "bias_min", "bias_max", "weights_min", "weights_max", "bias_zp", "w_zp",
-            "input_zp", "output_zp", "w_scale", "bias_scale", "input_scale", "output_scale", "arena_size"
+            "input_zp", "output_zp", "w_scale", "bias_scale", "input_scale", "output_scale", "arena_size",
+            "output_data_type"
         ]
 
     config_params = {key: val for key, val in params.items() if include_in_config(key)}
@@ -284,6 +288,8 @@ def get_op_type(op_type_string):
         return Lib.op_reduce_max.Op_reduce_max
     elif op_type_string == "reduce_min":
         return Lib.op_reduce_min.Op_reduce_min
+    elif op_type_string == "comparison":
+        return Lib.op_comparisons.Op_comparisons
     else:
         raise ValueError(f"Unknown op type '{op_type_string}'")
 
@@ -295,7 +301,8 @@ def convert_keras_to_tflite(
         bias_dtype,
         shape,
         per_tensor_quant_for_dense=False,
-        output_dtype=None):
+        output_dtype=None,
+        asymmetric_quantize_inputs=None):
 
     # Default output_dtype to match input if not specified
     if output_dtype is None:
@@ -329,6 +336,8 @@ def convert_keras_to_tflite(
         converter._experimental_disable_per_channel_quantization_for_dense_layers = per_tensor_quant_for_dense
         converter.inference_input_type = Lib.op_utils.get_tf_dtype(input_dtype)
         converter.inference_output_type = Lib.op_utils.get_tf_dtype(output_dtype)
+        if asymmetric_quantize_inputs is not None:
+            converter._experimental_asymmetric_quantize_inputs = bool(asymmetric_quantize_inputs)
         if input_dtype == "float32_t" and output_dtype == "int8_t":
             converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
 
@@ -387,6 +396,8 @@ def invoke_tflite(tflite_path, input_tensor):
     interpreter.invoke()
     output_index = interpreter.get_output_details()[0]["index"]
     data = interpreter.get_tensor(output_index)
+    if data.dtype == np.bool_:
+        data = data.astype(np.int8)
 
     return data.flatten()
 
@@ -403,6 +414,8 @@ def invoke_tflite_runtime(tflite_path, input_tensor):
     interpreter.invoke()
     output_index = interpreter.get_output_details()[0]["index"]
     data = interpreter.get_tensor(output_index)
+    if data.dtype == np.bool_:
+        data = data.astype(np.int8)
 
     return data.flatten()
 
@@ -415,6 +428,8 @@ def invoke_tflite_micro(tflite_path, input_tensor, arena_size=30000):
 
     interpreter.invoke()
     data = interpreter.get_output(0)
+    if data.dtype == np.bool_:
+        data = data.astype(np.int8)
 
     return data.flatten()
 
@@ -462,22 +477,34 @@ def write_c_array(data, fname, dtype, prefix, tensor_name, test_data_fpath, head
     with fname.open("w+") as f:
         f.write(header)
         f.write("#pragma once\n")
-        f.write("#include <stdint.h>\n\n")
+        if dtype == "bool":
+            f.write("#include <stdbool.h>\n\n")
+        else:
+            f.write("#include <stdint.h>\n\n")
         if size > 0:
             data_shape = data.shape
-            format_width = len(str(data.max())) + 1
             data = data.flatten()
 
             f.write(f"const {dtype} {prefix}_{tensor_name}[{len(data)}] = \n" + "{")
 
-            for i in range(len(data) - 1):
-                if i % data_shape[-1] == 0:
-                    f.write("\n")
-                f.write(f"{data[i]: {format_width}n}, ")
+            if dtype == "bool":
+                for i in range(len(data)):
+                    if i % data_shape[-1] == 0:
+                        f.write("\n")
+                    f.write("true" if data[i] else "false")
+                    if i != len(data) - 1:
+                        f.write(", ")
+                f.write("\n};\n")
+            else:
+                format_width = len(str(data.max())) + 1
+                for i in range(len(data) - 1):
+                    if i % data_shape[-1] == 0:
+                        f.write("\n")
+                    f.write(f"{data[i]: {format_width}n}, ")
 
-            if len(data) - 1 % data_shape[-1] == 0:
-                f.write("\n")
-            f.write(f"{data[len(data) - 1]: {format_width}n}" + "\n};\n")
+                if len(data) - 1 % data_shape[-1] == 0:
+                    f.write("\n")
+                f.write(f"{data[len(data) - 1]: {format_width}n}" + "\n};\n")
 
         else:
             f.write(f"const {dtype} *const {prefix}_{tensor_name} = NULL;\n")

@@ -52,6 +52,17 @@ typedef enum
     ARM_TANH = 1,    /**< Tanh activation function */
 } arm_nn_activation_type;
 
+/** Enum for specifying comparison operator */
+typedef enum
+{
+    ARM_COMPARE_EQUAL = 0,          /**< Returns 1 if lhs == rhs else 0 */
+    ARM_COMPARE_NOT_EQUAL = 1,      /**< Returns 1 if lhs != rhs else 0 */
+    ARM_COMPARE_GREATER = 2,        /**< Returns 1 if lhs > rhs else 0 */
+    ARM_COMPARE_GREATER_EQUAL = 3,  /**< Returns 1 if lhs >= rhs else 0 */
+    ARM_COMPARE_LESS = 4,           /**< Returns 1 if lhs < rhs else 0 */
+    ARM_COMPARE_LESS_EQUAL = 5,     /**< Returns 1 if lhs <= rhs else 0 */
+} arm_nn_compare_operation;
+
 /** Function return codes */
 typedef enum
 {

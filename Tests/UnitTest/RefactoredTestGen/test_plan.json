@@ -3295,5 +3295,185 @@
       { "name": "batch_to_space_nd_both_crops_s16",    "in_dim": [4, 4, 6, 1], "block_shape": [2, 2], "crops": [0, 2, 1, 1] },
       { "name": "batch_to_space_nd_bs1_identity_s16",  "in_dim": [3, 5, 7, 1], "block_shape": [1, 1], "crops": [0, 0, 0, 0] }
     ]
+  },
+  {
+    "suite_name": "test_arm_comparison_s8",
+    "op_type": "comparison",
+    "input_data_type": "int8_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int32_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "comparison_equal_ident_s8",
+        "input_1_n": 1,
+        "input_1_h": 2,
+        "input_1_w": 3,
+        "input_1_c": 4,
+        "input_2_n": 1,
+        "input_2_h": 2,
+        "input_2_w": 3,
+        "input_2_c": 4,
+        "comparison_type": "equal",
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "comparison_not_equal_scalar_s8",
+        "input_1_n": 1,
+        "input_1_h": 2,
+        "input_1_w": 3,
+        "input_1_c": 4,
+        "input_2_n": 1,
+        "input_2_h": 1,
+        "input_2_w": 1,
+        "input_2_c": 1,
+        "comparison_type": "not_equal",
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "comparison_greater_broadcast_h_s8",
+        "input_1_n": 1,
+        "input_1_h": 1,
+        "input_1_w": 2,
+        "input_1_c": 3,
+        "input_2_n": 1,
+        "input_2_h": 4,
+        "input_2_w": 2,
+        "input_2_c": 3,
+        "comparison_type": "greater",
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "comparison_greater_equal_broadcast_w_s8",
+        "input_1_n": 1,
+        "input_1_h": 2,
+        "input_1_w": 3,
+        "input_1_c": 4,
+        "input_2_n": 1,
+        "input_2_h": 2,
+        "input_2_w": 1,
+        "input_2_c": 4,
+        "comparison_type": "greater_equal",
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "comparison_less_broadcast_c_s8",
+        "input_1_n": 1,
+        "input_1_h": 2,
+        "input_1_w": 3,
+        "input_1_c": 4,
+        "input_2_n": 1,
+        "input_2_h": 2,
+        "input_2_w": 3,
+        "input_2_c": 1,
+        "comparison_type": "less",
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "comparison_less_equal_broadcast_hw_s8",
+        "input_1_n": 1,
+        "input_1_h": 2,
+        "input_1_w": 1,
+        "input_1_c": 4,
+        "input_2_n": 1,
+        "input_2_h": 1,
+        "input_2_w": 3,
+        "input_2_c": 1,
+        "comparison_type": "less_equal",
+        "asymmetric_quantize_inputs": 0
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_comparison_s16",
+    "op_type": "comparison",
+    "input_data_type": "int16_t",
+    "weights_data_type": "int8_t",
+    "bias_data_type": "int32_t",
+    "shift_and_mult_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "comparison_equal_ident_s16",
+        "input_1_n": 1,
+        "input_1_h": 2,
+        "input_1_w": 3,
+        "input_1_c": 4,
+        "input_2_n": 1,
+        "input_2_h": 2,
+        "input_2_w": 3,
+        "input_2_c": 4,
+        "comparison_type": "equal",
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "comparison_not_equal_scalar_s16",
+        "input_1_n": 1,
+        "input_1_h": 2,
+        "input_1_w": 3,
+        "input_1_c": 4,
+        "input_2_n": 1,
+        "input_2_h": 1,
+        "input_2_w": 1,
+        "input_2_c": 1,
+        "comparison_type": "not_equal",
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "comparison_greater_broadcast_h_s16",
+        "input_1_n": 1,
+        "input_1_h": 1,
+        "input_1_w": 2,
+        "input_1_c": 3,
+        "input_2_n": 1,
+        "input_2_h": 4,
+        "input_2_w": 2,
+        "input_2_c": 3,
+        "comparison_type": "greater",
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "comparison_greater_equal_broadcast_w_s16",
+        "input_1_n": 1,
+        "input_1_h": 2,
+        "input_1_w": 3,
+        "input_1_c": 4,
+        "input_2_n": 1,
+        "input_2_h": 2,
+        "input_2_w": 1,
+        "input_2_c": 4,
+        "comparison_type": "greater_equal",
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "comparison_less_broadcast_c_s16",
+        "input_1_n": 1,
+        "input_1_h": 2,
+        "input_1_w": 3,
+        "input_1_c": 4,
+        "input_2_n": 1,
+        "input_2_h": 2,
+        "input_2_w": 3,
+        "input_2_c": 1,
+        "comparison_type": "less",
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "comparison_less_equal_broadcast_hw_s16",
+        "input_1_n": 1,
+        "input_1_h": 2,
+        "input_1_w": 1,
+        "input_1_c": 4,
+        "input_2_n": 1,
+        "input_2_h": 1,
+        "input_2_w": 3,
+        "input_2_c": 1,
+        "comparison_type": "less_equal",
+        "asymmetric_quantize_inputs": 0
+      }
+    ]
   }
 ]

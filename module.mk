@@ -1,5 +1,6 @@
 local_src := $(wildcard $(subdirectory)/Source/ActivationFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/BasicMathFunctions/*.c)
+local_src += $(wildcard $(subdirectory)/Source/ComparisonFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/ConcatenationFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/ConvolutionFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/FullyConnectedFunctions/*.c)

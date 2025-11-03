@@ -130,6 +130,8 @@
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_minimum_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_s16.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_comparison_s8.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_comparison_s16.c"/>
 
         <file category="source" name="Source/ActivationFunctions/arm_relu_s8.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_relu_s16.c"/>

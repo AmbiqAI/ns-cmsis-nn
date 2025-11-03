@@ -85,7 +85,9 @@ def get_dtype(name, params):
         return params["weights_data_type"]
     elif "multiplier" in name or "shift" in name:
         return params["shift_and_mult_data_type"]
-    elif "input" in name or "output" in name or "transpose" in name:
+    elif "output" in name:
+        return params.get("output_data_type", params["input_data_type"])
+    elif "input" in name or "transpose" in name:
         return params["input_data_type"]
     else:
         raise Exception(f"Unable to deduce dtype from name '{name}'")
@@ -98,6 +100,8 @@ def get_tf_dtype(dtype):
         return tf.int16
     if dtype == "float32_t":
         return tf.float32
+    if dtype == "bool":
+        return tf.bool
     else:
         raise Exception(f"Unrecognized dtype '{dtype}'")
 
@@ -111,6 +115,8 @@ def get_np_dtype(dtype):
         return np.uint32
     if dtype == "int64_t":
         return np.uint64
+    if dtype == "bool":
+        return np.bool_
     else:
         raise Exception(f"Unrecognized dtype '{dtype}'")
 
@@ -126,6 +132,8 @@ def get_dtype_len(dtype):
         return 8
     elif dtype == "float32_t":
         return 4
+    elif dtype == "bool":
+        return 1
     else:
         raise Exception(f"Unrecognized dtype '{dtype}'")
 
@@ -143,6 +151,8 @@ def get_dtype_max(dtype):
         return 9223372036854775807
     elif dtype == "float32_t":
         return 3.402823466e+38
+    elif dtype == "bool":
+        return 1
     else:
         raise Exception(f"Unrecognized dtype '{dtype}'")
 
@@ -160,7 +170,8 @@ def get_dtype_min(dtype):
         return -9223372036854775808
     elif dtype == "float32_t":
         return -3.402823466e+38
-
+    elif dtype == "bool":
+        return 0
     else:
         raise Exception(f"Unrecognized dtype '{dtype}'")
 
