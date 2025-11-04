@@ -108,13 +108,13 @@ def get_tf_dtype(dtype):
 
 def get_np_dtype(dtype):
     if dtype == "int8_t" or dtype == "int4_t":
-        return np.uint8
+        return np.int8
     if dtype == "int16_t":
-        return np.uint16
+        return np.int16
     if dtype == "int32_t":
-        return np.uint32
+        return np.int32
     if dtype == "int64_t":
-        return np.uint64
+        return np.int64
     if dtype == "bool":
         return np.bool_
     else:

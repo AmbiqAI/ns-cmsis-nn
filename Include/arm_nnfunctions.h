@@ -4881,6 +4881,66 @@ arm_cmsis_nn_status arm_mean_s16(const int16_t *input_data,
                                  const int32_t out_shift);
 
 /**
+ * @brief Compute ArgMax indices of an s8 tensor along a specific axis.
+ * @param[in]  input_data     Pointer to input tensor
+ * @param[in]  input_dims     Input tensor dimensions (NHWC layout)
+ * @param[in]  axis           Reduction axis in range [0, 3]
+ * @param[out] output_data    Pointer to output indices (int32_t)
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> for a valid axis,
+ *             otherwise <code>ARM_CMSIS_NN_ARG_ERROR</code>.
+ */
+arm_cmsis_nn_status arm_argmax_s8(const int8_t *input_data,
+                                  const cmsis_nn_dims *input_dims,
+                                  const int32_t axis,
+                                  int32_t *output_data);
+
+/**
+ * @brief Compute ArgMin indices of an s8 tensor along a specific axis.
+ * @param[in]  input_data     Pointer to input tensor
+ * @param[in]  input_dims     Input tensor dimensions (NHWC layout)
+ * @param[in]  axis           Reduction axis in range [0, 3]
+ * @param[out] output_data    Pointer to output indices (int32_t)
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> for a valid axis,
+ *             otherwise <code>ARM_CMSIS_NN_ARG_ERROR</code>.
+ */
+arm_cmsis_nn_status arm_argmin_s8(const int8_t *input_data,
+                                  const cmsis_nn_dims *input_dims,
+                                  const int32_t axis,
+                                  int32_t *output_data);
+
+/**
+ * @brief Compute ArgMax indices of an s16 tensor along a specific axis.
+ * @param[in]  input_data     Pointer to input tensor
+ * @param[in]  input_dims     Input tensor dimensions (NHWC layout)
+ * @param[in]  axis           Reduction axis in range [0, 3]
+ * @param[out] output_data    Pointer to output indices (int32_t)
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> for a valid axis,
+ *             otherwise <code>ARM_CMSIS_NN_ARG_ERROR</code>.
+ */
+arm_cmsis_nn_status arm_argmax_s16(const int16_t *input_data,
+                                   const cmsis_nn_dims *input_dims,
+                                   const int32_t axis,
+                                   int32_t *output_data);
+
+/**
+ * @brief Compute ArgMin indices of an s16 tensor along a specific axis.
+ * @param[in]  input_data     Pointer to input tensor
+ * @param[in]  input_dims     Input tensor dimensions (NHWC layout)
+ * @param[in]  axis           Reduction axis in range [0, 3]
+ * @param[out] output_data    Pointer to output indices (int32_t)
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> for a valid axis,
+ *             otherwise <code>ARM_CMSIS_NN_ARG_ERROR</code>.
+ */
+arm_cmsis_nn_status arm_argmin_s16(const int16_t *input_data,
+                                   const cmsis_nn_dims *input_dims,
+                                   const int32_t axis,
+                                   int32_t *output_data);
+
+/**
  * @brief Computes the max of the input tensor along the specified axis.
  *
  * @param[in]   input_data          Pointer to input tensor

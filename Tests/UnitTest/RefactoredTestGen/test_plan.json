@@ -2809,6 +2809,132 @@
     ]
   },
   {
+    "suite_name": "test_arm_argminmax_s8",
+    "op_type": "arg_min_max",
+    "input_data_type": "int8_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "argmax_c_s8",
+        "axis": 3,
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 2,
+        "lhs_c": 3,
+        "mode": "argmax"
+      },
+      {
+        "name": "argmin_c_s8",
+        "axis": 3,
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 2,
+        "lhs_c": 3,
+        "mode": "argmin"
+      },
+      {
+        "name": "argmax_h_s8",
+        "axis": 1,
+        "lhs_n": 1,
+        "lhs_h": 3,
+        "lhs_w": 2,
+        "lhs_c": 1,
+        "mode": "argmax"
+      },
+      {
+        "name": "argmin_h_s8",
+        "axis": 1,
+        "lhs_n": 1,
+        "lhs_h": 3,
+        "lhs_w": 2,
+        "lhs_c": 1,
+        "mode": "argmin"
+      },
+      {
+        "name": "argmax_n_s8",
+        "axis": 0,
+        "lhs_n": 2,
+        "lhs_h": 1,
+        "lhs_w": 1,
+        "lhs_c": 2,
+        "mode": "argmax"
+      },
+      {
+        "name": "argmin_n_s8",
+        "axis": 0,
+        "lhs_n": 2,
+        "lhs_h": 1,
+        "lhs_w": 1,
+        "lhs_c": 2,
+        "mode": "argmin"
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_argminmax_s16",
+    "op_type": "arg_min_max",
+    "input_data_type": "int16_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "argmax_c_s16",
+        "axis": 3,
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 2,
+        "lhs_c": 3,
+        "mode": "argmax"
+      },
+      {
+        "name": "argmin_c_s16",
+        "axis": 3,
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 2,
+        "lhs_c": 3,
+        "mode": "argmin"
+      },
+      {
+        "name": "argmax_h_s16",
+        "axis": 1,
+        "lhs_n": 1,
+        "lhs_h": 3,
+        "lhs_w": 2,
+        "lhs_c": 1,
+        "mode": "argmax"
+      },
+      {
+        "name": "argmin_h_s16",
+        "axis": 1,
+        "lhs_n": 1,
+        "lhs_h": 3,
+        "lhs_w": 2,
+        "lhs_c": 1,
+        "mode": "argmin"
+      },
+      {
+        "name": "argmax_n_s16",
+        "axis": 0,
+        "lhs_n": 2,
+        "lhs_h": 1,
+        "lhs_w": 1,
+        "lhs_c": 2,
+        "mode": "argmax"
+      },
+      {
+        "name": "argmin_n_s16",
+        "axis": 0,
+        "lhs_n": 2,
+        "lhs_h": 1,
+        "lhs_w": 1,
+        "lhs_c": 2,
+        "mode": "argmin"
+      }
+    ]
+  },
+  {
     "suite_name": "test_arm_mul_s16",
     "op_type": "mul",
     "input_data_type": "int16_t",
