@@ -111,19 +111,25 @@
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_min_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_min_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_sub_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_mul_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_scalar_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_sub_scalar_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_mul_scalar_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_sub_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_mul_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_scalar_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_sub_scalar_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_mul_scalar_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s16_batch_offset.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_acc_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s16_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_fp16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_minimum_s8.c"/>
