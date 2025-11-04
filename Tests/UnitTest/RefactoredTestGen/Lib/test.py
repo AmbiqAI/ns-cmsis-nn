@@ -38,6 +38,7 @@ import Lib.op_reduce_max
 import Lib.op_reduce_min
 import Lib.op_comparisons
 import Lib.op_sub
+import Lib.op_arg_min_max
 import tensorflow as tf
 import numpy as np
 from tensorflow.lite.python.interpreter import Interpreter
@@ -293,6 +294,8 @@ def get_op_type(op_type_string):
         return Lib.op_comparisons.Op_comparisons
     elif op_type_string == "sub":
         return Lib.op_sub.Op_sub
+    elif op_type_string == "arg_min_max":
+        return Lib.op_arg_min_max.Op_arg_min_max
     else:
         raise ValueError(f"Unknown op type '{op_type_string}'")
 
