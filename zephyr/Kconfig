@@ -37,6 +37,7 @@ config NS_CMSIS_NN_ALL
 	imply NS_CMSIS_NN_STRIDED_SLICE
 	imply NS_CMSIS_NN_SVD
 	imply NS_CMSIS_NN_TRANSPOSE
+	imply NS_CMSIS_NN_GATHER
 
 config NS_CMSIS_NN_ACTIVATION
 	bool "Activation"
@@ -140,5 +141,11 @@ config NS_CMSIS_NN_TRANSPOSE
 	imply NS_CMSIS_NN_NNSUPPORT
 	help
 	  This option enables the NN libraries for the transpose layers.
+
+config NS_CMSIS_NN_GATHER
+	bool "Gather"
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  This option enables the NN libraries for the gather layers.
 
 endif #NS_CMSIS_NN

@@ -9,6 +9,7 @@ This user manual describes the CMSIS NN software library, a collection of effici
 The library is divided into a number of functions each covering a specific category:
 
  - \ref Acti
+ - \ref Gather
  - \ref groupElementwise
  - \ref Reduction
  - \ref Comparison

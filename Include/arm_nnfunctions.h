@@ -5172,6 +5172,111 @@ arm_cmsis_nn_status arm_strided_slice_s16(const int16_t *input_data,
                                           const cmsis_nn_dims *const  stride_dims,
                                           const cmsis_nn_dims *const  output_dims);
 
+/**
+ * @defgroup Gather Gather Functions:
+ *
+ */
+
+/**
+ * @brief Gather elements along an axis for int8 tensors.
+ *
+ * @param[in]   input_data      Pointer to input tensor data
+ * @param[in]   input_dims      Input tensor dimensions
+ * @param[in]   indices_data    Pointer to indices tensor data (int32)
+ * @param[in]   indices_dims    Indices tensor dimensions
+ * @param[in]   params          Pointer to gather parameters
+ * @param[out]  output_data     Pointer to output tensor data
+ * @param[in]   output_dims     Output tensor dimensions
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite Micro
+ *
+ */
+arm_cmsis_nn_status arm_gather_s8(const int8_t *input_data,
+                                  const cmsis_nn_dims *input_dims,
+                                  const int32_t *indices_data,
+                                  const cmsis_nn_dims *indices_dims,
+                                  const cmsis_nn_gather_params *params,
+                                  int8_t *output_data,
+                                  const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Gather elements along an axis for int16 tensors.
+ *
+ * @param[in]   input_data      Pointer to input tensor data
+ * @param[in]   input_dims      Input tensor dimensions
+ * @param[in]   indices_data    Pointer to indices tensor data (int32)
+ * @param[in]   indices_dims    Indices tensor dimensions
+ * @param[in]   params          Pointer to gather parameters
+ * @param[out]  output_data     Pointer to output tensor data
+ * @param[in]   output_dims     Output tensor dimensions
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite Micro
+ *
+ */
+arm_cmsis_nn_status arm_gather_s16(const int16_t *input_data,
+                                   const cmsis_nn_dims *input_dims,
+                                   const int32_t *indices_data,
+                                   const cmsis_nn_dims *indices_dims,
+                                   const cmsis_nn_gather_params *params,
+                                   int16_t *output_data,
+                                   const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Gather_nd slices for int8 tensors.
+ *
+ * @param[in]   params_data     Pointer to params tensor data
+ * @param[in]   params_dims     Params tensor dimensions
+ * @param[in]   indices_data    Pointer to indices tensor data (int32)
+ * @param[in]   indices_dims    Indices tensor dimensions
+ * @param[in]   params          Pointer to gather_nd parameters
+ * @param[out]  output_data     Pointer to output tensor data
+ * @param[in]   output_dims     Output tensor dimensions
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite Micro
+ *
+ */
+arm_cmsis_nn_status arm_gather_nd_s8(const int8_t *params_data,
+                                     const cmsis_nn_dims *params_dims,
+                                     const int32_t *indices_data,
+                                     const cmsis_nn_dims *indices_dims,
+                                     const cmsis_nn_gather_nd_params *params,
+                                     int8_t *output_data,
+                                     const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Gather_nd slices for int16 tensors.
+ *
+ * @param[in]   params_data     Pointer to params tensor data
+ * @param[in]   params_dims     Params tensor dimensions
+ * @param[in]   indices_data    Pointer to indices tensor data (int32)
+ * @param[in]   indices_dims    Indices tensor dimensions
+ * @param[in]   params          Pointer to gather_nd parameters
+ * @param[out]  output_data     Pointer to output tensor data
+ * @param[in]   output_dims     Output tensor dimensions
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite Micro
+ *
+ */
+arm_cmsis_nn_status arm_gather_nd_s16(const int16_t *params_data,
+                                      const cmsis_nn_dims *params_dims,
+                                      const int32_t *indices_data,
+                                      const cmsis_nn_dims *indices_dims,
+                                      const cmsis_nn_gather_nd_params *params,
+                                      int16_t *output_data,
+                                      const cmsis_nn_dims *output_dims);
+
 #if defined(ARM_FLOAT16_SUPPORTED)
 
 /**

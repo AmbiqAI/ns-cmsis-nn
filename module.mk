@@ -14,6 +14,7 @@ local_src += $(wildcard $(subdirectory)/Source/SoftmaxFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/StridedSliceFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/SVDFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/TransposeFunctions/*.c)
+local_src += $(wildcard $(subdirectory)/Source/GatherFunctions/*.c)
 
 includes_api += $(subdirectory)/Include
 includes_api += $(subdirectory)/Include/Internal

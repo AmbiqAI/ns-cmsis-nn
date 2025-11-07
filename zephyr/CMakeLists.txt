@@ -114,4 +114,10 @@ if(CONFIG_NS_CMSIS_NN)
     zephyr_library_sources(${SRC_S8} ${SRC_S16})
   endif()
 
+  if(CONFIG_NS_CMSIS_NN_GATHER)
+    file(GLOB SRC_S8 "${NS_CMSIS_NN_DIR}/Source/GatherFunctions/*_s8.c")
+    file(GLOB SRC_S16 "${NS_CMSIS_NN_DIR}/Source/GatherFunctions/*_s16.c")
+    zephyr_library_sources(${SRC_S8} ${SRC_S16})
+  endif()
+
 endif()
