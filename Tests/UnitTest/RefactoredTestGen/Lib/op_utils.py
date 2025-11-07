@@ -87,6 +87,8 @@ def get_dtype(name, params):
         return params["shift_and_mult_data_type"]
     elif "output" in name:
         return params.get("output_data_type", params["input_data_type"])
+    elif "indices" in name:
+        return "int32_t"
     elif "input" in name or "transpose" in name:
         return params["input_data_type"]
     else:

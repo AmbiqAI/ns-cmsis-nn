@@ -2329,6 +2329,132 @@
     ]
   },
   {
+    "suite_name": "test_arm_gather_s8_generated",
+    "op_type": "gather",
+    "input_data_type": "int8_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "gather_axis_c_basic_s8",
+        "input_dim": [1, 2, 3, 4],
+        "input_rank": 4,
+        "indices_dim": [3, 1, 1, 1],
+        "indices_rank": 1,
+        "indices_values": [3, 0, 2],
+        "axis": 3,
+        "batch_dims": 0
+      },
+      {
+        "name": "gather_axis_h_multi_s8",
+        "input_dim": [1, 3, 2, 2],
+        "input_rank": 4,
+        "indices_dim": [2, 1, 1, 1],
+        "indices_rank": 1,
+        "indices_values": [0, 2],
+        "axis": 1,
+        "batch_dims": 0
+      },
+      {
+        "name": "gather_neg_axis_wide_s8",
+        "input_dim": [1, 2, 4, 3],
+        "input_rank": 4,
+        "indices_dim": [3, 1, 1, 1],
+        "indices_rank": 1,
+        "indices_values": [0, 3, 1],
+        "axis": -2,
+        "batch_dims": 0
+      },
+      {
+        "name": "gather_batch_dims_s8",
+        "input_dim": [2, 1, 1, 4],
+        "input_rank": 4,
+        "indices_dim": [2, 2, 1, 1],
+        "indices_rank": 2,
+        "indices_values": [3, 1, 2, 0],
+        "axis": 3,
+        "batch_dims": 1
+      },
+      {
+        "name": "gather_axis_n_reorder_s8",
+        "input_dim": [4, 1, 1, 2],
+        "input_rank": 4,
+        "indices_dim": [3, 1, 1, 1],
+        "indices_rank": 1,
+        "indices_values": [3, 1, 0],
+        "axis": 0,
+        "batch_dims": 0
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_gather_nd_s8_generated",
+    "op_type": "gather_nd",
+    "input_data_type": "int8_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "gather_nd_point_s8",
+        "params_dim": [1, 2, 3, 4],
+        "params_rank": 4,
+        "indices_dim": [2, 4, 1, 1],
+        "indices_rank": 2,
+        "indices_last_dim": 4,
+        "indices_values": [0, 0, 0, 1,
+                           0, 1, 2, 3],
+        "batch_dims": 0
+      },
+      {
+        "name": "gather_nd_slice_hw_s8",
+        "params_dim": [1, 3, 4, 2],
+        "params_rank": 4,
+        "indices_dim": [3, 2, 1, 1],
+        "indices_rank": 2,
+        "indices_last_dim": 2,
+        "indices_values": [0, 0,
+                           0, 1,
+                           0, 2],
+        "batch_dims": 0
+      },
+      {
+        "name": "gather_nd_batch_dims_s8",
+        "params_dim": [2, 2, 2, 2],
+        "params_rank": 4,
+        "indices_dim": [2, 2, 2, 1],
+        "indices_rank": 3,
+        "indices_last_dim": 2,
+        "indices_values": [0, 0,
+                           1, 1,
+                           0, 1,
+                           1, 0],
+        "batch_dims": 1
+      },
+      {
+        "name": "gather_nd_depth_s8",
+        "params_dim": [1, 2, 2, 3],
+        "params_rank": 4,
+        "indices_dim": [2, 1, 3, 1],
+        "indices_rank": 3,
+        "indices_last_dim": 3,
+        "indices_values": [0, 0, 0,
+                           0, 1, 1],
+        "batch_dims": 0
+      },
+      {
+        "name": "gather_nd_reduce_rank_s8",
+        "params_dim": [2, 3, 1, 1],
+        "params_rank": 3,
+        "indices_dim": [2, 1, 1, 1],
+        "indices_rank": 2,
+        "indices_last_dim": 1,
+        "indices_values": [0,
+                           1],
+        "batch_dims": 0
+      }
+    ]
+  },
+  {
     "suite_name": "test_arm_add_s8",
     "op_type": "add",
     "input_data_type": "int8_t",

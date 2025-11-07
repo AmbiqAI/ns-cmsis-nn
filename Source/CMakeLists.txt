@@ -37,6 +37,7 @@ option(PAD                  "Pad"                   ON)
 option(TRANSPOSE            "Transpose"             ON)
 option(QUANTIZATION         "Quantization"          ON)
 option(STRIDEDSLICE         "Strided Slice"         ON)
+option(GATHER               "Gather"                ON)
 
 option(CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY
        "Enable inline‐assembly version of the requantize routine" OFF)
@@ -113,6 +114,10 @@ endif()
 
 if (STRIDEDSLICE)
   add_subdirectory(StridedSliceFunctions)
+endif()
+
+if (GATHER)
+  add_subdirectory(GatherFunctions)
 endif()
 
 # Keep NNSUPPORT at the end

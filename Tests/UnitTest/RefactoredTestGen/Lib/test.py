@@ -39,6 +39,8 @@ import Lib.op_reduce_min
 import Lib.op_comparisons
 import Lib.op_sub
 import Lib.op_arg_min_max
+import Lib.op_gather
+import Lib.op_gather_nd
 import tensorflow as tf
 import numpy as np
 from tensorflow.lite.python.interpreter import Interpreter
@@ -296,6 +298,10 @@ def get_op_type(op_type_string):
         return Lib.op_sub.Op_sub
     elif op_type_string == "arg_min_max":
         return Lib.op_arg_min_max.Op_arg_min_max
+    elif op_type_string == "gather":
+        return Lib.op_gather.Op_gather
+    elif op_type_string == "gather_nd":
+        return Lib.op_gather_nd.Op_gather_nd
     else:
         raise ValueError(f"Unknown op type '{op_type_string}'")
 
@@ -396,8 +402,14 @@ def invoke_tflite(tflite_path, input_tensor):
     interpreter.allocate_tensors()
 
     for i, val in enumerate(input_tensor.values()):
-        input_index = interpreter.get_input_details()[i]["index"]
-        interpreter.set_tensor(input_index, val)
+        input_detail = interpreter.get_input_details()[i]
+        expected_dtype = input_detail["dtype"]
+        input_index = input_detail["index"]
+        if val.dtype != expected_dtype:
+            val_to_set = val.astype(expected_dtype)
+        else:
+            val_to_set = val
+        interpreter.set_tensor(input_index, val_to_set)
 
     interpreter.invoke()
     output_index = interpreter.get_output_details()[0]["index"]
@@ -414,8 +426,14 @@ def invoke_tflite_runtime(tflite_path, input_tensor):
     interpreter.allocate_tensors()
 
     for i, val in enumerate(input_tensor.values()):
-        input_index = interpreter.get_input_details()[i]["index"]
-        interpreter.set_tensor(input_index, val)
+        input_detail = interpreter.get_input_details()[i]
+        expected_dtype = input_detail["dtype"]
+        input_index = input_detail["index"]
+        if val.dtype != expected_dtype:
+            val_to_set = val.astype(expected_dtype)
+        else:
+            val_to_set = val
+        interpreter.set_tensor(input_index, val_to_set)
 
     interpreter.invoke()
     output_index = interpreter.get_output_details()[0]["index"]
@@ -430,7 +448,12 @@ def invoke_tflite_micro(tflite_path, input_tensor, arena_size=30000):
     interpreter = tflite_micro.runtime.Interpreter.from_file(model_path=str(tflite_path), arena_size=arena_size)
 
     for i, val in enumerate(input_tensor.values()):
-        interpreter.set_input(val, i)
+        expected_dtype = interpreter.get_input(i).dtype
+        if val.dtype != expected_dtype:
+            val_to_set = val.astype(expected_dtype)
+        else:
+            val_to_set = val
+        interpreter.set_input(val_to_set, i)
 
     interpreter.invoke()
     data = interpreter.get_output(0)

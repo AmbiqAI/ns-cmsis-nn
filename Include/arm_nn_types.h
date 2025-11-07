@@ -188,6 +188,23 @@ typedef struct
     cmsis_nn_activation activation;
 } cmsis_nn_pool_params;
 
+/** CMSIS-NN object for the gather operator */
+typedef struct
+{
+    int32_t axis;        /**< Axis to gather from. Supports negative indexing. */
+    int32_t batch_dims;  /**< Number of leading batch dimensions */
+    int32_t input_rank;  /**< Rank of the input tensor (range: [1, 4]) */
+    int32_t coords_rank; /**< Rank of the coordinate tensor (range: [1, 4]) */
+} cmsis_nn_gather_params;
+
+/** CMSIS-NN object for the gather_nd operator */
+typedef struct
+{
+    int32_t params_rank;  /**< Rank of the params tensor (range: [1, 4]) */
+    int32_t indices_rank; /**< Rank of the indices tensor (range: [1, 4]) */
+    int32_t batch_dims;   /**< Number of batch dimensions */
+} cmsis_nn_gather_nd_params;
+
 /** CMSIS-NN object for Fully Connected layer parameters */
 typedef struct
 {
