@@ -2276,6 +2276,50 @@ __STATIC_FORCEINLINE void arm_nn_write_s8x2_ia(int8_t **dst, int16_t src)
     *dst += 2;
 }
 
+
+/**
+ * @brief Get dimension value at specific index
+ *
+ * @param[in] dims  Pointer to cmsis_nn_dims structure
+ * @param[in] index Index of dimension to get
+ *
+ * @return Dimension value at specified index
+ */
+__STATIC_FORCEINLINE int32_t arm_cmsis_nn_dim_at(const cmsis_nn_dims *dims, int32_t index)
+{
+    switch (index)
+    {
+        case 0:
+            return dims->n;
+        case 1:
+            return dims->h;
+        case 2:
+            return dims->w;
+        case 3:
+            return dims->c;
+        default:
+            return 1;
+    }
+}
+
+/**
+ * @brief Calculate the product of all dimensions in a shape array
+ *
+ * @param[in] shape  Pointer to array containing shape dimensions
+ * @param[in] length Number of dimensions in the shape array
+ *
+ * @return Product of all dimensions
+ */
+__STATIC_FORCEINLINE size_t arm_cmsis_nn_shape_product(const int32_t *shape, int32_t length)
+{
+    size_t product = 1;
+    for (int32_t i = 0; i < length; ++i)
+    {
+        product *= (size_t)shape[i];
+    }
+    return product;
+}
+
 // Support functions for LSTM
 /**
  * @brief Update LSTM function for an iteration step using s8 input and output, and s16 internally.

@@ -29,33 +29,6 @@
 
 #define CMSIS_NN_MAX_RANK (4)
 
-static inline int32_t cmsis_nn_dim_at(const cmsis_nn_dims *dims, int32_t index)
-{
-    switch (index)
-    {
-        case 0:
-            return dims->n;
-        case 1:
-            return dims->h;
-        case 2:
-            return dims->w;
-        case 3:
-            return dims->c;
-        default:
-            return 1;
-    }
-}
-
-static inline size_t cmsis_nn_shape_product(const int32_t *shape, int32_t length)
-{
-    size_t product = 1;
-    for (int32_t i = 0; i < length; ++i)
-    {
-        product *= (size_t)shape[i];
-    }
-    return product;
-}
-
 
 arm_cmsis_nn_status arm_gather_s16(const int16_t *input_data,
                                    const cmsis_nn_dims *input_dims,
@@ -101,7 +74,7 @@ arm_cmsis_nn_status arm_gather_s16(const int16_t *input_data,
 
     for (int32_t i = 0; i < params->input_rank; ++i)
     {
-        const int32_t dim = cmsis_nn_dim_at(input_dims, i);
+        const int32_t dim = arm_cmsis_nn_dim_at(input_dims, i);
         if (dim < 0)
         {
             return ARM_CMSIS_NN_ARG_ERROR;
@@ -111,7 +84,7 @@ arm_cmsis_nn_status arm_gather_s16(const int16_t *input_data,
 
     for (int32_t i = 0; i < params->coords_rank; ++i)
     {
-        const int32_t dim = cmsis_nn_dim_at(indices_dims, i);
+        const int32_t dim = arm_cmsis_nn_dim_at(indices_dims, i);
         if (dim < 0)
         {
             return ARM_CMSIS_NN_ARG_ERROR;
@@ -169,7 +142,7 @@ arm_cmsis_nn_status arm_gather_s16(const int16_t *input_data,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    size_t input_total = cmsis_nn_shape_product(input_shape, params->input_rank);
+    size_t input_total = arm_cmsis_nn_shape_product(input_shape, params->input_rank);
 
     int32_t expected_rank = 0;
     int32_t expected_shape[CMSIS_NN_MAX_RANK] = {1, 1, 1, 1};
@@ -194,14 +167,14 @@ arm_cmsis_nn_status arm_gather_s16(const int16_t *input_data,
 
     for (int32_t i = 0; i < expected_rank; ++i)
     {
-        if (cmsis_nn_dim_at(output_dims, i) != expected_shape[i])
+        if (arm_cmsis_nn_dim_at(output_dims, i) != expected_shape[i])
         {
             return ARM_CMSIS_NN_ARG_ERROR;
         }
     }
 
     size_t output_total = batch_size * outer_size * coord_size * inner_size;
-    size_t output_dims_total = cmsis_nn_shape_product(expected_shape, expected_rank);
+    size_t output_dims_total = arm_cmsis_nn_shape_product(expected_shape, expected_rank);
     if (output_total != output_dims_total)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
