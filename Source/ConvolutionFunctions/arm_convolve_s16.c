@@ -31,6 +31,32 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
+#if defined(ARM_MATH_MVEI)
+static arm_cmsis_nn_status arm_convolve_s16_mve(const cmsis_nn_context *ctx,
+                                                const cmsis_nn_conv_params *conv_params,
+                                                const cmsis_nn_per_channel_quant_params *quant_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const int16_t *input_data,
+                                                const cmsis_nn_dims *filter_dims,
+                                                const int8_t *filter_data,
+                                                const cmsis_nn_bias_data *bias_data,
+                                                const cmsis_nn_dims *output_dims,
+                                                int16_t *output_data);
+#endif
+
+#if !defined(ARM_MATH_MVEI)
+static arm_cmsis_nn_status arm_convolve_s16_dsp(const cmsis_nn_context *ctx,
+                                                const cmsis_nn_conv_params *conv_params,
+                                                const cmsis_nn_per_channel_quant_params *quant_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const int16_t *input_data,
+                                                const cmsis_nn_dims *filter_dims,
+                                                const int8_t *filter_data,
+                                                const cmsis_nn_bias_data *bias_data,
+                                                const cmsis_nn_dims *output_dims,
+                                                int16_t *output_data);
+#endif
+
 /**
  *  @ingroup Public
  */
@@ -61,13 +87,50 @@ arm_cmsis_nn_status arm_convolve_s16(
     const cmsis_nn_dims *output_dims,
     int16_t *output_data)
 {
-    
     (void)bias_dims;
 
     if (ctx->buf == NULL)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+#if defined(ARM_MATH_MVEI)
+    return arm_convolve_s16_mve(ctx,
+                                conv_params,
+                                quant_params,
+                                input_dims,
+                                input_data,
+                                filter_dims,
+                                filter_data,
+                                bias_data,
+                                output_dims,
+                                output_data);
+#else
+    return arm_convolve_s16_dsp(ctx,
+                                conv_params,
+                                quant_params,
+                                input_dims,
+                                input_data,
+                                filter_dims,
+                                filter_data,
+                                bias_data,
+                                output_dims,
+                                output_data);
+#endif
+}
+
+#if defined(ARM_MATH_MVEI)
+static arm_cmsis_nn_status arm_convolve_s16_mve(const cmsis_nn_context *ctx,
+                                                const cmsis_nn_conv_params *conv_params,
+                                                const cmsis_nn_per_channel_quant_params *quant_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const int16_t *input_data,
+                                                const cmsis_nn_dims *filter_dims,
+                                                const int8_t *filter_data,
+                                                const cmsis_nn_bias_data *bias_data,
+                                                const cmsis_nn_dims *output_dims,
+                                                int16_t *output_data)
+{
     int16_t *buffer_a = (int16_t *)ctx->buf;
 
     const int32_t input_batches = input_dims->n;
@@ -180,8 +243,6 @@ arm_cmsis_nn_status arm_convolve_s16(
                         }
                     }
                     lhs_rows++;
-#if defined(ARM_MATH_MVEI)
-
                     // im2col += aligned_rhs_cols_offset;
                     /* Computation is filed for every 4 columns */
                     if (lhs_rows == 4)
@@ -204,28 +265,6 @@ arm_cmsis_nn_status arm_convolve_s16(
                         lhs_rows = 0;
                         im2col = buffer_a;
                     }
-#else
-                    /* Computation is filed for every 2 columns */
-                    if (lhs_rows == 2)
-                    {
-                        arm_nn_mat_mult_kernel_s16(filter_data_ptr,
-                                                        buffer_a,
-                                                        output_ch_per_group,
-                                                        output_shift_ptr,
-                                                        output_mult_ptr,
-                                                        out_activation_min,
-                                                        out_activation_max,
-                                                        rhs_cols,
-                                                        bias_data_ptr,
-                                                        out,
-                                                        output_ch);
-
-                        /* Counter reset */
-                        out += lhs_rows * output_ch;
-                        im2col = buffer_a;
-                        lhs_rows = 0;
-                    }
-#endif
                 }
 
                 if (out == NULL)
@@ -237,7 +276,6 @@ arm_cmsis_nn_status arm_convolve_s16(
             /* Handle left over columns */
             if (lhs_rows != 0)
             {
-#if defined(ARM_MATH_MVEI)
                 arm_nn_mat_mult_nt_t_s16(
                     buffer_a,
                     filter_data_ptr,
@@ -255,24 +293,164 @@ arm_cmsis_nn_status arm_convolve_s16(
                 out += lhs_rows * output_ch;
                 lhs_rows = 0;
                 im2col = buffer_a;
-#else // #if defined(ARM_MATH_MVEI)
+            } 
+            filter_data_ptr += output_ch_per_group * rhs_cols;
+            if (bias_data->data != NULL)
+            {
+                if (bias_data_ptr->is_int32_bias)
+                {
+                    const int32_t *bias_ptr = (const int32_t *)bias_data_ptr->data;
+                    bias_ptr += output_ch_per_group;
+                    bias_data_ptr->data = (const void *)bias_ptr;
+                }
+                else
+                {
+                    const int64_t *bias_ptr = (const int64_t *)bias_data_ptr->data;
+                    bias_ptr += output_ch_per_group;
+                    bias_data_ptr->data = (const void *)bias_ptr;
+                }
+            }
+            output_mult_ptr += output_ch_per_group;
+            output_shift_ptr += output_ch_per_group;
+        } // i_group
+        /* Advance to the next batch */
+        input_data += (input_x * input_y * input_ch);
+        output_data += (output_x * output_y * output_ch);
+    }
 
+    /* Return to application */
+    return ARM_CMSIS_NN_SUCCESS;
+}
+#endif
+
+#if !defined(ARM_MATH_MVEI)
+static arm_cmsis_nn_status arm_convolve_s16_dsp(const cmsis_nn_context *ctx,
+                                                const cmsis_nn_conv_params *conv_params,
+                                                const cmsis_nn_per_channel_quant_params *quant_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const int16_t *input_data,
+                                                const cmsis_nn_dims *filter_dims,
+                                                const int8_t *filter_data,
+                                                const cmsis_nn_bias_data *bias_data,
+                                                const cmsis_nn_dims *output_dims,
+                                                int16_t *output_data)
+{
+    int16_t *buffer_a = (int16_t *)ctx->buf;
+
+    const int32_t input_batches = input_dims->n;
+    const int32_t input_x = input_dims->w;
+    const int32_t input_y = input_dims->h;
+    const int32_t input_ch = input_dims->c;
+    const int32_t kernel_x = filter_dims->w;
+    const int32_t kernel_y = filter_dims->h;
+    const int32_t output_x = output_dims->w;
+    const int32_t output_y = output_dims->h;
+    const int32_t output_ch = output_dims->c;
+
+    const int32_t dilation_x = conv_params->dilation.w;
+    const int32_t dilation_y = conv_params->dilation.h;
+    const int32_t pad_x = conv_params->padding.w;
+    const int32_t pad_y = conv_params->padding.h;
+    const int32_t stride_x = conv_params->stride.w;
+    const int32_t stride_y = conv_params->stride.h;
+
+    const int32_t out_activation_min = conv_params->activation.min;
+    const int32_t out_activation_max = conv_params->activation.max;
+    int32_t *output_mult = quant_params->multiplier;
+    int32_t *output_shift = quant_params->shift;
+
+    const int32_t kernel_ch = filter_dims->c;
+    const int32_t rhs_cols = kernel_ch * kernel_y * kernel_x;
+    const int32_t groups = input_ch / kernel_ch;
+    const int32_t output_ch_per_group = output_ch / groups;
+
+    if (input_ch % groups != 0 || output_ch % groups != 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    for (int i_batch = 0; i_batch < input_batches; i_batch++)
+    {
+        int16_t *im2col = buffer_a;
+        int32_t lhs_rows = 0;
+
+        const int8_t *filter_data_ptr = filter_data;
+        cmsis_nn_bias_data bias_data_tmp = {
+            .data = bias_data->data,
+            .is_int32_bias = bias_data->is_int32_bias,
+        };
+        cmsis_nn_bias_data *bias_data_ptr = &bias_data_tmp;
+        const int32_t *output_mult_ptr = output_mult;
+        const int32_t *output_shift_ptr = output_shift;
+
+        for (int32_t i_group = 0; i_group < groups; i_group++)
+        {
+            int32_t col_index = 0;
+            for (int32_t i_out_y = 0; i_out_y < output_y; i_out_y++)
+            {
+                for (int32_t i_out_x = 0; i_out_x < output_x; i_out_x++)
+                {
+                    const int32_t base_idx_x = stride_x * i_out_x - pad_x;
+                    const int32_t base_idx_y = stride_y * i_out_y - pad_y;
+
+                    for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
+                    {
+                        for (int32_t i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
+                        {
+                            const int32_t k_y = base_idx_y + dilation_y * i_ker_y;
+                            const int32_t k_x = base_idx_x + dilation_x * i_ker_x;
+
+                            if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
+                            {
+                                arm_memset_s8((int8_t *)im2col, 0, sizeof(int16_t) * (uint32_t)kernel_ch);
+                            }
+                            else
+                            {
+                                arm_memcpy_s8((int8_t *)im2col,
+                                              (const int8_t *)(input_data +
+                                                               (k_y * input_x + k_x) * input_ch + i_group * kernel_ch),
+                                              (uint32_t)kernel_ch * sizeof(int16_t));
+                            }
+                            im2col += kernel_ch;
+                        }
+                    }
+
+                    lhs_rows++;
+                    if (lhs_rows == 2)
+                    {
+                        int16_t *out = output_data + (col_index * output_ch) + i_group * output_ch_per_group;
+                        arm_nn_mat_mult_kernel_s16(filter_data_ptr,
+                                                   buffer_a,
+                                                   output_ch_per_group,
+                                                   output_shift_ptr,
+                                                   output_mult_ptr,
+                                                   out_activation_min,
+                                                   out_activation_max,
+                                                   rhs_cols,
+                                                   bias_data_ptr,
+                                                   out,
+                                                   output_ch);
+                        col_index += lhs_rows;
+                        im2col = buffer_a;
+                        lhs_rows = 0;
+                    }
+                }
+            }
+
+            if (lhs_rows != 0)
+            {
+                int16_t *out = output_data + (col_index * output_ch) + i_group * output_ch_per_group;
                 const int64_t *bias_s64 = (const int64_t *)bias_data_ptr->data;
                 const int32_t *bias_s32 = (const int32_t *)bias_data_ptr->data;
                 const bool is_int32_bias = bias_data_ptr->is_int32_bias;
                 const int8_t *ker_a = filter_data_ptr;
-                int i;
 
-                for (i = 0; i < output_ch_per_group; i++)
+                for (int32_t i = 0; i < output_ch_per_group; i++)
                 {
-                    /* Init the accumulator*/
                     int32_t sum = 0;
-
-                    /* Point to the beginning of the im2col buffer where the input is available as a rearranged column */
                     const int16_t *ip_as_col = buffer_a;
 
-    #if defined(ARM_MATH_DSP)
-                    /* 4 multiply and accumulates are done in one loop. */
+#if defined(ARM_MATH_DSP)
                     int32_t col_count = rhs_cols >> 2;
 
                     while (col_count)
@@ -289,12 +467,10 @@ arm_cmsis_nn_status arm_convolve_s16(
 
                         col_count--;
                     }
-                    /* Handle left over mac */
                     col_count = rhs_cols & 0x3;
-    #else
+#else
                     uint16_t col_count = rhs_cols;
-
-    #endif
+#endif
 
                     while (col_count)
                     {
@@ -311,7 +487,7 @@ arm_cmsis_nn_status arm_convolve_s16(
                             sum += bias_s32[i];
                         }
 
-                        sum = arm_nn_requantize(sum, output_mult[i], output_shift[i]);
+                        sum = arm_nn_requantize(sum, output_mult_ptr[i], output_shift_ptr[i]);
                     }
                     else
                     {
@@ -322,31 +498,47 @@ arm_cmsis_nn_status arm_convolve_s16(
                             acc_64 += bias_s64[i];
                         }
 
-                        int32_t reduced_multiplier = REDUCE_MULTIPLIER(output_mult[i]);
-                        sum = arm_nn_requantize_s64(acc_64, reduced_multiplier, output_shift[i]);
+                        int32_t reduced_multiplier = REDUCE_MULTIPLIER(output_mult_ptr[i]);
+                        sum = arm_nn_requantize_s64(acc_64, reduced_multiplier, output_shift_ptr[i]);
                     }
 
                     sum = MAX(sum, out_activation_min);
                     sum = MIN(sum, out_activation_max);
                     *out++ = (int16_t)sum;
                 }
+
+                col_index += lhs_rows;
                 lhs_rows = 0;
-#endif // #if defined(ARM_MATH_MVEI)
-            } 
+                im2col = buffer_a;
+            }
+
             filter_data_ptr += output_ch_per_group * rhs_cols;
             if (bias_data->data != NULL)
-                bias_data_ptr->data += output_ch_per_group;
+            {
+                if (bias_data_ptr->is_int32_bias)
+                {
+                    const int32_t *bias_ptr = (const int32_t *)bias_data_ptr->data;
+                    bias_ptr += output_ch_per_group;
+                    bias_data_ptr->data = (const void *)bias_ptr;
+                }
+                else
+                {
+                    const int64_t *bias_ptr = (const int64_t *)bias_data_ptr->data;
+                    bias_ptr += output_ch_per_group;
+                    bias_data_ptr->data = (const void *)bias_ptr;
+                }
+            }
             output_mult_ptr += output_ch_per_group;
             output_shift_ptr += output_ch_per_group;
-        } // i_group
-        /* Advance to the next batch */
+        }
+
         input_data += (input_x * input_y * input_ch);
         output_data += (output_x * output_y * output_ch);
     }
 
-    /* Return to application */
     return ARM_CMSIS_NN_SUCCESS;
 }
+#endif
 
 /**
  * @} end of NNConv group

@@ -638,6 +638,36 @@
         "padding": "SAME",
         "bias_data_type": "int32_t",
         "dilation_x": 2
+      },
+      {
+        "name": "int16xint8_group_same",
+        "in_ch": 6,
+        "out_ch": 8,
+        "input_w": 7,
+        "input_h": 7,
+        "filter_x": 3,
+        "filter_y": 3,
+        "padding": "SAME",
+        "stride_x": 1,
+        "stride_y": 1,
+        "groups": 2
+      },
+      {
+        "name": "int16xint8_group_batch2_dilated",
+        "in_ch": 6,
+        "out_ch": 6,
+        "input_w": 6,
+        "input_h": 5,
+        "filter_x": 3,
+        "filter_y": 2,
+        "padding": "SAME",
+        "stride_x": 1,
+        "stride_y": 1,
+        "dilation_x": 2,
+        "dilation_y": 2,
+        "groups": 3,
+        "batch_size": 2,
+        "bias_data_type": "int32_t"
       }
     ]
   },
