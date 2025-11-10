@@ -79,7 +79,8 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                         output_value = arm_nn_requantize(input_value, output_multiplier_1, output_shift_1);
                     }
                     else {
-                        const int an = 0, ah = 0, aw = 0, ac = 0;
+                        int an = 0, ah = 0, aw = 0;
+                        int ac = 0;
                         int alpha_index = ac + (alpha_dims->c * aw) + (alpha_dims->c * alpha_dims->w * ah)
                             + (alpha_dims->c * alpha_dims->w * alpha_dims->h * an);
                         const int32_t alpha_value = alpha_offset + alpha[alpha_index];
