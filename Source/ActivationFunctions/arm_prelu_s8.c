@@ -53,6 +53,18 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                                  const cmsis_nn_dims *output_dims,
                                  int8_t *output)
 {
+    // PReLU is elementwise (input == output)
+    if (input_dims->n != output_dims->n || input_dims->h != output_dims->h ||
+        input_dims->w != output_dims->w || input_dims->c != output_dims->c) {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    // Per-channel alpha ONLY
+    if (!(alpha_dims->n == 1 && alpha_dims->h == 1 && alpha_dims->w == 1 &&
+        alpha_dims->c == input_dims->c)) {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     for (int n = 0; n < output_dims->n; ++n) {
         for (int h = 0; h < output_dims->h; ++h) {
             for (int w = 0; w < output_dims->w; ++w) {
@@ -67,8 +79,9 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                         output_value = arm_nn_requantize(input_value, output_multiplier_1, output_shift_1);
                     }
                     else {
-                        int alpha_index = c + (alpha_dims->c * w) + (alpha_dims->c * alpha_dims->w * h) +
-                                        (alpha_dims->c * alpha_dims->w * alpha_dims->h * n);
+                        const int an = 0, ah = 0, aw = 0, ac = 0;
+                        int alpha_index = ac + (alpha_dims->c * aw) + (alpha_dims->c * alpha_dims->w * ah)
+                            + (alpha_dims->c * alpha_dims->w * alpha_dims->h * an);
                         const int32_t alpha_value = alpha_offset + alpha[alpha_index];
                         output_value = arm_nn_requantize(input_value * alpha_value, output_multiplier_2, output_shift_2);
                     }
