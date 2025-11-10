@@ -56,18 +56,26 @@ def generate_data(tflite_fname, params):
         interpreter.allocate_tensors()
         tensor_details = interpreter.get_tensor_details()
 
-        if params["generate_bias"]:
-            filter_index = 2 
-            bias_index = 1 
-        else:
-            filter_index = 1  
-            bias_index = 2 
+        filter_shape = [params["out_ch"], params["filter_y"], params["filter_x"], params["filter_ch"]]
 
-        filter_layer = tensor_details[filter_index]
+        def find_tensor(description, predicate):
+            for tensor in tensor_details:
+                if predicate(tensor):
+                    return tensor
+            raise RuntimeError(f"Failed to locate {description} tensor in tflite model")
+
+        filter_layer = find_tensor(
+            "filter",
+            lambda tensor: tensor["dtype"] == Lib.op_utils.get_np_dtype(params["weights_data_type"])
+            and list(tensor["shape"]) == filter_shape)
+
         scales["scaling_factors"] = filter_layer['quantization_parameters']['scales']
 
         if params["generate_bias"]:
-            bias_layer = tensor_details[bias_index]
+            bias_layer = find_tensor(
+                "bias",
+                lambda tensor: tensor["dtype"] == Lib.op_utils.get_np_dtype(params["bias_data_type"])
+                and list(tensor["shape"]) == [params["out_ch"]])
         else:
             bias_layer = None
 
@@ -124,6 +132,7 @@ def generate_data(tflite_fname, params):
     generated_params["output_h"] = y_output
     generated_params["output_w"] = x_output
     generated_params["dst_size"] = x_output * y_output * params["out_ch"] * params["batch_size"]
+    generated_params["input_size"] = params["input_w"] * params["input_h"] * params["in_ch"] * params["batch_size"]
     generated_params["input_offset"] = -scales["input_zero_point"]
     generated_params["output_offset"] = scales["output_zero_point"]
 
@@ -172,6 +181,7 @@ class Op_conv(Lib.op_utils.Op_type):
 
         shapes["input_tensor"] = (params["batch_size"], params["input_h"], params["input_w"], in_ch)
         shapes["weight_shape"] = [params["filter_y"], params["filter_x"], filter_ch, out_ch]
+        params["filter_ch"] = filter_ch
 
         if params["tflite_generator"] == "json":
             params["json_template"] = "conv.json" if params["generate_bias"] else "conv_null_bias.json"
