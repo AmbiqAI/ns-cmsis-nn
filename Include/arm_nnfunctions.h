@@ -3653,6 +3653,39 @@ arm_cmsis_nn_status arm_hard_swish_precise_s16(
 );
 
 /**
+ * @brief S8 PReLU activation function
+ *
+ * @param[in]      input_dims                  Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      alpha_dims                  Alpha tensor dimensions. Format: [1, 1, 1, C_IN]
+ * @param[in]      alpha                       Pointer to the alpha buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      alpha_offset                Alpha tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier_1         Output multiplier 1
+ * @param[in]      output_shift_1              Output shift 1
+ * @param[in]      output_multiplier_2         Output multiplier 2
+ * @param[in]      output_shift_2              Output shift 2
+ * @param[in]      output_dims                 Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output                      Pointer to the output buffer
+ * @return         The function returns ARM_MATH_SUCCESS
+ */
+arm_cmsis_nn_status arm_prelu_s8(
+    const cmsis_nn_dims *input_dims,
+    const int8_t *input,
+    const cmsis_nn_dims *alpha_dims,
+    const int8_t *alpha,
+    const int32_t input_offset,
+    const int32_t alpha_offset,
+    const int32_t output_offset,
+    const int32_t output_multiplier_1,
+    const int output_shift_1,
+    const int32_t output_multiplier_2,
+    const int output_shift_2,
+    const cmsis_nn_dims *output_dims,
+    int8_t *output);
+
+/**
  * @defgroup Pooling Pooling Functions
  *
  * Perform max and average pooling operations

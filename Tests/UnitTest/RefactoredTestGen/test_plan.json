@@ -3635,6 +3635,28 @@
     ]
   },
   {
+    "suite_name": "test_arm_prelu_s8",
+    "op_type": "prelu",
+    "input_data_type": "int8_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "prelu_per_channel_s8",
+        "batch_size": 1,
+        "height_1": 2,
+        "width_1": 3,
+        "channel_1": 8,
+        "alpha_n": 1,
+        "alpha_h": 1,
+        "alpha_w": 1,
+        "alpha_c": 8,
+        "alpha_min": 0.05,
+        "alpha_max": 0.8
+      }
+    ]
+  },
+  {
     "suite_name": "test_arm_space_to_depth_s8",
     "op_type": "space_to_depth",
     "input_data_type": "int8_t",
