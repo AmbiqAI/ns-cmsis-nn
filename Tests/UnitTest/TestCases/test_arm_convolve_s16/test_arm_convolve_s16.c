@@ -109,31 +109,8 @@ void int16xint8_1x1_ns_np_nd_arm_convolve_s16(void)
         free(ctx.buf);
     }
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
-    if (!validate_s16(output, output_ref, output_ref_size))
-    {
-        printf("Actual first 16: ");
-        for (int i = 0; i < 16; ++i)
-        {
-            printf("%d ", output[i]);
-        }
-        printf("\nRef first 16: ");
-        for (int i = 0; i < 16; ++i)
-        {
-            printf("%d ", output_ref[i]);
-        }
-        printf("\nActual last 16: ");
-        for (int i = output_ref_size - 16; i < output_ref_size; ++i)
-        {
-            printf("%d ", output[i]);
-        }
-        printf("\nRef last 16: ");
-        for (int i = output_ref_size - 16; i < output_ref_size; ++i)
-        {
-            printf("%d ", output_ref[i]);
-        }
-        printf("\n");
-        TEST_FAIL_MESSAGE("int16xint8_group_same_arm_convolve_s16 direct mismatch");
-    }
+    TEST_ASSERT_TRUE_MESSAGE(validate_s16(output, output_ref, output_ref_size),
+                             "int16xint8_1x1_ns_np_nd_arm_convolve_s16 direct mismatch");
     memset(output, 0, sizeof(output));
 
     buf_size = arm_convolve_wrapper_s16_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
@@ -497,31 +474,8 @@ void int16xint8_group_same_arm_convolve_s16(void)
         free(ctx.buf);
     }
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
-    if (!validate_s16(output, output_ref, output_ref_size))
-    {
-        printf("Actual first 16: ");
-        for (int i = 0; i < 16; ++i)
-        {
-            printf("%d ", output[i]);
-        }
-        printf("\nRef first 16: ");
-        for (int i = 0; i < 16; ++i)
-        {
-            printf("%d ", output_ref[i]);
-        }
-        printf("\nActual last 16: ");
-        for (int i = output_ref_size - 16; i < output_ref_size; ++i)
-        {
-            printf("%d ", output[i]);
-        }
-        printf("\nRef last 16: ");
-        for (int i = output_ref_size - 16; i < output_ref_size; ++i)
-        {
-            printf("%d ", output_ref[i]);
-        }
-        printf("\n");
-        TEST_FAIL_MESSAGE("int16xint8_group_same_arm_convolve_s16 direct mismatch");
-    }
+    TEST_ASSERT_TRUE_MESSAGE(validate_s16(output, output_ref, output_ref_size),
+                             "int16xint8_group_same_arm_convolve_s16 direct mismatch");
     memset(output, 0, sizeof(output));
 
     buf_size = arm_convolve_wrapper_s16_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
