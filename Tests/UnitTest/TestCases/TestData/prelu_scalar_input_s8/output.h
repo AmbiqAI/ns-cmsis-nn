@@ -3,4 +3,4 @@
 #pragma once
 #include <stdint.h>
 
-const int8_t prelu_per_channel_s8_alpha_input_tensor[8] = {38, -2, -54, -2, -81, -16, -48, 56};
+const int8_t prelu_scalar_input_s8_output[1] = {-94};

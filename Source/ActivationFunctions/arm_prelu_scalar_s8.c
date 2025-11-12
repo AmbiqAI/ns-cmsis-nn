@@ -1,0 +1,115 @@
+/*
+ * SPDX-FileCopyrightText: 2025 Ambiq
+ *
+ * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+ *
+ * Licensed under the Ambiq Apollo SDK License.
+ * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
+ */
+
+/* ----------------------------------------------------------------------
+ * Project:      CMSIS NN Library
+ * Title:        arm_prelu_scalar_s8
+ * Description:  Elementwise prelu with scalar input
+ *
+ * $Date:        23 May 2025
+ * $Revision:    V.1.0.0
+ *
+ * Target :  Arm(R) M-Profile Architecture
+ *
+ * -------------------------------------------------------------------- */
+
+#include "arm_nnfunctions.h"
+#include "arm_nnsupportfunctions.h"
+
+
+/**
+ *  @ingroup Public
+ */
+
+/**
+ * @addtogroup groupElementwise
+ * @{
+ */
+
+
+/*
+ * s8 elementwise prelu with scalar
+ *
+ * Refer header file for details.
+ *
+ */
+arm_cmsis_nn_status arm_prelu_scalar_s8(const int8_t *scalar_vect,
+                                        const int8_t *non_scalar_vect,
+                                        const bool scalar_is_input,
+                                        const int32_t input_offset,
+                                        const int32_t alpha_offset,
+                                        const int32_t output_offset,
+                                        const int32_t output_multiplier_1,
+                                        const int      output_shift_1,
+                                        const int32_t output_multiplier_2,
+                                        const int      output_shift_2,
+                                        int8_t *output,
+                                        const int32_t block_size)
+{
+    if (scalar_is_input)
+    {
+        const int32_t input_value = (int32_t)scalar_vect[0] + input_offset;
+
+        if (input_value >= 0)
+        {
+            const int32_t output_value = arm_nn_requantize(input_value, output_multiplier_1, output_shift_1) + output_offset;
+
+            for (int32_t i = 0; i < block_size; ++i)
+            {
+                int32_t acc = output_value;
+                acc = MAX(acc, INT8_MIN);
+                acc = MIN(acc, INT8_MAX);
+                output[i] = (int8_t)acc;
+            }
+        }
+        else
+        {
+            for (int32_t i = 0; i < block_size; ++i)
+            {
+                const int32_t alpha_value  = (int32_t)non_scalar_vect[i] + alpha_offset;
+                const int32_t prod = alpha_value * input_value;
+                int32_t acc = arm_nn_requantize(prod, output_multiplier_2, output_shift_2) + output_offset;
+                acc = MAX(acc, INT8_MIN);
+                acc = MIN(acc, INT8_MAX);
+                output[i] = (int8_t)acc;
+            }
+        }
+    }
+    else
+    {
+        const int32_t alpha_value = (int32_t)scalar_vect[0] + alpha_offset;
+
+        for (int32_t i = 0; i < block_size; ++i)
+        {
+            const int32_t input_value = (int32_t)non_scalar_vect[i] + input_offset;
+
+            int32_t acc;
+            if (input_value >= 0)
+            {
+                acc = arm_nn_requantize(input_value, output_multiplier_1, output_shift_1) + output_offset;
+            }
+            else
+            {
+                const int32_t prod = alpha_value * input_value;
+                acc = arm_nn_requantize(prod, output_multiplier_2, output_shift_2) + output_offset;
+            }
+
+            acc = MAX(acc, INT8_MIN);
+            acc = MIN(acc, INT8_MAX);
+            output[i] = (int8_t)acc;
+        }
+    }
+
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+
+/**
+ * @} end of Doxygen group
+ */

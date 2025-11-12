@@ -30,4 +30,17 @@ void setUp(void)
 void tearDown(void) {}
 
 void test_prelu_per_channel_s8(void)     { prelu_per_channel_s8_arm_prelu_s8(); }
-
+void test_prelu_scalar_input_s8(void)    { prelu_scalar_input_s8_arm_prelu_s8(); }
+void test_prelu_scalar_alpha_s8(void)    { prelu_scalar_alpha_s8_arm_prelu_s8(); }
+void test_prelu_alpha_width_broadcast_s8(void)
+{
+    prelu_alpha_width_broadcast_s8_arm_prelu_s8();
+}
+void test_prelu_alpha_height_broadcast_s8(void)
+{
+    prelu_alpha_height_broadcast_s8_arm_prelu_s8();
+}
+void test_prelu_alpha_hw_broadcast_s8(void)
+{
+    prelu_alpha_hw_broadcast_s8_arm_prelu_s8();
+}

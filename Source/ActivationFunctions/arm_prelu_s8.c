@@ -53,44 +53,199 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                                  const cmsis_nn_dims *output_dims,
                                  int8_t *output)
 {
-    // PReLU is elementwise (input == output)
-    if (input_dims->n != output_dims->n || input_dims->h != output_dims->h ||
-        input_dims->w != output_dims->w || input_dims->c != output_dims->c) {
+    // Unpack dims for convenience
+    const int32_t out_n = output_dims->n, out_h = output_dims->h;
+    const int32_t out_w = output_dims->w, out_c = output_dims->c;
+
+    const int32_t in_n = input_dims->n, in_h = input_dims->h;
+    const int32_t in_w = input_dims->w, in_c = input_dims->c;
+
+    const int32_t alpha_n = alpha_dims->n, alpha_h = alpha_dims->h;
+    const int32_t alpha_w = alpha_dims->w, alpha_c = alpha_dims->c;
+    
+    // PReLU is elementwise (input_dims == output_dims)
+    if (in_n != out_n || in_h != out_h ||
+        in_w != out_w || in_c != out_c) {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    // Per-channel alpha ONLY
-    if (!(alpha_dims->n == 1 && alpha_dims->h == 1 && alpha_dims->w == 1 &&
-        alpha_dims->c == input_dims->c)) {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
+    // Total element‐counts
+    int32_t flat1_total = in_n * in_h * in_w * in_c;
+    int32_t flat2_total = alpha_n * alpha_h * alpha_w * alpha_c;
 
-    for (int n = 0; n < output_dims->n; ++n) {
-        for (int h = 0; h < output_dims->h; ++h) {
-            for (int w = 0; w < output_dims->w; ++w) {
-                for (int c = 0; c < output_dims->c; ++c) {
-                    int output_index = c + (output_dims->c * w) + (output_dims->c * output_dims->w * h) +
-                                   (output_dims->c * output_dims->w * output_dims->h * n);
-                    int input_index = c + (input_dims->c * w) + (input_dims->c * input_dims->w * h) +
-                                  (input_dims->c * input_dims->w * input_dims->h * n);
-                    const int32_t input_value = input_offset + input[input_index];
-                    int32_t output_value;
-                    if (input_value >= 0) {
-                        output_value = arm_nn_requantize(input_value, output_multiplier_1, output_shift_1);
-                    }
-                    else {
-                        const int32_t alpha_value = alpha_offset + alpha[c];
-                        output_value = arm_nn_requantize(input_value * alpha_value, output_multiplier_2, output_shift_2);
-                    }
-                    output_value += output_offset;
-                    const int32_t qmin = INT8_MIN;
-                    const int32_t qmax = INT8_MAX;
-                    int32_t clamped_output = CLAMP(output_value, qmax, qmin);
-                    output[output_index] = clamped_output;
+    // 1) No broadcast at all? (identical sizes)
+    if (!arm_check_broadcast_required(input_dims, alpha_dims))
+    {
+        return arm_elementwise_prelu_s8(
+            input, alpha, input_offset,
+            alpha_offset, output_offset,
+            output_multiplier_1, output_shift_1,
+            output_multiplier_2, output_shift_2,
+            output, flat1_total
+        );
+    }
+    
+    // 2) Whole‐tensor scalar?
+    if (flat1_total == 1)
+    {
+        return arm_prelu_scalar_s8(
+            input, alpha, true, input_offset, alpha_offset,
+            output_offset, output_multiplier_1, output_shift_1,
+            output_multiplier_2, output_shift_2, output, flat2_total
+        );
+    }
+    // Scalar alpha
+    if (flat2_total == 1)
+    {
+        return arm_prelu_scalar_s8(
+            alpha, input, false, input_offset, alpha_offset,
+            output_offset, output_multiplier_1, output_shift_1,
+            output_multiplier_2, output_shift_2, output, flat1_total
+        );
+    }
+    
+    // 3) Full N/H/W/C broadcast sweep
+    // Compute “rewind” and “advance” offsets same as arm_maximum_s8
+    const int32_t wd1 = (in_w >= alpha_w) ? 0 : in_c;
+    const int32_t wd2 = (alpha_w >= in_w) ? 0 : alpha_c;
+    const int32_t hd1 = (in_h >= alpha_h) ? wd1 : -in_w  * (in_c - wd1);
+    const int32_t hd2 = (alpha_h >= in_h) ? wd2 : -alpha_w  * (alpha_c - wd2);
+    const int32_t bd1 = (in_n >= alpha_n) ? in_h * in_w * in_c : 0;
+    const int32_t bd2 = (alpha_n >= in_n) ? alpha_h * alpha_w * alpha_c : 0;
+
+    for (int b = 0; b < out_n; b++)
+    {
+        // Per‐batch pointers
+        const int8_t *p1 = input;
+        const int8_t *p2 = alpha;
+        // Recompute per‐batch flat sizes
+        flat1_total = in_h * in_w * in_c;
+        flat2_total = alpha_h * alpha_w * alpha_c;
+
+        // Batch‐level no‐broadcast?
+        if (in_h == alpha_h && in_w == alpha_w && in_c == alpha_c)
+        {
+            arm_elementwise_prelu_s8(
+                p1, p2, input_offset,
+                alpha_offset, output_offset,
+                output_multiplier_1, output_shift_1,
+                output_multiplier_2, output_shift_2,
+                output, flat1_total
+            );
+            output += flat1_total;
+        }
+        else
+        {
+            // Sweep height
+            flat1_total = in_w * in_c;
+            flat2_total = alpha_w * alpha_c;
+            for (int h = 0; h < out_h; h++)
+            {
+                // A) Row‐level no‐broadcast
+                if (in_w == alpha_w && in_c == alpha_c)
+                {
+                    arm_elementwise_prelu_s8(
+                        p1, p2, input_offset,
+                        alpha_offset, output_offset,
+                        output_multiplier_1, output_shift_1,
+                        output_multiplier_2, output_shift_2,
+                        output, flat1_total
+                    );
+                    p1 += flat1_total;
+                    p2 += flat1_total;
+                    output += flat1_total;
                 }
+                // B) scalar‐broadcast on input1
+                else if (flat1_total == 1)
+                {
+                    arm_prelu_scalar_s8(
+                        p1, p2, true,
+                        input_offset, alpha_offset,
+                        output_offset, output_multiplier_1,
+                        output_shift_1, output_multiplier_2,
+                        output_shift_2, output, flat2_total
+                    );
+                    p1++;
+                    p2 += flat2_total;
+                    output += flat2_total;
+                }
+                // C) scalar‐broadcast on input2
+                else if (flat2_total == 1)
+                {
+                    arm_prelu_scalar_s8(
+                        p2, p1, false,
+                        input_offset, alpha_offset,
+                        output_offset, output_multiplier_1,
+                        output_shift_1, output_multiplier_2,
+                        output_shift_2, output, flat1_total
+                    );
+                    p1 += flat1_total;
+                    p2++;
+                    output += flat1_total;
+                }
+                // D) per‐pixel broadcast sweep
+                else
+                {
+                    for (int w = 0; w < out_w; w++)
+                    {
+                        // 1) per‐pixel no‐broadcast
+                        if (in_c == alpha_c)
+                        {
+                            arm_elementwise_prelu_s8(
+                                p1, p2, input_offset,
+                                alpha_offset, output_offset,
+                                output_multiplier_1, output_shift_1,
+                                output_multiplier_2, output_shift_2,
+                                output, in_c
+                            );
+                            p1 += in_c;
+                            p2 += in_c;
+                            output += in_c;
+                        }
+                        // 2) scalar‐broadcast1
+                        else if (in_c == 1)
+                        {
+                            arm_prelu_scalar_s8(
+                                p1, p2, true,
+                                input_offset, alpha_offset,
+                                output_offset, output_multiplier_1,
+                                output_shift_1, output_multiplier_2,
+                                output_shift_2, output, alpha_c
+                            );
+                            p1++;
+                            p2 += alpha_c;
+                            output += alpha_c;
+                        }
+                        // 3) scalar‐broadcast2
+                        else  // alpha_c == 1
+                        {
+                            arm_prelu_scalar_s8(
+                                p2, p1, false,
+                                input_offset, alpha_offset,
+                                output_offset, output_multiplier_1,
+                                output_shift_1, output_multiplier_2,
+                                output_shift_2, output, in_c
+                            );
+                            p1 += in_c;
+                            p2++;
+                            output += in_c;
+                        }
+                        // rewind for next width
+                        p1 -= wd1;
+                        p2 -= wd2;
+                    }
+                }
+                // advance row
+                p1 += hd1;
+                p2 += hd2;
             }
         }
+
+        // advance batch
+        input += bd1;
+        alpha += bd2;
     }
+
     return ARM_CMSIS_NN_SUCCESS;
 }
 
