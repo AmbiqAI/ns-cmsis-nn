@@ -9,7 +9,7 @@
 
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
- * Title:        arm_prelu_scalar_s8
+ * Title:        arm_elementwise_prelu_s8
  * Description:  Elementwise prelu
  *
  * $Date:        12 November 2025
