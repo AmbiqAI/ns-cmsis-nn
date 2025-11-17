@@ -3662,10 +3662,10 @@ arm_cmsis_nn_status arm_hard_swish_precise_s16(
  * @param[in]      input_offset                Input tensor zero offset
  * @param[in]      alpha_offset                Alpha tensor zero offset
  * @param[in]      output_offset               Output tensor zero offset
- * @param[in]      output_multiplier_1         Output multiplier 1
- * @param[in]      output_shift_1              Output shift 1
- * @param[in]      output_multiplier_2         Output multiplier 2
- * @param[in]      output_shift_2              Output shift 2
+ * @param[in]      output_multiplier_identity         Output multiplier 1
+ * @param[in]      output_shift_identity              Output shift 1
+ * @param[in]      output_multiplier_alpha         Output multiplier 2
+ * @param[in]      output_shift_alpha              Output shift 2
  * @param[in]      output_dims                 Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output                      Pointer to the output buffer
  * @return         The function returns ARM_MATH_SUCCESS
@@ -3678,10 +3678,10 @@ arm_cmsis_nn_status arm_prelu_s8(
     const int32_t input_offset,
     const int32_t alpha_offset,
     const int32_t output_offset,
-    const int32_t output_multiplier_1,
-    const int output_shift_1,
-    const int32_t output_multiplier_2,
-    const int output_shift_2,
+    const int32_t output_multiplier_identity,
+    const int output_shift_identity,
+    const int32_t output_multiplier_alpha,
+    const int output_shift_alpha,
     const cmsis_nn_dims *output_dims,
     int8_t *output);
 
@@ -3693,10 +3693,10 @@ arm_cmsis_nn_status arm_prelu_s8(
  * @param[in]      input_offset                Input tensor zero offset
  * @param[in]      alpha_offset                Alpha tensor zero offset
  * @param[in]      out_offset                  Output tensor zero offset
- * @param[in]      output_multiplier_1         Output multiplier when input >= 0
- * @param[in]      output_shift_1              Output shift when input >= 0
- * @param[in]      output_multiplier_2         Output multiplier when input < 0
- * @param[in]      output_shift_2              Output shift when input < 0
+ * @param[in]      output_multiplier_identity         Output multiplier when input >= 0
+ * @param[in]      output_shift_identity              Output shift when input >= 0
+ * @param[in]      output_multiplier_alpha         Output multiplier when input < 0
+ * @param[in]      output_shift_alpha              Output shift when input < 0
  * @param[out]     output                      Pointer to the output buffer
  * @param[in]      block_size                  Number of elements to process
  * @return         The function returns ARM_MATH_SUCCESS
@@ -3707,10 +3707,10 @@ arm_cmsis_nn_status arm_elementwise_prelu_s8(
     const int32_t input_offset,
     const int32_t alpha_offset,
     const int32_t out_offset,
-    const int32_t output_multiplier_1,
-    const int output_shift_1,
-    const int32_t output_multiplier_2,
-    const int output_shift_2,
+    const int32_t output_multiplier_identity,
+    const int output_shift_identity,
+    const int32_t output_multiplier_alpha,
+    const int output_shift_alpha,
     int8_t * output,
     const int32_t block_size);
 
@@ -3723,10 +3723,10 @@ arm_cmsis_nn_status arm_elementwise_prelu_s8(
  * @param[in]      input_offset                Input tensor zero offset
  * @param[in]      alpha_offset                Alpha tensor zero offset
  * @param[in]      output_offset               Output tensor zero offset
- * @param[in]      output_multiplier_1         Output multiplier when input >= 0
- * @param[in]      output_shift_1              Output shift when input >= 0
- * @param[in]      output_multiplier_2         Output multiplier when input < 0
- * @param[in]      output_shift_2              Output shift when input < 0
+ * @param[in]      output_multiplier_identity         Output multiplier when input >= 0
+ * @param[in]      output_shift_identity              Output shift when input >= 0
+ * @param[in]      output_multiplier_alpha         Output multiplier when input < 0
+ * @param[in]      output_shift_alpha              Output shift when input < 0
  * @param[out]     output                      Pointer to the output buffer
  * @param[in]      block_size                  Number of elements to process when the non-scalar vector is used
  * @return         The function returns ARM_MATH_SUCCESS
@@ -3738,10 +3738,10 @@ arm_cmsis_nn_status arm_prelu_scalar_s8(
     const int32_t input_offset,
     const int32_t alpha_offset,
     const int32_t output_offset,
-    const int32_t output_multiplier_1,
-    const int      output_shift_1,
-    const int32_t output_multiplier_2,
-    const int      output_shift_2,
+    const int32_t output_multiplier_identity,
+    const int      output_shift_identity,
+    const int32_t output_multiplier_alpha,
+    const int      output_shift_alpha,
     int8_t *output,
     const int32_t block_size);
 

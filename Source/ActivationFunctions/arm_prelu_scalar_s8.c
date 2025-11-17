@@ -45,10 +45,10 @@ arm_cmsis_nn_status arm_prelu_scalar_s8(const int8_t *scalar_vect,
                                         const int32_t input_offset,
                                         const int32_t alpha_offset,
                                         const int32_t output_offset,
-                                        const int32_t output_multiplier_1,
-                                        const int      output_shift_1,
-                                        const int32_t output_multiplier_2,
-                                        const int      output_shift_2,
+                                        const int32_t output_multiplier_identity,
+                                        const int      output_shift_identity,
+                                        const int32_t output_multiplier_alpha,
+                                        const int      output_shift_alpha,
                                         int8_t *output,
                                         const int32_t block_size)
 {
@@ -58,7 +58,7 @@ arm_cmsis_nn_status arm_prelu_scalar_s8(const int8_t *scalar_vect,
 
         if (input_value >= 0)
         {
-            const int32_t output_value = arm_nn_requantize(input_value, output_multiplier_1, output_shift_1) + output_offset;
+            const int32_t output_value = arm_nn_requantize(input_value, output_multiplier_identity, output_shift_identity) + output_offset;
 
             for (int32_t i = 0; i < block_size; ++i)
             {
@@ -74,7 +74,7 @@ arm_cmsis_nn_status arm_prelu_scalar_s8(const int8_t *scalar_vect,
             {
                 const int32_t alpha_value  = (int32_t)non_scalar_vect[i] + alpha_offset;
                 const int32_t prod = alpha_value * input_value;
-                int32_t acc = arm_nn_requantize(prod, output_multiplier_2, output_shift_2) + output_offset;
+                int32_t acc = arm_nn_requantize(prod, output_multiplier_alpha, output_shift_alpha) + output_offset;
                 acc = MAX(acc, INT8_MIN);
                 acc = MIN(acc, INT8_MAX);
                 output[i] = (int8_t)acc;
@@ -92,12 +92,12 @@ arm_cmsis_nn_status arm_prelu_scalar_s8(const int8_t *scalar_vect,
             int32_t acc;
             if (input_value >= 0)
             {
-                acc = arm_nn_requantize(input_value, output_multiplier_1, output_shift_1) + output_offset;
+                acc = arm_nn_requantize(input_value, output_multiplier_identity, output_shift_identity) + output_offset;
             }
             else
             {
                 const int32_t prod = alpha_value * input_value;
-                acc = arm_nn_requantize(prod, output_multiplier_2, output_shift_2) + output_offset;
+                acc = arm_nn_requantize(prod, output_multiplier_alpha, output_shift_alpha) + output_offset;
             }
 
             acc = MAX(acc, INT8_MIN);

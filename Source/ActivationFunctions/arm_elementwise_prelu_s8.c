@@ -43,10 +43,10 @@ arm_cmsis_nn_status arm_elementwise_prelu_s8(const int8_t *input,
                                            const int32_t input_offset,
                                            const int32_t alpha_offset,
                                            const int32_t out_offset,
-                                           const int32_t output_multiplier_1,
-                                           const int output_shift_1,
-                                           const int32_t output_multiplier_2,
-                                           const int output_shift_2,
+                                           const int32_t output_multiplier_identity,
+                                           const int output_shift_identity,
+                                           const int32_t output_multiplier_alpha,
+                                           const int output_shift_alpha,
                                            int8_t * output,
                                            const int32_t block_size)
 {
@@ -55,11 +55,11 @@ arm_cmsis_nn_status arm_elementwise_prelu_s8(const int8_t *input,
         const int32_t input_value = input_offset + input[i];
         int32_t output_value;
         if (input_value >= 0) {
-            output_value = arm_nn_requantize(input_value, output_multiplier_1, output_shift_1);
+            output_value = arm_nn_requantize(input_value, output_multiplier_identity, output_shift_identity);
         }
         else {
             const int32_t alpha_value = alpha_offset + alpha[i];
-            output_value = arm_nn_requantize(input_value * alpha_value, output_multiplier_2, output_shift_2);
+            output_value = arm_nn_requantize(input_value * alpha_value, output_multiplier_alpha, output_shift_alpha);
         }
         output_value += out_offset;
         const int32_t clamped_output = MIN(INT8_MAX, MAX(INT8_MIN, output_value));

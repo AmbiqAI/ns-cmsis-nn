@@ -46,10 +46,10 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                                  const int32_t input_offset,
                                  const int32_t alpha_offset,
                                  const int32_t output_offset,
-                                 const int32_t output_multiplier_1,
-                                 const int output_shift_1,
-                                 const int32_t output_multiplier_2,
-                                 const int output_shift_2,
+                                 const int32_t output_multiplier_identity,
+                                 const int output_shift_identity,
+                                 const int32_t output_multiplier_alpha,
+                                 const int output_shift_alpha,
                                  const cmsis_nn_dims *output_dims,
                                  int8_t *output)
 {
@@ -79,8 +79,8 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
         return arm_elementwise_prelu_s8(
             input, alpha, input_offset,
             alpha_offset, output_offset,
-            output_multiplier_1, output_shift_1,
-            output_multiplier_2, output_shift_2,
+            output_multiplier_identity, output_shift_identity,
+            output_multiplier_alpha, output_shift_alpha,
             output, flat1_total
         );
     }
@@ -90,8 +90,8 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
     {
         return arm_prelu_scalar_s8(
             input, alpha, true, input_offset, alpha_offset,
-            output_offset, output_multiplier_1, output_shift_1,
-            output_multiplier_2, output_shift_2, output, flat2_total
+            output_offset, output_multiplier_identity, output_shift_identity,
+            output_multiplier_alpha, output_shift_alpha, output, flat2_total
         );
     }
     // Scalar alpha
@@ -99,8 +99,8 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
     {
         return arm_prelu_scalar_s8(
             alpha, input, false, input_offset, alpha_offset,
-            output_offset, output_multiplier_1, output_shift_1,
-            output_multiplier_2, output_shift_2, output, flat1_total
+            output_offset, output_multiplier_identity, output_shift_identity,
+            output_multiplier_alpha, output_shift_alpha, output, flat1_total
         );
     }
     
@@ -128,8 +128,8 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
             arm_elementwise_prelu_s8(
                 p1, p2, input_offset,
                 alpha_offset, output_offset,
-                output_multiplier_1, output_shift_1,
-                output_multiplier_2, output_shift_2,
+                output_multiplier_identity, output_shift_identity,
+                output_multiplier_alpha, output_shift_alpha,
                 output, flat1_total
             );
             output += flat1_total;
@@ -147,8 +147,8 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                     arm_elementwise_prelu_s8(
                         p1, p2, input_offset,
                         alpha_offset, output_offset,
-                        output_multiplier_1, output_shift_1,
-                        output_multiplier_2, output_shift_2,
+                        output_multiplier_identity, output_shift_identity,
+                        output_multiplier_alpha, output_shift_alpha,
                         output, flat1_total
                     );
                     p1 += flat1_total;
@@ -161,9 +161,9 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                     arm_prelu_scalar_s8(
                         p1, p2, true,
                         input_offset, alpha_offset,
-                        output_offset, output_multiplier_1,
-                        output_shift_1, output_multiplier_2,
-                        output_shift_2, output, flat2_total
+                        output_offset, output_multiplier_identity,
+                        output_shift_identity, output_multiplier_alpha,
+                        output_shift_alpha, output, flat2_total
                     );
                     p1++;
                     p2 += flat2_total;
@@ -175,9 +175,9 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                     arm_prelu_scalar_s8(
                         p2, p1, false,
                         input_offset, alpha_offset,
-                        output_offset, output_multiplier_1,
-                        output_shift_1, output_multiplier_2,
-                        output_shift_2, output, flat1_total
+                        output_offset, output_multiplier_identity,
+                        output_shift_identity, output_multiplier_alpha,
+                        output_shift_alpha, output, flat1_total
                     );
                     p1 += flat1_total;
                     p2++;
@@ -194,8 +194,8 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                             arm_elementwise_prelu_s8(
                                 p1, p2, input_offset,
                                 alpha_offset, output_offset,
-                                output_multiplier_1, output_shift_1,
-                                output_multiplier_2, output_shift_2,
+                                output_multiplier_identity, output_shift_identity,
+                                output_multiplier_alpha, output_shift_alpha,
                                 output, in_c
                             );
                             p1 += in_c;
@@ -208,9 +208,9 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                             arm_prelu_scalar_s8(
                                 p1, p2, true,
                                 input_offset, alpha_offset,
-                                output_offset, output_multiplier_1,
-                                output_shift_1, output_multiplier_2,
-                                output_shift_2, output, alpha_c
+                                output_offset, output_multiplier_identity,
+                                output_shift_identity, output_multiplier_alpha,
+                                output_shift_alpha, output, alpha_c
                             );
                             p1++;
                             p2 += alpha_c;
@@ -222,9 +222,9 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                             arm_prelu_scalar_s8(
                                 p2, p1, false,
                                 input_offset, alpha_offset,
-                                output_offset, output_multiplier_1,
-                                output_shift_1, output_multiplier_2,
-                                output_shift_2, output, in_c
+                                output_offset, output_multiplier_identity,
+                                output_shift_identity, output_multiplier_alpha,
+                                output_shift_alpha, output, in_c
                             );
                             p1 += in_c;
                             p2++;
