@@ -3653,6 +3653,99 @@ arm_cmsis_nn_status arm_hard_swish_precise_s16(
 );
 
 /**
+ * @brief S8 PReLU activation function
+ *
+ * @param[in]      input_dims                  Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      alpha_dims                  Alpha tensor dimensions. Format: [N, H, W, C]
+ * @param[in]      alpha                       Pointer to the alpha buffer
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      alpha_offset                Alpha tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier_identity         Output multiplier 1
+ * @param[in]      output_shift_identity              Output shift 1
+ * @param[in]      output_multiplier_alpha         Output multiplier 2
+ * @param[in]      output_shift_alpha              Output shift 2
+ * @param[in]      output_dims                 Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output                      Pointer to the output buffer
+ * @return         The function returns ARM_MATH_SUCCESS
+ */
+arm_cmsis_nn_status arm_prelu_s8(
+    const cmsis_nn_dims *input_dims,
+    const int8_t *input,
+    const cmsis_nn_dims *alpha_dims,
+    const int8_t *alpha,
+    const int32_t input_offset,
+    const int32_t alpha_offset,
+    const int32_t output_offset,
+    const int32_t output_multiplier_identity,
+    const int32_t output_shift_identity,
+    const int32_t output_multiplier_alpha,
+    const int32_t output_shift_alpha,
+    const cmsis_nn_dims *output_dims,
+    int8_t *output);
+
+/**
+ * @brief Elementwise S8 PReLU activation function
+ *
+ * @param[in]      input                       Pointer to the input buffer
+ * @param[in]      alpha                       Pointer to the alpha buffer (same shape as input)
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      alpha_offset                Alpha tensor zero offset
+ * @param[in]      out_offset                  Output tensor zero offset
+ * @param[in]      output_multiplier_identity         Output multiplier when input >= 0
+ * @param[in]      output_shift_identity              Output shift when input >= 0
+ * @param[in]      output_multiplier_alpha         Output multiplier when input < 0
+ * @param[in]      output_shift_alpha              Output shift when input < 0
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      block_size                  Number of elements to process
+ * @return         The function returns ARM_MATH_SUCCESS
+ */
+arm_cmsis_nn_status arm_elementwise_prelu_s8(
+    const int8_t *input,
+    const int8_t *alpha,
+    const int32_t input_offset,
+    const int32_t alpha_offset,
+    const int32_t out_offset,
+    const int32_t output_multiplier_identity,
+    const int32_t output_shift_identity,
+    const int32_t output_multiplier_alpha,
+    const int32_t output_shift_alpha,
+    int8_t * output,
+    const int32_t block_size);
+
+/**
+ * @brief Scalar S8 PReLU activation function
+ *
+ * @param[in]      scalar_vect                 Pointer to the scalar buffer (single value)
+ * @param[in]      non_scalar_vect             Pointer to the non-scalar buffer
+ * @param[in]      scalar_is_input             True if the scalar buffer holds the input value, false if it holds alpha
+ * @param[in]      input_offset                Input tensor zero offset
+ * @param[in]      alpha_offset                Alpha tensor zero offset
+ * @param[in]      output_offset               Output tensor zero offset
+ * @param[in]      output_multiplier_identity         Output multiplier when input >= 0
+ * @param[in]      output_shift_identity              Output shift when input >= 0
+ * @param[in]      output_multiplier_alpha         Output multiplier when input < 0
+ * @param[in]      output_shift_alpha              Output shift when input < 0
+ * @param[out]     output                      Pointer to the output buffer
+ * @param[in]      block_size                  Number of elements to process when the non-scalar vector is used
+ * @return         The function returns ARM_MATH_SUCCESS
+ */
+arm_cmsis_nn_status arm_prelu_scalar_s8(
+    const int8_t *scalar_vect,
+    const int8_t *non_scalar_vect,
+    const bool scalar_is_input,
+    const int32_t input_offset,
+    const int32_t alpha_offset,
+    const int32_t output_offset,
+    const int32_t output_multiplier_identity,
+    const int32_t      output_shift_identity,
+    const int32_t output_multiplier_alpha,
+    const int32_t      output_shift_alpha,
+    int8_t *output,
+    const int32_t block_size);
+
+/**
  * @defgroup Pooling Pooling Functions
  *
  * Perform max and average pooling operations
