@@ -47,9 +47,9 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                                  const int32_t alpha_offset,
                                  const int32_t output_offset,
                                  const int32_t output_multiplier_identity,
-                                 const int output_shift_identity,
+                                 const int32_t output_shift_identity,
                                  const int32_t output_multiplier_alpha,
-                                 const int output_shift_alpha,
+                                 const int32_t output_shift_alpha,
                                  const cmsis_nn_dims *output_dims,
                                  int8_t *output)
 {

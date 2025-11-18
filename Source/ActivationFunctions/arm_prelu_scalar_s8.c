@@ -46,9 +46,9 @@ arm_cmsis_nn_status arm_prelu_scalar_s8(const int8_t *scalar_vect,
                                         const int32_t alpha_offset,
                                         const int32_t output_offset,
                                         const int32_t output_multiplier_identity,
-                                        const int      output_shift_identity,
+                                        const int32_t      output_shift_identity,
                                         const int32_t output_multiplier_alpha,
-                                        const int      output_shift_alpha,
+                                        const int32_t      output_shift_alpha,
                                         int8_t *output,
                                         const int32_t block_size)
 {
