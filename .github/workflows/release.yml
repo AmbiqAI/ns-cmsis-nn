@@ -29,7 +29,7 @@ jobs:
       # 2) Only do the rest when a NEW release was created by the step above
       - name: Checkout code
         if: ${{ steps.rp.outputs.release_created }}
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
