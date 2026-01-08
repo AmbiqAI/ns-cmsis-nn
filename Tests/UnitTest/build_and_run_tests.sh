@@ -133,7 +133,7 @@ Setup_Environment() {
     if [[ -d ${WORKING_DIR}/ethos-u-core-platform ]]; then
         echo "Ethos-U core platform already installed. If you wish to install a new version, please delete the old folder."
     else
-        git clone --quiet --depth=1 https://review.mlplatform.org/ml/ethos-u/ethos-u-core-platform
+        git clone --quiet --depth=1 https://gitlab.arm.com/artificial-intelligence/ethos-u/ethos-u-core-platform
     fi
 
     echo "++ Setting up python environment"
