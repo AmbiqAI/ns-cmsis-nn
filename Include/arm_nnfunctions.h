@@ -4102,7 +4102,9 @@ arm_cmsis_nn_status arm_resize_nearest_neighbor_s8(const cmsis_nn_resize_params 
  * @param[in]   output_shape  Output tensor dimensions. Format: [N, H, W, C]
  * @param[out]  output_data              Pointer to output tensor data
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     The function returns either
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro
