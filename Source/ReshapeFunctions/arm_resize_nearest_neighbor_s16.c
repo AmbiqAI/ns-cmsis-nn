@@ -114,7 +114,7 @@ arm_cmsis_nn_status arm_resize_nearest_neighbor_s16(const cmsis_nn_resize_params
                                                 resize_params->align_corners,
                                                 resize_params->half_pixel_centers);
                 const int16_t * x_input_ptr = y_input_ptr + in_x * col_offset;
-                arm_memcpy_s16(output_ptr, x_input_ptr, depth * sizeof(int16_t));
+                arm_memcpy_s16(output_ptr, x_input_ptr, depth);
                 output_ptr += depth;
             }
         }
