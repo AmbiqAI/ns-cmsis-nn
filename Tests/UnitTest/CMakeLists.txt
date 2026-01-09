@@ -158,6 +158,8 @@ add_subdirectory(TestCases/test_arm_space_to_depth_s16)
 add_subdirectory(TestCases/test_arm_depth_to_space_s16)
 add_subdirectory(TestCases/test_arm_space_to_batch_nd_s16)
 add_subdirectory(TestCases/test_arm_batch_to_space_nd_s16)
+add_subdirectory(TestCases/test_arm_resize_nearest_neighbor_s8)
+add_subdirectory(TestCases/test_arm_resize_nearest_neighbor_s16)
 
 set(MAKE_CMD "python3")
 set(MAKE_CMD_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/unittest_targets.py")

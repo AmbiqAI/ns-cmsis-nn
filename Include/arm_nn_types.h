@@ -229,6 +229,13 @@ typedef struct
     const uint32_t *permutations; /**< The dimensions applied to the input dimensions */
 } cmsis_nn_transpose_params;
 
+/** CMSIS-NN object for Resize Nearest Neighbor layer parameters */
+typedef struct
+{
+    bool align_corners;       /**< Align corners when calculating interpolation */
+    bool half_pixel_centers;  /**< Use half pixel centers when calculating interpolation */
+} cmsis_nn_resize_params;
+
 /** CMSIS-NN object for SVDF layer parameters */
 typedef struct
 {
