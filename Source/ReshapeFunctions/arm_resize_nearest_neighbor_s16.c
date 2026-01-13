@@ -21,28 +21,7 @@
 
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
-#include <math.h>
 
-static inline int32_t GetNearestNeighbor(const int input_value,
-                                         const int32_t input_size,
-                                         const int32_t output_size,
-                                         const bool align_corners,
-                                         const bool half_pixel_centers)
-{
-    const float scale = (align_corners && output_size > 1)
-                            ? (float)(input_size - 1) / (float)(output_size - 1)
-                            : (float)input_size / (float)output_size;
-    const float offset = half_pixel_centers ? 0.5f : 0.0f;
-    const float scaled = ((float)input_value + offset) * scale;
-    int32_t output_value = align_corners ? (int32_t)roundf(scaled) : (int32_t)floorf(scaled);
-
-    output_value = MIN(output_value, input_size - 1);
-    if (half_pixel_centers)
-    {
-        output_value = MAX(0, output_value);
-    }
-    return output_value;
-}
 
 /**
  *  @ingroup Public
@@ -60,7 +39,8 @@ static inline int32_t GetNearestNeighbor(const int input_value,
  *
  */
 
-arm_cmsis_nn_status arm_resize_nearest_neighbor_s16(const cmsis_nn_resize_params *resize_params,
+arm_cmsis_nn_status arm_resize_nearest_neighbor_s16(const cmsis_nn_context *ctx,
+                                                    const cmsis_nn_resize_params *resize_params,
                                                     const cmsis_nn_dims *input_shape,
                                                     const int16_t *input_data,
                                                     const cmsis_nn_dims *output_size_shape,
@@ -68,7 +48,7 @@ arm_cmsis_nn_status arm_resize_nearest_neighbor_s16(const cmsis_nn_resize_params
                                                     const cmsis_nn_dims *output_shape,
                                                     int16_t *output_data)
 {
-    if (!resize_params || !input_shape || !input_data || !output_size_shape || !output_size_data ||
+    if (!ctx || !resize_params || !input_shape || !input_data || !output_size_shape || !output_size_data ||
         !output_shape || !output_data)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
@@ -95,6 +75,10 @@ arm_cmsis_nn_status arm_resize_nearest_neighbor_s16(const cmsis_nn_resize_params
 
     int32_t output_height = output_size_data[0];
     int32_t output_width = output_size_data[1];
+    if (output_height <= 0 || output_width <= 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     
     const int col_offset = input_shape->c;
     const int row_offset = input_shape->w * col_offset;
@@ -103,16 +87,35 @@ arm_cmsis_nn_status arm_resize_nearest_neighbor_s16(const cmsis_nn_resize_params
 
     const int16_t *input_ptr = input_data;
     int16_t *output_ptr = output_data;
+
+    const int32_t required_buffer_size = (output_height + output_width) * (int32_t)sizeof(int32_t);
+    if (ctx->buf == NULL || ctx->size < required_buffer_size)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    // scratch buffer must be 4-byte aligned by caller
+    int32_t *x_map = (int32_t *)ctx->buf;
+    int32_t *y_map = x_map + output_width;
+
+    for (int y = 0; y < output_height; ++y)
+    {
+        y_map[y] = GetNearestNeighbor(y, input_height, output_height,
+                                      resize_params->align_corners,
+                                      resize_params->half_pixel_centers);
+    }
+    for (int x = 0; x < output_width; ++x)
+    {
+        x_map[x] = GetNearestNeighbor(x, input_width, output_width,
+                                      resize_params->align_corners,
+                                      resize_params->half_pixel_centers);
+    }
     for (int b = 0; b < batches; ++b) {
         for (int y = 0; y < output_height; ++y) {
-            int32_t in_y = GetNearestNeighbor(y, input_height, output_height,
-                                                resize_params->align_corners,
-                                                resize_params->half_pixel_centers);
+            int32_t in_y = y_map[y];
             const int16_t *y_input_ptr = input_ptr + in_y * row_offset;
             for (int x = 0; x < output_width; ++x) {
-                int32_t in_x = GetNearestNeighbor(x, input_width, output_width,
-                                                resize_params->align_corners,
-                                                resize_params->half_pixel_centers);
+                int32_t in_x = x_map[x];
                 const int16_t *x_input_ptr = y_input_ptr + in_x * col_offset;
                 arm_memcpy_s16(output_ptr, x_input_ptr, depth);
                 output_ptr += depth;

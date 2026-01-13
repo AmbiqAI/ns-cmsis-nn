@@ -11,6 +11,7 @@
 
 #include <arm_nnfunctions.h>
 #include <arm_nnsupportfunctions.h>
+#include <stdlib.h>
 
 #include "../TestData/resize_nn_basic_s16/test_data.h"
 #include "../TestData/resize_nn_half_pixel_s16/test_data.h"
@@ -39,8 +40,20 @@ void resize_nn_basic_s16_arm_resize_nearest_neighbor_s16(void)
                                         RESIZE_NN_BASIC_S16_OUTPUT_W,
                                         RESIZE_NN_BASIC_S16_OUTPUT_C};
     int16_t output_data[RESIZE_NN_BASIC_S16_OUTPUT_SIZE] = {0};
+    TEST_ASSERT_TRUE(output_size_data != NULL);
+    TEST_ASSERT_TRUE(output_size_data[0] >= 0);
+    TEST_ASSERT_TRUE(output_size_data[1] >= 0);
+    int32_t scratch_elements = output_size_data[0] * output_size_data[1];
+    int32_t *scratch_buffer = NULL;
+    if (scratch_elements > 0)
+    {
+        scratch_buffer = (int32_t *)malloc((size_t)scratch_elements * sizeof(int32_t));
+    }
+    TEST_ASSERT_TRUE((scratch_elements == 0) || (scratch_buffer != NULL));
+    cmsis_nn_context ctx = { .buf = scratch_buffer, .size = scratch_elements * (int32_t)sizeof(int32_t) };
 
-    const arm_cmsis_nn_status result = arm_resize_nearest_neighbor_s16(&resize_params,
+    const arm_cmsis_nn_status result = arm_resize_nearest_neighbor_s16(&ctx,
+                                                                       &resize_params,
                                                                        &input_shape,
                                                                        resize_nn_basic_s16_input_tensor,
                                                                        &output_size_shape,
@@ -56,6 +69,7 @@ void resize_nn_basic_s16_arm_resize_nearest_neighbor_s16(void)
     {
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, result);
     }
+    free(scratch_buffer);
 }
 
 void resize_nn_half_pixel_s16_arm_resize_nearest_neighbor_s16(void)
@@ -78,8 +92,20 @@ void resize_nn_half_pixel_s16_arm_resize_nearest_neighbor_s16(void)
                                         RESIZE_NN_HALF_PIXEL_S16_OUTPUT_W,
                                         RESIZE_NN_HALF_PIXEL_S16_OUTPUT_C};
     int16_t output_data[RESIZE_NN_HALF_PIXEL_S16_OUTPUT_SIZE] = {0};
+    TEST_ASSERT_TRUE(output_size_data != NULL);
+    TEST_ASSERT_TRUE(output_size_data[0] >= 0);
+    TEST_ASSERT_TRUE(output_size_data[1] >= 0);
+    int32_t scratch_elements = output_size_data[0] * output_size_data[1];
+    int32_t *scratch_buffer = NULL;
+    if (scratch_elements > 0)
+    {
+        scratch_buffer = (int32_t *)malloc((size_t)scratch_elements * sizeof(int32_t));
+    }
+    TEST_ASSERT_TRUE((scratch_elements == 0) || (scratch_buffer != NULL));
+    cmsis_nn_context ctx = { .buf = scratch_buffer, .size = scratch_elements * (int32_t)sizeof(int32_t) };
 
-    const arm_cmsis_nn_status result = arm_resize_nearest_neighbor_s16(&resize_params,
+    const arm_cmsis_nn_status result = arm_resize_nearest_neighbor_s16(&ctx,
+                                                                       &resize_params,
                                                                        &input_shape,
                                                                        resize_nn_half_pixel_s16_input_tensor,
                                                                        &output_size_shape,
@@ -95,6 +121,7 @@ void resize_nn_half_pixel_s16_arm_resize_nearest_neighbor_s16(void)
     {
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, result);
     }
+    free(scratch_buffer);
 }
 
 void resize_nn_align_corners_s16_arm_resize_nearest_neighbor_s16(void)
@@ -117,8 +144,20 @@ void resize_nn_align_corners_s16_arm_resize_nearest_neighbor_s16(void)
                                         RESIZE_NN_ALIGN_CORNERS_S16_OUTPUT_W,
                                         RESIZE_NN_ALIGN_CORNERS_S16_OUTPUT_C};
     int16_t output_data[RESIZE_NN_ALIGN_CORNERS_S16_OUTPUT_SIZE] = {0};
+    TEST_ASSERT_TRUE(output_size_data != NULL);
+    TEST_ASSERT_TRUE(output_size_data[0] >= 0);
+    TEST_ASSERT_TRUE(output_size_data[1] >= 0);
+    int32_t scratch_elements = output_size_data[0] * output_size_data[1];
+    int32_t *scratch_buffer = NULL;
+    if (scratch_elements > 0)
+    {
+        scratch_buffer = (int32_t *)malloc((size_t)scratch_elements * sizeof(int32_t));
+    }
+    TEST_ASSERT_TRUE((scratch_elements == 0) || (scratch_buffer != NULL));
+    cmsis_nn_context ctx = { .buf = scratch_buffer, .size = scratch_elements * (int32_t)sizeof(int32_t) };
 
-    const arm_cmsis_nn_status result = arm_resize_nearest_neighbor_s16(&resize_params,
+    const arm_cmsis_nn_status result = arm_resize_nearest_neighbor_s16(&ctx,
+                                                                       &resize_params,
                                                                        &input_shape,
                                                                        resize_nn_align_corners_s16_input_tensor,
                                                                        &output_size_shape,
@@ -135,6 +174,7 @@ void resize_nn_align_corners_s16_arm_resize_nearest_neighbor_s16(void)
     {
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, result);
     }
+    free(scratch_buffer);
 }
 
 void resize_nn_downsample_s16_arm_resize_nearest_neighbor_s16(void)
@@ -157,8 +197,20 @@ void resize_nn_downsample_s16_arm_resize_nearest_neighbor_s16(void)
                                         RESIZE_NN_DOWNSAMPLE_S16_OUTPUT_W,
                                         RESIZE_NN_DOWNSAMPLE_S16_OUTPUT_C};
     int16_t output_data[RESIZE_NN_DOWNSAMPLE_S16_OUTPUT_SIZE] = {0};
+    TEST_ASSERT_TRUE(output_size_data != NULL);
+    TEST_ASSERT_TRUE(output_size_data[0] >= 0);
+    TEST_ASSERT_TRUE(output_size_data[1] >= 0);
+    int32_t scratch_elements = output_size_data[0] * output_size_data[1];
+    int32_t *scratch_buffer = NULL;
+    if (scratch_elements > 0)
+    {
+        scratch_buffer = (int32_t *)malloc((size_t)scratch_elements * sizeof(int32_t));
+    }
+    TEST_ASSERT_TRUE((scratch_elements == 0) || (scratch_buffer != NULL));
+    cmsis_nn_context ctx = { .buf = scratch_buffer, .size = scratch_elements * (int32_t)sizeof(int32_t) };
 
-    const arm_cmsis_nn_status result = arm_resize_nearest_neighbor_s16(&resize_params,
+    const arm_cmsis_nn_status result = arm_resize_nearest_neighbor_s16(&ctx,
+                                                                       &resize_params,
                                                                        &input_shape,
                                                                        resize_nn_downsample_s16_input_tensor,
                                                                        &output_size_shape,
@@ -174,6 +226,7 @@ void resize_nn_downsample_s16_arm_resize_nearest_neighbor_s16(void)
     {
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, result);
     }
+    free(scratch_buffer);
 }
 
 void resize_nn_batch_channels_s16_arm_resize_nearest_neighbor_s16(void)
@@ -196,8 +249,20 @@ void resize_nn_batch_channels_s16_arm_resize_nearest_neighbor_s16(void)
                                         RESIZE_NN_BATCH_CHANNELS_S16_OUTPUT_W,
                                         RESIZE_NN_BATCH_CHANNELS_S16_OUTPUT_C};
     int16_t output_data[RESIZE_NN_BATCH_CHANNELS_S16_OUTPUT_SIZE] = {0};
+    TEST_ASSERT_TRUE(output_size_data != NULL);
+    TEST_ASSERT_TRUE(output_size_data[0] >= 0);
+    TEST_ASSERT_TRUE(output_size_data[1] >= 0);
+    int32_t scratch_elements = output_size_data[0] * output_size_data[1];
+    int32_t *scratch_buffer = NULL;
+    if (scratch_elements > 0)
+    {
+        scratch_buffer = (int32_t *)malloc((size_t)scratch_elements * sizeof(int32_t));
+    }
+    TEST_ASSERT_TRUE((scratch_elements == 0) || (scratch_buffer != NULL));
+    cmsis_nn_context ctx = { .buf = scratch_buffer, .size = scratch_elements * (int32_t)sizeof(int32_t) };
 
-    const arm_cmsis_nn_status result = arm_resize_nearest_neighbor_s16(&resize_params,
+    const arm_cmsis_nn_status result = arm_resize_nearest_neighbor_s16(&ctx,
+                                                                       &resize_params,
                                                                        &input_shape,
                                                                        resize_nn_batch_channels_s16_input_tensor,
                                                                        &output_size_shape,
@@ -214,4 +279,5 @@ void resize_nn_batch_channels_s16_arm_resize_nearest_neighbor_s16(void)
     {
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, result);
     }
+    free(scratch_buffer);
 }
