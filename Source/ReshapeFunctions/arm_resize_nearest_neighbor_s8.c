@@ -78,7 +78,7 @@ arm_cmsis_nn_status arm_resize_nearest_neighbor_s8(const cmsis_nn_resize_params 
 
     if (input_shape->n != output_shape->n || input_shape->c != output_shape->c) {
         return ARM_CMSIS_NN_ARG_ERROR;
-    } 
+    }
     int32_t batches = input_shape->n;
     int32_t input_height = input_shape->h;
     int32_t input_width = input_shape->w;

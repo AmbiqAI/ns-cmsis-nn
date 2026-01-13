@@ -77,7 +77,7 @@ arm_cmsis_nn_status arm_resize_nearest_neighbor_s16(const cmsis_nn_resize_params
     if (input_shape->n != output_shape->n || input_shape->c != output_shape->c)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
-    } 
+    }
     int32_t batches = input_shape->n;
     int32_t input_height = input_shape->h;
     int32_t input_width = input_shape->w;
@@ -88,7 +88,7 @@ arm_cmsis_nn_status arm_resize_nearest_neighbor_s16(const cmsis_nn_resize_params
                         output_size_shape->w *
                         output_size_shape->c;
     
-    if (flat_size != 2) 
+    if (flat_size != 2)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -101,19 +101,19 @@ arm_cmsis_nn_status arm_resize_nearest_neighbor_s16(const cmsis_nn_resize_params
     const int batch_offset = input_shape->h * row_offset;
     
 
-    const int16_t * input_ptr = input_data;
-    int16_t * output_ptr = output_data;
+    const int16_t *input_ptr = input_data;
+    int16_t *output_ptr = output_data;
     for (int b = 0; b < batches; ++b) {
         for (int y = 0; y < output_height; ++y) {
             int32_t in_y = GetNearestNeighbor(y, input_height, output_height,
                                                 resize_params->align_corners,
                                                 resize_params->half_pixel_centers);
-            const int16_t * y_input_ptr = input_ptr + in_y * row_offset;
+            const int16_t *y_input_ptr = input_ptr + in_y * row_offset;
             for (int x = 0; x < output_width; ++x) {
                 int32_t in_x = GetNearestNeighbor(x, input_width, output_width,
                                                 resize_params->align_corners,
                                                 resize_params->half_pixel_centers);
-                const int16_t * x_input_ptr = y_input_ptr + in_x * col_offset;
+                const int16_t *x_input_ptr = y_input_ptr + in_x * col_offset;
                 arm_memcpy_s16(output_ptr, x_input_ptr, depth);
                 output_ptr += depth;
             }
