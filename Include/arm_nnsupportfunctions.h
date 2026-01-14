@@ -34,6 +34,7 @@
 #include "arm_nn_math_types.h"
 #include "arm_nn_types.h"
 
+#include <math.h>
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -109,6 +110,37 @@ extern "C" {
  * Internal Support functions. Not intended to be called direclty by a CMSIS-NN user.
  *
  */
+
+/**
+ * @brief Map an output index to the nearest input index for resize.
+ * @param[in]  input_value         Output index (x or y).
+ * @param[in]  input_size          Input size along the same axis.
+ * @param[in]  scale               Precomputed scaling factor for the axis.
+ * @param[in]  offset              Precomputed offset for the axis.
+ * @param[in]  align_corners       If true, use align-corners scaling.
+ * @param[in]  half_pixel_centers  If true, use half-pixel center offset.
+ * @return     Nearest input index for the given output index.
+ *
+ * @details
+ * This helper follows the TensorFlow Lite nearest-neighbor resize mapping rules.
+ */
+__STATIC_FORCEINLINE int32_t GetNearestNeighbor(const int input_value,
+                                         const int32_t input_size,
+                                         const float scale,
+                                         const float offset,
+                                         const bool align_corners,
+                                         const bool half_pixel_centers)
+{
+    const float scaled = ((float)input_value + offset) * scale;
+    int32_t output_value = align_corners ? (int32_t)roundf(scaled) : (int32_t)floorf(scaled);
+
+    output_value = MIN(output_value, input_size - 1);
+    if (half_pixel_centers)
+    {
+        output_value = MAX(0, output_value);
+    }
+    return output_value;
+}
 
 /**
  * @defgroup genPrivTypes Structure Types

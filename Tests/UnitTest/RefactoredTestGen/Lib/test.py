@@ -42,6 +42,7 @@ import Lib.op_sub
 import Lib.op_arg_min_max
 import Lib.op_gather
 import Lib.op_gather_nd
+import Lib.op_resize_nearest_neighbor
 import tensorflow as tf
 import numpy as np
 from tensorflow.lite.python.interpreter import Interpreter
@@ -305,6 +306,8 @@ def get_op_type(op_type_string):
         return Lib.op_gather.Op_gather
     elif op_type_string == "gather_nd":
         return Lib.op_gather_nd.Op_gather_nd
+    elif op_type_string == "resize_nearest_neighbor":
+        return Lib.op_resize_nearest_neighbor.Op_resize_nearest_neighbor
     else:
         raise ValueError(f"Unknown op type '{op_type_string}'")
 

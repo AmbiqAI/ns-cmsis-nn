@@ -4067,6 +4067,64 @@ void arm_softmax_u8(const uint8_t *input,
 void arm_reshape_s8(const int8_t *input, int8_t *output, const uint32_t total_size);
 
 /**
+ * @brief Nearest neighbor resize function for s8 data
+ *
+ * @param[in]   ctx                      Pointer to the context buffer. The buffer must hold at least
+ *                                       (output_height + output_width) int32_t elements.
+ * @param[in]   resize_params            Resize parameters
+ * @param[in]   input_shape              Input tensor dimensions. Format: [N, H, W, C]
+ * @param[in]   input_data               Pointer to input tensor data
+ * @param[in]   output_size_shape        Output size tensor dimensions
+ * @param[in]   output_size_data         Output size tensor data
+ * @param[in]   output_shape             Output tensor dimensions. Format: [N, H, W, C]
+ * @param[out]  output_data              Pointer to output tensor data
+ *
+ * @return     The function returns either <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. 
+ *             or, <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite Micro
+ *
+ */
+arm_cmsis_nn_status arm_resize_nearest_neighbor_s8(const cmsis_nn_context *ctx,
+                                                   const cmsis_nn_resize_params *resize_params,
+                                                   const cmsis_nn_dims *input_shape,
+                                                   const int8_t *input_data,
+                                                   const cmsis_nn_dims *output_size_shape,
+                                                   const int32_t *output_size_data,
+                                                   const cmsis_nn_dims *output_shape,
+                                                   int8_t *output_data);
+
+/**
+ * @brief Nearest neighbor resize function for s16 data
+ *
+ * @param[in]   ctx                      Pointer to the context buffer. The buffer must hold at least
+ *                                       (output_height + output_width) int32_t elements.
+ * @param[in]   resize_params            Resize parameters
+ * @param[in]   input_shape              Input tensor dimensions. Format: [N, H, W, C]
+ * @param[in]   input_data               Pointer to input tensor data
+ * @param[in]   output_size_shape        Output size tensor dimensions
+ * @param[in]   output_size_data         Output size tensor data
+ * @param[in]   output_shape             Output tensor dimensions. Format: [N, H, W, C]
+ * @param[out]  output_data              Pointer to output tensor data
+ *
+ * @return     The function returns either <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. 
+ *             or, <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite Micro
+ *
+ */
+arm_cmsis_nn_status arm_resize_nearest_neighbor_s16(const cmsis_nn_context *ctx,
+                                                    const cmsis_nn_resize_params *resize_params,
+                                                    const cmsis_nn_dims *input_shape,
+                                                    const int16_t *input_data,
+                                                    const cmsis_nn_dims *output_size_shape,
+                                                    const int32_t *output_size_data,
+                                                    const cmsis_nn_dims *output_shape,
+                                                    int16_t *output_data);
+
+/**
  * @brief Space to Depth function for s8 data type
  * @param[in]  input_data   Pointer to the input tensor. Data type: int8
  * @param[in]  input_dims   Input tensor dimensions. Format: [N, H, W, C_IN]
