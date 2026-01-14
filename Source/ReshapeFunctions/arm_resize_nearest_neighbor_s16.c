@@ -79,6 +79,15 @@ arm_cmsis_nn_status arm_resize_nearest_neighbor_s16(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+    const float y_scale = (resize_params->align_corners && output_height > 1)
+                              ? (float)(input_height - 1) / (float)(output_height - 1)
+                              : (float)input_height / (float)output_height;
+    const float x_scale = (resize_params->align_corners && output_width > 1)
+                              ? (float)(input_width - 1) / (float)(output_width - 1)
+                              : (float)input_width / (float)output_width;
+    const float y_offset = resize_params->half_pixel_centers ? 0.5f : 0.0f;
+    const float x_offset = resize_params->half_pixel_centers ? 0.5f : 0.0f;
     
     const int col_offset = input_shape->c;
     const int row_offset = input_shape->w * col_offset;
@@ -100,13 +109,13 @@ arm_cmsis_nn_status arm_resize_nearest_neighbor_s16(const cmsis_nn_context *ctx,
 
     for (int y = 0; y < output_height; ++y)
     {
-        y_map[y] = GetNearestNeighbor(y, input_height, output_height,
+        y_map[y] = GetNearestNeighbor(y, input_height, y_scale, y_offset,
                                       resize_params->align_corners,
                                       resize_params->half_pixel_centers);
     }
     for (int x = 0; x < output_width; ++x)
     {
-        x_map[x] = GetNearestNeighbor(x, input_width, output_width,
+        x_map[x] = GetNearestNeighbor(x, input_width, x_scale, x_offset,
                                       resize_params->align_corners,
                                       resize_params->half_pixel_centers);
     }

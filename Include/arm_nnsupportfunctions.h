@@ -115,7 +115,8 @@ extern "C" {
  * @brief Map an output index to the nearest input index for resize.
  * @param[in]  input_value         Output index (x or y).
  * @param[in]  input_size          Input size along the same axis.
- * @param[in]  output_size         Output size along the same axis.
+ * @param[in]  scale               Precomputed scaling factor for the axis.
+ * @param[in]  offset              Precomputed offset for the axis.
  * @param[in]  align_corners       If true, use align-corners scaling.
  * @param[in]  half_pixel_centers  If true, use half-pixel center offset.
  * @return     Nearest input index for the given output index.
@@ -125,14 +126,11 @@ extern "C" {
  */
 __STATIC_FORCEINLINE int32_t GetNearestNeighbor(const int input_value,
                                          const int32_t input_size,
-                                         const int32_t output_size,
+                                         const float scale,
+                                         const float offset,
                                          const bool align_corners,
                                          const bool half_pixel_centers)
 {
-    const float scale = (align_corners && output_size > 1)
-                            ? (float)(input_size - 1) / (float)(output_size - 1)
-                            : (float)input_size / (float)output_size;
-    const float offset = half_pixel_centers ? 0.5f : 0.0f;
     const float scaled = ((float)input_value + offset) * scale;
     int32_t output_value = align_corners ? (int32_t)roundf(scaled) : (int32_t)floorf(scaled);
 
