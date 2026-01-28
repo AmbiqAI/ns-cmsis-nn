@@ -663,7 +663,8 @@ def run_tests_with_reporting(cpus: List[str],
         end_time=end_time,
         cpu=",".join(cpus),
         descriptor_results=descriptor_results,
-        all_descriptors=list(all_descriptors_dict.values())
+        all_descriptors=list(all_descriptors_dict.values()),
+        project_root=source_dir  # For making paths relative in JSON output
     )
     
     # Generate reports in requested formats (defaults to JSON if none specified)

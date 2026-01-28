@@ -49,7 +49,7 @@ def pytest_configure(config):
     
     # Create fresh directory
     generated_tests_dir.mkdir(exist_ok=True)
-    print(f"📁 Created fresh GeneratedTests directory\n")
+    print(f"Created GeneratedTests directory\n")
 
 
 @pytest.fixture

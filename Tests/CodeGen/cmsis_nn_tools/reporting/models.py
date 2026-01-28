@@ -42,28 +42,67 @@ class TestResult:
     expected_output: Optional[str] = None  # Golden reference output
     actual_output: Optional[str] = None  # Actual test output
     output_differences: List[str] = field(default_factory=list)  # List of difference details
+    project_root: Optional[Path] = None  # For making paths relative
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        return {
-            "test_name": self.test_name,
+    def _make_path_relative(self, path: str) -> str:
+        """Convert absolute path to relative path if project_root is set."""
+        if not self.project_root:
+            return path
+        try:
+            path_obj = Path(path)
+            if path_obj.is_absolute():
+                try:
+                    return str(path_obj.relative_to(self.project_root))
+                except ValueError:
+                    # Path is not under project_root, return as-is
+                    return path
+            return path
+        except Exception:
+            return path
+    
+    def to_dict(self, descriptor_name: Optional[str] = None) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization, excluding null fields.
+        
+        Args:
+            descriptor_name: If provided and matches test_name, test_name will be omitted
+        """
+        result = {
             "status": self.status.value,
             "duration": self.duration,
             "cpu": self.cpu,
-            "elf_path": str(self.elf_path),
-            "failure_reason": self.failure_reason,
-            "skip_reason": self.skip_reason,
-            "output_lines": self.output_lines,
+            "elf_path": self._make_path_relative(str(self.elf_path)),
             "timestamp": self.timestamp.isoformat(),
-            "memory_usage": self.memory_usage,
-            "cycles": self.cycles,
-            "exit_code": self.exit_code,
-            "error_type": self.error_type,
-            "descriptor_name": self.descriptor_name,
-            "expected_output": self.expected_output,
-            "actual_output": self.actual_output,
-            "output_differences": self.output_differences
         }
+        
+        # Only include test_name if it's different from descriptor_name
+        if descriptor_name is None or self.test_name != descriptor_name:
+            result["test_name"] = self.test_name
+        
+        # Only include non-null optional fields
+        if self.failure_reason is not None:
+            result["failure_reason"] = self.failure_reason
+        if self.skip_reason is not None:
+            result["skip_reason"] = self.skip_reason
+        if self.output_lines:
+            result["output_lines"] = self.output_lines
+        if self.memory_usage is not None:
+            result["memory_usage"] = self.memory_usage
+        if self.cycles is not None:
+            result["cycles"] = self.cycles
+        if self.exit_code is not None:
+            result["exit_code"] = self.exit_code
+        if self.error_type is not None:
+            result["error_type"] = self.error_type
+        if self.descriptor_name is not None and (descriptor_name is None or self.descriptor_name != descriptor_name):
+            result["descriptor_name"] = self.descriptor_name
+        if self.expected_output is not None:
+            result["expected_output"] = self.expected_output
+        if self.actual_output is not None:
+            result["actual_output"] = self.actual_output
+        if self.output_differences:
+            result["output_differences"] = self.output_differences
+        
+        return result
 
 
 @dataclass
@@ -76,18 +115,60 @@ class DescriptorResult:
     test_result: Optional[TestResult] = None
     failure_stage: Optional[str] = None
     failure_reason: Optional[str] = None
+    project_root: Optional[Path] = None  # For making paths relative
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        return {
-            "descriptor_name": self.descriptor_name,
-            "descriptor_path": str(self.descriptor_path),
-            "descriptor_content": self.descriptor_content,
+    def _make_path_relative(self, path: Path) -> str:
+        """Convert absolute path to relative path if project_root is set."""
+        if not self.project_root:
+            return str(path)
+        try:
+            if path.is_absolute():
+                try:
+                    return str(path.relative_to(self.project_root))
+                except ValueError:
+                    # Path is not under project_root, return as-is
+                    return str(path)
+            return str(path)
+        except Exception:
+            return str(path)
+    
+    def to_dict(self, include_descriptor_name: bool = False) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization.
+        
+        Args:
+            include_descriptor_name: If False, omit descriptor_name (it's the key in parent dict)
+        """
+        # Clean descriptor_content by removing redundant 'name' field if it matches descriptor_name
+        descriptor_content = self.descriptor_content.copy()
+        if not include_descriptor_name and 'name' in descriptor_content:
+            if descriptor_content['name'] == self.descriptor_name:
+                descriptor_content = {k: v for k, v in descriptor_content.items() if k != 'name'}
+        
+        result = {
+            "descriptor_path": self._make_path_relative(self.descriptor_path),
+            "descriptor_content": descriptor_content,
             "status": self.status.value,
-            "test_result": self.test_result.to_dict() if self.test_result else None,
-            "failure_stage": self.failure_stage,
-            "failure_reason": self.failure_reason
         }
+        
+        # Only include descriptor_name if explicitly requested (it\'s redundant with the key)
+        if include_descriptor_name:
+            result["descriptor_name"] = self.descriptor_name
+        
+        # Include test_result if present, passing descriptor_name to remove duplicate test_name
+        if self.test_result:
+            result["test_result"] = self.test_result.to_dict(descriptor_name=self.descriptor_name)
+        
+        # Only include failure_stage if not None
+        if self.failure_stage is not None:
+            result["failure_stage"] = self.failure_stage
+        
+        # Only include failure_reason if it's different from test_result.failure_reason
+        # or if there's no test_result
+        if self.failure_reason is not None:
+            if not self.test_result or self.failure_reason != self.test_result.failure_reason:
+                result["failure_reason"] = self.failure_reason
+        
+        return result
 
 
 @dataclass
@@ -101,6 +182,7 @@ class TestReport:
     all_descriptors: List[Dict[str, Any]] = field(default_factory=list)
     summary: str = ""
     duration: float = 0.0
+    project_root: Optional[Path] = None  # For making paths relative
     
     total_tests: int = 0
     passed: int = 0
@@ -218,9 +300,13 @@ class TestReport:
         return [dr.test_result for dr in self.descriptor_results.values() 
                 if dr.test_result is not None]
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        return {
+    def to_dict(self, descriptor_name: Optional[str] = None) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization, excluding null fields.
+        
+        Args:
+            descriptor_name: If provided and matches test_name, test_name will be omitted
+        """
+        result = {
             "run_id": self.run_id,
             "start_time": self.start_time.isoformat(),
             "end_time": self.end_time.isoformat(),
@@ -235,8 +321,11 @@ class TestReport:
             "build_failed": self.build_failed,
             "generation_failed": self.generation_failed,
             "conversion_failed": self.conversion_failed,
-            "descriptor_results": {name: dr.to_dict() for name, dr in self.descriptor_results.items()},
-            "all_descriptors": self.all_descriptors,
+            "descriptor_results": {name: dr.to_dict(include_descriptor_name=False) for name, dr in self.descriptor_results.items()},
             "summary": self.summary,
             "duration": self.duration
         }
+        
+        # Removed all_descriptors as it's redundant (descriptor content is in descriptor_results)
+        
+        return result

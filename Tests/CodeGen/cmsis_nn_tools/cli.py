@@ -249,7 +249,12 @@ def main() -> int:
     # Reporting configuration
     config.enable_reporting = not args.no_report
     config.report_formats = args.report_formats
-    config.report_dir = args.report_dir
+    # Set report_dir to be inside build directory if using default
+    if args.report_dir == Path("reports"):
+        build_dir = config.project_root / f"build-{config.cpu}-gcc"
+        config.report_dir = build_dir / "reports"
+    else:
+        config.report_dir = args.report_dir
     
     # Handle show-latest-report
     if args.show_latest_report:

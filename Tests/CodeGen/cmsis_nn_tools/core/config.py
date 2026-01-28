@@ -58,6 +58,8 @@ class Config:
             self.generated_tests_dir = Path(self.generated_tests_dir)
         if isinstance(self.tflite_generator_dir, str):
             self.tflite_generator_dir = Path(self.tflite_generator_dir)
+        if isinstance(self.report_dir, str):
+            self.report_dir = Path(self.report_dir)
         
         # Validate verbosity level
         if not 0 <= self.verbosity <= 3:

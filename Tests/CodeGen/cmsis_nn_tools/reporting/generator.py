@@ -3,6 +3,7 @@ Report generator for multiple output formats.
 """
 
 import json
+import re
 import yaml
 from pathlib import Path
 from typing import List, Dict
@@ -57,7 +58,7 @@ class ReportGenerator:
         return generated_files
     
     def _generate_json_report(self, report: TestReport) -> Path:
-        """Generate JSON report."""
+        """Generate JSON report with compact array formatting."""
         # Ensure output directory exists (may have been cleaned up)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
@@ -65,8 +66,44 @@ class ReportGenerator:
         filename = f"test_report_{report.cpu}_{timestamp}.json"
         file_path = self.output_dir / filename
         
+        # Generate JSON with standard formatting
+        json_str = json.dumps(report.to_dict(), indent=2)
+        
+        # Post-process to format arrays on one line
+        # Pattern for shape arrays (numbers only) - most common case
+        # Matches: "field_name": [\n  1,\n  2,\n  3\n]
+        json_str = re.sub(
+            r'("(?:input|filter|strides|padding|shape|axis|num_tensors|input_\d+_shape|output_shape)[^"]*":\s*)\[\s*\n\s*((?:\d+\s*,\s*\n\s*)*\d+)\s*\n\s*\]',
+            lambda m: m.group(1) + '[' + re.sub(r'\s+', ' ', m.group(2).strip()) + ']',
+            json_str,
+            flags=re.MULTILINE
+        )
+        
+        # General pattern for any array with numbers only (fallback)
+        json_str = re.sub(
+            r'(\s+)"([^"]+)":\s*\[\s*\n\s*((?:\d+\s*,\s*\n\s*)*\d+)\s*\n\s*\]',
+            lambda m: m.group(1) + f'"{m.group(2)}": [' + re.sub(r'\s+', ' ', m.group(3).strip()) + ']',
+            json_str,
+            flags=re.MULTILINE
+        )
+        
+        # Add blank line before "descriptor_results"
+        json_str = re.sub(
+            r'(\n\s*)"descriptor_results":\s*\{',
+            r'\1\n\1"descriptor_results": {',
+            json_str
+        )
+        
+        # Add blank lines between descriptor entries
+        # Match: closing brace of a descriptor, comma, newline, then next descriptor key
+        json_str = re.sub(
+            r'(\s+)\},\s*\n(\s+)"([^"]+)":\s*\{',
+            r'\1},\n\n\2"\3": {',
+            json_str
+        )
+        
         with open(file_path, 'w') as f:
-            json.dump(report.to_dict(), f, indent=2)
+            f.write(json_str)
         
         return file_path
     
