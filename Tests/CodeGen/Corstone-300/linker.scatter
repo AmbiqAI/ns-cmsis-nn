@@ -1,0 +1,138 @@
+#! cpp
+
+/*
+ * SPDX-FileCopyrightText: Copyright 2019-2023 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the License); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an AS IS BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef STACK_SIZE
+#define STACK_SIZE 0x8000
+#endif
+
+#ifndef HEAP_SIZE
+#define HEAP_SIZE 0x10000
+#endif
+
+#define LR_START   0x10000000
+#define LR_SIZE    0x01000000
+
+#define ITCM_START 0x10000000
+#define ITCM_SIZE  0x00080000
+
+#define BRAM_START 0x11000000
+#define BRAM_SIZE  0x00200000
+
+#define DTCM_START 0x30000000
+#define DTCM_SIZE  0x00080000
+
+#define SRAM_START 0x31000000
+#define SRAM_SIZE  0x00200000
+
+#define DDR_START  0x70000000
+#define DDR_SIZE   0x02000000
+
+#define STACK_HEAP 0x30080000
+
+APP_IMAGE LR_START LR_SIZE
+{
+    ; ITCM 512kB
+    rom_exec ITCM_START ITCM_SIZE
+    {
+        *.o (RESET, +First)
+        *(InRoot$$Sections)
+        ; Make sure reset_handler ends up in root segment, when split across
+        ; ITCM and DTCM
+        startup_ARMCM55.o
+        .ANY (+RO)
+    }
+
+    ; MPS3 BRAM
+    BRAM BRAM_START UNINIT BRAM_SIZE
+    {
+    }
+
+    ; DTCM 512kB
+    ; Only accessible from the Cortex-M
+    ; Split out custom HeliaAOT sections for fine-grained placement and
+    ; alignment parity with GNU ld script (dtcm_data/dtcm_bss)
+    DTCM DTCM_START (DTCM_SIZE - STACK_SIZE - HEAP_SIZE)
+    {
+        ; Initialized DTCM data (E2E_PUT_IN_DTCM_INIT -> .dtcm_data/.dtcm_data.*)
+        __dtcm_data_start__ = .;
+        *( .dtcm_data )
+        *( .dtcm_data.* )
+        __dtcm_data_end__ = .;
+
+        ; General RW/ZI not explicitly annotated (keep after explicit HeliaAOT data)
+        .ANY (+RW)
+
+        ; Zero-init DTCM data (E2E_PUT_IN_DTCM -> .dtcm_bss/.dtcm_bss.*)
+        __dtcm_bss_start__ = .;
+        *( .dtcm_bss )
+        *( .dtcm_bss.* )
+        __dtcm_bss_end__ = .;
+
+        ; Remaining ZI (generic)
+        .ANY (+ZI)
+    }
+
+    ; SSE-300 SRAM (3 cycles read latency) from M55/U55
+    ; 2x2MB - only first part mapped
+    ; Provide initialized & zero-init regions for HeliaAOT (.sram_data/.sram_bss)
+    SRAM SRAM_START SRAM_SIZE
+    {
+        ; Initialized SRAM data (E2E_PUT_IN_SRAM_INIT -> .sram_data/.sram_data.*)
+        __sram_data_start__ = .;
+        *( .sram_data )
+        *( .sram_data.* )
+        __sram_data_end__ = .;
+
+        ; Zero-init SRAM data (E2E_PUT_IN_SRAM -> .sram_bss/.sram_bss.*)
+        __sram_bss_start__ = .;
+        *( .sram_bss )
+        *( .sram_bss.* )
+        __sram_bss_end__ = .;
+    }
+
+    ARM_LIB_HEAP  (STACK_HEAP - STACK_SIZE - HEAP_SIZE) EMPTY ALIGN 8 HEAP_SIZE {}
+    ARM_LIB_STACK (STACK_HEAP - STACK_SIZE) EMPTY ALIGN 8 STACK_SIZE {}
+}
+
+LOAD_REGION_1 DDR_START DDR_SIZE
+{
+    ; 2GB DDR4 available
+    rom_dram DDR_START
+    {
+        unity_test_arm_ds_cnn_l_s8.o
+        unity_test_arm_ds_cnn_s_s8.o
+        ; Read-only (copied) constants for HeliaAOT (E2E_PUT_IN_MRAM_INIT)
+        __ddr_rodata_start__ = .;
+        *( .ddr_rodata )
+        *( .ddr_rodata.* )
+        __ddr_rodata_end__ = .;
+    }
+}
+
+; ---------------------------------------------------------------------------
+; Copy / Zero Table Symbols (for optional custom startup code)
+; These mirror the GNU ld script naming so shared startup logic can iterate.
+; Arm's scatter-loading normally auto-generates copy/zero tables for execution
+; regions; we provide explicit symbols for uniformity across toolchains.
+; ---------------------------------------------------------------------------
+__copy_table_start__ = 0;    ; (Marker only – scatter loader handles actual copying)
+__copy_table_end__   = 0;
+__zero_table_start__ = 0;
+__zero_table_end__   = 0;

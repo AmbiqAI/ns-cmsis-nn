@@ -1,0 +1,164 @@
+#include "{{ name }}_dequantize.h"
+#include "arm_nnfunctions.h"
+#include "unity.h"
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <math.h>
+
+#ifdef USING_FVP_CORSTONE_300
+extern void uart_init(void);
+#endif
+
+static inline void signal_eot(void)
+{
+    // 0x04 (EOT) triggers FVP shutdown when:
+    //   -C mps3_board.uart0.shutdown_on_eot=1
+    putchar(4);
+    fflush(stdout);
+}
+
+// If we hardfault, the default handler often spins forever -> FVP never exits.
+// Override to emit EOT so the runner doesn't stall.
+void HardFault_Handler(void)
+{
+    printf("HardFault\r\n");
+    signal_eot();
+    while (1) { }
+}
+
+#define {{ name|upper }}_OUTPUT_SIZE {{ input_size }}
+static {{ output_dtype }} {{ name }}_output[{{ name|upper }}_OUTPUT_SIZE];
+
+int32_t {{ prefix }}_{{ name }}_run(
+    const {{ input_dtype }}* __restrict input,
+    {{ output_dtype }}* __restrict output
+) {
+    // Call Dequantize kernel
+    arm_cmsis_nn_status kernel_status = {{ kernel_fn }}(
+        input,
+        output,
+        {{ input_size }},        // size
+        {{ zero_point }},        // zero_point
+        {{ scale }}f             // scale (float)
+    );
+    
+    if (kernel_status != ARM_CMSIS_NN_SUCCESS) {
+        return kernel_status;
+    }
+    
+    {% if has_activation %}
+    // Apply activation after dequantization (in float space)
+    {% if activation_type == 'RELU' %}
+    // ReLU: clamp negative values to zero
+    for (int i = 0; i < {{ input_size }}; i++) {
+        if (output[i] < 0.0f) output[i] = 0.0f;
+    }
+    {% elif activation_type == 'RELU6' %}
+    // ReLU6: clamp to [0.0, 6.0]
+    for (int i = 0; i < {{ input_size }}; i++) {
+        if (output[i] < 0.0f) output[i] = 0.0f;
+        if (output[i] > 6.0f) output[i] = 6.0f;
+    }
+    {% endif %}
+    {% endif %}
+    
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+/* This function is called from Unity test framework before EACH TEST.
+ * The name must be exactly like this
+ */
+void setUp(void)
+{ /* This is run before EACH TEST */
+#ifdef USING_FVP_CORSTONE_300
+    uart_init();
+    setvbuf(stdout, NULL, _IONBF, 0);
+#endif
+}
+
+/* This function is called from Unity test framework after EACH TEST.
+ * The name must be exactly like this
+ */
+void tearDown(void) {}
+
+void test_{{ prefix }}_{{ name }}(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int32_t status = {{ prefix }}_{{ name }}_run({{ name }}_input, {{ name }}_output);
+    
+    // Assert that Dequantize succeeded
+    TEST_ASSERT_EQUAL(expected, status);
+
+    // Verify outputs element by element (allow small tolerance for float)
+    const int output_size = {{ name|upper }}_OUTPUT_SIZE;
+    const {{ output_dtype }} *act = {{ name }}_output;
+    const {{ output_dtype }} *exp = {{ name }}_expected_output;
+
+    for (int i = 0; i < output_size; i++) {
+        {{ output_dtype }} diff = fabsf(act[i] - exp[i]);
+        // Increased tolerance for dequantize float comparisons
+        // Dequantization can have small floating-point differences, especially with activation
+        // Use relative tolerance: max(absolute_tolerance, relative_tolerance * |expected|)
+        {{ output_dtype }} abs_tol = 0.01f;
+        {{ output_dtype }} rel_tol = 0.001f;  // 0.1% relative tolerance
+        {{ output_dtype }} tol = (abs_tol > rel_tol * fabsf(exp[i])) ? abs_tol : rel_tol * fabsf(exp[i]);
+        if (diff > tol) {
+            char msg[128];
+            snprintf(msg, sizeof(msg), "Mismatch at index %d: expected %.6f, got %.6f (diff: %.6f, tol: %.6f)", i, exp[i], act[i], diff, tol);
+            TEST_ASSERT_FLOAT_WITHIN_MESSAGE(tol, exp[i], act[i], msg);
+        }
+    }
+}
+
+// Legacy function for non-Unity builds (if needed)
+int32_t {{ prefix }}_{{ name }}_test_case_run(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int32_t status = {{ prefix }}_{{ name }}_run({{ name }}_input, {{ name }}_output);
+    if (status != expected) {
+        printf("Dequantize failed with status %d\r\n", status);
+        printf("1 Failures\r\n");
+        return 1;
+    }
+
+    // Verify outputs (allow small tolerance for float)
+    int failures = 0;
+    const int output_size = {{ name|upper }}_OUTPUT_SIZE;
+
+    const {{ output_dtype }} *act = {{ name }}_output;
+    const {{ output_dtype }} *exp = {{ name }}_expected_output;
+
+    for (int i = 0; i < output_size; i++) {
+        {{ output_dtype }} diff = fabsf(act[i] - exp[i]);
+        // Increased tolerance for dequantize float comparisons
+        // Use relative tolerance: max(absolute_tolerance, relative_tolerance * |expected|)
+        {{ output_dtype }} abs_tol = 0.01f;
+        {{ output_dtype }} rel_tol = 0.001f;  // 0.1% relative tolerance
+        {{ output_dtype }} tol = (abs_tol > rel_tol * fabsf(exp[i])) ? abs_tol : rel_tol * fabsf(exp[i]);
+        if (diff > tol) {
+            failures++;
+            if (failures <= 20) {
+                printf("Mismatch[%d]: exp=%.6f got=%.6f (diff=%.6f, tol=%.6f)\r\n", i, exp[i], act[i], diff, tol);
+            }
+        }
+    }
+
+    printf("%d Failures\r\n", failures);
+    return failures;
+}
+
+int main(void)
+{
+    // Initialize UART (setUp() handles this, but we call it here for standalone execution)
+    setUp();
+
+    // For standalone execution, use the legacy test function
+    int32_t failures = {{ prefix }}_{{ name }}_test_case_run();
+
+    // Always terminate the FVP run cleanly
+    signal_eot();
+
+    // Never rely on exit() in bare-metal (often spins)
+    while (1) { }
+}

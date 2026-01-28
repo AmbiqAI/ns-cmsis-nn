@@ -1,0 +1,51 @@
+operator: LeakyRelu
+name: leaky_relu_tensor_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 2, 2, 3]
+alpha: 0.1
+---
+operator: LeakyRelu
+name: leaky_relu_vector_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 8]
+alpha: 0.1
+---
+operator: LeakyRelu
+name: leaky_relu_tensor_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 2, 2, 3]
+alpha: 0.1
+---
+operator: LeakyRelu
+name: leaky_relu_vector_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 8]
+alpha: 0.1
+---
+operator: LeakyRelu
+name: leaky_relu_int8
+activation_dtype: S8
+weight_dtype: S8
+activation: RELU
+hint:
+  call_style: per_tensor
+input_shape: [1, 5, 5, 1]
+filter_shape: [1, 1, 1, 1]
+alpha: 0.1
+

@@ -1,0 +1,36 @@
+operator: Logistic
+name: logistic_tensor_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 2, 2, 3]
+---
+operator: Logistic
+name: logistic_vector_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 8]
+---
+operator: Logistic
+name: logistic_tensor_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 2, 2, 3]
+---
+operator: Logistic
+name: logistic_vector_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 8]
+

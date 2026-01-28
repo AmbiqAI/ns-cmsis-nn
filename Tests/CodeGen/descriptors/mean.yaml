@@ -1,0 +1,32 @@
+operator: Mean
+name: reduce_mean_basic_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 8, 8, 3]
+axes: [1, 2]
+keepdims: true
+---
+operator: Mean
+name: reduce_mean_batch_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [4, 5, 5, 2]
+axes: [0, 3]
+keepdims: false
+---
+operator: Mean
+name: reduce_mean_channels_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 6, 6, 4]
+axes: [3]
+keepdims: false

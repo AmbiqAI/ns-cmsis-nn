@@ -1,0 +1,29 @@
+operator: PReLU
+name: prelu_tensor_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 2, 2, 3]
+alpha: 0.25
+---
+operator: PReLU
+name: prelu_vector_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 8]
+alpha: 0.25
+---
+operator: PReLU
+name: prelu_default_alpha_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 2, 2, 3]
+

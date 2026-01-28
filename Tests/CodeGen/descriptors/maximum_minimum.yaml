@@ -1,0 +1,71 @@
+operator: Maximum
+name: maximum_minimum_int8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_1_shape: [1, 32, 32, 3]
+input_2_shape: [1, 32, 32, 3]
+---
+operator: Maximum
+name: maximum_32x32x3_int16
+activation_dtype: S16
+weight_dtype: S8
+input_1_shape: [1, 32, 32, 3]
+input_2_shape: [1, 32, 32, 3]
+---
+operator: Maximum
+name: maximum_4x4x14_int16
+activation_dtype: S16
+weight_dtype: S8
+input_1_shape: [1, 4, 4, 14]
+input_2_shape: [1, 4, 4, 14]
+---
+operator: Minimum
+name: minimum_2x2x7_int16
+activation_dtype: S16
+weight_dtype: S8
+input_1_shape: [1, 2, 2, 7]
+input_2_shape: [1, 2, 2, 7]
+---
+operator: Maximum
+name: maximum_dual_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_1_shape: [1, 2, 2, 3]
+input_2_shape: [1, 2, 2, 3]
+---
+operator: Maximum
+name: maximum_broadcast_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_1_shape: [1, 2, 2, 3]
+input_2_shape: [1, 1, 1, 3]
+---
+operator: Minimum
+name: minimum_dual_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_1_shape: [1, 3, 2, 2]
+input_2_shape: [1, 3, 2, 2]
+---
+operator: Minimum
+name: minimum_broadcast_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_1_shape: [1, 3, 2, 2]
+input_2_shape: [1, 1, 2, 1]
+

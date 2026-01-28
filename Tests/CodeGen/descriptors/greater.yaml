@@ -1,0 +1,20 @@
+operator: Greater
+name: greater_tensor_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_1_shape: [1, 2, 2, 3]
+input_2_shape: [1, 2, 2, 3]
+---
+operator: Greater
+name: greater_tensor_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_1_shape: [1, 2, 2, 3]
+input_2_shape: [1, 2, 2, 3]
+

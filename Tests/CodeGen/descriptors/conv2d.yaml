@@ -1,0 +1,1126 @@
+operator: Conv2D
+name: basic_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 8
+- 5
+- 1
+filter_shape:
+- 4
+- 2
+- 1
+- 1
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: true
+---
+operator: Conv2D
+name: stride2pad1_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 7
+- 7
+- 1
+filter_shape:
+- 3
+- 3
+- 1
+- 1
+strides:
+- 2
+- 2
+padding: SAME
+use_bias: true
+---
+operator: Conv2D
+name: kernel1x1_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 5
+- 7
+- 19
+filter_shape:
+- 1
+- 1
+- 19
+- 7
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: true
+---
+operator: Conv2D
+name: kernel1x1_stride_x_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 4
+- 7
+- 9
+filter_shape:
+- 1
+- 1
+- 9
+- 5
+strides:
+- 1
+- 3
+padding: VALID
+use_bias: true
+---
+operator: Conv2D
+name: kernel1x1_stride_x_y_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 3
+- 6
+- 7
+- 23
+filter_shape:
+- 1
+- 1
+- 23
+- 15
+strides:
+- 2
+- 2
+padding: VALID
+use_bias: true
+---
+operator: Conv2D
+name: kernel1x1_stride_x_y_1_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 4
+- 4
+- 5
+filter_shape:
+- 1
+- 1
+- 5
+- 5
+strides:
+- 2
+- 2
+padding: VALID
+use_bias: true
+---
+operator: Conv2D
+name: kernel1x1_stride_x_y_2_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 4
+- 4
+- 5
+filter_shape:
+- 1
+- 1
+- 5
+- 5
+strides:
+- 3
+- 3
+padding: VALID
+use_bias: true
+---
+operator: Conv2D
+name: conv_3_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 49
+- 10
+- 3
+filter_shape:
+- 10
+- 4
+- 3
+- 1
+strides:
+- 2
+- 1
+padding: SAME
+use_bias: true
+---
+operator: Conv2D
+name: conv_1_x_n_1_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 1
+- 2
+- 4
+filter_shape:
+- 1
+- 3
+- 4
+- 3
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+---
+operator: Conv2D
+name: conv_1_x_n_2_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 1
+- 296
+- 4
+filter_shape:
+- 1
+- 48
+- 4
+- 3
+strides:
+- 1
+- 2
+padding: VALID
+use_bias: true
+---
+operator: Conv2D
+name: conv_1_x_n_3_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 1
+- 296
+- 4
+filter_shape:
+- 1
+- 48
+- 4
+- 1
+strides:
+- 1
+- 2
+padding: SAME
+use_bias: true
+---
+operator: Conv2D
+name: conv_1_x_n_4_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 1
+- 16
+- 4
+filter_shape:
+- 1
+- 3
+- 4
+- 4
+strides:
+- 1
+- 2
+padding: SAME
+use_bias: true
+---
+operator: Conv2D
+name: conv_1_x_n_5_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 1
+- 17
+- 4
+filter_shape:
+- 1
+- 3
+- 4
+- 1
+strides:
+- 1
+- 3
+padding: SAME
+use_bias: true
+---
+operator: Conv2D
+name: conv_1_x_n_6_generic_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 1
+- 4
+- 1
+filter_shape:
+- 1
+- 8
+- 1
+- 16
+strides:
+- 1
+- 4
+padding: SAME
+use_bias: true
+---
+operator: Conv2D
+name: conv_1_x_n_7_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 1
+- 148
+- 20
+filter_shape:
+- 1
+- 32
+- 20
+- 15
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+---
+operator: Conv2D
+name: conv_1_x_n_8_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 1
+- 148
+- 12
+filter_shape:
+- 1
+- 48
+- 12
+- 10
+strides:
+- 1
+- 2
+padding: SAME
+use_bias: true
+---
+operator: Conv2D
+name: conv_2_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 3
+- 6
+- 2
+filter_shape:
+- 3
+- 3
+- 2
+- 4
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+---
+operator: Conv2D
+name: conv_4_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 3
+- 5
+- 5
+- 3
+filter_shape:
+- 3
+- 2
+- 3
+- 3
+strides:
+- 2
+- 2
+padding: VALID
+use_bias: true
+---
+operator: Conv2D
+name: conv_5_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 1
+- 1
+- 16
+filter_shape:
+- 3
+- 3
+- 16
+- 1
+strides:
+- 4
+- 4
+padding: SAME
+use_bias: true
+---
+operator: Conv2D
+name: conv_out_activation_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 3
+- 3
+- 4
+filter_shape:
+- 3
+- 3
+- 4
+- 2
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+---
+operator: Conv2D
+name: conv_dilation_golden_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 4
+- 6
+- 1
+filter_shape:
+- 2
+- 2
+- 1
+- 3
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+dilation:
+- 2
+- 3
+---
+operator: Conv2D
+name: conv_2x2_dilation_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 10
+- 10
+- 2
+filter_shape:
+- 3
+- 3
+- 2
+- 2
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: true
+dilation:
+- 2
+- 2
+---
+operator: Conv2D
+name: conv_2x3_dilation_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 3
+- 3
+- 2
+filter_shape:
+- 3
+- 3
+- 2
+- 2
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+dilation:
+- 2
+- 2
+---
+operator: Conv2D
+name: conv_3x2_dilation_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 3
+- 3
+- 2
+filter_shape:
+- 3
+- 3
+- 2
+- 2
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+dilation:
+- 2
+- 3
+---
+operator: Conv2D
+name: conv_2x2_dilation_5x5_input_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 5
+- 5
+- 2
+filter_shape:
+- 3
+- 3
+- 2
+- 2
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+dilation:
+- 2
+- 2
+---
+operator: Conv2D
+name: conv_3x3_dilation_5x5_input_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 11
+- 9
+- 2
+filter_shape:
+- 3
+- 3
+- 2
+- 2
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+dilation:
+- 2
+- 2
+---
+operator: Conv2D
+name: int16xint8_1x1_ns_np_nd_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 18
+- 23
+- 4
+filter_shape:
+- 1
+- 1
+- 4
+- 8
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: false
+---
+operator: Conv2D
+name: int16xint8_kernel_less_than_9_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 17
+- 12
+- 4
+filter_shape:
+- 2
+- 2
+- 4
+- 6
+strides:
+- 2
+- 3
+padding: VALID
+use_bias: false
+groups: 2
+---
+operator: Conv2D
+name: int16xint8_group2_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 18
+- 23
+- 6
+filter_shape:
+- 3
+- 2
+- 6
+- 8
+strides:
+- 3
+- 2
+padding: VALID
+use_bias: false
+groups: 2
+---
+operator: Conv2D
+name: int16xint8_group_depthwise_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 17
+- 24
+- 8
+filter_shape:
+- 4
+- 3
+- 8
+- 8
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: false
+groups: 8
+---
+operator: Conv2D
+name: int16xint8_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 8
+- 10
+- 55
+filter_shape:
+- 4
+- 9
+- 55
+- 4
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: false
+---
+operator: Conv2D
+name: int16xint8_spill_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 8
+- 10
+- 55
+filter_shape:
+- 4
+- 9
+- 55
+- 9
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: false
+---
+operator: Conv2D
+name: int16xint8_spill2_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 8
+- 10
+- 12
+filter_shape:
+- 4
+- 9
+- 12
+- 9
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: false
+---
+operator: Conv2D
+name: requantize_s64_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 4
+- 4
+- 8
+filter_shape:
+- 2
+- 2
+- 8
+- 8
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: true
+---
+operator: Conv2D
+name: int16xint8_dilation_1_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 32
+- 32
+- 2
+filter_shape:
+- 2
+- 2
+- 2
+- 2
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: true
+dilation:
+- 2
+- 2
+---
+operator: Conv2D
+name: int16xint8_dilation_2_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 8
+- 7
+- 3
+filter_shape:
+- 4
+- 2
+- 3
+- 4
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+dilation:
+- 2
+- 2
+---
+operator: Conv2D
+name: int16xint8_dilation_3_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 8
+- 7
+- 3
+filter_shape:
+- 4
+- 2
+- 3
+- 4
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+dilation:
+- 1
+- 2
+---
+operator: Conv2D
+name: int16xint8xint32_1_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 8
+- 10
+- 55
+filter_shape:
+- 4
+- 9
+- 55
+- 4
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: false
+---
+operator: Conv2D
+name: int16xint8xint32_2_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 8
+- 10
+- 55
+filter_shape:
+- 4
+- 9
+- 55
+- 9
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: false
+---
+operator: Conv2D
+name: int16xint8xint32_3_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 4
+- 4
+- 8
+filter_shape:
+- 2
+- 2
+- 8
+- 8
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: true
+---
+operator: Conv2D
+name: int16xint8xint32_4_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 32
+- 32
+- 2
+filter_shape:
+- 2
+- 2
+- 2
+- 2
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: true
+dilation:
+- 2
+- 2
+---
+operator: Conv2D
+name: int16xint8xint32_5_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 8
+- 7
+- 3
+filter_shape:
+- 4
+- 2
+- 3
+- 4
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+dilation:
+- 2
+- 2
+---
+operator: Conv2D
+name: int16xint8xint32_6_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 8
+- 7
+- 3
+filter_shape:
+- 4
+- 2
+- 3
+- 4
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+dilation:
+- 1
+- 2
+---
+operator: Conv2D
+name: grouped_conv_1_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 5
+- 5
+- 2
+filter_shape:
+- 2
+- 2
+- 2
+- 6
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: false
+groups: 2
+---
+operator: Conv2D
+name: grouped_conv_2_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 3
+- 7
+- 4
+filter_shape:
+- 2
+- 1
+- 4
+- 2
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: true
+groups: 2
+---
+operator: Conv2D
+name: grouped_conv_3_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 2
+- 3
+- 2
+filter_shape:
+- 2
+- 3
+- 2
+- 4
+strides:
+- 2
+- 2
+padding: SAME
+use_bias: true
+groups: 2
+---
+operator: Conv2D
+name: grouped_conv_4_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 9
+- 9
+- 3
+filter_shape:
+- 2
+- 2
+- 3
+- 6
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+dilation:
+- 3
+- 3
+groups: 3

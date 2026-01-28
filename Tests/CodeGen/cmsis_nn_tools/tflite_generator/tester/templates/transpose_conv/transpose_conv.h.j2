@@ -1,0 +1,93 @@
+#ifndef {{ prefix|upper }}_TRANSPOSE_CONV_H
+#define {{ prefix|upper }}_TRANSPOSE_CONV_H
+
+#include <stdint.h>
+#include "arm_nnfunctions.h"
+#include "arm_nn_types.h"
+
+// Input dimensions
+static const cmsis_nn_dims {{ name }}_input_dims = {
+    .n = {{ input_dims.n }}, .h = {{ input_dims.h }},
+    .w = {{ input_dims.w }}, .c = {{ input_dims.c }}
+};
+
+// Filter dimensions (C_OUT, HK, WK, C_IN)
+static const cmsis_nn_dims {{ name }}_filter_dims = {
+    .n = {{ filter_dims.n }}, .h = {{ filter_dims.h }},
+    .w = {{ filter_dims.w }}, .c = {{ filter_dims.c }}
+};
+
+// Output dimensions
+static const cmsis_nn_dims {{ name }}_output_dims = {
+    .n = {{ output_dims.n }}, .h = {{ output_dims.h }},
+    .w = {{ output_dims.w }}, .c = {{ output_dims.c }}
+};
+
+// Bias dimensions
+static const cmsis_nn_dims {{ name }}_bias_dims = {
+    .n = 1, .h = 1,
+    .w = 1, .c = {{ output_dims.c }}
+};
+
+// Transpose convolution parameters
+static const cmsis_nn_transpose_conv_params {{ name }}_transpose_conv_params = {
+    .input_offset = {{ transpose_conv_params.input_offset }},
+    .output_offset = {{ transpose_conv_params.output_offset }},
+    .stride = {.w = {{ transpose_conv_params.stride_w }}, .h = {{ transpose_conv_params.stride_h }}},
+    .dilation = {.w = {{ transpose_conv_params.dilation_w }}, .h = {{ transpose_conv_params.dilation_h }}},
+    .padding = {.w = {{ transpose_conv_params.pad_w }}, .h = {{ transpose_conv_params.pad_h }}},
+    .padding_offsets = {.w = {{ transpose_conv_params.pad_offset_w }}, .h = {{ transpose_conv_params.pad_offset_h }}},
+    .activation = {.min = {{ transpose_conv_params.activation_min }}, .max = {{ transpose_conv_params.activation_max }}}
+};
+
+// Quantization parameters (per-channel)
+{% if quant_params.per_channel %}
+static int32_t {{ name }}_multiplier[] = {
+{{ quant_params.multiplier_array }}
+};
+
+static int32_t {{ name }}_shift[] = {
+{{ quant_params.shift_array }}
+};
+
+static const cmsis_nn_per_channel_quant_params {{ name }}_quant_params = {
+    .multiplier = {{ name }}_multiplier,
+    .shift = {{ name }}_shift
+};
+{% else %}
+// Per-tensor quantization - convert to per-channel format
+static int32_t {{ name }}_multiplier[] = { {{ quant_params.multiplier }} };
+static int32_t {{ name }}_shift[] = { {{ quant_params.shift }} };
+
+static const cmsis_nn_per_channel_quant_params {{ name }}_quant_params = {
+    .multiplier = {{ name }}_multiplier,
+    .shift = {{ name }}_shift
+};
+{% endif %}
+
+// Weights
+static const int8_t {{ name }}_weights[] = {
+{{ weights_array }}
+};
+
+// Biases
+{% if has_biases %}
+static const {{ bias_dtype }} {{ name }}_biases[] = {
+{{ biases_array }}
+};
+{% else %}
+// No biases
+static const {{ bias_dtype }}* {{ name }}_biases = NULL;
+{% endif %}
+
+// Input data (for testing)
+static const {{ input_dtype }} {{ name }}_input[] = {
+{{ input_data_array }}
+};
+
+// Expected output (golden)
+static const {{ output_dtype }} {{ name }}_expected_output[] = {
+{{ expected_output_array }}
+};
+
+#endif

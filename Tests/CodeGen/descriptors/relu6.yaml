@@ -1,0 +1,45 @@
+operator: Relu6
+name: relu6_tensor_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 2, 2, 3]
+---
+operator: Relu6
+name: relu6_vector_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 8]
+---
+operator: Relu6
+name: relu6_tensor_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 2, 2, 3]
+---
+operator: Relu6
+name: relu6_vector_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 8]
+---
+operator: Relu6
+name: relu6_int8
+activation_dtype: S8
+weight_dtype: S8
+activation: RELU6
+hint:
+  call_style: per_tensor
+input_shape: [1, 32, 32, 3]
+

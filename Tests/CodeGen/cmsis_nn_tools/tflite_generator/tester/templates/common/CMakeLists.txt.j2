@@ -1,0 +1,30 @@
+# CMakeLists.txt for {{ name }} test
+# Auto-generated - do not edit manually
+# Generated for operator: {{ operator }}
+
+# This CMakeLists.txt defines the sources and configuration for the {{ name }} test.
+# It can be used for:
+# - Standalone builds of this test
+# - IDE integration
+# - Reference for test structure
+
+# Test metadata
+set(TEST_NAME {{ name }})
+set(TEST_OPERATOR {{ operator }})
+
+# Source files
+set(TEST_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/{{ name }}_{{ operator_name }}.c
+)
+
+# Include directories
+set(TEST_INCLUDE_DIRS
+    ${CMAKE_CURRENT_SOURCE_DIR}/includes
+)
+
+# Note: The main project CMakeLists.txt will discover test_runner.c files
+# and use the sources from this directory when building tests.
+# For standalone builds, you would need to:
+# 1. Set up CMSIS-NN paths and dependencies
+# 2. Create an executable target
+# 3. Link against cmsis-nn library

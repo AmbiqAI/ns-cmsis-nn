@@ -1,0 +1,62 @@
+#ifndef {{ prefix|upper }}_MATMUL_BATCH_H
+#define {{ prefix|upper }}_MATMUL_BATCH_H
+
+#include <stdint.h>
+#include "arm_nnfunctions.h"
+#include "arm_nn_types.h"
+
+// Input LHS dimensions
+static const cmsis_nn_dims {{ name }}_input_lhs_dims = {
+    .n = {{ input_lhs_dims.n }}, .h = {{ input_lhs_dims.h }},
+    .w = {{ input_lhs_dims.w }}, .c = {{ input_lhs_dims.c }}
+};
+
+// Input RHS dimensions
+static const cmsis_nn_dims {{ name }}_input_rhs_dims = {
+    .n = {{ input_rhs_dims.n }}, .h = {{ input_rhs_dims.h }},
+    .w = {{ input_rhs_dims.w }}, .c = {{ input_rhs_dims.c }}
+};
+
+// Output dimensions
+static const cmsis_nn_dims {{ name }}_output_dims = {
+    .n = {{ output_dims.n }}, .h = {{ output_dims.h }},
+    .w = {{ output_dims.w }}, .c = {{ output_dims.c }}
+};
+
+// Batch matmul parameters
+static const cmsis_nn_bmm_params {{ name }}_bmm_params = {
+    .adj_x = {{ bmm_params.adj_x|lower }},
+    .adj_y = {{ bmm_params.adj_y|lower }},
+    .fc_params = {
+        .input_offset = {{ bmm_params.fc_params.input_offset }},
+        .filter_offset = {{ bmm_params.fc_params.filter_offset }},
+        .output_offset = {{ bmm_params.fc_params.output_offset }},
+        .activation = {
+            .min = {{ bmm_params.fc_params.activation_min }},
+            .max = {{ bmm_params.fc_params.activation_max }}
+        }
+    }
+};
+
+// Quantization parameters (per-tensor)
+static const cmsis_nn_per_tensor_quant_params {{ name }}_quant_params = {
+    .multiplier = {{ quant_params.multiplier }},
+    .shift = {{ quant_params.shift }}
+};
+
+// Input LHS data (for testing)
+static const {{ input_dtype }} {{ name }}_input_lhs[] = {
+{{ input_lhs_array }}
+};
+
+// Input RHS data (for testing)
+static const {{ input_dtype }} {{ name }}_input_rhs[] = {
+{{ input_rhs_array }}
+};
+
+// Expected output (golden)
+static const {{ output_dtype }} {{ name }}_expected_output[] = {
+{{ expected_output_array }}
+};
+
+#endif

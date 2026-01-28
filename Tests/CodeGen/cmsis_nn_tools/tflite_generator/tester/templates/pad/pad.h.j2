@@ -1,0 +1,42 @@
+#ifndef {{ prefix|upper }}_PAD_H
+#define {{ prefix|upper }}_PAD_H
+
+#include <stdint.h>
+#include "arm_nnfunctions.h"
+#include "arm_nn_types.h"
+
+// Input dimensions
+static const cmsis_nn_dims {{ name }}_input_dims = {
+    .n = {{ input_dims.n }}, .h = {{ input_dims.h }},
+    .w = {{ input_dims.w }}, .c = {{ input_dims.c }}
+};
+
+// Output dimensions
+static const cmsis_nn_dims {{ name }}_output_dims = {
+    .n = {{ output_dims.n }}, .h = {{ output_dims.h }},
+    .w = {{ output_dims.w }}, .c = {{ output_dims.c }}
+};
+
+// Pre-padding dimensions
+static const cmsis_nn_dims {{ name }}_pre_pad = {
+    .n = {{ pre_pad_dims.n }}, .h = {{ pre_pad_dims.h }},
+    .w = {{ pre_pad_dims.w }}, .c = {{ pre_pad_dims.c }}
+};
+
+// Post-padding dimensions
+static const cmsis_nn_dims {{ name }}_post_pad = {
+    .n = {{ post_pad_dims.n }}, .h = {{ post_pad_dims.h }},
+    .w = {{ post_pad_dims.w }}, .c = {{ post_pad_dims.c }}
+};
+
+// Input data (for testing)
+static const {{ input_dtype }} {{ name }}_input[] = {
+{{ input_data_array }}
+};
+
+// Expected output (golden)
+static const {{ output_dtype }} {{ name }}_expected_output[] = {
+{{ expected_output_array }}
+};
+
+#endif

@@ -1,0 +1,55 @@
+operator: SpaceToDepth
+name: space_to_depth_block2_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 4
+- 4
+- 3
+block_size: 2
+---
+operator: SpaceToDepth
+name: space_to_depth_block3_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 6
+- 6
+- 4
+block_size: 3
+---
+operator: SpaceToDepth
+name: space_to_depth_block4_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 8
+- 8
+- 1
+block_size: 4
+---
+operator: SpaceToDepth
+name: space_to_depth_rectangular_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 2
+- 6
+- 8
+block_size: 2

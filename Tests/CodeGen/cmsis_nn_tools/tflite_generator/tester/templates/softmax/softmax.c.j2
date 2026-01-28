@@ -1,0 +1,160 @@
+#include "{{ name }}_softmax.h"
+#include "arm_nnfunctions.h"
+#include "unity.h"
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+#ifdef USING_FVP_CORSTONE_300
+extern void uart_init(void);
+#endif
+
+static inline void signal_eot(void)
+{
+    // 0x04 (EOT) triggers FVP shutdown when:
+    //   -C mps3_board.uart0.shutdown_on_eot=1
+    putchar(4);
+    fflush(stdout);
+}
+
+// If we hardfault, the default handler often spins forever -> FVP never exits.
+// Override to emit EOT so the runner doesn't stall.
+void HardFault_Handler(void)
+{
+    printf("HardFault\r\n");
+    signal_eot();
+    while (1) { }
+}
+
+#define {{ name|upper }}_OUTPUT_SIZE ({{ output_dims.n }} * {{ output_dims.h }} * {{ output_dims.w }} * {{ output_dims.c }})
+static {{ output_dtype }} {{ name }}_output[{{ name|upper }}_OUTPUT_SIZE];
+
+int32_t {{ prefix }}_{{ name }}_run(
+    const {{ input_dtype }}* __restrict input,
+    {{ output_dtype }}* __restrict output
+) {
+    {% if is_s16 %}
+    // Call Softmax s16 kernel (requires LUTs)
+    arm_cmsis_nn_status kernel_status = {{ kernel_fn }}(
+        input,
+        {{ num_rows }},              // num_rows
+        {{ row_size }},             // row_size
+        {{ mult }},                // mult
+        {{ shift }},               // shift
+        &{{ name }}_softmax_params, // softmax_params
+        output
+    );
+    {% else %}
+    // Call Softmax s8 kernel
+    {{ kernel_fn }}(
+        input,
+        {{ num_rows }},              // num_rows
+        {{ row_size }},             // row_size
+        {{ mult }},                // mult
+        {{ shift }},               // shift
+        {{ diff_min }},            // diff_min
+        output
+    );
+    arm_cmsis_nn_status kernel_status = ARM_CMSIS_NN_SUCCESS;  // arm_softmax_s8 returns void
+    {% endif %}
+    
+    return kernel_status;
+}
+
+/* This function is called from Unity test framework before EACH TEST.
+ * The name must be exactly like this
+ */
+void setUp(void)
+{ /* This is run before EACH TEST */
+#ifdef USING_FVP_CORSTONE_300
+    uart_init();
+    setvbuf(stdout, NULL, _IONBF, 0);
+#endif
+}
+
+/* This function is called from Unity test framework after EACH TEST.
+ * The name must be exactly like this
+ */
+void tearDown(void) {}
+
+void test_{{ prefix }}_{{ name }}(void)
+{
+    {% if is_s16 %}
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int32_t status = {{ prefix }}_{{ name }}_run({{ name }}_input, {{ name }}_output);
+    
+    // Assert that Softmax succeeded
+    TEST_ASSERT_EQUAL(expected, status);
+    {% endif %}
+
+    // Verify outputs element by element (allow 1-bit tolerance)
+    const int output_size = {{ name|upper }}_OUTPUT_SIZE;
+    const {{ output_dtype }} *act = {{ name }}_output;
+    const {{ output_dtype }} *exp = {{ name }}_expected_output;
+
+    for (int i = 0; i < output_size; i++) {
+        int act_val = (int)act[i];
+        int exp_val = (int)exp[i];
+        int diff = act_val - exp_val;
+        if (diff < 0) diff = -diff;  // absolute difference
+        if (diff > 1) {  // Allow tolerance of 1 bit difference
+            char msg[128];
+            snprintf(msg, sizeof(msg), "Mismatch at index %d: expected %d, got %d (diff: %d)", i, exp_val, act_val, diff);
+            TEST_ASSERT_EQUAL_MESSAGE(exp_val, act_val, msg);
+        }
+    }
+}
+
+// Legacy function for non-Unity builds (if needed)
+int32_t {{ prefix }}_{{ name }}_test_case_run(void)
+{
+    {% if is_s16 %}
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int32_t status = {{ prefix }}_{{ name }}_run({{ name }}_input, {{ name }}_output);
+    if (status != expected) {
+        printf("Softmax failed with status %d\r\n", status);
+        printf("1 Failures\r\n");
+        return 1;
+    }
+    {% else %}
+    {{ prefix }}_{{ name }}_run({{ name }}_input, {{ name }}_output);
+    {% endif %}
+
+    // Verify outputs (allow 1-bit tolerance)
+    int failures = 0;
+    const int output_size = {{ name|upper }}_OUTPUT_SIZE;
+
+    const {{ output_dtype }} *act = {{ name }}_output;
+    const {{ output_dtype }} *exp = {{ name }}_expected_output;
+
+    for (int i = 0; i < output_size; i++) {
+        int act_val = (int)act[i];
+        int exp_val = (int)exp[i];
+        int diff = act_val - exp_val;
+        if (diff < 0) diff = -diff;  // absolute difference
+        if (diff > 1) {  // Allow tolerance of 1 bit difference
+            failures++;
+            if (failures <= 20) {
+                printf("Mismatch[%d]: exp=%d got=%d (diff=%d)\r\n", i, exp_val, act_val, diff);
+            }
+        }
+    }
+
+    printf("%d Failures\r\n", failures);
+    return failures;
+}
+
+int main(void)
+{
+    // Initialize UART (setUp() handles this, but we call it here for standalone execution)
+    setUp();
+
+    // For standalone execution, use the legacy test function
+    int32_t failures = {{ prefix }}_{{ name }}_test_case_run();
+
+    // Always terminate the FVP run cleanly
+    signal_eot();
+
+    // Never rely on exit() in bare-metal (often spins)
+    while (1) { }
+}

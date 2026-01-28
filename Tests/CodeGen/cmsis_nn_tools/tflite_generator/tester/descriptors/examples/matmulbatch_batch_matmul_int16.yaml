@@ -1,0 +1,17 @@
+operator: MatMul
+name: matmulbatch_batch_matmul_int16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_1_shape:
+- 1
+- 32
+- 32
+- 3
+input_2_shape:
+- 1
+- 1
+- 1
+- 10

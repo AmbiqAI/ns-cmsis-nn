@@ -1,0 +1,83 @@
+operator: BatchToSpaceND
+name: batch_to_space_nd_basic_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 4
+- 1
+- 2
+- 1
+block_shape:
+- 2
+- 2
+crops:
+- - 0
+  - 0
+- - 0
+  - 0
+---
+operator: BatchToSpaceND
+name: batch_to_space_nd_block41_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 4
+- 2
+- 2
+- 1
+block_shape:
+- 4
+- 1
+crops:
+- - 1
+  - 1
+- - 0
+  - 0
+---
+operator: BatchToSpaceND
+name: batch_to_space_nd_crops_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 4
+- 2
+- 3
+- 2
+block_shape:
+- 2
+- 2
+crops:
+- - 0
+  - 1
+- - 0
+  - 1
+---
+operator: BatchToSpaceND
+name: batch_to_space_nd_int16
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 6
+- 1
+- 2
+- 3
+block_shape:
+- 2
+- 3
+crops:
+- - 0
+  - 0
+- - 1
+  - 0

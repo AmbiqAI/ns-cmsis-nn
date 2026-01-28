@@ -1,0 +1,128 @@
+operator: FullyConnected
+name: fully_connected_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 3
+- 1
+- 2
+- 10
+filter_shape:
+- 6
+- 10
+use_bias: true
+---
+operator: FullyConnected
+name: fully_connected_w_zp_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 3
+- 1
+- 2
+- 10
+filter_shape:
+- 6
+- 10
+use_bias: false
+---
+operator: FullyConnected
+name: fully_connected_mve_0_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 16
+filter_shape:
+- 9
+- 16
+use_bias: true
+---
+operator: FullyConnected
+name: fully_connected_mve_1_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 20
+filter_shape:
+- 4
+- 20
+use_bias: true
+---
+operator: FullyConnected
+name: fully_connected_null_bias_0_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 33
+filter_shape:
+- 5
+- 33
+use_bias: false
+---
+operator: FullyConnected
+name: fully_connected_out_activation_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 10
+filter_shape:
+- 4
+- 10
+use_bias: true
+---
+operator: FullyConnected
+name: fully_connected_int16_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 3
+- 3
+- 7
+filter_shape:
+- 11
+- 7
+use_bias: true
+---
+operator: FullyConnected
+name: fc_int16_slow_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 3
+- 8
+- 10
+- 7
+filter_shape:
+- 11
+- 7
+use_bias: true
+

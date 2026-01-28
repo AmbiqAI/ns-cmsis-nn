@@ -1,0 +1,41 @@
+#ifndef {{ prefix|upper }}_SUB_H
+#define {{ prefix|upper }}_SUB_H
+
+#include <stdint.h>
+#include "arm_nnfunctions.h"
+#include "arm_nn_types.h"
+
+// Input 1 dimensions
+static const cmsis_nn_dims {{ name }}_input1_dims = {
+    .n = {{ input1_dims.n }}, .h = {{ input1_dims.h }},
+    .w = {{ input1_dims.w }}, .c = {{ input1_dims.c }}
+};
+
+// Input 2 dimensions
+static const cmsis_nn_dims {{ name }}_input2_dims = {
+    .n = {{ input2_dims.n }}, .h = {{ input2_dims.h }},
+    .w = {{ input2_dims.w }}, .c = {{ input2_dims.c }}
+};
+
+// Output dimensions
+static const cmsis_nn_dims {{ name }}_output_dims = {
+    .n = {{ output_dims.n }}, .h = {{ output_dims.h }},
+    .w = {{ output_dims.w }}, .c = {{ output_dims.c }}
+};
+
+// Input 1 data (for testing)
+static const {{ input_dtype }} {{ name }}_input1[] = {
+{{ input1_data_array }}
+};
+
+// Input 2 data (for testing)
+static const {{ input_dtype }} {{ name }}_input2[] = {
+{{ input2_data_array }}
+};
+
+// Expected output (golden)
+static const {{ output_dtype }} {{ name }}_expected_output[] = {
+{{ expected_output_array }}
+};
+
+#endif

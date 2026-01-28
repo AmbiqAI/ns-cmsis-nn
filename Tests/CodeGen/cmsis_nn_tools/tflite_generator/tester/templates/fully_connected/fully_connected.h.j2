@@ -1,0 +1,99 @@
+#ifndef {{ prefix|upper }}_FULLY_CONNECTED_H
+#define {{ prefix|upper }}_FULLY_CONNECTED_H
+
+#include <stdint.h>
+#include "arm_nnfunctions.h"
+#include "arm_nn_types.h"
+
+// Input dimensions: input shape is [N, features] or [N, H, W, C] (flattened to [N, features])
+static const cmsis_nn_dims {{ name }}_input_dims = {
+    .n = {{ input_dims.n }}, .h = {{ input_dims.h }},
+    .w = {{ input_dims.w }}, .c = {{ input_dims.c }}
+};
+
+// Filter dimensions: weights shape is [output_units, input_features]
+// CMSIS format: n=input_features (col_dim), c=output_units (row_dim), h=1, w=1
+static const cmsis_nn_dims {{ name }}_filter_dims = {
+    .n = {{ filter_dims.n }}, .h = {{ filter_dims.h }},
+    .w = {{ filter_dims.w }}, .c = {{ filter_dims.c }}
+};
+
+// Bias dimensions: bias shape is [output_units]
+static const cmsis_nn_dims {{ name }}_bias_dims = {
+    .n = 1, .h = 1,
+    .w = 1, .c = {{ filter_dims.c }}
+};
+
+// Output dimensions: output shape is [N, output_units]
+static const cmsis_nn_dims {{ name }}_output_dims = {
+    .n = {{ output_dims.n }}, .h = {{ output_dims.h }},
+    .w = {{ output_dims.w }}, .c = {{ output_dims.c }}
+};
+
+// Fully connected parameters
+static const cmsis_nn_fc_params {{ name }}_fc_params = {
+    .input_offset = {{ fc_params.input_offset }},
+    .filter_offset = {{ fc_params.filter_offset }},
+    .output_offset = {{ fc_params.output_offset }},
+    .activation = {.min = {{ fc_params.activation_min }}, .max = {{ fc_params.activation_max }}}
+};
+
+// Quantization parameters
+{% if quant_params.per_channel %}
+// Per-channel quantization
+static int32_t {{ name }}_multiplier[] = {
+{{ quant_params.multiplier_array }}
+};
+
+static int32_t {{ name }}_shift[] = {
+{{ quant_params.shift_array }}
+};
+
+static const cmsis_nn_per_channel_quant_params {{ name }}_quant_params = {
+    .multiplier = {{ name }}_multiplier,
+    .shift = {{ name }}_shift
+};
+{% else %}
+// Per-tensor quantization
+static int32_t {{ name }}_multiplier_val = {{ quant_params.multiplier }};
+static int32_t {{ name }}_shift_val = {{ quant_params.shift }};
+
+static const cmsis_nn_per_tensor_quant_params {{ name }}_quant_params = {
+    .multiplier = {{ quant_params.multiplier }},
+    .shift = {{ quant_params.shift }}
+};
+{% endif %}
+
+// Weights
+static const int8_t {{ name }}_weights[] = {
+{{ weights_array }}
+};
+
+// Biases
+{% if has_biases %}
+static const {{ bias_dtype }} {{ name }}_biases[] = {
+{{ biases_array }}
+};
+{% else %}
+// No biases
+static const {{ bias_dtype }}* {{ name }}_biases = NULL;
+{% endif %}
+
+{% if has_weight_sum %}
+// Precomputed weight sum for s8 fully connected
+static const int32_t {{ name }}_weight_sum[{{ filter_dims.c }}] = {
+{{ weight_sum_array }}
+};
+{% endif %}
+
+// Input data (for testing)
+static const {{ input_dtype }} {{ name }}_input[] = {
+{{ input_data_array }}
+};
+
+// Expected output (golden)
+static const {{ output_dtype }} {{ name }}_expected_output[] = {
+{{ expected_output_array }}
+};
+
+#endif

@@ -1,0 +1,218 @@
+#include "{{ name }}_fully_connected.h"
+#include "arm_nnfunctions.h"
+#include "unity.h"
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+#ifdef USING_FVP_CORSTONE_300
+extern void uart_init(void);
+#endif
+
+static inline void signal_eot(void)
+{
+    // 0x04 (EOT) triggers FVP shutdown when:
+    //   -C mps3_board.uart0.shutdown_on_eot=1
+    putchar(4);
+    fflush(stdout);
+}
+
+// If we hardfault, the default handler often spins forever -> FVP never exits.
+// Override to emit EOT so the runner doesn't stall.
+void HardFault_Handler(void)
+{
+    printf("HardFault\r\n");
+    signal_eot();
+    while (1) { }
+}
+
+// Context for buffer allocation
+static cmsis_nn_context {{ name }}_ctx;
+
+// Runtime scratch buffer (max upper bound; actual size queried at runtime)
+// Buffer size calculated conservatively to handle MVE and DSP implementations
+#define {{ name|upper }}_BUFFER_SIZE_MAX {{ buffer_size_max }}
+static uint8_t {{ name }}_buffer[{{ name|upper }}_BUFFER_SIZE_MAX];
+
+
+#define {{ name|upper }}_OUTPUT_SIZE ({{ output_dims.n }} * {{ output_dims.h }} * {{ output_dims.w }} * {{ output_dims.c }})
+static {{ output_dtype }} {{ name }}_output[{{ name|upper }}_OUTPUT_SIZE];
+
+int32_t {{ prefix }}_{{ name }}_run(
+    const {{ input_dtype }}* __restrict input,
+    {{ output_dtype }}* __restrict output
+) {
+    // Calculate required buffer size
+    {% if quant_params.per_channel and output_dtype == 'int16_t' %}
+    // For per-channel S16, use per_channel buffer size function
+    int32_t required_buffer_size = arm_fully_connected_per_channel_s16_get_buffer_size(
+        &{{ name }}_filter_dims
+    );
+    {% else %}
+    int32_t required_buffer_size = {{ kernel_get_buffer_size_fn }}(
+        &{{ name }}_filter_dims
+    );
+    {% endif %}
+
+    if (required_buffer_size > {{ name|upper }}_BUFFER_SIZE_MAX) {
+        printf("Buffer size error: required=%d > max=%d\r\n", required_buffer_size, {{ name|upper }}_BUFFER_SIZE_MAX);
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    // Initialize context buffer
+    {% if has_weight_sum %}
+    // For S8 fully connected with weight_sum, the ctx buffer should point to precomputed weight_sum
+    // Weight sum is precomputed at code generation time and embedded in header
+    // ctx.size must be in bytes: filter_dims.c * sizeof(int32_t)
+    {{ name }}_ctx.buf = (uint8_t *){{ name }}_weight_sum;
+    {{ name }}_ctx.size = {{ filter_dims.c }} * 4;  // sizeof(int32_t) = 4
+    {% else %}
+    {{ name }}_ctx.buf = {{ name }}_buffer;
+    {{ name }}_ctx.size = required_buffer_size;
+    {% endif %}
+
+    // Call fully connected kernel
+    {% if quant_params.per_channel %}
+    // Per-channel quantization - use per-channel function directly
+    {% if output_dtype == 'int8_t' %}
+    arm_cmsis_nn_status kernel_status = arm_fully_connected_per_channel_s8(
+    {% else %}
+    arm_cmsis_nn_status kernel_status = arm_fully_connected_per_channel_s16(
+    {% endif %}
+        &{{ name }}_ctx,
+        &{{ name }}_fc_params,
+        &{{ name }}_quant_params,
+        &{{ name }}_input_dims,
+        input,
+        &{{ name }}_filter_dims,
+        {{ name }}_weights,
+        &{{ name }}_bias_dims,
+        {% if has_biases %}
+        {{ name }}_biases,
+        {% else %}
+        NULL,
+        {% endif %}
+        &{{ name }}_output_dims,
+        output
+    );
+    {% else %}
+    // Per-tensor quantization - use wrapper function
+    // For per-tensor, we need to create cmsis_nn_quant_params from per_tensor
+    cmsis_nn_quant_params quant_params_wrapper = {
+        .multiplier = (int32_t*)&{{ name }}_multiplier_val,
+        .shift = (int32_t*)&{{ name }}_shift_val,
+        .is_per_channel = 0
+    };
+    arm_cmsis_nn_status kernel_status = {{ kernel_fn }}(
+        &{{ name }}_ctx,
+        &{{ name }}_fc_params,
+        &quant_params_wrapper,
+        &{{ name }}_input_dims,
+        input,
+        &{{ name }}_filter_dims,
+        {{ name }}_weights,
+        &{{ name }}_bias_dims,
+        {% if has_biases %}
+        {{ name }}_biases,
+        {% else %}
+        NULL,
+        {% endif %}
+        &{{ name }}_output_dims,
+        output
+    );
+    {% endif %}
+    
+    return kernel_status;
+}
+
+/* This function is called from Unity test framework before EACH TEST.
+ * The name must be exactly like this
+ */
+void setUp(void)
+{ /* This is run before EACH TEST */
+#ifdef USING_FVP_CORSTONE_300
+    uart_init();
+    setvbuf(stdout, NULL, _IONBF, 0);
+#endif
+}
+
+/* This function is called from Unity test framework after EACH TEST.
+ * The name must be exactly like this
+ */
+void tearDown(void) {}
+
+void test_{{ prefix }}_{{ name }}(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int32_t status = {{ prefix }}_{{ name }}_run({{ name }}_input, {{ name }}_output);
+    
+    // Assert that fully connected succeeded
+    TEST_ASSERT_EQUAL(expected, status);
+
+    // Verify outputs element by element (allow 1-bit tolerance)
+    const int output_size = {{ name|upper }}_OUTPUT_SIZE;
+    const {{ output_dtype }} *act = {{ name }}_output;
+    const {{ output_dtype }} *exp = {{ name }}_expected_output;
+
+    for (int i = 0; i < output_size; i++) {
+        int act_val = (int)act[i];
+        int exp_val = (int)exp[i];
+        int diff = act_val - exp_val;
+        if (diff < 0) diff = -diff;  // absolute difference
+        if (diff > 1) {  // Allow tolerance of 1 bit difference
+            char msg[128];
+            snprintf(msg, sizeof(msg), "Mismatch at index %d: expected %d, got %d (diff: %d)", i, exp_val, act_val, diff);
+            TEST_ASSERT_EQUAL_MESSAGE(exp_val, act_val, msg);
+        }
+    }
+}
+
+// Legacy function for non-Unity builds (if needed)
+int32_t {{ prefix }}_{{ name }}_test_case_run(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int32_t status = {{ prefix }}_{{ name }}_run({{ name }}_input, {{ name }}_output);
+    if (status != expected) {
+        printf("Fully connected failed with status %d\r\n", status);
+        printf("1 Failures\r\n");
+        return 1;
+    }
+
+    // Verify outputs (allow 1-bit tolerance)
+    int failures = 0;
+    const int output_size = {{ name|upper }}_OUTPUT_SIZE;
+
+    const {{ output_dtype }} *act = {{ name }}_output;
+    const {{ output_dtype }} *exp = {{ name }}_expected_output;
+
+    for (int i = 0; i < output_size; i++) {
+        int act_val = (int)act[i];
+        int exp_val = (int)exp[i];
+        int diff = act_val - exp_val;
+        if (diff < 0) diff = -diff;  // absolute difference
+        if (diff > 1) {  // Allow tolerance of 1 bit difference
+            failures++;
+            if (failures <= 20) {
+                printf("Mismatch[%d]: exp=%d got=%d (diff=%d)\r\n", i, exp_val, act_val, diff);
+            }
+        }
+    }
+
+    printf("%d Failures\r\n", failures);
+    return failures;
+}
+
+int main(void)
+{
+    // Initialize UART (setUp() handles this, but we call it here for standalone execution)
+    setUp();
+
+    // For standalone execution, use the legacy test function
+    int32_t failures = {{ prefix }}_{{ name }}_test_case_run();
+
+    // Always terminate the FVP run cleanly
+    signal_eot();
+
+    // Never rely on exit() in bare-metal (often spins)
+    while (1) { }
+}

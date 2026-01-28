@@ -1,0 +1,162 @@
+#include "{{ name }}_add.h"
+#include "arm_nnfunctions.h"
+#include "unity.h"
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+#ifdef USING_FVP_CORSTONE_300
+extern void uart_init(void);
+#endif
+
+static inline void signal_eot(void)
+{
+    // 0x04 (EOT) triggers FVP shutdown when:
+    //   -C mps3_board.uart0.shutdown_on_eot=1
+    putchar(4);
+    fflush(stdout);
+}
+
+// If we hardfault, the default handler often spins forever -> FVP never exits.
+// Override to emit EOT so the runner doesn't stall.
+void HardFault_Handler(void)
+{
+    printf("HardFault\r\n");
+    signal_eot();
+    while (1) { }
+}
+
+#define {{ name|upper }}_OUTPUT_SIZE ({{ output_dims.n }} * {{ output_dims.h }} * {{ output_dims.w }} * {{ output_dims.c }})
+static {{ output_dtype }} {{ name }}_output[{{ name|upper }}_OUTPUT_SIZE];
+
+int32_t {{ prefix }}_{{ name }}_run(
+    const {{ input_dtype }}* __restrict input1,
+    const {{ input_dtype }}* __restrict input2,
+    {{ output_dtype }}* __restrict output
+) {
+    // Call elementwise add kernel
+    arm_cmsis_nn_status kernel_status = {{ kernel_fn }}(
+        input1,
+        input2,
+        {{ input1_offset }},      // input_1_offset
+        {{ input1_mult }},       // input_1_mult
+        {{ input1_shift }},      // input_1_shift
+        {{ input2_offset }},     // input_2_offset
+        {{ input2_mult }},       // input_2_mult
+        {{ input2_shift }},      // input_2_shift
+        {{ left_shift }},        // left_shift
+        output,
+        {{ out_offset }},        // out_offset
+        {{ out_mult }},          // out_mult
+        {{ out_shift }},         // out_shift
+        {{ out_activation_min }}, // out_activation_min
+        {{ out_activation_max }}, // out_activation_max
+        {{ block_size }}         // block_size
+    );
+    
+    return kernel_status;
+}
+
+/* This function is called from Unity test framework before EACH TEST.
+ * The name must be exactly like this
+ */
+void setUp(void)
+{ /* This is run before EACH TEST */
+#ifdef USING_FVP_CORSTONE_300
+    uart_init();
+    setvbuf(stdout, NULL, _IONBF, 0);
+#endif
+}
+
+/* This function is called from Unity test framework after EACH TEST.
+ * The name must be exactly like this
+ */
+void tearDown(void) {}
+
+void test_{{ prefix }}_{{ name }}(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int32_t status = {{ prefix }}_{{ name }}_run({{ name }}_input1, {{ name }}_input2, {{ name }}_output);
+    
+    // Assert that add succeeded
+    TEST_ASSERT_EQUAL(expected, status);
+
+    // Verify outputs element by element (allow tolerance based on dtype)
+    const int output_size = {{ name|upper }}_OUTPUT_SIZE;
+    const {{ output_dtype }} *act = {{ name }}_output;
+    const {{ output_dtype }} *exp = {{ name }}_expected_output;
+    // S16 operations may have up to 3-unit differences due to rounding in quantization
+{% if output_dtype == 'int16_t' %}
+    const int tolerance = 3;
+{% else %}
+    const int tolerance = 1;
+{% endif %}
+
+    for (int i = 0; i < output_size; i++) {
+        int act_val = (int)act[i];
+        int exp_val = (int)exp[i];
+        int diff = act_val - exp_val;
+        if (diff < 0) diff = -diff;  // absolute difference
+        if (diff > tolerance) {
+            char msg[128];
+            snprintf(msg, sizeof(msg), "Mismatch at index %d: expected %d, got %d (diff: %d)", i, exp_val, act_val, diff);
+            TEST_ASSERT_EQUAL_MESSAGE(exp_val, act_val, msg);
+        }
+    }
+}
+
+// Legacy function for non-Unity builds (if needed)
+int32_t {{ prefix }}_{{ name }}_test_case_run(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int32_t status = {{ prefix }}_{{ name }}_run({{ name }}_input1, {{ name }}_input2, {{ name }}_output);
+    if (status != expected) {
+        printf("Add failed with status %d\r\n", status);
+        printf("1 Failures\r\n");
+        return 1;
+    }
+
+    // Verify outputs (allow tolerance based on dtype)
+    int failures = 0;
+    const int output_size = {{ name|upper }}_OUTPUT_SIZE;
+    // S16 operations may have up to 3-unit differences due to rounding in quantization
+{% if output_dtype == 'int16_t' %}
+    const int tolerance = 3;
+{% else %}
+    const int tolerance = 1;
+{% endif %}
+
+    const {{ output_dtype }} *act = {{ name }}_output;
+    const {{ output_dtype }} *exp = {{ name }}_expected_output;
+
+    for (int i = 0; i < output_size; i++) {
+        int act_val = (int)act[i];
+        int exp_val = (int)exp[i];
+        int diff = act_val - exp_val;
+        if (diff < 0) diff = -diff;  // absolute difference
+        if (diff > tolerance) {
+            failures++;
+            if (failures <= 20) {
+                printf("Mismatch[%d]: exp=%d got=%d (diff=%d)\r\n", i, exp_val, act_val, diff);
+            }
+        }
+    }
+
+    printf("%d Failures\r\n", failures);
+    return failures;
+}
+
+int main(void)
+{
+    // Initialize UART (setUp() handles this, but we call it here for standalone execution)
+    setUp();
+
+    // For standalone execution, use the legacy test function
+    int32_t failures = {{ prefix }}_{{ name }}_test_case_run();
+
+    // Always terminate the FVP run cleanly
+    signal_eot();
+
+    // Never rely on exit() in bare-metal (often spins)
+    while (1) { }
+}

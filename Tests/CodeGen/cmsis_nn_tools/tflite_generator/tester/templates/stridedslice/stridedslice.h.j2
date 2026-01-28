@@ -1,0 +1,42 @@
+#ifndef {{ prefix|upper }}_STRIDEDSLICE_H
+#define {{ prefix|upper }}_STRIDEDSLICE_H
+
+#include <stdint.h>
+#include "arm_nnfunctions.h"
+#include "arm_nn_types.h"
+
+// Input dimensions
+static const cmsis_nn_dims {{ name }}_input_dims = {
+    .n = {{ input_dims.n }}, .h = {{ input_dims.h }},
+    .w = {{ input_dims.w }}, .c = {{ input_dims.c }}
+};
+
+// Output dimensions
+static const cmsis_nn_dims {{ name }}_output_dims = {
+    .n = {{ output_dims.n }}, .h = {{ output_dims.h }},
+    .w = {{ output_dims.w }}, .c = {{ output_dims.c }}
+};
+
+// Begin dimensions
+static const cmsis_nn_dims {{ name }}_begin_dims = {
+    .n = {{ begin_dims.n }}, .h = {{ begin_dims.h }},
+    .w = {{ begin_dims.w }}, .c = {{ begin_dims.c }}
+};
+
+// Stride dimensions
+static const cmsis_nn_dims {{ name }}_stride_dims = {
+    .n = {{ stride_dims.n }}, .h = {{ stride_dims.h }},
+    .w = {{ stride_dims.w }}, .c = {{ stride_dims.c }}
+};
+
+// Input data (for testing)
+static const {{ input_dtype }} {{ name }}_input[] = {
+{{ input_data_array }}
+};
+
+// Expected output (golden)
+static const {{ output_dtype }} {{ name }}_expected_output[] = {
+{{ expected_output_array }}
+};
+
+#endif

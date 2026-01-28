@@ -1,0 +1,83 @@
+operator: SpaceToBatchND
+name: space_to_batch_nd_basic_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 2
+- 2
+- 1
+block_shape:
+- 2
+- 2
+paddings:
+- - 0
+  - 0
+- - 0
+  - 0
+---
+operator: SpaceToBatchND
+name: space_to_batch_nd_int16
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 2
+- 4
+- 1
+block_shape:
+- 2
+- 2
+paddings:
+- - 0
+  - 2
+- - 0
+  - 0
+---
+operator: SpaceToBatchND
+name: space_to_batch_nd_padded_height_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 3
+- 2
+- 1
+block_shape:
+- 2
+- 1
+paddings:
+- - 1
+  - 0
+- - 0
+  - 0
+---
+operator: SpaceToBatchND
+name: space_to_batch_nd_wide_padding_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 1
+- 3
+- 2
+block_shape:
+- 1
+- 3
+paddings:
+- - 0
+  - 0
+- - 0
+  - 3

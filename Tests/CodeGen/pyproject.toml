@@ -1,0 +1,41 @@
+[project]
+name = "cmsis-aot-tester"
+version = "0.1.0"
+description = "A comprehensive toolkit for CMSIS-NN testing, model generation, and FVP simulation"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Helia-Core Team"}
+]
+
+dependencies = [
+    "numpy>=1.20.0,<2.0.0",
+    "tensorflow>=2.12.0,<3.0.0",
+    "pytest>=7.4.0,<9.0.0",
+    "pyyaml>=6.0.0,<7.0.0",
+    "scipy>=1.7.0,<2.0.0",
+    "matplotlib>=3.3.0,<4.0.0",
+    "pydantic>=2.10.0,<3.0.0",
+    "jinja2>=3.0.0,<4.0.0",
+    "ai_edge_litert>=0.1.0",
+    "argdantic>=0.10.0",
+]
+
+[dependency-groups]
+dev = [
+    "black",
+    "flake8",
+    "mypy",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["cmsis_nn_tools"]
+
+[tool.uv]
+package = true
+

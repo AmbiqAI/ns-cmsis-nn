@@ -1,0 +1,10 @@
+---
+operator: FullyConnected
+name: fc_s8x8_chwise
+input_shape: [1,1,1,128]
+filter_shape: [128,64]
+activation: NONE
+activation_dtype: S8
+weight_dtype: S8
+hint:
+  call_style: per_channel

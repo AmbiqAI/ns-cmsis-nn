@@ -1,0 +1,18 @@
+operator: ZerosLike
+name: zeros_like_scalar_s32
+activation_dtype: S32
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 8]
+---
+operator: ZerosLike
+name: zeros_like_tensor_s32
+activation_dtype: S32
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 2, 3, 2]
+

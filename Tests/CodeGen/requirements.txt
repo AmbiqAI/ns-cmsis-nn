@@ -1,0 +1,14 @@
+# Python 3.8+ requirements for Helia-Core Tester
+# Core dependencies
+numpy>=1.20.0,<2.0.0
+tensorflow>=2.12.0,<3.0.0
+pytest>=7.4.0,<9.0.0
+pyyaml>=6.0.0,<7.0.0
+
+# Optional dependencies
+scipy>=1.7.0,<2.0.0
+matplotlib>=3.3.0,<4.0.0
+pydantic>=2.10.0,<3.0.0
+jinja2>=3.0.0,<4.0.0
+ai_edge_litert>=0.1.0
+argdantic>=0.10.0

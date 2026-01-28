@@ -1,0 +1,46 @@
+#ifndef {{ prefix|upper }}_POOLING_H
+#define {{ prefix|upper }}_POOLING_H
+
+#include <stdint.h>
+#include "arm_nnfunctions.h"
+#include "arm_nn_types.h"
+
+// Input dimensions: input shape is [N, H_IN, W_IN, C_IN]
+static const cmsis_nn_dims {{ name }}_input_dims = {
+    .n = {{ input_dims.n }}, .h = {{ input_dims.h }},
+    .w = {{ input_dims.w }}, .c = {{ input_dims.c }}
+};
+
+// Filter dimensions: pool_size is [H_FILT, W_FILT]
+static const cmsis_nn_dims {{ name }}_filter_dims = {
+    .n = {{ filter_dims.n }}, .h = {{ filter_dims.h }},
+    .w = {{ filter_dims.w }}, .c = {{ filter_dims.c }}
+};
+
+// Output dimensions: output shape is [N, H_OUT, W_OUT, C_OUT]. C_OUT = C_IN
+static const cmsis_nn_dims {{ name }}_output_dims = {
+    .n = {{ output_dims.n }}, .h = {{ output_dims.h }},
+    .w = {{ output_dims.w }}, .c = {{ output_dims.c }}
+};
+
+// Pooling parameters
+static const cmsis_nn_pool_params {{ name }}_pool_params = {
+    .stride.w = {{ pool_params.stride_w }},
+    .stride.h = {{ pool_params.stride_h }},
+    .padding.w = {{ pool_params.pad_w }},
+    .padding.h = {{ pool_params.pad_h }},
+    .activation.min = {{ pool_params.activation_min }},
+    .activation.max = {{ pool_params.activation_max }}
+};
+
+// Input data (for testing)
+static const {{ input_dtype }} {{ name }}_input[] = {
+{{ input_data_array }}
+};
+
+// Expected output (golden)
+static const {{ output_dtype }} {{ name }}_expected_output[] = {
+{{ expected_output_array }}
+};
+
+#endif

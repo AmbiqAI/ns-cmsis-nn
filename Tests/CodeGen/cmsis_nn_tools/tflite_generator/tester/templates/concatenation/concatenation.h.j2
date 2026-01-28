@@ -1,0 +1,36 @@
+#ifndef {{ prefix|upper }}_CONCATENATION_H
+#define {{ prefix|upper }}_CONCATENATION_H
+
+#include <stdint.h>
+#include "arm_nnfunctions.h"
+#include "arm_nn_types.h"
+
+// Output dimensions
+static const cmsis_nn_dims {{ name }}_output_dims = {
+    .n = {{ output_dims.n }}, .h = {{ output_dims.h }},
+    .w = {{ output_dims.w }}, .c = {{ output_dims.c }}
+};
+
+// Input concatenation dimensions (along axis)
+static const int32_t {{ name }}_input_concat_dims[] = {
+{{ input_concat_dims_array }}
+};
+
+// Output shape
+static const int32_t {{ name }}_output_shape[] = {
+{{ output_shape_array }}
+};
+
+{% for i in range(num_inputs) %}
+// Input {{ i + 1 }} data (for testing)
+static const {{ input_dtype }} {{ name }}_input{{ i + 1 }}[] = {
+{{ input_data_arrays[i] }}
+};
+{% endfor %}
+
+// Expected output (golden)
+static const {{ output_dtype }} {{ name }}_expected_output[] = {
+{{ expected_output_array }}
+};
+
+#endif

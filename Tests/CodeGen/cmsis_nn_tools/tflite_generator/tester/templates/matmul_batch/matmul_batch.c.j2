@@ -1,0 +1,171 @@
+#include "{{ name }}_matmul_batch.h"
+#include "arm_nnfunctions.h"
+#include "unity.h"
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+#ifdef USING_FVP_CORSTONE_300
+extern void uart_init(void);
+#endif
+
+static inline void signal_eot(void)
+{
+    // 0x04 (EOT) triggers FVP shutdown when:
+    //   -C mps3_board.uart0.shutdown_on_eot=1
+    putchar(4);
+    fflush(stdout);
+}
+
+// If we hardfault, the default handler often spins forever -> FVP never exits.
+// Override to emit EOT so the runner doesn't stall.
+void HardFault_Handler(void)
+{
+    printf("HardFault\r\n");
+    signal_eot();
+    while (1) { }
+}
+
+// Context for buffer allocation
+static cmsis_nn_context {{ name }}_ctx;
+
+// Runtime scratch buffer (max upper bound; actual size queried at runtime)
+// Buffer size calculated conservatively to handle MVE and DSP implementations
+#define {{ name|upper }}_BUFFER_SIZE_MAX {{ buffer_size_max }}
+static uint8_t {{ name }}_buffer[{{ name|upper }}_BUFFER_SIZE_MAX];
+
+#define {{ name|upper }}_OUTPUT_SIZE ({{ output_dims.n }} * {{ output_dims.h }} * {{ output_dims.w }} * {{ output_dims.c }})
+static {{ output_dtype }} {{ name }}_output[{{ name|upper }}_OUTPUT_SIZE];
+
+int32_t {{ prefix }}_{{ name }}_run(
+    const {{ input_dtype }}* __restrict input_lhs,
+    const {{ input_dtype }}* __restrict input_rhs,
+    {{ output_dtype }}* __restrict output
+) {
+    // Calculate required buffer size
+    // For batch matmul, we use RHS dims as filter_dims for buffer size calculation
+    // RHS shape: [batch, K, N] -> filter_dims: n=K, c=N, h=1, w=1
+    cmsis_nn_dims filter_dims_for_buffer = {
+        .n = {{ input_rhs_dims.c }},  // K (inner dimension)
+        .h = 1,
+        .w = 1,
+        .c = {{ input_rhs_dims.w }}    // N (output dimension)
+    };
+    
+    int32_t required_buffer_size = {{ kernel_get_buffer_size_fn }}(&filter_dims_for_buffer);
+
+    if (required_buffer_size > {{ name|upper }}_BUFFER_SIZE_MAX) {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    // Initialize context buffer
+    {{ name }}_ctx.buf = {{ name }}_buffer;
+    {{ name }}_ctx.size = required_buffer_size;
+
+    // Call batch matmul kernel
+    arm_cmsis_nn_status kernel_status = {{ kernel_fn }}(
+        &{{ name }}_ctx,
+        &{{ name }}_bmm_params,
+        &{{ name }}_quant_params,
+        &{{ name }}_input_lhs_dims,
+        input_lhs,
+        &{{ name }}_input_rhs_dims,
+        input_rhs,
+        &{{ name }}_output_dims,
+        output
+    );
+    
+    return kernel_status;
+}
+
+/* This function is called from Unity test framework before EACH TEST.
+ * The name must be exactly like this
+ */
+void setUp(void)
+{ /* This is run before EACH TEST */
+#ifdef USING_FVP_CORSTONE_300
+    uart_init();
+    setvbuf(stdout, NULL, _IONBF, 0);
+#endif
+}
+
+/* This function is called from Unity test framework after EACH TEST.
+ * The name must be exactly like this
+ */
+void tearDown(void) {}
+
+void test_{{ prefix }}_{{ name }}(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int32_t status = {{ prefix }}_{{ name }}_run({{ name }}_input_lhs, {{ name }}_input_rhs, {{ name }}_output);
+    
+    // Assert that batch matmul succeeded
+    TEST_ASSERT_EQUAL(expected, status);
+
+    // Verify outputs element by element (allow 1-bit tolerance)
+    const int output_size = {{ name|upper }}_OUTPUT_SIZE;
+    const {{ output_dtype }} *act = {{ name }}_output;
+    const {{ output_dtype }} *exp = {{ name }}_expected_output;
+
+    for (int i = 0; i < output_size; i++) {
+        int act_val = (int)act[i];
+        int exp_val = (int)exp[i];
+        int diff = act_val - exp_val;
+        if (diff < 0) diff = -diff;  // absolute difference
+        if (diff > 1) {  // Allow tolerance of 1 bit difference
+            char msg[128];
+            snprintf(msg, sizeof(msg), "Mismatch at index %d: expected %d, got %d (diff: %d)", i, exp_val, act_val, diff);
+            TEST_ASSERT_EQUAL_MESSAGE(exp_val, act_val, msg);
+        }
+    }
+}
+
+// Legacy function for non-Unity builds (if needed)
+int32_t {{ prefix }}_{{ name }}_test_case_run(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int32_t status = {{ prefix }}_{{ name }}_run({{ name }}_input_lhs, {{ name }}_input_rhs, {{ name }}_output);
+    if (status != expected) {
+        printf("Batch matmul failed with status %d\r\n", status);
+        printf("1 Failures\r\n");
+        return 1;
+    }
+
+    // Verify outputs (allow 1-bit tolerance)
+    int failures = 0;
+    const int output_size = {{ name|upper }}_OUTPUT_SIZE;
+
+    const {{ output_dtype }} *act = {{ name }}_output;
+    const {{ output_dtype }} *exp = {{ name }}_expected_output;
+
+    for (int i = 0; i < output_size; i++) {
+        int act_val = (int)act[i];
+        int exp_val = (int)exp[i];
+        int diff = act_val - exp_val;
+        if (diff < 0) diff = -diff;  // absolute difference
+        if (diff > 1) {  // Allow tolerance of 1 bit difference
+            failures++;
+            if (failures <= 20) {
+                printf("Mismatch[%d]: exp=%d got=%d (diff=%d)\r\n", i, exp_val, act_val, diff);
+            }
+        }
+    }
+
+    printf("%d Failures\r\n", failures);
+    return failures;
+}
+
+int main(void)
+{
+    // Initialize UART (setUp() handles this, but we call it here for standalone execution)
+    setUp();
+
+    // For standalone execution, use the legacy test function
+    int32_t failures = {{ prefix }}_{{ name }}_test_case_run();
+
+    // Always terminate the FVP run cleanly
+    signal_eot();
+
+    // Never rely on exit() in bare-metal (often spins)
+    while (1) { }
+}

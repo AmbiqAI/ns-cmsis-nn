@@ -1,0 +1,87 @@
+operator: Pad
+name: pad_asymmetric_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 3
+- 2
+- 2
+paddings:
+- - 0
+  - 0
+- - 2
+  - 0
+- - 0
+  - 2
+- - 0
+  - 0
+---
+operator: Pad
+name: pad_basic_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 3
+- 3
+- 2
+paddings:
+- - 0
+  - 0
+- - 1
+  - 1
+- - 1
+  - 1
+- - 0
+  - 0
+---
+operator: Pad
+name: pad_channels_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 2
+- 2
+- 3
+paddings:
+- - 0
+  - 0
+- - 0
+  - 1
+- - 0
+  - 1
+- - 0
+  - 2
+---
+operator: Pad
+name: padv2_constant_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 2
+- 3
+- 2
+paddings:
+- - 0
+  - 0
+- - 1
+  - 0
+- - 0
+  - 2
+- - 0
+  - 0

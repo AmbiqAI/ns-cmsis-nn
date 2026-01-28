@@ -1,0 +1,40 @@
+operator: ArgMax
+name: argmax_axis0_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [2, 2, 3, 2]
+axis: 0
+---
+operator: ArgMax
+name: argmax_axis1_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 4, 3, 2]
+axis: 1
+---
+operator: ArgMax
+name: argmax_axis2_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 3, 4, 2]
+axis: 2
+---
+operator: ArgMax
+name: argmax_axis3_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 3, 4, 5]
+axis: 3
+

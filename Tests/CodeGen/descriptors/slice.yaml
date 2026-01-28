@@ -1,0 +1,45 @@
+operator: Slice
+name: slice_center_crs8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 4
+- 4
+- 2
+begin:
+- 0
+- 1
+- 1
+- 0
+size:
+- 1
+- 2
+- 2
+- 2
+---
+operator: Slice
+name: slice_shrink_axis_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 3
+- 4
+- 2
+begin:
+- 0
+- 1
+- 0
+- 0
+size:
+- 1
+- 1
+- -1
+- 2

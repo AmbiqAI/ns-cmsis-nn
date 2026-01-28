@@ -1,0 +1,18 @@
+operator: HardSwish
+name: hard_swish_tensor_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 2, 2, 3]
+---
+operator: HardSwish
+name: hard_swish_vector_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape: [1, 8]
+

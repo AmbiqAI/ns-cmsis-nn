@@ -1,0 +1,26 @@
+operator: Quantize
+name: quantize_relu_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: RELU
+hint:
+  call_style: per_tensor
+input_shape: [1, 4, 4, 3]
+---
+operator: Quantize
+name: quantize_relu_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: RELU
+hint:
+  call_style: per_tensor
+input_shape: [1, 4, 4, 3]
+---
+operator: Quantize
+name: quantize_relu6_vec_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: RELU6
+hint:
+  call_style: per_tensor
+input_shape: [1, 8]

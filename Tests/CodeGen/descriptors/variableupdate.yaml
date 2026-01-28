@@ -1,0 +1,25 @@
+# operator: VariableUpdate
+# name: variable_update_s16
+# activation_dtype: S16
+# weight_dtype: S8
+# activation: NONE
+# hint:
+#   call_style: per_tensor
+# input_shape:
+# - 2
+# - 2
+# value_shape:
+# - 2
+# - 2
+# ---
+# operator: VariableUpdate
+# name: variable_update_s8
+# activation_dtype: S8
+# weight_dtype: S8
+# activation: NONE
+# hint:
+#   call_style: per_tensor
+# input_shape:
+# - 4
+# value_shape:
+# - 4

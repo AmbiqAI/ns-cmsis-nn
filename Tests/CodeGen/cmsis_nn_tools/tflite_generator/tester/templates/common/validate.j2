@@ -1,0 +1,85 @@
+// Validation function (from CMSIS-NN test utils)
+#include <stdio.h>
+#include <stdbool.h>
+
+{% if output_dtype == 'int8_t' %}
+static inline int validate(int8_t *act, const int8_t *ref, int size)
+{
+    int test_passed = true;
+    int count = 0;
+    int total = 0;
+
+    for (int i = 0; i < size; ++i)
+    {
+        total++;
+        int diff = (int)act[i] - (int)ref[i];
+        if (diff < 0) diff = -diff;  // absolute difference
+        if (diff > 1)  // Allow tolerance of 1 bit difference
+        {
+            count++;
+            printf("ERROR at pos %d: Act: %d Ref: %d (diff: %d)\r\n", i, act[i], ref[i], diff);
+            test_passed = false;
+        }
+    }
+
+    if (!test_passed)
+    {
+        printf("%d of %d failed\r\n", count, total);
+    }
+
+    return test_passed;
+}
+{% elif output_dtype == 'int16_t' %}
+static inline int validate_s16(int16_t *act, const int16_t *ref, int size)
+{
+    int test_passed = true;
+    int count = 0;
+    int total = 0;
+
+    for (int i = 0; i < size; ++i)
+    {
+        total++;
+        int diff = (int)act[i] - (int)ref[i];
+        if (diff < 0) diff = -diff;  // absolute difference
+        if (diff > 1)  // Allow tolerance of 1 bit difference
+        {
+            count++;
+            printf("ERROR at pos %d: Act: %d Ref: %d (diff: %d)\r\n", i, act[i], ref[i], diff);
+            test_passed = false;
+        }
+    }
+
+    if (!test_passed)
+    {
+        printf("%d of %d failed\r\n", count, total);
+    }
+
+    return test_passed;
+}
+{% elif output_dtype == 'bool' %}
+static inline int validate_bool(const bool *act, const bool *ref, int size)
+{
+    int test_passed = true;
+    int count = 0;
+
+    for (int i = 0; i < size; ++i)
+    {
+        int actual = act[i] ? 1 : 0;
+        int expected = ref[i] ? 1 : 0;
+
+        if (actual != expected)
+        {
+            count++;
+            printf("ERROR at pos %d: Act(bool): %d Ref(bool): %d\r\n", i, actual, expected);
+            test_passed = false;
+        }
+    }
+
+    if (!test_passed)
+    {
+        printf("%d of %d failed\r\n", count, size);
+    }
+
+    return test_passed;
+}
+{% endif %}

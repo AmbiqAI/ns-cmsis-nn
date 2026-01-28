@@ -1,0 +1,246 @@
+#include "{{ name }}_conv2d.h"
+#include "arm_nnfunctions.h"
+#include "unity.h"
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+#ifdef USING_FVP_CORSTONE_300
+extern void uart_init(void);
+#endif
+
+static inline void signal_eot(void)
+{
+    // 0x04 (EOT) triggers FVP shutdown when:
+    //   -C mps3_board.uart0.shutdown_on_eot=1
+    putchar(4);
+    fflush(stdout);
+}
+
+// If we hardfault, the default handler often spins forever -> FVP never exits.
+// Override to emit EOT so the runner doesn't stall.
+void HardFault_Handler(void)
+{
+    printf("HardFault\r\n");
+    signal_eot();
+    while (1) { }
+}
+
+// Context for buffer allocation
+static cmsis_nn_context {{ name }}_ctx;
+
+// Runtime scratch buffer (max upper bound; actual size queried at runtime)
+// Buffer size calculated conservatively to handle MVE and DSP implementations
+#define {{ name|upper }}_BUFFER_SIZE_MAX {{ buffer_size_max }}
+static uint8_t {{ name }}_buffer[{{ name|upper }}_BUFFER_SIZE_MAX];
+
+{% if kernel_fn == 'arm_convolve_wrapper_s8' %}
+// Weight sum context for s8 convolutions
+static cmsis_nn_context {{ name }}_weight_sum_ctx;
+// Weight sum buffer size: output channels * sizeof(int32_t)
+// CMSIS-NN uses output_dims->c, which should equal filter_dims.n (output channels)
+#define {{ name|upper }}_WEIGHT_SUM_BUFFER_SIZE ({{ output_dims.c }} * sizeof(int32_t))
+static uint8_t {{ name }}_weight_sum_buffer[{{ name|upper }}_WEIGHT_SUM_BUFFER_SIZE];
+{% endif %}
+
+#define {{ name|upper }}_OUTPUT_SIZE ({{ output_dims.n }} * {{ output_dims.h }} * {{ output_dims.w }} * {{ output_dims.c }})
+static {{ output_dtype }} {{ name }}_output[{{ name|upper }}_OUTPUT_SIZE];
+
+{% if has_biases %}
+// Bias dimensions
+static const cmsis_nn_dims {{ name }}_bias_dims = {
+    .n = 0, .h = 0, .w = 0, .c = {{ filter_dims.n }}
+};
+{% if kernel_fn == 'arm_convolve_wrapper_s16' %}
+// s16 requires cmsis_nn_bias_data struct wrapper
+static const cmsis_nn_bias_data {{ name }}_bias_data = {
+    .data = {{ name }}_biases,
+    .is_int32_bias = {% if bias_dtype == 'int32_t' %}true{% else %}false{% endif %}
+};
+{% endif %}
+{% endif %}
+
+int32_t {{ prefix }}_{{ name }}_run(
+    const {{ input_dtype }}* __restrict input,
+    {{ output_dtype }}* __restrict output
+) {
+    // Calculate required buffer size
+    int32_t required_buffer_size = {{ kernel_get_buffer_size_fn }}(
+        &{{ name }}_conv_params,
+        &{{ name }}_input_dims,
+        &{{ name }}_filter_dims,
+        &{{ name }}_output_dims
+    );
+
+    if (required_buffer_size > {{ name|upper }}_BUFFER_SIZE_MAX) {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    // Initialize context buffer
+    {{ name }}_ctx.buf = {{ name }}_buffer;
+    {{ name }}_ctx.size = required_buffer_size;
+
+    // Run convolution - different signatures for s8 vs s16
+    {% if kernel_fn == 'arm_convolve_wrapper_s8' %}
+    // Initialize weight sum context and buffer
+    {{ name }}_weight_sum_ctx.buf = {{ name }}_weight_sum_buffer;
+    {{ name }}_weight_sum_ctx.size = {{ name|upper }}_WEIGHT_SUM_BUFFER_SIZE;
+    
+    // Calculate weight sum (required for s8 convolutions)
+    // This pre-computes weight * input_offset + bias for optimization
+    int32_t lhs_offset = (int32_t){{ name }}_conv_params.input_offset;
+    {% if has_biases %}
+    arm_convolve_weight_sum((int32_t*){{ name }}_weight_sum_ctx.buf, 
+                            {{ name }}_weights,
+                            &{{ name }}_input_dims,
+                            &{{ name }}_filter_dims,
+                            &{{ name }}_output_dims,
+                            lhs_offset,
+                            {{ name }}_biases);
+    {% else %}
+    arm_convolve_weight_sum((int32_t*){{ name }}_weight_sum_ctx.buf, 
+                            {{ name }}_weights,
+                            &{{ name }}_input_dims,
+                            &{{ name }}_filter_dims,
+                            &{{ name }}_output_dims,
+                            lhs_offset,
+                            NULL);
+    {% endif %}
+    
+    // s8 signature: (ctx, weight_sum_ctx, conv_params, quant_params, input_dims, input_data, filter_dims, filter_data, bias_dims, bias_data, output_dims, output_data)
+    return arm_convolve_wrapper_s8(
+        &{{ name }}_ctx,
+        &{{ name }}_weight_sum_ctx,
+        &{{ name }}_conv_params,
+        &{{ name }}_quant_params,
+        &{{ name }}_input_dims,
+        input,
+        &{{ name }}_filter_dims,
+        {{ name }}_weights,
+        {% if has_biases %}
+        &{{ name }}_bias_dims,
+        {{ name }}_biases,
+        {% else %}
+        NULL,  // bias_dims
+        NULL,  // bias_data
+        {% endif %}
+        &{{ name }}_output_dims,
+        output
+    );
+    {% elif kernel_fn == 'arm_convolve_wrapper_s16' %}
+    // s16 signature: (ctx, conv_params, quant_params, input_dims, input_data, filter_dims, filter_data, bias_dims, bias_data, output_dims, output_data)
+    // Note: s16 uses cmsis_nn_bias_data struct, not raw pointer (defined at file scope above)
+    return arm_convolve_wrapper_s16(
+        &{{ name }}_ctx,
+        &{{ name }}_conv_params,
+        &{{ name }}_quant_params,
+        &{{ name }}_input_dims,
+        input,
+        &{{ name }}_filter_dims,
+        {{ name }}_weights,
+        {% if has_biases %}
+        &{{ name }}_bias_dims,
+        &{{ name }}_bias_data,
+        {% else %}
+        NULL,  // bias_dims
+        NULL,  // bias_data
+        {% endif %}
+        &{{ name }}_output_dims,
+        output
+    );
+    {% else %}
+    #error "Unsupported kernel function: {{ kernel_fn }}"
+    {% endif %}
+}
+
+/* This function is called from Unity test framework before EACH TEST.
+ * The name must be exactly like this
+ */
+void setUp(void)
+{ /* This is run before EACH TEST */
+#ifdef USING_FVP_CORSTONE_300
+    uart_init();
+    setvbuf(stdout, NULL, _IONBF, 0);
+#endif
+}
+
+/* This function is called from Unity test framework after EACH TEST.
+ * The name must be exactly like this
+ */
+void tearDown(void) {}
+
+void test_{{ prefix }}_{{ name }}(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int32_t status = {{ prefix }}_{{ name }}_run({{ name }}_input, {{ name }}_output);
+    
+    // Assert that convolution succeeded
+    TEST_ASSERT_EQUAL(expected, status);
+
+    // Verify outputs element by element (allow 1-bit tolerance)
+    const int output_size = {{ name|upper }}_OUTPUT_SIZE;
+    const {{ output_dtype }} *act = {{ name }}_output;
+    const {{ output_dtype }} *exp = {{ name }}_expected_output;
+
+    for (int i = 0; i < output_size; i++) {
+        int act_val = (int)act[i];
+        int exp_val = (int)exp[i];
+        int diff = act_val - exp_val;
+        if (diff < 0) diff = -diff;  // absolute difference
+        if (diff > 1) {  // Allow tolerance of 1 bit difference
+            char msg[128];
+            snprintf(msg, sizeof(msg), "Mismatch at index %d: expected %d, got %d (diff: %d)", i, exp_val, act_val, diff);
+            TEST_ASSERT_EQUAL_MESSAGE(exp_val, act_val, msg);
+        }
+    }
+}
+
+// Legacy function for non-Unity builds (if needed)
+int32_t {{ prefix }}_{{ name }}_test_case_run(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    int32_t status = {{ prefix }}_{{ name }}_run({{ name }}_input, {{ name }}_output);
+    if (status != expected) {
+        printf("Convolution failed with status %d\r\n", status);
+        printf("1 Failures\r\n");
+        return 1;
+    }
+
+    // Verify outputs (allow 1-bit tolerance)
+    int failures = 0;
+    const int output_size = {{ name|upper }}_OUTPUT_SIZE;
+
+    const {{ output_dtype }} *act = {{ name }}_output;
+    const {{ output_dtype }} *exp = {{ name }}_expected_output;
+
+    for (int i = 0; i < output_size; i++) {
+        int act_val = (int)act[i];
+        int exp_val = (int)exp[i];
+        int diff = act_val - exp_val;
+        if (diff < 0) diff = -diff;  // absolute difference
+        if (diff > 1) {  // Allow tolerance of 1 bit difference
+            failures++;
+            if (failures <= 20) {
+                printf("Mismatch[%d]: exp=%d got=%d (diff=%d)\r\n", i, exp_val, act_val, diff);
+            }
+        }
+    }
+
+    printf("%d Failures\r\n", failures);
+    return failures;
+}
+
+int main(void)
+{
+    // Initialize UART (setUp() handles this, but we call it here for standalone execution)
+    setUp();
+
+    // For standalone execution, use the legacy test function
+    int32_t failures = {{ prefix }}_{{ name }}_test_case_run();
+
+    // Always terminate the FVP run cleanly
+    signal_eot();
+
+    // Never rely on exit() in bare-metal (often spins)
+    while (1) { }
+}

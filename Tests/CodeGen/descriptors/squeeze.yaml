@@ -1,0 +1,27 @@
+operator: Squeeze
+name: squeeze_all_axes_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 1
+- 4
+- 1
+---
+operator: Squeeze
+name: squeeze_axis1_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 1
+- 3
+- 2
+axes:
+- 1

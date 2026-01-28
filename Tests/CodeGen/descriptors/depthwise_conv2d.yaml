@@ -1,0 +1,564 @@
+operator: DepthwiseConv2D
+name: in_ch_one_out_ch_larger_one_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 40
+- 49
+- 1
+filter_shape:
+- 10
+- 8
+- 1
+- 16
+strides:
+- 1
+- 2
+padding: SAME
+use_bias: true
+depth_multiplier: 16
+---
+operator: DepthwiseConv2D
+name: depthwise_2_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 5
+- 6
+- 3
+filter_shape:
+- 4
+- 3
+- 3
+- 3
+strides:
+- 2
+- 2
+padding: SAME
+use_bias: true
+depth_multiplier: 3
+---
+operator: DepthwiseConv2D
+name: depthwise_kernel_3x3_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 5
+- 4
+- 5
+filter_shape:
+- 3
+- 3
+- 5
+- 1
+strides:
+- 2
+- 2
+padding: SAME
+use_bias: true
+---
+operator: DepthwiseConv2D
+name: depthwise_kernel_3x3_null_bias_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 5
+- 4
+- 5
+filter_shape:
+- 3
+- 3
+- 5
+- 1
+strides:
+- 2
+- 2
+padding: SAME
+use_bias: false
+---
+operator: DepthwiseConv2D
+name: depthwise_eq_in_out_ch_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 5
+- 7
+- 250
+filter_shape:
+- 2
+- 2
+- 250
+- 1
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+---
+operator: DepthwiseConv2D
+name: depthwise_sub_block_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 5
+- 7
+- 9
+filter_shape:
+- 2
+- 2
+- 9
+- 1
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: true
+---
+operator: DepthwiseConv2D
+name: depthwise_x_stride_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 5
+- 7
+- 9
+filter_shape:
+- 2
+- 2
+- 9
+- 1
+strides:
+- 1
+- 2
+padding: VALID
+use_bias: true
+---
+operator: DepthwiseConv2D
+name: depthwise_out_activation_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 5
+- 6
+- 3
+filter_shape:
+- 4
+- 3
+- 3
+- 1
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: true
+---
+operator: DepthwiseConv2D
+name: depthwise_mult_batches_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 5
+- 3
+- 3
+filter_shape:
+- 4
+- 2
+- 3
+- 1
+strides:
+- 2
+- 2
+padding: SAME
+use_bias: true
+---
+operator: DepthwiseConv2D
+name: depthwise_null_bias_0_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 5
+- 4
+- 2
+filter_shape:
+- 2
+- 2
+- 2
+- 1
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: false
+---
+operator: DepthwiseConv2D
+name: depthwise_null_bias_1_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 5
+- 4
+- 2
+filter_shape:
+- 2
+- 2
+- 2
+- 8
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: false
+depth_multiplier: 8
+# ---
+# operator: DepthwiseConv2D
+# name: depthwise_dilation_s8
+# activation_dtype: S8
+# weight_dtype: S8
+# activation: NONE
+# hint:
+#   call_style: per_tensor
+# input_shape:
+# - 1
+# - 5
+# - 6
+# - 3
+# filter_shape:
+# - 4
+# - 3
+# - 3
+# - 3
+# strides:
+# - 1
+# - 1
+# padding: SAME
+# use_bias: true
+# depth_multiplier: 3
+# dilation:
+# - 3
+# - 2
+---
+operator: DepthwiseConv2D
+name: dw_int16xint8_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 5
+- 9
+- 4
+filter_shape:
+- 4
+- 3
+- 4
+- 2
+strides:
+- 2
+- 3
+padding: SAME
+use_bias: true
+depth_multiplier: 2
+---
+# operator: DepthwiseConv2D
+# name: dw_int16xint8_dilation_s16
+# activation_dtype: S16
+# weight_dtype: S8
+# activation: NONE
+# hint:
+#   call_style: per_tensor
+# input_shape:
+# - 1
+# - 5
+# - 9
+# - 4
+# filter_shape:
+# - 4
+# - 4
+# - 4
+# - 2
+# strides:
+# - 1
+# - 1
+# padding: SAME
+# use_bias: true
+# depth_multiplier: 2
+# dilation:
+# - 2
+# - 3
+# ---
+operator: DepthwiseConv2D
+name: dw_int16xint8_mult4_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 5
+- 4
+- 2
+filter_shape:
+- 4
+- 3
+- 2
+- 4
+strides:
+- 2
+- 3
+padding: VALID
+use_bias: true
+depth_multiplier: 4
+---
+operator: DepthwiseConv2D
+name: dw_int16xint8_fast_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 4
+- 4
+- 8
+filter_shape:
+- 2
+- 2
+- 8
+- 1
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: true
+---
+operator: DepthwiseConv2D
+name: dw_int16xint8_fast_multiple_batches_uneven_buffers_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 3
+- 5
+- 5
+- 8
+filter_shape:
+- 3
+- 3
+- 8
+- 1
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: true
+---
+operator: DepthwiseConv2D
+name: dw_int16xint8_fast_multiple_batches_uneven_buffers_null_bias_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 3
+- 4
+- 4
+- 8
+filter_shape:
+- 2
+- 3
+- 8
+- 1
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: false
+---
+operator: DepthwiseConv2D
+name: dw_int16xint8_fast_test_bias_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 4
+- 4
+- 8
+filter_shape:
+- 2
+- 2
+- 8
+- 0
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: true
+---
+operator: DepthwiseConv2D
+name: dw_int16xint8_fast_null_bias_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 4
+- 4
+- 8
+filter_shape:
+- 2
+- 2
+- 8
+- 1
+strides:
+- 1
+- 1
+padding: VALID
+use_bias: false
+---
+operator: DepthwiseConv2D
+name: dw_int16xint8_fast_stride_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 4
+- 4
+- 8
+filter_shape:
+- 2
+- 2
+- 8
+- 1
+strides:
+- 2
+- 2
+padding: SAME
+use_bias: true
+---
+operator: DepthwiseConv2D
+name: dw_int16xint8_fast_stride_null_bias_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 2
+- 4
+- 4
+- 8
+filter_shape:
+- 2
+- 2
+- 8
+- 1
+strides:
+- 2
+- 2
+padding: SAME
+use_bias: false
+---
+operator: DepthwiseConv2D
+name: dw_int16xint8_fast_spill_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 3
+- 4
+- 4
+- 5
+filter_shape:
+- 3
+- 3
+- 5
+- 1
+strides:
+- 1
+- 2
+padding: SAME
+use_bias: true
+---
+operator: DepthwiseConv2D
+name: dw_int16xint8_fast_spill_null_bias_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 3
+- 4
+- 4
+- 5
+filter_shape:
+- 3
+- 3
+- 5
+- 1
+strides:
+- 1
+- 2
+padding: SAME
+use_bias: false

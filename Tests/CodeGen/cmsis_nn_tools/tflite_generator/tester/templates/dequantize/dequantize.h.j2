@@ -1,0 +1,19 @@
+#ifndef {{ prefix|upper }}_DEQUANTIZE_H
+#define {{ prefix|upper }}_DEQUANTIZE_H
+
+#include <stdint.h>
+#include <float.h>
+#include "arm_nnfunctions.h"
+#include "arm_nn_types.h"
+
+// Input data (quantized, for testing)
+static const {{ input_dtype }} {{ name }}_input[] = {
+{{ input_data_array }}
+};
+
+// Expected output (golden - float32)
+static const {{ output_dtype }} {{ name }}_expected_output[] = {
+{{ expected_output_array }}
+};
+
+#endif

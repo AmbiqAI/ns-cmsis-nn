@@ -1,0 +1,30 @@
+operator: Reshape
+name: reshape_expand_dims_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 6
+target_shape:
+- 1
+- 2
+- 3
+---
+operator: Reshape
+name: reshape_flatten_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 2
+- 2
+- 3
+target_shape:
+- 1
+- 12

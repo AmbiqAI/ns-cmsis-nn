@@ -1,0 +1,20 @@
+operator: Fill
+name: fill_vector_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+output_shape: [2, 4]
+value: 0.0
+---
+operator: Fill
+name: fill_square_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+output_shape: [3, 3]
+value: 0.0
+
