@@ -52,13 +52,6 @@ int32_t {{ prefix }}_{{ name }}_run(
     const {{ input_dtype }}* __restrict input,
     {{ output_dtype }}* __restrict output
 ) {
-    // #region agent log
-    printf("DEBUG: {{ name }}_run entry\r\n");
-    printf("DEBUG: input_dims: n=%d h=%d w=%d c=%d\r\n", {{ name }}_input_dims.n, {{ name }}_input_dims.h, {{ name }}_input_dims.w, {{ name }}_input_dims.c);
-    printf("DEBUG: filter_dims: n=%d h=%d w=%d c=%d\r\n", {{ name }}_filter_dims.n, {{ name }}_filter_dims.h, {{ name }}_filter_dims.w, {{ name }}_filter_dims.c);
-    printf("DEBUG: output_dims: n=%d h=%d w=%d c=%d\r\n", {{ name }}_output_dims.n, {{ name }}_output_dims.h, {{ name }}_output_dims.w, {{ name }}_output_dims.c);
-    printf("DEBUG: buffer_size_max=%d, has_weight_sum=%d\r\n", {{ name|upper }}_BUFFER_SIZE_MAX, {% if kernel_fn == 'arm_depthwise_conv_wrapper_s8' and has_weight_sum %}1{% else %}0{% endif %});
-    // #endregion
     
     // Calculate required buffer size
     int32_t required_buffer_size = {{ kernel_get_buffer_size_fn }}(
@@ -68,14 +61,7 @@ int32_t {{ prefix }}_{{ name }}_run(
         &{{ name }}_output_dims
     );
 
-    // #region agent log
-    printf("DEBUG: required_buffer_size=%d\r\n", required_buffer_size);
-    // #endregion
-
     if (required_buffer_size > {{ name|upper }}_BUFFER_SIZE_MAX) {
-        // #region agent log
-        printf("DEBUG: Buffer size error: required=%d > max=%d\r\n", required_buffer_size, {{ name|upper }}_BUFFER_SIZE_MAX);
-        // #endregion
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
@@ -89,10 +75,6 @@ int32_t {{ prefix }}_{{ name }}_run(
     {{ name }}_weight_sum_ctx.buf = (uint8_t *){{ name }}_weight_sum;
     {{ name }}_weight_sum_ctx.size = {{ output_dims.c }} * sizeof(int32_t);
     {% endif %}
-
-    // #region agent log
-    printf("DEBUG: Before kernel call: bias_dims.c=%d, has_biases=%d\r\n", {{ name }}_bias_dims.c, {% if has_biases %}1{% else %}0{% endif %});
-    // #endregion
 
     // Call depthwise convolution kernel
     arm_cmsis_nn_status kernel_status = {{ kernel_fn }}(
@@ -119,11 +101,7 @@ int32_t {{ prefix }}_{{ name }}_run(
         &{{ name }}_output_dims,
         output
     );
-    
-    // #region agent log
-    printf("DEBUG: kernel_status=%d\r\n", kernel_status);
-    // #endregion
-    
+
     return kernel_status;
 }
 

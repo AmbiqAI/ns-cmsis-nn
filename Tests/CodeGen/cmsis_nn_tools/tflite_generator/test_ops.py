@@ -12,9 +12,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 
 import sys
-print(f"DEBUG: sys.path: {sys.path}")
 import tester
-print(f"DEBUG: tester package path: {tester.__path__}")
 from tester.io.descriptors import load_all_descriptors
 from tester.ops.fully_connected import OpFullyConnected
 from tester.ops.conv2d import OpConv2D
@@ -195,9 +193,6 @@ def generate_test(desc: Dict[str, Any], out_dir: str) -> None:
         
     op_class = OP_MAP[operator]
     import inspect
-    print(f"DEBUG: op_class: {op_class}")
-    print(f"DEBUG: op_class source file: {inspect.getsourcefile(op_class)}")
-    print(f"DEBUG: op_class.generate_c_files: {op_class.generate_c_files}")
     
     # Initialize operation with deterministic seed
     seed = hash(name) % (2**32)  # Deterministic seed from name
@@ -213,8 +208,6 @@ def generate_test(desc: Dict[str, Any], out_dir: str) -> None:
     print(f"Generated TFLite model: {name}")
     
     # Generate C/H files from templates
-    print(f"DEBUG: Attempting to generate C files for {name}")
-    print(f"DEBUG: op.generate_c_files: {op.generate_c_files}")
     try:
         op.generate_c_files(test_dir)
     except NotImplementedError:
