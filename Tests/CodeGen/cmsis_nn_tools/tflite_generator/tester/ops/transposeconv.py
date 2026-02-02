@@ -122,7 +122,7 @@ class OpTransposeConv(OperationBase):
         """
         from pathlib import Path
         from ..utils.template_context import TemplateContextBuilder
-        from ..utils.tflite_utils import run_inference
+        # from ..utils.tflite_utils import run_inference
         
         name = self.desc['name']
         tflite_path = output_dir / f"{name}.tflite"
@@ -189,10 +189,17 @@ class OpTransposeConv(OperationBase):
         
         # Find weight quantization (from weight tensor in inputs)
         weight_quant = None
+        bias_tensor_data = None
+        use_bias = self.desc.get('use_bias', True)
         for input_tensor_info in op_tensors['inputs']:
-            if input_tensor_info['data'] is not None and len(input_tensor_info['shape']) > 1:
-                weight_quant = input_tensor_info['quantization']
-                break
+            if input_tensor_info['data'] is not None:
+                tensor_shape = input_tensor_info.get('shape', [])
+                if len(tensor_shape) > 1:
+                    # weight tensor
+                    weight_quant = input_tensor_info['quantization']
+                elif len(tensor_shape) == 1 and use_bias:
+                    # bias tensor
+                    bias_tensor_data = input_tensor_info['data']
         
         quant_params = {
             'input': input_quant or {'scale': 1.0, 'zero_point': 0, 'per_channel': False},
@@ -202,20 +209,18 @@ class OpTransposeConv(OperationBase):
         
         # Extract weights and biases from LiteRT
         weights = op_tensors['weights']
-        biases = op_tensors['biases']
+        if use_bias and bias_tensor_data is not None:
+            biases = bias_tensor_data
+        else:
+            biases = op_tensors['biases']
         
         # Load interpreter for inference (still needed)
         interpreter = self.load_tflite_interpreter(str(tflite_path))
         
-        # Weight tensor format in TFLite for TransposeConv:
-        # TFLite stores weights as [OutCh, KH, KW, InCh] (transposed from Keras format)
-        # Keras Conv2DTranspose uses [KH, KW, InCh, OutCh]
-        # CMSIS expects [C_OUT, HK, WK, C_IN] format
         if weights is not None:
             filter_shape = tuple(weights.shape)
             if len(filter_shape) == 4:
-                # TFLite format: [OutCh, KH, KW, InCh] -> CMSIS: [C_OUT, HK, WK, C_IN]
-                # So: n=OutCh (index 0), h=KH (index 1), w=KW (index 2), c=InCh (index 3)
+
                 filter_dims = {
                     'n': int(filter_shape[0]),  # OutCh (first dimension in TFLite)
                     'h': int(filter_shape[1]),  # KH (second dimension)
@@ -252,7 +257,7 @@ class OpTransposeConv(OperationBase):
         )
         
         # Build quantization parameters
-        # CRITICAL: The effective scale for multiplier/shift is NOT output_scale directly!
+        # The effective scale for multiplier/shift is NOT output_scale directly!
         # It should be: effective_scale = (input_scale * weight_scale) / output_scale
         input_quant = quant_params['input']
         output_quant = quant_params['output']
@@ -302,14 +307,11 @@ class OpTransposeConv(OperationBase):
         
         quant_params_dict['per_channel'] = per_channel
         
-        # Compute weight_sum buffer size for S8 transpose convolutions
-        # Use CMSIS-NN's arm_convolve_s8_get_weights_sum_size equivalent (matches test)
-        # This is simpler and matches the CMSIS-NN test pattern
+
         has_weight_sum = False
         weight_sum_size = 0
         if kernel_info["input_c_type"] == "int8_t" and weights is not None:
-            # arm_convolve_s8_get_weights_sum_size returns: output_dims->c * sizeof(int32_t)
-            # This will be calculated later after output_dims is available
+
             has_weight_sum = True
         
         # Format weights and biases as C arrays
@@ -364,11 +366,7 @@ class OpTransposeConv(OperationBase):
             output_dtype=activation_dtype
         )
         
-        # Calculate reverse_conv buffer size using CMSIS-NN formula (matches test)
-        # arm_transpose_conv_s8_get_reverse_conv_buffer_size returns:
-        # - input_dims->c * filter_dims->w * filter_dims->h * filter_dims->n if reverse_conv is possible and efficient
-        # - 0 otherwise
-        # For efficiency: stride.w <= 2 && stride.h <= 2 && input_dims->c > 16
+
         strides = self.desc.get('strides', [1, 1])
         stride_w = strides[1] if len(strides) > 1 else strides[0]
         stride_h = strides[0] if len(strides) > 0 else 1
@@ -383,16 +381,14 @@ class OpTransposeConv(OperationBase):
         if reverse_conv_possible and reverse_conv_efficient:
             reverse_conv_ctx_size = input_c * filter_w * filter_h * filter_n
         else:
-            # If reverse_conv is not used, we still need a buffer for output_ctx
-            # Fallback: use output dimensions (conservative estimate)
+            # If reverse_conv is not     used, we still need a buffer for output_ctx
+            # Fallback: use output dimensions (conservative estimate
             reverse_conv_ctx_size = output_dims['w'] * output_dims['h'] * output_dims['c'] * 4
         
-        # Calculate weight_sum buffer size using CMSIS-NN function (matches test)
-        # Use arm_convolve_s8_get_weights_sum_size equivalent: output_dims.c * sizeof(int32_t)
-        # This is simpler and matches CMSIS-NN test pattern
+
         if has_weight_sum:
-            # arm_convolve_s8_get_weights_sum_size returns: output_dims->c * sizeof(int32_t)
-            weight_sum_size = output_dims['c'] * 4  # sizeof(int32_t) = 4
+
+            weight_sum_size = output_dims['c'] * 4  
         
         # Build template context
         context = {

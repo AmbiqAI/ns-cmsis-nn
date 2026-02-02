@@ -147,7 +147,6 @@ class DescriptorResult:
         result = {
             "descriptor_path": self._make_path_relative(self.descriptor_path),
             "descriptor_content": descriptor_content,
-            "status": self.status.value,
         }
         
         # Only include descriptor_name if explicitly requested (it\'s redundant with the key)
