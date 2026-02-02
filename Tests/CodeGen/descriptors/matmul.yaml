@@ -58,14 +58,14 @@ adj_y: false
 # adj_x: true
 # adj_y: false
 ---
-# operator: MatMul
-# name: batch_matmul_transpose_rhs_s8
-# activation_dtype: S8
-# weight_dtype: S8
-# activation: NONE
-# hint:
-#   call_style: per_tensor
-# input_1_shape: [1, 5, 3]
-# input_2_shape: [1, 2, 3]
-# adj_x: false
-# adj_y: true
+operator: MatMul
+name: batch_matmul_transpose_rhs_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_1_shape: [1, 5, 3]
+input_2_shape: [1, 2, 3]
+adj_x: false
+adj_y: true
