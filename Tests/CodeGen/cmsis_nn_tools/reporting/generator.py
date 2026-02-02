@@ -16,7 +16,7 @@ class ReportGenerator:
     
     def __init__(self, output_dir: Path = Path("reports")):
         self.output_dir = output_dir
-        self.output_dir.mkdir(exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
     
     def _escape_html(self, text: str) -> str:
         """Escape HTML special characters."""

@@ -466,9 +466,12 @@ def run_tests_with_reporting(cpus: List[str],
     
     # Get report directory from args
     report_dir = getattr(args, 'report_dir', Path("reports"))
+    if report_dir == Path("reports"):
+        primary_build_dir = source_dir / f"build-{cpus[0]}-gcc"
+        report_dir = primary_build_dir / "reports"
     
     # Clean up previous build directories (only if we're going to build)
-    # If --no-build is set, we want to keep the existing build directory
+    # If --no-build is set, keep the existing build directory
     if not args.no_build:
         for cpu in cpus:
             build_dir = source_dir / f"build-{cpu}-gcc"
@@ -498,7 +501,7 @@ def run_tests_with_reporting(cpus: List[str],
         build_dir = source_dir / f"build-{cpu}-gcc"
         
         if not args.no_build:
-            # Build first - use the env passed in (which has PATH set correctly)
+            # Build first - use the env passed in
             cmake_configure(
                 source_dir=source_dir,
                 build_dir=build_dir,

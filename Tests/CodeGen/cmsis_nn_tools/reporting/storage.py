@@ -15,7 +15,7 @@ class ReportStorage:
     
     def __init__(self, reports_dir: Path = Path("reports")):
         self.reports_dir = Path(reports_dir)
-        self.reports_dir.mkdir(exist_ok=True)
+        self.reports_dir.mkdir(parents=True, exist_ok=True)
     
     def save_report(self, report: TestReport) -> Path:
         """
