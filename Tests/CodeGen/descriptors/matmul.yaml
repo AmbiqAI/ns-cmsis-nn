@@ -11,18 +11,6 @@ adj_x: false
 adj_y: false
 ---
 operator: MatMul
-name: batch_matmul_basic_s16
-activation_dtype: S16
-weight_dtype: S8
-activation: NONE
-hint:
-  call_style: per_tensor
-input_1_shape: [1, 4, 3]
-input_2_shape: [1, 3, 2]
-adj_x: false
-adj_y: false
----
-operator: MatMul
 name: batch_matmul_batched_s8
 activation_dtype: S8
 weight_dtype: S8
@@ -69,3 +57,15 @@ adj_y: false
 # input_2_shape: [1, 2, 3]
 # adj_x: false
 # adj_y: true
+# ---
+# operator: MatMul
+# name: batch_matmul_basic_s16
+# activation_dtype: S16
+# weight_dtype: S8
+# activation: NONE
+# hint:
+#   call_style: per_tensor
+# input_1_shape: [1, 4, 3]
+# input_2_shape: [1, 3, 2]
+# adj_x: false
+# adj_y: false
