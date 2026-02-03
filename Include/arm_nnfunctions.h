@@ -2350,7 +2350,7 @@ arm_cmsis_nn_status arm_elementwise_add_s8(const int8_t *input_1_vect,
 
 /**
  * @brief s8 elementwise absolute value
- * @param[in]       input_vect          pointer to input vector
+ * @param[in]       input               pointer to input vector
  * @param[in]       input_offset        input offset
  * @param[out]      output              pointer to output vector
  * @param[in]       out_offset          output offset
@@ -2362,7 +2362,7 @@ arm_cmsis_nn_status arm_elementwise_add_s8(const int8_t *input_1_vect,
  * @param[in]       block_size          number of samples
  * @return          The function returns    ARM_CMSIS_NN_SUCCESS
  */
-arm_cmsis_nn_status arm_abs_s8(const int8_t *input_vect,
+arm_cmsis_nn_status arm_abs_s8(const int8_t *input,
                                const int32_t input_offset,
                                int8_t *output,
                                const int32_t out_offset,
@@ -2377,7 +2377,7 @@ arm_cmsis_nn_status arm_abs_s8(const int8_t *input_vect,
 
 /**
  * @brief s16 elementwise absolute value
- * @param[in]       input_vect          pointer to input vector
+ * @param[in]       input               pointer to input vector
  * @param[in]       input_offset        input offset
  * @param[out]      output              pointer to output vector
  * @param[in]       out_offset          output offset
@@ -2389,7 +2389,7 @@ arm_cmsis_nn_status arm_abs_s8(const int8_t *input_vect,
  * @param[in]       block_size          number of samples
  * @return          The function returns    ARM_CMSIS_NN_SUCCESS
  */
-arm_cmsis_nn_status arm_abs_s16(const int16_t *input_vect,
+arm_cmsis_nn_status arm_abs_s16(const int16_t *input,
                                const int32_t input_offset,
                                int16_t *output,
                                const int32_t out_offset,
