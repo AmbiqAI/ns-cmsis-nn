@@ -308,12 +308,16 @@ class OpPReLU(OperationBase):
         input_q = np.round(input_data / float(input_scale) + float(input_zp)).astype(np.int32)
         input_q = np.clip(input_q, qmin, qmax).astype(np_in_dtype)
         
-        # Load interpreter for inference
-        interpreter = self.load_tflite_interpreter(str(tflite_path))
+        # Load LiteRT interpreter for inference
+        interpreter = self.load_litert_interpreter(str(tflite_path))
         input_details = interpreter.get_input_details()
         output_details = interpreter.get_output_details()
         
-        # Run inference
+        # Run inference using LiteRT interpreter
+        interpreter = self.load_litert_interpreter(str(tflite_path))
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+        
         interpreter.set_tensor(input_details[0]['index'], input_q)
         interpreter.invoke()
         output_data = interpreter.get_tensor(output_details[0]['index'])

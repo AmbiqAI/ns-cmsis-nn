@@ -4,15 +4,16 @@ Extract quantization parameters, weights, biases, and tensor shapes directly fro
 """
 
 import numpy as np
-from typing import Dict, Tuple, Optional, Any, List
-from pathlib import Path
+from typing import Dict, Tuple, Optional, Any
 
 try:
     from ai_edge_litert import schema_py_generated as litert
+    from ai_edge_litert.interpreter import Interpreter as LitertInterpreter
     LITERT_AVAILABLE = True
 except ImportError:
     LITERT_AVAILABLE = False
     litert = None
+    LitertInterpreter = None
 
 
 def load_litert_model(tflite_path: str, subgraph_index: int = 0) -> Tuple[Any, Any]:
@@ -184,8 +185,10 @@ def extract_weights_biases_from_litert(model: Any, subgraph: Any, operator_index
                 weights_tensor = subgraph.tensors[weights_tensor_idx]
                 tensor_data = get_tensor_data_from_litert(weights_tensor, model)
                 tensor_shape = get_tensor_shape_from_litert(weights_tensor)
-                # Only use if it's multi-dimensional (weights, not bias)
-                if tensor_data is not None and tensor_shape is not None and len(tensor_shape) > 1:
+                # Only use if it's multi-dimensional (weights, not bias) and not a small parameter tensor
+                # Skip tensors with shape [2], [2,2] or similar small shapes that are likely parameters
+                if (tensor_data is not None and tensor_shape is not None and len(tensor_shape) > 1 and
+                    np.prod(tensor_shape) > 4):  # Skip small parameter tensors
                     weights = tensor_data
         
         if len(op.inputs) > 2:
@@ -209,9 +212,14 @@ def extract_weights_biases_from_litert(model: Any, subgraph: Any, operator_index
                 
                 if tensor_data is not None and tensor_shape is not None:
                     # Weight tensor: multi-dimensional (2D, 3D, 4D)
-                    if len(tensor_shape) > 1:
-                        weights = tensor_data
-                        break
+                    # Prefer 3D or 4D tensors, and skip small parameter tensors
+                    if len(tensor_shape) > 1 and np.prod(tensor_shape) > 4:
+                        # Prefer 3D or 4D tensors for weights
+                        if len(tensor_shape) >= 3:
+                            weights = tensor_data
+                            break
+                        elif weights is None:  # Use 2D as fallback if no 3D/4D found
+                            weights = tensor_data
                     # Bias tensor: 1D (if we don't have one yet)
                     elif biases is None and len(tensor_shape) == 1:
                         biases = tensor_data
@@ -239,8 +247,13 @@ def extract_weights_biases_from_litert(model: Any, subgraph: Any, operator_index
                             continue
                         
                         # Weight tensor: multi-dimensional (2D, 3D, 4D)
-                        if weights is None and len(tensor_shape) > 1:
-                            weights = tensor_data
+                        # Skip small parameter tensors (like dilation, strides)
+                        if weights is None and len(tensor_shape) > 1 and np.prod(tensor_shape) > 4:
+                            # Prefer 3D or 4D tensors for weights
+                            if len(tensor_shape) >= 3:
+                                weights = tensor_data
+                            elif weights is None:  # Use 2D as fallback if no 3D/4D found
+                                weights = tensor_data
                         # Bias tensor: 1D
                         elif biases is None and len(tensor_shape) == 1:
                             biases = tensor_data
@@ -303,3 +316,218 @@ def get_operator_tensors_from_litert(model: Any, subgraph: Any, operator_index: 
         'weights': weights_biases.get('weights'),
         'biases': weights_biases.get('biases'),
     }
+
+
+def get_input_output_shapes_from_litert(model: Any, subgraph: Any, operator_index: int = 0) -> Dict[str, Tuple[int, ...]]:
+    """
+    Extract input and output shapes from LiteRT model for a specific operator.
+    
+    Args:
+        model: LiteRT ModelT object
+        subgraph: LiteRT SubGraphT object
+        operator_index: Index of the operator (default: 0)
+        
+    Returns:
+        Dictionary with 'input_shapes' (list) and 'output_shapes' (list) keys
+    """
+    op_tensors = get_operator_tensors_from_litert(model, subgraph, operator_index)
+    
+    input_shapes = [tensor['shape'] for tensor in op_tensors['inputs'] if tensor['shape'] is not None]
+    output_shapes = [tensor['shape'] for tensor in op_tensors['outputs'] if tensor['shape'] is not None]
+    
+    return {
+        'input_shapes': input_shapes,
+        'output_shapes': output_shapes
+    }
+
+
+def get_input_output_quantization_from_litert(model: Any, subgraph: Any, operator_index: int = 0) -> Dict[str, Any]:
+    """
+    Extract input and output quantization parameters from LiteRT model for a specific operator.
+    
+    Args:
+        model: LiteRT ModelT object
+        subgraph: LiteRT SubGraphT object
+        operator_index: Index of the operator (default: 0)
+        
+    Returns:
+        Dictionary with 'input_quantizations' (list) and 'output_quantizations' (list) keys
+    """
+    op_tensors = get_operator_tensors_from_litert(model, subgraph, operator_index)
+    
+    input_quantizations = [tensor['quantization'] for tensor in op_tensors['inputs']]
+    output_quantizations = [tensor['quantization'] for tensor in op_tensors['outputs']]
+    
+    return {
+        'input_quantizations': input_quantizations,
+        'output_quantizations': output_quantizations
+    }
+
+
+def load_litert_interpreter(tflite_path: str) -> Any:
+    """
+    Load LiteRT interpreter from .tflite file.
+    
+    Args:
+        tflite_path: Path to .tflite file
+        
+    Returns:
+        LiteRT Interpreter instance
+    """
+    if not LITERT_AVAILABLE or LitertInterpreter is None:
+        raise ImportError("ai_edge_litert is not available. Install it with: pip install ai-edge-litert")
+    
+    interpreter = LitertInterpreter(model_path=tflite_path)
+    interpreter.allocate_tensors()
+    return interpreter
+
+
+def run_inference_with_litert(interpreter: Any, input_data: np.ndarray, model: Any = None, subgraph: Any = None, operator_index: int = 0) -> np.ndarray:
+    """
+    Run inference using LiteRT interpreter with optional shape validation.
+    
+    Args:
+        interpreter: LiteRT interpreter instance
+        input_data: Input data as numpy array
+        model: Optional LiteRT ModelT object for shape validation
+        subgraph: Optional LiteRT SubGraphT object for shape validation
+        operator_index: Index of the operator (default: 0)
+        
+    Returns:
+        Output data as numpy array
+    """
+    # If LiteRT model is provided, use it for shape validation
+    if model is not None and subgraph is not None:
+        try:
+            shapes = get_input_output_shapes_from_litert(model, subgraph, operator_index)
+            if shapes['input_shapes']:
+                expected_shape = shapes['input_shapes'][0]
+                
+                # Validate and reshape input if needed
+                input_shape = input_data.shape
+                if input_shape != tuple(expected_shape):
+                    # Handle batch size mismatch
+                    if len(input_shape) == len(expected_shape) and input_shape[0] != expected_shape[0]:
+                        batch_size = input_shape[0]
+                        expected_batch = expected_shape[0]
+                        
+                        if expected_batch == 1 and batch_size > 1:
+                            # Process each batch item separately
+                            outputs = []
+                            for i in range(batch_size):
+                                batch_input = input_data[i:i+1]
+                                interpreter.set_tensor(interpreter.get_input_details()[0]['index'], batch_input)
+                                interpreter.invoke()
+                                output_data = interpreter.get_tensor(interpreter.get_output_details()[0]['index'])
+                                outputs.append(output_data)
+                            return np.concatenate(outputs, axis=0)
+                        else:
+                            input_data = input_data.reshape(expected_shape)
+                    else:
+                        input_data = input_data.reshape(expected_shape)
+        except Exception:
+            # Fallback to interpreter-based shape extraction
+            pass
+    
+    # Get input tensor index and expected shape
+    input_details = interpreter.get_input_details()
+    input_index = input_details[0]['index']
+    expected_shape = input_details[0]['shape']
+    
+    # Handle batch size mismatch
+    input_shape = input_data.shape
+    if input_shape != tuple(expected_shape):
+        # If batch dimension differs, process batch by batch
+        if len(input_shape) == len(expected_shape) and input_shape[0] != expected_shape[0]:
+            batch_size = input_shape[0]
+            expected_batch = expected_shape[0]
+            
+            if expected_batch == 1 and batch_size > 1:
+                # Process each batch item separately and concatenate
+                outputs = []
+                for i in range(batch_size):
+                    batch_input = input_data[i:i+1]  # Keep batch dimension as 1
+                    interpreter.set_tensor(input_index, batch_input)
+                    interpreter.invoke()
+                    output_details = interpreter.get_output_details()
+                    output_index = output_details[0]['index']
+                    batch_output = interpreter.get_tensor(output_index)
+                    outputs.append(batch_output)
+                return np.concatenate(outputs, axis=0)
+            else:
+                # Reshape to match expected shape
+                input_data = input_data.reshape(expected_shape)
+        else:
+            # Reshape to match expected shape
+            input_data = input_data.reshape(expected_shape)
+    
+    # Set input tensor
+    interpreter.set_tensor(input_index, input_data)
+    
+    # Run inference
+    interpreter.invoke()
+    
+    # Get output tensor
+    output_details = interpreter.get_output_details()
+    output_index = output_details[0]['index']
+    output_data = interpreter.get_tensor(output_index)
+    
+    return np.array(output_data)
+
+
+def run_inference_litert(tflite_path: str, input_data: np.ndarray, subgraph_index: int = 0) -> np.ndarray:
+    """
+    Run inference using LiteRT interpreter.
+    
+    Args:
+        tflite_path: Path to .tflite file
+        input_data: Input data as numpy array
+        subgraph_index: Index of subgraph to use (default: 0)
+        
+    Returns:
+        Output data as numpy array
+    """
+    if not LITERT_AVAILABLE:
+        raise ImportError("ai_edge_litert is not available. Install it with: pip install ai-edge-litert")
+    
+    # Load LiteRT interpreter
+    interpreter = load_litert_interpreter(tflite_path)
+    
+    # Use LiteRT schema for shape validation if available
+    model = None
+    subgraph = None
+    try:
+        model, subgraph = load_litert_model(tflite_path, subgraph_index)
+        shapes = get_input_output_shapes_from_litert(model, subgraph, 0)
+        
+        if shapes['input_shapes']:
+            expected_shape = shapes['input_shapes'][0]
+            input_shape = input_data.shape
+            
+            # Handle shape mismatches
+            if input_shape != tuple(expected_shape):
+                # Handle batch size mismatch
+                if len(input_shape) == len(expected_shape) and input_shape[0] != expected_shape[0]:
+                    batch_size = input_shape[0]
+                    expected_batch = expected_shape[0]
+                    
+                    if expected_batch == 1 and batch_size > 1:
+                        # Process each batch item separately
+                        outputs = []
+                        for i in range(batch_size):
+                            batch_input = input_data[i:i+1]
+                            interpreter.set_tensor(interpreter.get_input_details()[0]['index'], batch_input)
+                            interpreter.invoke()
+                            output_data = interpreter.get_tensor(interpreter.get_output_details()[0]['index'])
+                            outputs.append(output_data)
+                        return np.concatenate(outputs, axis=0)
+                    else:
+                        input_data = input_data.reshape(expected_shape)
+                else:
+                    input_data = input_data.reshape(expected_shape)
+    except Exception:
+        # Fallback to interpreter-based shape extraction if schema loading fails
+        pass
+    
+    # Run inference using LiteRT interpreter - pass model/subgraph for proper shape validation
+    return run_inference_with_litert(interpreter, input_data, model=model, subgraph=subgraph, operator_index=0)

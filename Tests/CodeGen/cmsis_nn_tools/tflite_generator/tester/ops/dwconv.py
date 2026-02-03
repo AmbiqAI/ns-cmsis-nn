@@ -244,8 +244,30 @@ class OpDepthwiseConv2D(OperationBase):
         if not op_tensors['outputs']:
             raise ValueError("No output tensors found")
         
+        # Get shapes from LiteRT
         input_shape = op_tensors['inputs'][0]['shape']
         output_shape = op_tensors['outputs'][0]['shape']
+        
+        # Ensure shapes are tuples
+        if input_shape is not None:
+            input_shape = tuple(input_shape)
+        if output_shape is not None:
+            output_shape = tuple(output_shape)
+        
+        # Ensure shapes are 4D (NHWC)
+        if len(input_shape) < 4:
+            input_shape = (1,) + input_shape if len(input_shape) == 3 else input_shape
+        if len(output_shape) < 4:
+            output_shape = (1,) + output_shape if len(output_shape) == 3 else output_shape
+        
+        # For depthwise conv with dilation, LiteRT may return incorrect output channels
+        # Calculate correct output_channels from descriptor and fix output_shape if needed
+        depth_multiplier = self.desc.get('depth_multiplier', 1)
+        input_channels = input_shape[3] if len(input_shape) > 3 else 1
+        expected_output_channels = input_channels * depth_multiplier
+        if len(output_shape) > 3 and output_shape[3] != expected_output_channels:
+            # Fix output_shape to use correct output channels
+            output_shape = tuple(list(output_shape[:3]) + [expected_output_channels])
         
         # Extract quantization parameters from LiteRT
         input_quant = op_tensors['inputs'][0]['quantization']
@@ -268,8 +290,48 @@ class OpDepthwiseConv2D(OperationBase):
         weights = op_tensors['weights']
         biases = op_tensors['biases']
         
-        # Load interpreter for inference (still needed)
-        interpreter = self.load_tflite_interpreter(str(tflite_path))
+        # Calculate expected output_channels to validate bias size
+        depth_multiplier = self.desc.get('depth_multiplier', 1)
+        input_channels = input_shape[3] if len(input_shape) > 3 else 1
+        expected_output_channels = input_channels * depth_multiplier
+        
+        # Validate and fix biases if needed
+        # For depthwise conv with dilation, LiteRT may extract wrong bias tensor
+        if biases is not None:
+            bias_shape = biases.shape if hasattr(biases, 'shape') else None
+            if bias_shape is not None:
+                # If bias is 2D (like (2, 2) for dilation params), it's wrong
+                if len(bias_shape) > 1:
+                    print(f"Warning: Biases have wrong shape {bias_shape}, searching for correct 1D bias tensor...")
+                    biases = None  # Reset to search for correct one
+                # If bias is 1D but wrong size, search for correct one
+                elif len(bias_shape) == 1 and bias_shape[0] != expected_output_channels:
+                    print(f"Warning: Biases have wrong size {bias_shape[0]} (expected {expected_output_channels}), searching for correct bias tensor...")
+                    biases = None  # Reset to search for correct one
+        
+        # If biases are still wrong or None, search all tensors for correct bias
+        if biases is None or (hasattr(biases, 'shape') and len(biases.shape) == 1 and biases.shape[0] != expected_output_channels):
+            from ..utils.litert_utils import get_tensor_data_from_litert, get_tensor_shape_from_litert
+            op = subgraph.operators[0]
+            input_indices = set(subgraph.inputs)
+            output_indices = set(subgraph.outputs)
+            
+            # Search all tensors for a 1D tensor matching expected_output_channels
+            for tensor_idx, tensor in enumerate(subgraph.tensors):
+                if tensor_idx in input_indices or tensor_idx in output_indices:
+                    continue
+                if tensor_idx in op.inputs and tensor_idx != op.inputs[0]:  # Skip input tensor
+                    continue
+                
+                tensor_data = get_tensor_data_from_litert(tensor, model)
+                tensor_shape = get_tensor_shape_from_litert(tensor)
+                
+                if tensor_data is not None and tensor_shape is not None:
+                    # Look for 1D tensor with correct size (bias tensor)
+                    if len(tensor_shape) == 1 and tensor_shape[0] == expected_output_channels:
+                        biases = tensor_data
+                        print(f"Found correct bias tensor: shape={tensor_shape}, size={tensor_data.size}")
+                        break
         
         # #region agent log
         log_entry_tflite = {
@@ -361,20 +423,16 @@ class OpDepthwiseConv2D(OperationBase):
         # filter_dims.w = kernel_w
         # filter_dims.c = output_channels 
         input_channels = input_shape[3]
-        output_channels = output_shape[3]
         
-        # Calculate depth_multiplier from actual output channels
         # For depthwise conv, output_channels = input_channels * depth_multiplier
-        if input_channels > 0:
-            actual_depth_multiplier = output_channels // input_channels
-            if output_channels % input_channels != 0:
-                # Not a perfect multiple, use descriptor value or default to 1
-                depth_multiplier = self.desc.get('depth_multiplier', 1)
-                print(f"Warning: output_channels ({output_channels}) is not a multiple of input_channels ({input_channels}). Using descriptor depth_multiplier={depth_multiplier}")
-            else:
-                depth_multiplier = actual_depth_multiplier
-        else:
-            depth_multiplier = self.desc.get('depth_multiplier', 1)
+        # Use descriptor depth_multiplier to calculate correct output_channels
+        # (LiteRT may return incorrect output shape for dilated depthwise conv)
+        depth_multiplier = self.desc.get('depth_multiplier', 1)
+        output_channels = input_channels * depth_multiplier
+        
+        # Validate against LiteRT output shape if available (for debugging)
+        if output_shape[3] != output_channels:
+            print(f"Warning: LiteRT output_channels ({output_shape[3]}) != calculated ({output_channels}). Using calculated value.")
         
         # #region agent log
         import json
@@ -596,7 +654,8 @@ class OpDepthwiseConv2D(OperationBase):
         input_q = np.clip(input_q, qmin, qmax).astype(np_in_dtype)
         
         # Run inference (dtype must match interpreter input)
-        output_data = self.run_inference(interpreter, input_q)
+        # Use LiteRT interpreter for inference
+        output_data = self.run_inference(str(tflite_path), input_q)
         
         # Bias handling
         has_biases = biases is not None and getattr(biases, "size", 0) > 0

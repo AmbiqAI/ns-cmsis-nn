@@ -111,33 +111,30 @@ class OpAdd(OperationBase):
         # Select CMSIS kernel + types
         kernel_info = self._select_cmsis_add_kernel()
         
-        # Load interpreter
-        interpreter = self.load_tflite_interpreter(str(tflite_path))
+        # Load LiteRT model for shape and quantization extraction
+        from ..utils.litert_utils import get_operator_tensors_from_litert
+        model, subgraph = self.load_litert_model(str(tflite_path))
+        op_tensors = get_operator_tensors_from_litert(model, subgraph, 0)
         
-        # Extract quantization parameters for both inputs and output
-        quant_params = self.extract_quantization_params(str(tflite_path))
+        # Extract shapes from LiteRT (multi-input operator)
+        input1_shape = op_tensors['inputs'][0]['shape']
+        input2_shape = op_tensors['inputs'][1]['shape'] if len(op_tensors['inputs']) > 1 else input1_shape
+        output_shape = op_tensors['outputs'][0]['shape']
         
-        # Get input and output details
-        input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
+        # Ensure shapes are tuples
+        if input1_shape is not None:
+            input1_shape = tuple(input1_shape)
+        if input2_shape is not None:
+            input2_shape = tuple(input2_shape)
+        if output_shape is not None:
+            output_shape = tuple(output_shape)
         
-        input1_shape = tuple(input_details[0]['shape'])
-        input2_shape = tuple(input_details[1]['shape'])
-        output_shape = tuple(output_details[0]['shape'])
+        # Extract quantization for each input and output from LiteRT
+        input1_quant = op_tensors['inputs'][0]['quantization']
+        input2_quant = op_tensors['inputs'][1]['quantization'] if len(op_tensors['inputs']) > 1 else input1_quant
+        output_quant = op_tensors['outputs'][0]['quantization']
         
-        # Extract quantization for each input and output
-        input1_quant = quant_params.get('input', {})
-        input2_quant = quant_params.get('input_1', {})  # TFLite may name it differently
-        if not input2_quant:
-            # Try alternative names
-            input2_quant = quant_params.get('input_2', {})
-        if not input2_quant:
-            # If not found, assume same as input1 (common case)
-            input2_quant = input1_quant.copy()
-        
-        output_quant = quant_params.get('output', {})
-        
-        # Get scales and zero points
+        # Get scales and zero points from LiteRT quantization
         input1_scale = input1_quant.get('scale', 1.0)
         input1_zp = input1_quant.get('zero_point', 0)
         input2_scale = input2_quant.get('scale', 1.0)
@@ -145,7 +142,7 @@ class OpAdd(OperationBase):
         output_scale = output_quant.get('scale', 1.0)
         output_zp = output_quant.get('zero_point', 0)
         
-        # Convert to float if needed
+        # Handle per-channel quantization (convert to scalar)
         if isinstance(input1_scale, (list, np.ndarray)):
             input1_scale = float(input1_scale[0])
         if isinstance(input1_zp, (list, np.ndarray)):
@@ -158,6 +155,13 @@ class OpAdd(OperationBase):
             output_scale = float(output_scale[0])
         if isinstance(output_zp, (list, np.ndarray)):
             output_zp = int(output_zp[0])
+        
+        input1_scale = float(input1_scale)
+        input1_zp = int(input1_zp)
+        input2_scale = float(input2_scale)
+        input2_zp = int(input2_zp)
+        output_scale = float(output_scale)
+        output_zp = int(output_zp)
         
         builder = TemplateContextBuilder()
         
@@ -220,7 +224,11 @@ class OpAdd(OperationBase):
         input2_q = np.round(input2_data / float(input2_scale) + float(input2_zp)).astype(np.int32)
         input2_q = np.clip(input2_q, qmin, qmax).astype(np_in_dtype)
         
-        # Run inference
+        # Run inference using LiteRT interpreter
+        interpreter = self.load_litert_interpreter(str(tflite_path))
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+        
         interpreter.set_tensor(input_details[0]['index'], input1_q)
         interpreter.set_tensor(input_details[1]['index'], input2_q)
         interpreter.invoke()

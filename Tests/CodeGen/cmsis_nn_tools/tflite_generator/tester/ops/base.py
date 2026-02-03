@@ -4,11 +4,11 @@ All operations inherit from this and implement build_keras_model().
 """
 
 import numpy as np
-import tensorflow as tf
 from typing import Dict, Any, Optional, Tuple
 from abc import ABC, abstractmethod
 from pathlib import Path
 import jinja2
+# Note: tensorflow import is only needed in subclasses for convert_to_tflite()
 
 
 class OperationBase(ABC):
@@ -31,11 +31,11 @@ class OperationBase(ABC):
         self.desc = desc
         self.seed = seed
         self.rng = np.random.default_rng(seed)
-        self._tflite_interpreter = None
+        self._litert_interpreter = None
         self._tflite_path = None
         
     @abstractmethod
-    def build_keras_model(self) -> tf.keras.Model:
+    def build_keras_model(self):
         """
         Build the Keras model for this operation.
         
@@ -45,7 +45,7 @@ class OperationBase(ABC):
         pass
     
     @abstractmethod
-    def convert_to_tflite(self, model: tf.keras.Model, out_path: str, rep_seed: int) -> None:
+    def convert_to_tflite(self, model, out_path: str, rep_seed: int) -> None:
         """
         Convert Keras model to TFLite with operation-specific quantization.
         
@@ -61,24 +61,24 @@ class OperationBase(ABC):
         """
         pass
     
-    def load_tflite_interpreter(self, tflite_path: str) -> tf.lite.Interpreter:
+    def load_litert_interpreter(self, tflite_path: str):
         """
-        Load TFLite model and create interpreter.
+        Load LiteRT interpreter from .tflite file.
         
         Args:
             tflite_path: Path to .tflite file
             
         Returns:
-            TFLite interpreter
+            LiteRT interpreter instance
         """
-        from ..utils.tflite_utils import load_tflite_model
+        from ..utils.litert_utils import load_litert_interpreter
         
-        if self._tflite_path != tflite_path or self._tflite_interpreter is None:
-            _, interpreter = load_tflite_model(tflite_path)
-            self._tflite_interpreter = interpreter
+        if self._tflite_path != tflite_path or self._litert_interpreter is None:
+            interpreter = load_litert_interpreter(tflite_path)
+            self._litert_interpreter = interpreter
             self._tflite_path = tflite_path
         
-        return self._tflite_interpreter
+        return self._litert_interpreter
     
     def load_litert_model(self, tflite_path: str, subgraph_index: int = 0):
         """
@@ -165,20 +165,20 @@ class OperationBase(ABC):
         model, subgraph = load_litert_model(tflite_path)
         return extract_weights_biases_from_litert(model, subgraph, 0)
     
-    def run_inference(self, interpreter: tf.lite.Interpreter, input_data: np.ndarray) -> np.ndarray:
+    def run_inference(self, tflite_path: str, input_data: np.ndarray) -> np.ndarray:
         """
-        Run inference on TFLite model.
+        Run inference on model using LiteRT interpreter.
         
         Args:
-            interpreter: TFLite interpreter
+            tflite_path: Path to .tflite file
             input_data: Input data as numpy array
             
         Returns:
             Output data as numpy array
         """
-        from ..utils.tflite_utils import run_inference
+        from ..utils.litert_utils import run_inference_litert
         
-        return run_inference(interpreter, input_data)
+        return run_inference_litert(tflite_path, input_data, subgraph_index=0)
     
     def generate_input_data(self) -> np.ndarray:
         """
@@ -244,6 +244,42 @@ class OperationBase(ABC):
             'input_shape': input_shape,
             'output_shape': output_shape
         }
+    
+    def get_shapes_from_litert(self, tflite_path: str, operator_index: int = 0) -> Dict[str, Any]:
+        """
+        Get input and output shapes using LiteRT schema (convenience wrapper).
+        
+        Args:
+            tflite_path: Path to .tflite file
+            operator_index: Index of the operator (default: 0)
+            
+        Returns:
+            Dictionary with 'input_shapes' (list) and 'output_shapes' (list) keys
+        """
+        from ..utils.litert_utils import (
+            load_litert_model, get_input_output_shapes_from_litert
+        )
+        
+        model, subgraph = self.load_litert_model(tflite_path)
+        return get_input_output_shapes_from_litert(model, subgraph, operator_index)
+    
+    def get_quantization_from_litert(self, tflite_path: str, operator_index: int = 0) -> Dict[str, Any]:
+        """
+        Get input and output quantization parameters using LiteRT schema (convenience wrapper).
+        
+        Args:
+            tflite_path: Path to .tflite file
+            operator_index: Index of the operator (default: 0)
+            
+        Returns:
+            Dictionary with 'input_quantizations' (list) and 'output_quantizations' (list) keys
+        """
+        from ..utils.litert_utils import (
+            get_input_output_quantization_from_litert
+        )
+        
+        model, subgraph = self.load_litert_model(tflite_path)
+        return get_input_output_quantization_from_litert(model, subgraph, operator_index)
     
     def generate_c_files(self, output_dir: Path) -> None:
         """

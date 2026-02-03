@@ -113,7 +113,7 @@ class OpReduceMin(OperationBase):
         kernel_info = self._select_cmsis_reduce_min_kernel()
         
         # Load interpreter
-        interpreter = self.load_tflite_interpreter(str(tflite_path))
+        interpreter = self.load_litert_interpreter(str(tflite_path))
         
         # Get input and output details
         input_details = interpreter.get_input_details()

@@ -193,7 +193,6 @@ def generate_test(desc: Dict[str, Any], out_dir: str, seed: Optional[int] = None
         raise ValueError(f"Unsupported operator: {operator}")
         
     op_class = OP_MAP[operator]
-    import inspect
     
     # Initialize operation with deterministic seed
     if seed is None:

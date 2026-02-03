@@ -150,17 +150,26 @@ class OpPooling(OperationBase):
         kernel_info = self._select_cmsis_pooling_kernel()
         pooling_type = self.desc.get('pooling_type', 'AVERAGE').upper()
         
-        # Load interpreter
-        interpreter = self.load_tflite_interpreter(str(tflite_path))
+        # Load LiteRT model for shape and quantization extraction
+        from ..utils.litert_utils import get_operator_tensors_from_litert
+        model, subgraph = self.load_litert_model(str(tflite_path))
+        op_tensors = get_operator_tensors_from_litert(model, subgraph, 0)
         
-        # Extract quantization parameters
-        quant_params = self.extract_quantization_params(str(tflite_path))
+        # Extract shapes from LiteRT
+        input_shape = op_tensors['inputs'][0]['shape']
+        output_shape = op_tensors['outputs'][0]['shape']
         
-        # Tensor shapes
-        input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
-        input_shape = tuple(input_details[0]['shape'])
-        output_shape = tuple(output_details[0]['shape'])
+        # Ensure shapes are tuples
+        if input_shape is not None:
+            input_shape = tuple(input_shape)
+        if output_shape is not None:
+            output_shape = tuple(output_shape)
+        
+        # Extract quantization from LiteRT
+        quant_params = {
+            'input': op_tensors['inputs'][0]['quantization'],
+            'output': op_tensors['outputs'][0]['quantization']
+        }
         
         builder = TemplateContextBuilder()
         
@@ -220,7 +229,8 @@ class OpPooling(OperationBase):
         input_q = np.clip(input_q, qmin, qmax).astype(np_in_dtype)
         
         # Run inference (dtype must match interpreter input)
-        output_data = self.run_inference(interpreter, input_q)
+        # Use LiteRT interpreter for inference
+        output_data = self.run_inference(str(tflite_path), input_q)
         
         # Format input and output arrays
         input_data_array_str = builder.format_array_as_c_literal(input_q)

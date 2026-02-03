@@ -194,9 +194,6 @@ class OpConv2D(OperationBase):
         # Extract weights and biases from LiteRT
         weights = op_tensors['weights']
         biases = op_tensors['biases']
-        
-        # Load interpreter for inference (still needed)
-        interpreter = self.load_tflite_interpreter(str(tflite_path))
 
         # Weight tensor for TFLite Conv2D is OHWI in practice; shape will be (O, H, W, I)
         if weights is not None:
@@ -330,7 +327,7 @@ class OpConv2D(OperationBase):
         input_q = np.clip(input_q, qmin, qmax).astype(np_in_dtype)
 
         # Run inference (dtype must match interpreter input)
-        output_data = self.run_inference(interpreter, input_q)
+        output_data = self.run_inference(str(tflite_path), input_q)
 
         # Bias handling (S16 wrapper expects int64 bias)
         has_biases = biases is not None and getattr(biases, "size", 0) > 0

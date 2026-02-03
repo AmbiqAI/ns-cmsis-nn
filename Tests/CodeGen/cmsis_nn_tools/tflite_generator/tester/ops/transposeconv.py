@@ -151,13 +151,41 @@ class OpTransposeConv(OperationBase):
         if not op_tensors['outputs']:
             raise ValueError("No output tensors found")
         
-        # Get shapes from interpreter (more reliable than LiteRT for some models)
-        interpreter = self.load_tflite_interpreter(str(tflite_path))
-        input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
+        # For TransposeConv, the operator inputs are: [output_shape_param, weights, input_data]
+        # The actual input data tensor is the subgraph input, not necessarily op_tensors['inputs'][0]
+        # Find the input data tensor (should be 4D and match subgraph inputs)
+        input_shape = None
+        subgraph_input_indices = set(subgraph.inputs)
         
-        input_shape = tuple(input_details[0]['shape'])
-        output_shape = tuple(output_details[0]['shape'])
+        for input_tensor_info in op_tensors['inputs']:
+            tensor_shape = input_tensor_info['shape']
+            tensor_idx = input_tensor_info.get('index', -1)
+            # The actual input data is the subgraph input (4D tensor)
+            if tensor_idx in subgraph_input_indices and tensor_shape is not None and len(tensor_shape) == 4:
+                input_shape = tensor_shape
+                break
+        
+        # Fallback: use first 4D input tensor
+        if input_shape is None:
+            for input_tensor_info in op_tensors['inputs']:
+                tensor_shape = input_tensor_info['shape']
+                if tensor_shape is not None and len(tensor_shape) == 4:
+                    input_shape = tensor_shape
+                    break
+        
+        # Final fallback: use descriptor shape
+        if input_shape is None:
+            input_shape = self.desc.get('input_shape', [1, 1, 1, 1])
+            print(f"Warning: Could not find input shape from LiteRT, using descriptor shape: {input_shape}")
+        
+        # Get output shape
+        output_shape = op_tensors['outputs'][0]['shape']
+        
+        # Ensure shapes are tuples
+        if input_shape is not None:
+            input_shape = tuple(input_shape)
+        if output_shape is not None:
+            output_shape = tuple(output_shape)
         
         # Ensure input_shape is 4D (NHWC)
         if len(input_shape) == 1:
@@ -171,21 +199,44 @@ class OpTransposeConv(OperationBase):
         if len(output_shape) < 4:
             output_shape = (1,) + output_shape if len(output_shape) == 3 else output_shape
         
-        # Extract quantization parameters from interpreter (more reliable than LiteRT)
-        # LiteRT sometimes returns incorrect scales (e.g., 1.0 instead of actual scale)
-        input_qp = input_details[0].get('quantization_parameters', {})
-        output_qp = output_details[0].get('quantization_parameters', {})
+        # Extract quantization parameters from LiteRT
+        # For TransposeConv, find the actual input data tensor (4D, in subgraph inputs)
+        # not the output shape parameter (1D)
+        input_quant_litert = None
+        subgraph_input_indices = set(subgraph.inputs)
+        for input_tensor_info in op_tensors['inputs']:
+            tensor_idx = input_tensor_info.get('index', -1)
+            tensor_shape = input_tensor_info['shape']
+            if tensor_idx in subgraph_input_indices and tensor_shape is not None and len(tensor_shape) == 4:
+                input_quant_litert = input_tensor_info['quantization']
+                break
+        
+        # Fallback to first input if not found
+        if input_quant_litert is None:
+            input_quant_litert = op_tensors['inputs'][0]['quantization']
+        
+        output_quant_litert = op_tensors['outputs'][0]['quantization']
         
         input_quant = {
-            'scale': input_qp.get('scales', [1.0]),
-            'zero_point': input_qp.get('zero_points', [0]),
-            'per_channel': len(input_qp.get('scales', [])) > 1
+            'scale': input_quant_litert.get('scale', 1.0),
+            'zero_point': input_quant_litert.get('zero_point', 0),
+            'per_channel': input_quant_litert.get('per_channel', False)
         }
         output_quant = {
-            'scale': output_qp.get('scales', [1.0]),
-            'zero_point': output_qp.get('zero_points', [0]),
-            'per_channel': len(output_qp.get('scales', [])) > 1
+            'scale': output_quant_litert.get('scale', 1.0),
+            'zero_point': output_quant_litert.get('zero_point', 0),
+            'per_channel': output_quant_litert.get('per_channel', False)
         }
+        
+        # Handle per-channel quantization (convert to scalar if needed)
+        if isinstance(input_quant['scale'], (list, np.ndarray)):
+            input_quant['scale'] = input_quant['scale'][0] if len(input_quant['scale']) > 0 else 1.0
+        if isinstance(input_quant['zero_point'], (list, np.ndarray)):
+            input_quant['zero_point'] = input_quant['zero_point'][0] if len(input_quant['zero_point']) > 0 else 0
+        if isinstance(output_quant['scale'], (list, np.ndarray)):
+            output_quant['scale'] = output_quant['scale'][0] if len(output_quant['scale']) > 0 else 1.0
+        if isinstance(output_quant['zero_point'], (list, np.ndarray)):
+            output_quant['zero_point'] = output_quant['zero_point'][0] if len(output_quant['zero_point']) > 0 else 0
         
         # Find weight quantization (from weight tensor in inputs)
         weight_quant = None
@@ -214,8 +265,8 @@ class OpTransposeConv(OperationBase):
         else:
             biases = op_tensors['biases']
         
-        # Load interpreter for inference (still needed)
-        interpreter = self.load_tflite_interpreter(str(tflite_path))
+        # Load LiteRT interpreter for inference
+        interpreter = self.load_litert_interpreter(str(tflite_path))
         
         if weights is not None:
             filter_shape = tuple(weights.shape)
@@ -353,7 +404,7 @@ class OpTransposeConv(OperationBase):
         input_q = np.clip(input_q, qmin, qmax).astype(np_in_dtype)
         
         # Run inference (dtype must match interpreter input)
-        output_data = self.run_inference(interpreter, input_q)
+        output_data = self.run_inference(str(tflite_path), input_q)
         
         # Format input and output arrays
         input_data_array_str = builder.format_array_as_c_literal(input_q)

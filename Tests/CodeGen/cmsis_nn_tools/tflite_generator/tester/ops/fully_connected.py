@@ -2,19 +2,19 @@
 FullyConnected operation implementation with dtype-aware quantization.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import numpy as np
-import tensorflow as tf
 from .base import OperationBase
 import keras
 from pathlib import Path
+
 
 class OpFullyConnected(OperationBase):
     """
     FullyConnected operation.
     """
     
-    def build_keras_model(self) -> tf.keras.Model:
+    def build_keras_model(self):
         """Build Keras model for FullyConnected operation."""
         input_shape = self.desc['input_shape']
         filter_shape = self.desc['filter_shape']
@@ -33,7 +33,6 @@ class OpFullyConnected(OperationBase):
             needs_flatten = True
         
         # Extract output units from filter_shape
-        # filter_shape can be [output_units, input_features] or [output_units, 1, 1, input_features]
         if len(filter_shape) == 2:
             output_units = filter_shape[0]
         else:
@@ -143,11 +142,113 @@ class OpFullyConnected(OperationBase):
         else:
             raise NotImplementedError(f"Unsupported FullyConnected dtype combo: {activation_dtype} x {weight_dtype}")
     
+    def _get_zero_point(self, quant_dict: Dict[str, Any]) -> int:
+        """Get zero point from quantization dictionary."""
+        if quant_dict is None:
+            return 0
+        zp = quant_dict.get('zero_point', 0)
+        if isinstance(zp, (list, np.ndarray)):
+            return int(zp[0]) if len(zp) > 0 else 0
+        return int(zp)
+    
+    def _compute_activation_range(self, output_quant: Dict[str, Any], output_dtype: np.dtype) -> tuple[int, int]:
+        """Compute activation min/max based on output quantization and dtype."""
+        activation_str = self.desc.get('activation', 'NONE')
+        output_zp = self._get_zero_point(output_quant)
+        output_scale = output_quant.get('scale', 1.0)
+        if isinstance(output_scale, (list, np.ndarray)):
+            output_scale = float(output_scale[0])
+        
+        if output_dtype == np.int16:
+            default_min, default_max = -32768, 32767
+        else:  # int8
+            default_min, default_max = -128, 127
+        
+        if activation_str == 'RELU':
+            activation_min = max(0, default_min)
+            activation_max = default_max
+        elif activation_str == 'RELU6':
+            # RELU6: clamp to [0, 6] in float, then quantize
+            relu6_max_float = 6.0
+            relu6_max_quantized = int(np.round(relu6_max_float / output_scale + output_zp))
+            activation_min = max(0, default_min)
+            activation_max = min(relu6_max_quantized, default_max)
+        else:  # NONE, TANH, SIGMOID, etc.
+            activation_min = default_min
+            activation_max = default_max
+        
+        # Override with descriptor values if present
+        if 'activation_min' in self.desc:
+            activation_min = int(self.desc['activation_min'])
+        if 'activation_max' in self.desc:
+            activation_max = int(self.desc['activation_max'])
+        
+        return activation_min, activation_max
+    
+    def _compute_weight_sum_size(self, weights: Optional[np.ndarray], output_dtype: np.dtype) -> int:
+        """Compute the size of the weight sum tensor."""
+        if weights is None:
+            return 0
+        if output_dtype == np.int8 and self._supports_weight_sum():
+            # Weight sum size = output_units (number of rows in weight matrix)
+            return weights.shape[0] if len(weights.shape) == 2 else 0
+        return 0
+    
+    def _supports_weight_sum(self) -> bool:
+        """Check if platform supports weight sum optimization."""
+        # For CMSIS-NN, weight sum is supported for S8 fully connected
+        # This is a simplified check - in a real implementation, this would check platform capabilities
+        return True
+    
+    def _should_precompute_weight_sum(self, weights: Optional[np.ndarray], output_dtype: np.dtype) -> bool:
+        """Determine if weight sum should be precomputed."""
+        return (
+            output_dtype == np.int8
+            and self._supports_weight_sum()
+            and weights is not None
+            and weights.size > 0
+        )
+    
+    def _compute_fixed_point_multipliers(
+        self,
+        input_scale: float,
+        weight_scales: np.ndarray,
+        output_scale: float
+    ) -> list[Dict[str, Any]]:
+        """
+        Compute fixed-point multipliers and shifts for each output channel.
+        
+        Returns:
+            List of dictionaries with 'multiplier' and 'shift' keys
+        """
+        from ..utils.tflite_utils import calculate_per_channel_multiplier_shift
+        
+        # Compute effective scales: (input_scale * weight_scale) / output_scale
+        if isinstance(weight_scales, np.ndarray):
+            effective_scales = (input_scale * weight_scales) / output_scale
+        else:
+            effective_scales = np.array([(input_scale * weight_scales) / output_scale])
+        
+        multipliers, shifts = calculate_per_channel_multiplier_shift(
+            effective_scales,
+            reduce_to_q15=False  # Kernel handles reduction internally
+        )
+        
+        # For S16 per-channel, reduce multipliers from Q31 to Q15
+        activation_dtype = self.desc.get('activation_dtype', 'S8')
+        if activation_dtype == 'S16' and len(multipliers) > 1:
+            from ..utils.tflite_utils import reduce_multiplier_q31_to_q15
+            multipliers = [reduce_multiplier_q31_to_q15(m) for m in multipliers]
+        
+        return [
+            {'multiplier': int(m), 'shift': int(s)}
+            for m, s in zip(multipliers, shifts)
+        ]
+    
     def generate_c_files(self, output_dir: Path) -> None:
         """
         Generate C and H files from templates for FullyConnected operation.
         """
-        from pathlib import Path
         from ..utils.template_context import TemplateContextBuilder
         
         name = self.desc['name']
@@ -158,32 +259,37 @@ class OpFullyConnected(OperationBase):
         # Select CMSIS kernel + types
         kernel_info = self._select_cmsis_fc_kernel()
         
-        # Load interpreter
-        interpreter = self.load_tflite_interpreter(str(tflite_path))
+        # Load LiteRT model for shape and quantization extraction
+        from ..utils.litert_utils import get_operator_tensors_from_litert
+        model, subgraph = self.load_litert_model(str(tflite_path))
+        op_tensors = get_operator_tensors_from_litert(model, subgraph, 0)
         
-        # Tensor shapes
-        input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
-        input_shape = tuple(input_details[0]['shape'])
-        output_shape = tuple(output_details[0]['shape'])
+        # Extract shapes from LiteRT
+        input_shape = op_tensors['inputs'][0]['shape']
+        output_shape = op_tensors['outputs'][0]['shape']
         
-        # Extract quantization parameters from interpreter (more reliable than LiteRT)
-        # LiteRT sometimes returns incorrect scales (e.g., 1.0 instead of actual scale)
-        input_qp = input_details[0].get('quantization_parameters', {})
-        output_qp = output_details[0].get('quantization_parameters', {})
+        # Ensure shapes are tuples
+        if input_shape is not None:
+            input_shape = tuple(input_shape)
+        if output_shape is not None:
+            output_shape = tuple(output_shape)
+        
+        # Extract quantization parameters from LiteRT
+        input_quant_litert = op_tensors['inputs'][0]['quantization']
+        output_quant_litert = op_tensors['outputs'][0]['quantization']
         
         input_quant = {
-            'scale': input_qp.get('scales', [1.0]),
-            'zero_point': input_qp.get('zero_points', [0]),
-            'per_channel': len(input_qp.get('scales', [])) > 1
+            'scale': input_quant_litert.get('scale', 1.0),
+            'zero_point': input_quant_litert.get('zero_point', 0),
+            'per_channel': input_quant_litert.get('per_channel', False)
         }
         output_quant = {
-            'scale': output_qp.get('scales', [1.0]),
-            'zero_point': output_qp.get('zero_points', [0]),
-            'per_channel': len(output_qp.get('scales', [])) > 1
+            'scale': output_quant_litert.get('scale', 1.0),
+            'zero_point': output_quant_litert.get('zero_point', 0),
+            'per_channel': output_quant_litert.get('per_channel', False)
         }
         
-        # Extract weights and biases (still use LiteRT for weights, but get weight quantization from LiteRT)
+        # Extract weights and biases
         weights_biases = self.extract_weights_biases(str(tflite_path))
         weights = weights_biases.get('weights')
         biases = weights_biases.get('biases')
@@ -200,19 +306,16 @@ class OpFullyConnected(OperationBase):
         weight_quant = None
         if weights is not None:
             # Search all tensors to find the one matching our weights
-            op = subgraph.operators[0]
             input_indices = set(subgraph.inputs)
             output_indices = set(subgraph.outputs)
             
             for tensor_idx, tensor in enumerate(subgraph.tensors):
-                # Skip if it's an input or output
                 if tensor_idx in input_indices or tensor_idx in output_indices:
                     continue
                 
                 tensor_data = get_tensor_data_from_litert(tensor, model)
                 tensor_shape = get_tensor_shape_from_litert(tensor)
                 
-                # Check if this is the weight tensor (matches shape and data)
                 if (tensor_data is not None and tensor_shape is not None and 
                     len(tensor_shape) > 1 and tensor_data.shape == weights.shape and
                     np.array_equal(tensor_data, weights)):
@@ -226,65 +329,61 @@ class OpFullyConnected(OperationBase):
                         weight_quant = input_tensor_info.get('quantization')
                         break
         
-        # For weight_sum computation, if weight_quant is None, use output_quant
-        # (weights typically share output scale/ZP in TFLite when not explicitly quantized)
-        weight_quant_for_params = weight_quant if weight_quant is not None else output_quant
+        # Prepare weight quantization dict
+        if weight_quant is None:
+            weight_quant = output_quant  # Fallback to output quantization
         
-        quant_params = {
-            'input': input_quant,
-            'output': output_quant,
-            'weight': weight_quant_for_params or {'scale': 1.0, 'zero_point': 0, 'per_channel': False}
+        weight_quant_dict = {
+            'scale': weight_quant.get('scale', 1.0),
+            'zero_point': weight_quant.get('zero_point', 0),
+            'per_channel': weight_quant.get('per_channel', False)
         }
         
-        # Weight tensor for TFLite FullyConnected is [output_units, input_features]
-        # CMSIS expects filter_dims: n=input_features, c=output_units, h=1, w=1
+        # Validate weights shape
         if weights is not None:
             filter_shape = tuple(weights.shape)
-            # Handle 1D weights (shouldn't happen, but handle gracefully)
             if len(filter_shape) == 1:
-                # If we got a 1D array, it might be incorrectly extracted
-                # Try to infer from descriptor or output shape
+                # Try to infer 2D shape
                 if len(output_shape) == 2:
                     output_units = output_shape[1]
                     input_features = filter_shape[0] // output_units if filter_shape[0] % output_units == 0 else filter_shape[0]
                     if filter_shape[0] == output_units * input_features:
-                        # Reshape to 2D
                         weights = weights.reshape(output_units, input_features)
                         filter_shape = tuple(weights.shape)
                     else:
-                        raise ValueError(f"Cannot infer 2D shape from 1D weights shape {filter_shape} and output shape {output_shape}")
+                        raise ValueError(f"Cannot infer 2D shape from 1D weights shape {filter_shape}")
                 else:
-                    raise ValueError(f"Unsupported filter shape: {filter_shape} (1D) and output shape: {output_shape}")
+                    raise ValueError(f"Unsupported filter shape: {filter_shape} (1D)")
             
-            if len(filter_shape) == 2:
-                # TFLite format: [output_units, input_features]
-                filter_dims = {
-                    'n': int(filter_shape[1]),  # input_features (col_dim)
-                    'h': 1,
-                    'w': 1,
-                    'c': int(filter_shape[0])   # output_units (row_dim)
-                }
-            else:
+            if len(filter_shape) != 2:
                 raise ValueError(f"Unsupported filter shape: {filter_shape}")
-            # Ensure weights are int8 in generated C
+            
+            # Ensure weights are int8
             if weights.dtype != np.int8:
                 weights = weights.astype(np.int8)
+            
+            # TFLite format: [output_units, input_features]
+            filter_dims = {
+                'n': int(filter_shape[1]),  # input_features (col_dim)
+                'h': 1,
+                'w': 1,
+                'c': int(filter_shape[0])   # output_units (row_dim)
+            }
         else:
-            # Fallback: descriptor format [output_units, input_features]
+            # Fallback: descriptor format
             fs = tuple(self.desc['filter_shape'])
-            if len(fs) == 2:
-                filter_dims = {
-                    'n': int(fs[1]),  # input_features
-                    'h': 1,
-                    'w': 1,
-                    'c': int(fs[0])   # output_units
-                }
-            else:
+            if len(fs) != 2:
                 raise ValueError(f"Unsupported filter_shape in descriptor: {fs}")
+            filter_dims = {
+                'n': int(fs[1]),  # input_features
+                'h': 1,
+                'w': 1,
+                'c': int(fs[0])   # output_units
+            }
         
         builder = TemplateContextBuilder()
-        # For fully connected, input is flattened: [batch, features] or [batch, h, w, c]
-        # CMSIS expects input_dims: n=batch, h=1, w=1, c=features
+        
+        # Compute input dimensions
         if len(input_shape) == 2:
             input_dims = {
                 'n': int(input_shape[0]),
@@ -303,8 +402,20 @@ class OpFullyConnected(OperationBase):
         else:
             input_dims = builder.nhwc_to_cmsis_dims(input_shape)
         
-        # Output is [batch, output_units]
-        if len(output_shape) == 2:
+        # Compute output dimensions - use weights shape to get correct output_units
+        if weights is not None and len(weights.shape) == 2:
+            correct_output_units = int(weights.shape[0])
+            batch_size = int(output_shape[0]) if len(output_shape) >= 1 else int(input_shape[0])
+            
+            output_dims = {
+                'n': batch_size,
+                'h': 1,
+                'w': 1,
+                'c': correct_output_units
+            }
+            if len(output_shape) == 2 and output_shape[1] != correct_output_units:
+                print(f"Warning: LiteRT output_shape[1] ({output_shape[1]}) != weights.shape[0] ({correct_output_units}). Using weights shape.")
+        elif len(output_shape) == 2:
             output_dims = {
                 'n': int(output_shape[0]),
                 'h': 1,
@@ -314,53 +425,42 @@ class OpFullyConnected(OperationBase):
         else:
             output_dims = builder.nhwc_to_cmsis_dims(output_shape)
         
-        # Build FC parameters
-        fc_params = builder.build_fc_params(
-            self.desc,
-            quant_params['input'],
-            quant_params.get('weights', quant_params.get('weight', quant_params['output'])),
-            quant_params['output']
-        )
-        
-        # Build quantization parameters
-        # CRITICAL: The effective scale for multiplier/shift is NOT output_scale directly!
-        # It should be: effective_scale = (input_scale * weight_scale) / output_scale
-        input_quant = quant_params['input']
-        output_quant = quant_params['output']
-        weight_quant = quant_params.get('weights', quant_params.get('weight', output_quant))
-        
-        input_scale = input_quant.get('scale', 1.0)
+        # Get scales as arrays for per-channel computation
+        input_scale = input_quant['scale']
         if isinstance(input_scale, (list, np.ndarray)):
             input_scale = float(input_scale[0])
         else:
             input_scale = float(input_scale)
         
-        output_scale = output_quant.get('scale', 1.0)
+        weight_scale = weight_quant_dict['scale']
+        output_scale = output_quant['scale']
+        per_channel = bool(weight_quant_dict.get('per_channel', False))
+        
+        # Convert scales to numpy arrays for per-channel computation
+        if per_channel and isinstance(weight_scale, (list, np.ndarray)):
+            weight_scales = np.array(weight_scale, dtype=np.float64)
+        else:
+            if isinstance(weight_scale, (list, np.ndarray)):
+                weight_scales = np.array([float(weight_scale[0])], dtype=np.float64)
+            else:
+                weight_scales = np.array([float(weight_scale)], dtype=np.float64)
+        
         if isinstance(output_scale, (list, np.ndarray)):
             output_scale = float(output_scale[0])
         else:
             output_scale = float(output_scale)
         
-        weight_scale = weight_quant.get('scale', 1.0)
-        per_channel = bool(weight_quant.get('per_channel', False))
+        # Compute fixed-point multipliers and shifts
+        outputs_fp = self._compute_fixed_point_multipliers(
+            input_scale,
+            weight_scales,
+            output_scale
+        )
         
-        # Calculate effective scales: (input_scale * weight_scale) / output_scale
-        # For S16 per-channel, we need to reduce multipliers from Q31 to Q15 format
-        from ..utils.tflite_utils import reduce_multiplier_q31_to_q15, calculate_per_channel_multiplier_shift
-        
-        activation_dtype = self.desc.get('activation_dtype', 'S8')
-        is_s16 = (activation_dtype == 'S16' or kernel_info["input_c_type"] == "int16_t")
-        
-        if per_channel and isinstance(weight_scale, np.ndarray):
-            # Per-channel: effective_scale[i] = (input_scale * weight_scale[i]) / output_scale
-            effective_scales = (input_scale * weight_scale) / output_scale
-            
-            multipliers, shifts = calculate_per_channel_multiplier_shift(
-                effective_scales, 
-                reduce_to_q15=False  # Kernel does the reduction internally
-            )
-            
-            # Create quant_params dict with pre-calculated multipliers/shifts
+        # Build quantization parameters dict
+        if per_channel and len(outputs_fp) > 1:
+            multipliers = [fp['multiplier'] for fp in outputs_fp]
+            shifts = [fp['shift'] for fp in outputs_fp]
             quant_params_dict = {
                 'multiplier': multipliers,
                 'shift': shifts,
@@ -369,94 +469,105 @@ class OpFullyConnected(OperationBase):
                 'per_channel': True
             }
         else:
-            # Per-tensor: effective_scale = (input_scale * weight_scale) / output_scale
-            if isinstance(weight_scale, (list, np.ndarray)):
-                weight_scale = float(weight_scale[0])
+            # Per-tensor
+            if len(outputs_fp) > 0:
+                multiplier = outputs_fp[0]['multiplier']
+                shift = outputs_fp[0]['shift']
             else:
-                weight_scale = float(weight_scale)
-            effective_scale = (input_scale * weight_scale) / output_scale
-            # Ensure effective_scale is a Python float, not numpy scalar
-            effective_scale = float(effective_scale)
-            effective_quant = {
-                'scale': effective_scale,
-                'zero_point': output_quant.get('zero_point', 0),
+                # Fallback calculation
+                effective_scale = (input_scale * float(weight_scales[0])) / output_scale
+                from ..utils.tflite_utils import calculate_per_channel_multiplier_shift
+                mults, shfts = calculate_per_channel_multiplier_shift(
+                    np.array([effective_scale]),
+                    reduce_to_q15=False
+                )
+                multiplier = int(mults[0])
+                shift = int(shfts[0])
+                
+                # For S16 per-tensor, reduce multiplier
+                activation_dtype = self.desc.get('activation_dtype', 'S8')
+                if activation_dtype == 'S16':
+                    from ..utils.tflite_utils import reduce_multiplier_q31_to_q15
+                    multiplier = reduce_multiplier_q31_to_q15(multiplier)
+            
+            quant_params_dict = {
+                'multiplier': multiplier,
+                'shift': shift,
                 'per_channel': False
             }
-            quant_params_dict = builder.build_quant_params(effective_quant, per_channel=False)
-            
-            # For S16 per-tensor, also reduce multiplier from Q31 to Q15
-            if is_s16:
-                mult = quant_params_dict.get('multiplier', 0)
-                quant_params_dict['multiplier'] = reduce_multiplier_q31_to_q15(mult)
         
-        quant_params_dict['per_channel'] = per_channel
+        # Compute activation range
+        output_dtype = np.int16 if kernel_info["output_c_type"] == "int16_t" else np.int8
+        activation_min, activation_max = self._compute_activation_range(output_quant, output_dtype)
         
-        # Compute weight_sum for S8 fully connected
-        weight_sum_array_str = ""
+        # Build FC parameters
+        input_zp = self._get_zero_point(input_quant)
+        weight_zp = self._get_zero_point(weight_quant_dict)
+        output_zp = self._get_zero_point(output_quant)
+        
+        activation_dtype = self.desc.get('activation_dtype', 'S8')
+        if activation_dtype == 'S16':
+            # S16 uses symmetric quantization (zero points are 0)
+            fc_params = {
+                'input_offset': 0,
+                'filter_offset': 0,
+                'output_offset': 0,
+                'activation_min': activation_min,
+                'activation_max': activation_max,
+            }
+        else:
+            # S8 uses zero points as offsets
+            fc_params = {
+                'input_offset': int(-input_zp),
+                'filter_offset': int(-weight_zp),
+                'output_offset': int(output_zp),
+                'activation_min': activation_min,
+                'activation_max': activation_max,
+            }
+        
+        # Compute weight sum if needed
+        weight_sum = None
         has_weight_sum = False
-        if kernel_info["input_c_type"] == "int8_t" and weights is not None:
-            # Import vector_sum_s8 from dwconv (same function)
+        if self._should_precompute_weight_sum(weights, output_dtype):
             from .dwconv import vector_sum_s8
             
-            # For fully connected, weights are [output_units, input_features]
-            # vector_rows = output_units, vector_cols = input_features
-            weights_data = weights
-            if len(weights_data.shape) == 2:
-                vector_rows = weights_data.shape[0]  # output_units
-                vector_cols = weights_data.shape[1]  # input_features
-                kernel_matrix = weights_data.reshape(vector_rows, vector_cols)
-            else:
-                raise ValueError(f"Unsupported fully connected filter layout for weight sum: {weights_data.shape}")
+            vector_rows = weights.shape[0]  # output_units
+            vector_cols = weights.shape[1]  # input_features
             
-            # Get input and weight zero points
-            input_zp = quant_params['input'].get('zero_point', 0)
-            if isinstance(input_zp, (list, np.ndarray)):
-                input_zp = int(input_zp[0])
-            else:
-                input_zp = int(input_zp)
+            lhs_offset = -input_zp
+            rhs_offset = -weight_zp
             
-            # For weight_sum computation, use the actual weight tensor's zero point
-            # If weight_quant was found, use it; otherwise use output_quant
-            # For per-channel weights, use the first zero point 
-            weight_quant_for_sum = weight_quant if weight_quant is not None else output_quant
-            weight_zp = weight_quant_for_sum.get('zero_point', 0)
-            if isinstance(weight_zp, (list, np.ndarray)):
-                weight_zp = int(weight_zp[0])  
-            else:
-                weight_zp = int(weight_zp)
-            
-            # Compute weight_sum using vector_sum_s8    
-            bias_data_for_sum = None
+            bias_data = None
             if biases is not None and biases.size > 0:
                 if biases.dtype != np.int32:
-                    bias_data_for_sum = biases.astype(np.int32)
+                    bias_data = biases.astype(np.int32)
                 else:
-                    bias_data_for_sum = biases
+                    bias_data = biases
             
             weight_sum = vector_sum_s8(
-                vector_data=kernel_matrix,
+                vector_data=weights,
                 vector_cols=vector_cols,
                 vector_rows=vector_rows,
-                lhs_offset=-input_zp,  # input_offset = -input_zero_point
-                rhs_offset=-weight_zp,  # weight_offset = -weight_zero_point
-                bias_data=bias_data_for_sum,
+                lhs_offset=lhs_offset,
+                rhs_offset=rhs_offset,
+                bias_data=bias_data,
             ).astype(np.int32)
             
-            weight_sum_array_str = builder.format_array_as_c_literal(weight_sum)
             has_weight_sum = True
             
-            # If weight_sum is precomputed, biases are effectively "consumed" into it
-            # So we set has_biases to False for the kernel call 
-            if bias_data_for_sum is not None:
-                has_biases = False
+            # If weight_sum is precomputed, biases are consumed into it
+            if bias_data is not None:
                 biases = None
         
-        # Format weights and biases as C arrays
-        weights_array_str = builder.format_array_as_c_literal(weights)
-        if not has_weight_sum:  # Only include biases if weight_sum is not precomputed
+        # Format arrays
+        weights_array_str = builder.format_array_as_c_literal(weights) if weights is not None else ""
+        
+        has_biases = False
+        biases_array_str = ""
+        if not has_weight_sum:
             has_biases = biases is not None and biases.size > 0
             if has_biases:
-                # Convert biases to appropriate type for CMSIS-NN
+                # Convert biases to appropriate type
                 if kernel_info["bias_c_type"] == "int64_t":
                     if biases.dtype != np.int64:
                         biases = biases.astype(np.int64)
@@ -464,69 +575,46 @@ class OpFullyConnected(OperationBase):
                     if biases.dtype != np.int32:
                         biases = biases.astype(np.int32)
                 biases_array_str = builder.format_array_as_c_literal(biases)
-            else:
-                biases_array_str = ""
-        else:
-            # Weight_sum includes bias, so no separate bias array
-            has_biases = False
-            biases_array_str = ""
         
-        # Generate input data and quantize to the interpreter's real input dtype
-        # IMPORTANT: Reset RNG to seed to ensure input data matches what was used
-        # during TFLite conversion (representative dataset generation may have advanced RNG)
+        weight_sum_array_str = builder.format_array_as_c_literal(weight_sum) if weight_sum is not None else ""
+        
+        # Generate input data and run inference
         rng_state = self.rng.__getstate__()
         self.rng = np.random.default_rng(self.seed)
         input_data = self.generate_input_data()
         self.rng.__setstate__(rng_state)
         
-        input_scale = quant_params['input'].get('scale', 1.0)
-        input_zp = quant_params['input'].get('zero_point', 0)
-        if isinstance(input_scale, (list, np.ndarray)):
-            input_scale = input_scale[0]
-        if isinstance(input_zp, (list, np.ndarray)):
-            input_zp = input_zp[0]
-        
+        # Quantize input - keep original shape for inference (model has Flatten layer)
+        input_q = np.round(input_data / input_scale + input_zp).astype(np.int32)
         if kernel_info["input_c_type"] == "int8_t":
-            qmin, qmax = -128, 127
-            np_in_dtype = np.int8
-        elif kernel_info["input_c_type"] == "int16_t":
-            qmin, qmax = -32768, 32767
-            np_in_dtype = np.int16
-        else:
-            raise ValueError(f"Unsupported input_c_type: {kernel_info['input_c_type']}")
+            input_q = np.clip(input_q, -128, 127).astype(np.int8)
+        else:  # int16_t
+            input_q = np.clip(input_q, -32768, 32767).astype(np.int16)
         
-        input_q = np.round(input_data / float(input_scale) + float(input_zp)).astype(np.int32)
-        input_q = np.clip(input_q, qmin, qmax).astype(np_in_dtype)
+        # Run inference using pure LiteRT (no TFLite dependency)
+        # Pass input in original shape - model's Flatten layer will handle flattening
+        from ..utils.litert_utils import run_inference_litert
+        output_data = run_inference_litert(str(tflite_path), input_q, subgraph_index=0)
         
-        # Run inference (dtype must match interpreter input)
-        output_data = self.run_inference(interpreter, input_q)
-        
-        # Format input and output arrays
-        input_data_array_str = builder.format_array_as_c_literal(input_q)
-        # Output dtype should match the kernel's output type
+        # Format arrays - format_array_as_c_literal automatically flattens
+        input_data_array_str = builder.format_array_as_c_literal(input_q.flatten())
+        # Ensure output_data is properly shaped and flattened for C array
         if kernel_info["output_c_type"] == "int16_t":
-            expected_output_array_str = builder.format_array_as_c_literal(output_data.astype(np.int16))
+            expected_output_array_str = builder.format_array_as_c_literal(output_data.flatten().astype(np.int16))
         else:
-            expected_output_array_str = builder.format_array_as_c_literal(output_data.astype(np.int8))
+            expected_output_array_str = builder.format_array_as_c_literal(output_data.flatten().astype(np.int8))
         
         # Calculate buffer size max
-        # For per-channel S16, we need to use per_channel buffer size function
-        # For per-tensor S16, buffer size is 0
-        # For S8, buffer size depends on weight_sum or regular buffer
         activation_dtype = self.desc.get('activation_dtype', 'S8')
         is_s16 = (activation_dtype == 'S16' or kernel_info["input_c_type"] == "int16_t")
         
         if is_s16 and quant_params_dict.get('per_channel', False):
-            # Per-channel S16 requires output_ch * sizeof(int32_t) buffer
             buffer_size_max = output_dims['c'] * 4  # sizeof(int32_t) = 4
         else:
             buffer_size_max = builder.calculate_fc_buffer_size_max(
                 filter_dims,
                 output_dtype=activation_dtype
             )
-        
-        # Weight_sum is precomputed and embedded in header
-        # No runtime buffer needed since it's a constant array
         
         # Build template context
         context = {

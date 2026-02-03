@@ -105,15 +105,20 @@ class OpPad(OperationBase):
         # Select CMSIS kernel + types
         kernel_info = self._select_cmsis_pad_kernel()
         
-        # Load interpreter
-        interpreter = self.load_tflite_interpreter(str(tflite_path))
+        # Load LiteRT model for shape extraction
+        from ..utils.litert_utils import get_operator_tensors_from_litert
+        model, subgraph = self.load_litert_model(str(tflite_path))
+        op_tensors = get_operator_tensors_from_litert(model, subgraph, 0)
         
-        # Get input and output details
-        input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
+        # Extract shapes from LiteRT
+        input_shape = op_tensors['inputs'][0]['shape']
+        output_shape = op_tensors['outputs'][0]['shape']
         
-        input_shape = tuple(input_details[0]['shape'])
-        output_shape = tuple(output_details[0]['shape'])
+        # Ensure shapes are tuples
+        if input_shape is not None:
+            input_shape = tuple(input_shape)
+        if output_shape is not None:
+            output_shape = tuple(output_shape)
         
         builder = TemplateContextBuilder()
         
@@ -139,11 +144,15 @@ class OpPad(OperationBase):
         post_pad_dims = builder.nhwc_to_cmsis_dims(post_pad)
         
         # Pad value is typically 0 (zero padding)
-        # Extract quantization to get the quantized zero value
-        input_qp = input_details[0].get('quantization_parameters', {})
-        input_zp = input_qp.get('zero_points', [0])
-        input_zp = int(input_zp[0] if isinstance(input_zp, list) else input_zp)
-        pad_value = input_zp  # Use zero point as pad value
+        # Extract quantization from LiteRT to get the quantized zero value
+        input_quant = op_tensors['inputs'][0]['quantization']
+        input_zp = input_quant.get('zero_point', 0)
+        
+        # Handle per-channel quantization (convert to scalar)
+        if isinstance(input_zp, (list, np.ndarray)):
+            input_zp = int(input_zp[0]) if len(input_zp) > 0 else 0
+        
+        pad_value = int(input_zp)  # Use zero point as pad value
         
         # Generate input data and quantize
         rng_state = self.rng.__getstate__()
@@ -153,9 +162,20 @@ class OpPad(OperationBase):
         
         self.rng.__setstate__(rng_state)
         
-        # Extract quantization
-        input_scale = input_qp.get('scales', [1.0])
-        input_scale = float(input_scale[0] if isinstance(input_scale, list) else input_scale)
+        # Extract quantization from LiteRT (already extracted earlier)
+        # input_quant and input_zp were already extracted from op_tensors
+        input_quant = op_tensors['inputs'][0]['quantization']
+        input_scale = input_quant.get('scale', 1.0)
+        input_zp = input_quant.get('zero_point', 0)
+        
+        # Handle per-channel quantization (convert to scalar)
+        if isinstance(input_scale, (list, np.ndarray)):
+            input_scale = float(input_scale[0]) if len(input_scale) > 0 else 1.0
+        if isinstance(input_zp, (list, np.ndarray)):
+            input_zp = int(input_zp[0]) if len(input_zp) > 0 else 0
+        
+        input_scale = float(input_scale)
+        input_zp = int(input_zp)
         
         # Quantize inputs
         if kernel_info["input_c_type"] == "int8_t":
@@ -170,7 +190,11 @@ class OpPad(OperationBase):
         input_q = np.round(input_data / float(input_scale) + float(input_zp)).astype(np.int32)
         input_q = np.clip(input_q, qmin, qmax).astype(np_in_dtype)
         
-        # Run inference
+        # Run inference using LiteRT interpreter
+        interpreter = self.load_litert_interpreter(str(tflite_path))
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+        
         interpreter.set_tensor(input_details[0]['index'], input_q)
         interpreter.invoke()
         output_data = interpreter.get_tensor(output_details[0]['index'])

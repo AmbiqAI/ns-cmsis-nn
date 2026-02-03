@@ -179,19 +179,24 @@ class OpConcatenation(OperationBase):
         # Select CMSIS kernel + types
         kernel_info = self._select_cmsis_concatenation_kernel()
         
-        # Load interpreter
-        interpreter = self.load_tflite_interpreter(str(tflite_path))
+        # Load LiteRT model for shape and quantization extraction
+        from ..utils.litert_utils import get_operator_tensors_from_litert
+        model, subgraph = self.load_litert_model(str(tflite_path))
+        op_tensors = get_operator_tensors_from_litert(model, subgraph, 0)
         
-        # Get input and output details
+        # Extract shapes from LiteRT (multi-input operator)
+        num_inputs = len(op_tensors['inputs'])
+        input_shapes = [tuple(tensor['shape']) if tensor['shape'] is not None else None for tensor in op_tensors['inputs']]
+        output_shape = op_tensors['outputs'][0]['shape']
+        
+        # Ensure output shape is tuple
+        if output_shape is not None:
+            output_shape = tuple(output_shape)
+        
+        # Check if this is a const variant (need to check with interpreter for this logic)
+        interpreter = self.load_litert_interpreter(str(tflite_path))
         input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
-        
-        # Check if this is a const variant
         is_const_variant = 'const' in name.lower() and len(input_details) == 1
-        
-        num_inputs = len(input_details)
-        input_shapes = [tuple(detail['shape']) for detail in input_details]
-        output_shape = tuple(output_details[0]['shape'])
         
         builder = TemplateContextBuilder()
         
@@ -286,7 +291,11 @@ class OpConcatenation(OperationBase):
         
         self.rng.__setstate__(rng_state)
         
-        # Run inference
+        # Run inference using LiteRT interpreter
+        interpreter = self.load_litert_interpreter(str(tflite_path))
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+        
         # For const variants, TFLite model only has one input (the variable input)
         # The const is embedded in the model, so we only set the variable input
         for i, input_q in enumerate(input_q_list[:len(input_details)]):
