@@ -34,6 +34,7 @@ class Config:
     dtype_filter: Optional[str] = None
     name_filter: Optional[str] = None
     limit: Optional[int] = None
+    seed: Optional[int] = None  # Random seed for test generation (None = use hash of test name)
     
     # Skip options
     skip_generation: bool = False
@@ -87,6 +88,7 @@ class Config:
             "dtype_filter": self.dtype_filter,
             "name_filter": self.name_filter,
             "limit": self.limit,
+            "seed": self.seed,
             "skip_generation": self.skip_generation,
             "skip_conversion": self.skip_conversion,
             "skip_runners": self.skip_runners,

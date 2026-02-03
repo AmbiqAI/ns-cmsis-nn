@@ -20,6 +20,8 @@ def pytest_addoption(parser):
                     help="Filter by exact test name")
     parser.addoption("--limit", action="store", type=int, default=None,
                     help="Limit number of tests to run")
+    parser.addoption("--seed", action="store", type=int, default=None,
+                    help="Random seed for test generation (default: hash of test name)")
 
 
 def pytest_configure(config):
@@ -60,5 +62,6 @@ def test_filters(request):
         'dtype': request.config.getoption("--dtype"),
         'wtype': request.config.getoption("--wtype"),
         'name': request.config.getoption("--name"),
-        'limit': request.config.getoption("--limit")
+        'limit': request.config.getoption("--limit"),
+        'seed': request.config.getoption("--seed")
     }

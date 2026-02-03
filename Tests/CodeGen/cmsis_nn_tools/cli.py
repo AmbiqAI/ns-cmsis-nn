@@ -98,6 +98,8 @@ Examples:
                        help="Generate only specific test by name")
     parser.add_argument("--limit", type=int, default=None,
                        help="Limit number of models to generate")
+    parser.add_argument("--seed", type=int, default=500,
+                       help="Random seed for test generation (default: hash of test name)")
     
     # Build options
     parser.add_argument("--cpu", type=str, default="cortex-m55",
@@ -105,7 +107,7 @@ Examples:
     parser.add_argument("--opt", type=str, default="-Ofast",
                        help="Optimization level (default: -Ofast)")
     parser.add_argument("--jobs", type=int, default=None,
-                       help="Parallel build jobs (default: auto)")
+                       help="Parallel build jobs (default: auto)") 
     
     # Run options
     parser.add_argument("--timeout", type=float, default=0.0,
@@ -240,6 +242,7 @@ def main() -> int:
     config.dtype_filter = args.dtype
     config.name_filter = args.name
     config.limit = args.limit
+    config.seed = args.seed
     config.skip_generation = args.skip_generation
     config.skip_conversion = args.skip_conversion
     config.skip_runners = args.skip_runners

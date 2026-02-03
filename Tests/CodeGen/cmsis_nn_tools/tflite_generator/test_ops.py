@@ -9,7 +9,7 @@ import tempfile
 import numpy as np
 import yaml
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 import sys
 import tester
@@ -167,13 +167,14 @@ def should_run_test(desc: Dict[str, Any], filters: Dict[str, Any]) -> bool:
     return True
 
 
-def generate_test(desc: Dict[str, Any], out_dir: str) -> None:
+def generate_test(desc: Dict[str, Any], out_dir: str, seed: Optional[int] = None) -> None:
     """
     Generate TFLite model for a descriptor.
     
     Args:
         desc: YAML descriptor
         out_dir: Output directory for generated files
+        seed: Optional random seed (if None, uses hash of test name)
     """
     name = desc['name']
     operator = desc['operator']
@@ -195,7 +196,8 @@ def generate_test(desc: Dict[str, Any], out_dir: str) -> None:
     import inspect
     
     # Initialize operation with deterministic seed
-    seed = hash(name) % (2**32)  # Deterministic seed from name
+    if seed is None:
+        seed = hash(name) % (2**32)  # Deterministic seed from name
     op = op_class(desc, seed)
     
     # Build Keras model
@@ -250,7 +252,7 @@ def test_generation(test_filters):
     for desc in filtered_descriptors:
         try:
             top_generated = Path(__file__).resolve().parents[2] / "GeneratedTests"
-            generate_test(desc, str(top_generated))
+            generate_test(desc, str(top_generated), seed=test_filters.get('seed'))
             generated_count += 1
         except Exception as e:
             print(f"Failed to generate TFLite model for {desc['name']}: {e}")

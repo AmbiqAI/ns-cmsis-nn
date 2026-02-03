@@ -179,6 +179,8 @@ class FullTestPipeline:
             cmd.extend(["--name", self.config.name_filter])
         if self.config.limit:
             cmd.extend(["--limit", str(self.config.limit)])
+        if self.config.seed is not None:
+            cmd.extend(["--seed", str(self.config.seed)])
         
         try:
             if self.config.verbosity >= 2:

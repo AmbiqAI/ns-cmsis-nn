@@ -5,7 +5,7 @@ Mean operation implementation for Helia-Core Tester.
 import numpy as np
 import tensorflow as tf
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict
 from .base import OperationBase  
 
 
@@ -194,7 +194,6 @@ class OpMean(OperationBase):
         shift = min(shift, 32)
         shift = min(shift, 31 + base_shift)  # ensure we don't overflow Q31
         
-        # Try to find a shift that keeps folded_mult <= Q31_MAX
         folded_mult = None
         folded_shift = None
         while shift >= 0:
@@ -204,19 +203,17 @@ class OpMean(OperationBase):
                 break
             shift -= 1  # try smaller shift to prevent overflow
         
-        # If we couldn't find a valid shift, fall back to recalculating effective_scale
-        # Note: arm_nn_requantize can handle shifts in a wider range. We'll use the folded values if found.
-        if folded_mult is None or folded_mult == 0:
-            # Fallback: recalculate with effective_scale that includes division
-            effective_scale = base_scale / float(reduction_size)
-            out_mult, out_shift = calculate_multiplier_shift(effective_scale)
-        else:
+        # Use folded values if found, otherwise fall back to base
+        if folded_mult is not None and folded_mult > 0:
             out_mult = int(folded_mult)
             out_shift = int(folded_shift)
-            # Additional check: if shift is too negative, use fallback 
-            if out_shift < -31:
-                effective_scale = base_scale / float(reduction_size)
-                out_mult, out_shift = calculate_multiplier_shift(effective_scale)
+        else:
+            out_mult = base_mult
+            out_shift = base_shift
+        
+        if out_mult == 0 or out_shift < -31:
+            effective_scale = base_scale / float(reduction_size)
+            out_mult, out_shift = calculate_multiplier_shift(effective_scale)
         
         # Generate input data and quantize
         rng_state = self.rng.__getstate__()
