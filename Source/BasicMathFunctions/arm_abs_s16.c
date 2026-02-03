@@ -50,7 +50,7 @@ arm_cmsis_nn_status arm_abs_s16(const int16_t *input,
 {
     int32_t loop_count = block_size;
     
-    if(!needs_rescale) {
+    if (!needs_rescale) {
         while (loop_count > 0)
         {
             const int32_t input_val = (int32_t)*input++ - input_offset;
@@ -61,7 +61,7 @@ arm_cmsis_nn_status arm_abs_s16(const int16_t *input,
 
             *output++ = (int16_t)output_val;
             loop_count--;
-        }        
+        }
         return ARM_CMSIS_NN_SUCCESS;
     }
     else {
