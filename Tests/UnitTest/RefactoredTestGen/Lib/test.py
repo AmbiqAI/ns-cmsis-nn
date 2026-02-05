@@ -32,6 +32,7 @@ import Lib.op_dequantize
 import Lib.op_relu
 import Lib.op_relu6
 import Lib.op_hard_swish
+import Lib.op_abs
 import Lib.op_prelu
 import Lib.op_strided_slice
 import Lib.op_mean
@@ -286,6 +287,8 @@ def get_op_type(op_type_string):
         return Lib.op_relu6.Op_relu6
     elif op_type_string == "hard_swish":
         return Lib.op_hard_swish.Op_hard_swish
+    elif op_type_string == "abs":
+        return Lib.op_abs.Op_abs
     elif op_type_string == "prelu":
         return Lib.op_prelu.Op_prelu
     elif op_type_string == "strided_slice":

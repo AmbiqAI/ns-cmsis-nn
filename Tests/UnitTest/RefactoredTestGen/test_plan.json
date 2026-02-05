@@ -3665,6 +3665,66 @@
     ]
   },
   {
+    "suite_name": "test_arm_abs_s8",
+    "op_type": "abs",
+    "input_data_type": "int8_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "abs_small_tensor_s8",
+        "batch_size": 1,
+        "height_1": 2,
+        "width_1": 3,
+        "channel_1": 4
+      },
+      {
+        "name": "abs_long_row_s8",
+        "batch_size": 1,
+        "height_1": 1,
+        "width_1": 64,
+        "channel_1": 1
+      },
+      {
+        "name": "abs_multi_batch_s8",
+        "batch_size": 2,
+        "height_1": 3,
+        "width_1": 5,
+        "channel_1": 3
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_abs_s16",
+    "op_type": "abs",
+    "input_data_type": "int16_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "abs_small_tensor_s16",
+        "batch_size": 1,
+        "height_1": 2,
+        "width_1": 3,
+        "channel_1": 4
+      },
+      {
+        "name": "abs_long_row_s16",
+        "batch_size": 1,
+        "height_1": 1,
+        "width_1": 48,
+        "channel_1": 1
+      },
+      {
+        "name": "abs_multi_batch_s16",
+        "batch_size": 2,
+        "height_1": 4,
+        "width_1": 4,
+        "channel_1": 2
+      }
+    ]
+  },
+  {
     "suite_name": "test_arm_prelu_s8",
     "op_type": "prelu",
     "input_data_type": "int8_t",
