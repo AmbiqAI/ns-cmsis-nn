@@ -247,6 +247,7 @@
 
         <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s8.c"/>
         <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s16.c"/>
+        <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s32.c"/>
 
         <file category="source" name="Source/GatherFunctions/arm_gather_s8.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_s16.c"/>
