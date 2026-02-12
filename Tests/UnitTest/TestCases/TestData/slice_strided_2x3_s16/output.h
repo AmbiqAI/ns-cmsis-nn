@@ -3,4 +3,4 @@
 #pragma once
 #include <stdint.h>
 
-const int16_t slice_strided_2x3_s16_output[6] = {3716, 3305, 23479, 14474, 18794, 30960};
+const int16_t slice_strided_2x3_s16_output[6] = {12030, 17554, 12773, 11473, 15340, 11903};

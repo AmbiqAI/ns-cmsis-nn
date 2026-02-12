@@ -32,7 +32,7 @@ void slice_center_3x3_arm_strided_slice_s16(void)
         arm_strided_slice_s16(input_ptr, output_ptr, &input_dims, &begin_dims, &stride_dims, &output_dims);
 
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
-    TEST_ASSERT_TRUE(validate_s16(output_ptr, slice_center_3x3_s16_output_tensor, SLICE_CENTER_3X3_S16_OUTPUT_SIZE));
+    TEST_ASSERT_TRUE(validate_s16(output_ptr, slice_center_3x3_s16_output, SLICE_CENTER_3X3_S16_OUTPUT_SIZE));
 }
 
 void slice_strided_2x3_arm_strided_slice_s16(void)
@@ -61,5 +61,5 @@ void slice_strided_2x3_arm_strided_slice_s16(void)
         arm_strided_slice_s16(input_ptr, output_ptr, &input_dims, &begin_dims, &stride_dims, &output_dims);
 
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
-    TEST_ASSERT_TRUE(validate_s16(output_ptr, slice_strided_2x3_s16_output_tensor, SLICE_STRIDED_2X3_S16_OUTPUT_SIZE));
+    TEST_ASSERT_TRUE(validate_s16(output_ptr, slice_strided_2x3_s16_output, SLICE_STRIDED_2X3_S16_OUTPUT_SIZE));
 }

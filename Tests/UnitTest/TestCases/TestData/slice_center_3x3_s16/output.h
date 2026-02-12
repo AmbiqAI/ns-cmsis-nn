@@ -3,4 +3,4 @@
 #pragma once
 #include <stdint.h>
 
-const int16_t slice_center_3x3_s16_output[6] = {1748, 29647, 27086, 3035, 21554, 25578};
+const int16_t slice_center_3x3_s16_output[6] = {12815, 2961, 11842, 2565, 31881, 12552};

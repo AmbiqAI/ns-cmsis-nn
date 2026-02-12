@@ -3,4 +3,4 @@
 #pragma once
 #include <stdint.h>
 
-const int32_t slice_strided_2x3_s32_output[6] = {591770244, 26724321, 2098598577, 952279710, 517333070, 1057610243};
+const int32_t slice_strided_2x3_s32_output[6] = {883892498, 1866677521, 689231057, 2051164439, 373056993, 565183623};

@@ -129,7 +129,6 @@ class Op_strided_slice(Lib.op_utils.Op_type):
         # tensors maps the names your C harness will expect
         tensors = {
             "input_tensor": inp_data,
-            "output_tensor": out_data,
         }
         scales = {}              # no quant here
         effective_scales = {}    # bare‐float testing
