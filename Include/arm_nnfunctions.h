@@ -4670,6 +4670,31 @@ arm_cmsis_nn_status arm_concatenation_s16(const int16_t *const *input_data,
                                          const int32_t *output_shape);
 
 /**
+ * @brief int32/uint32 concatenation function to be used for concatenating N-tensors along the target axis
+ *
+ * @param[in]  input_data          Pointer to input tensors
+ * @param[in]  inputs_count        Number of input tensors
+ * @param[in]  input_concat_dims   Dimensions of the input tensors along the target axis
+ * @param[in]  axis                Target axis to concatenate the input tensors
+ * @param[out] output_data         Pointer to output tensor
+ * @param[in]  output_dims         Output tensor dimensions
+ * @param[in]  output_shape        Output tensor shape
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</CODE>
+ *
+ * @note This function, data layout independent, can be used to concatenate either int32 or uint32 tensors because it
+ *      does not involve any arithmetic operation
+ *
+ */
+arm_cmsis_nn_status arm_concatenation_s32(const int32_t *const *input_data,
+                                          const int32_t inputs_count,
+                                          const int32_t *input_concat_dims,
+                                          const int32_t axis,
+                                          int32_t *output_data,
+                                          const int32_t output_dims,
+                                          const int32_t *output_shape);
+
+/**
  * @brief  int8/uint8 split function to be used for splitting a tensor into multiple tensors along the target axis
  * @param  input_data      Pointer to the flattened input tensor data.
  * @param  input_dims      Number of dimensions in input_shape.
