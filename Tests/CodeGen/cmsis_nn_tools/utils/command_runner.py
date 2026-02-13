@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from ..core.logger import get_logger
+from cmsis_nn_tools.core.logging import get_logger
 
 
 def run_command(

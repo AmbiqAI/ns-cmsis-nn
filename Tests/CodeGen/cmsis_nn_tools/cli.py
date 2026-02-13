@@ -1,309 +1,371 @@
 """
-Command-line interface for Helia-Core Tester.
+Command-line interface for CMSIS-NN Tools.
+
+This module provides a subcommand-based CLI using Typer.
 """
 
-import argparse
-import shutil
-import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
-# Allow running this file directly without packaging by setting up sys.path
-_THIS_DIR = Path(__file__).resolve().parent
-_REPO_ROOT = _THIS_DIR.parent
-if str(_THIS_DIR) not in sys.path:
-    sys.path.insert(0, str(_THIS_DIR))
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
+import typer
 
-# Prefer absolute imports; fall back to local when run as a script
-try:
-    from cmsis_nn_tools.core.config import Config
-    from cmsis_nn_tools.core.logger import setup_logger
-    from cmsis_nn_tools.core.pipeline import FullTestPipeline
-except Exception:  # noqa: BLE001 - broad to allow script-mode fallback
-    from core.config import Config
-    from core.logger import setup_logger
-    from core.pipeline import FullTestPipeline
+from cmsis_nn_tools.core.config import Config
+from cmsis_nn_tools.core.logging import setup_logger
+from cmsis_nn_tools.core.pipeline import FullTestPipeline
+from cmsis_nn_tools.core.steps import (
+    GenerateStep,
+    RunnersStep,
+    BuildStep,
+    RunStep,
+    CleanStep,
+)
 
+app = typer.Typer(
+    name="cmsis-nn-tools",
+    help="CMSIS-NN testing toolkit - Generate, build, and run tests for CMSIS-NN kernels",
+    add_completion=False,
+)
 
-def find_uv() -> str | None:
-    """Find the uv executable path."""
-    # Check PATH first
-    uv_path = shutil.which("uv")
-    if uv_path:
-        return uv_path
-    
-    # Check common installation locations
-    home = Path.home()
-    common_paths = [
-        home / ".local" / "bin" / "uv",
-        home / ".cargo" / "bin" / "uv",
-    ]
-    
-    for path in common_paths:
-        if path.exists() and path.is_file():
-            return str(path)
-    
-    return None
+# Common options that can be shared
+def common_options(
+    cpu: str = typer.Option("cortex-m55", help="Target CPU"),
+    verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
+    project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
+) -> tuple:
+    """Common options for subcommands."""
+    return cpu, verbosity, dry_run, project_root
 
 
-def has_uv() -> bool:
-    """Check if uv is available in the system."""
-    return find_uv() is not None
-
-
-def create_parser() -> argparse.ArgumentParser:
-    """Create command-line argument parser."""
-    parser = argparse.ArgumentParser(
-        description="Helia-Core Tester - Complete testing and simulation toolkit",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Run complete pipeline
-  cmsis-nn-tools
-
-  # Run with specific filters
-  cmsis-nn-tools --op Conv2D --dtype S8
-
-  # Skip generation, only build and run
-  cmsis-nn-tools --skip-generation
-
-  # Dry run to see what would be done
-  cmsis-nn-tools --dry-run
-
-  # Verbose output with custom CPU
-  cmsis-nn-tools --cpu cortex-m3 --verbosity 2
-        """
-    )
-    
-    # Pipeline control
-    parser.add_argument("--skip-generation", action="store_true",
-                       help="Skip TFLite model generation (assume models exist)")
-    parser.add_argument("--skip-conversion", action="store_true",
-                       help="Skip TFLite to C conversion (assume C modules exist)")
-    parser.add_argument("--skip-runners", action="store_true",
-                       help="Skip test runner generation (assume runners exist)")
-    parser.add_argument("--skip-build", action="store_true",
-                       help="Skip FVP build (assume binaries exist)")
-    parser.add_argument("--skip-run", action="store_true",
-                       help="Skip FVP test execution")
-    
-    # Generation filters
-    parser.add_argument("--op", type=str, default=None,
-                       help="Generate only specific operator (e.g., 'Conv2D')")
-    parser.add_argument("--dtype", type=str, default=None,
-                       help="Generate only specific dtype (e.g., 'S8', 'S16')")
-    parser.add_argument("--name", type=str, default=None,
-                       help="Generate only specific test by name")
-    parser.add_argument("--limit", type=int, default=None,
-                       help="Limit number of models to generate")
-    parser.add_argument("--seed", type=int, default=500,
-                       help="Random seed for test generation (default: hash of test name)")
-    
-    # Build options
-    parser.add_argument("--cpu", type=str, default="cortex-m55",
-                       help="Target CPU (default: cortex-m55)")
-    parser.add_argument("--opt", type=str, default="-Ofast",
-                       help="Optimization level (default: -Ofast)")
-    parser.add_argument("--jobs", type=int, default=None,
-                       help="Parallel build jobs (default: auto)") 
-    
-    # Run options
-    parser.add_argument("--timeout", type=float, default=0.0,
-                       help="Per-test timeout in seconds (0 = none)")
-    parser.add_argument("--no-fail-fast", action="store_true",
-                       help="Don't stop on first test failure")
-    
-    # Reporting options
-    parser.add_argument("--no-report", action="store_true",
-                       help="Disable comprehensive test reporting (enabled by default)")
-    parser.add_argument("--report-formats", nargs="+", 
-                       choices=["json", "html", "md"], default=["json"],
-                       help="Report formats to generate (default: json)")
-    parser.add_argument("--report-dir", type=Path, default=Path("reports"),
-                       help="Directory to save reports (default: reports)")
-    parser.add_argument("--show-latest-report", action="store_true",
-                       help="Show the latest test report summary")
-    
-    # General options
-    parser.add_argument("--setup", action="store_true",
-                       help="Install Python dependencies")
-    parser.add_argument("--verbosity", "-v", type=int, choices=[0, 1, 2, 3], default=0,
-                       help="Output verbosity level (0=minimal, 1=progress, 2=commands, 3=debug)")
-    parser.add_argument("--dry-run", action="store_true",
-                       help="Show what would be done without actually doing it")
-    parser.add_argument("--log-file", type=Path,
-                       help="Log file path")
-    
-    # Path options
-    parser.add_argument("--project-root", type=Path,
-                       help="Project root directory")
-    parser.add_argument("--downloads-dir", type=Path,
-                       help="Downloads directory")
-    parser.add_argument("--generated-tests-dir", type=Path,
-                       help="Generated tests directory")
-    parser.add_argument("--tflite-generator-dir", type=Path,
-                       help="TFLite generator directory")
-    return parser
-
-
-def main() -> int:
-    """Main entry point."""
-    parser = create_parser()
-    args = parser.parse_args()
-    
-    # Setup: Install dependencies (only if --setup is passed)
-    if args.setup:
-        repo_root = Path(__file__).resolve().parent.parent
-        
-        print("Setting up Python environment with uv...")
-        
-        # Check if uv is available (required)
-        uv_path = find_uv()
-        if not uv_path:
-            print(
-                "Error: uv is required but not found. Please install uv:\n"
-                "  curl -LsSf https://astral.sh/uv/install.sh | sh",
-                file=sys.stderr
-            )
-            return 1
-        
-        pyproject_file = repo_root / "pyproject.toml"
-        requirements_file = repo_root / "requirements.txt"
-        venv_path = repo_root / ".venv"
-        
-        try:
-            # Check for broken venv and recreate if needed
-            if venv_path.exists():
-                python_symlink = venv_path / "bin" / "python3"
-                if python_symlink.exists() and not python_symlink.resolve().exists():
-                    print("Detected broken virtual environment, recreating...")
-                    shutil.rmtree(venv_path)
-            
-            # Ensure venv exists
-            if not venv_path.exists():
-                print("Creating virtual environment...")
-                subprocess.run(
-                    [uv_path, "venv"],
-                    cwd=repo_root,
-                    check=True
-                )
-            
-            # Install dependencies - prefer requirements.txt (simpler, avoids build issues)
-            # With uv: uv pip install -r requirements.txt
-            if requirements_file.exists():
-                print("Installing dependencies from requirements.txt...")
-                print(f"  Running: uv pip install -r {requirements_file.name}")
-                subprocess.run(
-                    [uv_path, "pip", "install", "-r", str(requirements_file)],
-                    cwd=repo_root,
-                    check=True
-                )
-            elif pyproject_file.exists():
-                print("Installing dependencies from pyproject.toml...")
-                print("  Note: This may attempt to build the package. Consider using requirements.txt to avoid build issues.")
-                subprocess.run(
-                    [uv_path, "pip", "install", "-e", str(repo_root)],
-                    cwd=repo_root,
-                    check=True
-                )
-            else:
-                print("Error: Neither pyproject.toml nor requirements.txt found", file=sys.stderr)
-                return 1
-            
-            print("Setup completed successfully!")
-        except subprocess.CalledProcessError as e:
-            print(f"Error: Setup failed: {e}", file=sys.stderr)
-            return 1
-    
-    # Create configuration
+def get_config(
+    cpu: str = "cortex-m55",
+    verbosity: int = 0,
+    dry_run: bool = False,
+    project_root: Optional[Path] = None,
+    **kwargs
+) -> Config:
+    """Create and configure Config object."""
     config = Config()
     
-    # Override with command-line arguments
-    if args.project_root:
-        config.project_root = args.project_root
-    if args.downloads_dir:
-        config.downloads_dir = args.downloads_dir
-    if args.generated_tests_dir:
-        config.generated_tests_dir = args.generated_tests_dir
-    if args.tflite_generator_dir:
-        config.tflite_generator_dir = args.tflite_generator_dir
+    if project_root:
+        config.project_root = project_root
     
-    # Set other options
-    config.cpu = args.cpu
-    config.optimization = args.opt
-    config.jobs = args.jobs
-    config.timeout = args.timeout
-    config.fail_fast = not args.no_fail_fast
-    config.verbosity = args.verbosity
-    config.dry_run = args.dry_run
-    config.op_filter = args.op
-    config.dtype_filter = args.dtype
-    config.name_filter = args.name
-    config.limit = args.limit
-    config.seed = args.seed
-    config.skip_generation = args.skip_generation
-    config.skip_conversion = args.skip_conversion
-    config.skip_runners = args.skip_runners
-    config.skip_build = args.skip_build
-    config.skip_run = args.skip_run
+    config.cpu = cpu
+    config.verbosity = verbosity
+    config.dry_run = dry_run
     
-    # Reporting configuration
-    config.enable_reporting = not args.no_report
-    config.report_formats = args.report_formats
-    # Set report_dir to be inside build directory if using default
-    if args.report_dir == Path("reports"):
-        build_dir = config.project_root / f"build-{config.cpu}-gcc"
-        config.report_dir = build_dir / "reports"
-    else:
-        config.report_dir = args.report_dir
+    # Apply any additional kwargs
+    for key, value in kwargs.items():
+        if hasattr(config, key) and value is not None:
+            setattr(config, key, value)
     
-    # Handle show-latest-report
-    if args.show_latest_report:
-        try:
-            from .reporting.storage import ReportStorage
-        except ImportError:
-            # Fallback for when running as standalone script
-            sys.path.append(str(Path(__file__).parent))
-            from reporting.storage import ReportStorage
-        storage = ReportStorage(config.report_dir)
-        latest_report = storage.get_latest_report(config.cpu)
-        
-        if latest_report:
-            print(f"\nLatest Test Report for {config.cpu}")
-            print("=" * 50)
-            print(f"Run ID: {latest_report.run_id}")
-            print(f"Start Time: {latest_report.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-            print(f"Duration: {latest_report.duration:.2f} seconds")
-            print(f"Summary: {latest_report.summary}")
-            print()
-            
-            # Show failed tests if any
-            failed_tests = latest_report.get_failed_tests()
-            if failed_tests:
-                print("Failed Tests:")
-                for test in failed_tests:
-                    print(f"  - {test.test_name}: {test.failure_reason}")
-                print()
-            
-            return 0
-        else:
-            print(f"No reports found for CPU: {config.cpu}")
-            return 1
-    
-    # Setup logging
-    logger = setup_logger(
-        log_file=args.log_file,
-        verbosity=config.verbosity
+    return config
+
+
+@app.command()
+def generate(
+    op: Optional[str] = typer.Option(None, help="Generate only specific operator"),
+    dtype: Optional[str] = typer.Option(None, help="Generate only specific dtype"),
+    name: Optional[str] = typer.Option(None, help="Generate only specific test by name"),
+    limit: Optional[int] = typer.Option(None, help="Limit number of models to generate"),
+    seed: Optional[int] = typer.Option(None, help="Random seed for test generation"),
+    cpu: str = typer.Option("cortex-m55", help="Target CPU"),
+    verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
+    project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
+):
+    """Generate TFLite models and template C/H files."""
+    config = get_config(
+        cpu=cpu,
+        verbosity=verbosity,
+        dry_run=dry_run,
+        project_root=project_root,
+        op_filter=op,
+        dtype_filter=dtype,
+        name_filter=name,
+        limit=limit,
+        seed=seed,
     )
     
-    # Create and run pipeline
+    logger = setup_logger(verbosity=config.verbosity)
+    
+    step = GenerateStep(config)
+    result = step.execute()
+    
+    if result.success:
+        typer.echo("✓ Generation completed successfully")
+        sys.exit(0)
+    elif result.skipped:
+        typer.echo(f"⊘ {result.message}")
+        sys.exit(0)
+    else:
+        typer.echo(f"✗ Generation failed: {result.message}", err=True)
+        sys.exit(1)
+
+
+@app.command()
+def runners(
+    cpu: str = typer.Option("cortex-m55", help="Target CPU"),
+    verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
+    project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
+):
+    """Generate Unity test runners."""
+    config = get_config(
+        cpu=cpu,
+        verbosity=verbosity,
+        dry_run=dry_run,
+        project_root=project_root,
+    )
+    
+    logger = setup_logger(verbosity=config.verbosity)
+    
+    step = RunnersStep(config)
+    result = step.execute()
+    
+    if result.success:
+        typer.echo("✓ Test runners generated successfully")
+        sys.exit(0)
+    elif result.skipped:
+        typer.echo(f"⊘ {result.message}")
+        sys.exit(0)
+    else:
+        typer.echo(f"✗ Runner generation failed: {result.message}", err=True)
+        sys.exit(1)
+
+
+@app.command()
+def build(
+    cpu: str = typer.Option("cortex-m55", help="Target CPU"),
+    opt: str = typer.Option("-Ofast", help="Optimization level"),
+    jobs: Optional[int] = typer.Option(None, help="Parallel build jobs"),
+    verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
+    project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
+):
+    """Build test executables using CMake."""
+    config = get_config(
+        cpu=cpu,
+        verbosity=verbosity,
+        dry_run=dry_run,
+        project_root=project_root,
+        optimization=opt,
+        jobs=jobs,
+    )
+    
+    logger = setup_logger(verbosity=config.verbosity)
+    
+    step = BuildStep(config)
+    result = step.execute()
+    
+    if result.success:
+        typer.echo(f"✓ Build completed successfully for {cpu}")
+        sys.exit(0)
+    elif result.skipped:
+        typer.echo(f"⊘ {result.message}")
+        sys.exit(0)
+    else:
+        typer.echo(f"✗ Build failed: {result.message}", err=True)
+        sys.exit(1)
+
+
+@app.command()
+def run(
+    cpu: str = typer.Option("cortex-m55", help="Target CPU"),
+    timeout: float = typer.Option(0.0, help="Per-test timeout in seconds (0 = none)"),
+    no_fail_fast: bool = typer.Option(False, "--no-fail-fast", help="Don't stop on first failure"),
+    no_report: bool = typer.Option(False, "--no-report", help="Disable test reporting"),
+    report_formats: list[str] = typer.Option(["json"], help="Report formats (json, html, md)"),
+    report_dir: Optional[Path] = typer.Option(None, help="Directory to save reports"),
+    verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
+    project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
+):
+    """Run tests on FVP simulator."""
+    config = get_config(
+        cpu=cpu,
+        verbosity=verbosity,
+        dry_run=dry_run,
+        project_root=project_root,
+        timeout=timeout,
+        fail_fast=not no_fail_fast,
+        enable_reporting=not no_report,
+        report_formats=report_formats,
+        report_dir=report_dir,
+    )
+    
+    logger = setup_logger(verbosity=config.verbosity)
+    
+    step = RunStep(config)
+    result = step.execute()
+    
+    if result.success:
+        typer.echo("✓ All tests completed successfully")
+        sys.exit(0)
+    elif result.skipped:
+        typer.echo(f"⊘ {result.message}")
+        sys.exit(0)
+    else:
+        typer.echo(f"✗ Test execution failed: {result.message}", err=True)
+        sys.exit(1)
+
+
+@app.command()
+def full(
+    op: Optional[str] = typer.Option(None, help="Generate only specific operator"),
+    dtype: Optional[str] = typer.Option(None, help="Generate only specific dtype"),
+    name: Optional[str] = typer.Option(None, help="Generate only specific test by name"),
+    limit: Optional[int] = typer.Option(None, help="Limit number of models to generate"),
+    seed: Optional[int] = typer.Option(None, help="Random seed for test generation"),
+    cpu: str = typer.Option("cortex-m55", help="Target CPU"),
+    opt: str = typer.Option("-Ofast", help="Optimization level"),
+    jobs: Optional[int] = typer.Option(None, help="Parallel build jobs"),
+    timeout: float = typer.Option(0.0, help="Per-test timeout in seconds (0 = none)"),
+    no_fail_fast: bool = typer.Option(False, "--no-fail-fast", help="Don't stop on first failure"),
+    skip_generation: bool = typer.Option(False, "--skip-generation", help="Skip TFLite generation"),
+    skip_conversion: bool = typer.Option(False, "--skip-conversion", help="Skip TFLite to C conversion"),
+    skip_runners: bool = typer.Option(False, "--skip-runners", help="Skip test runner generation"),
+    skip_build: bool = typer.Option(False, "--skip-build", help="Skip FVP build"),
+    skip_run: bool = typer.Option(False, "--skip-run", help="Skip FVP test execution"),
+    no_report: bool = typer.Option(False, "--no-report", help="Disable test reporting"),
+    report_formats: list[str] = typer.Option(["json"], help="Report formats (json, html, md)"),
+    report_dir: Optional[Path] = typer.Option(None, help="Directory to save reports"),
+    verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
+    project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
+):
+    """Run the complete pipeline (generate → runners → build → run)."""
+    config = get_config(
+        cpu=cpu,
+        verbosity=verbosity,
+        dry_run=dry_run,
+        project_root=project_root,
+        op_filter=op,
+        dtype_filter=dtype,
+        name_filter=name,
+        limit=limit,
+        seed=seed,
+        optimization=opt,
+        jobs=jobs,
+        timeout=timeout,
+        fail_fast=not no_fail_fast,
+        skip_generation=skip_generation,
+        skip_conversion=skip_conversion,
+        skip_runners=skip_runners,
+        skip_build=skip_build,
+        skip_run=skip_run,
+        enable_reporting=not no_report,
+        report_formats=report_formats,
+        report_dir=report_dir,
+    )
+    
+    logger = setup_logger(verbosity=config.verbosity)
+    
     pipeline = FullTestPipeline(config)
     success = pipeline.run()
     
-    return 0 if success else 1
+    if success:
+        typer.echo("✓ Pipeline completed successfully")
+        sys.exit(0)
+    else:
+        typer.echo("✗ Pipeline failed", err=True)
+        sys.exit(1)
+
+
+@app.command()
+def clean(
+    cpu: str = typer.Option("cortex-m55", help="Target CPU"),
+    verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
+    project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
+):
+    """Clean build artifacts and reports."""
+    config = get_config(
+        cpu=cpu,
+        verbosity=verbosity,
+        dry_run=dry_run,
+        project_root=project_root,
+    )
+    
+    logger = setup_logger(verbosity=config.verbosity)
+    
+    step = CleanStep(config)
+    result = step.execute()
+    
+    if result.success:
+        typer.echo(f"✓ {result.message}")
+        sys.exit(0)
+    elif result.skipped:
+        typer.echo(f"⊘ {result.message}")
+        sys.exit(0)
+    else:
+        typer.echo(f"✗ Clean failed: {result.message}", err=True)
+        sys.exit(1)
+
+
+@app.command()
+def doctor(
+    project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
+):
+    """Run preflight checks (verify tools, paths, permissions)."""
+    typer.echo("Running preflight checks...")
+    
+    # Check repository root
+    try:
+        from .core.discovery import find_repo_root
+        if project_root:
+            repo_root = Path(project_root).resolve()
+        else:
+            repo_root = find_repo_root()
+        typer.echo(f"✓ Repository root: {repo_root}")
+    except Exception as e:
+        typer.echo(f"✗ Repository root not found: {e}", err=True)
+        sys.exit(1)
+    
+    # Check required tools
+    import shutil
+    
+    tools = {
+        "python3": "Python interpreter",
+        "pytest": "pytest (for test generation)",
+        "cmake": "CMake (for building)",
+    }
+    
+    all_ok = True
+    for tool, description in tools.items():
+        if shutil.which(tool):
+            typer.echo(f"✓ {tool} found ({description})")
+        else:
+            typer.echo(f"✗ {tool} not found ({description})", err=True)
+            all_ok = False
+    
+    # Check key directories
+    key_dirs = {
+        "descriptors": "Test descriptors",
+        "GeneratedTests": "Generated tests (will be created)",
+        "downloads": "Downloads (will be created)",
+    }
+    
+    for dir_name, description in key_dirs.items():
+        dir_path = repo_root / dir_name
+        if dir_path.exists() or dir_name in ["GeneratedTests", "downloads"]:
+            typer.echo(f"✓ {dir_name}/ exists or will be created ({description})")
+        else:
+            typer.echo(f"⚠ {dir_name}/ not found ({description})", err=True)
+    
+    if all_ok:
+        typer.echo("\n✓ All preflight checks passed")
+        sys.exit(0)
+    else:
+        typer.echo("\n✗ Some preflight checks failed", err=True)
+        sys.exit(1)
+
+
+def main():
+    """Main entry point for the CLI."""
+    app()
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

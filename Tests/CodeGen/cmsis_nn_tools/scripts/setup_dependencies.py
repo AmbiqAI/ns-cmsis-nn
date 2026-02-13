@@ -27,6 +27,8 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
+from cmsis_nn_tools.core.discovery import find_repo_root
+
 
 def get_architecture() -> str:
     """Get the system architecture (x86_64 or aarch64)."""
@@ -349,7 +351,7 @@ def setup_python_venv(downloads_dir: Path, force: bool = False) -> None:
         python_cmd = str(venv_dir / "bin" / "python")
     
     # Install dependencies using uv pip
-    repo_root = Path(__file__).resolve().parent.parent.parent
+    repo_root = find_repo_root()
     requirements_file = repo_root / "requirements.txt"
     pyproject_file = repo_root / "pyproject.toml"
     

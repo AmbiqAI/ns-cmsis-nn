@@ -8,11 +8,11 @@ This module provides comprehensive test reporting functionality including:
 - Report storage and retrieval
 """
 
-from .models import TestResult, TestReport, DescriptorResult, TestStatus
-from .parser import TestResultParser
-from .generator import ReportGenerator
-from .storage import ReportStorage
-from .descriptor_tracker import DescriptorTracker
+from cmsis_nn_tools.reporting.models import TestResult, TestReport, DescriptorResult, TestStatus
+from cmsis_nn_tools.reporting.parser import TestResultParser
+from cmsis_nn_tools.reporting.generator import ReportGenerator
+from cmsis_nn_tools.reporting.storage import ReportStorage
+from cmsis_nn_tools.reporting.descriptor_tracker import DescriptorTracker
 
 __all__ = [
     "TestResult",

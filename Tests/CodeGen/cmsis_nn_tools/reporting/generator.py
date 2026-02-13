@@ -8,7 +8,7 @@ import yaml
 from pathlib import Path
 from typing import List, Dict
 
-from .models import TestReport, TestStatus
+from cmsis_nn_tools.reporting.models import TestReport, TestStatus
 
 
 class ReportGenerator:

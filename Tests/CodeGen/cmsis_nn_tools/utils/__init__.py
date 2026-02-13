@@ -1,7 +1,7 @@
 """
-Utility functions for Helia-Core Tester.
+Utility modules for CMSIS-NN Tools.
 """
 
-from .command_runner import run_command
+from cmsis_nn_tools.utils.command_runner import run_command
 
 __all__ = ["run_command"]

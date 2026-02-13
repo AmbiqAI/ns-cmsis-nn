@@ -26,20 +26,9 @@ You can either manually set up dependencies or use the automated setup:
 
 **Option 1: Automated setup**
 ```bash
-# From the repository root - uses uv sync
+# From the repository root (Tests/CodeGen) - uses uv sync
 uv sync
-
-# Or run the setup script
-python3 setup.py
 ```
-
-**Option 2: Using CLI setup**
-```bash
-# From the repository root - uses uv (required)
-python3 cmsis_nn_tools/cli.py --setup
-```
-
-**Option 3: Manual setup**
 1. **Initialize submodules** (uv cannot do this, git is required):
    ```bash
    git submodule update --init --recursive --depth 1
@@ -47,37 +36,29 @@ python3 cmsis_nn_tools/cli.py --setup
 
 2. **Install Python dependencies with uv sync**:
    ```bash
-   # uv sync automatically creates .venv and installs dependencies
    uv sync
-   
-   # Or manually with uv pip install
-   uv venv .venv
-   uv pip install --python .venv/bin/python -e .
    ```
 
 **Run the tool**:
 ```bash
-# Using uv run
-uv run python cmsis_nn_tools/cli.py --help
+# Using uv run (recommended)
+uv run cmsis-nn-tools --help
 
 # Or activate the virtual environment first
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-python cmsis_nn_tools/cli.py --help
+cmsis-nn-tools --help
 ```
 
 ### CI Setup
 
 For CI environments, use the `setup_ci.sh` script which:
-- Automatically installs `uv` if not present
-- Sets up Python virtual environment using `uv`
-- Downloads and configures build dependencies (ARM GCC, CMSIS-5, Corstone300 FVP, etc.)
+- Requires `uv` to be installed (does not install it)
+- Runs `uv sync` to set up the Python environment (`.venv` at repo root)
+- Optionally runs build dependency setup (ARM GCC, CMSIS-5, Corstone300 FVP, etc.)
 - Configures environment variables
 
 ```bash
-# In CI scripts or GitHub Actions
-python3 setup.py
-
-# Or using the shell script
+# In CI: ensure uv is available, then run
 ./scripts/setup_ci.sh
 
 # With custom downloads directory
@@ -110,7 +91,7 @@ git submodule update --init --recursive --depth 1
 uv sync
 
 # 4. Run commands using uv run
-uv run python cmsis_nn_tools/cli.py --help
+uv run cmsis-nn-tools --help
 ```
 
 **Note**: uv cannot clone git submodules (that's a git feature), so we use `git submodule` commands for that. All Python dependencies are managed entirely by uv.
@@ -121,32 +102,39 @@ uv run python cmsis_nn_tools/cli.py --help
 
 ```bash
 # Run complete pipeline (default: cortex-m55)
-python3 cmsis_nn_tools/cli.py
-
-# Setup dependencies and run pipeline
-python3 cmsis_nn_tools/cli.py --setup
+uv run cmsis-nn-tools full
 
 # Specify CPU
-python3 cmsis_nn_tools/cli.py --cpu cortex-m4
+uv run cmsis-nn-tools full --cpu cortex-m4
 ```
+
+### Subcommands
+
+- `uv run cmsis-nn-tools generate` — Generate TFLite models and template C/H
+- `uv run cmsis-nn-tools runners` — Generate Unity test runners
+- `uv run cmsis-nn-tools build` — CMake build for FVP
+- `uv run cmsis-nn-tools run` — Run tests on FVP
+- `uv run cmsis-nn-tools full` — Run the full pipeline
+- `uv run cmsis-nn-tools clean` — Remove build artifacts
+- `uv run cmsis-nn-tools doctor` — Preflight checks
 
 ### Advanced Usage
 
 ```bash
 # Run with specific filters
-python3 cmsis_nn_tools/cli.py --op conv2D --dtype S8 --limit 5
+uv run cmsis-nn-tools full --op conv2D --dtype S8 --limit 5
 
 # Skip certain steps
-python3 cmsis_nn_tools/cli.py --skip-generation --skip-conversion
+uv run cmsis-nn-tools full --skip-generation --skip-conversion
 
 # Dry run to see what would be done
-python3 cmsis_nn_tools/cli.py --dry-run
+uv run cmsis-nn-tools full --dry-run
 
 # Verbose output with custom CPU
-python3 cmsis_nn_tools/cli.py --cpu cortex-m3 --verbose
+uv run cmsis-nn-tools full --cpu cortex-m3 -v 2
 
 # Custom optimization level and jobs
-python3 cmsis_nn_tools/cli.py --opt "-O2" --jobs 8
+uv run cmsis-nn-tools build --opt "-O2" --jobs 8
 ```
 
 ### Command Line Options
@@ -173,8 +161,7 @@ python3 cmsis_nn_tools/cli.py --opt "-O2" --jobs 8
 - `--no-fail-fast`: Don't stop on first test failure
 
 #### General Options
-- `--setup`: Install Python dependencies (requires uv)
-- `--verbose, -v`: Show detailed output
+- `--verbosity, -v`: Output verbosity (0–3)
 - `--dry-run`: Show what would be done without actually doing it
 - `--quiet, -q`: Reduce output verbosity
 - `--log-file PATH`: Log file path
@@ -185,29 +172,29 @@ All Python lives under `cmsis_nn_tools/`:
 
 ### Core Modules
 - `cmsis_nn_tools.core.pipeline`: Main pipeline orchestration
-- `cmsis_nn_tools.core.config`: Configuration management
-- `cmsis_nn_tools.core.logger`: Logging configuration
+- `cmsis_nn_tools.core.config`: Configuration management (repo-root discovery)
+- `cmsis_nn_tools.core.discovery`: Path discovery (no __file__-based paths)
+- `cmsis_nn_tools.core.steps`: Pipeline steps (generate, runners, build, run, clean)
 
-### Main Scripts
-- `cmsis_nn_tools/cli.py`: Command-line interface entry point
-- `cmsis_nn_tools/build_and_run_fvp.py`: FVP build and test execution
+### CLI
+- `cmsis_nn_tools.cli`: Subcommand CLI entry point (`cmsis-nn-tools`)
+
+### FVP
+- `cmsis_nn_tools.fvp.build_and_run_fvp`: FVP build and test execution
 
 ### Scripts
 - `cmsis_nn_tools/scripts/generate_test_runners.py`: Unity test runner generation
-- `cmsis_nn_tools/scripts/setup_dependencies.py`: Dependency download and setup
-- `cmsis_nn_tools/scripts/collect_coverage.py`: Coverage data collection
+- `cmsis_nn_tools/scripts/setup_dependencies.py`: Build dependency download (invoked via `uv run`)
 
-### TFLite Generator
-- `cmsis_nn_tools/tflite_generator/` contains:
+### Generation (TFLite)
+- `cmsis_nn_tools/generation/tflite_generator/` contains:
   - `test_ops.py`, `conftest.py`: TFLite model generation via pytest
   - `tester/ops/`: Operator implementations
   - `tester/io/`: I/O utilities
   - `tester/descriptors/`: Test descriptor schemas and examples
 
-### Utility Modules
-- `cmsis_nn_tools/utils/command_runner.py`: Command execution utilities
-
-### Reporting Modules
+### Utility and Reporting
+- `cmsis_nn_tools/utils/`: Command execution utilities
 - `cmsis_nn_tools/reporting/`: Test result parsing, storage, and report generation
 
 ## Development
@@ -215,20 +202,16 @@ All Python lives under `cmsis_nn_tools/`:
 ### Generate TFLite models directly (pytest)
 
 ```bash
-cd cmsis_nn_tools/tflite_generator
-pytest test_ops.py::test_generation -v --op mean_int16
+# From repo root (Tests/CodeGen)
+uv run pytest cmsis_nn_tools/generation/tflite_generator/test_ops.py::test_generation -v --op mean_int16
 ```
 
 ### Code Quality (optional)
 
 ```bash
-# Format
+# From repo root
 black cmsis_nn_tools/
-
-# Lint
 flake8 cmsis_nn_tools/
-
-# Type check
 mypy cmsis_nn_tools/
 ```
 
@@ -261,6 +244,5 @@ For other CI systems, simply run:
 ```
 
 The script will handle all setup steps including:
-- Installing uv (if not present)
-- Setting up Python environment
-- Downloading build dependencies (ARM GCC, CMSIS-5, Corstone300 FVP, etc.)
+- Running `uv sync` (uv must be installed beforehand)
+- Optionally downloading build dependencies (ARM GCC, CMSIS-5, Corstone300 FVP, etc.)

@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 
-from .models import TestResult, TestStatus
+from cmsis_nn_tools.reporting.models import TestResult, TestStatus
 
 
 class TestResultParser:

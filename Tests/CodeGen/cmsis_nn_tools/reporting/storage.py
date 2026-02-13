@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-from .models import TestReport, TestResult, TestStatus, DescriptorResult
+from cmsis_nn_tools.reporting.models import TestReport, TestResult, TestStatus, DescriptorResult
 
 
 class ReportStorage:

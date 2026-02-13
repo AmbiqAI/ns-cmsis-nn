@@ -7,16 +7,9 @@ and determine descriptor status based on test results and artifact presence.
 
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import sys
 
-try:
-    from ...tflite_generator.tester.io.descriptors import load_all_descriptors
-except ImportError:
-    cmsis_nn_tools_dir = Path(__file__).parent.parent
-    sys.path.insert(0, str(cmsis_nn_tools_dir))
-    from tflite_generator.tester.io.descriptors import load_all_descriptors
-
-from .models import TestStatus, TestResult
+from cmsis_nn_tools.generation.tflite_generator.tester.io.descriptors import load_all_descriptors
+from cmsis_nn_tools.reporting.models import TestStatus, TestResult
 
 
 class DescriptorTracker:
