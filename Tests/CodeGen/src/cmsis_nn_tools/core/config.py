@@ -1,0 +1,149 @@
+"""
+Configuration management for CMSIS-NN Tools.
+"""
+
+import os
+from pathlib import Path
+from typing import Optional, Dict, Any
+from dataclasses import dataclass, field
+
+from helia_core_tester.core.discovery import find_repo_root
+from helia_core_tester.core.errors import ConfigurationError, PathNotFoundError
+
+
+@dataclass
+class Config:
+    """Configuration class for CMSIS-NN Tools."""
+    
+    # Project paths - will be set in __post_init__ using discovery
+    project_root: Optional[Path] = None
+    downloads_dir: Optional[Path] = None
+    generated_tests_dir: Optional[Path] = None
+    tflite_generator_dir: Optional[Path] = None
+    
+    # Build configuration
+    cpu: str = "cortex-m55"
+    optimization: str = "-Ofast"
+    jobs: Optional[int] = None
+    
+    # Test configuration
+    timeout: float = 0.0
+    fail_fast: bool = True
+    verbosity: int = 0  # 0=minimal, 1=progress, 2=commands, 3=debug
+    dry_run: bool = False
+    
+    # Filters
+    op_filter: Optional[str] = None
+    dtype_filter: Optional[str] = None
+    name_filter: Optional[str] = None
+    limit: Optional[int] = None
+    seed: Optional[int] = None  # Random seed for test generation (None = use hash of test name)
+    
+    # Skip options
+    skip_generation: bool = False
+    skip_conversion: bool = False
+    skip_runners: bool = False
+    skip_build: bool = False
+    skip_run: bool = False
+    
+    # Reporting configuration
+    enable_reporting: bool = True
+    report_formats: list = field(default_factory=lambda: ["json"])
+    report_dir: Optional[Path] = None
+    
+    def __post_init__(self):
+        """Post-initialization processing."""
+        # Discover repository root if not provided
+        if self.project_root is None:
+            try:
+                self.project_root = find_repo_root()
+            except Exception as e:
+                raise ConfigurationError(
+                    f"Could not discover repository root: {e}. "
+                    f"Set project_root explicitly or set CMSIS_NN_REPO_ROOT environment variable."
+                ) from e
+        else:
+            self.project_root = Path(self.project_root).resolve()
+        
+        # Set derived paths if not provided
+        if self.downloads_dir is None:
+            self.downloads_dir = self.project_root / "downloads"
+        else:
+            self.downloads_dir = Path(self.downloads_dir).resolve()
+        
+        if self.generated_tests_dir is None:
+            self.generated_tests_dir = self.project_root / "GeneratedTests"
+        else:
+            self.generated_tests_dir = Path(self.generated_tests_dir).resolve()
+        
+        if self.tflite_generator_dir is None:
+            # Only src layout: src/helia_core_tester/generation/tflite_generator/
+            self.tflite_generator_dir = self.project_root / "src" / "helia_core_tester" / "generation" / "tflite_generator"
+        else:
+            self.tflite_generator_dir = Path(self.tflite_generator_dir).resolve()
+        
+        # Convert report_dir to Path if needed
+        if self.report_dir is None:
+            # Default to build directory reports
+            build_dir = self.project_root / f"build-{self.cpu}-gcc"
+            self.report_dir = build_dir / "reports"
+        elif isinstance(self.report_dir, str):
+            self.report_dir = Path(self.report_dir)
+        else:
+            self.report_dir = Path(self.report_dir).resolve()
+        
+        # Validate verbosity level
+        if not 0 <= self.verbosity <= 3:
+            raise ValueError(f"verbosity must be between 0 and 3, got {self.verbosity}")
+        
+        # Set default jobs to CPU count
+        if self.jobs is None:
+            self.jobs = os.cpu_count() or 4
+        
+        # Validate paths exist (warn but don't fail for generated directories)
+        if not self.project_root.exists():
+            raise PathNotFoundError(f"Project root does not exist: {self.project_root}")
+        
+        # Downloads dir will be created if needed, so just check parent
+        if not self.downloads_dir.parent.exists():
+            raise PathNotFoundError(f"Downloads directory parent does not exist: {self.downloads_dir.parent}")
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert configuration to dictionary."""
+        return {
+            "project_root": str(self.project_root),
+            "downloads_dir": str(self.downloads_dir),
+            "generated_tests_dir": str(self.generated_tests_dir),
+            "tflite_generator_dir": str(self.tflite_generator_dir),
+            "cpu": self.cpu,
+            "optimization": self.optimization,
+            "jobs": self.jobs,
+            "timeout": self.timeout,
+            "fail_fast": self.fail_fast,
+            "verbosity": self.verbosity,
+            "dry_run": self.dry_run,
+            "op_filter": self.op_filter,
+            "dtype_filter": self.dtype_filter,
+            "name_filter": self.name_filter,
+            "limit": self.limit,
+            "seed": self.seed,
+            "skip_generation": self.skip_generation,
+            "skip_conversion": self.skip_conversion,
+            "skip_runners": self.skip_runners,
+            "skip_build": self.skip_build,
+            "skip_run": self.skip_run,
+            "enable_reporting": self.enable_reporting,
+            "report_formats": self.report_formats,
+            "report_dir": str(self.report_dir),
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Config":
+        """Create configuration from dictionary."""
+        # Convert path strings back to Path objects
+        path_keys = ["project_root", "downloads_dir", "generated_tests_dir", 
+                     "tflite_generator_dir", "report_dir"]
+        for key in path_keys:
+            if key in data and isinstance(data[key], str):
+                data[key] = Path(data[key])
+        return cls(**data)

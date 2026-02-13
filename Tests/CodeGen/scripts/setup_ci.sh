@@ -80,10 +80,10 @@ if [ "${SKIP_BUILD_DEPS}" = false ]; then
     echo ""
     echo -e "${GREEN}=== Setting up Build Dependencies ===${NC}"
     
-    SETUP_SCRIPT="${REPO_ROOT}/cmsis_nn_tools/scripts/setup_dependencies.py"
+    SETUP_SCRIPT="${REPO_ROOT}/helia_core_tester/scripts/setup_dependencies.py"
     
     if [ -f "${SETUP_SCRIPT}" ]; then
-        (cd "${REPO_ROOT}" && uv run python -m cmsis_nn_tools.scripts.setup_dependencies \
+        (cd "${REPO_ROOT}" && uv run python -m helia_core_tester.scripts.setup_dependencies \
             --downloads-dir "${DOWNLOADS_DIR}" \
             --skip-python) || {
             echo -e "${YELLOW}Warning: Build dependencies setup had issues. Continuing...${NC}" >&2

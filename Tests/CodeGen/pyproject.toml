@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["cmsis_nn_tools*"]
+include = ["helia_core_tester*"]
 
 [project]
-name = "helia-core-tester"
+name = "helia_core_tester"
 version = "0.1.0"
 description = "A comprehensive toolkit for CMSIS-NN testing, model generation, and FVP simulation"
 readme = "README.md"
@@ -31,7 +31,7 @@ dependencies = [
 ]
 
 [project.scripts]
-cmsis-nn-tools = "cmsis_nn_tools.cli:app"
+helia_core_tester = "helia_core_tester.cli:app"
 
 [dependency-groups]
 dev = [
