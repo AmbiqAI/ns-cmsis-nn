@@ -9,17 +9,10 @@
 
 #include "../TestData/slice_center_3x3_s32/test_data.h"
 #include "../TestData/slice_strided_2x3_s32/test_data.h"
+#include "../Utils/validate.h"
 #include "arm_nn_types.h"
 #include "arm_nnfunctions.h"
 #include "unity.h"
-
-static void validate_s32(const int32_t *actual, const int32_t *expected, const int32_t length)
-{
-    for (int32_t i = 0; i < length; ++i)
-    {
-        TEST_ASSERT_EQUAL_INT32(expected[i], actual[i]);
-    }
-}
 
 void slice_center_3x3_arm_strided_slice_s32(void)
 {
@@ -39,7 +32,7 @@ void slice_center_3x3_arm_strided_slice_s32(void)
         arm_strided_slice_s32(input_ptr, output_ptr, &input_dims, &begin_dims, &stride_dims, &output_dims);
 
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
-    validate_s32(output_ptr, slice_center_3x3_s32_output, SLICE_CENTER_3X3_S32_OUTPUT_SIZE);
+    TEST_ASSERT_TRUE(validate_s32(output_ptr, slice_center_3x3_s32_output, SLICE_CENTER_3X3_S32_OUTPUT_SIZE));
 }
 
 void slice_strided_2x3_arm_strided_slice_s32(void)
@@ -68,5 +61,5 @@ void slice_strided_2x3_arm_strided_slice_s32(void)
         arm_strided_slice_s32(input_ptr, output_ptr, &input_dims, &begin_dims, &stride_dims, &output_dims);
 
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
-    validate_s32(output_ptr, slice_strided_2x3_s32_output, SLICE_STRIDED_2X3_S32_OUTPUT_SIZE);
+    TEST_ASSERT_TRUE(validate_s32(output_ptr, slice_strided_2x3_s32_output, SLICE_STRIDED_2X3_S32_OUTPUT_SIZE));
 }
