@@ -130,7 +130,12 @@ def detect_paths(args) -> dict:
         die(f"Toolchain file missing: {toolchain_file}")
 
     # FVP
-    fvp_dir = dl / "corstone300_download" / "models" / "Linux64_armv8l_GCC-9.3"
+    if arch == "x86_64":
+        fvp_dir = dl / "corstone300_download" / "models" / FVP_DIR_X86
+    elif arch == "aarch64":
+        fvp_dir = dl / "corstone300_download" / "models" / FVP_DIR_AARCH64
+    else:
+        die(f"Unsupported architecture for FVP: {arch}")
     fvp_exe: Optional[Path] = None
     if not args.no_fvp_from_download:
         fvp_exe_candidate = fvp_dir / FVP_EXE_NAME
