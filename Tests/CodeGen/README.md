@@ -61,7 +61,7 @@ For CI environments, use the `setup_ci.sh` script which:
 # In CI: ensure uv is available, then run
 ./scripts/setup_ci.sh
 
-# With custom downloads directory
+# With custom downloads directory (default: ./artifacts/downloads)
 ./scripts/setup_ci.sh --downloads-dir /custom/path
 
 # Skip certain steps if needed
@@ -187,11 +187,11 @@ All Python lives under `helia_core_tester/`:
 - `helia_core_tester/scripts/setup_dependencies.py`: Build dependency download (invoked via `uv run`)
 
 ### Generation (TFLite)
-- `helia_core_tester/generation/tflite_generator/` contains:
+- `helia_core_tester/generation/` contains:
   - `test_ops.py`, `conftest.py`: TFLite model generation via pytest
-  - `tester/ops/`: Operator implementations
-  - `tester/io/`: I/O utilities
-  - `tester/descriptors/`: Test descriptor schemas and examples
+  - `ops/`: Operator implementations
+  - `io/`: I/O utilities
+  - `assets/descriptors/`: Test descriptor schemas and examples
 
 ### Utility and Reporting
 - `helia_core_tester/utils/`: Command execution utilities
@@ -203,7 +203,7 @@ All Python lives under `helia_core_tester/`:
 
 ```bash
 # From repo root (Tests/CodeGen)
-uv run pytest helia_core_tester/generation/tflite_generator/test_ops.py::test_generation -v --op mean_int16
+uv run pytest helia_core_tester/generation/test_ops.py::test_generation -v --op mean_int16
 ```
 
 ### Code Quality (optional)

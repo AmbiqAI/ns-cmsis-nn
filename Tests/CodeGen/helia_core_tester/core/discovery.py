@@ -123,14 +123,14 @@ def find_descriptors_dir(repo_root: Optional[Path] = None) -> Path:
         repo_root: Repository root (auto-discovered if None)
     
     Returns:
-        Path to descriptors/ directory at repo root
+        Path to assets/descriptors/ directory at repo root
         
     Raises:
         RepoRootNotFoundError: If repo root cannot be found
         PathNotFoundError: If descriptors directory doesn't exist
     """
     repo_root = _resolve_repo_root(repo_root)
-    descriptors_dir = repo_root / "descriptors"
+    descriptors_dir = repo_root / "assets" / "descriptors"
     if not descriptors_dir.exists():
         from .errors import PathNotFoundError
         raise PathNotFoundError(f"Descriptors directory not found: {descriptors_dir}")
@@ -140,20 +140,20 @@ def find_descriptors_dir(repo_root: Optional[Path] = None) -> Path:
 
 def find_generated_tests_dir(repo_root: Optional[Path] = None, create: bool = True) -> Path:
     """
-    Find or create the GeneratedTests directory.
+    Find or create the generated tests directory.
     
     Args:
         repo_root: Repository root (auto-discovered if None)
         create: Create directory if it doesn't exist
         
     Returns:
-        Path to GeneratedTests/ directory at repo root
+        Path to artifacts/generated_tests/ directory at repo root
         
     Raises:
         RepoRootNotFoundError: If repo root cannot be found
     """
     repo_root = _resolve_repo_root(repo_root)
-    generated_tests_dir = repo_root / "GeneratedTests"
+    generated_tests_dir = repo_root / "artifacts" / "generated_tests"
     
     if create and not generated_tests_dir.exists():
         generated_tests_dir.mkdir(parents=True, exist_ok=True)
@@ -172,12 +172,7 @@ def find_tester_templates_dir(repo_root: Optional[Path] = None) -> Path:
         Path to templates/ under helia_core_tester/generation/
     """
     repo_root = _resolve_repo_root(repo_root)
-    return (
-        repo_root
-        / "helia_core_tester"
-        / "generation"
-        / "templates"
-    )
+    return repo_root / "assets" / "templates"
 
 
 def find_fvp_script_path(repo_root: Optional[Path] = None) -> Path:

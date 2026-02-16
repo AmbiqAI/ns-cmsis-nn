@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from helia_core_tester.core.steps.base import StepBase, StepResult, StepStatus
+from helia_core_tester.core.steps.base import StepBase, StepPlan, StepResult, StepStatus
 from helia_core_tester.core.errors import FVPRunError
 from helia_core_tester.core.logging import get_logger
 from helia_core_tester.core.discovery import find_fvp_script_path
@@ -33,7 +33,7 @@ class RunStep(StepBase):
         script_path = find_fvp_script_path(self.config.project_root)
         if not script_path.exists():
             return f"FVP script not found: {script_path}"
-        build_dir = self.config.project_root / f"build-{self.config.cpu}-gcc"
+        build_dir = self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc"
         if not build_dir.exists():
             return f"Build directory not found: {build_dir}. Run 'build' step first."
         return None
@@ -86,8 +86,14 @@ class RunStep(StepBase):
                 self.logger.info("All tests completed successfully")
             
             return StepResult(
+                name=self.name,
                 status=StepStatus.SUCCESS,
-                message="All tests completed successfully"
+                message="All tests completed successfully",
+                outputs={
+                    "build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc"),
+                    "report_dir": str(self.config.report_dir) if self.config.report_dir else "",
+                },
+                details={"command": cmd},
             )
         except subprocess.CalledProcessError as e:
             if self.config.verbosity >= 2:
@@ -98,9 +104,15 @@ class RunStep(StepBase):
             
             fvp_error = FVPRunError(error_msg)
             return StepResult(
+                name=self.name,
                 status=StepStatus.FAILED,
                 message=error_msg,
-                error=fvp_error
+                error=fvp_error,
+                outputs={
+                    "build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc"),
+                    "report_dir": str(self.config.report_dir) if self.config.report_dir else "",
+                },
+                details={"command": cmd},
             )
         except FileNotFoundError as e:
             error_msg = f"Failed to run tests: {e}"
@@ -108,9 +120,15 @@ class RunStep(StepBase):
             fvp_error = FVPRunError(error_msg)
             fvp_error.__cause__ = e
             return StepResult(
+                name=self.name,
                 status=StepStatus.FAILED,
                 message=error_msg,
-                error=fvp_error
+                error=fvp_error,
+                outputs={
+                    "build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc"),
+                    "report_dir": str(self.config.report_dir) if self.config.report_dir else "",
+                },
+                details={"command": cmd},
             )
 
     def dry_run(self) -> StepResult:
@@ -126,6 +144,40 @@ class RunStep(StepBase):
             cmd_preview.append("--no-fail-fast")
         
         return StepResult(
+            name=self.name,
             status=StepStatus.SKIPPED,
-            message=f"DRY RUN: Would run: {' '.join(cmd_preview)}"
+            message=f"DRY RUN: Would run: {' '.join(cmd_preview)}",
+            outputs={
+                "build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc"),
+                "report_dir": str(self.config.report_dir) if self.config.report_dir else "",
+            },
+        )
+
+    def _plan_details(self) -> StepPlan:
+        cmd = [
+            sys.executable, "-m", "helia_core_tester.fvp.build_and_run_fvp",
+            "--cpu", self.config.cpu,
+            "--no-build",
+        ]
+        if self.config.timeout > 0:
+            cmd.extend(["--timeout-run", str(self.config.timeout)])
+        if not self.config.fail_fast:
+            cmd.append("--no-fail-fast")
+        cmd.extend(["--verbosity", str(self.config.verbosity)])
+        if hasattr(self.config, 'enable_reporting'):
+            if not self.config.enable_reporting:
+                cmd.append("--no-report")
+            if hasattr(self.config, 'report_formats') and self.config.report_formats:
+                cmd.extend(["--report-formats"] + self.config.report_formats)
+            if hasattr(self.config, 'report_dir') and self.config.report_dir:
+                cmd.extend(["--report-dir", str(self.config.report_dir)])
+        return StepPlan(
+            name=self.name,
+            will_run=True,
+            reason="ready",
+            commands=[cmd],
+            outputs={
+                "build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc"),
+                "report_dir": str(self.config.report_dir) if self.config.report_dir else "",
+            }
         )

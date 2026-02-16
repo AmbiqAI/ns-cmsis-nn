@@ -3,9 +3,10 @@ Base classes for pipeline steps.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import Any, Dict, List, Optional
+import time
 
 
 class StepStatus(Enum):
@@ -18,9 +19,14 @@ class StepStatus(Enum):
 @dataclass
 class StepResult:
     """Result of executing a pipeline step."""
+    name: str
     status: StepStatus
     message: str
+    duration_sec: Optional[float] = None
+    outputs: Dict[str, str] = field(default_factory=dict)
+    details: Dict[str, Any] = field(default_factory=dict)
     error: Optional[Exception] = None
+    should_continue: bool = True
     
     @property
     def success(self) -> bool:
@@ -31,6 +37,17 @@ class StepResult:
     def skipped(self) -> bool:
         """Check if step was skipped."""
         return self.status == StepStatus.SKIPPED
+
+
+@dataclass
+class StepPlan:
+    """Plan for a pipeline step (no execution)."""
+    name: str
+    will_run: bool
+    reason: str
+    commands: List[List[str]] = field(default_factory=list)
+    outputs: Dict[str, str] = field(default_factory=dict)
+    details: Dict[str, Any] = field(default_factory=dict)
 
 
 class StepBase(ABC):
@@ -65,6 +82,7 @@ class StepBase(ABC):
         """Execute this step (skip/dry_run/validate then _do_execute)."""
         if self.should_skip():
             return StepResult(
+                name=self.name,
                 status=StepStatus.SKIPPED,
                 message=f"{self.name} step skipped by config"
             )
@@ -72,8 +90,19 @@ class StepBase(ABC):
             return self.dry_run()
         error = self.validate()
         if error:
-            return StepResult(status=StepStatus.FAILED, message=error)
-        return self._do_execute()
+            return StepResult(
+                name=self.name,
+                status=StepStatus.FAILED,
+                message=error,
+                should_continue=not self.config.fail_fast
+            )
+        start = time.perf_counter()
+        result = self._do_execute()
+        duration = time.perf_counter() - start
+        result.duration_sec = duration
+        if result.status == StepStatus.FAILED:
+            result.should_continue = not self.config.fail_fast
+        return result
 
     @abstractmethod
     def _do_execute(self) -> StepResult:
@@ -111,6 +140,32 @@ class StepBase(ABC):
             StepResult with status SKIPPED and message describing what would be done
         """
         return StepResult(
+            name=self.name,
             status=StepStatus.SKIPPED,
             message=f"DRY RUN: Would execute {self.name} step"
+        )
+
+    def plan(self) -> StepPlan:
+        """Return a plan for this step without executing it."""
+        if self.should_skip():
+            return StepPlan(
+                name=self.name,
+                will_run=False,
+                reason="skipped by config"
+            )
+        validation_error = self.validate()
+        if validation_error:
+            return StepPlan(
+                name=self.name,
+                will_run=False,
+                reason=f"invalid: {validation_error}"
+            )
+        return self._plan_details()
+
+    def _plan_details(self) -> StepPlan:
+        """Provide commands/outputs for plan mode."""
+        return StepPlan(
+            name=self.name,
+            will_run=True,
+            reason="ready"
         )

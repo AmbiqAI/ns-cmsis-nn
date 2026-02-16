@@ -5,7 +5,7 @@ Unity test runner generation step.
 import subprocess
 from pathlib import Path
 
-from helia_core_tester.core.steps.base import StepBase, StepResult, StepStatus
+from helia_core_tester.core.steps.base import StepBase, StepPlan, StepResult, StepStatus
 from helia_core_tester.core.errors import StepExecutionError
 from helia_core_tester.core.logging import get_logger
 from helia_core_tester.utils.command_runner import run_command
@@ -50,8 +50,11 @@ class RunnersStep(StepBase):
             if self.config.verbosity >= 1:
                 self.logger.warning("No model headers found - test runners will be generated after conversion")
             return StepResult(
+                name=self.name,
                 status=StepStatus.SKIPPED,
-                message="No model headers found, skipping runner generation (will run after conversion)"
+                message="No model headers found, skipping runner generation (will run after conversion)",
+                outputs={"generated_tests_dir": str(self.config.generated_tests_dir)},
+                details={"checked_headers": 0},
             )
         cmd = ["python3", str(script_path), "--root", str(self.config.generated_tests_dir)]
         try:
@@ -61,8 +64,11 @@ class RunnersStep(StepBase):
             if self.config.verbosity >= 1:
                 self.logger.info("Test runners generated successfully")
             return StepResult(
+                name=self.name,
                 status=StepStatus.SUCCESS,
-                message="Test runners generated successfully"
+                message="Test runners generated successfully",
+                outputs={"generated_tests_dir": str(self.config.generated_tests_dir)},
+                details={"command": cmd, "headers_found": len(all_headers)},
             )
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             error_msg = f"Failed to generate test runners: {e}"
@@ -70,14 +76,29 @@ class RunnersStep(StepBase):
             exec_error = StepExecutionError(error_msg)
             exec_error.__cause__ = e
             return StepResult(
+                name=self.name,
                 status=StepStatus.FAILED,
                 message=error_msg,
-                error=exec_error
+                error=exec_error,
+                outputs={"generated_tests_dir": str(self.config.generated_tests_dir)},
+                details={"command": cmd},
             )
 
     def dry_run(self) -> StepResult:
         """Dry run of runner generation step."""
         return StepResult(
+            name=self.name,
             status=StepStatus.SKIPPED,
-            message=f"DRY RUN: Would run: python3 {self._script_path()} --root {self.config.generated_tests_dir}"
+            message=f"DRY RUN: Would run: python3 {self._script_path()} --root {self.config.generated_tests_dir}",
+            outputs={"generated_tests_dir": str(self.config.generated_tests_dir)},
+        )
+
+    def _plan_details(self) -> StepPlan:
+        cmd = ["python3", str(self._script_path()), "--root", str(self.config.generated_tests_dir)]
+        return StepPlan(
+            name=self.name,
+            will_run=True,
+            reason="ready",
+            commands=[cmd],
+            outputs={"generated_tests_dir": str(self.config.generated_tests_dir)}
         )

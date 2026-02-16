@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from helia_core_tester.core.steps.base import StepBase, StepResult, StepStatus
+from helia_core_tester.core.steps.base import StepBase, StepPlan, StepResult, StepStatus
 from helia_core_tester.core.errors import BuildError
 from helia_core_tester.core.logging import get_logger
 from helia_core_tester.core.discovery import find_fvp_script_path
@@ -66,8 +66,11 @@ class BuildStep(StepBase):
                 self.logger.info(f"Successfully built for {self.config.cpu}")
             
             return StepResult(
+                name=self.name,
                 status=StepStatus.SUCCESS,
-                message=f"Successfully built for {self.config.cpu}"
+                message=f"Successfully built for {self.config.cpu}",
+                outputs={"build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc")},
+                details={"command": cmd},
             )
         except subprocess.CalledProcessError as e:
             error_msg = f"Failed to build for FVP (exit code {e.returncode})"
@@ -90,9 +93,12 @@ class BuildStep(StepBase):
                 pass
             
             return StepResult(
+                name=self.name,
                 status=StepStatus.FAILED,
                 message=error_msg,
-                error=BuildError(error_msg)
+                error=BuildError(error_msg),
+                outputs={"build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc")},
+                details={"command": cmd},
             )
         except FileNotFoundError as e:
             error_msg = f"Failed to build for FVP: {e}"
@@ -100,9 +106,12 @@ class BuildStep(StepBase):
             build_error = BuildError(error_msg)
             build_error.__cause__ = e
             return StepResult(
+                name=self.name,
                 status=StepStatus.FAILED,
                 message=error_msg,
-                error=build_error
+                error=build_error,
+                outputs={"build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc")},
+                details={"command": cmd},
             )
 
     def dry_run(self) -> StepResult:
@@ -117,6 +126,29 @@ class BuildStep(StepBase):
             cmd_preview.extend(["--jobs", str(self.config.jobs)])
         
         return StepResult(
+            name=self.name,
             status=StepStatus.SKIPPED,
-            message=f"DRY RUN: Would run: {' '.join(cmd_preview)}"
+            message=f"DRY RUN: Would run: {' '.join(cmd_preview)}",
+            outputs={"build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc")},
+        )
+
+    def _plan_details(self) -> StepPlan:
+        cmd = [
+            sys.executable, "-m", "helia_core_tester.fvp.build_and_run_fvp",
+            "--cpu", self.config.cpu,
+            "--cmake-def", f"CMSIS_OPTIMIZATION_LEVEL={self.config.optimization}",
+            "--no-run",
+        ]
+        if self.config.jobs:
+            cmd.extend(["--jobs", str(self.config.jobs)])
+        if self.config.verbosity <= 1:
+            cmd.append("--quiet")
+        else:
+            cmd.extend(["--verbosity", str(self.config.verbosity)])
+        return StepPlan(
+            name=self.name,
+            will_run=True,
+            reason="ready",
+            commands=[cmd],
+            outputs={"build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc")}
         )

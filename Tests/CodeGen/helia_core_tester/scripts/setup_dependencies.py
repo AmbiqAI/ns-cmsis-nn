@@ -389,8 +389,8 @@ Examples:
     parser.add_argument(
         "--downloads-dir",
         type=Path,
-        default=Path("downloads"),
-        help="Directory to store downloaded dependencies (default: downloads)"
+        default=Path("artifacts/downloads"),
+        help="Directory to store downloaded dependencies (default: artifacts/downloads)"
     )
     parser.add_argument(
         "--force",

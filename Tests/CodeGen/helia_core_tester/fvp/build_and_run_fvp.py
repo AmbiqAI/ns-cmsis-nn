@@ -3,14 +3,14 @@
 build_and_run_fvp.py — Python replacement for CMSIS-NN UnitTest build+run on FVP Corstone-300.
 
 Examples:
-  # vanilla (downloads in ./downloads, GCC toolchain from downloads, FVP from downloads)
+  # vanilla (downloads in ./artifacts/downloads, GCC toolchain from downloads, FVP from downloads)
   python3 python_scripts/build_and_run_fvp.py
 
   # multiple CPUs, less optimization, quiet logs
   python3 python_scripts/build_and_run_fvp.py -c cortex-m3,cortex-m55 -o "-O2" -q
 
   # skip downloads/setup (assume paths present), override paths, pass extra CMake defs
-  python3 python_scripts/build_and_run_fvp.py -e -u ./downloads/ethos-u-core-platform -C ./downloads/CMSIS_5 \
+  python3 python_scripts/build_and_run_fvp.py -e -u ./artifacts/downloads/ethos-u-core-platform -C ./artifacts/downloads/CMSIS_5 \
     -D CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY=ON
 
   # use Arm Compiler, custom generator, increased timeouts
@@ -35,12 +35,18 @@ from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
 # Import reporting and discovery (package imports only)
-from helia_core_tester.core.discovery import find_repo_root, find_setup_dependencies_script
+from helia_core_tester.core.discovery import (
+    find_repo_root,
+    find_setup_dependencies_script,
+    find_descriptors_dir,
+    find_generated_tests_dir,
+)
 from helia_core_tester.reporting.models import TestResult, TestStatus
 from helia_core_tester.reporting.parser import TestResultParser
 
 repo_root = find_repo_root()
-DEFAULT_DL = repo_root / "downloads"
+ARTIFACTS_DIR = repo_root / "artifacts"
+DEFAULT_DL = ARTIFACTS_DIR / "downloads"
 DEFAULT_SOURCE = repo_root
 
 FVP_EXE_NAME = "FVP_Corstone_SSE-300_Ethos-U55"
@@ -447,14 +453,13 @@ def run_tests_with_reporting(cpus: List[str],
     # Get report directory from args
     report_dir = getattr(args, 'report_dir', Path("reports"))
     if report_dir == Path("reports"):
-        primary_build_dir = source_dir / f"build-{cpus[0]}-gcc"
-        report_dir = primary_build_dir / "reports"
+        report_dir = ARTIFACTS_DIR / "reports"
     
     # Clean up previous build directories (only if we're going to build)
     # If --no-build is set, keep the existing build directory
     if not args.no_build:
         for cpu in cpus:
-            build_dir = source_dir / f"build-{cpu}-gcc"
+            build_dir = ARTIFACTS_DIR / f"build-{cpu}-gcc"
             if build_dir.exists():
                 if verbosity >= 1:
                     print(f"Removing previous build directory: {build_dir}")
@@ -470,15 +475,15 @@ def run_tests_with_reporting(cpus: List[str],
     generator = ReportGenerator(output_dir=report_dir)
     
     # Initialize descriptor tracking
-    descriptors_dir = source_dir / "descriptors"
-    generated_tests_dir = source_dir / "GeneratedTests"
+    descriptors_dir = find_descriptors_dir()
+    generated_tests_dir = find_generated_tests_dir(create=False)
     tracker = DescriptorTracker(descriptors_dir)
     all_descriptors_dict = tracker.load_all_descriptors()
     
     for cpu in cpus:
         if verbosity >= 1:
             print(f"\nTarget: {cpu} (gcc)")
-        build_dir = source_dir / f"build-{cpu}-gcc"
+        build_dir = ARTIFACTS_DIR / f"build-{cpu}-gcc"
         
         if not args.no_build:
             # Build first - use the env passed in
@@ -564,7 +569,7 @@ def run_tests_with_reporting(cpus: List[str],
         active_descriptors.add(desc_name)
     
     # Add descriptors that have generated artifacts
-    primary_build_dir = source_dir / f"build-{cpus[0]}-gcc" if cpus else source_dir / "build-cortex-m55-gcc"
+    primary_build_dir = ARTIFACTS_DIR / f"build-{cpus[0]}-gcc" if cpus else ARTIFACTS_DIR / "build-cortex-m55-gcc"
     for desc_name in all_descriptors_dict.keys():
         # Check for TFLite file (generation stage)
         tflite_file = generated_tests_dir / desc_name / f"{desc_name}.tflite"
@@ -621,7 +626,7 @@ def run_tests_with_reporting(cpus: List[str],
                 if desc_name not in descriptor_results:
                     # Add to active descriptors if not already there
                     active_descriptors.add(desc_name)
-                    primary_build_dir = source_dir / f"build-{cpus[0]}-gcc" if cpus else source_dir / "build-cortex-m55-gcc"
+                    primary_build_dir = ARTIFACTS_DIR / f"build-{cpus[0]}-gcc" if cpus else ARTIFACTS_DIR / "build-cortex-m55-gcc"
                     status, failure_stage, failure_reason = tracker.determine_descriptor_status(
                         descriptor_name=desc_name,
                         test_result=result,
@@ -677,7 +682,7 @@ def main(argv: List[str]) -> int:
     ap.add_argument("-u", "--ethos-path", type=Path, help="Override ethos-u-core-platform path")
     ap.add_argument("-C", "--cmsis5-path", type=Path, help="Override CMSIS_5 path")
     ap.add_argument("-D", "--cmake-def", action="append", default=[], help="Extra -DVAR=VAL for CMake (repeatable)")
-    ap.add_argument("--downloads-dir", type=Path, default=DEFAULT_DL, help="Downloads directory (default: ./downloads)")
+    ap.add_argument("--downloads-dir", type=Path, default=DEFAULT_DL, help="Downloads directory (default: ./artifacts/downloads)")
     ap.add_argument("--source-dir", type=Path, default=DEFAULT_SOURCE, help="CMake source dir (UnitTest root)")
     ap.add_argument("--generator", help="CMake generator (e.g. Ninja)")
     ap.add_argument("-j", "--jobs", type=int, default=os.cpu_count() or 4, help="Parallel build jobs")
@@ -688,7 +693,7 @@ def main(argv: List[str]) -> int:
     ap.add_argument("--no-report", action="store_true", help="Disable comprehensive test reporting (enabled by default)")
     ap.add_argument("--report-formats", nargs="+", choices=["json", "html", "md"], default=["json"], 
                    help="Report formats to generate (default: json)")
-    ap.add_argument("--report-dir", type=Path, default=Path("reports"), help="Directory to save reports")
+    ap.add_argument("--report-dir", type=Path, default=Path("reports"), help="Directory to save reports (default: ./artifacts/reports)")
     ap.add_argument("--quiet", action="store_true", help="Quiet mode (no output)")
     args = ap.parse_args(argv)
 
@@ -741,7 +746,7 @@ def main(argv: List[str]) -> int:
     for cpu in cpus:
         if verbosity >= 1:
             print(f"\nTarget: {cpu} ({compiler_tag})")
-        build_dir = source_dir / f"build-{cpu}-{compiler_tag}"
+        build_dir = ARTIFACTS_DIR / f"build-{cpu}-{compiler_tag}"
 
         if not args.no_build:
             cmake_configure(

@@ -29,11 +29,11 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     """Configure pytest with custom options."""
-    # Clean GeneratedTests directory before running (in UnitTest directory)
+    # Clean generated tests directory before running
     generated_tests_dir = find_generated_tests_dir(create=False)
     
     if generated_tests_dir.exists():
-        print(f"\nCleaning existing GeneratedTests directory...")
+        print(f"\nCleaning existing generated tests directory...")
         try:
             # Count existing files before deletion
             existing_count = sum(1 for _ in generated_tests_dir.rglob("*.tflite"))
@@ -54,7 +54,7 @@ def pytest_configure(config):
     
     # Create fresh directory
     generated_tests_dir.mkdir(exist_ok=True)
-    print(f"Created GeneratedTests directory\n")
+    print(f"Created generated tests directory\n")
 
 
 @pytest.fixture

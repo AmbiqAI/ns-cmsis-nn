@@ -16,6 +16,7 @@ from helia_core_tester.core.steps import (
     CleanStep,
     StepStatus,
 )
+from helia_core_tester.core.steps.base import StepPlan
 
 
 def _run_step(step, logger, verbosity: int, fail_fast: bool):
@@ -23,7 +24,8 @@ def _run_step(step, logger, verbosity: int, fail_fast: bool):
     result = step.execute()
     if result.success:
         if verbosity >= 1:
-            logger.info(f"✓ {step.name} step completed")
+            duration = f" ({result.duration_sec:.2f}s)" if result.duration_sec is not None else ""
+            logger.info(f"✓ {step.name} step completed{duration}")
         return True, False
     if result.skipped:
         if verbosity >= 1:
@@ -61,7 +63,11 @@ class FullTestPipeline:
         """
         if self.config.verbosity >= 1:
             self.logger.info("Starting CMSIS-NN Tools Full Test Pipeline")
-        
+
+        if self.config.plan:
+            self.print_plan()
+            return True
+
         if self.config.dry_run:
             self.logger.warning("DRY RUN MODE - No actual changes will be made")
         
@@ -149,3 +155,68 @@ class FullTestPipeline:
         except Exception as e:
             self.logger.error(f"Pipeline failed with exception: {e}", exc_info=self.config.verbosity >= 3)
             return False
+
+    def build_plan(self) -> list[StepPlan]:
+        """Build a plan for the pipeline without executing steps."""
+        plans: list[StepPlan] = []
+
+        if self.config.skip_generation:
+            plans.append(StepPlan(name="generate", will_run=False, reason="skipped by config"))
+        else:
+            plans.append(GenerateStep(self.config).plan())
+
+        if self.config.skip_conversion:
+            plans.append(StepPlan(name="conversion", will_run=False, reason="skipped by config"))
+        else:
+            plans.append(
+                StepPlan(
+                    name="conversion",
+                    will_run=True,
+                    reason="handled during generation (templates)",
+                    commands=[],
+                    outputs={"generated_tests_dir": str(self.config.generated_tests_dir)},
+                )
+            )
+
+        if self.config.skip_runners:
+            plans.append(StepPlan(name="runners", will_run=False, reason="skipped by config"))
+        else:
+            plans.append(RunnersStep(self.config).plan())
+            if not self.config.skip_conversion:
+                plans.append(
+                    StepPlan(
+                        name="runners (post-conversion)",
+                        will_run=True,
+                        reason="retry if headers were missing before conversion",
+                        commands=[],
+                        outputs={"generated_tests_dir": str(self.config.generated_tests_dir)},
+                        details={"retry": True},
+                    )
+                )
+
+        if self.config.skip_build:
+            plans.append(StepPlan(name="build", will_run=False, reason="skipped by config"))
+        else:
+            plans.append(BuildStep(self.config).plan())
+
+        if self.config.skip_run:
+            plans.append(StepPlan(name="run", will_run=False, reason="skipped by config"))
+        else:
+            plans.append(RunStep(self.config).plan())
+
+        return plans
+
+    def print_plan(self) -> None:
+        """Print a human-readable execution plan."""
+        plans = self.build_plan()
+        self.logger.info("Plan:")
+        for idx, plan in enumerate(plans, start=1):
+            will = "will run" if plan.will_run else "skipped"
+            self.logger.info(f"{idx}. {plan.name}: {will} ({plan.reason})")
+            if plan.commands:
+                for cmd in plan.commands:
+                    self.logger.info(f"   cmd: {' '.join(cmd)}")
+            if plan.outputs:
+                outputs = ", ".join(f"{k}={v}" for k, v in plan.outputs.items() if v)
+                if outputs:
+                    self.logger.info(f"   outputs: {outputs}")

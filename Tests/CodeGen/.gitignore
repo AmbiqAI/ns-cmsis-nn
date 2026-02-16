@@ -44,8 +44,7 @@ CMakeFiles/
 *.bin
 
 # Generated files
-GeneratedTests/
-reports/
+artifacts/
 
 # Environment variables
 .env
@@ -58,7 +57,7 @@ reports/
 .env.production
 
 # Dependencies (downloaded, not tracked)
-downloads/*
+artifacts/downloads/*
 
 # Submodules (tracked separately)
 modules/*

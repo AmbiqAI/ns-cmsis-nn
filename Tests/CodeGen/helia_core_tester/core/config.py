@@ -46,6 +46,7 @@ class Config:
     fail_fast: bool = True
     verbosity: int = 0  # 0=minimal, 1=progress, 2=commands, 3=debug
     dry_run: bool = False
+    plan: bool = False
     
     # Filters
     op_filter: Optional[str] = None
@@ -82,12 +83,12 @@ class Config:
         
         # Set derived paths if not provided
         if self.downloads_dir is None:
-            self.downloads_dir = self.project_root / "downloads"
+            self.downloads_dir = self.project_root / "artifacts" / "downloads"
         else:
             self.downloads_dir = Path(self.downloads_dir).resolve()
         
         if self.generated_tests_dir is None:
-            self.generated_tests_dir = self.project_root / "GeneratedTests"
+            self.generated_tests_dir = self.project_root / "artifacts" / "generated_tests"
         else:
             self.generated_tests_dir = Path(self.generated_tests_dir).resolve()
         
@@ -98,8 +99,8 @@ class Config:
         
         # Convert report_dir to Path if needed
         if self.report_dir is None:
-            # Default to build directory reports
-            build_dir = self.project_root / f"build-{self.cpu}-gcc"
+            # Default to build directory reports under artifacts
+            build_dir = self.project_root / "artifacts" / f"build-{self.cpu}-gcc"
             self.report_dir = build_dir / "reports"
         elif isinstance(self.report_dir, str):
             self.report_dir = Path(self.report_dir)
@@ -118,9 +119,9 @@ class Config:
         if not self.project_root.exists():
             raise PathNotFoundError(f"Project root does not exist: {self.project_root}")
         
-        # Downloads dir will be created if needed, so just check parent
+        # Downloads dir will be created if needed; ensure parent exists
         if not self.downloads_dir.parent.exists():
-            raise PathNotFoundError(f"Downloads directory parent does not exist: {self.downloads_dir.parent}")
+            self.downloads_dir.parent.mkdir(parents=True, exist_ok=True)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to dictionary."""
@@ -136,6 +137,7 @@ class Config:
             "fail_fast": self.fail_fast,
             "verbosity": self.verbosity,
             "dry_run": self.dry_run,
+            "plan": self.plan,
             "op_filter": self.op_filter,
             "dtype_filter": self.dtype_filter,
             "name_filter": self.name_filter,

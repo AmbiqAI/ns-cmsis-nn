@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Default values (uv sync creates .venv at REPO_ROOT)
-DOWNLOADS_DIR="${REPO_ROOT}/downloads"
+DOWNLOADS_DIR="${REPO_ROOT}/artifacts/downloads"
 VENV_DIR="${REPO_ROOT}/.venv"
 SKIP_BUILD_DEPS=false
 
@@ -34,7 +34,7 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --downloads-dir DIR    Directory for downloads (default: ./downloads)"
+            echo "  --downloads-dir DIR    Directory for downloads (default: ./artifacts/downloads)"
             echo "  --skip-build-deps      Skip build dependencies setup"
             echo "  --help                 Show this help message"
             exit 0
@@ -135,4 +135,3 @@ echo ""
 echo "Run commands with: uv run helia_core_tester <command>"
 echo "Or activate: source ${REPO_ROOT}/.venv/bin/activate"
 echo "Or source: source ${ENV_FILE}"
-

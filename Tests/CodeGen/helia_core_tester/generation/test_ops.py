@@ -132,7 +132,7 @@ def test_generation(test_filters):
         filtered_descriptors = filtered_descriptors[:test_filters['limit']]
         
     # Generate TFLite models for each descriptor
-    # Place models in repo-top GeneratedTests
+    # Place models in artifacts/generated_tests
     generated_count = 0
     for desc in filtered_descriptors:
         try:
@@ -154,7 +154,7 @@ def test_generated_files_exist():
     This should run AFTER test_generation().
     """
     # Don't generate, just validate what test_generation() created
-    generated_tests_dir = Path("../GeneratedTests")
+    generated_tests_dir = find_generated_tests_dir(create=False)
     if not generated_tests_dir.exists():
         pytest.skip("No generated tests found")
         

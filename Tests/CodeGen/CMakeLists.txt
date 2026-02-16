@@ -5,9 +5,10 @@ project(helia_aot_fvp_tests C)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 set(CMAKE_EXECUTABLE_SUFFIX ".elf")
 
-set(CMSIS_PATH "downloads/CMSIS_5" CACHE PATH "Path to CMSIS (CMSIS_5 checkout)")
+set(CMSIS_PATH "artifacts/downloads/CMSIS_5" CACHE PATH "Path to CMSIS (CMSIS_5 checkout)")
 set(CMSIS_NN_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." CACHE PATH "ns-cmsis-nn repo root")
 set(FVP_CORSTONE_300_PATH "${CMAKE_CURRENT_SOURCE_DIR}/Corstone-300" CACHE PATH "FVP startup/retarget files")
+set(GENERATED_TESTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/artifacts/generated_tests" CACHE PATH "Path to generated tests")
 
 function(_strip_all_optimizations)
   foreach(lang C CXX ASM)
@@ -110,7 +111,7 @@ set(LINK_FILE ${FVP_CORSTONE_300_PATH}/linker.ld)
 
 # ---------- Helpers ----------
 function(_normalize_target_name out_var in_path)
-  string(REGEX REPLACE "^GeneratedTests/([^/]+).*" "\\1" _tgt "${in_path}")
+  string(REGEX REPLACE "^artifacts/generated_tests/([^/]+).*" "\\1" _tgt "${in_path}")
   set(${out_var} "${_tgt}" PARENT_SCOPE)
 endfunction()
 
@@ -118,44 +119,44 @@ endfunction()
 # Discover test directories by looking for generated C files (e.g., *_conv2d.c, *_pooling.c, etc.)
 file(GLOB_RECURSE GENERATED_TEST_SOURCES
   RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
-  "GeneratedTests/*/*_conv2d.c"
-  "GeneratedTests/*/*_pooling.c"
-  "GeneratedTests/*/*_fully_connected.c"
-  "GeneratedTests/*/*_depthwise_conv2d.c"
-  "GeneratedTests/*/*_dwconv.c"
-  "GeneratedTests/*/*_transpose_conv.c"
-  "GeneratedTests/*/*_add.c"
-  "GeneratedTests/*/*_mul.c"
-  "GeneratedTests/*/*_sub.c"
-  "GeneratedTests/*/*_minmax.c"
-  "GeneratedTests/*/*_relu.c"
-  "GeneratedTests/*/*_relu6.c"
-  "GeneratedTests/*/*_leakyrelu.c"
-  "GeneratedTests/*/*_hardswish.c"
-  "GeneratedTests/*/*_prelu.c"
-  "GeneratedTests/*/*_tanh.c"
-  "GeneratedTests/*/*_logistic.c"
-  "GeneratedTests/*/*_softmax.c"
-  "GeneratedTests/*/*_reshape.c"
-  "GeneratedTests/*/*_transpose.c"
-  "GeneratedTests/*/*_pad.c"
-  "GeneratedTests/*/*_stridedslice.c"
-  "GeneratedTests/*/*_concatenation.c"
-  "GeneratedTests/*/*_split.c"
-  "GeneratedTests/*/*_argmax.c"
-  "GeneratedTests/*/*_argmin.c"
-  "GeneratedTests/*/*_reducemax.c"
-  "GeneratedTests/*/*_reducemin.c"
-  "GeneratedTests/*/*_mean.c"
-  "GeneratedTests/*/*_quantize.c"
-  "GeneratedTests/*/*_dequantize.c"
-  "GeneratedTests/*/*_matmul_batch.c"
-  "GeneratedTests/*/*_squeeze.c")
+  "artifacts/generated_tests/*/*_conv2d.c"
+  "artifacts/generated_tests/*/*_pooling.c"
+  "artifacts/generated_tests/*/*_fully_connected.c"
+  "artifacts/generated_tests/*/*_depthwise_conv2d.c"
+  "artifacts/generated_tests/*/*_dwconv.c"
+  "artifacts/generated_tests/*/*_transpose_conv.c"
+  "artifacts/generated_tests/*/*_add.c"
+  "artifacts/generated_tests/*/*_mul.c"
+  "artifacts/generated_tests/*/*_sub.c"
+  "artifacts/generated_tests/*/*_minmax.c"
+  "artifacts/generated_tests/*/*_relu.c"
+  "artifacts/generated_tests/*/*_relu6.c"
+  "artifacts/generated_tests/*/*_leakyrelu.c"
+  "artifacts/generated_tests/*/*_hardswish.c"
+  "artifacts/generated_tests/*/*_prelu.c"
+  "artifacts/generated_tests/*/*_tanh.c"
+  "artifacts/generated_tests/*/*_logistic.c"
+  "artifacts/generated_tests/*/*_softmax.c"
+  "artifacts/generated_tests/*/*_reshape.c"
+  "artifacts/generated_tests/*/*_transpose.c"
+  "artifacts/generated_tests/*/*_pad.c"
+  "artifacts/generated_tests/*/*_stridedslice.c"
+  "artifacts/generated_tests/*/*_concatenation.c"
+  "artifacts/generated_tests/*/*_split.c"
+  "artifacts/generated_tests/*/*_argmax.c"
+  "artifacts/generated_tests/*/*_argmin.c"
+  "artifacts/generated_tests/*/*_reducemax.c"
+  "artifacts/generated_tests/*/*_reducemin.c"
+  "artifacts/generated_tests/*/*_mean.c"
+  "artifacts/generated_tests/*/*_quantize.c"
+  "artifacts/generated_tests/*/*_dequantize.c"
+  "artifacts/generated_tests/*/*_matmul_batch.c"
+  "artifacts/generated_tests/*/*_squeeze.c")
 
 # Also discover by CMakeLists.txt in test directories
 file(GLOB_RECURSE GENERATED_TEST_CMAKE
   RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
-  "GeneratedTests/*/CMakeLists.txt")
+  "artifacts/generated_tests/*/CMakeLists.txt")
 
 # Combine both discovery methods - use C files as primary, CMakeLists.txt as fallback
 set(GENERATED_TEST_DIRS)
@@ -174,7 +175,7 @@ endforeach()
 list(REMOVE_DUPLICATES GENERATED_TEST_DIRS)
 
 if(NOT GENERATED_TEST_DIRS)
-  message(WARNING "No GeneratedTests directories with C files found. Did you run the generator?")
+  message(WARNING "No generated_tests directories with C files found. Did you run the generator?")
 endif()
 
 set(GENERATED_TEST_TARGETS)

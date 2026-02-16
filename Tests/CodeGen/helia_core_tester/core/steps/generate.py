@@ -5,7 +5,7 @@ TFLite model generation step.
 import subprocess
 from pathlib import Path
 
-from helia_core_tester.core.steps.base import StepBase, StepResult, StepStatus
+from helia_core_tester.core.steps.base import StepBase, StepPlan, StepResult, StepStatus
 from helia_core_tester.core.errors import GenerationError
 from helia_core_tester.core.logging import get_logger
 from helia_core_tester.utils.command_runner import run_command
@@ -63,8 +63,22 @@ class GenerateStep(StepBase):
             if self.config.verbosity >= 1:
                 self.logger.info("TFLite models generated successfully")
             return StepResult(
+                name=self.name,
                 status=StepStatus.SUCCESS,
-                message="TFLite models generated successfully"
+                message="TFLite models generated successfully",
+                outputs={
+                    "generated_tests_dir": str(self.config.generated_tests_dir)
+                },
+                details={
+                    "command": cmd,
+                    "filters": {
+                        "op": self.config.op_filter,
+                        "dtype": self.config.dtype_filter,
+                        "name": self.config.name_filter,
+                        "limit": self.config.limit,
+                        "seed": self.config.seed,
+                    },
+                },
             )
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             error_msg = f"Failed to generate TFLite models: {e}"
@@ -72,15 +86,36 @@ class GenerateStep(StepBase):
             gen_error = GenerationError(error_msg)
             gen_error.__cause__ = e
             return StepResult(
+                name=self.name,
                 status=StepStatus.FAILED,
                 message=error_msg,
-                error=gen_error
+                error=gen_error,
+                outputs={
+                    "generated_tests_dir": str(self.config.generated_tests_dir)
+                },
+                details={"command": cmd},
             )
     
     def dry_run(self) -> StepResult:
         """Dry run of generation step."""
         cmd_preview = self._build_cmd(include_seed=False)
         return StepResult(
+            name=self.name,
             status=StepStatus.SKIPPED,
-            message=f"DRY RUN: Would run: {' '.join(cmd_preview)} in {self.config.generation_dir}"
+            message=f"DRY RUN: Would run: {' '.join(cmd_preview)} in {self.config.generation_dir}",
+            outputs={
+                "generated_tests_dir": str(self.config.generated_tests_dir)
+            },
+            details={"command": cmd_preview},
+        )
+
+    def _plan_details(self) -> StepPlan:
+        cmd_preview = self._build_cmd(include_seed=True)
+        return StepPlan(
+            name=self.name,
+            will_run=True,
+            reason="ready",
+            commands=[cmd_preview],
+            outputs={"generated_tests_dir": str(self.config.generated_tests_dir)},
+            details={"cwd": str(self.config.generation_dir)}
         )

@@ -170,6 +170,7 @@ def full(
     report_dir: Optional[Path] = typer.Option(None, help="Directory to save reports"),
     verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
+    plan: bool = typer.Option(False, "--plan", help="Print execution plan and exit"),
     project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
 ):
     """Run the complete pipeline (generate → runners → build → run)."""
@@ -177,6 +178,7 @@ def full(
         cpu=cpu,
         verbosity=verbosity,
         dry_run=dry_run,
+        plan=plan,
         project_root=project_root,
         op_filter=op,
         dtype_filter=dtype,
@@ -200,6 +202,9 @@ def full(
     logger = setup_logger(verbosity=config.verbosity)
     
     pipeline = FullTestPipeline(config)
+    if config.plan:
+        pipeline.print_plan()
+        sys.exit(0)
     success = pipeline.run()
     
     if success:
@@ -260,14 +265,14 @@ def doctor(
     
     # Check key directories
     key_dirs = {
-        "descriptors": "Test descriptors",
-        "GeneratedTests": "Generated tests (will be created)",
-        "downloads": "Downloads (will be created)",
+        "assets/descriptors": "Test descriptors",
+        "artifacts/generated_tests": "Generated tests (will be created)",
+        "artifacts/downloads": "Downloads (will be created)",
     }
     
     for dir_name, description in key_dirs.items():
         dir_path = repo_root / dir_name
-        if dir_path.exists() or dir_name in ["GeneratedTests", "downloads"]:
+        if dir_path.exists() or dir_name in ["artifacts/generated_tests", "artifacts/downloads"]:
             typer.echo(f"✓ {dir_name}/ exists or will be created ({description})")
         else:
             typer.echo(f"⚠ {dir_name}/ not found ({description})", err=True)

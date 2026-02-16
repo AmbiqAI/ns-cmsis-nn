@@ -5,7 +5,7 @@ Cleanup step for removing build artifacts.
 import shutil
 from pathlib import Path
 
-from helia_core_tester.core.steps.base import StepBase, StepResult, StepStatus
+from helia_core_tester.core.steps.base import StepBase, StepPlan, StepResult, StepStatus
 from helia_core_tester.core.errors import StepExecutionError
 from helia_core_tester.core.logging import get_logger
 
@@ -38,10 +38,10 @@ class CleanStep(StepBase):
         
         try:
             # Clean up build directories
-            project_root = self.config.project_root
+            artifacts_root = self.config.project_root / "artifacts"
             build_pattern = "build-*-gcc"
             
-            for build_dir in project_root.glob(build_pattern):
+            for build_dir in artifacts_root.glob(build_pattern):
                 if build_dir.is_dir():
                     if self.config.verbosity >= 1:
                         self.logger.info(f"Removing build directory: {build_dir}")
@@ -64,8 +64,10 @@ class CleanStep(StepBase):
                 self.logger.info(message)
             
             return StepResult(
+                name=self.name,
                 status=StepStatus.SUCCESS,
-                message=message
+                message=message,
+                outputs={"artifacts_root": str(artifacts_root)},
             )
         except Exception as e:
             error_msg = f"Failed to clean artifacts: {e}"
@@ -73,9 +75,11 @@ class CleanStep(StepBase):
             exec_error = StepExecutionError(error_msg)
             exec_error.__cause__ = e
             return StepResult(
+                name=self.name,
                 status=StepStatus.FAILED,
                 message=error_msg,
-                error=exec_error
+                error=exec_error,
+                outputs={"artifacts_root": str(self.config.project_root / "artifacts")},
             )
     
     def dry_run(self) -> StepResult:
@@ -83,10 +87,10 @@ class CleanStep(StepBase):
         cleaned_items = []
         
         # Check what would be cleaned
-        project_root = self.config.project_root
+        artifacts_root = self.config.project_root / "artifacts"
         build_pattern = "build-*-gcc"
         
-        for build_dir in project_root.glob(build_pattern):
+        for build_dir in artifacts_root.glob(build_pattern):
             if build_dir.is_dir():
                 cleaned_items.append(str(build_dir))
         
@@ -99,6 +103,18 @@ class CleanStep(StepBase):
             message = "DRY RUN: No artifacts to clean"
         
         return StepResult(
+            name=self.name,
             status=StepStatus.SKIPPED,
-            message=message
+            message=message,
+            outputs={"artifacts_root": str(artifacts_root)},
+        )
+
+    def _plan_details(self) -> StepPlan:
+        artifacts_root = self.config.project_root / "artifacts"
+        return StepPlan(
+            name=self.name,
+            will_run=True,
+            reason="ready",
+            commands=[],
+            outputs={"artifacts_root": str(artifacts_root)},
         )

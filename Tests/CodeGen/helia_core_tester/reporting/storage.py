@@ -267,7 +267,7 @@ class ReportStorage:
                 
                 descriptor_results[desc_name] = DescriptorResult(
                     descriptor_name=desc_name,
-                    descriptor_path=Path(f"descriptors/{desc_name}.yaml"),
+                    descriptor_path=Path(f"assets/descriptors/{desc_name}.yaml"),
                     descriptor_content=desc_content,
                     status=result.status,
                     test_result=result,
