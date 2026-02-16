@@ -509,3 +509,36 @@ def run_inference_litert(tflite_path: str, input_data: np.ndarray, subgraph_inde
 
     # Run inference using LiteRT interpreter - pass model/subgraph for proper shape validation
     return run_inference_with_litert(interpreter, input_data, model=model, subgraph=subgraph, operator_index=0)
+
+
+def run_inference_litert_tensor(tflite_path: str, input_data: np.ndarray, tensor_index: int, subgraph_index: int = 0) -> np.ndarray:
+    """
+    Run inference using LiteRT interpreter and return a specific tensor by index.
+
+    Args:
+        tflite_path: Path to .tflite file
+        input_data: Input data as numpy array
+        tensor_index: Tensor index to fetch (LiteRT schema tensor index)
+        subgraph_index: Index of subgraph to use (default: 0)
+
+    Returns:
+        Tensor data as numpy array
+    """
+    if not LITERT_AVAILABLE:
+        raise ImportError("ai_edge_litert is not available. Install it with: pip install ai-edge-litert")
+
+    interpreter = load_litert_interpreter(tflite_path)
+
+    # Use LiteRT schema for shape validation if available
+    model = None
+    subgraph = None
+    try:
+        model, subgraph = load_litert_model(tflite_path, subgraph_index)
+    except Exception:
+        pass
+
+    # Reuse the same input handling logic
+    _ = run_inference_with_litert(interpreter, input_data, model=model, subgraph=subgraph, operator_index=0)
+
+    # Fetch requested tensor by index
+    return np.array(interpreter.get_tensor(int(tensor_index)))

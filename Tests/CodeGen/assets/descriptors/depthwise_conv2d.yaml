@@ -253,33 +253,33 @@ strides:
 padding: SAME
 use_bias: false
 depth_multiplier: 8
-# ---
-# operator: DepthwiseConv2D
-# name: depthwise_dilation_s8
-# activation_dtype: S8
-# weight_dtype: S8
-# activation: NONE
-# hint:
-#   call_style: per_tensor
-# input_shape:
-# - 1
-# - 5
-# - 6
-# - 3
-# filter_shape:
-# - 4
-# - 3
-# - 3
-# - 3
-# strides:
-# - 1
-# - 1
-# padding: SAME
-# use_bias: true
-# depth_multiplier: 3
-# dilation:
-# - 3
-# - 2
+---
+operator: DepthwiseConv2D
+name: depthwise_dilation_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 5
+- 6
+- 3
+filter_shape:
+- 4
+- 3
+- 3
+- 3
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+depth_multiplier: 3
+dilation:
+- 3
+- 2
 ---
 operator: DepthwiseConv2D
 name: dw_int16xint8_s16
@@ -305,33 +305,33 @@ padding: SAME
 use_bias: true
 depth_multiplier: 2
 ---
-# operator: DepthwiseConv2D
-# name: dw_int16xint8_dilation_s16
-# activation_dtype: S16
-# weight_dtype: S8
-# activation: NONE
-# hint:
-#   call_style: per_tensor
-# input_shape:
-# - 1
-# - 5
-# - 9
-# - 4
-# filter_shape:
-# - 4
-# - 4
-# - 4
-# - 2
-# strides:
-# - 1
-# - 1
-# padding: SAME
-# use_bias: true
-# depth_multiplier: 2
-# dilation:
-# - 2
-# - 3
-# ---
+operator: DepthwiseConv2D
+name: dw_int16xint8_dilation_s16
+activation_dtype: S16
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 5
+- 9
+- 4
+filter_shape:
+- 4
+- 4
+- 4
+- 2
+strides:
+- 1
+- 1
+padding: SAME
+use_bias: true
+depth_multiplier: 2
+dilation:
+- 2
+- 3
+---
 operator: DepthwiseConv2D
 name: dw_int16xint8_mult4_s16
 activation_dtype: S16

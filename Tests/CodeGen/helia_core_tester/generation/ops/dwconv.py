@@ -200,26 +200,78 @@ class OpDepthwiseConv2D(OperationBase):
         
         # Load LiteRT model for tensor extraction
         from helia_core_tester.generation.utils.litert_utils import (
-            load_litert_model, get_operator_tensors_from_litert
+            load_litert_model,
+            get_operator_tensors_from_litert,
+            get_tensor_shape_from_litert,
+            get_tensor_quantization_from_litert,
         )
         
         model, subgraph = load_litert_model(str(tflite_path))
         
-        # Get operator tensors (first operator)
+        # Pick the DepthwiseConv2D operator index.
+        # Dilation is commonly lowered to SpaceToBatchND -> DepthwiseConv2D -> BatchToSpaceND,
+        # so the first operator is not necessarily DepthwiseConv2D.
         if len(subgraph.operators) == 0:
             raise ValueError("No operators found in model")
+
+        dw_op_index = 0
+        bts_op_index = None
+        try:
+            from ai_edge_litert import schema_py_generated as litert
+            for i, op in enumerate(subgraph.operators):
+                opcode = model.operatorCodes[op.opcodeIndex]
+                if opcode.builtinCode == litert.BuiltinOperator.DEPTHWISE_CONV_2D:
+                    dw_op_index = i
+                if opcode.builtinCode == litert.BuiltinOperator.BATCH_TO_SPACE_ND:
+                    bts_op_index = i
+        except Exception:
+            # Fallback to first op if we cannot inspect opcodes.
+            dw_op_index = 0
+            bts_op_index = None
+
+        op_tensors = get_operator_tensors_from_litert(model, subgraph, dw_op_index)
         
-        op_tensors = get_operator_tensors_from_litert(model, subgraph, 0)
-        
-        # Extract shapes from LiteRT
-        if not op_tensors['inputs']:
-            raise ValueError("No input tensors found")
-        if not op_tensors['outputs']:
-            raise ValueError("No output tensors found")
-        
-        # Get shapes from LiteRT
-        input_shape = op_tensors['inputs'][0]['shape']
-        output_shape = op_tensors['outputs'][0]['shape']
+        # Extract shapes from LiteRT.
+        # Prefer subgraph I/O shapes (model input/output). If missing, fall back to op tensors.
+        input_tensor = None
+        output_tensor = None
+        input_shape = None
+        output_shape = None
+
+        if subgraph.inputs and subgraph.outputs:
+            input_tensor = subgraph.tensors[subgraph.inputs[0]]
+            output_tensor = subgraph.tensors[subgraph.outputs[0]]
+            input_shape = get_tensor_shape_from_litert(input_tensor)
+            output_shape = get_tensor_shape_from_litert(output_tensor)
+        else:
+            # Fallback: subgraph I/O not populated. Use first op input and last op output.
+            # This preserves model I/O even when the schema omits subgraph inputs/outputs.
+            first_op = subgraph.operators[0]
+            last_op = subgraph.operators[-1]
+            if first_op.inputs is not None and len(first_op.inputs) > 0:
+                input_tensor = subgraph.tensors[int(first_op.inputs[0])]
+                input_shape = get_tensor_shape_from_litert(input_tensor)
+            if last_op.outputs is not None and len(last_op.outputs) > 0:
+                output_tensor = subgraph.tensors[int(last_op.outputs[0])]
+                output_shape = get_tensor_shape_from_litert(output_tensor)
+
+        if input_shape is None or output_shape is None:
+            if not op_tensors['inputs'] or not op_tensors['outputs']:
+                raise ValueError("No subgraph inputs/outputs found and op tensors are missing")
+            input_shape = op_tensors['inputs'][0]['shape']
+            output_shape = op_tensors['outputs'][0]['shape']
+
+        # If BatchToSpaceND exists, use its output tensor for expected output.
+        # This matches the dilated depthwise output (SpaceToBatch -> Depthwise -> BatchToSpace),
+        # which CMSIS should match.
+        expected_tensor = None
+        if bts_op_index is not None:
+            bts_outs = subgraph.operators[bts_op_index].outputs
+            if bts_outs is not None and len(bts_outs) > 0:
+                expected_tensor = subgraph.tensors[int(bts_outs[0])]
+                expected_shape = get_tensor_shape_from_litert(expected_tensor)
+                if expected_shape is not None:
+                    output_shape = expected_shape
         
         # Ensure shapes are tuples
         if input_shape is not None:
@@ -240,9 +292,17 @@ class OpDepthwiseConv2D(OperationBase):
             # Fix output_shape to use correct output channels
             output_shape = tuple(list(output_shape[:3]) + [expected_output_channels])
         
-        # Extract quantization parameters from LiteRT
-        input_quant = op_tensors['inputs'][0]['quantization']
-        output_quant = op_tensors['outputs'][0]['quantization']
+        # Extract quantization parameters.
+        # Use subgraph I/O quantization to match model I/O when available, else fall back to op tensors.
+        if expected_tensor is not None:
+            input_quant = get_tensor_quantization_from_litert(input_tensor) if input_tensor is not None else None
+            output_quant = get_tensor_quantization_from_litert(expected_tensor)
+        elif input_tensor is not None and output_tensor is not None:
+            input_quant = get_tensor_quantization_from_litert(input_tensor)
+            output_quant = get_tensor_quantization_from_litert(output_tensor)
+        else:
+            input_quant = op_tensors['inputs'][0]['quantization'] if op_tensors['inputs'] else None
+            output_quant = op_tensors['outputs'][0]['quantization'] if op_tensors['outputs'] else None
         
         # Find weight quantization (from weight tensor in inputs)
         weight_quant = None
@@ -281,7 +341,7 @@ class OpDepthwiseConv2D(OperationBase):
         # If biases are still wrong or None, search all tensors for correct bias
         if biases is None or (hasattr(biases, 'shape') and len(biases.shape) == 1 and biases.shape[0] != expected_output_channels):
             from helia_core_tester.generation.utils.litert_utils import get_tensor_data_from_litert, get_tensor_shape_from_litert
-            op = subgraph.operators[0]
+            op = subgraph.operators[dw_op_index]
             input_indices = set(subgraph.inputs)
             output_indices = set(subgraph.outputs)
             
@@ -484,17 +544,49 @@ class OpDepthwiseConv2D(OperationBase):
         else:
             raise ValueError(f"Unsupported input_c_type: {kernel_info['input_c_type']}")
         
+        # Regenerate input data with a tighter range to avoid heavy saturation.
+        # Keep deterministic by using the same seed-backed RNG.
+        margin = 16  # keep away from int8 edges
+        low = (qmin + margin - int(input_zp)) * float(input_scale)
+        high = (qmax - margin - int(input_zp)) * float(input_scale)
+        if low >= high:
+            low = (qmin - int(input_zp)) * float(input_scale)
+            high = (qmax - int(input_zp)) * float(input_scale)
+        input_data = self.rng.uniform(low, high, size=input_shape).astype(np.float32)
+
         input_q = np.round(input_data / float(input_scale) + float(input_zp)).astype(np.int32)
         input_q = np.clip(input_q, qmin, qmax).astype(np_in_dtype)
         
         # Run inference (dtype must match interpreter input)
-        # Use LiteRT interpreter for inference
-        output_data = self.run_inference(str(tflite_path), input_q)
+        # Use LiteRT interpreter for inference. For lowered graphs, fetch the
+        # DepthwiseConv2D op output tensor directly so we compare against
+        # the depthwise op (CMSIS) instead of later ops (e.g., ADD).
+        from helia_core_tester.generation.utils.litert_utils import run_inference_litert_tensor
+        if bts_op_index is not None:
+            bts_outs = subgraph.operators[bts_op_index].outputs
+            if bts_outs is not None and len(bts_outs) > 0:
+                out_tensor_idx = int(bts_outs[0])
+            else:
+                out_tensor_idx = int(subgraph.operators[dw_op_index].outputs[0])
+        else:
+            out_tensor_idx = int(subgraph.operators[dw_op_index].outputs[0])
+        output_data = run_inference_litert_tensor(str(tflite_path), input_q, out_tensor_idx)
         
         # Bias handling
+        # Detect bias dtype from the LiteRT tensor and use it for CMSIS-NN.
         has_biases = biases is not None and getattr(biases, "size", 0) > 0
         bias_dtype = kernel_info["bias_c_type"]
         if has_biases:
+            if biases.dtype == np.int32:
+                bias_dtype = "int32_t"
+            elif biases.dtype == np.int64:
+                bias_dtype = "int64_t"
+            else:
+                if bias_dtype == "int64_t":
+                    biases = biases.astype(np.int64)
+                else:
+                    biases = biases.astype(np.int32)
+
             if bias_dtype == "int64_t" and biases.dtype != np.int64:
                 biases = biases.astype(np.int64)
             elif bias_dtype == "int32_t" and biases.dtype != np.int32:
