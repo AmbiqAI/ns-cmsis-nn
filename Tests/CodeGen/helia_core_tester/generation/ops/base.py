@@ -52,56 +52,65 @@ class OperationBase(ABC):
         """
         pass
     
-    def _apply_activation_quantization(self, converter) -> None:
-        """Set converter for activation-only quantization (S8 or S16) from descriptor."""
-        if tf is None:
-            raise ImportError("tensorflow is required for TFLite conversion")
-        activation_dtype = self.desc.get("activation_dtype", "S8")
-        if activation_dtype == "S8":
-            converter.optimizations = [tf.lite.Optimize.DEFAULT]
-            converter.target_spec.supported_types = [tf.int8]
-            converter.inference_input_type = tf.int8
-            converter.inference_output_type = tf.int8
-        elif activation_dtype == "S16":
-            converter.optimizations = [tf.lite.Optimize.DEFAULT]
-            converter.target_spec.supported_ops = [
-                tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8,
-            ]
-            converter.inference_input_type = tf.int16
-            converter.inference_output_type = tf.int16
-        else:
-            raise NotImplementedError(f"Unsupported activation_dtype: {activation_dtype}")
-
-    def _representative_dataset_gen(self) -> Iterator[list]:
+    def _representative_dataset_gen(self, rng: Optional[np.random.Generator] = None) -> Iterator[list]:
         """Yield representative batches from descriptor (single- or dual-input)."""
+        rng = rng or self.rng
         for _ in range(100):
             if "input_shape" in self.desc:
-                inp = self.rng.uniform(
+                inp = rng.uniform(
                     -1.0, 1.0, size=self.desc["input_shape"]
                 ).astype(np.float32)
                 yield [inp]
             elif "input_1_shape" in self.desc and "input_2_shape" in self.desc:
-                inp1 = self.rng.uniform(
+                inp1 = rng.uniform(
                     -1.0, 1.0, size=self.desc["input_1_shape"]
                 ).astype(np.float32)
-                inp2 = self.rng.uniform(
+                inp2 = rng.uniform(
                     -1.0, 1.0, size=self.desc["input_2_shape"]
                 ).astype(np.float32)
                 yield [inp1, inp2]
             else:
                 shape = self.desc.get("input_shape", [1, 1, 1, 1])
-                yield [self.rng.uniform(-1.0, 1.0, size=shape).astype(np.float32)]
+                yield [rng.uniform(-1.0, 1.0, size=shape).astype(np.float32)]
 
     def convert_to_tflite(self, model, out_path: str, rep_seed: int) -> None:
         """
         Convert Keras model to TFLite with activation quantization.
         Override in subclasses for weight/operation-specific quantization.
         """
+        self._convert_with_activation_quantization(model, out_path, rep_seed=rep_seed)
+
+    def _convert_with_activation_quantization(
+        self,
+        model,
+        out_path: str,
+        input_type=None,
+        output_type=None,
+        rep_seed: Optional[int] = None,
+    ) -> None:
+        """
+        Convert Keras model to TFLite with activation quantization and optional I/O overrides.
+        """
         if tf is None:
             raise ImportError("tensorflow is required for TFLite conversion")
         converter = tf.lite.TFLiteConverter.from_keras_model(model)
-        self._apply_activation_quantization(converter)
-        converter.representative_dataset = self._representative_dataset_gen
+        activation_dtype = str(self.desc.get("activation_dtype", "S8")).upper()
+        if activation_dtype == "S8":
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+            converter.target_spec.supported_types = [tf.int8]
+            converter.inference_input_type = input_type or tf.int8
+            converter.inference_output_type = output_type or tf.int8
+        elif activation_dtype == "S16":
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+            converter.target_spec.supported_ops = [
+                tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8,
+            ]
+            converter.inference_input_type = input_type or tf.int16
+            converter.inference_output_type = output_type or tf.int16
+        else:
+            raise NotImplementedError(f"Unsupported activation_dtype: {activation_dtype}")
+        rng = np.random.default_rng(rep_seed) if rep_seed is not None else None
+        converter.representative_dataset = lambda: self._representative_dataset_gen(rng=rng)
         tflite_model = converter.convert()
         with open(out_path, "wb") as f:
             f.write(tflite_model)
@@ -121,6 +130,12 @@ class OperationBase(ABC):
         if self._tflite_path != tflite_path or self._litert_interpreter is None:
             interpreter = load_litert_interpreter(tflite_path)
             self._litert_interpreter = interpreter
+            # Invalidate cached LiteRT model/subgraph if path changes
+            if self._tflite_path != tflite_path:
+                if hasattr(self, "_litert_model"):
+                    delattr(self, "_litert_model")
+                if hasattr(self, "_litert_subgraph"):
+                    delattr(self, "_litert_subgraph")
             self._tflite_path = tflite_path
         
         return self._litert_interpreter

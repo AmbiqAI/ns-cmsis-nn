@@ -23,6 +23,7 @@ def scalar_scale_zp(quant_dict: Dict[str, Any]) -> Tuple[float, int]:
 
 def activation_bounds(activation_dtype: str) -> Tuple[int, int]:
     """Return (min, max) int bounds for activation_dtype (e.g. S8, S16)."""
+    activation_dtype = str(activation_dtype).upper()
     if activation_dtype == "S8":
         return -128, 127
     if activation_dtype == "S16":
@@ -113,5 +114,4 @@ def calculate_per_channel_multiplier_shift(scales: np.ndarray, reduce_to_q15: bo
         shifts.append(shift)
     
     return np.array(multipliers, dtype=np.int32), np.array(shifts, dtype=np.int32)
-
 

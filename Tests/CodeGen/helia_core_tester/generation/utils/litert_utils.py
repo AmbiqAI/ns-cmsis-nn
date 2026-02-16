@@ -371,7 +371,7 @@ def get_input_output_quantization_from_litert(model: Any, subgraph: Any, operato
 def load_litert_interpreter(tflite_path: str) -> Any:
     """
     Load LiteRT interpreter from .tflite file.
-    Falls back to TensorFlow Lite interpreter if LiteRT is not available.
+    Raises ImportError if LiteRT is not available.
     
     Args:
         tflite_path: Path to .tflite file
@@ -503,36 +503,9 @@ def run_inference_litert(tflite_path: str, input_data: np.ndarray, subgraph_inde
     subgraph = None
     try:
         model, subgraph = load_litert_model(tflite_path, subgraph_index)
-        shapes = get_input_output_shapes_from_litert(model, subgraph, 0)
-        
-        if shapes['input_shapes']:
-            expected_shape = shapes['input_shapes'][0]
-            input_shape = input_data.shape
-            
-            # Handle shape mismatches
-            if input_shape != tuple(expected_shape):
-                # Handle batch size mismatch
-                if len(input_shape) == len(expected_shape) and input_shape[0] != expected_shape[0]:
-                    batch_size = input_shape[0]
-                    expected_batch = expected_shape[0]
-                    
-                    if expected_batch == 1 and batch_size > 1:
-                        # Process each batch item separately
-                        outputs = []
-                        for i in range(batch_size):
-                            batch_input = input_data[i:i+1]
-                            interpreter.set_tensor(interpreter.get_input_details()[0]['index'], batch_input)
-                            interpreter.invoke()
-                            output_data = interpreter.get_tensor(interpreter.get_output_details()[0]['index'])
-                            outputs.append(output_data)
-                        return np.concatenate(outputs, axis=0)
-                    else:
-                        input_data = input_data.reshape(expected_shape)
-                else:
-                    input_data = input_data.reshape(expected_shape)
     except Exception:
         # Fallback to interpreter-based shape extraction if schema loading fails
         pass
-    
+
     # Run inference using LiteRT interpreter - pass model/subgraph for proper shape validation
     return run_inference_with_litert(interpreter, input_data, model=model, subgraph=subgraph, operator_index=0)

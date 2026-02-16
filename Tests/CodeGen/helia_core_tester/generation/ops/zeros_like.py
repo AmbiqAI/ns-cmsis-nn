@@ -49,11 +49,8 @@ class OpZerosLike(OperationBase):
             ]
             converter.inference_input_type = tf.int16
             converter.inference_output_type = tf.int16
-        elif activation_dtype == 'S32':
-            # For int32, we don't quantize (it's already int32)
-            converter.optimizations = []
-            converter.inference_input_type = tf.int32
-            converter.inference_output_type = tf.int32
+        else:
+            raise NotImplementedError(f"Unsupported ZerosLike dtype: {activation_dtype}")
         
         # Generate representative dataset
         def representative_data_gen():

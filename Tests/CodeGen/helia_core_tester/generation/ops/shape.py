@@ -32,9 +32,9 @@ class OpShape(OperationBase):
         """Convert Keras model to TFLite with quantization."""
         converter = tf.lite.TFLiteConverter.from_keras_model(model)
         
-        # Shape outputs int32, so we don't quantize
+        # Shape outputs int32; keep float input to avoid invalid quantized I/O without quantization
         converter.optimizations = []
-        converter.inference_input_type = tf.int8 if self.desc.get('activation_dtype') == 'S8' else tf.int16
+        converter.inference_input_type = tf.float32
         converter.inference_output_type = tf.int32
         
         def representative_data_gen():

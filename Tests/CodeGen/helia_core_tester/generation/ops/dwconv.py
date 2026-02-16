@@ -190,30 +190,6 @@ class OpDepthwiseConv2D(OperationBase):
         
         name = self.desc['name']
         
-        # #region agent log
-        import json
-        log_path = "/workspaces/cmsis-aot-tester/.cursor/debug.log"
-        log_entry_yaml = {
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "YAML_PARSER",
-            "location": "dwconv.py:generate_c_files_yaml",
-            "message": "YAML descriptor dimensions",
-            "data": {
-                "name": name,
-                "desc_input_shape": list(self.desc.get('input_shape', [])),
-                "desc_filter_shape": list(self.desc.get('filter_shape', [])),
-                "desc_depth_multiplier": int(self.desc.get('depth_multiplier', 1)),
-                "desc_use_bias": bool(self.desc.get('use_bias', True))
-            },
-            "timestamp": int(__import__('time').time() * 1000)
-        }
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps(log_entry_yaml) + '\n')
-        except:
-            pass
-        # #endregion
         
         tflite_path = output_dir / f"{name}.tflite"
         if not tflite_path.exists():
@@ -257,8 +233,6 @@ class OpDepthwiseConv2D(OperationBase):
         if len(output_shape) < 4:
             output_shape = (1,) + output_shape if len(output_shape) == 3 else output_shape
         
-        # For depthwise conv with dilation, LiteRT may return incorrect output channels
-        # Calculate correct output_channels from descriptor and fix output_shape if needed
         depth_multiplier = self.desc.get('depth_multiplier', 1)
         input_channels = input_shape[3] if len(input_shape) > 3 else 1
         expected_output_channels = input_channels * depth_multiplier
@@ -293,11 +267,9 @@ class OpDepthwiseConv2D(OperationBase):
         expected_output_channels = input_channels * depth_multiplier
         
         # Validate and fix biases if needed
-        # For depthwise conv with dilation, LiteRT may extract wrong bias tensor
         if biases is not None:
             bias_shape = biases.shape if hasattr(biases, 'shape') else None
             if bias_shape is not None:
-                # If bias is 2D (like (2, 2) for dilation params), it's wrong
                 if len(bias_shape) > 1:
                     print(f"Warning: Biases have wrong shape {bias_shape}, searching for correct 1D bias tensor...")
                     biases = None  # Reset to search for correct one
@@ -330,28 +302,6 @@ class OpDepthwiseConv2D(OperationBase):
                         print(f"Found correct bias tensor: shape={tensor_shape}, size={tensor_data.size}")
                         break
         
-        # #region agent log
-        log_entry_tflite = {
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "YAML_PARSER",
-            "location": "dwconv.py:generate_c_files_tflite",
-            "message": "TFLite interpreter dimensions",
-            "data": {
-                "name": name,
-                "tflite_input_shape": list(input_shape),
-                "tflite_output_shape": list(output_shape),
-                "weights_shape": list(weights.shape) if weights is not None else None,
-                "biases_shape": list(biases.shape) if biases is not None else None
-            },
-            "timestamp": int(__import__('time').time() * 1000)
-        }
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps(log_entry_tflite) + '\n')
-        except:
-            pass
-        # #endregion
         
         # Weight tensor for TFLite DepthwiseConv2D can be in different formats:
         # - TFLite format: [1, H, W, C_OUT] where C_OUT = input_channels * depth_multiplier
@@ -361,27 +311,6 @@ class OpDepthwiseConv2D(OperationBase):
         # uses it as the first dimension in the transposed filter: {filter_dims->c, h, w, n}
         if weights is not None:
             filter_shape = tuple(weights.shape)
-            # #region agent log
-            log_entry_weight_shape = {
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "YAML_PARSER",
-                "location": "dwconv.py:weight_shape_from_tflite",
-                "message": "Weight tensor shape from TFLite",
-                "data": {
-                    "name": name,
-                    "tflite_weight_shape": list(filter_shape),
-                    "is_tflite_format": filter_shape[0] == 1 if len(filter_shape) == 4 else False,
-                    "desc_filter_shape": list(self.desc.get('filter_shape', []))
-                },
-                "timestamp": int(__import__('time').time() * 1000)
-            }
-            try:
-                with open(log_path, 'a') as f:
-                    f.write(json.dumps(log_entry_weight_shape) + '\n')
-            except:
-                pass
-            # #endregion
             # Ensure weights are int8 in generated C
             if weights.dtype != np.int8:
                 weights = weights.astype(np.int8)
@@ -389,26 +318,6 @@ class OpDepthwiseConv2D(OperationBase):
             # Fallback: descriptor is [H, W, I, M]
             fs = tuple(self.desc['filter_shape'])
             filter_shape = fs
-            # #region agent log
-            log_entry_weight_shape = {
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "YAML_PARSER",
-                "location": "dwconv.py:weight_shape_from_desc",
-                "message": "Weight tensor shape from descriptor (fallback)",
-                "data": {
-                    "name": name,
-                    "desc_filter_shape": list(filter_shape),
-                    "weights_is_none": True
-                },
-                "timestamp": int(__import__('time').time() * 1000)
-            }
-            try:
-                with open(log_path, 'a') as f:
-                    f.write(json.dumps(log_entry_weight_shape) + '\n')
-            except:
-                pass
-            # #endregion
         
         builder = TemplateContextBuilder()
         input_dims = builder.nhwc_to_cmsis_dims(input_shape)
@@ -431,61 +340,10 @@ class OpDepthwiseConv2D(OperationBase):
         if output_shape[3] != output_channels:
             print(f"Warning: LiteRT output_channels ({output_shape[3]}) != calculated ({output_channels}). Using calculated value.")
         
-        # #region agent log
-        import json
-        import os
-        log_path = "/workspaces/cmsis-aot-tester/.cursor/debug.log"
-        log_entry = {
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "A",
-            "location": "dwconv.py:filter_dims",
-            "message": "Filter dimensions calculation",
-            "data": {
-                "name": name,
-                "filter_shape": list(filter_shape) if hasattr(filter_shape, '__iter__') else str(filter_shape),
-                "input_shape": list(input_shape),
-                "output_shape": list(output_shape),
-                "input_channels": int(input_channels),
-                "output_channels": int(output_channels),
-                "depth_multiplier": int(depth_multiplier)
-            },
-            "timestamp": int(__import__('time').time() * 1000)
-        }
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps(log_entry) + '\n')
-        except:
-            pass
-        # #endregion
         
         if len(filter_shape) == 4:
             # Check if TFLite format [1, H, W, C_OUT] or descriptor format [H, W, I, M]
             is_tflite_format = filter_shape[0] == 1
-            # #region agent log
-            log_entry_format_decision = {
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "YAML_PARSER",
-                "location": "dwconv.py:format_decision",
-                "message": "Filter format decision",
-                "data": {
-                    "name": name,
-                    "filter_shape": list(filter_shape),
-                    "is_tflite_format": is_tflite_format,
-                    "filter_shape_0": int(filter_shape[0]),
-                    "depth_multiplier": int(depth_multiplier),
-                    "input_channels": int(input_channels),
-                    "output_channels": int(output_channels)
-                },
-                "timestamp": int(__import__('time').time() * 1000)
-            }
-            try:
-                with open(log_path, 'a') as f:
-                    f.write(json.dumps(log_entry_format_decision) + '\n')
-            except:
-                pass
-            # #endregion
             if is_tflite_format:
                 # TFLite format: [1, H, W, C_OUT]
                 # Extract H and W from indices 1 and 2
@@ -533,27 +391,6 @@ class OpDepthwiseConv2D(OperationBase):
         else:
             raise ValueError(f"Unsupported filter shape: {filter_shape}")
         
-        # #region agent log
-        log_entry2 = {
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "A",
-            "location": "dwconv.py:filter_dims_result",
-            "message": "Filter dimensions result",
-            "data": {
-                "name": name,
-                "filter_dims": filter_dims,
-                "filter_dims_c_is_output_channels": filter_dims['c'] == output_channels,
-                "filter_dims_c_is_input_channels": filter_dims['c'] == input_channels
-            },
-            "timestamp": int(__import__('time').time() * 1000)
-        }
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps(log_entry2) + '\n')
-        except:
-            pass
-        # #endregion
         
         # Correct kernel size for padding math
         kernel_hw = (filter_dims['h'], filter_dims['w'])
@@ -715,28 +552,6 @@ class OpDepthwiseConv2D(OperationBase):
         input_data_array_str = builder.format_array_as_c_literal(input_q)
         expected_output_array_str = builder.format_array_as_c_literal(output_data)
         
-        # #region agent log
-        log_entry_before_buffer = {
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "YAML_PARSER",
-            "location": "dwconv.py:before_buffer_calc",
-            "message": "Dimensions before buffer size calculation",
-            "data": {
-                "name": name,
-                "input_dims": input_dims,
-                "filter_dims": filter_dims,
-                "output_dims": output_dims,
-                "activation_dtype": self.desc.get('activation_dtype', 'S8')
-            },
-            "timestamp": int(__import__('time').time() * 1000)
-        }
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps(log_entry_before_buffer) + '\n')
-        except:
-            pass
-        # #endregion
         
         # Calculate buffer size max (conservative estimate for depthwise convolution)
         activation_dtype = self.desc.get('activation_dtype', 'S8')
@@ -745,25 +560,6 @@ class OpDepthwiseConv2D(OperationBase):
             output_dtype=activation_dtype
         )
         
-        # #region agent log
-        log_entry_after_buffer = {
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "YAML_PARSER",
-            "location": "dwconv.py:after_buffer_calc",
-            "message": "Buffer size calculation result",
-            "data": {
-                "name": name,
-                "buffer_size_max": int(buffer_size_max)
-            },
-            "timestamp": int(__import__('time').time() * 1000)
-        }
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps(log_entry_after_buffer) + '\n')
-        except:
-            pass
-        # #endregion
         
         # Build template context
         context = {

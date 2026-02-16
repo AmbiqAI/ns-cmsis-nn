@@ -4,6 +4,7 @@ Thin generator that discovers YAML descriptors and generates TFLite models.
 """
 
 import json
+import hashlib
 import pytest
 import yaml
 from pathlib import Path
@@ -84,11 +85,15 @@ def generate_test(desc: Dict[str, Any], out_dir: str, seed: Optional[int] = None
     
     # Initialize operation with deterministic seed
     if seed is None:
-        seed = hash(name) % (2**32)  # Deterministic seed from name
+        # Stable deterministic seed from name (independent of PYTHONHASHSEED)
+        seed = int.from_bytes(hashlib.sha256(name.encode("utf-8")).digest()[:4], "little")
     op = op_class(desc, seed)
     
-    # Build Keras model
-    model = op.build_keras_model()
+    # Build Keras model (skip for ops that generate LiteRT models directly)
+    if operator in {"ArgMax", "ArgMin"}:
+        model = None
+    else:
+        model = op.build_keras_model()
     
     # Convert to TFLite
     tflite_path = test_dir / f"{name}.tflite"

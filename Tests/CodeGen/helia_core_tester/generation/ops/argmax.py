@@ -33,42 +33,23 @@ class OpArgMax(OperationBase):
 
     def convert_to_tflite(self, model, out_path: str, rep_seed: int) -> None:
         """Convert Keras model to TFLite with quantization."""
-        # Create converter
-        converter = tf.lite.TFLiteConverter.from_keras_model(model)
-        
-        # Apply quantization based on activation_dtype
-        activation_dtype = self.desc.get('activation_dtype', 'S8')
-        
-        if activation_dtype == 'S8':
-            converter.optimizations = [tf.lite.Optimize.DEFAULT]
-            converter.target_spec.supported_types = [tf.int8]
-            converter.inference_input_type = tf.int8
-            converter.inference_output_type = tf.int32  # ArgMax outputs int32 indices
-        elif activation_dtype == 'S16':
-            converter.optimizations = [tf.lite.Optimize.DEFAULT]
-            converter.target_spec.supported_ops = [
-                tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
-            ]
-            converter.inference_input_type = tf.int16
-            converter.inference_output_type = tf.int32  # ArgMax outputs int32 indices
-        
-        # Generate representative dataset
-        def representative_data_gen():
-            for _ in range(100):
-                if 'input_shape' in self.desc:
-                    inputs = self.rng.uniform(-1.0, 1.0, size=self.desc['input_shape']).astype(np.float32)
-                    yield [inputs]
-                elif 'input_1_shape' in self.desc and 'input_2_shape' in self.desc:
-                    inputs1 = self.rng.uniform(-1.0, 1.0, size=self.desc['input_1_shape']).astype(np.float32)
-                    inputs2 = self.rng.uniform(-1.0, 1.0, size=self.desc['input_2_shape']).astype(np.float32)
-                    yield [inputs1, inputs2]
-        
-        converter.representative_dataset = representative_data_gen
-        
-        # Convert and save
-        tflite_model = converter.convert()
-        with open(out_path, 'wb') as f:
-            f.write(tflite_model)
+        from helia_core_tester.generation.utils.litert_builder import build_arg_op
+        activation_dtype = self.desc.get("activation_dtype", "S8")
+        if activation_dtype == "S8":
+            dtype = "int8"
+        elif activation_dtype == "S16":
+            dtype = "int16"
+        else:
+            raise NotImplementedError(f"Unsupported ArgMax dtype: {activation_dtype}")
+        model_bytes = build_arg_op(
+            "argmax",
+            input_shape=self.desc["input_shape"],
+            axis=self.desc.get("axis", -1),
+            dtype=dtype,
+            seed=rep_seed,
+        )
+        with open(out_path, "wb") as f:
+            f.write(model_bytes)
     
     def _select_cmsis_argmax_kernel(self) -> Dict[str, str]:
         """
@@ -108,15 +89,7 @@ class OpArgMax(OperationBase):
         # Select CMSIS kernel + types
         kernel_info = self._select_cmsis_argmax_kernel()
         
-        # Load LiteRT interpreter
-        interpreter = self.load_litert_interpreter(str(tflite_path))
-        
-        # Get input and output details
-        input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
-        
-        input_shape = tuple(input_details[0]['shape'])
-        output_shape = tuple(output_details[0]['shape'])
+        input_shape = tuple(self.desc["input_shape"])
         
         builder = TemplateContextBuilder()
         
@@ -131,22 +104,10 @@ class OpArgMax(OperationBase):
             axis = len(input_shape) + axis
         # axis is now 0-3 for NHWC
         
-        # Generate input data and quantize
+        # Generate deterministic integer input data
         rng_state = self.rng.__getstate__()
         self.rng = np.random.default_rng(self.seed)
-        
-        input_data = self.rng.uniform(-1.0, 1.0, size=input_shape).astype(np.float32)
-        
-        self.rng.__setstate__(rng_state)
-        
-        # Extract quantization
-        input_qp = input_details[0].get('quantization_parameters', {})
-        input_scale = input_qp.get('scales', [1.0])
-        input_zp = input_qp.get('zero_points', [0])
-        input_scale = float(input_scale[0] if isinstance(input_scale, list) else input_scale)
-        input_zp = int(input_zp[0] if isinstance(input_zp, list) else input_zp)
-        
-        # Quantize inputs
+
         if kernel_info["input_c_type"] == "int8_t":
             np_in_dtype = np.int8
             qmin, qmax = -128, 127
@@ -155,15 +116,12 @@ class OpArgMax(OperationBase):
             qmin, qmax = -32768, 32767
         else:
             raise ValueError(f"Unsupported input_c_type: {kernel_info['input_c_type']}")
-        
-        input_q = np.round(input_data / float(input_scale) + float(input_zp)).astype(np.int32)
-        input_q = np.clip(input_q, qmin, qmax).astype(np_in_dtype)
-        
-        # Run inference
-        interpreter.set_tensor(input_details[0]['index'], input_q)
-        interpreter.invoke()
-        output_data = interpreter.get_tensor(output_details[0]['index'])
-        output_data = np.array(output_data).astype(np.int32)
+        input_q = self.rng.integers(qmin, qmax + 1, size=input_shape, dtype=np_in_dtype)
+        self.rng.__setstate__(rng_state)
+
+        # Compute expected output directly
+        output_data = np.argmax(input_q, axis=axis).astype(np.int32)
+        output_shape = tuple(output_data.shape)
         
         # Format arrays
         input_array_str = builder.format_array_as_c_literal(input_q)
@@ -208,4 +166,3 @@ class OpArgMax(OperationBase):
             f.write(cmake_content)
         
         print(f"Generated C/H files and CMakeLists.txt for {name}")
-

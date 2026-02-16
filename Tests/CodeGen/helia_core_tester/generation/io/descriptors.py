@@ -3,7 +3,6 @@ Descriptor ingestion with dtype validation and kernel resolution.
 """
 
 import yaml
-import json
 import os
 from typing import Dict, Any, List
 from pathlib import Path
@@ -15,12 +14,6 @@ ALLOWED_DTYPE_COMBOS = {
     ('S16', 'S8'): 's16', 
     ('S8', 'S4'): 's4'
 }
-
-
-def load_schema(schema_path: str) -> Dict[str, Any]:
-    """Load JSON schema for validation."""
-    with open(schema_path, 'r') as f:
-        return json.load(f)
 
 
 def validate_dtype_combo(activation_dtype: str, weight_dtype: str) -> bool:
@@ -41,10 +34,14 @@ def _validate_and_normalize_descriptor(desc: Dict[str, Any]) -> Dict[str, Any]:
     """
     Validate and normalize a single descriptor dictionary.
     """
-    required_fields = ['operator', 'name', 'activation_dtype', 'weight_dtype']
+    required_fields = ['operator', 'activation_dtype', 'weight_dtype']
     for field in required_fields:
         if field not in desc:
             raise ValueError(f"Missing required field: {field}")
+
+    # Normalize dtypes to upper-case for consistency
+    desc['activation_dtype'] = str(desc['activation_dtype']).upper()
+    desc['weight_dtype'] = str(desc['weight_dtype']).upper()
 
     if not validate_dtype_combo(desc['activation_dtype'], desc['weight_dtype']):
         raise ValueError(f"Unsupported dtype combination: {desc['activation_dtype']} x {desc['weight_dtype']}")
@@ -200,6 +197,10 @@ def expand_descriptor_variations(desc: Dict[str, Any]) -> List[Dict[str, Any]]:
         # Override with variation-specific fields
         for key, value in variation.items():
             variation_desc[key] = value
+        if 'activation_dtype' in variation_desc:
+            variation_desc['activation_dtype'] = str(variation_desc['activation_dtype']).upper()
+        if 'weight_dtype' in variation_desc:
+            variation_desc['weight_dtype'] = str(variation_desc['weight_dtype']).upper()
         
         # Use the variation name directly (shorter, cleaner)
         if 'name' in variation:
@@ -219,15 +220,19 @@ def expand_descriptor_variations(desc: Dict[str, Any]) -> List[Dict[str, Any]]:
         elif operator in ['Conv2D', 'DepthwiseConv2D']:
             if 'input_shape' not in variation_desc or 'filter_shape' not in variation_desc:
                 raise ValueError(f"{operator} variation requires input_shape and filter_shape")
-        elif operator in ['MatMul', 'Elementwise', 'Add', 'Mul', 'Maximum', 'Minimum']:
+        elif operator in ['MatMul', 'Elementwise', 'Add', 'Sub', 'Mul', 'Maximum', 'Minimum',
+                          'Equal', 'NotEqual', 'Greater', 'GreaterEqual', 'Less', 'LessEqual']:
             if 'input_1_shape' not in variation_desc or 'input_2_shape' not in variation_desc:
                 raise ValueError(f"{operator} variation requires input_1_shape and input_2_shape")
         elif operator == 'Pooling':
             if 'input_shape' not in variation_desc or ('pool_size' not in variation_desc and 'filter_shape' not in variation_desc):
                 raise ValueError(f"{operator} variation requires input_shape and pool_size (or filter_shape)")
-        elif operator in ['Relu', 'Relu6', 'LeakyRelu', 'Softmax', 'Quantize', 'Dequantize', 
+        elif operator in ['Relu', 'Relu6', 'LeakyRelu', 'Softmax', 'Quantize', 'Dequantize',
                          'Transpose', 'StridedSlice', 'Pad', 'LSTM', 'SVDF',
-                         'Mean', 'ReduceMax', 'TransposeConv']:
+                         'Mean', 'ReduceMax', 'ReduceMin', 'ArgMax', 'ArgMin', 'TransposeConv',
+                         'Tanh', 'Logistic', 'HardSwish', 'PReLU', 'Fill', 'ZerosLike',
+                         'Reshape', 'Shape', 'Slice', 'Squeeze', 'SpaceToDepth', 'DepthToSpace',
+                         'Split', 'Pack', 'Unpack', 'Concatenation', 'SpaceToBatchND', 'BatchToSpaceND', 'VariableUpdate']:
             if 'input_shape' not in variation_desc:
                 raise ValueError(f"{operator} variation requires input_shape")
         

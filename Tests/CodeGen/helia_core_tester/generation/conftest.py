@@ -3,10 +3,7 @@ Pytest configuration and fixtures for Helia-Core Tester.
 """
 
 import pytest
-import os
 import shutil
-import sys
-from pathlib import Path
 
 from helia_core_tester.core.discovery import find_generated_tests_dir
 

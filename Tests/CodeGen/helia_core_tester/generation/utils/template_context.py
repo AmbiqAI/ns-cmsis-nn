@@ -349,33 +349,6 @@ class TemplateContextBuilder:
         filter_w = filter_dims['w']
         filter_h = filter_dims['h']
         
-        # #region agent log
-        import json
-        log_path = "/workspaces/cmsis-aot-tester/.cursor/debug.log"
-        log_entry = {
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "C",
-            "location": "template_context.py:calculate_depthwise_buffer_size_max",
-            "message": "Depthwise buffer size calculation",
-            "data": {
-                "input_dims": input_dims,
-                "filter_dims": filter_dims,
-                "output_dims": output_dims,
-                "output_dtype": output_dtype,
-                "input_c": int(input_c),
-                "filter_w": int(filter_w),
-                "filter_h": int(filter_h)
-            },
-            "timestamp": int(__import__('time').time() * 1000)
-        }
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps(log_entry) + '\n')
-        except:
-            pass
-        # #endregion
-        
         if output_dtype == 'S16':
             # S16 depthwise buffer size
             # From arm_depthwise_conv_get_buffer_sizes_s16.c:
@@ -396,27 +369,6 @@ class TemplateContextBuilder:
             # return (input_dims->c * filter_dims->w * filter_dims->h) * sizeof(int16_t);
             buffer_size_dsp = input_c * filter_w * filter_h * 2  # sizeof(int16_t) = 2
             result = max(buffer_size_mve, buffer_size_dsp)
-        
-        # #region agent log
-        log_entry2 = {
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "C",
-            "location": "template_context.py:calculate_depthwise_buffer_size_max_result",
-            "message": "Depthwise buffer size result",
-            "data": {
-                "buffer_size_mve": int(buffer_size_mve) if output_dtype != 'S16' else int(buffer_size_mve),
-                "buffer_size_dsp": int(buffer_size_dsp),
-                "result": int(result)
-            },
-            "timestamp": int(__import__('time').time() * 1000)
-        }
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps(log_entry2) + '\n')
-        except:
-            pass
-        # #endregion
         
         return result
     
@@ -442,34 +394,6 @@ class TemplateContextBuilder:
         input_c = input_dims['c']
         filter_w = filter_dims['w']
         filter_h = filter_dims['h']
-        
-        # #region agent log
-        import json
-        import os
-        log_path = "/workspaces/cmsis-aot-tester/.cursor/debug.log"
-        log_entry = {
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "B",
-            "location": "template_context.py:calculate_buffer_size_max",
-            "message": "Buffer size calculation inputs",
-            "data": {
-                "input_dims": input_dims,
-                "filter_dims": filter_dims,
-                "output_dims": output_dims,
-                "output_dtype": output_dtype,
-                "input_c": int(input_c),
-                "filter_w": int(filter_w),
-                "filter_h": int(filter_h)
-            },
-            "timestamp": int(__import__('time').time() * 1000)
-        }
-        try:
-            with open(log_path, 'a') as f:
-                f.write(json.dumps(log_entry) + '\n')
-        except:
-            pass
-        # #endregion
         
         if output_dtype == 'S16':
             # S16 buffer size calculation
@@ -497,30 +421,6 @@ class TemplateContextBuilder:
             buffer_size_dsp = 2 * aligned_rhs_cols * 2  # sizeof(int16_t) = 2
             
             result = max(buffer_size_mve, buffer_size_dsp)
-            
-            # #region agent log
-            log_entry2 = {
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "B",
-                "location": "template_context.py:calculate_buffer_size_max_result",
-                "message": "Buffer size calculation result",
-                "data": {
-                    "col_length_mve": int(col_length_mve),
-                    "buffer_size_mve": int(buffer_size_mve),
-                    "rhs_cols": int(rhs_cols),
-                    "aligned_rhs_cols": int(aligned_rhs_cols),
-                    "buffer_size_dsp": int(buffer_size_dsp),
-                    "result": int(result)
-                },
-                "timestamp": int(__import__('time').time() * 1000)
-            }
-            try:
-                with open(log_path, 'a') as f:
-                    f.write(json.dumps(log_entry2) + '\n')
-            except:
-                pass
-            # #endregion
             
             # Return the maximum to be safe
             return result
