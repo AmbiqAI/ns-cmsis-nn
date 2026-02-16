@@ -42,11 +42,11 @@ uv sync
 **Run the tool**:
 ```bash
 # Using uv run (recommended)
-uv run cmsis-nn-tools --help
+uv run helia_core_tester --help
 
 # Or activate the virtual environment first
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-cmsis-nn-tools --help
+helia_core_tester --help
 ```
 
 ### CI Setup
@@ -91,7 +91,7 @@ git submodule update --init --recursive --depth 1
 uv sync
 
 # 4. Run commands using uv run
-uv run cmsis-nn-tools --help
+uv run helia_core_tester --help
 ```
 
 **Note**: uv cannot clone git submodules (that's a git feature), so we use `git submodule` commands for that. All Python dependencies are managed entirely by uv.
@@ -102,39 +102,39 @@ uv run cmsis-nn-tools --help
 
 ```bash
 # Run complete pipeline (default: cortex-m55)
-uv run cmsis-nn-tools full
+uv run helia_core_tester full
 
 # Specify CPU
-uv run cmsis-nn-tools full --cpu cortex-m4
+uv run helia_core_tester full --cpu cortex-m4
 ```
 
 ### Subcommands
 
-- `uv run cmsis-nn-tools generate` — Generate TFLite models and template C/H
-- `uv run cmsis-nn-tools runners` — Generate Unity test runners
-- `uv run cmsis-nn-tools build` — CMake build for FVP
-- `uv run cmsis-nn-tools run` — Run tests on FVP
-- `uv run cmsis-nn-tools full` — Run the full pipeline
-- `uv run cmsis-nn-tools clean` — Remove build artifacts
-- `uv run cmsis-nn-tools doctor` — Preflight checks
+- `uv run helia_core_tester generate` — Generate TFLite models and template C/H
+- `uv run helia_core_tester runners` — Generate Unity test runners
+- `uv run helia_core_tester build` — CMake build for FVP
+- `uv run helia_core_tester run` — Run tests on FVP
+- `uv run helia_core_tester full` — Run the full pipeline
+- `uv run helia_core_tester clean` — Remove build artifacts
+- `uv run helia_core_tester doctor` — Preflight checks
 
 ### Advanced Usage
 
 ```bash
 # Run with specific filters
-uv run cmsis-nn-tools full --op conv2D --dtype S8 --limit 5
+uv run helia_core_tester full --op conv2D --dtype S8 --limit 5
 
 # Skip certain steps
-uv run cmsis-nn-tools full --skip-generation --skip-conversion
+uv run helia_core_tester full --skip-generation --skip-conversion
 
 # Dry run to see what would be done
-uv run cmsis-nn-tools full --dry-run
+uv run helia_core_tester full --dry-run
 
 # Verbose output with custom CPU
-uv run cmsis-nn-tools full --cpu cortex-m3 -v 2
+uv run helia_core_tester full --cpu cortex-m3 -v 2
 
 # Custom optimization level and jobs
-uv run cmsis-nn-tools build --opt "-O2" --jobs 8
+uv run helia_core_tester build --opt "-O2" --jobs 8
 ```
 
 ### Command Line Options
@@ -168,34 +168,34 @@ uv run cmsis-nn-tools build --opt "-O2" --jobs 8
 
 ## Architecture
 
-All Python lives under `cmsis_nn_tools/`:
+All Python lives under `helia_core_tester/`:
 
 ### Core Modules
-- `cmsis_nn_tools.core.pipeline`: Main pipeline orchestration
-- `cmsis_nn_tools.core.config`: Configuration management (repo-root discovery)
-- `cmsis_nn_tools.core.discovery`: Path discovery (no __file__-based paths)
-- `cmsis_nn_tools.core.steps`: Pipeline steps (generate, runners, build, run, clean)
+- `helia_core_tester.core.pipeline`: Main pipeline orchestration
+- `helia_core_tester.core.config`: Configuration management (repo-root discovery)
+- `helia_core_tester.core.discovery`: Path discovery (no __file__-based paths)
+- `helia_core_tester.core.steps`: Pipeline steps (generate, runners, build, run, clean)
 
 ### CLI
-- `cmsis_nn_tools.cli`: Subcommand CLI entry point (`cmsis-nn-tools`)
+- `helia_core_tester.cli`: Subcommand CLI entry point (`helia_core_tester`)
 
 ### FVP
-- `cmsis_nn_tools.fvp.build_and_run_fvp`: FVP build and test execution
+- `helia_core_tester.fvp.build_and_run_fvp`: FVP build and test execution
 
 ### Scripts
-- `cmsis_nn_tools/scripts/generate_test_runners.py`: Unity test runner generation
-- `cmsis_nn_tools/scripts/setup_dependencies.py`: Build dependency download (invoked via `uv run`)
+- `helia_core_tester/scripts/generate_test_runners.py`: Unity test runner generation
+- `helia_core_tester/scripts/setup_dependencies.py`: Build dependency download (invoked via `uv run`)
 
 ### Generation (TFLite)
-- `cmsis_nn_tools/generation/tflite_generator/` contains:
+- `helia_core_tester/generation/tflite_generator/` contains:
   - `test_ops.py`, `conftest.py`: TFLite model generation via pytest
   - `tester/ops/`: Operator implementations
   - `tester/io/`: I/O utilities
   - `tester/descriptors/`: Test descriptor schemas and examples
 
 ### Utility and Reporting
-- `cmsis_nn_tools/utils/`: Command execution utilities
-- `cmsis_nn_tools/reporting/`: Test result parsing, storage, and report generation
+- `helia_core_tester/utils/`: Command execution utilities
+- `helia_core_tester/reporting/`: Test result parsing, storage, and report generation
 
 ## Development
 
@@ -203,16 +203,16 @@ All Python lives under `cmsis_nn_tools/`:
 
 ```bash
 # From repo root (Tests/CodeGen)
-uv run pytest cmsis_nn_tools/generation/tflite_generator/test_ops.py::test_generation -v --op mean_int16
+uv run pytest helia_core_tester/generation/tflite_generator/test_ops.py::test_generation -v --op mean_int16
 ```
 
 ### Code Quality (optional)
 
 ```bash
 # From repo root
-black cmsis_nn_tools/
-flake8 cmsis_nn_tools/
-mypy cmsis_nn_tools/
+black helia_core_tester/
+flake8 helia_core_tester/
+mypy helia_core_tester/
 ```
 
 ## Requirements

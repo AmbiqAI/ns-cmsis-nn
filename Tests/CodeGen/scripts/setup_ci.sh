@@ -132,7 +132,7 @@ echo ""
 echo "Virtual environment: ${REPO_ROOT}/.venv (from uv sync)"
 echo "Downloads directory: ${DOWNLOADS_DIR}"
 echo ""
-echo "Run commands with: uv run cmsis-nn-tools <command>"
+echo "Run commands with: uv run helia_core_tester <command>"
 echo "Or activate: source ${REPO_ROOT}/.venv/bin/activate"
 echo "Or source: source ${ENV_FILE}"
 
