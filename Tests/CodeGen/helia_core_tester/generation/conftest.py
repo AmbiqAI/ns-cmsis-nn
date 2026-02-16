@@ -20,8 +20,8 @@ def pytest_addoption(parser):
                     help="Filter by exact test name")
     parser.addoption("--limit", action="store", type=int, default=None,
                     help="Limit number of tests to run")
-    parser.addoption("--seed", action="store", type=int, default=None,
-                    help="Random seed for test generation (default: hash of test name)")
+    parser.addoption("--seed", action="store", type=int, default=500,
+                    help="Random seed for test generation")
 
 
 def pytest_configure(config):

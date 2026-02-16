@@ -54,7 +54,7 @@ class Config:
     dtype_filter: Optional[str] = None
     name_filter: Optional[str] = None
     limit: Optional[int] = None
-    seed: Optional[int] = None  # Random seed for test generation (None = use hash of test name)
+    seed: Optional[int] = 500  # Random seed for test generation (None = use hash of test name)
     
     # Skip options
     skip_generation: bool = False
