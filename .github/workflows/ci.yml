@@ -74,7 +74,7 @@ jobs:
       - name: Install and sync Python deps (CodeGen)
         run: |
           cd Tests/CodeGen
-          uv sync --group ci
+          uv sync
 
       - name: Setup CodeGen build dependencies
         run: |
