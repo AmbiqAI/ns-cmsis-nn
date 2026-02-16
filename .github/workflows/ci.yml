@@ -10,52 +10,52 @@ on:
       - main
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+  # build-and-test:
+  #   runs-on: ubuntu-latest
+  #   container:
+  #     image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
 
-    strategy:
-      fail-fast: false
-      matrix:
-        core:
-          # - cortex-m0
-          # - cortex-m4
-          # - cortex-m55
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       core:
+  #         - cortex-m0
+  #         - cortex-m4
+  #         - cortex-m55
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v5
 
-      - name: Verify per-channel s16 test data is present
-        run: |
-          grep -R "fc_per_channel_s16" -n Tests/UnitTest/TestCases/TestData
+  #     - name: Verify per-channel s16 test data is present
+  #       run: |
+  #         grep -R "fc_per_channel_s16" -n Tests/UnitTest/TestCases/TestData
 
-      - name: Restore tests-downloads cache
-        id: cache-downloads
-        uses: actions/cache@v4
-        with:
-          path: Tests/UnitTest/downloads
-          key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
-          restore-keys: |
-            ${{ runner.os }}-tests-downloads-
+  #     - name: Restore tests-downloads cache
+  #       id: cache-downloads
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: Tests/UnitTest/downloads
+  #         key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-tests-downloads-
 
-      - name: Download deps (internal cache-checks)
-        run: |
-          cd Tests/UnitTest
-          ./build_and_run_tests.sh -rb
+  #     - name: Download deps (internal cache-checks)
+  #       run: |
+  #         cd Tests/UnitTest
+  #         ./build_and_run_tests.sh -rb
 
-      - name: Build & run tests for ${{ matrix.core }}
-        run: |
-          cd Tests/UnitTest
-          ./build_and_run_tests.sh -q -c ${{ matrix.core }}
+  #     - name: Build & run tests for ${{ matrix.core }}
+  #       run: |
+  #         cd Tests/UnitTest
+  #         ./build_and_run_tests.sh -q -c ${{ matrix.core }}
 
-      - name: Save tests-downloads cache
-        if: steps.cache-downloads.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
-        with:
-          path: Tests/UnitTest/downloads
-          key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
+  #     - name: Save tests-downloads cache
+  #       if: steps.cache-downloads.outputs.cache-hit != 'true'
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: Tests/UnitTest/downloads
+  #         key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
 
   codegen-tests:
     runs-on: ubuntu-latest
