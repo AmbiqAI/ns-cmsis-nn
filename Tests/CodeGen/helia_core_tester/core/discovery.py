@@ -169,15 +169,13 @@ def find_tester_templates_dir(repo_root: Optional[Path] = None) -> Path:
         repo_root: Repository root (auto-discovered if None)
         
     Returns:
-        Path to tester/templates/ under helia_core_tester/generation/tflite_generator/
+        Path to templates/ under helia_core_tester/generation/
     """
     repo_root = _resolve_repo_root(repo_root)
     return (
         repo_root
         / "helia_core_tester"
         / "generation"
-        / "tflite_generator"
-        / "tester"
         / "templates"
     )
 

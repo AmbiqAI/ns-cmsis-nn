@@ -19,7 +19,7 @@ class Config:
     project_root: Optional[Path] = None
     downloads_dir: Optional[Path] = None
     generated_tests_dir: Optional[Path] = None
-    tflite_generator_dir: Optional[Path] = None
+    generation_dir: Optional[Path] = None
     
     # Build configuration
     cpu: str = "cortex-m55"
@@ -76,11 +76,11 @@ class Config:
         else:
             self.generated_tests_dir = Path(self.generated_tests_dir).resolve()
         
-        if self.tflite_generator_dir is None:
-            # Only src layout: src/helia_core_tester/generation/tflite_generator/
-            self.tflite_generator_dir = self.project_root / "src" / "helia_core_tester" / "generation" / "tflite_generator"
+        if self.generation_dir is None:
+            # Single source of truth: helia_core_tester/generation/ at repo root
+            self.generation_dir = self.project_root / "helia_core_tester" / "generation"
         else:
-            self.tflite_generator_dir = Path(self.tflite_generator_dir).resolve()
+            self.generation_dir = Path(self.generation_dir).resolve()
         
         # Convert report_dir to Path if needed
         if self.report_dir is None:
@@ -114,7 +114,7 @@ class Config:
             "project_root": str(self.project_root),
             "downloads_dir": str(self.downloads_dir),
             "generated_tests_dir": str(self.generated_tests_dir),
-            "tflite_generator_dir": str(self.tflite_generator_dir),
+            "generation_dir": str(self.generation_dir),
             "cpu": self.cpu,
             "optimization": self.optimization,
             "jobs": self.jobs,
@@ -141,8 +141,8 @@ class Config:
     def from_dict(cls, data: Dict[str, Any]) -> "Config":
         """Create configuration from dictionary."""
         # Convert path strings back to Path objects
-        path_keys = ["project_root", "downloads_dir", "generated_tests_dir", 
-                     "tflite_generator_dir", "report_dir"]
+        path_keys = ["project_root", "downloads_dir", "generated_tests_dir",
+                     "generation_dir", "report_dir"]
         for key in path_keys:
             if key in data and isinstance(data[key], str):
                 data[key] = Path(data[key])

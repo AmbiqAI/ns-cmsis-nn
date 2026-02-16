@@ -28,8 +28,8 @@ class GenerateStep(StepBase):
     
     def validate(self) -> str | None:
         """Validate prerequisites for generation."""
-        if not self.config.tflite_generator_dir.exists():
-            return f"TFLite generator directory not found: {self.config.tflite_generator_dir}"
+        if not self.config.generation_dir.exists():
+            return f"Generation directory not found: {self.config.generation_dir}"
         return None
 
     def _build_cmd(self, include_seed: bool = True) -> list:
@@ -57,7 +57,7 @@ class GenerateStep(StepBase):
                 self.logger.info(f"Running command: {' '.join(cmd)}")
             run_command(
                 cmd,
-                cwd=self.config.tflite_generator_dir,
+                cwd=self.config.generation_dir,
                 verbosity=self.config.verbosity
             )
             if self.config.verbosity >= 1:
@@ -82,5 +82,5 @@ class GenerateStep(StepBase):
         cmd_preview = self._build_cmd(include_seed=False)
         return StepResult(
             status=StepStatus.SKIPPED,
-            message=f"DRY RUN: Would run: {' '.join(cmd_preview)} in {self.config.tflite_generator_dir}"
+            message=f"DRY RUN: Would run: {' '.join(cmd_preview)} in {self.config.generation_dir}"
         )

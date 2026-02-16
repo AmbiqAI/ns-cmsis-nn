@@ -8,7 +8,7 @@ and determine descriptor status based on test results and artifact presence.
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from helia_core_tester.generation.tflite_generator.tester.io.descriptors import load_all_descriptors
+from helia_core_tester.generation.io.descriptors import load_all_descriptors
 from helia_core_tester.reporting.models import TestStatus, TestResult
 
 

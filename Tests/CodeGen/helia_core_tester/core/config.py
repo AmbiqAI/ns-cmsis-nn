@@ -12,23 +12,18 @@ from helia_core_tester.core.errors import ConfigurationError, PathNotFoundError
 
 PATH_KEYS = frozenset({
     "project_root", "downloads_dir", "generated_tests_dir",
-    "tflite_generator_dir", "report_dir",
+    "generation_dir", "report_dir",
 })
 
 
-def _discover_tflite_generator_dir(project_root: Path) -> Path:
-    """Return first candidate path that has test_ops.py or exists; else nested default."""
-    candidates = [
-        project_root / "helia_core_tester" / "generation" / "tflite_generator",
-        project_root / "helia_core_tester" / "generation",
-    ]
-    for p in candidates:
-        if (p / "test_ops.py").exists():
-            return p
-    for p in candidates:
-        if p.exists():
-            return p
-    return candidates[0]
+def _discover_generation_dir(project_root: Path) -> Path:
+    """Return generation directory (contains test_ops.py, ops/, templates/)."""
+    p = project_root / "helia_core_tester" / "generation"
+    if (p / "test_ops.py").exists():
+        return p
+    if p.exists():
+        return p
+    return p
 
 
 @dataclass
@@ -39,7 +34,7 @@ class Config:
     project_root: Optional[Path] = None
     downloads_dir: Optional[Path] = None
     generated_tests_dir: Optional[Path] = None
-    tflite_generator_dir: Optional[Path] = None
+    generation_dir: Optional[Path] = None
     
     # Build configuration
     cpu: str = "cortex-m55"
@@ -96,10 +91,10 @@ class Config:
         else:
             self.generated_tests_dir = Path(self.generated_tests_dir).resolve()
         
-        if self.tflite_generator_dir is None:
-            self.tflite_generator_dir = _discover_tflite_generator_dir(self.project_root)
+        if self.generation_dir is None:
+            self.generation_dir = _discover_generation_dir(self.project_root)
         else:
-            self.tflite_generator_dir = Path(self.tflite_generator_dir).resolve()
+            self.generation_dir = Path(self.generation_dir).resolve()
         
         # Convert report_dir to Path if needed
         if self.report_dir is None:
@@ -133,7 +128,7 @@ class Config:
             "project_root": str(self.project_root),
             "downloads_dir": str(self.downloads_dir),
             "generated_tests_dir": str(self.generated_tests_dir),
-            "tflite_generator_dir": str(self.tflite_generator_dir),
+            "generation_dir": str(self.generation_dir),
             "cpu": self.cpu,
             "optimization": self.optimization,
             "jobs": self.jobs,
