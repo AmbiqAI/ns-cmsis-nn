@@ -38,6 +38,13 @@ class RunStep(StepBase):
             return f"Build directory not found: {build_dir}. Run 'build' step first."
         return None
 
+    def plan_validate(self) -> str | None:
+        """Lenient validation for plan mode."""
+        script_path = find_fvp_script_path(self.config.project_root)
+        if not script_path.exists():
+            return f"FVP script not found: {script_path}"
+        return None
+
     def _do_execute(self) -> StepResult:
         """Execute FVP test execution."""
         if self.config.verbosity >= 1:

@@ -1361,7 +1361,7 @@ wheels = [
 ]
 
 [[package]]
-name = "helia_core_tester"
+name = "helia-core-tester"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
@@ -1384,6 +1384,7 @@ dependencies = [
     { name = "tensorflow", version = "2.12.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
     { name = "tensorflow", version = "2.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
     { name = "tensorflow", version = "2.20.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9' and python_full_version < '3.13'" },
+    { name = "tomli" },
     { name = "typer", version = "0.20.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
     { name = "typer", version = "0.23.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
 ]
@@ -1411,6 +1412,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.0,<7.0.0" },
     { name = "scipy", specifier = ">=1.7.0,<2.0.0" },
     { name = "tensorflow", specifier = ">=2.12.0,<3.0.0" },
+    { name = "tomli", specifier = ">=2.0.0,<3.0.0" },
     { name = "typer", specifier = ">=0.9.0,<1.0.0" },
 ]
 

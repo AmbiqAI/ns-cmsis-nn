@@ -56,3 +56,33 @@ jobs:
         with:
           path: Tests/UnitTest/downloads
           key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
+
+  codegen-tests:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install and sync Python deps (CodeGen)
+        run: |
+          cd Tests/CodeGen
+          uv sync
+
+      - name: Setup CodeGen build dependencies
+        run: |
+          cd Tests/CodeGen
+          ./scripts/setup_ci.sh --skip-build-deps
+
+      - name: Run CodeGen full pipeline with JUnit
+        run: |
+          cd Tests/CodeGen
+          uv run helia_core_tester full --report-formats json junit
+
+      - name: Upload JUnit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: codegen-junit
+          path: Tests/CodeGen/artifacts/reports/junit.xml

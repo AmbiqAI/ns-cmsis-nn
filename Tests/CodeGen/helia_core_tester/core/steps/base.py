@@ -153,7 +153,7 @@ class StepBase(ABC):
                 will_run=False,
                 reason="skipped by config"
             )
-        validation_error = self.validate()
+        validation_error = self.plan_validate()
         if validation_error:
             return StepPlan(
                 name=self.name,
@@ -161,6 +161,10 @@ class StepBase(ABC):
                 reason=f"invalid: {validation_error}"
             )
         return self._plan_details()
+
+    def plan_validate(self) -> Optional[str]:
+        """Validation for plan mode. Override for lenient checks."""
+        return self.validate()
 
     def _plan_details(self) -> StepPlan:
         """Provide commands/outputs for plan mode."""

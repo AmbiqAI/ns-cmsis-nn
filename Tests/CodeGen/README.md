@@ -108,6 +108,8 @@ uv run helia_core_tester full
 uv run helia_core_tester full --cpu cortex-m4
 ```
 
+Note: The build requires `artifacts/generated_tests/tests.cmake`, which is generated during the `generate` step. If you are running `build` directly, run `generate` first.
+
 ### Subcommands
 
 - `uv run helia_core_tester generate` — Generate TFLite models and template C/H
@@ -116,6 +118,7 @@ uv run helia_core_tester full --cpu cortex-m4
 - `uv run helia_core_tester run` — Run tests on FVP
 - `uv run helia_core_tester full` — Run the full pipeline
 - `uv run helia_core_tester clean` — Remove build artifacts
+- `uv run helia_core_tester clean-all` — Remove all artifacts (generated tests, downloads, reports, builds)
 - `uv run helia_core_tester doctor` — Preflight checks
 
 ### Advanced Usage
@@ -159,12 +162,18 @@ uv run helia_core_tester build --opt "-O2" --jobs 8
 #### Run Options
 - `--timeout SECONDS`: Per-test timeout in seconds (0 = none)
 - `--no-fail-fast`: Don't stop on first test failure
+- `--report-formats`: Report formats (json, html, md, junit)
 
 #### General Options
 - `--verbosity, -v`: Output verbosity (0–3)
 - `--dry-run`: Show what would be done without actually doing it
 - `--quiet, -q`: Reduce output verbosity
 - `--log-file PATH`: Log file path
+- `--plan`: Print execution plan and exit
+
+## Configuration
+
+Defaults can be set in `helia_core_tester.toml` at the repo root. CLI flags override these values.
 
 ## Architecture
 
@@ -192,6 +201,8 @@ All Python lives under `helia_core_tester/`:
   - `ops/`: Operator implementations
   - `io/`: I/O utilities
   - `assets/descriptors/`: Test descriptor schemas and examples
+  - `artifacts/generated_tests/manifest.json`: Generated test manifest
+  - `artifacts/generated_tests/tests.cmake`: CMake test list consumed by the build
 
 ### Utility and Reporting
 - `helia_core_tester/utils/`: Command execution utilities
@@ -227,6 +238,10 @@ mypy helia_core_tester/
 - CMake
 - ARM GCC toolchain
 - FVP Corstone-300 simulator
+
+## CI Reporting
+
+See `CI_REPORTING.md` for report locations and JUnit usage.
 
 ## CI/CD Integration
 

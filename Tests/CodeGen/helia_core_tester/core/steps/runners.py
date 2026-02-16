@@ -38,6 +38,12 @@ class RunnersStep(StepBase):
             return f"Generated tests directory not found: {self.config.generated_tests_dir}"
         return None
 
+    def plan_validate(self) -> str | None:
+        """Lenient validation for plan mode."""
+        if not self._script_path().exists():
+            return f"Test runner script not found: {self._script_path()}"
+        return None
+
     def _do_execute(self) -> StepResult:
         """Execute Unity test runner generation."""
         if self.config.verbosity >= 1:

@@ -154,6 +154,17 @@ def detect_paths(args) -> dict:
     }
 
 
+def _get_git_sha(root: Path) -> Optional[str]:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(root),
+            text=True
+        ).strip()
+    except Exception:
+        return None
+
+
 def cmake_configure(source_dir: Path, build_dir: Path, toolchain_file: Path, cpu: str,
                     cmsis5: Path, optimization: str, extra_defs: List[str], generator: Optional[str],
                     verbosity: int, env: dict) -> None:
@@ -645,6 +656,17 @@ def run_tests_with_reporting(cpus: List[str],
                     )
     
     # Create test report with descriptor_results
+    metadata = {
+        "cpu": ",".join(cpus),
+        "optimization": args.opt,
+        "compiler": "arm-compiler" if args.use_arm_compiler else "gcc",
+        "toolchain_file": str(toolchain_file),
+        "cmsis5_path": str(cmsis5),
+        "fvp_exe": str(fvp_exe),
+        "downloads_dir": str(args.downloads_dir),
+        "source_dir": str(source_dir),
+        "git_sha": _get_git_sha(source_dir),
+    }
     report = TestReport(
         run_id=f"run_{start_time.strftime('%Y%m%d_%H%M%S')}",
         start_time=start_time,
@@ -652,13 +674,20 @@ def run_tests_with_reporting(cpus: List[str],
         cpu=",".join(cpus),
         descriptor_results=descriptor_results,
         all_descriptors=list(all_descriptors_dict.values()),
-        project_root=source_dir  # For making paths relative in JSON output
+        project_root=source_dir,  # For making paths relative in JSON output
+        metadata=metadata,
     )
     
     # Generate reports in requested formats (defaults to JSON if none specified)
     report_formats = getattr(args, 'report_formats', None) or ["json"]
     generated_files = generator.generate_reports(report, report_formats)
     verbosity = getattr(args, 'verbosity', 0)
+    if not getattr(args, "quiet", False):
+        print(
+            f"Summary: total={report.total_tests} "
+            f"passed={report.passed} failed={report.failed} skipped={report.skipped} "
+            f"duration={report.duration:.2f}s"
+        )
     if verbosity >= 1:
         for format_type, file_path in generated_files.items():
             print(f"{format_type.upper()} report generated: {file_path}")
@@ -691,7 +720,7 @@ def main(argv: List[str]) -> int:
     ap.add_argument("--fvp-arg", action="append", default=[], help="Extra args to pass to the FVP (repeatable)")
     # Reporting options
     ap.add_argument("--no-report", action="store_true", help="Disable comprehensive test reporting (enabled by default)")
-    ap.add_argument("--report-formats", nargs="+", choices=["json", "html", "md"], default=["json"], 
+    ap.add_argument("--report-formats", nargs="+", choices=["json", "html", "md", "junit"], default=["json"], 
                    help="Report formats to generate (default: json)")
     ap.add_argument("--report-dir", type=Path, default=Path("reports"), help="Directory to save reports (default: ./artifacts/reports)")
     ap.add_argument("--quiet", action="store_true", help="Quiet mode (no output)")

@@ -237,7 +237,8 @@ class ReportStorage:
                 end_time=datetime.fromisoformat(data['end_time']),
                 cpu=data['cpu'],
                 descriptor_results=descriptor_results,
-                all_descriptors=data.get('all_descriptors', [])
+                all_descriptors=data.get('all_descriptors', []),
+                metadata=data.get('metadata', {})
             )
         else:
             results = []
@@ -280,7 +281,8 @@ class ReportStorage:
                 end_time=datetime.fromisoformat(data['end_time']),
                 cpu=data['cpu'],
                 descriptor_results=descriptor_results,
-                all_descriptors=list(descriptor_results.values())
+                all_descriptors=list(descriptor_results.values()),
+                metadata=data.get('metadata', {})
             )
         
         return report

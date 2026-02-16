@@ -5,6 +5,7 @@ Report generator for multiple output formats.
 import json
 import re
 import yaml
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Dict
 
@@ -61,6 +62,9 @@ class ReportGenerator:
             elif format_type == "md":
                 file_path = self._generate_markdown_report(report)
                 generated_files["md"] = file_path
+            elif format_type == "junit":
+                file_path = self._generate_junit_report(report)
+                generated_files["junit"] = file_path
         
         return generated_files
     
@@ -125,6 +129,66 @@ class ReportGenerator:
         with open(file_path, 'w') as f:
             f.write(md_content)
         
+        return file_path
+
+    def _generate_junit_report(self, report: TestReport) -> Path:
+        """Generate JUnit XML report."""
+        file_path = self.output_dir / "junit.xml"
+
+        testsuite = ET.Element(
+            "testsuite",
+            {
+                "name": f"helia_core_tester_{report.cpu}",
+                "tests": str(report.total_tests),
+                "failures": str(report.failed + report.build_failed + report.generation_failed + report.conversion_failed),
+                "errors": str(report.errors + report.timed_out),
+                "skipped": str(report.skipped + report.not_run),
+                "time": f"{report.duration:.2f}",
+            },
+        )
+
+        if report.metadata:
+            props = ET.SubElement(testsuite, "properties")
+            for key, value in report.metadata.items():
+                if value is None:
+                    continue
+                ET.SubElement(props, "property", {"name": str(key), "value": str(value)})
+
+        for desc_name, desc_result in report.descriptor_results.items():
+            duration = desc_result.test_result.duration if desc_result.test_result else 0.0
+            testcase = ET.SubElement(
+                testsuite,
+                "testcase",
+                {
+                    "classname": "helia_core_tester",
+                    "name": desc_name,
+                    "time": f"{duration:.2f}",
+                },
+            )
+
+            status = desc_result.status
+            reason = desc_result.failure_reason or ""
+            if status == TestStatus.SKIP or status == TestStatus.NOT_RUN:
+                skipped = ET.SubElement(testcase, "skipped")
+                if reason:
+                    skipped.set("message", reason)
+            elif status in (
+                TestStatus.FAIL,
+                TestStatus.BUILD_FAILED,
+                TestStatus.GENERATION_FAILED,
+                TestStatus.CONVERSION_FAILED,
+            ):
+                failure = ET.SubElement(testcase, "failure", {"message": reason or status.value})
+                if reason:
+                    failure.text = reason
+            elif status in (TestStatus.ERROR, TestStatus.TIMEOUT):
+                err = ET.SubElement(testcase, "error", {"message": reason or status.value})
+                if reason:
+                    err.text = reason
+
+        tree = ET.ElementTree(testsuite)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        tree.write(file_path, encoding="utf-8", xml_declaration=True)
         return file_path
     
     def _create_html_content(self, report: TestReport) -> str:
@@ -225,6 +289,7 @@ class ReportGenerator:
         <p><strong>Start Time:</strong> {report.start_time.strftime('%Y-%m-%d %H:%M:%S')}</p>
         <p><strong>Duration:</strong> {report.duration:.2f} seconds</p>
         <p><strong>Summary:</strong> {report.summary}</p>
+        {"".join([f"<p><strong>{k}:</strong> {v}</p>" for k, v in (report.metadata or {}).items() if v is not None])}
     </div>
     
     <div class="summary">
@@ -338,6 +403,10 @@ class ReportGenerator:
         status_counts = report.get_status_counts()
         
         total = report.total_tests
+
+        metadata_lines = "".join(
+            f"- **{k}:** {v}\n" for k, v in (report.metadata or {}).items() if v is not None
+        )
         
         md = f"""# Helia-Core Tester Report
 
@@ -348,6 +417,7 @@ class ReportGenerator:
 - **Start Time:** {report.start_time.strftime('%Y-%m-%d %H:%M:%S')}
 - **Duration:** {report.duration:.2f} seconds
 - **Total Descriptors:** {report.total_tests}
+{metadata_lines}
 
 ## Results Overview
 

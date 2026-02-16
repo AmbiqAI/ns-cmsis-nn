@@ -209,14 +209,20 @@ class FullTestPipeline:
     def print_plan(self) -> None:
         """Print a human-readable execution plan."""
         plans = self.build_plan()
-        self.logger.info("Plan:")
+        lines = ["Plan:"]
         for idx, plan in enumerate(plans, start=1):
             will = "will run" if plan.will_run else "skipped"
-            self.logger.info(f"{idx}. {plan.name}: {will} ({plan.reason})")
+            lines.append(f"{idx}. {plan.name}: {will} ({plan.reason})")
             if plan.commands:
                 for cmd in plan.commands:
-                    self.logger.info(f"   cmd: {' '.join(cmd)}")
+                    lines.append(f"   cmd: {' '.join(cmd)}")
             if plan.outputs:
                 outputs = ", ".join(f"{k}={v}" for k, v in plan.outputs.items() if v)
                 if outputs:
-                    self.logger.info(f"   outputs: {outputs}")
+                    lines.append(f"   outputs: {outputs}")
+            if plan.details:
+                details = ", ".join(f"{k}={v}" for k, v in plan.details.items() if v is not None)
+                if details:
+                    lines.append(f"   details: {details}")
+        for line in lines:
+            self.logger.info(line)

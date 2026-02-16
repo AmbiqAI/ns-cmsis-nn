@@ -28,6 +28,7 @@ dependencies = [
     "jinja2>=3.0.0,<4.0.0",
     "ai_edge_litert>=0.1.0",
     "typer>=0.9.0,<1.0.0",
+    "tomli>=2.0.0,<3.0.0",
 ]
 
 [project.scripts]
@@ -45,4 +46,3 @@ pythonpath = ["."]
 
 [tool.uv]
 package = true
-

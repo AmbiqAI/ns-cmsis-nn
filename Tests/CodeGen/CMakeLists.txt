@@ -116,67 +116,30 @@ function(_normalize_target_name out_var in_path)
 endfunction()
 
 # ---------- Discover & build tests ----------
-# Discover test directories by looking for generated C files (e.g., *_conv2d.c, *_pooling.c, etc.)
-file(GLOB_RECURSE GENERATED_TEST_SOURCES
-  RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
-  "artifacts/generated_tests/*/*_conv2d.c"
-  "artifacts/generated_tests/*/*_pooling.c"
-  "artifacts/generated_tests/*/*_fully_connected.c"
-  "artifacts/generated_tests/*/*_depthwise_conv2d.c"
-  "artifacts/generated_tests/*/*_dwconv.c"
-  "artifacts/generated_tests/*/*_transpose_conv.c"
-  "artifacts/generated_tests/*/*_add.c"
-  "artifacts/generated_tests/*/*_mul.c"
-  "artifacts/generated_tests/*/*_sub.c"
-  "artifacts/generated_tests/*/*_minmax.c"
-  "artifacts/generated_tests/*/*_relu.c"
-  "artifacts/generated_tests/*/*_relu6.c"
-  "artifacts/generated_tests/*/*_leakyrelu.c"
-  "artifacts/generated_tests/*/*_hardswish.c"
-  "artifacts/generated_tests/*/*_prelu.c"
-  "artifacts/generated_tests/*/*_tanh.c"
-  "artifacts/generated_tests/*/*_logistic.c"
-  "artifacts/generated_tests/*/*_softmax.c"
-  "artifacts/generated_tests/*/*_reshape.c"
-  "artifacts/generated_tests/*/*_transpose.c"
-  "artifacts/generated_tests/*/*_pad.c"
-  "artifacts/generated_tests/*/*_stridedslice.c"
-  "artifacts/generated_tests/*/*_concatenation.c"
-  "artifacts/generated_tests/*/*_split.c"
-  "artifacts/generated_tests/*/*_argmax.c"
-  "artifacts/generated_tests/*/*_argmin.c"
-  "artifacts/generated_tests/*/*_reducemax.c"
-  "artifacts/generated_tests/*/*_reducemin.c"
-  "artifacts/generated_tests/*/*_mean.c"
-  "artifacts/generated_tests/*/*_quantize.c"
-  "artifacts/generated_tests/*/*_dequantize.c"
-  "artifacts/generated_tests/*/*_matmul_batch.c"
-  "artifacts/generated_tests/*/*_squeeze.c")
-
-# Also discover by CMakeLists.txt in test directories
-file(GLOB_RECURSE GENERATED_TEST_CMAKE
-  RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
-  "artifacts/generated_tests/*/CMakeLists.txt")
-
-# Combine both discovery methods - use C files as primary, CMakeLists.txt as fallback
+# Load generated test directories from manifest-generated CMake file
 set(GENERATED_TEST_DIRS)
-foreach(SRC_REL ${GENERATED_TEST_SOURCES})
-  get_filename_component(TEST_DIR_REL "${SRC_REL}" DIRECTORY)
-  list(APPEND GENERATED_TEST_DIRS "${TEST_DIR_REL}")
-endforeach()
-foreach(CMAKE_REL ${GENERATED_TEST_CMAKE})
-  get_filename_component(TEST_DIR_REL "${CMAKE_REL}" DIRECTORY)
-  if(NOT "${TEST_DIR_REL}" IN_LIST GENERATED_TEST_DIRS)
-    list(APPEND GENERATED_TEST_DIRS "${TEST_DIR_REL}")
+set(GENERATED_TESTS_CMAKE "${GENERATED_TESTS_DIR}/tests.cmake")
+if(EXISTS "${GENERATED_TESTS_CMAKE}")
+  include("${GENERATED_TESTS_CMAKE}")
+  list(REMOVE_DUPLICATES GENERATED_TEST_DIRS)
+else()
+  message(FATAL_ERROR "Missing generated tests list: ${GENERATED_TESTS_CMAKE}. Run the generator.")
+endif()
+
+set(GENERATED_TESTS_MANIFEST "${GENERATED_TESTS_DIR}/manifest.json")
+if(NOT EXISTS "${GENERATED_TESTS_MANIFEST}")
+  message(WARNING "Missing generated tests manifest: ${GENERATED_TESTS_MANIFEST}")
+endif()
+
+foreach(TEST_DIR_REL ${GENERATED_TEST_DIRS})
+  if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR_REL}")
+    message(FATAL_ERROR "Generated test directory missing: ${TEST_DIR_REL}")
+  endif()
+  file(GLOB TEST_SRCS_CHECK "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_DIR_REL}/*.c")
+  if(TEST_SRCS_CHECK STREQUAL "")
+    message(WARNING "No generated C sources found in ${TEST_DIR_REL}")
   endif()
 endforeach()
-
-# Remove duplicates
-list(REMOVE_DUPLICATES GENERATED_TEST_DIRS)
-
-if(NOT GENERATED_TEST_DIRS)
-  message(WARNING "No generated_tests directories with C files found. Did you run the generator?")
-endif()
 
 set(GENERATED_TEST_TARGETS)
 foreach(TEST_DIR_REL ${GENERATED_TEST_DIRS})

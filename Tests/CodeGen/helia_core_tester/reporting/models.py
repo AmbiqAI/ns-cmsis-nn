@@ -182,6 +182,7 @@ class TestReport:
     summary: str = ""
     duration: float = 0.0
     project_root: Optional[Path] = None  # For making paths relative
+    metadata: Dict[str, Any] = field(default_factory=dict)
     
     total_tests: int = 0
     passed: int = 0
@@ -310,6 +311,7 @@ class TestReport:
             "start_time": self.start_time.isoformat(),
             "end_time": self.end_time.isoformat(),
             "cpu": self.cpu,
+            "metadata": self.metadata,
             "total_tests": self.total_tests,
             "passed": self.passed,
             "failed": self.failed,

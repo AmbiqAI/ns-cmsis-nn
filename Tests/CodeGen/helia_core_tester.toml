@@ -1,0 +1,15 @@
+[helia_core_tester]
+# Default CLI settings (override in CLI args)
+cpu = "cortex-m55"
+optimization = "-Ofast"
+verbosity = 1
+fail_fast = true
+
+# Output directories (relative to repo root)
+downloads_dir = "artifacts/downloads"
+generated_tests_dir = "artifacts/generated_tests"
+report_dir = "artifacts/reports"
+
+# Reporting
+enable_reporting = true
+report_formats = ["json", "junit"]

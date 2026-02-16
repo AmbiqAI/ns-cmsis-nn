@@ -5,6 +5,7 @@ This module provides a subcommand-based CLI using Typer.
 """
 
 import sys
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -72,13 +73,24 @@ def generate(
     cpu: str = typer.Option("cortex-m55", help="Target CPU"),
     verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
+    plan: bool = typer.Option(False, "--plan", help="Print execution plan and exit"),
     project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
 ):
     """Generate TFLite models and template C/H files."""
     config = get_config(
-        cpu=cpu, verbosity=verbosity, dry_run=dry_run, project_root=project_root,
+        cpu=cpu, verbosity=verbosity, dry_run=dry_run, plan=plan, project_root=project_root,
         op_filter=op, dtype_filter=dtype, name_filter=name, limit=limit, seed=seed,
     )
+    if config.plan:
+        plan_item = GenerateStep(config).plan()
+        typer.echo(f"1. {plan_item.name}: {'will run' if plan_item.will_run else 'skipped'} ({plan_item.reason})")
+        for cmd in plan_item.commands:
+            typer.echo(f"   cmd: {' '.join(cmd)}")
+        if plan_item.outputs:
+            outputs = ", ".join(f"{k}={v}" for k, v in plan_item.outputs.items() if v)
+            if outputs:
+                typer.echo(f"   outputs: {outputs}")
+        sys.exit(0)
     run_step_exit(
         GenerateStep(config), config,
         "✓ Generation completed successfully",
@@ -91,10 +103,21 @@ def runners(
     cpu: str = typer.Option("cortex-m55", help="Target CPU"),
     verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
+    plan: bool = typer.Option(False, "--plan", help="Print execution plan and exit"),
     project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
 ):
     """Generate Unity test runners."""
-    config = get_config(cpu=cpu, verbosity=verbosity, dry_run=dry_run, project_root=project_root)
+    config = get_config(cpu=cpu, verbosity=verbosity, dry_run=dry_run, plan=plan, project_root=project_root)
+    if config.plan:
+        plan_item = RunnersStep(config).plan()
+        typer.echo(f"1. {plan_item.name}: {'will run' if plan_item.will_run else 'skipped'} ({plan_item.reason})")
+        for cmd in plan_item.commands:
+            typer.echo(f"   cmd: {' '.join(cmd)}")
+        if plan_item.outputs:
+            outputs = ", ".join(f"{k}={v}" for k, v in plan_item.outputs.items() if v)
+            if outputs:
+                typer.echo(f"   outputs: {outputs}")
+        sys.exit(0)
     run_step_exit(
         RunnersStep(config), config,
         "✓ Test runners generated successfully",
@@ -109,13 +132,24 @@ def build(
     jobs: Optional[int] = typer.Option(None, help="Parallel build jobs"),
     verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
+    plan: bool = typer.Option(False, "--plan", help="Print execution plan and exit"),
     project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
 ):
     """Build test executables using CMake."""
     config = get_config(
-        cpu=cpu, verbosity=verbosity, dry_run=dry_run, project_root=project_root,
+        cpu=cpu, verbosity=verbosity, dry_run=dry_run, plan=plan, project_root=project_root,
         optimization=opt, jobs=jobs,
     )
+    if config.plan:
+        plan_item = BuildStep(config).plan()
+        typer.echo(f"1. {plan_item.name}: {'will run' if plan_item.will_run else 'skipped'} ({plan_item.reason})")
+        for cmd in plan_item.commands:
+            typer.echo(f"   cmd: {' '.join(cmd)}")
+        if plan_item.outputs:
+            outputs = ", ".join(f"{k}={v}" for k, v in plan_item.outputs.items() if v)
+            if outputs:
+                typer.echo(f"   outputs: {outputs}")
+        sys.exit(0)
     run_step_exit(
         BuildStep(config), config,
         f"✓ Build completed successfully for {cpu}",
@@ -129,18 +163,29 @@ def run(
     timeout: float = typer.Option(0.0, help="Per-test timeout in seconds (0 = none)"),
     no_fail_fast: bool = typer.Option(False, "--no-fail-fast", help="Don't stop on first failure"),
     no_report: bool = typer.Option(False, "--no-report", help="Disable test reporting"),
-    report_formats: list[str] = typer.Option(["json"], help="Report formats (json, html, md)"),
+    report_formats: list[str] = typer.Option(["json"], help="Report formats (json, html, md, junit)"),
     report_dir: Optional[Path] = typer.Option(None, help="Directory to save reports"),
     verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
+    plan: bool = typer.Option(False, "--plan", help="Print execution plan and exit"),
     project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
 ):
     """Run tests on FVP simulator."""
     config = get_config(
-        cpu=cpu, verbosity=verbosity, dry_run=dry_run, project_root=project_root,
+        cpu=cpu, verbosity=verbosity, dry_run=dry_run, plan=plan, project_root=project_root,
         timeout=timeout, fail_fast=not no_fail_fast, enable_reporting=not no_report,
         report_formats=report_formats, report_dir=report_dir,
     )
+    if config.plan:
+        plan_item = RunStep(config).plan()
+        typer.echo(f"1. {plan_item.name}: {'will run' if plan_item.will_run else 'skipped'} ({plan_item.reason})")
+        for cmd in plan_item.commands:
+            typer.echo(f"   cmd: {' '.join(cmd)}")
+        if plan_item.outputs:
+            outputs = ", ".join(f"{k}={v}" for k, v in plan_item.outputs.items() if v)
+            if outputs:
+                typer.echo(f"   outputs: {outputs}")
+        sys.exit(0)
     run_step_exit(
         RunStep(config), config,
         "✓ All tests completed successfully",
@@ -166,7 +211,7 @@ def full(
     skip_build: bool = typer.Option(False, "--skip-build", help="Skip FVP build"),
     skip_run: bool = typer.Option(False, "--skip-run", help="Skip FVP test execution"),
     no_report: bool = typer.Option(False, "--no-report", help="Disable test reporting"),
-    report_formats: list[str] = typer.Option(["json"], help="Report formats (json, html, md)"),
+    report_formats: list[str] = typer.Option(["json"], help="Report formats (json, html, md, junit)"),
     report_dir: Optional[Path] = typer.Option(None, help="Directory to save reports"),
     verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
@@ -220,11 +265,45 @@ def clean(
     cpu: str = typer.Option("cortex-m55", help="Target CPU"),
     verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
+    plan: bool = typer.Option(False, "--plan", help="Print execution plan and exit"),
     project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
 ):
     """Clean build artifacts and reports."""
-    config = get_config(cpu=cpu, verbosity=verbosity, dry_run=dry_run, project_root=project_root)
+    config = get_config(cpu=cpu, verbosity=verbosity, dry_run=dry_run, plan=plan, project_root=project_root)
+    if config.plan:
+        plan_item = CleanStep(config).plan()
+        typer.echo(f"1. {plan_item.name}: {'will run' if plan_item.will_run else 'skipped'} ({plan_item.reason})")
+        for cmd in plan_item.commands:
+            typer.echo(f"   cmd: {' '.join(cmd)}")
+        if plan_item.outputs:
+            outputs = ", ".join(f"{k}={v}" for k, v in plan_item.outputs.items() if v)
+            if outputs:
+                typer.echo(f"   outputs: {outputs}")
+        sys.exit(0)
     run_step_exit(CleanStep(config), config, "", failure_prefix="Clean failed")
+
+
+@app.command(name="clean-all")
+def clean_all(
+    verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
+    project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
+):
+    """Remove all artifacts (generated tests, downloads, reports, builds)."""
+    config = get_config(verbosity=verbosity, dry_run=dry_run, project_root=project_root)
+    artifacts_root = config.project_root / "artifacts"
+    if not artifacts_root.exists():
+        typer.echo("No artifacts directory to clean.")
+        sys.exit(0)
+
+    if dry_run:
+        typer.echo(f"DRY RUN: Would remove {artifacts_root}")
+        sys.exit(0)
+
+    if verbosity >= 1:
+        typer.echo(f"Removing artifacts directory: {artifacts_root}")
+    shutil.rmtree(artifacts_root, ignore_errors=True)
+    typer.echo("✓ Clean-all completed")
 
 
 @app.command()

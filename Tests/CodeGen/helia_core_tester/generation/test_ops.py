@@ -3,6 +3,7 @@ Main TFLite model generation for Helia-Core Tester.
 Thin generator that discovers YAML descriptors and generates TFLite models.
 """
 
+import json
 import pytest
 import os
 import tempfile
@@ -12,7 +13,7 @@ import sys
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from helia_core_tester.core.discovery import find_descriptors_dir, find_generated_tests_dir
+from helia_core_tester.core.discovery import find_descriptors_dir, find_generated_tests_dir, find_repo_root
 from helia_core_tester.generation.io.descriptors import load_all_descriptors
 from helia_core_tester.generation.ops import OP_MAP
 
@@ -134,10 +135,23 @@ def test_generation(test_filters):
     # Generate TFLite models for each descriptor
     # Place models in artifacts/generated_tests
     generated_count = 0
+    manifest_entries: List[Dict[str, Any]] = []
     for desc in filtered_descriptors:
         try:
             top_generated = find_generated_tests_dir(create=True)
             generate_test(desc, str(top_generated), seed=test_filters.get('seed'))
+            test_dir = Path(top_generated) / desc["name"]
+            tflite_path = test_dir / f"{desc['name']}.tflite"
+            c_sources = sorted([str(p.name) for p in test_dir.glob("*.c")])
+            manifest_entries.append({
+                "name": desc.get("name"),
+                "operator": desc.get("operator"),
+                "activation_dtype": desc.get("activation_dtype"),
+                "weight_dtype": desc.get("weight_dtype"),
+                "path": str(test_dir),
+                "tflite": str(tflite_path),
+                "c_sources": c_sources,
+            })
             generated_count += 1
         except Exception as e:
             print(f"Failed to generate TFLite model for {desc['name']}: {e}")
@@ -145,7 +159,38 @@ def test_generation(test_filters):
             continue
             
     print(f"Successfully generated {generated_count} TFLite models")
+    if generated_count > 0:
+        _write_manifest_and_cmake(manifest_entries, test_filters)
     assert generated_count > 0, "No TFLite models were generated"
+
+
+def _write_manifest_and_cmake(entries: List[Dict[str, Any]], test_filters: Dict[str, Any]) -> None:
+    generated_tests_dir = find_generated_tests_dir(create=True)
+    repo_root = find_repo_root()
+
+    manifest = {
+        "generated_count": len(entries),
+        "filters": {
+            "op": test_filters.get("op"),
+            "dtype": test_filters.get("dtype"),
+            "wtype": test_filters.get("wtype"),
+            "name": test_filters.get("name"),
+            "limit": test_filters.get("limit"),
+            "seed": test_filters.get("seed"),
+        },
+        "tests": entries,
+    }
+    manifest_path = generated_tests_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2))
+
+    rel_root = generated_tests_dir.relative_to(repo_root)
+    test_dirs = sorted({str(Path(rel_root) / Path(e["name"])) for e in entries})
+    cmake_lines = ["set(GENERATED_TEST_DIRS"]
+    for d in test_dirs:
+        cmake_lines.append(f"  \"{d}\"")
+    cmake_lines.append(")")
+    cmake_path = generated_tests_dir / "tests.cmake"
+    cmake_path.write_text("\n".join(cmake_lines) + "\n")
 
 
 def test_generated_files_exist():

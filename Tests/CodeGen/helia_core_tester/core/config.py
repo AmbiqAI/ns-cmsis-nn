@@ -32,6 +32,7 @@ class Config:
     
     # Project paths - will be set in __post_init__ using discovery
     project_root: Optional[Path] = None
+    config_file: Optional[Path] = None
     downloads_dir: Optional[Path] = None
     generated_tests_dir: Optional[Path] = None
     generation_dir: Optional[Path] = None
@@ -80,6 +81,9 @@ class Config:
                 ) from e
         else:
             self.project_root = Path(self.project_root).resolve()
+
+        # Load defaults from config file (if present)
+        self._load_config_file()
         
         # Set derived paths if not provided
         if self.downloads_dir is None:
@@ -122,6 +126,37 @@ class Config:
         # Downloads dir will be created if needed; ensure parent exists
         if not self.downloads_dir.parent.exists():
             self.downloads_dir.parent.mkdir(parents=True, exist_ok=True)
+
+    def _load_config_file(self) -> None:
+        """Load defaults from helia_core_tester.toml if present."""
+        env_path = os.environ.get("HELIA_CORE_TESTER_CONFIG")
+        if env_path:
+            self.config_file = Path(env_path).resolve()
+        elif self.config_file is None:
+            self.config_file = self.project_root / "helia_core_tester.toml"
+
+        if not self.config_file or not self.config_file.exists():
+            return
+
+        try:
+            try:
+                import tomllib  # Python 3.11+
+            except ModuleNotFoundError:  # Python 3.8-3.10
+                import tomli as tomllib
+
+            data = tomllib.loads(self.config_file.read_text())
+            table = data.get("helia_core_tester") or data.get("tool", {}).get("helia_core_tester", {})
+            if not isinstance(table, dict):
+                return
+        except Exception as e:
+            raise ConfigurationError(f"Failed to read config file: {self.config_file}: {e}") from e
+
+        for key, value in table.items():
+            if not hasattr(self, key):
+                continue
+            if value is None:
+                continue
+            setattr(self, key, value)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to dictionary."""
