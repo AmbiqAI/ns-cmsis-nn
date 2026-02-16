@@ -151,29 +151,51 @@ class OpConv2D(OperationBase):
 
         # Load LiteRT model for tensor extraction
         from helia_core_tester.generation.utils.litert_utils import (
-            load_litert_model, get_operator_tensors_from_litert
+            load_litert_model,
+            get_operator_tensors_from_litert,
+            get_tensor_shape_from_litert,
+            get_tensor_quantization_from_litert,
         )
         
         model, subgraph = load_litert_model(str(tflite_path))
         
-        # Get operator tensors (first operator)
+        # Pick the Conv2D operator index.
+        # Dilation is commonly lowered to SpaceToBatchND -> Conv2D -> BatchToSpaceND,
+        # so the first operator is not necessarily Conv2D.
         if len(subgraph.operators) == 0:
             raise ValueError("No operators found in model")
+
+        conv_op_index = 0
+        try:
+            from ai_edge_litert import schema_py_generated as litert
+            for i, op in enumerate(subgraph.operators):
+                opcode = model.operatorCodes[op.opcodeIndex]
+                if opcode.builtinCode == litert.BuiltinOperator.CONV_2D:
+                    conv_op_index = i
+                    break
+        except Exception:
+            # Fallback to first op if we cannot inspect opcodes.
+            conv_op_index = 0
+
+        op_tensors = get_operator_tensors_from_litert(model, subgraph, conv_op_index)
         
-        op_tensors = get_operator_tensors_from_litert(model, subgraph, 0)
+        # Extract shapes from LiteRT.
+        # Use subgraph I/O shapes (model input/output), not Conv2D op I/O,
+        # because dilation lowering changes intermediate shapes.
+        if not subgraph.inputs or not subgraph.outputs:
+            raise ValueError("No subgraph inputs/outputs found")
+
+        input_tensor = subgraph.tensors[subgraph.inputs[0]]
+        output_tensor = subgraph.tensors[subgraph.outputs[0]]
+        input_shape = get_tensor_shape_from_litert(input_tensor)
+        output_shape = get_tensor_shape_from_litert(output_tensor)
+        if input_shape is None or output_shape is None:
+            raise ValueError("Missing input/output shapes from LiteRT")
         
-        # Extract shapes from LiteRT
-        if not op_tensors['inputs']:
-            raise ValueError("No input tensors found")
-        if not op_tensors['outputs']:
-            raise ValueError("No output tensors found")
-        
-        input_shape = op_tensors['inputs'][0]['shape']
-        output_shape = op_tensors['outputs'][0]['shape']
-        
-        # Extract quantization parameters from LiteRT
-        input_quant = op_tensors['inputs'][0]['quantization']
-        output_quant = op_tensors['outputs'][0]['quantization']
+        # Extract quantization parameters.
+        # Use subgraph I/O quantization for input/output to match model I/O.
+        input_quant = get_tensor_quantization_from_litert(input_tensor)
+        output_quant = get_tensor_quantization_from_litert(output_tensor)
         
         # Find weight quantization (from weight tensor in inputs)
         weight_quant = None
@@ -326,10 +348,25 @@ class OpConv2D(OperationBase):
         # Run inference (dtype must match interpreter input)
         output_data = self.run_inference(str(tflite_path), input_q)
 
-        # Bias handling (S16 wrapper expects int64 bias)
+        # Bias handling
+        # Detect bias dtype from the LiteRT tensor and use it for CMSIS-NN.
+        # This is critical for S16 convs where int32 vs int64 bias selects
+        # different requantization paths.
         has_biases = biases is not None and getattr(biases, "size", 0) > 0
         bias_dtype = kernel_info["bias_c_type"]
         if has_biases:
+            if biases.dtype == np.int32:
+                bias_dtype = "int32_t"
+            elif biases.dtype == np.int64:
+                bias_dtype = "int64_t"
+            else:
+                # Fallback: cast to the kernel's expected bias type
+                if bias_dtype == "int64_t":
+                    biases = biases.astype(np.int64)
+                else:
+                    biases = biases.astype(np.int32)
+
+            # Ensure actual array dtype matches the chosen bias_dtype
             if bias_dtype == "int64_t" and biases.dtype != np.int64:
                 biases = biases.astype(np.int64)
             elif bias_dtype == "int32_t" and biases.dtype != np.int32:
