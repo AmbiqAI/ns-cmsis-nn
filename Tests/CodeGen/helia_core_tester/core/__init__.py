@@ -9,6 +9,7 @@ from helia_core_tester.core.discovery import (
     find_descriptors_dir,
     find_generated_tests_dir,
     find_tester_templates_dir,
+    find_build_dir,
     find_fvp_script_path,
     find_setup_dependencies_script,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "find_descriptors_dir",
     "find_generated_tests_dir",
     "find_tester_templates_dir",
+    "find_build_dir",
     "find_fvp_script_path",
     "find_setup_dependencies_script",
     "CMSISNNToolsError",

@@ -28,6 +28,20 @@ app = typer.Typer(
     add_completion=False,
 )
 
+
+def _print_plan_item(plan_item) -> None:
+    typer.echo(f"1. {plan_item.name}: {'will run' if plan_item.will_run else 'skipped'} ({plan_item.reason})")
+    for cmd in plan_item.commands:
+        typer.echo(f"   cmd: {' '.join(cmd)}")
+    if plan_item.outputs:
+        outputs = ", ".join(f"{k}={v}" for k, v in plan_item.outputs.items() if v)
+        if outputs:
+            typer.echo(f"   outputs: {outputs}")
+    if plan_item.details:
+        details = ", ".join(f"{k}={v}" for k, v in plan_item.details.items() if v is not None)
+        if details:
+            typer.echo(f"   details: {details}")
+
 def get_config(
     cpu: str = "cortex-m55",
     verbosity: int = 0,
@@ -83,13 +97,7 @@ def generate(
     )
     if config.plan:
         plan_item = GenerateStep(config).plan()
-        typer.echo(f"1. {plan_item.name}: {'will run' if plan_item.will_run else 'skipped'} ({plan_item.reason})")
-        for cmd in plan_item.commands:
-            typer.echo(f"   cmd: {' '.join(cmd)}")
-        if plan_item.outputs:
-            outputs = ", ".join(f"{k}={v}" for k, v in plan_item.outputs.items() if v)
-            if outputs:
-                typer.echo(f"   outputs: {outputs}")
+        _print_plan_item(plan_item)
         sys.exit(0)
     run_step_exit(
         GenerateStep(config), config,
@@ -110,13 +118,7 @@ def runners(
     config = get_config(cpu=cpu, verbosity=verbosity, dry_run=dry_run, plan=plan, project_root=project_root)
     if config.plan:
         plan_item = RunnersStep(config).plan()
-        typer.echo(f"1. {plan_item.name}: {'will run' if plan_item.will_run else 'skipped'} ({plan_item.reason})")
-        for cmd in plan_item.commands:
-            typer.echo(f"   cmd: {' '.join(cmd)}")
-        if plan_item.outputs:
-            outputs = ", ".join(f"{k}={v}" for k, v in plan_item.outputs.items() if v)
-            if outputs:
-                typer.echo(f"   outputs: {outputs}")
+        _print_plan_item(plan_item)
         sys.exit(0)
     run_step_exit(
         RunnersStep(config), config,
@@ -142,13 +144,7 @@ def build(
     )
     if config.plan:
         plan_item = BuildStep(config).plan()
-        typer.echo(f"1. {plan_item.name}: {'will run' if plan_item.will_run else 'skipped'} ({plan_item.reason})")
-        for cmd in plan_item.commands:
-            typer.echo(f"   cmd: {' '.join(cmd)}")
-        if plan_item.outputs:
-            outputs = ", ".join(f"{k}={v}" for k, v in plan_item.outputs.items() if v)
-            if outputs:
-                typer.echo(f"   outputs: {outputs}")
+        _print_plan_item(plan_item)
         sys.exit(0)
     run_step_exit(
         BuildStep(config), config,
@@ -178,13 +174,7 @@ def run(
     )
     if config.plan:
         plan_item = RunStep(config).plan()
-        typer.echo(f"1. {plan_item.name}: {'will run' if plan_item.will_run else 'skipped'} ({plan_item.reason})")
-        for cmd in plan_item.commands:
-            typer.echo(f"   cmd: {' '.join(cmd)}")
-        if plan_item.outputs:
-            outputs = ", ".join(f"{k}={v}" for k, v in plan_item.outputs.items() if v)
-            if outputs:
-                typer.echo(f"   outputs: {outputs}")
+        _print_plan_item(plan_item)
         sys.exit(0)
     run_step_exit(
         RunStep(config), config,
@@ -272,13 +262,7 @@ def clean(
     config = get_config(cpu=cpu, verbosity=verbosity, dry_run=dry_run, plan=plan, project_root=project_root)
     if config.plan:
         plan_item = CleanStep(config).plan()
-        typer.echo(f"1. {plan_item.name}: {'will run' if plan_item.will_run else 'skipped'} ({plan_item.reason})")
-        for cmd in plan_item.commands:
-            typer.echo(f"   cmd: {' '.join(cmd)}")
-        if plan_item.outputs:
-            outputs = ", ".join(f"{k}={v}" for k, v in plan_item.outputs.items() if v)
-            if outputs:
-                typer.echo(f"   outputs: {outputs}")
+        _print_plan_item(plan_item)
         sys.exit(0)
     run_step_exit(CleanStep(config), config, "", failure_prefix="Clean failed")
 

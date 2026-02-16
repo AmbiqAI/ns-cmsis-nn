@@ -40,6 +40,7 @@ from helia_core_tester.core.discovery import (
     find_setup_dependencies_script,
     find_descriptors_dir,
     find_generated_tests_dir,
+    find_build_dir,
 )
 from helia_core_tester.reporting.models import TestResult, TestStatus
 from helia_core_tester.reporting.parser import TestResultParser
@@ -443,7 +444,8 @@ def run_tests_with_reporting(cpus: List[str],
                            cmsis5: Path,
                            fvp_exe: Path,
                            args,
-                           env: dict) -> Tuple[List[TestResult], bool]:
+                           env: dict,
+                           enable_reporting: bool) -> Tuple[List[TestResult], bool]:
     """
     Run tests with comprehensive reporting.
     
@@ -462,15 +464,13 @@ def run_tests_with_reporting(cpus: List[str],
     verbosity = getattr(args, 'verbosity', 0)
     
     # Get report directory from args
-    report_dir = getattr(args, 'report_dir', Path("reports"))
-    if report_dir == Path("reports"):
-        report_dir = ARTIFACTS_DIR / "reports"
+    report_dir = getattr(args, 'report_dir', ARTIFACTS_DIR / "reports")
     
     # Clean up previous build directories (only if we're going to build)
     # If --no-build is set, keep the existing build directory
     if not args.no_build:
         for cpu in cpus:
-            build_dir = ARTIFACTS_DIR / f"build-{cpu}-gcc"
+            build_dir = find_build_dir(cpu, source_dir)
             if build_dir.exists():
                 if verbosity >= 1:
                     print(f"Removing previous build directory: {build_dir}")
@@ -482,8 +482,7 @@ def run_tests_with_reporting(cpus: List[str],
             print(f"Removing previous reports directory: {report_dir}")
         shutil.rmtree(report_dir, ignore_errors=True)
     
-    # Initialize reporting (after cleanup, so directory will be recreated)
-    generator = ReportGenerator(output_dir=report_dir)
+    generator = ReportGenerator(output_dir=report_dir) if enable_reporting else None
     
     # Initialize descriptor tracking
     descriptors_dir = find_descriptors_dir()
@@ -494,7 +493,7 @@ def run_tests_with_reporting(cpus: List[str],
     for cpu in cpus:
         if verbosity >= 1:
             print(f"\nTarget: {cpu} (gcc)")
-        build_dir = ARTIFACTS_DIR / f"build-{cpu}-gcc"
+        build_dir = find_build_dir(cpu, source_dir)
         
         if not args.no_build:
             # Build first - use the env passed in
@@ -580,7 +579,7 @@ def run_tests_with_reporting(cpus: List[str],
         active_descriptors.add(desc_name)
     
     # Add descriptors that have generated artifacts
-    primary_build_dir = ARTIFACTS_DIR / f"build-{cpus[0]}-gcc" if cpus else ARTIFACTS_DIR / "build-cortex-m55-gcc"
+    primary_build_dir = find_build_dir(cpus[0], source_dir) if cpus else find_build_dir("cortex-m55", source_dir)
     for desc_name in all_descriptors_dict.keys():
         # Check for TFLite file (generation stage)
         tflite_file = generated_tests_dir / desc_name / f"{desc_name}.tflite"
@@ -637,7 +636,7 @@ def run_tests_with_reporting(cpus: List[str],
                 if desc_name not in descriptor_results:
                     # Add to active descriptors if not already there
                     active_descriptors.add(desc_name)
-                    primary_build_dir = ARTIFACTS_DIR / f"build-{cpus[0]}-gcc" if cpus else ARTIFACTS_DIR / "build-cortex-m55-gcc"
+                    primary_build_dir = find_build_dir(cpus[0], source_dir) if cpus else find_build_dir("cortex-m55", source_dir)
                     status, failure_stage, failure_reason = tracker.determine_descriptor_status(
                         descriptor_name=desc_name,
                         test_result=result,
@@ -680,7 +679,9 @@ def run_tests_with_reporting(cpus: List[str],
     
     # Generate reports in requested formats (defaults to JSON if none specified)
     report_formats = getattr(args, 'report_formats', None) or ["json"]
-    generated_files = generator.generate_reports(report, report_formats)
+    generated_files = {}
+    if enable_reporting and generator:
+        generated_files = generator.generate_reports(report, report_formats)
     verbosity = getattr(args, 'verbosity', 0)
     if not getattr(args, "quiet", False):
         print(
@@ -722,7 +723,7 @@ def main(argv: List[str]) -> int:
     ap.add_argument("--no-report", action="store_true", help="Disable comprehensive test reporting (enabled by default)")
     ap.add_argument("--report-formats", nargs="+", choices=["json", "html", "md", "junit"], default=["json"], 
                    help="Report formats to generate (default: json)")
-    ap.add_argument("--report-dir", type=Path, default=Path("reports"), help="Directory to save reports (default: ./artifacts/reports)")
+    ap.add_argument("--report-dir", type=Path, default=ARTIFACTS_DIR / "reports", help="Directory to save reports (default: ./artifacts/reports)")
     ap.add_argument("--quiet", action="store_true", help="Quiet mode (no output)")
     args = ap.parse_args(argv)
 
@@ -747,81 +748,24 @@ def main(argv: List[str]) -> int:
 
     cpus = parse_cpus(args.cpu)
     
-    # Use reporting if enabled (default: enabled, unless --no-report is set)
     enable_reporting = not args.no_report
-    if enable_reporting:
-        results, success = run_tests_with_reporting(
-            cpus=cpus,
-            source_dir=source_dir,
-            toolchain_file=toolchain_file,
-            cmsis5=cmsis5,
-            fvp_exe=fvp_exe,
-            args=args,
-            env=env
-        )
-        
-        verbosity = getattr(args, 'verbosity', 0)
-        if success:
-            if verbosity >= 1:
-                print("\nAll requested builds/runs completed successfully.")
-            return 0
-        else:
-            return 1
+    results, success = run_tests_with_reporting(
+        cpus=cpus,
+        source_dir=source_dir,
+        toolchain_file=toolchain_file,
+        cmsis5=cmsis5,
+        fvp_exe=fvp_exe,
+        args=args,
+        env=env,
+        enable_reporting=enable_reporting
+    )
     
-    # Original logic for backward compatibility
-    any_fail = False
     verbosity = getattr(args, 'verbosity', 0)
-
-    for cpu in cpus:
+    if success:
         if verbosity >= 1:
-            print(f"\nTarget: {cpu} ({compiler_tag})")
-        build_dir = ARTIFACTS_DIR / f"build-{cpu}-{compiler_tag}"
-
-        if not args.no_build:
-            cmake_configure(
-                source_dir=source_dir,
-                build_dir=build_dir,
-                toolchain_file=toolchain_file,
-                cpu=cpu,
-                cmsis5=cmsis5,
-                optimization=args.opt,
-                extra_defs=args.cmake_def,
-                generator=args.generator,
-                verbosity=verbosity,
-                env=env,
-            )
-            cmake_build(build_dir=build_dir, verbosity=verbosity, env=env, jobs=args.jobs)
-
-        if args.no_run:
-            continue
-
-        elves = find_elves(build_dir)
-        if not elves:
-            if verbosity >= 1:
-                print(f"(no .elf found under {build_dir}, nothing to run)")
-            continue
-
-        for elf in sorted(elves):
-            ok = run_fvp(fvp_exe=fvp_exe, elf=elf, timeout=args.timeout_run,
-                          verbosity=verbosity, extra_args=args.fvp_arg, env=env)
-            if not ok:
-                any_fail = True
-                if args.fail_fast:
-                    if verbosity >= 1:
-                        print("Stopping early due to failure (--fail-fast).")
-                    return 1
-            else:
-                print(f"PASS: {elf}")
-                if verbosity >= 1:
-                    print()
-
-    if any_fail:
-        return 1
-
-    verbosity = getattr(args, 'verbosity', 0)
-    if verbosity >= 1:
-        print("\nAll requested builds/runs completed successfully.")
-    return 0
+            print("\nAll requested builds/runs completed successfully.")
+        return 0
+    return 1
 
 
 if __name__ == "__main__":

@@ -175,6 +175,12 @@ def find_tester_templates_dir(repo_root: Optional[Path] = None) -> Path:
     return repo_root / "assets" / "templates"
 
 
+def find_build_dir(cpu: str, repo_root: Optional[Path] = None) -> Path:
+    """Return build directory for a CPU under artifacts."""
+    repo_root = _resolve_repo_root(repo_root)
+    return repo_root / "artifacts" / f"build-{cpu}-gcc"
+
+
 def find_fvp_script_path(repo_root: Optional[Path] = None) -> Path:
     """
     Find the FVP build-and-run script path.

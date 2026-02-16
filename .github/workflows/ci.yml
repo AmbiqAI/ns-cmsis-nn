@@ -74,12 +74,12 @@ jobs:
       - name: Install and sync Python deps (CodeGen)
         run: |
           cd Tests/CodeGen
-          uv sync
+          uv sync --group ci
 
       - name: Setup CodeGen build dependencies
         run: |
           cd Tests/CodeGen
-          ./scripts/setup_ci.sh --skip-build-deps
+          ./scripts/setup_ci.sh
 
       - name: Run CodeGen full pipeline with JUnit
         run: |

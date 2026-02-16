@@ -300,11 +300,8 @@ class TestReport:
         return [dr.test_result for dr in self.descriptor_results.values() 
                 if dr.test_result is not None]
     
-    def to_dict(self, descriptor_name: Optional[str] = None) -> Dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization, excluding null fields.
-        
-        Args:
-            descriptor_name: If provided and matches test_name, test_name will be omitted
         """
         result = {
             "run_id": self.run_id,

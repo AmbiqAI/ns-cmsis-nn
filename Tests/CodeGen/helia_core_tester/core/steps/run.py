@@ -9,7 +9,7 @@ from pathlib import Path
 from helia_core_tester.core.steps.base import StepBase, StepPlan, StepResult, StepStatus
 from helia_core_tester.core.errors import FVPRunError
 from helia_core_tester.core.logging import get_logger
-from helia_core_tester.core.discovery import find_fvp_script_path
+from helia_core_tester.core.discovery import find_fvp_script_path, find_build_dir
 from helia_core_tester.utils.command_runner import run_command
 
 
@@ -33,7 +33,7 @@ class RunStep(StepBase):
         script_path = find_fvp_script_path(self.config.project_root)
         if not script_path.exists():
             return f"FVP script not found: {script_path}"
-        build_dir = self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc"
+        build_dir = find_build_dir(self.config.cpu, self.config.project_root)
         if not build_dir.exists():
             return f"Build directory not found: {build_dir}. Run 'build' step first."
         return None
@@ -97,7 +97,7 @@ class RunStep(StepBase):
                 status=StepStatus.SUCCESS,
                 message="All tests completed successfully",
                 outputs={
-                    "build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc"),
+                    "build_dir": str(find_build_dir(self.config.cpu, self.config.project_root)),
                     "report_dir": str(self.config.report_dir) if self.config.report_dir else "",
                 },
                 details={"command": cmd},
@@ -116,7 +116,7 @@ class RunStep(StepBase):
                 message=error_msg,
                 error=fvp_error,
                 outputs={
-                    "build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc"),
+                    "build_dir": str(find_build_dir(self.config.cpu, self.config.project_root)),
                     "report_dir": str(self.config.report_dir) if self.config.report_dir else "",
                 },
                 details={"command": cmd},
@@ -132,7 +132,7 @@ class RunStep(StepBase):
                 message=error_msg,
                 error=fvp_error,
                 outputs={
-                    "build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc"),
+                    "build_dir": str(find_build_dir(self.config.cpu, self.config.project_root)),
                     "report_dir": str(self.config.report_dir) if self.config.report_dir else "",
                 },
                 details={"command": cmd},
@@ -155,7 +155,7 @@ class RunStep(StepBase):
             status=StepStatus.SKIPPED,
             message=f"DRY RUN: Would run: {' '.join(cmd_preview)}",
             outputs={
-                "build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc"),
+                "build_dir": str(find_build_dir(self.config.cpu, self.config.project_root)),
                 "report_dir": str(self.config.report_dir) if self.config.report_dir else "",
             },
         )
@@ -184,7 +184,7 @@ class RunStep(StepBase):
             reason="ready",
             commands=[cmd],
             outputs={
-                "build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc"),
+                "build_dir": str(find_build_dir(self.config.cpu, self.config.project_root)),
                 "report_dir": str(self.config.report_dir) if self.config.report_dir else "",
             }
         )

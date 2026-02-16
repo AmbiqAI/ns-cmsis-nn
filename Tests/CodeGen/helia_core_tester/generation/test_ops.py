@@ -5,11 +5,7 @@ Thin generator that discovers YAML descriptors and generates TFLite models.
 
 import json
 import pytest
-import os
-import tempfile
-import numpy as np
 import yaml
-import sys
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 

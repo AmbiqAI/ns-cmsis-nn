@@ -9,7 +9,7 @@ from pathlib import Path
 from helia_core_tester.core.steps.base import StepBase, StepPlan, StepResult, StepStatus
 from helia_core_tester.core.errors import BuildError
 from helia_core_tester.core.logging import get_logger
-from helia_core_tester.core.discovery import find_fvp_script_path
+from helia_core_tester.core.discovery import find_fvp_script_path, find_build_dir
 from helia_core_tester.utils.command_runner import run_command
 
 
@@ -69,7 +69,7 @@ class BuildStep(StepBase):
                 name=self.name,
                 status=StepStatus.SUCCESS,
                 message=f"Successfully built for {self.config.cpu}",
-                outputs={"build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc")},
+                outputs={"build_dir": str(find_build_dir(self.config.cpu, self.config.project_root))},
                 details={"command": cmd},
             )
         except subprocess.CalledProcessError as e:
@@ -97,7 +97,7 @@ class BuildStep(StepBase):
                 status=StepStatus.FAILED,
                 message=error_msg,
                 error=BuildError(error_msg),
-                outputs={"build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc")},
+                outputs={"build_dir": str(find_build_dir(self.config.cpu, self.config.project_root))},
                 details={"command": cmd},
             )
         except FileNotFoundError as e:
@@ -110,7 +110,7 @@ class BuildStep(StepBase):
                 status=StepStatus.FAILED,
                 message=error_msg,
                 error=build_error,
-                outputs={"build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc")},
+                outputs={"build_dir": str(find_build_dir(self.config.cpu, self.config.project_root))},
                 details={"command": cmd},
             )
 
@@ -129,7 +129,7 @@ class BuildStep(StepBase):
             name=self.name,
             status=StepStatus.SKIPPED,
             message=f"DRY RUN: Would run: {' '.join(cmd_preview)}",
-            outputs={"build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc")},
+            outputs={"build_dir": str(find_build_dir(self.config.cpu, self.config.project_root))},
         )
 
     def _plan_details(self) -> StepPlan:
@@ -150,5 +150,5 @@ class BuildStep(StepBase):
             will_run=True,
             reason="ready",
             commands=[cmd],
-            outputs={"build_dir": str(self.config.project_root / "artifacts" / f"build-{self.config.cpu}-gcc")}
+            outputs={"build_dir": str(find_build_dir(self.config.cpu, self.config.project_root))}
         )
