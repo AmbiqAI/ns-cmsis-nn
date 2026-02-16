@@ -71,6 +71,31 @@ static inline int validate_s16(int16_t *act, const int16_t *ref, int size)
     return test_passed;
 }
 
+static inline int validate_s32(int32_t *act, const int32_t *ref, int size)
+{
+    int test_passed = true;
+    int count = 0;
+    int total = 0;
+
+    for (int i = 0; i < size; ++i)
+    {
+        total++;
+        if (act[i] != ref[i])
+        {
+            count++;
+            printf("ERROR at pos %d: Act: %ld Ref: %ld\r\n", i, act[i], ref[i]);
+            test_passed = false;
+        }
+    }
+
+    if (!test_passed)
+    {
+        printf("%d of %d failed\r\n", count, total);
+    }
+
+    return test_passed;
+}
+
 static inline int validate_bool(const bool *act, const bool *ref, int size)
 {
     int test_passed = true;

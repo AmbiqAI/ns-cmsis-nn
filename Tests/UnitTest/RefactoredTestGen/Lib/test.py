@@ -35,6 +35,7 @@ import Lib.op_hard_swish
 import Lib.op_abs
 import Lib.op_prelu
 import Lib.op_strided_slice
+import Lib.op_concatenation
 import Lib.op_mean
 import Lib.op_reduce_max
 import Lib.op_reduce_min
@@ -108,10 +109,15 @@ def generate(params, args, fpaths):
         else:
             bias_dtype = None
 
+        effective_output_dtype = params.get("output_data_type", params["input_data_type"])
+        disable_quant_for_int32_io = (
+            params["input_data_type"] == "int32_t" and effective_output_dtype == "int32_t"
+        )
+
         if op_type == Lib.op_quantize.Op_quantize or op_type == Lib.op_dequantize.Op_dequantize:
             convert_keras_to_tflite(fpaths["tflite"],
                                     keras_model,
-                                    quantize=True,
+                                    quantize=not disable_quant_for_int32_io,
                                     input_dtype=params["input_data_type"],
                                     bias_dtype=bias_dtype,
                                     shape=shapes,
@@ -121,7 +127,7 @@ def generate(params, args, fpaths):
         else:
             convert_keras_to_tflite(fpaths["tflite"],
                                     keras_model,
-                                    quantize=True,
+                                    quantize=not disable_quant_for_int32_io,
                                     input_dtype=params["input_data_type"],
                                     bias_dtype=bias_dtype,
                                     shape=shapes,
@@ -293,6 +299,8 @@ def get_op_type(op_type_string):
         return Lib.op_prelu.Op_prelu
     elif op_type_string == "strided_slice":
         return Lib.op_strided_slice.Op_strided_slice
+    elif op_type_string == "concatenation":
+        return Lib.op_concatenation.Op_concatenation
     elif op_type_string == "mean":
         return Lib.op_mean.Op_mean
     elif op_type_string == "reduce_max":
@@ -398,6 +406,8 @@ def convert_keras_to_tflite(
                 tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
             ]
         # Perform the conversion
+        tflite_model = converter.convert()
+    else:
         tflite_model = converter.convert()
 
     # Save the converted model
