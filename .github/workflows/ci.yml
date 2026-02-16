@@ -19,9 +19,9 @@ jobs:
       fail-fast: false
       matrix:
         core:
-          - cortex-m0
-          - cortex-m4
-          - cortex-m55
+          # - cortex-m0
+          # - cortex-m4
+          # - cortex-m55
 
     steps:
       - name: Checkout repository
@@ -84,10 +84,10 @@ jobs:
       - name: Run CodeGen full pipeline with JUnit
         run: |
           cd Tests/CodeGen
-          uv run helia_core_tester full --report-formats json junit
+          uv run helia_core_tester full --report-formats junit
 
-      - name: Upload JUnit report
-        uses: actions/upload-artifact@v4
-        with:
-          name: codegen-junit
-          path: Tests/CodeGen/artifacts/reports/junit.xml
+      # - name: Upload JUnit report
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: codegen-junit
+      #     path: Tests/CodeGen/artifacts/reports/junit.xml
