@@ -38,11 +38,8 @@ class OpConcatenation(OperationBase):
         
         axis = self.desc.get('axis', -1)
         
-        # Adjust axis to account for batch dimension
-        if axis >= 0:
-            axis_adjusted = axis - 1 if axis > 0 else axis
-        else:
-            axis_adjusted = axis
+        # Axis in descriptor is NHWC including batch; Keras Concatenate expects the same
+        axis_adjusted = axis
         
         # Create input layers
         inputs = []
@@ -177,16 +174,17 @@ class OpConcatenation(OperationBase):
         kernel_info = self._select_cmsis_concatenation_kernel()
         
         # Load LiteRT model for shape and quantization extraction
-        from helia_core_tester.generation.utils.litert_utils import get_operator_tensors_from_litert
+        from helia_core_tester.generation.utils.litert_utils import get_operator_tensors_from_litert, get_tensor_data_from_litert
         model, subgraph = self.load_litert_model(str(tflite_path))
         op_tensors = get_operator_tensors_from_litert(model, subgraph, 0)
         
         # Extract shapes from LiteRT (multi-input operator)
-        num_inputs = len(op_tensors['inputs'])
-        input_shapes = [tuple(tensor['shape']) if tensor['shape'] is not None else None for tensor in op_tensors['inputs']]
+        op_inputs = list(op_tensors['inputs'])
+        num_inputs = len(op_inputs)
+        input_shapes = [tuple(tensor['shape']) if tensor['shape'] is not None else None for tensor in op_inputs]
         output_shape = op_tensors['outputs'][0]['shape']
         
-        # Ensure output shape is tuple
+        # Ensure output shape is tuple (may be overridden below)
         if output_shape is not None:
             output_shape = tuple(output_shape)
         
@@ -194,23 +192,28 @@ class OpConcatenation(OperationBase):
         interpreter = self.load_litert_interpreter(str(tflite_path))
         input_details = interpreter.get_input_details()
         is_const_variant = 'const' in name.lower() and len(input_details) == 1
+
+        # If const variant and operator inputs include const data, reorder so variable inputs come first
+        if is_const_variant and len(op_inputs) > len(input_details):
+            variable_inputs = [t for t in op_inputs if t.get('data') is None]
+            const_inputs = [t for t in op_inputs if t.get('data') is not None]
+            if len(variable_inputs) + len(const_inputs) == len(op_inputs):
+                op_inputs = variable_inputs + const_inputs
+                input_shapes = [tuple(tensor['shape']) if tensor['shape'] is not None else None for tensor in op_inputs]
+                num_inputs = len(op_inputs)
         
         builder = TemplateContextBuilder()
         
-        # Convert shapes to CMSIS dims
-        output_dims = builder.nhwc_to_cmsis_dims(output_shape)
-        
         # Extract axis from descriptor (default to -1 for last dimension)
         axis = self.desc.get('axis', -1)
-        # Convert to 0-based and account for batch dimension
-        # For NHWC: 0=N, 1=H, 2=W, 3=C
-        # axis=-1 means last dimension (C=3)
+        # Convert negative axis based on actual rank (NHWC includes batch)
+        input_rank = len(input_shapes[0]) if input_shapes and input_shapes[0] is not None else (len(output_shape) if output_shape else 0)
         if axis < 0:
-            axis = 4 + axis  # -1 -> 3, -2 -> 2, etc.
-        # axis is now 0-3 for NHWC
+            axis = input_rank + axis  # -1 -> last dimension
         
         # For const variants, we need to create a const input shape
-        if is_const_variant:
+        const_shape = None
+        if is_const_variant and len(input_shapes) == 1:
             var_shape = input_shapes[0]
             # Calculate const input shape based on axis
             const_shape = list(var_shape)
@@ -232,6 +235,17 @@ class OpConcatenation(OperationBase):
             
             input_shapes.append(tuple(const_shape))
             num_inputs = 2
+            const_shape = tuple(const_shape)
+
+        # Recompute output shape from inputs to avoid relying on potentially wrong op output metadata
+        if input_shapes and all(shape is not None for shape in input_shapes):
+            output_shape = list(input_shapes[0])
+            output_shape[axis] = sum(int(shape[axis]) for shape in input_shapes)
+            output_shape = tuple(output_shape)
+
+        # Convert shapes to CMSIS dims
+        output_dims = builder.nhwc_to_cmsis_dims(output_shape)
+        output_rank = len(output_shape)
         
         # Calculate input_concat_dims (dimension along axis for each input)
         input_concat_dims = []
@@ -276,13 +290,37 @@ class OpConcatenation(OperationBase):
             input_array_strs.append(builder.format_array_as_c_literal(input_q))
         
         # Generate const input if needed
+        const_input_q = None
+        const_from_model = False
         if is_const_variant:
-            const_shape = input_shapes[-1]
-            # Use a fixed value (0.5 quantized) for const input
-            const_value_float = 0.5
-            const_value_q = int(np.round(const_value_float / float(input_scale) + float(input_zp)))
-            const_value_q = max(qmin, min(qmax, const_value_q))
-            const_input_q = np.full(const_shape, const_value_q, dtype=np_in_dtype)
+            # Prefer using constant tensor data from the model if available
+            for tensor in op_inputs:
+                if tensor.get('data') is not None:
+                    const_input_q = np.array(tensor['data'], copy=True)
+                    const_from_model = True
+                    break
+            # If not found in op inputs, search all tensors for a matching const buffer
+            if const_input_q is None and const_shape is not None:
+                for tensor in subgraph.tensors:
+                    if tensor.shape is None:
+                        continue
+                    shape = tuple(tensor.shape.tolist())
+                    if shape != const_shape:
+                        continue
+                    data = get_tensor_data_from_litert(tensor, model)
+                    if data is not None:
+                        const_input_q = np.array(data, copy=True)
+                        const_from_model = True
+                        break
+            if const_input_q is None:
+                const_shape = input_shapes[-1]
+                # Use a fixed value (0.5 quantized) for const input
+                const_value_float = 0.5
+                const_value_q = int(np.round(const_value_float / float(input_scale) + float(input_zp)))
+                const_value_q = max(qmin, min(qmax, const_value_q))
+                const_input_q = np.full(const_shape, const_value_q, dtype=np_in_dtype)
+            else:
+                const_input_q = const_input_q.astype(np_in_dtype)
             input_q_list.append(const_input_q)
             input_array_strs.append(builder.format_array_as_c_literal(const_input_q))
         
@@ -300,6 +338,20 @@ class OpConcatenation(OperationBase):
         interpreter.invoke()
         output_data = interpreter.get_tensor(output_details[0]['index'])
         output_data = np.array(output_data)
+
+        # If const variant and we couldn't find a true const buffer, derive const input from output
+        if is_const_variant and const_input_q is not None and not const_from_model:
+            # If const was synthesized (e.g., 0.5), back-calculate from output by slicing
+            # along concat axis using input_concat_dims.
+            try:
+                split_indices = np.cumsum(input_concat_dims[:-1])
+                split_tensors = np.split(output_data, split_indices, axis=axis)
+                derived_const = split_tensors[1]
+                const_input_q = np.array(derived_const, copy=True).astype(np_in_dtype)
+                input_q_list[-1] = const_input_q
+                input_array_strs[-1] = builder.format_array_as_c_literal(const_input_q)
+            except Exception:
+                pass
         
         # Format arrays
         expected_output_array_str = builder.format_array_as_c_literal(output_data)
@@ -311,6 +363,7 @@ class OpConcatenation(OperationBase):
             'name': name,
             'prefix': name,
             'output_dims': output_dims,
+            'output_rank': output_rank,
             'num_inputs': num_inputs,
             'axis': axis,
             'input_concat_dims_array': input_concat_dims_array_str,
@@ -347,4 +400,3 @@ class OpConcatenation(OperationBase):
             f.write(cmake_content)
         
         print(f"Generated C/H files and CMakeLists.txt for {name}")
-

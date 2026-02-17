@@ -1,41 +1,41 @@
-# operator: Concatenation
-# name: concatenation_channel_dual_s8
-# activation_dtype: S8
-# weight_dtype: S8
-# activation: NONE
-# hint:
-#   call_style: per_tensor
-# input_shape:
-# - 1
-# - 4
-# - 4
-# - 3
-# axis: -1
-# input_1_shape:
-# - 1
-# - 4
-# - 4
-# - 3
-# input_2_shape:
-# - 1
-# - 4
-# - 4
-# - 1
-# ---
-# operator: Concatenation
-# name: concatenation_const_scalar_s8
-# activation_dtype: S8
-# weight_dtype: S8
-# activation: NONE
-# hint:
-#   call_style: per_tensor
-# input_shape:
-# - 1
-# - 3
-# - 3
-# - 2
-# axis: -1
-# ---
+operator: Concatenation
+name: concatenation_channel_dual_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 4
+- 4
+- 3
+axis: -1
+input_1_shape:
+- 1
+- 4
+- 4
+- 3
+input_2_shape:
+- 1
+- 4
+- 4
+- 1
+---
+operator: Concatenation
+name: concatenation_const_scalar_s8
+activation_dtype: S8
+weight_dtype: S8
+activation: NONE
+hint:
+  call_style: per_tensor
+input_shape:
+- 1
+- 3
+- 3
+- 2
+axis: -1
+---
 operator: Concatenation
 name: concatenation_const_vector_s8
 activation_dtype: S8

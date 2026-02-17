@@ -47,7 +47,7 @@ int32_t {{ prefix }}_{{ name }}_run(
         {{ name }}_input_concat_dims,          // input_concat_dims
         {{ axis }},                           // axis
         output,                               // output_data
-        {{ output_dims.n + output_dims.h + output_dims.w + output_dims.c }},  // output_dims (sum of dimensions)
+        {{ output_rank }},  // output_dims (number of dimensions)
         {{ name }}_output_shape               // output_shape
     );
     
