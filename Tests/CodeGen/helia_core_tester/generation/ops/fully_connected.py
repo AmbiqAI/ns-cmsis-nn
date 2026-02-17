@@ -234,16 +234,35 @@ class OpFullyConnected(OperationBase):
             reduce_to_q15=False  # Kernel handles reduction internally
         )
         
-        # For S16 per-channel, reduce multipliers from Q31 to Q15
-        activation_dtype = self.desc.get('activation_dtype', 'S8')
-        if activation_dtype == 'S16' and len(multipliers) > 1:
-            from helia_core_tester.generation.utils.tflite_utils import reduce_multiplier_q31_to_q15
-            multipliers = [reduce_multiplier_q31_to_q15(m) for m in multipliers]
-        
         return [
             {'multiplier': int(m), 'shift': int(s)}
             for m, s in zip(multipliers, shifts)
         ]
+
+    def _find_fc_operator_index(self, model, subgraph, weights: Optional[np.ndarray]) -> int:
+        """
+        Find the operator index corresponding to the FullyConnected op.
+        Prefer an operator whose inputs include the exact weights tensor.
+        """
+        from helia_core_tester.generation.utils.litert_utils import get_operator_tensors_from_litert
+
+        if weights is not None:
+            for op_index in range(len(subgraph.operators)):
+                op_tensors = get_operator_tensors_from_litert(model, subgraph, op_index)
+                for tensor in op_tensors.get('inputs', []):
+                    data = tensor.get('data')
+                    if data is not None and data.shape == weights.shape and np.array_equal(data, weights):
+                        return op_index
+
+        # Fallback: pick the first operator that looks like FC (weights as second input)
+        for op_index in range(len(subgraph.operators)):
+            op_tensors = get_operator_tensors_from_litert(model, subgraph, op_index)
+            if len(op_tensors.get('inputs', [])) >= 2:
+                weight_candidate = op_tensors['inputs'][1].get('data')
+                if weight_candidate is not None and weight_candidate.ndim >= 2 and weight_candidate.size > 4:
+                    return op_index
+
+        return 0
     
     def generate_c_files(self, output_dir: Path) -> None:
         """
@@ -262,19 +281,33 @@ class OpFullyConnected(OperationBase):
         # Load LiteRT model for shape and quantization extraction
         from helia_core_tester.generation.utils.litert_utils import get_operator_tensors_from_litert
         model, subgraph = self.load_litert_model(str(tflite_path))
-        op_tensors = get_operator_tensors_from_litert(model, subgraph, 0)
         
-        # Extract shapes from LiteRT
+        # Extract weights and biases (initial pass)
+        weights_biases = self.extract_weights_biases(str(tflite_path))
+        weights = weights_biases.get('weights')
+        biases = weights_biases.get('biases')
+
+        # Find the FullyConnected operator index and fetch its tensors
+        fc_op_index = self._find_fc_operator_index(model, subgraph, weights)
+        op_tensors = get_operator_tensors_from_litert(model, subgraph, fc_op_index)
+
+        # Extract shapes from LiteRT (use FC op tensors)
         input_shape = op_tensors['inputs'][0]['shape']
         output_shape = op_tensors['outputs'][0]['shape']
-        
+
+        # Prefer weights/biases directly from the FC op inputs when available
+        if len(op_tensors.get('inputs', [])) > 1 and op_tensors['inputs'][1].get('data') is not None:
+            weights = op_tensors['inputs'][1]['data']
+        if len(op_tensors.get('inputs', [])) > 2 and op_tensors['inputs'][2].get('data') is not None:
+            biases = op_tensors['inputs'][2]['data']
+
         # Ensure shapes are tuples
         if input_shape is not None:
             input_shape = tuple(input_shape)
         if output_shape is not None:
             output_shape = tuple(output_shape)
         
-        # Extract quantization parameters from LiteRT
+        # Extract quantization parameters from LiteRT (use FC op tensors)
         input_quant_litert = op_tensors['inputs'][0]['quantization']
         output_quant_litert = op_tensors['outputs'][0]['quantization']
         
@@ -289,22 +322,19 @@ class OpFullyConnected(OperationBase):
             'per_channel': output_quant_litert.get('per_channel', False)
         }
         
-        # Extract weights and biases
-        weights_biases = self.extract_weights_biases(str(tflite_path))
-        weights = weights_biases.get('weights')
-        biases = weights_biases.get('biases')
-        
         # Get weight quantization from LiteRT
         from helia_core_tester.generation.utils.litert_utils import (
-            load_litert_model, get_operator_tensors_from_litert,
             get_tensor_data_from_litert, get_tensor_quantization_from_litert,
             get_tensor_shape_from_litert
         )
-        model, subgraph = load_litert_model(str(tflite_path))
-        op_tensors = get_operator_tensors_from_litert(model, subgraph, 0)
         
         weight_quant = None
         if weights is not None:
+            # Prefer weight quantization from FC op input[1] when available
+            if len(op_tensors.get('inputs', [])) > 1 and op_tensors['inputs'][1].get('data') is not None:
+                weight_quant = op_tensors['inputs'][1].get('quantization')
+
+        if weight_quant is None and weights is not None:
             # Search all tensors to find the one matching our weights
             input_indices = set(subgraph.inputs)
             output_indices = set(subgraph.outputs)
@@ -380,13 +410,54 @@ class OpFullyConnected(OperationBase):
                 'w': 1,
                 'c': int(fs[0])   # output_units
             }
+
+        # Fix up biases: ensure we have a 1D bias matching output units
+        output_units = int(filter_dims['c'])
+        if biases is not None:
+            if not hasattr(biases, "shape") or biases.ndim != 1 or biases.shape[0] != output_units:
+                biases = None
+
+        if biases is None:
+            # Try to read bias directly from FC op input[2]
+            op = subgraph.operators[fc_op_index]
+            if len(op.inputs) > 2:
+                bias_tensor_idx = op.inputs[2]
+                if 0 <= bias_tensor_idx < len(subgraph.tensors):
+                    bias_tensor = subgraph.tensors[bias_tensor_idx]
+                    bias_data = get_tensor_data_from_litert(bias_tensor, model)
+                    if bias_data is not None and bias_data.ndim == 1 and bias_data.shape[0] == output_units:
+                        biases = bias_data
+
+        if biases is None:
+            # Fallback: search all tensors for a matching 1D bias vector
+            input_indices = set(subgraph.inputs)
+            output_indices = set(subgraph.outputs)
+            for tensor_idx, tensor in enumerate(subgraph.tensors):
+                if tensor_idx in input_indices or tensor_idx in output_indices:
+                    continue
+                bias_data = get_tensor_data_from_litert(tensor, model)
+                tensor_shape = get_tensor_shape_from_litert(tensor)
+                if bias_data is not None and tensor_shape is not None:
+                    if len(tensor_shape) == 1 and tensor_shape[0] == output_units:
+                        biases = bias_data
+                        break
         
         builder = TemplateContextBuilder()
         
+        # Prefer descriptor batch size when model shapes report 1 for dynamic batch
+        desc_input_shape = self.desc.get('input_shape', None)
+        desc_batch = None
+        if isinstance(desc_input_shape, (list, tuple)) and len(desc_input_shape) > 0:
+            desc_batch = int(desc_input_shape[0])
+
+        batch_size = int(input_shape[0]) if input_shape is not None and len(input_shape) > 0 else None
+        if desc_batch is not None and desc_batch > 1 and batch_size != desc_batch:
+            batch_size = desc_batch
+
         # Compute input dimensions
         if len(input_shape) == 2:
             input_dims = {
-                'n': int(input_shape[0]),
+                'n': int(batch_size if batch_size is not None else input_shape[0]),
                 'h': 1,
                 'w': 1,
                 'c': int(input_shape[1])
@@ -394,7 +465,7 @@ class OpFullyConnected(OperationBase):
         elif len(input_shape) == 4:
             # Flatten: [batch, h, w, c] -> features = h * w * c
             input_dims = {
-                'n': int(input_shape[0]),
+                'n': int(batch_size if batch_size is not None else input_shape[0]),
                 'h': 1,
                 'w': 1,
                 'c': int(input_shape[1] * input_shape[2] * input_shape[3])
@@ -405,7 +476,8 @@ class OpFullyConnected(OperationBase):
         # Compute output dimensions - use weights shape to get correct output_units
         if weights is not None and len(weights.shape) == 2:
             correct_output_units = int(weights.shape[0])
-            batch_size = int(output_shape[0]) if len(output_shape) >= 1 else int(input_shape[0])
+            if batch_size is None:
+                batch_size = int(output_shape[0]) if len(output_shape) >= 1 else int(input_shape[0])
             
             output_dims = {
                 'n': batch_size,
@@ -484,12 +556,6 @@ class OpFullyConnected(OperationBase):
                 multiplier = int(mults[0])
                 shift = int(shfts[0])
                 
-                # For S16 per-tensor, reduce multiplier
-                activation_dtype = self.desc.get('activation_dtype', 'S8')
-                if activation_dtype == 'S16':
-                    from helia_core_tester.generation.utils.tflite_utils import reduce_multiplier_q31_to_q15
-                    multiplier = reduce_multiplier_q31_to_q15(multiplier)
-            
             quant_params_dict = {
                 'multiplier': multiplier,
                 'shift': shift,
