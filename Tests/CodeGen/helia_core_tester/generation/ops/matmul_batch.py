@@ -168,8 +168,12 @@ class OpMatMul(OperationBase):
         # Convert shapes to CMSIS dims
         # For batch matmul: [batch, M, K] @ [batch, K, N] -> [batch, M, N]
         # CMSIS-NN expects RHS to be transposed: [batch, N, K]
-        # So if adj_y is False, we need to transpose RHS dimensions
-        input_lhs_dims = builder.nhwc_to_cmsis_dims(input_lhs_shape)
+        # For adj_x == True, CMSIS expects LHS already transposed: [batch, K, M]
+        if len(input_lhs_shape) == 3 and adj_x:
+            transposed_lhs_shape = (input_lhs_shape[0], input_lhs_shape[2], input_lhs_shape[1])
+            input_lhs_dims = builder.nhwc_to_cmsis_dims(transposed_lhs_shape)
+        else:
+            input_lhs_dims = builder.nhwc_to_cmsis_dims(input_lhs_shape)
         
         # For RHS: if adj_y is False, CMSIS-NN expects transposed RHS
         # TFLite has [batch, K, N], CMSIS-NN expects [batch, N, K]
@@ -238,11 +242,9 @@ class OpMatMul(OperationBase):
         }
         quant_params_dict = builder.build_quant_params(effective_quant, per_channel=False)
         
-        # For S16 batch matmul, reduce multiplier from Q31 to Q15
-        from helia_core_tester.generation.utils.tflite_utils import reduce_multiplier_q31_to_q15
-        if kernel_info["input_lhs_c_type"] == "int16_t":
-            mult = quant_params_dict.get('multiplier', 0)
-            quant_params_dict['multiplier'] = reduce_multiplier_q31_to_q15(mult)
+        # NOTE: Do NOT reduce multiplier here for S16 batch matmul.
+        # arm_batch_matmul_s16 internally applies REDUCE_MULTIPLIER on the Q31 multiplier.
+        # Reducing here would zero-out the multiplier and produce all-zero outputs.
         
         # Generate input data and quantize
         rng_state = self.rng.__getstate__()
@@ -307,9 +309,15 @@ class OpMatMul(OperationBase):
         if not adj_y and len(input_rhs_shape) == 3:
             # Transpose last two dimensions: [batch, K, N] -> [batch, N, K]
             input_rhs_q_for_cmsis = np.transpose(input_rhs_q_for_cmsis, (0, 2, 1))
+
+        # Transpose LHS for CMSIS-NN if adj_x is True
+        # CMSIS-NN expects LHS to be already transposed: [batch, M, K] -> [batch, K, M]
+        input_lhs_q_for_cmsis = input_lhs_q.copy()
+        if adj_x and len(input_lhs_shape) == 3:
+            input_lhs_q_for_cmsis = np.transpose(input_lhs_q_for_cmsis, (0, 2, 1))
         
-        # Format arrays (use transposed RHS for CMSIS-NN)
-        input_lhs_array_str = builder.format_array_as_c_literal(input_lhs_q)
+        # Format arrays (use transposed LHS/RHS for CMSIS-NN if required)
+        input_lhs_array_str = builder.format_array_as_c_literal(input_lhs_q_for_cmsis)
         input_rhs_array_str = builder.format_array_as_c_literal(input_rhs_q_for_cmsis)
         expected_output_array_str = builder.format_array_as_c_literal(output_data)
         
