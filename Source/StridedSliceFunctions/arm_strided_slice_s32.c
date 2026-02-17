@@ -82,9 +82,9 @@ arm_cmsis_nn_status arm_strided_slice_s32(const int32_t *input_data,
     {
         int32_t offset = b_n * plane_elems;
         int32_t total  = o_n * plane_elems;
-        arm_memcpy_s8((int8_t *)output_data,
-                      (const int8_t *)(input_data + offset),
-                      total * sizeof(int32_t));
+        arm_memcpy_s32(output_data,
+                       input_data + offset,
+                       total);
         return ARM_CMSIS_NN_SUCCESS;
     }
 
@@ -104,11 +104,9 @@ arm_cmsis_nn_status arm_strided_slice_s32(const int32_t *input_data,
             //   n‐offset into planes + b_h‐offset into rows
             int32_t start = (b_n + n * s_n) * plane_elems
                           +  b_h            * slice_elems;
-            arm_memcpy_s8(
-              (int8_t *)(output_data + n * batch_block),
-              (const int8_t *)(input_data + start),
-              batch_block * sizeof(int32_t)
-            );
+            arm_memcpy_s32(output_data + n * batch_block,
+                           input_data + start,
+                           batch_block);
         }
         return ARM_CMSIS_NN_SUCCESS;
     }
@@ -132,11 +130,9 @@ arm_cmsis_nn_status arm_strided_slice_s32(const int32_t *input_data,
                               + b_w * in_c;   // row_elems == in_c
 
                 // copy only o_w*in_c elements (i.e. the slice’s columns)
-                arm_memcpy_s8(
-                  (int8_t *)(output_data + out_idx),
-                  (const int8_t *)(input_data + start),
-                  row_block * sizeof(int32_t)
-                );
+                arm_memcpy_s32(output_data + out_idx,
+                               input_data + start,
+                               row_block);
                 out_idx += row_block;
             }
         }
@@ -160,9 +156,9 @@ arm_cmsis_nn_status arm_strided_slice_s32(const int32_t *input_data,
                     int32_t start = base_h
                                   + (b_w + w*s_w)*row_elems
                                   + b_c;
-                    arm_memcpy_s8((int8_t *)(output_data + out_idx),
-                                  (const int8_t *)(input_data + start),
-                                  o_c * sizeof(int32_t));
+                    arm_memcpy_s32(output_data + out_idx,
+                                   input_data + start,
+                                   o_c);
                     out_idx += o_c;
                 }
             }
