@@ -1995,6 +1995,18 @@ __STATIC_FORCEINLINE void arm_memcpy_s16(int16_t *__RESTRICT dst, const int16_t 
 }
 
 /**
+ * @brief           memcpy optimized for MVE
+ * @param[in, out]  dst         Destination pointer
+ * @param[in]       src         Source pointer.
+ * @param[in]       block_size  Number of values to copy.
+ *
+ */
+__STATIC_FORCEINLINE void arm_memcpy_s32(int32_t *__RESTRICT dst, const int32_t *__RESTRICT src, uint32_t block_size)
+{
+    arm_memcpy_s8((int8_t *)dst, (const int8_t *)src, block_size*sizeof(int32_t));
+}
+
+/**
  * @brief           memcpy wrapper for int16
  * @param[in, out]  dst         Destination pointer
  * @param[in]       src         Source pointer.
