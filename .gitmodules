@@ -1,0 +1,3 @@
+[submodule "Tests/helia-core-tester"]
+	path = Tests/helia-core-tester
+	url = git@github.com:AmbiqAI/helia-core-tester.git
