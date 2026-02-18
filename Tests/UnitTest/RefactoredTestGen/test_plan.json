@@ -2359,6 +2359,68 @@
     ]
   },
   {
+    "suite_name": "test_arm_strided_slice_s16",
+    "op_type": "strided_slice",
+    "input_data_type": "int16_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "slice_center_3x3_s16",
+        "batch_size": 1,
+        "input_n": 1,
+        "input_h": 5,
+        "input_w": 5,
+        "input_c": 1,
+        "begin":    [0, 1, 2, 0],
+        "end":      [1, 4, 4, 1],
+        "strides":  [1, 1, 1, 1]
+      },
+      {
+        "name": "slice_strided_2x3_s16",
+        "batch_size": 1,
+        "input_n": 1,
+        "input_h": 6,
+        "input_w": 6,
+        "input_c": 1,
+        "begin":    [0, 0, 0, 0],
+        "end":      [1, 6, 6, 1],
+        "strides":  [1, 2, 3, 1]
+      }
+    ]
+  },
+  {
+    "suite_name": "test_arm_strided_slice_s32",
+    "op_type": "strided_slice",
+    "input_data_type": "int32_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "tests": [
+      {
+        "name": "slice_center_3x3_s32",
+        "batch_size": 1,
+        "input_n": 1,
+        "input_h": 5,
+        "input_w": 5,
+        "input_c": 1,
+        "begin":    [0, 1, 2, 0],
+        "end":      [1, 4, 4, 1],
+        "strides":  [1, 1, 1, 1]
+      },
+      {
+        "name": "slice_strided_2x3_s32",
+        "batch_size": 1,
+        "input_n": 1,
+        "input_h": 6,
+        "input_w": 6,
+        "input_c": 1,
+        "begin":    [0, 0, 0, 0],
+        "end":      [1, 6, 6, 1],
+        "strides":  [1, 2, 3, 1]
+      }
+    ]
+  },
+  {
     "suite_name": "test_arm_concatenation_s32_generated",
     "op_type": "concatenation",
     "input_data_type": "int32_t",
