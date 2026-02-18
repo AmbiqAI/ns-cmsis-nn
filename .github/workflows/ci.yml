@@ -65,25 +65,27 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          submodules: recursive
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
-      - name: Install and sync Python deps (CodeGen)
+      - name: Install and sync Python deps (helia-core-tester)
         run: |
-          cd Tests/CodeGen
+          cd Tests/helia-core-tester
           uv sync
 
-      - name: Setup CodeGen build dependencies
+      - name: Setup helia-core-tester build dependencies
         run: |
-          cd Tests/CodeGen
+          cd Tests/helia-core-tester
           ./scripts/setup_ci.sh
 
-      - name: Run CodeGen full pipeline with JUnit
+      - name: Run helia-core-tester full pipeline with JUnit
         run: |
-          cd Tests/CodeGen
+          cd Tests/helia-core-tester
           uv run helia_core_tester full --report-formats junit
 
       # - name: Upload JUnit report
