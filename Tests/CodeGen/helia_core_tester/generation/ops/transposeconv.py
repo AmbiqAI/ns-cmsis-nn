@@ -136,11 +136,22 @@ class OpTransposeConv(OperationBase):
         
         model, subgraph = load_litert_model(str(tflite_path))
         
-        # Get operator tensors (first operator)
+        # Get operator tensors (find TRANSPOSE_CONV if present)
         if len(subgraph.operators) == 0:
             raise ValueError("No operators found in model")
+
+        transpose_op_index = 0
+        try:
+            from ai_edge_litert import schema_py_generated as litert
+            for i, op in enumerate(subgraph.operators):
+                opcode = model.operatorCodes[op.opcodeIndex]
+                if opcode.builtinCode == litert.BuiltinOperator.TRANSPOSE_CONV:
+                    transpose_op_index = i
+                    break
+        except Exception:
+            transpose_op_index = 0
         
-        op_tensors = get_operator_tensors_from_litert(model, subgraph, 0)
+        op_tensors = get_operator_tensors_from_litert(model, subgraph, transpose_op_index)
         
         # Extract shapes from LiteRT
         if not op_tensors['inputs']:
@@ -176,7 +187,24 @@ class OpTransposeConv(OperationBase):
             print(f"Warning: Could not find input shape from LiteRT, using descriptor shape: {input_shape}")
         
         # Get output shape
-        output_shape = op_tensors['outputs'][0]['shape']
+        output_shape = None
+        if op_tensors['outputs']:
+            output_shape = op_tensors['outputs'][0]['shape']
+        if output_shape is None and subgraph.outputs:
+            try:
+                from helia_core_tester.generation.utils.litert_utils import get_tensor_shape_from_litert
+                output_tensor = subgraph.tensors[subgraph.outputs[0]]
+                output_shape = get_tensor_shape_from_litert(output_tensor)
+            except Exception:
+                output_shape = None
+        if output_shape is None:
+            try:
+                interpreter = self.load_litert_interpreter(str(tflite_path))
+                out_details = interpreter.get_output_details()
+                if out_details:
+                    output_shape = tuple(out_details[0]["shape"])
+            except Exception:
+                output_shape = None
         
         # Ensure shapes are tuples
         if input_shape is not None:

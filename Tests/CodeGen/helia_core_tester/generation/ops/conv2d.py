@@ -2,7 +2,7 @@
 Conv2D operation implementation.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict
 from pathlib import Path
 import numpy as np
 import tensorflow as tf
@@ -180,22 +180,55 @@ class OpConv2D(OperationBase):
         op_tensors = get_operator_tensors_from_litert(model, subgraph, conv_op_index)
         
         # Extract shapes from LiteRT.
-        # Use subgraph I/O shapes (model input/output), not Conv2D op I/O,
+        # Prefer subgraph I/O shapes (model input/output), not Conv2D op I/O,
         # because dilation lowering changes intermediate shapes.
-        if not subgraph.inputs or not subgraph.outputs:
-            raise ValueError("No subgraph inputs/outputs found")
+        input_tensor = None
+        output_tensor = None
+        if subgraph.inputs and subgraph.outputs:
+            input_tensor = subgraph.tensors[subgraph.inputs[0]]
+            output_tensor = subgraph.tensors[subgraph.outputs[0]]
+        else:
+            # Fallback: try to map interpreter I/O tensor indices to LiteRT tensors.
+            try:
+                interpreter = self.load_litert_interpreter(str(tflite_path))
+                in_details = interpreter.get_input_details()
+                out_details = interpreter.get_output_details()
+                if in_details:
+                    in_idx = int(in_details[0]["index"])
+                    if 0 <= in_idx < len(subgraph.tensors):
+                        input_tensor = subgraph.tensors[in_idx]
+                if out_details:
+                    out_idx = int(out_details[0]["index"])
+                    if 0 <= out_idx < len(subgraph.tensors):
+                        output_tensor = subgraph.tensors[out_idx]
+            except Exception:
+                # Will fall back to op tensors below.
+                pass
 
-        input_tensor = subgraph.tensors[subgraph.inputs[0]]
-        output_tensor = subgraph.tensors[subgraph.outputs[0]]
-        input_shape = get_tensor_shape_from_litert(input_tensor)
-        output_shape = get_tensor_shape_from_litert(output_tensor)
+        input_shape = get_tensor_shape_from_litert(input_tensor) if input_tensor is not None else None
+        output_shape = get_tensor_shape_from_litert(output_tensor) if output_tensor is not None else None
+        if input_shape is None and op_tensors['inputs']:
+            input_shape = op_tensors['inputs'][0]['shape']
+        if output_shape is None and op_tensors['outputs']:
+            output_shape = op_tensors['outputs'][0]['shape']
         if input_shape is None or output_shape is None:
-            raise ValueError("Missing input/output shapes from LiteRT")
+            raise ValueError("Missing input/output shapes from LiteRT (subgraph + interpreter + op tensors)")
         
         # Extract quantization parameters.
         # Use subgraph I/O quantization for input/output to match model I/O.
-        input_quant = get_tensor_quantization_from_litert(input_tensor)
-        output_quant = get_tensor_quantization_from_litert(output_tensor)
+        if input_tensor is not None:
+            input_quant = get_tensor_quantization_from_litert(input_tensor)
+        elif op_tensors['inputs']:
+            input_quant = op_tensors['inputs'][0]['quantization']
+        else:
+            input_quant = None
+
+        if output_tensor is not None:
+            output_quant = get_tensor_quantization_from_litert(output_tensor)
+        elif op_tensors['outputs']:
+            output_quant = op_tensors['outputs'][0]['quantization']
+        else:
+            output_quant = None
         
         # Find weight quantization (from weight tensor in inputs)
         weight_quant = None

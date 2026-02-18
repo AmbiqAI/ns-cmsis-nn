@@ -5,13 +5,11 @@ This module provides comprehensive test reporting functionality including:
 - Test result data structures
 - Output parsing from Unity test framework
 - Multiple report format generation (JSON, HTML, Markdown)
-- Report storage and retrieval
 """
 
 from helia_core_tester.reporting.models import TestResult, TestReport, DescriptorResult, TestStatus
 from helia_core_tester.reporting.parser import TestResultParser
 from helia_core_tester.reporting.generator import ReportGenerator
-from helia_core_tester.reporting.storage import ReportStorage
 from helia_core_tester.reporting.descriptor_tracker import DescriptorTracker
 
 __all__ = [
@@ -21,6 +19,5 @@ __all__ = [
     "TestStatus",
     "TestResultParser",
     "ReportGenerator",
-    "ReportStorage",
     "DescriptorTracker"
 ]

@@ -234,8 +234,6 @@ def full(
         report_dir=report_dir,
     )
     
-    logger = setup_logger(verbosity=config.verbosity)
-    
     pipeline = FullTestPipeline(config)
     if config.plan:
         pipeline.print_plan()

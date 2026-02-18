@@ -49,10 +49,8 @@ class RunnersStep(StepBase):
         if self.config.verbosity >= 1:
             self.logger.info("Generating Unity test runners for all test directories")
         script_path = self._script_path()
-        model_headers = list(self.config.generated_tests_dir.rglob("includes/*_model.h"))
-        template_headers = list(self.config.generated_tests_dir.rglob("includes/*.h"))
-        all_headers = list(set(model_headers + template_headers))
-        if not all_headers:
+        model_headers = list(self.config.generated_tests_dir.rglob("includes/*_test_case.h"))
+        if not model_headers:
             if self.config.verbosity >= 1:
                 self.logger.warning("No model headers found - test runners will be generated after conversion")
             return StepResult(
@@ -74,7 +72,7 @@ class RunnersStep(StepBase):
                 status=StepStatus.SUCCESS,
                 message="Test runners generated successfully",
                 outputs={"generated_tests_dir": str(self.config.generated_tests_dir)},
-                details={"command": cmd, "headers_found": len(all_headers)},
+                details={"command": cmd, "headers_found": len(model_headers)},
             )
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             error_msg = f"Failed to generate test runners: {e}"

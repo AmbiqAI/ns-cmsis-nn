@@ -25,14 +25,13 @@ from __future__ import annotations
 import argparse
 import os
 import platform
-import re
 import shutil
 import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 # Import reporting and discovery (package imports only)
 from helia_core_tester.core.discovery import (
@@ -358,84 +357,6 @@ def run_fvp_with_reporting(fvp_exe: Path, elf: Path, timeout: float, verbosity: 
                 print("=" * 60)
     
     return result
-
-
-def run_fvp(fvp_exe: Path, elf: Path, timeout: float, verbosity: int, extra_args: List[str], env: dict) -> bool:
-    args = [
-        str(fvp_exe),
-        "-C", "mps3_board.uart0.shutdown_on_eot=1",
-        "-C", "mps3_board.visualisation.disable-visualisation=1",
-        "-C", "mps3_board.telnetterminal0.start_telnet=0",
-        "-C", "mps3_board.uart0.out_file=-",
-        "-C", "mps3_board.uart0.unbuffered_output=1",
-    ] + extra_args + [str(elf)]
-    if verbosity >= 2:
-        print(f"Run: {' '.join(args)}")
-    try:
-        proc = subprocess.run(
-            args,
-            cwd=str(repo_root),
-            env=env,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            timeout=None if timeout <= 0 else timeout,
-        )
-    except subprocess.TimeoutExpired:
-        print(f"TIMEOUT running {elf}", file=sys.stderr)
-        return False
-
-    out = proc.stdout or ""
-    # Use regex for exact "0 Failures" match (not substring)
-    zero_failures_pattern = re.compile(r'^0\s+Failures\s*$', re.MULTILINE | re.IGNORECASE)
-    success = bool(zero_failures_pattern.search(out))
-    
-    if not success:
-        # Always show failures
-        print(f"FAIL: {elf}")
-        if verbosity >= 1:
-            print("=" * 60)
-            print("FAILURE DETAILS:")
-            print("=" * 60)
-        # Extract relevant failure information
-        lines = out.split('\n')
-        failure_lines = []
-        in_failure_section = False
-        
-        for line in lines:
-            if any(keyword in line.lower() for keyword in ['fail', 'error', 'assert', 'test']):
-                in_failure_section = True
-                failure_lines.append(line)
-            elif in_failure_section and line.strip():
-                failure_lines.append(line)
-            elif in_failure_section and not line.strip():
-                # Empty line might end failure section, but continue for a few more lines
-                failure_lines.append(line)
-            elif in_failure_section and len(failure_lines) > 20:
-                # Limit output to prevent spam
-                failure_lines.append("... (truncated)")
-                break
-        
-        if verbosity >= 1:
-            max_lines = 20 if verbosity < 3 else len(failure_lines)
-            if failure_lines:
-                for line in failure_lines[:max_lines]:
-                    print(line)
-                if len(failure_lines) > max_lines and verbosity < 3:
-                    print("... (truncated)")
-            else:
-                # If no specific failure lines found, show last 20 lines
-                if verbosity >= 2:
-                    print("Last 20 lines of output:")
-                    for line in lines[-20:]:
-                        print(line)
-            print("=" * 60)
-    elif verbosity >= 1:
-        sys.stdout.write(out)
-        sys.stdout.flush()
-    
-    return success
-
 
 def parse_cpus(cpu_str: str) -> List[str]:
     return [c.strip() for c in cpu_str.split(",") if c.strip()]

@@ -2,7 +2,7 @@
 DepthwiseConv2D operation implementation.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 from pathlib import Path
 import numpy as np
 import tensorflow as tf

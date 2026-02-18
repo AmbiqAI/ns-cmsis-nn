@@ -106,9 +106,32 @@ class OpSqueeze(OperationBase):
         model, subgraph = self.load_litert_model(str(tflite_path))
         op_tensors = get_operator_tensors_from_litert(model, subgraph, 0)
         
-        # Extract shapes from LiteRT
-        input_shape = op_tensors['inputs'][0]['shape']
-        output_shape = op_tensors['outputs'][0]['shape']
+        # Extract shapes from LiteRT.
+        # Prefer subgraph I/O tensors to avoid selecting a shape/axes tensor.
+        input_shape = None
+        output_shape = None
+        subgraph_input_indices = set(subgraph.inputs or [])
+        subgraph_output_indices = set(subgraph.outputs or [])
+
+        for input_tensor_info in op_tensors['inputs']:
+            tensor_idx = input_tensor_info.get('index', -1)
+            tensor_shape = input_tensor_info.get('shape')
+            if tensor_idx in subgraph_input_indices:
+                input_shape = tensor_shape
+                break
+
+        if input_shape is None and op_tensors['inputs']:
+            input_shape = op_tensors['inputs'][0]['shape']
+
+        for output_tensor_info in op_tensors['outputs']:
+            tensor_idx = output_tensor_info.get('index', -1)
+            tensor_shape = output_tensor_info.get('shape')
+            if tensor_idx in subgraph_output_indices:
+                output_shape = tensor_shape
+                break
+
+        if output_shape is None and op_tensors['outputs']:
+            output_shape = op_tensors['outputs'][0]['shape']
         
         # Ensure shapes are tuples
         if input_shape is not None:
@@ -133,8 +156,13 @@ class OpSqueeze(OperationBase):
         
         self.rng.__setstate__(rng_state)
         
-        # Extract quantization from LiteRT
+        # Extract quantization from LiteRT (match the selected input tensor)
         input_quant = op_tensors['inputs'][0]['quantization']
+        for input_tensor_info in op_tensors['inputs']:
+            tensor_idx = input_tensor_info.get('index', -1)
+            if tensor_idx in subgraph_input_indices:
+                input_quant = input_tensor_info['quantization']
+                break
         input_scale = input_quant.get('scale', 1.0)
         input_zp = input_quant.get('zero_point', 0)
         
