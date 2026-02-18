@@ -393,8 +393,8 @@ def run_tests_with_reporting(cpus: List[str],
     report_dir = getattr(args, 'report_dir', ARTIFACTS_DIR / "reports")
     
     # Clean up previous build directories (only if we're going to build)
-    # If --no-build is set, keep the existing build directory
-    if not args.no_build:
+    # If --no-build or --no-clean-build is set, keep the existing build directory
+    if not args.no_build and not args.no_clean_build:
         for cpu in cpus:
             build_dir = find_build_dir(cpu, source_dir)
             if build_dir.exists():
@@ -630,6 +630,7 @@ def main(argv: List[str]) -> int:
                    help="Output verbosity level (0=minimal, 1=progress, 2=commands, 3=debug)")
     ap.add_argument("-b", "--no-build", action="store_true", help="Skip build (only run)")
     ap.add_argument("-r", "--no-run", action="store_true", help="Skip run (only build)")
+    ap.add_argument("--no-clean-build", action="store_true", help="Do not delete existing build directories before build")
     ap.add_argument("-e", "--no-setup", action="store_true", help="Skip dependency setup")
     ap.add_argument("-a", "--use-arm-compiler", action="store_true", help="Use Arm Compiler (default: GCC)")
     ap.add_argument("-p", "--no-venv", action="store_true", help="(Kept for parity; no effect on CMake build)")

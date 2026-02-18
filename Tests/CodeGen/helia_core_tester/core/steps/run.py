@@ -77,13 +77,11 @@ class RunStep(StepBase):
                 self.logger.info(f"Running command: {' '.join(cmd)}")
                 self.logger.info("=" * 60)
             
-            # Use subprocess.run directly for better output handling
-            result = subprocess.run(
+            run_command(
                 cmd,
                 cwd=self.config.project_root,
-                check=True,
-                text=True,
-                bufsize=1,
+                verbosity=self.config.verbosity,
+                stream_output=True
             )
             
             if self.config.verbosity >= 2:

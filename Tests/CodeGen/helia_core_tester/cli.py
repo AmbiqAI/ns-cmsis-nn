@@ -16,7 +16,6 @@ from helia_core_tester.core.logging import setup_logger
 from helia_core_tester.core.pipeline import FullTestPipeline
 from helia_core_tester.core.steps import (
     GenerateStep,
-    RunnersStep,
     BuildStep,
     RunStep,
     CleanStep,
@@ -84,6 +83,7 @@ def generate(
     name: Optional[str] = typer.Option(None, help="Generate only specific test by name"),
     limit: Optional[int] = typer.Option(None, help="Limit number of models to generate"),
     seed: Optional[int] = typer.Option(500, help="Random seed for test generation"),
+    no_clean_generated: bool = typer.Option(False, "--no-clean-generated", help="Keep existing generated tests"),
     cpu: str = typer.Option("cortex-m55", help="Target CPU"),
     verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
@@ -94,6 +94,7 @@ def generate(
     config = get_config(
         cpu=cpu, verbosity=verbosity, dry_run=dry_run, plan=plan, project_root=project_root,
         op_filter=op, dtype_filter=dtype, name_filter=name, limit=limit, seed=seed,
+        clean_generated_tests=not no_clean_generated,
     )
     if config.plan:
         plan_item = GenerateStep(config).plan()
@@ -106,25 +107,6 @@ def generate(
     )
 
 
-@app.command()
-def runners(
-    cpu: str = typer.Option("cortex-m55", help="Target CPU"),
-    verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
-    plan: bool = typer.Option(False, "--plan", help="Print execution plan and exit"),
-    project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
-):
-    """Generate Unity test runners."""
-    config = get_config(cpu=cpu, verbosity=verbosity, dry_run=dry_run, plan=plan, project_root=project_root)
-    if config.plan:
-        plan_item = RunnersStep(config).plan()
-        _print_plan_item(plan_item)
-        sys.exit(0)
-    run_step_exit(
-        RunnersStep(config), config,
-        "✓ Test runners generated successfully",
-        failure_prefix="Runner generation failed",
-    )
 
 
 @app.command()
@@ -132,6 +114,7 @@ def build(
     cpu: str = typer.Option("cortex-m55", help="Target CPU"),
     opt: str = typer.Option("-Ofast", help="Optimization level"),
     jobs: Optional[int] = typer.Option(None, help="Parallel build jobs"),
+    no_clean_build: bool = typer.Option(False, "--no-clean-build", help="Keep existing build directory"),
     verbosity: int = typer.Option(0, "--verbosity", "-v", help="Verbosity level (0-3)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done"),
     plan: bool = typer.Option(False, "--plan", help="Print execution plan and exit"),
@@ -140,7 +123,7 @@ def build(
     """Build test executables using CMake."""
     config = get_config(
         cpu=cpu, verbosity=verbosity, dry_run=dry_run, plan=plan, project_root=project_root,
-        optimization=opt, jobs=jobs,
+        optimization=opt, jobs=jobs, clean_build=not no_clean_build,
     )
     if config.plan:
         plan_item = BuildStep(config).plan()
@@ -193,11 +176,12 @@ def full(
     cpu: str = typer.Option("cortex-m55", help="Target CPU"),
     opt: str = typer.Option("-Ofast", help="Optimization level"),
     jobs: Optional[int] = typer.Option(None, help="Parallel build jobs"),
+    no_clean_generated: bool = typer.Option(False, "--no-clean-generated", help="Keep existing generated tests"),
+    no_clean_build: bool = typer.Option(False, "--no-clean-build", help="Keep existing build directory"),
     timeout: float = typer.Option(0.0, help="Per-test timeout in seconds (0 = none)"),
     no_fail_fast: bool = typer.Option(False, "--no-fail-fast", help="Don't stop on first failure"),
     skip_generation: bool = typer.Option(False, "--skip-generation", help="Skip TFLite generation"),
     skip_conversion: bool = typer.Option(False, "--skip-conversion", help="Skip TFLite to C conversion"),
-    skip_runners: bool = typer.Option(False, "--skip-runners", help="Skip test runner generation"),
     skip_build: bool = typer.Option(False, "--skip-build", help="Skip FVP build"),
     skip_run: bool = typer.Option(False, "--skip-run", help="Skip FVP test execution"),
     no_report: bool = typer.Option(False, "--no-report", help="Disable test reporting"),
@@ -208,7 +192,7 @@ def full(
     plan: bool = typer.Option(False, "--plan", help="Print execution plan and exit"),
     project_root: Optional[Path] = typer.Option(None, "--repo-root", help="Repository root directory"),
 ):
-    """Run the complete pipeline (generate → runners → build → run)."""
+    """Run the complete pipeline (generate → build → run)."""
     config = get_config(
         cpu=cpu,
         verbosity=verbosity,
@@ -222,11 +206,12 @@ def full(
         seed=seed,
         optimization=opt,
         jobs=jobs,
+        clean_generated_tests=not no_clean_generated,
+        clean_build=not no_clean_build,
         timeout=timeout,
         fail_fast=not no_fail_fast,
         skip_generation=skip_generation,
         skip_conversion=skip_conversion,
-        skip_runners=skip_runners,
         skip_build=skip_build,
         skip_run=skip_run,
         enable_reporting=not no_report,

@@ -45,6 +45,8 @@ class GenerateStep(StepBase):
             cmd.extend(["--limit", str(self.config.limit)])
         if include_seed and self.config.seed is not None:
             cmd.extend(["--seed", str(self.config.seed)])
+        if not self.config.clean_generated_tests:
+            cmd.append("--no-clean-generated")
         return cmd
     
     def _do_execute(self) -> StepResult:

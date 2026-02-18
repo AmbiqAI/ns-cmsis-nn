@@ -11,11 +11,13 @@ from helia_core_tester.core.logging import get_logger
 
 
 def run_command(
-    cmd: List[str], 
-    cwd: Optional[Path] = None, 
-    check: bool = True, 
-    capture_output: bool = False, 
-    verbosity: int = 0
+    cmd: List[str],
+    cwd: Optional[Path] = None,
+    check: bool = True,
+    capture_output: bool = False,
+    verbosity: int = 0,
+    env: Optional[dict] = None,
+    stream_output: bool = False
 ) -> subprocess.CompletedProcess:
     """
     Run a command with proper error handling and output.
@@ -26,6 +28,8 @@ def run_command(
         check: Whether to raise exception on non-zero exit code
         capture_output: Whether to capture stdout/stderr
         verbosity: Verbosity level (0=minimal, 1=progress, 2=commands, 3=debug)
+        env: Optional environment variables dict
+        stream_output: If True, stream subprocess output directly to the console
         
     Returns:
         CompletedProcess object
@@ -53,18 +57,28 @@ def run_command(
             logger.info(f"Directory: {cwd}")
     
     try:
-        result = subprocess.run(
-            cmd,
-            cwd=cwd,
-            check=check,
-            capture_output=capture_output or not show_output,  # Capture output if not showing or explicitly requested
-            text=True
-        )
+        if stream_output:
+            result = subprocess.run(
+                cmd,
+                cwd=cwd,
+                check=check,
+                env=env,
+                text=True
+            )
+        else:
+            result = subprocess.run(
+                cmd,
+                cwd=cwd,
+                check=check,
+                env=env,
+                capture_output=capture_output or not show_output,  # Capture output if not showing or explicitly requested
+                text=True
+            )
         
         # Print output at verbosity 2+
-        if show_output and result.stdout and not capture_output:
+        if show_output and result.stdout and not capture_output and not stream_output:
             print(result.stdout, end='')
-        if show_output and result.stderr and not capture_output:
+        if show_output and result.stderr and not capture_output and not stream_output:
             print(result.stderr, end='', file=sys.stderr)
         
         return result

@@ -22,21 +22,24 @@ def pytest_addoption(parser):
                     help="Limit number of tests to run")
     parser.addoption("--seed", action="store", type=int, default=500,
                     help="Random seed for test generation")
+    parser.addoption("--no-clean-generated", action="store_true", default=False,
+                    help="Do not clean generated_tests directory before generation")
 
 
 def pytest_configure(config):
     """Configure pytest with custom options."""
-    # Clean generated tests directory before running
+    # Clean generated tests directory before running (unless disabled)
+    no_clean = config.getoption("--no-clean-generated")
     generated_tests_dir = find_generated_tests_dir(create=False)
-    
-    if generated_tests_dir.exists():
+
+    if generated_tests_dir.exists() and not no_clean:
         print(f"\nCleaning existing generated tests directory...")
         try:
             # Count existing files before deletion
             existing_count = sum(1 for _ in generated_tests_dir.rglob("*.tflite"))
             if existing_count > 0:
                 print(f"   Removing {existing_count} existing TFLite model(s)")
-            
+
             shutil.rmtree(generated_tests_dir)
             print(f"Directory cleaned")
         except OSError as e:
@@ -48,10 +51,11 @@ def pytest_configure(config):
                 elif item.is_dir():
                     shutil.rmtree(item)
             print(f"   Individual files removed")
-    
-    # Create fresh directory
+
+    # Ensure directory exists
     generated_tests_dir.mkdir(exist_ok=True)
-    print(f"Created generated tests directory\n")
+    if not no_clean:
+        print(f"Created generated tests directory\n")
 
 
 @pytest.fixture

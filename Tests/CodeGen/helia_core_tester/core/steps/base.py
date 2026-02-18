@@ -56,7 +56,6 @@ class StepBase(ABC):
     
     Each step represents a single operation in the test pipeline:
     - generate: TFLite model generation
-    - runners: Unity test runner generation
     - build: CMake build
     - run: FVP execution
     - clean: Cleanup

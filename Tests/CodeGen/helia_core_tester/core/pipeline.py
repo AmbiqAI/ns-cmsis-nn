@@ -10,7 +10,6 @@ from helia_core_tester.core.config import Config
 from helia_core_tester.core.logging import get_logger
 from helia_core_tester.core.steps import (
     GenerateStep,
-    RunnersStep,
     BuildStep,
     RunStep,
     CleanStep,
@@ -54,9 +53,8 @@ class FullTestPipeline:
         
         The pipeline executes steps in order:
         1. Generate TFLite models (if not skipped)
-        2. Generate Unity test runners (if not skipped, after conversion check)
-        3. Build FVP executables (if not skipped)
-        4. Run tests on FVP (if not skipped)
+        2. Build FVP executables (if not skipped)
+        3. Run tests on FVP (if not skipped)
         
         Returns:
             True if all steps succeeded, False otherwise
@@ -92,32 +90,6 @@ class FullTestPipeline:
                     self.logger.info("Conversion step: C files are generated via templates during generation")
                 else:
                     self.logger.info("Skipping TFLite to C conversion")
-
-            runners_generated = False
-            if self.config.skip_runners:
-                if self.config.verbosity >= 1:
-                    self.logger.info("Skipping test runner generation")
-            elif overall_success:
-                success, stop = _run_step(
-                    RunnersStep(self.config), self.logger,
-                    self.config.verbosity, self.config.fail_fast
-                )
-                runners_generated = success
-                overall_success = success
-                if stop:
-                    return False
-
-            if not runners_generated and not self.config.skip_runners and overall_success and not self.config.skip_conversion:
-                if self.config.verbosity >= 1:
-                    self.logger.info("Attempting to generate test runners after conversion...")
-                success, stop = _run_step(
-                    RunnersStep(self.config), self.logger,
-                    self.config.verbosity, self.config.fail_fast
-                )
-                if not success:
-                    overall_success = False
-                if stop:
-                    return False
 
             if self.config.skip_build:
                 if self.config.verbosity >= 1:
@@ -177,22 +149,6 @@ class FullTestPipeline:
                     outputs={"generated_tests_dir": str(self.config.generated_tests_dir)},
                 )
             )
-
-        if self.config.skip_runners:
-            plans.append(StepPlan(name="runners", will_run=False, reason="skipped by config"))
-        else:
-            plans.append(RunnersStep(self.config).plan())
-            if not self.config.skip_conversion:
-                plans.append(
-                    StepPlan(
-                        name="runners (post-conversion)",
-                        will_run=True,
-                        reason="retry if headers were missing before conversion",
-                        commands=[],
-                        outputs={"generated_tests_dir": str(self.config.generated_tests_dir)},
-                        details={"retry": True},
-                    )
-                )
 
         if self.config.skip_build:
             plans.append(StepPlan(name="build", will_run=False, reason="skipped by config"))

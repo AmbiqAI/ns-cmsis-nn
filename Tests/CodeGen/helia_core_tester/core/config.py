@@ -62,6 +62,10 @@ class Config:
     skip_runners: bool = False
     skip_build: bool = False
     skip_run: bool = False
+
+    # Cleanup options
+    clean_generated_tests: bool = True
+    clean_build: bool = True
     
     # Reporting configuration
     enable_reporting: bool = True
@@ -183,6 +187,8 @@ class Config:
             "skip_runners": self.skip_runners,
             "skip_build": self.skip_build,
             "skip_run": self.skip_run,
+            "clean_generated_tests": self.clean_generated_tests,
+            "clean_build": self.clean_build,
             "enable_reporting": self.enable_reporting,
             "report_formats": self.report_formats,
             "report_dir": str(self.report_dir),

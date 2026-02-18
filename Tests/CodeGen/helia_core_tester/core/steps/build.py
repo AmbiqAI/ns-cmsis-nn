@@ -46,6 +46,8 @@ class BuildStep(StepBase):
             "--cmake-def", f"CMSIS_OPTIMIZATION_LEVEL={self.config.optimization}",
             "--no-run",
         ]
+        if not self.config.clean_build:
+            cmd.append("--no-clean-build")
         
         if self.config.jobs:
             cmd.extend(["--jobs", str(self.config.jobs)])
@@ -60,7 +62,12 @@ class BuildStep(StepBase):
             if self.config.verbosity >= 2:
                 self.logger.info(f"Running command: {' '.join(cmd)}")
             
-            run_command(cmd, cwd=self.config.project_root, verbosity=self.config.verbosity)
+            run_command(
+                cmd,
+                cwd=self.config.project_root,
+                verbosity=self.config.verbosity,
+                capture_output=True
+            )
             
             if self.config.verbosity >= 1:
                 self.logger.info(f"Successfully built for {self.config.cpu}")
@@ -75,22 +82,6 @@ class BuildStep(StepBase):
         except subprocess.CalledProcessError as e:
             error_msg = f"Failed to build for FVP (exit code {e.returncode})"
             self.logger.error(error_msg)
-            
-            # Try to capture more error details
-            try:
-                result = subprocess.run(
-                    cmd,
-                    cwd=self.config.project_root,
-                    capture_output=True,
-                    text=True,
-                    check=False
-                )
-                if result.stdout:
-                    self.logger.error(f"stdout: {result.stdout}")
-                if result.stderr:
-                    self.logger.error(f"stderr: {result.stderr}")
-            except Exception:
-                pass
             
             return StepResult(
                 name=self.name,
@@ -122,6 +113,8 @@ class BuildStep(StepBase):
             "--cmake-def", f"CMSIS_OPTIMIZATION_LEVEL={self.config.optimization}",
             "--no-run",
         ]
+        if not self.config.clean_build:
+            cmd_preview.append("--no-clean-build")
         if self.config.jobs:
             cmd_preview.extend(["--jobs", str(self.config.jobs)])
         
@@ -139,6 +132,8 @@ class BuildStep(StepBase):
             "--cmake-def", f"CMSIS_OPTIMIZATION_LEVEL={self.config.optimization}",
             "--no-run",
         ]
+        if not self.config.clean_build:
+            cmd.append("--no-clean-build")
         if self.config.jobs:
             cmd.extend(["--jobs", str(self.config.jobs)])
         if self.config.verbosity <= 1:
