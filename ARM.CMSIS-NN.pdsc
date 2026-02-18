@@ -90,6 +90,7 @@
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8_z.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s16.c"/>
+        <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s32.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_split_s8.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_split_s16.c"/>
 
@@ -140,6 +141,9 @@
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_minimum_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_abs_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_abs_s16.c"/>
+
         <file category="source" name="Source/ComparisonFunctions/arm_comparison_s8.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_comparison_s16.c"/>
 

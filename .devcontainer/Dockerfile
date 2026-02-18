@@ -1,4 +1,4 @@
-FROM python:3.10-bullseye as ns-cmsis-nn-ci
+FROM python:3.10-bookworm as ns-cmsis-nn-ci
 
 RUN apt-get update
 
