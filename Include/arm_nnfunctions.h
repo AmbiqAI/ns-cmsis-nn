@@ -2401,6 +2401,57 @@ arm_cmsis_nn_status arm_abs_s16(const int16_t *input,
                                const int32_t block_size);
 
 /**
+ * @brief s16 elementwise square root
+ * @param[in]       input               pointer to input vector
+ * @param[in]       input_offset        input offset
+ * @param[out]      output              pointer to output vector
+ * @param[in]       out_offset          output offset
+ * @param[in]       out_mult            output multiplier
+ * @param[in]       out_shift           output shift
+ * @param[in]       needs_rescale       indicates if output requantization is needed
+ * @param[in]       out_activation_min  minimum value to clamp output to. Min: -32768
+ * @param[in]       out_activation_max  maximum value to clamp output to. Max: 32767
+ * @param[in]       block_size          number of samples
+ * @return          The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_sqrt_s16(const int16_t *input,
+                               const int32_t input_offset,
+                               int16_t *output,
+                               const int32_t out_offset,
+                               const int32_t out_mult,
+                               const int32_t out_shift,
+                               const bool needs_rescale,
+                               const int32_t out_activation_min,
+                               const int32_t out_activation_max,
+                               const int32_t block_size);
+
+/**
+ * @brief s16 elementwise reciprocal square root
+ * @param[in]       input               pointer to input vector
+ * @param[in]       input_offset        input offset
+ * @param[out]      output              pointer to output vector
+ * @param[in]       out_offset          output offset
+ * @param[in]       out_mult            output multiplier
+ * @param[in]       out_shift           output shift
+ * @param[in]       needs_rescale       indicates if output requantization is needed
+ * @param[in]       out_activation_min  minimum value to clamp output to. Min: -32768
+ * @param[in]       out_activation_max  maximum value to clamp output to. Max: 32767
+ * @param[in]       block_size          number of samples
+ * @return          The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_rsqrt_s16(const int16_t *input,
+                                 const int32_t input_offset,
+                                 int16_t *output,
+                                 const int32_t out_offset,
+                                 const int32_t out_mult,
+                                 const int32_t out_shift,
+                                 const bool needs_rescale,
+                                 const int32_t out_activation_min,
+                                 const int32_t out_activation_max,
+                                 const int32_t block_size);
+
+
+/**
  * @brief s8 elementwise subtraction of two tensors with support for broadcasting.
  * @param[in]       input1_data        pointer to input tensor 1
  * @param[in]       input1_dims        pointer to input tensor 1 dimensions
