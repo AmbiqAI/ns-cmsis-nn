@@ -19,7 +19,7 @@ import copy
 import tensorflow as tf
 import math
 
-import tf_keras as keras
+from Lib.keras_compat import keras
 
 
 class Op_transpose(Lib.op_utils.Op_type):

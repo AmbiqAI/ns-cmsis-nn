@@ -23,7 +23,7 @@ from tensorflow.lite.python.interpreter import OpResolverType
 from Lib.keras_compat import keras
 
 
-class Op_abs(Lib.op_utils.Op_type):
+class Op_sqrt(Lib.op_utils.Op_type):
 
     def get_shapes(params):
         shapes = {}
@@ -41,20 +41,26 @@ class Op_abs(Lib.op_utils.Op_type):
             params["width_1"],
             params["channel_1"]
         )
+        # Keep calibration samples in-domain for sqrt to avoid NaN-driven fallback.
+        shapes["representational_dataset_min"] = max(0, params.get("input_min", 0))
+        shapes["representational_dataset_max"] = max(
+            shapes["representational_dataset_min"] + 1,
+            params.get("input_max", 127)
+        )
 
         shapes["different_in_shapes"] = False
 
         return shapes
 
-
     def generate_keras_model(shapes, params):
-        tf.keras.backend.clear_session()
-
-        input_1 = keras.layers.Input(batch_input_shape=shapes["input_tensor"])
-        layer = tf.math.abs(input_1)
+        # Keep Keras model in float domain and rely on TFLite PTQ for int8 IO quantization.
+        input_1 = keras.layers.Input(batch_input_shape=shapes["input_tensor"], dtype=tf.float32)
+        if hasattr(keras, "ops") and hasattr(keras.ops, "sqrt"):
+            layer = keras.ops.sqrt(input_1)
+        else:
+            layer = keras.layers.Lambda(lambda x: tf.math.sqrt(x))(input_1)
         model = keras.Model([input_1], [layer])
         return model
-
 
     def generate_data_tflite(tflite_fname, params):
         tensors = {}
@@ -72,16 +78,12 @@ class Op_abs(Lib.op_utils.Op_type):
 
         input_dtype_str = params["input_data_type"]
         input_dtype_tf = Lib.op_utils.get_tf_dtype(input_dtype_str)
+        if input_dtype_tf != tf.int8:
+            raise ValueError("Op_sqrt currently supports int8_t test generation only")
 
-        if input_dtype_tf == tf.float32:
-            random_data = np.random.uniform(-1.0, 1.0, size=input_shape).astype(np.float32)
-        elif input_dtype_tf == tf.int8:
-            random_data = np.random.randint(-128, 128, size=input_shape).astype(np.int8)
-        elif input_dtype_tf == tf.int16:
-            random_data = np.random.randint(-32768, 32768, size=input_shape).astype(np.int16)
-        else:
-            raise ValueError(f"Unsupported input dtype: {input_dtype_tf}")
-
+        input_min = params.get("input_min", 0)
+        input_max = params.get("input_max", 127)
+        random_data = np.random.randint(input_min, input_max + 1, size=input_shape).astype(np.int8)
         tensors["input_tensor"] = random_data
 
         interpreter = Interpreter(
@@ -90,38 +92,30 @@ class Op_abs(Lib.op_utils.Op_type):
         )
         interpreter.allocate_tensors()
 
-        input_details = interpreter.get_input_details()
-        (input_scale, input_zero_point) = input_details[0]['quantization']
-        scales["input_scale"] = input_scale
-        scales["input_zero_point"] = input_zero_point
-        generated_params["input_offset"] = input_zero_point
+        input_details = interpreter.get_input_details()[0]
+        output_details = interpreter.get_output_details()[0]
+        input_index = input_details["index"]
+        output_index = output_details["index"]
+        input_scale, input_zero_point = input_details["quantization"]
+        output_scale, output_zero_point = output_details["quantization"]
 
-        output_details = interpreter.get_output_details()
-        (output_scale, output_zero_point) = output_details[0]['quantization']
-        scales["output_scale"] = output_scale
-        scales["output_zero_point"] = output_zero_point
-        generated_params["output_offset"] = output_zero_point
+        generated_params["in_dim"] = [
+            params["batch_size"],
+            params["height_1"],
+            params["width_1"],
+            params["channel_1"]
+        ]
+        generated_params["output_len"] = int(np.prod(output_details["shape"]))
+        generated_params["input_scale"] = float(input_scale)
+        generated_params["input_zero_point"] = int(input_zero_point)
+        generated_params["output_scale"] = float(output_scale)
+        generated_params["output_zero_point"] = int(output_zero_point)
 
-        needs_rescale = abs(float(input_scale) - float(output_scale)) > 1e-12
-        generated_params["needs_rescale"] = bool(needs_rescale)
-
-        multiplier = 1
-        shift = 0
-        if needs_rescale and output_scale != 0.0:
-            ratio = float(input_scale) / float(output_scale)
-            multiplier, shift = Lib.op_utils.compute_multiplier_shift(ratio)
-
-        generated_params["output_multiplier"] = int(multiplier)
-        generated_params["output_shift"] = int(shift)
-
-        output_dtype = params.get("output_data_type", params["input_data_type"])
-        generated_params["out_activation_min"] = Lib.op_utils.get_dtype_min(output_dtype)
-        generated_params["out_activation_max"] = Lib.op_utils.get_dtype_max(output_dtype)
-
-        out_shape = output_details[0]["shape"]
-        output_len = int(np.prod(out_shape))
-        generated_params["output_len"] = output_len
-        generated_params["block_size"] = output_len
+        # Run model on random input and capture output.
+        interpreter.set_tensor(input_index, random_data)
+        interpreter.invoke()
+        out_data = interpreter.get_tensor(output_index).astype(np.int8)
+        tensors["output"] = out_data
 
         return Lib.op_utils.Generated_data(
             generated_params,

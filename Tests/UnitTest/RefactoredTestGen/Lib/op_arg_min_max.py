@@ -17,7 +17,7 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.lite.python.interpreter import OpResolverType
-import tf_keras as keras
+from Lib.keras_compat import keras
 
 import Lib.op_utils
 

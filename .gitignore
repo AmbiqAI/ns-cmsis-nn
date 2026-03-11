@@ -20,3 +20,4 @@ __pycache__
 linkchecker-out.csv
 .vscode
 .DS_Store
+Tests/UnitTest/cmsis_nn_venv/*

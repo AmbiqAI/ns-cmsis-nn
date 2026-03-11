@@ -2373,7 +2373,18 @@ arm_cmsis_nn_status arm_abs_s8(const int8_t *input,
                                const int32_t out_activation_max,
                                const int32_t block_size);
 
-
+/**
+ * @brief s8 elementwise square root
+ * @param[in]       input               pointer to input vector
+ * @param[in]       input_dims          pointer to input tensor dimensions
+ * @param[out]      output              pointer to output vector
+ * @param[in]       sqrt_lut            pointer to 256-entry lookup table
+ * @return          The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_sqrt_s8(const int8_t *input,
+                                const cmsis_nn_dims *input_dims,
+                                int8_t *output,
+                                const int8_t *sqrt_lut);
 
 /**
  * @brief s16 elementwise absolute value

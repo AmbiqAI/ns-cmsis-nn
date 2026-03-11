@@ -11,7 +11,7 @@ import math
 import numpy as np
 import copy
 import tensorflow as tf
-import tf_keras as keras
+from Lib.keras_compat import keras
 import Lib.op_utils
 
 from tensorflow.lite.python.interpreter import Interpreter
