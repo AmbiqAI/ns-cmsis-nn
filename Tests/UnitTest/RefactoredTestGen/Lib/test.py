@@ -110,9 +110,8 @@ def generate(params, args, fpaths):
             bias_dtype = None
 
         effective_output_dtype = params.get("output_data_type", params["input_data_type"])
-        disable_quant_for_int32_io = (
-            params["input_data_type"] == "int32_t" and effective_output_dtype == "int32_t"
-        )
+        disable_quant_for_int32_io = (params["input_data_type"] == "int32_t" and
+                                      effective_output_dtype == "int32_t")
 
         if op_type == Lib.op_quantize.Op_quantize or op_type == Lib.op_dequantize.Op_dequantize:
             convert_keras_to_tflite(fpaths["tflite"],

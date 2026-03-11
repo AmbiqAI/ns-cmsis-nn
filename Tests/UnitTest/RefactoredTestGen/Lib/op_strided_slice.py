@@ -49,7 +49,10 @@ class Op_strided_slice(Lib.op_utils.Op_type):
     @staticmethod
     def generate_keras_model(shapes, params):
         inp_shape = shapes["input_tensor"]
-        x = keras.Input(shape=inp_shape[1:], batch_size=inp_shape[0], name="input")
+        if params["input_data_type"] == "int32_t":
+            x = keras.Input(shape=inp_shape[1:], batch_size=inp_shape[0], name="input", dtype=tf.int32)
+        else:
+            x = keras.Input(shape=inp_shape[1:], batch_size=inp_shape[0], name="input")
         y = tf.keras.layers.Lambda(
             lambda t: tf.strided_slice(
                 t,
@@ -75,11 +78,16 @@ class Op_strided_slice(Lib.op_utils.Op_type):
             params["input_w"],
             params["input_c"],
         )
+        input_dtype = params["input_data_type"]
+        input_np_dtype = Lib.op_utils.get_np_dtype(input_dtype)
+        input_max = Lib.op_utils.get_dtype_max(input_dtype)
+        dtype_info = np.iinfo(input_np_dtype)
+        high = input_max + 1 if input_max < dtype_info.max else input_max
         inp_data = np.random.randint(
             low=0,
-            high=127,
+            high=high,
             size=input_shape,
-            dtype=np.int8,
+            dtype=input_np_dtype,
         )
 
         # run the TFLite model
@@ -121,7 +129,6 @@ class Op_strided_slice(Lib.op_utils.Op_type):
         # tensors maps the names your C harness will expect
         tensors = {
             "input_tensor": inp_data,
-            "output_tensor": out_data,
         }
         scales = {}              # no quant here
         effective_scales = {}    # bare‐float testing

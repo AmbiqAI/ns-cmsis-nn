@@ -5334,6 +5334,29 @@ arm_cmsis_nn_status arm_strided_slice_s16(const int16_t *input_data,
                                           const cmsis_nn_dims *const output_dims);
 
 /**
+ * @brief Strided slice function for int32 data
+ *
+ * @param[in]   input_data         Pointer to input tensor
+ * @param[out]  output_data        Pointer to output tensor
+ * @param[in]   input_dims         Input tensor dimensions
+ * @param[in]   begin_dims         Begin dimensions for slicing
+ * @param[in]   stride_dims        Stride dimensions for slicing
+ * @param[in]   output_dims        Output tensor dimensions
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite Micro
+ *
+ */
+arm_cmsis_nn_status arm_strided_slice_s32(const int32_t *input_data,
+                                          int32_t *output_data,
+                                          const cmsis_nn_dims *const  input_dims,
+                                          const cmsis_nn_dims *const  begin_dims,
+                                          const cmsis_nn_dims *const  stride_dims,
+                                          const cmsis_nn_dims *const  output_dims);
+
+/**
  * @defgroup Gather Gather Functions:
  *
  */
