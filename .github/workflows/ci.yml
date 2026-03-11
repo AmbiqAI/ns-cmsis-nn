@@ -46,7 +46,7 @@ jobs:
       - name: Run helia-core-tester full pipeline with coverage and JUnit
         run: |
           cd Tests/helia-core-tester
-          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --coverage --report-formats json junit
+          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --coverage --report-formats junit
 
       - name: Run helia-core-tester gap check (cortex-m55 only)
         if: matrix.cpu == 'cortex-m55'
