@@ -61,6 +61,13 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cpu:
+          - cortex-m0
+          - cortex-m4
+          - cortex-m55
 
     steps:
       - name: Checkout repository
@@ -83,13 +90,77 @@ jobs:
           cd Tests/helia-core-tester
           ./scripts/setup_ci.sh
 
-      - name: Run helia-core-tester full pipeline with JUnit
+      - name: Run helia-core-tester full pipeline with coverage and JUnit
         run: |
           cd Tests/helia-core-tester
-          uv run helia_core_tester full --report-formats junit
+          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --coverage --report-formats json junit
 
-      # - name: Upload JUnit report
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: codegen-junit
-      #     path: Tests/CodeGen/artifacts/reports/junit.xml
+      - name: Run helia-core-tester gap check (cortex-m55 only)
+        if: matrix.cpu == 'cortex-m55'
+        run: |
+          cd Tests/helia-core-tester
+          uv run helia_core_tester gap-check --cpu cortex-m55 --report-dir artifacts/build-cortex-m55-gcc/reports
+
+      - name: Upload per-CPU reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ matrix.cpu }}
+          path: Tests/helia-core-tester/artifacts/build-${{ matrix.cpu }}-gcc/reports
+          if-no-files-found: error
+
+  coverage-merge-summary:
+    runs-on: ubuntu-latest
+    needs: codegen-tests
+    container:
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install and sync Python deps (helia-core-tester)
+        run: |
+          cd Tests/helia-core-tester
+          uv sync
+
+      - name: Download cortex-m0 reports
+        uses: actions/download-artifact@v4
+        with:
+          name: reports-cortex-m0
+          path: Tests/helia-core-tester/artifacts/build-cortex-m0-gcc/reports
+
+      - name: Download cortex-m4 reports
+        uses: actions/download-artifact@v4
+        with:
+          name: reports-cortex-m4
+          path: Tests/helia-core-tester/artifacts/build-cortex-m4-gcc/reports
+
+      - name: Download cortex-m55 reports
+        uses: actions/download-artifact@v4
+        with:
+          name: reports-cortex-m55
+          path: Tests/helia-core-tester/artifacts/build-cortex-m55-gcc/reports
+
+      - name: Run helia-core-tester coverage merge
+        run: |
+          cd Tests/helia-core-tester
+          uv run helia_core_tester coverage-merge --cpu cortex-m0,cortex-m4,cortex-m55
+
+      - name: Publish CPU coverage and test summary table
+        run: |
+          cd Tests/helia-core-tester
+          uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --summary-file "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload merged coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-merged
+          path: Tests/helia-core-tester/artifacts/reports/coverage-merged
+          if-no-files-found: error
