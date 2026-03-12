@@ -106,7 +106,7 @@ jobs:
       - name: Publish CPU coverage and test summary table
         run: |
           cd Tests/helia-core-tester
-          uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --summary-file "$GITHUB_STEP_SUMMARY"
+          uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --summary-file "$GITHUB_STEP_SUMMARY" --junit-file artifacts/reports/coverage-merged/cpu_coverage_summary.junit.xml
 
       - name: Upload merged coverage reports
         uses: actions/upload-artifact@v4
@@ -114,3 +114,25 @@ jobs:
           name: coverage-merged
           path: Tests/helia-core-tester/artifacts/reports/coverage-merged
           if-no-files-found: error
+
+  publish-cpu-summary-check:
+    runs-on: ubuntu-latest
+    needs: coverage-merge-summary
+    permissions:
+      contents: read
+      checks: write
+
+    steps:
+      - name: Download merged coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-merged
+          path: coverage-merged
+
+      - name: Publish CPU coverage summary (dorny)
+        uses: dorny/test-reporter@v2
+        with:
+          name: CPU Coverage/Test Summary
+          path: coverage-merged/cpu_coverage_summary.junit.xml
+          reporter: java-junit
+          fail-on-error: false
