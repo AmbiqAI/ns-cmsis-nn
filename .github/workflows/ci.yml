@@ -49,7 +49,7 @@ jobs:
       - name: Run helia-core-tester full pipeline with coverage and JUnit
         run: |
           cd Tests/helia-core-tester
-          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --coverage --report-formats junit --run-jobs 0 --verbosity 1
+          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --coverage --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
 
       - name: Upload per-CPU reports
         uses: actions/upload-artifact@v4
