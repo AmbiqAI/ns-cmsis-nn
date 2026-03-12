@@ -5622,6 +5622,42 @@ arm_cmsis_nn_status arm_fully_connected_fp16(const cmsis_nn_context *ctx,
 
 #endif /*defined(ARM_FLOAT16_SUPPORTED)*/
 
+
+/**
+ * @brief s16 reduce sum of a tensor along specified axes.
+ *
+ * @param[in]       input_data         pointer to input tensor
+ * @param[in]       input_zp           zero point for input tensor
+ * @param[in]       dims               pointer to input tensor dimensions
+ * @param[in]       num_dims           number of dimensions in the input tensor
+ * @param[in]       axes               pointer to the axes to reduce
+ * @param[in]       num_axes           number of axes to reduce
+ * @param[out]      output             pointer to output tensor
+ * @param[in]       out_offset         output offset
+ * @param[in]       out_mult           output multiplier
+ * @param[in]       out_shift          output shift
+ * @param[in]       out_activation_min minimum value to clamp output to
+ * @param[in]       out_activation_max maximum value to clamp output to
+ *
+ * @return     The function returns    ARM_CMSIS_NN_SUCCESS on success, 
+ * ARM_CMSIS_NN_ARG_ERROR if pointers are NULL
+ */
+arm_cmsis_nn_status arm_reduce_sum_s16(
+    const int16_t *input_data,
+    const int32_t input_zp,
+    const int* dims,
+    const int num_dims,
+    const int* axes,
+    const int num_axes,
+    int16_t *output,
+    const int32_t out_offset,
+    const int32_t out_mult,
+    const int32_t out_shift,
+    const int32_t out_activation_min,
+    const int32_t out_activation_max
+);
+
+
 #ifdef __cplusplus
 }
 #endif
