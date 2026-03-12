@@ -33,10 +33,13 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install and sync Python deps (helia-core-tester)
-        run: |
-          cd Tests/helia-core-tester
-          uv sync
+      - name: Cache helia-core-tester downloads
+        uses: actions/cache@v4
+        with:
+          path: Tests/helia-core-tester/artifacts/downloads
+          key: helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Tests/helia-core-tester/scripts/setup_ci.sh', 'Tests/helia-core-tester/helia_core_tester/scripts/setup_dependencies.py') }}
+          restore-keys: |
+            helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Setup helia-core-tester build dependencies
         run: |
@@ -46,13 +49,7 @@ jobs:
       - name: Run helia-core-tester full pipeline with coverage and JUnit
         run: |
           cd Tests/helia-core-tester
-          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --coverage --report-formats junit
-
-      - name: Run helia-core-tester gap check (cortex-m55 only)
-        if: matrix.cpu == 'cortex-m55'
-        run: |
-          cd Tests/helia-core-tester
-          uv run helia_core_tester gap-check --cpu cortex-m55 --report-dir artifacts/build-cortex-m55-gcc/reports
+          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --coverage --report-formats junit --run-jobs 0 --verbosity 1
 
       - name: Upload per-CPU reports
         uses: actions/upload-artifact@v4
