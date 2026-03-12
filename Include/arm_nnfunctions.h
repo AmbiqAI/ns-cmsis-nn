@@ -5624,39 +5624,35 @@ arm_cmsis_nn_status arm_fully_connected_fp16(const cmsis_nn_context *ctx,
 
 
 /**
- * @brief s16 reduce sum of a tensor along specified axes.
+ * @brief s16 reduce sum operator for quantized tensors.
  *
  * @param[in]       input_data         pointer to input tensor
- * @param[in]       input_zp           zero point for input tensor
- * @param[in]       dims               pointer to input tensor dimensions
- * @param[in]       num_dims           number of dimensions in the input tensor
- * @param[in]       axes               pointer to the axes to reduce
- * @param[in]       num_axes           number of axes to reduce
- * @param[out]      output             pointer to output tensor
- * @param[in]       out_offset         output offset
- * @param[in]       out_mult           output multiplier
- * @param[in]       out_shift          output shift
- * @param[in]       out_activation_min minimum value to clamp output to
- * @param[in]       out_activation_max maximum value to clamp output to
+ * @param[in]       input_dims         input tensor dimensions (4D NHWC)
+ * @param[in]       input_offset       zero-point offset for input
+ * @param[in]       axis_dims          4D binary axis mask (1 = reduce)
+ * @param[out]      output_data        pointer to output buffer
+ * @param[in]       output_dims        output tensor dimensions
+ * @param[in]       out_offset         zero-point offset for output
+ * @param[in]       out_mult           quantized multiplier
+ * @param[in]       out_shift          quantized shift
  *
- * @return     The function returns    ARM_CMSIS_NN_SUCCESS on success, 
- * ARM_CMSIS_NN_ARG_ERROR if pointers are NULL
+ * @return     The function returns    ARM_CMSIS_NN_SUCCESS on success
+ *
+ * @details This function reuses the highly optimized arm_mean_s16 kernel.
+ * In quantized networks, ReduceSum and Mean are identical operators
+ * where the only difference is the output scaling. Reusing the kernel
+ * ensures that Helium (MVE) acceleration and specialized dispatching
+ * logic (Flatten/Spatial) are applied to the sum operation.
  */
-arm_cmsis_nn_status arm_reduce_sum_s16(
-    const int16_t *input_data,
-    const int32_t input_zp,
-    const int* dims,
-    const int num_dims,
-    const int* axes,
-    const int num_axes,
-    int16_t *output,
-    const int32_t out_offset,
-    const int32_t out_mult,
-    const int32_t out_shift,
-    const int32_t out_activation_min,
-    const int32_t out_activation_max
-);
-
+arm_cmsis_nn_status arm_reduce_sum_s16(const int16_t *input_data,
+                                       const cmsis_nn_dims *input_dims,
+                                       const int32_t input_offset,
+                                       const cmsis_nn_dims *axis_dims,
+                                       int16_t *output_data,
+                                       const cmsis_nn_dims *output_dims,
+                                       const int32_t out_offset,
+                                       const int32_t out_mult,
+                                       const int32_t out_shift);
 
 #ifdef __cplusplus
 }
