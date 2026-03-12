@@ -55,7 +55,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: reports-${{ matrix.cpu }}
-          path: Tests/helia-core-tester/artifacts/build-${{ matrix.cpu }}-gcc/reports
+          path: Tests/helia-core-tester/artifacts/reports
           if-no-files-found: error
 
   coverage-merge-summary:
@@ -84,19 +84,19 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: reports-cortex-m0
-          path: Tests/helia-core-tester/artifacts/build-cortex-m0-gcc/reports
+          path: Tests/helia-core-tester/artifacts/reports
 
       - name: Download cortex-m4 reports
         uses: actions/download-artifact@v4
         with:
           name: reports-cortex-m4
-          path: Tests/helia-core-tester/artifacts/build-cortex-m4-gcc/reports
+          path: Tests/helia-core-tester/artifacts/reports
 
       - name: Download cortex-m55 reports
         uses: actions/download-artifact@v4
         with:
           name: reports-cortex-m55
-          path: Tests/helia-core-tester/artifacts/build-cortex-m55-gcc/reports
+          path: Tests/helia-core-tester/artifacts/reports
 
       - name: Run helia-core-tester coverage merge
         run: |
@@ -112,5 +112,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-merged
-          path: Tests/helia-core-tester/artifacts/reports/coverage-merged
+          path: Tests/helia-core-tester/artifacts/reports/coverage/merged
           if-no-files-found: error
