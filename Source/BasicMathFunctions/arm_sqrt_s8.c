@@ -40,10 +40,25 @@
 arm_cmsis_nn_status arm_sqrt_s8(const int8_t *input,
                                 const cmsis_nn_dims *input_dims,
                                 int8_t *output,
-                                const int8_t *sqrt_lut)
+                                int8_t *sqrt_lut)
 {
     const int32_t block_size = input_dims->n * input_dims->h * input_dims->w * input_dims->c;
 
+#if defined(ARM_MATH_MVEI)
+    int32_t loop_cnt = block_size;
+
+    while (loop_cnt > 0)
+    {
+        const mve_pred16_t p = vctp8q((uint32_t)loop_cnt);
+        const uint8x16_t lut_indices = (uint8x16_t)vldrbq_z_s8(input, p);
+        const int8x16_t out = vldrbq_gather_offset_z_s8(sqrt_lut, lut_indices, p);
+        vstrbq_p_s8(output, out, p);
+
+        input += 16;
+        output += 16;
+        loop_cnt -= 16;
+    }
+#else
     int32_t i = 0;
     for (; i <= (block_size - 4); i += 4)
     {
@@ -57,6 +72,7 @@ arm_cmsis_nn_status arm_sqrt_s8(const int8_t *input,
     {
         output[i] = sqrt_lut[(uint8_t)input[i]];
     }
+#endif
 
     return ARM_CMSIS_NN_SUCCESS;
 }

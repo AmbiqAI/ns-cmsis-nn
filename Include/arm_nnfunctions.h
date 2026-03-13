@@ -2384,7 +2384,7 @@ arm_cmsis_nn_status arm_abs_s8(const int8_t *input,
 arm_cmsis_nn_status arm_sqrt_s8(const int8_t *input,
                                 const cmsis_nn_dims *input_dims,
                                 int8_t *output,
-                                const int8_t *sqrt_lut);
+                                int8_t *sqrt_lut);
 
 /**
  * @brief s16 elementwise absolute value
