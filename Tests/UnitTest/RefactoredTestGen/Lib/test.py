@@ -469,7 +469,8 @@ def invoke_tflite_micro(tflite_path, input_tensor, arena_size=30000):
     interpreter = tflite_micro.runtime.Interpreter.from_file(model_path=str(tflite_path), arena_size=arena_size)
 
     for i, val in enumerate(input_tensor.values()):
-        expected_dtype = interpreter.get_input(i).dtype
+        input_details = interpreter.get_input_details(i)
+        expected_dtype = input_details["dtype"]
         if val.dtype != expected_dtype:
             val_to_set = val.astype(expected_dtype)
         else:

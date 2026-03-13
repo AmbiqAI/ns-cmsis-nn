@@ -56,6 +56,34 @@ arm_cmsis_nn_status arm_squared_difference_scalar_s16(const int16_t *input_1_vec
 {
     const int32_t scalar_value =
         arm_nn_requantize(((int32_t)input_1_vect[0] + input_1_offset) << left_shift, input_1_mult, input_1_shift);
+#if defined(ARM_MATH_MVEI)
+    int32_t loop_count = block_size;
+    const int32x4_t scalar_vec = vdupq_n_s32(scalar_value);
+
+    while (loop_count > 0)
+    {
+        const mve_pred16_t p = vctp32q((uint32_t)loop_count);
+
+        int32x4_t input_2 = vldrhq_z_s32(input_2_vect, p);
+        input_2 = vaddq_n_s32(input_2, input_2_offset);
+        input_2 = vshlq_r_s32(input_2, left_shift);
+        input_2 = arm_requantize_mve(input_2, input_2_mult, input_2_shift);
+
+        int32x4_t raw_diff = vsubq_s32(scalar_vec, input_2);
+        raw_diff = vmulq_s32(raw_diff, raw_diff);
+
+        raw_diff = arm_requantize_mve(raw_diff, out_mult, out_shift);
+        raw_diff = vaddq_n_s32(raw_diff, out_offset);
+        raw_diff = vmaxq_s32(raw_diff, vdupq_n_s32(out_activation_min));
+        raw_diff = vminq_s32(raw_diff, vdupq_n_s32(out_activation_max));
+
+        vstrhq_p_s32(output, raw_diff, p);
+
+        input_2_vect += 4;
+        output += 4;
+        loop_count -= 4;
+    }
+#else
     int32_t loop_count = block_size;
 
     while (loop_count > 0)
@@ -75,6 +103,7 @@ arm_cmsis_nn_status arm_squared_difference_scalar_s16(const int16_t *input_1_vec
         *output++ = (int16_t)output_value;
         loop_count--;
     }
+#endif
 
     return ARM_CMSIS_NN_SUCCESS;
 }

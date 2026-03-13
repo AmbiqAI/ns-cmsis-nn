@@ -31,23 +31,6 @@
  * @{
  */
 
-arm_cmsis_nn_status arm_squared_difference_scalar_s16(const int16_t *input_1_vect,
-                                                      const int16_t *input_2_vect,
-                                                      const int32_t input_1_offset,
-                                                      const int32_t input_1_mult,
-                                                      const int32_t input_1_shift,
-                                                      const int32_t input_2_offset,
-                                                      const int32_t input_2_mult,
-                                                      const int32_t input_2_shift,
-                                                      const int32_t left_shift,
-                                                      int16_t *output,
-                                                      const int32_t out_offset,
-                                                      const int32_t out_mult,
-                                                      const int32_t out_shift,
-                                                      const int32_t out_activation_min,
-                                                      const int32_t out_activation_max,
-                                                      const int32_t block_size);
-
 /*
  * s16 elementwise squared difference w/ support for broadcasting and scalar
  *
