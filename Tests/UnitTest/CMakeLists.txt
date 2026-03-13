@@ -166,6 +166,7 @@ add_subdirectory(TestCases/test_arm_resize_nearest_neighbor_s16)
 add_subdirectory(TestCases/test_arm_abs_s8)
 add_subdirectory(TestCases/test_arm_abs_s16)
 add_subdirectory(TestCases/test_arm_sqrt_s16)
+add_subdirectory(TestCases/test_arm_reduce_sum_s16)
 add_subdirectory(TestCases/test_arm_rsqrt_s16)
 
 set(MAKE_CMD "python3")
