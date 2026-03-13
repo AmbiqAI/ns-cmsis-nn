@@ -41,6 +41,7 @@ import Lib.op_reduce_max
 import Lib.op_reduce_min
 import Lib.op_comparisons
 import Lib.op_sub
+import Lib.op_squared_difference
 import Lib.op_arg_min_max
 import Lib.op_gather
 import Lib.op_gather_nd
@@ -310,6 +311,8 @@ def get_op_type(op_type_string):
         return Lib.op_comparisons.Op_comparisons
     elif op_type_string == "sub":
         return Lib.op_sub.Op_sub
+    elif op_type_string == "squared_difference":
+        return Lib.op_squared_difference.Op_squared_difference
     elif op_type_string == "arg_min_max":
         return Lib.op_arg_min_max.Op_arg_min_max
     elif op_type_string == "gather":
