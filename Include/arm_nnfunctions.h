@@ -2513,7 +2513,9 @@ arm_cmsis_nn_status arm_rsqrt_s16_universal(const int16_t *input,
  * @brief INT16 reciprocal square root using a per-operator LUT.
  *
  * @param[in]  input               Pointer to the input buffer.
- * @param[in]  input_offset        Input tensor zero offset.
+ * @param[in]  input_offset        Input tensor zero offset. The kernel evaluates
+ *                                 each element as `input - input_offset` before the
+ *                                 LUT lookup.
  * @param[out] output              Pointer to the output buffer.
  * @param[in]  out_offset          Output tensor zero offset.
  * @param[in]  out_activation_min  Minimum output clamp.
@@ -2535,7 +2537,9 @@ arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
  * @brief INT16 reciprocal square root using a shared universal LUT.
  *
  * @param[in]  input               Pointer to the input buffer.
- * @param[in]  input_offset        Input tensor zero offset.
+ * @param[in]  input_offset        Input tensor zero offset. The kernel evaluates
+ *                                 each element as `input - input_offset` before the
+ *                                 LUT lookup.
  * @param[out] output              Pointer to the output buffer.
  * @param[in]  out_offset          Output tensor zero offset.
  * @param[in]  out_mult            Output requantization multiplier.
