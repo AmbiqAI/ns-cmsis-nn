@@ -1,0 +1,111 @@
+name: Helia Core Tester
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  codegen-tests:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cpu:
+          - cortex-m0
+          - cortex-m4
+          - cortex-m55
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Cache helia-core-tester downloads
+        uses: actions/cache@v4
+        with:
+          path: Tests/helia-core-tester/artifacts/downloads
+          key: helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Tests/helia-core-tester/scripts/setup_ci.sh', 'Tests/helia-core-tester/helia_core_tester/scripts/setup_dependencies.py') }}
+          restore-keys: |
+            helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Setup helia-core-tester build dependencies
+        run: |
+          cd Tests/helia-core-tester
+          ./scripts/setup_ci.sh
+
+      - name: Run helia-core-tester full pipeline with coverage and JUnit
+        run: |
+          cd Tests/helia-core-tester
+          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --coverage --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
+
+      - name: Upload per-CPU reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ matrix.cpu }}
+          path: Tests/helia-core-tester/artifacts/reports
+          if-no-files-found: error
+
+  coverage-merge-summary:
+    runs-on: ubuntu-latest
+    needs: codegen-tests
+    container:
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install and sync Python deps (helia-core-tester)
+        run: |
+          cd Tests/helia-core-tester
+          uv sync
+
+      - name: Download cortex-m0 reports
+        uses: actions/download-artifact@v4
+        with:
+          name: reports-cortex-m0
+          path: Tests/helia-core-tester/artifacts/reports
+
+      - name: Download cortex-m4 reports
+        uses: actions/download-artifact@v4
+        with:
+          name: reports-cortex-m4
+          path: Tests/helia-core-tester/artifacts/reports
+
+      - name: Download cortex-m55 reports
+        uses: actions/download-artifact@v4
+        with:
+          name: reports-cortex-m55
+          path: Tests/helia-core-tester/artifacts/reports
+
+      - name: Run helia-core-tester coverage merge
+        run: |
+          cd Tests/helia-core-tester
+          uv run helia_core_tester coverage-merge --cpu cortex-m0,cortex-m4,cortex-m55
+
+      - name: Publish CPU coverage and test summary table
+        run: |
+          cd Tests/helia-core-tester
+          uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --summary-file "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload merged coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-merged
+          path: Tests/helia-core-tester/artifacts/reports/coverage/merged
+          if-no-files-found: error
