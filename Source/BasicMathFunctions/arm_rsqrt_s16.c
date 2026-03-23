@@ -157,7 +157,7 @@ static arm_cmsis_nn_status arm_rsqrt_s16_universal_core(const int16_t *input,
 
         for (size_t lane = 0; lane < 4; lane++)
         {
-            int32_t val = (int32_t) input[i + lane] + input_offset;
+            int32_t val = (int32_t) input[i + lane] - input_offset;
             if (val < 0)
             {
                 return ARM_CMSIS_NN_ARG_ERROR;
@@ -197,7 +197,7 @@ static arm_cmsis_nn_status arm_rsqrt_s16_universal_core(const int16_t *input,
     for (int32_t i = 0; i < block_size; i++)
     {
 #endif
-        int32_t val = (int32_t) input[i] + input_offset;
+        int32_t val = (int32_t) input[i] - input_offset;
         if (val < 0)
         {
             return ARM_CMSIS_NN_ARG_ERROR;
@@ -270,7 +270,7 @@ arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
 
         for (size_t lane = 0; lane < 4; lane++)
         {
-            int32_t value = (int32_t) input[i + lane] + input_offset;
+            int32_t value = (int32_t) input[i + lane] - input_offset;
             if (value < 0)
             {
                 return ARM_CMSIS_NN_ARG_ERROR;
@@ -321,7 +321,7 @@ arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
     for (int32_t i = 0; i < block_size; i++)
     {
 #endif
-        int32_t value = (int32_t) input[i] + input_offset;
+        int32_t value = (int32_t) input[i] - input_offset;
         if (value < 0)
         {
             return ARM_CMSIS_NN_ARG_ERROR;
