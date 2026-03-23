@@ -2412,6 +2412,56 @@ arm_cmsis_nn_status arm_abs_s16(const int16_t *input,
                                const int32_t block_size);
 
 /**
+ * @brief INT16 reciprocal square root using a per-operator LUT.
+ *
+ * @param[in]  input               Pointer to the input buffer.
+ * @param[in]  input_offset        Input tensor zero offset.
+ * @param[out] output              Pointer to the output buffer.
+ * @param[in]  out_offset          Output tensor zero offset.
+ * @param[in]  out_activation_min  Minimum output clamp.
+ * @param[in]  out_activation_max  Maximum output clamp.
+ * @param[in]  block_size          Number of elements.
+ * @param[in]  lut                 Pointer to a 513-entry INT16 LUT in output domain.
+ * @return                         The function returns ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
+                                         const int32_t input_offset,
+                                         int16_t *output,
+                                         const int32_t out_offset,
+                                         const int32_t out_activation_min,
+                                         const int32_t out_activation_max,
+                                         const int32_t block_size,
+                                         const int16_t *lut);
+
+/**
+ * @brief INT16 reciprocal square root using a shared universal LUT.
+ *
+ * @param[in]  input               Pointer to the input buffer.
+ * @param[in]  input_offset        Input tensor zero offset.
+ * @param[out] output              Pointer to the output buffer.
+ * @param[in]  out_offset          Output tensor zero offset.
+ * @param[in]  out_mult            Output requantization multiplier.
+ * @param[in]  out_shift           Output requantization shift.
+ * @param[in]  needs_rescale       Whether requantization is required.
+ * @param[in]  out_activation_min  Minimum output clamp.
+ * @param[in]  out_activation_max  Maximum output clamp.
+ * @param[in]  block_size          Number of elements.
+ * @param[in]  lut                 Pointer to a 513-entry INT32 shared LUT in Q30 domain.
+ * @return                         The function returns ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_rsqrt_s16_universal(const int16_t *input,
+                                            const int32_t input_offset,
+                                            int16_t *output,
+                                            const int32_t out_offset,
+                                            const int32_t out_mult,
+                                            const int32_t out_shift,
+                                            const bool needs_rescale,
+                                            const int32_t out_activation_min,
+                                            const int32_t out_activation_max,
+                                            const int32_t block_size,
+                                            const int32_t *lut);
+
+/**
  * @brief s8 elementwise subtraction of two tensors with support for broadcasting.
  * @param[in]       input1_data        pointer to input tensor 1
  * @param[in]       input1_dims        pointer to input tensor 1 dimensions
