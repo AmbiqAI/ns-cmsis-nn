@@ -47,6 +47,43 @@ void rsqrt_s16_per_op_matches_reference(void)
     TEST_ASSERT_TRUE(validate_s16(output, rsqrt_s16_per_op_output, RSQRT_S16_BLOCK_SIZE));
 }
 
+void rsqrt_s16_per_op_applies_input_offset_before_lookup(void)
+{
+    int16_t output[RSQRT_S16_OFFSET_BLOCK_SIZE] = {0};
+
+    const arm_cmsis_nn_status result = arm_rsqrt_s16_per_op(rsqrt_s16_offset_input,
+                                                            RSQRT_S16_OFFSET_INPUT_OFFSET,
+                                                            output,
+                                                            RSQRT_S16_OFFSET_OUT_OFFSET,
+                                                            RSQRT_S16_OFFSET_OUT_ACTIVATION_MIN,
+                                                            RSQRT_S16_OFFSET_OUT_ACTIVATION_MAX,
+                                                            RSQRT_S16_OFFSET_BLOCK_SIZE,
+                                                            rsqrt_s16_per_op_lut);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+    TEST_ASSERT_TRUE(validate_s16(output, rsqrt_s16_offset_per_op_output, RSQRT_S16_OFFSET_BLOCK_SIZE));
+}
+
+void rsqrt_s16_universal_rescales_and_applies_input_offset(void)
+{
+    int16_t output[RSQRT_S16_RESCALE_BLOCK_SIZE] = {0};
+
+    const arm_cmsis_nn_status result = arm_rsqrt_s16_universal(rsqrt_s16_rescale_input,
+                                                               RSQRT_S16_RESCALE_INPUT_OFFSET,
+                                                               output,
+                                                               RSQRT_S16_RESCALE_OUT_OFFSET,
+                                                               RSQRT_S16_RESCALE_OUT_MULT,
+                                                               RSQRT_S16_RESCALE_OUT_SHIFT,
+                                                               RSQRT_S16_RESCALE_NEEDS_RESCALE,
+                                                               RSQRT_S16_RESCALE_OUT_ACTIVATION_MIN,
+                                                               RSQRT_S16_RESCALE_OUT_ACTIVATION_MAX,
+                                                               RSQRT_S16_RESCALE_BLOCK_SIZE,
+                                                               rsqrt_s16_universal_lut);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+    TEST_ASSERT_TRUE(validate_s16(output, rsqrt_s16_rescaled_universal_output, RSQRT_S16_RESCALE_BLOCK_SIZE));
+}
+
 void rsqrt_s16_rejects_negative_input(void)
 {
     int16_t output[RSQRT_S16_NEGATIVE_BLOCK_SIZE] = {0};
