@@ -19,7 +19,10 @@ from test_settings import TestSettings
 
 import tensorflow as tf
 import numpy as np
-import tf_keras as keras
+try:
+    import tf_keras as keras
+except ModuleNotFoundError:
+    from tensorflow import keras
 
 class LSTMSettings(TestSettings):
 
@@ -427,4 +430,3 @@ class LSTMSettings(TestSettings):
                 if len(self.lstm_scales[i]) == 0:
                     continue
                 (multiplier, shift) = self.quantize_scale(self.lstm_scales[i][0])
-

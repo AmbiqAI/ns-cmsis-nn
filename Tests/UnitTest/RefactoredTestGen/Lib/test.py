@@ -33,6 +33,7 @@ import Lib.op_relu
 import Lib.op_relu6
 import Lib.op_hard_swish
 import Lib.op_abs
+import Lib.op_sqrt
 import Lib.op_prelu
 import Lib.op_strided_slice
 import Lib.op_concatenation
@@ -195,6 +196,8 @@ def generate(params, args, fpaths):
     header = get_header(params["tflite_generator"], params["interpreter"])
 
     def include_in_config(key):
+        if params.get("op_type") == "sqrt" and key in ["input_scale", "output_scale"]:
+            return True
         return key not in [
             "suite_name", "name", "input_data_type", "op_type", "input_data_type", "weights_data_type",
             "bias_data_type", "shift_and_mult_data_type", "interpreter", "tflite_generator", "json_template",
@@ -294,6 +297,8 @@ def get_op_type(op_type_string):
         return Lib.op_hard_swish.Op_hard_swish
     elif op_type_string == "abs":
         return Lib.op_abs.Op_abs
+    elif op_type_string == "sqrt":
+        return Lib.op_sqrt.Op_sqrt
     elif op_type_string == "prelu":
         return Lib.op_prelu.Op_prelu
     elif op_type_string == "strided_slice":
@@ -346,6 +351,12 @@ def convert_keras_to_tflite(
     n_inputs = len(keras_model.inputs)
 
     if quantize:
+        rep_input_dtypes = [tf.as_dtype(inp.dtype).as_numpy_dtype for inp in keras_model.inputs]
+        rep_min = float(shape.get("representational_dataset_min", 0.0))
+        rep_max = float(shape.get("representational_dataset_max", 1.0))
+        if rep_max <= rep_min:
+            rep_min, rep_max = 0.0, 1.0
+
         # Create a representative dataset for post-training quantization
         if shape.get("different_in_shapes") is True:
             def representative_dataset():
@@ -355,9 +366,13 @@ def convert_keras_to_tflite(
                     yield [data1.astype(np.float32), data2.astype(np.float32)]
         else:
             def representative_dataset():
-                for _ in range(n_inputs):
-                    data = np.random.rand(*shape["representational_dataset"])
-                    yield [data.astype(np.float32)]
+                for _ in range(100):
+                    data = np.random.uniform(
+                        rep_min,
+                        rep_max,
+                        size=shape["representational_dataset"]
+                    )
+                    yield [data.astype(rep_input_dtypes[0])]
 
         converter.representative_dataset = representative_dataset
         converter.optimizations = [tf.lite.Optimize.DEFAULT]

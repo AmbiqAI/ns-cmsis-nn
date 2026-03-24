@@ -3864,6 +3864,38 @@
     ]
   },
   {
+    "suite_name": "test_arm_sqrt_s8",
+    "op_type": "sqrt",
+    "input_data_type": "int8_t",
+    "interpreter": "tensorflow",
+    "tflite_generator": "keras",
+    "input_min": 0,
+    "input_max": 127,
+    "tests": [
+      {
+        "name": "sqrt_small_tensor_s8",
+        "batch_size": 1,
+        "height_1": 2,
+        "width_1": 3,
+        "channel_1": 4
+      },
+      {
+        "name": "sqrt_long_row_s8",
+        "batch_size": 1,
+        "height_1": 1,
+        "width_1": 64,
+        "channel_1": 1
+      },
+      {
+        "name": "sqrt_multi_batch_s8",
+        "batch_size": 2,
+        "height_1": 3,
+        "width_1": 5,
+        "channel_1": 3
+      }
+    ]
+  },
+  {
     "suite_name": "test_arm_prelu_s8",
     "op_type": "prelu",
     "input_data_type": "int8_t",
