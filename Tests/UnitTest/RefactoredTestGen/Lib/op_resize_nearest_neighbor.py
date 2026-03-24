@@ -16,7 +16,7 @@
 #
 import Lib.op_utils
 import tensorflow as tf
-from Lib.keras_compat import keras
+import tf_keras as keras
 
 
 class Op_resize_nearest_neighbor(Lib.op_utils.Op_type):

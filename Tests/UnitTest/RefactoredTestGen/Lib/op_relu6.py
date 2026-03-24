@@ -20,7 +20,7 @@ import numpy as np
 
 from tensorflow.lite.python.interpreter import Interpreter
 from tensorflow.lite.python.interpreter import OpResolverType
-from Lib.keras_compat import keras
+import tf_keras as keras
 
 
 class Op_relu6(Lib.op_utils.Op_type):

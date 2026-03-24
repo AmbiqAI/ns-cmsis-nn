@@ -17,6 +17,7 @@
 import Lib.op_utils
 import tensorflow as tf
 import numpy as np
+from packaging.version import Version, InvalidVersion
 
 from tensorflow.lite.python.interpreter import Interpreter
 from tensorflow.lite.python.interpreter import OpResolverType
@@ -24,6 +25,22 @@ from Lib.keras_compat import keras
 
 
 class Op_sqrt(Lib.op_utils.Op_type):
+
+    @staticmethod
+    def _validate_tf_version():
+        try:
+            tf_version = Version(tf.__version__)
+        except InvalidVersion as exc:
+            raise RuntimeError(
+                f"Unable to parse TensorFlow version '{tf.__version__}'. "
+                "SQRT test generation requires tensorflow>=2.21,<2.22."
+            ) from exc
+
+        if tf_version < Version("2.21") or tf_version >= Version("2.22"):
+            raise RuntimeError(
+                "SQRT test generation requires tensorflow>=2.21,<2.22. "
+                "Install with: pip install -r Tests/UnitTest/requirements-sqrt-gen.txt"
+            )
 
     def get_shapes(params):
         shapes = {}
@@ -53,6 +70,7 @@ class Op_sqrt(Lib.op_utils.Op_type):
         return shapes
 
     def generate_keras_model(shapes, params):
+        Op_sqrt._validate_tf_version()
         # Keep Keras model in float domain and rely on TFLite PTQ for int8 IO quantization.
         input_1 = keras.layers.Input(batch_input_shape=shapes["input_tensor"], dtype=tf.float32)
         if hasattr(keras, "ops") and hasattr(keras.ops, "sqrt"):

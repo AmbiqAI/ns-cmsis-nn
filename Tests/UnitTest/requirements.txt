@@ -18,8 +18,7 @@ click
 cbor
 numpy
 packaging
-tensorflow >= 2.21, < 2.22
-# Optional: if available for your platform/index, this is preferred by keras_compat.
-# tf-keras >= 2.21, < 2.22
+tensorflow
+tf-keras == 2.17
 # tflite-micro is only required on Linux
-tflite-micro; platform_system == 'Linux'
+# tflite-micro; platform_system == 'Linux'

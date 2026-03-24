@@ -21,7 +21,7 @@ import numpy as np
 
 from tensorflow.lite.python.interpreter import Interpreter
 from tensorflow.lite.python.interpreter import OpResolverType
-from Lib.keras_compat import keras
+import tf_keras as keras
 
 def compute_multiplier_shift(scale):
     """

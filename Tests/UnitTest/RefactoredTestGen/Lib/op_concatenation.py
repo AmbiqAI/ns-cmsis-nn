@@ -20,7 +20,7 @@ import tensorflow as tf
 
 from tensorflow.lite.python.interpreter import Interpreter
 from tensorflow.lite.python.interpreter import OpResolverType
-from Lib.keras_compat import keras
+import tf_keras as keras
 
 
 class Op_concatenation(Lib.op_utils.Op_type):
