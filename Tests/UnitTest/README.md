@@ -132,6 +132,18 @@ When adding a new test data set, new c files should be added or existing c files
 
 The steps to add a new unit test are as follows. Add a new test test in the load_all_testdatasets() function. Run the generate script with that new test set as input. Add the new generated header files to an existing or new unit test.
 
+RSQRT s16 is also available through the top-level script via the local helper generator:
+
+```
+./generate_test_data.py --dataset rsqrt_s16 --testtype rsqrt
+```
+
+To regenerate it together with the other datasets selected by `--run-all-testsets`, use:
+
+```
+./generate_test_data.py --run-all-testsets --testtype rsqrt
+```
+
 ### Tests depending on TFLM interpreter
 
 If TFL and TFLM reference kernels differ, CMSIS-NN aims to be bit-exact to TFLM reference kernels. Hence those operators depends on tflite_micro interpreter.
