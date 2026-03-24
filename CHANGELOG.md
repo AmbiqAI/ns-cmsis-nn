@@ -1,5 +1,25 @@
 # Changelog
 
+## [7.22.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.21.0...v7.22.0) (2026-03-24)
+
+
+### Features
+
+* Add int8 SQRT kernel. ([2aa4bc5](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2aa4bc5b5fa48b818dc34fdc7f500246c71de194))
+* Add int8 SQRT kernel. ([2aa4bc5](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2aa4bc5b5fa48b818dc34fdc7f500246c71de194))
+* Add int8 SQRT kernel. Update requirements.txt to tensorflow 2.21 to support quantizing SQRT. Use modern Keras for compatibility with modern Tensorflow ([5f43a09](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5f43a09cf79f292ce681a2c5670b5752573e6b37))
+* Add int8/int16 squared difference ([13199ba](https://github.com/AmbiqAI/ns-cmsis-nn/commit/13199baca247421639269d662a0ac07a72d9f473))
+* Add int8/int16 Squared Difference ([fa6ba21](https://github.com/AmbiqAI/ns-cmsis-nn/commit/fa6ba212b72f6797e582cccf8f590cabe34bd9d5))
+* Add MVE path to squared difference, add int16 tests ([75e7d06](https://github.com/AmbiqAI/ns-cmsis-nn/commit/75e7d065bb7de8a6d105a96ab69b7595034fe4eb))
+* Update ARM.CMSIS-NN.pdsc with squared_differnece ([f69896a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f69896abaf3105233518958094a07d254f8c0638))
+* Vectorize arm_sqrt_s8.c and place LUT into TCM ([6d38e45](https://github.com/AmbiqAI/ns-cmsis-nn/commit/6d38e458087a0aa9fbc12710b43adce9e7382900))
+
+
+### Bug Fixes
+
+* Default RefactoredTestGen to legacy Keras and fall back to modern Keras only when tf_keras is unavailable ([9344acf](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9344acf216046a24c27d692d8f247dff7b386c49))
+* Scope KEras/Tensorflow upgrade requirements to SQRT test generation only by restoring baseline UnitTest deps and reverting non-SQRT generators to tf_keras ([010a198](https://github.com/AmbiqAI/ns-cmsis-nn/commit/010a198fcd3549c27e6df5d565bc61921a5c1db7))
+
 ## [7.21.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.20.0...v7.21.0) (2026-02-18)
 
 
