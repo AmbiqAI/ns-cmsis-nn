@@ -9,71 +9,11 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
-#define ARM_RSQRT_S16_LUT_SIZE     (513)
-#define ARM_RSQRT_S16_LUT_STEP_LOG2 (6)
-#define ARM_RSQRT_S16_LUT_STEP_MASK ((1 << ARM_RSQRT_S16_LUT_STEP_LOG2) - 1)
 #define ARM_RSQRT_S16_BASE_LUT_SIZE (513)
 #define ARM_RSQRT_S16_BASE_STEP_SHIFT (6)
 #define ARM_RSQRT_S16_SLOT_SHIFT (7)
 #define ARM_RSQRT_S16_SLOT_MASK ((1 << ARM_RSQRT_S16_SLOT_SHIFT) - 1)
 #define ARM_RSQRT_S16_INTERP_ROUND_BIAS (1 << (ARM_RSQRT_S16_SLOT_SHIFT - 1))
-
-static uint32_t arm_nn_isqrt_u32(uint32_t x)
-{
-    uint32_t res = 0;
-    uint32_t bit = 1u << 30;
-
-    while (bit > x)
-    {
-        bit >>= 2;
-    }
-
-    while (bit != 0)
-    {
-        if (x >= res + bit)
-        {
-            x -= res + bit;
-            res = (res >> 1) + bit;
-        }
-        else
-        {
-            res >>= 1;
-        }
-        bit >>= 2;
-    }
-
-    return res;
-}
-
-static void arm_rsqrt_s16_init_lut(int16_t *lut)
-{
-    for (int32_t i = 0; i < ARM_RSQRT_S16_LUT_SIZE; i++)
-    {
-        const uint32_t x_q15 = (uint32_t)i << ARM_RSQRT_S16_LUT_STEP_LOG2;
-        const uint32_t x = x_q15 << 15;
-        int32_t y;
-
-        if (x == 0)
-        {
-            y = INT16_MAX;
-        }
-        else
-        {
-            const uint32_t sqrt_res = arm_nn_isqrt_u32(x);
-            if (sqrt_res == 0)
-            {
-                y = INT16_MAX;
-            }
-            else
-            {
-                y = (int32_t)(((uint64_t)1 << 30) / sqrt_res);
-                y = MIN(y, INT16_MAX);
-            }
-        }
-
-        lut[i] = (int16_t)y;
-    }
-}
 
 static inline int32_t arm_rsqrt_s16_round_div2_nearest(const int32_t value)
 {
@@ -346,80 +286,3 @@ arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
 
     return ARM_CMSIS_NN_SUCCESS;
 }
-
-/**
- * @addtogroup groupElementwise
- * @{
- */
-
-/*
- * s16 elementwise reciprocal square root
- *
- * Refer header file for details.
- */
-arm_cmsis_nn_status arm_rsqrt_s16(const int16_t *input,
-                                 const int32_t input_offset,
-                                 int16_t *output,
-                                 const int32_t out_offset,
-                                 const int32_t out_mult,
-                                 const int32_t out_shift,
-                                 const bool needs_rescale,
-                                 const int32_t out_activation_min,
-                                 const int32_t out_activation_max,
-                                 const int32_t block_size)
-{
-    static int16_t rsqrt_lut_q15[ARM_RSQRT_S16_LUT_SIZE];
-    static bool rsqrt_lut_initialized = false;
-
-    if (!rsqrt_lut_initialized)
-    {
-        arm_rsqrt_s16_init_lut(rsqrt_lut_q15);
-        rsqrt_lut_initialized = true;
-    }
-
-    int32_t loop_count = block_size;
-
-    while (loop_count > 0)
-    {
-        int32_t val = (int32_t)*input++ - input_offset;
-        if (val < 0)
-        {
-            return ARM_CMSIS_NN_ARG_ERROR;
-        }
-        if (val > 0x7FFF)
-        {
-            val = 0x7FFF;
-        }
-
-        const int32_t idx = val >> ARM_RSQRT_S16_LUT_STEP_LOG2;
-        const int32_t frac = val & ARM_RSQRT_S16_LUT_STEP_MASK;
-        const int32_t y0 = rsqrt_lut_q15[idx];
-        const int32_t y1 = rsqrt_lut_q15[idx + 1];
-        const int32_t rsqrt_res = y0 + (((y1 - y0) * frac + (1 << (ARM_RSQRT_S16_LUT_STEP_LOG2 - 1))) >>
-                                        ARM_RSQRT_S16_LUT_STEP_LOG2);
-
-        int32_t acc;
-        if (needs_rescale)
-        {
-            acc = arm_nn_requantize(rsqrt_res, out_mult, out_shift);
-        }
-        else
-        {
-            acc = rsqrt_res;
-        }
-
-        acc += out_offset;
-        acc = MIN(acc, INT16_MAX);
-        acc = MAX(acc, out_activation_min);
-        acc = MIN(acc, out_activation_max);
-        *output++ = (int16_t)acc;
-
-        loop_count--;
-    }
-
-    return ARM_CMSIS_NN_SUCCESS;
-}
-
-/**
- * @} end of Doxygen group
- */
