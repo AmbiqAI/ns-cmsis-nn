@@ -1,0 +1,244 @@
+name: Release Assets Core
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref (branch, commit, or tag) to build
+        required: true
+        type: string
+      tag:
+        description: Release tag name
+        required: false
+        type: string
+      upload_to_release:
+        description: Upload the signed bundles to the GitHub release
+        required: false
+        type: boolean
+        default: true
+      visibility_mode:
+        description: Bundle visibility mode
+        required: true
+        type: string
+      create_draft_release:
+        description: Create a draft release before upload when needed
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-assets-${{ inputs.visibility_mode }}-${{ inputs.tag || inputs.ref || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  release-build:
+    name: Build release combo (${{ inputs.visibility_mode }} • ${{ matrix.arch }} • ${{ matrix.toolchain }})
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        arch:
+          - cortex-m4+fp
+          - cortex-m55
+        toolchain:
+          - gcc
+          - armclang
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+          submodules: recursive
+
+      - name: Setup Arm toolchains
+        uses: ARM-software/cmsis-actions/vcpkg@v1
+        with:
+          config: ./vcpkg-configuration.json
+          vcpkg-downloads: ${{ github.workspace }}/.vcpkg/downloads
+          cache: "-release-assets-${{ inputs.visibility_mode }}"
+
+      - name: Validate armclang license secret
+        if: ${{ matrix.toolchain == 'armclang' }}
+        run: |
+          if [[ -z "${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}" ]]; then
+            echo "::error ::ARM_UBL_LICENSE_IDENTIFIER is required for armclang builds."
+            exit 1
+          fi
+
+      - name: Activate Arm license
+        if: ${{ matrix.toolchain == 'armclang' }}
+        uses: ARM-software/cmsis-actions/armlm@v1
+        with:
+          code: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+
+      - name: Cache release dependencies
+        uses: actions/cache@v4
+        with:
+          path: Tests/UnitTest/downloads
+          key: release-assets-downloads-${{ inputs.visibility_mode }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup_release_dependencies.py') }}
+          restore-keys: |
+            release-assets-downloads-${{ inputs.visibility_mode }}-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Setup release dependencies
+        run: |
+          python3 scripts/setup_release_dependencies.py \
+            --downloads-dir Tests/UnitTest/downloads
+
+      - name: Build release combo
+        run: |
+          bash scripts/build_release_combo.sh \
+            --arch "${{ matrix.arch }}" \
+            --toolchain "${{ matrix.toolchain }}" \
+            --build release \
+            --visibility-mode "${{ inputs.visibility_mode }}" \
+            --outdir "out/${{ inputs.visibility_mode }}/${{ matrix.arch }}/${{ matrix.toolchain }}/release"
+
+      - name: Upload release combo artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-combo-${{ inputs.visibility_mode }}-${{ matrix.arch }}-${{ matrix.toolchain }}
+          path: out/${{ inputs.visibility_mode }}/${{ matrix.arch }}/${{ matrix.toolchain }}/release/**
+          if-no-files-found: error
+
+  release-package:
+    name: Package and sign release bundles (${{ inputs.visibility_mode }})
+    needs: release-build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Resolve release metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          ref_in='${{ inputs.ref }}'
+          tag_in='${{ inputs.tag }}'
+          upload='${{ inputs.upload_to_release }}'
+          mode='${{ inputs.visibility_mode }}'
+
+          if [[ -z "${ref_in}" ]]; then
+            echo "::error ::Input ref is required."
+            exit 1
+          fi
+
+          if [[ "${upload}" == "true" && -z "${tag_in}" ]]; then
+            echo "::error ::tag is required when upload_to_release is true."
+            exit 1
+          fi
+
+          if [[ -z "${tag_in}" ]]; then
+            tag_in="${ref_in//\//-}"
+          fi
+
+          echo "tag=${tag_in}" >> "${GITHUB_OUTPUT}"
+          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Download all release combos
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Package release bundles
+        run: |
+          bash scripts/build_release_bundle.sh \
+            --skip-build \
+            --artifact-root artifacts \
+            --tag "${{ steps.meta.outputs.tag }}" \
+            --visibility-mode "${{ steps.meta.outputs.mode }}" \
+            --outdir upload
+
+      - name: Create checksums
+        run: |
+          set -euo pipefail
+          cd upload
+          sha256sum \
+            "ns-cmsis-nn-${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.mode }}.zip" \
+            "helia-core-${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.mode }}.zip" \
+            > SHA256SUMS.txt
+
+      - name: Sign bundles and checksums
+        env:
+          RELEASE_GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+          RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+          RELEASE_GPG_KEY_ID: ${{ secrets.RELEASE_GPG_KEY_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${RELEASE_GPG_PRIVATE_KEY}" || -z "${RELEASE_GPG_PASSPHRASE}" || -z "${RELEASE_GPG_KEY_ID}" ]]; then
+            echo "::error ::RELEASE_GPG_PRIVATE_KEY, RELEASE_GPG_PASSPHRASE, and RELEASE_GPG_KEY_ID are required."
+            exit 1
+          fi
+
+          export GNUPGHOME
+          GNUPGHOME="$(mktemp -d)"
+          printf '%s' "${RELEASE_GPG_PRIVATE_KEY}" | gpg --batch --import
+
+          cd upload
+          for file in \
+            "ns-cmsis-nn-${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.mode }}.zip" \
+            "helia-core-${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.mode }}.zip" \
+            "SHA256SUMS.txt"; do
+            gpg --batch --yes --pinentry-mode loopback \
+              --passphrase "${RELEASE_GPG_PASSPHRASE}" \
+              --local-user "${RELEASE_GPG_KEY_ID}" \
+              --armor --detach-sign "${file}"
+          done
+
+      - name: Upload signed bundle artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bundles-${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.mode }}
+          path: |
+            upload/ns-cmsis-nn-${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.mode }}.zip
+            upload/ns-cmsis-nn-${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.mode }}.zip.asc
+            upload/helia-core-${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.mode }}.zip
+            upload/helia-core-${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.mode }}.zip.asc
+            upload/SHA256SUMS.txt
+            upload/SHA256SUMS.txt.asc
+          if-no-files-found: error
+
+      - name: Ensure draft release exists for manual upload
+        if: ${{ inputs.create_draft_release && (inputs.upload_to_release == true || inputs.upload_to_release == 'true') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag='${{ steps.meta.outputs.tag }}'
+          is_draft="$(gh release view "${tag}" --json isDraft -q '.isDraft' 2>/dev/null || true)"
+          if [[ -z "${is_draft}" ]]; then
+            gh release create "${tag}" --draft --title "${tag}" --notes ""
+          elif [[ "${is_draft}" == "true" ]]; then
+            echo "Draft release ${tag} already exists."
+          else
+            echo "Release ${tag} already exists and is published; assets will be uploaded to the existing release."
+          fi
+
+      - name: Upload signed bundles to GitHub release
+        if: ${{ inputs.upload_to_release == true || inputs.upload_to_release == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release upload "${{ steps.meta.outputs.tag }}" \
+            "upload/ns-cmsis-nn-${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.mode }}.zip" \
+            "upload/ns-cmsis-nn-${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.mode }}.zip.asc" \
+            "upload/helia-core-${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.mode }}.zip" \
+            "upload/helia-core-${{ steps.meta.outputs.tag }}-${{ steps.meta.outputs.mode }}.zip.asc" \
+            "upload/SHA256SUMS.txt" \
+            "upload/SHA256SUMS.txt.asc" \
+            --clobber

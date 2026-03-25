@@ -25,6 +25,23 @@ add_library(cmsis-nn STATIC)
 
 target_compile_options(cmsis-nn PRIVATE ${CMSIS_OPTIMIZATION_LEVEL})
 
+option(CMSIS_NN_HIDE_INTERNAL_SYMBOLS
+       "Build cmsis-nn with hidden-by-default visibility for release packaging."
+       OFF)
+set(CMSIS_NN_PUBLIC_HEADERS_DIR "" CACHE PATH
+    "Annotated public header directory used when CMSIS_NN_HIDE_INTERNAL_SYMBOLS is enabled.")
+
+if(CMSIS_NN_HIDE_INTERNAL_SYMBOLS)
+  if(CMSIS_NN_PUBLIC_HEADERS_DIR STREQUAL "")
+    message(FATAL_ERROR
+      "CMSIS_NN_PUBLIC_HEADERS_DIR must be set when CMSIS_NN_HIDE_INTERNAL_SYMBOLS=ON")
+  endif()
+
+  target_compile_options(cmsis-nn PRIVATE
+    $<$<COMPILE_LANG_AND_ID:C,GNU,Clang,AppleClang,ARMClang>:-fvisibility=hidden>)
+  target_include_directories(cmsis-nn BEFORE PUBLIC "${CMSIS_NN_PUBLIC_HEADERS_DIR}")
+endif()
+
 target_include_directories(cmsis-nn PUBLIC "Include")
 
 add_subdirectory(Source)
