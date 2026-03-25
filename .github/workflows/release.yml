@@ -6,10 +6,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write        # tag, releases, uploads
-  pull-requests: write   # update/open release PRs
-  pages: write           # publish Pages
-  id-token: write        # OIDC for Pages deploy
+  contents: write
+  pull-requests: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,32 +18,39 @@ concurrency:
 jobs:
   release-please:
     runs-on: ubuntu-22.04
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+      version: ${{ steps.rp.outputs.version }}
+
     steps:
-      # 1) Create/Update Release PR; on merge, tag + create release
-      - uses: googleapis/release-please-action@v4
+      - name: Create or update release PR
+        uses: googleapis/release-please-action@v4
         id: rp
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-      # 2) Only do the rest when a NEW release was created by the step above
+  pack-and-docs:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-22.04
+
+    steps:
       - name: Checkout code
-        if: ${{ steps.rp.outputs.release_created }}
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Fetch tags
-        if: ${{ steps.rp.outputs.release_created }}
         run: git fetch --tags --force
 
       - name: Wait for release API to be ready
-        if: ${{ steps.rp.outputs.release_created }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e
-          tag='${{ steps.rp.outputs.tag_name }}'
+          set -euo pipefail
+          tag='${{ needs.release-please.outputs.tag_name }}'
           for i in {1..10}; do
             if gh api repos/${{ github.repository }}/releases/tags/"$tag" >/dev/null 2>&1; then
               echo "Release $tag is available."
@@ -56,12 +63,10 @@ jobs:
           exit 1
 
       - name: Clean output dir
-        if: ${{ steps.rp.outputs.release_created }}
         run: |
           rm -f ./output/*.pack
 
       - name: Generate pack and docs
-        if: ${{ steps.rp.outputs.release_created }}
         uses: Open-CMSIS-Pack/gen-pack-action@main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -78,13 +83,12 @@ jobs:
           gh-pages-deploy: ""
 
       - name: Compute version
-        if: ${{ steps.rp.outputs.release_created }}
         id: ver
         shell: bash
         run: |
           set -euo pipefail
-          tag='${{ steps.rp.outputs.tag_name }}'
-          version='${{ steps.rp.outputs.version }}'
+          tag='${{ needs.release-please.outputs.tag_name }}'
+          version='${{ needs.release-please.outputs.version }}'
           if [[ -z "$version" ]]; then
             version="$(printf '%s\n' "$tag" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
           fi
@@ -92,7 +96,6 @@ jobs:
           echo "VERSION=$version" >> "$GITHUB_OUTPUT"
 
       - name: Upload pack to GitHub Release
-        if: ${{ steps.rp.outputs.release_created }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -101,18 +104,24 @@ jobs:
             "./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack" \
             --clobber
 
-      # 3) Publish docs to GitHub Pages (from ./Documentation/html)
       - name: Setup Pages
-        if: ${{ steps.rp.outputs.release_created }}
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
-        if: ${{ steps.rp.outputs.release_created }}
         uses: actions/upload-pages-artifact@v4
         with:
           path: ./Documentation/html
 
       - name: Deploy to GitHub Pages
-        if: ${{ steps.rp.outputs.release_created }}
         id: deploy
         uses: actions/deploy-pages@v4
+
+  release-assets:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    uses: ./.github/workflows/release_assets_single_facade.yml
+    with:
+      ref: ${{ needs.release-please.outputs.tag_name }}
+      tag: ${{ needs.release-please.outputs.tag_name }}
+      upload_to_release: true
+    secrets: inherit
