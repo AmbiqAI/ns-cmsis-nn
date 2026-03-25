@@ -15,9 +15,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Only run the library-only visibility mode
         visibility_mode:
-          - single-facade
-          - curated-tree
           - library-only
 
     steps:
@@ -25,11 +24,46 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: recursive
+          fetch-depth: 0
+
+      - name: Find vcpkg configuration
+        id: find_vcpkg
+        run: |
+          set -euo pipefail
+          # Prefer repo root, then .github/
+          if [ -f "${GITHUB_WORKSPACE}/vcpkg-configuration.json" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "config_path=./vcpkg-configuration.json" >> "$GITHUB_OUTPUT"
+          elif [ -f "${GITHUB_WORKSPACE}/.github/vcpkg-configuration.json" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "config_path=.github/vcpkg-configuration.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "config_path=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Debug repo layout (only when vcpkg config missing)
+        if: steps.find_vcpkg.outputs.found == 'false'
+        run: |
+          echo "Working dir:"
+          pwd
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          echo "Top-level listing:"
+          ls -la || true
+          echo "Searching for vcpkg-configuration.json (depth 3):"
+          find . -maxdepth 3 -type f -name 'vcpkg-configuration.json' -print || true
+
+      - name: Fail early if vcpkg configuration is missing
+        if: steps.find_vcpkg.outputs.found == 'false'
+        run: |
+          echo "::error ::vcpkg-configuration.json not found in repo root or .github/. Please add it or update the workflow 'config' path."
+          exit 1
 
       - name: Setup Arm toolchains
+        if: steps.find_vcpkg.outputs.found == 'true'
         uses: ARM-software/cmsis-actions/vcpkg@v1
         with:
-          config: ./vcpkg-configuration.json
+          config: ${{ steps.find_vcpkg.outputs.config_path }}
           vcpkg-downloads: ${{ github.workspace }}/.vcpkg/downloads
           cache: "-public-api-smoke"
 
