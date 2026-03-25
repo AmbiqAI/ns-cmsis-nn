@@ -49,7 +49,7 @@ jobs:
           - cortex-m55
         toolchain:
           - gcc
-          - armclang
+          # - armclang (disabled due to build timeouts; will be re-enabled once build performance improvements are in place)
 
     steps:
       - name: Checkout repository
@@ -65,19 +65,19 @@ jobs:
           vcpkg-downloads: ${{ github.workspace }}/.vcpkg/downloads
           cache: "-release-assets-${{ inputs.visibility_mode }}"
 
-      - name: Validate armclang license secret
-        if: ${{ matrix.toolchain == 'armclang' }}
-        run: |
-          if [[ -z "${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}" ]]; then
-            echo "::error ::ARM_UBL_LICENSE_IDENTIFIER is required for armclang builds."
-            exit 1
-          fi
+      # - name: Validate armclang license secret
+      #   if: ${{ matrix.toolchain == 'armclang' }}
+      #   run: |
+      #     if [[ -z "${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}" ]]; then
+      #       echo "::error ::ARM_UBL_LICENSE_IDENTIFIER is required for armclang builds."
+      #       exit 1
+      #     fi
 
-      - name: Activate Arm license
-        if: ${{ matrix.toolchain == 'armclang' }}
-        uses: ARM-software/cmsis-actions/armlm@v1
-        with:
-          code: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+      # - name: Activate Arm license
+      #   if: ${{ matrix.toolchain == 'armclang' }}
+      #   uses: ARM-software/cmsis-actions/armlm@v1
+      #   with:
+      #     code: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
 
       - name: Cache release dependencies
         uses: actions/cache@v4

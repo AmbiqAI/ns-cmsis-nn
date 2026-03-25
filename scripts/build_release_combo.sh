@@ -96,7 +96,7 @@ STRIP="${STRIP:-$(command -v arm-none-eabi-strip || true)}"
 
 case "${ARCH}" in
   cortex-m4+fp)
-    TARGET_CPU="cortex-m4+fp"
+    TARGET_CPU="cortex-m4"
     ARCH_LABEL="cm4"
     ;;
   cortex-m55)

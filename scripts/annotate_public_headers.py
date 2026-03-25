@@ -82,23 +82,32 @@ def inject_public_api_include(path: Path) -> None:
 def annotate_symbols(path: Path, symbols: set[str]) -> set[str]:
     matched: set[str] = set()
     lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    brace_depth = 0
 
     for index, line in enumerate(lines):
         stripped = line.strip()
+        if brace_depth > 0:
+            brace_depth += line.count("{") - line.count("}")
+            continue
         if not stripped or stripped.startswith(("#", "//", "/*", "*", "}")):
+            brace_depth += line.count("{") - line.count("}")
             continue
         if "CMSIS_API" in line:
+            brace_depth += line.count("{") - line.count("}")
             continue
         if "__STATIC" in line or "static inline" in line or "static __inline" in line:
+            brace_depth += line.count("{") - line.count("}")
             continue
 
         candidates = [symbol for symbol in SYMBOL_RE.findall(line) if symbol in symbols]
         if not candidates:
+            brace_depth += line.count("{") - line.count("}")
             continue
 
         indent = line[: len(line) - len(line.lstrip())]
         lines[index] = f"{indent}CMSIS_API {line.lstrip()}"
         matched.update(candidates)
+        brace_depth += line.count("{") - line.count("}")
 
     path.write_text("".join(lines), encoding="utf-8")
     return matched
