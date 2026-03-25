@@ -1,3 +1,7 @@
+#! Public archive exports retained by release pruning.
+#! Lines starting with !exclude are reviewed header declarations that are
+#! intentionally not emitted by the release archive across supported combos.
+
 arm_add_s16
 arm_add_s8
 arm_add_scalar_s16
@@ -32,7 +36,7 @@ arm_convolve_1_x_n_s4
 arm_convolve_1_x_n_s4_get_buffer_size
 arm_convolve_1_x_n_s8
 arm_convolve_1_x_n_s8_get_buffer_size
-arm_convolve_1x1_out_s8
+!exclude arm_convolve_1x1_out_s8
 arm_convolve_1x1_s16_ns_np_nd
 arm_convolve_1x1_s4
 arm_convolve_1x1_s4_fast
@@ -89,10 +93,10 @@ arm_depthwise_conv_wrapper_s8_get_buffer_size_mve
 arm_depthwise_convolve_weight_sum
 arm_dequantize_s16_f32
 arm_dequantize_s8_f32
-arm_divide_by_power_of_two_mve_32x4
-arm_divide_by_power_of_two_mve_pred
-arm_doubling_high_mult_mve_32x4
-arm_doubling_high_mult_mve_pred
+!exclude arm_divide_by_power_of_two_mve_32x4
+!exclude arm_divide_by_power_of_two_mve_pred
+!exclude arm_doubling_high_mult_mve_32x4
+!exclude arm_doubling_high_mult_mve_pred
 arm_elementwise_add_s16
 arm_elementwise_add_s8
 arm_elementwise_mul_acc_s16
@@ -147,7 +151,7 @@ arm_maximum_s16
 arm_maximum_s8
 arm_mean_s16
 arm_mean_s8
-arm_memset_s8
+!exclude arm_memset_s8
 arm_minimum_s16
 arm_minimum_s8
 arm_mul_s16
@@ -160,8 +164,8 @@ arm_nn_depthwise_conv_nt_t_s16
 arm_nn_depthwise_conv_nt_t_s4
 arm_nn_depthwise_conv_nt_t_s8
 arm_nn_depthwise_conv_s8_core
-arm_nn_divide_by_power_of_two
-arm_nn_doubling_high_mult_no_sat
+!exclude arm_nn_divide_by_power_of_two
+!exclude arm_nn_doubling_high_mult_no_sat
 arm_nn_lstm_calculate_gate_s16
 arm_nn_lstm_calculate_gate_s8_s16
 arm_nn_lstm_step_s16
@@ -184,7 +188,7 @@ arm_nn_softmax_common_s8
 arm_nn_transpose_conv_row_s8_s32
 arm_nn_vec_mat_mul_result_acc_s16
 arm_nn_vec_mat_mul_result_acc_s8_s16
-arm_nn_vec_mat_mult_t_fp16
+!exclude arm_nn_vec_mat_mult_t_fp16
 arm_nn_vec_mat_mult_t_per_ch_s16
 arm_nn_vec_mat_mult_t_per_ch_s8
 arm_nn_vec_mat_mult_t_s16
@@ -220,7 +224,7 @@ arm_resize_nearest_neighbor_s8
 arm_softmax_s16
 arm_softmax_s8
 arm_softmax_s8_s16
-arm_softmax_u8
+!exclude arm_softmax_u8
 arm_space_to_batch_nd_s16
 arm_space_to_batch_nd_s8
 arm_space_to_depth_s16
@@ -241,8 +245,8 @@ arm_svdf_state_s16_s8
 arm_tanh_s16
 arm_transpose_conv_s8
 arm_transpose_conv_s8_get_buffer_size
-arm_transpose_conv_s8_get_buffer_size_dsp
-arm_transpose_conv_s8_get_buffer_size_mve
+!exclude arm_transpose_conv_s8_get_buffer_size_dsp
+!exclude arm_transpose_conv_s8_get_buffer_size_mve
 arm_transpose_conv_s8_get_reverse_conv_buffer_size
 arm_transpose_conv_wrapper_s8
 arm_transpose_s16
