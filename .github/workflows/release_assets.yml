@@ -57,13 +57,78 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           submodules: recursive
+          fetch-depth: 0
 
-      - name: Setup Arm toolchains
-        uses: ARM-software/cmsis-actions/vcpkg@v1
+      - name: Find vcpkg configuration
+        id: find_vcpkg
+        run: |
+          set -euo pipefail
+          if [ -f "${GITHUB_WORKSPACE}/vcpkg-configuration.json" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "config_path=./vcpkg-configuration.json" >> "$GITHUB_OUTPUT"
+          elif [ -f "${GITHUB_WORKSPACE}/.github/vcpkg-configuration.json" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "config_path=.github/vcpkg-configuration.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "config_path=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Debug repo layout (only when vcpkg config missing)
+        if: steps.find_vcpkg.outputs.found == 'false'
+        run: |
+          echo "Working dir: $(pwd)"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          echo "Top-level listing:"
+          ls -la || true
+          echo "Searching for vcpkg-configuration.json (depth 3):"
+          find . -maxdepth 3 -type f -name 'vcpkg-configuration.json' -print || true
+
+      - name: Fail early if vcpkg configuration is missing
+        if: steps.find_vcpkg.outputs.found == 'false'
+        run: |
+          echo "::error ::vcpkg-configuration.json not found in repo root or .github/. Please add it or update the workflow 'config' path."
+          exit 1
+
+      - name: Cache vcpkg downloads
+        uses: actions/cache@v4
         with:
-          config: ./vcpkg-configuration.json
-          vcpkg-downloads: ${{ github.workspace }}/.vcpkg/downloads
-          cache: "-release-assets-${{ inputs.visibility_mode }}"
+          path: |
+            .vcpkg
+            .vcpkg/downloads
+          key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('vcpkg-configuration.json', '.github/vcpkg-configuration.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Setup vcpkg (manual)
+        if: steps.find_vcpkg.outputs.found == 'true'
+        run: |
+          set -euo pipefail
+          CONFIG=${{ steps.find_vcpkg.outputs.config_path }}
+          echo "Using vcpkg config: $CONFIG"
+          if command -v jq >/dev/null 2>&1; then
+            VCPKG_SHA=$(jq -r '.registries[0].baseline // .["default-registry"].baseline' "$CONFIG")
+          else
+            VCPKG_SHA=$(grep -oE '"baseline"\s*:\s*"[^"]+"' "$CONFIG" | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
+          fi
+          if [ -z "$VCPKG_SHA" ] || [ "$VCPKG_SHA" = "null" ]; then
+            echo "::error ::vcpkg baseline not found in $CONFIG"
+            exit 1
+          fi
+          echo "Pinned vcpkg baseline: $VCPKG_SHA"
+          VCPKG_DIR=".vcpkg"
+          if [ ! -d "$VCPKG_DIR" ]; then
+            git clone https://github.com/microsoft/vcpkg "$VCPKG_DIR"
+          fi
+          pushd "$VCPKG_DIR"
+          git fetch --quiet origin "$VCPKG_SHA" || true
+          git checkout --quiet "$VCPKG_SHA"
+          ./bootstrap-vcpkg.sh -disableMetrics || ./bootstrap-vcpkg.sh
+          popd
+          if [ -f vcpkg.json ]; then
+            ./.vcpkg/vcpkg install --x-install-root=${{ github.workspace }}/.vcpkg/installed
+          fi
+        shell: bash
 
       # - name: Validate armclang license secret
       #   if: ${{ matrix.toolchain == 'armclang' }}
@@ -147,6 +212,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.ref }}
+          fetch-depth: 0
 
       - name: Download all release combos
         uses: actions/download-artifact@v4
