@@ -59,13 +59,47 @@ jobs:
           echo "::error ::vcpkg-configuration.json not found in repo root or .github/. Please add it or update the workflow 'config' path."
           exit 1
 
-      - name: Setup Arm toolchains
-        if: steps.find_vcpkg.outputs.found == 'true'
-        uses: ARM-software/cmsis-actions/vcpkg@v1
+      - name: Cache vcpkg downloads
+        uses: actions/cache@v4
         with:
-          config: ${{ steps.find_vcpkg.outputs.config_path }}
-          vcpkg-downloads: ${{ github.workspace }}/.vcpkg/downloads
-          cache: "-public-api-smoke"
+          path: |
+            .vcpkg
+            .vcpkg/downloads
+          key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('vcpkg-configuration.json', '.github/vcpkg-configuration.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Setup vcpkg (manual)
+        if: steps.find_vcpkg.outputs.found == 'true'
+        run: |
+          set -euo pipefail
+          CONFIG=${{ steps.find_vcpkg.outputs.config_path }}
+          echo "Using vcpkg config: $CONFIG"
+          # Extract baseline (jq if present, fallback to grep)
+          if command -v jq >/dev/null 2>&1; then
+            VCPKG_SHA=$(jq -r '.registries[0].baseline // .["default-registry"].baseline' "$CONFIG")
+          else
+            VCPKG_SHA=$(grep -oE '"baseline"\s*:\s*"[^"]+"' "$CONFIG" | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
+          fi
+          if [ -z "$VCPKG_SHA" ] || [ "$VCPKG_SHA" = "null" ]; then
+            echo "::error ::vcpkg baseline not found in $CONFIG"
+            exit 1
+          fi
+          echo "Pinned vcpkg baseline: $VCPKG_SHA"
+          VCPKG_DIR=".vcpkg"
+          if [ ! -d "$VCPKG_DIR" ]; then
+            git clone https://github.com/microsoft/vcpkg "$VCPKG_DIR"
+          fi
+          pushd "$VCPKG_DIR"
+          git fetch --quiet origin "$VCPKG_SHA" || true
+          git checkout --quiet "$VCPKG_SHA"
+          ./bootstrap-vcpkg.sh -disableMetrics || ./bootstrap-vcpkg.sh
+          popd
+          # Install manifest deps if present (no-op if vcpkg.json empty)
+          if [ -f vcpkg.json ]; then
+            ./.vcpkg/vcpkg install --x-install-root=${{ github.workspace }}/.vcpkg/installed
+          fi
+        shell: bash
 
       - name: Cache release dependencies
         uses: actions/cache@v4
