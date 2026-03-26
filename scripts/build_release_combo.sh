@@ -150,6 +150,15 @@ rm -rf "${OUTDIR}"
 mkdir -p "${OUTDIR}"
 OUTDIR="$(cd "${OUTDIR}" && pwd)"
 
+if command -v ninja >/dev/null 2>&1; then
+  CMAKE_GENERATOR="Ninja"
+elif command -v make >/dev/null 2>&1; then
+  CMAKE_GENERATOR="Unix Makefiles"
+else
+  echo "Neither ninja nor make is available on PATH" >&2
+  exit 3
+fi
+
 BUILD_DIR="${OUTDIR}/build"
 STAGE_DIR="${OUTDIR}/stage"
 STAGE_META_DIR="${STAGE_DIR}/meta"
@@ -183,7 +192,7 @@ python3 "${REPO_ROOT}/scripts/annotate_public_headers.py" \
 
 cp "${PUBLIC_SYMBOLS}" "${STAGE_META_DIR}/public_symbols.txt"
 
-cmake -S "${REPO_ROOT}" -B "${BUILD_DIR}" -G Ninja \
+cmake -S "${REPO_ROOT}" -B "${BUILD_DIR}" -G "${CMAKE_GENERATOR}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="${TOOLCHAIN_FILE}" \
   -DTARGET_CPU="${TARGET_CPU}" \
