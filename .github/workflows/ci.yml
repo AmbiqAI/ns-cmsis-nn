@@ -6,6 +6,9 @@ on:
       trigger-sha:
         required: true
         type: string
+  pull_request:
+    branches:
+      - main
 
 jobs:
   release-bundle-smoke:
@@ -23,7 +26,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.trigger-sha }}
+          ref: ${{ inputs.trigger-sha || github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
 
@@ -146,7 +149,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.trigger-sha }}
+          ref: ${{ inputs.trigger-sha || github.event.pull_request.head.sha || github.sha }}
 
       - name: Restore tests-downloads cache
         id: cache-downloads
