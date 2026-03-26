@@ -33,9 +33,13 @@ on:
         required: false
         default: false
         type: boolean
+  pull_request:
+    branches:
+      - main
 
 jobs:
   release-assets:
+    if: ${{ github.event_name != 'pull_request' }}
     uses: ./.github/workflows/release_assets.yml
     with:
       ref: ${{ inputs.ref }}
@@ -43,4 +47,14 @@ jobs:
       upload_to_release: ${{ inputs.upload_to_release }}
       visibility_mode: library-only
       create_draft_release: ${{ github.event_name == 'workflow_dispatch' }}
+    secrets: inherit
+
+  release-assets-pr:
+    if: ${{ github.event_name == 'pull_request' }}
+    uses: ./.github/workflows/release_assets.yml
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+      upload_to_release: false
+      visibility_mode: library-only
+      create_draft_release: false
     secrets: inherit
