@@ -18,6 +18,8 @@ arm_avgpool_s8
 arm_avgpool_s8_get_buffer_size
 arm_avgpool_s8_get_buffer_size_dsp
 arm_avgpool_s8_get_buffer_size_mve
+arm_abs_s16
+arm_abs_s8
 arm_batch_matmul_s16
 arm_batch_matmul_s8
 arm_batch_to_space_nd_s16
@@ -26,6 +28,7 @@ arm_clamp_s16
 arm_clamp_s8
 arm_comparison_s16
 arm_comparison_s8
+arm_concatenation_s32
 arm_concatenation_s16
 arm_concatenation_s8
 arm_concatenation_s8_w
@@ -105,6 +108,8 @@ arm_elementwise_mul_s16_batch_offset
 arm_elementwise_mul_s16_s8
 arm_elementwise_mul_s8
 arm_elementwise_prelu_s8
+arm_elementwise_squared_difference_s16
+arm_elementwise_squared_difference_s8
 arm_elementwise_sub_s16
 arm_elementwise_sub_s8
 arm_equal_s16
@@ -225,6 +230,7 @@ arm_softmax_s16
 arm_softmax_s8
 arm_softmax_s8_s16
 !exclude arm_softmax_u8
+arm_sqrt_s8
 arm_space_to_batch_nd_s16
 arm_space_to_batch_nd_s8
 arm_space_to_depth_s16
@@ -232,11 +238,16 @@ arm_space_to_depth_s8
 arm_split_s16
 arm_split_s8
 arm_strided_slice_s16
+arm_strided_slice_s32
 arm_strided_slice_s8
 arm_sub_s16
 arm_sub_s8
 arm_sub_scalar_s16
 arm_sub_scalar_s8
+arm_squared_difference_s16
+arm_squared_difference_s8
+arm_squared_difference_scalar_s16
+arm_squared_difference_scalar_s8
 arm_svdf_s8
 arm_svdf_s8_get_buffer_size
 arm_svdf_s8_get_buffer_size_dsp

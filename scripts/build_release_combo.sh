@@ -8,11 +8,11 @@ Build one release combo, prune the archive to the reviewed public API, and emit
 two product variants: ns-cmsis-nn and helia-core.
 
 Usage:
-  build_release_combo.sh --arch <cortex-m4+fp|cortex-m55> \
+  build_release_combo.sh --arch <cortex-m0|cortex-m4+fp|cortex-m55> \
                          --toolchain <gcc|armclang> \
                          --outdir <dir> \
                          [--build release] \
-                         [--visibility-mode single-facade|curated-tree|library-only]
+                         [--visibility-mode single-facade|library-only]
 
 Optional environment overrides:
   DOWNLOADS_DIR
@@ -95,6 +95,10 @@ STRIP="${STRIP:-$(command -v arm-none-eabi-strip || true)}"
 [[ -d "${ETHOS_U_CORE_PLATFORM_PATH}" ]] || { echo "ETHOS_U_CORE_PLATFORM_PATH not found: ${ETHOS_U_CORE_PLATFORM_PATH}" >&2; exit 3; }
 
 case "${ARCH}" in
+  cortex-m0)
+    TARGET_CPU="cortex-m0"
+    ARCH_LABEL="cm0"
+    ;;
   cortex-m4+fp)
     TARGET_CPU="cortex-m4"
     ARCH_LABEL="cm4"
@@ -133,7 +137,7 @@ esac
 [[ -f "${TOOLCHAIN_FILE}" ]] || { echo "Toolchain file not found: ${TOOLCHAIN_FILE}" >&2; exit 3; }
 
 case "${VISIBILITY_MODE}" in
-  single-facade|curated-tree|library-only)
+  single-facade|library-only)
     ;;
   *)
     echo "Unsupported visibility mode: ${VISIBILITY_MODE}" >&2

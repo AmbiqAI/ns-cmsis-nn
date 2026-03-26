@@ -1,9 +1,0 @@
-{
-  "name": "ns-cmsis-nn-ci",
-  "version-string": "1.0.0",
-  "dependencies": [
-    "fmt",
-    "nlohmann-json",
-    "zlib"
-  ]
-}

@@ -5,9 +5,7 @@ from __future__ import annotations
 
 import argparse
 import platform
-import shutil
 import subprocess
-import tarfile
 import tempfile
 import urllib.request
 from pathlib import Path
@@ -49,15 +47,17 @@ def ensure_gcc(downloads_dir: Path) -> None:
         archive_path = Path(temp_dir) / "arm-gcc.tar.xz"
         urllib.request.urlretrieve(gcc_url, archive_path)
         gcc_dir.mkdir(parents=True, exist_ok=True)
-        with tarfile.open(archive_path, mode="r:xz") as tar:
-            members = tar.getmembers()
-            prefix = members[0].name.split("/", 1)[0]
-            for member in members:
-                if member.name == prefix:
-                    continue
-                if member.name.startswith(prefix + "/"):
-                    member.name = member.name[len(prefix) + 1 :]
-                tar.extract(member, path=gcc_dir)
+        subprocess.run(
+            [
+                "tar",
+                "-C",
+                str(gcc_dir),
+                "--strip-components=1",
+                "-xJf",
+                str(archive_path),
+            ],
+            check=True,
+        )
 
 
 def main() -> int:

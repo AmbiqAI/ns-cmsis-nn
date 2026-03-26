@@ -1,4 +1,4 @@
-name: Build NS-CMSIS-NN CI Docker Image
+name: NS-CMSIS-NN Docker Image
 
 on:
   workflow_call:
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v6
 
       - name: Log in to GitHub Container Registry
