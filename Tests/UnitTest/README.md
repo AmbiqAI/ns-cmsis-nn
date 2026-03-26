@@ -175,6 +175,12 @@ To try out the new scripts, use
 ./RefactoredTestGen/generate_test_data.py --help
 ```
 
+SQRT (`op_sqrt`) test generation requires a newer TensorFlow than the default unit-test environment.
+Install it explicitly when regenerating SQRT data:
+```
+pip install -r requirements-sqrt-gen.txt
+```
+
 The previous generate_test_data will remain as the main data generator until all functionality is replicated with the new scripts.
 
 Current progress:

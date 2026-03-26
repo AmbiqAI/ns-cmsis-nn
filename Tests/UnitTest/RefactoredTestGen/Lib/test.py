@@ -33,6 +33,7 @@ import Lib.op_relu
 import Lib.op_relu6
 import Lib.op_hard_swish
 import Lib.op_abs
+import Lib.op_sqrt
 import Lib.op_prelu
 import Lib.op_strided_slice
 import Lib.op_concatenation
@@ -41,6 +42,7 @@ import Lib.op_reduce_max
 import Lib.op_reduce_min
 import Lib.op_comparisons
 import Lib.op_sub
+import Lib.op_squared_difference
 import Lib.op_arg_min_max
 import Lib.op_gather
 import Lib.op_gather_nd
@@ -195,6 +197,8 @@ def generate(params, args, fpaths):
     header = get_header(params["tflite_generator"], params["interpreter"])
 
     def include_in_config(key):
+        if params.get("op_type") == "sqrt" and key in ["input_scale", "output_scale"]:
+            return True
         return key not in [
             "suite_name", "name", "input_data_type", "op_type", "input_data_type", "weights_data_type",
             "bias_data_type", "shift_and_mult_data_type", "interpreter", "tflite_generator", "json_template",
@@ -294,6 +298,8 @@ def get_op_type(op_type_string):
         return Lib.op_hard_swish.Op_hard_swish
     elif op_type_string == "abs":
         return Lib.op_abs.Op_abs
+    elif op_type_string == "sqrt":
+        return Lib.op_sqrt.Op_sqrt
     elif op_type_string == "prelu":
         return Lib.op_prelu.Op_prelu
     elif op_type_string == "strided_slice":
@@ -310,6 +316,8 @@ def get_op_type(op_type_string):
         return Lib.op_comparisons.Op_comparisons
     elif op_type_string == "sub":
         return Lib.op_sub.Op_sub
+    elif op_type_string == "squared_difference":
+        return Lib.op_squared_difference.Op_squared_difference
     elif op_type_string == "arg_min_max":
         return Lib.op_arg_min_max.Op_arg_min_max
     elif op_type_string == "gather":
@@ -346,6 +354,12 @@ def convert_keras_to_tflite(
     n_inputs = len(keras_model.inputs)
 
     if quantize:
+        rep_input_dtypes = [tf.as_dtype(inp.dtype).as_numpy_dtype for inp in keras_model.inputs]
+        rep_min = float(shape.get("representational_dataset_min", 0.0))
+        rep_max = float(shape.get("representational_dataset_max", 1.0))
+        if rep_max <= rep_min:
+            rep_min, rep_max = 0.0, 1.0
+
         # Create a representative dataset for post-training quantization
         if shape.get("different_in_shapes") is True:
             def representative_dataset():
@@ -355,9 +369,13 @@ def convert_keras_to_tflite(
                     yield [data1.astype(np.float32), data2.astype(np.float32)]
         else:
             def representative_dataset():
-                for _ in range(n_inputs):
-                    data = np.random.rand(*shape["representational_dataset"])
-                    yield [data.astype(np.float32)]
+                for _ in range(100):
+                    data = np.random.uniform(
+                        rep_min,
+                        rep_max,
+                        size=shape["representational_dataset"]
+                    )
+                    yield [data.astype(rep_input_dtypes[0])]
 
         converter.representative_dataset = representative_dataset
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
@@ -466,7 +484,8 @@ def invoke_tflite_micro(tflite_path, input_tensor, arena_size=30000):
     interpreter = tflite_micro.runtime.Interpreter.from_file(model_path=str(tflite_path), arena_size=arena_size)
 
     for i, val in enumerate(input_tensor.values()):
-        expected_dtype = interpreter.get_input(i).dtype
+        input_details = interpreter.get_input_details(i)
+        expected_dtype = input_details["dtype"]
         if val.dtype != expected_dtype:
             val_to_set = val.astype(expected_dtype)
         else:

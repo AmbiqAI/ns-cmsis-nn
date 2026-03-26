@@ -2373,7 +2373,18 @@ arm_cmsis_nn_status arm_abs_s8(const int8_t *input,
                                const int32_t out_activation_max,
                                const int32_t block_size);
 
-
+/**
+ * @brief s8 elementwise square root
+ * @param[in]       input               pointer to input vector
+ * @param[in]       input_dims          pointer to input tensor dimensions
+ * @param[out]      output              pointer to output vector
+ * @param[in]       sqrt_lut            pointer to 256-entry lookup table
+ * @return          The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_sqrt_s8(const int8_t *input,
+                                const cmsis_nn_dims *input_dims,
+                                int8_t *output,
+                                int8_t *sqrt_lut);
 
 /**
  * @brief s16 elementwise absolute value
@@ -2803,6 +2814,130 @@ arm_cmsis_nn_status arm_elementwise_sub_s16(const int16_t *input_1_vect,
                                             const int32_t out_activation_min,
                                             const int32_t out_activation_max,
                                             const int32_t block_size);
+
+/**
+ * @brief s8 elementwise squared difference of two tensors with support for broadcasting.
+ */
+arm_cmsis_nn_status arm_squared_difference_s8(const int8_t *input1_data,
+                                              const cmsis_nn_dims *input1_dims,
+                                              const int8_t *input2_data,
+                                              const cmsis_nn_dims *input2_dims,
+                                              const int32_t input1_offset,
+                                              const int32_t input1_mult,
+                                              const int32_t input1_shift,
+                                              const int32_t input2_offset,
+                                              const int32_t input2_mult,
+                                              const int32_t input2_shift,
+                                              const int32_t left_shift,
+                                              int8_t *output_data,
+                                              const cmsis_nn_dims *output_dims,
+                                              const int32_t out_offset,
+                                              const int32_t out_mult,
+                                              const int32_t out_shift,
+                                              const int32_t out_activation_min,
+                                              const int32_t out_activation_max);
+
+/**
+ * @brief s8 elementwise squared difference of scalar and vector.
+ */
+arm_cmsis_nn_status arm_squared_difference_scalar_s8(const int8_t *input_1_vect,
+                                                     const int8_t *input_2_vect,
+                                                     const int32_t input_1_offset,
+                                                     const int32_t input_1_mult,
+                                                     const int32_t input_1_shift,
+                                                     const int32_t input_2_offset,
+                                                     const int32_t input_2_mult,
+                                                     const int32_t input_2_shift,
+                                                     const int32_t left_shift,
+                                                     int8_t *output,
+                                                     const int32_t out_offset,
+                                                     const int32_t out_mult,
+                                                     const int32_t out_shift,
+                                                     const int32_t out_activation_min,
+                                                     const int32_t out_activation_max,
+                                                     const int32_t block_size);
+
+/**
+ * @brief s8 elementwise squared difference of two vectors.
+ */
+arm_cmsis_nn_status arm_elementwise_squared_difference_s8(const int8_t *input_1_vect,
+                                                          const int8_t *input_2_vect,
+                                                          const int32_t input_1_offset,
+                                                          const int32_t input_1_mult,
+                                                          const int32_t input_1_shift,
+                                                          const int32_t input_2_offset,
+                                                          const int32_t input_2_mult,
+                                                          const int32_t input_2_shift,
+                                                          const int32_t left_shift,
+                                                          int8_t *output,
+                                                          const int32_t out_offset,
+                                                          const int32_t out_mult,
+                                                          const int32_t out_shift,
+                                                          const int32_t out_activation_min,
+                                                          const int32_t out_activation_max,
+                                                          const int32_t block_size);
+
+/**
+ * @brief s16 elementwise squared difference of two tensors with support for broadcasting.
+ */
+arm_cmsis_nn_status arm_squared_difference_s16(const int16_t *input1_data,
+                                               const cmsis_nn_dims *input1_dims,
+                                               const int16_t *input2_data,
+                                               const cmsis_nn_dims *input2_dims,
+                                               const int32_t input1_offset,
+                                               const int32_t input1_mult,
+                                               const int32_t input1_shift,
+                                               const int32_t input2_offset,
+                                               const int32_t input2_mult,
+                                               const int32_t input2_shift,
+                                               const int32_t left_shift,
+                                               int16_t *output_data,
+                                               const cmsis_nn_dims *output_dims,
+                                               const int32_t out_offset,
+                                               const int32_t out_mult,
+                                               const int32_t out_shift,
+                                               const int32_t out_activation_min,
+                                               const int32_t out_activation_max);
+
+/**
+ * @brief s16 elementwise squared difference of scalar and vector.
+ */
+arm_cmsis_nn_status arm_squared_difference_scalar_s16(const int16_t *input_1_vect,
+                                                      const int16_t *input_2_vect,
+                                                      const int32_t input_1_offset,
+                                                      const int32_t input_1_mult,
+                                                      const int32_t input_1_shift,
+                                                      const int32_t input_2_offset,
+                                                      const int32_t input_2_mult,
+                                                      const int32_t input_2_shift,
+                                                      const int32_t left_shift,
+                                                      int16_t *output,
+                                                      const int32_t out_offset,
+                                                      const int32_t out_mult,
+                                                      const int32_t out_shift,
+                                                      const int32_t out_activation_min,
+                                                      const int32_t out_activation_max,
+                                                      const int32_t block_size);
+
+/**
+ * @brief s16 elementwise squared difference of two vectors.
+ */
+arm_cmsis_nn_status arm_elementwise_squared_difference_s16(const int16_t *input_1_vect,
+                                                           const int16_t *input_2_vect,
+                                                           const int32_t input_1_offset,
+                                                           const int32_t input_1_mult,
+                                                           const int32_t input_1_shift,
+                                                           const int32_t input_2_offset,
+                                                           const int32_t input_2_mult,
+                                                           const int32_t input_2_shift,
+                                                           const int32_t left_shift,
+                                                           int16_t *output,
+                                                           const int32_t out_offset,
+                                                           const int32_t out_mult,
+                                                           const int32_t out_shift,
+                                                           const int32_t out_activation_min,
+                                                           const int32_t out_activation_max,
+                                                           const int32_t block_size);
 
 /**
  * @brief s8 elementwise multiplication of two tensors with support for broadcasting.
