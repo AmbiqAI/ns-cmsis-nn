@@ -1,0 +1,90 @@
+name: Cortex-M / Arm Compiler 6
+
+on:
+  workflow_dispatch:
+    inputs:
+      trigger-sha:
+        description: Commit SHA or ref to validate
+        required: false
+        default: ""
+        type: string
+  workflow_call:
+    inputs:
+      trigger-sha:
+        required: true
+        type: string
+
+jobs:
+  armclang-release-smoke:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - cortex-m0
+          - cortex-m4+fp
+          - cortex-m55
+
+    env:
+      ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+
+    steps:
+      - name: Select ref
+        id: sel
+        run: |
+          if [[ -n "${{ inputs.trigger-sha }}" ]]; then
+            echo "ref=${{ inputs.trigger-sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.sel.outputs.ref }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Mark workspace safe
+        run: git config --global --add safe.directory "*"
+
+      - name: Validate armclang license
+        run: |
+          if [[ -z "${ARM_UBL_LICENSE_IDENTIFIER}" ]]; then
+            echo "::error ::ARM_UBL_LICENSE_IDENTIFIER is required for armclang builds."
+            exit 1
+          fi
+
+      - name: Install Arm tools
+        uses: ARM-software/cmsis-actions/vcpkg@v1
+        with:
+          config: .github/arm/vcpkg-configuration.json
+
+      - name: Activate Arm tool license
+        uses: ARM-software/cmsis-actions/armlm@v1
+        with:
+          code: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+
+      - name: Cache release dependencies
+        uses: actions/cache@v4
+        with:
+          path: Tests/UnitTest/downloads
+          key: armclang-release-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup_release_dependencies.py') }}
+          restore-keys: |
+            armclang-release-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Setup release dependencies
+        run: |
+          python3 scripts/setup_release_dependencies.py \
+            --downloads-dir Tests/UnitTest/downloads
+
+      - name: Build armclang public archive
+        run: |
+          bash scripts/build_release_combo.sh \
+            --arch "${{ matrix.arch }}" \
+            --toolchain armclang \
+            --build release \
+            --visibility-mode library-only \
+            --outdir "out/armclang-smoke/${{ matrix.arch }}/armclang/release"

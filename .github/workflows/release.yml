@@ -119,8 +119,17 @@ jobs:
   release-assets:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    # Use library-only release assets workflow so assets are only produced for library-only
     uses: ./.github/workflows/release_assets_library_only.yml
+    with:
+      ref: ${{ needs.release-please.outputs.tag_name }}
+      tag: ${{ needs.release-please.outputs.tag_name }}
+      upload_to_release: true
+    secrets: inherit
+
+  release-assets-single-facade:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    uses: ./.github/workflows/release_assets_single_facade.yml
     with:
       ref: ${{ needs.release-please.outputs.tag_name }}
       tag: ${{ needs.release-please.outputs.tag_name }}

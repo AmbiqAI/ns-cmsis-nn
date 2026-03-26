@@ -1,113 +1,42 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  workflow_call:
+    inputs:
+      trigger-sha:
+        required: true
+        type: string
 
 jobs:
-  public-api-export-smoke:
+  release-bundle-smoke:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
     strategy:
       fail-fast: false
       matrix:
-        # Only run the library-only visibility mode
         visibility_mode:
+          - single-facade
           - library-only
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.trigger-sha }}
           submodules: recursive
           fetch-depth: 0
 
-      - name: Find vcpkg configuration
-        id: find_vcpkg
-        run: |
-          set -euo pipefail
-          # Prefer repo root, then .github/
-          if [ -f "${GITHUB_WORKSPACE}/vcpkg-configuration.json" ]; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-            echo "config_path=./vcpkg-configuration.json" >> "$GITHUB_OUTPUT"
-          elif [ -f "${GITHUB_WORKSPACE}/.github/vcpkg-configuration.json" ]; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-            echo "config_path=.github/vcpkg-configuration.json" >> "$GITHUB_OUTPUT"
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "config_path=" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Debug repo layout (only when vcpkg config missing)
-        if: steps.find_vcpkg.outputs.found == 'false'
-        run: |
-          echo "Working dir:"
-          pwd
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          echo "Top-level listing:"
-          ls -la || true
-          echo "Searching for vcpkg-configuration.json (depth 3):"
-          find . -maxdepth 3 -type f -name 'vcpkg-configuration.json' -print || true
-
-      - name: Fail early if vcpkg configuration is missing
-        if: steps.find_vcpkg.outputs.found == 'false'
-        run: |
-          echo "::error ::vcpkg-configuration.json not found in repo root or .github/. Please add it or update the workflow 'config' path."
-          exit 1
-
-      - name: Cache vcpkg downloads
-        uses: actions/cache@v4
-        with:
-          path: |
-            .vcpkg
-            .vcpkg/downloads
-          key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('vcpkg-configuration.json', '.github/vcpkg-configuration.json') }}
-          restore-keys: |
-            vcpkg-${{ runner.os }}-${{ runner.arch }}-
-
-      - name: Setup vcpkg (manual)
-        if: steps.find_vcpkg.outputs.found == 'true'
-        run: |
-          set -euo pipefail
-          CONFIG=${{ steps.find_vcpkg.outputs.config_path }}
-          echo "Using vcpkg config: $CONFIG"
-          # Extract baseline (jq if present, fallback to grep)
-          if command -v jq >/dev/null 2>&1; then
-            VCPKG_SHA=$(jq -r '.registries[0].baseline // .["default-registry"].baseline' "$CONFIG")
-          else
-            VCPKG_SHA=$(grep -oE '"baseline"\s*:\s*"[^"]+"' "$CONFIG" | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
-          fi
-          if [ -z "$VCPKG_SHA" ] || [ "$VCPKG_SHA" = "null" ]; then
-            echo "::error ::vcpkg baseline not found in $CONFIG"
-            exit 1
-          fi
-          echo "Pinned vcpkg baseline: $VCPKG_SHA"
-          VCPKG_DIR=".vcpkg"
-          if [ ! -d "$VCPKG_DIR" ]; then
-            git clone https://github.com/microsoft/vcpkg "$VCPKG_DIR"
-          fi
-          pushd "$VCPKG_DIR"
-          git fetch --quiet origin "$VCPKG_SHA" || true
-          git checkout --quiet "$VCPKG_SHA"
-          ./bootstrap-vcpkg.sh -disableMetrics || ./bootstrap-vcpkg.sh
-          popd
-          # Install manifest deps if present (no-op if vcpkg.json empty)
-          if [ -f vcpkg.json ]; then
-            ./.vcpkg/vcpkg install --x-install-root=${{ github.workspace }}/.vcpkg/installed
-          fi
-        shell: bash
+      - name: Mark workspace safe
+        run: git config --global --add safe.directory "*"
 
       - name: Cache release dependencies
         uses: actions/cache@v4
         with:
           path: Tests/UnitTest/downloads
-          key: public-api-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup_release_dependencies.py') }}
+          key: release-smoke-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup_release_dependencies.py') }}
           restore-keys: |
-            public-api-downloads-${{ runner.os }}-${{ runner.arch }}-
+            release-smoke-downloads-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Setup release dependencies
         run: |
@@ -138,7 +67,7 @@ jobs:
             exit 1
           fi
 
-      - name: Build representative public-only archive
+      - name: Build representative public archive
         run: |
           bash scripts/build_release_combo.sh \
             --arch cortex-m55 \
@@ -188,16 +117,12 @@ jobs:
               grep -q 'include/cmsis-nn/Internal/arm_nn_compiler.h' "${bundle_root}/ns-zip-list.txt"
               ! grep -q 'include/cmsis-nn/arm_nn_tables.h' "${bundle_root}/ns-zip-list.txt"
               ;;
-            curated-tree)
-              grep -q 'include/cmsis-nn/arm_nn_tables.h' "${bundle_root}/ns-zip-list.txt"
-              grep -q 'include/cmsis-nn/arm_nnfunctions.h' "${bundle_root}/ns-zip-list.txt"
-              ;;
             library-only)
               ! grep -q 'include/' "${bundle_root}/ns-zip-list.txt"
               ;;
           esac
 
-      - name: Upload public API smoke artifacts
+      - name: Upload smoke artifacts
         uses: actions/upload-artifact@v4
         with:
           name: public-api-smoke-${{ matrix.visibility_mode }}
@@ -220,10 +145,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-
-      - name: Verify per-channel s16 test data is present
-        run: |
-          grep -R "fc_per_channel_s16" -n Tests/UnitTest/TestCases/TestData
+        with:
+          ref: ${{ inputs.trigger-sha }}
 
       - name: Restore tests-downloads cache
         id: cache-downloads
@@ -234,19 +157,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-tests-downloads-
 
-      - name: Download deps (internal cache-checks)
+      - name: Download deps
         run: |
           cd Tests/UnitTest
           ./build_and_run_tests.sh -rb
 
-      - name: Build & run tests for ${{ matrix.core }}
+      - name: Build and run tests for ${{ matrix.core }}
         run: |
           cd Tests/UnitTest
           ./build_and_run_tests.sh -q -c ${{ matrix.core }}
-
-      - name: Save tests-downloads cache
-        if: steps.cache-downloads.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
-        with:
-          path: Tests/UnitTest/downloads
-          key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}

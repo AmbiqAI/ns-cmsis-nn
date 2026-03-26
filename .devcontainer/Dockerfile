@@ -2,7 +2,7 @@ FROM python:3.10-bookworm as ns-cmsis-nn-ci
 
 RUN apt-get update
 
-RUN apt-get install -y zip xxd sudo ruby-full cmake pip curl git git-lfs
+RUN apt-get install -y zip unzip xxd sudo ruby-full cmake pip curl git git-lfs jq ninja-build
 
 RUN apt install -y lsb-release wget software-properties-common gnupg
 RUN wget https://apt.llvm.org/llvm.sh

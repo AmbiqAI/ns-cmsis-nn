@@ -8,10 +8,10 @@ Build or package Helia-style release bundles for ns-cmsis-nn and helia-core.
 
 Usage:
   build_release_bundle.sh --tag <tag> --outdir <dir> [--artifact-root <dir>] [--skip-build]
-                          [--archs cortex-m4+fp,cortex-m55]
+                          [--archs cortex-m0,cortex-m4+fp,cortex-m55]
                           [--toolchains gcc,armclang]
                           [--build release]
-                          [--visibility-mode single-facade|curated-tree|library-only]
+                          [--visibility-mode single-facade|library-only]
 EOF
 }
 
@@ -21,8 +21,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TAG=""
 OUTDIR=""
 ARTIFACT_ROOT="${REPO_ROOT}/out/release-artifacts"
-ARCHS="cortex-m4+fp,cortex-m55"
-TOOLCHAINS="gcc" # ,armclang" (disabled due to build timeouts; will be re-enabled once build performance improvements are in place)
+ARCHS="cortex-m0,cortex-m4+fp,cortex-m55"
+TOOLCHAINS="gcc,armclang"
 BUILD="release"
 SKIP_BUILD=0
 VISIBILITY_MODE="single-facade"
@@ -60,10 +60,6 @@ copy_headers_for_mode() {
   case "${VISIBILITY_MODE}" in
     single-facade)
       copy_single_facade_headers "${source_dir}" "${bundle_dir}"
-      ;;
-    curated-tree)
-      mkdir -p "${bundle_dir}/include"
-      cp -R "${source_dir}/include/cmsis-nn" "${bundle_dir}/include/"
       ;;
     library-only)
       ;;
@@ -125,7 +121,7 @@ done
 [[ "${BUILD}" == "release" ]] || { echo "Only --build release is supported" >&2; exit 2; }
 
 case "${VISIBILITY_MODE}" in
-  single-facade|curated-tree|library-only)
+  single-facade|library-only)
     ;;
   *)
     echo "Unsupported visibility mode: ${VISIBILITY_MODE}" >&2
