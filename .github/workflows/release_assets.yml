@@ -45,14 +45,9 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 4
-      matrix:
-        arch:
-          - cortex-m0
-          - cortex-m4+fp
-          - cortex-m55
-        toolchain:
-          - gcc
-          - armclang
+      matrix: ${{ fromJSON(github.event_name == 'pull_request'
+        && '{"arch":["cortex-m0","cortex-m4+fp","cortex-m55"],"toolchain":["gcc"]}'
+        || '{"arch":["cortex-m0","cortex-m4+fp","cortex-m55"],"toolchain":["gcc","armclang"]}') }}
 
     env:
       ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
