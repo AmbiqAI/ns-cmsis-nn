@@ -104,7 +104,7 @@ jobs:
       # 3) Publish docs to GitHub Pages (from ./Documentation/html)
       - name: Setup Pages
         if: ${{ steps.rp.outputs.release_created }}
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload Pages artifact
         if: ${{ steps.rp.outputs.release_created }}
