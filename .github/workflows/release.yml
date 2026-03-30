@@ -115,4 +115,4 @@ jobs:
       - name: Deploy to GitHub Pages
         if: ${{ steps.rp.outputs.release_created }}
         id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
