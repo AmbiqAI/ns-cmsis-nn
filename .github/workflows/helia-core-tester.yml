@@ -8,7 +8,7 @@ jobs:
   codegen-tests:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:20260330
     strategy:
       fail-fast: false
       matrix:
@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: codegen-tests
     container:
-      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:20260330
 
     steps:
       - name: Checkout repository

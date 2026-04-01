@@ -21,8 +21,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Generate version tag
+        id: version
+        run: echo "tag=$(date +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
       - name: Build Docker Image
-        run: docker build -t ghcr.io/ambiqai/ns-cmsis-nn-ci:latest -f .devcontainer/Dockerfile .
+        run: |
+          docker build \
+            -t ghcr.io/ambiqai/ns-cmsis-nn-ci:latest \
+            -t ghcr.io/ambiqai/ns-cmsis-nn-ci:${{ steps.version.outputs.tag }} \
+            -f .devcontainer/Dockerfile .
 
       - name: Push Docker Image
-        run: docker push ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+        run: |
+          docker push ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+          docker push ghcr.io/ambiqai/ns-cmsis-nn-ci:${{ steps.version.outputs.tag }}

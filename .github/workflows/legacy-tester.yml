@@ -8,7 +8,7 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:20260330
 
     strategy:
       fail-fast: false

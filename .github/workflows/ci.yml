@@ -11,7 +11,7 @@ on:
 
 jobs:
   unit-tests:
-    uses: ./.github/workflows/reusable-unittest.yml
+    uses: ./.github/workflows/legacy-tester.yml
 
   helia-core-tester:
-    uses: ./.github/workflows/reusable-helia-core-tester.yml
+    uses: ./.github/workflows/helia-core-tester.yml
