@@ -2,6 +2,11 @@ name: CI/CD Pipeline
 
 on:
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Optional GHCR image tag override, for example v7.22.0
+        required: false
+        type: string
   push:
     branches:
       - main
@@ -12,6 +17,10 @@ on:
 jobs:
   unit-tests:
     uses: ./.github/workflows/legacy-tester.yml
+    with:
+      container_image: ${{ format('ghcr.io/ambiqai/ns-cmsis-nn-ci:{0}', inputs.image_tag || vars.CI_IMAGE_TAG) }}
 
   helia-core-tester:
     uses: ./.github/workflows/helia-core-tester.yml
+    with:
+      container_image: ${{ format('ghcr.io/ambiqai/ns-cmsis-nn-ci:{0}', inputs.image_tag || vars.CI_IMAGE_TAG) }}

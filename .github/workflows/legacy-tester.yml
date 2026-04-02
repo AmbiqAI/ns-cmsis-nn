@@ -2,13 +2,22 @@ name: UnitTest
 
 on:
   workflow_call:
+    inputs:
+      container_image:
+        required: true
+        type: string
   workflow_dispatch:
+    inputs:
+      container_image:
+        description: Optional full container image ref override
+        required: false
+        type: string
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:20260330
+      image: ${{ inputs.container_image || format('ghcr.io/ambiqai/ns-cmsis-nn-ci:{0}', vars.CI_IMAGE_TAG) }}
 
     strategy:
       fail-fast: false
