@@ -3,20 +3,20 @@ name: Build NS-CMSIS-NN CI Docker Image
 on:
   workflow_call:
     inputs:
-      ns_tag:
+      image_tag:
         required: true
         type: string
-      helia_tag:
+      source_ref:
         required: true
         type: string
   workflow_dispatch:
     inputs:
-      ns_tag:
-        description: NS-CMSIS-NN release tag to publish, for example v7.22.0
+      image_tag:
+        description: GHCR image tag to publish, for example v7.22.0
         required: true
         type: string
-      helia_tag:
-        description: Exact helia-core-tester tag baked into the image, for example v0.2.0
+      source_ref:
+        description: Git ref to build from, for example v7.22.0 or ci-bootstrap-20260402
         required: true
         type: string
 
@@ -31,6 +31,24 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.source_ref }}
+          submodules: recursive
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Fetch helia-core-tester tags
+        run: git -C Tests/helia-core-tester fetch --tags origin
+
+      - name: Resolve exact helia-core-tester tag
+        id: helia
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$(git -C Tests/helia-core-tester describe --tags --exact-match)"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -48,7 +66,7 @@ jobs:
           context: .
           file: .devcontainer/Dockerfile
           push: true
-          tags: ghcr.io/ambiqai/ns-cmsis-nn-ci:${{ inputs.ns_tag }}
+          tags: ghcr.io/ambiqai/ns-cmsis-nn-ci:${{ inputs.image_tag }}
           build-args: |
-            NS_CMSIS_NN_TAG=${{ inputs.ns_tag }}
-            HELIA_CORE_TESTER_TAG=${{ inputs.helia_tag }}
+            NS_CMSIS_NN_TAG=${{ inputs.image_tag }}
+            HELIA_CORE_TESTER_TAG=${{ steps.helia.outputs.tag }}

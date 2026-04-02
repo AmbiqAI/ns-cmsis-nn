@@ -158,8 +158,8 @@ jobs:
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     uses: ./.github/workflows/build_publish_docker.yml
     with:
-      ns_tag: ${{ needs.resolve-release-metadata.outputs.ns_tag }}
-      helia_tag: ${{ needs.resolve-release-metadata.outputs.helia_tag }}
+      image_tag: ${{ needs.resolve-release-metadata.outputs.ns_tag }}
+      source_ref: ${{ needs.resolve-release-metadata.outputs.ns_tag }}
     secrets: inherit
 
   update-ci-image-vars:

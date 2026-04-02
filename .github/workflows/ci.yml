@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: Optional GHCR image tag override, for example v7.22.0
+        description: Optional GHCR image tag override, for example ci-bootstrap-20260402 or v7.22.0
         required: false
         type: string
   push:
@@ -37,7 +37,8 @@ jobs:
 
           if [[ -z "${image_tag}" ]]; then
             echo "CI image tag is not configured." >&2
-            echo "Set the repository variable CI_IMAGE_TAG or provide workflow_dispatch input image_tag." >&2
+            echo "Bootstrap the pinned image first by publishing ghcr.io/ambiqai/ns-cmsis-nn-ci:ci-bootstrap-20260402 from tag ci-bootstrap-20260402, then set the repository variable CI_IMAGE_TAG." >&2
+            echo "You can also provide workflow_dispatch input image_tag for a one-off run." >&2
             exit 1
           fi
 
