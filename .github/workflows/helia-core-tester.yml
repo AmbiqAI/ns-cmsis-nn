@@ -9,15 +9,15 @@ on:
   workflow_dispatch:
     inputs:
       container_image:
-        description: Optional full container image ref override
-        required: false
+        description: Full container image ref, for example ghcr.io/ambiqai/ns-cmsis-nn-ci:v7.22.0
+        required: true
         type: string
 
 jobs:
   codegen-tests:
     runs-on: ubuntu-latest
     container:
-      image: ${{ inputs.container_image || format('ghcr.io/ambiqai/ns-cmsis-nn-ci:{0}', vars.CI_IMAGE_TAG) }}
+      image: ${{ inputs.container_image }}
     strategy:
       fail-fast: false
       matrix:
@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: codegen-tests
     container:
-      image: ${{ inputs.container_image || format('ghcr.io/ambiqai/ns-cmsis-nn-ci:{0}', vars.CI_IMAGE_TAG) }}
+      image: ${{ inputs.container_image }}
 
     steps:
       - name: Checkout repository
