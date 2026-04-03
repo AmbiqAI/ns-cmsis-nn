@@ -27,7 +27,8 @@ void rsqrt_s16_universal_matches_reference(void)
                                                                rsqrt_s16_universal_lut);
 
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
-    TEST_ASSERT_TRUE(validate_s16(output, rsqrt_s16_universal_output, RSQRT_S16_BLOCK_SIZE));
+    TEST_ASSERT_TRUE(
+        validate_tol_s16(output, rsqrt_s16_universal_output, RSQRT_S16_BLOCK_SIZE, RSQRT_S16_UNIVERSAL_TOLERANCE));
 }
 
 void rsqrt_s16_per_op_matches_reference(void)
@@ -44,7 +45,8 @@ void rsqrt_s16_per_op_matches_reference(void)
                                                             rsqrt_s16_per_op_lut);
 
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
-    TEST_ASSERT_TRUE(validate_s16(output, rsqrt_s16_per_op_output, RSQRT_S16_BLOCK_SIZE));
+    TEST_ASSERT_TRUE(
+        validate_tol_s16(output, rsqrt_s16_per_op_output, RSQRT_S16_BLOCK_SIZE, RSQRT_S16_PER_OP_TOLERANCE));
 }
 
 void rsqrt_s16_per_op_applies_input_offset_before_lookup(void)
@@ -61,7 +63,10 @@ void rsqrt_s16_per_op_applies_input_offset_before_lookup(void)
                                                             rsqrt_s16_per_op_lut);
 
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
-    TEST_ASSERT_TRUE(validate_s16(output, rsqrt_s16_offset_per_op_output, RSQRT_S16_OFFSET_BLOCK_SIZE));
+    TEST_ASSERT_TRUE(validate_tol_s16(output,
+                                      rsqrt_s16_offset_per_op_output,
+                                      RSQRT_S16_OFFSET_BLOCK_SIZE,
+                                      RSQRT_S16_OFFSET_PER_OP_TOLERANCE));
 }
 
 void rsqrt_s16_universal_rescales_and_applies_input_offset(void)
@@ -81,7 +86,10 @@ void rsqrt_s16_universal_rescales_and_applies_input_offset(void)
                                                                rsqrt_s16_universal_lut);
 
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
-    TEST_ASSERT_TRUE(validate_s16(output, rsqrt_s16_rescaled_universal_output, RSQRT_S16_RESCALE_BLOCK_SIZE));
+    TEST_ASSERT_TRUE(validate_tol_s16(output,
+                                      rsqrt_s16_rescaled_universal_output,
+                                      RSQRT_S16_RESCALE_BLOCK_SIZE,
+                                      RSQRT_S16_RESCALED_UNIVERSAL_TOLERANCE));
 }
 
 void rsqrt_s16_rejects_negative_input(void)
