@@ -2,6 +2,11 @@ name: CI/CD Pipeline
 
 on:
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Optional pinned GHCR image tag override, for example v7.0.1_hct-v2.3.4
+        required: false
+        type: string
   push:
     branches:
       - main
@@ -10,17 +15,45 @@ on:
       - main
 
 jobs:
-  build-ci-image:
-    uses: ./.github/workflows/build_publish_docker.yml
+  resolve-ci-image:
+    runs-on: ubuntu-latest
+    outputs:
+      container_image: ${{ steps.resolve.outputs.container_image }}
+
+    steps:
+      - name: Resolve CI container image
+        id: resolve
+        shell: bash
+        env:
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+          DEFAULT_IMAGE_TAG: ${{ vars.CI_IMAGE_TAG }}
+        run: |
+          set -euo pipefail
+
+          image_tag="${INPUT_IMAGE_TAG:-}"
+          if [[ -z "${image_tag}" ]]; then
+            image_tag="${DEFAULT_IMAGE_TAG:-}"
+          fi
+
+          if [[ -z "${image_tag}" ]]; then
+            echo "CI image tag is not configured." >&2
+            echo "Set repository variable CI_IMAGE_TAG to a pinned published image tag, for example:" >&2
+            echo "  v7.0.1_hct-v0.2.0" >&2
+            echo "You can also provide workflow_dispatch input image_tag for a one-off run." >&2
+            exit 1
+          fi
+
+          echo "Using pinned CI image tag: ${image_tag}"
+          echo "container_image=ghcr.io/ambiqai/ns-cmsis-nn-ci:${image_tag}" >> "$GITHUB_OUTPUT"
 
   unit-tests:
-    needs: build-ci-image
+    needs: resolve-ci-image
     uses: ./.github/workflows/legacy-tester.yml
     with:
-      container_image: ${{ needs.build-ci-image.outputs.image_ref }}
+      container_image: ${{ needs.resolve-ci-image.outputs.container_image }}
 
   helia-core-tester:
-    needs: build-ci-image
+    needs: resolve-ci-image
     uses: ./.github/workflows/helia-core-tester.yml
     with:
-      container_image: ${{ needs.build-ci-image.outputs.image_ref }}
+      container_image: ${{ needs.resolve-ci-image.outputs.container_image }}

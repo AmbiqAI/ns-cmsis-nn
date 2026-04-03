@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       container_image:
-        description: Pinned GHCR image to run in, for example ghcr.io/ambiqai/ns-cmsis-nn-ci:v7.0.1_hct-v0.2.0
+        description: Pinned GHCR image to run in
         required: true
         type: string
 

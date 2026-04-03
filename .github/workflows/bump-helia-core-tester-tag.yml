@@ -1,0 +1,87 @@
+name: Bump Helia Core Tester Submodule
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 15 * * 1' # weekly, adjust as needed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  HCT_PATH: Tests/helia-core-tester 
+  HCT_REPO_URL: https://github.com/AmbiqAI/helia-core-tester.git
+  BASE_BRANCH: main
+
+jobs:
+  bump-hct:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Fetch root and submodule tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force --tags
+          git -C "${HCT_PATH}" fetch --force --tags
+
+      - name: Resolve current and latest HCT tag
+        id: versions
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CURRENT_SHA="$(git -C "${HCT_PATH}" rev-parse HEAD)"
+          CURRENT_DESC="$(git -C "${HCT_PATH}" describe --tags --always "${CURRENT_SHA}")"
+          LATEST_TAG="$(git -C "${HCT_PATH}" tag --sort=-version:refname | head -n1)"
+
+          if [[ -z "${LATEST_TAG}" ]]; then
+            echo "No helia-core-tester tags found" >&2
+            exit 1
+          fi
+
+          echo "current_sha=${CURRENT_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "current_desc=${CURRENT_DESC}" >> "${GITHUB_OUTPUT}"
+          echo "latest_tag=${LATEST_TAG}" >> "${GITHUB_OUTPUT}"
+
+      - name: Stop if already up to date
+        if: steps.versions.outputs.current_desc == steps.versions.outputs.latest_tag
+        run: |
+          echo "Submodule already points to latest tag: ${{ steps.versions.outputs.latest_tag }}"
+
+      - name: Update submodule to latest tag
+        if: steps.versions.outputs.current_desc != steps.versions.outputs.latest_tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C "${HCT_PATH}" checkout "${{ steps.versions.outputs.latest_tag }}"
+          git add "${HCT_PATH}"
+          git status --short
+
+      - name: Create pull request
+        if: steps.versions.outputs.current_desc != steps.versions.outputs.latest_tag
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/bump-hct-${{ steps.versions.outputs.latest_tag }}
+          base: ${{ env.BASE_BRANCH }}
+          commit-message: "chore: bump helia-core-tester to ${{ steps.versions.outputs.latest_tag }}"
+          title: "chore: bump helia-core-tester to ${{ steps.versions.outputs.latest_tag }}"
+          body: |
+            Updates the helia-core-tester submodule to `${{ steps.versions.outputs.latest_tag }}`.
+
+            Previous submodule version:
+            - `${{ steps.versions.outputs.current_desc }}`
+
+            New target tag:
+            - `${{ steps.versions.outputs.latest_tag }}`
+
+            After merge:
+            - normal PR CI validates the bump
+            - the next ns-cmsis-nn release tag will publish a new pinned CI image

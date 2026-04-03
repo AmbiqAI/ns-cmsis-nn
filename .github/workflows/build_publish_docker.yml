@@ -3,7 +3,7 @@ name: Build NS-CMSIS-NN CI Docker Image
 on:
   push:
     tags:
-      - 'v*' # triggered by release-please
+      - 'v*' # release-please tags
   workflow_call:
   workflow_dispatch:
 
@@ -13,7 +13,7 @@ permissions:
 
 env:
   IMAGE_NAME: ghcr.io/ambiqai/ns-cmsis-nn-ci
-  HCT_PATH: ghcr.io/ambiqai/helia-core-tester # TODO: replace with actual path
+  HCT_PATH: Tests/helia-core-tester # adjust if your submodule path differs
 
 jobs:
   build-and-push:
@@ -24,19 +24,21 @@ jobs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
       ns_tag: ${{ steps.meta.outputs.ns_tag }}
       hct_tag: ${{ steps.meta.outputs.hct_tag }}
+      hct_sha: ${{ steps.meta.outputs.hct_sha }}
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Fetch all tags
+      - name: Fetch tags for root repo and HCT submodule
         shell: bash
         run: |
+          set -euo pipefail
           git fetch --force --tags
-          git -C "${HCT_PATH}" fetch --force --tags || true
+          git -C "${HCT_PATH}" fetch --force --tags
 
       - name: Resolve release metadata
         id: meta
@@ -44,20 +46,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Since this runs on tag push, this is the release version
           NS_TAG="${GITHUB_REF_NAME}"
+          HCT_SHA="$(git -C "${HCT_PATH}" rev-parse HEAD)"
 
-          if [[ -z "${NS_TAG}" ]]; then
-            echo "Failed to resolve ns-cmsis-nn tag"
-            exit 1
-          fi
+          # Prefer exact tag on the pinned submodule commit.
+          HCT_TAG="$(git -C "${HCT_PATH}" describe --tags --exact-match "${HCT_SHA}" 2>/dev/null || true)"
 
-          # Resolve latest helia-core-tester tag once
-          HCT_TAG="$(git -C "${HCT_PATH}" tag --sort=-version:refname | head -n1)"
-
+          # Fallback: nearest tag descriptor if the pinned commit is not exactly tagged.
           if [[ -z "${HCT_TAG}" ]]; then
-            echo "Failed to resolve helia-core-tester tag"
-            exit 1
+            HCT_TAG="$(git -C "${HCT_PATH}" describe --tags --always "${HCT_SHA}")"
           fi
 
           IMAGE_TAG="${NS_TAG}_hct-${HCT_TAG}"
@@ -65,13 +62,15 @@ jobs:
 
           echo "ns_tag=${NS_TAG}" >> "${GITHUB_OUTPUT}"
           echo "hct_tag=${HCT_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "hct_sha=${HCT_SHA}" >> "${GITHUB_OUTPUT}"
           echo "image_tag=${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
           echo "image_ref=${IMAGE_REF}" >> "${GITHUB_OUTPUT}"
 
       - name: Show resolved versions
         run: |
           echo "ns-cmsis-nn tag: ${{ steps.meta.outputs.ns_tag }}"
-          echo "helia-core-tester tag: ${{ steps.meta.outputs.hct_tag }}"
+          echo "helia-core-tester tag/descriptor: ${{ steps.meta.outputs.hct_tag }}"
+          echo "helia-core-tester sha: ${{ steps.meta.outputs.hct_sha }}"
           echo "Pinned image tag: ${{ steps.meta.outputs.image_tag }}"
 
       - name: Log in to GitHub Container Registry
@@ -81,7 +80,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Docker Image
+      - name: Build Docker image
         shell: bash
         run: |
           set -euo pipefail
@@ -93,11 +92,14 @@ jobs:
             --label org.opencontainers.image.version="${{ steps.meta.outputs.ns_tag }}" \
             --label io.ambiq.ns-cmsis-nn.tag="${{ steps.meta.outputs.ns_tag }}" \
             --label io.ambiq.helia-core-tester.tag="${{ steps.meta.outputs.hct_tag }}" \
+            --label io.ambiq.helia-core-tester.sha="${{ steps.meta.outputs.hct_sha }}" \
             -t "${{ steps.meta.outputs.image_ref }}" \
             -t "${IMAGE_NAME}:latest" \
             -f .devcontainer/Dockerfile .
 
-      - name: Push Docker Image
+      - name: Push Docker image
+        shell: bash
         run: |
+          set -euo pipefail
           docker push "${{ steps.meta.outputs.image_ref }}"
           docker push "${IMAGE_NAME}:latest"
