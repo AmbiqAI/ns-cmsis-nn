@@ -73,9 +73,9 @@ RSQRT_DATASET_NAME = "rsqrt_s16"
 
 
 def generate_rsqrt_test_data() -> None:
-    """Generate deterministic RSQRT unit-test headers via the local helper script."""
+    """Generate RSQRT unit-test headers via the refactored helper script."""
     unit_test_dir = Path(__file__).resolve().parent
-    script_path = unit_test_dir / "TestCases" / "test_arm_rsqrt_s16" / "generate_rsqrt_s16_test_data.py"
+    script_path = unit_test_dir / "RefactoredTestGen" / "generate_rsqrt_s16_test_data.py"
     subprocess.run([sys.executable, str(script_path)], check=True, cwd=unit_test_dir)
 
 
