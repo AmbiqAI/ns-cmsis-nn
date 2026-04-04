@@ -2,22 +2,13 @@ name: Helia Core Tester
 
 on:
   workflow_call:
-    inputs:
-      container_image:
-        required: true
-        type: string
   workflow_dispatch:
-    inputs:
-      container_image:
-        description: Pinned GHCR image to run in
-        required: true
-        type: string
 
 jobs:
   codegen-tests:
     runs-on: ubuntu-latest
     container:
-      image: ${{ inputs.container_image }}
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
     strategy:
       fail-fast: false
       matrix:
@@ -66,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: codegen-tests
     container:
-      image: ${{ inputs.container_image }}
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
 
     steps:
       - name: Checkout repository

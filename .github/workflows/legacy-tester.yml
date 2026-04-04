@@ -2,22 +2,13 @@ name: UnitTest
 
 on:
   workflow_call:
-    inputs:
-      container_image:
-        required: true
-        type: string
   workflow_dispatch:
-    inputs:
-      container_image:
-        description: Pinned GHCR image to run in, for example ghcr.io/ambiqai/ns-cmsis-nn-ci:v7.0.1_hct-v0.2.0
-        required: true
-        type: string
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     container:
-      image: ${{ inputs.container_image }}
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
 
     strategy:
       fail-fast: false

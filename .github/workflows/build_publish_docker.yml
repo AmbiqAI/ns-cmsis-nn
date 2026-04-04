@@ -1,77 +1,18 @@
 name: Build NS-CMSIS-NN CI Docker Image
 
 on:
-  push:
-    tags:
-      - 'v*' # release-please tags
   workflow_call:
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  packages: write
-
-env:
-  IMAGE_NAME: ghcr.io/ambiqai/ns-cmsis-nn-ci
-  HCT_PATH: Tests/helia-core-tester # adjust if your submodule path differs
+  workflow_dispatch: # Allow manual triggering
+  schedule:
+    - cron: '0 16 * * 1' # 8 AM PST every Monday
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
-    outputs:
-      image_ref: ${{ steps.meta.outputs.image_ref }}
-      image_tag: ${{ steps.meta.outputs.image_tag }}
-      ns_tag: ${{ steps.meta.outputs.ns_tag }}
-      hct_tag: ${{ steps.meta.outputs.hct_tag }}
-      hct_sha: ${{ steps.meta.outputs.hct_sha }}
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          submodules: recursive
-
-      - name: Fetch tags for root repo and HCT submodule
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch --force --tags
-          git -C "${HCT_PATH}" fetch --force --tags
-
-      - name: Resolve release metadata
-        id: meta
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          NS_TAG="${GITHUB_REF_NAME}"
-          HCT_SHA="$(git -C "${HCT_PATH}" rev-parse HEAD)"
-
-          # Prefer exact tag on the pinned submodule commit.
-          HCT_TAG="$(git -C "${HCT_PATH}" describe --tags --exact-match "${HCT_SHA}" 2>/dev/null || true)"
-
-          # Fallback: nearest tag descriptor if the pinned commit is not exactly tagged.
-          if [[ -z "${HCT_TAG}" ]]; then
-            HCT_TAG="$(git -C "${HCT_PATH}" describe --tags --always "${HCT_SHA}")"
-          fi
-
-          IMAGE_TAG="${NS_TAG}_hct-${HCT_TAG}"
-          IMAGE_REF="${IMAGE_NAME}:${IMAGE_TAG}"
-
-          echo "ns_tag=${NS_TAG}" >> "${GITHUB_OUTPUT}"
-          echo "hct_tag=${HCT_TAG}" >> "${GITHUB_OUTPUT}"
-          echo "hct_sha=${HCT_SHA}" >> "${GITHUB_OUTPUT}"
-          echo "image_tag=${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
-          echo "image_ref=${IMAGE_REF}" >> "${GITHUB_OUTPUT}"
-
-      - name: Show resolved versions
-        run: |
-          echo "ns-cmsis-nn tag: ${{ steps.meta.outputs.ns_tag }}"
-          echo "helia-core-tester tag/descriptor: ${{ steps.meta.outputs.hct_tag }}"
-          echo "helia-core-tester sha: ${{ steps.meta.outputs.hct_sha }}"
-          echo "Pinned image tag: ${{ steps.meta.outputs.image_tag }}"
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -80,26 +21,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Docker image
-        shell: bash
-        run: |
-          set -euo pipefail
+      - name: Build Docker Image
+        run: docker build -t ghcr.io/ambiqai/ns-cmsis-nn-ci:latest -f .devcontainer/Dockerfile .
 
-          docker build \
-            --label org.opencontainers.image.title="ns-cmsis-nn-ci" \
-            --label org.opencontainers.image.source="https://github.com/${GITHUB_REPOSITORY}" \
-            --label org.opencontainers.image.revision="${GITHUB_SHA}" \
-            --label org.opencontainers.image.version="${{ steps.meta.outputs.ns_tag }}" \
-            --label io.ambiq.ns-cmsis-nn.tag="${{ steps.meta.outputs.ns_tag }}" \
-            --label io.ambiq.helia-core-tester.tag="${{ steps.meta.outputs.hct_tag }}" \
-            --label io.ambiq.helia-core-tester.sha="${{ steps.meta.outputs.hct_sha }}" \
-            -t "${{ steps.meta.outputs.image_ref }}" \
-            -t "${IMAGE_NAME}:latest" \
-            -f .devcontainer/Dockerfile .
-
-      - name: Push Docker image
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker push "${{ steps.meta.outputs.image_ref }}"
-          docker push "${IMAGE_NAME}:latest"
+      - name: Push Docker Image
+        run: docker push ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
