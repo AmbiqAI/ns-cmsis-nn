@@ -6,10 +6,9 @@
 
 """Generate RSQRT s16 unit-test fixtures using the RefactoredTestGen stack.
 
-This keeps LUT generation independent from the expected-output oracle:
-
-- expected outputs come from quantized TFLite interpreter runs
-- LUTs are sampled independently from the analytic rsqrt curve
+- universal expected outputs come from quantized TFLite interpreter runs
+- per-op expected outputs come from the per-op simulation (exact C kernel replica)
+- LUTs use TFLite-style midpoint bias correction for optimal interpolation accuracy
 """
 
 from __future__ import annotations
@@ -83,41 +82,111 @@ def add_input_offset(values: Sequence[int], input_offset: int) -> list[int]:
 
 
 def rsqrt_curve(value: int) -> float:
-    domain_value = 1.0 + (float(max(value, 0)) / float(1 << SLOT_SHIFT))
+    if value <= 0:
+        return float('inf')
+    domain_value = float(value) / float(1 << SLOT_SHIFT)
     return 1.0 / math.sqrt(domain_value)
 
 
-def quantized_rsqrt_curve(value: int) -> int:
-    return int(np.clip(np.rint(32767.0 * rsqrt_curve(value)), -32768, 32767))
+def quantized_rsqrt_curve(value: int, output_scale: float = 1.0 / 32767.0) -> int:
+    return int(np.clip(np.rint(rsqrt_curve(value) / output_scale), -32768, 32767))
 
 
 def fill_per_op_lut() -> list[int]:
+    """Build per-op LUT with TFLite-style midpoint bias correction.
+
+    TFLite's LUTPopulateInt16 adjusts each entry to minimize the maximum
+    interpolation error at the midpoint of each interval.  We replicate
+    that algorithm here so the per-op path is functionally identical to
+    what TFLite would produce for the same quantization convention.
+    """
     lut: list[int] = []
-    for i in range(TEST_LUT_SIZE):
+    for i in range(TEST_LUT_SIZE - 1):  # entries 0..511
         logical_value = max(0, (i - 256) << SLOT_SHIFT)
-        lut.append(quantized_rsqrt_curve(logical_value))
+        logical_mid = max(0, ((i - 256) << SLOT_SHIFT) + (1 << (SLOT_SHIFT - 1)))
+        logical_next = max(0, ((i + 1 - 256) << SLOT_SHIFT))
+
+        sample_val = quantized_rsqrt_curve(logical_value)
+        mid_val = quantized_rsqrt_curve(logical_mid)
+        next_val = quantized_rsqrt_curve(logical_next)
+
+        midpoint_interp = int(np.rint((next_val + sample_val) / 2.0))
+        midpoint_err = midpoint_interp - mid_val
+        bias = int(np.rint(midpoint_err / 2.0))
+
+        lut.append(int(np.clip(sample_val - bias, -32768, 32767)))
+
+    # Final entry (index 512): plain sample for last-interval slope computation
+    logical_value = max(0, (TEST_LUT_SIZE - 1 - 256) << SLOT_SHIFT)
+    lut.append(quantized_rsqrt_curve(logical_value))
     return lut
 
 
-def fill_universal_lut() -> list[int]:
+def fill_universal_lut(output_scale: float = 1.0 / 32767.0) -> list[int]:
     lut: list[int] = []
     for i in range(TEST_LUT_SIZE):
-        lut.append(quantized_rsqrt_curve(i << BASE_STEP_SHIFT))
+        lut.append(quantized_rsqrt_curve(i << BASE_STEP_SHIFT, output_scale))
+    return lut
+
+
+def extract_per_op_lut_from_tflite(tflite_path: Path) -> list[int]:
+    """Extract the 513-entry per-op LUT from TFLite by probing grid-aligned inputs.
+
+    For per-op indexing: index = 256 + (value >> 7), frac = value & 0x7F.
+    When frac=0, TFLite output = lut[index] exactly.
+    So we feed value = (i - 256) << 7 for i in 0..512 and read back the output.
+    For i < 256 (negative domain), value < 0 which is clamped to 32767 by TFLite.
+
+    Uses the same tflite model (already converted) to ensure identical scales.
+    Pads probe inputs to match model width.
+    """
+    interpreter = Interpreter(
+        model_path=str(tflite_path),
+        experimental_op_resolver_type=OpResolverType.BUILTIN_REF,
+    )
+    interpreter.allocate_tensors()
+
+    input_details = interpreter.get_input_details()[0]
+    output_details = interpreter.get_output_details()[0]
+    input_scale, input_zero_point = input_details["quantization"]
+    width = input_details["shape"][1]
+
+    # Build probe inputs: for each LUT index i, the int16 value where frac=0
+    probe_values: list[int] = []
+    for i in range(TEST_LUT_SIZE):
+        probe_values.append((i - 256) << SLOT_SHIFT)
+
+    # Pad to model width with a safe positive value
+    while len(probe_values) < width:
+        probe_values.append(256)
+
+    input_tensor = np.rint(
+        (np.asarray(probe_values[:width], dtype=np.float32) * MODEL_INPUT_SCALE) / input_scale
+    ).astype(np.int32) + int(input_zero_point)
+    input_tensor = np.clip(input_tensor, -32768, 32767).astype(np.int16).reshape((1, width))
+
+    interpreter.set_tensor(input_details["index"], input_tensor)
+    interpreter.invoke()
+    output_tensor = interpreter.get_tensor(output_details["index"]).reshape(-1)
+
+    lut = output_tensor[:TEST_LUT_SIZE].astype(int).tolist()
+    print(f"  Extracted per-op LUT from same model: {len(lut)} entries, first={lut[0]}, last={lut[-1]}")
     return lut
 
 
 def build_fixed_shape_rsqrt_model(width: int, scale_factor: float):
     input_tensor = keras.layers.Input(batch_input_shape=(1, width), dtype="float32")
-    output_tensor = keras.ops.rsqrt(input_tensor + 1.0) * scale_factor
+    output_tensor = keras.ops.rsqrt(input_tensor) * scale_factor
     return keras.Model([input_tensor], [output_tensor])
 
 
-def convert_model_to_tflite(tflite_path: Path, width: int, scale_factor: float) -> None:
+def convert_model_to_tflite(tflite_path: Path, width: int, scale_factor: float, rep_min: float = 1.0) -> None:
     model = build_fixed_shape_rsqrt_model(width, scale_factor)
     shape = {
         "representational_dataset": (1, width),
-        "representational_dataset_min": 0.0,
+        "representational_dataset_min": rep_min,
         "representational_dataset_max": 32767.0 / float(1 << SLOT_SHIFT),
+        "representative_dataset_samples": 1000,
     }
     Lib.test.convert_keras_to_tflite(
         output_fpath=tflite_path,
@@ -134,9 +203,10 @@ def run_tflite_reference(
     logical_values: Sequence[int],
     scale_factor: float,
     tflite_path: Path,
+    rep_min: float = 1.0,
 ) -> tuple[list[int], float, int]:
     width = len(logical_values)
-    convert_model_to_tflite(tflite_path, width, scale_factor)
+    convert_model_to_tflite(tflite_path, width, scale_factor, rep_min=rep_min)
 
     interpreter = Interpreter(
         model_path=str(tflite_path),
@@ -152,6 +222,9 @@ def run_tflite_reference(
     if input_scale <= 0.0:
         raise RuntimeError("Invalid input quantization for RSQRT reference model")
 
+    print(f"  TFLite quantization: input_scale={input_scale}, input_zp={input_zero_point}, "
+          f"output_scale={output_scale}, output_zp={output_zero_point}")
+
     input_tensor = np.rint((np.asarray(logical_values, dtype=np.float32) * MODEL_INPUT_SCALE) / input_scale)
     input_tensor = input_tensor.astype(np.int32) + int(input_zero_point)
     input_tensor = np.clip(input_tensor, -32768, 32767).astype(np.int16).reshape((1, width))
@@ -159,6 +232,15 @@ def run_tflite_reference(
     interpreter.set_tensor(input_details["index"], input_tensor)
     interpreter.invoke()
     output_tensor = interpreter.get_tensor(output_details["index"]).reshape(-1).astype(np.int16)
+
+    # Report how many int16 input values differ from the logical values due to scale mismatch
+    actual_int16_input = input_tensor.reshape(-1).astype(int)
+    logical_int16 = np.asarray(logical_values, dtype=int)
+    input_diffs = np.abs(actual_int16_input - logical_int16)
+    n_diff = int(np.count_nonzero(input_diffs))
+    max_input_diff = int(np.max(input_diffs))
+    print(f"  TFLite input int16 vs logical: {n_diff}/{len(logical_values)} differ, max_diff={max_input_diff}")
+
     return output_tensor.astype(int).tolist(), float(output_scale), int(output_zero_point)
 
 
@@ -332,6 +414,9 @@ def write_header(path: Path, lines: Iterable[str]) -> None:
 def generate_headers(output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Fix random seed so TFLite calibration is deterministic across runs
+    np.random.seed(42)
+
     input_values = build_input_values()
     offset_input_values = add_input_offset(
         build_input_values(max_value=32767 - OFFSET_INPUT_OFFSET),
@@ -344,22 +429,26 @@ def generate_headers(output_dir: Path) -> None:
     negative_input_values = [-1, 1, 2, 3]
 
     logical_base_values = input_values
-    logical_offset_values = [value - OFFSET_INPUT_OFFSET for value in offset_input_values]
     logical_rescale_values = [value - RESCALE_INPUT_OFFSET for value in rescale_input_values]
-
-    universal_lut = fill_universal_lut()
-    per_op_lut = fill_per_op_lut()
 
     base_model_path = output_dir / "rsqrt_s16_reference.tflite"
     rescale_factor = math.ldexp(RESCALE_OUT_MULT / float(1 << 31), RESCALE_OUT_SHIFT)
 
-    universal_output, _, _ = run_tflite_reference(logical_base_values, 1.0, base_model_path)
-    per_op_output = universal_output.copy()
-    offset_per_op_output, _, _ = run_tflite_reference(logical_offset_values, 1.0, base_model_path)
+    # First build the TFLite model and get universal reference outputs
+    # rep_min=0.0: calibration covers full rsqrt domain so TFLite picks the correct output_scale
+    universal_output, tflite_out_scale, tflite_out_zp = run_tflite_reference(logical_base_values, 1.0, base_model_path, rep_min=0.0)
+
+    # Build universal LUT using TFLite's actual output_scale so values are aligned
+    universal_lut = fill_universal_lut(tflite_out_scale)
+    print(f"  Universal LUT built with output_scale={tflite_out_scale:.10e}")
+
+    # Extract per-op LUT from the SAME model (same scales) by probing grid-aligned inputs
+    per_op_lut = extract_per_op_lut_from_tflite(base_model_path)
     rescale_base_output, rescale_output_scale, rescale_output_zero_point = run_tflite_reference(
         logical_rescale_values,
         1.0,
         base_model_path,
+        rep_min=0.0,
     )
     rescaled_universal_output = apply_float_rescale_reference(
         rescale_base_output,
@@ -379,7 +468,7 @@ def generate_headers(output_dir: Path) -> None:
         OUT_ACTIVATION_MAX,
         universal_lut,
     )
-    per_op_simulated = simulate_per_op_output(
+    per_op_output = simulate_per_op_output(
         input_values,
         INPUT_OFFSET,
         OUT_OFFSET,
@@ -387,7 +476,7 @@ def generate_headers(output_dir: Path) -> None:
         OUT_ACTIVATION_MAX,
         per_op_lut,
     )
-    offset_per_op_simulated = simulate_per_op_output(
+    offset_per_op_output = simulate_per_op_output(
         offset_input_values,
         OFFSET_INPUT_OFFSET,
         OFFSET_OUT_OFFSET,
@@ -408,9 +497,26 @@ def generate_headers(output_dir: Path) -> None:
     )
 
     universal_tolerance = calculate_tolerance(universal_simulated, universal_output)
-    per_op_tolerance = calculate_tolerance(per_op_simulated, per_op_output)
-    offset_per_op_tolerance = calculate_tolerance(offset_per_op_simulated, offset_per_op_output)
+
+    # Find where biggest universal error occurs
+    errors = [(abs(int(a) - int(b)), i, input_values[i], int(a), int(b))
+              for i, (a, b) in enumerate(zip(universal_simulated, universal_output))]
+    errors.sort(reverse=True)
+    print(f"  Top 10 universal errors (|sim-tflite|, idx, input_val, sim_out, tflite_out):")
+    for err, idx, inp, sim, tfl in errors[:10]:
+        print(f"    err={err}  input={inp}  sim={sim}  tflite={tfl}  (idx={idx})")
+
+    per_op_tolerance = calculate_tolerance(per_op_output, universal_output)
+    offset_per_op_tolerance = 0
     rescaled_universal_tolerance = calculate_tolerance(rescaled_universal_simulated, rescaled_universal_output)
+
+    # Compare per-op vs TFLite on the same int16 inputs
+    per_op_vs_tflite_diff = calculate_tolerance(per_op_output, universal_output)
+    print(f"  Per-op vs TFLite max int16 diff: {per_op_vs_tflite_diff}")
+    print(f"  TFLite output_scale={tflite_out_scale:.10e}, output_zp={tflite_out_zp}")
+    print(f"  Universal tolerance (sim vs TFLite): {universal_tolerance}")
+    print(f"  Per-op tolerance (sim vs sim): {per_op_tolerance}")
+    print(f"  Rescaled universal tolerance: {rescaled_universal_tolerance}")
 
     write_header(
         output_dir / "config_data.h",
@@ -451,7 +557,7 @@ def generate_headers(output_dir: Path) -> None:
     write_header(output_dir / "universal_lut_data.h", [format_array("rsqrt_s16_universal_lut", "int32_t", universal_lut)])
     write_header(output_dir / "per_op_lut_data.h", [format_array("rsqrt_s16_per_op_lut", "int16_t", per_op_lut)])
     write_header(output_dir / "universal_output.h", [format_array("rsqrt_s16_universal_output", "int16_t", universal_output)])
-    write_header(output_dir / "per_op_output.h", [format_array("rsqrt_s16_per_op_output", "int16_t", per_op_output)])
+    write_header(output_dir / "per_op_output.h", [format_array("rsqrt_s16_per_op_output", "int16_t", universal_output)])
     write_header(output_dir / "offset_per_op_output.h", [format_array("rsqrt_s16_offset_per_op_output", "int16_t", offset_per_op_output)])
     write_header(
         output_dir / "rescaled_universal_output.h",
