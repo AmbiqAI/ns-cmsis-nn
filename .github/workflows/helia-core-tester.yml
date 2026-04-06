@@ -35,6 +35,25 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Verify pinned helia-core-tester release tag
+        id: helia-core-meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          submodule_path='Tests/helia-core-tester'
+          helia_sha="$(git rev-parse HEAD:${submodule_path})"
+          helia_tag="$(git -C "${submodule_path}" describe --tags --exact-match)"
+
+          echo "helia_sha=${helia_sha}" >> "$GITHUB_OUTPUT"
+          echo "helia_tag=${helia_tag}" >> "$GITHUB_OUTPUT"
+
+          printf 'Pinned helia-core-tester: %s (%s)\n' "${helia_tag}" "${helia_sha}"
+          {
+            echo "### helia-core-tester version"
+            echo "- tag: \`${helia_tag}\`"
+            echo "- sha: \`${helia_sha}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -59,6 +78,7 @@ jobs:
           uv run helia_core_tester full --cpu ${{ matrix.cpu }} --coverage --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
 
       - name: Upload per-CPU reports
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: reports-${{ matrix.cpu }}
@@ -76,6 +96,20 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: recursive
+
+      - name: Verify pinned helia-core-tester release tag
+        id: helia-core-meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          submodule_path='Tests/helia-core-tester'
+          helia_sha="$(git rev-parse HEAD:${submodule_path})"
+          helia_tag="$(git -C "${submodule_path}" describe --tags --exact-match)"
+
+          echo "helia_sha=${helia_sha}" >> "$GITHUB_OUTPUT"
+          echo "helia_tag=${helia_tag}" >> "$GITHUB_OUTPUT"
+
+          printf 'Pinned helia-core-tester: %s (%s)\n' "${helia_tag}" "${helia_sha}"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
