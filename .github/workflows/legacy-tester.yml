@@ -2,13 +2,28 @@ name: UnitTest
 
 on:
   workflow_call:
+    inputs:
+      container_image:
+        description: Container image used for the test job.
+        required: false
+        default: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+        type: string
   workflow_dispatch:
+    inputs:
+      container_image:
+        description: Container image used for the test job.
+        required: false
+        default: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+        type: string
+
+env:
+  CONTAINER_IMAGE: ${{ inputs.container_image || 'ghcr.io/ambiqai/ns-cmsis-nn-ci:latest' }}
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+      image: ${{ env.CONTAINER_IMAGE }}
 
     strategy:
       fail-fast: false
