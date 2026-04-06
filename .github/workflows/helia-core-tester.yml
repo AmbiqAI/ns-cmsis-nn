@@ -101,6 +101,10 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Mark workspace as a safe git directory
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        
       - name: Verify pinned helia-core-tester release tag
         id: helia-core-meta
         shell: bash
