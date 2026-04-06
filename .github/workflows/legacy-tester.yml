@@ -16,14 +16,11 @@ on:
         default: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
         type: string
 
-env:
-  CONTAINER_IMAGE: ${{ inputs.container_image || 'ghcr.io/ambiqai/ns-cmsis-nn-ci:latest' }}
-
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     container:
-      image: ${{ env.CONTAINER_IMAGE }}
+      image: ${{ inputs.container_image }}
 
     strategy:
       fail-fast: false
