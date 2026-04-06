@@ -10,135 +10,18 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  packages: read
+
+env:
+  NS_CMSIS_NN_CI_IMAGE: ${{ vars.NS_CMSIS_NN_CI_IMAGE || 'ghcr.io/ambiqai/ns-cmsis-nn-ci:sha-29ba7bce' }}
+
 jobs:
-  release-bundle-smoke:
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
-    defaults:
-      run:
-        shell: bash
-    strategy:
-      fail-fast: false
-      matrix:
-        visibility_mode:
-          - single-facade
-          - library-only
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ inputs.trigger-sha || github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Mark workspace safe
-        run: git config --global --add safe.directory "*"
-
-      - name: Cache release dependencies
-        uses: actions/cache@v4
-        with:
-          path: Tests/UnitTest/downloads
-          key: release-smoke-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup_release_dependencies.py') }}
-          restore-keys: |
-            release-smoke-downloads-${{ runner.os }}-${{ runner.arch }}-
-
-      - name: Setup release dependencies
-        run: |
-          python3 scripts/setup_release_dependencies.py \
-            --downloads-dir Tests/UnitTest/downloads
-
-      - name: Positive test - current public headers are covered
-        run: |
-          tmpdir="$(mktemp -d)"
-          python3 scripts/generate_public_symbols.py \
-            --hdr-dir Include \
-            --out "${tmpdir}/candidate.txt"
-          python3 scripts/validate_public_symbols.py \
-            --candidate "${tmpdir}/candidate.txt" \
-            --committed release/public_symbols.txt \
-            --resolved-out "${tmpdir}/resolved.txt" \
-            --report "${tmpdir}/validation.txt"
-          cat "${tmpdir}/validation.txt"
-
-      - name: Negative test - unknown public symbol must fail
-        run: |
-          tmpdir="$(mktemp -d)"
-          printf 'arm_fake_new_public_operator\n' > "${tmpdir}/candidate.txt"
-          if python3 scripts/validate_public_symbols.py \
-            --candidate "${tmpdir}/candidate.txt" \
-            --committed release/public_symbols.txt; then
-            echo "::error ::validator unexpectedly accepted an unknown public symbol"
-            exit 1
-          fi
-
-      - name: Build representative public archive
-        run: |
-          bash scripts/build_release_combo.sh \
-            --arch cortex-m55 \
-            --toolchain gcc \
-            --build release \
-            --visibility-mode "${{ matrix.visibility_mode }}" \
-            --outdir "out/public-api-smoke/${{ matrix.visibility_mode }}/cortex-m55/gcc/release"
-
-      - name: Assert rebrand archive identity
-        run: |
-          ns_lib="out/public-api-smoke/${{ matrix.visibility_mode }}/cortex-m55/gcc/release/products/ns-cmsis-nn/lib/libns-cmsis-nn-cm55-gcc-release.a"
-          helia_lib="out/public-api-smoke/${{ matrix.visibility_mode }}/cortex-m55/gcc/release/products/helia-core/lib/libhelia-core-cm55-gcc-release.a"
-          cmp -s "${ns_lib}" "${helia_lib}"
-
-      - name: Package representative customer bundles
-        run: |
-          bash scripts/build_release_bundle.sh \
-            --skip-build \
-            --artifact-root "out/public-api-smoke/${{ matrix.visibility_mode }}/cortex-m55/gcc/release" \
-            --tag smoke-test \
-            --visibility-mode "${{ matrix.visibility_mode }}" \
-            --outdir "out/public-api-smoke/${{ matrix.visibility_mode }}/bundle"
-
-      - name: Assert packaged bundle contents
-        run: |
-          set -euo pipefail
-          bundle_root="out/public-api-smoke/${{ matrix.visibility_mode }}/bundle"
-          ns_zip="${bundle_root}/ns-cmsis-nn-smoke-test-${{ matrix.visibility_mode }}.zip"
-          helia_zip="${bundle_root}/helia-core-smoke-test-${{ matrix.visibility_mode }}.zip"
-
-          [[ -f "${ns_zip}" ]]
-          [[ -f "${helia_zip}" ]]
-
-          unzip -Z1 "${ns_zip}" | tee "${bundle_root}/ns-zip-list.txt"
-          unzip -Z1 "${helia_zip}" | tee "${bundle_root}/helia-zip-list.txt"
-
-          ! grep -q '/meta/' "${bundle_root}/ns-zip-list.txt"
-          ! grep -q 'public_symbols' "${bundle_root}/ns-zip-list.txt"
-          ! grep -q 'exported_symbols' "${bundle_root}/ns-zip-list.txt"
-          unzip -p "${ns_zip}" "ns-cmsis-nn-smoke-test-${{ matrix.visibility_mode }}/MANIFEST.json" | \
-            grep -q '"visibility_mode": "${{ matrix.visibility_mode }}"'
-
-          case "${{ matrix.visibility_mode }}" in
-            single-facade)
-              grep -q 'include/cmsis-nn/cmsis_nn.h' "${bundle_root}/ns-zip-list.txt"
-              grep -q 'include/cmsis-nn/public_api.h' "${bundle_root}/ns-zip-list.txt"
-              grep -q 'include/cmsis-nn/Internal/arm_nn_compiler.h' "${bundle_root}/ns-zip-list.txt"
-              ! grep -q 'include/cmsis-nn/arm_nn_tables.h' "${bundle_root}/ns-zip-list.txt"
-              ;;
-            library-only)
-              ! grep -q 'include/' "${bundle_root}/ns-zip-list.txt"
-              ;;
-          esac
-
-      - name: Upload smoke artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: public-api-smoke-${{ matrix.visibility_mode }}
-          path: out/public-api-smoke/${{ matrix.visibility_mode }}/**
-          if-no-files-found: error
-
   build-and-test:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+      image: ${{ env.NS_CMSIS_NN_CI_IMAGE }}
     defaults:
       run:
         shell: bash
@@ -157,6 +40,12 @@ jobs:
         with:
           ref: ${{ inputs.trigger-sha || github.event.pull_request.head.sha || github.sha }}
 
+      - name: Mark workspace safe
+        run: git config --global --add safe.directory "*"
+
+      - name: Preflight runtime tooling
+        run: bash scripts/ci_preflight.sh
+
       - name: Restore tests-downloads cache
         id: cache-downloads
         uses: actions/cache@v4
@@ -170,6 +59,12 @@ jobs:
         run: |
           cd Tests/UnitTest
           ./build_and_run_tests.sh -rb
+
+      - name: Preflight GCC tooling
+        run: |
+          bash scripts/ci_preflight.sh \
+            --toolchain gcc \
+            --downloads-dir Tests/UnitTest/downloads
 
       - name: Build and run tests for ${{ matrix.core }}
         run: |

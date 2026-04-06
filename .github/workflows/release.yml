@@ -116,20 +116,10 @@ jobs:
         id: deploy
         uses: actions/deploy-pages@v4
 
-  release-assets:
+  staticlib-release:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    uses: ./.github/workflows/release_assets_library_only.yml
-    with:
-      ref: ${{ needs.release-please.outputs.tag_name }}
-      tag: ${{ needs.release-please.outputs.tag_name }}
-      upload_to_release: true
-    secrets: inherit
-
-  release-assets-single-facade:
-    needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    uses: ./.github/workflows/release_assets_single_facade.yml
+    uses: ./.github/workflows/staticlib_release.yml
     with:
       ref: ${{ needs.release-please.outputs.tag_name }}
       tag: ${{ needs.release-please.outputs.tag_name }}

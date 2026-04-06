@@ -4,13 +4,12 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Build customer release bundles locally in the same shape as the GitHub release workflows.
+Build release static libraries locally in the same shape as the GitHub release workflow.
 
 Usage:
   ns_local_build.sh --tag <tag> [--outdir <dir>]
                     [--archs cortex-m0,cortex-m4+fp,cortex-m55]
                     [--toolchains gcc,armclang]
-                    [--visibility-modes single-facade,library-only]
 EOF
 }
 
@@ -21,7 +20,6 @@ TAG="local"
 OUTDIR="${REPO_ROOT}/out/ns_local_build"
 ARCHS="cortex-m0,cortex-m4+fp,cortex-m55"
 TOOLCHAINS="gcc,armclang"
-VISIBILITY_MODES="single-facade,library-only"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -41,10 +39,6 @@ while [[ $# -gt 0 ]]; do
       TOOLCHAINS="${2:?missing value for --toolchains}"
       shift 2
       ;;
-    --visibility-modes)
-      VISIBILITY_MODES="${2:?missing value for --visibility-modes}"
-      shift 2
-      ;;
     -h|--help)
       usage
       exit 0
@@ -59,14 +53,10 @@ done
 
 mkdir -p "${OUTDIR}"
 
-IFS=',' read -r -a MODE_ARRAY <<< "${VISIBILITY_MODES}"
-for mode in "${MODE_ARRAY[@]}"; do
-  bash "${SCRIPT_DIR}/build_release_bundle.sh" \
-    --tag "${TAG}" \
-    --archs "${ARCHS}" \
-    --toolchains "${TOOLCHAINS}" \
-    --visibility-mode "${mode}" \
-    --outdir "${OUTDIR}/${mode}"
-done
+bash "${SCRIPT_DIR}/build_release_bundle.sh" \
+  --tag "${TAG}" \
+  --archs "${ARCHS}" \
+  --toolchains "${TOOLCHAINS}" \
+  --outdir "${OUTDIR}"
 
-echo "Wrote local release bundles to ${OUTDIR}"
+echo "Wrote local static library bundle to ${OUTDIR}"
