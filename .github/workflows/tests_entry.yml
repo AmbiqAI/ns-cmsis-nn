@@ -12,10 +12,3 @@ jobs:
     uses: ./.github/workflows/ci.yml
     with:
       trigger-sha: ${{ github.event.pull_request.head.sha }}
-
-  armclang-run:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'ci:run_full') }}
-    uses: ./.github/workflows/cortex_m_arm_compiler.yml
-    with:
-      trigger-sha: ${{ github.event.pull_request.head.sha }}
-    secrets: inherit

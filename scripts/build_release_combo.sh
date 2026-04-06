@@ -4,15 +4,13 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Build one release combo, prune the archive to the reviewed public API, and emit
-two product variants: ns-cmsis-nn and helia-core.
+Build one release static library and prune the archive to the reviewed public API.
 
 Usage:
   build_release_combo.sh --arch <cortex-m0|cortex-m4+fp|cortex-m55> \
                          --toolchain <gcc|armclang> \
                          --outdir <dir> \
-                         [--build release] \
-                         [--visibility-mode single-facade|library-only]
+                         [--build release]
 
 Optional environment overrides:
   DOWNLOADS_DIR
@@ -32,7 +30,6 @@ ARCH=""
 TOOLCHAIN=""
 BUILD="release"
 OUTDIR=""
-VISIBILITY_MODE="single-facade"
 
 DOWNLOADS_DIR="${DOWNLOADS_DIR:-${REPO_ROOT}/Tests/UnitTest/downloads}"
 CMSIS_PATH="${CMSIS_PATH:-${DOWNLOADS_DIR}/CMSIS_5}"
@@ -56,10 +53,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --outdir)
       OUTDIR="${2:?missing value for --outdir}"
-      shift 2
-      ;;
-    --visibility-mode)
-      VISIBILITY_MODE="${2:?missing value for --visibility-mode}"
       shift 2
       ;;
     -h|--help)
@@ -136,15 +129,6 @@ esac
 
 [[ -f "${TOOLCHAIN_FILE}" ]] || { echo "Toolchain file not found: ${TOOLCHAIN_FILE}" >&2; exit 3; }
 
-case "${VISIBILITY_MODE}" in
-  single-facade|library-only)
-    ;;
-  *)
-    echo "Unsupported visibility mode: ${VISIBILITY_MODE}" >&2
-    exit 2
-    ;;
-esac
-
 mkdir -p "$(dirname "${OUTDIR}")"
 rm -rf "${OUTDIR}"
 mkdir -p "${OUTDIR}"
@@ -164,7 +148,6 @@ STAGE_DIR="${OUTDIR}/stage"
 STAGE_META_DIR="${STAGE_DIR}/meta"
 STAGE_INCLUDE_DIR="${STAGE_DIR}/include/cmsis-nn"
 STAGE_LIB_DIR="${STAGE_DIR}/lib"
-PRODUCTS_DIR="${OUTDIR}/products"
 LIB_IN="${BUILD_DIR}/libcmsis-nn.a"
 PRUNED_LIB="${STAGE_LIB_DIR}/libcmsis-nn-public.a"
 CANDIDATE="${STAGE_META_DIR}/public_symbols.candidate.txt"
@@ -172,7 +155,7 @@ RESOLVED="${STAGE_META_DIR}/public_symbols.resolved.txt"
 REPORT="${STAGE_META_DIR}/public_symbol_validation.txt"
 EXPORTS_OUT="${STAGE_META_DIR}/exported_symbols.txt"
 
-mkdir -p "${STAGE_META_DIR}" "${STAGE_LIB_DIR}" "${PRODUCTS_DIR}"
+mkdir -p "${STAGE_META_DIR}" "${STAGE_LIB_DIR}"
 
 python3 "${REPO_ROOT}/scripts/generate_public_symbols.py" \
   --hdr-dir "${REPO_ROOT}/Include" \
@@ -221,36 +204,23 @@ if ! diff -u "${RESOLVED}" "${EXPORTS_OUT}"; then
   exit 5
 fi
 
-declare -a PRODUCTS=("ns-cmsis-nn" "helia-core")
+LIB_NAME="libns-cmsis-nn-${ARCH_LABEL}-${TOOLCHAIN}.a"
 
-for product in "${PRODUCTS[@]}"; do
-  PRODUCT_DIR="${PRODUCTS_DIR}/${product}"
-  PRODUCT_META_DIR="${PRODUCT_DIR}/meta"
-  PRODUCT_LIB_DIR="${PRODUCT_DIR}/lib"
-  PRODUCT_INCLUDE_PARENT="${PRODUCT_DIR}/include"
-  PRODUCT_LIB_NAME="lib${product}-${ARCH_LABEL}-${TOOLCHAIN}-${BUILD}.a"
+cp "${PRUNED_LIB}" "${STAGE_LIB_DIR}/${LIB_NAME}"
+cp "${CANDIDATE}" "${STAGE_META_DIR}/public_symbols.candidate.txt"
+cp "${RESOLVED}" "${STAGE_META_DIR}/public_symbols.resolved.txt"
+cp "${REPORT}" "${STAGE_META_DIR}/public_symbol_validation.txt"
+cp "${EXPORTS_OUT}" "${STAGE_META_DIR}/exported_symbols.txt"
 
-  mkdir -p "${PRODUCT_META_DIR}" "${PRODUCT_LIB_DIR}" "${PRODUCT_INCLUDE_PARENT}"
-
-  cp "${PRUNED_LIB}" "${PRODUCT_LIB_DIR}/${PRODUCT_LIB_NAME}"
-  cp -R "${STAGE_INCLUDE_DIR}" "${PRODUCT_INCLUDE_PARENT}/"
-  cp "${STAGE_META_DIR}/public_symbols.txt" "${PRODUCT_META_DIR}/public_symbols.txt"
-  cp "${CANDIDATE}" "${PRODUCT_META_DIR}/public_symbols.candidate.txt"
-  cp "${RESOLVED}" "${PRODUCT_META_DIR}/public_symbols.resolved.txt"
-  cp "${REPORT}" "${PRODUCT_META_DIR}/public_symbol_validation.txt"
-  cp "${EXPORTS_OUT}" "${PRODUCT_META_DIR}/exported_symbols.txt"
-
-  cat > "${PRODUCT_META_DIR}/combo.env" <<EOF
-PRODUCT=${product}
+cat > "${STAGE_META_DIR}/combo.env" <<EOF
+PRODUCT=ns-cmsis-nn
 ARCH=${ARCH}
 TOOLCHAIN=${TOOLCHAIN}
-BUILD=${BUILD}
-VISIBILITY_MODE=${VISIBILITY_MODE}
 TARGET_CPU=${TARGET_CPU}
-LIB_NAME=${PRODUCT_LIB_NAME}
+LIB_NAME=${LIB_NAME}
 EOF
 
-  python3 - "${PRODUCT_META_DIR}/product_manifest.json" "${product}" "${ARCH}" "${TOOLCHAIN}" "${BUILD}" "${PRODUCT_LIB_NAME}" "${VISIBILITY_MODE}" <<'PY'
+python3 - "${STAGE_META_DIR}/product_manifest.json" "ns-cmsis-nn" "${ARCH}" "${TOOLCHAIN}" "${LIB_NAME}" <<'PY'
 from __future__ import annotations
 
 import json
@@ -263,19 +233,9 @@ manifest = {
     "product": sys.argv[2],
     "arch": sys.argv[3],
     "toolchain": sys.argv[4],
-    "build": sys.argv[5],
-    "library": sys.argv[6],
-    "visibility_mode": sys.argv[7],
+    "library": sys.argv[5],
 }
 out.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 PY
-done
-
-FULL_LIB="${PRODUCTS_DIR}/ns-cmsis-nn/lib/libns-cmsis-nn-${ARCH_LABEL}-${TOOLCHAIN}-${BUILD}.a"
-HELIA_LIB="${PRODUCTS_DIR}/helia-core/lib/libhelia-core-${ARCH_LABEL}-${TOOLCHAIN}-${BUILD}.a"
-cmp -s "${FULL_LIB}" "${HELIA_LIB}" || {
-  echo "Product archives differ unexpectedly between ns-cmsis-nn and helia-core" >&2
-  exit 6
-}
 
 echo "Built and verified combo in ${OUTDIR}"
