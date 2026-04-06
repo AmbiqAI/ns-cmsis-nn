@@ -14,14 +14,11 @@ permissions:
   contents: read
   packages: read
 
-env:
-  NS_CMSIS_NN_CI_IMAGE: ${{ vars.NS_CMSIS_NN_CI_IMAGE || 'ghcr.io/ambiqai/ns-cmsis-nn-ci:sha-29ba7bce' }}
-
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     container:
-      image: ${{ env.NS_CMSIS_NN_CI_IMAGE }}
+      image: ${{ vars.NS_CMSIS_NN_CI_IMAGE || 'ghcr.io/ambiqai/ns-cmsis-nn-ci:sha-29ba7bce' }}
     defaults:
       run:
         shell: bash
