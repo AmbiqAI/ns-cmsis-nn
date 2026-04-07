@@ -40,9 +40,6 @@ jobs:
       - name: Mark workspace safe
         run: git config --global --add safe.directory "*"
 
-      - name: Preflight runtime tooling
-        run: bash scripts/ci_preflight.sh
-
       - name: Restore tests-downloads cache
         id: cache-downloads
         uses: actions/cache@v4
@@ -56,12 +53,6 @@ jobs:
         run: |
           cd Tests/UnitTest
           ./build_and_run_tests.sh -rb
-
-      - name: Preflight GCC tooling
-        run: |
-          bash scripts/ci_preflight.sh \
-            --toolchain gcc \
-            --downloads-dir Tests/UnitTest/downloads
 
       - name: Build and run tests for ${{ matrix.core }}
         run: |
