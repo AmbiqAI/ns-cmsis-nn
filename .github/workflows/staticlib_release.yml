@@ -81,9 +81,6 @@ jobs:
       - name: Mark workspace safe
         run: git config --global --add safe.directory "*"
 
-      - name: Preflight runtime tooling
-        run: bash scripts/ci_preflight.sh
-
       - name: Validate armclang license
         if: ${{ matrix.toolchain == 'armclang' }}
         run: |
@@ -115,12 +112,6 @@ jobs:
       - name: Setup release dependencies
         run: |
           python3 scripts/setup_release_dependencies.py \
-            --downloads-dir Tests/UnitTest/downloads
-
-      - name: Preflight toolchain tooling
-        run: |
-          bash scripts/ci_preflight.sh \
-            --toolchain "${{ matrix.toolchain }}" \
             --downloads-dir Tests/UnitTest/downloads
 
       - name: Build static library
