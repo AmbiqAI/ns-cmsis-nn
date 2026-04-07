@@ -18,7 +18,7 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     container:
-      image: ${{ vars.NS_CMSIS_NN_CI_IMAGE || 'ghcr.io/ambiqai/ns-cmsis-nn-ci:sha-29ba7bce' }}
+      image: ${{ vars.NS_CMSIS_NN_CI_IMAGE || 'ghcr.io/ambiqai/ns-cmsis-nn-ci:v7.22.0' }}
     defaults:
       run:
         shell: bash
