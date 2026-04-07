@@ -8,8 +8,8 @@ on:
         required: true
         type: string
       tag:
-        description: Release tag name
-        required: false
+        description: Release tag name used for both the release assets and the GHCR CI image tag
+        required: true
         type: string
       upload_to_release:
         description: Upload the bundle to the GitHub release
@@ -29,9 +29,8 @@ on:
         default: main
         type: string
       tag:
-        description: Release tag name (required when uploading to Releases)
-        required: false
-        default: ""
+        description: Release tag name used for both the release assets and the GHCR CI image tag
+        required: true
         type: string
       upload_to_release:
         description: Upload the bundle to the GitHub release
@@ -52,7 +51,7 @@ jobs:
     name: Build static library (${{ matrix.arch }} • ${{ matrix.toolchain }})
     runs-on: ubuntu-latest
     container:
-      image: ${{ vars.NS_CMSIS_NN_CI_IMAGE || 'ghcr.io/ambiqai/ns-cmsis-nn-ci:sha-29ba7bce' }}
+      image: ${{ format('ghcr.io/ambiqai/ns-cmsis-nn-ci:{0}', inputs.tag) }}
     defaults:
       run:
         shell: bash
@@ -154,20 +153,15 @@ jobs:
           set -euo pipefail
           ref_in='${{ inputs.ref }}'
           tag_in='${{ inputs.tag }}'
-          upload='${{ inputs.upload_to_release }}'
 
           if [[ -z "${ref_in}" ]]; then
             echo "::error ::Input ref is required."
             exit 1
           fi
 
-          if [[ "${upload}" == "true" && -z "${tag_in}" ]]; then
-            echo "::error ::tag is required when upload_to_release is true."
-            exit 1
-          fi
-
           if [[ -z "${tag_in}" ]]; then
-            tag_in="${ref_in//\//-}"
+            echo "::error ::Input tag is required."
+            exit 1
           fi
 
           echo "tag=${tag_in}" >> "${GITHUB_OUTPUT}"
