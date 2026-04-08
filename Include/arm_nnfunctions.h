@@ -2536,6 +2536,13 @@ arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
 /**
  * @brief INT16 reciprocal square root using a shared universal LUT.
  *
+ * In universal mode all RSQRT operators share a single LUT that captures the
+ * base 1/sqrt(x) shape, and operator-specific quantization is applied
+ * afterward via @p out_mult / @p out_shift.  Because this two-step process
+ * introduces extra rounding stages, the output may differ from the
+ * per-op variant (@ref arm_rsqrt_s16_per_op) by up to ±3 LSB per element.
+ * This is expected and acceptable for deployment.
+ *
  * @param[in]  input               Pointer to the input buffer.
  * @param[in]  input_offset        Input tensor zero offset. The kernel evaluates
  *                                 each element as `input - input_offset` before the
