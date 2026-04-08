@@ -53,14 +53,33 @@ jobs:
       - name: Resolve image tags
         id: meta
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CALL_IMAGE_TAG: ${{ inputs.image_tag }}
+          CALL_PUBLISH_LATEST: ${{ inputs.publish_latest }}
+          DISPATCH_IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+          DISPATCH_PUBLISH_LATEST: ${{ github.event.inputs.publish_latest }}
         run: |
           set -euo pipefail
-          image_tag='${{ inputs.image_tag }}'
-          publish_latest='${{ inputs.publish_latest }}'
 
-          if [[ -z "$image_tag" ]]; then
-            image_tag='latest'
-          fi
+          case "${EVENT_NAME}" in
+            workflow_call)
+              image_tag="${CALL_IMAGE_TAG:-latest}"
+              publish_latest="${CALL_PUBLISH_LATEST:-false}"
+              ;;
+            workflow_dispatch)
+              image_tag="${DISPATCH_IMAGE_TAG:-latest}"
+              publish_latest="${DISPATCH_PUBLISH_LATEST:-true}"
+              ;;
+            schedule)
+              image_tag='latest'
+              publish_latest='true'
+              ;;
+            *)
+              image_tag='latest'
+              publish_latest='false'
+              ;;
+          esac
 
           tags=("${{ env.REGISTRY_IMAGE }}:$image_tag")
           if [[ "$publish_latest" == 'true' && "$image_tag" != 'latest' ]]; then
