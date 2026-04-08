@@ -1193,7 +1193,7 @@ arm_cmsis_nn_status arm_nn_transpose_conv_row_s8_s32(const int8_t *lhs,
                                                      const int32_t skip_row_bottom);
 
 /**
- * @brief Row of s16 scalars multiplied with an s8 matrix and accumulated into a int64 rolling scratch buffer.
+ * @brief Row of s16 scalars multiplied with an s8 matrix and accumulated into an int64 rolling scratch buffer.
  *        Helper function for arm_transpose_conv_s16.
  *
  * @param[in]      lhs             Input left-hand side scalars.  Data type: int16

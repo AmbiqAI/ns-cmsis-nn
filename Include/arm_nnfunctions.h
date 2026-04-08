@@ -640,7 +640,7 @@ int32_t arm_transpose_conv_s8_get_buffer_size_mve(const cmsis_nn_dims *input_dim
  * @param[in]      quant_params          Per-channel quantization info (Q31 multiplier and shift per output channel).
  * @param[in]      input_dims            Input tensor dimensions.  Format: [N, H, W, C_IN]
  * @param[in]      input_data            Input data pointer.  Data type: int16
- * @param[in]      filter_dims           Filter tensor dimensions.  Format: [HK, WK, C_OUT, C_IN]
+ * @param[in]      filter_dims           Filter tensor dimensions.  Format: [C_OUT, HK, WK, C_IN]
  * @param[in]      filter_data           Filter data pointer.  Data type: int8
  * @param[in]      bias_dims             Bias tensor dimensions.  Format: [C_OUT]
  * @param[in]      bias_data             Optional bias struct (int32 or int64 flag inside).  May be NULL.
@@ -671,7 +671,7 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
  *
  * @param[in]  transpose_conv_params  Convolution parameters (strides used to compute buffer dimensions).
  * @param[in]  input_dims             Input tensor dimensions.  Format: [N, H, W, C_IN]
- * @param[in]  filter_dims            Filter tensor dimensions.  Format: [HK, WK, C_OUT, C_IN]
+ * @param[in]  filter_dims            Filter tensor dimensions.  Format: [C_OUT, HK, WK, C_IN]
  * @param[in]  out_dims               Output tensor dimensions.  Format: [N, H, W, C_OUT]
  * @return     Required buffer size in bytes.
  */
