@@ -4,23 +4,29 @@ on:
   workflow_call:
     inputs:
       container_image:
-        description: Container image used for the test jobs.
+        description: Optional container image override for the test jobs. When unset, the workflow tries the latest release-tagged image and falls back to :latest.
         required: false
-        default: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+        default: ''
         type: string
   workflow_dispatch:
     inputs:
       container_image:
-        description: Container image used for the test jobs.
+        description: Optional container image override for the test jobs. When unset, the workflow tries the latest release-tagged image and falls back to :latest.
         required: false
-        default: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+        default: ''
         type: string
 
 jobs:
+  resolve-container-image:
+    uses: ./.github/workflows/resolve-ci-image.yml
+    with:
+      container_image: ${{ inputs.container_image }}
+
   codegen-tests:
     runs-on: ubuntu-latest
+    needs: resolve-container-image
     container:
-      image: ${{ inputs.container_image }}
+      image: ${{ needs.resolve-container-image.outputs.container_image }}
     strategy:
       fail-fast: false
       matrix:
@@ -34,6 +40,20 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: recursive
+
+      - name: Log selected container image
+        shell: bash
+        run: |
+          {
+            echo "### Job container image"
+            echo "- selected image: \`${{ needs.resolve-container-image.outputs.container_image }}\`"
+            echo "- source: \`${{ needs.resolve-container-image.outputs.resolved_from }}\`"
+            if [[ -n "${{ needs.resolve-container-image.outputs.release_tag }}" ]]; then
+              echo "- latest release tag: \`${{ needs.resolve-container-image.outputs.release_tag }}\`"
+            else
+              echo "- latest release tag: _(unavailable)_"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
       
       - name: Mark workspace as a safe git directory
         shell: bash
@@ -91,15 +111,31 @@ jobs:
 
   coverage-merge-summary:
     runs-on: ubuntu-latest
-    needs: codegen-tests
+    needs:
+      - resolve-container-image
+      - codegen-tests
     container:
-      image: ${{ inputs.container_image }}
+      image: ${{ needs.resolve-container-image.outputs.container_image }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           submodules: recursive
+
+      - name: Log selected container image
+        shell: bash
+        run: |
+          {
+            echo "### Job container image"
+            echo "- selected image: \`${{ needs.resolve-container-image.outputs.container_image }}\`"
+            echo "- source: \`${{ needs.resolve-container-image.outputs.resolved_from }}\`"
+            if [[ -n "${{ needs.resolve-container-image.outputs.release_tag }}" ]]; then
+              echo "- latest release tag: \`${{ needs.resolve-container-image.outputs.release_tag }}\`"
+            else
+              echo "- latest release tag: _(unavailable)_"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Mark workspace as a safe git directory
         shell: bash
