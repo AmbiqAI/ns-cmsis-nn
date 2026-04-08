@@ -191,7 +191,8 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
                         for (int32_t z = 0; z < output_ch; z++)
                         {
                             int64_t acc = *buf_out++;
-                            int32_t reduced_mult = REDUCE_MULTIPLIER(*mult_ptr++);
+                            const int32_t mult_val = *mult_ptr++;
+                            int32_t reduced_mult = REDUCE_MULTIPLIER(mult_val);
                             int32_t result = arm_nn_requantize_s64(acc, reduced_mult, *shift_ptr++);
                             result = MAX(result, activation_min);
                             result = MIN(result, activation_max);
@@ -250,7 +251,8 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
                     for (int32_t z = 0; z < output_ch; z++)
                     {
                         int64_t acc = *buf_out++;
-                        int32_t reduced_mult = REDUCE_MULTIPLIER(*mult_ptr++);
+                        const int32_t mult_val = *mult_ptr++;
+                        int32_t reduced_mult = REDUCE_MULTIPLIER(mult_val);
                         int32_t result = arm_nn_requantize_s64(acc, reduced_mult, *shift_ptr++);
                         result = MAX(result, activation_min);
                         result = MIN(result, activation_max);
