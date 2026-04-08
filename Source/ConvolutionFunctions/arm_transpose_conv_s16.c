@@ -150,6 +150,7 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
         }
 
         int32_t buf_row = 0;
+        int32_t out_rows_written = 0;
 
         for (int32_t j = 0; j < input_y; j++)
         {
@@ -177,7 +178,7 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
 
             if (skip_rows_top == 0)
             {
-                for (int32_t y = 0; y < stride_y; y++)
+                for (int32_t y = 0; y < stride_y && out_rows_written < output_y; y++)
                 {
                     int64_t *buf_out = buf + buf_row;
                     buf_out         += output_ch * pad_x;   /* skip left-pad columns */
@@ -225,6 +226,7 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
                     }
 
                     buf_row = (buf_row + buf_x) % buf_size;
+                    out_rows_written++;
                 }
             }
         }
