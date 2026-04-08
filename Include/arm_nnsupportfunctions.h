@@ -1193,6 +1193,43 @@ arm_cmsis_nn_status arm_nn_transpose_conv_row_s8_s32(const int8_t *lhs,
                                                      const int32_t skip_row_bottom);
 
 /**
+ * @brief Row of s16 scalars multiplied with an s8 matrix and accumulated into a int64 rolling scratch buffer.
+ *        Helper function for arm_transpose_conv_s16.
+ *
+ * @param[in]      lhs             Input left-hand side scalars.  Data type: int16
+ * @param[in]      rhs             Input right-hand side matrix.  Data type: int8.
+ *                                 Layout: [rhs_rows][rhs_cols][input_channels] per output channel.
+ * @param[out]     output_start    Rolling scratch buffer base pointer.  Data type: int64
+ * @param[in]      output_index    Current index into the rolling buffer (element offset, not byte offset).
+ * @param[in]      output_max      Total number of int64 elements in the rolling buffer.
+ * @param[in]      rhs_rows        Number of filter rows (filter_y).
+ * @param[in]      rhs_cols        Number of filter columns (filter_x).
+ * @param[in]      input_channels  Number of input channels (C_IN).
+ * @param[in]      output_channels Number of output channels (C_OUT).
+ * @param[in]      row_offset      Element stride between rolling-buffer rows (buf_x = buf_x_elements * C_OUT).
+ * @param[in]      input_x         Number of input pixels in the current row.
+ * @param[in]      stride_x        Convolution stride in the x direction.
+ * @param[in]      skip_rows_top   Filter rows to skip at the top (top-padding clamp).
+ * @param[in]      skip_rows_bottom Filter rows to skip at the bottom (bottom-padding clamp).
+ *
+ * @return         ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_nn_transpose_conv_row_s16_s64(const int16_t *lhs,
+                                                      const int8_t *rhs,
+                                                      int64_t *output_start,
+                                                      const int32_t output_index,
+                                                      const int32_t output_max,
+                                                      const int32_t rhs_rows,
+                                                      const int32_t rhs_cols,
+                                                      const int32_t input_channels,
+                                                      const int32_t output_channels,
+                                                      const int32_t row_offset,
+                                                      const int32_t input_x,
+                                                      const int32_t stride_x,
+                                                      const int32_t skip_rows_top,
+                                                      const int32_t skip_rows_bottom);
+
+/**
   @brief         Read 2 s16 elements and post increment pointer.
   @param[in]     in_q15   Pointer to pointer that holds address of input.
   @return        q31 value

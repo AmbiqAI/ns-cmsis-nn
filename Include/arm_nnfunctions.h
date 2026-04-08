@@ -629,6 +629,58 @@ int32_t arm_transpose_conv_s8_get_buffer_size_mve(const cmsis_nn_dims *input_dim
                                                   const cmsis_nn_dims *out_dims);
 
 /**
+ * @brief Basic s16 transpose convolution function (int16x8 quantization scheme).
+ * @param[in, out] ctx                   Function context containing the scratch buffer.
+ *                                       arm_transpose_conv_s16_get_buffer_size() returns the required size.
+ *                                       The caller is expected to clear the buffer, if applicable, for security
+ *                                       reasons.
+ * @param[in, out] output_ctx            Unused.  Pass NULL / zero-initialised context.
+ * @param[in]      transpose_conv_params Convolution parameters (strides, padding, activation clamps).
+ *                                       input_offset and output_offset are not used (symmetric quantization).
+ * @param[in]      quant_params          Per-channel quantization info (Q31 multiplier and shift per output channel).
+ * @param[in]      input_dims            Input tensor dimensions.  Format: [N, H, W, C_IN]
+ * @param[in]      input_data            Input data pointer.  Data type: int16
+ * @param[in]      filter_dims           Filter tensor dimensions.  Format: [HK, WK, C_OUT, C_IN]
+ * @param[in]      filter_data           Filter data pointer.  Data type: int8
+ * @param[in]      bias_dims             Bias tensor dimensions.  Format: [C_OUT]
+ * @param[in]      bias_data             Optional bias struct (int32 or int64 flag inside).  May be NULL.
+ * @param[in]      output_dims           Output tensor dimensions.  Format: [N, H, W, C_OUT]
+ * @param[out]     output_data           Output data pointer.  Data type: int16
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> on success.
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite Micro (int16x8 op set)
+ *    2. Additional scratch buffer required.  See arm_transpose_conv_s16_get_buffer_size().
+ */
+arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
+                                           const cmsis_nn_context *output_ctx,
+                                           const cmsis_nn_transpose_conv_params *transpose_conv_params,
+                                           const cmsis_nn_per_channel_quant_params *quant_params,
+                                           const cmsis_nn_dims *input_dims,
+                                           const int16_t *input_data,
+                                           const cmsis_nn_dims *filter_dims,
+                                           const int8_t *filter_data,
+                                           const cmsis_nn_dims *bias_dims,
+                                           const cmsis_nn_bias_data *bias_data,
+                                           const cmsis_nn_dims *output_dims,
+                                           int16_t *output_data);
+
+/**
+ * @brief Get the required scratch buffer size for arm_transpose_conv_s16.
+ *
+ * @param[in]  transpose_conv_params  Convolution parameters (strides used to compute buffer dimensions).
+ * @param[in]  input_dims             Input tensor dimensions.  Format: [N, H, W, C_IN]
+ * @param[in]  filter_dims            Filter tensor dimensions.  Format: [HK, WK, C_OUT, C_IN]
+ * @param[in]  out_dims               Output tensor dimensions.  Format: [N, H, W, C_OUT]
+ * @return     Required buffer size in bytes.
+ */
+int32_t arm_transpose_conv_s16_get_buffer_size(const cmsis_nn_transpose_conv_params *transpose_conv_params,
+                                               const cmsis_nn_dims *input_dims,
+                                               const cmsis_nn_dims *filter_dims,
+                                               const cmsis_nn_dims *out_dims);
+
+/**
  * @brief Basic s16 convolution function
  * @param[in, out] ctx            Function context that contains the additional buffer if required by the function.
  *                                arm_convolve_s16_get_buffer_size will return the buffer_size if required.
