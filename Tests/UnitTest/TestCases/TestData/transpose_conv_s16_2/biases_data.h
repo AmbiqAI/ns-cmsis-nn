@@ -4,4 +4,4 @@
 #include <stdint.h>
 
 // No bias for transpose_conv_s16_2
-static const int64_t *transpose_conv_s16_2_biases = NULL;
+const int64_t *transpose_conv_s16_2_biases = NULL;
