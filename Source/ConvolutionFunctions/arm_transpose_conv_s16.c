@@ -73,6 +73,11 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
     (void)bias_dims;
     (void)output_ctx;
 
+    if (ctx == NULL || ctx->buf == NULL)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     const int32_t activation_min = transpose_conv_params->activation.min;
     const int32_t activation_max = transpose_conv_params->activation.max;
 
