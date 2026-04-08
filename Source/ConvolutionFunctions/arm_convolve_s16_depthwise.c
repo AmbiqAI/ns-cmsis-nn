@@ -18,12 +18,9 @@
 
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
- * Title:        arm_convolve_wrapper_s16.c
- * Description:  s16 convolution layer wrapper function with the main purpose to call the optimal kernel available in
- * cmsis-nn to perform the convolution.
- *
- * $Date:        23 April 2024
- * $Revision:    V.3.0.0
+ * Title:        arm_convolve_s16_depthwise.c
+ * Description:  s16 depthwise convolution for the special case where the
+ *               conv2d filter has filter_dims->c == 1 and input_ch == output_ch.
  *
  * Target :  Arm(R) M-Profile Architecture
  *
@@ -49,16 +46,20 @@
  * Filter layout expected: [C_OUT, HK, WK, 1] (standard conv2d layout with C_IN=1).
  * Supports arbitrary strides, dilation and padding.
  */
-static arm_cmsis_nn_status convolve_s16_depthwise(const cmsis_nn_conv_params *conv_params,
+arm_cmsis_nn_status arm_convolve_s16_depthwise(const cmsis_nn_context *ctx,
+                                               const cmsis_nn_conv_params *conv_params,
                                                   const cmsis_nn_per_channel_quant_params *quant_params,
                                                   const cmsis_nn_dims *input_dims,
                                                   const int16_t *input_data,
                                                   const cmsis_nn_dims *filter_dims,
                                                   const int8_t *filter_data,
+                                                  const cmsis_nn_dims *bias_dims,
                                                   const cmsis_nn_bias_data *bias_data,
                                                   const cmsis_nn_dims *output_dims,
                                                   int16_t *output_data)
 {
+    (void)ctx;
+    (void)bias_dims;
     const int32_t input_y = input_dims->h;
     const int32_t input_x = input_dims->w;
     const int32_t input_ch = input_dims->c;
@@ -320,124 +321,6 @@ static arm_cmsis_nn_status convolve_s16_depthwise(const cmsis_nn_conv_params *co
     }
 
     return ARM_CMSIS_NN_SUCCESS;
-}
-
-/*
- * Convolution layer
- *
- * Refer header file for details.
- *
- */
-
-arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
-                                             const cmsis_nn_conv_params *conv_params,
-                                             const cmsis_nn_per_channel_quant_params *quant_params,
-                                             const cmsis_nn_dims *input_dims,
-                                             const int16_t *input_data,
-                                             const cmsis_nn_dims *filter_dims,
-                                             const int8_t *filter_data,
-                                             const cmsis_nn_dims *bias_dims,
-                                             const cmsis_nn_bias_data *bias_data,
-                                             const cmsis_nn_dims *output_dims,
-                                             int16_t *output_data)
-{
-#if defined(ARM_MATH_MVEI)
-
-    if ( // CASE_CONV_1X1
-        (input_dims->c == filter_dims->c) &&  \
-        (conv_params->stride.w == 1) && (conv_params->stride.h == 1) && \
-        (conv_params->padding.w == 0) && (conv_params->padding.h == 0) && \
-        (filter_dims->w == 1) && (filter_dims->h == 1) && \
-        (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1)
-    )
-    {
-        return arm_convolve_1x1_s16_ns_np_nd(
-            ctx,
-            conv_params,
-            quant_params,
-            input_dims,
-            input_data,
-            filter_dims,
-            filter_data,
-            bias_dims,
-            bias_data,
-            output_dims,
-            output_data
-        );
-    }
-    else if ( // CASE_CONV_SMALL_KERNEL
-        ((filter_dims->w * filter_dims->h * filter_dims->c) < 9) && (conv_params->padding.h == 0) && (conv_params->padding.w == 0))
-    {
-        return arm_convolve_s16_fast_small_kernel(
-            ctx,
-            conv_params,
-            quant_params,
-            input_dims,
-            input_data,
-            filter_dims,
-            filter_data,
-            bias_dims,
-            bias_data,
-            output_dims,
-            output_data
-        );
-    }
-    else if (filter_dims->c == 1 && input_dims->c == output_dims->c)
-    {
-        return convolve_s16_depthwise(conv_params,
-                                      quant_params,
-                                      input_dims,
-                                      input_data,
-                                      filter_dims,
-                                      filter_data,
-                                      bias_data,
-                                      output_dims,
-                                      output_data);
-    }
-    else // CASE_CONV_GENERAL
-    {
-        return arm_convolve_s16(
-            ctx,
-            conv_params,
-            quant_params,
-            input_dims,
-            input_data,
-            filter_dims,
-            filter_data,
-            bias_dims,
-            bias_data,
-            output_dims,
-            output_data
-        );
-    }
-
-
-#else
-    if (filter_dims->c == 1 && input_dims->c == output_dims->c)
-    {
-        return convolve_s16_depthwise(conv_params,
-                                      quant_params,
-                                      input_dims,
-                                      input_data,
-                                      filter_dims,
-                                      filter_data,
-                                      bias_data,
-                                      output_dims,
-                                      output_data);
-    }
-    return arm_convolve_s16(
-        ctx,
-        conv_params,
-        quant_params,
-        input_dims,
-        input_data,
-        filter_dims,
-        filter_data,
-        bias_dims,
-        bias_data,
-        output_dims,
-        output_data);
-#endif
 }
 
 /**
