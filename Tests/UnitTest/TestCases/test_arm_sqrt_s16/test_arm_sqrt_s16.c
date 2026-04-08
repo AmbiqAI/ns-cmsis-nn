@@ -35,7 +35,7 @@ void sqrt_small_tensor_s16_arm_sqrt_s16(void)
     int16_t output_data[SQRT_SMALL_TENSOR_S16_OUTPUT_LEN];
 
     arm_cmsis_nn_status result =
-        arm_sqrt_s16(input_data, &input_dims, output_data, (int16_t *)sqrt_small_tensor_s16_sqrt_lut);
+        arm_sqrt_s16(input_data, &input_dims, output_data, sqrt_small_tensor_s16_sqrt_lut);
 
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate_s16(output_data, sqrt_small_tensor_s16_output, SQRT_SMALL_TENSOR_S16_OUTPUT_LEN));
@@ -49,7 +49,7 @@ void sqrt_long_row_s16_arm_sqrt_s16(void)
     int16_t output_data[SQRT_LONG_ROW_S16_OUTPUT_LEN];
 
     arm_cmsis_nn_status result =
-        arm_sqrt_s16(input_data, &input_dims, output_data, (int16_t *)sqrt_long_row_s16_sqrt_lut);
+        arm_sqrt_s16(input_data, &input_dims, output_data, sqrt_long_row_s16_sqrt_lut);
 
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate_s16(output_data, sqrt_long_row_s16_output, SQRT_LONG_ROW_S16_OUTPUT_LEN));
@@ -63,7 +63,7 @@ void sqrt_multi_batch_s16_arm_sqrt_s16(void)
     int16_t output_data[SQRT_MULTI_BATCH_S16_OUTPUT_LEN];
 
     arm_cmsis_nn_status result =
-        arm_sqrt_s16(input_data, &input_dims, output_data, (int16_t *)sqrt_multi_batch_s16_sqrt_lut);
+        arm_sqrt_s16(input_data, &input_dims, output_data, sqrt_multi_batch_s16_sqrt_lut);
 
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate_s16(output_data, sqrt_multi_batch_s16_output, SQRT_MULTI_BATCH_S16_OUTPUT_LEN));
