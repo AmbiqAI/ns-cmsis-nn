@@ -212,14 +212,31 @@ jobs:
           python3 scripts/setup_release_dependencies.py \
             --downloads-dir Tests/UnitTest/downloads
 
-      - name: Bootstrap vcpkg
+      - name: Check for required tools and install if missing
         run: |
           set -euo pipefail
-          VCPKG_ROOT="${RUNNER_TEMP}/vcpkg"
-          git clone --depth 1 https://github.com/microsoft/vcpkg.git "${VCPKG_ROOT}"
-          "${VCPKG_ROOT}/bootstrap-vcpkg.sh" -disableMetrics
-          export PATH="${VCPKG_ROOT}:$PATH"
-          echo "${VCPKG_ROOT}" >> "${GITHUB_PATH}"
+          missing_packages=()
+          for tool in git jq; do
+            if ! command -v "${tool}" >/dev/null 2>&1; then
+              missing_packages+=("${tool}")
+            fi
+          done
+
+          if [[ "${#missing_packages[@]}" -gt 0 ]]; then
+            apt-get update
+            apt-get install -y --no-install-recommends "${missing_packages[@]}"
+            rm -rf /var/lib/apt/lists/*
+          fi
+          for tool in bash git jq cp tr tee dirname basename; do
+            command -v "${tool}" >/dev/null
+          done
+
+      - name: Setup vcpkg
+        uses: ARM-software/cmsis-actions/setup-vcpkg@v1
+
+      - name: Verify vcpkg environment
+        run: |
+          set -euo pipefail
           command -v vcpkg
           vcpkg version
 
@@ -232,6 +249,16 @@ jobs:
         uses: ARM-software/cmsis-actions/armlm@v1
         with:
           code: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+
+      - name: Verify Arm toolchain environment
+        run: |
+          set -euo pipefail
+          for tool in jq vcpkg armclang armlm; do
+            command -v "${tool}" >/dev/null
+          done
+          jq --version
+          vcpkg version
+          armclang --version
 
       - name: Build static library
         run: |
