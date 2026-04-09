@@ -1,0 +1,218 @@
+name: Build Static Library GCC
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref (branch, commit, or tag) to build
+        required: true
+        type: string
+      tag:
+        description: Release tag used to derive the tagged CI image
+        required: true
+        type: string
+      image_ref:
+        description: Fully qualified CI image reference
+        required: true
+        type: string
+      arch:
+        description: Public release architecture name
+        required: true
+        type: string
+      arch_label:
+        description: Short architecture label used in the library filename
+        required: true
+        type: string
+      target_cpu:
+        description: CMake TARGET_CPU value
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref (branch, commit, or tag) to build
+        required: true
+        default: main
+        type: string
+      tag:
+        description: Release tag used to derive the tagged CI image
+        required: true
+        type: string
+      arch:
+        description: Public release architecture name
+        required: true
+        type: choice
+        options:
+          - cortex-m0
+          - cortex-m4+fp
+          - cortex-m55
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  resolve-inputs:
+    name: Resolve build inputs
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      arch: ${{ steps.resolve.outputs.arch }}
+      arch_label: ${{ steps.resolve.outputs.arch_label }}
+      target_cpu: ${{ steps.resolve.outputs.target_cpu }}
+      image_ref: ${{ steps.resolve.outputs.image_ref }}
+    steps:
+      - name: Resolve and validate inputs
+        id: resolve
+        env:
+          REF_INPUT: ${{ inputs.ref }}
+          TAG_INPUT: ${{ inputs.tag }}
+          ARCH_INPUT: ${{ inputs.arch }}
+          ARCH_LABEL_INPUT: ${{ inputs.arch_label }}
+          TARGET_CPU_INPUT: ${{ inputs.target_cpu }}
+          IMAGE_REF_INPUT: ${{ inputs.image_ref }}
+          TRIGGER_EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          ref_in="${REF_INPUT}"
+          tag_in="${TAG_INPUT}"
+          arch_in="${ARCH_INPUT}"
+
+          if [[ -z "${ref_in}" ]]; then
+            echo "::error ::Input ref is required."
+            exit 1
+          fi
+
+          if [[ -z "${tag_in}" ]]; then
+            echo "::error ::Input tag is required."
+            exit 1
+          fi
+
+          if [[ -z "${arch_in}" ]]; then
+            echo "::error ::Input arch is required."
+            exit 1
+          fi
+
+          case "${arch_in}" in
+            cortex-m0)
+              expected_arch_label="cm0"
+              expected_target_cpu="cortex-m0"
+              ;;
+            cortex-m4+fp)
+              expected_arch_label="cm4"
+              expected_target_cpu="cortex-m4"
+              ;;
+            cortex-m55)
+              expected_arch_label="cm55"
+              expected_target_cpu="cortex-m55"
+              ;;
+            *)
+              echo "::error ::Unsupported arch: ${arch_in}"
+              exit 1
+              ;;
+          esac
+
+          expected_image_ref="ghcr.io/ambiqai/ns-cmsis-nn-ci:${tag_in}"
+
+          if [[ "${TRIGGER_EVENT}" == "workflow_dispatch" ]]; then
+            arch_label="${expected_arch_label}"
+            target_cpu="${expected_target_cpu}"
+            image_ref="${expected_image_ref}"
+          else
+            arch_label="${ARCH_LABEL_INPUT}"
+            target_cpu="${TARGET_CPU_INPUT}"
+            image_ref="${IMAGE_REF_INPUT}"
+
+            [[ -n "${arch_label}" ]] || { echo "::error ::Input arch_label is required."; exit 1; }
+            [[ -n "${target_cpu}" ]] || { echo "::error ::Input target_cpu is required."; exit 1; }
+            [[ -n "${image_ref}" ]] || { echo "::error ::Input image_ref is required."; exit 1; }
+            [[ "${arch_label}" == "${expected_arch_label}" ]] || {
+              echo "::error ::arch_label mismatch for ${arch_in}: expected ${expected_arch_label}, got ${arch_label}."
+              exit 1
+            }
+            [[ "${target_cpu}" == "${expected_target_cpu}" ]] || {
+              echo "::error ::target_cpu mismatch for ${arch_in}: expected ${expected_target_cpu}, got ${target_cpu}."
+              exit 1
+            }
+            [[ "${image_ref}" == "${expected_image_ref}" ]] || {
+              echo "::error ::image_ref mismatch for tag ${tag_in}: expected ${expected_image_ref}, got ${image_ref}."
+              exit 1
+            }
+          fi
+
+          echo "ref=${ref_in}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag_in}" >> "${GITHUB_OUTPUT}"
+          echo "arch=${arch_in}" >> "${GITHUB_OUTPUT}"
+          echo "arch_label=${arch_label}" >> "${GITHUB_OUTPUT}"
+          echo "target_cpu=${target_cpu}" >> "${GITHUB_OUTPUT}"
+          echo "image_ref=${image_ref}" >> "${GITHUB_OUTPUT}"
+
+      - name: Log in to GHCR
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate tagged CI image
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          docker manifest inspect "${{ steps.resolve.outputs.image_ref }}" >/dev/null
+
+  build:
+    name: Build static library (${{ needs.resolve-inputs.outputs.arch }} • gcc)
+    needs: resolve-inputs
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.resolve-inputs.outputs.image_ref }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-inputs.outputs.ref }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Mark workspace safe
+        run: git config --global --add safe.directory "*"
+
+      - name: Cache release dependencies
+        uses: actions/cache@v4
+        with:
+          path: Tests/UnitTest/downloads
+          key: staticlib-release-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup_release_dependencies.py') }}
+          restore-keys: |
+            staticlib-release-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Setup release dependencies
+        run: |
+          python3 scripts/setup_release_dependencies.py \
+            --downloads-dir Tests/UnitTest/downloads
+
+      - name: Build static library
+        run: |
+          bash scripts/build_release_combo.sh \
+            --arch "${{ needs.resolve-inputs.outputs.arch }}" \
+            --arch-label "${{ needs.resolve-inputs.outputs.arch_label }}" \
+            --target-cpu "${{ needs.resolve-inputs.outputs.target_cpu }}" \
+            --toolchain gcc \
+            --build release \
+            --outdir "out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/gcc"
+
+      - name: Upload static library artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: staticlib-${{ needs.resolve-inputs.outputs.arch }}-gcc
+          path: out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/gcc/**
+          if-no-files-found: error
