@@ -218,6 +218,7 @@ jobs:
           VCPKG_ROOT="${RUNNER_TEMP}/vcpkg"
           git clone --depth 1 https://github.com/microsoft/vcpkg.git "${VCPKG_ROOT}"
           "${VCPKG_ROOT}/bootstrap-vcpkg.sh" -disableMetrics
+          export PATH="${VCPKG_ROOT}:$PATH"
           echo "${VCPKG_ROOT}" >> "${GITHUB_PATH}"
           command -v vcpkg
           vcpkg version
