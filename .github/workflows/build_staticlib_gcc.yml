@@ -214,5 +214,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: staticlib-${{ needs.resolve-inputs.outputs.arch }}-gcc
-          path: out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/gcc/**
+          path: out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/gcc/lib/*.a
           if-no-files-found: error
