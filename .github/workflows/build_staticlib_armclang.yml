@@ -210,34 +210,60 @@ jobs:
       - name: Setup release dependencies
         run: |
           python3 scripts/setup_release_dependencies.py \
-            --downloads-dir Tests/UnitTest/downloads
+            --downloads-dir Tests/UnitTest/downloads \
+            --skip-gcc
 
       - name: Check for required tools and install if missing
         run: |
           set -euo pipefail
           missing_packages=()
-          for tool in git jq; do
+          for tool in git jq curl unzip; do
             if ! command -v "${tool}" >/dev/null 2>&1; then
               missing_packages+=("${tool}")
             fi
           done
+
+          if [[ ! -e /etc/ssl/certs/ca-certificates.crt ]]; then
+            missing_packages+=("ca-certificates")
+          fi
+
+          if ! command -v llvm-strip >/dev/null 2>&1 \
+            && ! command -v llvm-strip-16 >/dev/null 2>&1 \
+            && ! command -v strip >/dev/null 2>&1; then
+            missing_packages+=("binutils")
+          fi
 
           if [[ "${#missing_packages[@]}" -gt 0 ]]; then
             apt-get update
             apt-get install -y --no-install-recommends "${missing_packages[@]}"
             rm -rf /var/lib/apt/lists/*
           fi
-          for tool in bash git jq cp tr tee dirname basename; do
+          for tool in bash git jq curl unzip cp tr tee dirname basename; do
             command -v "${tool}" >/dev/null
           done
 
-      - name: Setup vcpkg
-        uses: ARM-software/cmsis-actions/setup-vcpkg@v1
+      - name: Bootstrap vcpkg
+        run: |
+          set -euo pipefail
+          VCPKG_ROOT="${RUNNER_TEMP}/vcpkg"
+
+          if [[ ! -x "${VCPKG_ROOT}/vcpkg" ]]; then
+            rm -rf "${VCPKG_ROOT}"
+            git clone --depth 1 https://github.com/microsoft/vcpkg.git "${VCPKG_ROOT}"
+            "${VCPKG_ROOT}/bootstrap-vcpkg.sh" -disableMetrics
+          fi
+
+          export PATH="${VCPKG_ROOT}:${PATH}"
+          echo "VCPKG_ROOT=${VCPKG_ROOT}" >> "${GITHUB_ENV}"
+          echo "${VCPKG_ROOT}" >> "${GITHUB_PATH}"
+
+          command -v vcpkg >/dev/null
+          vcpkg version
 
       - name: Verify vcpkg environment
         run: |
           set -euo pipefail
-          command -v vcpkg
+          command -v vcpkg >/dev/null
           vcpkg version
 
       - name: Install Arm tools
@@ -256,6 +282,9 @@ jobs:
           for tool in jq vcpkg armclang armlm; do
             command -v "${tool}" >/dev/null
           done
+          command -v llvm-strip >/dev/null 2>&1 \
+            || command -v llvm-strip-16 >/dev/null 2>&1 \
+            || command -v strip >/dev/null 2>&1
           jq --version
           vcpkg version
           armclang --version
@@ -274,5 +303,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: staticlib-${{ needs.resolve-inputs.outputs.arch }}-armclang
-          path: out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/armclang/**
+          path: out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/armclang/lib/*.a
           if-no-files-found: error
