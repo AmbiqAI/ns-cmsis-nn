@@ -212,6 +212,16 @@ jobs:
           python3 scripts/setup_release_dependencies.py \
             --downloads-dir Tests/UnitTest/downloads
 
+      - name: Bootstrap vcpkg
+        run: |
+          set -euo pipefail
+          VCPKG_ROOT="${RUNNER_TEMP}/vcpkg"
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git "${VCPKG_ROOT}"
+          "${VCPKG_ROOT}/bootstrap-vcpkg.sh" -disableMetrics
+          echo "${VCPKG_ROOT}" >> "${GITHUB_PATH}"
+          command -v vcpkg
+          vcpkg version
+
       - name: Install Arm tools
         uses: ARM-software/cmsis-actions/vcpkg@v1
         with:
