@@ -37,6 +37,11 @@ on:
         required: false
         default: false
         type: boolean
+      create_draft_release:
+        description: Create a draft release before upload when needed
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -47,103 +52,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-static-library:
-    name: Build static library (${{ matrix.arch }} • ${{ matrix.toolchain }})
+  resolve-build-plan:
+    name: Resolve build plan
     runs-on: ubuntu-latest
-    container:
-      image: ${{ format('ghcr.io/ambiqai/ns-cmsis-nn-ci:{0}', inputs.tag) }}
-    defaults:
-      run:
-        shell: bash
-    strategy:
-      fail-fast: false
-      max-parallel: 4
-      matrix:
-        arch:
-          - cortex-m0
-          - cortex-m4+fp
-          - cortex-m55
-        toolchain:
-          - gcc
-          - armclang
-
-    env:
-      ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
-
+    outputs:
+      ref: ${{ steps.meta.outputs.ref }}
+      tag: ${{ steps.meta.outputs.tag }}
+      image_ref: ${{ steps.meta.outputs.image_ref }}
+      gcc_matrix: ${{ steps.meta.outputs.gcc_matrix }}
+      armclang_matrix: ${{ steps.meta.outputs.armclang_matrix }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ inputs.ref }}
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Mark workspace safe
-        run: git config --global --add safe.directory "*"
-
-      - name: Validate armclang license
-        if: ${{ matrix.toolchain == 'armclang' }}
-        run: |
-          if [[ -z "${ARM_UBL_LICENSE_IDENTIFIER}" ]]; then
-            echo "::error ::ARM_UBL_LICENSE_IDENTIFIER is required for armclang builds."
-            exit 1
-          fi
-
-      - name: Install Arm tools
-        if: ${{ matrix.toolchain == 'armclang' }}
-        uses: ARM-software/cmsis-actions/vcpkg@v1
-        with:
-          config: .github/arm/vcpkg-configuration.json
-
-      - name: Activate Arm tool license
-        if: ${{ matrix.toolchain == 'armclang' }}
-        uses: ARM-software/cmsis-actions/armlm@v1
-        with:
-          code: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
-
-      - name: Cache release dependencies
-        uses: actions/cache@v4
-        with:
-          path: Tests/UnitTest/downloads
-          key: staticlib-release-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup_release_dependencies.py') }}
-          restore-keys: |
-            staticlib-release-downloads-${{ runner.os }}-${{ runner.arch }}-
-
-      - name: Setup release dependencies
-        run: |
-          python3 scripts/setup_release_dependencies.py \
-            --downloads-dir Tests/UnitTest/downloads
-
-      - name: Build static library
-        run: |
-          bash scripts/build_release_combo.sh \
-            --arch "${{ matrix.arch }}" \
-            --toolchain "${{ matrix.toolchain }}" \
-            --build release \
-            --outdir "out/staticlibs/${{ matrix.arch }}/${{ matrix.toolchain }}"
-
-      - name: Upload static library artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: staticlib-${{ matrix.arch }}-${{ matrix.toolchain }}
-          path: out/staticlibs/${{ matrix.arch }}/${{ matrix.toolchain }}/**
-          if-no-files-found: error
-
-  package-staticlibs:
-    name: Package static libraries
-    needs: build-static-library
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
-
-    steps:
-      - name: Resolve release metadata
+      - name: Resolve release metadata and matrices
         id: meta
+        env:
+          REF_INPUT: ${{ inputs.ref }}
+          TAG_INPUT: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          ref_in='${{ inputs.ref }}'
-          tag_in='${{ inputs.tag }}'
+          ref_in="${REF_INPUT}"
+          tag_in="${TAG_INPUT}"
 
           if [[ -z "${ref_in}" ]]; then
             echo "::error ::Input ref is required."
@@ -155,17 +82,98 @@ jobs:
             exit 1
           fi
 
+          image_ref="ghcr.io/ambiqai/ns-cmsis-nn-ci:${tag_in}"
+          echo "ref=${ref_in}" >> "${GITHUB_OUTPUT}"
           echo "tag=${tag_in}" >> "${GITHUB_OUTPUT}"
+          echo "image_ref=${image_ref}" >> "${GITHUB_OUTPUT}"
 
+          python3 - "${GITHUB_OUTPUT}" "${image_ref}" <<'PY'
+          import json
+          import sys
+
+          github_output = sys.argv[1]
+          image_ref = sys.argv[2]
+          combos = [
+              {"arch": "cortex-m0", "arch_label": "cm0", "target_cpu": "cortex-m0", "image_ref": image_ref},
+              {"arch": "cortex-m4+fp", "arch_label": "cm4", "target_cpu": "cortex-m4", "image_ref": image_ref},
+              {"arch": "cortex-m55", "arch_label": "cm55", "target_cpu": "cortex-m55", "image_ref": image_ref},
+          ]
+
+          with open(github_output, "a", encoding="utf-8") as handle:
+              print(f"gcc_matrix={json.dumps(combos, separators=(',', ':'))}", file=handle)
+              print(f"armclang_matrix={json.dumps(combos, separators=(',', ':'))}", file=handle)
+          PY
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate tagged CI image
+        run: |
+          set -euo pipefail
+          docker manifest inspect "${{ steps.meta.outputs.image_ref }}" >/dev/null
+
+  build-gcc:
+    name: Build static library (${{ matrix.arch }} • gcc)
+    needs: resolve-build-plan
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include: ${{ fromJson(needs.resolve-build-plan.outputs.gcc_matrix) }}
+    uses: ./.github/workflows/build_staticlib_gcc.yml
+    with:
+      ref: ${{ needs.resolve-build-plan.outputs.ref }}
+      tag: ${{ needs.resolve-build-plan.outputs.tag }}
+      image_ref: ${{ matrix.image_ref }}
+      arch: ${{ matrix.arch }}
+      arch_label: ${{ matrix.arch_label }}
+      target_cpu: ${{ matrix.target_cpu }}
+
+  build-armclang:
+    name: Build static library (${{ matrix.arch }} • armclang)
+    needs: resolve-build-plan
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include: ${{ fromJson(needs.resolve-build-plan.outputs.armclang_matrix) }}
+    uses: ./.github/workflows/build_staticlib_armclang.yml
+    with:
+      ref: ${{ needs.resolve-build-plan.outputs.ref }}
+      tag: ${{ needs.resolve-build-plan.outputs.tag }}
+      image_ref: ${{ matrix.image_ref }}
+      arch: ${{ matrix.arch }}
+      arch_label: ${{ matrix.arch_label }}
+      target_cpu: ${{ matrix.target_cpu }}
+    secrets:
+      ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+
+  package-staticlibs:
+    name: Package static libraries
+    needs:
+      - resolve-build-plan
+      - build-gcc
+      - build-armclang
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ needs.resolve-build-plan.outputs.ref }}
           fetch-depth: 0
 
       - name: Download static library artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: staticlib-*
           path: artifacts
           merge-multiple: true
 
@@ -174,14 +182,14 @@ jobs:
           bash scripts/build_release_bundle.sh \
             --skip-build \
             --artifact-root artifacts \
-            --tag "${{ steps.meta.outputs.tag }}" \
+            --tag "${{ needs.resolve-build-plan.outputs.tag }}" \
             --outdir upload
 
       - name: Upload bundle artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ns-cmsis-nn-staticlibs-${{ steps.meta.outputs.tag }}
-          path: upload/ns-cmsis-nn-staticlibs-${{ steps.meta.outputs.tag }}.zip
+          name: ns-cmsis-nn-staticlibs-${{ needs.resolve-build-plan.outputs.tag }}
+          path: upload/ns-cmsis-nn-staticlibs-${{ needs.resolve-build-plan.outputs.tag }}.zip
           if-no-files-found: error
 
       - name: Ensure draft release exists for manual upload
@@ -190,7 +198,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          tag='${{ steps.meta.outputs.tag }}'
+          tag='${{ needs.resolve-build-plan.outputs.tag }}'
           is_draft="$(gh release view "${tag}" --json isDraft -q '.isDraft' 2>/dev/null || true)"
           if [[ -z "${is_draft}" ]]; then
             gh release create "${tag}" --draft --title "${tag}" --notes ""
@@ -206,6 +214,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          gh release upload "${{ steps.meta.outputs.tag }}" \
-            "upload/ns-cmsis-nn-staticlibs-${{ steps.meta.outputs.tag }}.zip" \
+          gh release upload "${{ needs.resolve-build-plan.outputs.tag }}" \
+            "upload/ns-cmsis-nn-staticlibs-${{ needs.resolve-build-plan.outputs.tag }}.zip" \
             --clobber

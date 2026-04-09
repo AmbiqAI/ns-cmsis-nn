@@ -17,6 +17,29 @@ EOF
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+resolve_arch() {
+  local arch="$1"
+
+  case "${arch}" in
+    cortex-m0)
+      TARGET_CPU="cortex-m0"
+      ARCH_LABEL="cm0"
+      ;;
+    cortex-m4+fp)
+      TARGET_CPU="cortex-m4"
+      ARCH_LABEL="cm4"
+      ;;
+    cortex-m55)
+      TARGET_CPU="cortex-m55"
+      ARCH_LABEL="cm55"
+      ;;
+    *)
+      echo "Unsupported arch: ${arch}" >&2
+      exit 2
+      ;;
+  esac
+}
+
 TAG=""
 OUTDIR=""
 ARTIFACT_ROOT="${REPO_ROOT}/out/release-artifacts"
@@ -73,14 +96,25 @@ done
 
 mkdir -p "${ARTIFACT_ROOT}" "${OUTDIR}"
 
-if [[ "${SKIP_BUILD}" -eq 0 ]]; then
-  IFS=',' read -r -a ARCH_ARRAY <<< "${ARCHS}"
-  IFS=',' read -r -a TOOLCHAIN_ARRAY <<< "${TOOLCHAINS}"
+IFS=',' read -r -a ARCH_ARRAY <<< "${ARCHS}"
+IFS=',' read -r -a TOOLCHAIN_ARRAY <<< "${TOOLCHAINS}"
 
+EXPECTED_LIBS=()
+for arch in "${ARCH_ARRAY[@]}"; do
+  resolve_arch "${arch}"
+  for toolchain in "${TOOLCHAIN_ARRAY[@]}"; do
+    EXPECTED_LIBS+=("libns-cmsis-nn-${ARCH_LABEL}-${toolchain}.a")
+  done
+done
+
+if [[ "${SKIP_BUILD}" -eq 0 ]]; then
   for arch in "${ARCH_ARRAY[@]}"; do
+    resolve_arch "${arch}"
     for toolchain in "${TOOLCHAIN_ARRAY[@]}"; do
       bash "${SCRIPT_DIR}/build_release_combo.sh" \
         --arch "${arch}" \
+        --arch-label "${ARCH_LABEL}" \
+        --target-cpu "${TARGET_CPU}" \
         --toolchain "${toolchain}" \
         --build "${BUILD}" \
         --outdir "${ARTIFACT_ROOT}/${arch}/${toolchain}/${BUILD}"
@@ -88,27 +122,55 @@ if [[ "${SKIP_BUILD}" -eq 0 ]]; then
   done
 fi
 
-STAGE_DIRS=()
-while IFS= read -r dir; do
-  STAGE_DIRS+=("${dir}")
-done < <(find "${ARTIFACT_ROOT}" -type d -path "*/stage" | sort)
-[[ "${#STAGE_DIRS[@]}" -gt 0 ]] || {
-  echo "No staged static libraries found under ${ARTIFACT_ROOT}" >&2
+ACTUAL_LIB_PATHS=()
+while IFS= read -r lib_path; do
+  ACTUAL_LIB_PATHS+=("${lib_path}")
+done < <(find "${ARTIFACT_ROOT}" -type f -name 'libns-cmsis-nn-*.a' | sort)
+
+[[ "${#ACTUAL_LIB_PATHS[@]}" -gt 0 ]] || {
+  echo "No release static libraries found under ${ARTIFACT_ROOT}" >&2
   exit 4
 }
+
+[[ "${#ACTUAL_LIB_PATHS[@]}" -eq "${#EXPECTED_LIBS[@]}" ]] || {
+  echo "Expected ${#EXPECTED_LIBS[@]} release static libraries under ${ARTIFACT_ROOT}, found ${#ACTUAL_LIB_PATHS[@]}" >&2
+  exit 4
+}
+
+expected_list="$(mktemp)"
+actual_list="$(mktemp)"
+cleanup() {
+  rm -f "${expected_list}" "${actual_list}"
+}
+trap cleanup EXIT
+
+printf '%s\n' "${EXPECTED_LIBS[@]}" | sort > "${expected_list}"
+for lib_path in "${ACTUAL_LIB_PATHS[@]}"; do
+  basename "${lib_path}"
+done | sort > "${actual_list}"
+
+if ! diff -u "${expected_list}" "${actual_list}"; then
+  echo "Release static library set does not match expected combos" >&2
+  exit 4
+fi
 
 BUNDLE_DIR="${OUTDIR}/ns-cmsis-nn-staticlibs-${TAG}"
 ZIP_PATH="${OUTDIR}/ns-cmsis-nn-staticlibs-${TAG}.zip"
 rm -rf "${BUNDLE_DIR}" "${ZIP_PATH}"
 mkdir -p "${BUNDLE_DIR}/lib"
 
-for dir in "${STAGE_DIRS[@]}"; do
-  lib_path="$(find "${dir}/lib" -maxdepth 1 -type f -name 'libns-cmsis-nn-*.a' | sort | head -n1)"
-  [[ -n "${lib_path}" ]] || {
-    echo "Missing static library under ${dir}/lib" >&2
+for lib_name in "${EXPECTED_LIBS[@]}"; do
+  LIB_MATCHES=()
+  while IFS= read -r lib_path; do
+    LIB_MATCHES+=("${lib_path}")
+  done < <(find "${ARTIFACT_ROOT}" -type f -name "${lib_name}" | sort)
+
+  [[ "${#LIB_MATCHES[@]}" -eq 1 ]] || {
+    echo "Expected exactly one artifact for ${lib_name}, found ${#LIB_MATCHES[@]}" >&2
     exit 4
   }
-  cp "${lib_path}" "${BUNDLE_DIR}/lib/"
+
+  cp "${LIB_MATCHES[0]}" "${BUNDLE_DIR}/lib/"
 done
 
 python3 - "${BUNDLE_DIR}" "${TAG}" <<'PY'

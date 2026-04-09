@@ -8,6 +8,8 @@ Build one release static library and prune the archive to the reviewed public AP
 
 Usage:
   build_release_combo.sh --arch <cortex-m0|cortex-m4+fp|cortex-m55> \
+                         --arch-label <cm0|cm4|cm55> \
+                         --target-cpu <cortex-m0|cortex-m4|cortex-m55> \
                          --toolchain <gcc|armclang> \
                          --outdir <dir> \
                          [--build release]
@@ -27,6 +29,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 ARCH=""
+ARCH_LABEL=""
+TARGET_CPU=""
 TOOLCHAIN=""
 BUILD="release"
 OUTDIR=""
@@ -41,6 +45,14 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --arch)
       ARCH="${2:?missing value for --arch}"
+      shift 2
+      ;;
+    --arch-label)
+      ARCH_LABEL="${2:?missing value for --arch-label}"
+      shift 2
+      ;;
+    --target-cpu)
+      TARGET_CPU="${2:?missing value for --target-cpu}"
       shift 2
       ;;
     --toolchain)
@@ -68,6 +80,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "${ARCH}" ]] || { echo "Missing --arch" >&2; usage; exit 2; }
+[[ -n "${ARCH_LABEL}" ]] || { echo "Missing --arch-label" >&2; usage; exit 2; }
+[[ -n "${TARGET_CPU}" ]] || { echo "Missing --target-cpu" >&2; usage; exit 2; }
 [[ -n "${TOOLCHAIN}" ]] || { echo "Missing --toolchain" >&2; usage; exit 2; }
 [[ -n "${OUTDIR}" ]] || { echo "Missing --outdir" >&2; usage; exit 2; }
 [[ "${BUILD}" == "release" ]] || { echo "Only --build release is supported for release artifacts" >&2; exit 2; }
@@ -89,22 +103,32 @@ STRIP="${STRIP:-$(command -v arm-none-eabi-strip || true)}"
 
 case "${ARCH}" in
   cortex-m0)
-    TARGET_CPU="cortex-m0"
-    ARCH_LABEL="cm0"
+    EXPECTED_TARGET_CPU="cortex-m0"
+    EXPECTED_ARCH_LABEL="cm0"
     ;;
   cortex-m4+fp)
-    TARGET_CPU="cortex-m4"
-    ARCH_LABEL="cm4"
+    EXPECTED_TARGET_CPU="cortex-m4"
+    EXPECTED_ARCH_LABEL="cm4"
     ;;
   cortex-m55)
-    TARGET_CPU="cortex-m55"
-    ARCH_LABEL="cm55"
+    EXPECTED_TARGET_CPU="cortex-m55"
+    EXPECTED_ARCH_LABEL="cm55"
     ;;
   *)
     echo "Unsupported arch: ${ARCH}" >&2
     exit 2
     ;;
 esac
+
+[[ "${ARCH_LABEL}" == "${EXPECTED_ARCH_LABEL}" ]] || {
+  echo "arch label mismatch for ${ARCH}: expected ${EXPECTED_ARCH_LABEL}, got ${ARCH_LABEL}" >&2
+  exit 2
+}
+
+[[ "${TARGET_CPU}" == "${EXPECTED_TARGET_CPU}" ]] || {
+  echo "target CPU mismatch for ${ARCH}: expected ${EXPECTED_TARGET_CPU}, got ${TARGET_CPU}" >&2
+  exit 2
+}
 
 case "${TOOLCHAIN}" in
   gcc)
@@ -215,6 +239,7 @@ cp "${EXPORTS_OUT}" "${STAGE_META_DIR}/exported_symbols.txt"
 cat > "${STAGE_META_DIR}/combo.env" <<EOF
 PRODUCT=ns-cmsis-nn
 ARCH=${ARCH}
+ARCH_LABEL=${ARCH_LABEL}
 TOOLCHAIN=${TOOLCHAIN}
 TARGET_CPU=${TARGET_CPU}
 LIB_NAME=${LIB_NAME}
