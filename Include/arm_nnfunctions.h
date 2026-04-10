@@ -274,6 +274,36 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
                                              int16_t *output_data);
 
 /**
+ * @brief s16 grouped convolution optimized for the case where filter_dims->c == 1
+ *        and input_ch == output_ch (channel multiplier = 1).
+ *
+ * @param[in, out] ctx            Function context (unused, pass NULL-initialised).
+ * @param[in]      conv_params    Convolution parameters (strides, dilations, pads, activation).
+ * @param[in]      quant_params   Per-channel quantization info (multiplier and shift).
+ * @param[in]      input_dims     Input tensor dimensions.  Format: [N, H, W, C_IN]
+ * @param[in]      input_data     Input data pointer.  Data type: int16
+ * @param[in]      filter_dims    Filter tensor dimensions.  Format: [C_OUT, HK, WK, 1]
+ * @param[in]      filter_data    Filter data pointer.  Data type: int8
+ * @param[in]      bias_dims      Bias tensor dimensions (unused, may be zero-initialised).
+ * @param[in]      bias_data      Optional bias struct (int32 or int64).  May be NULL.
+ * @param[in]      output_dims    Output tensor dimensions.  Format: [N, H, W, C_OUT]
+ * @param[out]     output_data    Output data pointer.  Data type: int16
+ *
+ * @return     ARM_CMSIS_NN_SUCCESS on success.
+ */
+arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx,
+                                                     const cmsis_nn_conv_params *conv_params,
+                                                     const cmsis_nn_per_channel_quant_params *quant_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const int16_t *input_data,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const int8_t *filter_data,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const cmsis_nn_bias_data *bias_data,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     int16_t *output_data);
+
+/**
  * @brief Get the required buffer size for arm_convolve_wrapper_s16.
  *
  * @param[in]      conv_params    Convolution parameters (e.g. strides, dilations, pads,...).
