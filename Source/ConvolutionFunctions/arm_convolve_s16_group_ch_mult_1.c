@@ -18,9 +18,10 @@
 
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
- * Title:        arm_convolve_s16_depthwise.c
- * Description:  s16 depthwise convolution for the special case where the
- *               conv2d filter has filter_dims->c == 1 and input_ch == output_ch.
+ * Title:        arm_convolve_s16_group_ch_mult_1.c
+ * Description:  s16 grouped convolution for the special case where the
+ *               conv2d filter has filter_dims->c == 1 and input_ch == output_ch
+ *               (channel multiplier = 1).
  *
  * Target :  Arm(R) M-Profile Architecture
  *
@@ -46,8 +47,8 @@
  * Filter layout expected: [C_OUT, HK, WK, 1] (standard conv2d layout with C_IN=1).
  * Supports arbitrary strides, dilation and padding.
  */
-arm_cmsis_nn_status arm_convolve_s16_depthwise(const cmsis_nn_context *ctx,
-                                               const cmsis_nn_conv_params *conv_params,
+arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx,
+                                                    const cmsis_nn_conv_params *conv_params,
                                                   const cmsis_nn_per_channel_quant_params *quant_params,
                                                   const cmsis_nn_dims *input_dims,
                                                   const int16_t *input_data,
