@@ -2417,6 +2417,19 @@ arm_cmsis_nn_status arm_sqrt_s8(const int8_t *input,
                                 int8_t *sqrt_lut);
 
 /**
+ * @brief s16 elementwise square root using piecewise LUT with linear interpolation
+ * @param[in]       input               pointer to input vector
+ * @param[in]       input_dims          pointer to input tensor dimensions
+ * @param[out]      output              pointer to output vector
+ * @param[in]       sqrt_lut            pointer to 513-entry lookup table (int16_t)
+ * @return          The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_sqrt_s16(const int16_t *input,
+                                 const cmsis_nn_dims *input_dims,
+                                 int16_t *output,
+                                 const int16_t *sqrt_lut);
+
+/**
  * @brief s16 elementwise absolute value
  * @param[in]       input               pointer to input vector
  * @param[in]       input_offset        input offset
