@@ -1,5 +1,30 @@
 # Changelog
 
+## [7.23.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.22.0...v7.23.0) (2026-04-10)
+
+
+### Features
+
+* add arm_sqrt_s16 kernel with MVE-optimized path ([af1429c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/af1429c92c2979b1480496f91b85fb0eb955e12a))
+* add arm_sqrt_s16 kernel with MVE-optimized path ([af1429c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/af1429c92c2979b1480496f91b85fb0eb955e12a))
+* add arm_sqrt_s16 kernel with MVE-optimized path ([3c97bcd](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3c97bcd08658216aecd238568a704b1e9272c806))
+* add depthwise fast path to arm_convolve_wrapper_s16 ([45d68a3](https://github.com/AmbiqAI/ns-cmsis-nn/commit/45d68a31872ebe318e99c9817dc848b4b8663697))
+* add int16 rsqrt kernels and generated tests ([5b4e8ac](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5b4e8ac4504c02605cb6960dae9aef4b372925eb))
+
+
+### Bug Fixes
+
+* add arm_convolve_s16_depthwise.c to PDSC ([c78ce6b](https://github.com/AmbiqAI/ns-cmsis-nn/commit/c78ce6bb8b453b86c5a3283c7428656ff75f0594))
+* add arm_sqrt_s16.c to PDSC source file listing ([2e87b7e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2e87b7e9e207cf1a918f9f40ce5012e8e8afb688))
+* depthwise scalar path uses arm_nn_requantize for int32 bias, add uint16 offset overflow guard ([932650a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/932650a3840b90ace258ba378e9b5b27339461d5))
+* remove unnecessary casts discarding const from LUT pointers ([576da80](https://github.com/AmbiqAI/ns-cmsis-nn/commit/576da80b6ec3ba5a3cf2aa5b89e53389273afe1c))
+
+
+### Refactoring
+
+* remove duplicate static helper, call arm_convolve_s16_group_ch_mult_1 from wrapper ([73679b3](https://github.com/AmbiqAI/ns-cmsis-nn/commit/73679b39fb3da7b8166b73778e722b1921184327))
+* rename arm_convolve_s16_depthwise to arm_convolve_s16_group_ch_mult_1 ([03b2f86](https://github.com/AmbiqAI/ns-cmsis-nn/commit/03b2f868de6df0a2eeb686d10647563ac2139f83))
+
 ## [7.22.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.21.0...v7.22.0) (2026-03-24)
 
 
