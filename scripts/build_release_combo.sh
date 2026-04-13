@@ -175,6 +175,19 @@ STRIP_TOOL="$(resolve_strip_tool || true)"
 [[ -n "${STRIP_TOOL}" ]] || { echo "No supported strip tool with --strip-debug found on PATH" >&2; exit 3; }
 
 mkdir -p "$(dirname "${OUTDIR}")"
+
+# Safety checks to avoid deleting unintended paths.
+if [[ -z "${OUTDIR:-}" ]]; then
+  echo "OUTDIR must not be empty" >&2
+  exit 2
+fi
+
+case "${OUTDIR}" in
+  /|"."|"..")
+    echo "Refusing to remove unsafe OUTDIR: ${OUTDIR}" >&2
+    exit 2
+    ;;
+esac
 rm -rf "${OUTDIR}"
 mkdir -p "${OUTDIR}"
 OUTDIR="$(cd "${OUTDIR}" && pwd)"
