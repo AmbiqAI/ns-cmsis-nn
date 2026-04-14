@@ -174,6 +174,13 @@ resolve_strip_tool() {
 STRIP_TOOL="$(resolve_strip_tool || true)"
 [[ -n "${STRIP_TOOL}" ]] || { echo "No supported strip tool with --strip-debug found on PATH" >&2; exit 3; }
 
+case "${OUTDIR}" in
+  /|"."|"..")
+    echo "Refusing to use unsafe OUTDIR: ${OUTDIR}" >&2
+    exit 2
+    ;;
+esac
+
 mkdir -p "$(dirname "${OUTDIR}")"
 
 # Safety checks to avoid deleting unintended paths.
