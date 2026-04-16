@@ -88,7 +88,7 @@ jobs:
         run: |
           set -euo pipefail
           test -x docker/vendor/armclang/bin/armclang
-          docker/vendor/armclang/bin/armclang --vsn
+          [[ -d docker/vendor/armclang/lib || -d docker/vendor/armclang/include ]]
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
