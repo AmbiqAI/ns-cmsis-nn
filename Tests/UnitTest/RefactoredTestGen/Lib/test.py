@@ -361,15 +361,16 @@ def convert_keras_to_tflite(
             rep_min, rep_max = 0.0, 1.0
 
         # Create a representative dataset for post-training quantization
+        num_samples = int(shape.get("representative_dataset_samples", 100))
         if shape.get("different_in_shapes") is True:
             def representative_dataset():
-                for _ in range(100):
+                for _ in range(num_samples):
                     data1 = np.random.rand(*shape["representational_dataset"])
                     data2 = np.random.rand(*shape["representational_dataset2"])
                     yield [data1.astype(np.float32), data2.astype(np.float32)]
         else:
             def representative_dataset():
-                for _ in range(100):
+                for _ in range(num_samples):
                     data = np.random.uniform(
                         rep_min,
                         rep_max,

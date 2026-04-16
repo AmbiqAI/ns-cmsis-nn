@@ -77,6 +77,7 @@
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_wrapper_s4.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_wrapper_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_wrapper_s16.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_convolve_s16_group_ch_mult_1.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_get_buffer_sizes_s16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_get_buffer_sizes_s4.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_get_buffer_sizes_s8.c"/>
@@ -149,7 +150,9 @@
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_abs_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_abs_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_rsqrt_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_sqrt_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_sqrt_s16.c"/>
 
         <file category="source" name="Source/ComparisonFunctions/arm_comparison_s8.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_comparison_s16.c"/>

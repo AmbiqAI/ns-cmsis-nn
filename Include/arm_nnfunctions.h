@@ -274,6 +274,36 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
                                              int16_t *output_data);
 
 /**
+ * @brief s16 grouped convolution optimized for the case where filter_dims->c == 1
+ *        and input_ch == output_ch (channel multiplier = 1).
+ *
+ * @param[in, out] ctx            Function context (unused, pass NULL-initialised).
+ * @param[in]      conv_params    Convolution parameters (strides, dilations, pads, activation).
+ * @param[in]      quant_params   Per-channel quantization info (multiplier and shift).
+ * @param[in]      input_dims     Input tensor dimensions.  Format: [N, H, W, C_IN]
+ * @param[in]      input_data     Input data pointer.  Data type: int16
+ * @param[in]      filter_dims    Filter tensor dimensions.  Format: [C_OUT, HK, WK, 1]
+ * @param[in]      filter_data    Filter data pointer.  Data type: int8
+ * @param[in]      bias_dims      Bias tensor dimensions (unused, may be zero-initialised).
+ * @param[in]      bias_data      Optional bias struct (int32 or int64).  May be NULL.
+ * @param[in]      output_dims    Output tensor dimensions.  Format: [N, H, W, C_OUT]
+ * @param[out]     output_data    Output data pointer.  Data type: int16
+ *
+ * @return     ARM_CMSIS_NN_SUCCESS on success.
+ */
+arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx,
+                                                     const cmsis_nn_conv_params *conv_params,
+                                                     const cmsis_nn_per_channel_quant_params *quant_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const int16_t *input_data,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const int8_t *filter_data,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const cmsis_nn_bias_data *bias_data,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     int16_t *output_data);
+
+/**
  * @brief Get the required buffer size for arm_convolve_wrapper_s16.
  *
  * @param[in]      conv_params    Convolution parameters (e.g. strides, dilations, pads,...).
@@ -2381,6 +2411,19 @@ arm_cmsis_nn_status arm_abs_s8(const int8_t *input,
 arm_cmsis_nn_status arm_sqrt_s8(const int8_t *input, const cmsis_nn_dims *input_dims, int8_t *output, int8_t *sqrt_lut);
 
 /**
+ * @brief s16 elementwise square root using piecewise LUT with linear interpolation
+ * @param[in]       input               pointer to input vector
+ * @param[in]       input_dims          pointer to input tensor dimensions
+ * @param[out]      output              pointer to output vector
+ * @param[in]       sqrt_lut            pointer to 513-entry lookup table (int16_t)
+ * @return          The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_sqrt_s16(const int16_t *input,
+                                 const cmsis_nn_dims *input_dims,
+                                 int16_t *output,
+                                 const int16_t *sqrt_lut);
+
+/**
  * @brief s16 elementwise absolute value
  * @param[in]       input               pointer to input vector
  * @param[in]       input_offset        input offset
@@ -2404,6 +2447,67 @@ arm_cmsis_nn_status arm_abs_s16(const int16_t *input,
                                 const int32_t out_activation_min,
                                 const int32_t out_activation_max,
                                 const int32_t block_size);
+
+/**
+ * @brief INT16 reciprocal square root using a per-operator LUT.
+ *
+ * @param[in]  input               Pointer to the input buffer.
+ * @param[in]  input_offset        Input tensor zero offset. The kernel evaluates
+ *                                 each element as `input - input_offset` before the
+ *                                 LUT lookup.
+ * @param[out] output              Pointer to the output buffer.
+ * @param[in]  out_offset          Output tensor zero offset.
+ * @param[in]  out_activation_min  Minimum output clamp.
+ * @param[in]  out_activation_max  Maximum output clamp.
+ * @param[in]  block_size          Number of elements.
+ * @param[in]  lut                 Pointer to a 513-entry INT16 LUT in output domain.
+ * @return                         The function returns ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
+                                         const int32_t input_offset,
+                                         int16_t *output,
+                                         const int32_t out_offset,
+                                         const int32_t out_activation_min,
+                                         const int32_t out_activation_max,
+                                         const int32_t block_size,
+                                         const int16_t *lut);
+
+/**
+ * @brief INT16 reciprocal square root using a shared universal LUT.
+ *
+ * In universal mode all RSQRT operators share a single LUT that captures the
+ * base 1/sqrt(x) shape, and operator-specific quantization is applied
+ * afterward via @p out_mult / @p out_shift.  Because this two-step process
+ * introduces extra rounding stages, the output may differ from the
+ * per-op variant (@ref arm_rsqrt_s16_per_op) by up to ±3 LSB per element.
+ * This is expected and acceptable for deployment.
+ *
+ * @param[in]  input               Pointer to the input buffer.
+ * @param[in]  input_offset        Input tensor zero offset. The kernel evaluates
+ *                                 each element as `input - input_offset` before the
+ *                                 LUT lookup.
+ * @param[out] output              Pointer to the output buffer.
+ * @param[in]  out_offset          Output tensor zero offset.
+ * @param[in]  out_mult            Output requantization multiplier.
+ * @param[in]  out_shift           Output requantization shift.
+ * @param[in]  needs_rescale       Whether requantization is required.
+ * @param[in]  out_activation_min  Minimum output clamp.
+ * @param[in]  out_activation_max  Maximum output clamp.
+ * @param[in]  block_size          Number of elements.
+ * @param[in]  lut                 Pointer to a 513-entry INT32 shared LUT in Q30 domain.
+ * @return                         The function returns ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_rsqrt_s16_universal(const int16_t *input,
+                                            const int32_t input_offset,
+                                            int16_t *output,
+                                            const int32_t out_offset,
+                                            const int32_t out_mult,
+                                            const int32_t out_shift,
+                                            const bool needs_rescale,
+                                            const int32_t out_activation_min,
+                                            const int32_t out_activation_max,
+                                            const int32_t block_size,
+                                            const int32_t *lut);
 
 /**
  * @brief s8 elementwise subtraction of two tensors with support for broadcasting.
