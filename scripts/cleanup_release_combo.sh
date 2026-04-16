@@ -13,7 +13,6 @@ EOF
 
 OUTDIR=""
 LIB_NAME=""
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --outdir)
@@ -41,6 +40,12 @@ done
 
 [[ -d "${OUTDIR}" ]] || { echo "Output directory not found: ${OUTDIR}" >&2; exit 3; }
 OUTDIR="$(cd "${OUTDIR}" && pwd)"
+case "${OUTDIR}" in
+  /|/.|/..)
+    echo "Refusing to clean unsafe output directory: ${OUTDIR}" >&2
+    exit 3
+    ;;
+esac
 LIB_DIR="${OUTDIR}/lib"
 TARGET_LIB="${LIB_DIR}/${LIB_NAME}"
 

@@ -1,21 +1,42 @@
 FROM python:3.10-bookworm as ns-cmsis-nn-ci
 
-RUN apt-get update
+ARG UV_VERSION=0.6.14
 
-RUN apt-get install -y zip unzip xxd sudo ruby-full cmake pip curl git git-lfs jq ninja-build
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        binutils \
+        ca-certificates \
+        clang \
+        clang-format \
+        cmake \
+        curl \
+        gcc-arm-none-eabi \
+        git \
+        git-lfs \
+        jq \
+        make \
+        ninja-build \
+        ruby-full \
+        sudo \
+        unzip \
+        xxd \
+        zip \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN apt install -y lsb-release wget software-properties-common gnupg
-RUN wget https://apt.llvm.org/llvm.sh
-RUN chmod +x llvm.sh
-RUN ./llvm.sh 16
-RUN ln -s /usr/bin/clang-16 /usr/bin/clang
-RUN ln -s /usr/bin/clang++-16 /usr/bin/clang++
+RUN python -m pip install --no-cache-dir "uv==${UV_VERSION}"
 
-RUN apt-get install clang-format-16
-RUN ln -s /usr/bin/clang-format-16 /usr/bin/clang-format
+COPY docker/vendor/armclang /opt/armclang
+
+ENV ARM_COMPILER_DIR=/opt/armclang
+ENV PATH="/opt/armclang/bin:${PATH}"
 
 # Needed when the docker container is used with GitHub actions.
 RUN git config --global --add safe.directory /github/workspace
+
+RUN test -x /opt/armclang/bin/armclang \
+    && armclang --vsn \
+    && arm-none-eabi-gcc --version \
+    && uv --version
 
 # Install flatbuffers (flatc)
 RUN \

@@ -36,6 +36,11 @@ if(CMSIS_NN_HIDE_INTERNAL_SYMBOLS)
     message(FATAL_ERROR
       "CMSIS_NN_PUBLIC_HEADERS_DIR must be set when CMSIS_NN_HIDE_INTERNAL_SYMBOLS=ON")
   endif()
+  if(NOT EXISTS "${CMSIS_NN_PUBLIC_HEADERS_DIR}" OR NOT IS_DIRECTORY "${CMSIS_NN_PUBLIC_HEADERS_DIR}")
+    message(FATAL_ERROR
+      "CMSIS_NN_PUBLIC_HEADERS_DIR must refer to an existing directory when "
+      "CMSIS_NN_HIDE_INTERNAL_SYMBOLS=ON: '${CMSIS_NN_PUBLIC_HEADERS_DIR}'")
+  endif()
 
   target_compile_options(cmsis-nn PRIVATE
     $<$<COMPILE_LANG_AND_ID:C,GNU,Clang,AppleClang,ARMClang>:-fvisibility=hidden>)
