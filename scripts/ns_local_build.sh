@@ -7,9 +7,12 @@ usage() {
 Build release static libraries locally in the same shape as the GitHub release workflow.
 
 Usage:
-  ns_local_build.sh --tag <tag> [--outdir <dir>]
+  ns_local_build.sh [--tag <tag>] [--outdir <dir>]
                     [--archs cortex-m0,cortex-m4+fp,cortex-m55]
                     [--toolchains gcc,armclang]
+
+Defaults:
+  --tag local
 EOF
 }
 

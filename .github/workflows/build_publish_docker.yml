@@ -43,6 +43,50 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Bootstrap vcpkg
+        run: |
+          set -euo pipefail
+          VCPKG_ROOT="${RUNNER_TEMP}/vcpkg"
+
+          if [[ ! -x "${VCPKG_ROOT}/vcpkg" ]]; then
+            rm -rf "${VCPKG_ROOT}"
+            git clone --depth 1 https://github.com/microsoft/vcpkg.git "${VCPKG_ROOT}"
+            "${VCPKG_ROOT}/bootstrap-vcpkg.sh" -disableMetrics
+          fi
+
+          export PATH="${VCPKG_ROOT}:${PATH}"
+          echo "VCPKG_ROOT=${VCPKG_ROOT}" >> "${GITHUB_ENV}"
+          echo "${VCPKG_ROOT}" >> "${GITHUB_PATH}"
+
+          command -v vcpkg >/dev/null
+          vcpkg version
+
+      - name: Install Arm tools
+        uses: ARM-software/cmsis-actions/vcpkg@v1
+        with:
+          config: .github/arm/vcpkg-configuration.json
+
+      - name: Resolve armclang root
+        id: armclang
+        run: |
+          set -euo pipefail
+          armclang_root="$(bash ci/find_armclang.sh)"
+          echo "root=${armclang_root}" >> "${GITHUB_OUTPUT}"
+          printf 'Resolved armclang root: %s\n' "${armclang_root}"
+
+      - name: Stage armclang into Docker context
+        run: |
+          set -euo pipefail
+          rm -rf docker/vendor/armclang
+          mkdir -p docker/vendor
+          cp -a "${{ steps.armclang.outputs.root }}" docker/vendor/armclang
+
+      - name: Verify staged toolchain
+        run: |
+          set -euo pipefail
+          test -x docker/vendor/armclang/bin/armclang
+          docker/vendor/armclang/bin/armclang --vsn
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
         with:
@@ -117,3 +161,7 @@ jobs:
             [[ -n "$tag" ]] || continue
             docker push "$tag"
           done <<< "${{ steps.meta.outputs.docker_tags }}"
+
+      - name: Clean staged armclang
+        if: always()
+        run: rm -rf docker/vendor/armclang
