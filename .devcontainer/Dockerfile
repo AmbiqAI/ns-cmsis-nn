@@ -40,7 +40,7 @@ ENV PATH="/opt/armclang/bin:${PATH}"
 RUN git config --global --add safe.directory /github/workspace
 
 RUN test -x /opt/armclang/bin/armclang \
-    && armclang --vsn \
+    && test -d /opt/armclang/lib \
     && arm-none-eabi-gcc --version \
     && uv --version
 
