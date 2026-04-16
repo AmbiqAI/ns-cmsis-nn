@@ -64,7 +64,7 @@ jobs:
       - name: Install Arm tools
         uses: ARM-software/cmsis-actions/vcpkg@v1
         with:
-          config: .github/arm/vcpkg-configuration.json
+          config: ${{ github.workspace }}/.github/arm/vcpkg-configuration.json
 
       - name: Resolve armclang root
         id: armclang
