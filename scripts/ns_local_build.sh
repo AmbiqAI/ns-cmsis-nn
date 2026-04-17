@@ -9,7 +9,7 @@ Build release static libraries locally in the same shape as the GitHub release w
 Usage:
   ns_local_build.sh [--tag <tag>] [--outdir <dir>]
                     [--archs cortex-m0,cortex-m4+fp,cortex-m55]
-                    [--toolchains gcc,armclang]
+                    [--toolchains gcc,armclang,llvm-et-arm]
 
 Defaults:
   --tag local
@@ -22,7 +22,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TAG="local"
 OUTDIR="${REPO_ROOT}/out/ns_local_build"
 ARCHS="cortex-m0,cortex-m4+fp,cortex-m55"
-TOOLCHAINS="gcc,armclang"
+TOOLCHAINS="gcc,armclang,llvm-et-arm"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

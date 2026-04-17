@@ -10,7 +10,7 @@ Usage:
   build_release_combo.sh --arch <cortex-m0|cortex-m4+fp|cortex-m55> \
                          --arch-label <cm0|cm4|cm55> \
                          --target-cpu <cortex-m0|cortex-m4|cortex-m55> \
-                         --toolchain <gcc|armclang> \
+                         --toolchain <gcc|armclang|llvm-et-arm> \
                          --outdir <dir> \
                          [--build release]
 
@@ -18,6 +18,7 @@ Optional environment overrides:
   DOWNLOADS_DIR
   CMSIS_PATH
   ETHOS_U_CORE_PLATFORM_PATH
+  LLVM_ET_ARM_DIR
 EOF
 }
 
@@ -35,6 +36,8 @@ OUTDIR=""
 DOWNLOADS_DIR="${DOWNLOADS_DIR:-${REPO_ROOT}/Tests/UnitTest/downloads}"
 CMSIS_PATH="${CMSIS_PATH:-${DOWNLOADS_DIR}/CMSIS_5}"
 ETHOS_U_CORE_PLATFORM_PATH="${ETHOS_U_CORE_PLATFORM_PATH:-${DOWNLOADS_DIR}/ethos-u-core-platform}"
+LLVM_ET_ARM_DIR="${LLVM_ET_ARM_DIR:-/opt/llvm-et-arm}"
+LLVM_ET_ARM_TOOLCHAIN_FILE="${REPO_ROOT}/cmake/toolchain/llvm-et-arm.cmake"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -86,7 +89,6 @@ if ! command -v arm-none-eabi-gcc >/dev/null 2>&1 && [[ -d "${DOWNLOADS_DIR}/arm
 fi
 
 [[ -d "${CMSIS_PATH}" ]] || { echo "CMSIS_PATH not found: ${CMSIS_PATH}" >&2; exit 3; }
-[[ -d "${ETHOS_U_CORE_PLATFORM_PATH}" ]] || { echo "ETHOS_U_CORE_PLATFORM_PATH not found: ${ETHOS_U_CORE_PLATFORM_PATH}" >&2; exit 3; }
 
 case "${ARCH}" in
   cortex-m0)
@@ -119,6 +121,7 @@ esac
 
 case "${TOOLCHAIN}" in
   gcc)
+    [[ -d "${ETHOS_U_CORE_PLATFORM_PATH}" ]] || { echo "ETHOS_U_CORE_PLATFORM_PATH not found: ${ETHOS_U_CORE_PLATFORM_PATH}" >&2; exit 3; }
     TOOLCHAIN_FILE="${ETHOS_U_CORE_PLATFORM_PATH}/cmake/toolchain/arm-none-eabi-gcc.cmake"
     command -v arm-none-eabi-gcc >/dev/null 2>&1 || {
       echo "arm-none-eabi-gcc not found on PATH" >&2
@@ -126,9 +129,29 @@ case "${TOOLCHAIN}" in
     }
     ;;
   armclang)
+    [[ -d "${ETHOS_U_CORE_PLATFORM_PATH}" ]] || { echo "ETHOS_U_CORE_PLATFORM_PATH not found: ${ETHOS_U_CORE_PLATFORM_PATH}" >&2; exit 3; }
     TOOLCHAIN_FILE="${ETHOS_U_CORE_PLATFORM_PATH}/cmake/toolchain/armclang.cmake"
     command -v armclang >/dev/null 2>&1 || {
       echo "armclang not found on PATH" >&2
+      exit 3
+    }
+    ;;
+  llvm-et-arm)
+    TOOLCHAIN_FILE="${LLVM_ET_ARM_TOOLCHAIN_FILE}"
+    [[ -x "${LLVM_ET_ARM_DIR}/bin/clang" ]] || {
+      echo "LLVM-ET-Arm clang not found at ${LLVM_ET_ARM_DIR}/bin/clang" >&2
+      exit 3
+    }
+    [[ -x "${LLVM_ET_ARM_DIR}/bin/llvm-ar" ]] || {
+      echo "LLVM-ET-Arm llvm-ar not found at ${LLVM_ET_ARM_DIR}/bin/llvm-ar" >&2
+      exit 3
+    }
+    [[ -x "${LLVM_ET_ARM_DIR}/bin/llvm-ranlib" ]] || {
+      echo "LLVM-ET-Arm llvm-ranlib not found at ${LLVM_ET_ARM_DIR}/bin/llvm-ranlib" >&2
+      exit 3
+    }
+    [[ -x "${LLVM_ET_ARM_DIR}/bin/llvm-strip" ]] || {
+      echo "LLVM-ET-Arm llvm-strip not found at ${LLVM_ET_ARM_DIR}/bin/llvm-strip" >&2
       exit 3
     }
     ;;
@@ -158,6 +181,24 @@ resolve_strip_tool() {
       ;;
     armclang)
       for candidate in llvm-strip llvm-strip-16 strip arm-none-eabi-strip; do
+        path="$(command -v "${candidate}" || true)"
+        [[ -n "${path}" ]] || continue
+        if "${path}" --help 2>&1 | grep -q -- '--strip-debug'; then
+          printf '%s\n' "${path}"
+          return 0
+        fi
+      done
+      ;;
+    llvm-et-arm)
+      local llvm_et_arm_bin_candidate=""
+      for candidate in llvm-strip llvm-strip-16 strip; do
+        llvm_et_arm_bin_candidate="${LLVM_ET_ARM_DIR:-}/bin/${candidate}"
+        if [[ -x "${llvm_et_arm_bin_candidate}" ]]; then
+          if "${llvm_et_arm_bin_candidate}" --help 2>&1 | grep -q -- '--strip-debug'; then
+            printf '%s\n' "${llvm_et_arm_bin_candidate}"
+            return 0
+          fi
+        fi
         path="$(command -v "${candidate}" || true)"
         [[ -n "${path}" ]] || continue
         if "${path}" --help 2>&1 | grep -q -- '--strip-debug'; then

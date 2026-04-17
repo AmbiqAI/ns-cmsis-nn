@@ -9,7 +9,7 @@ Build or package release static libraries for ns-cmsis-nn.
 Usage:
   build_release_bundle.sh --tag <tag> --outdir <dir> [--artifact-root <dir>] [--skip-build]
                           [--archs cortex-m0,cortex-m4+fp,cortex-m55]
-                          [--toolchains gcc,armclang]
+                          [--toolchains gcc,armclang,llvm-et-arm]
                           [--build release]
 EOF
 }
@@ -44,7 +44,7 @@ TAG=""
 OUTDIR=""
 ARTIFACT_ROOT="${REPO_ROOT}/out/release-artifacts"
 ARCHS="cortex-m0,cortex-m4+fp,cortex-m55"
-TOOLCHAINS="gcc,armclang"
+TOOLCHAINS="gcc,armclang,llvm-et-arm"
 BUILD="release"
 SKIP_BUILD=0
 
@@ -198,7 +198,7 @@ for path in sorted((bundle_dir / "lib").glob("*.a")):
         {
             "file": path.name,
             "arch": parts[3],
-            "toolchain": parts[4],
+            "toolchain": "-".join(parts[4:]),
         }
     )
 

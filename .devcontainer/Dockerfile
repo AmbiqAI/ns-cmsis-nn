@@ -26,16 +26,23 @@ RUN apt-get update \
 RUN python -m pip install --no-cache-dir "uv==${UV_VERSION}"
 
 COPY docker/vendor/armclang /opt/armclang
+COPY docker/vendor/llvm-et-arm /opt/llvm-et-arm
 
 ENV ARM_COMPILER_DIR=/opt/armclang
-ENV PATH="/opt/armclang/bin:${PATH}"
+ENV LLVM_ET_ARM_DIR=/opt/llvm-et-arm
+ENV PATH="/opt/llvm-et-arm/bin:/opt/armclang/bin:${PATH}"
 
 # Needed when the docker container is used with GitHub actions.
 RUN git config --global --add safe.directory /github/workspace
 
 RUN test -x /opt/armclang/bin/armclang \
     && test -d /opt/armclang/lib \
+    && test -x /opt/llvm-et-arm/bin/clang \
+    && test -x /opt/llvm-et-arm/bin/llvm-ar \
+    && test -x /opt/llvm-et-arm/bin/llvm-ranlib \
+    && test -x /opt/llvm-et-arm/bin/llvm-strip \
     && arm-none-eabi-gcc --version \
+    && /opt/llvm-et-arm/bin/clang --version \
     && uv --version
 
 # Install flatbuffers (flatc)

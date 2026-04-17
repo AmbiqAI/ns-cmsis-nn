@@ -1,4 +1,4 @@
-name: Build Static Library Armclang
+name: Build Static Library LLVM-ET-Arm
 
 on:
   workflow_call:
@@ -27,9 +27,6 @@ on:
         description: CMake TARGET_CPU value
         required: true
         type: string
-    secrets:
-      ARM_UBL_LICENSE_IDENTIFIER:
-        required: true
   workflow_dispatch:
     inputs:
       ref:
@@ -167,7 +164,7 @@ jobs:
           docker manifest inspect "${{ steps.resolve.outputs.image_ref }}" >/dev/null
 
   build:
-    name: Build static library (${{ needs.resolve-inputs.outputs.arch }} • armclang)
+    name: Build static library (${{ needs.resolve-inputs.outputs.arch }} • llvm-et-arm)
     needs: resolve-inputs
     runs-on: ubuntu-latest
     container:
@@ -179,7 +176,7 @@ jobs:
       run:
         shell: bash
     env:
-      ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+      LLVM_ET_ARM_DIR: /opt/llvm-et-arm
 
     steps:
       - name: Checkout repository
@@ -191,13 +188,6 @@ jobs:
 
       - name: Mark workspace safe
         run: git config --global --add safe.directory "*"
-
-      - name: Validate armclang license
-        run: |
-          if [[ -z "${ARM_UBL_LICENSE_IDENTIFIER}" ]]; then
-            echo "::error ::ARM_UBL_LICENSE_IDENTIFIER is required for armclang builds."
-            exit 1
-          fi
 
       - name: Cache release dependencies
         uses: actions/cache@v4
@@ -213,51 +203,14 @@ jobs:
             --downloads-dir Tests/UnitTest/downloads \
             --skip-gcc
 
-      - name: Check for required tools and install if missing
+      - name: Verify LLVM-ET-Arm environment
         run: |
           set -euo pipefail
-          missing_packages=()
-          for tool in git jq curl unzip; do
-            if ! command -v "${tool}" >/dev/null 2>&1; then
-              missing_packages+=("${tool}")
-            fi
-          done
-
-          if [[ ! -e /etc/ssl/certs/ca-certificates.crt ]]; then
-            missing_packages+=("ca-certificates")
-          fi
-
-          if ! command -v llvm-strip >/dev/null 2>&1 \
-            && ! command -v llvm-strip-16 >/dev/null 2>&1 \
-            && ! command -v strip >/dev/null 2>&1; then
-            missing_packages+=("binutils")
-          fi
-
-          if [[ "${#missing_packages[@]}" -gt 0 ]]; then
-            apt-get update
-            apt-get install -y --no-install-recommends "${missing_packages[@]}"
-            rm -rf /var/lib/apt/lists/*
-          fi
-          for tool in bash git jq curl unzip cp tr tee dirname basename; do
-            command -v "${tool}" >/dev/null
-          done
-
-      - name: Activate Arm tool license
-        uses: ARM-software/cmsis-actions/armlm@v1
-        with:
-          code: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
-
-      - name: Verify Arm toolchain environment
-        run: |
-          set -euo pipefail
-          for tool in jq armclang armlm; do
-            command -v "${tool}" >/dev/null
-          done
-          command -v llvm-strip >/dev/null 2>&1 \
-            || command -v llvm-strip-16 >/dev/null 2>&1 \
-            || command -v strip >/dev/null 2>&1
-          jq --version
-          armclang --version
+          test -x "${LLVM_ET_ARM_DIR}/bin/clang"
+          test -x "${LLVM_ET_ARM_DIR}/bin/llvm-ar"
+          test -x "${LLVM_ET_ARM_DIR}/bin/llvm-ranlib"
+          test -x "${LLVM_ET_ARM_DIR}/bin/llvm-strip"
+          "${LLVM_ET_ARM_DIR}/bin/clang" --version
 
       - name: Build static library
         run: |
@@ -265,13 +218,13 @@ jobs:
             --arch "${{ needs.resolve-inputs.outputs.arch }}" \
             --arch-label "${{ needs.resolve-inputs.outputs.arch_label }}" \
             --target-cpu "${{ needs.resolve-inputs.outputs.target_cpu }}" \
-            --toolchain armclang \
+            --toolchain llvm-et-arm \
             --build release \
-            --outdir "out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/armclang"
+            --outdir "out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/llvm-et-arm"
 
       - name: Upload static library artifact
         uses: actions/upload-artifact@v4
         with:
-          name: staticlib-${{ needs.resolve-inputs.outputs.arch }}-armclang
-          path: out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/armclang/lib/*.a
+          name: staticlib-${{ needs.resolve-inputs.outputs.arch }}-llvm-et-arm
+          path: out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/llvm-et-arm/lib/*.a
           if-no-files-found: error
