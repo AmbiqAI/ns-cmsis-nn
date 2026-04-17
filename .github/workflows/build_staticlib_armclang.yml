@@ -154,7 +154,7 @@ jobs:
 
       - name: Log in to GHCR
         if: ${{ github.event_name == 'workflow_dispatch' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -200,7 +200,7 @@ jobs:
           fi
 
       - name: Cache release dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: Tests/UnitTest/downloads
           key: staticlib-release-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup_release_dependencies.py') }}
