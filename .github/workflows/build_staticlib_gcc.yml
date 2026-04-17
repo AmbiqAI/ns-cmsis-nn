@@ -198,7 +198,15 @@ jobs:
       - name: Setup release dependencies
         run: |
           python3 scripts/setup_release_dependencies.py \
-            --downloads-dir Tests/UnitTest/downloads
+            --downloads-dir Tests/UnitTest/downloads \
+            --skip-gcc
+
+      - name: Verify GCC environment
+        run: |
+          set -euo pipefail
+          command -v arm-none-eabi-gcc >/dev/null || { echo "arm-none-eabi-gcc not found"; exit 1; }
+          command -v arm-none-eabi-strip >/dev/null || { echo "arm-none-eabi-strip not found"; exit 1; }
+          arm-none-eabi-gcc --version
 
       - name: Build static library
         run: |

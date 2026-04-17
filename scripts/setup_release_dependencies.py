@@ -45,7 +45,7 @@ GCC_DOWNLOADS = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--downloads-dir", required=True, help="Directory that will hold downloaded dependencies")
-    parser.add_argument("--skip-gcc", action="store_true", help="Do not download the Arm GNU toolchain")
+    parser.add_argument("--skip-gcc", action="store_true", help="Do not download the Arm GNU toolchain") # keep for local build setup
     return parser.parse_args()
 
 
