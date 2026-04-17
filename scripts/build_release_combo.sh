@@ -269,6 +269,7 @@ cmake -S "${REPO_ROOT}" -B "${BUILD_DIR}" -G "${CMAKE_GENERATOR}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="${TOOLCHAIN_FILE}" \
   -DTARGET_CPU="${TARGET_CPU}" \
+  -DLLVM_ET_ARM_DIR="${LLVM_ET_ARM_DIR}" \
   -DCMSIS_PATH="${CMSIS_PATH}"
 
 cmake --build "${BUILD_DIR}" --target cmsis-nn --parallel
