@@ -81,11 +81,36 @@ jobs:
           mkdir -p docker/vendor
           cp -a "${{ steps.armclang.outputs.root }}" docker/vendor/armclang
 
+      - name: Stage LLVM-ET-Arm into Docker context
+        run: |
+          set -euo pipefail
+          rm -rf docker/vendor/llvm-et-arm
+          mkdir -p docker/vendor/llvm-et-arm
+
+          python3 - <<'PY' > "${RUNNER_TEMP}/llvm-et-arm.env"
+          import json
+          from pathlib import Path
+
+          metadata = json.loads(Path("ci/toolchains/llvm-et-arm.json").read_text(encoding="utf-8"))
+          print(f"LLVM_ET_ARM_URL={metadata['url']}")
+          print(f"LLVM_ET_ARM_SHA256={metadata['sha256']}")
+          print(f"LLVM_ET_ARM_ARCHIVE={metadata['archive']}")
+          PY
+
+          source "${RUNNER_TEMP}/llvm-et-arm.env"
+          curl -fsSL "${LLVM_ET_ARM_URL}" -o "${RUNNER_TEMP}/${LLVM_ET_ARM_ARCHIVE}"
+          printf '%s  %s\n' "${LLVM_ET_ARM_SHA256}" "${RUNNER_TEMP}/${LLVM_ET_ARM_ARCHIVE}" | sha256sum -c -
+          tar -xJf "${RUNNER_TEMP}/${LLVM_ET_ARM_ARCHIVE}" --strip-components=1 -C docker/vendor/llvm-et-arm
+
       - name: Verify staged toolchain
         run: |
           set -euo pipefail
           test -x docker/vendor/armclang/bin/armclang
           [[ -d docker/vendor/armclang/lib || -d docker/vendor/armclang/include ]]
+          test -x docker/vendor/llvm-et-arm/bin/clang
+          test -x docker/vendor/llvm-et-arm/bin/llvm-ar
+          test -x docker/vendor/llvm-et-arm/bin/llvm-ranlib
+          test -x docker/vendor/llvm-et-arm/bin/llvm-strip
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
@@ -164,4 +189,4 @@ jobs:
 
       - name: Clean staged armclang
         if: always()
-        run: rm -rf docker/vendor/armclang
+        run: rm -rf docker/vendor/armclang docker/vendor/llvm-et-arm

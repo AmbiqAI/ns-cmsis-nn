@@ -1,0 +1,58 @@
+set(CMAKE_SYSTEM_NAME Generic)
+set(CMAKE_SYSTEM_PROCESSOR arm)
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+
+if(NOT DEFINED TARGET_CPU OR TARGET_CPU STREQUAL "")
+  message(FATAL_ERROR "TARGET_CPU must be set for llvm-et-arm.cmake")
+endif()
+
+set(LLVM_ET_ARM_DIR "${LLVM_ET_ARM_DIR}" CACHE PATH "Root directory of the LLVM Embedded Toolchain for Arm")
+
+if(LLVM_ET_ARM_DIR STREQUAL "")
+  if(DEFINED ENV{LLVM_ET_ARM_DIR} AND NOT "$ENV{LLVM_ET_ARM_DIR}" STREQUAL "")
+    set(LLVM_ET_ARM_DIR "$ENV{LLVM_ET_ARM_DIR}")
+  elseif(EXISTS "/opt/llvm-et-arm/bin/clang")
+    set(LLVM_ET_ARM_DIR "/opt/llvm-et-arm")
+  else()
+    message(FATAL_ERROR "LLVM_ET_ARM_DIR must point to the LLVM-ET-Arm installation root")
+  endif()
+endif()
+
+set(LLVM_ET_ARM_BIN_DIR "${LLVM_ET_ARM_DIR}/bin")
+
+foreach(tool IN ITEMS clang llvm-ar llvm-ranlib llvm-strip)
+  if(NOT EXISTS "${LLVM_ET_ARM_BIN_DIR}/${tool}")
+    message(FATAL_ERROR "Required LLVM-ET-Arm tool missing: ${LLVM_ET_ARM_BIN_DIR}/${tool}")
+  endif()
+endforeach()
+
+if(TARGET_CPU STREQUAL "cortex-m0")
+  set(LLVM_ET_ARM_ARCH_FLAGS "-mthumb -march=armv6m")
+elseif(TARGET_CPU STREQUAL "cortex-m4")
+  set(LLVM_ET_ARM_ARCH_FLAGS "-mthumb -march=armv7e-m+fp -mfloat-abi=softfp")
+elseif(TARGET_CPU STREQUAL "cortex-m55")
+  set(LLVM_ET_ARM_ARCH_FLAGS "-mthumb -march=armv8.1-m.main+mve.fp -mfloat-abi=softfp")
+else()
+  message(FATAL_ERROR "Unsupported TARGET_CPU for LLVM-ET-Arm: ${TARGET_CPU}")
+endif()
+
+set(CMAKE_C_COMPILER "${LLVM_ET_ARM_BIN_DIR}/clang")
+set(CMAKE_CXX_COMPILER "${LLVM_ET_ARM_BIN_DIR}/clang++")
+set(CMAKE_ASM_COMPILER "${LLVM_ET_ARM_BIN_DIR}/clang")
+set(CMAKE_AR "${LLVM_ET_ARM_BIN_DIR}/llvm-ar")
+set(CMAKE_RANLIB "${LLVM_ET_ARM_BIN_DIR}/llvm-ranlib")
+set(CMAKE_STRIP "${LLVM_ET_ARM_BIN_DIR}/llvm-strip")
+
+set(CMAKE_C_COMPILER_TARGET arm-none-eabi)
+set(CMAKE_CXX_COMPILER_TARGET arm-none-eabi)
+set(CMAKE_ASM_COMPILER_TARGET arm-none-eabi)
+
+set(CMAKE_C_FLAGS_INIT "${LLVM_ET_ARM_ARCH_FLAGS}")
+set(CMAKE_CXX_FLAGS_INIT "${LLVM_ET_ARM_ARCH_FLAGS}")
+set(CMAKE_ASM_FLAGS_INIT "${LLVM_ET_ARM_ARCH_FLAGS}")
+
+set(CMAKE_EXECUTABLE_SUFFIX ".elf")
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
