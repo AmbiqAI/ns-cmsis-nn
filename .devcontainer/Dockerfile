@@ -17,6 +17,7 @@ RUN apt-get update \
         cmake \
         curl \
         gcc-arm-none-eabi \
+        libnewlib-arm-none-eabi \
         git \
         git-lfs \
         jq \
@@ -48,6 +49,7 @@ RUN test -x /opt/armclang/bin/armclang \
     && test -x /opt/llvm-et-arm/bin/llvm-ranlib \
     && test -x /opt/llvm-et-arm/bin/llvm-strip \
     && arm-none-eabi-gcc --version \
+    && printf '#include <string.h>\n' | arm-none-eabi-gcc -mcpu=cortex-m0 -mthumb -xc - -E >/dev/null \
     && /opt/llvm-et-arm/bin/clang --version \
     && uv --version
 
