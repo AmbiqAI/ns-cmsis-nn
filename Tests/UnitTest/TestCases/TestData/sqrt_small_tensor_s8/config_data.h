@@ -10,7 +10,10 @@
 #define SQRT_SMALL_TENSOR_S8_CHANNEL_1 4
 #define SQRT_SMALL_TENSOR_S8_IN_DIM                                                                                    \
     {                                                                                                                  \
-        1, 2, 3, 4,                                                                                                    \
+        1,                                                                                                             \
+        2,                                                                                                             \
+        3,                                                                                                             \
+        4,                                                                                                             \
     }
 #define SQRT_SMALL_TENSOR_S8_OUTPUT_LEN 24
 #define SQRT_SMALL_TENSOR_S8_INPUT_SCALE 0.4979014992713928

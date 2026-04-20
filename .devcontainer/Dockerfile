@@ -1,5 +1,12 @@
 FROM python:3.10-bookworm as ns-cmsis-nn-ci
 
+ARG NS_CMSIS_NN_TAG=unknown
+
+LABEL org.opencontainers.image.version="${NS_CMSIS_NN_TAG}" \
+      com.ambiq.ns-cmsis-nn.tag="${NS_CMSIS_NN_TAG}"
+
+ENV NS_CMSIS_NN_TAG="${NS_CMSIS_NN_TAG}"
+
 RUN apt-get update
 
 RUN apt-get install -y zip xxd sudo ruby-full cmake pip curl git git-lfs

@@ -125,11 +125,11 @@ extern "C" {
  * This helper follows the TensorFlow Lite nearest-neighbor resize mapping rules.
  */
 __STATIC_FORCEINLINE int32_t GetNearestNeighbor(const int input_value,
-                                         const int32_t input_size,
-                                         const float scale,
-                                         const float offset,
-                                         const bool align_corners,
-                                         const bool half_pixel_centers)
+                                                const int32_t input_size,
+                                                const float scale,
+                                                const float offset,
+                                                const bool align_corners,
+                                                const bool half_pixel_centers)
 {
     const float scaled = ((float)input_value + offset) * scale;
     int32_t output_value = align_corners ? (int32_t)roundf(scaled) : (int32_t)floorf(scaled);
@@ -595,7 +595,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  */
-arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t* weight_sum_buf,
+arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                                             const int8_t *lhs,
                                             const int8_t *rhs,
                                             const int32_t *bias,
@@ -612,12 +612,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t* weight_sum_buf,
                                             const int32_t row_address_offset,
                                             const int32_t lhs_cols_offset);
 
-
-
 /**
  * @brief General Matrix-multiplication function with per-channel requantization.
- *        Output is calculated with multiple channels in parallel, rather than multiple output indices in a single channel
- *        This function assumes:
+ *        Output is calculated with multiple channels in parallel, rather than multiple output indices in a single
+ * channel This function assumes:
  *        - LHS input matrix NOT transposed (nt)
  *        - RHS input matrix transposed (t)
  *
@@ -649,21 +647,21 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t* weight_sum_buf,
  */
 
 arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_buf,
-                                            const int8_t *lhs,
-                                            const int8_t *rhs,
-                                            const int32_t *bias,
-                                            int8_t *dst,
-                                            const int32_t *dst_multipliers,
-                                            const int32_t *dst_shifts,
-                                            const int32_t lhs_rows,
-                                            const int32_t rhs_rows,
-                                            const int32_t rhs_cols,
-                                            const int32_t lhs_offset,
-                                            const int32_t dst_offset,
-                                            const int32_t activation_min,
-                                            const int32_t activation_max,
-                                            const int32_t row_address_offset,
-                                            const int32_t lhs_cols_offset);
+                                                    const int8_t *lhs,
+                                                    const int8_t *rhs,
+                                                    const int32_t *bias,
+                                                    int8_t *dst,
+                                                    const int32_t *dst_multipliers,
+                                                    const int32_t *dst_shifts,
+                                                    const int32_t lhs_rows,
+                                                    const int32_t rhs_rows,
+                                                    const int32_t rhs_cols,
+                                                    const int32_t lhs_offset,
+                                                    const int32_t dst_offset,
+                                                    const int32_t activation_min,
+                                                    const int32_t activation_max,
+                                                    const int32_t row_address_offset,
+                                                    const int32_t lhs_cols_offset);
 
 /**
  * @brief General Matrix-multiplication function with per-channel requantization and int16 input (LHS) and output.
@@ -891,7 +889,6 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
                                               const int32_t activation_min,
                                               const int32_t activation_max);
 
-
 /*
  * s16 vector(lhs) by s8 matrix (transposed) multiplication and per channel quant output
  *
@@ -909,18 +906,16 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
  * @return         The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  */
-arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s16(
-    const int16_t *lhs,
-    const int8_t *rhs,
-    const int64_t *bias,
-    int16_t *dst,
-    const int32_t *dst_multiplier,
-    const int32_t *dst_shift,
-    const int32_t rhs_cols,
-    const int32_t rhs_rows,
-    const int32_t activation_min,
-    const int32_t activation_max
-);
+arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s16(const int16_t *lhs,
+                                                     const int8_t *rhs,
+                                                     const int64_t *bias,
+                                                     int16_t *dst,
+                                                     const int32_t *dst_multiplier,
+                                                     const int32_t *dst_shift,
+                                                     const int32_t rhs_cols,
+                                                     const int32_t rhs_rows,
+                                                     const int32_t activation_min,
+                                                     const int32_t activation_max);
 
 /**
  * @brief s16 Vector by s16 Matrix (transposed) multiplication
@@ -1055,7 +1050,7 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_padded_s8(const int8_t *lhs,
  *                  - Output bias
  *                  - rhs
  */
-arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t* weight_sum_buf,
+arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
                                                   const int8_t *lhs,
                                                   const int8_t *rhs,
                                                   const int32_t lhs_offset,
@@ -1318,15 +1313,18 @@ __STATIC_FORCEINLINE void arm_memset_s16(int16_t *dst, const int16_t val, uint32
 {
 #if defined(ARM_MATH_MVEI)
     __asm volatile(
-                   "   vdup.16                 q0, %[set_val]             \n"  /* Duplicate 'val' into all 8 lanes of q0 */
-                   "   wlstp.16                lr, %[cnt], 1f             \n"  /* Initialize loop predicate using the number of halfwords */
-                   "2:                                                    \n"
-                   "   vstrh.16                q0, [%[in]], #16           \n"  /* Store eight int16_t (16 bytes) from q0; post-increment pointer by 16 bytes */
-                   "   letp                    lr, 2b                     \n"  /* Loop: decrement predicate counter and branch if not done */
-                   "1:                                                    \n"
-                   : [in] "+r"(dst)
-                   : [cnt] "r"(block_size), [set_val] "r"(val)
-                   : "q0", "memory", "r14");
+        "   vdup.16                 q0, %[set_val]             \n" /* Duplicate 'val' into all 8 lanes of q0 */
+        "   wlstp.16                lr, %[cnt], 1f             \n" /* Initialize loop predicate using the number of
+                                                                      halfwords */
+        "2:                                                    \n"
+        "   vstrh.16                q0, [%[in]], #16           \n" /* Store eight int16_t (16 bytes) from q0;
+                                                                      post-increment pointer by 16 bytes */
+        "   letp                    lr, 2b                     \n" /* Loop: decrement predicate counter and branch if
+                                                                      not done */
+        "1:                                                    \n"
+        : [in] "+r"(dst)
+        : [cnt] "r"(block_size), [set_val] "r"(val)
+        : "q0", "memory", "r14");
 #else
     for (uint32_t i = 0; i < block_size; i++)
     {
@@ -1334,7 +1332,6 @@ __STATIC_FORCEINLINE void arm_memset_s16(int16_t *dst, const int16_t val, uint32
     }
 #endif
 }
-
 
 #if defined(ARM_MATH_DSP)
 
@@ -1790,16 +1787,16 @@ __STATIC_FORCEINLINE int32_t arm_nn_divide_by_power_of_two(const int32_t dividen
  */
 __STATIC_FORCEINLINE int32_t arm_nn_nonneg_divide_by_pot_s32(int32_t dividend, int32_t exponent)
 {
-    if (exponent == 0) return dividend;  // exact, and avoids special carry handling
+    if (exponent == 0)
+        return dividend; // exact, and avoids special carry handling
 
 #ifdef CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY
     int32_t out;
-    __asm volatile(
-        "lsrs   %0, %1, %2   \n"   // out = x >> k;  C = bit(k-1) of x
-        "adc    %0, %0, #0   \n"   // out += C  (round-to-nearest, ties up)
-        : "=&r"(out)
-        : "r"(dividend), "r"(exponent)
-        : "cc");
+    __asm volatile("lsrs   %0, %1, %2   \n" // out = x >> k;  C = bit(k-1) of x
+                   "adc    %0, %0, #0   \n" // out += C  (round-to-nearest, ties up)
+                   : "=&r"(out)
+                   : "r"(dividend), "r"(exponent)
+                   : "cc");
     return out;
 #else
     uint32_t t = (uint32_t)dividend + (uint32_t)(1u << (exponent - 1));
@@ -1883,7 +1880,8 @@ __STATIC_FORCEINLINE int32_t arm_nn_requantize_s64(const int64_t val,
  */
 __STATIC_FORCEINLINE int16_t arm_nn_sat_lshift_s16(int16_t x, int shift)
 {
-    if (shift <= 0) return x;  // only used for positive shifts here
+    if (shift <= 0)
+        return x; // only used for positive shifts here
     int32_t v = ((int32_t)x) << shift;
     v = CLAMP(v, INT16_MAX, INT16_MIN);
     return (int16_t)v;
@@ -1899,10 +1897,11 @@ __STATIC_FORCEINLINE int16_t arm_nn_sat_lshift_s16(int16_t x, int shift)
 __STATIC_FORCEINLINE int16_t arm_nn_sqrdmulh_s16(int16_t a, int16_t b)
 {
     // overflow case
-    if ((a == INT16_MIN) && (b == INT16_MIN)) return INT16_MAX;
-    int32_t ab = (int32_t)a * (int32_t)b;           /* Q0.15 * Q0.15 -> Q0.30 */
-    int32_t r  = (ab << 1) + (1 << 15);             /* doubling + rounding */
-    r >>= 16;                                       /* back to Q0.15 */
+    if ((a == INT16_MIN) && (b == INT16_MIN))
+        return INT16_MAX;
+    int32_t ab = (int32_t)a * (int32_t)b; /* Q0.15 * Q0.15 -> Q0.30 */
+    int32_t r = (ab << 1) + (1 << 15);    /* doubling + rounding */
+    r >>= 16;                             /* back to Q0.15 */
     r = CLAMP(r, INT16_MAX, INT16_MIN);
     return (int16_t)r;
 }
@@ -1917,9 +1916,10 @@ __STATIC_FORCEINLINE int16_t arm_nn_sqrdmulh_s16(int16_t a, int16_t b)
 __STATIC_FORCEINLINE int16_t arm_nn_sqdmulh_s16(int16_t a, int16_t b)
 {
     const bool overflow = (a == INT16_MIN) && (b == INT16_MIN);
-    int32_t ab = (int32_t)a * (int32_t)b;             // Q30
-    int32_t q15 = (ab / (1 << 15));                   // trunc toward zero (not >>)
-    if (overflow) q15 = INT16_MAX;
+    int32_t ab = (int32_t)a * (int32_t)b; // Q30
+    int32_t q15 = (ab / (1 << 15));       // trunc toward zero (not >>)
+    if (overflow)
+        q15 = INT16_MAX;
     q15 = CLAMP(q15, INT16_MAX, INT16_MIN);
     return (int16_t)q15;
 }
@@ -1981,7 +1981,6 @@ __STATIC_FORCEINLINE void arm_memcpy_s8(int8_t *__RESTRICT dst, const int8_t *__
 #endif
 }
 
-
 /**
  * @brief           memcpy optimized for MVE
  * @param[in, out]  dst         Destination pointer
@@ -1991,7 +1990,7 @@ __STATIC_FORCEINLINE void arm_memcpy_s8(int8_t *__RESTRICT dst, const int8_t *__
  */
 __STATIC_FORCEINLINE void arm_memcpy_s16(int16_t *__RESTRICT dst, const int16_t *__RESTRICT src, uint32_t block_size)
 {
-    arm_memcpy_s8((int8_t *)dst, (const int8_t *)src, block_size*sizeof(int16_t));
+    arm_memcpy_s8((int8_t *)dst, (const int8_t *)src, block_size * sizeof(int16_t));
 }
 
 /**
@@ -2003,7 +2002,7 @@ __STATIC_FORCEINLINE void arm_memcpy_s16(int16_t *__RESTRICT dst, const int16_t 
  */
 __STATIC_FORCEINLINE void arm_memcpy_s32(int32_t *__RESTRICT dst, const int32_t *__RESTRICT src, uint32_t block_size)
 {
-    arm_memcpy_s8((int8_t *)dst, (const int8_t *)src, block_size*sizeof(int32_t));
+    arm_memcpy_s8((int8_t *)dst, (const int8_t *)src, block_size * sizeof(int32_t));
 }
 
 /**
@@ -2224,14 +2223,14 @@ __STATIC_FORCEINLINE int8x16_t arm_narrow_mve_from_int32x4x4_to_int8x16(int32x4_
     int16x8_t acc16_hi = vdupq_n_s16(0);
     int8x16_t out = vdupq_n_s8(0);
 
-    acc16_lo = vqmovnbq_s32(acc16_lo, acc0);      // lanes [0..3]
-    acc16_lo = vqmovntq_s32(acc16_lo, acc1);      // lanes [4..7]
+    acc16_lo = vqmovnbq_s32(acc16_lo, acc0); // lanes [0..3]
+    acc16_lo = vqmovntq_s32(acc16_lo, acc1); // lanes [4..7]
 
-    acc16_hi = vqmovnbq_s32(acc16_hi, acc2);      // lanes [8..11]
-    acc16_hi = vqmovntq_s32(acc16_hi, acc3);      // lanes [12..15]
+    acc16_hi = vqmovnbq_s32(acc16_hi, acc2); // lanes [8..11]
+    acc16_hi = vqmovntq_s32(acc16_hi, acc3); // lanes [12..15]
 
-    out = vqmovnbq_s16(out, acc16_lo);            // lanes [0..7]
-    out = vqmovntq_s16(out, acc16_hi);            // lanes [8..15]
+    out = vqmovnbq_s16(out, acc16_lo); // lanes [0..7]
+    out = vqmovntq_s16(out, acc16_hi); // lanes [8..15]
 
     return out;
 }
@@ -2320,7 +2319,6 @@ __STATIC_FORCEINLINE void arm_nn_write_s8x2_ia(int8_t **dst, int16_t src)
     *dst += 2;
 }
 
-
 /**
  * @brief Get dimension value at specific index
  *
@@ -2333,16 +2331,16 @@ __STATIC_FORCEINLINE int32_t arm_cmsis_nn_dim_at(const cmsis_nn_dims *dims, int3
 {
     switch (index)
     {
-        case 0:
-            return dims->n;
-        case 1:
-            return dims->h;
-        case 2:
-            return dims->w;
-        case 3:
-            return dims->c;
-        default:
-            return 1;
+    case 0:
+        return dims->n;
+    case 1:
+        return dims->h;
+    case 2:
+        return dims->w;
+    case 3:
+        return dims->c;
+    default:
+        return 1;
     }
 }
 
@@ -2584,20 +2582,17 @@ arm_cmsis_nn_status arm_elementwise_mul_s16_batch_offset(const int16_t *input_1_
  *
  * @details   Supported framework: TensorFlow Lite micro
  */
-arm_cmsis_nn_status arm_elementwise_mul_acc_s16(
-    const int16_t *input_1_vect,
-    const int16_t *input_2_vect,
-    const int32_t input_1_offset,
-    const int32_t input_2_offset,
-    int16_t *output,
-    const int32_t out_offset,
-    const int32_t out_mult,
-    const int32_t out_shift,
-    const int32_t out_activation_min,
-    const int32_t out_activation_max,
-    const int32_t block_size
-);
-
+arm_cmsis_nn_status arm_elementwise_mul_acc_s16(const int16_t *input_1_vect,
+                                                const int16_t *input_2_vect,
+                                                const int32_t input_1_offset,
+                                                const int32_t input_2_offset,
+                                                int16_t *output,
+                                                const int32_t out_offset,
+                                                const int32_t out_mult,
+                                                const int32_t out_shift,
+                                                const int32_t out_activation_min,
+                                                const int32_t out_activation_max,
+                                                const int32_t block_size);
 
 /**
  * @brief Check if a broadcast is required between 2 cmsis_nn_dims.
@@ -2632,36 +2627,34 @@ __STATIC_FORCEINLINE int32_t arm_check_broadcast_required(const cmsis_nn_dims *s
  * @param[in] axis_arr  4-element mask {axis_n, axis_h, axis_w, axis_c}
  * @return  suffix start index (0..3), or –1 if generic path
  */
-__STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(
-    const int32_t in_dims[4],
-    const int32_t axis_arr[4])
+__STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(const int32_t in_dims[4],
+                                                                             const int32_t axis_arr[4])
 {
-    uint8_t axis_mask =   (uint8_t)(axis_arr[0] & 1) << 3
-                        | (uint8_t)(axis_arr[1] & 1) << 2
-                        | (uint8_t)(axis_arr[2] & 1) << 1
-                        | (uint8_t)(axis_arr[3] & 1) << 0;
+    uint8_t axis_mask = (uint8_t)(axis_arr[0] & 1) << 3 | (uint8_t)(axis_arr[1] & 1) << 2 |
+        (uint8_t)(axis_arr[2] & 1) << 1 | (uint8_t)(axis_arr[3] & 1) << 0;
 
-    uint8_t input_mask =  (uint8_t)(in_dims[0] == 1) << 3
-                        | (uint8_t)(in_dims[1] == 1) << 2
-                        | (uint8_t)(in_dims[2] == 1) << 1
-                        | (uint8_t)(in_dims[3] == 1) << 0;
+    uint8_t input_mask = (uint8_t)(in_dims[0] == 1) << 3 | (uint8_t)(in_dims[1] == 1) << 2 |
+        (uint8_t)(in_dims[2] == 1) << 1 | (uint8_t)(in_dims[3] == 1) << 0;
 
     uint8_t union_mask = axis_mask | input_mask;
 
-    if (axis_mask & 0x8) {
+    if (axis_mask & 0x8)
+    {
         return (union_mask & 0xF) == 0xF ? 0 : -1;
     }
-    if (axis_mask & 0x4) {
+    if (axis_mask & 0x4)
+    {
         return (union_mask & 0x7) == 0x7 ? 1 : -1;
     }
-    if (axis_mask & 0x2) {
+    if (axis_mask & 0x2)
+    {
         return (union_mask & 0x3) == 0x3 ? 2 : -1;
     }
-    if (axis_mask & 0x1) {
+    if (axis_mask & 0x1)
+    {
         return (union_mask & 0x1) == 0x1 ? 3 : -1;
     }
     return -1;
-
 }
 
 #if defined(ARM_FLOAT16_SUPPORTED)
@@ -2679,16 +2672,14 @@ __STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(
  * @return          The function returns ARM_CMSIS_NN_SUCCESS
  * @details         Supported framework: TensorFlow Lite micro
  */
- arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
-    const float16_t *lhs,
-    const float16_t *rhs,
-    const float16_t *bias,
-    float16_t       *dst,
-    const int32_t    rhs_cols,
-    const int32_t    rhs_rows,
-    const float16_t  activation_min,
-    const float16_t  activation_max
-);
+arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(const float16_t *lhs,
+                                               const float16_t *rhs,
+                                               const float16_t *bias,
+                                               float16_t *dst,
+                                               const int32_t rhs_cols,
+                                               const int32_t rhs_rows,
+                                               const float16_t activation_min,
+                                               const float16_t activation_max);
 
 #endif /*defined(ARM_FLOAT16_SUPPORTED)*/
 

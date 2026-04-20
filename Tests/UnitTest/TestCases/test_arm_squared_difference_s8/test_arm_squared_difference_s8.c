@@ -19,13 +19,13 @@
 #include "arm_nnfunctions.h"
 #include "unity.h"
 
-#include "../TestData/squared_difference_scalar_s8/test_data.h"
-#include "../TestData/squared_difference_ident_s8/test_data.h"
-#include "../TestData/squared_difference_broadcast_n_s8/test_data.h"
-#include "../TestData/squared_difference_broadcast_h_s8/test_data.h"
-#include "../TestData/squared_difference_broadcast_w_s8/test_data.h"
 #include "../TestData/squared_difference_broadcast_c_s8/test_data.h"
+#include "../TestData/squared_difference_broadcast_h_s8/test_data.h"
 #include "../TestData/squared_difference_broadcast_hc_s8/test_data.h"
+#include "../TestData/squared_difference_broadcast_n_s8/test_data.h"
+#include "../TestData/squared_difference_broadcast_w_s8/test_data.h"
+#include "../TestData/squared_difference_ident_s8/test_data.h"
+#include "../TestData/squared_difference_scalar_s8/test_data.h"
 
 #include "../Utils/validate.h"
 
@@ -173,9 +173,8 @@ void squared_difference_broadcast_n_s8_arm_squared_difference_s8(void)
                                                            SQUARED_DIFFERENCE_BROADCAST_N_S8_ACTIVATION_MAX);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate(output,
-                              squared_difference_broadcast_n_s8_output_ref,
-                              SQUARED_DIFFERENCE_BROADCAST_N_S8_DST_SIZE));
+    TEST_ASSERT_TRUE(
+        validate(output, squared_difference_broadcast_n_s8_output_ref, SQUARED_DIFFERENCE_BROADCAST_N_S8_DST_SIZE));
 }
 
 void squared_difference_broadcast_h_s8_arm_squared_difference_s8(void)
@@ -224,9 +223,8 @@ void squared_difference_broadcast_h_s8_arm_squared_difference_s8(void)
                                                            SQUARED_DIFFERENCE_BROADCAST_H_S8_ACTIVATION_MAX);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate(output,
-                              squared_difference_broadcast_h_s8_output_ref,
-                              SQUARED_DIFFERENCE_BROADCAST_H_S8_DST_SIZE));
+    TEST_ASSERT_TRUE(
+        validate(output, squared_difference_broadcast_h_s8_output_ref, SQUARED_DIFFERENCE_BROADCAST_H_S8_DST_SIZE));
 }
 
 void squared_difference_broadcast_w_s8_arm_squared_difference_s8(void)
@@ -275,9 +273,8 @@ void squared_difference_broadcast_w_s8_arm_squared_difference_s8(void)
                                                            SQUARED_DIFFERENCE_BROADCAST_W_S8_ACTIVATION_MAX);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate(output,
-                              squared_difference_broadcast_w_s8_output_ref,
-                              SQUARED_DIFFERENCE_BROADCAST_W_S8_DST_SIZE));
+    TEST_ASSERT_TRUE(
+        validate(output, squared_difference_broadcast_w_s8_output_ref, SQUARED_DIFFERENCE_BROADCAST_W_S8_DST_SIZE));
 }
 
 void squared_difference_broadcast_c_s8_arm_squared_difference_s8(void)
@@ -326,9 +323,8 @@ void squared_difference_broadcast_c_s8_arm_squared_difference_s8(void)
                                                            SQUARED_DIFFERENCE_BROADCAST_C_S8_ACTIVATION_MAX);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate(output,
-                              squared_difference_broadcast_c_s8_output_ref,
-                              SQUARED_DIFFERENCE_BROADCAST_C_S8_DST_SIZE));
+    TEST_ASSERT_TRUE(
+        validate(output, squared_difference_broadcast_c_s8_output_ref, SQUARED_DIFFERENCE_BROADCAST_C_S8_DST_SIZE));
 }
 
 void squared_difference_broadcast_hc_s8_arm_squared_difference_s8(void)
@@ -377,7 +373,6 @@ void squared_difference_broadcast_hc_s8_arm_squared_difference_s8(void)
                                                            SQUARED_DIFFERENCE_BROADCAST_HC_S8_ACTIVATION_MAX);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate(output,
-                              squared_difference_broadcast_hc_s8_output_ref,
-                              SQUARED_DIFFERENCE_BROADCAST_HC_S8_DST_SIZE));
+    TEST_ASSERT_TRUE(
+        validate(output, squared_difference_broadcast_hc_s8_output_ref, SQUARED_DIFFERENCE_BROADCAST_HC_S8_DST_SIZE));
 }

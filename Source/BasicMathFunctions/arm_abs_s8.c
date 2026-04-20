@@ -49,8 +49,9 @@ arm_cmsis_nn_status arm_abs_s8(const int8_t *input,
                                const int32_t block_size)
 {
     int32_t loop_count = block_size;
-    
-    if (!needs_rescale) {
+
+    if (!needs_rescale)
+    {
         while (loop_count > 0)
         {
             const int32_t input_val = (int32_t)*input++ - input_offset;
@@ -64,7 +65,8 @@ arm_cmsis_nn_status arm_abs_s8(const int8_t *input,
         }
         return ARM_CMSIS_NN_SUCCESS;
     }
-    else {
+    else
+    {
         while (loop_count > 0)
         {
             const int32_t input_val = (int32_t)*input++ - input_offset;

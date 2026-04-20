@@ -38,19 +38,20 @@
  *
  */
 arm_cmsis_nn_status arm_abs_s16(const int16_t *input,
-                               const int32_t input_offset,
-                               int16_t *output,
-                               const int32_t out_offset,
-                               const int32_t out_mult,
-                               const int32_t out_shift,
-                               const bool needs_rescale,
-                               const int32_t out_activation_min,
-                               const int32_t out_activation_max,
-                               const int32_t block_size)
+                                const int32_t input_offset,
+                                int16_t *output,
+                                const int32_t out_offset,
+                                const int32_t out_mult,
+                                const int32_t out_shift,
+                                const bool needs_rescale,
+                                const int32_t out_activation_min,
+                                const int32_t out_activation_max,
+                                const int32_t block_size)
 {
     int32_t loop_count = block_size;
-    
-    if (!needs_rescale) {
+
+    if (!needs_rescale)
+    {
         while (loop_count > 0)
         {
             const int32_t input_val = (int32_t)*input++ - input_offset;
@@ -64,7 +65,8 @@ arm_cmsis_nn_status arm_abs_s16(const int16_t *input,
         }
         return ARM_CMSIS_NN_SUCCESS;
     }
-    else {
+    else
+    {
         while (loop_count > 0)
         {
             const int32_t input_val = (int32_t)*input++ - input_offset;

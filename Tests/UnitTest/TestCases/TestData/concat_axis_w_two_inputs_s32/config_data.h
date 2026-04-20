@@ -15,11 +15,15 @@
 #define CONCAT_AXIS_W_TWO_INPUTS_S32_OUTPUT_DIMS 4
 #define CONCAT_AXIS_W_TWO_INPUTS_S32_OUTPUT_SHAPE                                                                      \
     {                                                                                                                  \
-        1, 3, 3, 2,                                                                                                    \
+        1,                                                                                                             \
+        3,                                                                                                             \
+        3,                                                                                                             \
+        2,                                                                                                             \
     }
 #define CONCAT_AXIS_W_TWO_INPUTS_S32_INPUT_CONCAT_DIMS                                                                 \
     {                                                                                                                  \
-        2, 1,                                                                                                          \
+        2,                                                                                                             \
+        1,                                                                                                             \
     }
 #define CONCAT_AXIS_W_TWO_INPUTS_S32_OUTPUT_SIZE 18
 #define CONCAT_AXIS_W_TWO_INPUTS_S32_OUTPUT_N 1

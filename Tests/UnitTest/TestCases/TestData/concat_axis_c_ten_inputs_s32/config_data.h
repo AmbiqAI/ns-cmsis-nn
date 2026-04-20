@@ -47,11 +47,15 @@
 #define CONCAT_AXIS_C_TEN_INPUTS_S32_OUTPUT_DIMS 4
 #define CONCAT_AXIS_C_TEN_INPUTS_S32_OUTPUT_SHAPE                                                                      \
     {                                                                                                                  \
-        1, 2, 2, 2,                                                                                                    \
+        1,                                                                                                             \
+        2,                                                                                                             \
+        2,                                                                                                             \
+        2,                                                                                                             \
     }
 #define CONCAT_AXIS_C_TEN_INPUTS_S32_INPUT_CONCAT_DIMS                                                                 \
     {                                                                                                                  \
-        1, 1,                                                                                                          \
+        1,                                                                                                             \
+        1,                                                                                                             \
     }
 #define CONCAT_AXIS_C_TEN_INPUTS_S32_OUTPUT_SIZE 8
 #define CONCAT_AXIS_C_TEN_INPUTS_S32_OUTPUT_N 1

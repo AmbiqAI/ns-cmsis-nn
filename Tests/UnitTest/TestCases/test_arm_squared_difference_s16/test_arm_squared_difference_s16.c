@@ -19,13 +19,13 @@
 #include "arm_nnfunctions.h"
 #include "unity.h"
 
-#include "../TestData/squared_difference_scalar_s16/test_data.h"
-#include "../TestData/squared_difference_ident_s16/test_data.h"
-#include "../TestData/squared_difference_broadcast_n_s16/test_data.h"
-#include "../TestData/squared_difference_broadcast_h_s16/test_data.h"
-#include "../TestData/squared_difference_broadcast_w_s16/test_data.h"
 #include "../TestData/squared_difference_broadcast_c_s16/test_data.h"
+#include "../TestData/squared_difference_broadcast_h_s16/test_data.h"
 #include "../TestData/squared_difference_broadcast_hc_s16/test_data.h"
+#include "../TestData/squared_difference_broadcast_n_s16/test_data.h"
+#include "../TestData/squared_difference_broadcast_w_s16/test_data.h"
+#include "../TestData/squared_difference_ident_s16/test_data.h"
+#include "../TestData/squared_difference_scalar_s16/test_data.h"
 
 #include "../Utils/validate.h"
 
@@ -56,26 +56,27 @@ void squared_difference_scalar_s16_arm_squared_difference_s16(void)
     int16_t output[SQUARED_DIFFERENCE_SCALAR_S16_DST_SIZE] = {0};
 
     arm_cmsis_nn_status result = arm_squared_difference_s16(lhs,
-                                                           &lhs_dims,
-                                                           rhs,
-                                                           &rhs_dims,
-                                                           SQUARED_DIFFERENCE_SCALAR_S16_INPUT1_OFFSET,
-                                                           SQUARED_DIFFERENCE_SCALAR_S16_INPUT1_MULT,
-                                                           SQUARED_DIFFERENCE_SCALAR_S16_INPUT1_SHIFT,
-                                                           SQUARED_DIFFERENCE_SCALAR_S16_INPUT2_OFFSET,
-                                                           SQUARED_DIFFERENCE_SCALAR_S16_INPUT2_MULT,
-                                                           SQUARED_DIFFERENCE_SCALAR_S16_INPUT2_SHIFT,
-                                                           SQUARED_DIFFERENCE_SCALAR_S16_LEFT_SHIFT,
-                                                           output,
-                                                           &out_dims,
-                                                           SQUARED_DIFFERENCE_SCALAR_S16_OUTPUT_OFFSET,
-                                                           SQUARED_DIFFERENCE_SCALAR_S16_OUTPUT_MULT,
-                                                           SQUARED_DIFFERENCE_SCALAR_S16_OUTPUT_SHIFT,
-                                                           SQUARED_DIFFERENCE_SCALAR_S16_ACTIVATION_MIN,
-                                                           SQUARED_DIFFERENCE_SCALAR_S16_ACTIVATION_MAX);
+                                                            &lhs_dims,
+                                                            rhs,
+                                                            &rhs_dims,
+                                                            SQUARED_DIFFERENCE_SCALAR_S16_INPUT1_OFFSET,
+                                                            SQUARED_DIFFERENCE_SCALAR_S16_INPUT1_MULT,
+                                                            SQUARED_DIFFERENCE_SCALAR_S16_INPUT1_SHIFT,
+                                                            SQUARED_DIFFERENCE_SCALAR_S16_INPUT2_OFFSET,
+                                                            SQUARED_DIFFERENCE_SCALAR_S16_INPUT2_MULT,
+                                                            SQUARED_DIFFERENCE_SCALAR_S16_INPUT2_SHIFT,
+                                                            SQUARED_DIFFERENCE_SCALAR_S16_LEFT_SHIFT,
+                                                            output,
+                                                            &out_dims,
+                                                            SQUARED_DIFFERENCE_SCALAR_S16_OUTPUT_OFFSET,
+                                                            SQUARED_DIFFERENCE_SCALAR_S16_OUTPUT_MULT,
+                                                            SQUARED_DIFFERENCE_SCALAR_S16_OUTPUT_SHIFT,
+                                                            SQUARED_DIFFERENCE_SCALAR_S16_ACTIVATION_MIN,
+                                                            SQUARED_DIFFERENCE_SCALAR_S16_ACTIVATION_MAX);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate_s16(output, squared_difference_scalar_s16_output_ref, SQUARED_DIFFERENCE_SCALAR_S16_DST_SIZE));
+    TEST_ASSERT_TRUE(
+        validate_s16(output, squared_difference_scalar_s16_output_ref, SQUARED_DIFFERENCE_SCALAR_S16_DST_SIZE));
 }
 
 void squared_difference_ident_s16_arm_squared_difference_s16(void)
@@ -105,26 +106,27 @@ void squared_difference_ident_s16_arm_squared_difference_s16(void)
     int16_t output[SQUARED_DIFFERENCE_IDENT_S16_DST_SIZE] = {0};
 
     arm_cmsis_nn_status result = arm_squared_difference_s16(lhs,
-                                                           &lhs_dims,
-                                                           rhs,
-                                                           &rhs_dims,
-                                                           SQUARED_DIFFERENCE_IDENT_S16_INPUT1_OFFSET,
-                                                           SQUARED_DIFFERENCE_IDENT_S16_INPUT1_MULT,
-                                                           SQUARED_DIFFERENCE_IDENT_S16_INPUT1_SHIFT,
-                                                           SQUARED_DIFFERENCE_IDENT_S16_INPUT2_OFFSET,
-                                                           SQUARED_DIFFERENCE_IDENT_S16_INPUT2_MULT,
-                                                           SQUARED_DIFFERENCE_IDENT_S16_INPUT2_SHIFT,
-                                                           SQUARED_DIFFERENCE_IDENT_S16_LEFT_SHIFT,
-                                                           output,
-                                                           &out_dims,
-                                                           SQUARED_DIFFERENCE_IDENT_S16_OUTPUT_OFFSET,
-                                                           SQUARED_DIFFERENCE_IDENT_S16_OUTPUT_MULT,
-                                                           SQUARED_DIFFERENCE_IDENT_S16_OUTPUT_SHIFT,
-                                                           SQUARED_DIFFERENCE_IDENT_S16_ACTIVATION_MIN,
-                                                           SQUARED_DIFFERENCE_IDENT_S16_ACTIVATION_MAX);
+                                                            &lhs_dims,
+                                                            rhs,
+                                                            &rhs_dims,
+                                                            SQUARED_DIFFERENCE_IDENT_S16_INPUT1_OFFSET,
+                                                            SQUARED_DIFFERENCE_IDENT_S16_INPUT1_MULT,
+                                                            SQUARED_DIFFERENCE_IDENT_S16_INPUT1_SHIFT,
+                                                            SQUARED_DIFFERENCE_IDENT_S16_INPUT2_OFFSET,
+                                                            SQUARED_DIFFERENCE_IDENT_S16_INPUT2_MULT,
+                                                            SQUARED_DIFFERENCE_IDENT_S16_INPUT2_SHIFT,
+                                                            SQUARED_DIFFERENCE_IDENT_S16_LEFT_SHIFT,
+                                                            output,
+                                                            &out_dims,
+                                                            SQUARED_DIFFERENCE_IDENT_S16_OUTPUT_OFFSET,
+                                                            SQUARED_DIFFERENCE_IDENT_S16_OUTPUT_MULT,
+                                                            SQUARED_DIFFERENCE_IDENT_S16_OUTPUT_SHIFT,
+                                                            SQUARED_DIFFERENCE_IDENT_S16_ACTIVATION_MIN,
+                                                            SQUARED_DIFFERENCE_IDENT_S16_ACTIVATION_MAX);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate_s16(output, squared_difference_ident_s16_output_ref, SQUARED_DIFFERENCE_IDENT_S16_DST_SIZE));
+    TEST_ASSERT_TRUE(
+        validate_s16(output, squared_difference_ident_s16_output_ref, SQUARED_DIFFERENCE_IDENT_S16_DST_SIZE));
 }
 
 void squared_difference_broadcast_n_s16_arm_squared_difference_s16(void)
@@ -154,28 +156,27 @@ void squared_difference_broadcast_n_s16_arm_squared_difference_s16(void)
     int16_t output[SQUARED_DIFFERENCE_BROADCAST_N_S16_DST_SIZE] = {0};
 
     arm_cmsis_nn_status result = arm_squared_difference_s16(lhs,
-                                                           &lhs_dims,
-                                                           rhs,
-                                                           &rhs_dims,
-                                                           SQUARED_DIFFERENCE_BROADCAST_N_S16_INPUT1_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_N_S16_INPUT1_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_N_S16_INPUT1_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_N_S16_INPUT2_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_N_S16_INPUT2_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_N_S16_INPUT2_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_N_S16_LEFT_SHIFT,
-                                                           output,
-                                                           &out_dims,
-                                                           SQUARED_DIFFERENCE_BROADCAST_N_S16_OUTPUT_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_N_S16_OUTPUT_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_N_S16_OUTPUT_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_N_S16_ACTIVATION_MIN,
-                                                           SQUARED_DIFFERENCE_BROADCAST_N_S16_ACTIVATION_MAX);
+                                                            &lhs_dims,
+                                                            rhs,
+                                                            &rhs_dims,
+                                                            SQUARED_DIFFERENCE_BROADCAST_N_S16_INPUT1_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_N_S16_INPUT1_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_N_S16_INPUT1_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_N_S16_INPUT2_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_N_S16_INPUT2_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_N_S16_INPUT2_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_N_S16_LEFT_SHIFT,
+                                                            output,
+                                                            &out_dims,
+                                                            SQUARED_DIFFERENCE_BROADCAST_N_S16_OUTPUT_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_N_S16_OUTPUT_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_N_S16_OUTPUT_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_N_S16_ACTIVATION_MIN,
+                                                            SQUARED_DIFFERENCE_BROADCAST_N_S16_ACTIVATION_MAX);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate_s16(output,
-                              squared_difference_broadcast_n_s16_output_ref,
-                              SQUARED_DIFFERENCE_BROADCAST_N_S16_DST_SIZE));
+    TEST_ASSERT_TRUE(validate_s16(
+        output, squared_difference_broadcast_n_s16_output_ref, SQUARED_DIFFERENCE_BROADCAST_N_S16_DST_SIZE));
 }
 
 void squared_difference_broadcast_h_s16_arm_squared_difference_s16(void)
@@ -205,28 +206,27 @@ void squared_difference_broadcast_h_s16_arm_squared_difference_s16(void)
     int16_t output[SQUARED_DIFFERENCE_BROADCAST_H_S16_DST_SIZE] = {0};
 
     arm_cmsis_nn_status result = arm_squared_difference_s16(lhs,
-                                                           &lhs_dims,
-                                                           rhs,
-                                                           &rhs_dims,
-                                                           SQUARED_DIFFERENCE_BROADCAST_H_S16_INPUT1_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_H_S16_INPUT1_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_H_S16_INPUT1_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_H_S16_INPUT2_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_H_S16_INPUT2_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_H_S16_INPUT2_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_H_S16_LEFT_SHIFT,
-                                                           output,
-                                                           &out_dims,
-                                                           SQUARED_DIFFERENCE_BROADCAST_H_S16_OUTPUT_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_H_S16_OUTPUT_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_H_S16_OUTPUT_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_H_S16_ACTIVATION_MIN,
-                                                           SQUARED_DIFFERENCE_BROADCAST_H_S16_ACTIVATION_MAX);
+                                                            &lhs_dims,
+                                                            rhs,
+                                                            &rhs_dims,
+                                                            SQUARED_DIFFERENCE_BROADCAST_H_S16_INPUT1_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_H_S16_INPUT1_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_H_S16_INPUT1_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_H_S16_INPUT2_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_H_S16_INPUT2_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_H_S16_INPUT2_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_H_S16_LEFT_SHIFT,
+                                                            output,
+                                                            &out_dims,
+                                                            SQUARED_DIFFERENCE_BROADCAST_H_S16_OUTPUT_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_H_S16_OUTPUT_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_H_S16_OUTPUT_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_H_S16_ACTIVATION_MIN,
+                                                            SQUARED_DIFFERENCE_BROADCAST_H_S16_ACTIVATION_MAX);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate_s16(output,
-                              squared_difference_broadcast_h_s16_output_ref,
-                              SQUARED_DIFFERENCE_BROADCAST_H_S16_DST_SIZE));
+    TEST_ASSERT_TRUE(validate_s16(
+        output, squared_difference_broadcast_h_s16_output_ref, SQUARED_DIFFERENCE_BROADCAST_H_S16_DST_SIZE));
 }
 
 void squared_difference_broadcast_w_s16_arm_squared_difference_s16(void)
@@ -256,28 +256,27 @@ void squared_difference_broadcast_w_s16_arm_squared_difference_s16(void)
     int16_t output[SQUARED_DIFFERENCE_BROADCAST_W_S16_DST_SIZE] = {0};
 
     arm_cmsis_nn_status result = arm_squared_difference_s16(lhs,
-                                                           &lhs_dims,
-                                                           rhs,
-                                                           &rhs_dims,
-                                                           SQUARED_DIFFERENCE_BROADCAST_W_S16_INPUT1_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_W_S16_INPUT1_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_W_S16_INPUT1_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_W_S16_INPUT2_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_W_S16_INPUT2_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_W_S16_INPUT2_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_W_S16_LEFT_SHIFT,
-                                                           output,
-                                                           &out_dims,
-                                                           SQUARED_DIFFERENCE_BROADCAST_W_S16_OUTPUT_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_W_S16_OUTPUT_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_W_S16_OUTPUT_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_W_S16_ACTIVATION_MIN,
-                                                           SQUARED_DIFFERENCE_BROADCAST_W_S16_ACTIVATION_MAX);
+                                                            &lhs_dims,
+                                                            rhs,
+                                                            &rhs_dims,
+                                                            SQUARED_DIFFERENCE_BROADCAST_W_S16_INPUT1_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_W_S16_INPUT1_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_W_S16_INPUT1_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_W_S16_INPUT2_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_W_S16_INPUT2_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_W_S16_INPUT2_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_W_S16_LEFT_SHIFT,
+                                                            output,
+                                                            &out_dims,
+                                                            SQUARED_DIFFERENCE_BROADCAST_W_S16_OUTPUT_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_W_S16_OUTPUT_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_W_S16_OUTPUT_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_W_S16_ACTIVATION_MIN,
+                                                            SQUARED_DIFFERENCE_BROADCAST_W_S16_ACTIVATION_MAX);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate_s16(output,
-                              squared_difference_broadcast_w_s16_output_ref,
-                              SQUARED_DIFFERENCE_BROADCAST_W_S16_DST_SIZE));
+    TEST_ASSERT_TRUE(validate_s16(
+        output, squared_difference_broadcast_w_s16_output_ref, SQUARED_DIFFERENCE_BROADCAST_W_S16_DST_SIZE));
 }
 
 void squared_difference_broadcast_c_s16_arm_squared_difference_s16(void)
@@ -307,28 +306,27 @@ void squared_difference_broadcast_c_s16_arm_squared_difference_s16(void)
     int16_t output[SQUARED_DIFFERENCE_BROADCAST_C_S16_DST_SIZE] = {0};
 
     arm_cmsis_nn_status result = arm_squared_difference_s16(lhs,
-                                                           &lhs_dims,
-                                                           rhs,
-                                                           &rhs_dims,
-                                                           SQUARED_DIFFERENCE_BROADCAST_C_S16_INPUT1_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_C_S16_INPUT1_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_C_S16_INPUT1_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_C_S16_INPUT2_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_C_S16_INPUT2_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_C_S16_INPUT2_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_C_S16_LEFT_SHIFT,
-                                                           output,
-                                                           &out_dims,
-                                                           SQUARED_DIFFERENCE_BROADCAST_C_S16_OUTPUT_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_C_S16_OUTPUT_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_C_S16_OUTPUT_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_C_S16_ACTIVATION_MIN,
-                                                           SQUARED_DIFFERENCE_BROADCAST_C_S16_ACTIVATION_MAX);
+                                                            &lhs_dims,
+                                                            rhs,
+                                                            &rhs_dims,
+                                                            SQUARED_DIFFERENCE_BROADCAST_C_S16_INPUT1_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_C_S16_INPUT1_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_C_S16_INPUT1_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_C_S16_INPUT2_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_C_S16_INPUT2_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_C_S16_INPUT2_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_C_S16_LEFT_SHIFT,
+                                                            output,
+                                                            &out_dims,
+                                                            SQUARED_DIFFERENCE_BROADCAST_C_S16_OUTPUT_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_C_S16_OUTPUT_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_C_S16_OUTPUT_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_C_S16_ACTIVATION_MIN,
+                                                            SQUARED_DIFFERENCE_BROADCAST_C_S16_ACTIVATION_MAX);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate_s16(output,
-                              squared_difference_broadcast_c_s16_output_ref,
-                              SQUARED_DIFFERENCE_BROADCAST_C_S16_DST_SIZE));
+    TEST_ASSERT_TRUE(validate_s16(
+        output, squared_difference_broadcast_c_s16_output_ref, SQUARED_DIFFERENCE_BROADCAST_C_S16_DST_SIZE));
 }
 
 void squared_difference_broadcast_hc_s16_arm_squared_difference_s16(void)
@@ -358,26 +356,25 @@ void squared_difference_broadcast_hc_s16_arm_squared_difference_s16(void)
     int16_t output[SQUARED_DIFFERENCE_BROADCAST_HC_S16_DST_SIZE] = {0};
 
     arm_cmsis_nn_status result = arm_squared_difference_s16(lhs,
-                                                           &lhs_dims,
-                                                           rhs,
-                                                           &rhs_dims,
-                                                           SQUARED_DIFFERENCE_BROADCAST_HC_S16_INPUT1_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_HC_S16_INPUT1_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_HC_S16_INPUT1_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_HC_S16_INPUT2_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_HC_S16_INPUT2_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_HC_S16_INPUT2_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_HC_S16_LEFT_SHIFT,
-                                                           output,
-                                                           &out_dims,
-                                                           SQUARED_DIFFERENCE_BROADCAST_HC_S16_OUTPUT_OFFSET,
-                                                           SQUARED_DIFFERENCE_BROADCAST_HC_S16_OUTPUT_MULT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_HC_S16_OUTPUT_SHIFT,
-                                                           SQUARED_DIFFERENCE_BROADCAST_HC_S16_ACTIVATION_MIN,
-                                                           SQUARED_DIFFERENCE_BROADCAST_HC_S16_ACTIVATION_MAX);
+                                                            &lhs_dims,
+                                                            rhs,
+                                                            &rhs_dims,
+                                                            SQUARED_DIFFERENCE_BROADCAST_HC_S16_INPUT1_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_HC_S16_INPUT1_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_HC_S16_INPUT1_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_HC_S16_INPUT2_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_HC_S16_INPUT2_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_HC_S16_INPUT2_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_HC_S16_LEFT_SHIFT,
+                                                            output,
+                                                            &out_dims,
+                                                            SQUARED_DIFFERENCE_BROADCAST_HC_S16_OUTPUT_OFFSET,
+                                                            SQUARED_DIFFERENCE_BROADCAST_HC_S16_OUTPUT_MULT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_HC_S16_OUTPUT_SHIFT,
+                                                            SQUARED_DIFFERENCE_BROADCAST_HC_S16_ACTIVATION_MIN,
+                                                            SQUARED_DIFFERENCE_BROADCAST_HC_S16_ACTIVATION_MAX);
 
     TEST_ASSERT_EQUAL(expected, result);
-    TEST_ASSERT_TRUE(validate_s16(output,
-                              squared_difference_broadcast_hc_s16_output_ref,
-                              SQUARED_DIFFERENCE_BROADCAST_HC_S16_DST_SIZE));
+    TEST_ASSERT_TRUE(validate_s16(
+        output, squared_difference_broadcast_hc_s16_output_ref, SQUARED_DIFFERENCE_BROADCAST_HC_S16_DST_SIZE));
 }

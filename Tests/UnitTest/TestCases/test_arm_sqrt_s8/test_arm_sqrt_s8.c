@@ -22,19 +22,16 @@
 #include "arm_nnfunctions.h"
 #include "unity.h"
 
-#include "../TestData/sqrt_small_tensor_s8/test_data.h"
 #include "../TestData/sqrt_long_row_s8/test_data.h"
 #include "../TestData/sqrt_multi_batch_s8/test_data.h"
+#include "../TestData/sqrt_small_tensor_s8/test_data.h"
 
 #include "../Utils/validate.h"
 
 static inline float clamp_f32(float v, float lo, float hi) { return (v < lo) ? lo : ((v > hi) ? hi : v); }
 
-static void make_sqrt_lut(float input_scale,
-                          int32_t input_zero_point,
-                          float output_scale,
-                          int32_t output_zero_point,
-                          int8_t *lut)
+static void
+make_sqrt_lut(float input_scale, int32_t input_zero_point, float output_scale, int32_t output_zero_point, int8_t *lut)
 {
     for (int32_t i = -128; i < 128; ++i)
     {

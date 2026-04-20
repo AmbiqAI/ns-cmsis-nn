@@ -78,4 +78,3 @@ void test_squared_difference_broadcast_hc_s8_arm_squared_difference_s8(void)
 {
     squared_difference_broadcast_hc_s8_arm_squared_difference_s8();
 }
-

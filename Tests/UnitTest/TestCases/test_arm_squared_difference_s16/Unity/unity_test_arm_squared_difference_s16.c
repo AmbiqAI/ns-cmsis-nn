@@ -78,4 +78,3 @@ void test_squared_difference_broadcast_hc_s16_arm_squared_difference_s16(void)
 {
     squared_difference_broadcast_hc_s16_arm_squared_difference_s16();
 }
-

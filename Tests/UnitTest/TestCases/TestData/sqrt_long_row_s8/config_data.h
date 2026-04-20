@@ -10,7 +10,10 @@
 #define SQRT_LONG_ROW_S8_CHANNEL_1 1
 #define SQRT_LONG_ROW_S8_IN_DIM                                                                                        \
     {                                                                                                                  \
-        1, 1, 64, 1,                                                                                                   \
+        1,                                                                                                             \
+        1,                                                                                                             \
+        64,                                                                                                            \
+        1,                                                                                                             \
     }
 #define SQRT_LONG_ROW_S8_OUTPUT_LEN 64
 #define SQRT_LONG_ROW_S8_INPUT_SCALE 0.4980311691761017

@@ -133,25 +133,23 @@ static inline int validate_bool(const bool *act, const bool *ref, int size)
  * @param tol   Allowed absolute tolerance (e.g., 0 for exact match, 1 for ±1)
  * @return      1 (true) if all elements within tolerance, 0 (false) otherwise
  */
-static inline int validate_tol_s8(const int8_t *act,
-                                  const int8_t *ref,
-                                  int size,
-                                  int tol)
+static inline int validate_tol_s8(const int8_t *act, const int8_t *ref, int size, int tol)
 {
-    if (tol < 0) tol = 0;  // guard
+    if (tol < 0)
+        tol = 0; // guard
     int test_passed = 1;
     int count = 0;
 
     for (int i = 0; i < size; ++i)
     {
         int diff = (int)act[i] - (int)ref[i];
-        if (diff < 0) diff = -diff;
+        if (diff < 0)
+            diff = -diff;
 
         if (diff > tol)
         {
             ++count;
-            printf("ERROR at pos %d: Act: %d Ref: %d (|diff|=%d > tol=%d)\r\n",
-                   i, (int)act[i], (int)ref[i], diff, tol);
+            printf("ERROR at pos %d: Act: %d Ref: %d (|diff|=%d > tol=%d)\r\n", i, (int)act[i], (int)ref[i], diff, tol);
             test_passed = 0;
         }
     }
@@ -164,7 +162,6 @@ static inline int validate_tol_s8(const int8_t *act,
     return test_passed;
 }
 
-
 /**
  * Validate two int16_t buffers with an absolute tolerance.
  *
@@ -176,25 +173,23 @@ static inline int validate_tol_s8(const int8_t *act,
  * @param tol   Allowed absolute tolerance (e.g., 0 for exact match, 1 for ±1)
  * @return      1 (true) if all elements within tolerance, 0 (false) otherwise
  */
-static inline int validate_tol_s16(const int16_t *act,
-                                  const int16_t *ref,
-                                  int size,
-                                  int tol)
+static inline int validate_tol_s16(const int16_t *act, const int16_t *ref, int size, int tol)
 {
-    if (tol < 0) tol = 0;  // guard
+    if (tol < 0)
+        tol = 0; // guard
     int test_passed = 1;
     int count = 0;
 
     for (int i = 0; i < size; ++i)
     {
         int diff = (int)act[i] - (int)ref[i];
-        if (diff < 0) diff = -diff;
+        if (diff < 0)
+            diff = -diff;
 
         if (diff > tol)
         {
             ++count;
-            printf("ERROR at pos %d: Act: %d Ref: %d (|diff|=%d > tol=%d)\r\n",
-                   i, (int)act[i], (int)ref[i], diff, tol);
+            printf("ERROR at pos %d: Act: %d Ref: %d (|diff|=%d > tol=%d)\r\n", i, (int)act[i], (int)ref[i], diff, tol);
             test_passed = 0;
         }
     }

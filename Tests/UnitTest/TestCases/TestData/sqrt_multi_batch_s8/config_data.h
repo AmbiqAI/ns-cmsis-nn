@@ -10,7 +10,10 @@
 #define SQRT_MULTI_BATCH_S8_CHANNEL_1 3
 #define SQRT_MULTI_BATCH_S8_IN_DIM                                                                                     \
     {                                                                                                                  \
-        2, 3, 5, 3,                                                                                                    \
+        2,                                                                                                             \
+        3,                                                                                                             \
+        5,                                                                                                             \
+        3,                                                                                                             \
     }
 #define SQRT_MULTI_BATCH_S8_OUTPUT_LEN 90
 #define SQRT_MULTI_BATCH_S8_INPUT_SCALE 0.4978196918964386

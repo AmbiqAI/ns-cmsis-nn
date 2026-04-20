@@ -37,10 +37,7 @@
  * Refer header file for details.
  *
  */
-arm_cmsis_nn_status arm_sqrt_s8(const int8_t *input,
-                                const cmsis_nn_dims *input_dims,
-                                int8_t *output,
-                                int8_t *sqrt_lut)
+arm_cmsis_nn_status arm_sqrt_s8(const int8_t *input, const cmsis_nn_dims *input_dims, int8_t *output, int8_t *sqrt_lut)
 {
     const int32_t block_size = input_dims->n * input_dims->h * input_dims->w * input_dims->c;
 

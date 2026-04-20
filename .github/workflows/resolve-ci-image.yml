@@ -1,0 +1,92 @@
+name: Resolve CI Container Image
+
+on:
+  workflow_call:
+    inputs:
+      container_image:
+        description: Optional container image override. When unset, the workflow tries the latest release-tagged image and falls back to :latest.
+        required: false
+        default: ''
+        type: string
+    outputs:
+      container_image:
+        description: Selected container image for downstream jobs.
+        value: ${{ jobs.resolve.outputs.container_image }}
+      resolved_from:
+        description: How the image was resolved.
+        value: ${{ jobs.resolve.outputs.resolved_from }}
+      release_tag:
+        description: Latest release tag used during resolution, when available.
+        value: ${{ jobs.resolve.outputs.release_tag }}
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      container_image: ${{ steps.resolve.outputs.container_image }}
+      resolved_from: ${{ steps.resolve.outputs.resolved_from }}
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
+
+    steps:
+      - name: Resolve container image
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REGISTRY_IMAGE: ghcr.io/ambiqai/ns-cmsis-nn-ci
+          INPUT_CONTAINER_IMAGE: ${{ inputs.container_image }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          fallback_image="${REGISTRY_IMAGE}:latest"
+          requested_image="${INPUT_CONTAINER_IMAGE}"
+          release_tag=''
+          resolved_from='fallback-latest'
+          selected_image="${fallback_image}"
+
+          if [[ -n "${requested_image}" ]]; then
+            selected_image="${requested_image}"
+            resolved_from='explicit-input'
+          else
+            if release_tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name' 2>/dev/null)"; then
+              if [[ -n "${release_tag}" && "${release_tag}" != "null" ]]; then
+                candidate_image="${REGISTRY_IMAGE}:${release_tag}"
+                if docker manifest inspect "${candidate_image}" >/dev/null 2>&1; then
+                  selected_image="${candidate_image}"
+                  resolved_from='release-tag'
+                else
+                  resolved_from='fallback-latest-missing-release-image'
+                fi
+              else
+                release_tag=''
+                resolved_from='fallback-latest-no-release-tag'
+              fi
+            else
+              release_tag=''
+              resolved_from='fallback-latest-release-query-failed'
+            fi
+          fi
+
+          {
+            echo "container_image=${selected_image}"
+            echo "resolved_from=${resolved_from}"
+            echo "release_tag=${release_tag}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish resolution summary
+        shell: bash
+        run: |
+          {
+            echo "### Container image resolution"
+            echo "- selected image: \`${{ steps.resolve.outputs.container_image }}\`"
+            echo "- source: \`${{ steps.resolve.outputs.resolved_from }}\`"
+            if [[ -n "${{ steps.resolve.outputs.release_tag }}" ]]; then
+              echo "- latest release tag: \`${{ steps.resolve.outputs.release_tag }}\`"
+            else
+              echo "- latest release tag: _(unavailable)_"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

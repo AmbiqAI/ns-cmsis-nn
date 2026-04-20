@@ -1,0 +1,85 @@
+name: UnitTest
+
+on:
+  workflow_call:
+    inputs:
+      container_image:
+        description: Optional container image override for the test job. When unset, the workflow tries the latest release-tagged image and falls back to :latest.
+        required: false
+        default: ''
+        type: string
+  workflow_dispatch:
+    inputs:
+      container_image:
+        description: Optional container image override for the test job. When unset, the workflow tries the latest release-tagged image and falls back to :latest.
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  resolve-container-image:
+    uses: ./.github/workflows/resolve-ci-image.yml
+    with:
+      container_image: ${{ inputs.container_image }}
+
+  build-and-test:
+    runs-on: ubuntu-latest
+    needs: resolve-container-image
+    container:
+      image: ${{ needs.resolve-container-image.outputs.container_image }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        core:
+          - cortex-m0
+          - cortex-m4
+          - cortex-m55
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Log selected container image
+        shell: bash
+        run: |
+          {
+            echo "### Job container image"
+            echo "- selected image: \`${{ needs.resolve-container-image.outputs.container_image }}\`"
+            echo "- source: \`${{ needs.resolve-container-image.outputs.resolved_from }}\`"
+            if [[ -n "${{ needs.resolve-container-image.outputs.release_tag }}" ]]; then
+              echo "- latest release tag: \`${{ needs.resolve-container-image.outputs.release_tag }}\`"
+            else
+              echo "- latest release tag: _(unavailable)_"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify per-channel s16 test data is present
+        run: |
+          grep -R "fc_per_channel_s16" -n Tests/UnitTest/TestCases/TestData
+
+      - name: Restore tests-downloads cache
+        id: cache-downloads
+        uses: actions/cache@v4
+        with:
+          path: Tests/UnitTest/downloads
+          key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-tests-downloads-
+
+      - name: Download deps (internal cache-checks)
+        run: |
+          cd Tests/UnitTest
+          ./build_and_run_tests.sh -rb
+
+      - name: Build & run tests for ${{ matrix.core }}
+        run: |
+          cd Tests/UnitTest
+          ./build_and_run_tests.sh -q -c ${{ matrix.core }}
+
+      - name: Save tests-downloads cache
+        if: steps.cache-downloads.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: Tests/UnitTest/downloads
+          key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
