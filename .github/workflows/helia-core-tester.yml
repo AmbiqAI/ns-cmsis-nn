@@ -166,19 +166,19 @@ jobs:
           uv sync
 
       - name: Download cortex-m0 reports
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: reports-cortex-m0
           path: Tests/helia-core-tester/artifacts/reports
 
       - name: Download cortex-m4 reports
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: reports-cortex-m4
           path: Tests/helia-core-tester/artifacts/reports
 
       - name: Download cortex-m55 reports
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: reports-cortex-m55
           path: Tests/helia-core-tester/artifacts/reports
