@@ -219,9 +219,9 @@ jobs:
         run: |
           set -euo pipefail
           tag='${{ needs.resolve-build-plan.outputs.tag }}'
-          is_draft="$(gh release view "${tag}" --json isDraft -q '.isDraft' 2>/dev/null || true)"
+          is_draft="$(gh release view "${tag}" --repo "${{ github.repository }}" --json isDraft -q '.isDraft' 2>/dev/null || true)"
           if [[ -z "${is_draft}" ]]; then
-            gh release create "${tag}" --draft --title "${tag}" --notes ""
+            gh release create "${tag}" --repo "${{ github.repository }}" --draft --title "${tag}" --notes ""
           elif [[ "${is_draft}" == "true" ]]; then
             echo "Draft release ${tag} already exists."
           else
@@ -236,6 +236,7 @@ jobs:
           set -euo pipefail
           gh release upload "${{ needs.resolve-build-plan.outputs.tag }}" \
             "upload/ns-cmsis-nn-staticlibs-${{ needs.resolve-build-plan.outputs.tag }}.zip" \
+            --repo "${{ github.repository }}" \
             --clobber
 
   package-zephyr-module:
@@ -292,4 +293,5 @@ jobs:
           set -euo pipefail
           gh release upload "${{ needs.resolve-build-plan.outputs.tag }}" \
             "upload/ns-cmsis-nn-zephyr-module-${{ needs.resolve-build-plan.outputs.tag }}.zip" \
+            --repo "${{ github.repository }}" \
             --clobber
