@@ -43,7 +43,6 @@ set(CMAKE_ASM_COMPILER "${LLVM_ET_ARM_BIN_DIR}/clang")
 set(CMAKE_AR "${LLVM_ET_ARM_BIN_DIR}/llvm-ar")
 set(CMAKE_RANLIB "${LLVM_ET_ARM_BIN_DIR}/llvm-ranlib")
 set(CMAKE_STRIP "${LLVM_ET_ARM_BIN_DIR}/llvm-strip")
-
 set(CMAKE_C_COMPILER_TARGET arm-none-eabi)
 set(CMAKE_CXX_COMPILER_TARGET arm-none-eabi)
 set(CMAKE_ASM_COMPILER_TARGET arm-none-eabi)

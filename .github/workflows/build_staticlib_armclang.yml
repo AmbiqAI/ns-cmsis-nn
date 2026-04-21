@@ -273,5 +273,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: staticlib-${{ needs.resolve-inputs.outputs.arch }}-armclang
-          path: out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/armclang/lib/*.a
+          path: |
+            out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/armclang/lib/*.a
+            out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/armclang/lib/*.json
           if-no-files-found: error

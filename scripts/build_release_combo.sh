@@ -38,6 +38,7 @@ CMSIS_PATH="${CMSIS_PATH:-${DOWNLOADS_DIR}/CMSIS_5}"
 ETHOS_U_CORE_PLATFORM_PATH="${ETHOS_U_CORE_PLATFORM_PATH:-${DOWNLOADS_DIR}/ethos-u-core-platform}"
 LLVM_ET_ARM_DIR="${LLVM_ET_ARM_DIR:-/opt/llvm-et-arm}"
 LLVM_ET_ARM_TOOLCHAIN_FILE="${REPO_ROOT}/cmake/toolchain/llvm-et-arm.cmake"
+RELEASE_METADATA_HELPER="${REPO_ROOT}/scripts/release_package_metadata.py"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -163,6 +164,7 @@ esac
 
 [[ -f "${TOOLCHAIN_FILE}" ]] || { echo "Toolchain file not found: ${TOOLCHAIN_FILE}" >&2; exit 3; }
 [[ -f "${CLEANUP_SCRIPT}" ]] || { echo "Cleanup helper not found: ${CLEANUP_SCRIPT}" >&2; exit 3; }
+[[ -f "${RELEASE_METADATA_HELPER}" ]] || { echo "Release metadata helper not found: ${RELEASE_METADATA_HELPER}" >&2; exit 3; }
 
 resolve_strip_tool() {
   local candidate=""
@@ -270,14 +272,21 @@ cmake -S "${REPO_ROOT}" -B "${BUILD_DIR}" -G "${CMAKE_GENERATOR}" \
   -DCMAKE_TOOLCHAIN_FILE="${TOOLCHAIN_FILE}" \
   -DTARGET_CPU="${TARGET_CPU}" \
   -DLLVM_ET_ARM_DIR="${LLVM_ET_ARM_DIR}" \
-  -DCMSIS_PATH="${CMSIS_PATH}"
+  -DCMSIS_PATH="${CMSIS_PATH}" \
+  -DCMSIS_NN_HIDE_INTERNAL_SYMBOLS=ON \
+  -DCMSIS_NN_PUBLIC_HEADERS_DIR="${REPO_ROOT}/Include"
 
 cmake --build "${BUILD_DIR}" --target cmsis-nn --parallel
 
 [[ -f "${LIB_IN}" ]] || { echo "Built archive not found: ${LIB_IN}" >&2; exit 4; }
 
-LIB_NAME="libns-cmsis-nn-${ARCH_LABEL}-${TOOLCHAIN}.a"
+LIB_NAME="$(python3 "${RELEASE_METADATA_HELPER}" variant-filename \
+  --arch "${ARCH}" \
+  --arch-label "${ARCH_LABEL}" \
+  --target-cpu "${TARGET_CPU}" \
+  --toolchain "${TOOLCHAIN}")"
 FINAL_LIB="${LIB_OUT_DIR}/${LIB_NAME}"
+FINAL_METADATA="${LIB_OUT_DIR}/${LIB_NAME%.a}.json"
 
 cp "${LIB_IN}" "${FINAL_LIB}"
 "${STRIP_TOOL}" --strip-debug "${FINAL_LIB}"
@@ -285,6 +294,13 @@ cp "${LIB_IN}" "${FINAL_LIB}"
 bash "${CLEANUP_SCRIPT}" \
   --outdir "${OUTDIR}" \
   --lib-name "${LIB_NAME}"
+
+python3 "${RELEASE_METADATA_HELPER}" write-variant-metadata \
+  --arch "${ARCH}" \
+  --arch-label "${ARCH_LABEL}" \
+  --target-cpu "${TARGET_CPU}" \
+  --toolchain "${TOOLCHAIN}" \
+  --output "${FINAL_METADATA}"
 
 BUILD_COMPLETE=1
 echo "Built and verified combo in ${OUTDIR}"

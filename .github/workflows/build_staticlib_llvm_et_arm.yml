@@ -226,5 +226,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: staticlib-${{ needs.resolve-inputs.outputs.arch }}-llvm-et-arm
-          path: out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/llvm-et-arm/lib/*.a
+          path: |
+            out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/llvm-et-arm/lib/*.a
+            out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/llvm-et-arm/lib/*.json
           if-no-files-found: error

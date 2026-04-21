@@ -237,3 +237,59 @@ jobs:
           gh release upload "${{ needs.resolve-build-plan.outputs.tag }}" \
             "upload/ns-cmsis-nn-staticlibs-${{ needs.resolve-build-plan.outputs.tag }}.zip" \
             --clobber
+
+  package-zephyr-module:
+    name: Package Zephyr module
+    needs: resolve-build-plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-build-plan.outputs.ref }}
+          fetch-depth: 0
+
+      - name: Package Zephyr module
+        run: |
+          bash scripts/build_zephyr_release_package.sh \
+            --tag "${{ needs.resolve-build-plan.outputs.tag }}" \
+            --outdir upload
+
+      - name: Upload Zephyr module artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ns-cmsis-nn-zephyr-module-${{ needs.resolve-build-plan.outputs.tag }}
+          path: upload/ns-cmsis-nn-zephyr-module-${{ needs.resolve-build-plan.outputs.tag }}.zip
+          if-no-files-found: error
+
+  upload-zephyr-module:
+    name: Upload Zephyr module to release
+    needs:
+      - resolve-build-plan
+      - package-staticlibs
+      - package-zephyr-module
+    if: ${{ inputs.upload_to_release == true || inputs.upload_to_release == 'true' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Download Zephyr module artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ns-cmsis-nn-zephyr-module-${{ needs.resolve-build-plan.outputs.tag }}
+          path: upload
+
+      - name: Upload Zephyr module to GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release upload "${{ needs.resolve-build-plan.outputs.tag }}" \
+            "upload/ns-cmsis-nn-zephyr-module-${{ needs.resolve-build-plan.outputs.tag }}.zip" \
+            --clobber

@@ -16,6 +16,7 @@ EOF
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+RELEASE_METADATA_HELPER="${REPO_ROOT}/scripts/release_package_metadata.py"
 
 resolve_arch() {
   local arch="$1"
@@ -122,88 +123,17 @@ if [[ "${SKIP_BUILD}" -eq 0 ]]; then
   done
 fi
 
-ACTUAL_LIB_PATHS=()
-while IFS= read -r lib_path; do
-  ACTUAL_LIB_PATHS+=("${lib_path}")
-done < <(find "${ARTIFACT_ROOT}" -type f -name 'libns-cmsis-nn-*.a' | sort)
-
-[[ "${#ACTUAL_LIB_PATHS[@]}" -gt 0 ]] || {
-  echo "No release static libraries found under ${ARTIFACT_ROOT}" >&2
-  exit 4
-}
-
-[[ "${#ACTUAL_LIB_PATHS[@]}" -eq "${#EXPECTED_LIBS[@]}" ]] || {
-  echo "Expected ${#EXPECTED_LIBS[@]} release static libraries under ${ARTIFACT_ROOT}, found ${#ACTUAL_LIB_PATHS[@]}" >&2
-  exit 4
-}
-
-expected_list="$(mktemp)"
-actual_list="$(mktemp)"
-cleanup() {
-  rm -f "${expected_list}" "${actual_list}"
-}
-trap cleanup EXIT
-
-printf '%s\n' "${EXPECTED_LIBS[@]}" | sort > "${expected_list}"
-for lib_path in "${ACTUAL_LIB_PATHS[@]}"; do
-  basename "${lib_path}"
-done | sort > "${actual_list}"
-
-if ! diff -u "${expected_list}" "${actual_list}"; then
-  echo "Release static library set does not match expected combos" >&2
-  exit 4
-fi
-
 BUNDLE_DIR="${OUTDIR}/ns-cmsis-nn-staticlibs-${TAG}"
 ZIP_PATH="${OUTDIR}/ns-cmsis-nn-staticlibs-${TAG}.zip"
+[[ -f "${RELEASE_METADATA_HELPER}" ]] || { echo "Release metadata helper not found: ${RELEASE_METADATA_HELPER}" >&2; exit 4; }
 rm -rf "${BUNDLE_DIR}" "${ZIP_PATH}"
-mkdir -p "${BUNDLE_DIR}/lib"
 
-for lib_name in "${EXPECTED_LIBS[@]}"; do
-  LIB_MATCHES=()
-  while IFS= read -r lib_path; do
-    LIB_MATCHES+=("${lib_path}")
-  done < <(find "${ARTIFACT_ROOT}" -type f -name "${lib_name}" | sort)
-
-  [[ "${#LIB_MATCHES[@]}" -eq 1 ]] || {
-    echo "Expected exactly one artifact for ${lib_name}, found ${#LIB_MATCHES[@]}" >&2
-    exit 4
-  }
-
-  cp "${LIB_MATCHES[0]}" "${BUNDLE_DIR}/lib/"
-done
-
-python3 - "${BUNDLE_DIR}" "${TAG}" <<'PY'
-from __future__ import annotations
-
-import datetime as dt
-import json
-import sys
-from pathlib import Path
-
-bundle_dir = Path(sys.argv[1])
-tag = sys.argv[2]
-
-manifest = {
-    "schema": 1,
-    "product": "ns-cmsis-nn",
-    "tag": tag,
-    "generated_at_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
-    "libraries": [],
-}
-
-for path in sorted((bundle_dir / "lib").glob("*.a")):
-    parts = path.stem.split("-")
-    manifest["libraries"].append(
-        {
-            "file": path.name,
-            "arch": parts[3],
-            "toolchain": "-".join(parts[4:]),
-        }
-    )
-
-(bundle_dir / "MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-PY
+python3 "${RELEASE_METADATA_HELPER}" assemble-staticlib-bundle \
+  --artifact-root "${ARTIFACT_ROOT}" \
+  --outdir "${OUTDIR}" \
+  --tag "${TAG}" \
+  --archs "${ARCHS}" \
+  --toolchains "${TOOLCHAINS}"
 
 (
   cd "${OUTDIR}"

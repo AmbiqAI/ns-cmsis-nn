@@ -62,4 +62,8 @@ bash "${SCRIPT_DIR}/build_release_bundle.sh" \
   --toolchains "${TOOLCHAINS}" \
   --outdir "${OUTDIR}"
 
-echo "Wrote local static library bundle to ${OUTDIR}"
+bash "${SCRIPT_DIR}/build_zephyr_release_package.sh" \
+  --tag "${TAG}" \
+  --outdir "${OUTDIR}"
+
+echo "Wrote local release packages to ${OUTDIR}"
