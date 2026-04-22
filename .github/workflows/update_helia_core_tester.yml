@@ -68,7 +68,7 @@ jobs:
 
       - name: Create pull request
         if: ${{ steps.helia-core-meta.outputs.current_sha != steps.helia-core-meta.outputs.latest_sha }}
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           branch: codex/bump-helia-core-tester-${{ steps.helia-core-meta.outputs.latest_tag }}
           delete-branch: true
