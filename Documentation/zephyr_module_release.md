@@ -1,19 +1,28 @@
-# NS-CMSIS-NN Zephyr Module Package
+# NS-CMSIS-NN Zephyr Binary Package
 
-This package is the Zephyr distribution of `ns-cmsis-nn`.
+This package is the binary-only Zephyr distribution of `ns-cmsis-nn`.
 
-It is a source-module package, not a prebuilt binary SDK. Consumers should add the
-package to their Zephyr workspace as a module and let Zephyr compile the sources as
-part of the application build.
+It is not a source module. Consumers add the package to their Zephyr workspace as
+an external module and Zephyr links the correct prebuilt static library for the
+active target and toolchain.
 
 The package includes:
 
 - `zephyr/module.yml`
 - `zephyr/CMakeLists.txt`
 - `zephyr/Kconfig`
-- `Source/`
-- `Include/`
+- `include/`
+- `lib/`
+- `manifest.json`
 
-The Zephyr module expects the normal Zephyr CMSIS integration to be present and uses
-Zephyr's module discovery/build flow rather than linking against a separate
-Zephyr-specific static library.
+The package does not include `Source/` or any implementation `.c` files.
+
+Selection behavior:
+
+- GNU Arm Embedded builds map to the packaged `gcc` variants
+- Armclang builds map to the packaged `armclang` variants
+- LLVM Embedded Toolchain for Arm builds map to the packaged `llvm-et-arm` variants
+- Cortex-M0, Cortex-M4 with FPU, and Cortex-M55 are supported
+
+Unsupported toolchain or target combinations fail at configure time with a clear
+error message.

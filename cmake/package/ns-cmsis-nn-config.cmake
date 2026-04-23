@@ -1,0 +1,22 @@
+include_guard(GLOBAL)
+
+set(_NS_CMSIS_NN_PACKAGE_ROOT "${CMAKE_CURRENT_LIST_DIR}/..")
+set(NS_CMSIS_NN_PACKAGE_ROOT "${_NS_CMSIS_NN_PACKAGE_ROOT}")
+
+include("${CMAKE_CURRENT_LIST_DIR}/ns-cmsis-nn-select-variant.cmake")
+
+ns_cmsis_nn_resolve_variant(
+  PACKAGE_ROOT "${_NS_CMSIS_NN_PACKAGE_ROOT}"
+  OUT_VAR _NS_CMSIS_NN_LIBRARY
+  TOOLCHAIN_OUT NS_CMSIS_NN_RESOLVED_TOOLCHAIN
+  TARGET_CPU_OUT NS_CMSIS_NN_RESOLVED_TARGET_CPU
+  ARCH_OUT NS_CMSIS_NN_RESOLVED_ARCH
+)
+
+if(NOT TARGET ns-cmsis-nn::cmsis-nn)
+  add_library(ns-cmsis-nn::cmsis-nn STATIC IMPORTED GLOBAL)
+  set_target_properties(ns-cmsis-nn::cmsis-nn PROPERTIES
+    IMPORTED_LOCATION "${_NS_CMSIS_NN_LIBRARY}"
+    INTERFACE_INCLUDE_DIRECTORIES "${_NS_CMSIS_NN_PACKAGE_ROOT}/include"
+  )
+endif()

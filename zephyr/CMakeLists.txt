@@ -2,123 +2,34 @@
 # SPDX-License-Identifier: Apache-2.0
 
 if(CONFIG_NS_CMSIS_NN)
-
   set(NS_CMSIS_NN_DIR ${ZEPHYR_CURRENT_MODULE_DIR})
-  set(cmsis_glue_path ${ZEPHYR_CMSIS_MODULE_DIR})
+
+  include(${NS_CMSIS_NN_DIR}/cmake/ns-cmsis-nn-select-variant.cmake)
+
+  ns_cmsis_nn_resolve_variant(
+    PACKAGE_ROOT "${NS_CMSIS_NN_DIR}"
+    OUT_VAR NS_CMSIS_NN_LIBRARY
+    TOOLCHAIN_OUT NS_CMSIS_NN_RESOLVED_TOOLCHAIN
+    TARGET_CPU_OUT NS_CMSIS_NN_RESOLVED_TARGET_CPU
+    ARCH_OUT NS_CMSIS_NN_RESOLVED_ARCH
+  )
 
   zephyr_library()
+  zephyr_include_directories(${NS_CMSIS_NN_DIR}/include)
 
-  zephyr_library_compile_options($<TARGET_PROPERTY:compiler,optimization_fast>)
-
-  zephyr_include_directories(${NS_CMSIS_NN_DIR}/Include)
-
-  zephyr_library_include_directories(${cmsis_glue_path}/CMSIS/Core/Include)
-
-  if(CONFIG_NS_CMSIS_NN_ACTIVATION)
-    file(GLOB SRC "${NS_CMSIS_NN_DIR}/Source/ActivationFunctions/*_s8*.c")
-    file(GLOB SRC_S16 "${NS_CMSIS_NN_DIR}/Source/ActivationFunctions/*_s16*.c")
-    zephyr_library_sources(${SRC} ${SRC_S16}
-      ${NS_CMSIS_NN_DIR}/Source/ActivationFunctions/arm_relu_q7.c
-      ${NS_CMSIS_NN_DIR}/Source/ActivationFunctions/arm_relu_q15.c)
+  if(NOT TARGET ns_cmsis_nn_prebuilt)
+    add_library(ns_cmsis_nn_prebuilt STATIC IMPORTED GLOBAL)
+    set_target_properties(ns_cmsis_nn_prebuilt PROPERTIES
+      IMPORTED_LOCATION "${NS_CMSIS_NN_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${NS_CMSIS_NN_DIR}/include"
+    )
   endif()
 
-  if(CONFIG_NS_CMSIS_NN_BASICMATH)
-    file(GLOB SRC "${NS_CMSIS_NN_DIR}/Source/BasicMathFunctions/*_*.c")
-    zephyr_library_sources(${SRC})
-  endif()
+  target_link_libraries(zephyr_interface INTERFACE ns_cmsis_nn_prebuilt)
+  zephyr_link_libraries(ns_cmsis_nn_prebuilt)
 
-  if(CONFIG_NS_CMSIS_NN_COMPARISON)
-    file(GLOB SRC_S8 "${NS_CMSIS_NN_DIR}/Source/ComparisonFunctions/*_s8*.c")
-    file(GLOB SRC_S16 "${NS_CMSIS_NN_DIR}/Source/ComparisonFunctions/*_s16*.c")
-    zephyr_library_sources(${SRC_S8} ${SRC_S16})
-  endif()
-
-  if(CONFIG_NS_CMSIS_NN_CONCATENATION)
-    file(GLOB SRC "${NS_CMSIS_NN_DIR}/Source/ConcatenationFunctions/*_*.c")
-    zephyr_library_sources(${SRC})
-  endif()
-
-  if(CONFIG_NS_CMSIS_NN_CONVOLUTION)
-    file(GLOB SRC_S4 "${NS_CMSIS_NN_DIR}/Source/ConvolutionFunctions/*_s4*.c")
-    file(GLOB SRC_S8 "${NS_CMSIS_NN_DIR}/Source/ConvolutionFunctions/*_s8*.c")
-    file(GLOB SRC_S16 "${NS_CMSIS_NN_DIR}/Source/ConvolutionFunctions/*_s16*.c")
-    zephyr_library_sources(${SRC_S4} ${SRC_S8} ${SRC_S16})
-  endif()
-
-  if(CONFIG_NS_CMSIS_NN_FULLYCONNECTED)
-    file(GLOB SRC_S4 "${NS_CMSIS_NN_DIR}/Source/FullyConnectedFunctions/*_s4.c")
-    file(GLOB SRC_S8 "${NS_CMSIS_NN_DIR}/Source/FullyConnectedFunctions/*_s8.c")
-    file(GLOB SRC_S16 "${NS_CMSIS_NN_DIR}/Source/FullyConnectedFunctions/*_s16*.c")
-    file(GLOB SRC_S64 "${NS_CMSIS_NN_DIR}/Source/FullyConnectedFunctions/*_s64.c")
-    zephyr_library_sources(${SRC_S4} ${SRC_S8} ${SRC_S16} ${SRC_S64})
-  endif()
-
-  if(CONFIG_NS_CMSIS_NN_LSTM)
-    file(GLOB SRC_S8 "${NS_CMSIS_NN_DIR}/Source/LSTMFunctions/*_s8.c")
-    file(GLOB SRC_S16 "${NS_CMSIS_NN_DIR}/Source/LSTMFunctions/*_s16.c")
-    zephyr_library_sources(${SRC_S8} ${SRC_S16})
-  endif()
-
-  if(CONFIG_NS_CMSIS_NN_NNSUPPORT)
-    file(GLOB SRC_S4 "${NS_CMSIS_NN_DIR}/Source/NNSupportFunctions/*_s4*.c")
-    file(GLOB SRC_S8 "${NS_CMSIS_NN_DIR}/Source/NNSupportFunctions/*_s8*.c")
-    file(GLOB SRC_S16 "${NS_CMSIS_NN_DIR}/Source/NNSupportFunctions/*_s16*.c")
-    file(GLOB SRC_S32 "${NS_CMSIS_NN_DIR}/Source/NNSupportFunctions/*_s32*.c")
-    zephyr_library_sources(${SRC_S4} ${SRC_S8} ${SRC_S16} ${SRC_S32}
-      ${NS_CMSIS_NN_DIR}/Source/NNSupportFunctions/arm_nntables.c
-      ${NS_CMSIS_NN_DIR}/Source/NNSupportFunctions/arm_q7_to_q15_with_offset.c
-      ${NS_CMSIS_NN_DIR}/Source/NNSupportFunctions/arm_s8_to_s16_unordered_with_offset.c)
-  endif()
-
-  if(CONFIG_NS_CMSIS_NN_PAD)
-    file(GLOB SRC_S8 "${NS_CMSIS_NN_DIR}/Source/PadFunctions/*_s8.c")
-    file(GLOB SRC_S16 "${NS_CMSIS_NN_DIR}/Source/PadFunctions/*_s16.c")
-    zephyr_library_sources(${SRC_S8} ${SRC_S16})
-  endif()
-
-  if(CONFIG_NS_CMSIS_NN_POOLING)
-    file(GLOB SRC_S8 "${NS_CMSIS_NN_DIR}/Source/PoolingFunctions/*_s8.c")
-    file(GLOB SRC_S16 "${NS_CMSIS_NN_DIR}/Source/PoolingFunctions/*_s16.c")
-    zephyr_library_sources(${SRC_S8} ${SRC_S16})
-  endif()
-
-  if(CONFIG_NS_CMSIS_NN_QUANTIZATION)
-    file(GLOB SRC "${NS_CMSIS_NN_DIR}/Source/QuantizationFunctions/*_*.c")
-    zephyr_library_sources(${SRC})
-  endif()
-
-  if(CONFIG_NS_CMSIS_NN_RESHAPE)
-    file(GLOB SRC "${NS_CMSIS_NN_DIR}/Source/ReshapeFunctions/*_*.c")
-    zephyr_library_sources(${SRC})
-  endif()
-
-  if(CONFIG_NS_CMSIS_NN_SOFTMAX)
-    file(GLOB SRC "${NS_CMSIS_NN_DIR}/Source/SoftmaxFunctions/*_*.c")
-    zephyr_library_sources(${SRC})
-  endif()
-
-  if(CONFIG_NS_CMSIS_NN_STRIDED_SLICE)
-    file(GLOB SRC_S8 "${NS_CMSIS_NN_DIR}/Source/StridedSliceFunctions/*_s8.c")
-    file(GLOB SRC_S16 "${NS_CMSIS_NN_DIR}/Source/StridedSliceFunctions/*_s16.c")
-    file(GLOB SRC_S32 "${NS_CMSIS_NN_DIR}/Source/StridedSliceFunctions/*_s32.c")
-    zephyr_library_sources(${SRC_S8} ${SRC_S16} ${SRC_S32})
-  endif()
-
-  if(CONFIG_NS_CMSIS_NN_SVD)
-    file(GLOB SRC "${NS_CMSIS_NN_DIR}/Source/SVDFunctions/*_s8.c")
-    zephyr_library_sources(${SRC})
-  endif()
-
-  if(CONFIG_NS_CMSIS_NN_TRANSPOSE)
-    file(GLOB SRC_S8 "${NS_CMSIS_NN_DIR}/Source/TransposeFunctions/*_s8.c")
-    file(GLOB SRC_S16 "${NS_CMSIS_NN_DIR}/Source/TransposeFunctions/*_s16.c")
-    zephyr_library_sources(${SRC_S8} ${SRC_S16})
-  endif()
-
-  if(CONFIG_NS_CMSIS_NN_GATHER)
-    file(GLOB SRC_S8 "${NS_CMSIS_NN_DIR}/Source/GatherFunctions/*_s8.c")
-    file(GLOB SRC_S16 "${NS_CMSIS_NN_DIR}/Source/GatherFunctions/*_s16.c")
-    zephyr_library_sources(${SRC_S8} ${SRC_S16})
-  endif()
-
+  message(STATUS
+    "ns-cmsis-nn: linking ${NS_CMSIS_NN_RESOLVED_ARCH} binary for ${NS_CMSIS_NN_RESOLVED_TOOLCHAIN} "
+    "(${NS_CMSIS_NN_RESOLVED_TARGET_CPU})"
+  )
 endif()

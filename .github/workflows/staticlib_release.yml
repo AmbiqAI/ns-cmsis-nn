@@ -46,6 +46,7 @@ on:
 permissions:
   contents: write
   packages: read
+  id-token: write
 
 concurrency:
   group: staticlib-release-${{ inputs.tag || inputs.ref || github.sha }}
@@ -73,15 +74,8 @@ jobs:
           ref_in="${REF_INPUT}"
           tag_in="${TAG_INPUT}"
 
-          if [[ -z "${ref_in}" ]]; then
-            echo "::error ::Input ref is required."
-            exit 1
-          fi
-
-          if [[ -z "${tag_in}" ]]; then
-            echo "::error ::Input tag is required."
-            exit 1
-          fi
+          [[ -n "${ref_in}" ]] || { echo "::error ::Input ref is required."; exit 1; }
+          [[ -n "${tag_in}" ]] || { echo "::error ::Input tag is required."; exit 1; }
 
           image_ref="ghcr.io/ambiqai/ns-cmsis-nn-ci:${tag_in}"
           echo "ref=${ref_in}" >> "${GITHUB_OUTPUT}"
@@ -171,8 +165,8 @@ jobs:
       arch_label: ${{ matrix.arch_label }}
       target_cpu: ${{ matrix.target_cpu }}
 
-  package-staticlibs:
-    name: Package static libraries
+  package-binary-sdk:
+    name: Package external binary SDK
     needs:
       - resolve-build-plan
       - build-gcc
@@ -182,7 +176,6 @@ jobs:
     defaults:
       run:
         shell: bash
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -197,19 +190,29 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Package static libraries
+      - name: Package binary SDK
         run: |
           bash scripts/build_release_bundle.sh \
             --skip-build \
             --artifact-root artifacts \
             --tag "${{ needs.resolve-build-plan.outputs.tag }}" \
-            --outdir upload
+            --outdir upload \
+            --source-commit "${{ github.sha }}" \
+            --source-ref "${{ needs.resolve-build-plan.outputs.ref }}" \
+            --workflow-name "${{ github.workflow }}" \
+            --workflow-run-id "${{ github.run_id }}"
 
-      - name: Upload bundle artifact
+      - name: Validate binary SDK package
+        run: |
+          bash scripts/validate_binary_package.sh \
+            --package-dir "upload/ns-cmsis-nn-binary-sdk-${{ needs.resolve-build-plan.outputs.tag }}" \
+            --package-type binary-sdk
+
+      - name: Upload binary SDK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ns-cmsis-nn-staticlibs-${{ needs.resolve-build-plan.outputs.tag }}
-          path: upload/ns-cmsis-nn-staticlibs-${{ needs.resolve-build-plan.outputs.tag }}.zip
+          name: ns-cmsis-nn-binary-sdk-${{ needs.resolve-build-plan.outputs.tag }}
+          path: upload/ns-cmsis-nn-binary-sdk-${{ needs.resolve-build-plan.outputs.tag }}.zip
           if-no-files-found: error
 
       - name: Ensure draft release exists for manual upload
@@ -228,25 +231,28 @@ jobs:
             echo "Release ${tag} already exists and is published; assets will be uploaded to the existing release."
           fi
 
-      - name: Upload bundle to GitHub release
+      - name: Upload binary SDK to GitHub release
         if: ${{ inputs.upload_to_release == true || inputs.upload_to_release == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           gh release upload "${{ needs.resolve-build-plan.outputs.tag }}" \
-            "upload/ns-cmsis-nn-staticlibs-${{ needs.resolve-build-plan.outputs.tag }}.zip" \
+            "upload/ns-cmsis-nn-binary-sdk-${{ needs.resolve-build-plan.outputs.tag }}.zip" \
             --repo "${{ github.repository }}" \
             --clobber
 
-  package-zephyr-module:
-    name: Package Zephyr module
-    needs: resolve-build-plan
+  package-zephyr-binary:
+    name: Package external Zephyr binary module
+    needs:
+      - resolve-build-plan
+      - build-gcc
+      - build-armclang
+      - build-llvm-et-arm
     runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -254,44 +260,60 @@ jobs:
           ref: ${{ needs.resolve-build-plan.outputs.ref }}
           fetch-depth: 0
 
-      - name: Package Zephyr module
-        run: |
-          bash scripts/build_zephyr_release_package.sh \
-            --tag "${{ needs.resolve-build-plan.outputs.tag }}" \
-            --outdir upload
-
-      - name: Upload Zephyr module artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ns-cmsis-nn-zephyr-module-${{ needs.resolve-build-plan.outputs.tag }}
-          path: upload/ns-cmsis-nn-zephyr-module-${{ needs.resolve-build-plan.outputs.tag }}.zip
-          if-no-files-found: error
-
-  upload-zephyr-module:
-    name: Upload Zephyr module to release
-    needs:
-      - resolve-build-plan
-      - package-staticlibs
-      - package-zephyr-module
-    if: ${{ inputs.upload_to_release == true || inputs.upload_to_release == 'true' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
-
-    steps:
-      - name: Download Zephyr module artifact
+      - name: Download static library artifacts
         uses: actions/download-artifact@v4
         with:
-          name: ns-cmsis-nn-zephyr-module-${{ needs.resolve-build-plan.outputs.tag }}
-          path: upload
+          pattern: staticlib-*
+          path: artifacts
+          merge-multiple: true
 
-      - name: Upload Zephyr module to GitHub release
+      - name: Package Zephyr binary module
+        run: |
+          bash scripts/build_zephyr_release_package.sh \
+            --artifact-root artifacts \
+            --tag "${{ needs.resolve-build-plan.outputs.tag }}" \
+            --outdir upload \
+            --source-commit "${{ github.sha }}" \
+            --source-ref "${{ needs.resolve-build-plan.outputs.ref }}" \
+            --workflow-name "${{ github.workflow }}" \
+            --workflow-run-id "${{ github.run_id }}"
+
+      - name: Validate Zephyr binary package
+        run: |
+          bash scripts/validate_binary_package.sh \
+            --package-dir "upload/ns-cmsis-nn-zephyr-binary-${{ needs.resolve-build-plan.outputs.tag }}" \
+            --package-type zephyr-binary
+
+      - name: Upload Zephyr binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ns-cmsis-nn-zephyr-binary-${{ needs.resolve-build-plan.outputs.tag }}
+          path: upload/ns-cmsis-nn-zephyr-binary-${{ needs.resolve-build-plan.outputs.tag }}.zip
+          if-no-files-found: error
+
+      - name: Ensure draft release exists for manual upload
+        if: ${{ inputs.create_draft_release && needs.resolve-build-plan.outputs.tag != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag='${{ needs.resolve-build-plan.outputs.tag }}'
+          is_draft="$(gh release view "${tag}" --repo "${{ github.repository }}" --json isDraft -q '.isDraft' 2>/dev/null || true)"
+          if [[ -z "${is_draft}" ]]; then
+            gh release create "${tag}" --repo "${{ github.repository }}" --draft --title "${tag}" --notes ""
+          elif [[ "${is_draft}" == "true" ]]; then
+            echo "Draft release ${tag} already exists."
+          else
+            echo "Release ${tag} already exists and is published; assets will be uploaded to the existing release."
+          fi
+
+      - name: Upload Zephyr binary package to GitHub release
+        if: ${{ inputs.upload_to_release == true || inputs.upload_to_release == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           gh release upload "${{ needs.resolve-build-plan.outputs.tag }}" \
-            "upload/ns-cmsis-nn-zephyr-module-${{ needs.resolve-build-plan.outputs.tag }}.zip" \
+            "upload/ns-cmsis-nn-zephyr-binary-${{ needs.resolve-build-plan.outputs.tag }}.zip" \
             --repo "${{ github.repository }}" \
             --clobber

@@ -12,7 +12,7 @@ Usage:
                          --target-cpu <cortex-m0|cortex-m4|cortex-m55> \
                          --toolchain <gcc|armclang|llvm-et-arm> \
                          --outdir <dir> \
-                         [--build release]
+                         [--build release] [--source-commit <sha>] [--source-ref <ref>]
 
 Optional environment overrides:
   DOWNLOADS_DIR
@@ -32,6 +32,8 @@ TARGET_CPU=""
 TOOLCHAIN=""
 BUILD="release"
 OUTDIR=""
+SOURCE_COMMIT="${SOURCE_COMMIT:-local}"
+SOURCE_REF="${SOURCE_REF:-local}"
 
 DOWNLOADS_DIR="${DOWNLOADS_DIR:-${REPO_ROOT}/Tests/UnitTest/downloads}"
 CMSIS_PATH="${CMSIS_PATH:-${DOWNLOADS_DIR}/CMSIS_5}"
@@ -64,6 +66,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --outdir)
       OUTDIR="${2:?missing value for --outdir}"
+      shift 2
+      ;;
+    --source-commit)
+      SOURCE_COMMIT="${2:?missing value for --source-commit}"
+      shift 2
+      ;;
+    --source-ref)
+      SOURCE_REF="${2:?missing value for --source-ref}"
       shift 2
       ;;
     -h|--help)
@@ -300,6 +310,8 @@ python3 "${RELEASE_METADATA_HELPER}" write-variant-metadata \
   --arch-label "${ARCH_LABEL}" \
   --target-cpu "${TARGET_CPU}" \
   --toolchain "${TOOLCHAIN}" \
+  --source-commit "${SOURCE_COMMIT}" \
+  --source-ref "${SOURCE_REF}" \
   --output "${FINAL_METADATA}"
 
 BUILD_COMPLETE=1

@@ -1,0 +1,17 @@
+file(READ "${CMAKE_CURRENT_LIST_DIR}/../manifest.json" _NS_CMSIS_NN_MANIFEST_TEXT)
+string(REGEX MATCH "\"package_version\": \"([^\"]+)\"" _NS_CMSIS_NN_VERSION_MATCH "${_NS_CMSIS_NN_MANIFEST_TEXT}")
+if(NOT CMAKE_MATCH_1)
+  message(FATAL_ERROR "ns-cmsis-nn package error: unable to read package_version from manifest.json")
+endif()
+
+set(PACKAGE_VERSION "${CMAKE_MATCH_1}")
+
+if(PACKAGE_FIND_VERSION VERSION_GREATER PACKAGE_VERSION)
+  set(PACKAGE_VERSION_COMPATIBLE FALSE)
+else()
+  set(PACKAGE_VERSION_COMPATIBLE TRUE)
+endif()
+
+if(PACKAGE_FIND_VERSION STREQUAL PACKAGE_VERSION)
+  set(PACKAGE_VERSION_EXACT TRUE)
+endif()
