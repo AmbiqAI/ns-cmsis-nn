@@ -1,5 +1,14 @@
 # Changelog
 
+## [7.24.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.23.0...v7.24.0) (2026-04-24)
+
+
+### Features
+
+* add NSX module support (source + prebuilt modes) ([#128](https://github.com/AmbiqAI/ns-cmsis-nn/issues/128)) ([9d8badc](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9d8badc6825e0ca0788d9043f308cabbede4ef33))
+* add pattern to dependabot to group bot PRs ([#127](https://github.com/AmbiqAI/ns-cmsis-nn/issues/127)) ([56722a1](https://github.com/AmbiqAI/ns-cmsis-nn/commit/56722a1df32974af81bf748577f72fbd2c2bc4d4))
+* route ATfE/Clang to ACLE intrinsics path ([#131](https://github.com/AmbiqAI/ns-cmsis-nn/issues/131)) ([99d4435](https://github.com/AmbiqAI/ns-cmsis-nn/commit/99d4435c645b8a3e7523ce61405e839fe381e778))
+
 ## [7.23.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.22.0...v7.23.0) (2026-04-10)
 
 
