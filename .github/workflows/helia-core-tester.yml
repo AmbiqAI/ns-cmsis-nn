@@ -84,7 +84,7 @@ jobs:
           enable-cache: true
 
       - name: Cache helia-core-tester downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: Tests/helia-core-tester/artifacts/downloads
           key: helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Tests/helia-core-tester/scripts/setup_ci.sh', 'Tests/helia-core-tester/helia_core_tester/scripts/setup_dependencies.py') }}

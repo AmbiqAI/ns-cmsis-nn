@@ -24,7 +24,7 @@ jobs:
       tag_name: ${{ steps.ver.outputs.TAG || steps.rp.outputs.tag_name }}
     steps:
       # 1) Create/Update Release PR; on merge, tag + create release
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
         id: rp
         with:
           config-file: release-please-config.json
