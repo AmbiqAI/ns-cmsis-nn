@@ -147,11 +147,13 @@ jobs:
     secrets: inherit
 
   staticlib-release:
-    needs: release-please
+    needs:
+      - release-please
+      - publish-ci-image
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     uses: ./.github/workflows/staticlib_release.yml
     with:
       ref: ${{ needs.release-please.outputs.tag_name }}
       tag: ${{ needs.release-please.outputs.tag_name }}
-      upload_to_release: true
+      publish_to_helia_core: true
     secrets: inherit

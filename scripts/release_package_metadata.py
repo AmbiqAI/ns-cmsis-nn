@@ -296,6 +296,10 @@ def _write_checksums(package_dir: Path, output: Path) -> None:
     output.write_text("".join(f"{digest}  {rel}\n" for digest, rel in entries), encoding="utf-8")
 
 
+def _release_download_url(release_repo: str, release_tag: str, asset_name: str) -> str:
+    return f"https://github.com/{release_repo}/releases/download/{release_tag}/{asset_name}"
+
+
 def _validate_package(
     package_dir: Path,
     package_type: str,
@@ -488,6 +492,47 @@ def cmd_write_checksums(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_write_release_index(args: argparse.Namespace) -> int:
+    output = Path(args.output).resolve()
+    assets_payload = []
+    for item in args.assets:
+        try:
+            package_type, asset_path = item.split("=", 1)
+        except ValueError as exc:
+            raise SystemExit(f"Invalid --asset value '{item}'. Expected <package-type>=<path>.") from exc
+
+        path = Path(asset_path).resolve()
+        if not path.is_file():
+            raise SystemExit(f"Release index asset not found: {path}")
+
+        assets_payload.append(
+            {
+                "name": path.name,
+                "package_type": package_type,
+                "sha256": _sha256(path),
+                "size": path.stat().st_size,
+                "download_url": _release_download_url(args.release_repo, args.release_tag, path.name),
+            }
+        )
+
+    payload = {
+        "schema": 1,
+        "release_tag": args.release_tag,
+        "published_at": _now_utc(),
+        "source_repo": args.source_repo,
+        "source_commit": args.source_commit,
+        "source_ref": args.source_ref,
+        "release_repo": args.release_repo,
+        "workflow": {
+            "name": args.workflow_name,
+            "run_id": args.workflow_run_id,
+        },
+        "assets": assets_payload,
+    }
+    _write_json(output, payload)
+    return 0
+
+
 def cmd_validate_package(args: argparse.Namespace) -> int:
     _validate_package(
         Path(args.package_dir).resolve(),
@@ -540,6 +585,18 @@ def build_parser() -> argparse.ArgumentParser:
     checksums.add_argument("--package-dir", required=True)
     checksums.add_argument("--output", required=True)
     checksums.set_defaults(func=cmd_write_checksums)
+
+    release_index = subparsers.add_parser("write-release-index")
+    release_index.add_argument("--output", required=True)
+    release_index.add_argument("--release-repo", required=True)
+    release_index.add_argument("--release-tag", required=True)
+    release_index.add_argument("--source-repo", required=True)
+    release_index.add_argument("--source-commit", default="local")
+    release_index.add_argument("--source-ref", default="local")
+    release_index.add_argument("--workflow-name", default="")
+    release_index.add_argument("--workflow-run-id", default="")
+    release_index.add_argument("--assets", required=True, nargs="+")
+    release_index.set_defaults(func=cmd_write_release_index)
 
     validate = subparsers.add_parser("validate-package")
     validate.add_argument("--package-dir", required=True)

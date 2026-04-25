@@ -11,13 +11,28 @@ on:
         description: Release tag name used for both the release assets and the GHCR CI image tag
         required: true
         type: string
-      upload_to_release:
-        description: Upload the bundle to the GitHub release
+      image_ref:
+        description: Fully qualified CI image reference
+        required: false
+        type: string
+        default: ""
+      publish_to_helia_core:
+        description: Publish the package artifacts to the helia-core release
         required: false
         type: boolean
         default: true
-      create_draft_release:
-        description: Create a draft release before upload when needed
+      helia_core_repo:
+        description: Distribution repository that hosts the customer-facing release assets
+        required: false
+        type: string
+        default: AmbiqAI/helia-core
+      helia_core_tag_override:
+        description: Override the target helia-core release tag for manual validation
+        required: false
+        type: string
+        default: ""
+      publish_helia_core_as_draft:
+        description: Keep the helia-core release as draft after upload
         required: false
         type: boolean
         default: false
@@ -32,15 +47,30 @@ on:
         description: Release tag name used for both the release assets and the GHCR CI image tag
         required: true
         type: string
-      upload_to_release:
-        description: Upload the bundle to the GitHub release
+      image_ref:
+        description: Fully qualified CI image override
+        required: false
+        default: ""
+        type: string
+      publish_to_helia_core:
+        description: Publish the package artifacts to the helia-core release
         required: false
         default: false
         type: boolean
-      create_draft_release:
-        description: Create a draft release before upload when needed
+      helia_core_repo:
+        description: Distribution repository that hosts the customer-facing release assets
         required: false
-        default: false
+        default: AmbiqAI/helia-core
+        type: string
+      helia_core_tag_override:
+        description: Override the target helia-core release tag for manual validation
+        required: false
+        default: ""
+        type: string
+      publish_helia_core_as_draft:
+        description: Keep the helia-core release as draft after upload
+        required: false
+        default: true
         type: boolean
 
 permissions:
@@ -58,7 +88,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       ref: ${{ steps.meta.outputs.ref }}
-      tag: ${{ steps.meta.outputs.tag }}
+      package_tag: ${{ steps.meta.outputs.package_tag }}
+      release_tag: ${{ steps.meta.outputs.release_tag }}
       image_ref: ${{ steps.meta.outputs.image_ref }}
       gcc_matrix: ${{ steps.meta.outputs.gcc_matrix }}
       armclang_matrix: ${{ steps.meta.outputs.armclang_matrix }}
@@ -69,17 +100,34 @@ jobs:
         env:
           REF_INPUT: ${{ inputs.ref }}
           TAG_INPUT: ${{ inputs.tag }}
+          IMAGE_REF_INPUT: ${{ inputs.image_ref }}
+          HELIA_CORE_TAG_OVERRIDE_INPUT: ${{ inputs.helia_core_tag_override }}
+          TRIGGER_EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
           ref_in="${REF_INPUT}"
           tag_in="${TAG_INPUT}"
+          image_ref_in="${IMAGE_REF_INPUT}"
+          release_tag_in="${HELIA_CORE_TAG_OVERRIDE_INPUT:-${TAG_INPUT}}"
+          expected_image_ref="ghcr.io/ambiqai/ns-cmsis-nn-ci:${tag_in}"
 
           [[ -n "${ref_in}" ]] || { echo "::error ::Input ref is required."; exit 1; }
           [[ -n "${tag_in}" ]] || { echo "::error ::Input tag is required."; exit 1; }
+          [[ -n "${release_tag_in}" ]] || { echo "::error ::Resolved helia-core release tag is required."; exit 1; }
 
-          image_ref="ghcr.io/ambiqai/ns-cmsis-nn-ci:${tag_in}"
+          if [[ "${TRIGGER_EVENT}" == "workflow_dispatch" ]]; then
+            image_ref="${image_ref_in:-${expected_image_ref}}"
+          else
+            image_ref="${expected_image_ref}"
+            if [[ -n "${image_ref_in}" && "${image_ref_in}" != "${expected_image_ref}" ]]; then
+              echo "::error ::image_ref mismatch for tag ${tag_in}: expected ${expected_image_ref}, got ${image_ref_in}."
+              exit 1
+            fi
+          fi
+
           echo "ref=${ref_in}" >> "${GITHUB_OUTPUT}"
-          echo "tag=${tag_in}" >> "${GITHUB_OUTPUT}"
+          echo "package_tag=${tag_in}" >> "${GITHUB_OUTPUT}"
+          echo "release_tag=${release_tag_in}" >> "${GITHUB_OUTPUT}"
           echo "image_ref=${image_ref}" >> "${GITHUB_OUTPUT}"
 
           python3 - "${GITHUB_OUTPUT}" "${image_ref}" <<'PY'
@@ -123,7 +171,7 @@ jobs:
     uses: ./.github/workflows/build_staticlib_gcc.yml
     with:
       ref: ${{ needs.resolve-build-plan.outputs.ref }}
-      tag: ${{ needs.resolve-build-plan.outputs.tag }}
+      tag: ${{ needs.resolve-build-plan.outputs.package_tag }}
       image_ref: ${{ matrix.image_ref }}
       arch: ${{ matrix.arch }}
       arch_label: ${{ matrix.arch_label }}
@@ -140,7 +188,7 @@ jobs:
     uses: ./.github/workflows/build_staticlib_armclang.yml
     with:
       ref: ${{ needs.resolve-build-plan.outputs.ref }}
-      tag: ${{ needs.resolve-build-plan.outputs.tag }}
+      tag: ${{ needs.resolve-build-plan.outputs.package_tag }}
       image_ref: ${{ matrix.image_ref }}
       arch: ${{ matrix.arch }}
       arch_label: ${{ matrix.arch_label }}
@@ -159,7 +207,7 @@ jobs:
     uses: ./.github/workflows/build_staticlib_llvm_et_arm.yml
     with:
       ref: ${{ needs.resolve-build-plan.outputs.ref }}
-      tag: ${{ needs.resolve-build-plan.outputs.tag }}
+      tag: ${{ needs.resolve-build-plan.outputs.package_tag }}
       image_ref: ${{ matrix.image_ref }}
       arch: ${{ matrix.arch }}
       arch_label: ${{ matrix.arch_label }}
@@ -195,7 +243,7 @@ jobs:
           bash scripts/build_release_bundle.sh \
             --skip-build \
             --artifact-root artifacts \
-            --tag "${{ needs.resolve-build-plan.outputs.tag }}" \
+            --tag "${{ needs.resolve-build-plan.outputs.package_tag }}" \
             --outdir upload \
             --source-commit "${{ github.sha }}" \
             --source-ref "${{ needs.resolve-build-plan.outputs.ref }}" \
@@ -205,42 +253,15 @@ jobs:
       - name: Validate binary SDK package
         run: |
           bash scripts/validate_binary_package.sh \
-            --package-dir "upload/ns-cmsis-nn-binary-sdk-${{ needs.resolve-build-plan.outputs.tag }}" \
+            --package-dir "upload/ns-cmsis-nn-binary-sdk-${{ needs.resolve-build-plan.outputs.package_tag }}" \
             --package-type binary-sdk
 
       - name: Upload binary SDK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ns-cmsis-nn-binary-sdk-${{ needs.resolve-build-plan.outputs.tag }}
-          path: upload/ns-cmsis-nn-binary-sdk-${{ needs.resolve-build-plan.outputs.tag }}.zip
+          name: ns-cmsis-nn-binary-sdk-${{ needs.resolve-build-plan.outputs.package_tag }}
+          path: upload/ns-cmsis-nn-binary-sdk-${{ needs.resolve-build-plan.outputs.package_tag }}.zip
           if-no-files-found: error
-
-      - name: Ensure draft release exists for manual upload
-        if: ${{ inputs.create_draft_release && needs.resolve-build-plan.outputs.tag != '' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          tag='${{ needs.resolve-build-plan.outputs.tag }}'
-          is_draft="$(gh release view "${tag}" --repo "${{ github.repository }}" --json isDraft -q '.isDraft' 2>/dev/null || true)"
-          if [[ -z "${is_draft}" ]]; then
-            gh release create "${tag}" --repo "${{ github.repository }}" --draft --title "${tag}" --notes ""
-          elif [[ "${is_draft}" == "true" ]]; then
-            echo "Draft release ${tag} already exists."
-          else
-            echo "Release ${tag} already exists and is published; assets will be uploaded to the existing release."
-          fi
-
-      - name: Upload binary SDK to GitHub release
-        if: ${{ inputs.upload_to_release == true || inputs.upload_to_release == 'true' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh release upload "${{ needs.resolve-build-plan.outputs.tag }}" \
-            "upload/ns-cmsis-nn-binary-sdk-${{ needs.resolve-build-plan.outputs.tag }}.zip" \
-            --repo "${{ github.repository }}" \
-            --clobber
 
   package-zephyr-binary:
     name: Package external Zephyr binary module
@@ -271,7 +292,7 @@ jobs:
         run: |
           bash scripts/build_zephyr_release_package.sh \
             --artifact-root artifacts \
-            --tag "${{ needs.resolve-build-plan.outputs.tag }}" \
+            --tag "${{ needs.resolve-build-plan.outputs.package_tag }}" \
             --outdir upload \
             --source-commit "${{ github.sha }}" \
             --source-ref "${{ needs.resolve-build-plan.outputs.ref }}" \
@@ -281,39 +302,105 @@ jobs:
       - name: Validate Zephyr binary package
         run: |
           bash scripts/validate_binary_package.sh \
-            --package-dir "upload/ns-cmsis-nn-zephyr-binary-${{ needs.resolve-build-plan.outputs.tag }}" \
+            --package-dir "upload/ns-cmsis-nn-zephyr-binary-${{ needs.resolve-build-plan.outputs.package_tag }}" \
             --package-type zephyr-binary
 
       - name: Upload Zephyr binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ns-cmsis-nn-zephyr-binary-${{ needs.resolve-build-plan.outputs.tag }}
-          path: upload/ns-cmsis-nn-zephyr-binary-${{ needs.resolve-build-plan.outputs.tag }}.zip
+          name: ns-cmsis-nn-zephyr-binary-${{ needs.resolve-build-plan.outputs.package_tag }}
+          path: upload/ns-cmsis-nn-zephyr-binary-${{ needs.resolve-build-plan.outputs.package_tag }}.zip
           if-no-files-found: error
 
-      - name: Ensure draft release exists for manual upload
-        if: ${{ inputs.create_draft_release && needs.resolve-build-plan.outputs.tag != '' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  publish-helia-core-release:
+    name: Publish helia-core release assets
+    needs:
+      - resolve-build-plan
+      - package-binary-sdk
+      - package-zephyr-binary
+    if: ${{ inputs.publish_to_helia_core == true || inputs.publish_to_helia_core == 'true' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-build-plan.outputs.ref }}
+          fetch-depth: 0
+
+      - name: Download binary SDK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ns-cmsis-nn-binary-sdk-${{ needs.resolve-build-plan.outputs.package_tag }}
+          path: upload
+
+      - name: Download Zephyr binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ns-cmsis-nn-zephyr-binary-${{ needs.resolve-build-plan.outputs.package_tag }}
+          path: upload
+
+      - name: Normalize downloaded package artifacts
         run: |
           set -euo pipefail
-          tag='${{ needs.resolve-build-plan.outputs.tag }}'
-          is_draft="$(gh release view "${tag}" --repo "${{ github.repository }}" --json isDraft -q '.isDraft' 2>/dev/null || true)"
-          if [[ -z "${is_draft}" ]]; then
-            gh release create "${tag}" --repo "${{ github.repository }}" --draft --title "${tag}" --notes ""
-          elif [[ "${is_draft}" == "true" ]]; then
-            echo "Draft release ${tag} already exists."
-          else
-            echo "Release ${tag} already exists and is published; assets will be uploaded to the existing release."
+          package_tag='${{ needs.resolve-build-plan.outputs.package_tag }}'
+
+          sdk_src="$(find upload -type f -name "ns-cmsis-nn-binary-sdk-${package_tag}.zip" | head -n1)"
+          zephyr_src="$(find upload -type f -name "ns-cmsis-nn-zephyr-binary-${package_tag}.zip" | head -n1)"
+          sdk_dst="upload/ns-cmsis-nn-binary-sdk-${package_tag}.zip"
+          zephyr_dst="upload/ns-cmsis-nn-zephyr-binary-${package_tag}.zip"
+
+          [[ -n "${sdk_src}" ]] || { echo "Binary SDK zip not found after artifact download" >&2; exit 1; }
+          [[ -n "${zephyr_src}" ]] || { echo "Zephyr binary zip not found after artifact download" >&2; exit 1; }
+
+          if [[ "${sdk_src}" != "${sdk_dst}" ]]; then
+            cp "${sdk_src}" "${sdk_dst}"
+          fi
+          if [[ "${zephyr_src}" != "${zephyr_dst}" ]]; then
+            cp "${zephyr_src}" "${zephyr_dst}"
           fi
 
-      - name: Upload Zephyr binary package to GitHub release
-        if: ${{ inputs.upload_to_release == true || inputs.upload_to_release == 'true' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate helia-core release metadata
         run: |
           set -euo pipefail
-          gh release upload "${{ needs.resolve-build-plan.outputs.tag }}" \
-            "upload/ns-cmsis-nn-zephyr-binary-${{ needs.resolve-build-plan.outputs.tag }}.zip" \
-            --repo "${{ github.repository }}" \
-            --clobber
+          package_tag='${{ needs.resolve-build-plan.outputs.package_tag }}'
+          release_tag='${{ needs.resolve-build-plan.outputs.release_tag }}'
+
+          sdk_zip="upload/ns-cmsis-nn-binary-sdk-${package_tag}.zip"
+          zephyr_zip="upload/ns-cmsis-nn-zephyr-binary-${package_tag}.zip"
+          release_index="upload/ns-cmsis-nn-release-index-${package_tag}.json"
+
+          python3 scripts/release_package_metadata.py write-release-index \
+            --output "${release_index}" \
+            --release-repo "${{ inputs.helia_core_repo }}" \
+            --release-tag "${release_tag}" \
+            --source-repo "${{ github.repository }}" \
+            --source-commit "${{ github.sha }}" \
+            --source-ref "${{ needs.resolve-build-plan.outputs.ref }}" \
+            --workflow-name "${{ github.workflow }}" \
+            --workflow-run-id "${{ github.run_id }}" \
+            --assets \
+              "binary-sdk=${sdk_zip}" \
+              "zephyr-binary=${zephyr_zip}"
+
+      - name: Publish assets to helia-core release
+        env:
+          GH_TOKEN: ${{ secrets.HELIA_CORE_RELEASE_TOKEN }}
+          PUBLISH_HELIA_CORE_AS_DRAFT: ${{ inputs.publish_helia_core_as_draft }}
+        run: |
+          set -euo pipefail
+          package_tag='${{ needs.resolve-build-plan.outputs.package_tag }}'
+          draft_flag=()
+          if [[ "${PUBLISH_HELIA_CORE_AS_DRAFT}" == "true" ]]; then
+            draft_flag+=(--draft)
+          fi
+
+          bash scripts/publish_helia_core_release.sh \
+            --repo "${{ inputs.helia_core_repo }}" \
+            --tag "${{ needs.resolve-build-plan.outputs.release_tag }}" \
+            "${draft_flag[@]}" \
+            --asset "upload/ns-cmsis-nn-binary-sdk-${package_tag}.zip" \
+            --asset "upload/ns-cmsis-nn-zephyr-binary-${package_tag}.zip" \
+            --asset "upload/ns-cmsis-nn-release-index-${package_tag}.json"
