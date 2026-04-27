@@ -155,5 +155,6 @@ jobs:
     with:
       ref: ${{ needs.release-please.outputs.tag_name }}
       tag: ${{ needs.release-please.outputs.tag_name }}
+      publish_to_ns_release: true
       publish_to_helia_core: true
     secrets: inherit

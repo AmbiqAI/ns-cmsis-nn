@@ -16,6 +16,11 @@ on:
         required: false
         type: string
         default: ""
+      publish_to_ns_release:
+        description: Publish the package artifacts to the ns-cmsis-nn release
+        required: false
+        type: boolean
+        default: true
       publish_to_helia_core:
         description: Publish the package artifacts to the helia-core release
         required: false
@@ -52,6 +57,11 @@ on:
         required: false
         default: ""
         type: string
+      publish_to_ns_release:
+        description: Publish the package artifacts to the ns-cmsis-nn release
+        required: false
+        default: false
+        type: boolean
       publish_to_helia_core:
         description: Publish the package artifacts to the helia-core release
         required: false
@@ -312,13 +322,13 @@ jobs:
           path: upload/ns-cmsis-nn-zephyr-binary-${{ needs.resolve-build-plan.outputs.package_tag }}.zip
           if-no-files-found: error
 
-  publish-helia-core-release:
-    name: Publish helia-core release assets
+  publish-release-assets:
+    name: Publish release assets
     needs:
       - resolve-build-plan
       - package-binary-sdk
       - package-zephyr-binary
-    if: ${{ inputs.publish_to_helia_core == true || inputs.publish_to_helia_core == 'true' }}
+    if: ${{ inputs.publish_to_ns_release == true || inputs.publish_to_ns_release == 'true' || inputs.publish_to_helia_core == true || inputs.publish_to_helia_core == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -362,7 +372,7 @@ jobs:
             cp "${zephyr_src}" "${zephyr_dst}"
           fi
 
-      - name: Generate helia-core release metadata
+      - name: Generate release metadata
         run: |
           set -euo pipefail
           package_tag='${{ needs.resolve-build-plan.outputs.package_tag }}'
@@ -385,7 +395,23 @@ jobs:
               "binary-sdk=${sdk_zip}" \
               "zephyr-binary=${zephyr_zip}"
 
+      - name: Publish assets to ns-cmsis-nn release
+        if: ${{ inputs.publish_to_ns_release == true || inputs.publish_to_ns_release == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          package_tag='${{ needs.resolve-build-plan.outputs.package_tag }}'
+
+          gh release upload "${package_tag}" \
+            "upload/ns-cmsis-nn-binary-sdk-${package_tag}.zip" \
+            "upload/ns-cmsis-nn-zephyr-binary-${package_tag}.zip" \
+            "upload/ns-cmsis-nn-release-index-${package_tag}.json" \
+            --repo "${{ github.repository }}" \
+            --clobber
+
       - name: Publish assets to helia-core release
+        if: ${{ inputs.publish_to_helia_core == true || inputs.publish_to_helia_core == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.HELIA_CORE_RELEASE_TOKEN }}
           PUBLISH_HELIA_CORE_AS_DRAFT: ${{ inputs.publish_helia_core_as_draft }}
