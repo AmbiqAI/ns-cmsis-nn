@@ -65,6 +65,7 @@ jobs:
         run: |
           set -euo pipefail
           submodule_path='Tests/helia-core-tester'
+          git -C "${submodule_path}" fetch --force --tags
           helia_sha="$(git rev-parse HEAD:${submodule_path})"
           helia_tag="$(git -C "${submodule_path}" describe --tags --exact-match)"
 
