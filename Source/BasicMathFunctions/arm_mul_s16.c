@@ -38,18 +38,18 @@
  *
  */
 arm_cmsis_nn_status arm_mul_s16(const int16_t *input1_data,
-                               const cmsis_nn_dims *input1_dims,
-                               const int16_t *input2_data,
-                               const cmsis_nn_dims *input2_dims,
-                               const int32_t input1_offset,
-                               const int32_t input2_offset,
-                               int16_t *output_data,
-                               const cmsis_nn_dims *output_dims,
-                               const int32_t out_offset,
-                               const int32_t out_mult,
-                               const int32_t out_shift,
-                               const int32_t out_activation_min,
-                               const int32_t out_activation_max)
+                                const cmsis_nn_dims *input1_dims,
+                                const int16_t *input2_data,
+                                const cmsis_nn_dims *input2_dims,
+                                const int32_t input1_offset,
+                                const int32_t input2_offset,
+                                int16_t *output_data,
+                                const cmsis_nn_dims *output_dims,
+                                const int32_t out_offset,
+                                const int32_t out_mult,
+                                const int32_t out_shift,
+                                const int32_t out_activation_min,
+                                const int32_t out_activation_max)
 {
 
     // Unpack dims for convenience
@@ -69,38 +69,47 @@ arm_cmsis_nn_status arm_mul_s16(const int16_t *input1_data,
     // 1) No broadcast at all? (identical sizes)
     if (!arm_check_broadcast_required(input1_dims, input2_dims))
     {
-        return arm_elementwise_mul_s16(
-            input1_data, input2_data,
-            input1_offset, input2_offset,
-            output_data,
-            out_offset, out_mult, out_shift,
-            out_activation_min, out_activation_max,
-            flat1_total
-        );
+        return arm_elementwise_mul_s16(input1_data,
+                                       input2_data,
+                                       input1_offset,
+                                       input2_offset,
+                                       output_data,
+                                       out_offset,
+                                       out_mult,
+                                       out_shift,
+                                       out_activation_min,
+                                       out_activation_max,
+                                       flat1_total);
     }
 
     // 2) Whole‐tensor scalar?
     if (flat1_total == 1)
     {
-        return arm_mul_scalar_s16(
-            input1_data, input2_data,
-            input1_offset, input2_offset,
-            output_data,
-            out_offset, out_mult, out_shift,
-            out_activation_min, out_activation_max,
-            flat2_total
-        );
+        return arm_mul_scalar_s16(input1_data,
+                                  input2_data,
+                                  input1_offset,
+                                  input2_offset,
+                                  output_data,
+                                  out_offset,
+                                  out_mult,
+                                  out_shift,
+                                  out_activation_min,
+                                  out_activation_max,
+                                  flat2_total);
     }
     if (flat2_total == 1)
     {
-        return arm_mul_scalar_s16(
-            input2_data, input1_data,
-            input2_offset, input1_offset,
-            output_data,
-            out_offset, out_mult, out_shift,
-            out_activation_min, out_activation_max,
-            flat1_total
-        );
+        return arm_mul_scalar_s16(input2_data,
+                                  input1_data,
+                                  input2_offset,
+                                  input1_offset,
+                                  output_data,
+                                  out_offset,
+                                  out_mult,
+                                  out_shift,
+                                  out_activation_min,
+                                  out_activation_max,
+                                  flat1_total);
     }
 
     // 3) Full N/H/W/C broadcast sweep
@@ -125,14 +134,17 @@ arm_cmsis_nn_status arm_mul_s16(const int16_t *input1_data,
         // Batch‐level no‐broadcast?
         if (in1_h == in2_h && in1_w == in2_w && in1_c == in2_c)
         {
-            arm_elementwise_mul_s16(
-                p1, p2,
-                input1_offset, input2_offset,
-                output_data,
-                out_offset, out_mult, out_shift,
-                out_activation_min, out_activation_max,
-                flat1_total
-            );
+            arm_elementwise_mul_s16(p1,
+                                    p2,
+                                    input1_offset,
+                                    input2_offset,
+                                    output_data,
+                                    out_offset,
+                                    out_mult,
+                                    out_shift,
+                                    out_activation_min,
+                                    out_activation_max,
+                                    flat1_total);
             output_data += flat1_total;
         }
         else
@@ -145,14 +157,17 @@ arm_cmsis_nn_status arm_mul_s16(const int16_t *input1_data,
                 // A) Row‐level no‐broadcast
                 if (in1_w == in2_w && in1_c == in2_c)
                 {
-                    arm_elementwise_mul_s16(
-                        p1, p2,
-                        input1_offset, input2_offset,
-                        output_data,
-                        out_offset, out_mult, out_shift,
-                        out_activation_min, out_activation_max,
-                        flat1_total
-                    );
+                    arm_elementwise_mul_s16(p1,
+                                            p2,
+                                            input1_offset,
+                                            input2_offset,
+                                            output_data,
+                                            out_offset,
+                                            out_mult,
+                                            out_shift,
+                                            out_activation_min,
+                                            out_activation_max,
+                                            flat1_total);
                     p1 += flat1_total;
                     p2 += flat1_total;
                     output_data += flat1_total;
@@ -160,31 +175,35 @@ arm_cmsis_nn_status arm_mul_s16(const int16_t *input1_data,
                 // B) scalar‐broadcast on input1
                 else if (flat1_total == 1)
                 {
-                    arm_mul_scalar_s16(
-                        p1, p2,
-                        input1_offset, input2_offset,
-                        output_data,
-                        out_offset, out_mult, out_shift,
-                        out_activation_min, out_activation_max,
-                        flat2_total
-                    );
-                    p1++;
+                    arm_mul_scalar_s16(p1,
+                                       p2,
+                                       input1_offset,
+                                       input2_offset,
+                                       output_data,
+                                       out_offset,
+                                       out_mult,
+                                       out_shift,
+                                       out_activation_min,
+                                       out_activation_max,
+                                       flat2_total);
                     p2 += flat2_total;
                     output_data += flat2_total;
                 }
                 // C) scalar‐broadcast on input2
                 else if (flat2_total == 1)
                 {
-                    arm_mul_scalar_s16(
-                        p2, p1,
-                        input2_offset, input1_offset,
-                        output_data,
-                        out_offset, out_mult, out_shift,
-                        out_activation_min, out_activation_max,
-                        flat1_total
-                    );
+                    arm_mul_scalar_s16(p2,
+                                       p1,
+                                       input2_offset,
+                                       input1_offset,
+                                       output_data,
+                                       out_offset,
+                                       out_mult,
+                                       out_shift,
+                                       out_activation_min,
+                                       out_activation_max,
+                                       flat1_total);
                     p1 += flat1_total;
-                    p2++;
                     output_data += flat1_total;
                 }
                 // D) per‐pixel broadcast sweep
@@ -195,14 +214,17 @@ arm_cmsis_nn_status arm_mul_s16(const int16_t *input1_data,
                         // 1) per‐pixel no‐broadcast
                         if (in1_c == in2_c)
                         {
-                            arm_elementwise_mul_s16(
-                                p1, p2,
-                                input1_offset, input2_offset,
-                                output_data,
-                                out_offset, out_mult, out_shift,
-                                out_activation_min, out_activation_max,
-                                in1_c
-                            );
+                            arm_elementwise_mul_s16(p1,
+                                                    p2,
+                                                    input1_offset,
+                                                    input2_offset,
+                                                    output_data,
+                                                    out_offset,
+                                                    out_mult,
+                                                    out_shift,
+                                                    out_activation_min,
+                                                    out_activation_max,
+                                                    in1_c);
                             p1 += in1_c;
                             p2 += in1_c;
                             output_data += in1_c;
@@ -210,14 +232,17 @@ arm_cmsis_nn_status arm_mul_s16(const int16_t *input1_data,
                         // 2) scalar‐broadcast1
                         else if (in1_c == 1)
                         {
-                            arm_mul_scalar_s16(
-                                p1, p2,
-                                input1_offset, input2_offset,
-                                output_data,
-                                out_offset, out_mult, out_shift,
-                                out_activation_min, out_activation_max,
-                                in2_c
-                            );
+                            arm_mul_scalar_s16(p1,
+                                               p2,
+                                               input1_offset,
+                                               input2_offset,
+                                               output_data,
+                                               out_offset,
+                                               out_mult,
+                                               out_shift,
+                                               out_activation_min,
+                                               out_activation_max,
+                                               in2_c);
                             p1++;
                             p2 += in2_c;
                             output_data += in2_c;
@@ -225,14 +250,17 @@ arm_cmsis_nn_status arm_mul_s16(const int16_t *input1_data,
                         // 3) scalar‐broadcast2
                         else /* in2_c == 1 */
                         {
-                            arm_mul_scalar_s16(
-                                p2, p1,
-                                input2_offset, input1_offset,
-                                output_data,
-                                out_offset, out_mult, out_shift,
-                                out_activation_min, out_activation_max,
-                                in1_c
-                            );
+                            arm_mul_scalar_s16(p2,
+                                               p1,
+                                               input2_offset,
+                                               input1_offset,
+                                               output_data,
+                                               out_offset,
+                                               out_mult,
+                                               out_shift,
+                                               out_activation_min,
+                                               out_activation_max,
+                                               in1_c);
                             p2++;
                             p1 += in1_c;
                             output_data += in1_c;

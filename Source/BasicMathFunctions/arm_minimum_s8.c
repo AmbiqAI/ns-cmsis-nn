@@ -45,20 +45,18 @@ arm_min_no_broadcast_s8(const int8_t *input_1, const int8_t *input_2, int8_t *ou
 {
 #if defined(ARM_MATH_MVEI)
 
-__ASM volatile(
-    " .p2align 2                             \n"
-    "   wlstp.8         lr, %[cnt], 1f       \n"
-    "2:                                      \n"
-    "   vldrb.8         q0, [%[in1]], #16    \n"
-    "   vldrb.8         q1, [%[in2]], #16    \n"
-    "   vmin.s8         q2, q0, q1           \n"
-    "   vstrb.8         q2, [%[out]], #16    \n"
-    "   letp            lr, 2b               \n"
-    "1:                                      \n"
-    : [in1] "+r"(input_1), [in2] "+r"(input_2), [out] "+r"(output)
-    : [cnt] "r"(flat_size)
-    : "q0", "q1", "q2", "memory", "r14"
-);
+    __ASM volatile(" .p2align 2                             \n"
+                   "   wlstp.8         lr, %[cnt], 1f       \n"
+                   "2:                                      \n"
+                   "   vldrb.8         q0, [%[in1]], #16    \n"
+                   "   vldrb.8         q1, [%[in2]], #16    \n"
+                   "   vmin.s8         q2, q0, q1           \n"
+                   "   vstrb.8         q2, [%[out]], #16    \n"
+                   "   letp            lr, 2b               \n"
+                   "1:                                      \n"
+                   : [in1] "+r"(input_1), [in2] "+r"(input_2), [out] "+r"(output)
+                   : [cnt] "r"(flat_size)
+                   : "q0", "q1", "q2", "memory", "r14");
 
 #else
     while (flat_size > 0)
@@ -78,20 +76,18 @@ arm_min_scalar_s8(const int8_t *input_1, const int8_t *input_2, int8_t *output, 
 {
 #if defined(ARM_MATH_MVEI)
 
-    __ASM volatile(
-        " .p2align 2                             \n"
-        "   wlstp.8         lr, %[cnt], 1f       \n"
-        "   vdup.8          q0, %[in1]           \n"
-        "2:                                      \n"
-        "   vldrb.8         q1, [%[in2]], #16    \n"
-        "   vmin.s8         q2, q0, q1           \n"
-        "   vstrb.8         q2, [%[out]], #16    \n"
-        "   letp            lr, 2b               \n"
-        "1:                                      \n"
-        : [in2] "+r"(input_2), [out] "+r"(output)
-        : [in1] "r"(*input_1), [cnt] "r"(flat_size)
-        : "q0", "q1", "q2", "memory", "r14"
-    );
+    __ASM volatile(" .p2align 2                             \n"
+                   "   wlstp.8         lr, %[cnt], 1f       \n"
+                   "   vdup.8          q0, %[in1]           \n"
+                   "2:                                      \n"
+                   "   vldrb.8         q1, [%[in2]], #16    \n"
+                   "   vmin.s8         q2, q0, q1           \n"
+                   "   vstrb.8         q2, [%[out]], #16    \n"
+                   "   letp            lr, 2b               \n"
+                   "1:                                      \n"
+                   : [in2] "+r"(input_2), [out] "+r"(output)
+                   : [in1] "r"(*input_1), [cnt] "r"(flat_size)
+                   : "q0", "q1", "q2", "memory", "r14");
 
 #else
     int8_t in1 = *input_1;
@@ -204,7 +200,6 @@ arm_cmsis_nn_status arm_minimum_s8(const cmsis_nn_context *ctx,
                             // arm_min_scalar expects the tensor with the scalar value to be provided first
                             arm_min_scalar_s8(input_1_ptr, input_2_ptr, output_data, flat_size_2);
                             output_data += flat_size_2;
-                            ++input_1_ptr;
                             input_2_ptr += flat_size_2;
                         }
                         else if (flat_size_2 == 1)
@@ -212,7 +207,6 @@ arm_cmsis_nn_status arm_minimum_s8(const cmsis_nn_context *ctx,
                             // arm_min_scalar expects the tensor with the scalar value to be provided first
                             arm_min_scalar_s8(input_2_ptr, input_1_ptr, output_data, flat_size_1);
                             output_data += flat_size_1;
-                            ++input_2_ptr;
                             input_1_ptr += flat_size_1;
                         }
                         else

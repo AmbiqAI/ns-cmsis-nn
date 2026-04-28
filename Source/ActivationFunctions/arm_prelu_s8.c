@@ -32,7 +32,6 @@
  * @{
  */
 
-
 /*
  * PReLU activation function for int8_t data type.
  *
@@ -62,10 +61,10 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
 
     const int32_t alpha_n = alpha_dims->n, alpha_h = alpha_dims->h;
     const int32_t alpha_w = alpha_dims->w, alpha_c = alpha_dims->c;
-    
+
     // PReLU is elementwise (input_dims == output_dims)
-    if (in_n != out_n || in_h != out_h ||
-        in_w != out_w || in_c != out_c) {
+    if (in_n != out_n || in_h != out_h || in_w != out_w || in_c != out_c)
+    {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
@@ -76,40 +75,58 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
     // 1) No broadcast at all? (identical sizes)
     if (!arm_check_broadcast_required(input_dims, alpha_dims))
     {
-        return arm_elementwise_prelu_s8(
-            input, alpha, input_offset,
-            alpha_offset, output_offset,
-            output_multiplier_identity, output_shift_identity,
-            output_multiplier_alpha, output_shift_alpha,
-            output, flat1_total
-        );
+        return arm_elementwise_prelu_s8(input,
+                                        alpha,
+                                        input_offset,
+                                        alpha_offset,
+                                        output_offset,
+                                        output_multiplier_identity,
+                                        output_shift_identity,
+                                        output_multiplier_alpha,
+                                        output_shift_alpha,
+                                        output,
+                                        flat1_total);
     }
-    
+
     // 2) Whole‐tensor scalar?
     if (flat1_total == 1)
     {
-        return arm_prelu_scalar_s8(
-            input, alpha, true, input_offset, alpha_offset,
-            output_offset, output_multiplier_identity, output_shift_identity,
-            output_multiplier_alpha, output_shift_alpha, output, flat2_total
-        );
+        return arm_prelu_scalar_s8(input,
+                                   alpha,
+                                   true,
+                                   input_offset,
+                                   alpha_offset,
+                                   output_offset,
+                                   output_multiplier_identity,
+                                   output_shift_identity,
+                                   output_multiplier_alpha,
+                                   output_shift_alpha,
+                                   output,
+                                   flat2_total);
     }
     // Scalar alpha
     if (flat2_total == 1)
     {
-        return arm_prelu_scalar_s8(
-            alpha, input, false, input_offset, alpha_offset,
-            output_offset, output_multiplier_identity, output_shift_identity,
-            output_multiplier_alpha, output_shift_alpha, output, flat1_total
-        );
+        return arm_prelu_scalar_s8(alpha,
+                                   input,
+                                   false,
+                                   input_offset,
+                                   alpha_offset,
+                                   output_offset,
+                                   output_multiplier_identity,
+                                   output_shift_identity,
+                                   output_multiplier_alpha,
+                                   output_shift_alpha,
+                                   output,
+                                   flat1_total);
     }
-    
+
     // 3) Full N/H/W/C broadcast sweep
     // Compute “rewind” and “advance” offsets same as arm_maximum_s8
     const int32_t wd1 = (in_w >= alpha_w) ? 0 : in_c;
     const int32_t wd2 = (alpha_w >= in_w) ? 0 : alpha_c;
-    const int32_t hd1 = (in_h >= alpha_h) ? wd1 : -in_w  * (in_c - wd1);
-    const int32_t hd2 = (alpha_h >= in_h) ? wd2 : -alpha_w  * (alpha_c - wd2);
+    const int32_t hd1 = (in_h >= alpha_h) ? wd1 : -in_w * (in_c - wd1);
+    const int32_t hd2 = (alpha_h >= in_h) ? wd2 : -alpha_w * (alpha_c - wd2);
     const int32_t bd1 = (in_n >= alpha_n) ? in_h * in_w * in_c : 0;
     const int32_t bd2 = (alpha_n >= in_n) ? alpha_h * alpha_w * alpha_c : 0;
 
@@ -125,13 +142,17 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
         // Batch‐level no‐broadcast?
         if (in_h == alpha_h && in_w == alpha_w && in_c == alpha_c)
         {
-            arm_elementwise_prelu_s8(
-                p1, p2, input_offset,
-                alpha_offset, output_offset,
-                output_multiplier_identity, output_shift_identity,
-                output_multiplier_alpha, output_shift_alpha,
-                output, flat1_total
-            );
+            arm_elementwise_prelu_s8(p1,
+                                     p2,
+                                     input_offset,
+                                     alpha_offset,
+                                     output_offset,
+                                     output_multiplier_identity,
+                                     output_shift_identity,
+                                     output_multiplier_alpha,
+                                     output_shift_alpha,
+                                     output,
+                                     flat1_total);
             output += flat1_total;
         }
         else
@@ -144,13 +165,17 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                 // A) Row‐level no‐broadcast
                 if (in_w == alpha_w && in_c == alpha_c)
                 {
-                    arm_elementwise_prelu_s8(
-                        p1, p2, input_offset,
-                        alpha_offset, output_offset,
-                        output_multiplier_identity, output_shift_identity,
-                        output_multiplier_alpha, output_shift_alpha,
-                        output, flat1_total
-                    );
+                    arm_elementwise_prelu_s8(p1,
+                                             p2,
+                                             input_offset,
+                                             alpha_offset,
+                                             output_offset,
+                                             output_multiplier_identity,
+                                             output_shift_identity,
+                                             output_multiplier_alpha,
+                                             output_shift_alpha,
+                                             output,
+                                             flat1_total);
                     p1 += flat1_total;
                     p2 += flat1_total;
                     output += flat1_total;
@@ -158,29 +183,37 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                 // B) scalar‐broadcast on input1
                 else if (flat1_total == 1)
                 {
-                    arm_prelu_scalar_s8(
-                        p1, p2, true,
-                        input_offset, alpha_offset,
-                        output_offset, output_multiplier_identity,
-                        output_shift_identity, output_multiplier_alpha,
-                        output_shift_alpha, output, flat2_total
-                    );
-                    p1++;
+                    arm_prelu_scalar_s8(p1,
+                                        p2,
+                                        true,
+                                        input_offset,
+                                        alpha_offset,
+                                        output_offset,
+                                        output_multiplier_identity,
+                                        output_shift_identity,
+                                        output_multiplier_alpha,
+                                        output_shift_alpha,
+                                        output,
+                                        flat2_total);
                     p2 += flat2_total;
                     output += flat2_total;
                 }
                 // C) scalar‐broadcast on input2
                 else if (flat2_total == 1)
                 {
-                    arm_prelu_scalar_s8(
-                        p2, p1, false,
-                        input_offset, alpha_offset,
-                        output_offset, output_multiplier_identity,
-                        output_shift_identity, output_multiplier_alpha,
-                        output_shift_alpha, output, flat1_total
-                    );
+                    arm_prelu_scalar_s8(p2,
+                                        p1,
+                                        false,
+                                        input_offset,
+                                        alpha_offset,
+                                        output_offset,
+                                        output_multiplier_identity,
+                                        output_shift_identity,
+                                        output_multiplier_alpha,
+                                        output_shift_alpha,
+                                        output,
+                                        flat1_total);
                     p1 += flat1_total;
-                    p2++;
                     output += flat1_total;
                 }
                 // D) per‐pixel broadcast sweep
@@ -191,13 +224,17 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                         // 1) per‐pixel no‐broadcast
                         if (in_c == alpha_c)
                         {
-                            arm_elementwise_prelu_s8(
-                                p1, p2, input_offset,
-                                alpha_offset, output_offset,
-                                output_multiplier_identity, output_shift_identity,
-                                output_multiplier_alpha, output_shift_alpha,
-                                output, in_c
-                            );
+                            arm_elementwise_prelu_s8(p1,
+                                                     p2,
+                                                     input_offset,
+                                                     alpha_offset,
+                                                     output_offset,
+                                                     output_multiplier_identity,
+                                                     output_shift_identity,
+                                                     output_multiplier_alpha,
+                                                     output_shift_alpha,
+                                                     output,
+                                                     in_c);
                             p1 += in_c;
                             p2 += in_c;
                             output += in_c;
@@ -205,27 +242,37 @@ arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                         // 2) scalar‐broadcast1
                         else if (in_c == 1)
                         {
-                            arm_prelu_scalar_s8(
-                                p1, p2, true,
-                                input_offset, alpha_offset,
-                                output_offset, output_multiplier_identity,
-                                output_shift_identity, output_multiplier_alpha,
-                                output_shift_alpha, output, alpha_c
-                            );
+                            arm_prelu_scalar_s8(p1,
+                                                p2,
+                                                true,
+                                                input_offset,
+                                                alpha_offset,
+                                                output_offset,
+                                                output_multiplier_identity,
+                                                output_shift_identity,
+                                                output_multiplier_alpha,
+                                                output_shift_alpha,
+                                                output,
+                                                alpha_c);
                             p1++;
                             p2 += alpha_c;
                             output += alpha_c;
                         }
                         // 3) scalar‐broadcast2
-                        else  // alpha_c == 1
+                        else // alpha_c == 1
                         {
-                            arm_prelu_scalar_s8(
-                                p2, p1, false,
-                                input_offset, alpha_offset,
-                                output_offset, output_multiplier_identity,
-                                output_shift_identity, output_multiplier_alpha,
-                                output_shift_alpha, output, in_c
-                            );
+                            arm_prelu_scalar_s8(p2,
+                                                p1,
+                                                false,
+                                                input_offset,
+                                                alpha_offset,
+                                                output_offset,
+                                                output_multiplier_identity,
+                                                output_shift_identity,
+                                                output_multiplier_alpha,
+                                                output_shift_alpha,
+                                                output,
+                                                in_c);
                             p1 += in_c;
                             p2++;
                             output += in_c;
