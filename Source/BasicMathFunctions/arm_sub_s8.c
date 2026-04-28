@@ -238,7 +238,6 @@ arm_cmsis_nn_status arm_sub_s8(const int8_t *input1_data,
                                       out_activation_min,
                                       out_activation_max,
                                       flat2_total);
-                    p1++;
                     p2 += flat2_total;
                     output_data += flat2_total;
                 }
@@ -262,7 +261,6 @@ arm_cmsis_nn_status arm_sub_s8(const int8_t *input1_data,
                                        out_activation_max,
                                        flat1_total);
                     p1 += flat1_total;
-                    p2++;
                     output_data += flat1_total;
                 }
                 // D) per-pixel broadcast sweep
