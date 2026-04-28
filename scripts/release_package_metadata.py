@@ -102,8 +102,8 @@ def _resolve_variant_properties(target_cpu: str, toolchain: str) -> tuple[str, s
     if target_cpu == "cortex-m0":
         return "soft", "none", "armv6-m"
     if target_cpu == "cortex-m4":
-        return "softfp", "fpv4-sp-d16", "armv7e-m"
-    return "softfp", "mve-fp", "armv8.1-m.main"
+        return "hard", "fpv4-sp-d16", "armv7e-m"
+    return "hard", "mve-fp", "armv8.1-m.main"
 
 
 def _variant_metadata(arch: str, arch_label: str, target_cpu: str, toolchain: str) -> dict[str, object]:

@@ -81,7 +81,7 @@ run_resolution_test \
   -DTEST_TRUE_SYMBOLS="CONFIG_CPU_CORTEX_M4;CONFIG_FPU"
 
 run_resolution_test \
-  "libns-cmsis-nn-cm55-cortex-m55-llvm-et-arm-softfp-mve-fp-ofast.a" \
+  "libns-cmsis-nn-cm55-cortex-m55-llvm-et-arm-hard-mve-fp-ofast.a" \
   -DTEST_ZEPHYR_TOOLCHAIN_VARIANT="llvm" \
   -DTEST_TRUE_SYMBOLS="CONFIG_CPU_CORTEX_M55;CONFIG_FPU"
 
