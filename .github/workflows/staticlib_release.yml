@@ -410,10 +410,22 @@ jobs:
             --repo "${{ github.repository }}" \
             --clobber
 
+      - name: Create helia-core app token
+        if: ${{ inputs.publish_to_helia_core == true || inputs.publish_to_helia_core == 'true' }}
+        id: helia-core-app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.HELIA_CORE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HELIA_CORE_APP_PRIVATE_KEY }}
+          owner: AmbiqAI
+          repositories: helia-core
+          permission-contents: write
+          permission-metadata: read
+
       - name: Publish assets to helia-core release
         if: ${{ inputs.publish_to_helia_core == true || inputs.publish_to_helia_core == 'true' }}
         env:
-          GH_TOKEN: ${{ secrets.HELIA_CORE_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ steps.helia-core-app-token.outputs.token }}
           PUBLISH_HELIA_CORE_AS_DRAFT: ${{ inputs.publish_helia_core_as_draft }}
         run: |
           set -euo pipefail
