@@ -98,10 +98,11 @@ actual_names="$(
   gh release view "${TAG}" --repo "${REPO}" --json assets -q '.assets[].name'
 )"
 
-python3 - "${expected_names[@]}" <<'PY' <<<"${actual_names}"
+ACTUAL_NAMES="${actual_names}" python3 - "${expected_names[@]}" <<'PY'
+import os
 import sys
 
-actual = {line.strip() for line in sys.stdin.read().splitlines() if line.strip()}
+actual = {line.strip() for line in os.environ["ACTUAL_NAMES"].splitlines() if line.strip()}
 expected = set(sys.argv[1:])
 missing = sorted(expected - actual)
 if missing:
