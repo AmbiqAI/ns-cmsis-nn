@@ -152,7 +152,8 @@
 // as __GNUC__ is defined by non-GCC compilers as well
 
 /* Common intrinsics for all architectures */
-#if defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050) || defined(__ICCARM__)
+#if (defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)) || defined(__ICCARM__) ||                            \
+    (defined(__clang__) && !defined(__ARMCC_VERSION))
     #define CLZ __clz
 #elif defined(__GNUC__)
 /**
@@ -196,7 +197,12 @@ __STATIC_FORCEINLINE uint8_t CLZ(uint32_t value)
     #define SADD16 __sadd16
 
     // Compiler specifc variants of intrinsics. Create a new section or file for IAR if needed
-    #if defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050) || defined(__ICCARM__)
+    // Note: Clang (e.g. Arm Toolchain for Embedded / ATfE) provides the same
+    // ACLE DSP intrinsics as armclang via <arm_acle.h>, so route it through
+    // the AC6/IAR path. armclang is identified by both __clang__ and
+    // __ARMCC_VERSION; ATfE defines __clang__ but not __ARMCC_VERSION.
+    #if (defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)) || defined(__ICCARM__) ||                          \
+        (defined(__clang__) && !defined(__ARMCC_VERSION))
 
         #define SMULBB __smulbb
         #define SMULTT __smultt
