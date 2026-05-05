@@ -238,7 +238,6 @@ arm_cmsis_nn_status arm_sub_s16(const int16_t *input1_data,
                                        out_activation_min,
                                        out_activation_max,
                                        flat2_total);
-                    p1++;
                     p2 += flat2_total;
                     output_data += flat2_total;
                 }
@@ -262,7 +261,6 @@ arm_cmsis_nn_status arm_sub_s16(const int16_t *input1_data,
                                         out_activation_max,
                                         flat1_total);
                     p1 += flat1_total;
-                    p2++;
                     output_data += flat1_total;
                 }
                 // D) per-pixel broadcast sweep
@@ -297,21 +295,21 @@ arm_cmsis_nn_status arm_sub_s16(const int16_t *input1_data,
                         else if (in1_c == 1)
                         {
                             arm_sub_scalar_s16(p1,
-                                                p2,
-                                                input1_offset,
-                                                input1_mult,
-                                                input1_shift,
-                                                input2_offset,
-                                                input2_mult,
-                                                input2_shift,
-                                                left_shift,
-                                                output_data,
-                                                out_offset,
-                                                out_mult,
-                                                out_shift,
-                                                out_activation_min,
-                                                out_activation_max,
-                                                in2_c);
+                                               p2,
+                                               input1_offset,
+                                               input1_mult,
+                                               input1_shift,
+                                               input2_offset,
+                                               input2_mult,
+                                               input2_shift,
+                                               left_shift,
+                                               output_data,
+                                               out_offset,
+                                               out_mult,
+                                               out_shift,
+                                               out_activation_min,
+                                               out_activation_max,
+                                               in2_c);
                             p1++;
                             p2 += in2_c;
                             output_data += in2_c;

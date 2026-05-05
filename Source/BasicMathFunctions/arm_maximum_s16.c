@@ -36,20 +36,18 @@ arm_max_no_broadcast_s16(const int16_t *input_1, const int16_t *input_2, int16_t
 {
 #if defined(ARM_MATH_MVEI)
 
-    __ASM volatile(
-        " .p2align 2                              \n"
-        "   wlstp.16         lr, %[cnt], 1f       \n"
-        "2:                                       \n"
-        "   vldrh.16         q0, [%[in1]], #16    \n"
-        "   vldrh.16         q1, [%[in2]], #16    \n"
-        "   vmax.s16         q2, q0, q1           \n"
-        "   vstrh.16         q2, [%[out]], #16    \n"
-        "   letp            lr, 2b                \n"
-        "1:                                       \n"
-        : [in1] "+r"(input_1), [in2] "+r"(input_2), [out] "+r"(output)
-        : [cnt] "r"(flat_size)
-        : "q0", "q1", "q2", "memory", "r14"
-    );
+    __ASM volatile(" .p2align 2                              \n"
+                   "   wlstp.16         lr, %[cnt], 1f       \n"
+                   "2:                                       \n"
+                   "   vldrh.16         q0, [%[in1]], #16    \n"
+                   "   vldrh.16         q1, [%[in2]], #16    \n"
+                   "   vmax.s16         q2, q0, q1           \n"
+                   "   vstrh.16         q2, [%[out]], #16    \n"
+                   "   letp            lr, 2b                \n"
+                   "1:                                       \n"
+                   : [in1] "+r"(input_1), [in2] "+r"(input_2), [out] "+r"(output)
+                   : [cnt] "r"(flat_size)
+                   : "q0", "q1", "q2", "memory", "r14");
 
 #else
     while (flat_size > 0)
@@ -69,23 +67,21 @@ arm_max_scalar_s16(const int16_t *input_1, const int16_t *input_2, int16_t *outp
 {
 #if defined(ARM_MATH_MVEI)
 
-    __ASM volatile(
-        " .p2align 2                              \n"
-        "   wlstp.16         lr, %[cnt], 1f       \n"
-        "   vdup.16          q0, %[in1]           \n"
-        "2:                                       \n"
-        "   vldrh.16         q1, [%[in2]], #16    \n"
-        "   vmax.s16         q2, q0, q1           \n"
-        "   vstrh.16         q2, [%[out]], #16    \n"
-        "   letp             lr, 2b               \n"
-        "1:                                       \n"
-        : [in2] "+r"(input_2), [out] "+r"(output)
-        : [in1] "r"(*input_1), [cnt] "r"(flat_size)
-        : "q0", "q1", "q2", "memory", "r14"
-    );
+    __ASM volatile(" .p2align 2                              \n"
+                   "   wlstp.16         lr, %[cnt], 1f       \n"
+                   "   vdup.16          q0, %[in1]           \n"
+                   "2:                                       \n"
+                   "   vldrh.16         q1, [%[in2]], #16    \n"
+                   "   vmax.s16         q2, q0, q1           \n"
+                   "   vstrh.16         q2, [%[out]], #16    \n"
+                   "   letp             lr, 2b               \n"
+                   "1:                                       \n"
+                   : [in2] "+r"(input_2), [out] "+r"(output)
+                   : [in1] "r"(*input_1), [cnt] "r"(flat_size)
+                   : "q0", "q1", "q2", "memory", "r14");
 
 #else
-int16_t in1 = *input_1;
+    int16_t in1 = *input_1;
     while (flat_size > 0)
     {
         int16_t in2 = *input_2++;
@@ -103,12 +99,12 @@ int16_t in1 = *input_1;
  *
  */
 arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
-                                   const int16_t *input_1_data,
-                                   const cmsis_nn_dims *input_1_dims,
-                                   const int16_t *input_2_data,
-                                   const cmsis_nn_dims *input_2_dims,
-                                   int16_t *output_data,
-                                   const cmsis_nn_dims *output_dims)
+                                    const int16_t *input_1_data,
+                                    const cmsis_nn_dims *input_1_dims,
+                                    const int16_t *input_2_data,
+                                    const cmsis_nn_dims *input_2_dims,
+                                    int16_t *output_data,
+                                    const cmsis_nn_dims *output_dims)
 {
     (void)ctx;
     const int32_t output_batch = output_dims->n;
@@ -134,7 +130,6 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
         {
             // arm_max_scalar expects the tensor with the scalar value to be provided first
             arm_max_scalar_s16(input_1_data, input_2_data, output_data, flat_size_2);
-
         }
         else if (flat_size_2 == 1)
         {
@@ -198,7 +193,6 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
                             // arm_max_scalar expects the tensor with the scalar value to be provided first
                             arm_max_scalar_s16(input_1_ptr, input_2_ptr, output_data, flat_size_2);
                             output_data += flat_size_2;
-                            ++input_1_ptr;
                             input_2_ptr += flat_size_2;
                         }
                         else if (flat_size_2 == 1)
@@ -206,7 +200,6 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
                             // arm_max_scalar expects the tensor with the scalar value to be provided first
                             arm_max_scalar_s16(input_2_ptr, input_1_ptr, output_data, flat_size_1);
                             output_data += flat_size_1;
-                            ++input_2_ptr;
                             input_1_ptr += flat_size_1;
                         }
                         else

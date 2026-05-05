@@ -112,6 +112,7 @@ arm_cmsis_nn_status arm_squared_difference_s16(const int16_t *input1_data,
                                                  out_activation_max,
                                                  flat2_total);
     }
+
     if (flat2_total == 1)
     {
         return arm_squared_difference_scalar_s16(input2_data,
@@ -171,6 +172,7 @@ arm_cmsis_nn_status arm_squared_difference_s16(const int16_t *input1_data,
         {
             flat1_total = in1_w * in1_c;
             flat2_total = in2_w * in2_c;
+
             for (int h = 0; h < out_h; h++)
             {
                 if (in1_w == in2_w && in1_c == in2_c)
@@ -213,7 +215,6 @@ arm_cmsis_nn_status arm_squared_difference_s16(const int16_t *input1_data,
                                                       out_activation_min,
                                                       out_activation_max,
                                                       flat2_total);
-                    p1++;
                     p2 += flat2_total;
                     output_data += flat2_total;
                 }
@@ -236,7 +237,6 @@ arm_cmsis_nn_status arm_squared_difference_s16(const int16_t *input1_data,
                                                       out_activation_max,
                                                       flat1_total);
                     p1 += flat1_total;
-                    p2++;
                     output_data += flat1_total;
                 }
                 else

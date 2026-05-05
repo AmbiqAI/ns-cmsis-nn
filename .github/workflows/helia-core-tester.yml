@@ -66,7 +66,7 @@ jobs:
           set -euo pipefail
           submodule_path='Tests/helia-core-tester'
           helia_sha="$(git rev-parse HEAD:${submodule_path})"
-          helia_tag="$(git -C "${submodule_path}" describe --tags --exact-match)"
+          helia_tag="$(git -C "${submodule_path}" describe --tags --abbrev=0 2>/dev/null || echo 'no-tag')"
 
           echo "helia_sha=${helia_sha}" >> "$GITHUB_OUTPUT"
           echo "helia_tag=${helia_tag}" >> "$GITHUB_OUTPUT"
@@ -148,7 +148,7 @@ jobs:
           set -euo pipefail
           submodule_path='Tests/helia-core-tester'
           helia_sha="$(git rev-parse HEAD:${submodule_path})"
-          helia_tag="$(git -C "${submodule_path}" describe --tags --exact-match)"
+          helia_tag="$(git -C "${submodule_path}" describe --tags --abbrev=0 2>/dev/null || echo 'no-tag')"
 
           echo "helia_sha=${helia_sha}" >> "$GITHUB_OUTPUT"
           echo "helia_tag=${helia_tag}" >> "$GITHUB_OUTPUT"
