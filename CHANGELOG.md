@@ -1,5 +1,21 @@
 # Changelog
 
+## [7.24.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.24.0...v7.24.1) (2026-05-08)
+
+
+### Bug Fixes
+
+* Change vld1q_s32() to vldrwq_s32() in arm_rsqrt_s16.c ([45e120e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/45e120e506a80ec085cb7053e2a83473987e7ba9))
+* Change vld1q_s32() to vldrwq_s32() in arm_rsqrt_s16.c ([45e120e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/45e120e506a80ec085cb7053e2a83473987e7ba9))
+* Change vld1q_s32() to vldrwq_s32() in arm_rsqrt_s16.c ([95ffa0d](https://github.com/AmbiqAI/ns-cmsis-nn/commit/95ffa0dbcc6b94083850757676a8fed432871096))
+* correct pointer increment in per-row scalar ([0c94945](https://github.com/AmbiqAI/ns-cmsis-nn/commit/0c949456e546c73b29bd0e56a433cab68c5dce1d))
+* correct pointer increment in per-row scalar broadcast path for arm_squared_difference_s16 and s8 ([055edf9](https://github.com/AmbiqAI/ns-cmsis-nn/commit/055edf945688008103f25a2c66707afeeec61288))
+* correct pointer increments in elementwise functions to ensure proper data handling ([70d893d](https://github.com/AmbiqAI/ns-cmsis-nn/commit/70d893d91fa74c3f5606dc7180884ca88b119022))
+* Ensure helia-core-tester.yml fetches submodule tag ([996f0f4](https://github.com/AmbiqAI/ns-cmsis-nn/commit/996f0f42457f15dc2c9683769bfbff1ead367772))
+* force submodule tag fetch in coverage-merge-summary job ([817b9d2](https://github.com/AmbiqAI/ns-cmsis-nn/commit/817b9d234635dd071fa9361d605d6581ed3302d5))
+* update helia tag retrieval to use abbrev=0 and handle missing tags ([853fa42](https://github.com/AmbiqAI/ns-cmsis-nn/commit/853fa42b632ec053f1cc078cffc3aa00b9bede72))
+* update subproject commit reference in helia-core-tester ([9951017](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9951017b04816706fe3f01e99802835e4c7559f0))
+
 ## [7.24.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.23.0...v7.24.0) (2026-04-24)
 
 
