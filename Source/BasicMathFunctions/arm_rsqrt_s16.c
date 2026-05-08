@@ -114,9 +114,9 @@ static arm_cmsis_nn_status arm_rsqrt_s16_universal_core(const int16_t *input,
             y1_buf[lane] = arm_rsqrt_s16_sample_slot(lut, idx + 1, out_mult, out_shift, needs_rescale);
         }
 
-        int32x4_t vy0 = vld1q_s32(y0_buf);
-        int32x4_t vy1 = vld1q_s32(y1_buf);
-        int32x4_t vfrac = vld1q_s32(frac_buf);
+        int32x4_t vy0 = vldrwq_s32(y0_buf);
+        int32x4_t vy1 = vldrwq_s32(y1_buf);
+        int32x4_t vfrac = vldrwq_s32(frac_buf);
         int32x4_t vdelta = vsubq_s32(vy1, vy0);
         int32x4_t vinterp = vmulq_s32(vdelta, vfrac);
         vinterp = vaddq_s32(vinterp, vdupq_n_s32(ARM_RSQRT_S16_INTERP_ROUND_BIAS));
@@ -240,7 +240,7 @@ arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
         vy1 = vsetq_lane_s32((int32_t) vgetq_lane_s16(vy1h, 1), vy1, 1);
         vy1 = vsetq_lane_s32((int32_t) vgetq_lane_s16(vy1h, 2), vy1, 2);
         vy1 = vsetq_lane_s32((int32_t) vgetq_lane_s16(vy1h, 3), vy1, 3);
-        int32x4_t vfrac = vld1q_s32(frac_buf);
+        int32x4_t vfrac = vldrwq_s32(frac_buf);
         int32x4_t vdelta = vsubq_s32(vy1, vy0);
         int32x4_t vinterp = vmulq_s32(vdelta, vfrac);
         vinterp = vaddq_s32(vinterp, vdupq_n_s32(ARM_RSQRT_S16_INTERP_ROUND_BIAS));
