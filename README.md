@@ -59,6 +59,8 @@ Per-file copyright and license is declared via SPDX headers. The upstream
 CMSIS-NN copyright and Apache-2.0 license terms are preserved on every file
 that originated upstream; modifications are dual-attributed to Ambiq.
 
+See [`NOTICE`](NOTICE) for the full attribution and licensing summary.
+
 ## Relationship to upstream Arm CMSIS-NN
 
 heliaCORE NN was forked from [`ARM-software/CMSIS-NN`][upstream] and is
