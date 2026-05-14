@@ -105,14 +105,17 @@ case "${ARCH}" in
   cortex-m0)
     EXPECTED_TARGET_CPU="cortex-m0"
     EXPECTED_ARCH_LABEL="cm0"
+    RELEASE_ARCH_FLAGS="-mcpu=cortex-m0 -mthumb -mfloat-abi=soft"
     ;;
   cortex-m4+fp)
     EXPECTED_TARGET_CPU="cortex-m4"
     EXPECTED_ARCH_LABEL="cm4"
+    RELEASE_ARCH_FLAGS="-mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard"
     ;;
   cortex-m55)
     EXPECTED_TARGET_CPU="cortex-m55"
     EXPECTED_ARCH_LABEL="cm55"
+    RELEASE_ARCH_FLAGS="-mcpu=cortex-m55 -mthumb -mfloat-abi=hard"
     ;;
   *)
     echo "Unsupported arch: ${ARCH}" >&2
@@ -224,8 +227,24 @@ resolve_strip_tool() {
   return 1
 }
 
+resolve_readelf_tool() {
+  local candidate=""
+  local path=""
+
+  for candidate in arm-none-eabi-readelf llvm-readelf readelf; do
+    path="$(command -v "${candidate}" || true)"
+    [[ -n "${path}" ]] || continue
+    printf '%s\n' "${path}"
+    return 0
+  done
+
+  return 1
+}
+
 STRIP_TOOL="$(resolve_strip_tool || true)"
 [[ -n "${STRIP_TOOL}" ]] || { echo "No supported strip tool with --strip-debug found on PATH" >&2; exit 3; }
+
+READELF_TOOL="$(resolve_readelf_tool || true)"
 
 case "${OUTDIR}" in
   /|"."|"..")
@@ -236,7 +255,6 @@ esac
 
 mkdir -p "$(dirname "${OUTDIR}")"
 
-# Safety checks to avoid deleting unintended paths.
 if [[ -z "${OUTDIR:-}" ]]; then
   echo "OUTDIR must not be empty" >&2
   exit 2
@@ -248,6 +266,7 @@ case "${OUTDIR}" in
     exit 2
     ;;
 esac
+
 rm -rf "${OUTDIR}"
 mkdir -p "${OUTDIR}"
 OUTDIR="$(cd "${OUTDIR}" && pwd)"
@@ -264,6 +283,7 @@ fi
 LIB_OUT_DIR="${OUTDIR}/lib"
 WORK_DIR="$(mktemp -d "${OUTDIR}/.release-work.XXXXXX")"
 BUILD_COMPLETE=0
+
 cleanup_work_dir() {
   rm -rf "${WORK_DIR}"
   if [[ "${BUILD_COMPLETE}" -ne 1 ]]; then
@@ -277,6 +297,14 @@ LIB_IN="${BUILD_DIR}/libcmsis-nn.a"
 
 mkdir -p "${LIB_OUT_DIR}"
 
+echo "Configuring release static library:"
+echo "  arch: ${ARCH}"
+echo "  arch_label: ${ARCH_LABEL}"
+echo "  target_cpu: ${TARGET_CPU}"
+echo "  toolchain: ${TOOLCHAIN}"
+echo "  release_arch_flags: ${RELEASE_ARCH_FLAGS}"
+echo "  toolchain_file: ${TOOLCHAIN_FILE}"
+
 cmake -S "${REPO_ROOT}" -B "${BUILD_DIR}" -G "${CMAKE_GENERATOR}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="${TOOLCHAIN_FILE}" \
@@ -284,7 +312,10 @@ cmake -S "${REPO_ROOT}" -B "${BUILD_DIR}" -G "${CMAKE_GENERATOR}" \
   -DLLVM_ET_ARM_DIR="${LLVM_ET_ARM_DIR}" \
   -DCMSIS_PATH="${CMSIS_PATH}" \
   -DCMSIS_NN_HIDE_INTERNAL_SYMBOLS=ON \
-  -DCMSIS_NN_PUBLIC_HEADERS_DIR="${REPO_ROOT}/Include"
+  -DCMSIS_NN_PUBLIC_HEADERS_DIR="${REPO_ROOT}/Include" \
+  -DCMAKE_C_FLAGS_INIT="${RELEASE_ARCH_FLAGS}" \
+  -DCMAKE_ASM_FLAGS_INIT="${RELEASE_ARCH_FLAGS}" \
+  -DCMAKE_EXE_LINKER_FLAGS_INIT="${RELEASE_ARCH_FLAGS}"
 
 cmake --build "${BUILD_DIR}" --target cmsis-nn --parallel
 
@@ -300,6 +331,20 @@ FINAL_METADATA="${LIB_OUT_DIR}/${LIB_NAME%.a}.json"
 
 cp "${LIB_IN}" "${FINAL_LIB}"
 "${STRIP_TOOL}" --strip-debug "${FINAL_LIB}"
+
+if [[ "${ARCH}" == "cortex-m4+fp" ]]; then
+  [[ -n "${READELF_TOOL}" ]] || {
+    echo "No readelf tool found to validate hard-float ABI for ${FINAL_LIB}" >&2
+    exit 4
+  }
+
+  if ! "${READELF_TOOL}" -A "${FINAL_LIB}" | grep -q "Tag_ABI_VFP_args: VFP registers"; then
+    echo "Built archive is not hard-float ABI compatible: ${FINAL_LIB}" >&2
+    echo "Expected ELF attribute: Tag_ABI_VFP_args: VFP registers" >&2
+    "${READELF_TOOL}" -A "${FINAL_LIB}" | grep -E "File:|Tag_ABI_VFP_args" >&2 || true
+    exit 4
+  fi
+fi
 
 bash "${CLEANUP_SCRIPT}" \
   --outdir "${OUTDIR}" \
