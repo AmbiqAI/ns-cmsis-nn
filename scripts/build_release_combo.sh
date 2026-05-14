@@ -38,8 +38,8 @@ SOURCE_REF="${SOURCE_REF:-local}"
 DOWNLOADS_DIR="${DOWNLOADS_DIR:-${REPO_ROOT}/Tests/UnitTest/downloads}"
 CMSIS_PATH="${CMSIS_PATH:-${DOWNLOADS_DIR}/CMSIS_5}"
 ETHOS_U_CORE_PLATFORM_PATH="${ETHOS_U_CORE_PLATFORM_PATH:-${DOWNLOADS_DIR}/ethos-u-core-platform}"
-LLVM_ET_ARM_DIR="${LLVM_ET_ARM_DIR:-/opt/llvm-et-arm}"
-LLVM_ET_ARM_TOOLCHAIN_FILE="${REPO_ROOT}/cmake/toolchain/llvm-et-arm.cmake"
+LLVM_ET_ARM_DIR="${LLVM_ET_ARM_DIR:-/opt/atfe}"
+LLVM_ET_ARM_TOOLCHAIN_FILE="${REPO_ROOT}/cmake/toolchain/atfe.cmake"
 RELEASE_METADATA_HELPER="${REPO_ROOT}/scripts/release_package_metadata.py"
 
 while [[ $# -gt 0 ]]; do
