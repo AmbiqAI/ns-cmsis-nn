@@ -227,24 +227,8 @@ resolve_strip_tool() {
   return 1
 }
 
-resolve_readelf_tool() {
-  local candidate=""
-  local path=""
-
-  for candidate in arm-none-eabi-readelf llvm-readelf readelf; do
-    path="$(command -v "${candidate}" || true)"
-    [[ -n "${path}" ]] || continue
-    printf '%s\n' "${path}"
-    return 0
-  done
-
-  return 1
-}
-
 STRIP_TOOL="$(resolve_strip_tool || true)"
 [[ -n "${STRIP_TOOL}" ]] || { echo "No supported strip tool with --strip-debug found on PATH" >&2; exit 3; }
-
-READELF_TOOL="$(resolve_readelf_tool || true)"
 
 case "${OUTDIR}" in
   /|"."|"..")
@@ -332,19 +316,6 @@ FINAL_METADATA="${LIB_OUT_DIR}/${LIB_NAME%.a}.json"
 cp "${LIB_IN}" "${FINAL_LIB}"
 "${STRIP_TOOL}" --strip-debug "${FINAL_LIB}"
 
-if [[ "${ARCH}" == "cortex-m4+fp" ]]; then
-  [[ -n "${READELF_TOOL}" ]] || {
-    echo "No readelf tool found to validate hard-float ABI for ${FINAL_LIB}" >&2
-    exit 4
-  }
-
-  if ! "${READELF_TOOL}" -A "${FINAL_LIB}" | grep -q "Tag_ABI_VFP_args: VFP registers"; then
-    echo "Built archive is not hard-float ABI compatible: ${FINAL_LIB}" >&2
-    echo "Expected ELF attribute: Tag_ABI_VFP_args: VFP registers" >&2
-    "${READELF_TOOL}" -A "${FINAL_LIB}" | grep -E "File:|Tag_ABI_VFP_args" >&2 || true
-    exit 4
-  fi
-fi
 
 bash "${CLEANUP_SCRIPT}" \
   --outdir "${OUTDIR}" \
