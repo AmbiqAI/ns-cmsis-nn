@@ -269,6 +269,12 @@ jobs:
             --build release \
             --outdir "out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/armclang"
 
+      - name: Smoke-link generated static library
+        run: |
+          bash scripts/smoke/verify_release_staticlibs.sh \
+            --artifact-root "out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/armclang/lib" \
+            --outdir "out/staticlib-smoke/${{ needs.resolve-inputs.outputs.arch }}/armclang"
+
       - name: Upload static library artifact
         uses: actions/upload-artifact@v4
         with:

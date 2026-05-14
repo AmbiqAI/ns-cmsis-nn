@@ -218,6 +218,12 @@ jobs:
             --build release \
             --outdir "out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/gcc"
 
+      - name: Smoke-link generated static library
+        run: |
+          bash scripts/smoke/verify_release_staticlibs.sh \
+            --artifact-root "out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/gcc/lib" \
+            --outdir "out/staticlib-smoke/${{ needs.resolve-inputs.outputs.arch }}/gcc"
+
       - name: Upload static library artifact
         uses: actions/upload-artifact@v4
         with:

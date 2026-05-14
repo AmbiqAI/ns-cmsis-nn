@@ -21,26 +21,6 @@ on:
         required: false
         type: boolean
         default: true
-      publish_to_helia_core:
-        description: Publish the package artifacts to the helia-core release
-        required: false
-        type: boolean
-        default: true
-      helia_core_repo:
-        description: Distribution repository that hosts the customer-facing release assets
-        required: false
-        type: string
-        default: AmbiqAI/helia-core
-      helia_core_tag_override:
-        description: Override the target helia-core release tag for manual validation
-        required: false
-        type: string
-        default: ""
-      publish_helia_core_as_draft:
-        description: Keep the helia-core release as draft after upload
-        required: false
-        type: boolean
-        default: false
   workflow_dispatch:
     inputs:
       ref:
@@ -61,26 +41,6 @@ on:
         description: Publish the package artifacts to the ns-cmsis-nn release
         required: false
         default: false
-        type: boolean
-      publish_to_helia_core:
-        description: Publish the package artifacts to the helia-core release
-        required: false
-        default: false
-        type: boolean
-      helia_core_repo:
-        description: Distribution repository that hosts the customer-facing release assets
-        required: false
-        default: AmbiqAI/helia-core
-        type: string
-      helia_core_tag_override:
-        description: Override the target helia-core release tag for manual validation
-        required: false
-        default: ""
-        type: string
-      publish_helia_core_as_draft:
-        description: Keep the helia-core release as draft after upload
-        required: false
-        default: true
         type: boolean
 
 permissions:
@@ -111,19 +71,18 @@ jobs:
           REF_INPUT: ${{ inputs.ref }}
           TAG_INPUT: ${{ inputs.tag }}
           IMAGE_REF_INPUT: ${{ inputs.image_ref }}
-          HELIA_CORE_TAG_OVERRIDE_INPUT: ${{ inputs.helia_core_tag_override }}
           TRIGGER_EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
           ref_in="${REF_INPUT}"
           tag_in="${TAG_INPUT}"
           image_ref_in="${IMAGE_REF_INPUT}"
-          release_tag_in="${HELIA_CORE_TAG_OVERRIDE_INPUT:-${TAG_INPUT}}"
+          release_tag_in="${TAG_INPUT}"
           expected_image_ref="ghcr.io/ambiqai/ns-cmsis-nn-ci:${tag_in}"
 
           [[ -n "${ref_in}" ]] || { echo "::error ::Input ref is required."; exit 1; }
           [[ -n "${tag_in}" ]] || { echo "::error ::Input tag is required."; exit 1; }
-          [[ -n "${release_tag_in}" ]] || { echo "::error ::Resolved helia-core release tag is required."; exit 1; }
+          [[ -n "${release_tag_in}" ]] || { echo "::error ::Resolved release tag is required."; exit 1; }
 
           if [[ "${TRIGGER_EVENT}" == "workflow_dispatch" ]]; then
             image_ref="${image_ref_in:-${expected_image_ref}}"
@@ -206,22 +165,22 @@ jobs:
     secrets:
       ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
 
-  build-llvm-et-arm:
-    name: Build static library (${{ matrix.arch }} • llvm-et-arm)
-    needs: resolve-build-plan
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix:
-        include: ${{ fromJson(needs.resolve-build-plan.outputs.llvm_et_arm_matrix) }}
-    uses: ./.github/workflows/build_staticlib_llvm_et_arm.yml
-    with:
-      ref: ${{ needs.resolve-build-plan.outputs.ref }}
-      tag: ${{ needs.resolve-build-plan.outputs.package_tag }}
-      image_ref: ${{ matrix.image_ref }}
-      arch: ${{ matrix.arch }}
-      arch_label: ${{ matrix.arch_label }}
-      target_cpu: ${{ matrix.target_cpu }}
+  build-ATFE:
+      name: Build static library (${{ matrix.arch }} • ATFE)
+      needs: resolve-build-plan
+      strategy:
+        fail-fast: false
+        max-parallel: 3
+        matrix:
+          include: ${{ fromJson(needs.resolve-build-plan.outputs.llvm_et_arm_matrix) }}
+      uses: ./.github/workflows/build_staticlib_atfe.yml
+      with:
+        ref: ${{ needs.resolve-build-plan.outputs.ref }}
+        tag: ${{ needs.resolve-build-plan.outputs.package_tag }}
+        image_ref: ${{ matrix.image_ref }}
+        arch: ${{ matrix.arch }}
+        arch_label: ${{ matrix.arch_label }}
+        target_cpu: ${{ matrix.target_cpu }}
 
   package-binary-sdk:
     name: Package external binary SDK
@@ -229,7 +188,7 @@ jobs:
       - resolve-build-plan
       - build-gcc
       - build-armclang
-      - build-llvm-et-arm
+      - build-ATFE
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -279,7 +238,7 @@ jobs:
       - resolve-build-plan
       - build-gcc
       - build-armclang
-      - build-llvm-et-arm
+      - build-ATFE
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -328,7 +287,7 @@ jobs:
       - resolve-build-plan
       - package-binary-sdk
       - package-zephyr-binary
-    if: ${{ inputs.publish_to_ns_release == true || inputs.publish_to_ns_release == 'true' || inputs.publish_to_helia_core == true || inputs.publish_to_helia_core == 'true' }}
+    if: ${{ inputs.publish_to_ns_release == true || inputs.publish_to_ns_release == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -384,7 +343,7 @@ jobs:
 
           python3 scripts/release_package_metadata.py write-release-index \
             --output "${release_index}" \
-            --release-repo "${{ inputs.helia_core_repo }}" \
+            --release-repo "${{ github.repository }}" \
             --release-tag "${release_tag}" \
             --source-repo "${{ github.repository }}" \
             --source-commit "${{ github.sha }}" \
@@ -410,35 +369,3 @@ jobs:
             --repo "${{ github.repository }}" \
             --clobber
 
-      - name: Create helia-core app token
-        if: ${{ inputs.publish_to_helia_core == true || inputs.publish_to_helia_core == 'true' }}
-        id: helia-core-app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          client-id: ${{ vars.HELIA_CORE_APP_CLIENT_ID }}
-          private-key: ${{ secrets.HELIA_CORE_APP_PRIVATE_KEY }}
-          owner: AmbiqAI
-          repositories: helia-core
-          permission-contents: write
-          permission-metadata: read
-
-      - name: Publish assets to helia-core release
-        if: ${{ inputs.publish_to_helia_core == true || inputs.publish_to_helia_core == 'true' }}
-        env:
-          GH_TOKEN: ${{ steps.helia-core-app-token.outputs.token }}
-          PUBLISH_HELIA_CORE_AS_DRAFT: ${{ inputs.publish_helia_core_as_draft }}
-        run: |
-          set -euo pipefail
-          package_tag='${{ needs.resolve-build-plan.outputs.package_tag }}'
-          draft_flag=()
-          if [[ "${PUBLISH_HELIA_CORE_AS_DRAFT}" == "true" ]]; then
-            draft_flag+=(--draft)
-          fi
-
-          bash scripts/publish_helia_core_release.sh \
-            --repo "${{ inputs.helia_core_repo }}" \
-            --tag "${{ needs.resolve-build-plan.outputs.release_tag }}" \
-            "${draft_flag[@]}" \
-            --asset "upload/ns-cmsis-nn-binary-sdk-${package_tag}.zip" \
-            --asset "upload/ns-cmsis-nn-zephyr-binary-${package_tag}.zip" \
-            --asset "upload/ns-cmsis-nn-release-index-${package_tag}.json"
