@@ -148,7 +148,7 @@ PY
     gcc)
       CPU_FLAGS+=(-fshort-enums)
       ;;
-    armclang|llvm-et-arm)
+    armclang|atfe)
       CPU_FLAGS+=(-fno-short-enums)
       ;;
     *)

@@ -41,9 +41,9 @@ SUPPORTED_TOOLCHAINS = {
         "cmake_compiler_ids": ["ARMClang"],
         "zephyr_toolchain_variants": ["armclang"],
     },
-    "llvm-et-arm": {
+    "atfe": {
         "cmake_compiler_ids": ["Clang"],
-        "zephyr_toolchain_variants": ["llvm", "llvm-et-arm"],
+        "zephyr_toolchain_variants": ["atfe"],
     },
 }
 

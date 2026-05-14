@@ -9,7 +9,7 @@ Build the customer-facing Zephyr binary package for ns-cmsis-nn.
 Usage:
   build_zephyr_release_package.sh --tag <tag> --outdir <dir> [--artifact-root <dir>]
                                   [--archs cortex-m0,cortex-m4+fp,cortex-m55]
-                                  [--toolchains gcc,armclang,llvm-et-arm]
+                                  [--toolchains gcc,armclang,atfe]
                                   [--source-commit <sha>] [--source-ref <ref>]
                                   [--workflow-name <name>] [--workflow-run-id <id>]
 EOF
@@ -23,7 +23,7 @@ TAG=""
 OUTDIR=""
 ARTIFACT_ROOT="${REPO_ROOT}/out/release-artifacts"
 ARCHS="cortex-m0,cortex-m4+fp,cortex-m55"
-TOOLCHAINS="gcc,armclang,llvm-et-arm"
+TOOLCHAINS="gcc,armclang,atfe"
 SOURCE_COMMIT="${SOURCE_COMMIT:-local}"
 SOURCE_REF="${SOURCE_REF:-local}"
 WORKFLOW_NAME="${WORKFLOW_NAME:-}"

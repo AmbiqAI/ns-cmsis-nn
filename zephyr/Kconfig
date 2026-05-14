@@ -14,6 +14,6 @@ menuconfig NS_CMSIS_NN
 	  This module links a prebuilt static library selected from the package
 	  manifest based on the current Zephyr target and toolchain. The packaged
 	  release supports Cortex-M0, Cortex-M4 with FPU, and Cortex-M55 for the
-	  gcc, armclang, and llvm-et-arm toolchain families.
+	  gcc, armclang, and atfe toolchain families.
 
 	  Unsupported targets or toolchains fail at configure time.

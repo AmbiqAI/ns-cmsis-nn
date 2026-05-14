@@ -9,7 +9,7 @@ Build or package the customer-facing ns-cmsis-nn binary SDK bundle.
 Usage:
   build_release_bundle.sh --tag <tag> --outdir <dir> [--artifact-root <dir>] [--skip-build]
                           [--archs cortex-m0,cortex-m4+fp,cortex-m55]
-                          [--toolchains gcc,armclang,llvm-et-arm]
+                          [--toolchains gcc,armclang,atfe]
                           [--build release]
                           [--source-commit <sha>] [--source-ref <ref>]
                           [--workflow-name <name>] [--workflow-run-id <id>]
@@ -47,7 +47,7 @@ TAG=""
 OUTDIR=""
 ARTIFACT_ROOT="${REPO_ROOT}/out/release-artifacts"
 ARCHS="cortex-m0,cortex-m4+fp,cortex-m55"
-TOOLCHAINS="gcc,armclang,llvm-et-arm"
+TOOLCHAINS="gcc,armclang,atfe"
 BUILD="release"
 SKIP_BUILD=0
 SOURCE_COMMIT="${SOURCE_COMMIT:-local}"

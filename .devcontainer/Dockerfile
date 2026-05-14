@@ -33,24 +33,24 @@ RUN apt-get update \
 RUN python -m pip install --no-cache-dir "uv==${UV_VERSION}"
 
 COPY docker/vendor/armclang /opt/armclang
-COPY docker/vendor/llvm-et-arm /opt/llvm-et-arm
+COPY docker/vendor/atfe /opt/atfe
 
 ENV ARM_COMPILER_DIR=/opt/armclang
-ENV LLVM_ET_ARM_DIR=/opt/llvm-et-arm
-ENV PATH="/opt/llvm-et-arm/bin:/opt/armclang/bin:${PATH}"
+ENV ATFE_DIR=/opt/atfe
+ENV PATH="/opt/atfe/bin:/opt/armclang/bin:${PATH}"
 
 # Needed when the docker container is used with GitHub actions.
 RUN git config --global --add safe.directory /github/workspace
 
 RUN test -x /opt/armclang/bin/armclang \
     && test -d /opt/armclang/lib \
-    && test -x /opt/llvm-et-arm/bin/clang \
-    && test -x /opt/llvm-et-arm/bin/llvm-ar \
-    && test -x /opt/llvm-et-arm/bin/llvm-ranlib \
-    && test -x /opt/llvm-et-arm/bin/llvm-strip \
+    && test -x /opt/atfe/bin/clang \
+    && test -x /opt/atfe/bin/llvm-ar \
+    && test -x /opt/atfe/bin/llvm-ranlib \
+    && test -x /opt/atfe/bin/llvm-strip \
     && arm-none-eabi-gcc --version \
     && printf '#include <string.h>\n' | arm-none-eabi-gcc -mcpu=cortex-m0 -mthumb -xc - -E >/dev/null \
-    && /opt/llvm-et-arm/bin/clang --version \
+    && /opt/atfe/bin/clang --version \
     && uv --version
 
 # Install flatbuffers (flatc)

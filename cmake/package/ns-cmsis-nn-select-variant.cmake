@@ -31,11 +31,11 @@ function(ns_cmsis_nn_resolve_variant)
       set(_ns_toolchain "gcc")
     elseif(ZEPHYR_TOOLCHAIN_VARIANT STREQUAL "armclang")
       set(_ns_toolchain "armclang")
-    elseif(ZEPHYR_TOOLCHAIN_VARIANT STREQUAL "llvm" OR ZEPHYR_TOOLCHAIN_VARIANT STREQUAL "llvm-et-arm")
-      set(_ns_toolchain "llvm-et-arm")
+    elseif(ZEPHYR_TOOLCHAIN_VARIANT STREQUAL "atfe")
+      set(_ns_toolchain "atfe")
     else()
       _ns_cmsis_nn_fail(
-        "unsupported Zephyr toolchain '${ZEPHYR_TOOLCHAIN_VARIANT}'. Supported toolchains: gnuarmemb, armclang, llvm-et-arm"
+        "unsupported Zephyr toolchain '${ZEPHYR_TOOLCHAIN_VARIANT}'. Supported toolchains: gnuarmemb, armclang, atfe"
       )
     endif()
   elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU")
@@ -43,7 +43,7 @@ function(ns_cmsis_nn_resolve_variant)
   elseif(CMAKE_C_COMPILER_ID STREQUAL "ARMClang")
     set(_ns_toolchain "armclang")
   elseif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    set(_ns_toolchain "llvm-et-arm")
+    set(_ns_toolchain "atfe")
   else()
     _ns_cmsis_nn_fail(
       "unable to map compiler '${CMAKE_C_COMPILER_ID}' to a supported toolchain. Supported compiler families: GNU, ARMClang, Clang"

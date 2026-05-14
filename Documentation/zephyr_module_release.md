@@ -21,7 +21,7 @@ Selection behavior:
 
 - GNU Arm Embedded builds map to the packaged `gcc` variants
 - Armclang builds map to the packaged `armclang` variants
-- LLVM Embedded Toolchain for Arm builds map to the packaged `llvm-et-arm` variants
+- ATFE builds map to the packaged `atfe` variants
 - Cortex-M0, Cortex-M4 with FPU, and Cortex-M55 are supported
 
 Unsupported toolchain or target combinations fail at configure time with a clear

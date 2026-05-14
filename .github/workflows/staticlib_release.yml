@@ -63,7 +63,7 @@ jobs:
       image_ref: ${{ steps.meta.outputs.image_ref }}
       gcc_matrix: ${{ steps.meta.outputs.gcc_matrix }}
       armclang_matrix: ${{ steps.meta.outputs.armclang_matrix }}
-      llvm_et_arm_matrix: ${{ steps.meta.outputs.llvm_et_arm_matrix }}
+      atfe_matrix: ${{ steps.meta.outputs.atfe_matrix }}
     steps:
       - name: Resolve release metadata and matrices
         id: meta
@@ -114,7 +114,7 @@ jobs:
           with open(github_output, "a", encoding="utf-8") as handle:
               print(f"gcc_matrix={json.dumps(combos, separators=(',', ':'))}", file=handle)
               print(f"armclang_matrix={json.dumps(combos, separators=(',', ':'))}", file=handle)
-              print(f"llvm_et_arm_matrix={json.dumps(combos, separators=(',', ':'))}", file=handle)
+              print(f"atfe_matrix={json.dumps(combos, separators=(',', ':'))}", file=handle)
           PY
 
       - name: Log in to GHCR
@@ -166,21 +166,21 @@ jobs:
       ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
 
   build-ATFE:
-      name: Build static library (${{ matrix.arch }} • ATFE)
-      needs: resolve-build-plan
-      strategy:
-        fail-fast: false
-        max-parallel: 3
-        matrix:
-          include: ${{ fromJson(needs.resolve-build-plan.outputs.llvm_et_arm_matrix) }}
-      uses: ./.github/workflows/build_staticlib_atfe.yml
-      with:
-        ref: ${{ needs.resolve-build-plan.outputs.ref }}
-        tag: ${{ needs.resolve-build-plan.outputs.package_tag }}
-        image_ref: ${{ matrix.image_ref }}
-        arch: ${{ matrix.arch }}
-        arch_label: ${{ matrix.arch_label }}
-        target_cpu: ${{ matrix.target_cpu }}
+    name: Build static library (${{ matrix.arch }} • ATFE)
+    needs: resolve-build-plan
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include: ${{ fromJson(needs.resolve-build-plan.outputs.atfe_matrix) }}
+    uses: ./.github/workflows/build_staticlib_atfe.yml
+    with:
+      ref: ${{ needs.resolve-build-plan.outputs.ref }}
+      tag: ${{ needs.resolve-build-plan.outputs.package_tag }}
+      image_ref: ${{ matrix.image_ref }}
+      arch: ${{ matrix.arch }}
+      arch_label: ${{ matrix.arch_label }}
+      target_cpu: ${{ matrix.target_cpu }}
 
   package-binary-sdk:
     name: Package external binary SDK

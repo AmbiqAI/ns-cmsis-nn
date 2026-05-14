@@ -10,7 +10,7 @@ Usage:
   build_release_combo.sh --arch <cortex-m0|cortex-m4+fp|cortex-m55> \
                          --arch-label <cm0|cm4|cm55> \
                          --target-cpu <cortex-m0|cortex-m4|cortex-m55> \
-                         --toolchain <gcc|armclang|llvm-et-arm> \
+                         --toolchain <gcc|armclang|atfe> \
                          --outdir <dir> \
                          [--build release] [--source-commit <sha>] [--source-ref <ref>]
 
@@ -18,7 +18,7 @@ Optional environment overrides:
   DOWNLOADS_DIR
   CMSIS_PATH
   ETHOS_U_CORE_PLATFORM_PATH
-  LLVM_ET_ARM_DIR
+  ATFE_DIR
 EOF
 }
 
@@ -38,8 +38,8 @@ SOURCE_REF="${SOURCE_REF:-local}"
 DOWNLOADS_DIR="${DOWNLOADS_DIR:-${REPO_ROOT}/Tests/UnitTest/downloads}"
 CMSIS_PATH="${CMSIS_PATH:-${DOWNLOADS_DIR}/CMSIS_5}"
 ETHOS_U_CORE_PLATFORM_PATH="${ETHOS_U_CORE_PLATFORM_PATH:-${DOWNLOADS_DIR}/ethos-u-core-platform}"
-LLVM_ET_ARM_DIR="${LLVM_ET_ARM_DIR:-/opt/atfe}"
-LLVM_ET_ARM_TOOLCHAIN_FILE="${REPO_ROOT}/cmake/toolchain/atfe.cmake"
+ATFE_DIR="${ATFE_DIR:-/opt/atfe}"
+ATFE_TOOLCHAIN_FILE="${REPO_ROOT}/cmake/toolchain/atfe.cmake"
 RELEASE_METADATA_HELPER="${REPO_ROOT}/scripts/release_package_metadata.py"
 
 while [[ $# -gt 0 ]]; do
@@ -150,22 +150,22 @@ case "${TOOLCHAIN}" in
       exit 3
     }
     ;;
-  llvm-et-arm)
-    TOOLCHAIN_FILE="${LLVM_ET_ARM_TOOLCHAIN_FILE}"
-    [[ -x "${LLVM_ET_ARM_DIR}/bin/clang" ]] || {
-      echo "LLVM-ET-Arm clang not found at ${LLVM_ET_ARM_DIR}/bin/clang" >&2
+  atfe)
+    TOOLCHAIN_FILE="${ATFE_TOOLCHAIN_FILE}"
+    [[ -x "${ATFE_DIR}/bin/clang" ]] || {
+      echo "ATFE clang not found at ${ATFE_DIR}/bin/clang" >&2
       exit 3
     }
-    [[ -x "${LLVM_ET_ARM_DIR}/bin/llvm-ar" ]] || {
-      echo "LLVM-ET-Arm llvm-ar not found at ${LLVM_ET_ARM_DIR}/bin/llvm-ar" >&2
+    [[ -x "${ATFE_DIR}/bin/llvm-ar" ]] || {
+      echo "ATFE llvm-ar not found at ${ATFE_DIR}/bin/llvm-ar" >&2
       exit 3
     }
-    [[ -x "${LLVM_ET_ARM_DIR}/bin/llvm-ranlib" ]] || {
-      echo "LLVM-ET-Arm llvm-ranlib not found at ${LLVM_ET_ARM_DIR}/bin/llvm-ranlib" >&2
+    [[ -x "${ATFE_DIR}/bin/llvm-ranlib" ]] || {
+      echo "ATFE llvm-ranlib not found at ${ATFE_DIR}/bin/llvm-ranlib" >&2
       exit 3
     }
-    [[ -x "${LLVM_ET_ARM_DIR}/bin/llvm-strip" ]] || {
-      echo "LLVM-ET-Arm llvm-strip not found at ${LLVM_ET_ARM_DIR}/bin/llvm-strip" >&2
+    [[ -x "${ATFE_DIR}/bin/llvm-strip" ]] || {
+      echo "ATFE llvm-strip not found at ${ATFE_DIR}/bin/llvm-strip" >&2
       exit 3
     }
     ;;
@@ -204,13 +204,13 @@ resolve_strip_tool() {
         fi
       done
       ;;
-    llvm-et-arm)
-      local llvm_et_arm_bin_candidate=""
+    atfe)
+      local atfe_bin_candidate=""
       for candidate in llvm-strip llvm-strip-16 strip; do
-        llvm_et_arm_bin_candidate="${LLVM_ET_ARM_DIR:-}/bin/${candidate}"
-        if [[ -x "${llvm_et_arm_bin_candidate}" ]]; then
-          if "${llvm_et_arm_bin_candidate}" --help 2>&1 | grep -q -- '--strip-debug'; then
-            printf '%s\n' "${llvm_et_arm_bin_candidate}"
+        atfe_bin_candidate="${ATFE_DIR:-}/bin/${candidate}"
+        if [[ -x "${atfe_bin_candidate}" ]]; then
+          if "${atfe_bin_candidate}" --help 2>&1 | grep -q -- '--strip-debug'; then
+            printf '%s\n' "${atfe_bin_candidate}"
             return 0
           fi
         fi
@@ -293,7 +293,7 @@ cmake -S "${REPO_ROOT}" -B "${BUILD_DIR}" -G "${CMAKE_GENERATOR}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="${TOOLCHAIN_FILE}" \
   -DTARGET_CPU="${TARGET_CPU}" \
-  -DLLVM_ET_ARM_DIR="${LLVM_ET_ARM_DIR}" \
+  -DATFE_DIR="${ATFE_DIR}" \
   -DCMSIS_PATH="${CMSIS_PATH}" \
   -DCMSIS_NN_HIDE_INTERNAL_SYMBOLS=ON \
   -DCMSIS_NN_PUBLIC_HEADERS_DIR="${REPO_ROOT}/Include" \
