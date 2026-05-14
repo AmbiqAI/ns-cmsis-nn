@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: Copyright 2010-2024 Arm Limited and/or its affiliates
+ * SPDX-FileCopyrightText: Copyright 2024-2026 Ambiq <opensource@ambiq.com>
  * <open-source-office@arm.com>
  *
  * SPDX-License-Identifier: Apache-2.0
