@@ -1,6 +1,7 @@
-FROM python:3.10-bookworm as ns-cmsis-nn-ci
+FROM python:3.10-bookworm AS ns-cmsis-nn-ci
 
 ARG NS_CMSIS_NN_TAG=unknown
+ARG FLATBUFFERS_VERSION=v25.2.10
 
 LABEL org.opencontainers.image.version="${NS_CMSIS_NN_TAG}" \
       com.ambiq.ns-cmsis-nn.tag="${NS_CMSIS_NN_TAG}"
@@ -18,17 +19,16 @@ RUN ./llvm.sh 16
 RUN ln -s /usr/bin/clang-16 /usr/bin/clang
 RUN ln -s /usr/bin/clang++-16 /usr/bin/clang++
 
-RUN apt-get install clang-format-16
+RUN apt-get install -y clang-format-16
 RUN ln -s /usr/bin/clang-format-16 /usr/bin/clang-format
 
 # Needed when the docker container is used with GitHub actions.
 RUN git config --global --add safe.directory /github/workspace
 
-# Install flatbuffers (flatc)
+# Pin FlatBuffers to a known-good release so the devcontainer build stays deterministic.
 RUN \
-    git clone https://github.com/google/flatbuffers.git /tmp/flatbuffers && \
-    cd /tmp/flatbuffers && \
-    cmake -G "Unix Makefiles" && \
-    make && \
-    make install && \
-    rm -rf flatbuffers
+    git clone --branch ${FLATBUFFERS_VERSION} --depth 1 https://github.com/google/flatbuffers.git /tmp/flatbuffers && \
+    cmake -S /tmp/flatbuffers -B /tmp/flatbuffers/build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DFLATBUFFERS_BUILD_TESTS=OFF && \
+    cmake --build /tmp/flatbuffers/build --parallel && \
+    cmake --install /tmp/flatbuffers/build && \
+    rm -rf /tmp/flatbuffers
