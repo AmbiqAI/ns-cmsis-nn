@@ -100,6 +100,8 @@ def get_tf_dtype(dtype):
         return tf.int8
     if dtype == "int16_t":
         return tf.int16
+    if dtype == "int32_t":
+        return tf.int32
     if dtype == "float32_t":
         return tf.float32
     if dtype == "bool":

@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write        # tag, releases, uploads
   pull-requests: write   # update/open release PRs
+  packages: write        # publish versioned CI images
   pages: write           # publish Pages
   id-token: write        # OIDC for Pages deploy
 
@@ -18,9 +19,12 @@ concurrency:
 jobs:
   release-please:
     runs-on: ubuntu-22.04
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.ver.outputs.TAG || steps.rp.outputs.tag_name }}
     steps:
       # 1) Create/Update Release PR; on merge, tag + create release
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
         id: rp
         with:
           config-file: release-please-config.json
@@ -29,7 +33,7 @@ jobs:
       # 2) Only do the rest when a NEW release was created by the step above
       - name: Checkout code
         if: ${{ steps.rp.outputs.release_created }}
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -104,15 +108,44 @@ jobs:
       # 3) Publish docs to GitHub Pages (from ./Documentation/html)
       - name: Setup Pages
         if: ${{ steps.rp.outputs.release_created }}
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload Pages artifact
         if: ${{ steps.rp.outputs.release_created }}
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: ./Documentation/html
 
       - name: Deploy to GitHub Pages
         if: ${{ steps.rp.outputs.release_created }}
         id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
+
+  publish-ci-image:
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    needs: release-please
+    uses: ./.github/workflows/build_publish_docker.yml
+    with:
+      image_tag: ${{ needs.release-please.outputs.tag_name }}
+      publish_latest: true
+    secrets: inherit
+
+  release-unit-tests:
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    needs:
+      - release-please
+      - publish-ci-image
+    uses: ./.github/workflows/legacy-tester.yml
+    with:
+      container_image: ghcr.io/ambiqai/ns-cmsis-nn-ci:${{ needs.release-please.outputs.tag_name }}
+    secrets: inherit
+
+  release-helia-core-tester:
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    needs:
+      - release-please
+      - publish-ci-image
+    uses: ./.github/workflows/helia-core-tester.yml
+    with:
+      container_image: ghcr.io/ambiqai/ns-cmsis-nn-ci:${{ needs.release-please.outputs.tag_name }}
+    secrets: inherit

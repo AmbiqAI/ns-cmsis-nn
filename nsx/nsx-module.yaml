@@ -1,0 +1,63 @@
+schema_version: 1
+
+module:
+  name: nsx-cmsis-nn
+  type: algorithm
+  version: "7.23.0"
+
+support:
+  ambiqsuite: true
+  zephyr: false
+
+summary: >-
+  Ambiq-optimized CMSIS-NN neural network kernels. Fork of ARM CMSIS-NN
+  with MVE and DSP optimizations for Apollo SoCs.
+
+capabilities:
+  - cmsis_nn
+  - neural_network_kernels
+  - quantized_inference
+  - dsp_acceleration
+  - mve_acceleration
+
+use_cases:
+  - quantized neural network inference on Cortex-M
+  - optimized convolution and fully-connected kernels
+  - int8/int16/int4 quantized model support
+
+agent_keywords:
+  - cmsis-nn
+  - ns-cmsis-nn
+  - kernels
+  - quantization
+  - inference
+  - dsp
+  - mve
+
+build:
+  cmake:
+    package: nsx_cmsis_nn
+    targets:
+      - nsx::cmsis_nn
+
+depends:
+  required:
+    - nsx-soc-hal
+  optional: []
+
+compatibility:
+  boards:
+    - "*"
+  socs:
+    - apollo3
+    - apollo3p
+    - apollo4l
+    - apollo4p
+    - apollo5b
+    - apollo510
+    - apollo510b
+    - apollo330P
+  toolchains:
+    - arm-none-eabi-gcc
+    - armclang
+    - atfe

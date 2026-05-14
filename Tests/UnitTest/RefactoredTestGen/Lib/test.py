@@ -32,16 +32,21 @@ import Lib.op_dequantize
 import Lib.op_relu
 import Lib.op_relu6
 import Lib.op_hard_swish
+import Lib.op_abs
+import Lib.op_sqrt
 import Lib.op_prelu
 import Lib.op_strided_slice
+import Lib.op_concatenation
 import Lib.op_mean
 import Lib.op_reduce_max
 import Lib.op_reduce_min
 import Lib.op_comparisons
 import Lib.op_sub
+import Lib.op_squared_difference
 import Lib.op_arg_min_max
 import Lib.op_gather
 import Lib.op_gather_nd
+import Lib.op_resize_nearest_neighbor
 import tensorflow as tf
 import numpy as np
 from tensorflow.lite.python.interpreter import Interpreter
@@ -106,10 +111,14 @@ def generate(params, args, fpaths):
         else:
             bias_dtype = None
 
+        effective_output_dtype = params.get("output_data_type", params["input_data_type"])
+        disable_quant_for_int32_io = (params["input_data_type"] == "int32_t" and
+                                      effective_output_dtype == "int32_t")
+
         if op_type == Lib.op_quantize.Op_quantize or op_type == Lib.op_dequantize.Op_dequantize:
             convert_keras_to_tflite(fpaths["tflite"],
                                     keras_model,
-                                    quantize=True,
+                                    quantize=not disable_quant_for_int32_io,
                                     input_dtype=params["input_data_type"],
                                     bias_dtype=bias_dtype,
                                     shape=shapes,
@@ -119,7 +128,7 @@ def generate(params, args, fpaths):
         else:
             convert_keras_to_tflite(fpaths["tflite"],
                                     keras_model,
-                                    quantize=True,
+                                    quantize=not disable_quant_for_int32_io,
                                     input_dtype=params["input_data_type"],
                                     bias_dtype=bias_dtype,
                                     shape=shapes,
@@ -188,6 +197,8 @@ def generate(params, args, fpaths):
     header = get_header(params["tflite_generator"], params["interpreter"])
 
     def include_in_config(key):
+        if params.get("op_type") == "sqrt" and key in ["input_scale", "output_scale"]:
+            return True
         return key not in [
             "suite_name", "name", "input_data_type", "op_type", "input_data_type", "weights_data_type",
             "bias_data_type", "shift_and_mult_data_type", "interpreter", "tflite_generator", "json_template",
@@ -285,10 +296,16 @@ def get_op_type(op_type_string):
         return Lib.op_relu6.Op_relu6
     elif op_type_string == "hard_swish":
         return Lib.op_hard_swish.Op_hard_swish
+    elif op_type_string == "abs":
+        return Lib.op_abs.Op_abs
+    elif op_type_string == "sqrt":
+        return Lib.op_sqrt.Op_sqrt
     elif op_type_string == "prelu":
         return Lib.op_prelu.Op_prelu
     elif op_type_string == "strided_slice":
         return Lib.op_strided_slice.Op_strided_slice
+    elif op_type_string == "concatenation":
+        return Lib.op_concatenation.Op_concatenation
     elif op_type_string == "mean":
         return Lib.op_mean.Op_mean
     elif op_type_string == "reduce_max":
@@ -299,12 +316,16 @@ def get_op_type(op_type_string):
         return Lib.op_comparisons.Op_comparisons
     elif op_type_string == "sub":
         return Lib.op_sub.Op_sub
+    elif op_type_string == "squared_difference":
+        return Lib.op_squared_difference.Op_squared_difference
     elif op_type_string == "arg_min_max":
         return Lib.op_arg_min_max.Op_arg_min_max
     elif op_type_string == "gather":
         return Lib.op_gather.Op_gather
     elif op_type_string == "gather_nd":
         return Lib.op_gather_nd.Op_gather_nd
+    elif op_type_string == "resize_nearest_neighbor":
+        return Lib.op_resize_nearest_neighbor.Op_resize_nearest_neighbor
     else:
         raise ValueError(f"Unknown op type '{op_type_string}'")
 
@@ -333,18 +354,29 @@ def convert_keras_to_tflite(
     n_inputs = len(keras_model.inputs)
 
     if quantize:
+        rep_input_dtypes = [tf.as_dtype(inp.dtype).as_numpy_dtype for inp in keras_model.inputs]
+        rep_min = float(shape.get("representational_dataset_min", 0.0))
+        rep_max = float(shape.get("representational_dataset_max", 1.0))
+        if rep_max <= rep_min:
+            rep_min, rep_max = 0.0, 1.0
+
         # Create a representative dataset for post-training quantization
+        num_samples = int(shape.get("representative_dataset_samples", 100))
         if shape.get("different_in_shapes") is True:
             def representative_dataset():
-                for _ in range(100):
+                for _ in range(num_samples):
                     data1 = np.random.rand(*shape["representational_dataset"])
                     data2 = np.random.rand(*shape["representational_dataset2"])
                     yield [data1.astype(np.float32), data2.astype(np.float32)]
         else:
             def representative_dataset():
-                for _ in range(n_inputs):
-                    data = np.random.rand(*shape["representational_dataset"])
-                    yield [data.astype(np.float32)]
+                for _ in range(num_samples):
+                    data = np.random.uniform(
+                        rep_min,
+                        rep_max,
+                        size=shape["representational_dataset"]
+                    )
+                    yield [data.astype(rep_input_dtypes[0])]
 
         converter.representative_dataset = representative_dataset
         converter.optimizations = [tf.lite.Optimize.DEFAULT]
@@ -392,6 +424,8 @@ def convert_keras_to_tflite(
                 tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
             ]
         # Perform the conversion
+        tflite_model = converter.convert()
+    else:
         tflite_model = converter.convert()
 
     # Save the converted model
@@ -451,7 +485,8 @@ def invoke_tflite_micro(tflite_path, input_tensor, arena_size=30000):
     interpreter = tflite_micro.runtime.Interpreter.from_file(model_path=str(tflite_path), arena_size=arena_size)
 
     for i, val in enumerate(input_tensor.values()):
-        expected_dtype = interpreter.get_input(i).dtype
+        input_details = interpreter.get_input_details(i)
+        expected_dtype = input_details["dtype"]
         if val.dtype != expected_dtype:
             val_to_set = val.astype(expected_dtype)
         else:

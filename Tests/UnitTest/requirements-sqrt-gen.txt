@@ -1,0 +1,3 @@
+tensorflow >= 2.21, < 2.22
+# Optional: if available for your platform/index, this is preferred by keras_compat.
+# tf-keras >= 2.21, < 2.22

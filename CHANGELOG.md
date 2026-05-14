@@ -1,5 +1,138 @@
 # Changelog
 
+## [7.24.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.24.0...v7.24.1) (2026-05-08)
+
+
+### Bug Fixes
+
+* Change vld1q_s32() to vldrwq_s32() in arm_rsqrt_s16.c ([45e120e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/45e120e506a80ec085cb7053e2a83473987e7ba9))
+* Change vld1q_s32() to vldrwq_s32() in arm_rsqrt_s16.c ([45e120e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/45e120e506a80ec085cb7053e2a83473987e7ba9))
+* Change vld1q_s32() to vldrwq_s32() in arm_rsqrt_s16.c ([95ffa0d](https://github.com/AmbiqAI/ns-cmsis-nn/commit/95ffa0dbcc6b94083850757676a8fed432871096))
+* correct pointer increment in per-row scalar ([0c94945](https://github.com/AmbiqAI/ns-cmsis-nn/commit/0c949456e546c73b29bd0e56a433cab68c5dce1d))
+* correct pointer increment in per-row scalar broadcast path for arm_squared_difference_s16 and s8 ([055edf9](https://github.com/AmbiqAI/ns-cmsis-nn/commit/055edf945688008103f25a2c66707afeeec61288))
+* correct pointer increments in elementwise functions to ensure proper data handling ([70d893d](https://github.com/AmbiqAI/ns-cmsis-nn/commit/70d893d91fa74c3f5606dc7180884ca88b119022))
+* Ensure helia-core-tester.yml fetches submodule tag ([996f0f4](https://github.com/AmbiqAI/ns-cmsis-nn/commit/996f0f42457f15dc2c9683769bfbff1ead367772))
+* force submodule tag fetch in coverage-merge-summary job ([817b9d2](https://github.com/AmbiqAI/ns-cmsis-nn/commit/817b9d234635dd071fa9361d605d6581ed3302d5))
+* update helia tag retrieval to use abbrev=0 and handle missing tags ([853fa42](https://github.com/AmbiqAI/ns-cmsis-nn/commit/853fa42b632ec053f1cc078cffc3aa00b9bede72))
+* update subproject commit reference in helia-core-tester ([9951017](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9951017b04816706fe3f01e99802835e4c7559f0))
+
+## [7.24.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.23.0...v7.24.0) (2026-04-24)
+
+
+### Features
+
+* add NSX module support (source + prebuilt modes) ([#128](https://github.com/AmbiqAI/ns-cmsis-nn/issues/128)) ([9d8badc](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9d8badc6825e0ca0788d9043f308cabbede4ef33))
+* add pattern to dependabot to group bot PRs ([#127](https://github.com/AmbiqAI/ns-cmsis-nn/issues/127)) ([56722a1](https://github.com/AmbiqAI/ns-cmsis-nn/commit/56722a1df32974af81bf748577f72fbd2c2bc4d4))
+* route ATfE/Clang to ACLE intrinsics path ([#131](https://github.com/AmbiqAI/ns-cmsis-nn/issues/131)) ([99d4435](https://github.com/AmbiqAI/ns-cmsis-nn/commit/99d4435c645b8a3e7523ce61405e839fe381e778))
+
+## [7.23.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.22.0...v7.23.0) (2026-04-10)
+
+
+### Features
+
+* add arm_sqrt_s16 kernel with MVE-optimized path ([af1429c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/af1429c92c2979b1480496f91b85fb0eb955e12a))
+* add arm_sqrt_s16 kernel with MVE-optimized path ([af1429c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/af1429c92c2979b1480496f91b85fb0eb955e12a))
+* add arm_sqrt_s16 kernel with MVE-optimized path ([3c97bcd](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3c97bcd08658216aecd238568a704b1e9272c806))
+* add depthwise fast path to arm_convolve_wrapper_s16 ([45d68a3](https://github.com/AmbiqAI/ns-cmsis-nn/commit/45d68a31872ebe318e99c9817dc848b4b8663697))
+* add int16 rsqrt kernels and generated tests ([5b4e8ac](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5b4e8ac4504c02605cb6960dae9aef4b372925eb))
+
+
+### Bug Fixes
+
+* add arm_convolve_s16_depthwise.c to PDSC ([c78ce6b](https://github.com/AmbiqAI/ns-cmsis-nn/commit/c78ce6bb8b453b86c5a3283c7428656ff75f0594))
+* add arm_sqrt_s16.c to PDSC source file listing ([2e87b7e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2e87b7e9e207cf1a918f9f40ce5012e8e8afb688))
+* depthwise scalar path uses arm_nn_requantize for int32 bias, add uint16 offset overflow guard ([932650a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/932650a3840b90ace258ba378e9b5b27339461d5))
+* remove unnecessary casts discarding const from LUT pointers ([576da80](https://github.com/AmbiqAI/ns-cmsis-nn/commit/576da80b6ec3ba5a3cf2aa5b89e53389273afe1c))
+
+
+### Refactoring
+
+* remove duplicate static helper, call arm_convolve_s16_group_ch_mult_1 from wrapper ([73679b3](https://github.com/AmbiqAI/ns-cmsis-nn/commit/73679b39fb3da7b8166b73778e722b1921184327))
+* rename arm_convolve_s16_depthwise to arm_convolve_s16_group_ch_mult_1 ([03b2f86](https://github.com/AmbiqAI/ns-cmsis-nn/commit/03b2f868de6df0a2eeb686d10647563ac2139f83))
+
+## [7.22.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.21.0...v7.22.0) (2026-03-24)
+
+
+### Features
+
+* Add int8 SQRT kernel. ([2aa4bc5](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2aa4bc5b5fa48b818dc34fdc7f500246c71de194))
+* Add int8 SQRT kernel. ([2aa4bc5](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2aa4bc5b5fa48b818dc34fdc7f500246c71de194))
+* Add int8 SQRT kernel. Update requirements.txt to tensorflow 2.21 to support quantizing SQRT. Use modern Keras for compatibility with modern Tensorflow ([5f43a09](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5f43a09cf79f292ce681a2c5670b5752573e6b37))
+* Add int8/int16 squared difference ([13199ba](https://github.com/AmbiqAI/ns-cmsis-nn/commit/13199baca247421639269d662a0ac07a72d9f473))
+* Add int8/int16 Squared Difference ([fa6ba21](https://github.com/AmbiqAI/ns-cmsis-nn/commit/fa6ba212b72f6797e582cccf8f590cabe34bd9d5))
+* Add MVE path to squared difference, add int16 tests ([75e7d06](https://github.com/AmbiqAI/ns-cmsis-nn/commit/75e7d065bb7de8a6d105a96ab69b7595034fe4eb))
+* Update ARM.CMSIS-NN.pdsc with squared_differnece ([f69896a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f69896abaf3105233518958094a07d254f8c0638))
+* Vectorize arm_sqrt_s8.c and place LUT into TCM ([6d38e45](https://github.com/AmbiqAI/ns-cmsis-nn/commit/6d38e458087a0aa9fbc12710b43adce9e7382900))
+
+
+### Bug Fixes
+
+* Default RefactoredTestGen to legacy Keras and fall back to modern Keras only when tf_keras is unavailable ([9344acf](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9344acf216046a24c27d692d8f247dff7b386c49))
+* Scope KEras/Tensorflow upgrade requirements to SQRT test generation only by restoring baseline UnitTest deps and reverting non-SQRT generators to tf_keras ([010a198](https://github.com/AmbiqAI/ns-cmsis-nn/commit/010a198fcd3549c27e6df5d565bc61921a5c1db7))
+
+## [7.21.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.20.0...v7.21.0) (2026-02-18)
+
+
+### Features
+
+* Add s32 variant of concatenation ([7e95d01](https://github.com/AmbiqAI/ns-cmsis-nn/commit/7e95d01a604cba15d8157399f8da54d4892be8e7))
+* Add s32 variant of concatenation ([7e95d01](https://github.com/AmbiqAI/ns-cmsis-nn/commit/7e95d01a604cba15d8157399f8da54d4892be8e7))
+* Add s32 variant of concatenation ([825d406](https://github.com/AmbiqAI/ns-cmsis-nn/commit/825d4069a717555a1d5724542e05bb7f79d56249))
+* Add support for s32 strided slice ([1df6b34](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1df6b3446c4e68cd94960f456020cc58951b6183))
+* Add support for s32 strided slice. Add int32 io support to test.py ([4ba775d](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4ba775dc9696a221501aa524cac44b6408d32afa))
+* Changes arm_strided_slice_s32() to use arm_memcpy_s32() ([5afc9df](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5afc9df96eb62b728be6dd43341a6ea3b13564ec))
+
+
+### Bug Fixes
+
+* Add shape checks, correct loop counter type to prevent overflow, move copy size out of loop, and add unit tests ([02217c5](https://github.com/AmbiqAI/ns-cmsis-nn/commit/02217c54cd5c4baeb983907db1fd50e8b2f911bb))
+* Move validate_s32() to Utils/validate.h and update zephyr/CMakeLists.txt to include s32 variant of strided slice ([049714d](https://github.com/AmbiqAI/ns-cmsis-nn/commit/049714d2e72b42ddde32a966459e1a58214a9a50))
+* Remove duplicate output_tensor.h test data ([aa9f026](https://github.com/AmbiqAI/ns-cmsis-nn/commit/aa9f026ae83c15ec3fd42a6d0c5e566e21adf4b5))
+* Update ARM&gt;CMSIS-NN.pdsc file with arm_concatenation_s32.c ([46dccd6](https://github.com/AmbiqAI/ns-cmsis-nn/commit/46dccd6624a5a6b4067e183ca74460181afa6316))
+
+## [7.20.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.19.0...v7.20.0) (2026-02-06)
+
+
+### Features
+
+* Add int8/int16 absolute value ([09e1b8d](https://github.com/AmbiqAI/ns-cmsis-nn/commit/09e1b8de996be41e156677d9a7291b1e35a8ba9e))
+
+## [7.19.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.18.0...v7.19.0) (2026-01-14)
+
+
+### Features
+
+* Add resize nearest neighbor operator ([c35f844](https://github.com/AmbiqAI/ns-cmsis-nn/commit/c35f844e7e2372a7b2c03dacce5bf52e7d4e9397), [3c49c3f](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3c49c3f41b522c29532c768be58e6e68527ee607))
+* Move nearest neighbor coordinate mapping into precomputed x/y arrays stored in ctx-&gt;buf ([feeb063](https://github.com/AmbiqAI/ns-cmsis-nn/commit/feeb06317f37d2c1b71452c322183940f37787bf))
+* Move scale and offset computation out of GetNearestNeighbor ([b37d6e1](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b37d6e182f67f91141bec44a6f755d091b843e1c))
+
+
+### Bug Fixes
+
+* Add tflite-micro back to requirements.txt ([16b2195](https://github.com/AmbiqAI/ns-cmsis-nn/commit/16b2195b09264962b033305beb2762d07a98f7d8))
+* Correct resize functions to pass in correct size to arm_memcpy invocation. ([8723c80](https://github.com/AmbiqAI/ns-cmsis-nn/commit/8723c804f42b26d372aae6f2401afcf1601a6474))
+* Correct whitespace inconsistencies ([d6861ec](https://github.com/AmbiqAI/ns-cmsis-nn/commit/d6861ecffb19b3892a9b9a2600c31aaccf561dec))
+* Include ARM_CMSIS_NN_ARG_ERROR as a possible return code ([51d77d1](https://github.com/AmbiqAI/ns-cmsis-nn/commit/51d77d1e03cce80a8cb119b47ef35dbe2292c8c3))
+* Update pdsc file ([04c8839](https://github.com/AmbiqAI/ns-cmsis-nn/commit/04c8839ed066dfa573c29074e8c02c5bca130055))
+* Update repository URL for Ethos-U core platform in test setup script ([c160efe](https://github.com/AmbiqAI/ns-cmsis-nn/commit/c160efe2ca4d5f6ac58df42f556be6f6163a1f21))
+* Update URL for Ethos-U core platform ([7e0fd73](https://github.com/AmbiqAI/ns-cmsis-nn/commit/7e0fd731ef43ef77798f19e8acefac89b2aa9cfe))
+
+## [7.18.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.17.0...v7.18.0) (2025-11-18)
+
+
+### Features
+
+* Add PReLU operator for s8 ([de8c1dd](https://github.com/AmbiqAI/ns-cmsis-nn/commit/de8c1dd1d67adce6b1c1a0d249a0dc6f11d37e60))
+* Add scalar and broadcastable implementation to s8 prelu ([71a6a11](https://github.com/AmbiqAI/ns-cmsis-nn/commit/71a6a115c3c806496e88ce9725e2671f226c7391))
+
+
+### Bug Fixes
+
+* Correct arm_elementwise_prelu_s8.c Title ([9e38e55](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9e38e55e2c63b33a365326d830ad89b0623f4d18))
+* Correct prelu function signature to match leaky relu ([07dd810](https://github.com/AmbiqAI/ns-cmsis-nn/commit/07dd810da4dbaa54e23e41b854e69abebab1ffdc))
+* Correct prelu shift type to int32_t ([540f159](https://github.com/AmbiqAI/ns-cmsis-nn/commit/540f159992c49f92ab9389d7152bb1750743f323))
+* Remove accidental commit to gitignore ([77f2554](https://github.com/AmbiqAI/ns-cmsis-nn/commit/77f2554d2b4c9701cdd58be2b2b8be42c9d76b2d))
+
 ## [7.17.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.16.0...v7.17.0) (2025-11-10)
 
 

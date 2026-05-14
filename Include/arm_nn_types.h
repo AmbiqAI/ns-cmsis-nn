@@ -23,7 +23,7 @@
  *               TensorFlowLite micro compliant functions
  *
  * $Date:        03 Oct 2025
- * $Revision:    "v7.17.0"  x-release-please-version
+ * $Revision:    "v7.24.1"  x-release-please-version
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
@@ -36,8 +36,8 @@
 
 // Version information
 #define NS_CMSIS_NN_VERSION_MAJOR (7) /* x-release-please-major */
-#define NS_CMSIS_NN_VERSION_MINOR (17) /* x-release-please-minor */
-#define NS_CMSIS_NN_VERSION_PATCH (0) /* x-release-please-patch */
+#define NS_CMSIS_NN_VERSION_MINOR (24) /* x-release-please-minor */
+#define NS_CMSIS_NN_VERSION_PATCH (1) /* x-release-please-patch */
 /**
  * @defgroup genPubTypes Structure Types
  * @ingroup Public
@@ -55,12 +55,12 @@ typedef enum
 /** Enum for specifying comparison operator */
 typedef enum
 {
-    ARM_COMPARE_EQUAL = 0,          /**< Returns 1 if lhs == rhs else 0 */
-    ARM_COMPARE_NOT_EQUAL = 1,      /**< Returns 1 if lhs != rhs else 0 */
-    ARM_COMPARE_GREATER = 2,        /**< Returns 1 if lhs > rhs else 0 */
-    ARM_COMPARE_GREATER_EQUAL = 3,  /**< Returns 1 if lhs >= rhs else 0 */
-    ARM_COMPARE_LESS = 4,           /**< Returns 1 if lhs < rhs else 0 */
-    ARM_COMPARE_LESS_EQUAL = 5,     /**< Returns 1 if lhs <= rhs else 0 */
+    ARM_COMPARE_EQUAL = 0,         /**< Returns 1 if lhs == rhs else 0 */
+    ARM_COMPARE_NOT_EQUAL = 1,     /**< Returns 1 if lhs != rhs else 0 */
+    ARM_COMPARE_GREATER = 2,       /**< Returns 1 if lhs > rhs else 0 */
+    ARM_COMPARE_GREATER_EQUAL = 3, /**< Returns 1 if lhs >= rhs else 0 */
+    ARM_COMPARE_LESS = 4,          /**< Returns 1 if lhs < rhs else 0 */
+    ARM_COMPARE_LESS_EQUAL = 5,    /**< Returns 1 if lhs <= rhs else 0 */
 } arm_nn_compare_operation;
 
 /** Function return codes */
@@ -71,7 +71,6 @@ typedef enum
     ARM_CMSIS_NN_NO_IMPL_ERROR = -2, /**<  No implementation available */
     ARM_CMSIS_NN_FAILURE = -3,       /**<  Logical error */
 } arm_cmsis_nn_status;
-
 
 /** CMSIS-NN object to contain the width and height of a tile */
 typedef struct
@@ -228,6 +227,13 @@ typedef struct
     const int32_t num_dims;
     const uint32_t *permutations; /**< The dimensions applied to the input dimensions */
 } cmsis_nn_transpose_params;
+
+/** CMSIS-NN object for Resize Nearest Neighbor layer parameters */
+typedef struct
+{
+    bool align_corners;      /**< Align corners when calculating interpolation */
+    bool half_pixel_centers; /**< Use half pixel centers when calculating interpolation */
+} cmsis_nn_resize_params;
 
 /** CMSIS-NN object for SVDF layer parameters */
 typedef struct

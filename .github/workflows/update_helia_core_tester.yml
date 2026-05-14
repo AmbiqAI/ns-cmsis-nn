@@ -1,0 +1,87 @@
+name: Update Helia-Core-Tester Submodule
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-submodule:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Resolve current and latest helia-core-tester tags
+        id: helia-core-meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          submodule_path='Tests/helia-core-tester'
+
+          git -C "${submodule_path}" fetch --tags --force origin
+
+          current_sha="$(git rev-parse HEAD:${submodule_path})"
+          current_tag="$(git -C "${submodule_path}" describe --tags --exact-match)"
+          latest_tag="$(git -C "${submodule_path}" tag --list 'v*' --sort=-version:refname | head -n 1)"
+
+          if [[ -z "${latest_tag}" ]]; then
+            echo "No helia-core-tester release tags were found." >&2
+            exit 1
+          fi
+
+          latest_sha="$(git -C "${submodule_path}" rev-list -n 1 "${latest_tag}")"
+
+          {
+            echo "current_sha=${current_sha}"
+            echo "current_tag=${current_tag}"
+            echo "latest_tag=${latest_tag}"
+            echo "latest_sha=${latest_sha}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### helia-core-tester update check"
+            echo "- current: \`${current_tag}\` (\`${current_sha}\`)"
+            echo "- latest: \`${latest_tag}\` (\`${latest_sha}\`)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Exit when submodule is already current
+        if: ${{ steps.helia-core-meta.outputs.current_sha == steps.helia-core-meta.outputs.latest_sha }}
+        shell: bash
+        run: |
+          echo "helia-core-tester already points at ${{ steps.helia-core-meta.outputs.latest_tag }}; nothing to update."
+
+      - name: Update submodule to latest release tag
+        if: ${{ steps.helia-core-meta.outputs.current_sha != steps.helia-core-meta.outputs.latest_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          submodule_path='Tests/helia-core-tester'
+          git -C "${submodule_path}" checkout "${{ steps.helia-core-meta.outputs.latest_tag }}"
+          git add "${submodule_path}"
+
+      - name: Create pull request
+        if: ${{ steps.helia-core-meta.outputs.current_sha != steps.helia-core-meta.outputs.latest_sha }}
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: codex/bump-helia-core-tester-${{ steps.helia-core-meta.outputs.latest_tag }}
+          delete-branch: true
+          add-paths: Tests/helia-core-tester
+          commit-message: "chore: bump helia-core-tester to ${{ steps.helia-core-meta.outputs.latest_tag }}"
+          title: "chore: bump helia-core-tester to ${{ steps.helia-core-meta.outputs.latest_tag }}"
+          body: |
+            Updates the `Tests/helia-core-tester` submodule to the latest published release tag.
+
+            Previous:
+            - tag: `${{ steps.helia-core-meta.outputs.current_tag }}`
+            - sha: `${{ steps.helia-core-meta.outputs.current_sha }}`
+
+            New:
+            - tag: `${{ steps.helia-core-meta.outputs.latest_tag }}`
+            - sha: `${{ steps.helia-core-meta.outputs.latest_sha }}`

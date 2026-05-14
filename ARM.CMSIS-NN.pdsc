@@ -77,6 +77,7 @@
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_wrapper_s4.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_wrapper_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_wrapper_s16.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_convolve_s16_group_ch_mult_1.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_get_buffer_sizes_s16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_get_buffer_sizes_s4.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_get_buffer_sizes_s8.c"/>
@@ -90,6 +91,7 @@
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8_z.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s16.c"/>
+        <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s32.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_split_s8.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_split_s16.c"/>
 
@@ -117,17 +119,23 @@
         <file category="source" name="Source/BasicMathFunctions/arm_add_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_sub_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_mul_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_squared_difference_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_scalar_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_sub_scalar_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_mul_scalar_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_squared_difference_scalar_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_sub_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_mul_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_squared_difference_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_scalar_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_sub_scalar_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_mul_scalar_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_squared_difference_scalar_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_squared_difference_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_squared_difference_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s16_batch_offset.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_acc_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_s8.c"/>
@@ -140,6 +148,12 @@
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_minimum_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_abs_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_abs_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_rsqrt_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_sqrt_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_sqrt_s16.c"/>
+
         <file category="source" name="Source/ComparisonFunctions/arm_comparison_s8.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_comparison_s16.c"/>
 
@@ -171,6 +185,8 @@
         <file category="source" name="Source/ReshapeFunctions/arm_space_to_batch_nd_s16.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_space_to_depth_s8.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_space_to_depth_s16.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_s8.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_s16.c"/>
 
         <file category="source" name="Source/TransposeFunctions/arm_transpose_s8.c"/>
         <file category="source" name="Source/TransposeFunctions/arm_transpose_s16.c"/>
@@ -241,6 +257,7 @@
 
         <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s8.c"/>
         <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s16.c"/>
+        <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s32.c"/>
 
         <file category="source" name="Source/GatherFunctions/arm_gather_s8.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_s16.c"/>

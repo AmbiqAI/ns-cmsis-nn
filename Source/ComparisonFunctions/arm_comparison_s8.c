@@ -28,7 +28,6 @@
  * @{
  */
 
-
 typedef struct
 {
     int32_t offset;
@@ -456,7 +455,6 @@ arm_cmsis_nn_status arm_comparison_s8(const cmsis_nn_context *ctx,
                                                     true,
                                                     operation);
 
-                    ++input_1_ptr;
                     input_2_ptr += flat_size_2;
                     output_data += flat_size_2;
                 }
@@ -472,7 +470,6 @@ arm_cmsis_nn_status arm_comparison_s8(const cmsis_nn_context *ctx,
                                                     false,
                                                     operation);
 
-                    ++input_2_ptr;
                     input_1_ptr += flat_size_1;
                     output_data += flat_size_1;
                 }

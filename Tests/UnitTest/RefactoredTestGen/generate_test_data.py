@@ -17,8 +17,18 @@
 # limitations under the License.
 #
 import os
+import importlib.util
 
-os.environ["TF_USE_LEGACY_KERAS"] = "1"  # See https://github.com/tensorflow/tensorflow/releases/tag/v2.16.1
+# Default to legacy Keras for RefactoredTestGen; fall back to modern Keras when unavailable.
+os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
+if os.environ.get("TF_USE_LEGACY_KERAS") == "1":
+    try:
+        has_tf_keras = importlib.util.find_spec("tf_keras") is not None
+    except Exception:
+        has_tf_keras = False
+    if not has_tf_keras:
+        os.environ["TF_USE_LEGACY_KERAS"] = "0"
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = "2"  # See https://github.com/tensorflow/tensorflow/issues/59779
 import json
 import argparse
