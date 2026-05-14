@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: Copyright 2024-2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+
+name: License Headers
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: SPDX header check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify SPDX headers under Source/ and Include/
+        run: bash scripts/check_license_headers.sh Source Include

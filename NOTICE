@@ -1,0 +1,44 @@
+heliaCORE NN
+============
+
+This product (package id: `ns-cmsis-nn`) is derived from Arm CMSIS-NN.
+
+Original work
+-------------
+
+Arm CMSIS-NN
+  Copyright Arm Limited and/or its affiliates <open-source-office@arm.com>
+  Source: https://github.com/ARM-software/CMSIS-NN
+  License: Apache License, Version 2.0
+           See LICENSES/Apache-2.0.txt
+
+Modifications and additions
+---------------------------
+
+Modifications to upstream files and all newly added files in this fork are:
+
+  Copyright (c) 2024-2026 Ambiq Micro, Inc.
+
+Per-file copyright and license is declared via SPDX headers
+(`SPDX-FileCopyrightText:` and `SPDX-License-Identifier:`) at the top of
+each source file.
+
+Licensing summary
+-----------------
+
+Two licenses apply across this repository:
+
+* Files originating from upstream Arm CMSIS-NN remain under the
+  Apache License, Version 2.0. They carry both the original Arm copyright
+  notice and an additional Ambiq copyright notice for the modifications.
+  SPDX identifier: `Apache-2.0`.
+
+* New files authored by Ambiq for this fork are distributed under the
+  Ambiq Apollo SDK License, which restricts use to software running on
+  Ambiq-manufactured CPUs. See LICENSE in the repository root.
+  SPDX identifier: `LicenseRef-Ambiq-Apollo-SDK`.
+
+When this repository is distributed as a whole, the Ambiq Apollo SDK
+License applies to the combined work; the Apache-2.0 license continues to
+apply to the upstream-derived files individually as required by Apache-2.0
+section 4(b).
