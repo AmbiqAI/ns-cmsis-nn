@@ -1,6 +1,17 @@
-# NS-CMSIS-NN
+# heliaCORE NN
 
-NS-CMSIS-NN is a specialized fork of Arm CMSIS-NN, tailored for Ambiq's Apollo family of ultra-low-power System-on-Chips (SoCs). This project enhances TFLM by optimizing it to leverage the advanced hardware intrinsics of the Apollo series, such as M-Profile Vector Extensions (MVE) and Digital Signal Processing (DSP) instructions.
+> Ambiq's NN kernel library (package: `ns-cmsis-nn`) — an Ambiq-optimized fork of Arm CMSIS-NN.
+
+heliaCORE NN is a specialized fork of Arm CMSIS-NN, tailored for Ambiq's Apollo family of ultra-low-power System-on-Chips (SoCs). This project enhances TFLM by optimizing it to leverage the advanced hardware intrinsics of the Apollo series, such as M-Profile Vector Extensions (MVE) and Digital Signal Processing (DSP) instructions.
+
+## Naming
+
+| Name | Used for |
+|---|---|
+| **heliaCORE NN** | Product / brand name (prose, docs, marketing) |
+| **heliaCORE** | Short brand name when used standalone |
+| **`ns-cmsis-nn`** | Package id, repo name, CMake/Zephyr module name, file/path identifiers |
+| **`arm_*` C symbols** | Public API — kept identical to upstream Arm CMSIS-NN so heliaCORE NN remains a drop-in superset |
 
 CMSIS NN software library is a collection of efficient neural network kernels developed to maximize the
 performance and minimize the memory footprint of neural networks on Arm Cortex-M processors.
