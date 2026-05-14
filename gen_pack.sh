@@ -95,7 +95,7 @@ function preprocess() {
 function postprocess() {
   # Set component version to match pack version
   VERSION=$(git_describe "${CHANGELOG}" | sed -e "s/+g.*$//")
-  sed -i -e "s/Cgroup=\"NN Lib\" Cversion=\"[^\"]*\"/Cgroup=\"NN Lib\" Cversion=\"${VERSION}\"/" ${PACK_BUILD}/ARM.CMSIS-NN.pdsc
+  sed -i -e "s/Cgroup=\"NN Lib\" Cversion=\"[^\"]*\"/Cgroup=\"NN Lib\" Cversion=\"${VERSION}\"/" ${PACK_BUILD}/Ambiq.NS-CMSIS-NN.pdsc
 }
 
 ############ DO NOT EDIT BELOW ###########

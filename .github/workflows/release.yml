@@ -102,7 +102,7 @@ jobs:
         run: |
           gh release upload \
             "${{ steps.ver.outputs.TAG }}" \
-            "./output/ARM.CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack" \
+            "./output/Ambiq.NS-CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack" \
             --clobber
 
       # 3) Publish docs to GitHub Pages (from ./Documentation/html)

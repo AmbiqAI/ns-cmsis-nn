@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <package schemaVersion="1.7.36" xmlns:xs="http://www.w3.org/2001/XMLSchema-instance" xs:noNamespaceSchemaLocation="https://raw.githubusercontent.com/Open-CMSIS-Pack/Open-CMSIS-Pack-Spec/v1.7.36/schema/PACK.xsd">
-  <name>CMSIS-NN</name>
-  <description>Ambiq optimized fork of CMSIS-NN</description>
-  <vendor>ARM</vendor>
+  <name>NS-CMSIS-NN</name>
+  <description>heliaCORE NN - Ambiq's optimized fork of Arm CMSIS-NN, tuned for the Apollo family of ultra-low-power SoCs.</description>
+  <vendor>Ambiq</vendor>
   <license>LICENSE</license>
   <licenseSets>
     <licenseSet id="Apache-2.0" default="true">
@@ -13,7 +13,7 @@
       <license name="LICENSE" title="Ambiq Apollo SDK License" url="https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/LICENSE"/>
     </licenseSet>
   </licenseSets>
-  <url>https://www.keil.com/pack/</url>
+  <url>https://github.com/AmbiqAI/ns-cmsis-nn/releases/latest/download/</url>
   <repository type="git">https://github.com/AmbiqAI/ns-cmsis-nn</repository>
 
   <releases>
