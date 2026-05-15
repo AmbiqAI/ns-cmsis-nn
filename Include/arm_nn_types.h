@@ -39,6 +39,31 @@
 #define NS_CMSIS_NN_VERSION_MAJOR (7) /* x-release-please-major */
 #define NS_CMSIS_NN_VERSION_MINOR (24) /* x-release-please-minor */
 #define NS_CMSIS_NN_VERSION_PATCH (1) /* x-release-please-patch */
+
+/**
+ * @brief Identity macros for the ns-cmsis-nn (Ambiq) superset of CMSIS-NN.
+ *
+ * This library is wire-compatible with upstream ARM-software/CMSIS-NN: every
+ * upstream `arm_*` symbol resolves here. We additionally ship Ambiq-specific
+ * kernels (e.g. arm_gather_s8, the elementwise prelu/clamp variants, ...).
+ *
+ * Downstream code that depends on Ambiq-only kernels should guard with:
+ *
+ *     #if !defined(NS_CMSIS_NN)
+ *     #  error "this code requires ns-cmsis-nn (Ambiq superset)"
+ *     #endif
+ *     #if NS_CMSIS_NN_VERSION < 72400
+ *     #  error "needs ns-cmsis-nn >= 7.24.0"
+ *     #endif
+ *
+ * NS_CMSIS_NN_VERSION is packed as MAJOR * 10000 + MINOR * 100 + PATCH and
+ * tracks release-please bumps automatically through the per-component macros
+ * above; no separate marker is required.
+ */
+#define NS_CMSIS_NN         (1)
+#define NS_CMSIS_NN_VERSION ((NS_CMSIS_NN_VERSION_MAJOR * 10000) + \
+                             (NS_CMSIS_NN_VERSION_MINOR * 100) +   \
+                              NS_CMSIS_NN_VERSION_PATCH)
 /**
  * @defgroup genPubTypes Structure Types
  * @ingroup Public

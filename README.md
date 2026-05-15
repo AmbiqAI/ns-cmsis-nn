@@ -74,6 +74,33 @@ maintained as a long-lived fork. We:
 If you find a kernel here that does not exist in upstream, that is intentional
 and part of the heliaCORE NN superset.
 
+### Detecting the superset at compile time
+
+Because heliaCORE NN ships as `libcmsis-nn.a` and exposes a `cmsis-nn` CMake
+ALIAS for drop-in TFLM compatibility, downstream code that calls Ambiq-only
+kernels (e.g. `arm_gather_s8`) should guard against accidentally being built
+against the upstream library. [`Include/arm_nn_types.h`](Include/arm_nn_types.h)
+defines:
+
+| Macro | Meaning |
+|---|---|
+| `NS_CMSIS_NN` | Always `1` when this header is from heliaCORE NN. |
+| `NS_CMSIS_NN_VERSION_MAJOR` / `MINOR` / `PATCH` | Component version numbers. |
+| `NS_CMSIS_NN_VERSION` | Packed as `MAJOR * 10000 + MINOR * 100 + PATCH`. |
+
+Recommended guard:
+
+```c
+#include "arm_nn_types.h"
+
+#if !defined(NS_CMSIS_NN)
+#  error "this code requires ns-cmsis-nn (Ambiq superset)"
+#endif
+#if NS_CMSIS_NN_VERSION < 72400
+#  error "needs ns-cmsis-nn >= 7.24.0"
+#endif
+```
+
 ## Naming
 
 | Name | Used for |
