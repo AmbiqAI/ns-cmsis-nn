@@ -1,0 +1,84 @@
+# SPDX-FileCopyrightText: Copyright 2024-2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+
+name: Zephyr Smoke
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: west build (${{ matrix.board }}, ${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    # Official Zephyr CI image — ships west, the Zephyr SDK, python deps,
+    # and the arm-zephyr-eabi toolchain. Pinned to a known-good tag.
+    container:
+      image: ghcr.io/zephyrproject-rtos/ci:v0.27.4
+      options: --user root
+
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [qemu_cortex_m3]
+        profile:
+          - { name: default, extra: "" }
+          - { name: inline-asm, extra: "-DOVERLAY_CONFIG=overlay-inline-asm.conf" }
+          - { name: deprecated-aliases, extra: "-DOVERLAY_CONFIG=overlay-deprecated-aliases.conf" }
+
+    env:
+      ZEPHYR_TOOLCHAIN_VARIANT: zephyr
+      ZEPHYR_SDK_INSTALL_DIR: /opt/toolchains
+
+    steps:
+      - name: Checkout ns-cmsis-nn
+        uses: actions/checkout@v6
+        with:
+          path: workspace/ns-cmsis-nn
+          fetch-depth: 1
+
+      - name: West init / update against workspace manifest
+        working-directory: workspace
+        run: |
+          west init -l ns-cmsis-nn/tests/zephyr/smoke
+          west update --narrow -o=--depth=1
+          west zephyr-export
+
+      - name: West build (${{ matrix.board }} / ${{ matrix.profile.name }})
+        working-directory: workspace
+        run: |
+          west build \
+            -p always \
+            -b ${{ matrix.board }} \
+            -s ns-cmsis-nn/tests/zephyr/smoke \
+            -d build-${{ matrix.board }}-${{ matrix.profile.name }} \
+            -- ${{ matrix.profile.extra }}
+
+      - name: Assert CMSIS-NN symbol present in ELF
+        working-directory: workspace
+        run: |
+          ELF="build-${{ matrix.board }}-${{ matrix.profile.name }}/zephyr/zephyr.elf"
+          test -f "$ELF" || { echo "::error::missing $ELF"; exit 1; }
+          if ! "${ZEPHYR_SDK_INSTALL_DIR}"/arm-zephyr-eabi/bin/arm-zephyr-eabi-nm "$ELF" | grep -E " [Tt] arm_relu_q15$"; then
+            echo "::error::arm_relu_q15 not linked from ns-cmsis-nn into $ELF"
+            exit 1
+          fi
+
+      - name: Assert inline-asm define propagated (inline-asm profile)
+        if: matrix.profile.name == 'inline-asm'
+        working-directory: workspace
+        run: |
+          CACHE="build-${{ matrix.board }}-${{ matrix.profile.name }}/CMakeCache.txt"
+          DEFS=$(find "build-${{ matrix.board }}-${{ matrix.profile.name }}" \
+                   -name flags.make -exec grep -l CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY {} \; | head -1)
+          if [ -z "$DEFS" ]; then
+            echo "::error::CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY not propagated to compile flags"
+            exit 1
+          fi
+          echo "OK: $DEFS carries the define"

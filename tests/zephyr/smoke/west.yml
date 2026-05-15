@@ -1,0 +1,22 @@
+# West manifest used by the Zephyr smoke CI job to pull Zephyr and add
+# this repo as a module. The job clones ns-cmsis-nn into
+# `workspace/ns-cmsis-nn` and runs `west init -l` against
+# `workspace/ns-cmsis-nn/tests/zephyr/smoke` so this manifest is consumed.
+manifest:
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+  defaults:
+    remote: zephyrproject-rtos
+  self:
+    path: ns-cmsis-nn
+  projects:
+    - name: zephyr
+      revision: v3.7.0
+      import:
+        # Pull only the minimal set Zephyr needs to build a hello-world-
+        # class app for QEMU Cortex-M; skip heavy/optional projects.
+        name-allowlist:
+          - cmsis
+          - picolibc
+          - segger
