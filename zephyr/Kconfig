@@ -148,4 +148,14 @@ config NS_CMSIS_NN_GATHER
 	help
 	  This option enables the NN libraries for the gather layers.
 
-endif #NS_CMSIS_NN
+config NS_CMSIS_NN_REQUANTIZE_INLINE_ASSEMBLY
+        bool "Use inline-assembly requantize routine"
+        depends on CPU_CORTEX_M
+        help
+          When enabled, defines CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY for
+          both this library and any consumer that includes its headers. This
+          switches the requantize routines (used in many hot kernels) to
+          hand-tuned inline-assembly variants that are noticeably faster than
+          the C fallbacks on Cortex-M cores. Defaults off to match the
+          standalone CMake build's default; safe to enable on any Cortex-M.
+
