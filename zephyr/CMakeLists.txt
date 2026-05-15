@@ -14,11 +14,12 @@ if(CONFIG_NS_CMSIS_NN)
   zephyr_library_include_directories(${ZEPHYR_CMSIS_MODULE_DIR}/CMSIS/Core/Include)
 
   # Translate the existing CONFIG_NS_CMSIS_NN_* knobs into SSoT group names.
-  # (Kconfig renames, if any, will be done in #151 — keep the symbols here.)
+  # Kconfig symbol names are aligned with SSoT group ids (#151); deprecated
+  # spellings (BASICMATH / STRIDED_SLICE / SVD) `select` into the new ones.
   set(_ns_groups)
   foreach(_pair
             "ACTIVATION;activation"
-            "BASICMATH;basicmath"
+            "BASICMATHSNN;basicmath"
             "COMPARISON;comparison"
             "CONCATENATION;concatenation"
             "CONVOLUTION;convolution"
@@ -31,8 +32,8 @@ if(CONFIG_NS_CMSIS_NN)
             "QUANTIZATION;quantization"
             "RESHAPE;reshape"
             "SOFTMAX;softmax"
-            "STRIDED_SLICE;stridedslice"
-            "SVD;svd"
+            "STRIDEDSLICE;stridedslice"
+            "SVDF;svd"
             "TRANSPOSE;transpose")
     list(GET _pair 0 _kconfig)
     list(GET _pair 1 _group)
