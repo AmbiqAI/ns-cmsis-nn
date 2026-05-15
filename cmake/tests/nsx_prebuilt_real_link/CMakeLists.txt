@@ -26,11 +26,10 @@
 #
 cmake_minimum_required(VERSION 3.15)
 
-# Override the toolchain's try_compile target-type (it defaults to
-# STATIC_LIBRARY for the staticlib pipeline). We need executables to
-# link end-to-end here so the smoke ELF actually validates the .a.
-set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY CACHE INTERNAL "")
-
+# arm-none-eabi-gcc.cmake already sets CMAKE_TRY_COMPILE_TARGET_TYPE to
+# STATIC_LIBRARY because the toolchain can't link a hello-world without
+# board startup files. Our real add_executable() below works around that
+# by passing --specs=nosys.specs + -nostartfiles + a custom entry symbol.
 project(ns_cmsis_nn_nsx_prebuilt_real_link C)
 
 if(NOT DEFINED NSX_CMSIS_NN_LIB)

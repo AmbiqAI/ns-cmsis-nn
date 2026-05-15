@@ -22,7 +22,7 @@ config NS_CMSIS_NN_USE_PREBUILT
           per-arch SDK tarball already extracted on the filesystem
           (see NS_CMSIS_NN_PREBUILT_PATH). The tarball is what the
           upstream release publishes alongside each tag as
-          ns-cmsis-nn-<cpu>-<version>.tar.gz.
+          ns-cmsis-nn-<cpu>-<toolchain>-<version>.tar.gz.
 
           The application is responsible for ensuring the tarball's
           target_cpu matches the board's Cortex-M variant; an ABI
@@ -38,7 +38,7 @@ config NS_CMSIS_NN_PREBUILT_PATH
         help
           Absolute path to the directory produced by extracting a
           per-arch SDK tarball, e.g.
-              /opt/ns-cmsis-nn-cortex-m4-7.24.1/
+              /opt/ns-cmsis-nn-cortex-m4-gcc-7.24.1/
           The directory must contain lib/libns-cmsis-nn.a and include/.
 
 config NS_CMSIS_NN_ALL
