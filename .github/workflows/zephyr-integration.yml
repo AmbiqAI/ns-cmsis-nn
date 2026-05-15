@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: Copyright 2024-2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+#
+# Zephyr integration wiring checks. PR-gated, no SDK / no west / no
+# cross-compiler required — every check is configure-time CMake or pure
+# Python and runs in seconds.
+#
+# A real end-to-end `west build` is intentionally not part of this
+# workflow: it would only re-prove what the wiring checks here cover
+# (plus that GCC can compile sources the unit-test suite already
+# exercises), at the cost of a multi-GB Zephyr SDK pull per run. If a
+# future regression requires reintroducing it, add a `workflow_dispatch`
+# job to this file rather than a separate workflow.
+
+name: Zephyr Integration
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wiring:
+    name: Zephyr wiring (CMake mock)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run zephyr/CMakeLists.txt wiring test
+        run: cmake -S cmake/tests/zephyr_wiring -B build/zephyr_wiring
+
+  kconfig:
+    name: Zephyr Kconfig contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run Kconfig contract test
+        run: python3 scripts/check_zephyr_kconfig.py
