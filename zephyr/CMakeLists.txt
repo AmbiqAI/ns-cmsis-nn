@@ -47,4 +47,11 @@ if(CONFIG_NS_CMSIS_NN)
                        INCLUDE_DIRS_VISIBILITY PUBLIC)
   endif()
 
+  # Inline-assembly requantize must be visible at every translation unit that
+  # includes arm_nnsupportfunctions.h (it gates inline functions in the public
+  # header), so propagate it globally rather than only to this library.
+  if(CONFIG_NS_CMSIS_NN_REQUANTIZE_INLINE_ASSEMBLY)
+    zephyr_compile_definitions(CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY)
+  endif()
+
 endif()
