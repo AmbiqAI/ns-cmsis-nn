@@ -86,7 +86,7 @@ defines:
 |---|---|
 | `NS_CMSIS_NN` | Always `1` when this header is from heliaCORE NN. |
 | `NS_CMSIS_NN_VERSION_MAJOR` / `MINOR` / `PATCH` | Component version numbers. |
-| `NS_CMSIS_NN_VERSION` | Packed as `MAJOR * 10000 + MINOR * 100 + PATCH`. |
+| `NS_CMSIS_NN_VERSION` | Packed as `MAJOR * 1000000 + MINOR * 1000 + PATCH` (3-digit fields, so semantic ordering is preserved for any reasonable version). |
 
 Recommended guard:
 
@@ -96,7 +96,7 @@ Recommended guard:
 #if !defined(NS_CMSIS_NN)
 #  error "this code requires ns-cmsis-nn (Ambiq superset)"
 #endif
-#if NS_CMSIS_NN_VERSION < 72400
+#if NS_CMSIS_NN_VERSION < 7024000
 #  error "needs ns-cmsis-nn >= 7.24.0"
 #endif
 ```
