@@ -82,7 +82,7 @@ run_resolution_test \
 
 run_resolution_test \
   "libns-cmsis-nn-cm55-cortex-m55-atfe-hard-mve-fp-ofast.a" \
-  -DTEST_ZEPHYR_TOOLCHAIN_VARIANT="llvm" \
+  -DTEST_ZEPHYR_TOOLCHAIN_VARIANT="atfe" \
   -DTEST_TRUE_SYMBOLS="CONFIG_CPU_CORTEX_M55;CONFIG_FPU"
 
 run_resolution_test \
