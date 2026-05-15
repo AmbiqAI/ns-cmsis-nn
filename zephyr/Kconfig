@@ -14,6 +14,33 @@ menuconfig NS_CMSIS_NN
 
 if NS_CMSIS_NN
 
+config NS_CMSIS_NN_USE_PREBUILT
+        bool "Consume a pre-compiled libns-cmsis-nn.a instead of building from source"
+        help
+          When enabled, the Zephyr module skips compiling cmsis-nn from
+          source and instead imports a pre-built static library from a
+          per-arch SDK tarball already extracted on the filesystem
+          (see NS_CMSIS_NN_PREBUILT_PATH). The tarball is what the
+          upstream release publishes alongside each tag as
+          ns-cmsis-nn-<cpu>-<version>.tar.gz.
+
+          The application is responsible for ensuring the tarball's
+          target_cpu matches the board's Cortex-M variant; an ABI
+          mismatch will surface as a link error.
+
+          Mutually exclusive with the source build: the per-kernel
+          NS_CMSIS_NN_* group knobs below are ignored in prebuilt mode
+          (the prebuilt .a already contains every kernel).
+
+config NS_CMSIS_NN_PREBUILT_PATH
+        string "Filesystem path to an extracted ns-cmsis-nn SDK tarball"
+        depends on NS_CMSIS_NN_USE_PREBUILT
+        help
+          Absolute path to the directory produced by extracting a
+          per-arch SDK tarball, e.g.
+              /opt/ns-cmsis-nn-cortex-m4-7.24.1/
+          The directory must contain lib/libns-cmsis-nn.a and include/.
+
 config NS_CMSIS_NN_ALL
 	bool "Enable all NS-CMSIS-NN kernels"
 	help

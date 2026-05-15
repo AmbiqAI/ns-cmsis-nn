@@ -3,6 +3,50 @@
 
 if(CONFIG_NS_CMSIS_NN)
 
+  if(CONFIG_NS_CMSIS_NN_USE_PREBUILT)
+
+    # ----------------------------------------------------------------------
+    # Prebuilt mode: import a pre-compiled libns-cmsis-nn.a from a per-arch
+    # SDK tarball already extracted at CONFIG_NS_CMSIS_NN_PREBUILT_PATH.
+    # The application is responsible for ensuring the tarball's target_cpu
+    # matches the board's Cortex-M variant — the .a's ABI must agree with
+    # what Zephyr passes to the linker.
+    # ----------------------------------------------------------------------
+
+    set(_ns_sdk "${CONFIG_NS_CMSIS_NN_PREBUILT_PATH}")
+    if(NOT _ns_sdk)
+      message(FATAL_ERROR
+        "CONFIG_NS_CMSIS_NN_USE_PREBUILT=y but "
+        "CONFIG_NS_CMSIS_NN_PREBUILT_PATH is empty.")
+    endif()
+    if(NOT EXISTS "${_ns_sdk}/lib/libns-cmsis-nn.a")
+      message(FATAL_ERROR
+        "Prebuilt ns-cmsis-nn SDK at '${_ns_sdk}' is missing "
+        "lib/libns-cmsis-nn.a — check CONFIG_NS_CMSIS_NN_PREBUILT_PATH.")
+    endif()
+    if(NOT IS_DIRECTORY "${_ns_sdk}/include")
+      message(FATAL_ERROR
+        "Prebuilt ns-cmsis-nn SDK at '${_ns_sdk}' is missing include/.")
+    endif()
+
+    if(NOT TARGET ns_cmsis_nn_prebuilt)
+      add_library(ns_cmsis_nn_prebuilt STATIC IMPORTED GLOBAL)
+      set_target_properties(ns_cmsis_nn_prebuilt PROPERTIES
+        IMPORTED_LOCATION             "${_ns_sdk}/lib/libns-cmsis-nn.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${_ns_sdk}/include")
+    endif()
+
+    # Headers must be globally visible — application code includes
+    # arm_nnfunctions.h directly, same as in source mode.
+    zephyr_include_directories("${_ns_sdk}/include")
+    zephyr_link_libraries(ns_cmsis_nn_prebuilt)
+
+    # Inline-asm requantize is baked into the prebuilt's binary; the
+    # define is irrelevant at consumer-side, so we deliberately do not
+    # forward CONFIG_NS_CMSIS_NN_REQUANTIZE_INLINE_ASSEMBLY here.
+
+  else()
+
   # Single source of truth for the per-group source lists, shared with the
   # standalone CMake build and the NSX module.
   include(${ZEPHYR_CURRENT_MODULE_DIR}/cmake/ns_cmsis_nn.cmake)
@@ -55,4 +99,7 @@ if(CONFIG_NS_CMSIS_NN)
     zephyr_compile_definitions(CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY)
   endif()
 
+  endif()  # CONFIG_NS_CMSIS_NN_USE_PREBUILT
+
 endif()
+

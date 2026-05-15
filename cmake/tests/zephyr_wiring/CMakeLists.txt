@@ -48,6 +48,7 @@ set(STUB_COMPILE_OPTIONS "")
 set(STUB_GLOBAL_INCLUDE_DIRS "")
 set(STUB_LIBRARY_INCLUDE_DIRS "")
 set(STUB_COMPILE_DEFINITIONS "")
+set(STUB_APP_LINK_LIBRARIES "")
 
 macro(zephyr_library)
   set(STUB_LIBRARY_NAME "zephyr_stub_lib")
@@ -71,6 +72,10 @@ endmacro()
 
 macro(zephyr_compile_definitions)
   list(APPEND STUB_COMPILE_DEFINITIONS ${ARGN})
+endmacro()
+
+macro(zephyr_link_libraries)
+  list(APPEND STUB_APP_LINK_LIBRARIES ${ARGN})
 endmacro()
 
 # ----------------------------------------------------------------------------
@@ -189,10 +194,72 @@ foreach(_g IN LISTS _all_groups)
 endforeach()
 
 # ----------------------------------------------------------------------------
+# Case 3: prebuilt mode. CONFIG_NS_CMSIS_NN_USE_PREBUILT=y diverts the
+# module away from the source path entirely: no zephyr_library(), no source
+# attachment, no SSoT-group translation. Instead, an IMPORTED static lib
+# pointing at the staged SDK tarball is created and linked at app level.
+# ----------------------------------------------------------------------------
+
+# Reset stub state.
+set(STUB_LIBRARY_NAME "")
+set(STUB_COMPILE_OPTIONS "")
+set(STUB_GLOBAL_INCLUDE_DIRS "")
+set(STUB_LIBRARY_INCLUDE_DIRS "")
+set(STUB_COMPILE_DEFINITIONS "")
+set(STUB_APP_LINK_LIBRARIES "")
+foreach(_k IN LISTS _renamed_knobs)
+  unset(CONFIG_NS_CMSIS_NN_${_k})
+endforeach()
+unset(CONFIG_NS_CMSIS_NN_REQUANTIZE_INLINE_ASSEMBLY)
+
+# Stage a fake SDK layout (lib/libns-cmsis-nn.a + include/).
+set(_fake_sdk "${CMAKE_BINARY_DIR}/_fake_sdk")
+file(MAKE_DIRECTORY "${_fake_sdk}/lib" "${_fake_sdk}/include")
+file(WRITE "${_fake_sdk}/lib/libns-cmsis-nn.a" "fake archive\n")
+file(WRITE "${_fake_sdk}/include/arm_nnfunctions.h" "/* fake */\n")
+
+set(CONFIG_NS_CMSIS_NN 1)
+set(CONFIG_NS_CMSIS_NN_USE_PREBUILT 1)
+set(CONFIG_NS_CMSIS_NN_PREBUILT_PATH "${_fake_sdk}")
+
+include("${_repo_root}/zephyr/CMakeLists.txt")
+
+# In prebuilt mode the module must NOT call zephyr_library(); attaching
+# sources to a module-level STATIC alongside an IMPORTED library would be
+# strictly wasteful.
+if(STUB_LIBRARY_NAME)
+  _fail("prebuilt mode: zephyr_library() was called (expected none); STUB_LIBRARY_NAME='${STUB_LIBRARY_NAME}'")
+endif()
+if(NOT TARGET ns_cmsis_nn_prebuilt)
+  _fail("prebuilt mode: ns_cmsis_nn_prebuilt IMPORTED target was not created")
+else()
+  get_target_property(_imp ns_cmsis_nn_prebuilt IMPORTED)
+  if(NOT _imp)
+    _fail("prebuilt mode: ns_cmsis_nn_prebuilt is not IMPORTED")
+  endif()
+  get_target_property(_loc ns_cmsis_nn_prebuilt IMPORTED_LOCATION)
+  if(NOT _loc STREQUAL "${_fake_sdk}/lib/libns-cmsis-nn.a")
+    _fail("prebuilt mode: IMPORTED_LOCATION='${_loc}', expected '${_fake_sdk}/lib/libns-cmsis-nn.a'")
+  endif()
+  get_target_property(_incs ns_cmsis_nn_prebuilt INTERFACE_INCLUDE_DIRECTORIES)
+  if(NOT _incs STREQUAL "${_fake_sdk}/include")
+    _fail("prebuilt mode: INTERFACE_INCLUDE_DIRECTORIES='${_incs}', expected '${_fake_sdk}/include'")
+  endif()
+endif()
+list(FIND STUB_APP_LINK_LIBRARIES "ns_cmsis_nn_prebuilt" _link_idx)
+if(_link_idx EQUAL -1)
+  _fail("prebuilt mode: ns_cmsis_nn_prebuilt not added to app via zephyr_link_libraries(); got: ${STUB_APP_LINK_LIBRARIES}")
+endif()
+list(FIND STUB_GLOBAL_INCLUDE_DIRS "${_fake_sdk}/include" _inc_idx)
+if(_inc_idx EQUAL -1)
+  _fail("prebuilt mode: ${_fake_sdk}/include not exposed globally; got: ${STUB_GLOBAL_INCLUDE_DIRS}")
+endif()
+
+# ----------------------------------------------------------------------------
 # Report.
 # ----------------------------------------------------------------------------
 if(_failures)
   message(FATAL_ERROR "Zephyr wiring test FAILED:${_failures}")
 endif()
 
-message(STATUS "Zephyr wiring OK: 17 knobs translated, 206 sources attached, inline-asm define propagated.")
+message(STATUS "Zephyr wiring OK: 17 knobs translated, 206 sources attached, inline-asm define propagated, prebuilt mode imports SDK tarball.")
