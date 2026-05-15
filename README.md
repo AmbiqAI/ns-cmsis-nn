@@ -298,7 +298,10 @@ target_link_libraries(my_app PRIVATE cmsis-nn)
 
 The CMake build picks up the right backend (C / DSP / MVE) from your
 toolchain's CPU flags. See
-[`CMakeLists.txt`](CMakeLists.txt) for the build target definition.
+[`CMakeLists.txt`](CMakeLists.txt) for the build target definition, and
+[`Documentation/build.md`](Documentation/build.md) for a full reference
+of the SSoT CMake module — including how to opt in/out of operator
+groups and how to add a new one.
 
 ### Calling a kernel directly
 
