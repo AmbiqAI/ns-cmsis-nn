@@ -176,10 +176,12 @@ jobs:
         run: |
           lib="./output/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
           bash scripts/build_sdk_tarball.sh \
-            --target-cpu "$TARGET_CPU" \
-            --version    "$VERSION"    \
-            --staticlib  "$lib"        \
-            --outdir     "./output/${TARGET_CPU}"
+            --target-cpu         "$TARGET_CPU" \
+            --version            "$VERSION"    \
+            --staticlib          "$lib"        \
+            --toolchain          gcc           \
+            --toolchain-version  13.2.Rel1     \
+            --outdir             "./output/${TARGET_CPU}"
 
       - name: Upload artefacts (cross-job)
         # Pack-prebuilt job (M3 #167 follow-up) downloads these.
@@ -204,8 +206,8 @@ jobs:
           gh release upload "$TAG" \
             "./output/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
             "./output/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a.sha256" \
-            "./output/${TARGET_CPU}/ns-cmsis-nn-${TARGET_CPU}-${VERSION}.tar.gz" \
-            "./output/${TARGET_CPU}/ns-cmsis-nn-${TARGET_CPU}-${VERSION}.tar.gz.sha256" \
+            "./output/${TARGET_CPU}/ns-cmsis-nn-${TARGET_CPU}-gcc-${VERSION}.tar.gz" \
+            "./output/${TARGET_CPU}/ns-cmsis-nn-${TARGET_CPU}-gcc-${VERSION}.tar.gz.sha256" \
             --clobber
 
   publish-ci-image:

@@ -219,4 +219,3 @@ config NS_CMSIS_NN_SVD
 	help
 	  Deprecated alias for NS_CMSIS_NN_SVDF. Update your prj.conf
 	  to use the new name; this symbol will be removed in a future release.
-

@@ -102,4 +102,3 @@ if(CONFIG_NS_CMSIS_NN)
   endif()  # CONFIG_NS_CMSIS_NN_USE_PREBUILT
 
 endif()
-

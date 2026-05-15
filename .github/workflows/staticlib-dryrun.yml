@@ -76,10 +76,12 @@ jobs:
         run: |
           lib="./output/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
           bash scripts/build_sdk_tarball.sh \
-            --target-cpu "$TARGET_CPU" \
-            --version    "$VERSION"    \
-            --staticlib  "$lib"        \
-            --outdir     "./output/${TARGET_CPU}"
+            --target-cpu         "$TARGET_CPU" \
+            --version            "$VERSION"    \
+            --staticlib          "$lib"        \
+            --toolchain          gcc           \
+            --toolchain-version  13.2.Rel1     \
+            --outdir             "./output/${TARGET_CPU}"
 
       - name: Upload artefact
         uses: actions/upload-artifact@v4

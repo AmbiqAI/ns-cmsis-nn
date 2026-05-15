@@ -34,13 +34,17 @@ TARGET_CPU=""
 VERSION=""
 STATICLIB=""
 OUTDIR=""
+TOOLCHAIN="gcc"
+TOOLCHAIN_VERSION=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --target-cpu) TARGET_CPU="$2"; shift 2 ;;
-    --version)    VERSION="$2";    shift 2 ;;
-    --staticlib)  STATICLIB="$2";  shift 2 ;;
-    --outdir)     OUTDIR="$2";     shift 2 ;;
+    --target-cpu)        TARGET_CPU="$2";        shift 2 ;;
+    --version)           VERSION="$2";           shift 2 ;;
+    --staticlib)         STATICLIB="$2";         shift 2 ;;
+    --outdir)            OUTDIR="$2";            shift 2 ;;
+    --toolchain)         TOOLCHAIN="$2";         shift 2 ;;
+    --toolchain-version) TOOLCHAIN_VERSION="$2"; shift 2 ;;
     -h|--help)
       sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
@@ -61,6 +65,15 @@ case "$TARGET_CPU" in
   *) echo "unsupported --target-cpu '$TARGET_CPU'" >&2; exit 2 ;;
 esac
 
+# Toolchain id is baked into both the tarball name and the manifest so a
+# future multi-toolchain matrix (M3 #177) is a pure additive change.
+case "$TOOLCHAIN" in
+  gcc)      TOOLCHAIN_COMPILER="GNU";   TOOLCHAIN_FULL_ID="gnu-arm-embedded" ;;
+  armclang) TOOLCHAIN_COMPILER="ARMCC"; TOOLCHAIN_FULL_ID="arm-compiler"     ;;
+  clang)    TOOLCHAIN_COMPILER="Clang"; TOOLCHAIN_FULL_ID="llvm-embedded-toolchain-for-arm" ;;
+  *) echo "unsupported --toolchain '$TOOLCHAIN' (gcc|armclang|clang)" >&2; exit 2 ;;
+esac
+
 case "$OUTDIR" in
   ""|"/"|"."|"..") echo "refusing unsafe --outdir '$OUTDIR'" >&2; exit 2 ;;
 esac
@@ -72,7 +85,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 mkdir -p "$OUTDIR"
 
-PKG_NAME="ns-cmsis-nn-${TARGET_CPU}-${VERSION}"
+PKG_NAME="ns-cmsis-nn-${TARGET_CPU}-${TOOLCHAIN}-${VERSION}"
 STAGE="$(mktemp -d "$OUTDIR/.stage.XXXXXX")"
 trap 'rm -rf "$STAGE"' EXIT
 
@@ -101,6 +114,8 @@ render_template() {
   sed -e "s|@NS_CMSIS_NN_VERSION@|${VERSION}|g" \
       -e "s|@NS_CMSIS_NN_TARGET_CPU@|${TARGET_CPU}|g" \
       -e "s|@NS_CMSIS_NN_ARCH_FLAGS@|${ARCH_FLAGS}|g" \
+      -e "s|@NS_CMSIS_NN_TOOLCHAIN@|${TOOLCHAIN}|g" \
+      -e "s|@NS_CMSIS_NN_TOOLCHAIN_COMPILER@|${TOOLCHAIN_COMPILER}|g" \
       "$src" > "$dst"
 }
 render_template "$REPO_ROOT/cmake/templates/ns-cmsis-nn-config.cmake.in" \
@@ -110,12 +125,15 @@ render_template "$REPO_ROOT/cmake/templates/ns-cmsis-nn-config-version.cmake.in"
 
 cat > "$PKG_ROOT/manifest.json" <<EOF
 {
+  "schema_version": 1,
   "package": "ns-cmsis-nn",
   "version": "${VERSION}",
   "target_cpu": "${TARGET_CPU}",
   "toolchain": {
-    "id": "gnu-arm-embedded",
-    "compiler_id": "GNU"
+    "id": "${TOOLCHAIN}",
+    "full_id": "${TOOLCHAIN_FULL_ID}",
+    "compiler_id": "${TOOLCHAIN_COMPILER}",
+    "version": "${TOOLCHAIN_VERSION}"
   },
   "abi": {
     "arch_flags": "${ARCH_FLAGS}"

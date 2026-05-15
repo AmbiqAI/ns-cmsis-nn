@@ -34,6 +34,7 @@ set_property(CACHE CASE PROPERTY STRINGS happy version_mismatch cpu_mismatch)
 get_filename_component(_repo_root "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
 set(_fake_version "9.9.9")
 set(_target_cpu   "cortex-m4")
+set(_toolchain    "gcc")
 
 # ----------------------------------------------------------------------------
 # Stage a fake static library, then drive build_sdk_tarball.sh against it.
@@ -47,10 +48,12 @@ file(MAKE_DIRECTORY "${_pkg_outdir}")
 
 execute_process(
   COMMAND bash "${_repo_root}/scripts/build_sdk_tarball.sh"
-    --target-cpu "${_target_cpu}"
-    --version    "${_fake_version}"
-    --staticlib  "${_fake_lib}"
-    --outdir     "${_pkg_outdir}"
+    --target-cpu        "${_target_cpu}"
+    --version           "${_fake_version}"
+    --staticlib         "${_fake_lib}"
+    --toolchain         "${_toolchain}"
+    --toolchain-version "test-9.9"
+    --outdir            "${_pkg_outdir}"
   RESULT_VARIABLE _rc
   OUTPUT_VARIABLE _out
   ERROR_VARIABLE  _err)
@@ -59,7 +62,7 @@ if(NOT _rc EQUAL 0)
     "build_sdk_tarball.sh failed (rc=${_rc})\nstdout:\n${_out}\nstderr:\n${_err}")
 endif()
 
-set(_tarball "${_pkg_outdir}/ns-cmsis-nn-${_target_cpu}-${_fake_version}.tar.gz")
+set(_tarball "${_pkg_outdir}/ns-cmsis-nn-${_target_cpu}-${_toolchain}-${_fake_version}.tar.gz")
 if(NOT EXISTS "${_tarball}")
   message(FATAL_ERROR "build_sdk_tarball.sh produced no tarball at ${_tarball}")
 endif()
@@ -74,7 +77,7 @@ if(NOT _rc EQUAL 0)
   message(FATAL_ERROR "extracting ${_tarball} failed (rc=${_rc})")
 endif()
 
-set(_pkg_dir "${_extract_root}/ns-cmsis-nn-${_target_cpu}-${_fake_version}")
+set(_pkg_dir "${_extract_root}/ns-cmsis-nn-${_target_cpu}-${_toolchain}-${_fake_version}")
 
 # ----------------------------------------------------------------------------
 # Failure collector.
@@ -114,6 +117,12 @@ if(CASE STREQUAL "happy")
   endif()
   if(NOT NS_CMSIS_NN_TARGET_CPU STREQUAL _target_cpu)
     _fail("NS_CMSIS_NN_TARGET_CPU='${NS_CMSIS_NN_TARGET_CPU}' (expected ${_target_cpu})")
+  endif()
+  if(NOT NS_CMSIS_NN_TOOLCHAIN STREQUAL _toolchain)
+    _fail("NS_CMSIS_NN_TOOLCHAIN='${NS_CMSIS_NN_TOOLCHAIN}' (expected ${_toolchain})")
+  endif()
+  if(NOT NS_CMSIS_NN_TOOLCHAIN_COMPILER STREQUAL "GNU")
+    _fail("NS_CMSIS_NN_TOOLCHAIN_COMPILER='${NS_CMSIS_NN_TOOLCHAIN_COMPILER}' (expected GNU)")
   endif()
 
 elseif(CASE STREQUAL "version_mismatch")

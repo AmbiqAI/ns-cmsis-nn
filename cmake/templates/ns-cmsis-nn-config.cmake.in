@@ -13,9 +13,11 @@
 # The target graph it exposes (`cmsis-nn`, `ns-cmsis-nn`, `ns::cmsis-nn`)
 # matches the source build, so consumer code is build-mode agnostic.
 
-set(NS_CMSIS_NN_VERSION    "@NS_CMSIS_NN_VERSION@")
-set(NS_CMSIS_NN_TARGET_CPU "@NS_CMSIS_NN_TARGET_CPU@")
-set(NS_CMSIS_NN_ARCH_FLAGS "@NS_CMSIS_NN_ARCH_FLAGS@")
+set(NS_CMSIS_NN_VERSION             "@NS_CMSIS_NN_VERSION@")
+set(NS_CMSIS_NN_TARGET_CPU          "@NS_CMSIS_NN_TARGET_CPU@")
+set(NS_CMSIS_NN_ARCH_FLAGS          "@NS_CMSIS_NN_ARCH_FLAGS@")
+set(NS_CMSIS_NN_TOOLCHAIN           "@NS_CMSIS_NN_TOOLCHAIN@")
+set(NS_CMSIS_NN_TOOLCHAIN_COMPILER  "@NS_CMSIS_NN_TOOLCHAIN_COMPILER@")
 
 get_filename_component(_ns_cmsis_nn_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(NS_CMSIS_NN_INCLUDE_DIR "${_ns_cmsis_nn_root}/include")
@@ -46,6 +48,18 @@ if(CMAKE_C_FLAGS MATCHES "-mcpu=([^ \t]+)")
       "Download the matching per-arch tarball.")
   endif()
   unset(_ns_cmsis_nn_consumer_cpu)
+endif()
+
+# Soft toolchain mismatch check: if the consumer's CMAKE_C_COMPILER_ID is
+# known and disagrees with this package's compiler_id, fail-fast. Honours
+# the toolchain dimension #177 will expand the publish matrix into.
+if(CMAKE_C_COMPILER_ID AND NS_CMSIS_NN_TOOLCHAIN_COMPILER
+   AND NOT CMAKE_C_COMPILER_ID STREQUAL NS_CMSIS_NN_TOOLCHAIN_COMPILER)
+  message(FATAL_ERROR
+    "ns-cmsis-nn package is built with ${NS_CMSIS_NN_TOOLCHAIN_COMPILER} "
+    "(toolchain '${NS_CMSIS_NN_TOOLCHAIN}') but the consumer's "
+    "CMAKE_C_COMPILER_ID is ${CMAKE_C_COMPILER_ID}. "
+    "Download the matching per-toolchain tarball.")
 endif()
 
 if(NOT TARGET cmsis-nn)
