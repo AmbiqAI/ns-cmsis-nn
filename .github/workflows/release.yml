@@ -22,6 +22,7 @@ jobs:
     outputs:
       release_created: ${{ steps.rp.outputs.release_created }}
       tag_name: ${{ steps.ver.outputs.TAG || steps.rp.outputs.tag_name }}
+      version: ${{ steps.ver.outputs.VERSION }}
     steps:
       # 1) Create/Update Release PR; on merge, tag + create release
       - uses: googleapis/release-please-action@v5
@@ -127,6 +128,54 @@ jobs:
         if: ${{ steps.rp.outputs.release_created }}
         id: deploy
         uses: actions/deploy-pages@v5
+
+  publish-staticlibs:
+    # Cross-compile cmsis-nn as a static library for cortex-m0 / m4 / m55,
+    # smoke-link each, and upload to the GitHub Release. Mirrors M3 #167.
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    needs: release-please
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        target_cpu: [cortex-m0, cortex-m4, cortex-m55]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install GNU Arm Embedded toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: 13.2.Rel1
+
+      - name: Build static library
+        run: |
+          bash scripts/build_staticlib.sh \
+            --target-cpu "${{ matrix.target_cpu }}" \
+            --version    "${{ needs.release-please.outputs.version }}" \
+            --outdir     "./output/${{ matrix.target_cpu }}"
+
+      - name: Smoke-link
+        run: |
+          lib="./output/${{ matrix.target_cpu }}/libns-cmsis-nn-${{ matrix.target_cpu }}-${{ needs.release-please.outputs.version }}.a"
+          bash scripts/smoke/smoke_staticlib.sh \
+            --target-cpu "${{ matrix.target_cpu }}" \
+            --library    "${lib}" \
+            --outdir     "./output/${{ matrix.target_cpu }}/smoke"
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ needs.release-please.outputs.tag_name }}"
+          ver="${{ needs.release-please.outputs.version }}"
+          cpu="${{ matrix.target_cpu }}"
+          gh release upload "${tag}" \
+            "./output/${cpu}/libns-cmsis-nn-${cpu}-${ver}.a" \
+            "./output/${cpu}/libns-cmsis-nn-${cpu}-${ver}.a.sha256" \
+            --clobber
 
   publish-ci-image:
     if: ${{ needs.release-please.outputs.release_created == 'true' }}

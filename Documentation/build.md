@@ -107,6 +107,33 @@ target_link_libraries(my_app PRIVATE nsx::cmsis_nn)
 Prebuilt mode (set `NSX_CMSIS_NN_LIB` to an `.a`) bypasses the SSoT
 entirely and only exposes headers.
 
+### Prebuilt static library
+
+Each GitHub Release ships per-arch prebuilts alongside the `.pack`:
+
+```
+libns-cmsis-nn-cortex-m0-<version>.a
+libns-cmsis-nn-cortex-m4-<version>.a
+libns-cmsis-nn-cortex-m55-<version>.a
+```
+
+Plus a `.sha256` next to each. Consume them from a project that has no
+visibility into the cmsis-nn source tree via the prebuilt helper:
+
+```cmake
+include(<path>/ns-cmsis-nn/cmake/ns-cmsis-nn-prebuilt.cmake)
+
+ns_cmsis_nn_import_prebuilt(
+  LIBRARY      ${CMAKE_CURRENT_LIST_DIR}/libns-cmsis-nn-cortex-m4-7.24.1.a
+  INCLUDE_DIRS ${CMAKE_CURRENT_LIST_DIR}/ns-cmsis-nn/Include)
+
+target_link_libraries(my_app PRIVATE ns::cmsis-nn)
+```
+
+The same target names (`cmsis-nn`, `ns-cmsis-nn`, `ns::cmsis-nn`) the
+source build exposes resolve to the imported archive, so consumer code
+is build-mode agnostic.
+
 ## Adding a new kernel group
 
 1. Drop the new sources under `Source/<NewGroup>/`.
@@ -295,6 +322,40 @@ the Actions tab. It runs the same gen-pack-action and uploads the
 resulting `.pack` as a workflow artefact (14 day retention), with a
 post-build assertion that the artefact is named
 `Ambiq.NS-CMSIS-NN.<version>.pack`.
+
+## Publishing prebuilt static libraries
+
+The same `release.yml` cross-compiles `cmsis-nn` for cortex-m0,
+cortex-m4 and cortex-m55 using GNU Arm Embedded
+(`arm-none-eabi-gcc`), strips each archive, sha256s it, and uploads
+both files to the GitHub Release:
+
+```
+libns-cmsis-nn-cortex-m{0,4,55}-<version>.a
+libns-cmsis-nn-cortex-m{0,4,55}-<version>.a.sha256
+```
+
+A smoke-link step links a tiny TU that references one symbol per
+kernel group against the produced `.a` and checks that all expected
+symbols resolve. Failure of the smoke step blocks the upload for the
+affected target.
+
+Arch flags live in
+[`cmake/toolchain/arm-none-eabi-gcc.cmake`](../cmake/toolchain/arm-none-eabi-gcc.cmake)
+(also mirrored in [`scripts/smoke/smoke_staticlib.sh`](../scripts/smoke/smoke_staticlib.sh)
+for the smoke link):
+
+| target_cpu  | flags |
+|-------------|-------|
+| `cortex-m0`  | `-mcpu=cortex-m0 -mthumb -mfloat-abi=soft` |
+| `cortex-m4`  | `-mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard` |
+| `cortex-m55` | `-mcpu=cortex-m55 -mthumb -mfloat-abi=hard` |
+
+To exercise the staticlib pipeline without cutting a release, run the
+[`Static lib dry-run`](../.github/workflows/staticlib-dryrun.yml)
+workflow from the Actions tab. It cross-compiles + smokes all three
+targets and uploads the archives as workflow artefacts (14 day
+retention).
 
 ## Why three group-id spellings?
 
