@@ -1,0 +1,91 @@
+# SPDX-FileCopyrightText: Copyright 2024-2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+#
+# Pack dry-run.
+#
+# Mirrors the pack-generation half of release.yml WITHOUT requiring an
+# actual release-please tag. Lets us exercise gen_pack.sh + Doxygen +
+# packchk end-to-end on demand and verify:
+#
+#   - PDSC contract still holds (scripts/check_pdsc.py).
+#   - gen_pack.sh produces exactly one Ambiq.NS-CMSIS-NN.<version>.pack
+#     in ./output.
+#   - The resulting .pack passes packchk (the gen-pack-action does this
+#     internally; we additionally assert the artefact name).
+#
+# Outputs are uploaded as workflow artefacts (NOT to a GitHub Release).
+# Triggered manually only — this is a verification path, not a publish path.
+
+name: Pack dry-run
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build pack (no upload)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: PDSC contract pre-flight
+        run: python3 scripts/check_pdsc.py
+
+      - name: Generate pack and docs
+        uses: Open-CMSIS-Pack/gen-pack-action@main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACK_CHANGELOG_MODE: full
+        with:
+          doxygen-version: 1.9.6
+          packchk-version: 1.4.1
+          gen-doc-script: ./Documentation/Doxygen/gen_doc.sh
+          doc-path: ./Documentation/html
+          gen-pack-script: ./gen_pack.sh --no-preprocess
+          gen-pack-output: ./output
+          gh-pages-branch: ""
+          gh-pages-deploy: ""
+
+      - name: Verify pack artefact name
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          packs=( ./output/*.pack )
+          if (( ${#packs[@]} != 1 )); then
+            printf 'expected exactly one pack in ./output, found %d:\n' "${#packs[@]}" >&2
+            printf '  %s\n' "${packs[@]}" >&2
+            exit 1
+          fi
+          name="$(basename "${packs[0]}")"
+          case "${name}" in
+            Ambiq.NS-CMSIS-NN.*.pack)
+              echo "OK: ${name}"
+              ;;
+            *)
+              echo "pack name '${name}' does not match Ambiq.NS-CMSIS-NN.*.pack" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Upload pack artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ns-cmsis-nn-pack-dryrun
+          path: ./output/*.pack
+          if-no-files-found: error
+          retention-days: 14

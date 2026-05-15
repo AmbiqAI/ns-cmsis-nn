@@ -271,6 +271,31 @@ python3 scripts/check_pdsc.py
 The `Verify that PDSC file is up to date` GitHub Actions workflow runs
 both `check_pdsc.sh` and `scripts/check_pdsc.py` on every PR.
 
+## Publishing the CMSIS-Pack
+
+The release flow is driven by release-please. When a release-please
+release PR is merged, [`release.yml`](../.github/workflows/release.yml)
+tags `vX.Y.Z`, creates a GitHub Release, then:
+
+1. Runs `python3 scripts/check_pdsc.py` as a fail-fast pre-flight.
+2. Invokes [`Open-CMSIS-Pack/gen-pack-action`](https://github.com/Open-CMSIS-Pack/gen-pack-action)
+   which runs Doxygen + [`gen_pack.sh`](../gen_pack.sh) + `packchk`.
+3. Uploads `Ambiq.NS-CMSIS-NN.<version>.pack` as a release asset.
+4. Publishes the generated Doxygen docs to GitHub Pages.
+
+The pack name and `<version>` are derived from the pdsc vendor/name and
+the `<release version>` element, which release-please bumps in lockstep
+with `arm_nn_types.h` and `.release-please-manifest.json` (the PDSC
+contract test pins this lockstep).
+
+To exercise the pack pipeline without cutting a release — for example
+to verify a `gen_pack.sh` change before tagging — run the
+[`Pack dry-run`](../.github/workflows/pack-dryrun.yml) workflow from
+the Actions tab. It runs the same gen-pack-action and uploads the
+resulting `.pack` as a workflow artefact (14 day retention), with a
+post-build assertion that the artefact is named
+`Ambiq.NS-CMSIS-NN.<version>.pack`.
+
 ## Why three group-id spellings?
 
 The standalone CMake `option()` names are the historical originals

@@ -64,6 +64,13 @@ jobs:
         run: |
           rm -f ./output/*.pack
 
+      - name: PDSC contract pre-flight
+        # Cheap fail-fast: if the manifest's identity/version markers drift,
+        # don't bother spending several minutes on Doxygen + gen-pack just to
+        # ship a broken pack. See M3 #170.
+        if: ${{ steps.rp.outputs.release_created }}
+        run: python3 scripts/check_pdsc.py
+
       - name: Generate pack and docs
         if: ${{ steps.rp.outputs.release_created }}
         uses: Open-CMSIS-Pack/gen-pack-action@main
