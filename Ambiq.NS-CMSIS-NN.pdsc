@@ -17,7 +17,7 @@
   <repository type="git">https://github.com/AmbiqAI/ns-cmsis-nn</repository>
 
   <releases>
-    <release version="0.0.0">
+    <release version="7.24.1"> <!-- x-release-please-version -->
       Active development
     </release>
   </releases>
@@ -31,9 +31,9 @@
   </conditions>
 
   <components>
-    <!-- CMSIS-NN component -->
-    <component Cclass="CMSIS" Cgroup="NN Lib" Cversion="0.0.0" condition="CMSIS-NN">
-      <description>CMSIS Neural Network(NN) Library</description>
+    <!-- heliaCORE NN component (Ambiq's superset of Arm CMSIS-NN) -->
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvendor="Ambiq" Cversion="7.24.1" condition="CMSIS-NN"> <!-- x-release-please-version -->
+      <description>heliaCORE NN — Ambiq's optimized superset of Arm CMSIS-NN, tuned for Apollo SoCs.</description>
       <files>
         <file category="doc" name="Documentation/html/index.html"/>
         <file category="header" name="Include/arm_nn_types.h"/>
