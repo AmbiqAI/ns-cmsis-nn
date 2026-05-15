@@ -1,5 +1,18 @@
 # Changelog
 
+## [7.25.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.24.1...v7.25.0) (2026-05-15)
+
+
+### Features
+
+* **release:** complete static releases — SDK tarball, find_package, Zephyr & CMSIS-Pack prebuilt ([#182](https://github.com/AmbiqAI/ns-cmsis-nn/issues/182)) ([aa304cb](https://github.com/AmbiqAI/ns-cmsis-nn/commit/aa304cbb8540aaa6ac68d3bcef072270d288917c))
+
+
+### Bug Fixes
+
+* repair devcontainer build failures ([#136](https://github.com/AmbiqAI/ns-cmsis-nn/issues/136)) ([47a075a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/47a075a755f84f062f4cd3e878b477cc2ce6ee5f))
+* **toolchain:** propagate NS_CMSIS_NN_TARGET_CPU to try_compile ([#180](https://github.com/AmbiqAI/ns-cmsis-nn/issues/180)) ([c46b443](https://github.com/AmbiqAI/ns-cmsis-nn/commit/c46b4437a93a7ceb23bb881e54cad93c801f67d3))
+
 ## [7.24.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.24.0...v7.24.1) (2026-05-08)
 
 
