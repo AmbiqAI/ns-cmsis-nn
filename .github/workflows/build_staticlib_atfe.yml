@@ -203,6 +203,41 @@ jobs:
             --downloads-dir Tests/UnitTest/downloads \
             --skip-gcc
 
+      - name: Provision ATFE toolchain when missing
+        run: |
+          set -euo pipefail
+
+          if [[ -x "${ATFE_DIR}/bin/clang" ]] \
+            && [[ -x "${ATFE_DIR}/bin/llvm-ar" ]] \
+            && [[ -x "${ATFE_DIR}/bin/llvm-ranlib" ]] \
+            && [[ -x "${ATFE_DIR}/bin/llvm-strip" ]]; then
+            exit 0
+          fi
+
+          resolved_atfe_dir="${ATFE_DIR}"
+          if ! mkdir -p "${resolved_atfe_dir}" 2>/dev/null; then
+            resolved_atfe_dir="${GITHUB_WORKSPACE}/.cache/atfe"
+            mkdir -p "${resolved_atfe_dir}"
+          fi
+
+          python3 - <<'PY' > "${RUNNER_TEMP}/atfe.env"
+          import json
+          from pathlib import Path
+
+          metadata = json.loads(Path("ci/toolchains/atfe.json").read_text(encoding="utf-8"))
+          print(f"ATFE_URL={metadata['url']}")
+          print(f"ATFE_SHA256={metadata['sha256']}")
+          print(f"ATFE_ARCHIVE={metadata['archive']}")
+          PY
+
+          source "${RUNNER_TEMP}/atfe.env"
+          rm -rf "${resolved_atfe_dir:?}/"*
+          curl -fsSL "${ATFE_URL}" -o "${RUNNER_TEMP}/${ATFE_ARCHIVE}"
+          printf '%s  %s\n' "${ATFE_SHA256}" "${RUNNER_TEMP}/${ATFE_ARCHIVE}" | sha256sum -c -
+          tar -xJf "${RUNNER_TEMP}/${ATFE_ARCHIVE}" --strip-components=1 -C "${resolved_atfe_dir}"
+
+          echo "ATFE_DIR=${resolved_atfe_dir}" >> "${GITHUB_ENV}"
+
       - name: Verify ATFE environment
         run: |
           set -euo pipefail
