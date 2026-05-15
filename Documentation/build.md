@@ -233,6 +233,44 @@ rules incorrectly. Two checks pin that contract:
 The `NSX Integration` GitHub Actions workflow runs the 4-leg wiring
 matrix and the install contract on every PR / `main` push.
 
+## PDSC contract test
+
+The CMSIS-Pack manifest (`Ambiq.NS-CMSIS-NN.pdsc`) is the contract the
+heliaRT consumer pack imports against. A drift between the manifest and
+either the on-disk Source tree or the release-please-driven version
+markers silently breaks downstream packs. The legacy
+[`check_pdsc.sh`](../check_pdsc.sh) script only diffs the enumerated
+`<file category="source">` paths against `Source/**/*.c`; the wider
+contract is pinned by
+[`scripts/check_pdsc.py`](../scripts/check_pdsc.py), which asserts:
+
+- **Pack identity** — `schemaVersion`, `<name>` and `<vendor>` match the
+  values the heliaRT consumer pins.
+- **Component identity** — the
+  `Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvendor="Ambiq"`
+  4-tuple is preserved; renaming any of them is a breaking change.
+- **Version sync** — the latest `<release version>`, the component
+  `Cversion`, the `NS_CMSIS_NN_VERSION_*` defines and `$Revision`
+  comment in `Include/arm_nn_types.h`, and the `.` field of
+  `.release-please-manifest.json` must all agree. This catches a manual
+  bump that forgets one of these.
+- **License plumbing** — every `<license name=...>` resolves on disk,
+  and both `LICENSE` and `LICENSES/Apache-2.0.txt` are declared.
+- **File existence** — every `<file name=...>` exists on disk (with the
+  generated `Documentation/html/` artefacts whitelisted).
+- **Source coverage** — every `Source/**/*.c` in the repo is enumerated
+  as `category="source"`, so adding a kernel without updating the pack
+  fails CI (this subsumes `check_pdsc.sh`).
+
+Run locally with:
+
+```sh
+python3 scripts/check_pdsc.py
+```
+
+The `Verify that PDSC file is up to date` GitHub Actions workflow runs
+both `check_pdsc.sh` and `scripts/check_pdsc.py` on every PR.
+
 ## Why three group-id spellings?
 
 The standalone CMake `option()` names are the historical originals
