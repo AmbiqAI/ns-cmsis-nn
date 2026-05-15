@@ -87,29 +87,33 @@ endforeach()
 # ----------------------------------------------------------------------------
 # Library target.
 #
-# Primary name `ns-cmsis-nn` matches the repo / package / Zephyr-module
-# naming. Aliases keep existing consumers (e.g. TFLM, upstream callers)
-# working unchanged. OUTPUT_NAME preserves `libcmsis-nn.a` on disk for
-# binary-link consumers.
+# Primary name is `cmsis-nn` (the historical / upstream name) so that
+# downstream consumers that mutate the target with target_compile_options(),
+# target_compile_definitions(), or other non-read-only target_*() calls keep
+# working unchanged. (CMake disallows those calls on ALIAS targets, so the
+# real target must carry the name they reference.)
+#
+# `ns-cmsis-nn` and `ns::cmsis-nn` are ALIAS targets pointing at it. They are
+# usable in read-only contexts (target_link_libraries(), add_dependencies(),
+# right-hand side of set_property(), ...).
 # ----------------------------------------------------------------------------
-add_library(ns-cmsis-nn STATIC)
-add_library(cmsis-nn     ALIAS ns-cmsis-nn)
-add_library(ns::cmsis-nn ALIAS ns-cmsis-nn)
-set_target_properties(ns-cmsis-nn PROPERTIES OUTPUT_NAME cmsis-nn)
+add_library(cmsis-nn STATIC)
+add_library(ns-cmsis-nn  ALIAS cmsis-nn)
+add_library(ns::cmsis-nn ALIAS cmsis-nn)
 
-target_compile_options(ns-cmsis-nn PRIVATE ${CMSIS_OPTIMIZATION_LEVEL})
+target_compile_options(cmsis-nn PRIVATE ${CMSIS_OPTIMIZATION_LEVEL})
 
-ns_cmsis_nn_attach(ns-cmsis-nn
+ns_cmsis_nn_attach(cmsis-nn
                    GROUPS ${_NS_ENABLED_GROUPS}
                    INCLUDE_DIRS_VISIBILITY PUBLIC)
 
 # Standalone-build-only dependencies (Zephyr / NSX provide their own).
 if(DEFINED CMSIS_PATH)
-  target_include_directories(ns-cmsis-nn PUBLIC "${CMSIS_PATH}/CMSIS/Core/Include")
+  target_include_directories(cmsis-nn PUBLIC "${CMSIS_PATH}/CMSIS/Core/Include")
 endif()
-target_link_libraries(ns-cmsis-nn PRIVATE m)
+target_link_libraries(cmsis-nn PRIVATE m)
 
 if(CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY)
-  target_compile_definitions(ns-cmsis-nn
+  target_compile_definitions(cmsis-nn
     PUBLIC CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY)
 endif()
