@@ -24,7 +24,7 @@
  *               TensorFlowLite micro compliant functions
  *
  * $Date:        03 Oct 2025
- * $Revision:    "v7.24.1"  x-release-please-version
+ * $Revision:    "v7.25.0"  x-release-please-version
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
@@ -37,8 +37,8 @@
 
 // Version information
 #define NS_CMSIS_NN_VERSION_MAJOR (7) /* x-release-please-major */
-#define NS_CMSIS_NN_VERSION_MINOR (24) /* x-release-please-minor */
-#define NS_CMSIS_NN_VERSION_PATCH (1) /* x-release-please-patch */
+#define NS_CMSIS_NN_VERSION_MINOR (25) /* x-release-please-minor */
+#define NS_CMSIS_NN_VERSION_PATCH (0) /* x-release-please-patch */
 
 /**
  * @brief Identity macros for the ns-cmsis-nn (Ambiq) superset of CMSIS-NN.
