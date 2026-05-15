@@ -13,9 +13,11 @@ copyright: >-
 theme:
   name: material
   language: en
-  # Drop these in once branding artwork is finalized (see docs/assets/README.md).
-  # logo: assets/logo.svg
-  # favicon: assets/favicon.png
+  # Header mark + browser favicon. The honeycomb icon works in both
+  # light and dark schemes; the full wordmark is shown on the landing
+  # page (with light/dark variants) rather than crowding the header.
+  logo: assets/helia-core-icon-color.svg
+  favicon: assets/helia-core-icon-color.svg
   font:
     text: Inter
     code: JetBrains Mono

@@ -103,6 +103,16 @@
   letter-spacing: -0.02em;
   margin: 0 0 1rem;
 }
+
+/* Wordmark above the hero headline. Two PNG variants are swapped via
+ * the mkdocs-material `#only-light` / `#only-dark` URL fragments so the
+ * dark wordmark only appears under the heliacore-dark scheme. */
+.heliacore-wordmark {
+  display: block;
+  max-width: 18rem;
+  height: auto;
+  margin: 0 0 1.25rem;
+}
 .heliacore-hero p.lede {
   font-size: 1.1rem;
   line-height: 1.55;

@@ -1,17 +1,20 @@
 # heliaCORE logo & favicon assets
 
-Drop the following files in this directory once branding artwork is
-ready. They are referenced by `mkdocs.yml` (`theme.logo` and
-`theme.favicon`) and by the landing page hero.
+Branding artwork used by the site.
 
-| File              | Used for                              | Recommended format          |
-|-------------------|---------------------------------------|-----------------------------|
-| `logo.svg`        | Header logo (light + dark schemes).   | SVG, transparent background |
-| `logo-mark.svg`   | Small honeycomb-only mark (optional). | SVG, square                 |
-| `favicon.png`     | Browser tab favicon.                  | PNG, 32×32 or 64×64         |
-| `favicon.ico`     | Legacy browser fallback (optional).   | ICO, multi-size             |
-| `og-card.png`     | Open Graph / social preview.          | PNG, 1200×630               |
+| File                          | Used for                                                   |
+|-------------------------------|------------------------------------------------------------|
+| `helia-core-icon-color.svg`   | Header mark + browser favicon (via `mkdocs.yml`).          |
+| `helia-core-logo-light.png`   | Wordmark on the landing-page hero, **light** scheme.       |
+| `helia-core-logo-dark.png`    | Wordmark on the landing-page hero, **dark** scheme.        |
 
-Until real assets are in place, the site will fall back to the
-mkdocs-material default mark — this is intentional so the rest of the
-skeleton can be reviewed without blocking on design.
+The light/dark wordmark swap on the landing page is handled by
+mkdocs-material's `#only-light` / `#only-dark` URL-fragment convention
+(see `docs/index.md`).
+
+## Future additions (optional)
+
+| File              | Recommended format          | Used for                         |
+|-------------------|-----------------------------|----------------------------------|
+| `favicon.ico`     | ICO, multi-size             | Legacy browser fallback.         |
+| `og-card.png`     | PNG, 1200×630               | Open Graph / social preview.     |

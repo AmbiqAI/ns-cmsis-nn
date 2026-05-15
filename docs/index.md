@@ -9,6 +9,9 @@ hide:
 
 <div markdown>
 
+![heliaCORE](assets/helia-core-logo-light.png#only-light){ .heliacore-wordmark }
+![heliaCORE](assets/helia-core-logo-dark.png#only-dark){ .heliacore-wordmark }
+
 # CMSIS-NN, packaged for Apollo.
 
 <p class="lede" markdown>
