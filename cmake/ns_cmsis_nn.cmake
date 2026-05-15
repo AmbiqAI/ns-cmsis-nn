@@ -299,6 +299,10 @@ function(ns_cmsis_nn_attach target)
   endif()
 
   target_sources(${target} PRIVATE ${all_sources})
+  # Wrap in $<BUILD_INTERFACE:...> so consumers that re-export <target> via
+  # install(TARGETS ... EXPORT ...) do not leak this absolute build-tree path
+  # into their installed export file. Consumers that need an install-tree
+  # include path attach their own $<INSTALL_INTERFACE:...> separately.
   target_include_directories(${target} ${NSA_INCLUDE_DIRS_VISIBILITY}
-    "${NS_CMSIS_NN_ROOT}/Include")
+    "$<BUILD_INTERFACE:${NS_CMSIS_NN_ROOT}/Include>")
 endfunction()
