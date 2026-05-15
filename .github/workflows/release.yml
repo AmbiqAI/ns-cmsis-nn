@@ -135,8 +135,6 @@ jobs:
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     needs: release-please
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:

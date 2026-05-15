@@ -67,6 +67,7 @@ arm-none-eabi-gcc \
   -nostartfiles \
   --specs=nosys.specs \
   -Wl,--gc-sections \
+  -Wl,--entry=ns_cmsis_nn_smoke_refs \
   -Wl,--whole-archive "${LIBRARY}" -Wl,--no-whole-archive \
   -o "${elf}" \
   "${smoke_src}"
