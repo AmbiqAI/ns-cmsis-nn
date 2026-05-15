@@ -5,10 +5,12 @@
 # cross-compiler required — every check is configure-time CMake or pure
 # Python and runs in seconds.
 #
-# The end-to-end `west build` lives in a separate workflow_dispatch-only
-# job (see zephyr-west-build.yml) because it costs a Zephyr SDK pull and
-# only proves what the wiring checks here already prove (plus that GCC
-# can compile sources the unit tests already exercise).
+# A real end-to-end `west build` is intentionally not part of this
+# workflow: it would only re-prove what the wiring checks here cover
+# (plus that GCC can compile sources the unit-test suite already
+# exercises), at the cost of a multi-GB Zephyr SDK pull per run. If a
+# future regression requires reintroducing it, add a `workflow_dispatch`
+# job to this file rather than a separate workflow.
 
 name: Zephyr Integration
 
