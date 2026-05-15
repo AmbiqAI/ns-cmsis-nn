@@ -253,7 +253,7 @@ jobs:
             --arch "${{ needs.resolve-inputs.outputs.arch }}" \
             --arch-label "${{ needs.resolve-inputs.outputs.arch_label }}" \
             --target-cpu "${{ needs.resolve-inputs.outputs.target_cpu }}" \
-            --toolchain ATFE \
+            --toolchain atfe \
             --build release \
             --outdir "out/staticlibs/${{ needs.resolve-inputs.outputs.arch }}/ATFE"
 
