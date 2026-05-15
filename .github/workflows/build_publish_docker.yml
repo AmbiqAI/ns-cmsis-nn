@@ -101,6 +101,12 @@ jobs:
           curl -fsSL "${ATFE_URL}" -o "${RUNNER_TEMP}/${ATFE_ARCHIVE}"
           printf '%s  %s\n' "${ATFE_SHA256}" "${RUNNER_TEMP}/${ATFE_ARCHIVE}" | sha256sum -c -
           tar -xJf "${RUNNER_TEMP}/${ATFE_ARCHIVE}" --strip-components=1 -C docker/vendor/atfe
+          # Ensure bin/clang exists after extraction
+          if [[ ! -x docker/vendor/atfe/bin/clang ]]; then
+            echo "::error ::ATFE clang binary not found after extraction."
+            ls -lR docker/vendor/atfe
+            exit 1
+          fi
 
       - name: Verify staged toolchain
         run: |
