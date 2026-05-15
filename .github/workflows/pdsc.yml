@@ -1,4 +1,5 @@
 # SPDX-FileCopyrightText: Copyright 2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
+# SPDX-FileCopyrightText: Copyright 2024-2026 Ambiq <opensource@ambiq.com>
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -38,3 +39,16 @@ jobs:
       - name: Check
         run: |
           sh check_pdsc.sh
+
+  pdsc_contract:
+    # Wider invariant check than check_pdsc.sh: pack/component identity,
+    # version sync across release-please / arm_nn_types.h / pdsc, license
+    # plumbing, and every <file> path resolves on disk. See M3 #170.
+    name: PDSC contract (identity, versions, files)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run contract test
+        run: python3 scripts/check_pdsc.py
