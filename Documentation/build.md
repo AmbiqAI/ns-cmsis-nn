@@ -184,6 +184,55 @@ PR gating: it would only re-prove what these wiring checks plus the
 existing unit-test suite already cover, at the cost of a multi-GB SDK
 pull on every CI run.
 
+## NSX integration tests
+
+The NSX module ([`nsx/CMakeLists.txt`](../nsx/CMakeLists.txt)) is
+verified at the same wiring layer as Zephyr — the kernel C itself is
+already cross-compiled on m0/m4/m55 by the unit-test suite, so the only
+NSX-specific risk is that the module plumbs the SSoT or the install
+rules incorrectly. Two checks pin that contract:
+
+1. **Wiring mock** —
+   [`cmake/tests/nsx_wiring/CMakeLists.txt`](../cmake/tests/nsx_wiring/CMakeLists.txt)
+   stubs `NSX_BOARD_FLAGS_TARGET`, `add_subdirectory()`s the real NSX
+   module, and asserts the resulting target graph. Parameterised by
+   `-DCASE=`:
+
+   | Case | What it pins |
+   |------|--------------|
+   | `source_all` | STATIC target, 206 sources, `nsx::cmsis_nn` alias, `EXPORT_NAME=cmsis_nn`, BUILD/INSTALL_INTERFACE split on Include/. |
+   | `source_subset` | `NSX_CMSIS_NN_GROUPS="activation;convolution"` resolves to exactly 62 sources. |
+   | `inline_asm` | `NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM=ON` propagates `CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY`. |
+   | `prebuilt` | `NSX_CMSIS_NN_LIB=…` builds an INTERFACE wrapper + IMPORTED prebuilt target, alias still works. |
+
+   Run any case locally with:
+
+   ```sh
+   cmake -S cmake/tests/nsx_wiring -B build/nsx_wiring -DCASE=source_all
+   ```
+
+2. **Install contract** —
+   [`scripts/check_nsx_install.sh`](../scripts/check_nsx_install.sh)
+   drives a real configure → build → `cmake --install` on
+   ubuntu-latest stock GCC, then asserts:
+
+   - `nsxTargets.cmake` (+ `-noconfig`) installed at
+     `lib/cmake/nsx/`,
+   - `INTERFACE_INCLUDE_DIRECTORIES` and `IMPORTED_LOCATION` use
+     `${_IMPORT_PREFIX}` (no absolute build-tree path leaks — regression
+     guard for #159),
+   - all public headers + `libnsx_cmsis_nn.a` land at the expected
+     install paths,
+   - a downstream `include(nsxTargets.cmake)` consumer can resolve the
+     `cmsis_nn` target.
+
+   ```sh
+   scripts/check_nsx_install.sh
+   ```
+
+The `NSX Integration` GitHub Actions workflow runs the 4-leg wiring
+matrix and the install contract on every PR / `main` push.
+
 ## Why three group-id spellings?
 
 The standalone CMake `option()` names are the historical originals

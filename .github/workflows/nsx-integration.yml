@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: Copyright 2024-2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+#
+# NSX integration checks. PR-gated, no Apollo toolchain / no NSX board —
+# every check is configure-time CMake or a quick host build + install
+# inspection on ubuntu-latest stock GCC.
+#
+# Like the Zephyr integration workflow, an end-to-end cross-compile is
+# intentionally not part of this gate: the unit-test suite already
+# cross-compiles every kernel under cortex-m0/m4/m55, and the NSX-specific
+# risk is wiring drift in nsx/CMakeLists.txt — caught here.
+
+name: NSX Integration
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wiring:
+    name: NSX wiring (${{ matrix.case }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [source_all, source_subset, inline_asm, prebuilt]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run NSX wiring test
+        run: cmake -S cmake/tests/nsx_wiring -B build/nsx_wiring -DCASE=${{ matrix.case }}
+
+  install:
+    name: NSX install contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run NSX install contract
+        run: scripts/check_nsx_install.sh
