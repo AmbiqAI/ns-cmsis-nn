@@ -1,0 +1,80 @@
+# SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+#
+# Static library dry-run.
+#
+# Mirrors the staticlib half of release.yml WITHOUT requiring an
+# actual release-please tag. Cross-compiles cmsis-nn for cortex-m0,
+# cortex-m4, cortex-m55, runs the smoke-link verifier on each, and
+# uploads the resulting .a files as workflow artefacts.
+#
+# Triggered manually only — verification path, not a publish path.
+# Companion to .github/workflows/pack-dryrun.yml (M3 #166).
+
+name: Static lib dry-run
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version string for artefact naming (e.g. 0.0.0-dryrun)
+        required: false
+        default: 0.0.0-dryrun
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.target_cpu }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target_cpu: [cortex-m0, cortex-m4, cortex-m55]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install GNU Arm Embedded toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: 13.2.Rel1
+
+      - name: Build static library
+        # User-supplied inputs flow through env, never via ${{ }} into a shell
+        # arg, to avoid GHA expression injection.
+        env:
+          TARGET_CPU: ${{ matrix.target_cpu }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          bash scripts/build_staticlib.sh \
+            --target-cpu "$TARGET_CPU" \
+            --version    "$VERSION" \
+            --outdir     "./output/$TARGET_CPU"
+
+      - name: Smoke-link
+        env:
+          TARGET_CPU: ${{ matrix.target_cpu }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          lib="./output/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
+          bash scripts/smoke/smoke_staticlib.sh \
+            --target-cpu "$TARGET_CPU" \
+            --library    "$lib" \
+            --outdir     "./output/${TARGET_CPU}/smoke"
+
+      - name: Upload artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ns-cmsis-nn-staticlib-${{ matrix.target_cpu }}-dryrun
+          path: |
+            ./output/${{ matrix.target_cpu }}/libns-cmsis-nn-*.a
+            ./output/${{ matrix.target_cpu }}/libns-cmsis-nn-*.a.sha256
+          if-no-files-found: error
+          retention-days: 14
