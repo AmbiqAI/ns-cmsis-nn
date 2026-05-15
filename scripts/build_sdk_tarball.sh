@@ -95,6 +95,19 @@ lib_sha256="$(awk '{print $1}' "$PKG_ROOT/lib/libns-cmsis-nn.a.sha256")"
 lib_size="$(stat -c %s "$PKG_ROOT/lib/libns-cmsis-nn.a" 2>/dev/null || stat -f %z "$PKG_ROOT/lib/libns-cmsis-nn.a")"
 built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
+# CMake package config — render @VAR@ placeholders into the staged tree.
+render_template() {
+  local src="$1" dst="$2"
+  sed -e "s|@NS_CMSIS_NN_VERSION@|${VERSION}|g" \
+      -e "s|@NS_CMSIS_NN_TARGET_CPU@|${TARGET_CPU}|g" \
+      -e "s|@NS_CMSIS_NN_ARCH_FLAGS@|${ARCH_FLAGS}|g" \
+      "$src" > "$dst"
+}
+render_template "$REPO_ROOT/cmake/templates/ns-cmsis-nn-config.cmake.in" \
+                "$PKG_ROOT/cmake/ns-cmsis-nn-config.cmake"
+render_template "$REPO_ROOT/cmake/templates/ns-cmsis-nn-config-version.cmake.in" \
+                "$PKG_ROOT/cmake/ns-cmsis-nn-config-version.cmake"
+
 cat > "$PKG_ROOT/manifest.json" <<EOF
 {
   "package": "ns-cmsis-nn",
