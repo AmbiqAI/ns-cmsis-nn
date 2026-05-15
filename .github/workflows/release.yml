@@ -151,30 +151,36 @@ jobs:
           release: 13.2.Rel1
 
       - name: Build static library
+        env:
+          TARGET_CPU: ${{ matrix.target_cpu }}
+          VERSION: ${{ needs.release-please.outputs.version }}
         run: |
           bash scripts/build_staticlib.sh \
-            --target-cpu "${{ matrix.target_cpu }}" \
-            --version    "${{ needs.release-please.outputs.version }}" \
-            --outdir     "./output/${{ matrix.target_cpu }}"
+            --target-cpu "$TARGET_CPU" \
+            --version    "$VERSION" \
+            --outdir     "./output/$TARGET_CPU"
 
       - name: Smoke-link
+        env:
+          TARGET_CPU: ${{ matrix.target_cpu }}
+          VERSION: ${{ needs.release-please.outputs.version }}
         run: |
-          lib="./output/${{ matrix.target_cpu }}/libns-cmsis-nn-${{ matrix.target_cpu }}-${{ needs.release-please.outputs.version }}.a"
+          lib="./output/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
           bash scripts/smoke/smoke_staticlib.sh \
-            --target-cpu "${{ matrix.target_cpu }}" \
-            --library    "${lib}" \
-            --outdir     "./output/${{ matrix.target_cpu }}/smoke"
+            --target-cpu "$TARGET_CPU" \
+            --library    "$lib" \
+            --outdir     "./output/${TARGET_CPU}/smoke"
 
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          VERSION: ${{ needs.release-please.outputs.version }}
+          TARGET_CPU: ${{ matrix.target_cpu }}
         run: |
-          tag="${{ needs.release-please.outputs.tag_name }}"
-          ver="${{ needs.release-please.outputs.version }}"
-          cpu="${{ matrix.target_cpu }}"
-          gh release upload "${tag}" \
-            "./output/${cpu}/libns-cmsis-nn-${cpu}-${ver}.a" \
-            "./output/${cpu}/libns-cmsis-nn-${cpu}-${ver}.a.sha256" \
+          gh release upload "$TAG" \
+            "./output/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
+            "./output/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a.sha256" \
             --clobber
 
   publish-ci-image:
