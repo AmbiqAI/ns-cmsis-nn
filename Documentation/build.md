@@ -121,6 +121,28 @@ entirely and only exposes headers.
    translation `foreach(_pair …)` in `zephyr/CMakeLists.txt`.
 6. (NSX) Nothing to do — `NSX_CMSIS_NN_GROUPS` accepts any group id the
    SSoT knows about, including the new one.
+7. Bump the matching `EXPECTED_COUNT_<group>` (and `EXPECTED_TOTAL`) in
+   [`cmake/tests/ssot_contract/CMakeLists.txt`](../cmake/tests/ssot_contract/CMakeLists.txt),
+   and add the new group id to `EXPECTED_GROUPS` in the same file.
+
+## SSoT contract test
+
+A small configure-time test pins the SSoT against silent drift (e.g. an
+upstream sync that adds or removes a kernel without anyone noticing). It
+asserts the group ordering, per-group source counts, the `GROUPS ALL`
+total, file existence on disk, and that `ns_cmsis_nn_attach()` /
+`DTYPES` filtering still behave. Run it locally with:
+
+```sh
+cmake -S cmake/tests/ssot_contract -B build/ssot_contract
+```
+
+A green configure means the contract holds. The `SSoT Contract` GitHub
+Actions workflow runs the same command on every PR and on `main` push.
+When a kernel-set change is intentional, bump the `EXPECTED_*` values in
+[`cmake/tests/ssot_contract/CMakeLists.txt`](../cmake/tests/ssot_contract/CMakeLists.txt)
+in the same PR — the failure message names the offending group and the
+delta.
 
 ## Why three group-id spellings?
 
