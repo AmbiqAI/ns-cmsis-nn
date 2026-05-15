@@ -111,7 +111,7 @@ cmake_minimum_required(VERSION 3.15)
 project(nsx_consumer NONE)
 # nsxTargets.cmake is not a Config file but its include() is what NSX board
 # would do. Mimic that.
-include("${CMAKE_FIND_PACKAGE_NAME_OR_PREFIX}/lib/cmake/nsx/nsxTargets.cmake")
+include("${NSX_INSTALL_PREFIX}/lib/cmake/nsx/nsxTargets.cmake")
 if(NOT TARGET cmsis_nn)
   message(FATAL_ERROR "cmsis_nn target not imported from nsxTargets.cmake")
 endif()
@@ -119,7 +119,7 @@ get_target_property(_inc cmsis_nn INTERFACE_INCLUDE_DIRECTORIES)
 message(STATUS "consumer sees INTERFACE_INCLUDE_DIRECTORIES=${_inc}")
 EOF
 if ! cmake -S "${CONS}" -B "${CONS}/build" \
-        -DCMAKE_FIND_PACKAGE_NAME_OR_PREFIX="${PREFIX}" >/dev/null; then
+        -DNSX_INSTALL_PREFIX="${PREFIX}" >/dev/null; then
   report "downstream consumer cannot import cmsis_nn from installed nsxTargets"
 fi
 
