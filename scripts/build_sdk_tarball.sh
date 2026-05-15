@@ -7,7 +7,7 @@
 #
 # Layout produced:
 #
-#   ns-cmsis-nn-<cpu>-<version>/
+#   ns-cmsis-nn-<cpu>-<toolchain>-<version>/
 #     include/
 #       arm_nn_math_types.h
 #       arm_nn_tables.h
@@ -23,10 +23,12 @@
 #     manifest.json
 #
 # Usage:
-#   build_sdk_tarball.sh --target-cpu cortex-m{0,4,55} \
-#                        --version    <X.Y.Z>          \
-#                        --staticlib  <path-to-.a>     \
-#                        --outdir     <dir>
+#   build_sdk_tarball.sh --target-cpu         cortex-m{0,4,55} \
+#                        --version            <X.Y.Z>          \
+#                        --staticlib          <path-to-.a>     \
+#                        --outdir             <dir>            \
+#                        [--toolchain         gcc|armclang|clang] \
+#                        [--toolchain-version <toolchain-build-id>]
 
 set -euo pipefail
 
@@ -67,10 +69,12 @@ esac
 
 # Toolchain id is baked into both the tarball name and the manifest so a
 # future multi-toolchain matrix (M3 #177) is a pure additive change.
+# TOOLCHAIN_COMPILER mirrors CMake's CMAKE_C_COMPILER_ID values so the
+# find_package() config can fail-fast on consumer/package compiler skew.
 case "$TOOLCHAIN" in
-  gcc)      TOOLCHAIN_COMPILER="GNU";   TOOLCHAIN_FULL_ID="gnu-arm-embedded" ;;
-  armclang) TOOLCHAIN_COMPILER="ARMCC"; TOOLCHAIN_FULL_ID="arm-compiler"     ;;
-  clang)    TOOLCHAIN_COMPILER="Clang"; TOOLCHAIN_FULL_ID="llvm-embedded-toolchain-for-arm" ;;
+  gcc)      TOOLCHAIN_COMPILER="GNU";      TOOLCHAIN_FULL_ID="gnu-arm-embedded" ;;
+  armclang) TOOLCHAIN_COMPILER="ARMClang"; TOOLCHAIN_FULL_ID="arm-compiler"     ;;
+  clang)    TOOLCHAIN_COMPILER="Clang";    TOOLCHAIN_FULL_ID="llvm-embedded-toolchain-for-arm" ;;
   *) echo "unsupported --toolchain '$TOOLCHAIN' (gcc|armclang|clang)" >&2; exit 2 ;;
 esac
 

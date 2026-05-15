@@ -54,7 +54,8 @@
       <description>ARMv8.1-M Mainline + MVE (Cortex-M55) built with GCC.</description>
       <require Dcore="Cortex-M55"/>
       <require Tcompiler="GCC"/>
-    </condition>  </conditions>
+    </condition>
+  </conditions>
 
   <components>
     <!-- heliaCORE NN — Source variant: build the 200+ kernel sources in-tree. -->
