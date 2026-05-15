@@ -65,30 +65,6 @@ jobs:
         run: |
           rm -f ./output/*.pack
 
-      - name: PDSC contract pre-flight
-        # Cheap fail-fast: if the manifest's identity/version markers drift,
-        # don't bother spending several minutes on Doxygen + gen-pack just to
-        # ship a broken pack. See M3 #170.
-        if: ${{ steps.rp.outputs.release_created }}
-        run: python3 scripts/check_pdsc.py
-
-      - name: Generate pack and docs
-        if: ${{ steps.rp.outputs.release_created }}
-        uses: Open-CMSIS-Pack/gen-pack-action@main
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACK_CHANGELOG_MODE: full
-        with:
-          doxygen-version: 1.9.6
-          packchk-version: 1.4.1
-          gen-doc-script: ./Documentation/Doxygen/gen_doc.sh
-          doc-path: ./Documentation/html
-          gen-pack-script: ./gen_pack.sh --no-preprocess
-          gen-pack-output: ./output
-          gh-pages-branch: ""
-          gh-pages-deploy: ""
-
       - name: Compute version
         if: ${{ steps.rp.outputs.release_created }}
         id: ver
@@ -102,32 +78,6 @@ jobs:
           fi
           echo "TAG=$tag" >> "$GITHUB_OUTPUT"
           echo "VERSION=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Upload pack to GitHub Release
-        if: ${{ steps.rp.outputs.release_created }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload \
-            "${{ steps.ver.outputs.TAG }}" \
-            "./output/Ambiq.NS-CMSIS-NN.${{ steps.ver.outputs.VERSION }}.pack" \
-            --clobber
-
-      # 3) Publish docs to GitHub Pages (from ./Documentation/html)
-      - name: Setup Pages
-        if: ${{ steps.rp.outputs.release_created }}
-        uses: actions/configure-pages@v6
-
-      - name: Upload Pages artifact
-        if: ${{ steps.rp.outputs.release_created }}
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: ./Documentation/html
-
-      - name: Deploy to GitHub Pages
-        if: ${{ steps.rp.outputs.release_created }}
-        id: deploy
-        uses: actions/deploy-pages@v5
 
   publish-staticlibs:
     # Cross-compile cmsis-nn as a static library for cortex-m0 / m4 / m55,
@@ -209,6 +159,116 @@ jobs:
             "./output/${TARGET_CPU}/ns-cmsis-nn-${TARGET_CPU}-gcc-${VERSION}.tar.gz" \
             "./output/${TARGET_CPU}/ns-cmsis-nn-${TARGET_CPU}-gcc-${VERSION}.tar.gz.sha256" \
             --clobber
+
+  publish-pack:
+    # Build the CMSIS-Pack and publish docs to Pages. Runs after
+    # publish-staticlibs because the pack's Cvariant="Prebuilt" component
+    # vendors the per-arch libns-cmsis-nn.a archives — packchk fails if a
+    # declared <file> is missing, so we cannot run gen-pack until those
+    # artefacts exist. Pages publishing rides along with this job because
+    # gen-pack-action's Doxygen step produces ./Documentation/html.
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    needs: [release-please, publish-staticlibs]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Wait for release API to be ready
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          set -e
+          for i in {1..10}; do
+            if gh api "repos/${{ github.repository }}/releases/tags/$TAG" >/dev/null 2>&1; then
+              echo "Release $TAG is available."
+              exit 0
+            fi
+            echo "Waiting for release $TAG (try $i/10)..."
+            sleep 3
+          done
+          echo "Release $TAG not visible to API yet." >&2
+          exit 1
+
+      - name: Clean output dir
+        run: rm -f ./output/*.pack
+
+      - name: Download per-arch staticlib artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./_artifacts
+          pattern: ns-cmsis-nn-staticlib-*
+
+      - name: Stage prebuilt archives at lib/<cpu>/libns-cmsis-nn.a
+        env:
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p ./lib
+          for cpu in cortex-m0 cortex-m4 cortex-m55; do
+            src="./_artifacts/ns-cmsis-nn-staticlib-${cpu}/libns-cmsis-nn-${cpu}-${VERSION}.a"
+            if [[ ! -f "$src" ]]; then
+              echo "missing artefact: $src" >&2
+              exit 1
+            fi
+            mkdir -p "./lib/${cpu}"
+            cp "$src" "./lib/${cpu}/libns-cmsis-nn.a"
+          done
+          ls -lR ./lib
+
+      - name: PDSC contract pre-flight
+        # Cheap fail-fast: if the manifest's identity/version markers drift,
+        # don't bother spending several minutes on Doxygen + gen-pack just to
+        # ship a broken pack. See M3 #170.
+        run: python3 scripts/check_pdsc.py
+
+      - name: Generate pack and docs
+        uses: Open-CMSIS-Pack/gen-pack-action@main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACK_CHANGELOG_MODE: full
+          # Signal to gen_pack.sh that lib/<cpu>/libns-cmsis-nn.a is staged
+          # so it adds `lib` to PACK_DIRS for the Cvariant="Prebuilt" component.
+          NS_CMSIS_NN_PREBUILT_LIBS_STAGED: "1"
+        with:
+          doxygen-version: 1.9.6
+          packchk-version: 1.4.1
+          gen-doc-script: ./Documentation/Doxygen/gen_doc.sh
+          doc-path: ./Documentation/html
+          gen-pack-script: ./gen_pack.sh --no-preprocess
+          gen-pack-output: ./output
+          gh-pages-branch: ""
+          gh-pages-deploy: ""
+
+      - name: Upload pack to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG:     ${{ needs.release-please.outputs.tag_name }}
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          gh release upload "$TAG" \
+            "./output/Ambiq.NS-CMSIS-NN.${VERSION}.pack" \
+            --clobber
+
+      # Publish docs to GitHub Pages (from ./Documentation/html)
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ./Documentation/html
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v5
 
   publish-ci-image:
     if: ${{ needs.release-please.outputs.release_created == 'true' }}

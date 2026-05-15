@@ -35,6 +35,19 @@ PACK_DIRS="
   Source
 "
 
+# When the release pipeline has staged the per-arch prebuilt archives at
+# ./lib/<cpu>/libns-cmsis-nn.a (see .github/workflows/release.yml's
+# publish-pack job), pull them into the pack so the Cvariant="Prebuilt"
+# component's <file category="library"> entries resolve. packchk fails
+# if a declared file is missing, so we never emit a pack with a half-
+# vendored prebuilt variant — either all archs are staged or none.
+if [[ -d "$(dirname "${BASH_SOURCE[0]}")/lib" \
+      || "${NS_CMSIS_NN_PREBUILT_LIBS_STAGED:-0}" == "1" ]]; then
+  PACK_DIRS="${PACK_DIRS}
+  lib
+"
+fi
+
 # Specify file names to be added to pack base directory
 # Default: empty
 #
