@@ -201,7 +201,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download static library artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.3
         with:
           pattern: staticlib-*
           path: artifacts
@@ -251,7 +251,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download static library artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.3
         with:
           pattern: staticlib-*
           path: artifacts
@@ -300,13 +300,13 @@ jobs:
           fetch-depth: 0
 
       - name: Download binary SDK artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.3
         with:
           name: ns-cmsis-nn-binary-sdk-${{ needs.resolve-build-plan.outputs.package_tag }}
           path: upload
 
       - name: Download Zephyr binary artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.3
         with:
           name: ns-cmsis-nn-zephyr-binary-${{ needs.resolve-build-plan.outputs.package_tag }}
           path: upload
@@ -368,4 +368,3 @@ jobs:
             "upload/ns-cmsis-nn-release-index-${package_tag}.json" \
             --repo "${{ github.repository }}" \
             --clobber
-
