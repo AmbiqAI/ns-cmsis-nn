@@ -22,7 +22,7 @@ config NS_CMSIS_NN_ALL
 	# Safer than 'select': respects other symbols' dependencies,
 	# and users can still turn individual groups off if they really want.
 	imply NS_CMSIS_NN_ACTIVATION
-	imply NS_CMSIS_NN_BASICMATH
+	imply NS_CMSIS_NN_BASICMATHSNN
 	imply NS_CMSIS_NN_COMPARISON
 	imply NS_CMSIS_NN_CONCATENATION
 	imply NS_CMSIS_NN_CONVOLUTION
@@ -34,8 +34,8 @@ config NS_CMSIS_NN_ALL
 	imply NS_CMSIS_NN_QUANTIZATION
 	imply NS_CMSIS_NN_RESHAPE
 	imply NS_CMSIS_NN_SOFTMAX
-	imply NS_CMSIS_NN_STRIDED_SLICE
-	imply NS_CMSIS_NN_SVD
+	imply NS_CMSIS_NN_STRIDEDSLICE
+	imply NS_CMSIS_NN_SVDF
 	imply NS_CMSIS_NN_TRANSPOSE
 	imply NS_CMSIS_NN_GATHER
 
@@ -47,7 +47,7 @@ config NS_CMSIS_NN_ACTIVATION
 	  It can perform activation layers, including ReLU (Rectified
 	  Linear Unit), sigmoid, and tanh.
 
-config NS_CMSIS_NN_BASICMATH
+config NS_CMSIS_NN_BASICMATHSNN
 	bool "Basic Math for NN"
 	imply NS_CMSIS_NN_NNSUPPORT
 	help
@@ -124,14 +124,14 @@ config NS_CMSIS_NN_SOFTMAX
 	help
 	  This option enables the NN libraries for the softmax layers (exp2 based).
 
-config NS_CMSIS_NN_STRIDED_SLICE
+config NS_CMSIS_NN_STRIDEDSLICE
 	bool "Strided Slice"
 	imply NS_CMSIS_NN_NNSUPPORT
 	help
 	  This option enables the NN libraries for the strided slice layers.
 
-config NS_CMSIS_NN_SVD
-	bool "SVD"
+config NS_CMSIS_NN_SVDF
+	bool "SVDF"
 	imply NS_CMSIS_NN_NNSUPPORT
 	help
 	  This option enables the NN libraries for Single Value Decomposition Filter layers.
@@ -158,4 +158,38 @@ config NS_CMSIS_NN_REQUANTIZE_INLINE_ASSEMBLY
           hand-tuned inline-assembly variants that are noticeably faster than
           the C fallbacks on Cortex-M cores. Defaults off to match the
           standalone CMake build's default; safe to enable on any Cortex-M.
+
+# ---------------------------------------------------------------------------
+# DEPRECATED aliases — kept for one release cycle so existing prj.conf files
+# keep configuring. The renamed targets (BASICMATHSNN, STRIDEDSLICE, SVDF)
+# match the SSoT group ids used by the standalone CMake build and the NSX
+# module. Remove these in the next major.
+# ---------------------------------------------------------------------------
+
+# DEPRECATED: use NS_CMSIS_NN_BASICMATHSNN
+config NS_CMSIS_NN_BASICMATH
+	bool "[DEPRECATED] Basic Math for NN (use NS_CMSIS_NN_BASICMATHSNN)"
+	select DEPRECATED
+	select NS_CMSIS_NN_BASICMATHSNN
+	help
+	  Deprecated alias for NS_CMSIS_NN_BASICMATHSNN. Update your prj.conf
+	  to use the new name; this symbol will be removed in a future release.
+
+# DEPRECATED: use NS_CMSIS_NN_STRIDEDSLICE
+config NS_CMSIS_NN_STRIDED_SLICE
+	bool "[DEPRECATED] Strided Slice (use NS_CMSIS_NN_STRIDEDSLICE)"
+	select DEPRECATED
+	select NS_CMSIS_NN_STRIDEDSLICE
+	help
+	  Deprecated alias for NS_CMSIS_NN_STRIDEDSLICE. Update your prj.conf
+	  to use the new name; this symbol will be removed in a future release.
+
+# DEPRECATED: use NS_CMSIS_NN_SVDF
+config NS_CMSIS_NN_SVD
+	bool "[DEPRECATED] SVD (use NS_CMSIS_NN_SVDF)"
+	select DEPRECATED
+	select NS_CMSIS_NN_SVDF
+	help
+	  Deprecated alias for NS_CMSIS_NN_SVDF. Update your prj.conf
+	  to use the new name; this symbol will be removed in a future release.
 
