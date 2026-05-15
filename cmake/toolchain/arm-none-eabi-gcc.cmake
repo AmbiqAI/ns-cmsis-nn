@@ -27,6 +27,10 @@ set(CMAKE_RANLIB       arm-none-eabi-ranlib)
 # script in this toolchain layout).
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
+# Ensure NS_CMSIS_NN_TARGET_CPU is forwarded to CMake's internal
+# try_compile() sub-projects (ABI detection, etc.).
+list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES NS_CMSIS_NN_TARGET_CPU)
+
 if(NOT NS_CMSIS_NN_TARGET_CPU)
   message(FATAL_ERROR
     "NS_CMSIS_NN_TARGET_CPU must be set "
