@@ -144,6 +144,46 @@ When a kernel-set change is intentional, bump the `EXPECTED_*` values in
 in the same PR — the failure message names the offending group and the
 delta.
 
+## Zephyr integration tests
+
+The Zephyr module is verified at the wiring layer, not the firmware
+layer: the kernel C is already exercised by the unit-test suite, so the
+only Zephyr-specific risk is that `zephyr/CMakeLists.txt` or
+`zephyr/Kconfig` plumbs something wrong (forgets a group, mistypes a
+knob, drops the `select` glue on a deprecated alias, etc.). Two
+configure-time checks pin that contract — no Zephyr SDK, no west, no
+cross-compiler required:
+
+1. **Wiring mock** —
+   [`cmake/tests/zephyr_wiring/CMakeLists.txt`](../cmake/tests/zephyr_wiring/CMakeLists.txt)
+   stubs the `zephyr_library*` and `zephyr_*compile_definitions` macros,
+   sets every `CONFIG_NS_CMSIS_NN_*=1`, then `include()`s the real
+   `zephyr/CMakeLists.txt` and asserts the captured wiring: 206 sources
+   attached, `Include/` exposed globally, `CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY`
+   propagated, and every SSoT group covered by the Kconfig translation
+   table. Run with:
+
+   ```sh
+   cmake -S cmake/tests/zephyr_wiring -B build/zephyr_wiring
+   ```
+
+2. **Kconfig contract** —
+   [`scripts/check_zephyr_kconfig.py`](../scripts/check_zephyr_kconfig.py)
+   parses `zephyr/Kconfig` and asserts every renamed knob exists, that
+   `NS_CMSIS_NN_ALL` `imply`s all of them, and that each deprecated
+   alias `select`s both `DEPRECATED` and its renamed counterpart. Run
+   with:
+
+   ```sh
+   python3 scripts/check_zephyr_kconfig.py
+   ```
+
+The `Zephyr Integration` GitHub Actions workflow runs both on every PR.
+A real `west build` against the Zephyr SDK is intentionally not part of
+PR gating: it would only re-prove what these wiring checks plus the
+existing unit-test suite already cover, at the cost of a multi-GB SDK
+pull on every CI run.
+
 ## Why three group-id spellings?
 
 The standalone CMake `option()` names are the historical originals
