@@ -1,0 +1,7 @@
+# MkDocs + Material build dependencies for heliaCORE docs site.
+# Pinned floors; CI installs the latest compatible.
+mkdocs-material>=9.5,<10
+pymdown-extensions>=10.7
+mkdocs-material-extensions>=1.3
+# Versioned docs deploy (used by .github/workflows/docs.yml on release).
+mike>=2.1

@@ -1,0 +1,135 @@
+site_name: heliaCORE
+site_description: >-
+  Ambiq's CMSIS-NN distribution for Apollo silicon — packaged for CMake,
+  CMSIS-Pack, Zephyr, and neuralSPOT-X.
+site_url: https://ambiqai.github.io/ns-cmsis-nn/
+repo_url: https://github.com/AmbiqAI/ns-cmsis-nn
+repo_name: AmbiqAI/ns-cmsis-nn
+edit_uri: edit/main/docs/
+copyright: >-
+  Copyright &copy; Ambiq Micro, Inc. •
+  Built on Arm CMSIS-NN (Apache-2.0)
+
+theme:
+  name: material
+  language: en
+  # Drop these in once branding artwork is finalized (see docs/assets/README.md).
+  # logo: assets/logo.svg
+  # favicon: assets/favicon.png
+  font:
+    text: Inter
+    code: JetBrains Mono
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: heliacore-light
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: heliacore-dark
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+    - content.action.view
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/AmbiqAI
+      name: AmbiqAI on GitHub
+  generator: false
+  # heliaCORE is part of the HELIA family alongside heliaRT and others.
+  family:
+    - name: heliaRT
+      url: https://ambiqai.github.io/helia-rt/
+    - name: heliaCORE
+      url: https://ambiqai.github.io/ns-cmsis-nn/
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      base_path: ["docs", "."]
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+plugins:
+  - search
+  - tags
+
+nav:
+  - Home: index.md
+  - Why heliaCORE: why.md
+  - Getting Started:
+      - getting-started/index.md
+      - CMake (find_package): getting-started/cmake.md
+      - CMSIS-Pack: getting-started/cmsis-pack.md
+      - Zephyr Module: getting-started/zephyr.md
+      - neuralSPOT-X: getting-started/neuralspot-x.md
+  - Guides:
+      - guides/index.md
+      - Versioning & Releases: guides/releases.md
+      - Toolchain Pinning: guides/toolchains.md
+  - Reference:
+      - reference/index.md
+  - Releasing: releasing.md
+  - Contributing: contributing.md
+
+# Files that intentionally live under docs/ but should not appear in the nav.
+not_in_nav: |
+  /assets/README.md

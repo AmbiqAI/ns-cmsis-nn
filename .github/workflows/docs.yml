@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+#
+# Builds the heliaCORE MkDocs site.
+#
+# - On PR: builds the site as a sanity check and uploads it as an artifact
+#   so reviewers can download a static preview.
+# - On push to main: builds the site and (TODO) deploys it to GitHub Pages
+#   under the "latest" alias via mike.
+# - On a release tag (vX.Y.Z): (TODO) deploys to /X.Y.Z/ and updates the
+#   "latest" alias.
+#
+# The deploy steps are gated behind `if: false` until the Pages target is
+# decided (likely after the skeleton PR lands and design/assets are in).
+
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      - name: Install MkDocs Material
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+
+      - name: Build (strict)
+        run: mkdocs build --strict
+
+      - name: Upload site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: heliacore-docs-site
+          path: site/
+          retention-days: 14
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-22.04
+    # Gated until Pages target + branding are settled. Flip to:
+    #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # when ready to go live.
+    if: false
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      - name: Install MkDocs Material
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+
+      - name: Configure git for mike
+        run: |
+          git config --global user.name  'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Deploy to gh-pages (latest alias)
+        run: mike deploy --push --update-aliases latest

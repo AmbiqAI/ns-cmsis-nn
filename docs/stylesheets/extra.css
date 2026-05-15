@@ -1,0 +1,206 @@
+/* ============================================================================
+ * heliaCORE — site palette
+ *
+ * Base:   white / black / teal (shared across the HELIA family of docs sites,
+ *         e.g. heliaRT, heliaCORE, …) so visitors see a consistent look as
+ *         they move between Ambiq's edge-AI projects.
+ * Accent: heliaCORE-logo amber/orange (honeycomb), used sparingly for CTAs,
+ *         hovered links, and tag pills.
+ *
+ * The palette is wired into mkdocs-material by declaring `primary: custom`
+ * and `accent: custom` in mkdocs.yml and overriding the `--md-*` variables
+ * here. Two schemes are provided: heliacore-light and heliacore-dark.
+ * ========================================================================== */
+
+:root {
+  /* Shared HELIA family palette ------------------------------------------- */
+  --heliacore-teal:        #00a3a3;  /* primary brand teal */
+  --heliacore-teal-dark:   #007a7a;
+  --heliacore-teal-light:  #b8ecec;
+
+  /* heliaCORE honeycomb accents ------------------------------------------ */
+  --heliacore-amber:       #f5a623;  /* outer ring of the heliaCORE logo */
+  --heliacore-amber-soft:  #fcd9a1;
+  --heliacore-yellow:      #ffd028;  /* honeycomb center */
+  --heliacore-brown:       #8a4f1d;  /* deepest honeycomb cell */
+
+  /* Neutrals ------------------------------------------------------------- */
+  --heliacore-ink:         #0b0f14;
+  --heliacore-paper:       #ffffff;
+  --heliacore-mist:        #f5f7f8;
+}
+
+/* ---------------------------------------------------------------------------
+ * Light scheme
+ * ------------------------------------------------------------------------- */
+[data-md-color-scheme="heliacore-light"] {
+  --md-primary-fg-color:              var(--heliacore-teal);
+  --md-primary-fg-color--light:       var(--heliacore-teal-light);
+  --md-primary-fg-color--dark:        var(--heliacore-teal-dark);
+  --md-primary-bg-color:              var(--heliacore-paper);
+  --md-primary-bg-color--light:       var(--heliacore-paper);
+
+  --md-accent-fg-color:               var(--heliacore-amber);
+  --md-accent-fg-color--transparent:  rgba(245, 166, 35, 0.1);
+  --md-accent-bg-color:               var(--heliacore-ink);
+  --md-accent-bg-color--light:        var(--heliacore-paper);
+
+  --md-default-fg-color:              var(--heliacore-ink);
+  --md-default-bg-color:              var(--heliacore-paper);
+
+  --md-code-bg-color:                 #f3f5f6;
+  --md-code-fg-color:                 #1d2329;
+
+  --md-typeset-a-color:               var(--heliacore-teal-dark);
+}
+
+/* ---------------------------------------------------------------------------
+ * Dark scheme
+ * ------------------------------------------------------------------------- */
+[data-md-color-scheme="heliacore-dark"] {
+  --md-primary-fg-color:              var(--heliacore-teal);
+  --md-primary-fg-color--light:       var(--heliacore-teal-light);
+  --md-primary-fg-color--dark:        var(--heliacore-teal-dark);
+  --md-primary-bg-color:              var(--heliacore-ink);
+  --md-primary-bg-color--light:       #11161c;
+
+  --md-accent-fg-color:               var(--heliacore-amber);
+  --md-accent-fg-color--transparent:  rgba(245, 166, 35, 0.18);
+  --md-accent-bg-color:               var(--heliacore-paper);
+  --md-accent-bg-color--light:        var(--heliacore-mist);
+
+  --md-default-fg-color:              #e7ecef;
+  --md-default-fg-color--light:       #c8d0d5;
+  --md-default-fg-color--lighter:     #8d969d;
+  --md-default-fg-color--lightest:    #4a5258;
+  --md-default-bg-color:              var(--heliacore-ink);
+
+  --md-code-bg-color:                 #0f141a;
+  --md-code-fg-color:                 #e7ecef;
+
+  --md-typeset-a-color:               var(--heliacore-teal-light);
+}
+
+/* ---------------------------------------------------------------------------
+ * Landing-page hero
+ * Inspired by the heliaRT hero (https://ambiqai.github.io/helia-rt/)
+ * but intentionally simpler — heliaCORE is a building block, not a product.
+ * ------------------------------------------------------------------------- */
+.heliacore-hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+  padding: 3rem 0 2.5rem;
+  align-items: center;
+}
+@media (min-width: 960px) {
+  .heliacore-hero { grid-template-columns: 1.2fr 1fr; }
+}
+
+.heliacore-hero h1 {
+  font-size: 3rem;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0 0 1rem;
+}
+.heliacore-hero p.lede {
+  font-size: 1.1rem;
+  line-height: 1.55;
+  color: var(--md-default-fg-color--light);
+  max-width: 36rem;
+}
+.heliacore-hero .cta {
+  display: inline-flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+.heliacore-hero .cta .md-button {
+  border-radius: 999px;
+}
+.heliacore-hero .md-button--primary {
+  background: var(--heliacore-teal);
+  color: var(--heliacore-paper);
+  border-color: var(--heliacore-teal);
+}
+.heliacore-hero .md-button--primary:hover {
+  background: var(--heliacore-amber);
+  border-color: var(--heliacore-amber);
+  color: var(--heliacore-ink);
+}
+
+/* Tech badges row under the hero. ---------------------------------------- */
+.heliacore-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 1.5rem 0 2.5rem;
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+}
+.heliacore-badges .badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--md-code-bg-color);
+  color: var(--md-default-fg-color);
+  border-radius: 999px;
+}
+
+/* Stat tile grid (matches the small "230+ kernel variants" cards on
+ * heliaRT, but smaller and used to summarize what heliaCORE ships). ------ */
+.heliacore-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--md-code-bg-color);
+  border-radius: 12px;
+}
+.heliacore-stats .tile {
+  padding: 1rem 1.1rem;
+  background: var(--md-default-bg-color);
+  border-radius: 8px;
+}
+.heliacore-stats .tile .num {
+  display: block;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.heliacore-stats .tile .label {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--md-default-fg-color--light);
+}
+
+/* Feature cards used on the home + Getting Started pages. ---------------- */
+.heliacore-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.heliacore-cards .card {
+  padding: 1.25rem 1.25rem 1.1rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 12px;
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+.heliacore-cards .card:hover {
+  border-color: var(--heliacore-amber);
+  transform: translateY(-1px);
+}
+.heliacore-cards .card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+.heliacore-cards .card p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--md-default-fg-color--light);
+}
