@@ -28,11 +28,38 @@
     <condition id="CMSIS-NN">
       <description>No additional components required for CMSIS-NN</description>
     </condition>
+
+    <!--
+      Per-architecture conditions guarding the prebuilt .a files.
+      Tcompiler is GCC across all three because this pack vendors a
+      single GNU Arm Embedded build per arch. Multi-toolchain coverage
+      tracks under issue #177.
+    -->
+    <condition id="ARMv6-M GCC">
+      <description>ARMv6-M (Cortex-M0/M0+/M1) built with GCC.</description>
+      <require Dcore="Cortex-M0"/>
+      <require Tcompiler="GCC"/>
+    </condition>
+    <condition id="ARMv6-M+ GCC">
+      <description>ARMv6-M+ (Cortex-M0+) built with GCC.</description>
+      <require Dcore="Cortex-M0+"/>
+      <require Tcompiler="GCC"/>
+    </condition>
+    <condition id="ARMv7E-M GCC">
+      <description>ARMv7E-M (Cortex-M4 with FPU) built with GCC.</description>
+      <require Dcore="Cortex-M4"/>
+      <require Tcompiler="GCC"/>
+    </condition>
+    <condition id="ARMv8.1-M MVE GCC">
+      <description>ARMv8.1-M Mainline + MVE (Cortex-M55) built with GCC.</description>
+      <require Dcore="Cortex-M55"/>
+      <require Tcompiler="GCC"/>
+    </condition>
   </conditions>
 
   <components>
-    <!-- heliaCORE NN component (Ambiq's superset of Arm CMSIS-NN) -->
-    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvendor="Ambiq" Cversion="7.24.1" condition="CMSIS-NN"> <!-- x-release-please-version -->
+    <!-- heliaCORE NN — Source variant: build the 200+ kernel sources in-tree. -->
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.24.1" condition="CMSIS-NN"> <!-- x-release-please-version -->
       <description>heliaCORE NN — Ambiq's optimized superset of Arm CMSIS-NN, tuned for Apollo SoCs.</description>
       <files>
         <file category="doc" name="Documentation/html/index.html"/>
@@ -264,6 +291,27 @@
         <file category="source" name="Source/GatherFunctions/arm_gather_nd_s8.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_nd_s16.c"/>
 
+      </files>
+    </component>
+
+    <!-- heliaCORE NN — Prebuilt variant: link Ambiq's vendored per-arch
+         libns-cmsis-nn.a instead of compiling sources. One <file> entry per
+         supported core; CMSIS-Pack pickers (Keil/CMSIS-Toolbox) resolve the
+         right archive via the Dcore + Tcompiler conditions above. -->
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.24.1" condition="CMSIS-NN"> <!-- x-release-please-version -->
+      <description>heliaCORE NN — Ambiq's prebuilt GCC archive for Cortex-M0/M0+/M4/M55.</description>
+      <files>
+        <file category="doc"    name="Documentation/html/index.html"/>
+        <file category="header" name="Include/arm_nn_types.h"/>
+        <file category="header" name="Include/arm_nnfunctions.h"/>
+        <file category="header" name="Include/arm_nnsupportfunctions.h"/>
+        <file category="header" name="Include/arm_nn_tables.h"/>
+        <file category="header" name="Include/arm_nn_math_types.h"/>
+
+        <file category="library" condition="ARMv6-M GCC"        name="lib/cortex-m0/libns-cmsis-nn.a"/>
+        <file category="library" condition="ARMv6-M+ GCC"       name="lib/cortex-m0/libns-cmsis-nn.a"/>
+        <file category="library" condition="ARMv7E-M GCC"       name="lib/cortex-m4/libns-cmsis-nn.a"/>
+        <file category="library" condition="ARMv8.1-M MVE GCC"  name="lib/cortex-m55/libns-cmsis-nn.a"/>
       </files>
     </component>
   </components>

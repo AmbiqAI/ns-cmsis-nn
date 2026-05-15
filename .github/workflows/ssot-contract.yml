@@ -23,3 +23,22 @@ jobs:
 
       - name: Run SSoT contract test
         run: cmake -S cmake/tests/ssot_contract -B build/ssot_contract
+
+  find_package:
+    # find_package(ns-cmsis-nn) consumer regression for the per-arch SDK
+    # tarball. Builds the tarball with a fake .a, extracts it, and asserts
+    # on the resulting target graph. No toolchain needed.
+    name: find_package(${{ matrix.case }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [happy, version_mismatch, cpu_mismatch]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run find_package wiring test
+        env:
+          CASE: ${{ matrix.case }}
+        run: cmake -S cmake/tests/find_package -B "build/fp_${CASE}" -DCASE="${CASE}"

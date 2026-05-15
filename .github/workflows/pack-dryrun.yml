@@ -12,6 +12,8 @@
 #     in ./output.
 #   - The resulting .pack passes packchk (the gen-pack-action does this
 #     internally; we additionally assert the artefact name).
+#   - The Cvariant="Prebuilt" component's per-arch libns-cmsis-nn.a
+#     files exist (#181) — they're staged from the build-staticlibs job.
 #
 # Outputs are uploaded as workflow artefacts (NOT to a GitHub Release).
 # Triggered manually only — this is a verification path, not a publish path.
@@ -20,6 +22,11 @@ name: Pack dry-run
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Synthetic version stamp used when naming the staticlib artefacts (the .pack itself reads its version from the .pdsc)."
+        required: true
+        default: "0.0.0-dryrun"
 
 permissions:
   contents: read
@@ -29,8 +36,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-staticlibs:
+    name: Build staticlib (${{ matrix.target_cpu }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target_cpu: [cortex-m0, cortex-m4, cortex-m55]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install GNU Arm Embedded toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: 13.2.Rel1
+
+      - name: Build static library
+        env:
+          TARGET_CPU: ${{ matrix.target_cpu }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          bash scripts/build_staticlib.sh \
+            --target-cpu "$TARGET_CPU" \
+            --version    "$VERSION" \
+            --outdir     "./output/$TARGET_CPU"
+
+      - name: Upload staticlib artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pack-dryrun-staticlib-${{ matrix.target_cpu }}
+          path: ./output/${{ matrix.target_cpu }}/libns-cmsis-nn-*.a
+          if-no-files-found: error
+          retention-days: 1
+
+  build-pack:
     name: Build pack (no upload)
+    needs: build-staticlibs
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
@@ -41,6 +83,29 @@ jobs:
       - name: Fetch tags
         run: git fetch --tags --force
 
+      - name: Download per-arch staticlib artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./_artifacts
+          pattern: pack-dryrun-staticlib-*
+
+      - name: Stage prebuilt archives at lib/<cpu>/libns-cmsis-nn.a
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p ./lib
+          for cpu in cortex-m0 cortex-m4 cortex-m55; do
+            src="./_artifacts/pack-dryrun-staticlib-${cpu}/libns-cmsis-nn-${cpu}-${VERSION}.a"
+            if [[ ! -f "$src" ]]; then
+              echo "missing artefact: $src" >&2
+              exit 1
+            fi
+            mkdir -p "./lib/${cpu}"
+            cp "$src" "./lib/${cpu}/libns-cmsis-nn.a"
+          done
+          ls -lR ./lib
+
       - name: PDSC contract pre-flight
         run: python3 scripts/check_pdsc.py
 
@@ -50,6 +115,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PACK_CHANGELOG_MODE: full
+          NS_CMSIS_NN_PREBUILT_LIBS_STAGED: "1"
         with:
           doxygen-version: 1.9.6
           packchk-version: 1.4.1

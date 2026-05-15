@@ -46,3 +46,97 @@ jobs:
 
       - name: Run NSX install contract
         run: scripts/check_nsx_install.sh
+
+  prebuilt_real:
+    # Closes the loop on #167 / #175: download the real published
+    # libns-cmsis-nn-cortex-m4-*.a from the latest release and cross-link
+    # a consumer TU against `nsx::cmsis_nn`. Skip-clean (not fail) if the
+    # latest release has no staticlib assets, so this leg stays green on
+    # legacy releases predating #167's publish pipeline.
+    name: NSX prebuilt-real link (cortex-m4)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install GNU Arm Embedded toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: 13.2.Rel1
+
+      - name: Resolve latest release tag with staticlib assets
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="$(gh release view --json tagName -q .tagName 2>/dev/null || true)"
+          if [[ -z "${tag}" ]]; then
+            echo "no releases found — skipping" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Look for a cortex-m4 staticlib asset on this tag.
+          asset="$(gh release view "$tag" --json assets \
+                     -q '.assets[].name' \
+                   | grep -E '^libns-cmsis-nn-cortex-m4-[^.]+\.[^.]+\.[^.]+\.a$' \
+                   || true)"
+          if [[ -z "${asset}" ]]; then
+            echo "release ${tag} has no cortex-m4 staticlib asset — skipping" \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "skip=true"  >> "$GITHUB_OUTPUT"
+            echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false"     >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}"     >> "$GITHUB_OUTPUT"
+          echo "asset=${asset}" >> "$GITHUB_OUTPUT"
+
+      - name: Download prebuilt cortex-m4 archive + sha
+        if: steps.resolve.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG:   ${{ steps.resolve.outputs.tag }}
+          ASSET: ${{ steps.resolve.outputs.asset }}
+        run: |
+          set -euo pipefail
+          mkdir -p prebuilt
+          gh release download "$TAG" \
+            --pattern "$ASSET"          \
+            --pattern "${ASSET}.sha256" \
+            --dir prebuilt
+          ( cd prebuilt && sha256sum -c "${ASSET}.sha256" )
+
+      - name: Cross-link consumer against nsx::cmsis_nn
+        if: steps.resolve.outputs.skip != 'true'
+        env:
+          ASSET: ${{ steps.resolve.outputs.asset }}
+        run: |
+          set -euo pipefail
+          libpath="$(realpath "prebuilt/${ASSET}")"
+          cmake -S cmake/tests/nsx_prebuilt_real_link \
+                -B build/nsx_prebuilt_real_link      \
+                -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
+                -DNS_CMSIS_NN_TARGET_CPU=cortex-m4   \
+                -DNSX_CMSIS_NN_LIB="${libpath}"
+          cmake --build build/nsx_prebuilt_real_link --verbose
+
+      - name: Verify expected cmsis-nn symbols pulled through
+        if: steps.resolve.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          elf="build/nsx_prebuilt_real_link/nsx_prebuilt_real_link_smoke"
+          nm_out="$(arm-none-eabi-nm --defined-only "$elf")"
+          for s in arm_relu_q7 arm_softmax_s8 arm_convolve_s8 \
+                   arm_fully_connected_s8 arm_max_pool_s8 \
+                   arm_avgpool_s8 arm_elementwise_add_s8 \
+                   arm_elementwise_mul_s8; do
+            if ! grep -qE "[[:space:]]${s}\$" <<<"${nm_out}"; then
+              echo "missing symbol: ${s}" >&2
+              exit 1
+            fi
+          done
+          arm-none-eabi-size "$elf"
+          echo "prebuilt-real link OK"
