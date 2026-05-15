@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -200,11 +201,21 @@ def check_file_existence(entries: list[tuple[str, str]]) -> None:
 
 def check_source_coverage(entries: list[tuple[str, str]]) -> None:
     listed = sorted(name for cat, name in entries if cat == "source")
-    actual = sorted(
-        str(p.relative_to(REPO))
-        for p in REPO.glob("Source/**/*.c")
-        if p.is_file()
-    )
+    # Use `git ls-files` rather than a filesystem glob: matches the legacy
+    # check_pdsc.sh behaviour, and avoids false-positives from untracked
+    # .c files left around during local development.
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "Source/"],
+            cwd=REPO,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        fail(f"`git ls-files Source/` failed: {e}")
+        return
+    actual = sorted(p for p in out.splitlines() if p.endswith(".c"))
     missing_in_pdsc = set(actual) - set(listed)
     extra_in_pdsc = set(listed) - set(actual)
     for m in sorted(missing_in_pdsc):
