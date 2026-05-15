@@ -52,17 +52,19 @@
  *     #if !defined(NS_CMSIS_NN)
  *     #  error "this code requires ns-cmsis-nn (Ambiq superset)"
  *     #endif
- *     #if NS_CMSIS_NN_VERSION < 72400
+ *     #if NS_CMSIS_NN_VERSION < 7024000
  *     #  error "needs ns-cmsis-nn >= 7.24.0"
  *     #endif
  *
- * NS_CMSIS_NN_VERSION is packed as MAJOR * 10000 + MINOR * 100 + PATCH and
- * tracks release-please bumps automatically through the per-component macros
- * above; no separate marker is required.
+ * NS_CMSIS_NN_VERSION is packed as MAJOR * 1000000 + MINOR * 1000 + PATCH
+ * (each of MINOR and PATCH gets a full 3-digit field, so semantic ordering is
+ * preserved for any reasonable version). It tracks release-please bumps
+ * automatically through the per-component macros above; no separate marker
+ * is required.
  */
 #define NS_CMSIS_NN         (1)
-#define NS_CMSIS_NN_VERSION ((NS_CMSIS_NN_VERSION_MAJOR * 10000) + \
-                             (NS_CMSIS_NN_VERSION_MINOR * 100) +   \
+#define NS_CMSIS_NN_VERSION ((NS_CMSIS_NN_VERSION_MAJOR * 1000000) + \
+                             (NS_CMSIS_NN_VERSION_MINOR * 1000) +    \
                               NS_CMSIS_NN_VERSION_PATCH)
 /**
  * @defgroup genPubTypes Structure Types
