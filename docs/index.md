@@ -150,8 +150,8 @@ model latency in HELIA deployments.</p>
 <a class="platform-card platform-card--cmsis" href="getting-started/cmake/" markdown>
 <span class="logo-mark">CM</span>
 <span class="platform-label">Prebuilt SDK</span>
-<strong>CMake `find_package`</strong>
-<span>Drop in a per-architecture tarball and link `nsx::cmsis_nn`. CPU and compiler are validated at configure time.</span>
+<strong>CMake package</strong>
+<span>Link a per-architecture package with the exported CMake target; configure validates CPU and compiler.</span>
 <em>Start with CMake →</em>
 </a>
 
@@ -159,7 +159,7 @@ model latency in HELIA deployments.</p>
 <span class="logo-mark logo-mark--amber">PK</span>
 <span class="platform-label">CMSIS tooling</span>
 <strong>CMSIS-Pack</strong>
-<span>Install `Ambiq.NS-CMSIS-NN.<version>.pack` and choose **Source** or **Prebuilt** Cvariant.</span>
+<span>Install the Ambiq pack and select a source or prebuilt variant for your project.</span>
 <em>Use the pack →</em>
 </a>
 
@@ -167,7 +167,7 @@ model latency in HELIA deployments.</p>
 <span class="logo-mark logo-mark--yellow">Z</span>
 <span class="platform-label">RTOS module</span>
 <strong>Zephyr Module</strong>
-<span>West-managed module with `CONFIG_NS_CMSIS_NN` and an optional prebuilt archive path.</span>
+<span>Enable the module with Kconfig and optionally point it at a prebuilt archive.</span>
 <em>Wire Zephyr →</em>
 </a>
 
@@ -175,7 +175,7 @@ model latency in HELIA deployments.</p>
 <span class="logo-mark logo-mark--brown">NSX</span>
 <span class="platform-label">HELIA stack</span>
 <strong>neuralSPOT-X</strong>
-<span>NSX consumes heliaCORE through its CMake graph and exposes the kernels to heliaRT-based applications.</span>
+<span>Consume heliaCORE through the NSX CMake graph for heliaRT-based applications.</span>
 <em>Use NSX →</em>
 </a>
 

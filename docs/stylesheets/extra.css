@@ -82,38 +82,61 @@
   border-color: rgba(245, 166, 35, 0.42);
 }
 
-.platform-card--cmsis {
-  background: #111827;
+.md-typeset .platform-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1rem;
+  align-items: stretch;
 }
 
-.platform-card--cmsis strong,
-.platform-card--cmsis .platform-label,
-.platform-card--cmsis em {
-  color: #fff;
+.md-typeset .platform-grid .platform-card {
+  display: flex;
+  min-height: 300px;
+  height: 100%;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px;
+  border-color: rgba(100, 116, 139, 0.24);
+  background: var(--hr-soft);
 }
 
-.platform-card--cmsis > span:not(.logo-mark):not(.platform-label) {
-  color: #cbd5e1;
+.md-typeset .platform-grid .platform-card:hover {
+  border-color: var(--hr-accent);
 }
 
-.platform-card--cmsis .logo-mark {
-  background: var(--hr-accent-2);
-  color: #111318;
+.md-typeset .platform-grid .logo-mark {
+  width: 54px;
+  height: 54px;
+  border: 1px solid rgba(0, 193, 179, 0.22);
+  background: rgba(0, 193, 179, 0.1);
+  color: var(--hr-ink);
+  font-size: 13px;
 }
 
-.logo-mark.logo-mark--amber {
-  background: var(--hr-accent-2);
-  color: #111318;
+.md-typeset .platform-grid .platform-label {
+  color: var(--hr-muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
 }
 
-.logo-mark.logo-mark--yellow {
-  background: var(--hc-yellow);
-  color: #111318;
+.md-typeset .platform-grid .platform-card strong {
+  color: var(--hr-ink);
+  font-size: 19px;
+  line-height: 1.18;
 }
 
-.logo-mark.logo-mark--brown {
-  background: var(--hc-brown);
-  color: #fff;
+.md-typeset .platform-grid .platform-card > span:not(.logo-mark):not(.platform-label) {
+  color: var(--hr-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.md-typeset .platform-grid .platform-card em {
+  color: var(--hr-accent-2);
+  margin-top: auto;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .workflow.workflow--accel {
