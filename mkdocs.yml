@@ -23,16 +23,16 @@ theme:
     code: JetBrains Mono
   palette:
     - media: "(prefers-color-scheme: light)"
-      scheme: heliacore-light
-      primary: custom
-      accent: custom
+      scheme: default
+      primary: cyan
+      accent: blue
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
-      scheme: heliacore-dark
-      primary: custom
-      accent: custom
+      scheme: slate
+      primary: cyan
+      accent: blue
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
@@ -57,6 +57,7 @@ theme:
     - content.action.view
 
 extra_css:
+  - https://ambiqai.github.io/helia-rt/css/custom.css
   - stylesheets/extra.css
 
 extra:

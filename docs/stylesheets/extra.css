@@ -1,216 +1,163 @@
-/* ============================================================================
- * heliaCORE — site palette
+/* heliaCORE site overrides layered on top of the live heliaRT custom.css.
  *
- * Base:   white / black / teal (shared across the HELIA family of docs sites,
- *         e.g. heliaRT, heliaCORE, …) so visitors see a consistent look as
- *         they move between Ambiq's edge-AI projects.
- * Accent: heliaCORE-logo amber/orange (honeycomb), used sparingly for CTAs,
- *         hovered links, and tag pills.
- *
- * The palette is wired into mkdocs-material by declaring `primary: custom`
- * and `accent: custom` in mkdocs.yml and overriding the `--md-*` variables
- * here. Two schemes are provided: heliacore-light and heliacore-dark.
- * ========================================================================== */
+ * Keep this file intentionally small. The shared visual system (hero, cards,
+ * logo rail, responsive behavior) comes from:
+ *   https://ambiqai.github.io/helia-rt/css/custom.css
+ */
 
 :root {
-  /* Shared HELIA family palette ------------------------------------------- */
-  --heliacore-teal:        #00a3a3;  /* primary brand teal */
-  --heliacore-teal-dark:   #007a7a;
-  --heliacore-teal-light:  #b8ecec;
-
-  /* heliaCORE honeycomb accents ------------------------------------------ */
-  --heliacore-amber:       #f5a623;  /* outer ring of the heliaCORE logo */
-  --heliacore-amber-soft:  #fcd9a1;
-  --heliacore-yellow:      #ffd028;  /* honeycomb center */
-  --heliacore-brown:       #8a4f1d;  /* deepest honeycomb cell */
-
-  /* Neutrals ------------------------------------------------------------- */
-  --heliacore-ink:         #0b0f14;
-  --heliacore-paper:       #ffffff;
-  --heliacore-mist:        #f5f7f8;
+  --hr-accent: #00c1b3;
+  --hr-accent-2: #f5a623;
+  --hc-yellow: #ffd028;
+  --hc-brown: #8a4f1d;
 }
 
-/* ---------------------------------------------------------------------------
- * Light scheme
- * ------------------------------------------------------------------------- */
-[data-md-color-scheme="heliacore-light"] {
-  --md-primary-fg-color:              var(--heliacore-teal);
-  --md-primary-fg-color--light:       var(--heliacore-teal-light);
-  --md-primary-fg-color--dark:        var(--heliacore-teal-dark);
-  --md-primary-bg-color:              var(--heliacore-paper);
-  --md-primary-bg-color--light:       var(--heliacore-paper);
-
-  --md-accent-fg-color:               var(--heliacore-amber);
-  --md-accent-fg-color--transparent:  rgba(245, 166, 35, 0.1);
-  --md-accent-bg-color:               var(--heliacore-ink);
-  --md-accent-bg-color--light:        var(--heliacore-paper);
-
-  --md-default-fg-color:              var(--heliacore-ink);
-  --md-default-bg-color:              var(--heliacore-paper);
-
-  --md-code-bg-color:                 #f3f5f6;
-  --md-code-fg-color:                 #1d2329;
-
-  --md-typeset-a-color:               var(--heliacore-teal-dark);
+[data-md-color-scheme="slate"] {
+  --hr-accent: #00c1b3;
+  --hr-accent-2: #f5a623;
+  --hc-yellow: #ffd028;
+  --hc-brown: #a76421;
 }
 
-/* ---------------------------------------------------------------------------
- * Dark scheme
- * ------------------------------------------------------------------------- */
-[data-md-color-scheme="heliacore-dark"] {
-  --md-primary-fg-color:              var(--heliacore-teal);
-  --md-primary-fg-color--light:       var(--heliacore-teal-light);
-  --md-primary-fg-color--dark:        var(--heliacore-teal-dark);
-  --md-primary-bg-color:              var(--heliacore-ink);
-  --md-primary-bg-color--light:       #11161c;
-
-  --md-accent-fg-color:               var(--heliacore-amber);
-  --md-accent-fg-color--transparent:  rgba(245, 166, 35, 0.18);
-  --md-accent-bg-color:               var(--heliacore-paper);
-  --md-accent-bg-color--light:        var(--heliacore-mist);
-
-  --md-default-fg-color:              #e7ecef;
-  --md-default-fg-color--light:       #c8d0d5;
-  --md-default-fg-color--lighter:     #8d969d;
-  --md-default-fg-color--lightest:    #4a5258;
-  --md-default-bg-color:              var(--heliacore-ink);
-
-  --md-code-bg-color:                 #0f141a;
-  --md-code-fg-color:                 #e7ecef;
-
-  --md-typeset-a-color:               var(--heliacore-teal-light);
+/* The heliaCORE wordmark is a wider PNG than the heliaRT logo. */
+.hero-logo.hero-logo--core {
+  max-width: 360px;
+  margin-bottom: 1.4rem;
 }
 
-/* ---------------------------------------------------------------------------
- * Landing-page hero
- * Inspired by the heliaRT hero (https://ambiqai.github.io/helia-rt/)
- * but intentionally simpler — heliaCORE is a building block, not a product.
- * ------------------------------------------------------------------------- */
-.heliacore-hero {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 2.5rem;
-  padding: 3rem 0 2.5rem;
-  align-items: center;
-}
-@media (min-width: 960px) {
-  .heliacore-hero { grid-template-columns: 1.2fr 1fr; }
+.md-content__inner:has(.landing-hero) .md-content__button {
+  display: none;
 }
 
-.heliacore-hero h1 {
-  font-size: 3rem;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-  margin: 0 0 1rem;
+@media (min-width: 900px) {
+  .landing-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.52fr);
+  }
 }
 
-/* Wordmark above the hero headline. Two PNG variants are swapped via
- * the mkdocs-material `#only-light` / `#only-dark` URL fragments so the
- * dark wordmark only appears under the heliacore-dark scheme. */
-.heliacore-wordmark {
-  display: block;
-  max-width: 18rem;
-  height: auto;
-  margin: 0 0 1.25rem;
-}
-.heliacore-hero p.lede {
-  font-size: 1.1rem;
-  line-height: 1.55;
-  color: var(--md-default-fg-color--light);
-  max-width: 36rem;
-}
-.heliacore-hero .cta {
-  display: inline-flex;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-  flex-wrap: wrap;
-}
-.heliacore-hero .cta .md-button {
-  border-radius: 999px;
-}
-.heliacore-hero .md-button--primary {
-  background: var(--heliacore-teal);
-  color: var(--heliacore-paper);
-  border-color: var(--heliacore-teal);
-}
-.heliacore-hero .md-button--primary:hover {
-  background: var(--heliacore-amber);
-  border-color: var(--heliacore-amber);
-  color: var(--heliacore-ink);
+/* heliaCORE is a foundational library, so its hero panel should feel more
+ * like a package manifest than a product dashboard. */
+.hero-panel--core .metric-grid strong {
+  font-size: 1.55rem;
 }
 
-/* Tech badges row under the hero. ---------------------------------------- */
-.heliacore-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 1.5rem 0 2.5rem;
-  border-top: 1px solid var(--md-default-fg-color--lightest);
-}
-.heliacore-badges .badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.3rem 0.9rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  background: var(--md-code-bg-color);
-  color: var(--md-default-fg-color);
-  border-radius: 999px;
+.hero-panel--core .metric-grid span {
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  word-break: normal;
 }
 
-/* Stat tile grid (matches the small "230+ kernel variants" cards on
- * heliaRT, but smaller and used to summarize what heliaCORE ships). ------ */
-.heliacore-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-  padding: 1rem;
-  background: var(--md-code-bg-color);
-  border-radius: 12px;
-}
-.heliacore-stats .tile {
-  padding: 1rem 1.1rem;
-  background: var(--md-default-bg-color);
-  border-radius: 8px;
-}
-.heliacore-stats .tile .num {
-  display: block;
-  font-size: 1.6rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-.heliacore-stats .tile .label {
-  display: block;
-  margin-top: 0.15rem;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--md-default-fg-color--light);
+.hero-panel--core .metric-grid div {
+  min-height: 6.1rem;
 }
 
-/* Feature cards used on the home + Getting Started pages. ---------------- */
+.hero-panel--core .status-live {
+  background: rgba(245, 166, 35, 0.16);
+  color: var(--hr-accent-2);
+}
+
+.hero-panel--core pre code {
+  font-size: 0.62rem;
+  white-space: pre-wrap;
+}
+
+.hero-panel--core .md-clipboard,
+.hero-panel--core .md-code__button {
+  display: none;
+}
+
+.hero-panel--core {
+  max-width: 440px;
+}
+
+.logo-rail.logo-rail--core {
+  margin-top: 1.2rem;
+}
+
+.logo-rail.logo-rail--core span:nth-child(4n + 1) {
+  border-color: rgba(0, 193, 179, 0.38);
+}
+
+.logo-rail.logo-rail--core span:nth-child(4n + 2) {
+  border-color: rgba(245, 166, 35, 0.42);
+}
+
+.platform-card--cmsis {
+  background: #111827;
+}
+
+.platform-card--cmsis strong,
+.platform-card--cmsis .platform-label,
+.platform-card--cmsis em {
+  color: #fff;
+}
+
+.platform-card--cmsis > span:not(.logo-mark):not(.platform-label) {
+  color: #cbd5e1;
+}
+
+.platform-card--cmsis .logo-mark {
+  background: var(--hr-accent-2);
+  color: #111318;
+}
+
+.logo-mark.logo-mark--amber {
+  background: var(--hr-accent-2);
+  color: #111318;
+}
+
+.logo-mark.logo-mark--yellow {
+  background: var(--hc-yellow);
+  color: #111318;
+}
+
+.logo-mark.logo-mark--brown {
+  background: var(--hc-brown);
+  color: #fff;
+}
+
+.takeaway-card .card-icon {
+  background: var(--hr-accent-2);
+  color: #111318;
+}
+
+/* Backward-compatible aliases for the early draft pages. */
 .heliacore-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
   gap: 1rem;
-  margin: 1.5rem 0;
+  margin: 1.7rem 0;
 }
+
 .heliacore-cards .card {
-  padding: 1.25rem 1.25rem 1.1rem;
-  border: 1px solid var(--md-default-fg-color--lightest);
-  border-radius: 12px;
-  transition: border-color 120ms ease, transform 120ms ease;
+  display: block;
+  min-height: 12rem;
+  padding: 1.35rem;
+  border: 1px solid var(--hr-line);
+  border-radius: var(--hr-radius);
+  background: var(--hr-soft);
+  color: inherit;
+  text-decoration: none !important;
+  box-shadow: 0 12px 34px rgba(11, 18, 32, 0.07);
+  transition: transform 0.18s ease, border-color 0.18s ease;
 }
+
 .heliacore-cards .card:hover {
-  border-color: var(--heliacore-amber);
-  transform: translateY(-1px);
+  transform: translateY(-3px);
+  border-color: var(--hr-accent);
 }
+
 .heliacore-cards .card h3 {
-  margin: 0 0 0.35rem;
-  font-size: 1.05rem;
+  margin-top: 0;
+  color: var(--hr-ink);
 }
+
 .heliacore-cards .card p {
-  margin: 0;
-  font-size: 0.92rem;
-  color: var(--md-default-fg-color--light);
+  color: var(--hr-muted);
+}
+
+@media (max-width: 760px) {
+  .hero-logo.hero-logo--core {
+    max-width: 240px;
+  }
 }
