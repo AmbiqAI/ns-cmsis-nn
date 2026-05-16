@@ -92,8 +92,16 @@ body[data-theme="dark"] {
   --color-sidebar-search-background--focus: var(--hc-sidebar-search-bg);
   --color-sidebar-search-border: var(--hc-sidebar-border);
   --color-sidebar-search-icon: var(--hc-sidebar-muted);
+  width: 15rem;
+  min-width: 15rem;
+  justify-content: flex-start;
   border-right-color: var(--hc-sidebar-border);
   background: var(--hc-sidebar-bg);
+}
+
+.sidebar-container,
+.sidebar-sticky {
+  width: 15rem;
 }
 
 .sidebar-brand-text,
