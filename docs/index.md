@@ -84,9 +84,7 @@ real models spend measurable time in PAD, LeakyReLU, and other glue operators
 that are easy to overlook when focusing only on the largest MAC-heavy layers.
 
 heliaCORE responds to those Ambiq silicon needs by adding 200+ DSP/MVE optimized
-operators and extra variants around the CMSIS-NN-compatible surface. The numbers
-below describe Ambiq's internal coverage target for HELIA workflows on Ambiq
-devices.
+operators and extra variants around the CMSIS-NN-compatible surface.
 
 <div class="workflow workflow--accel" markdown>
 
@@ -113,44 +111,6 @@ model latency in HELIA deployments.</p>
 
 </div>
 
-<div class="chart-card" markdown>
-<canvas id="operator-coverage-chart" aria-label="Operator coverage comparison for Ambiq field-like models and MLPerf Tiny" role="img" data-chart-config='{
-  "type": "bar",
-  "data": {
-    "labels": ["Operator types", "Unique operators", "Operator instances"],
-    "datasets": [
-      {
-        "label": "Ambiq field-like suite",
-        "data": [53, 247, 963],
-        "backgroundColor": "rgba(0, 193, 179, 0.82)",
-        "borderColor": "#00c1b3",
-        "borderWidth": 1
-      },
-      {
-        "label": "MLPerf Tiny",
-        "data": [7, 34, 80],
-        "backgroundColor": "rgba(245, 166, 35, 0.78)",
-        "borderColor": "#f5a623",
-        "borderWidth": 1
-      }
-    ]
-  },
-  "options": {
-    "responsive": true,
-    "maintainAspectRatio": false,
-    "plugins": {
-      "legend": { "position": "bottom" },
-      "title": { "display": true, "text": "Coverage pressure from Ambiq field-like workloads" },
-      "tooltip": { "mode": "index", "intersect": false }
-    },
-    "scales": {
-      "x": { "grid": { "display": false } },
-      "y": { "beginAtZero": true, "title": { "display": true, "text": "Count" } }
-    }
-  }
-}'></canvas>
-</div>
-
 <div class="takeaway-grid" markdown>
 
 <div class="takeaway-card" markdown>
@@ -172,6 +132,8 @@ model latency in HELIA deployments.</p>
 </div>
 
 </div>
+
+[Explore DSP/MVE coverage data →](guides/dsp-mve-coverage.md){ .text-link }
 
 </section>
 

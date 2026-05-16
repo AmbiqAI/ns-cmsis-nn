@@ -130,6 +130,7 @@ nav:
       - neuralSPOT-X: getting-started/neuralspot-x.md
   - Guides:
       - guides/index.md
+      - DSP/MVE Coverage: guides/dsp-mve-coverage.md
       - Versioning & Releases: guides/releases.md
       - Toolchain Pinning: guides/toolchains.md
   - Reference:
