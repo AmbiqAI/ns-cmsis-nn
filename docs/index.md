@@ -57,6 +57,7 @@ guides/releases
 guides/toolchains
 reference/index
 reference/doxygen
+reference/api-groups
 api/library_root
 releasing
 contributing

@@ -5,10 +5,16 @@ and operator coverage summaries.
 
 <div class="doc-card-grid">
 
+<a class="doc-card" href="api-groups.html">
+<span>Grouped API</span>
+<strong>Browse C API By Group</strong>
+<em>Doxygen group tags from the public headers organized by operator family before the full generated index.</em>
+</a>
+
 <a class="doc-card" href="../api/library_root.html">
 <span>Generated API</span>
-<strong>Open C API Reference</strong>
-<em>Sphinx API pages generated from Doxygen XML for exact C functions, structs, groups, and inherited CMSIS-NN-compatible documentation.</em>
+<strong>Open Full Generated Index</strong>
+<em>Exhale's complete generated tree for exact functions, structs, enums, files, and inherited CMSIS-NN-compatible documentation.</em>
 </a>
 
 <a class="doc-card" href="doxygen.html">
@@ -36,6 +42,7 @@ and operator coverage summaries.
 | Need | Start here |
 |---|---|
 | Exact function signatures and Doxygen comments | <a href="../api/library_root.html">Generated C API Reference</a> |
+| API browsing by operator family | [C API By Group](api-groups.md) |
 | How generated API docs are produced | [Doxygen API](doxygen.md) |
 | High-level operator and backend coverage | [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md) |
 | Inherited CMSIS-NN behavior and upstream context | [Arm CMSIS-NN Reference](https://arm-software.github.io/CMSIS-NN/latest/) |

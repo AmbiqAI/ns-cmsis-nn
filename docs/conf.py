@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "docs" / "_ext"))
 DOXYGEN_XML = ROOT / "Documentation" / "xml"
 
 project = "heliaCORE"
@@ -13,6 +15,7 @@ author = "Ambiq Micro, Inc."
 copyright = "Ambiq Micro, Inc. Built on Arm CMSIS-NN."
 
 extensions = [
+    "api_group_index",
     "breathe",
     "exhale",
     "myst_parser",

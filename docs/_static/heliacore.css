@@ -1,21 +1,36 @@
 :root {
-  --color-brand-primary: #f5a623;
-  --color-brand-content: #b66f00;
   --hc-accent: #f5a623;
-  --hc-teal: #13c8bd;
-  --hc-teal-deep: #007e75;
-  --hc-night: #0d141a;
-  --hc-night-panel: #151f2b;
-  --hc-ink: #102033;
-  --hc-muted: #5f6f82;
-  --hc-line: rgba(87, 102, 120, 0.2);
-  --hc-soft: rgba(19, 200, 189, 0.07);
-  --hc-warm: rgba(245, 166, 35, 0.15);
   --hc-radius: 8px;
-  --hc-shadow: 0 18px 48px rgba(16, 32, 51, 0.09);
 }
 
 body {
+  --color-foreground-primary: #152231;
+  --color-foreground-secondary: #586574;
+  --color-foreground-muted: #6a7280;
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f8f7f4;
+  --color-background-hover: #f0ede7;
+  --color-background-border: rgba(82, 72, 60, 0.16);
+  --color-content-foreground: var(--color-foreground-primary);
+  --color-content-background: transparent;
+  --color-brand-primary: var(--hc-accent);
+  --color-brand-content: #9a6208;
+  --color-link: #8f5b08;
+  --color-link--hover: #6f4500;
+  --color-link--visited: #8f5b08;
+  --color-link--visited--hover: #6f4500;
+  --color-link-underline: rgba(154, 98, 8, 0.35);
+  --color-link-underline--hover: rgba(111, 69, 0, 0.55);
+  --color-link-underline--visited: rgba(154, 98, 8, 0.35);
+  --color-link-underline--visited--hover: rgba(111, 69, 0, 0.55);
+  --hc-ink: #152231;
+  --hc-muted: #586574;
+  --hc-line: rgba(82, 72, 60, 0.18);
+  --hc-panel: #f8f7f4;
+  --hc-card: #ffffff;
+  --hc-warm: rgba(245, 166, 35, 0.15);
+  --hc-radius: 8px;
+  --hc-shadow: 0 18px 48px rgba(16, 32, 51, 0.09);
   --hc-sidebar-bg: #f8f7f4;
   --hc-sidebar-border: rgba(82, 72, 60, 0.16);
   --hc-sidebar-fg: #152231;
@@ -33,6 +48,32 @@ body {
 }
 
 body[data-theme="dark"] {
+  --color-foreground-primary: #f3f5f6;
+  --color-foreground-secondary: #bbc4cc;
+  --color-foreground-muted: #98a9b6;
+  --color-background-primary: #131416;
+  --color-background-secondary: #191f24;
+  --color-background-hover: #232a30;
+  --color-background-border: rgba(213, 219, 225, 0.14);
+  --color-content-foreground: var(--color-foreground-primary);
+  --color-content-background: transparent;
+  --color-brand-primary: var(--hc-accent);
+  --color-brand-content: #f2b84b;
+  --color-link: #f2b84b;
+  --color-link--hover: #ffd27a;
+  --color-link--visited: #f2b84b;
+  --color-link--visited--hover: #ffd27a;
+  --color-link-underline: rgba(242, 184, 75, 0.38);
+  --color-link-underline--hover: rgba(255, 210, 122, 0.62);
+  --color-link-underline--visited: rgba(242, 184, 75, 0.38);
+  --color-link-underline--visited--hover: rgba(255, 210, 122, 0.62);
+  --hc-ink: #f3f5f6;
+  --hc-muted: #bbc4cc;
+  --hc-line: rgba(213, 219, 225, 0.14);
+  --hc-panel: #14191e;
+  --hc-card: #191f24;
+  --hc-warm: rgba(245, 166, 35, 0.14);
+  --hc-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
   --hc-sidebar-bg: #0f171d;
   --hc-sidebar-border: rgba(245, 166, 35, 0.18);
   --hc-sidebar-fg: #eef8f7;
@@ -46,24 +87,6 @@ body[data-theme="dark"] {
   --hc-toggle-hover: rgba(245, 166, 35, 0.12);
   --hc-toggle-border: rgba(245, 166, 35, 0.28);
   --hc-toggle-fg: #eef8f7;
-}
-
-@media not print and (prefers-color-scheme: dark) {
-  body:not([data-theme="light"]) {
-    --hc-sidebar-bg: #0f171d;
-    --hc-sidebar-border: rgba(245, 166, 35, 0.18);
-    --hc-sidebar-fg: #eef8f7;
-    --hc-sidebar-muted: #98a9b6;
-    --hc-sidebar-link: #c8d5dc;
-    --hc-sidebar-link-strong: #f5b84f;
-    --hc-sidebar-hover: rgba(245, 166, 35, 0.12);
-    --hc-sidebar-current: rgba(245, 166, 35, 0.17);
-    --hc-sidebar-search-bg: rgba(255, 255, 255, 0.06);
-    --hc-toggle-bg: #1b272d;
-    --hc-toggle-hover: rgba(245, 166, 35, 0.12);
-    --hc-toggle-border: rgba(245, 166, 35, 0.28);
-    --hc-toggle-fg: #eef8f7;
-  }
 }
 
 .sidebar-logo-container {
@@ -219,8 +242,8 @@ h1, h2, h3 {
   border-radius: var(--hc-radius);
   background:
     radial-gradient(circle at 14% 10%, rgba(245, 166, 35, 0.13), transparent 28rem),
-    radial-gradient(circle at 86% 18%, rgba(19, 200, 189, 0.11), transparent 24rem),
-    linear-gradient(135deg, #0d141a 0%, #111b24 52%, #0a1118 100%);
+    radial-gradient(circle at 86% 18%, rgba(120, 134, 148, 0.12), transparent 24rem),
+    linear-gradient(135deg, #111418 0%, #15191d 52%, #0c1014 100%);
   box-shadow: 0 28px 70px rgba(13, 20, 26, 0.22);
 }
 
@@ -374,7 +397,7 @@ h1, h2, h3 {
 .chart-card {
   border: 1px solid var(--hc-line);
   border-radius: var(--hc-radius);
-  background: var(--color-background-secondary);
+  background: var(--hc-card);
 }
 
 .metric-grid div {
@@ -435,6 +458,7 @@ h1, h2, h3 {
 .platform-grid,
 .helia-family-grid,
 .doc-card-grid,
+.api-group-grid,
 .heliacore-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -447,6 +471,7 @@ h1, h2, h3 {
 .platform-card,
 .helia-family-card,
 .doc-card,
+.api-group-card,
 .card,
 .hc-card {
   display: flex;
@@ -456,15 +481,27 @@ h1, h2, h3 {
   padding: 1.15rem;
   border: 1px solid var(--hc-line);
   border-radius: var(--hc-radius);
-  background: var(--color-background-secondary);
-  color: inherit;
+  background: var(--hc-card);
+  color: var(--hc-muted);
   text-decoration: none !important;
   box-shadow: 0 10px 28px rgba(16, 32, 51, 0.06);
+}
+
+.workflow-step:visited,
+.takeaway-card:visited,
+.platform-card:visited,
+.helia-family-card:visited,
+.doc-card:visited,
+.api-group-card:visited,
+.card:visited,
+.hc-card:visited {
+  color: var(--hc-muted);
 }
 
 .platform-card:hover,
 .helia-family-card:hover,
 .doc-card:hover,
+.api-group-card:hover,
 .card:hover {
   border-color: var(--hc-accent);
   transform: translateY(-2px);
@@ -489,6 +526,7 @@ h1, h2, h3 {
 .platform-label,
 .family-card-kicker,
 .start-card-label,
+.api-tag,
 .doc-card span:first-child {
   color: var(--color-brand-content);
   font-size: 0.72rem;
@@ -500,6 +538,7 @@ h1, h2, h3 {
 .platform-card strong,
 .helia-family-card strong,
 .doc-card strong,
+.api-group-card strong,
 .card strong,
 .workflow-step strong,
 .takeaway-card strong {
@@ -511,12 +550,74 @@ h1, h2, h3 {
 .platform-card em,
 .helia-family-card em,
 .doc-card em,
+.api-group-card em,
 .card em,
 .text-link {
   margin-top: auto;
   color: var(--color-brand-content);
   font-style: normal;
   font-weight: 800;
+}
+
+.api-group-card em {
+  margin-top: 0;
+  color: var(--hc-muted);
+  font-weight: 500;
+}
+
+.api-function-summary {
+  margin: 0.7rem 0 0.65rem;
+}
+
+.api-function-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.7rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--hc-line);
+  border-radius: 999px;
+  background: var(--hc-warm);
+  color: var(--color-brand-content);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.api-function-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 0.45rem;
+  margin: 0.75rem 0 2rem;
+}
+
+.api-function-link {
+  display: block;
+  min-height: 2.45rem;
+  padding: 0.58rem 0.68rem;
+  border: 1px solid var(--hc-line);
+  border-radius: 6px;
+  background: var(--hc-panel);
+  color: var(--color-link) !important;
+  text-decoration: none !important;
+  overflow-wrap: anywhere;
+}
+
+.api-function-link:visited {
+  color: var(--color-link--visited) !important;
+}
+
+.api-function-link:hover {
+  border-color: var(--hc-accent);
+  background: var(--hc-warm);
+}
+
+.api-function-link code {
+  color: inherit;
+  background: transparent;
+  font-size: 0.86rem;
+}
+
+article[role="main"] a:visited {
+  color: var(--color-link--visited);
 }
 
 .chart-card {
@@ -532,14 +633,6 @@ h1, h2, h3 {
 
 .admonition {
   border-radius: var(--hc-radius);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --hc-ink: #edf7f6;
-    --hc-muted: #b7c5d3;
-    --hc-line: rgba(199, 213, 228, 0.18);
-  }
 }
 
 @media (max-width: 1100px) {

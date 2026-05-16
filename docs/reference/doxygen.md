@@ -63,6 +63,7 @@ while making the API reference part of the same Sphinx site as the guides and
 getting started material.
 
 <p><a class="hc-button hc-button-primary" href="../api/library_root.html">Open generated C API reference</a></p>
+<p><a class="hc-button" href="api-groups.html">Browse grouped C API</a></p>
 
 ## Current limits
 
