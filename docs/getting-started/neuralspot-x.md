@@ -31,6 +31,16 @@ firmware does. The test config lives at
 [`cmake/tests/nsx_prebuilt_real_link/`](https://github.com/AmbiqAI/ns-cmsis-nn/tree/main/cmake/tests/nsx_prebuilt_real_link)
 inside this repo and runs on every heliaCORE PR.
 
+For an application build, verify the resolved CMake target and version before
+debugging model-level failures:
+
+- Confirm the NSX dependency manifest or cache value resolves to the intended
+  heliaCORE release.
+- Check the verbose link line for `libns-cmsis-nn.a` or the source-built
+  heliaCORE target.
+- Confirm the NSX board flags target and heliaCORE package agree on `-mcpu`,
+  FPU, and ABI settings.
+
 If you ever see "undefined reference" to a CMSIS-NN symbol from an NSX
 project, the most common culprits are:
 

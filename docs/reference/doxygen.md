@@ -44,6 +44,36 @@ Doxygen HTML as the authoritative API reference and link to it from MkDocs.
 The XML output can be validated in a follow-up PR before deciding whether to
 render native MkDocs API pages.
 
+## Current limits
+
+The MkDocs site does not yet render individual C functions, structs, or Doxygen
+groups natively. Until the generated API output is mounted or transformed, use
+the Doxygen pipeline as the source of truth for exact signatures and per-kernel
+behavior.
+
+The current MkDocs pages are intentionally high-level:
+
+- [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md) explains
+  the coverage shape by operator family.
+- [DSP/MVE Coverage](../guides/dsp-mve-coverage.md) explains why Ambiq focuses
+  on MVE, DSP, and graph glue operators.
+- This page documents how the generated API reference should be connected to
+  the MkDocs site.
+
+## Integration roadmap
+
+| Phase | Goal | Notes |
+|---|---|---|
+| 1 | Publish generated Doxygen HTML under the same Pages site. | Lowest risk; preserves inherited Arm/CMSIS output and attribution exactly. |
+| 2 | Build MkDocs and Doxygen together in CI. | Produces one deployable site artifact and lets link checks cover the API entrypoint. |
+| 3 | Validate Doxygen XML in CI. | Confirms the macro-heavy CMSIS-NN headers emit complete, stable metadata. |
+| 4 | Prototype native MkDocs API pages from XML. | Candidate approaches include `mkdoxy` or a small purpose-built XML importer. |
+| 5 | Generate coverage indexes from XML/source metadata. | Cross-link operator families to exact functions, files, dtypes, and acceleration paths. |
+
+The recommended next step is Phase 1: mount the generated Doxygen HTML under a
+stable path such as `/api/`, add a Reference card that opens it directly, and
+keep native XML rendering as a separate validation effort.
+
 ## API groups
 
 The inherited Doxygen main page already groups kernels by functional category:

@@ -50,6 +50,20 @@ Cvariant — the kernels will be recompiled by your toolchain.
     Arm Compiler 6 (ARMClang), select the `Source` Cvariant. Mixing
     GCC-built archives into an ARMClang link will not work.
 
+## Verify the selection
+
+Before building firmware, confirm your project has exactly one `Ambiq::NN Lib`
+component selected:
+
+- Use `Source` when your IDE/toolchain should compile the kernels.
+- Use `Prebuilt` only when the target architecture and GCC ABI match the pack's
+    prebuilt archive.
+
+For CMSIS-Toolbox projects, inspect the resolved component list after pack
+resolution and confirm the selected component includes the intended `Cvariant`.
+For IDE projects, open the pack/component view and verify the `Source` or
+`Prebuilt` variant before the first full build.
+
 ## Reference
 
 - Pack manifest: [`Ambiq.NS-CMSIS-NN.pdsc`](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/Ambiq.NS-CMSIS-NN.pdsc)

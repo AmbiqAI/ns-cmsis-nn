@@ -60,5 +60,10 @@ All artifacts are built with **GCC 13.2 (GNU Arm Embedded)** for
 **`cortex-m0+`**, **`cortex-m4`** (with FPv4 SP-D16), and
 **`cortex-m55`** (with MVE).
 
+!!! note "Artifact CPU names"
+	Release artifact names use `cortex-m0`, `cortex-m4`, and `cortex-m55`.
+	The `cortex-m0` artifact is the Cortex-M0/M0+ baseline package used for
+	Apollo targets in that class.
+
 For API and operator coverage, see [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md)
 and [Doxygen API](../reference/doxygen.md).

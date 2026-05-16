@@ -49,6 +49,24 @@ and applies the include directories via `zephyr_include_directories`.
     Zephyr's GCC must produce ABI-compatible objects with the archive's
     toolchain. The prebuilts ship with GCC 13.2 for the supported arches.
 
+## 4. Verify the module wiring
+
+After `west build`, confirm Zephyr picked up the module and selected the path
+you expected:
+
+```bash
+grep -E '^CONFIG_NS_CMSIS_NN' build/zephyr/.config
+```
+
+For a source build, the generated build graph should compile heliaCORE sources
+from `modules/lib/ns-cmsis-nn/Source/`. For a prebuilt build, the final link
+command should include the extracted `lib/libns-cmsis-nn.a` from
+`CONFIG_NS_CMSIS_NN_PREBUILT_PATH`.
+
+If the module does not appear in `.config`, check that the `west.yml` path
+matches the module location and that your application enables
+`CONFIG_NS_CMSIS_NN=y`.
+
 ## Reference
 
 - Module manifest: [`zephyr/module.yml`](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/zephyr/module.yml)

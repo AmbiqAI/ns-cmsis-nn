@@ -90,6 +90,21 @@ model latency in HELIA deployments.</p>
 }'></canvas>
 </div>
 
+## How to read the counts
+
+These numbers describe coverage pressure, not benchmark performance:
+
+| Count | Meaning |
+|---|---|
+| Operator types | Distinct operator families present in the model suite. |
+| Unique operators | Distinct operator configurations after dtype, shape pattern, or variant differences are considered. |
+| Operator instances | Total appearances across the model graphs in the suite. |
+
+The Ambiq field-like suite is an internal workload set used to guide HELIA
+coverage work on Ambiq devices. MLPerf Tiny is included as a familiar public
+baseline for scale, not as a claim about relative model quality or ecosystem
+coverage.
+
 !!! note "Scope"
     This chart is a coverage-oriented view of Ambiq's internal model suite. It
     is not a performance benchmark and is not a statement about the broader Arm

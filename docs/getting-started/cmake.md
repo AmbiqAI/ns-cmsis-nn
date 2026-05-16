@@ -47,6 +47,26 @@ This is intentional: a `.a` built for `cortex-m4` with GCC will silently
 mis-link against an Arm Compiler 6 firmware target, and we'd rather you
 hear about it at configure time than during a hard fault.
 
+## 4. Verify the integration
+
+After configuration, confirm CMake imported the heliaCORE package and selected
+the expected archive:
+
+```bash
+cmake -S . -B build \
+  -DCMAKE_PREFIX_PATH="$PWD/third_party/ns-cmsis-nn-cortex-m4-gcc-7.25.0"
+cmake --build build --verbose
+```
+
+In the configure or verbose build output, look for:
+
+- `nsx::cmsis_nn` in the link line.
+- The extracted package's `include/` directory in the compiler include paths.
+- The package's `lib/libns-cmsis-nn.a` in the final link command.
+
+If CMake reports a CPU or compiler mismatch, switch to the matching release
+artifact or build heliaCORE from source with your project's toolchain.
+
 ## Reference
 
 - Manifest: `ns-cmsis-nn-manifest.json` (inside each tarball) describes
