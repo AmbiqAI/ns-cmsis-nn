@@ -19,37 +19,36 @@ and Ambiq additions.
 | Generated XML metadata | `Documentation/xml/` |
 
 The existing Doxygen flow remains the source of truth for detailed C API
-documentation. It now emits both HTML and compact XML metadata: HTML is the
-authoritative human-readable API reference, while XML gives us a clean path to a
-future native MkDocs import.
+documentation. The docs workflow now generates that HTML and mounts it under
+<a href="../../api/">`/api/`</a> in the combined MkDocs site. Doxygen also emits
+compact XML metadata, which gives us a clean path to a future native MkDocs
+import.
 
-## Recommended integration path
+## Automated integration path
 
-For this MkDocs site, there are two reasonable integration options:
+The first public integration keeps Doxygen HTML authoritative and mounts it
+beside MkDocs:
 
-1. **Mount generated Doxygen HTML under `/api/`**
-   - Lowest risk.
-   - Preserves Arm/CMSIS attribution and the existing Doxygen output exactly.
-   - The visual style will differ from MkDocs, but the API reference remains
-     complete.
+1. `Open-CMSIS-Pack/gen-pack-action` installs Doxygen 1.9.6 and runs
+   `./Documentation/Doxygen/gen_doc.sh -s`.
+2. `mkdocs build --strict` builds the HELIA-styled documentation site.
+3. `docs/scripts/mount_doxygen_html.sh` copies `Documentation/html/` into
+   `site/api/`.
+4. The docs workflow uploads the combined `site/` artifact for review or
+   deployment.
 
-2. **Generate Doxygen XML and render with mkdoxy**
-   - Better long-term look and search integration inside MkDocs.
-   - Uses the generated XML metadata now emitted by the Doxygen configuration.
-   - Still needs validation on the CMSIS-NN macro-heavy headers before we rely
-     on it for the public site.
+This is intentionally conservative: it preserves Arm/CMSIS attribution and the
+existing Doxygen output exactly. The visual style differs from MkDocs, but the
+API reference remains complete and generated from the repository source.
 
-For the first public heliaCORE site, the conservative recommendation is to keep
-Doxygen HTML as the authoritative API reference and link to it from MkDocs.
-The XML output can be validated in a follow-up PR before deciding whether to
-render native MkDocs API pages.
+<p><a class="md-button md-button--primary" href="../../api/">:material-open-in-new: Open generated C API reference</a></p>
 
 ## Current limits
 
 The MkDocs site does not yet render individual C functions, structs, or Doxygen
-groups natively. Until the generated API output is mounted or transformed, use
-the Doxygen pipeline as the source of truth for exact signatures and per-kernel
-behavior.
+groups natively. Use the mounted Doxygen HTML for exact signatures and
+per-kernel behavior while we validate whether XML-driven MkDocs pages can cover
+the CMSIS-NN macro-heavy headers reliably.
 
 The current MkDocs pages are intentionally high-level:
 
@@ -64,15 +63,11 @@ The current MkDocs pages are intentionally high-level:
 
 | Phase | Goal | Notes |
 |---|---|---|
-| 1 | Publish generated Doxygen HTML under the same Pages site. | Lowest risk; preserves inherited Arm/CMSIS output and attribution exactly. |
-| 2 | Build MkDocs and Doxygen together in CI. | Produces one deployable site artifact and lets link checks cover the API entrypoint. |
+| 1 | Publish generated Doxygen HTML under the same Pages site. | Implemented as `/api/` in the combined docs artifact. |
+| 2 | Deploy the combined MkDocs + Doxygen artifact to Pages. | Requires deciding when to enable the gated deploy job. |
 | 3 | Validate Doxygen XML in CI. | Confirms the macro-heavy CMSIS-NN headers emit complete, stable metadata. |
 | 4 | Prototype native MkDocs API pages from XML. | Candidate approaches include `mkdoxy` or a small purpose-built XML importer. |
 | 5 | Generate coverage indexes from XML/source metadata. | Cross-link operator families to exact functions, files, dtypes, and acceleration paths. |
-
-The recommended next step is Phase 1: mount the generated Doxygen HTML under a
-stable path such as `/api/`, add a Reference card that opens it directly, and
-keep native XML rendering as a separate validation effort.
 
 ## API groups
 

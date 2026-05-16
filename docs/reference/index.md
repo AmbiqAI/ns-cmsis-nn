@@ -5,6 +5,12 @@ operator coverage summaries.
 
 <div class="doc-card-grid">
 
+<a class="doc-card" href="../api/">
+<span>Generated API</span>
+<strong>Open C API Reference</strong>
+<em>Generated Doxygen HTML for exact C functions, structs, groups, and inherited CMSIS-NN-compatible documentation.</em>
+</a>
+
 <a class="doc-card" href="doxygen/">
 <span>API docs</span>
 <strong>Doxygen API</strong>
@@ -29,11 +35,12 @@ operator coverage summaries.
 
 | Need | Start here |
 |---|---|
-| Exact function signatures and Doxygen comments | [Doxygen API](doxygen.md) |
+| Exact function signatures and Doxygen comments | <a href="../api/">Generated C API Reference</a> |
+| How generated API docs are produced | [Doxygen API](doxygen.md) |
 | High-level operator and backend coverage | [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md) |
 | Inherited CMSIS-NN behavior and upstream context | [Arm CMSIS-NN Reference](https://arm-software.github.io/CMSIS-NN/latest/) |
 
-The full heliaCORE reference will be generated from this repository's headers so
+The generated heliaCORE API reference is built from this repository's headers so
 Ambiq-specific kernels and integration APIs are documented alongside inherited
 CMSIS-NN-compatible functions. See [Why heliaCORE](../why.md#what-stays-compatible)
 for the compatibility and attribution posture.

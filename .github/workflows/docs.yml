@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
 #
-# Builds the heliaCORE MkDocs site.
+# Builds the heliaCORE MkDocs site and mounts generated Doxygen HTML under /api/.
 #
-# - On PR: builds the site as a sanity check and uploads it as an artifact
-#   so reviewers can download a static preview.
-# - On push to main: builds the site and (TODO) deploys it to GitHub Pages
-#   under the "latest" alias via mike.
-# - On a release tag (vX.Y.Z): (TODO) deploys to /X.Y.Z/ and updates the
-#   "latest" alias.
+# - On PR: builds the combined site as a sanity check and uploads it as an
+#   artifact so reviewers can download a static preview.
+# - On push to main: builds the site and (TODO) deploys the combined artifact
+#   to GitHub Pages. Versioned docs can be added later after the first deploy
+#   target is settled.
 #
 # The deploy steps are gated behind `if: false` until the Pages target is
 # decided (likely after the skeleton PR lands and design/assets are in).
@@ -20,11 +19,17 @@ on:
     paths:
       - "docs/**"
       - "mkdocs.yml"
+      - "Documentation/Doxygen/**"
+      - "Include/**"
+      - "Source/**"
       - ".github/workflows/docs.yml"
   pull_request:
     paths:
       - "docs/**"
       - "mkdocs.yml"
+      - "Documentation/Doxygen/**"
+      - "Include/**"
+      - "Source/**"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -42,6 +47,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -55,8 +65,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r docs/requirements.txt
 
+      - name: Generate Doxygen API reference
+        uses: Open-CMSIS-Pack/gen-pack-action@main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          doxygen-version: 1.9.6
+          gen-doc-script: ./Documentation/Doxygen/gen_doc.sh -s
+          doc-path: ./Documentation/html
+          gh-pages-branch: ""
+          gh-pages-deploy: ""
+
       - name: Build (strict)
         run: mkdocs build --strict
+
+      - name: Mount Doxygen API under /api/
+        run: bash docs/scripts/mount_doxygen_html.sh Documentation/html site api
+
+      - name: Verify mounted API entrypoint
+        run: test -f site/api/index.html
 
       - name: Upload site artifact
         uses: actions/upload-artifact@v4
@@ -74,29 +102,23 @@ jobs:
     # when ready to go live.
     if: false
     permissions:
-      contents: write
+      contents: read
+      pages: write
+      id-token: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Download combined site artifact
+        uses: actions/download-artifact@v4
         with:
-          fetch-depth: 0
+          name: heliacore-docs-site
+          path: site
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
         with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: docs/requirements.txt
+          path: site
 
-      - name: Install MkDocs Material
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r docs/requirements.txt
-
-      - name: Configure git for mike
-        run: |
-          git config --global user.name  'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-
-      - name: Deploy to gh-pages (latest alias)
-        run: mike deploy --push --update-aliases latest
+      - name: Deploy Pages artifact
+        uses: actions/deploy-pages@v5
