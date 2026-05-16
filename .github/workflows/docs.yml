@@ -4,12 +4,12 @@
 #
 # - On PR: builds the Sphinx site as a sanity check and uploads it as an
 #   artifact so reviewers can download a static preview.
-# - On push to main: builds the site and (TODO) deploys the Sphinx artifact
-#   to GitHub Pages. Versioned docs can be added later after the first deploy
-#   target is settled.
+# - On push to main: builds the site as a sanity check. The release workflow
+#   currently publishes the customer-facing Sphinx site to GitHub Pages after
+#   pack generation has produced the Doxygen XML.
 #
-# The deploy steps are gated behind `if: false` until the Pages target is
-# decided (likely after the skeleton PR lands and design/assets are in).
+# The deploy steps here are gated behind `if: false` until we decide whether
+# docs-only pushes should publish Pages independently from releases.
 
 name: docs
 

@@ -2,8 +2,8 @@
 
 heliaCORE already carries an inherited Doxygen pipeline under
 `Documentation/Doxygen/`. That pipeline generates the detailed C API reference
-from the headers and source tree, including inherited CMSIS-NN-compatible APIs
-and Ambiq additions.
+from the public headers, including inherited CMSIS-NN-compatible APIs and Ambiq
+additions.
 
 ## Current source of truth
 
@@ -15,14 +15,15 @@ and Ambiq additions.
 | Doxygen config | `Documentation/Doxygen/nn.dxy.in` |
 | Doxygen entry page | `Documentation/Doxygen/src/mainpage.md` |
 | Generation script | `Documentation/Doxygen/gen_doc.sh` |
-| Generated HTML output | `Documentation/html/` |
-| Generated XML metadata | `Documentation/xml/` |
+| Standalone Doxygen HTML byproduct | `Documentation/html/` |
+| Generated XML metadata for Sphinx | `Documentation/xml/` |
 
 The existing Doxygen flow remains the source of truth for detailed public C API
-documentation. The docs workflow now generates XML metadata from the public
-headers and renders it into the Sphinx site through Breathe and Exhale, producing a native
-<a href="../api/library_root.html">C API reference</a> in the same navigation,
-theme, and search experience as the rest of the site.
+documentation. The docs workflow generates XML metadata from the public headers
+and renders it into the Sphinx site through Breathe and Exhale, producing a
+native <a href="../api/library_root.html">C API reference</a> in the same
+navigation, theme, and search experience as the rest of the site. The standalone
+Doxygen HTML output is not the customer-facing website.
 
 ## Automated integration path
 
@@ -71,10 +72,10 @@ The hand-written Sphinx guide pages are intentionally high-level:
 | Phase | Goal | Notes |
 |---|---|---|
 | 1 | Build Sphinx pages from Doxygen XML. | Implemented with Breathe and Exhale. |
-| 2 | Deploy the Sphinx artifact to Pages. | Requires deciding when to enable the gated deploy job. |
+| 2 | Deploy the Sphinx artifact to Pages. | Release workflow publishes the Sphinx site after pack generation; docs-only Pages deploy remains gated. |
 | 3 | Tune generated API grouping and titles. | Improve customer navigation through function groups and inherited CMSIS-NN material. |
 | 4 | Generate coverage indexes from XML/source metadata. | Cross-link operator families to exact functions, files, dtypes, and acceleration paths. |
-| 5 | Consider disabling standalone Doxygen HTML. | Once Sphinx output is accepted, XML-only generation may be enough for the website. |
+| 5 | Consider disabling standalone Doxygen HTML for website builds. | Keep it only where pack tooling still requires it. |
 
 ## API groups
 
@@ -95,5 +96,5 @@ between the high-level coverage guide and exact C function documentation.
 ## Attribution
 
 Inherited CMSIS-NN comments and documentation remain under their original Arm
-license terms. Keep generated API documentation attribution intact when mounting
-or transforming Doxygen output.
+license terms. Keep generated API documentation attribution intact when
+rendering or transforming Doxygen output.

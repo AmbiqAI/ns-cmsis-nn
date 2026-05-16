@@ -123,7 +123,7 @@ those end-to-end paths stay optimized on Ambiq silicon.
   </div>
 </div>
 
-[Explore DSP/MVE coverage data](guides/dsp-mve-coverage.md)  
+[Explore DSP/MVE coverage data](guides/dsp-mve-coverage.md)
 [Browse operator & kernel coverage](guides/operator-kernel-coverage.md)
 </section>
 

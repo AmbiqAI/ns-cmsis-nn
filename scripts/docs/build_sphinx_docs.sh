@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/../.." && pwd)"
+cd "${repo_root}"
+
 site_dir="site"
 sphinx_src="docs"
 doxygen_xml_dir="Documentation/xml"
@@ -14,7 +18,7 @@ usage() {
 Usage: build_sphinx_docs.sh [options]
 
 Build the heliaCORE documentation artifact:
-  1. Generate Doxygen HTML/XML from the C headers and sources.
+  1. Generate Doxygen XML from the public C headers.
   2. Build Sphinx with Breathe/Exhale using the generated Doxygen XML.
   3. Verify the generated Sphinx API entrypoint exists.
 
@@ -33,12 +37,21 @@ Environment:
 USAGE
 }
 
+require_value() {
+  if [[ $# -lt 2 || -z "$2" ]]; then
+    echo "Option $1 requires a value." >&2
+    usage >&2
+    exit 2
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --install-doxygen)
       install_doxygen=1
       ;;
     --doxygen-version)
+      require_value "$1" "${2:-}"
       doxygen_version="$2"
       shift
       ;;
@@ -46,14 +59,17 @@ while [[ $# -gt 0 ]]; do
       generate_doxygen=0
       ;;
     --site-dir)
+      require_value "$1" "${2:-}"
       site_dir="$2"
       shift
       ;;
     --sphinx-src)
+      require_value "$1" "${2:-}"
       sphinx_src="$2"
       shift
       ;;
     --doxygen-xml-dir)
+      require_value "$1" "${2:-}"
       doxygen_xml_dir="$2"
       shift
       ;;
@@ -135,8 +151,21 @@ if [[ ! -f "${doxygen_xml_dir}/index.xml" ]]; then
   exit 1
 fi
 
-mkdir -p "${sphinx_src}/api"
-find "${sphinx_src}/api" -mindepth 1 ! -name .gitignore -exec rm -rf {} +
+if ! command -v "${sphinx_build_cmd}" >/dev/null 2>&1; then
+  echo "Sphinx executable not found: ${sphinx_build_cmd}" >&2
+  echo "Install docs dependencies with: pip install -r docs/requirements.txt" >&2
+  exit 1
+fi
+
+if [[ -z "${site_dir}" || "${site_dir}" == "/" ]]; then
+  echo "Refusing unsafe --site-dir value: ${site_dir}" >&2
+  exit 1
+fi
+
+generated_api_dir="${sphinx_src%/}/api"
+mkdir -p "${generated_api_dir}"
+find "${generated_api_dir}" -mindepth 1 ! -name .gitignore -exec rm -rf {} +
+rm -rf "${site_dir}"
 
 log "Building Sphinx site"
 "${sphinx_build_cmd}" -b html -W --keep-going "${sphinx_src}" "${site_dir}"
