@@ -2,7 +2,7 @@
 
 <div class="landing-hero">
   <div>
-    <img class="hero-logo" src="_static/helia-core-logo-dark.png" alt="heliaCORE">
+    <img class="hero-logo" src="_static/helia-core-logo-white.png" alt="heliaCORE">
     <p class="hero-kicker">Optimized AI kernels for Apollo silicon</p>
     <h1 class="hero-title">Kernel acceleration for Ambiq AI.</h1>
     <p class="hero-badge">ATfE + MVE ready</p>
