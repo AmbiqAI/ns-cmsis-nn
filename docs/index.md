@@ -88,21 +88,21 @@ those end-to-end paths stay optimized on Ambiq silicon.
 <div class="workflow workflow--accel" markdown>
 
 <div class="workflow-step" markdown>
-<span>1</span>
+<span class="workflow-icon" markdown>:material-vector-polygon:</span>
 <strong>MVE-first where available</strong>
 <p>Cortex-M55 paths are a primary optimization target, with vectorized kernels
 where MVE can improve end-to-end latency.</p>
 </div>
 
 <div class="workflow-step" markdown>
-<span>2</span>
+<span class="workflow-icon" markdown>:material-speedometer:</span>
 <strong>DSP coverage for Apollo-class MCUs</strong>
 <p>Cortex-M DSP paths remain important on Apollo targets without MVE, so DSP
 variants stay part of the release surface.</p>
 </div>
 
 <div class="workflow-step" markdown>
-<span>3</span>
+<span class="workflow-icon" markdown>:material-transit-connection:</span>
 <strong>Glue operators count too</strong>
 <p>Coverage extends beyond obvious MAC-heavy layers to the graph operators that
 shape real HELIA deployments.</p>

@@ -176,9 +176,14 @@
   margin: 1.8rem 0 1.4rem;
 }
 
-.workflow.workflow--accel .workflow-step:first-child > span {
+.workflow.workflow--accel .workflow-step:first-child .workflow-icon {
   background: var(--hr-accent-2);
   color: #111318;
+}
+
+.workflow.workflow--accel .workflow-step .workflow-icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 .chart-card {

@@ -30,21 +30,21 @@ devices.
 <div class="workflow workflow--accel" markdown>
 
 <div class="workflow-step" markdown>
-<span>1</span>
+<span class="workflow-icon" markdown>:material-vector-polygon:</span>
 <strong>MVE-first where available</strong>
 <p>Cortex-M55 paths are a primary optimization target, with vectorized kernels
 for Ambiq workloads where MVE can move latency.</p>
 </div>
 
 <div class="workflow-step" markdown>
-<span>2</span>
+<span class="workflow-icon" markdown>:material-speedometer:</span>
 <strong>DSP coverage for Apollo-class MCUs</strong>
 <p>Cortex-M DSP paths remain important for Apollo targets that do not have MVE,
 so the library keeps DSP-optimized variants in the release surface.</p>
 </div>
 
 <div class="workflow-step" markdown>
-<span>3</span>
+<span class="workflow-icon" markdown>:material-transit-connection:</span>
 <strong>Glue operators count too</strong>
 <p>Coverage extends beyond obvious MAC-heavy layers to operators that shape real
 model latency in HELIA deployments.</p>
