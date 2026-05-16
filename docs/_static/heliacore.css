@@ -23,6 +23,12 @@ body {
   line-height: 1.65;
 }
 
+@media (min-width: 1200px) {
+  .content {
+    width: min(88rem, calc(100vw - 35rem));
+  }
+}
+
 section:has(> .landing-hero) > h1:first-child {
   position: absolute;
   width: 1px;
