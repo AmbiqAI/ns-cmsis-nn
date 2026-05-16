@@ -22,6 +22,7 @@ on:
       - "Documentation/Doxygen/**"
       - "Include/**"
       - "Source/**"
+      - "scripts/docs/**"
       - ".github/workflows/docs.yml"
   pull_request:
     paths:
@@ -30,6 +31,7 @@ on:
       - "Documentation/Doxygen/**"
       - "Include/**"
       - "Source/**"
+      - "scripts/docs/**"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -65,26 +67,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r docs/requirements.txt
 
-      - name: Generate Doxygen API reference
-        uses: Open-CMSIS-Pack/gen-pack-action@main
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          doxygen-version: 1.9.6
-          gen-doc-script: ./Documentation/Doxygen/gen_doc.sh -s
-          doc-path: ./Documentation/html
-          gh-pages-branch: ""
-          gh-pages-deploy: ""
-
-      - name: Build (strict)
-        run: mkdocs build --strict
-
-      - name: Mount Doxygen API under /api/
-        run: bash docs/scripts/mount_doxygen_html.sh Documentation/html site api
-
-      - name: Verify mounted API entrypoint
-        run: test -f site/api/index.html
+      - name: Build combined MkDocs + Doxygen site
+        run: bash scripts/docs/build_combined_docs.sh --install-doxygen
 
       - name: Upload site artifact
         uses: actions/upload-artifact@v4

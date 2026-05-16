@@ -29,19 +29,26 @@ import.
 The first public integration keeps Doxygen HTML authoritative and mounts it
 beside MkDocs:
 
-1. `Open-CMSIS-Pack/gen-pack-action` installs Doxygen 1.9.6 and runs
-   `./Documentation/Doxygen/gen_doc.sh -s`.
-2. `mkdocs build --strict` builds the HELIA-styled documentation site.
-3. `docs/scripts/mount_doxygen_html.sh` copies `Documentation/html/` into
-   `site/api/`.
-4. The docs workflow uploads the combined `site/` artifact for review or
-   deployment.
+1. `scripts/docs/build_combined_docs.sh --install-doxygen` ensures Doxygen
+  1.9.6 is available, then runs `./Documentation/Doxygen/gen_doc.sh -s`.
+2. The same helper runs `mkdocs build --strict` to build the HELIA-styled site.
+3. The helper calls `scripts/docs/mount_doxygen_html.sh` to copy
+  `Documentation/html/` into `site/api/`.
+4. The helper verifies `site/api/index.html` exists before the workflow uploads
+  the combined `site/` artifact for review or deployment.
+
+The same command works locally when network access is available:
+
+```bash
+bash scripts/docs/build_combined_docs.sh --install-doxygen
+python3 -m http.server 8012 --directory site
+```
 
 This is intentionally conservative: it preserves Arm/CMSIS attribution and the
 existing Doxygen output exactly. The visual style differs from MkDocs, but the
 API reference remains complete and generated from the repository source.
 
-<p><a class="md-button md-button--primary" href="../../api/">:material-open-in-new: Open generated C API reference</a></p>
+<p><a class="md-button md-button--primary" href="../../api/">Open generated C API reference</a></p>
 
 ## Current limits
 
