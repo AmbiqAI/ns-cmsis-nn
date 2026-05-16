@@ -70,7 +70,10 @@ exhale_args = {
     "rootFileName": "library_root.rst",
     "rootFileTitle": "C API Reference",
     "doxygenStripFromPath": str(ROOT),
-    "createTreeView": True,
+    # Exhale's raw tree view emits hash links that do not always match the
+    # final Sphinx/Breathe HTML anchors. Keep the generated API index simple;
+    # the grouped/searchable API page is the primary browsing surface.
+    "createTreeView": False,
     "exhaleExecutesDoxygen": False,
     "verboseBuild": False,
 }
