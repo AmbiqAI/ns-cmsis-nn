@@ -17,12 +17,6 @@ and operator coverage summaries.
 <em>Exhale's complete generated tree for exact functions, structs, enums, files, and inherited CMSIS-NN-compatible documentation.</em>
 </a>
 
-<a class="doc-card" href="doxygen.html">
-<span>API docs</span>
-<strong>Doxygen API</strong>
-<em>Where the generated C API reference comes from, what it includes, and how HTML/XML output is used.</em>
-</a>
-
 <a class="doc-card" href="../guides/operator-kernel-coverage.html">
 <span>Coverage</span>
 <strong>Operator & Kernel Coverage</strong>
@@ -43,7 +37,7 @@ and operator coverage summaries.
 |---|---|
 | Exact function signatures and Doxygen comments | <a href="../api/library_root.html">Generated C API Reference</a> |
 | API browsing by operator family | [C API By Group](api-groups.md) |
-| How generated API docs are produced | [Doxygen API](doxygen.md) |
+| How generated API docs are produced | [API generation notes](doxygen.md) |
 | High-level operator and backend coverage | [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md) |
 | Inherited CMSIS-NN behavior and upstream context | [Arm CMSIS-NN Reference](https://arm-software.github.io/CMSIS-NN/latest/) |
 
@@ -52,3 +46,10 @@ Doxygen, then rendered inside Sphinx through Breathe and Exhale. Ambiq-specific
 kernels and integration APIs are documented alongside inherited CMSIS-NN-compatible
 functions. See [Why heliaCORE](../why.md#what-stays-compatible) for the
 compatibility and attribution posture.
+
+```{toctree}
+:hidden:
+:maxdepth: 1
+
+doxygen
+```

@@ -4,6 +4,16 @@ Start with the integration path that matches the project you are building. Each
 path consumes the same heliaCORE kernel release, but packages it for a different
 tooling workflow.
 
+```{toctree}
+:hidden:
+:maxdepth: 1
+
+cmake
+cmsis-pack
+zephyr
+neuralspot-x
+```
+
 <div class="heliacore-cards getting-started-cards">
 
 <a class="card start-card" href="cmake.html">

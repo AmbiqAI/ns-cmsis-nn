@@ -1,4 +1,4 @@
-# Doxygen, Breathe, And Exhale
+# API Generation Notes
 
 heliaCORE already carries an inherited Doxygen pipeline under
 `Documentation/Doxygen/`. That pipeline generates the detailed C API reference

@@ -46,17 +46,12 @@ target_link_libraries(app PRIVATE nsx::cmsis_nn)
 
 why
 getting-started/index
-getting-started/cmake
-getting-started/cmsis-pack
-getting-started/zephyr
-getting-started/neuralspot-x
 guides/index
 guides/operator-kernel-coverage
 guides/dsp-mve-coverage
 guides/releases
 guides/toolchains
 reference/index
-reference/doxygen
 reference/api-groups
 api/library_root
 releasing
