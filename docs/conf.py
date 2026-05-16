@@ -37,16 +37,13 @@ html_logo = "assets/helia-core-logo-dark.png"
 html_favicon = "assets/helia-core-icon-color.svg"
 html_static_path = ["_static"]
 html_css_files = ["heliacore.css"]
+html_show_sourcelink = False
 html_js_files = [
     "https://cdn.jsdelivr.net/npm/chart.js",
     "chart-init.js",
     "api-filter.js",
 ]
-html_theme_options = {
-    "source_repository": "https://github.com/AmbiqAI/ns-cmsis-nn/",
-    "source_branch": "main",
-    "source_directory": "docs/",
-}
+html_theme_options = {}
 
 myst_enable_extensions = [
     "attrs_block",
