@@ -14,67 +14,95 @@ zephyr
 neuralspot-x
 ```
 
-<div class="heliacore-cards getting-started-cards">
+## Choose Your Path
 
-<a class="card start-card" href="cmake.html">
-<span class="start-card-label">Prebuilt SDK</span>
-<strong>CMake package</strong>
-<span>Use a per-architecture tarball with an exported CMake target.</span>
-<em>Best for custom firmware projects already using CMake.</em>
+Use your project shape as the decision point: pick the path that owns dependency
+resolution in your firmware today. Each path page gives you the exact download,
+build setting, and verification step for that workflow.
+
+<div class="path-choice-grid">
+
+<a class="path-choice" href="cmake.html">
+<span class="path-choice-label">You own a CMake firmware build</span>
+<strong>Use the CMake package</strong>
+<span>Download the per-CPU tarball, add it to your prefix path, and link the exported <code>nsx::cmsis_nn</code> target.</span>
+<em>Open CMake guide</em>
 </a>
 
-<a class="card start-card" href="cmsis-pack.html">
-<span class="start-card-label">CMSIS tooling</span>
-<strong>CMSIS-Pack</strong>
-<span>Install the pack and select a source or prebuilt C variant.</span>
-<em>Best for Keil MDK, CMSIS-Toolbox, and IAR users.</em>
+<a class="path-choice" href="cmsis-pack.html">
+<span class="path-choice-label">You use Keil, IAR, or CMSIS-Toolbox</span>
+<strong>Install the CMSIS-Pack</strong>
+<span>Let your IDE or CMSIS tooling select the heliaCORE component, then choose source or prebuilt Cvariant.</span>
+<em>Open CMSIS-Pack guide</em>
 </a>
 
-<a class="card start-card" href="zephyr.html">
-<span class="start-card-label">RTOS module</span>
-<strong>Zephyr Module</strong>
-<span>Use a West-managed module with Kconfig options.</span>
-<em>Best for Zephyr-based firmware.</em>
+<a class="path-choice" href="zephyr.html">
+<span class="path-choice-label">You are building a Zephyr app</span>
+<strong>Add the Zephyr module</strong>
+<span>Add heliaCORE to <code>west.yml</code>, enable <code>CONFIG_NS_CMSIS_NN</code>, and let Zephyr compile or import it.</span>
+<em>Open Zephyr guide</em>
 </a>
 
-<a class="card start-card" href="neuralspot-x.html">
-<span class="start-card-label">HELIA stack</span>
-<strong>neuralSPOT-X</strong>
-<span>Consume heliaCORE through the NSX CMake graph.</span>
-<em>Best for NSX or heliaRT applications.</em>
+<a class="path-choice" href="neuralspot-x.html">
+<span class="path-choice-label">You are already in neuralSPOT-X</span>
+<strong>Use the NSX integration</strong>
+<span>NSX resolves the heliaCORE target for you and keeps board flags aligned with the rest of the HELIA stack.</span>
+<em>Open NSX guide</em>
 </a>
 
 </div>
 
-## Choose Your Path
+If you are integrating from scratch, start with the [CMake package](cmake.md).
+If your tool already understands CMSIS components, start with the
+[CMSIS-Pack](cmsis-pack.md). Zephyr and neuralSPOT-X users should follow their
+native integration pages.
 
-| If you have... | Start with... |
-|---|---|
-| A plain CMake firmware project | [CMake package](cmake.md) |
-| CMSIS tooling, Keil, IAR, or CMSIS-Toolbox | [CMSIS-Pack](cmsis-pack.md) |
-| A Zephyr application | [Zephyr Module](zephyr.md) |
-| A HELIA/neuralSPOT-X application | [neuralSPOT-X](neuralspot-x.md) |
+## What to Download
 
-## Release Artifacts
+Every heliaCORE release publishes integration artifacts on the
+[GitHub Release](https://github.com/AmbiqAI/ns-cmsis-nn/releases). Most users
+download one integration artifact plus its matching checksum.
 
-Every heliaCORE release ships these assets to its [GitHub Release](https://github.com/AmbiqAI/ns-cmsis-nn/releases):
+<div class="artifact-choice-grid">
 
-| Artifact | Use it for |
-|---|---|
-| `ns-cmsis-nn-<cpu>-gcc-<version>.tar.gz` | CMake package with sources, prebuilt archive, config, and manifest. |
-| `libns-cmsis-nn-<cpu>-<version>.a` | Bare static archive when your build already owns integration. |
-| `Ambiq.NS-CMSIS-NN.<version>.pack` | CMSIS-Pack workflows and IDE/tooling integration. |
-| `*.sha256` | Checksum verification for release artifacts. |
+<div class="artifact-choice artifact-choice-primary">
+<span class="artifact-choice-label">Recommended for CMake</span>
+<strong><code>ns-cmsis-nn-&lt;cpu&gt;-gcc-&lt;version&gt;.tar.gz</code></strong>
+<span>The full SDK package: headers, source snapshot, prebuilt archive, CMake config, and manifest. This is the right starting point for custom CMake firmware.</span>
+</div>
 
-All artifacts are built with **GCC 13.2 (GNU Arm Embedded)** for
-**`cortex-m0+`**, **`cortex-m4`** (with FPv4 SP-D16), and
-**`cortex-m55`** (with MVE).
+<div class="artifact-choice">
+<span class="artifact-choice-label">Recommended for CMSIS tooling</span>
+<strong><code>Ambiq.NS-CMSIS-NN.&lt;version&gt;.pack</code></strong>
+<span>The CMSIS-Pack for IDE and CMSIS-Toolbox workflows. Use it when your project resolves dependencies through CMSIS components.</span>
+</div>
 
-:::{note} Artifact CPU names
-Release artifact names use `cortex-m0`, `cortex-m4`, and `cortex-m55`. The
-`cortex-m0` artifact is the Cortex-M0/M0+ baseline package used for Apollo
+<div class="artifact-choice">
+<span class="artifact-choice-label">Advanced use</span>
+<strong><code>libns-cmsis-nn-&lt;cpu&gt;-&lt;version&gt;.a</code></strong>
+<span>The bare static library only. Choose this when your build already owns include paths, CPU flags, and link wiring.</span>
+</div>
+
+<div class="artifact-choice">
+<span class="artifact-choice-label">Verification</span>
+<strong><code>*.sha256</code></strong>
+<span>Checksum files for validating downloads before you add them to a firmware build or internal package mirror.</span>
+</div>
+
+</div>
+
+Choose the CPU name in the artifact that matches your target:
+
+- **`cortex-m0`** for Cortex-M0/M0+ baseline Apollo targets.
+- **`cortex-m4`** for Cortex-M4 targets with FPv4 SP-D16.
+- **`cortex-m55`** for Cortex-M55 targets with MVE.
+
+The `cortex-m0` artifact is the Cortex-M0/M0+ baseline package used for Apollo
 targets in that class.
-:::
+
+The prebuilt artifacts are built with **GCC 13.2 (GNU Arm Embedded)**. Source
+integration paths, such as the CMSIS-Pack `Source` Cvariant or Zephyr source
+mode, compile the kernels with your project toolchain instead.
 
 For API and operator coverage, see [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md)
 and [API](../reference/api-groups.md).

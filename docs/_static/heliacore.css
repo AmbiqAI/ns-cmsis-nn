@@ -571,6 +571,8 @@ body[data-theme="dark"] article[role="main"] div[class^="highlight-"] .copybtn:h
 .doc-card-grid,
 .api-story-grid,
 .api-group-grid,
+.path-choice-grid,
+.artifact-choice-grid,
 .heliacore-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -585,6 +587,8 @@ body[data-theme="dark"] article[role="main"] div[class^="highlight-"] .copybtn:h
 .doc-card,
 .api-story-card,
 .api-group-card,
+.path-choice,
+.artifact-choice,
 .card,
 .hc-card {
   display: flex;
@@ -607,6 +611,7 @@ body[data-theme="dark"] article[role="main"] div[class^="highlight-"] .copybtn:h
 .doc-card:visited,
 .api-story-card:visited,
 .api-group-card:visited,
+.path-choice:visited,
 .card:visited,
 .hc-card:visited {
   color: var(--hc-muted);
@@ -617,9 +622,48 @@ body[data-theme="dark"] article[role="main"] div[class^="highlight-"] .copybtn:h
 .doc-card:hover,
 .api-story-card:hover,
 .api-group-card:hover,
+.path-choice:hover,
 .card:hover {
   border-color: var(--hc-accent);
   transform: translateY(-2px);
+}
+
+.path-choice-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+
+.artifact-choice-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+
+.path-choice,
+.artifact-choice {
+  min-height: 10.75rem;
+}
+
+.path-choice {
+  padding: 1rem;
+}
+
+.artifact-choice {
+  min-height: 11.5rem;
+}
+
+.artifact-choice-primary {
+  border-color: rgba(var(--hc-accent-rgb), 0.62);
+  box-shadow:
+    0 16px 42px rgba(var(--hc-accent-rgb), 0.1),
+    0 0 0 1px rgba(var(--hc-accent-rgb), 0.14);
+}
+
+.path-choice code,
+.artifact-choice code {
+  overflow-wrap: anywhere;
+}
+
+.artifact-choice strong code {
+  font-size: 0.98rem;
+  line-height: 1.35;
 }
 
 .landing-hero .metric-grid div,
@@ -668,6 +712,8 @@ body[data-theme="dark"] article[role="main"] div[class^="highlight-"] .copybtn:h
 .platform-label,
 .family-card-kicker,
 .start-card-label,
+.path-choice-label,
+.artifact-choice-label,
 .api-tag,
 .doc-card span:first-child {
   color: var(--color-brand-content);
@@ -682,6 +728,8 @@ body[data-theme="dark"] article[role="main"] div[class^="highlight-"] .copybtn:h
 .doc-card strong,
 .api-story-card strong,
 .api-group-card strong,
+.path-choice strong,
+.artifact-choice strong,
 .card strong,
 .workflow-step strong,
 .takeaway-card strong {
@@ -695,6 +743,7 @@ body[data-theme="dark"] article[role="main"] div[class^="highlight-"] .copybtn:h
 .doc-card em,
 .api-story-card em,
 .api-group-card em,
+.path-choice em,
 .card em,
 .text-link {
   margin-top: auto;
