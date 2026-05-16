@@ -12,7 +12,7 @@ models Ambiq expects to run on Apollo-class devices.
 
 ## The problem it solves
 
-Teams shipping production AI on Ambiq Cortex-M DSP/MVE targets need more than a
+Teams shipping production AI on Ambiq Cortex-M accelerator targets need more than a
 collection of source files. They need a kernel layer that can move through a
 firmware organization cleanly: pinned, packaged, checked at configure time, and
 ready for both runtime and compiler-generated inference paths.
@@ -75,7 +75,7 @@ product-grade delivery:
 
 | Layer        | What heliaCORE provides                                        |
 |--------------|----------------------------------------------------------------|
-| Kernels      | Ambiq-optimized neural-network operators for Ambiq DSP/MVE targets. |
+| Kernels      | Ambiq-optimized neural-network operators for Ambiq Cortex-M accelerator paths. |
 | Compatibility| CMSIS-NN-style `arm_*` APIs where inherited and supported.      |
 | Packaging    | Per-arch `.a` + SDK tarball + CMSIS-Pack + Zephyr module.      |
 | Distribution | release-please-managed `vX.Y.Z` tags + GitHub Releases.        |

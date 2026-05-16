@@ -1,9 +1,12 @@
-# DSP/MVE Coverage
+# Cortex-M Accelerators
 
-heliaCORE's acceleration work focuses on Ambiq silicon. MVE is a primary target
-where it is available, especially for Cortex-M55-class Apollo devices, while DSP
-optimized paths remain important for Apollo-class devices that do not include
-MVE.
+heliaCORE's accelerator work focuses on Ambiq silicon. In this guide,
+"Cortex-M accelerators" means the kernel paths selected by the target CPU and
+compiler feature macros: scalar C baseline code, DSP instructions, MVE/Helium,
+and floating-point support where a kernel and device can use it. MVE is a
+primary target where it is available, especially for Cortex-M55-class Apollo
+devices, while DSP optimized paths remain important for Apollo-class devices
+that do not include MVE.
 
 This page summarizes why heliaCORE includes Ambiq-specific operator additions
 around the CMSIS-NN-compatible surface. The goal is integration into HELIA AI
@@ -22,12 +25,19 @@ model suite highlighted additional Ambiq-specific coverage needs: real models ca
 spend measurable time in PAD, LeakyReLU, and other glue operators that are easy
 to overlook when focusing only on the largest MAC-heavy layers.
 
-heliaCORE responds to those Ambiq silicon needs by adding 200+ DSP/MVE optimized
+heliaCORE responds to those Ambiq silicon needs by adding 200+ accelerated
 operators and extra variants around the CMSIS-NN-compatible surface. The point is
 not only to add more API names. It is to map the common model work onto the
 acceleration features that are actually present in Ambiq firmware targets.
 
-## What DSP and MVE actually do
+## What the acceleration paths are
+
+| Path | What it is | Typical role |
+|---|---|---|
+| Scalar C | Portable C implementation for Cortex-M targets without specialized math extensions. | Baseline path for compatibility and for smaller cores such as Cortex-M0-class devices. |
+| DSP extension | Packed scalar fixed-point instructions exposed through CMSIS-style intrinsics and selected with `ARM_MATH_DSP`. | Efficient int8/int16/int32 quantized kernels on Cortex-M devices that have DSP but not MVE. |
+| MVE / Helium | Arm M-Profile Vector Extension, selected through MVE feature macros such as `ARM_MATH_MVEI`. | Primary high-throughput path on Cortex-M55-class devices, especially for vector-friendly AI and DSP kernels. |
+| FPU / FP16 support | Floating-point hardware and compiler support used by floating-point kernels when available. | Enables fp16/fp32 operator variants; it complements the backend path rather than replacing DSP or MVE. |
 
 <div class="workflow workflow--accel" markdown>
 
@@ -98,7 +108,7 @@ MAC-heavy kernels and the smaller operators that connect them.
 <div class="takeaway-card" markdown>
 <span class="api-tag">Coverage target</span>
 <strong>200+ optimized operators</strong>
-<span>DSP and MVE variants cover both the high-cost math kernels and the glue operators that can dominate real deployment latency.</span>
+<span>Accelerated variants cover both the high-cost math kernels and the glue operators that can dominate real deployment latency.</span>
 </div>
 
 </div>
@@ -119,7 +129,7 @@ baseline for scale, not as a claim about relative model quality or ecosystem
 coverage.
 
 :::{note} Scope
-This chart is a coverage-oriented view of Ambiq's internal model suite. It is
+This coverage view is based on Ambiq's internal model suite. It is
 not a performance benchmark and is not a statement about the broader Arm
 CMSIS-NN ecosystem. For vendor-neutral Cortex-M kernel work, Arm CMSIS-NN
 remains the upstream ecosystem reference.

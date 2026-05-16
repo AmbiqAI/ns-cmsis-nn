@@ -39,6 +39,69 @@ historically that has tripped up downstream artifact generators. Use the word
 (`and`) or HTML entity if needed.
 :::
 
+## Maintainer release notes
+
+Most contributors only need conventional commits. Maintainers should also know
+how the automated release flow works and how to recover when packaging or CI
+fails after a tag is cut.
+
+### Release flow
+
+1. Merge feature and fix PRs to `main`. Squash-merge subjects must use
+  conventional commits (`feat:`, `fix:`, `feat!:`, and similar).
+2. release-please opens or updates a Release PR that bumps the version in
+  `Ambiq.NS-CMSIS-NN.pdsc`, `.release-please-manifest.json`, and
+  `CHANGELOG.md`.
+3. Review the Release PR. The body shows every commit that will ship and the
+  resulting version.
+4. Merge the Release PR. release-please creates the `vX.Y.Z` tag and GitHub
+  Release, then `.github/workflows/release.yml` builds and uploads artifacts.
+5. Watch the run. When it is green, the Release is consumer-ready.
+
+### Release recovery
+
+If `publish-pack` fails with `xmlParseEntityRef: no name`, the GitHub Release
+body likely contains an XML-reserved character such as `&`, `<`, or `>`. The
+pack generator now emits pdsc release entries from the tag only, but for an
+already-broken release you can edit the Release body and rerun failed jobs:
+
+```bash
+gh release view vX.Y.Z --json body -q .body > /tmp/body.md
+sed -i 's/&/and/g' /tmp/body.md
+gh release edit vX.Y.Z --notes-file /tmp/body.md
+gh run rerun <run-id> --failed
+```
+
+If release tests fail with `manifest unknown` while pulling
+`ghcr.io/ambiqai/ns-cmsis-nn-ci:vX.Y.Z`, publish the missing CI image tag and
+rerun the failed release jobs:
+
+```bash
+gh workflow run build_publish_docker.yml --ref main \
+  -f image_tag=vX.Y.Z -f publish_latest=false
+gh run rerun <release-run-id> --failed
+```
+
+`gh run rerun` re-executes the original commit. To include fixes that landed on
+`main` after the original release run, cut the next release or add a deliberate
+`workflow_dispatch` path to the affected workflow and run it against `main`.
+
+Useful release commands:
+
+```bash
+# Watch the latest release.yml run
+gh run watch "$(gh run list --workflow release.yml --limit 1 --json databaseId -q '.[0].databaseId')"
+
+# See the first useful failures from a run
+gh run view <run-id> --log-failed | grep -iE 'error|fail|##\[error\]' | head -40
+
+# Re-run only failed jobs
+gh run rerun <run-id> --failed
+
+# Confirm a release has all expected assets
+gh release view vX.Y.Z --json assets -q '.assets[].name' | sort
+```
+
 ## Tests
 
 - C unit tests live under `Tests/UnitTest/`.

@@ -53,7 +53,7 @@ that artifact for Cortex-M0/M0+ class Apollo targets.
 
 ## See also
 
-- Operator runbook: [Releasing](../releasing.md) — how to recover when
-  the pipeline fails.
+- Maintainer release notes in [Contributing](../contributing.md#maintainer-release-notes)
+   explain how to recover when the pipeline fails.
 - Toolchain identity is recorded in `ns-cmsis-nn-manifest.json` inside
   each tarball. See [Toolchain Pinning](toolchains.md).

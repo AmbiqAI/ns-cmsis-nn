@@ -5,7 +5,7 @@
     <img class="hero-logo" src="_static/helia-core-logo-dark.png" alt="heliaCORE">
     <p class="hero-kicker">Optimized AI kernels for Apollo silicon</p>
     <h1 class="hero-title">Kernel acceleration for Ambiq AI.</h1>
-    <p class="hero-summary"><strong>heliaCORE</strong> is Ambiq's optimized neural-network kernel library for Ambiq silicon. This repository delivers it as <code>ns-cmsis-nn</code>: a CMSIS-NN-based kernel layer with Ambiq-tuned operators, CMSIS-Pack delivery, and HELIA integration paths for Apollo-class Cortex-M DSP/MVE targets.</p>
+    <p class="hero-summary"><strong>heliaCORE</strong> is Ambiq's optimized neural-network kernel library for Ambiq silicon. This repository delivers it as <code>ns-cmsis-nn</code>: a CMSIS-NN-based kernel layer with Ambiq-tuned operators, CMSIS-Pack delivery, and HELIA integration paths for Apollo-class Cortex-M accelerators.</p>
     <div class="hero-actions">
       <a class="hc-button hc-button-primary" href="getting-started/index.html">Get started</a>
       <a class="hc-button" href="why.html">Why heliaCORE</a>
@@ -15,7 +15,7 @@
   <div class="hero-panel">
     <div class="panel-topline"><span>HELIA CORE</span><span class="status-live">V7.25</span></div>
     <div class="metric-grid">
-      <div><strong>200+</strong><span>MVE/DSP ops</span></div>
+      <div><strong>200+</strong><span>accelerated ops</span></div>
       <div><strong>40+</strong><span>Field models</span></div>
       <div><strong>53</strong><span>Op types</span></div>
       <div><strong>4</strong><span>Paths</span></div>
@@ -52,7 +52,6 @@ guides/dsp-mve-coverage
 guides/releases
 guides/toolchains
 reference/api-groups
-releasing
 contributing
 ```
 
@@ -78,8 +77,8 @@ field-like models also highlighted important Ambiq-specific coverage needs:
 real graphs spend measurable time in padding, activations, reductions, and
 other operators around the largest MAC-heavy layers.
 
-heliaCORE broadens DSP/MVE coverage around the CMSIS-NN-compatible foundation so
-those end-to-end paths stay optimized on Ambiq silicon.
+heliaCORE broadens Cortex-M accelerator coverage around the CMSIS-NN-compatible
+foundation so those end-to-end paths stay optimized on Ambiq silicon.
 
 <div class="workflow">
   <div class="workflow-step">
@@ -113,11 +112,11 @@ those end-to-end paths stay optimized on Ambiq silicon.
   <div class="takeaway-card">
     <span class="card-icon">200+</span>
     <strong>Expanded coverage</strong>
-    <span>200+ DSP/MVE optimized operators for Ambiq silicon, plus additional variants for existing operators.</span>
+    <span>200+ accelerated operators for Ambiq silicon, plus additional variants for existing operators.</span>
   </div>
 </div>
 
-[Explore DSP/MVE coverage data](guides/dsp-mve-coverage.md)
+[Explore Cortex-M accelerators](guides/dsp-mve-coverage.md)
 [Browse operator & kernel coverage](guides/operator-kernel-coverage.md)
 </section>
 

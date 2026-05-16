@@ -14,8 +14,8 @@ contracts.
 
 <a class="doc-card" href="dsp-mve-coverage.html">
 <span>Acceleration</span>
-<strong>DSP/MVE Coverage</strong>
-<em>Why MVE is a primary target where available, and where DSP remains important.</em>
+<strong>Cortex-M Accelerators</strong>
+<em>Scalar C, DSP, MVE/Helium, and floating-point paths for Ambiq Cortex-M kernels.</em>
 </a>
 
 <a class="doc-card" href="releases.html">
@@ -37,6 +37,6 @@ contracts.
 | Question | Guide |
 |---|---|
 | Which operators and dtypes are covered? | [Operator & Kernel Coverage](operator-kernel-coverage.md) |
-| Why emphasize MVE and still keep DSP paths? | [DSP/MVE Coverage](dsp-mve-coverage.md) |
+| What are the Cortex-M accelerator paths? | [Cortex-M Accelerators](dsp-mve-coverage.md) |
 | What exactly is in a release? | [Versioning & Releases](releases.md) |
 | Which compiler and CPU flags were used? | [Toolchain Pinning](toolchains.md) |

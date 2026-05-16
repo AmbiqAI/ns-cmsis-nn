@@ -76,8 +76,8 @@ The hand-written Sphinx guide pages are intentionally high-level:
 
 - [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md) explains
   the coverage shape by operator family.
-- [DSP/MVE Coverage](../guides/dsp-mve-coverage.md) explains why Ambiq focuses
-  on MVE, DSP, and graph glue operators.
+- [Cortex-M Accelerators](../guides/dsp-mve-coverage.md) explains the
+  scalar C, DSP, MVE/Helium, and floating-point paths behind optimized kernels.
 - This page documents how the generated API reference connects to the Sphinx
   site.
 
