@@ -259,11 +259,10 @@ h1, h2, h3 {
   align-items: center;
   margin: 1rem 0 2.4rem;
   padding: clamp(2.25rem, 5vw, 4.7rem);
-  border: 1px solid rgba(245, 166, 35, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--hc-radius);
   background:
-    radial-gradient(circle at 14% 10%, rgba(245, 166, 35, 0.13), transparent 28rem),
-    radial-gradient(circle at 86% 18%, rgba(120, 134, 148, 0.12), transparent 24rem),
+    radial-gradient(circle at 86% 18%, rgba(120, 134, 148, 0.1), transparent 24rem),
     linear-gradient(135deg, #111418 0%, #15191d 52%, #0c1014 100%);
   box-shadow: 0 28px 70px rgba(13, 20, 26, 0.22);
 }
@@ -441,17 +440,38 @@ h1, h2, h3 {
 
 .hero-panel div[class*=" highlight-"],
 .hero-panel div[class^="highlight-"] {
+  border-radius: var(--hc-radius);
+  background: #111a22;
   margin-bottom: 0;
 }
 
+.hero-panel div[class*=" highlight-"] pre,
+.hero-panel div[class^="highlight-"] pre,
 .hero-panel .highlight,
 .hero-panel pre {
   border-radius: var(--hc-radius);
-  background: #080d12;
+  background: #111a22;
 }
 
 .hero-panel pre {
   color: #d9e1e8;
+}
+
+.hero-panel div[class*=" highlight-"] span,
+.hero-panel div[class^="highlight-"] span {
+  color: #d9e1e8;
+}
+
+.hero-panel div[class*=" highlight-"] .nb,
+.hero-panel div[class^="highlight-"] .nb,
+.hero-panel div[class*=" highlight-"] .nf,
+.hero-panel div[class^="highlight-"] .nf {
+  color: #f3f7fa;
+}
+
+.hero-panel div[class*=" highlight-"] .s,
+.hero-panel div[class^="highlight-"] .s {
+  color: #9ccfc7;
 }
 
 body[data-theme="dark"] article[role="main"] div[class*=" highlight-"],
