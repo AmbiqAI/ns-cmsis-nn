@@ -313,6 +313,10 @@ h1, h2, h3 {
   line-height: 0.94;
 }
 
+.hero-title-accent {
+  color: var(--hc-accent);
+}
+
 .hero-summary {
   max-width: 43rem;
   color: #b9c4cf;
@@ -605,6 +609,33 @@ body[data-theme="dark"] article[role="main"] div[class^="highlight-"] .copybtn:h
 .card:hover {
   border-color: var(--hc-accent);
   transform: translateY(-2px);
+}
+
+.landing-hero .metric-grid div,
+.section-block .workflow-step,
+.section-block .takeaway-card,
+.section-block .platform-card,
+.section-block .helia-family-card {
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.landing-hero .metric-grid div:hover,
+.section-block .workflow-step:hover,
+.section-block .takeaway-card:hover,
+.section-block .platform-card:hover,
+.section-block .platform-card:visited:hover,
+.section-block .platform-card:focus-visible,
+.section-block .helia-family-card:hover,
+.section-block .helia-family-card:visited:hover,
+.section-block .helia-family-card:focus-visible {
+  border-color: rgba(var(--hc-accent-rgb), 0.72) !important;
+  box-shadow:
+    0 16px 42px rgba(var(--hc-accent-rgb), 0.14),
+    0 0 0 1px rgba(var(--hc-accent-rgb), 0.2) !important;
+  transform: translateY(-2px) !important;
 }
 
 .workflow-icon,
