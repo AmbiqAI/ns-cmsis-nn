@@ -15,11 +15,12 @@
 #
 # Designed to run on a CI runner with `arm-none-eabi-gcc` on PATH; the
 # downloaded .a comes from `gh release download` in the workflow job.
-# Pair with cmake/toolchain/arm-none-eabi-gcc.cmake:
+# Pair with an absolute path to cmake/toolchain/arm-none-eabi-gcc.cmake:
 #
+#   toolchain_file="$(pwd)/cmake/toolchain/arm-none-eabi-gcc.cmake"
 #   cmake -S cmake/tests/nsx_prebuilt_real_link \
 #         -B build/nsx_prebuilt_real_link \
-#         -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
+#         -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
 #         -DNS_CMSIS_NN_TARGET_CPU=cortex-m4 \
 #         -DNSX_CMSIS_NN_LIB=<path>/libns-cmsis-nn-cortex-m4-X.Y.Z.a
 #   cmake --build build/nsx_prebuilt_real_link

@@ -10,6 +10,9 @@ Tests/UnitTest/Unity/*
 Tests/UnitTest/downloads/*
 Tests/UnitTest/build-cortex-m*
 Documentation/html/*
+Documentation/xml/*
+Documentation/Doxygen/src/history.txt
+Documentation/Doxygen/nn.dxy
 Documentation/DoxyGen/src/history.txt
 Documentation/DoxyGen/nn.dxy
 build

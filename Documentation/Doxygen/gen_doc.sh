@@ -100,6 +100,10 @@ sed -e "s/{projectNumber}/${projectNumber}/" nn.dxy.in \
   > nn.dxy
 
 git_changelog -f html -p "v" > src/history.txt
+# Doxygen treats @name inside generated commit metadata (for example
+# github-actions[bot]@users.noreply.github.com) as a documentation command.
+# Escape literal email/mention markers before feeding the HTML fragment back in.
+sed -i -e 's/@/\\@/g' src/history.txt
 
 echo_log "\"${UTILITY_DOXYGEN}\" nn.dxy"
 "${UTILITY_DOXYGEN}" nn.dxy

@@ -1,0 +1,106 @@
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+#
+# Builds the heliaCORE Sphinx site and renders the generated Doxygen XML API.
+#
+# - On PR: builds the Sphinx site as a sanity check and uploads it as an
+#   artifact so reviewers can download a static preview.
+# - On push to main: builds the site as a sanity check. The release workflow
+#   currently publishes the customer-facing Sphinx site to GitHub Pages after
+#   pack generation has produced the Doxygen XML.
+#
+# The deploy steps here are gated behind `if: false` until we decide whether
+# docs-only pushes should publish Pages independently from releases.
+
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "Documentation/Doxygen/**"
+      - "Include/**"
+      - "Source/**"
+      - "scripts/docs/**"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "Documentation/Doxygen/**"
+      - "Include/**"
+      - "Source/**"
+      - "scripts/docs/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      - name: Install Sphinx documentation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+
+      - name: Build Sphinx + Doxygen XML site
+        run: bash scripts/docs/build_sphinx_docs.sh --install-doxygen
+
+      - name: Upload site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: heliacore-docs-site
+          path: site/
+          retention-days: 14
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-22.04
+    # Gated until Pages target + branding are settled. Flip to:
+    #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # when ready to go live.
+    if: false
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Download Sphinx site artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: heliacore-docs-site
+          path: site
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - name: Deploy Pages artifact
+        uses: actions/deploy-pages@v5

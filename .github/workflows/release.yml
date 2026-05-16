@@ -161,12 +161,13 @@ jobs:
             --clobber
 
   publish-pack:
-    # Build the CMSIS-Pack and publish docs to Pages. Runs after
+    # Build the CMSIS-Pack and publish the Sphinx docs site to Pages. Runs after
     # publish-staticlibs because the pack's Cvariant="Prebuilt" component
     # vendors the per-arch libns-cmsis-nn.a archives — packchk fails if a
     # declared <file> is missing, so we cannot run gen-pack until those
     # artefacts exist. Pages publishing rides along with this job because
-    # gen-pack-action's Doxygen step produces ./Documentation/html.
+    # gen-pack-action's Doxygen step also produces ./Documentation/xml for
+    # the Sphinx/Breathe/Exhale API reference.
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     needs: [release-please, publish-staticlibs]
     runs-on: ubuntu-22.04
@@ -257,14 +258,29 @@ jobs:
             "./output/Ambiq.NS-CMSIS-NN.${VERSION}.pack" \
             --clobber
 
-      # Publish docs to GitHub Pages (from ./Documentation/html)
+      - name: Setup Python for docs
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      - name: Install Sphinx documentation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+
+      - name: Build Sphinx site from generated Doxygen XML
+        run: bash scripts/docs/build_sphinx_docs.sh --skip-doxygen
+
+      # Publish docs to GitHub Pages (from ./site)
       - name: Setup Pages
         uses: actions/configure-pages@v6
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: ./Documentation/html
+          path: ./site
 
       - name: Deploy to GitHub Pages
         id: deploy

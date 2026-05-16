@@ -1,0 +1,9 @@
+# Sphinx + Doxygen XML build dependencies for the heliaCORE docs site.
+# Pinned floors; CI installs the latest compatible within these ranges.
+sphinx>=7.2,<8
+furo>=2024.8.6
+myst-parser>=2.0,<3
+breathe>=4.35,<5
+exhale>=0.3.7,<0.4
+sphinx-copybutton>=0.5,<0.6
+sphinx-design>=0.6,<0.7

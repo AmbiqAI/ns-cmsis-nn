@@ -26,10 +26,6 @@ The library is divided into a number of functions each covering a specific categ
  - \ref SVDF
  - \ref Transpose
 
-The figure below illustrates the CMSIS-NN block diagram.
-
-![CMSIS-NN Block Diagram](./images/CMSIS-NN-OVERVIEW.PNG)
-
 ## Supported Processors {#Processors}
 
 CMSIS-NN targets Cortex-M processors with typically three different implementations for each function. Each implementation targets a different group of processors:
