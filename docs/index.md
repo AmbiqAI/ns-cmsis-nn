@@ -187,16 +187,17 @@ model latency in HELIA deployments.</p>
 
 <p class="section-eyebrow">HELIA family</p>
 
-## Built to sit underneath heliaRT and heliaAOT.
+## Powering heliaRT and heliaAOT.
 
-heliaCORE is the low-level kernel library underneath Ambiq's edge-AI stack.
-If you're looking for the runtime + tooling that *uses* these kernels, see
+heliaCORE provides the optimized kernel layer that powers Ambiq's edge-AI
+runtime and compiler flows. If you're looking for the runtime + tooling that
+uses these kernels, see
 [**heliaRT :material-open-in-new:**](https://ambiqai.github.io/helia-rt/){target="_blank"}
 — Ambiq's optimized LiteRT runtime for Apollo.
 
 heliaAOT is the ahead-of-time compiler path for deterministic, low-footprint
 firmware. heliaRT and heliaAOT both rely on optimized HELIA kernels where
-applicable; heliaCORE is the foundation library those paths build on.
+applicable; heliaCORE is the shared kernel foundation behind those paths.
 
 !!! info "Arm CMSIS ecosystem"
     heliaCORE is built on and distributed for the Arm CMSIS ecosystem, including
