@@ -313,6 +313,46 @@
   color: var(--hr-muted);
 }
 
+.getting-started-cards {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.getting-started-cards .start-card {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px;
+}
+
+.getting-started-cards .start-card-label {
+  color: var(--hr-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.getting-started-cards .start-card strong {
+  color: var(--hr-ink);
+  font-size: 19px;
+  line-height: 1.18;
+}
+
+.getting-started-cards .start-card > span:not(.start-card-label) {
+  color: var(--hr-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.getting-started-cards .start-card em {
+  margin-top: auto;
+  color: var(--hr-accent-2);
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 800;
+}
+
 @media (max-width: 760px) {
   .hero-logo.hero-logo--core {
     max-width: 240px;

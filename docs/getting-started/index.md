@@ -3,30 +3,34 @@
 heliaCORE supports four first-class consumption paths. Pick whichever
 matches your existing build system:
 
-<div class="heliacore-cards" markdown>
+<div class="heliacore-cards getting-started-cards">
 
-<a class="card" href="../cmake/" markdown>
-### CMake `find_package`
-Bring in a per-arch prebuilt tarball via a plain CMake project.
-**Best for:** custom firmware projects already using CMake.
+<a class="card start-card" href="cmake/">
+<span class="start-card-label">Prebuilt SDK</span>
+<strong>CMake package</strong>
+<span>Bring in a per-architecture tarball with an exported CMake target.</span>
+<em>Best for custom firmware projects already using CMake.</em>
 </a>
 
-<a class="card" href="../cmsis-pack/" markdown>
-### CMSIS-Pack
-Install the `.pack` and pick **Source** or **Prebuilt** Cvariant.
-**Best for:** Keil MDK, CMSIS-Toolbox, IAR users.
+<a class="card start-card" href="cmsis-pack/">
+<span class="start-card-label">CMSIS tooling</span>
+<strong>CMSIS-Pack</strong>
+<span>Install the pack and select a source or prebuilt C variant.</span>
+<em>Best for Keil MDK, CMSIS-Toolbox, and IAR users.</em>
 </a>
 
-<a class="card" href="../zephyr/" markdown>
-### Zephyr Module
-`west`-managed module with Kconfig knobs.
-**Best for:** Zephyr-based firmware.
+<a class="card start-card" href="zephyr/">
+<span class="start-card-label">RTOS module</span>
+<strong>Zephyr Module</strong>
+<span>Use a West-managed module with Kconfig options.</span>
+<em>Best for Zephyr-based firmware.</em>
 </a>
 
-<a class="card" href="../neuralspot-x/" markdown>
-### neuralSPOT-X
-Already wired through NSX's CMake graph.
-**Best for:** anyone using NSX or heliaRT.
+<a class="card start-card" href="neuralspot-x/">
+<span class="start-card-label">HELIA stack</span>
+<strong>neuralSPOT-X</strong>
+<span>Consume heliaCORE through the NSX CMake graph.</span>
+<em>Best for NSX or heliaRT applications.</em>
 </a>
 
 </div>
