@@ -36,7 +36,7 @@ tooling workflow.
 
 </div>
 
-## Choose Quickly
+## Choose Your Path
 
 | If you have... | Start with... |
 |---|---|

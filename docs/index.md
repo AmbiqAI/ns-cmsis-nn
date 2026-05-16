@@ -147,7 +147,6 @@ shape real HELIA deployments.</p>
 <div class="platform-grid" markdown>
 
 <a class="platform-card platform-card--cmsis" href="getting-started/cmake/" markdown>
-<span class="logo-mark">CM</span>
 <span class="platform-label">Prebuilt SDK</span>
 <strong>CMake package</strong>
 <span>Link a per-architecture package with the exported CMake target; configure validates CPU and compiler.</span>
@@ -155,7 +154,6 @@ shape real HELIA deployments.</p>
 </a>
 
 <a class="platform-card" href="getting-started/cmsis-pack/" markdown>
-<span class="logo-mark logo-mark--amber">PK</span>
 <span class="platform-label">CMSIS tooling</span>
 <strong>CMSIS-Pack</strong>
 <span>Install the Ambiq pack and select a source or prebuilt variant for your project.</span>
@@ -163,7 +161,6 @@ shape real HELIA deployments.</p>
 </a>
 
 <a class="platform-card" href="getting-started/zephyr/" markdown>
-<span class="logo-mark logo-mark--yellow">Z</span>
 <span class="platform-label">RTOS module</span>
 <strong>Zephyr Module</strong>
 <span>Enable the module with Kconfig and optionally point it at a prebuilt archive.</span>
@@ -171,7 +168,6 @@ shape real HELIA deployments.</p>
 </a>
 
 <a class="platform-card" href="getting-started/neuralspot-x/" markdown>
-<span class="logo-mark logo-mark--brown">NSX</span>
 <span class="platform-label">HELIA stack</span>
 <strong>neuralSPOT-X</strong>
 <span>Consume heliaCORE through the NSX CMake graph for heliaRT-based applications.</span>

@@ -133,7 +133,7 @@
 
 .md-typeset .platform-grid .platform-card {
   display: flex;
-  min-height: 300px;
+  min-height: 250px;
   height: 100%;
   flex-direction: column;
   gap: 14px;
@@ -144,15 +144,6 @@
 
 .md-typeset .platform-grid .platform-card:hover {
   border-color: var(--hr-accent);
-}
-
-.md-typeset .platform-grid .logo-mark {
-  width: 54px;
-  height: 54px;
-  border: 1px solid rgba(0, 193, 179, 0.22);
-  background: rgba(0, 193, 179, 0.1);
-  color: var(--hr-ink);
-  font-size: 13px;
 }
 
 .md-typeset .platform-grid .platform-label {
@@ -167,7 +158,7 @@
   line-height: 1.18;
 }
 
-.md-typeset .platform-grid .platform-card > span:not(.logo-mark):not(.platform-label) {
+.md-typeset .platform-grid .platform-card > span:not(.platform-label) {
   color: var(--hr-muted);
   font-size: 15px;
   line-height: 1.5;
