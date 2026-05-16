@@ -1,14 +1,42 @@
 # Guides
 
-Topical deep-dives that don't fit cleanly under a single consumption path.
+Use these guides when you need more detail than the integration quick starts.
+They cover operator scope, acceleration paths, release mechanics, and toolchain
+contracts.
 
-- [Operator & Kernel Coverage](operator-kernel-coverage.md) — concise operator
-  family, dtype, and backend coverage overview without duplicating the full API
-  reference.
-- [DSP/MVE Coverage](dsp-mve-coverage.md) — why heliaCORE emphasizes MVE
-  where available, preserves DSP paths, and extends operator coverage for
-  Ambiq field-like workloads.
-- [Versioning & Releases](releases.md) — release-please, conventional
-  commits, tag scheme, and what's in each GitHub Release.
-- [Toolchain Pinning](toolchains.md) — `-mcpu`, `-mfpu`, compiler IDs,
-  and what `find_package` validates.
+<div class="doc-card-grid">
+
+<a class="doc-card" href="operator-kernel-coverage/">
+<span>Coverage</span>
+<strong>Operator & Kernel Coverage</strong>
+<em>Operator families, data types, backend paths, and where to find exact C APIs.</em>
+</a>
+
+<a class="doc-card" href="dsp-mve-coverage/">
+<span>Acceleration</span>
+<strong>DSP/MVE Coverage</strong>
+<em>Why MVE is a primary target where available, and where DSP remains important.</em>
+</a>
+
+<a class="doc-card" href="releases/">
+<span>Delivery</span>
+<strong>Versioning & Releases</strong>
+<em>Release tags, generated artifacts, release-please, and what ships together.</em>
+</a>
+
+<a class="doc-card" href="toolchains/">
+<span>Build contract</span>
+<strong>Toolchain Pinning</strong>
+<em>Compiler IDs, CPU flags, ABI checks, and what CMake validates for you.</em>
+</a>
+
+</div>
+
+## Common Questions
+
+| Question | Guide |
+|---|---|
+| Which operators and dtypes are covered? | [Operator & Kernel Coverage](operator-kernel-coverage.md) |
+| Why emphasize MVE and still keep DSP paths? | [DSP/MVE Coverage](dsp-mve-coverage.md) |
+| What exactly is in a release? | [Versioning & Releases](releases.md) |
+| Which compiler and CPU flags were used? | [Toolchain Pinning](toolchains.md) |

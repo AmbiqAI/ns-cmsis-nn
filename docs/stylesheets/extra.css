@@ -353,6 +353,54 @@
   font-weight: 800;
 }
 
+.doc-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0 2rem;
+}
+
+.doc-card {
+  display: flex;
+  min-height: 190px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid var(--hr-line);
+  border-radius: var(--hr-radius);
+  background: var(--hr-soft);
+  color: inherit;
+  text-decoration: none !important;
+  box-shadow: 0 12px 34px rgba(11, 18, 32, 0.07);
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.doc-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--hr-accent);
+}
+
+.doc-card span {
+  color: var(--hr-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.doc-card strong {
+  color: var(--hr-ink);
+  font-size: 19px;
+  line-height: 1.18;
+}
+
+.doc-card em {
+  color: var(--hr-muted);
+  font-size: 15px;
+  font-style: normal;
+  line-height: 1.5;
+}
+
 @media (max-width: 760px) {
   .hero-logo.hero-logo--core {
     max-width: 240px;

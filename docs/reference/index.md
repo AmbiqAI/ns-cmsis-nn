@@ -1,26 +1,39 @@
 # Reference
 
-This section will host the auto-generated heliaCORE C API reference: inherited
-CMSIS-NN-compatible entry points plus Ambiq/HELIA kernel additions exposed by
-`ns-cmsis-nn`.
+Reference material for the heliaCORE C API, generated API documentation, and
+operator coverage summaries.
 
-Start here:
+<div class="doc-card-grid">
 
-- [Doxygen API](doxygen.md) — where the existing generated API reference lives,
-  how it is produced, and how we should integrate it with MkDocs.
-- [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md) — concise
-  operator-family and backend overview.
+<a class="doc-card" href="doxygen/">
+<span>API docs</span>
+<strong>Doxygen API</strong>
+<em>Where the generated C API reference comes from, what it includes, and how HTML/XML output is used.</em>
+</a>
 
-The plan is to run Doxygen against `Include/*.h` to produce an XML
-intermediate, then render it with
-[**mkdoxy**](https://github.com/JakubAndrysek/mkdoxy) into native
-MkDocs pages that share the heliaCORE theme.
+<a class="doc-card" href="../guides/operator-kernel-coverage/">
+<span>Coverage</span>
+<strong>Operator & Kernel Coverage</strong>
+<em>Concise operator-family, dtype, and backend overview before you dive into function signatures.</em>
+</a>
 
-Until that lands, inherited CMSIS-NN-compatible APIs can be cross-referenced
-against the upstream Doxygen reference:
+<a class="doc-card" href="https://arm-software.github.io/CMSIS-NN/latest/">
+<span>Upstream</span>
+<strong>Arm CMSIS-NN Reference</strong>
+<em>Vendor-neutral upstream API reference for inherited CMSIS-NN concepts and APIs.</em>
+</a>
 
-- [ARM-software/CMSIS-NN Doxygen](https://arm-software.github.io/CMSIS-NN/latest/)
+</div>
+
+## API Source Of Truth
+
+| Need | Start here |
+|---|---|
+| Exact function signatures and Doxygen comments | [Doxygen API](doxygen.md) |
+| High-level operator and backend coverage | [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md) |
+| Inherited CMSIS-NN behavior and upstream context | [Arm CMSIS-NN Reference](https://arm-software.github.io/CMSIS-NN/latest/) |
 
 The full heliaCORE reference will be generated from this repository's headers so
 Ambiq-specific kernels and integration APIs are documented alongside inherited
-CMSIS-NN-compatible functions. See [Why heliaCORE](../why.md#what-stays-compatible).
+CMSIS-NN-compatible functions. See [Why heliaCORE](../why.md#what-stays-compatible)
+for the compatibility and attribution posture.

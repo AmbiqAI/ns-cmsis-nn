@@ -1,14 +1,15 @@
 # Getting Started
 
-heliaCORE supports four first-class consumption paths. Pick whichever
-matches your existing build system:
+Start with the integration path that matches the project you are building. Each
+path consumes the same heliaCORE kernel release, but packages it for a different
+tooling workflow.
 
 <div class="heliacore-cards getting-started-cards">
 
 <a class="card start-card" href="cmake/">
 <span class="start-card-label">Prebuilt SDK</span>
 <strong>CMake package</strong>
-<span>Bring in a per-architecture tarball with an exported CMake target.</span>
+<span>Use a per-architecture tarball with an exported CMake target.</span>
 <em>Best for custom firmware projects already using CMake.</em>
 </a>
 
@@ -35,19 +36,29 @@ matches your existing build system:
 
 </div>
 
-## Picking a release
+## Choose Quickly
+
+| If you have... | Start with... |
+|---|---|
+| A plain CMake firmware project | [CMake package](cmake.md) |
+| CMSIS tooling, Keil, IAR, or CMSIS-Toolbox | [CMSIS-Pack](cmsis-pack.md) |
+| A Zephyr application | [Zephyr Module](zephyr.md) |
+| A HELIA/neuralSPOT-X application | [neuralSPOT-X](neuralspot-x.md) |
+
+## Release Artifacts
 
 Every heliaCORE release ships these assets to its [GitHub Release](https://github.com/AmbiqAI/ns-cmsis-nn/releases):
 
-- **`ns-cmsis-nn-<cpu>-gcc-<version>.tar.gz`** — per-arch SDK tarball
-  (sources + prebuilt `.a` + CMake config + manifest). Use with
-  [CMake `find_package`](cmake.md).
-- **`libns-cmsis-nn-<cpu>-<version>.a`** — bare static library if you
-  only need the archive.
-- **`Ambiq.NS-CMSIS-NN.<version>.pack`** — CMSIS-Pack. Use with
-  [CMSIS-Pack tooling](cmsis-pack.md).
-- **`*.sha256`** — SHA-256 checksums for every artifact.
+| Artifact | Use it for |
+|---|---|
+| `ns-cmsis-nn-<cpu>-gcc-<version>.tar.gz` | CMake package with sources, prebuilt archive, config, and manifest. |
+| `libns-cmsis-nn-<cpu>-<version>.a` | Bare static archive when your build already owns integration. |
+| `Ambiq.NS-CMSIS-NN.<version>.pack` | CMSIS-Pack workflows and IDE/tooling integration. |
+| `*.sha256` | Checksum verification for release artifacts. |
 
 All artifacts are built with **GCC 13.2 (GNU Arm Embedded)** for
 **`cortex-m0+`**, **`cortex-m4`** (with FPv4 SP-D16), and
 **`cortex-m55`** (with MVE).
+
+For API and operator coverage, see [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md)
+and [Doxygen API](../reference/doxygen.md).
