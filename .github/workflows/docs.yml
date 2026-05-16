@@ -4,12 +4,8 @@
 #
 # - On PR: builds the Sphinx site as a sanity check and uploads it as an
 #   artifact so reviewers can download a static preview.
-# - On push to main: builds the site as a sanity check. The release workflow
-#   currently publishes the customer-facing Sphinx site to GitHub Pages after
-#   pack generation has produced the Doxygen XML.
-#
-# The deploy steps here are gated behind `if: false` until we decide whether
-# docs-only pushes should publish Pages independently from releases.
+# - On push to main: builds and deploys the customer-facing Sphinx site to
+#   GitHub Pages so docs updates can go live without forcing a package release.
 
 name: docs
 
@@ -79,14 +75,14 @@ jobs:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-22.04
-    # Gated until Pages target + branding are settled. Flip to:
-    #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    # when ready to go live.
-    if: false
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       pages: write
       id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Download Sphinx site artifact
         uses: actions/download-artifact@v4
@@ -103,4 +99,5 @@ jobs:
           path: site
 
       - name: Deploy Pages artifact
+        id: deployment
         uses: actions/deploy-pages@v5
