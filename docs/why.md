@@ -5,18 +5,69 @@ It is implemented in this repository as `ns-cmsis-nn` and builds on the Arm
 CMSIS-NN and CMSIS-Pack ecosystem with attribution, license preservation, and
 CMSIS-compatible integration paths where applicable.
 
-Teams shipping production AI on Ambiq Cortex-M DSP/MVE targets need a kernel
-library that is easy to integrate into HELIA workflows:
+Arm CMSIS-NN provides the trusted, vendor-neutral foundation for efficient
+neural-network kernels on Cortex-M. heliaCORE keeps that foundation visible and
+usable while adding Ambiq delivery, integration, and kernel work around the
+models Ambiq expects to run on Apollo-class devices.
+
+## The problem it solves
+
+Teams shipping production AI on Ambiq Cortex-M DSP/MVE targets need more than a
+collection of source files. They need a kernel layer that can move through a
+firmware organization cleanly: pinned, packaged, checked at configure time, and
+ready for both runtime and compiler-generated inference paths.
+
+In HELIA workloads, the performance story is also broader than the largest
+convolution or matrix-multiply layer. Field-like Ambiq model graphs spend real
+time in padding, activations, reductions, reshapes, quantization, and other
+operators around the obvious MAC-heavy blocks. When those surrounding operators
+fall back to generic paths, end-to-end latency can still suffer even if the main
+layers are highly optimized.
+
+heliaCORE focuses on that full graph path:
 
 - Optimized kernels that are **engineered for Ambiq silicon** and Ambiq field
   workloads.
-- A **stable consumption contract** (versioned, checksummed, reproducible).
-- A way to **plug into multiple build systems** (CMake, Zephyr, CMSIS-Pack,
-  neuralSPOT-X) without forking glue into each downstream repo.
-- **Prebuilt** artifacts for the common Cortex-M variants so most users
-  never recompile the kernels themselves.
-- A clear story on **toolchain pinning** — the version of GCC, the
-  `-mcpu`/`-mfpu` flags, and the ABI baked into a `.a`.
+- Coverage for both **MVE** and **DSP** paths where those acceleration features
+  are available on Ambiq targets.
+- Attention to **glue operators**, not only the largest arithmetic kernels.
+- A **stable consumption contract**: versioned releases, checksummed artifacts,
+  and reproducible packaging.
+- Integrations for **CMake, Zephyr, CMSIS-Pack, and neuralSPOT-X** so downstream
+  projects do not each invent their own glue.
+- **Prebuilt artifacts** for common Cortex-M variants, with source builds still
+  available where projects need them.
+- Clear **toolchain pinning** for compiler, CPU/FPU flags, and ABI expectations.
+
+## What changes for a firmware team
+
+<div class="doc-card-grid" markdown>
+
+<div class="doc-card" markdown>
+<span>Integration</span>
+<strong>One kernel package, several entry points</strong>
+<em>Use the same release through CMake, CMSIS-Pack, Zephyr, or neuralSPOT-X instead of maintaining separate downstream copies.</em>
+</div>
+
+<div class="doc-card" markdown>
+<span>Acceleration</span>
+<strong>MVE and DSP stay part of the plan</strong>
+<em>Cortex-M55 MVE paths are a primary target, while DSP variants remain important for Apollo-class devices without MVE.</em>
+</div>
+
+<div class="doc-card" markdown>
+<span>Release control</span>
+<strong>Artifacts that can be pinned</strong>
+<em>Versioned releases, checksums, CMSIS-Pack metadata, and prebuilt archives give firmware teams something concrete to qualify.</em>
+</div>
+
+<div class="doc-card" markdown>
+<span>HELIA fit</span>
+<strong>Built for runtime and compiler paths</strong>
+<em>heliaRT, heliaAOT, and neuralSPOT-X can all consume the same kernel layer instead of treating kernels as local project plumbing.</em>
+</div>
+
+</div>
 
 heliaCORE is that foundation library for Ambiq AI deployments. It combines
 CMSIS-NN-compatible operator surface area, Ambiq/HELIA kernel work, and

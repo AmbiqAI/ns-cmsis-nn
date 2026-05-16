@@ -17,43 +17,52 @@ theme:
   # landing page (with light/dark variants) rather than crowding the header.
   logo: assets/helia-core-icon-white.png
   favicon: assets/helia-core-icon-color.svg
+  icon:
+    repo: fontawesome/brands/github-alt
   font:
     text: Inter
     code: JetBrains Mono
   palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
+    - media: "(prefers-color-scheme)"
       primary: cyan
       accent: blue
       toggle:
-        icon: material/weather-night
-        name: Switch to dark mode
+        icon: material/brightness-auto
+        name: Use system theme
+    - media: "(prefers-color-scheme: light)"
+      primary: cyan
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to light theme
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: cyan
       accent: blue
       toggle:
-        icon: material/weather-sunny
-        name: Switch to light mode
+        icon: material/brightness-4
+        name: Switch to dark theme
   features:
-    - navigation.instant
-    - navigation.tracking
-    - navigation.tabs
-    - navigation.tabs.sticky
-    - navigation.sections
-    - navigation.expand
-    - navigation.top
-    - navigation.footer
-    - navigation.indexes
-    - toc.follow
-    - search.suggest
+    - content.code.annotate
+    - content.code.copy
+    - content.tooltips
     - search.highlight
     - search.share
-    - content.code.copy
-    - content.code.annotate
+    - search.suggest
+    - toc.follow
+    - navigation.top
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.prune
+    - navigation.path
+    - navigation.footer
+    - navigation.tracking
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.indexes
+    - navigation.expand
     - content.tabs.link
-    - content.action.edit
-    - content.action.view
+    - announce.dismiss
 
 extra_css:
   - https://ambiqai.github.io/helia-rt/css/custom.css
