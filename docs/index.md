@@ -180,11 +180,8 @@ those paths.
   </a>
 </div>
 
-:::{important} Arm CMSIS ecosystem
-heliaCORE is built on and distributed for the Arm CMSIS ecosystem, including
-CMSIS-NN-compatible APIs and CMSIS-Pack delivery. Ambiq-specific additions are
-intended to ease integration into the HELIA AI platform for Ambiq silicon. For
-vendor-neutral Cortex-M kernel work, Arm CMSIS-NN remains the upstream ecosystem
-reference.
-:::
+<div class="ecosystem-note">
+<p class="section-eyebrow">Arm CMSIS ecosystem</p>
+<p>heliaCORE is built on and distributed for the Arm CMSIS ecosystem, including CMSIS-NN-compatible APIs and CMSIS-Pack delivery. Ambiq-specific additions are intended to ease integration into the HELIA AI platform for Ambiq silicon. For vendor-neutral Cortex-M kernel work, Arm CMSIS-NN remains the upstream ecosystem reference.</p>
+</div>
 </section>

@@ -552,6 +552,18 @@ body[data-theme="dark"] article[role="main"] div[class^="highlight-"] .copybtn:h
   margin: 3rem 0;
 }
 
+.ecosystem-note {
+  margin-top: 1.8rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--hc-line);
+  color: var(--hc-muted);
+}
+
+.ecosystem-note p:last-child {
+  max-width: 68rem;
+  margin-bottom: 0;
+}
+
 .workflow,
 .takeaway-grid,
 .platform-grid,
