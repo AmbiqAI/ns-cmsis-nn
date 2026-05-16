@@ -4,6 +4,7 @@ Branding artwork used by the site.
 
 | File                          | Used for                                                   |
 |-------------------------------|------------------------------------------------------------|
+| `helia-core-icon-black.png`   | Compact sidebar icon for light theme.                      |
 | `helia-core-icon-white.png`   | Compact icon for dark headers or future sidebar variants.  |
 | `helia-core-icon-color.svg`   | Browser favicon via Sphinx `html_favicon`.                 |
 | `helia-core-logo-white.png`   | All-white wordmark for the dark landing hero.               |
@@ -11,8 +12,8 @@ Branding artwork used by the site.
 | `helia-core-logo-dark.png`    | Wordmark for light backgrounds and the Sphinx sidebar.      |
 
 The Sphinx site currently uses the dark wordmark on light backgrounds, the
-all-white wordmark on the landing hero, and keeps the icon assets available for
-future theme refinements.
+all-white wordmark on the landing hero, and inverted monochrome icons in the
+sidebar for light and dark themes.
 
 ## Future additions (optional)
 

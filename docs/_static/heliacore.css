@@ -100,9 +100,13 @@ body[data-theme="dark"] {
   width: 1.6rem;
   height: 1.6rem;
   margin: 0.9rem auto 1.15rem;
-  background: url("helia-core-icon-color.svg") center / contain no-repeat;
+  background: url("helia-core-icon-black.png") center / contain no-repeat;
   content: "";
   opacity: 0.86;
+}
+
+body[data-theme="dark"] .sidebar-sticky::after {
+  background-image: url("helia-core-icon-white.png");
 }
 
 .sidebar-drawer {
