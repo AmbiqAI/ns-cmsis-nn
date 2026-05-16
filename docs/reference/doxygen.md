@@ -38,11 +38,24 @@ Sphinx for the customer-facing site:
 4. The helper verifies `site/api/library_root.html` exists before the workflow
   uploads the `site/` artifact for review or deployment.
 
-The same command works locally when network access is available:
+For local preview, the one-line helper installs/reuses the Sphinx environment,
+builds the site, and starts a static server:
+
+```bash
+bash scripts/docs/serve_sphinx_docs.sh
+```
+
+Then open `http://127.0.0.1:8014/`. For a faster rebuild after Doxygen XML has
+already been generated, use:
+
+```bash
+bash scripts/docs/serve_sphinx_docs.sh --skip-doxygen
+```
+
+The lower-level build command is the same helper used by CI:
 
 ```bash
 bash scripts/docs/build_sphinx_docs.sh --install-doxygen
-python3 -m http.server 8012 --directory site
 ```
 
 This keeps Arm/CMSIS attribution attached to the generated public API comments
