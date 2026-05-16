@@ -121,7 +121,12 @@ class ApiGroupIndex(Directive):
 
         env.note_dependency(str(api_dir))
         items = "\n".join(
-            f'<a class="api-function-link" href="{function.href}">'
+            '<a class="api-function-link" '
+            f'href="{function.href}" '
+            f'data-api-function="{html.escape(function.name)}" '
+            f'data-api-family="{html.escape(group_key)}" '
+            f'data-api-dtype="{html.escape(_dtype(function.name))}" '
+            f'data-api-role="{html.escape(_role(function.name))}">'
             f"<code>{html.escape(function.name)}</code></a>"
             for function in matched
         )
@@ -149,6 +154,23 @@ def _load_functions(api_dir: Path) -> list[ApiFunction]:
 
 def _matches(name: str, patterns: tuple[str, ...]) -> bool:
     return any(re.search(pattern, name) for pattern in patterns)
+
+
+def _dtype(name: str) -> str:
+    for dtype in ("s4", "s8", "s16", "s32", "u8", "q7", "q15", "fp16", "f32"):
+        if re.search(rf"(^|_){dtype}($|_)", name):
+            return dtype
+    return "mixed"
+
+
+def _role(name: str) -> str:
+    if "get_buffer_size" in name:
+        return "buffer"
+    if "wrapper" in name:
+        return "wrapper"
+    if re.search(r"(_fast|_opt|_mve|_dsp|_core)", name):
+        return "optimized"
+    return "kernel"
 
 
 def setup(app: Sphinx) -> dict[str, bool]:

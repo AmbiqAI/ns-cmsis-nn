@@ -7,7 +7,7 @@ selected for a target CPU, data type, and acceleration path.
 
 The goal is not to document every function on this page. For exact prototypes,
 parameters, scratch-buffer queries, and per-function behavior, use the generated
-API reference described in [Doxygen API](../reference/doxygen.md).
+API reference described in [API](../reference/api-groups.md).
 
 ## Acceleration paths
 

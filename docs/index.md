@@ -9,7 +9,7 @@
     <div class="hero-actions">
       <a class="hc-button hc-button-primary" href="getting-started/index.html">Get started</a>
       <a class="hc-button" href="why.html">Why heliaCORE</a>
-      <a class="hc-button" href="api/library_root.html">C API reference</a>
+      <a class="hc-button" href="reference/api-groups.html">API</a>
     </div>
   </div>
   <div class="hero-panel">
@@ -51,9 +51,7 @@ guides/operator-kernel-coverage
 guides/dsp-mve-coverage
 guides/releases
 guides/toolchains
-reference/index
 reference/api-groups
-api/library_root
 releasing
 contributing
 ```

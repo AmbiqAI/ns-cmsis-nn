@@ -12,7 +12,7 @@ and CMSIS-Pack delivery.
 
 For a concise family-by-family summary, see
 [Operator & Kernel Coverage](operator-kernel-coverage.md). For exact function
-prototypes and per-kernel behavior, see [Doxygen API](../reference/doxygen.md).
+prototypes and per-kernel behavior, see [API](../reference/api-groups.md).
 
 ## Why coverage matters
 

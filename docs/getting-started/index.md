@@ -77,4 +77,4 @@ targets in that class.
 :::
 
 For API and operator coverage, see [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md)
-and [Doxygen API](../reference/doxygen.md).
+and [API](../reference/api-groups.md).

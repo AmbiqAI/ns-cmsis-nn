@@ -40,6 +40,7 @@ html_css_files = ["heliacore.css"]
 html_js_files = [
     "https://cdn.jsdelivr.net/npm/chart.js",
     "chart-init.js",
+    "api-filter.js",
 ]
 html_theme_options = {
     "source_repository": "https://github.com/AmbiqAI/ns-cmsis-nn/",

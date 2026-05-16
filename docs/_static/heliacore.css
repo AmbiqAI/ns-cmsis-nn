@@ -458,6 +458,7 @@ h1, h2, h3 {
 .platform-grid,
 .helia-family-grid,
 .doc-card-grid,
+.api-story-grid,
 .api-group-grid,
 .heliacore-cards {
   display: grid;
@@ -471,6 +472,7 @@ h1, h2, h3 {
 .platform-card,
 .helia-family-card,
 .doc-card,
+.api-story-card,
 .api-group-card,
 .card,
 .hc-card {
@@ -492,6 +494,7 @@ h1, h2, h3 {
 .platform-card:visited,
 .helia-family-card:visited,
 .doc-card:visited,
+.api-story-card:visited,
 .api-group-card:visited,
 .card:visited,
 .hc-card:visited {
@@ -501,6 +504,7 @@ h1, h2, h3 {
 .platform-card:hover,
 .helia-family-card:hover,
 .doc-card:hover,
+.api-story-card:hover,
 .api-group-card:hover,
 .card:hover {
   border-color: var(--hc-accent);
@@ -538,6 +542,7 @@ h1, h2, h3 {
 .platform-card strong,
 .helia-family-card strong,
 .doc-card strong,
+.api-story-card strong,
 .api-group-card strong,
 .card strong,
 .workflow-step strong,
@@ -550,6 +555,7 @@ h1, h2, h3 {
 .platform-card em,
 .helia-family-card em,
 .doc-card em,
+.api-story-card em,
 .api-group-card em,
 .card em,
 .text-link {
@@ -559,10 +565,78 @@ h1, h2, h3 {
   font-weight: 800;
 }
 
+.api-story-card em,
 .api-group-card em {
   margin-top: 0;
   color: var(--hc-muted);
   font-weight: 500;
+}
+
+.api-filter-panel {
+  margin: 1.7rem 0 2.2rem;
+  padding: 1rem;
+  border: 1px solid var(--hc-line);
+  border-radius: var(--hc-radius);
+  background: var(--hc-card);
+  box-shadow: 0 10px 28px rgba(16, 32, 51, 0.05);
+}
+
+.api-filter-search {
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+  color: var(--hc-ink);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.api-filter-search input {
+  width: 100%;
+  min-height: 2.55rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--hc-line);
+  border-radius: 6px;
+  background: var(--hc-panel);
+  color: var(--hc-ink);
+  font: inherit;
+}
+
+.api-filter-search input:focus {
+  border-color: var(--hc-accent);
+  outline: 2px solid var(--hc-warm);
+}
+
+.api-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0.55rem 0;
+}
+
+.api-filter-chip {
+  min-height: 2rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--hc-line);
+  border-radius: 999px;
+  background: var(--hc-panel);
+  color: var(--hc-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.api-filter-chip:hover,
+.api-filter-chip.is-active {
+  border-color: var(--hc-accent);
+  background: var(--hc-warm);
+}
+
+.api-filter-status {
+  margin: 0.75rem 0 0;
+  color: var(--hc-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 
 .api-function-summary {
