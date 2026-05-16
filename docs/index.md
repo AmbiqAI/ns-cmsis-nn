@@ -113,19 +113,19 @@ shape real HELIA deployments.</p>
 <div class="takeaway-grid" markdown>
 
 <div class="takeaway-card" markdown>
-<span class="card-icon">A</span>
+<span class="card-icon">40+</span>
 <strong>Ambiq field-like suite</strong>
 <span>40+ models, 53 operator types, 247 unique operators, and 963 operator instances.</span>
 </div>
 
 <div class="takeaway-card" markdown>
-<span class="card-icon">M</span>
+<span class="card-icon">Tiny</span>
 <strong>MLPerf Tiny baseline</strong>
 <span>5 models, 7 operator types, 34 unique operators, and 80 operator instances.</span>
 </div>
 
 <div class="takeaway-card" markdown>
-<span class="card-icon">+</span>
+<span class="card-icon">200+</span>
 <strong>Expanded coverage</strong>
 <span>200+ DSP/MVE optimized operators for Ambiq silicon, plus additional variants for existing operators.</span>
 </div>

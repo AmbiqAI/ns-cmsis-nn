@@ -197,8 +197,12 @@
 }
 
 .takeaway-card .card-icon {
+  min-width: 3.25rem;
+  padding: 0 0.55rem;
   background: var(--hr-accent-2);
   color: #111318;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
 }
 
 .helia-family-grid {
