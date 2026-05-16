@@ -16,10 +16,9 @@ hide:
 # Kernel acceleration for Ambiq AI.
 
 **heliaCORE** is Ambiq's optimized neural-network kernel library for Ambiq
-silicon, implemented here as `ns-cmsis-nn`. It builds on the Arm CMSIS-NN and
-CMSIS-Pack ecosystem, then adds Ambiq-tuned operators and HELIA integration
-paths for Apollo-class Cortex-M DSP/MVE targets, with particular focus on MVE
-acceleration where supported.
+silicon. This repository delivers it as `ns-cmsis-nn`: a CMSIS-NN-based kernel
+layer with Ambiq-tuned operators, CMSIS-Pack delivery, and HELIA integration
+paths for Apollo-class Cortex-M DSP/MVE targets.
 
 <div class="hero-actions" markdown>
 [Get started :material-arrow-right:](getting-started/index.md){ .md-button .md-button--primary }
@@ -62,12 +61,12 @@ target_link_libraries(app PRIVATE nsx::cmsis_nn)
 
 <p class="section-eyebrow">What it is</p>
 
-## Ambiq's foundation neural-network kernel layer.
+## A kernel layer for HELIA AI workloads.
 
-heliaCORE is the productized form of `ns-cmsis-nn`: a production kernel layer
-for Ambiq AI workloads. It preserves compatibility with inherited CMSIS-NN APIs
-where that surface applies, adds Ambiq-optimized kernels for Ambiq silicon, and
-packages the result for HELIA workflows.
+heliaCORE is Ambiq's optimized neural-network kernel layer for Apollo-class
+devices. In this repository, it is delivered as `ns-cmsis-nn`: inherited
+CMSIS-NN-compatible APIs where they apply, Ambiq-tuned kernels where HELIA needs
+more coverage, and packaging for runtimes, compilers, and firmware builds.
 
 </section>
 
@@ -75,16 +74,16 @@ packages the result for HELIA workflows.
 
 <p class="section-eyebrow">Ambiq workload coverage</p>
 
-## Extending coverage for Ambiq field-like models.
+## Coverage for real Ambiq model graphs.
 
 Arm CMSIS-NN provides the trusted foundation for efficient neural-network
-kernels on Cortex-M. In Ambiq's HELIA workflows, internal profiling across a
-field-like model suite also highlighted important Ambiq-specific coverage needs:
-real models spend measurable time in PAD, LeakyReLU, and other glue operators
-that are easy to overlook when focusing only on the largest MAC-heavy layers.
+kernels on Cortex-M. In Ambiq's HELIA workflows, internal profiling across
+field-like models also highlighted important Ambiq-specific coverage needs:
+real graphs spend measurable time in padding, activations, reductions, and
+other operators around the largest MAC-heavy layers.
 
-heliaCORE responds to those Ambiq silicon needs by adding 200+ DSP/MVE optimized
-operators and extra variants around the CMSIS-NN-compatible surface.
+heliaCORE broadens DSP/MVE coverage around the CMSIS-NN-compatible foundation so
+those end-to-end paths stay optimized on Ambiq silicon.
 
 <div class="workflow workflow--accel" markdown>
 
@@ -92,21 +91,21 @@ operators and extra variants around the CMSIS-NN-compatible surface.
 <span>1</span>
 <strong>MVE-first where available</strong>
 <p>Cortex-M55 paths are a primary optimization target, with vectorized kernels
-for Ambiq workloads where MVE can move latency.</p>
+where MVE can improve end-to-end latency.</p>
 </div>
 
 <div class="workflow-step" markdown>
 <span>2</span>
 <strong>DSP coverage for Apollo-class MCUs</strong>
-<p>Cortex-M DSP paths remain important for Apollo targets that do not have MVE,
-so the library keeps DSP-optimized variants in the release surface.</p>
+<p>Cortex-M DSP paths remain important on Apollo targets without MVE, so DSP
+variants stay part of the release surface.</p>
 </div>
 
 <div class="workflow-step" markdown>
 <span>3</span>
 <strong>Glue operators count too</strong>
-<p>Coverage extends beyond obvious MAC-heavy layers to operators that shape real
-model latency in HELIA deployments.</p>
+<p>Coverage extends beyond obvious MAC-heavy layers to the graph operators that
+shape real HELIA deployments.</p>
 </div>
 
 </div>
