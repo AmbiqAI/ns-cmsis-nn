@@ -145,6 +145,74 @@
   color: #111318;
 }
 
+.helia-family-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.1rem;
+  margin: 1.8rem 0 2rem;
+}
+
+.helia-family-card {
+  display: flex;
+  min-height: 16rem;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.55rem;
+  border: 1px solid var(--hr-line);
+  border-top: 0.32rem solid var(--hr-accent);
+  border-radius: var(--hr-radius);
+  background: var(--hr-soft);
+  color: inherit;
+  text-decoration: none !important;
+  box-shadow: var(--hr-shadow);
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.helia-family-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--hr-accent);
+}
+
+.helia-family-card--aot {
+  border-top-color: var(--hr-accent-2);
+}
+
+.helia-family-card--aot:hover {
+  border-color: var(--hr-accent-2);
+}
+
+.helia-family-card .family-card-kicker {
+  color: var(--hr-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.helia-family-card strong {
+  color: var(--hr-ink);
+  font-size: 1.75rem;
+  line-height: 1.1;
+}
+
+.helia-family-card > span:not(.family-card-kicker) {
+  color: var(--hr-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.helia-family-card em {
+  color: var(--hr-accent);
+  font-size: 0.8rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.helia-family-card--aot em {
+  color: var(--hr-accent-2);
+}
+
 /* Backward-compatible aliases for the early draft pages. */
 .heliacore-cards {
   display: grid;
@@ -183,6 +251,10 @@
 @media (max-width: 760px) {
   .hero-logo.hero-logo--core {
     max-width: 240px;
+  }
+
+  .helia-family-grid {
+    grid-template-columns: 1fr;
   }
 
   .chart-card {
