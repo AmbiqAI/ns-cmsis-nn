@@ -116,6 +116,30 @@
   color: #fff;
 }
 
+.workflow.workflow--accel {
+  margin: 1.8rem 0 1.4rem;
+}
+
+.workflow.workflow--accel .workflow-step:first-child > span {
+  background: var(--hr-accent-2);
+  color: #111318;
+}
+
+.chart-card {
+  height: 24rem;
+  margin: 1.5rem 0 1.8rem;
+  padding: 1.35rem;
+  border: 1px solid var(--hr-line);
+  border-radius: var(--hr-radius);
+  background: var(--hr-soft);
+  box-shadow: var(--hr-shadow);
+}
+
+.chart-card canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .takeaway-card .card-icon {
   background: var(--hr-accent-2);
   color: #111318;
@@ -159,5 +183,10 @@
 @media (max-width: 760px) {
   .hero-logo.hero-logo--core {
     max-width: 240px;
+  }
+
+  .chart-card {
+    height: 20rem;
+    padding: 1rem;
   }
 }

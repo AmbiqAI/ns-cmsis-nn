@@ -60,6 +60,10 @@ extra_css:
   - https://ambiqai.github.io/helia-rt/css/custom.css
   - stylesheets/extra.css
 
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/chart.js
+  - javascripts/chart-init.js
+
 extra:
   social:
     - icon: fontawesome/brands/github
