@@ -1,54 +1,58 @@
-# heliaCORE NN
+# heliaCORE
 
-> Ambiq's NN kernel library (package: `ns-cmsis-nn`) — an Ambiq-optimized fork of Arm CMSIS-NN, tuned for the Apollo family of ultra-low-power SoCs.
+> Ambiq's optimized neural-network kernel library for Ambiq silicon (package:
+> `ns-cmsis-nn`), built on the Arm CMSIS-NN and CMSIS-Pack ecosystem.
 
-heliaCORE NN provides quantized neural-network kernels for Arm Cortex-M class
-processors. It is API-compatible with [Arm CMSIS-NN][upstream] and adds
-additional operators and Apollo-specific optimizations on top.
+heliaCORE provides quantized neural-network kernels for Ambiq Apollo-class
+Cortex-M DSP/MVE targets. It preserves CMSIS-NN-compatible APIs where that
+surface applies, and adds Ambiq-tuned operators, kernel variants, and
+integration paths for HELIA AI workflows.
 
 [upstream]: https://github.com/ARM-software/CMSIS-NN
 
 **Highlights**
 
-- API-compatible **superset** of Arm CMSIS-NN — drop in without source changes.
+- CMSIS-NN-compatible public APIs where inherited and supported, with additional
+  Ambiq/HELIA kernels for Ambiq silicon.
 - int8 / int16 / int4-weight quantized kernels for Conv, Depthwise Conv,
   Transpose Conv, Fully Connected, LSTM, SVDF, Pooling, Softmax, elementwise
   math and more.
-- Three backends selected automatically at build time from your toolchain CPU
-  flags: **pure C**, **DSP** (Cortex-M4 / M7 / M33), **MVE / Helium**
-  (Cortex-M55 / M85).
-- Distributed as a **CMSIS-Pack**, a **Zephyr module**, or a plain **CMake**
-  subdirectory.
+- Three backend paths selected automatically at build time from your toolchain
+  CPU flags: **pure C**, **DSP**, and **MVE / Helium**. MVE is a primary
+  optimization target where supported by the Ambiq device.
+- Distributed as a **CMSIS-Pack**, a **Zephyr module**, CMake package/tarball,
+  and HELIA/neuralSPOT-X integration point.
 - No dynamic allocation; the caller owns every buffer.
 - Apache-2.0 on upstream-derived files; Ambiq Apollo SDK License on Ambiq
   additions (see [License](#license)).
 
 ---
 
-## What heliaCORE NN is
+## What heliaCORE is
 
-- A **drop-in superset** of Arm CMSIS-NN. Every `arm_*` symbol in upstream is
-  preserved; we add new operators and refine existing kernels.
+- Ambiq's foundation neural-network kernel layer for HELIA AI workflows on
+  Ambiq silicon.
+- Built on Arm CMSIS-NN concepts and compatible API surfaces where applicable,
+  with attribution and license preservation for inherited sources.
 - Optimized for Ambiq Apollo SoCs, taking advantage of M-Profile Vector
   Extensions (MVE / Helium) and DSP instructions where available.
-- The NN backend used by [TensorFlow Lite for Microcontrollers (TFLM)][tflm] on
-  Ambiq parts. It follows the [int8][quant-int8] and int16 quantization
-  specifications used by TFLM.
+- A kernel backend used by runtime and compiler flows on Ambiq parts. It follows
+  the [int8][quant-int8] and int16 quantization specifications used by TFLM.
 
 [tflm]: https://www.tensorflow.org/lite/microcontrollers
 [quant-int8]: https://www.tensorflow.org/lite/performance/quantization_spec
 
-## What heliaCORE NN is *not*
+## What heliaCORE is *not*
 
-- **Not** a general-purpose CMSIS-NN replacement. The license restricts use to
-  software running on Ambiq-manufactured CPUs (see [License](#license) below).
-  If you need an unrestricted CMSIS-NN, use [upstream Arm CMSIS-NN][upstream].
+- **Not** a vendor-neutral CMSIS-NN distribution. heliaCORE is intended for
+  HELIA AI workflows on Ambiq silicon. For general Cortex-M kernel work, use
+  [upstream Arm CMSIS-NN][upstream].
 - **Not** a model runtime. Pair it with TFLM (or your own runtime) to execute
   models.
 
 ## License
 
-heliaCORE NN ships under two license files:
+heliaCORE ships under two license files:
 
 | File | Applies to | SPDX |
 |---|---|---|
@@ -63,24 +67,27 @@ See [`NOTICE`](NOTICE) for the full attribution and licensing summary.
 
 ## Relationship to upstream Arm CMSIS-NN
 
-heliaCORE NN was forked from [`ARM-software/CMSIS-NN`][upstream] and is
-maintained as a long-lived fork. We:
+heliaCORE was forked from [`ARM-software/CMSIS-NN`][upstream] and is maintained
+as an Ambiq silicon-focused kernel library. We:
 
-- Keep the public C API (`arm_*` functions in `Include/`) **identical** to
-  upstream so existing TFLM integrations continue to work unchanged.
-- Periodically review upstream for new kernels and pull them in.
-- Add new kernels and Apollo-specific optimizations on top.
+- Preserve inherited CMSIS-NN-compatible public APIs where supported so existing
+  integrations can continue to use familiar `arm_*` entry points.
+- Preserve upstream copyright, SPDX, and Apache-2.0 license notices on inherited
+  files.
+- Periodically review upstream for relevant kernels and improvements.
+- Add Ambiq-specific kernels, variants, and Apollo optimizations for HELIA AI
+  workflows.
 
 If you find a kernel here that does not exist in upstream, that is intentional
-and part of the heliaCORE NN superset.
+and part of Ambiq's HELIA-focused coverage for Ambiq devices.
 
-### Detecting the superset at compile time
+### Detecting heliaCORE at compile time
 
-Because heliaCORE NN ships as `libcmsis-nn.a` and exposes a `cmsis-nn` CMake
-ALIAS for drop-in TFLM compatibility, downstream code that calls Ambiq-only
+Because heliaCORE ships as `libcmsis-nn.a` and exposes a `cmsis-nn` CMake
+ALIAS for TFLM build compatibility, downstream code that calls Ambiq-only
 kernels (e.g. `arm_gather_s8`) should guard against accidentally being built
-against the upstream library. [`Include/arm_nn_types.h`](Include/arm_nn_types.h)
-defines:
+against another CMSIS-NN implementation.
+[`Include/arm_nn_types.h`](Include/arm_nn_types.h) defines:
 
 | Macro | Meaning |
 |---|---|
@@ -94,7 +101,7 @@ Recommended guard:
 #include "arm_nn_types.h"
 
 #if !defined(NS_CMSIS_NN)
-#  error "this code requires ns-cmsis-nn (Ambiq superset)"
+#  error "this code requires ns-cmsis-nn"
 #endif
 #if NS_CMSIS_NN_VERSION < 7024000
 #  error "needs ns-cmsis-nn >= 7.24.0"
@@ -105,8 +112,7 @@ Recommended guard:
 
 | Name | Used for |
 |---|---|
-| **heliaCORE NN** | Product / brand name (prose, docs, marketing) |
-| **heliaCORE** | Short brand name when used standalone |
+| **heliaCORE** | Product / brand name (prose, docs, marketing) |
 | `ns-cmsis-nn` | Package id, repo name, CMake/Zephyr module name, file/path identifiers |
 | `arm_*` C symbols | Public API — kept identical to upstream |
 
@@ -425,12 +431,13 @@ label.
 ## FAQ
 
 **Why not just use upstream Arm CMSIS-NN?**
-Upstream is the right choice for non-Ambiq targets. Use heliaCORE NN if you
-need Apollo-tuned kernels or operators that aren't yet in upstream.
+Upstream Arm CMSIS-NN is the right choice for vendor-neutral Cortex-M work. Use
+heliaCORE when you are building HELIA AI workflows for Ambiq silicon and need
+Apollo-tuned kernels or Ambiq-specific operator coverage.
 
 **Are the `arm_*` symbols ABI-stable across heliaCORE NN versions?**
-Yes — symbols and signatures match upstream CMSIS-NN, so TFLM and other
-consumers link without modification across versions.
+Inherited symbols and signatures are kept compatible where supported so TFLM
+and other consumers can continue to link through familiar `arm_*` entry points.
 
 **Can I build the library for the host (x86 / Mac) for testing?**
 Not directly — the kernels target Cortex-M. The `Tests/UnitTest/` harness
@@ -444,8 +451,8 @@ core (M4 / M55 / …), the toolchain, and a minimal reproducer if you can.
 ## Contributing
 
 External contributions are welcome on additive kernels and bug fixes that do
-not break the CMSIS-NN superset guarantee. A `CONTRIBUTING.md` with the full
-workflow is in progress (tracked separately).
+not break inherited CMSIS-NN-compatible APIs or Ambiq HELIA integration paths. A
+`CONTRIBUTING.md` with the full workflow is in progress (tracked separately).
 
 In the meantime, the short version:
 

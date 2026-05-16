@@ -130,11 +130,13 @@ nav:
       - neuralSPOT-X: getting-started/neuralspot-x.md
   - Guides:
       - guides/index.md
+      - Operator & Kernel Coverage: guides/operator-kernel-coverage.md
       - DSP/MVE Coverage: guides/dsp-mve-coverage.md
       - Versioning & Releases: guides/releases.md
       - Toolchain Pinning: guides/toolchains.md
   - Reference:
       - reference/index.md
+      - Doxygen API: reference/doxygen.md
   - Releasing: releasing.md
   - Contributing: contributing.md
 

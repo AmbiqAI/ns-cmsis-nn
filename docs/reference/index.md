@@ -4,6 +4,13 @@ This section will host the auto-generated heliaCORE C API reference: inherited
 CMSIS-NN-compatible entry points plus Ambiq/HELIA kernel additions exposed by
 `ns-cmsis-nn`.
 
+Start here:
+
+- [Doxygen API](doxygen.md) — where the existing generated API reference lives,
+  how it is produced, and how we should integrate it with MkDocs.
+- [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md) — concise
+  operator-family and backend overview.
+
 The plan is to run Doxygen against `Include/*.h` to produce an XML
 intermediate, then render it with
 [**mkdoxy**](https://github.com/JakubAndrysek/mkdoxy) into native

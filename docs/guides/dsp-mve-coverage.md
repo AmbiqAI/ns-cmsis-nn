@@ -10,6 +10,10 @@ around the CMSIS-NN-compatible surface. The goal is integration into HELIA AI
 workflows for Ambiq devices, with continued respect for the Arm CMSIS ecosystem
 and CMSIS-Pack delivery.
 
+For a concise family-by-family summary, see
+[Operator & Kernel Coverage](operator-kernel-coverage.md). For exact function
+prototypes and per-kernel behavior, see [Doxygen API](../reference/doxygen.md).
+
 ## Why coverage matters
 
 Arm CMSIS-NN provides the trusted foundation for efficient neural-network kernels

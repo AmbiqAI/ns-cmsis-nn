@@ -135,6 +135,8 @@ model latency in HELIA deployments.</p>
 
 [Explore DSP/MVE coverage data →](guides/dsp-mve-coverage.md){ .text-link }
 
+[Browse operator & kernel coverage →](guides/operator-kernel-coverage.md){ .text-link }
+
 </section>
 
 <section class="section-block" markdown>
