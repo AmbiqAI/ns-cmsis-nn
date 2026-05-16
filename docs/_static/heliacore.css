@@ -454,6 +454,32 @@ h1, h2, h3 {
   color: #d9e1e8;
 }
 
+body[data-theme="dark"] article[role="main"] div[class*=" highlight-"],
+body[data-theme="dark"] article[role="main"] div[class^="highlight-"] {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--hc-radius);
+  background: #080d12;
+}
+
+body[data-theme="dark"] article[role="main"] div[class*=" highlight-"] pre,
+body[data-theme="dark"] article[role="main"] div[class^="highlight-"] pre {
+  background: #080d12;
+  color: #d9e1e8;
+}
+
+body[data-theme="dark"] article[role="main"] div[class*=" highlight-"] .copybtn,
+body[data-theme="dark"] article[role="main"] div[class^="highlight-"] .copybtn {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: #080d12;
+  color: #d9e1e8;
+}
+
+body[data-theme="dark"] article[role="main"] div[class*=" highlight-"] .copybtn:hover,
+body[data-theme="dark"] article[role="main"] div[class^="highlight-"] .copybtn:hover {
+  border-color: var(--hc-accent);
+  background: #111a22;
+}
+
 .logo-rail {
   display: flex;
   flex-wrap: wrap;
