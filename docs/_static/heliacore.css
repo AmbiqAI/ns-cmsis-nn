@@ -660,6 +660,12 @@ h1, h2, h3 {
   font-weight: 700;
 }
 
+.api-filter-empty {
+  margin: 0.55rem 0 0;
+  color: var(--hc-muted);
+  font-size: 0.85rem;
+}
+
 .api-function-summary {
   margin: 0.7rem 0 0.65rem;
 }

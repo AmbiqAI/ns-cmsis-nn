@@ -8,13 +8,25 @@
   const search = root.querySelector('#api-filter-query');
   const status = root.querySelector('[data-api-filter-status]');
   const chips = Array.from(root.querySelectorAll('[data-filter-kind]'));
-  const sections = Array.from(document.querySelectorAll('article section[id]'));
+  const groups = Array.from(document.querySelectorAll('.api-function-list'))
+    .map((list) => ({
+      list,
+      section: list.closest('section[id]'),
+      links: Array.from(list.querySelectorAll('.api-function-link')),
+    }))
+    .filter((group) => group.section && group.links.length);
+  const empty = document.createElement('p');
   const state = {
     family: 'all',
     dtype: 'all',
     role: 'all',
     query: '',
   };
+
+  empty.className = 'api-filter-empty';
+  empty.hidden = true;
+  empty.textContent = 'No kernels match the current filters.';
+  root.append(empty);
 
   const updateActive = (kind, value) => {
     chips
@@ -45,22 +57,20 @@
     links.forEach((link) => {
       const match = linkMatches(link);
       link.hidden = !match;
+      link.style.display = match ? '' : 'none';
       if (match) {
         visible += 1;
       }
     });
 
-    sections.forEach((section) => {
-      const sectionLinks = Array.from(section.querySelectorAll('.api-function-link'));
-      if (!sectionLinks.length) {
-        return;
-      }
-      section.hidden = sectionLinks.every((link) => link.hidden);
+    groups.forEach((group) => {
+      group.section.hidden = group.links.every((link) => link.hidden);
     });
 
     if (status) {
       status.textContent = `${visible} kernel${visible === 1 ? '' : 's'} shown`;
     }
+    empty.hidden = visible !== 0;
   };
 
   chips.forEach((chip) => {
