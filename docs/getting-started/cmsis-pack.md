@@ -58,8 +58,7 @@ Before building firmware, confirm your project has exactly one `Ambiq::NN Lib`
 component selected:
 
 - Use `Source` when your IDE/toolchain should compile the kernels.
-- Use `Prebuilt` only when the target architecture and ABI settings match the
-    pack's prebuilt archive.
+- Use `Prebuilt` when the target architecture and ABI match the selected archive.
 
 For CMSIS-Toolbox projects, inspect the resolved component list after pack
 resolution and confirm the selected component includes the intended `Cvariant`.

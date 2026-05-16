@@ -91,7 +91,7 @@ the <a href="../api/library_root.html">generated C API reference</a>.
 .. api-group-index:: elementwise
 ```
 
-## Basic Math And Reduction
+## Basic Math and Reduction
 
 ```{eval-rst}
 .. api-group-index:: reduction-comparison
@@ -121,7 +121,7 @@ the <a href="../api/library_root.html">generated C API reference</a>.
 .. api-group-index:: sequence
 ```
 
-## Types And Support
+## Types and Support
 
 Structs, enums, files, and lower-level support helpers are intentionally kept in
 the <a href="../api/library_root.html">full generated C API index</a> to avoid

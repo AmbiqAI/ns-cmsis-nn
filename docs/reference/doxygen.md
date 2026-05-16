@@ -81,15 +81,15 @@ The hand-written Sphinx guide pages are intentionally high-level:
 - This page documents how the generated API reference connects to the Sphinx
   site.
 
-## Integration roadmap
+## Integration status
 
-| Phase | Goal | Notes |
+| Status | Area | Notes |
 |---|---|---|
-| 1 | Build Sphinx pages from Doxygen XML. | Implemented with Breathe and Exhale. |
-| 2 | Deploy the Sphinx artifact to Pages. | Release workflow publishes the Sphinx site after pack generation; docs-only Pages deploy remains gated. |
-| 3 | Tune generated API grouping and titles. | Improve customer navigation through function groups and inherited CMSIS-NN material. |
-| 4 | Generate coverage indexes from XML/source metadata. | Cross-link operator families to exact functions, files, dtypes, and acceleration paths. |
-| 5 | Consider disabling standalone Doxygen HTML for website builds. | Keep it only where pack tooling still requires it. |
+| Implemented | Sphinx pages from Doxygen XML | Breathe and Exhale render the generated C API inside the Furo site. |
+| Implemented | Grouped API navigation | The API front door groups generated function pages by kernel family and adds search/filter controls. |
+| In progress | Pages deployment | Release workflows can publish the built Sphinx artifact; docs-only deploy remains gated. |
+| Planned | Coverage indexes | Future work can cross-link operator families to exact functions, files, dtypes, and acceleration paths. |
+| Optional | Standalone Doxygen HTML | Keep standalone Doxygen output only where pack tooling still requires it. |
 
 ## API groups
 

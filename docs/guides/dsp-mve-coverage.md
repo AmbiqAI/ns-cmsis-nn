@@ -96,10 +96,10 @@ MVE is not just a different intrinsic name. It changes the unit of work:
 
 - **DSP** improves scalar fixed-point loops with packed instructions.
 - **MVE** runs 128-bit vector operations with predication, vector MAC,
-	dot-product patterns, saturation, and lane-wise data movement.
+  dot-product patterns, saturation, and lane-wise data movement.
 - **Expected gain** is kernel and shape dependent, but favorable MAC-heavy int8
-	paths can make an up-to-8x speedup over DSP-style implementations plausible
-	when data layout and memory traffic cooperate.
+  paths can make an up-to-8x speedup over DSP-style implementations plausible
+  when data layout and memory traffic cooperate.
 
 That is why heliaCORE treats MVE coverage as a primary design axis for
 Cortex-M55-class Ambiq devices, while still preserving DSP paths for Apollo
