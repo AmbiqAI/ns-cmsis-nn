@@ -8,7 +8,7 @@
     <p class="hero-badge">ATfE + MVE ready</p>
     <p class="hero-summary"><strong>heliaCORE</strong> is Ambiq's optimized neural-network kernel library for Ambiq silicon. This repository delivers it as <code>ns-cmsis-nn</code>: a CMSIS-NN-based kernel layer with Ambiq-tuned operators, CMSIS-Pack delivery, and HELIA integration paths for Apollo-class Cortex-M accelerators.</p>
     <div class="hero-actions">
-      <a class="hc-button hc-button-primary" href="getting-started/index.html">Get started</a>
+      <a class="hc-button hc-button-primary" href="getting-started/index.html">Getting started</a>
       <a class="hc-button" href="why.html">Why heliaCORE</a>
       <a class="hc-button" href="reference/api-groups.html">API</a>
     </div>

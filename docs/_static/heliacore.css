@@ -1,6 +1,6 @@
 :root {
-  --hc-accent: #d8b24a;
-  --hc-accent-rgb: 216, 178, 74;
+  --hc-accent: #d7bd75;
+  --hc-accent-rgb: 215, 189, 117;
   --hc-radius: 8px;
 }
 
@@ -59,15 +59,15 @@ body[data-theme="dark"] {
   --color-content-foreground: var(--color-foreground-primary);
   --color-content-background: transparent;
   --color-brand-primary: var(--hc-accent);
-  --color-brand-content: #dec06a;
-  --color-link: #dec06a;
-  --color-link--hover: #f0d88a;
-  --color-link--visited: #dec06a;
-  --color-link--visited--hover: #f0d88a;
+  --color-brand-content: #d7bd75;
+  --color-link: #d7bd75;
+  --color-link--hover: #efdcaa;
+  --color-link--visited: #d7bd75;
+  --color-link--visited--hover: #efdcaa;
   --color-link-underline: rgba(var(--hc-accent-rgb), 0.38);
-  --color-link-underline--hover: rgba(240, 216, 138, 0.62);
+  --color-link-underline--hover: rgba(239, 220, 170, 0.62);
   --color-link-underline--visited: rgba(var(--hc-accent-rgb), 0.38);
-  --color-link-underline--visited--hover: rgba(240, 216, 138, 0.62);
+  --color-link-underline--visited--hover: rgba(239, 220, 170, 0.62);
   --hc-ink: #f3f5f6;
   --hc-muted: #bbc4cc;
   --hc-line: rgba(213, 219, 225, 0.14);
@@ -80,7 +80,7 @@ body[data-theme="dark"] {
   --hc-sidebar-fg: #eef8f7;
   --hc-sidebar-muted: #98a9b6;
   --hc-sidebar-link: #c8d5dc;
-  --hc-sidebar-link-strong: #dec06a;
+  --hc-sidebar-link-strong: #d7bd75;
   --hc-sidebar-hover: rgba(var(--hc-accent-rgb), 0.12);
   --hc-sidebar-current: rgba(var(--hc-accent-rgb), 0.17);
   --hc-sidebar-search-bg: rgba(255, 255, 255, 0.06);
@@ -328,7 +328,7 @@ h1, h2, h3 {
   border: 1px solid rgba(var(--hc-accent-rgb), 0.5);
   border-radius: 999px;
   background: rgba(var(--hc-accent-rgb), 0.12);
-  color: #f0d88a;
+  color: #efdcaa;
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -384,15 +384,24 @@ h1, h2, h3 {
 
 .landing-hero .hc-button-primary {
   border-color: var(--hc-accent);
-  background: var(--hc-accent);
-  color: #0d141a;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(var(--hc-accent-rgb), 0.26);
+  color: #efdcaa;
 }
 
 .hc-button-primary:visited,
-.hc-button-primary:hover,
-.landing-hero .hc-button-primary:visited,
-.landing-hero .hc-button-primary:hover {
+.hc-button-primary:hover {
   color: #0d141a;
+}
+
+.landing-hero .hc-button-primary:visited {
+  color: #efdcaa;
+}
+
+.landing-hero .hc-button-primary:hover {
+  border-color: #efdcaa;
+  background: rgba(var(--hc-accent-rgb), 0.13);
+  color: #ffffff;
 }
 
 .hero-panel {
