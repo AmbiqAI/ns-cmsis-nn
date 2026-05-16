@@ -33,6 +33,7 @@ target_link_libraries(app PRIVATE nsx::cmsis_nn)
   <span>Zephyr</span>
   <span>CMake</span>
   <span>neuralSPOT-X</span>
+  <span>ATfE</span>
   <span>GCC</span>
   <span>Cortex-M0+</span>
   <span>Cortex-M4</span>

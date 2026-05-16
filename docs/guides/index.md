@@ -27,7 +27,7 @@ contracts.
 <a class="doc-card" href="toolchains.html">
 <span>Build contract</span>
 <strong>Toolchain Pinning</strong>
-<em>Compiler IDs, CPU flags, ABI checks, and what CMake validates for you.</em>
+<em>ATfE recommendation, GCC prebuilt constraints, CPU flags, and CMake validation.</em>
 </a>
 
 </div>
@@ -39,4 +39,4 @@ contracts.
 | Which operators and dtypes are covered? | [Operator & Kernel Coverage](operator-kernel-coverage.md) |
 | What are the Cortex-M accelerator paths? | [Cortex-M Accelerators](dsp-mve-coverage.md) |
 | What exactly is in a release? | [Versioning & Releases](releases.md) |
-| Which compiler and CPU flags were used? | [Toolchain Pinning](toolchains.md) |
+| Which compiler should I use? | [Toolchain Pinning](toolchains.md) |
