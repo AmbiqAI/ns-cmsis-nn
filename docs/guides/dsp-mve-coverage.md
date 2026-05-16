@@ -23,71 +23,84 @@ spend measurable time in PAD, LeakyReLU, and other glue operators that are easy
 to overlook when focusing only on the largest MAC-heavy layers.
 
 heliaCORE responds to those Ambiq silicon needs by adding 200+ DSP/MVE optimized
-operators and extra variants around the CMSIS-NN-compatible surface. The numbers
-below describe Ambiq's internal coverage target for HELIA workflows on Ambiq
-devices.
+operators and extra variants around the CMSIS-NN-compatible surface. The point is
+not only to add more API names. It is to map the common model work onto the
+acceleration features that are actually present in Ambiq firmware targets.
+
+## What DSP and MVE actually do
 
 <div class="workflow workflow--accel" markdown>
 
 <div class="workflow-step" markdown>
 <span class="workflow-icon">MVE</span>
-<strong>MVE-first where available</strong>
-<p>Cortex-M55 paths are a primary optimization target, with vectorized kernels
-for Ambiq workloads where MVE can move latency.</p>
+<strong>128-bit vector AI/DSP acceleration</strong>
+<p>Arm MVE, also known as Helium, gives Cortex-M55 a 128-bit vector engine. A
+single vector can cover 16 int8 lanes, 8 int16 or fp16 lanes, or 4 int32 or fp32
+lanes, with vector MAC, dot-product, saturation, predication, and lane-wise data
+movement support.</p>
 </div>
 
 <div class="workflow-step" markdown>
 <span class="workflow-icon">DSP</span>
-<strong>DSP coverage for Apollo-class MCUs</strong>
-<p>Cortex-M DSP paths remain important for Apollo targets that do not have MVE,
-so the library keeps DSP-optimized variants in the release surface.</p>
+<strong>Packed scalar DSP instructions</strong>
+<p>The Cortex-M DSP extension accelerates fixed-point math with packed 8-bit and
+16-bit operations, dual 16-bit MAC instructions, saturating arithmetic, and fast
+accumulate patterns. It is still the right target for Apollo-class devices that
+do not include MVE.</p>
 </div>
 
 <div class="workflow-step" markdown>
 <span class="workflow-icon">Flow</span>
-<strong>Glue operators count too</strong>
-<p>Coverage extends beyond obvious MAC-heavy layers to operators that shape real
-model latency in HELIA deployments.</p>
+<strong>Whole-graph speed, not isolated tricks</strong>
+<p>MVE is more than a simple intrinsic spelling. Good kernels use the hardware to
+keep many lanes busy across convolution, fully connected, activation, pooling,
+quantization, and layout operators so the model graph spends less time between
+layers.</p>
 </div>
 
 </div>
 
-<div class="chart-card" markdown>
-<canvas id="operator-coverage-chart" aria-label="Operator coverage comparison for Ambiq field-like models and MLPerf Tiny" role="img" data-chart-config='{
-  "type": "bar",
-  "data": {
-    "labels": ["Operator types", "Unique operators", "Operator instances"],
-    "datasets": [
-      {
-        "label": "Ambiq field-like suite",
-        "data": [53, 247, 963],
-        "backgroundColor": "rgba(0, 193, 179, 0.82)",
-        "borderColor": "#00c1b3",
-        "borderWidth": 1
-      },
-      {
-        "label": "MLPerf Tiny",
-        "data": [7, 34, 80],
-        "backgroundColor": "rgba(245, 166, 35, 0.78)",
-        "borderColor": "#f5a623",
-        "borderWidth": 1
-      }
-    ]
-  },
-  "options": {
-    "responsive": true,
-    "maintainAspectRatio": false,
-    "plugins": {
-      "legend": { "position": "bottom" },
-      "title": { "display": true, "text": "Coverage pressure from Ambiq field-like workloads" },
-      "tooltip": { "mode": "index", "intersect": false }
-    },
-    "scales": {
-      "x": { "grid": { "display": false } },
-      "y": { "beginAtZero": true, "title": { "display": true, "text": "Count" } }
-    }
-  }
-}'></canvas>
+| Capability | Cortex-M DSP paths | Cortex-M55 MVE paths |
+|---|---|---|
+| Execution model | Packed operations in the scalar core. | 128-bit vector execution with predication and lane-wise operations. |
+| Integer work | Fixed-point int8/int16/int32 math, saturation, packing, and dual 16-bit MAC patterns. | 16 int8 lanes, 8 int16 lanes, or 4 int32 lanes per vector, with vector MAC and dot-product style kernels. |
+| Floating point work | Usually not the main acceleration path for neural-network kernels. | 8 fp16 lanes or 4 fp32 lanes per vector where the target and toolchain enable those paths. |
+| Best fit | Apollo-class targets without MVE and kernels where packed fixed-point DSP still moves latency. | Cortex-M55-class Apollo targets, especially int8 and int16 MAC-heavy layers plus vector-friendly graph operators. |
+| Practical expectation | A meaningful improvement over plain scalar C for quantized kernels. | Kernel- and shape-dependent, but MAC-heavy int8 paths can make an up-to-8x speedup over DSP-style implementations plausible when data layout and memory traffic cooperate. |
+
+The important firmware takeaway is that MVE changes the unit of work. Instead of
+asking the core to retire one scalar multiply-accumulate at a time, optimized MVE
+kernels feed a vector engine that can perform many narrow operations together and
+accumulate efficiently. That is why heliaCORE treats MVE coverage as a primary
+design axis for Cortex-M55-class Ambiq devices, while still preserving DSP paths
+for the Apollo devices that rely on them.
+
+## Coverage pressure from real model graphs
+
+The counts below describe Ambiq's internal coverage target for HELIA workflows on
+Ambiq devices. They are included to explain why the library invests in both
+MAC-heavy kernels and the smaller operators that connect them.
+
+<div class="takeaway-grid" markdown>
+
+<div class="takeaway-card" markdown>
+<span class="api-tag">Ambiq field-like suite</span>
+<strong>53 operator types</strong>
+<span>247 unique operator configurations and 963 total operator instances across internal HELIA-oriented model graphs.</span>
+</div>
+
+<div class="takeaway-card" markdown>
+<span class="api-tag">MLPerf Tiny baseline</span>
+<strong>7 operator types</strong>
+<span>34 unique operator configurations and 80 total instances in a familiar public benchmark suite used here only for scale.</span>
+</div>
+
+<div class="takeaway-card" markdown>
+<span class="api-tag">Coverage target</span>
+<strong>200+ optimized operators</strong>
+<span>DSP and MVE variants cover both the high-cost math kernels and the glue operators that can dominate real deployment latency.</span>
+</div>
+
 </div>
 
 ## How to read the counts
