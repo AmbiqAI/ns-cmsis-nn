@@ -16,14 +16,16 @@ and Ambiq additions.
 | Doxygen entry page | `Documentation/Doxygen/src/mainpage.md` |
 | Generation script | `Documentation/Doxygen/gen_doc.sh` |
 | Generated HTML output | `Documentation/html/` |
+| Generated XML metadata | `Documentation/xml/` |
 
-The existing Doxygen configuration generates HTML and is still used by the
-CMSIS-Pack generation flow. It currently has `GENERATE_XML = NO`, which means a
-native MkDocs/mkdoxy API import would need a small follow-up change to emit XML.
+The existing Doxygen flow remains the source of truth for detailed C API
+documentation. It now emits both HTML and compact XML metadata: HTML is the
+authoritative human-readable API reference, while XML gives us a clean path to a
+future native MkDocs import.
 
 ## Recommended integration path
 
-For this MkDocs site, there are two reasonable options:
+For this MkDocs site, there are two reasonable integration options:
 
 1. **Mount generated Doxygen HTML under `/api/`**
    - Lowest risk.
@@ -33,13 +35,14 @@ For this MkDocs site, there are two reasonable options:
 
 2. **Generate Doxygen XML and render with mkdoxy**
    - Better long-term look and search integration inside MkDocs.
-   - Requires enabling `GENERATE_XML = YES` and adding a mkdoxy build step.
-   - Needs validation on the CMSIS-NN macro-heavy headers before we rely on it.
+   - Uses the generated XML metadata now emitted by the Doxygen configuration.
+   - Still needs validation on the CMSIS-NN macro-heavy headers before we rely
+     on it for the public site.
 
 For the first public heliaCORE site, the conservative recommendation is to keep
-Doxygen HTML as the authoritative API reference and link to it from MkDocs. A
-follow-up PR can experiment with mkdoxy once the narrative site structure is
-stable.
+Doxygen HTML as the authoritative API reference and link to it from MkDocs.
+The XML output can be validated in a follow-up PR before deciding whether to
+render native MkDocs API pages.
 
 ## API groups
 
