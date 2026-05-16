@@ -30,21 +30,21 @@ devices.
 <div class="workflow workflow--accel" markdown>
 
 <div class="workflow-step" markdown>
-<span class="workflow-icon" markdown>:material-vector-polygon:</span>
+<span class="workflow-icon">MVE</span>
 <strong>MVE-first where available</strong>
 <p>Cortex-M55 paths are a primary optimization target, with vectorized kernels
 for Ambiq workloads where MVE can move latency.</p>
 </div>
 
 <div class="workflow-step" markdown>
-<span class="workflow-icon" markdown>:material-speedometer:</span>
+<span class="workflow-icon">DSP</span>
 <strong>DSP coverage for Apollo-class MCUs</strong>
 <p>Cortex-M DSP paths remain important for Apollo targets that do not have MVE,
 so the library keeps DSP-optimized variants in the release surface.</p>
 </div>
 
 <div class="workflow-step" markdown>
-<span class="workflow-icon" markdown>:material-transit-connection:</span>
+<span class="workflow-icon">Flow</span>
 <strong>Glue operators count too</strong>
 <p>Coverage extends beyond obvious MAC-heavy layers to operators that shape real
 model latency in HELIA deployments.</p>
@@ -105,8 +105,9 @@ coverage work on Ambiq devices. MLPerf Tiny is included as a familiar public
 baseline for scale, not as a claim about relative model quality or ecosystem
 coverage.
 
-!!! note "Scope"
-    This chart is a coverage-oriented view of Ambiq's internal model suite. It
-    is not a performance benchmark and is not a statement about the broader Arm
-    CMSIS-NN ecosystem. For vendor-neutral Cortex-M kernel work, Arm CMSIS-NN
-    remains the upstream ecosystem reference.
+:::{note} Scope
+This chart is a coverage-oriented view of Ambiq's internal model suite. It is
+not a performance benchmark and is not a statement about the broader Arm
+CMSIS-NN ecosystem. For vendor-neutral Cortex-M kernel work, Arm CMSIS-NN
+remains the upstream ecosystem reference.
+:::

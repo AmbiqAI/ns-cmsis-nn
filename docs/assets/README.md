@@ -4,14 +4,13 @@ Branding artwork used by the site.
 
 | File                          | Used for                                                   |
 |-------------------------------|------------------------------------------------------------|
-| `helia-core-icon-white.png`   | Header mark in the MkDocs Material nav bar.                |
-| `helia-core-icon-color.svg`   | Browser favicon (via `mkdocs.yml`).                        |
-| `helia-core-logo-light.png`   | Wordmark on the landing-page hero, **light** scheme.       |
-| `helia-core-logo-dark.png`    | Wordmark on the landing-page hero, **dark** scheme.        |
+| `helia-core-icon-white.png`   | Compact icon for dark headers or future sidebar variants.  |
+| `helia-core-icon-color.svg`   | Browser favicon via Sphinx `html_favicon`.                 |
+| `helia-core-logo-light.png`   | Wordmark for dark backgrounds.                             |
+| `helia-core-logo-dark.png`    | Wordmark for light backgrounds and the Sphinx sidebar.      |
 
-The light/dark wordmark swap on the landing page is handled by
-mkdocs-material's `#only-light` / `#only-dark` URL-fragment convention
-(see `docs/index.md`).
+The Sphinx site currently uses the dark wordmark on light backgrounds and keeps
+the icon assets available for future theme refinements.
 
 ## Future additions (optional)
 

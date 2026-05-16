@@ -45,10 +45,11 @@ GCC-built archives for:
 If your target doesn't match one of these, switch to the `Source`
 Cvariant — the kernels will be recompiled by your toolchain.
 
-!!! warning "Toolchain note"
-    The prebuilt `.a` files are GCC-only today. If your project uses
-    Arm Compiler 6 (ARMClang), select the `Source` Cvariant. Mixing
-    GCC-built archives into an ARMClang link will not work.
+:::{warning} Toolchain note
+The prebuilt `.a` files are GCC-only today. If your project uses Arm Compiler 6
+(ARMClang), select the `Source` Cvariant. Mixing GCC-built archives into an
+ARMClang link will not work.
+:::
 
 ## Verify the selection
 

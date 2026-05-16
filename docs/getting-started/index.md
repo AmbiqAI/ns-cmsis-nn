@@ -6,28 +6,28 @@ tooling workflow.
 
 <div class="heliacore-cards getting-started-cards">
 
-<a class="card start-card" href="cmake/">
+<a class="card start-card" href="cmake.html">
 <span class="start-card-label">Prebuilt SDK</span>
 <strong>CMake package</strong>
 <span>Use a per-architecture tarball with an exported CMake target.</span>
 <em>Best for custom firmware projects already using CMake.</em>
 </a>
 
-<a class="card start-card" href="cmsis-pack/">
+<a class="card start-card" href="cmsis-pack.html">
 <span class="start-card-label">CMSIS tooling</span>
 <strong>CMSIS-Pack</strong>
 <span>Install the pack and select a source or prebuilt C variant.</span>
 <em>Best for Keil MDK, CMSIS-Toolbox, and IAR users.</em>
 </a>
 
-<a class="card start-card" href="zephyr/">
+<a class="card start-card" href="zephyr.html">
 <span class="start-card-label">RTOS module</span>
 <strong>Zephyr Module</strong>
 <span>Use a West-managed module with Kconfig options.</span>
 <em>Best for Zephyr-based firmware.</em>
 </a>
 
-<a class="card start-card" href="neuralspot-x/">
+<a class="card start-card" href="neuralspot-x.html">
 <span class="start-card-label">HELIA stack</span>
 <strong>neuralSPOT-X</strong>
 <span>Consume heliaCORE through the NSX CMake graph.</span>
@@ -60,10 +60,11 @@ All artifacts are built with **GCC 13.2 (GNU Arm Embedded)** for
 **`cortex-m0+`**, **`cortex-m4`** (with FPv4 SP-D16), and
 **`cortex-m55`** (with MVE).
 
-!!! note "Artifact CPU names"
-	Release artifact names use `cortex-m0`, `cortex-m4`, and `cortex-m55`.
-	The `cortex-m0` artifact is the Cortex-M0/M0+ baseline package used for
-	Apollo targets in that class.
+:::{note} Artifact CPU names
+Release artifact names use `cortex-m0`, `cortex-m4`, and `cortex-m55`. The
+`cortex-m0` artifact is the Cortex-M0/M0+ baseline package used for Apollo
+targets in that class.
+:::
 
 For API and operator coverage, see [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md)
 and [Doxygen API](../reference/doxygen.md).

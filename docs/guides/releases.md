@@ -46,9 +46,10 @@ Every GitHub Release contains:
 
 `<cpu>` is one of `cortex-m0`, `cortex-m4`, `cortex-m55`.
 
-!!! note "Cortex-M0/M0+ naming"
-   The release asset name uses `cortex-m0` for the baseline ARMv6-M package.
-   Use that artifact for Cortex-M0/M0+ class Apollo targets.
+:::{note} Cortex-M0/M0+ naming
+The release asset name uses `cortex-m0` for the baseline ARMv6-M package. Use
+that artifact for Cortex-M0/M0+ class Apollo targets.
+:::
 
 ## See also
 

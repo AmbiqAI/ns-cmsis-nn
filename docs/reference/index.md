@@ -1,23 +1,23 @@
 # Reference
 
-Reference material for the heliaCORE C API, generated API documentation, and
-operator coverage summaries.
+Reference material for the heliaCORE C API, generated Sphinx API documentation,
+and operator coverage summaries.
 
 <div class="doc-card-grid">
 
-<a class="doc-card" href="../api/">
+<a class="doc-card" href="../api/library_root.html">
 <span>Generated API</span>
 <strong>Open C API Reference</strong>
-<em>Generated Doxygen HTML for exact C functions, structs, groups, and inherited CMSIS-NN-compatible documentation.</em>
+<em>Sphinx API pages generated from Doxygen XML for exact C functions, structs, groups, and inherited CMSIS-NN-compatible documentation.</em>
 </a>
 
-<a class="doc-card" href="doxygen/">
+<a class="doc-card" href="doxygen.html">
 <span>API docs</span>
 <strong>Doxygen API</strong>
 <em>Where the generated C API reference comes from, what it includes, and how HTML/XML output is used.</em>
 </a>
 
-<a class="doc-card" href="../guides/operator-kernel-coverage/">
+<a class="doc-card" href="../guides/operator-kernel-coverage.html">
 <span>Coverage</span>
 <strong>Operator & Kernel Coverage</strong>
 <em>Concise operator-family, dtype, and backend overview before you dive into function signatures.</em>
@@ -35,12 +35,13 @@ operator coverage summaries.
 
 | Need | Start here |
 |---|---|
-| Exact function signatures and Doxygen comments | <a href="../api/">Generated C API Reference</a> |
+| Exact function signatures and Doxygen comments | <a href="../api/library_root.html">Generated C API Reference</a> |
 | How generated API docs are produced | [Doxygen API](doxygen.md) |
 | High-level operator and backend coverage | [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md) |
 | Inherited CMSIS-NN behavior and upstream context | [Arm CMSIS-NN Reference](https://arm-software.github.io/CMSIS-NN/latest/) |
 
-The generated heliaCORE API reference is built from this repository's headers so
-Ambiq-specific kernels and integration APIs are documented alongside inherited
-CMSIS-NN-compatible functions. See [Why heliaCORE](../why.md#what-stays-compatible)
-for the compatibility and attribution posture.
+The generated heliaCORE API reference is built from this repository's headers by
+Doxygen, then rendered inside Sphinx through Breathe and Exhale. Ambiq-specific
+kernels and integration APIs are documented alongside inherited CMSIS-NN-compatible
+functions. See [Why heliaCORE](../why.md#what-stays-compatible) for the
+compatibility and attribution posture.

@@ -2,34 +2,33 @@
 set -euo pipefail
 
 site_dir="site"
-doxygen_html_dir="Documentation/html"
-api_path="api"
+sphinx_src="docs"
+doxygen_xml_dir="Documentation/xml"
 doxygen_version="${DOXYGEN_VERSION:-1.9.6}"
 install_doxygen=0
 generate_doxygen=1
-mkdocs_cmd="${MKDOCS:-mkdocs}"
+sphinx_build_cmd="${SPHINXBUILD:-sphinx-build}"
 
 usage() {
   cat <<'USAGE'
-Usage: build_combined_docs.sh [options]
+Usage: build_sphinx_docs.sh [options]
 
-Build the combined heliaCORE documentation artifact:
-  1. Generate Doxygen HTML/XML.
-  2. Build MkDocs with strict validation.
-  3. Mount generated Doxygen HTML under site/api/.
-  4. Verify the mounted API entrypoint exists.
+Build the heliaCORE documentation artifact:
+  1. Generate Doxygen HTML/XML from the C headers and sources.
+  2. Build Sphinx with Breathe/Exhale using the generated Doxygen XML.
+  3. Verify the generated Sphinx API entrypoint exists.
 
 Options:
   --install-doxygen          Download Doxygen 1.9.6 to /tmp if it is not on PATH.
   --doxygen-version VERSION  Doxygen version to require/install (default: 1.9.6).
-  --skip-doxygen             Reuse an existing Documentation/html/ output.
-  --site-dir DIR             MkDocs output directory (default: site).
-  --doxygen-html-dir DIR     Generated Doxygen HTML directory (default: Documentation/html).
-  --api-path PATH            Mount path inside the MkDocs site (default: api).
+  --skip-doxygen             Reuse an existing Documentation/xml/ output.
+  --site-dir DIR             Sphinx HTML output directory (default: site).
+  --sphinx-src DIR           Sphinx source directory (default: docs).
+  --doxygen-xml-dir DIR      Generated Doxygen XML directory (default: Documentation/xml).
   -h, --help                 Show this help.
 
 Environment:
-  MKDOCS                     MkDocs executable (default: mkdocs).
+  SPHINXBUILD                sphinx-build executable (default: sphinx-build).
   DOXYGEN_URL                Override Doxygen tarball URL.
 USAGE
 }
@@ -50,12 +49,12 @@ while [[ $# -gt 0 ]]; do
       site_dir="$2"
       shift
       ;;
-    --doxygen-html-dir)
-      doxygen_html_dir="$2"
+    --sphinx-src)
+      sphinx_src="$2"
       shift
       ;;
-    --api-path)
-      api_path="$2"
+    --doxygen-xml-dir)
+      doxygen_xml_dir="$2"
       shift
       ;;
     -h|--help)
@@ -125,29 +124,29 @@ ensure_doxygen() {
 
 if [[ ${generate_doxygen} -eq 1 ]]; then
   ensure_doxygen
-  log "Generating Doxygen API reference"
+  log "Generating Doxygen API XML"
   ./Documentation/Doxygen/gen_doc.sh -s
 else
-  log "Skipping Doxygen generation; reusing ${doxygen_html_dir}"
+  log "Skipping Doxygen generation; reusing ${doxygen_xml_dir}"
 fi
 
-if [[ ! -f "${doxygen_html_dir}/index.html" ]]; then
-  echo "Doxygen HTML index not found: ${doxygen_html_dir}/index.html" >&2
+if [[ ! -f "${doxygen_xml_dir}/index.xml" ]]; then
+  echo "Doxygen XML index not found: ${doxygen_xml_dir}/index.xml" >&2
   exit 1
 fi
 
-log "Building MkDocs site"
-"${mkdocs_cmd}" build --strict
+mkdir -p "${sphinx_src}/api"
+find "${sphinx_src}/api" -mindepth 1 ! -name .gitignore -exec rm -rf {} +
 
-log "Mounting Doxygen HTML under ${site_dir}/${api_path}"
-bash scripts/docs/mount_doxygen_html.sh "${doxygen_html_dir}" "${site_dir}" "${api_path}"
+log "Building Sphinx site"
+"${sphinx_build_cmd}" -b html -W --keep-going "${sphinx_src}" "${site_dir}"
 
-api_index="${site_dir%/}/${api_path#/}/index.html"
+api_index="${site_dir%/}/api/library_root.html"
 if [[ ! -f "${api_index}" ]]; then
-  echo "Mounted API index not found: ${api_index}" >&2
+  echo "Generated Sphinx API index not found: ${api_index}" >&2
   exit 1
 fi
 
-log "Combined docs built successfully"
-printf 'MkDocs site: %s\n' "${site_dir}"
-printf 'Doxygen API: %s\n' "${api_index}"
+log "Sphinx docs built successfully"
+printf 'Sphinx site: %s\n' "${site_dir}"
+printf 'Generated API: %s\n' "${api_index}"

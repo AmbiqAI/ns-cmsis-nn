@@ -6,25 +6,25 @@ contracts.
 
 <div class="doc-card-grid">
 
-<a class="doc-card" href="operator-kernel-coverage/">
+<a class="doc-card" href="operator-kernel-coverage.html">
 <span>Coverage</span>
 <strong>Operator & Kernel Coverage</strong>
 <em>Operator families, data types, backend paths, and where to find exact C APIs.</em>
 </a>
 
-<a class="doc-card" href="dsp-mve-coverage/">
+<a class="doc-card" href="dsp-mve-coverage.html">
 <span>Acceleration</span>
 <strong>DSP/MVE Coverage</strong>
 <em>Why MVE is a primary target where available, and where DSP remains important.</em>
 </a>
 
-<a class="doc-card" href="releases/">
+<a class="doc-card" href="releases.html">
 <span>Delivery</span>
 <strong>Versioning & Releases</strong>
 <em>Release tags, generated artifacts, release-please, and what ships together.</em>
 </a>
 
-<a class="doc-card" href="toolchains/">
+<a class="doc-card" href="toolchains.html">
 <span>Build contract</span>
 <strong>Toolchain Pinning</strong>
 <em>Compiler IDs, CPU flags, ABI checks, and what CMake validates for you.</em>

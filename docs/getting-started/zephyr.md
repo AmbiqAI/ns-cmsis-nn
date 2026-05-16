@@ -45,9 +45,10 @@ tarball directory (the one containing `lib/libns-cmsis-nn.a` and
 `include/`). The module wires it in as an `IMPORTED STATIC` library
 and applies the include directories via `zephyr_include_directories`.
 
-!!! tip "Toolchain alignment"
-    Zephyr's GCC must produce ABI-compatible objects with the archive's
-    toolchain. The prebuilts ship with GCC 13.2 for the supported arches.
+:::{tip} Toolchain alignment
+Zephyr's GCC must produce ABI-compatible objects with the archive's toolchain.
+The prebuilts ship with GCC 13.2 for the supported arches.
+:::
 
 ## 4. Verify the module wiring
 

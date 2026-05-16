@@ -1,4 +1,4 @@
-# Doxygen API
+# Doxygen, Breathe, And Exhale
 
 heliaCORE already carries an inherited Doxygen pipeline under
 `Documentation/Doxygen/`. That pipeline generates the detailed C API reference
@@ -18,63 +18,63 @@ and Ambiq additions.
 | Generated HTML output | `Documentation/html/` |
 | Generated XML metadata | `Documentation/xml/` |
 
-The existing Doxygen flow remains the source of truth for detailed C API
-documentation. The docs workflow now generates that HTML and mounts it under
-<a href="../../api/">`/api/`</a> in the combined MkDocs site. Doxygen also emits
-compact XML metadata, which gives us a clean path to a future native MkDocs
-import.
+The existing Doxygen flow remains the source of truth for detailed public C API
+documentation. The docs workflow now generates XML metadata from the public
+headers and renders it into the Sphinx site through Breathe and Exhale, producing a native
+<a href="../api/library_root.html">C API reference</a> in the same navigation,
+theme, and search experience as the rest of the site.
 
 ## Automated integration path
 
-The first public integration keeps Doxygen HTML authoritative and mounts it
-beside MkDocs:
+The public docs build keeps Doxygen as the parser and source of truth, then uses
+Sphinx for the customer-facing site:
 
-1. `scripts/docs/build_combined_docs.sh --install-doxygen` ensures Doxygen
-  1.9.6 is available, then runs `./Documentation/Doxygen/gen_doc.sh -s`.
-2. The same helper runs `mkdocs build --strict` to build the HELIA-styled site.
-3. The helper calls `scripts/docs/mount_doxygen_html.sh` to copy
-  `Documentation/html/` into `site/api/`.
-4. The helper verifies `site/api/index.html` exists before the workflow uploads
-  the combined `site/` artifact for review or deployment.
+1. `scripts/docs/build_sphinx_docs.sh --install-doxygen` ensures Doxygen 1.9.6
+  is available, then runs `./Documentation/Doxygen/gen_doc.sh -s`.
+2. Doxygen emits `Documentation/xml/index.xml` and related XML files.
+3. `sphinx-build` reads `docs/conf.py`, where Breathe points at the XML output
+  and Exhale generates the API page tree under `docs/api/`.
+4. The helper verifies `site/api/library_root.html` exists before the workflow
+  uploads the `site/` artifact for review or deployment.
 
 The same command works locally when network access is available:
 
 ```bash
-bash scripts/docs/build_combined_docs.sh --install-doxygen
+bash scripts/docs/build_sphinx_docs.sh --install-doxygen
 python3 -m http.server 8012 --directory site
 ```
 
-This is intentionally conservative: it preserves Arm/CMSIS attribution and the
-existing Doxygen output exactly. The visual style differs from MkDocs, but the
-API reference remains complete and generated from the repository source.
+This keeps Arm/CMSIS attribution attached to the generated public API comments
+while making the API reference part of the same Sphinx site as the guides and
+getting started material.
 
-<p><a class="md-button md-button--primary" href="../../api/">Open generated C API reference</a></p>
+<p><a class="hc-button hc-button-primary" href="../api/library_root.html">Open generated C API reference</a></p>
 
 ## Current limits
 
-The MkDocs site does not yet render individual C functions, structs, or Doxygen
-groups natively. Use the mounted Doxygen HTML for exact signatures and
-per-kernel behavior while we validate whether XML-driven MkDocs pages can cover
-the CMSIS-NN macro-heavy headers reliably.
+The Sphinx site now renders individual C functions, structs, files, and Doxygen
+groups from XML. The generated output still depends on how clearly Doxygen can
+understand the CMSIS-NN macro-heavy headers, so customer-facing guide pages
+remain important for explaining operator coverage and integration paths.
 
-The current MkDocs pages are intentionally high-level:
+The hand-written Sphinx guide pages are intentionally high-level:
 
 - [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md) explains
   the coverage shape by operator family.
 - [DSP/MVE Coverage](../guides/dsp-mve-coverage.md) explains why Ambiq focuses
   on MVE, DSP, and graph glue operators.
-- This page documents how the generated API reference should be connected to
-  the MkDocs site.
+- This page documents how the generated API reference connects to the Sphinx
+  site.
 
 ## Integration roadmap
 
 | Phase | Goal | Notes |
 |---|---|---|
-| 1 | Publish generated Doxygen HTML under the same Pages site. | Implemented as `/api/` in the combined docs artifact. |
-| 2 | Deploy the combined MkDocs + Doxygen artifact to Pages. | Requires deciding when to enable the gated deploy job. |
-| 3 | Validate Doxygen XML in CI. | Confirms the macro-heavy CMSIS-NN headers emit complete, stable metadata. |
-| 4 | Prototype native MkDocs API pages from XML. | Candidate approaches include `mkdoxy` or a small purpose-built XML importer. |
-| 5 | Generate coverage indexes from XML/source metadata. | Cross-link operator families to exact functions, files, dtypes, and acceleration paths. |
+| 1 | Build Sphinx pages from Doxygen XML. | Implemented with Breathe and Exhale. |
+| 2 | Deploy the Sphinx artifact to Pages. | Requires deciding when to enable the gated deploy job. |
+| 3 | Tune generated API grouping and titles. | Improve customer navigation through function groups and inherited CMSIS-NN material. |
+| 4 | Generate coverage indexes from XML/source metadata. | Cross-link operator families to exact functions, files, dtypes, and acceleration paths. |
+| 5 | Consider disabling standalone Doxygen HTML. | Once Sphinx output is accepted, XML-only generation may be enough for the website. |
 
 ## API groups
 

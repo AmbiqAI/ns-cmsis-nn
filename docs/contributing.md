@@ -32,11 +32,12 @@ to manage versions. Your PR title (the squash-merge commit subject)
 | `build`  | no                  | Build system / packaging.                            |
 | `chore`  | no                  | Everything else.                                     |
 
-!!! warning "Avoid XML-reserved characters in titles"
-    Don't put a literal `&`, `<`, or `>` in your PR title. release-please
-    will faithfully copy it into `CHANGELOG.md` and the GitHub Release
-    body — and historically that has tripped up downstream artifact
-    generators. Use the word (`and`) or HTML entity if needed.
+:::{warning} Avoid XML-reserved characters in titles
+Don't put a literal `&`, `<`, or `>` in your PR title. release-please will
+faithfully copy it into `CHANGELOG.md` and the GitHub Release body, and
+historically that has tripped up downstream artifact generators. Use the word
+(`and`) or HTML entity if needed.
+:::
 
 ## Tests
 
