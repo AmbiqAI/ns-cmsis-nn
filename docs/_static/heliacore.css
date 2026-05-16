@@ -66,8 +66,19 @@ body[data-theme="dark"] {
   }
 }
 
-.sidebar-logo {
-  max-width: 178px;
+.sidebar-logo-container {
+  display: none;
+}
+
+.sidebar-sticky::after {
+  display: block;
+  flex: 0 0 auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin: 0.9rem auto 1.15rem;
+  background: url("helia-core-icon-color.svg") center / contain no-repeat;
+  content: "";
+  opacity: 0.86;
 }
 
 .sidebar-drawer {
