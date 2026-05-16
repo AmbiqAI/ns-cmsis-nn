@@ -46,8 +46,10 @@ tarball directory (the one containing `lib/libns-cmsis-nn.a` and
 and applies the include directories via `zephyr_include_directories`.
 
 :::{tip} Toolchain alignment
-Zephyr's GCC must produce ABI-compatible objects with the archive's toolchain.
-The prebuilts ship with GCC 13.2 for the supported arches.
+Your Zephyr toolchain must produce ABI-compatible objects with the archive's
+CPU/FPU flags, float ABI, and calling convention. The prebuilts ship with GCC
+13.2 for the supported arches, but ATfE can consume the archive when those ABI
+settings match.
 :::
 
 ## 4. Verify the module wiring

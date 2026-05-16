@@ -27,7 +27,7 @@ contracts.
 <a class="doc-card" href="toolchains.html">
 <span>Build contract</span>
 <strong>Toolchain Pinning</strong>
-<em>ATfE recommendation, GCC prebuilt constraints, CPU flags, and CMake validation.</em>
+<em>ATfE recommendation, GCC prebuilt ABI checks, CPU flags, and CMake validation.</em>
 </a>
 
 </div>

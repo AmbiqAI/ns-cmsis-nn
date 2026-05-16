@@ -46,9 +46,10 @@ If your target doesn't match one of these, switch to the `Source`
 Cvariant — the kernels will be recompiled by your toolchain.
 
 :::{warning} Toolchain note
-The prebuilt `.a` files are GCC-only today. If your project uses Arm Compiler 6
-(ARMClang), select the `Source` Cvariant. Mixing GCC-built archives into an
-ARMClang link will not work.
+The prebuilt `.a` files are GCC-built today. ATfE or Arm Compiler 6 projects can
+link a GCC-built C archive when the CPU/FPU flags, float ABI, and calling
+convention match, but the `Source` Cvariant is recommended when you want your
+project toolchain to optimize and qualify the kernels directly.
 :::
 
 ## Verify the selection
@@ -57,8 +58,8 @@ Before building firmware, confirm your project has exactly one `Ambiq::NN Lib`
 component selected:
 
 - Use `Source` when your IDE/toolchain should compile the kernels.
-- Use `Prebuilt` only when the target architecture and GCC ABI match the pack's
-    prebuilt archive.
+- Use `Prebuilt` only when the target architecture and ABI settings match the
+    pack's prebuilt archive.
 
 For CMSIS-Toolbox projects, inspect the resolved component list after pack
 resolution and confirm the selected component includes the intended `Cvariant`.

@@ -9,16 +9,17 @@ depending on model shape, data layout, and enabled accelerator path.
 
 The prebuilt artifacts heliaCORE ships today are still **toolchain-stamped** GCC
 packages: the file name, the manifest, and the CMake config all record the
-compiler ID and version they were built with. Use those prebuilts when you want
-the released GCC package. Build from source with ATfE when you want the
-recommended performance-oriented compiler path.
+compiler ID and version they were built with. A GCC-built C static archive can
+be linked into an ATfE application when the target CPU, FPU, float ABI, and AAPCS
+calling convention match. Build from source with ATfE when you want ATfE to
+optimize the heliaCORE kernels themselves.
 
 ## Recommended toolchain
 
 | Use case | Recommended choice | Notes |
 |---|---|---|
 | New Ambiq/HELIA source builds | Arm Toolchain for Embedded (ATfE) | LLVM/Clang based, open source, and preferred for Cortex-M55/MVE optimization work. |
-| Released prebuilt tarballs | GNU Arm Embedded package shipped by the release | Current release assets are named and validated as GCC packages. Do not mix a GCC-built `.a` with a Clang/ATfE application. |
+| Released prebuilt tarballs | GNU Arm Embedded package shipped by the release | Current release assets are named and validated as GCC packages. ATfE can link the archive when ABI flags match, but the CMake package records the GCC provenance. |
 | Existing GCC-based firmware | GNU Arm Embedded | Keep using GCC when that is the qualified project compiler, but treat ATfE as the performance-forward migration path. |
 
 ## What gets pinned
@@ -51,7 +52,7 @@ At configure time, `find_package(ns-cmsis-nn)` checks:
 | Check                | Behavior on mismatch                              |
 |----------------------|---------------------------------------------------|
 | `-mcpu` flag         | `FATAL_ERROR` listing expected vs actual.         |
-| `CMAKE_C_COMPILER_ID`| `FATAL_ERROR` listing expected vs actual.         |
+| `CMAKE_C_COMPILER_ID`| `FATAL_ERROR` for stamped SDK tarballs when the consumer compiler ID differs from the recorded build compiler. This is a conservative provenance check, not a statement that ATfE and GCC objects are ABI-incompatible. |
 | Version (if pinned)  | `FATAL_ERROR` (standard CMake VERSION semantics). |
 
 ## CMake `COMPILER_ID` reference
@@ -66,16 +67,19 @@ heliaCORE follows the canonical CMake names:
 | Arm Compiler 5 (armcc, EOL)    | `ARMCC`               |
 | Other embedded LLVM/Clang builds | `Clang`             |
 
-The prebuilts today are **GCC only**. Building from source under ATfE/Clang or
-ARMClang works when your project supplies that toolchain, but mixing a GCC-built
-`.a` into an ATfE, Clang, or ARMClang link does not. `find_package` is strict so
-this mismatch fails during configure instead of becoming a device-side runtime
-fault.
+The prebuilts today are **GCC-stamped**. Building from source under ATfE/Clang
+or ARMClang works when your project supplies that toolchain. Linking the
+GCC-built archive into an ATfE application can also be valid when the archive and
+application use compatible Arm embedded ABI settings. The CMake config's
+compiler-ID check is intentionally conservative because it cannot prove that the
+rest of the application was built with compatible options.
 
 ## Why so strict?
 
-A static archive baked with `-mcpu=cortex-m4 -mfloat-abi=hard` that
-gets linked into a `cortex-m0+` image will silently produce a binary
-that hard-faults at the first FP instruction. The strict check trades
-a configure-time error for a hard-to-debug runtime crash on a device
-in a customer's hands.
+A static archive baked with `-mcpu=cortex-m4 -mfloat-abi=hard` that gets linked
+into a `cortex-m0+` image can silently produce a binary that hard-faults at the
+first unsupported instruction. The strict CPU check trades a configure-time error
+for a hard-to-debug runtime crash on a device in a customer's hands. The compiler
+ID check is about package provenance and qualification: if you intentionally mix
+ATfE application code with a GCC-built heliaCORE archive, validate the CPU/FPU,
+float ABI, and calling convention as part of your integration.

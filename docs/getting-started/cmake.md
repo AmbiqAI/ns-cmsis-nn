@@ -41,11 +41,14 @@ match the archive:
   get a `FATAL_ERROR` with the expected vs actual value.
 - **Compiler ID mismatch** — the archive records the `CMAKE_C_COMPILER_ID`
   it was built with (e.g. `GNU` for GCC, `ARMClang` for Arm Compiler 6).
-  Mixing toolchains is rejected unless you opt in explicitly.
+  The packaged CMake config rejects a different consumer compiler ID as a
+  conservative provenance check. ATfE can still link a GCC-built C archive when
+  the Arm embedded ABI settings match.
 
-This is intentional: a `.a` built for `cortex-m4` with GCC will silently
-mis-link against an Arm Compiler 6 firmware target, and we'd rather you
-hear about it at configure time than during a hard fault.
+This is intentional for packaged SDK consumption: a `.a` built for the wrong CPU
+or float ABI can fail only after it reaches a device, and compiler provenance is
+part of release qualification. For performance-oriented ATfE builds, building
+heliaCORE from source lets ATfE optimize the kernels directly.
 
 ## 4. Verify the integration
 
@@ -64,8 +67,9 @@ In the configure or verbose build output, look for:
 - The extracted package's `include/` directory in the compiler include paths.
 - The package's `lib/libns-cmsis-nn.a` in the final link command.
 
-If CMake reports a CPU or compiler mismatch, switch to the matching release
-artifact or build heliaCORE from source with your project's toolchain.
+If CMake reports a CPU mismatch, switch to the matching release artifact. If it
+reports a compiler mismatch and you want ATfE to optimize the kernels, build
+heliaCORE from source with your project's toolchain.
 
 ## Reference
 
