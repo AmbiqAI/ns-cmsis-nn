@@ -13,10 +13,9 @@ copyright: >-
 theme:
   name: material
   language: en
-  # Header mark + browser favicon. The honeycomb icon works in both
-  # light and dark schemes; the full wordmark is shown on the landing
-  # page (with light/dark variants) rather than crowding the header.
-  logo: assets/helia-core-icon-color.svg
+  # Header mark + browser favicon. The full wordmark is shown on the
+  # landing page (with light/dark variants) rather than crowding the header.
+  logo: assets/helia-core-icon-white.png
   favicon: assets/helia-core-icon-color.svg
   font:
     text: Inter
