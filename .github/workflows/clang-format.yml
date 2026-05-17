@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+
+name: clang-format
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Base ref used for changed-file detection.
+        required: false
+        default: origin/main
+      head_ref:
+        description: Head ref used for changed-file detection.
+        required: false
+        default: HEAD
+  pull_request:
+    paths:
+      - ".clang-format"
+      - ".pre-commit-config.yaml"
+      - ".github/workflows/clang-format.yml"
+      - "scripts/check_clang_format_changed.sh"
+      - "Include/**"
+      - "Source/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changed-files:
+    name: changed C/H files
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pre-commit
+        run: python -m pip install pre-commit==3.8.0
+
+      - name: Validate pre-commit config
+        run: pre-commit validate-config
+
+      - name: Check formatting for changed C/H files (PR)
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha }}
+          HEAD_REF: HEAD
+        run: bash scripts/check_clang_format_changed.sh "${BASE_REF}" "${HEAD_REF}"
+
+      - name: Check formatting for changed C/H files (manual)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          BASE_REF: ${{ inputs.base_ref }}
+          HEAD_REF: ${{ inputs.head_ref }}
+        run: bash scripts/check_clang_format_changed.sh "${BASE_REF}" "${HEAD_REF}"

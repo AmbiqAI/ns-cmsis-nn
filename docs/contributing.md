@@ -116,6 +116,30 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+## Formatting
+
+Source and public header files under `Source/` and `Include/` use the checked-in
+`.clang-format`. The repository intentionally does not require a one-shot format
+baseline across all inherited CMSIS-NN sources; instead, formatting is enforced
+only on files touched by a PR so the tree converges gradually without creating a
+large upstream-sync diff.
+
+Install the optional pre-commit hook to format staged C/H files before commit:
+
+```bash
+python -m pip install pre-commit
+pre-commit install
+```
+
+The dev container installs and enables this hook during setup.
+
+To check the same changed-file range CI checks:
+
+```bash
+python -m pip install pre-commit
+bash scripts/check_clang_format_changed.sh origin/main HEAD
+```
+
 ## Reporting bugs
 
 Open an issue at
