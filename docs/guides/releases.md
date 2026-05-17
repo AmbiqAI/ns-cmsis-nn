@@ -7,9 +7,9 @@ to manage versions. Every merge to `main` triggers `.github/workflows/release.ym
    tag, decides whether to open a "Release PR" (bumping the version),
    or — when that PR is itself merged — to create a tag and a GitHub
    Release.
-2. **publish-staticlibs** builds `libns-cmsis-nn-<cpu>-<version>.a` and
-   the SDK tarball for each Cortex-M target, uploads them as Release
-   assets, and writes per-arch SHA-256 checksums.
+2. **publish-staticlibs** builds static libraries and SDK tarballs for each
+   Cortex-M target across GCC, ATfE, and armclang, then publishes SDK tarballs
+   plus per-toolchain staticlib bundles with SHA-256 checksums.
 3. **publish-ci-image** builds and pushes
    `ghcr.io/ambiqai/ns-cmsis-nn-ci:vX.Y.Z` so consumers can pin a
    reproducible build environment.
@@ -40,11 +40,12 @@ Every GitHub Release contains:
 | Asset                                                | Purpose                       |
 |------------------------------------------------------|-------------------------------|
 | `Ambiq.NS-CMSIS-NN.<version>.pack`                   | CMSIS-Pack                    |
-| `ns-cmsis-nn-<cpu>-gcc-<version>.tar.gz`             | SDK tarball (CMake users)     |
-| `libns-cmsis-nn-<cpu>-<version>.a`                   | Bare static archive           |
+| `ns-cmsis-nn-<cpu>-<toolchain>-<version>.tar.gz`     | SDK tarball (CMake users)     |
+| `ns-cmsis-nn-staticlibs-<toolchain>-<version>.zip`   | Bare static archives by CPU   |
 | `*.sha256`                                           | SHA-256 of each artifact      |
 
 `<cpu>` is one of `cortex-m0`, `cortex-m4`, `cortex-m55`.
+`<toolchain>` is one of `gcc`, `atfe`, `armclang`.
 
 :::{note} Cortex-M0/M0+ naming
 The release asset name uses `cortex-m0` for the baseline ARMv6-M package. Use
@@ -55,5 +56,5 @@ that artifact for Cortex-M0/M0+ class Apollo targets.
 
 - Maintainer release notes in [Contributing](../contributing.md#maintainer-release-notes)
    explain how to recover when the pipeline fails.
-- Toolchain identity is recorded in `ns-cmsis-nn-manifest.json` inside
+- Toolchain identity is recorded in `manifest.json` inside
   each tarball. See [Toolchain Pinning](toolchains.md).

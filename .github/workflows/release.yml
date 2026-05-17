@@ -80,8 +80,10 @@ jobs:
           echo "VERSION=$version" >> "$GITHUB_OUTPUT"
 
   publish-staticlibs:
-    # Cross-compile cmsis-nn as a static library for cortex-m0 / m4 / m55,
-    # smoke-link each, and upload to the GitHub Release. Mirrors M3 #167.
+    # Cross-compile cmsis-nn as static libraries for cortex-m0 / m4 / m55
+    # across the supported release toolchains. Uploads workflow artefacts for
+    # downstream release jobs; publish-staticlib-bundles owns GitHub Release
+    # uploads so the release page does not grow loose .a/.sha256 pairs.
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     needs: release-please
     runs-on: ubuntu-latest
@@ -89,76 +91,155 @@ jobs:
       fail-fast: false
       matrix:
         target_cpu: [cortex-m0, cortex-m4, cortex-m55]
+        toolchain: [gcc, atfe, armclang]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
       - name: Install GNU Arm Embedded toolchain
+        if: ${{ matrix.toolchain == 'gcc' }}
         uses: carlosperate/arm-none-eabi-gcc-action@v1
         with:
           release: 13.2.Rel1
 
+      - name: Install LLVM archive tools
+        if: ${{ matrix.toolchain == 'armclang' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends llvm
+
+      - name: Fetch external toolchain
+        if: ${{ matrix.toolchain != 'gcc' }}
+        id: fetch_toolchain
+        run: |
+          bash scripts/fetch_toolchain.sh \
+            --manifest "ci/toolchains/${{ matrix.toolchain }}.json" \
+            --platform linux-x86_64 \
+            --outdir "${RUNNER_TEMP}/toolchains"
+
       - name: Build static library
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
+          TOOLCHAIN: ${{ matrix.toolchain }}
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
           bash scripts/build_staticlib.sh \
             --target-cpu "$TARGET_CPU" \
             --version    "$VERSION" \
-            --outdir     "./output/$TARGET_CPU"
+            --toolchain  "$TOOLCHAIN" \
+            --toolchain-root "$TOOLCHAIN_ROOT" \
+            --outdir     "./output/$TOOLCHAIN/$TARGET_CPU"
 
-      - name: Smoke-link
+      - name: Smoke-verify static library
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
+          TOOLCHAIN: ${{ matrix.toolchain }}
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
-          lib="./output/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
+          if [[ "$TOOLCHAIN" == "gcc" ]]; then
+            lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
+          else
+            lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TOOLCHAIN}-${TARGET_CPU}-${VERSION}.a"
+          fi
           bash scripts/smoke/smoke_staticlib.sh \
             --target-cpu "$TARGET_CPU" \
+            --toolchain  "$TOOLCHAIN" \
+            --toolchain-root "$TOOLCHAIN_ROOT" \
             --library    "$lib" \
-            --outdir     "./output/${TARGET_CPU}/smoke"
+            --outdir     "./output/${TOOLCHAIN}/${TARGET_CPU}/smoke"
 
       - name: Build SDK tarball
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
+          TOOLCHAIN: ${{ matrix.toolchain }}
+          TOOLCHAIN_VERSION: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
-          lib="./output/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
+          if [[ "$TOOLCHAIN" == "gcc" ]]; then
+            lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
+            toolchain_version="13.2.Rel1"
+          else
+            lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TOOLCHAIN}-${TARGET_CPU}-${VERSION}.a"
+            toolchain_version="$TOOLCHAIN_VERSION"
+          fi
           bash scripts/build_sdk_tarball.sh \
             --target-cpu         "$TARGET_CPU" \
             --version            "$VERSION"    \
             --staticlib          "$lib"        \
-            --toolchain          gcc           \
-            --toolchain-version  13.2.Rel1     \
-            --outdir             "./output/${TARGET_CPU}"
+            --toolchain          "$TOOLCHAIN"  \
+            --toolchain-version  "$toolchain_version" \
+            --outdir             "./output/${TOOLCHAIN}/${TARGET_CPU}"
 
       - name: Upload artefacts (cross-job)
         # Pack-prebuilt job (M3 #167 follow-up) downloads these.
         uses: actions/upload-artifact@v4
         with:
-          name: ns-cmsis-nn-staticlib-${{ matrix.target_cpu }}
+          name: ns-cmsis-nn-staticlib-${{ matrix.toolchain }}-${{ matrix.target_cpu }}
           path: |
-            ./output/${{ matrix.target_cpu }}/libns-cmsis-nn-*.a
-            ./output/${{ matrix.target_cpu }}/libns-cmsis-nn-*.a.sha256
-            ./output/${{ matrix.target_cpu }}/ns-cmsis-nn-*.tar.gz
-            ./output/${{ matrix.target_cpu }}/ns-cmsis-nn-*.tar.gz.sha256
+            ./output/${{ matrix.toolchain }}/${{ matrix.target_cpu }}/libns-cmsis-nn-*.a
+            ./output/${{ matrix.toolchain }}/${{ matrix.target_cpu }}/libns-cmsis-nn-*.a.sha256
+            ./output/${{ matrix.toolchain }}/${{ matrix.target_cpu }}/ns-cmsis-nn-*.tar.gz
+            ./output/${{ matrix.toolchain }}/${{ matrix.target_cpu }}/ns-cmsis-nn-*.tar.gz.sha256
           if-no-files-found: error
           retention-days: 7
 
-      - name: Upload to GitHub Release
+  publish-staticlib-bundles:
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    needs: [release-please, publish-staticlibs]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download staticlib artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./_artifacts
+          pattern: ns-cmsis-nn-staticlib-*
+
+      - name: Build per-toolchain staticlib bundles
+        env:
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p ./release-assets
+          for toolchain in gcc atfe armclang; do
+            bundle="ns-cmsis-nn-staticlibs-${toolchain}-${VERSION}"
+            root="./_bundle/${bundle}"
+            rm -rf "$root"
+            mkdir -p "$root"
+            printf '{\n  "schema_version": 1,\n  "package": "ns-cmsis-nn-staticlibs",\n  "version": "%s",\n  "toolchain": "%s",\n  "libraries": [\n' "$VERSION" "$toolchain" > "$root/manifest.json"
+            first=1
+            for cpu in cortex-m0 cortex-m4 cortex-m55; do
+              src_dir="./_artifacts/ns-cmsis-nn-staticlib-${toolchain}-${cpu}"
+              if [[ "$toolchain" == "gcc" ]]; then
+                src="${src_dir}/libns-cmsis-nn-${cpu}-${VERSION}.a"
+              else
+                src="${src_dir}/libns-cmsis-nn-${toolchain}-${cpu}-${VERSION}.a"
+              fi
+              [[ -f "$src" ]] || { echo "missing staticlib: $src" >&2; exit 1; }
+              mkdir -p "$root/$cpu"
+              cp "$src" "$root/$cpu/libns-cmsis-nn.a"
+              ( cd "$root/$cpu" && sha256sum libns-cmsis-nn.a > libns-cmsis-nn.a.sha256 )
+              sha="$(awk '{print $1}' "$root/$cpu/libns-cmsis-nn.a.sha256")"
+              size="$(stat -c %s "$root/$cpu/libns-cmsis-nn.a")"
+              if (( first == 0 )); then printf ',\n' >> "$root/manifest.json"; fi
+              first=0
+              printf '    { "target_cpu": "%s", "path": "%s/libns-cmsis-nn.a", "sha256": "%s", "size_bytes": %s }' "$cpu" "$cpu" "$sha" "$size" >> "$root/manifest.json"
+            done
+            printf '\n  ]\n}\n' >> "$root/manifest.json"
+            ( cd ./_bundle && zip -qr "../release-assets/${bundle}.zip" "$bundle" )
+            ( cd ./release-assets && sha256sum "${bundle}.zip" > "${bundle}.zip.sha256" )
+          done
+          find ./_artifacts -name 'ns-cmsis-nn-*.tar.gz' -exec cp {} ./release-assets/ \;
+          find ./_artifacts -name 'ns-cmsis-nn-*.tar.gz.sha256' -exec cp {} ./release-assets/ \;
+          ls -lh ./release-assets
+
+      - name: Upload SDK tarballs and staticlib bundles to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.release-please.outputs.tag_name }}
-          VERSION: ${{ needs.release-please.outputs.version }}
-          TARGET_CPU: ${{ matrix.target_cpu }}
         run: |
-          gh release upload "$TAG" \
-            "./output/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
-            "./output/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a.sha256" \
-            "./output/${TARGET_CPU}/ns-cmsis-nn-${TARGET_CPU}-gcc-${VERSION}.tar.gz" \
-            "./output/${TARGET_CPU}/ns-cmsis-nn-${TARGET_CPU}-gcc-${VERSION}.tar.gz.sha256" \
-            --clobber
+          gh release upload "$TAG" ./release-assets/* --clobber
 
   publish-pack:
     # Build the CMSIS-Pack and publish the Sphinx docs site to Pages. Runs after
@@ -204,7 +285,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: ./_artifacts
-          pattern: ns-cmsis-nn-staticlib-*
+          pattern: ns-cmsis-nn-staticlib-gcc-*
 
       - name: Stage prebuilt archives at lib/<cpu>/libns-cmsis-nn.a
         env:
@@ -213,7 +294,7 @@ jobs:
           set -euo pipefail
           mkdir -p ./lib
           for cpu in cortex-m0 cortex-m4 cortex-m55; do
-            src="./_artifacts/ns-cmsis-nn-staticlib-${cpu}/libns-cmsis-nn-${cpu}-${VERSION}.a"
+            src="./_artifacts/ns-cmsis-nn-staticlib-gcc-${cpu}/libns-cmsis-nn-${cpu}-${VERSION}.a"
             if [[ ! -f "$src" ]]; then
               echo "missing artefact: $src" >&2
               exit 1

@@ -67,7 +67,7 @@ download one integration artifact plus its matching checksum.
 
 <div class="artifact-choice artifact-choice-primary">
 <span class="artifact-choice-label">Recommended for CMake</span>
-<strong><code>ns-cmsis-nn-&lt;cpu&gt;-gcc-&lt;version&gt;.tar.gz</code></strong>
+<strong><code>ns-cmsis-nn-&lt;cpu&gt;-&lt;toolchain&gt;-&lt;version&gt;.tar.gz</code></strong>
 <span>The full SDK package: headers, source snapshot, prebuilt archive, CMake config, and manifest. This is the right starting point for custom CMake firmware.</span>
 </div>
 
@@ -79,8 +79,8 @@ download one integration artifact plus its matching checksum.
 
 <div class="artifact-choice">
 <span class="artifact-choice-label">Advanced use</span>
-<strong><code>libns-cmsis-nn-&lt;cpu&gt;-&lt;version&gt;.a</code></strong>
-<span>The bare static library only. Choose this when your build already owns include paths, CPU flags, and link wiring.</span>
+<strong><code>ns-cmsis-nn-staticlibs-&lt;toolchain&gt;-&lt;version&gt;.zip</code></strong>
+<span>Bare static libraries grouped by CPU. Choose this when your build already owns include paths, CPU flags, and link wiring.</span>
 </div>
 
 <div class="artifact-choice">
@@ -100,9 +100,9 @@ Choose the CPU name in the artifact that matches your target:
 The `cortex-m0` artifact is the Cortex-M0/M0+ baseline package used for Apollo
 targets in that class.
 
-The prebuilt artifacts are built with **GCC 13.2 (GNU Arm Embedded)**. Source
-integration paths, such as the CMSIS-Pack `Source` Cvariant or Zephyr source
-mode, compile the kernels with your project toolchain instead.
+Choose `gcc`, `atfe`, or `armclang` for the toolchain name. Source integration
+paths, such as the CMSIS-Pack `Source` Cvariant or Zephyr source mode, compile
+the kernels with your project toolchain instead.
 
 For API and operator coverage, see [Operator & Kernel Coverage](../guides/operator-kernel-coverage.md)
 and [API](../reference/api-groups.md).

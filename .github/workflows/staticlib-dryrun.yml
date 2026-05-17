@@ -5,8 +5,9 @@
 #
 # Mirrors the staticlib half of release.yml WITHOUT requiring an
 # actual release-please tag. Cross-compiles cmsis-nn for cortex-m0,
-# cortex-m4, cortex-m55, runs the smoke-link verifier on each, and
-# uploads the resulting .a files as workflow artefacts.
+# cortex-m4, cortex-m55 across GCC, ATfE, and armclang, runs the
+# smoke-link verifier on each, and uploads the resulting .a files and
+# SDK tarballs as workflow artefacts.
 #
 # Triggered manually only — verification path, not a publish path.
 # Companion to .github/workflows/pack-dryrun.yml (M3 #166).
@@ -31,66 +32,103 @@ concurrency:
 
 jobs:
   build:
-    name: ${{ matrix.target_cpu }}
+    name: ${{ matrix.toolchain }} / ${{ matrix.target_cpu }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         target_cpu: [cortex-m0, cortex-m4, cortex-m55]
+        toolchain: [gcc, atfe, armclang]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
       - name: Install GNU Arm Embedded toolchain
+        if: ${{ matrix.toolchain == 'gcc' }}
         uses: carlosperate/arm-none-eabi-gcc-action@v1
         with:
           release: 13.2.Rel1
+
+      - name: Install LLVM archive tools
+        if: ${{ matrix.toolchain == 'armclang' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends llvm
+
+      - name: Fetch external toolchain
+        if: ${{ matrix.toolchain != 'gcc' }}
+        id: fetch_toolchain
+        run: |
+          bash scripts/fetch_toolchain.sh \
+            --manifest "ci/toolchains/${{ matrix.toolchain }}.json" \
+            --platform linux-x86_64 \
+            --outdir "${RUNNER_TEMP}/toolchains"
 
       - name: Build static library
         # User-supplied inputs flow through env, never via ${{ }} into a shell
         # arg, to avoid GHA expression injection.
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
+          TOOLCHAIN: ${{ matrix.toolchain }}
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           VERSION: ${{ inputs.version }}
         run: |
           bash scripts/build_staticlib.sh \
             --target-cpu "$TARGET_CPU" \
             --version    "$VERSION" \
-            --outdir     "./output/$TARGET_CPU"
+            --toolchain  "$TOOLCHAIN" \
+            --toolchain-root "$TOOLCHAIN_ROOT" \
+            --outdir     "./output/$TOOLCHAIN/$TARGET_CPU"
 
-      - name: Smoke-link
+      - name: Smoke-verify static library
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
+          TOOLCHAIN: ${{ matrix.toolchain }}
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           VERSION: ${{ inputs.version }}
         run: |
-          lib="./output/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
+          if [[ "$TOOLCHAIN" == "gcc" ]]; then
+            lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
+          else
+            lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TOOLCHAIN}-${TARGET_CPU}-${VERSION}.a"
+          fi
           bash scripts/smoke/smoke_staticlib.sh \
             --target-cpu "$TARGET_CPU" \
+            --toolchain  "$TOOLCHAIN" \
+            --toolchain-root "$TOOLCHAIN_ROOT" \
             --library    "$lib" \
-            --outdir     "./output/${TARGET_CPU}/smoke"
+            --outdir     "./output/${TOOLCHAIN}/${TARGET_CPU}/smoke"
 
       - name: Build SDK tarball
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
+          TOOLCHAIN: ${{ matrix.toolchain }}
+          TOOLCHAIN_VERSION: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
           VERSION: ${{ inputs.version }}
         run: |
-          lib="./output/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
+          if [[ "$TOOLCHAIN" == "gcc" ]]; then
+            lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
+            toolchain_version="13.2.Rel1"
+          else
+            lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TOOLCHAIN}-${TARGET_CPU}-${VERSION}.a"
+            toolchain_version="$TOOLCHAIN_VERSION"
+          fi
           bash scripts/build_sdk_tarball.sh \
             --target-cpu         "$TARGET_CPU" \
             --version            "$VERSION"    \
             --staticlib          "$lib"        \
-            --toolchain          gcc           \
-            --toolchain-version  13.2.Rel1     \
-            --outdir             "./output/${TARGET_CPU}"
+            --toolchain          "$TOOLCHAIN"  \
+            --toolchain-version  "$toolchain_version" \
+            --outdir             "./output/${TOOLCHAIN}/${TARGET_CPU}"
 
       - name: Upload artefact
         uses: actions/upload-artifact@v4
         with:
-          name: ns-cmsis-nn-staticlib-${{ matrix.target_cpu }}-dryrun
+          name: ns-cmsis-nn-staticlib-${{ matrix.toolchain }}-${{ matrix.target_cpu }}-dryrun
           path: |
-            ./output/${{ matrix.target_cpu }}/libns-cmsis-nn-*.a
-            ./output/${{ matrix.target_cpu }}/libns-cmsis-nn-*.a.sha256
-            ./output/${{ matrix.target_cpu }}/ns-cmsis-nn-*.tar.gz
-            ./output/${{ matrix.target_cpu }}/ns-cmsis-nn-*.tar.gz.sha256
+            ./output/${{ matrix.toolchain }}/${{ matrix.target_cpu }}/libns-cmsis-nn-*.a
+            ./output/${{ matrix.toolchain }}/${{ matrix.target_cpu }}/libns-cmsis-nn-*.a.sha256
+            ./output/${{ matrix.toolchain }}/${{ matrix.target_cpu }}/ns-cmsis-nn-*.tar.gz
+            ./output/${{ matrix.toolchain }}/${{ matrix.target_cpu }}/ns-cmsis-nn-*.tar.gz.sha256
           if-no-files-found: error
           retention-days: 14

@@ -37,7 +37,7 @@ from the GitHub Release:
 ```kconfig
 CONFIG_NS_CMSIS_NN=y
 CONFIG_NS_CMSIS_NN_USE_PREBUILT=y
-CONFIG_NS_CMSIS_NN_PREBUILT_PATH="/path/to/extracted/ns-cmsis-nn-<cpu>-gcc-<version>"
+CONFIG_NS_CMSIS_NN_PREBUILT_PATH="/path/to/extracted/ns-cmsis-nn-<cpu>-<toolchain>-<version>"
 ```
 
 `CONFIG_NS_CMSIS_NN_PREBUILT_PATH` should point at the **extracted**
@@ -47,9 +47,8 @@ and applies the include directories via `zephyr_include_directories`.
 
 :::{tip} Toolchain alignment
 Your Zephyr toolchain must produce ABI-compatible objects with the archive's
-CPU/FPU flags, float ABI, and calling convention. The prebuilts ship with GCC
-13.2 for the supported arches, but ATfE can consume the archive when those ABI
-settings match.
+CPU/FPU flags, float ABI, and calling convention. Prefer the release tarball
+whose toolchain stamp matches your Zephyr compiler.
 :::
 
 ## 4. Verify the module wiring
