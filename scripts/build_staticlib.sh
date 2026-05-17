@@ -31,7 +31,7 @@ while [[ $# -gt 0 ]]; do
     --version)    VERSION="${2:?}";    shift 2 ;;
     --outdir)     OUTDIR="${2:?}";     shift 2 ;;
     --toolchain)  TOOLCHAIN="${2:?}";  shift 2 ;;
-    --toolchain-root) TOOLCHAIN_ROOT="${2:?}"; shift 2 ;;
+    --toolchain-root) TOOLCHAIN_ROOT="${2-}"; shift 2 ;;
     -h|--help)
       sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
       exit 0

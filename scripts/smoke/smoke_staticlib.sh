@@ -33,7 +33,7 @@ while [[ $# -gt 0 ]]; do
     --library)    LIBRARY="${2:?}";    shift 2 ;;
     --outdir)     OUTDIR="${2:?}";     shift 2 ;;
     --toolchain)  TOOLCHAIN="${2:?}";  shift 2 ;;
-    --toolchain-root) TOOLCHAIN_ROOT="${2:?}"; shift 2 ;;
+    --toolchain-root) TOOLCHAIN_ROOT="${2-}"; shift 2 ;;
     *)
       echo "unknown arg: $1" >&2
       exit 2

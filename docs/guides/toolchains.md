@@ -72,6 +72,10 @@ The release publishes SDK tarballs for `gcc`, `atfe`, and `armclang`. The
 CMSIS-Pack `Prebuilt` Cvariant remains GCC-built; use the `Source` Cvariant when
 your pack-based project needs ATfE or armclang to compile the kernels.
 
+Release CI smoke-links the GCC and ATfE static libraries. The armclang artifacts
+are compiled and symbol-verified in CI, with full Arm linker smoke coverage to be
+added once the armlink invocation is qualified for this package.
+
 ## Why so strict?
 
 A static archive baked with `-mcpu=cortex-m4 -mfloat-abi=hard` that gets linked

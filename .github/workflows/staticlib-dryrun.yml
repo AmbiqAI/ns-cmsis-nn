@@ -81,6 +81,9 @@ jobs:
             --outdir     "./output/$TOOLCHAIN/$TARGET_CPU"
 
       - name: Smoke-verify static library
+        # GCC and ATfE get a bare-metal link smoke test. armclang currently gets
+        # compile-plus-archive-symbol verification because Arm's linker option
+        # dialect differs from the GNU/LLD path used by the other toolchains.
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
           TOOLCHAIN: ${{ matrix.toolchain }}
