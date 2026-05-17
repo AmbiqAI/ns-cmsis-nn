@@ -12,16 +12,17 @@ Pick the tarball matching your target CPU:
 ```bash
 VERSION=7.25.0
 CPU=cortex-m4   # or cortex-m0, cortex-m55
-curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/ns-cmsis-nn-${CPU}-gcc-${VERSION}.tar.gz
-curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/ns-cmsis-nn-${CPU}-gcc-${VERSION}.tar.gz.sha256
-sha256sum -c ns-cmsis-nn-${CPU}-gcc-${VERSION}.tar.gz.sha256
-tar -xzf ns-cmsis-nn-${CPU}-gcc-${VERSION}.tar.gz -C third_party/
+TOOLCHAIN=atfe # or gcc, armclang
+curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz
+curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz.sha256
+sha256sum -c ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz.sha256
+tar -xzf ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz -C third_party/
 ```
 
 ## 2. Wire it into your CMake project
 
 ```cmake
-list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/third_party/ns-cmsis-nn-cortex-m4-gcc-7.25.0")
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/third_party/ns-cmsis-nn-cortex-m4-atfe-7.25.0")
 
 find_package(ns-cmsis-nn 7.25.0 REQUIRED CONFIG)
 
@@ -42,13 +43,12 @@ match the archive:
 - **Compiler ID mismatch** — the archive records the `CMAKE_C_COMPILER_ID`
   it was built with (e.g. `GNU` for GCC, `ARMClang` for Arm Compiler 6).
   The packaged CMake config rejects a different consumer compiler ID as a
-  conservative provenance check. ATfE can still link a GCC-built C archive when
-  the Arm embedded ABI settings match.
+  conservative provenance check.
 
 This is intentional for packaged SDK consumption: a `.a` built for the wrong CPU
 or float ABI can fail only after it reaches a device, and compiler provenance is
-part of release qualification. For performance-oriented ATfE builds, building
-heliaCORE from source lets ATfE optimize the kernels directly.
+part of release qualification. Pick the SDK tarball built with your project
+compiler, or build heliaCORE from source when you need different compiler flags.
 
 ## 4. Verify the integration
 
@@ -57,7 +57,7 @@ the expected archive:
 
 ```bash
 cmake -S . -B build \
-  -DCMAKE_PREFIX_PATH="$PWD/third_party/ns-cmsis-nn-cortex-m4-gcc-7.25.0"
+  -DCMAKE_PREFIX_PATH="$PWD/third_party/ns-cmsis-nn-cortex-m4-atfe-7.25.0"
 cmake --build build --verbose
 ```
 
@@ -73,7 +73,7 @@ heliaCORE from source with your project's toolchain.
 
 ## Reference
 
-- Manifest: `ns-cmsis-nn-manifest.json` (inside each tarball) describes
+- Manifest: `manifest.json` (inside each tarball) describes
   the exact toolchain and build flags. See [Toolchain Pinning](../guides/toolchains.md).
 - Smoke test: a minimal consumer project lives in
   [`cmake/tests/find_package/`](https://github.com/AmbiqAI/ns-cmsis-nn/tree/main/cmake/tests/find_package).

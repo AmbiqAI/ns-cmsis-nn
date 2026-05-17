@@ -27,7 +27,7 @@
 #                        --version            <X.Y.Z>          \
 #                        --staticlib          <path-to-.a>     \
 #                        --outdir             <dir>            \
-#                        [--toolchain         gcc|armclang|clang] \
+#                        [--toolchain         gcc|atfe|armclang|clang] \
 #                        [--toolchain-version <toolchain-build-id>]
 
 set -euo pipefail
@@ -73,9 +73,10 @@ esac
 # find_package() config can fail-fast on consumer/package compiler skew.
 case "$TOOLCHAIN" in
   gcc)      TOOLCHAIN_COMPILER="GNU";      TOOLCHAIN_FULL_ID="gnu-arm-embedded" ;;
+  atfe)     TOOLCHAIN_COMPILER="Clang";    TOOLCHAIN_FULL_ID="arm-toolchain-for-embedded" ;;
   armclang) TOOLCHAIN_COMPILER="ARMClang"; TOOLCHAIN_FULL_ID="arm-compiler"     ;;
   clang)    TOOLCHAIN_COMPILER="Clang";    TOOLCHAIN_FULL_ID="llvm-embedded-toolchain-for-arm" ;;
-  *) echo "unsupported --toolchain '$TOOLCHAIN' (gcc|armclang|clang)" >&2; exit 2 ;;
+  *) echo "unsupported --toolchain '$TOOLCHAIN' (gcc|atfe|armclang|clang)" >&2; exit 2 ;;
 esac
 
 case "$OUTDIR" in

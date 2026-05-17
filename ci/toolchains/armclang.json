@@ -1,0 +1,13 @@
+{
+  "id": "armclang",
+  "version": "6.23.32",
+  "compiler_id": "ARMClang",
+  "platforms": {
+    "linux-x86_64": {
+      "archive": "standalone-linux-x86_64-rel.tar.gz",
+      "url": "https://artifacts.tools.arm.com/arm-compiler/6.23/32/standalone-linux-x86_64-rel.tar.gz",
+      "sha256": "48b2f02ac8941dcac97a5a792b5ddbc9cefcde7b95a39b681ee13f9b321fffe8",
+      "probe": "bin/armclang"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "atfe",
+  "version": "19.1.5",
+  "compiler_id": "Clang",
+  "platforms": {
+    "linux-x86_64": {
+      "archive": "LLVM-ET-Arm-19.1.5-Linux-x86_64.tar.xz",
+      "url": "https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-19.1.5/LLVM-ET-Arm-19.1.5-Linux-x86_64.tar.xz",
+      "sha256": "34ee877aadc78c5e9f067e603a1bc9745ed93ca7ae5dbfc9b4406508dc153920",
+      "probe": "bin/clang"
+    }
+  }
+}
