@@ -14,9 +14,10 @@
 #   2. Component identity (Cclass / Cgroup / Csub / Cvendor) matches the
 #      heliaRT contract.
 #   3. Version sync — the latest <release version>, the component
-#      Cversion, and the markers in Include/arm_nn_types.h all agree.
-#      Cross-checked against .release-please-manifest.json so a manual
-#      bump that forgets one of these fails CI.
+#      Cversion, the markers in Include/arm_nn_types.h, and the NSX
+#      module manifest version all agree. Cross-checked against
+#      .release-please-manifest.json so a manual bump that forgets one
+#      of these fails CI.
 #   4. License plumbing — every <license name=...> in the pdsc points at
 #      a file that exists, and the repo top-level LICENSE / LICENSES/
 #      files are all declared.
@@ -39,6 +40,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 PDSC = REPO / "Ambiq.NS-CMSIS-NN.pdsc"
 TYPES_H = REPO / "Include" / "arm_nn_types.h"
+NSX_MODULE = REPO / "nsx" / "nsx-module.yaml"
 RP_MANIFEST = REPO / ".release-please-manifest.json"
 
 EXPECTED_PACK = {
@@ -133,6 +135,20 @@ def check_versions(pkg: ET.Element, comp: ET.Element | None) -> None:
     if not rev_ver:
         fail('Include/arm_nn_types.h is missing the `$Revision: "vX.Y.Z"` marker')
 
+    # NSX module manifest version.
+    nsx_ver: str | None = None
+    try:
+        nsx_text = NSX_MODULE.read_text()
+        m_nsx = re.search(
+            r'^\s*version:\s*["\']?([^"\'\s#]+)', nsx_text, re.MULTILINE
+        )
+        if m_nsx:
+            nsx_ver = m_nsx.group(1)
+        else:
+            fail("nsx/nsx-module.yaml is missing module.version")
+    except Exception as e:
+        fail(f"could not read {NSX_MODULE.relative_to(REPO)}: {e}")
+
     # release-please manifest (canonical source of truth used by the bot).
     try:
         manifest = json.loads(RP_MANIFEST.read_text())
@@ -147,6 +163,7 @@ def check_versions(pkg: ET.Element, comp: ET.Element | None) -> None:
         "component Cversion": comp_ver,
         "arm_nn_types.h NS_CMSIS_NN_VERSION_*": header_ver,
         "arm_nn_types.h $Revision": rev_ver,
+        "nsx/nsx-module.yaml module.version": nsx_ver,
         ".release-please-manifest.json": manifest_ver,
     }
     unique = {v for v in versions.values() if v}
@@ -251,7 +268,7 @@ def report() -> None:
     else:
         print(
             "PDSC contract OK: pack/component identity, versions in sync, "
-            "licenses declared, all <file> paths exist, "
+            "NSX module version synced, licenses declared, all <file> paths exist, "
             "Source/ coverage complete."
         )
 
