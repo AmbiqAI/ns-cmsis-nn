@@ -62,24 +62,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          case "${EVENT_NAME}" in
-            workflow_call)
-              image_tag="${CALL_IMAGE_TAG:-latest}"
-              publish_latest="${CALL_PUBLISH_LATEST:-false}"
-              ;;
-            workflow_dispatch)
-              image_tag="${DISPATCH_IMAGE_TAG:-latest}"
-              publish_latest="${DISPATCH_PUBLISH_LATEST:-true}"
-              ;;
-            schedule)
-              image_tag='latest'
-              publish_latest='true'
-              ;;
-            *)
-              image_tag='latest'
-              publish_latest='false'
-              ;;
-          esac
+          # NOTE: In a reusable workflow invoked via `uses:`, github.event_name
+          # can reflect the caller's triggering event (e.g. 'push'), not
+          # necessarily 'workflow_call'. Manual dispatch still has its own
+          # defaults, so handle it before falling back to workflow-call inputs.
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            image_tag="${DISPATCH_IMAGE_TAG:-latest}"
+            publish_latest="${DISPATCH_PUBLISH_LATEST:-true}"
+          elif [[ -n "${CALL_IMAGE_TAG}" ]]; then
+            image_tag="${CALL_IMAGE_TAG}"
+            publish_latest="${CALL_PUBLISH_LATEST:-false}"
+          elif [[ "${EVENT_NAME}" == "schedule" ]]; then
+            image_tag='latest'
+            publish_latest='true'
+          else
+            image_tag='latest'
+            publish_latest='false'
+          fi
 
           tags=("${{ env.REGISTRY_IMAGE }}:$image_tag")
           if [[ "$publish_latest" == 'true' && "$image_tag" != 'latest' ]]; then
