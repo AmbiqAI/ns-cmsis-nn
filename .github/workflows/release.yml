@@ -234,7 +234,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACK_CHANGELOG_MODE: full
           # Signal to gen_pack.sh that lib/<cpu>/libns-cmsis-nn.a is staged
           # so it adds `lib` to PACK_DIRS for the Cvariant="Prebuilt" component.
           NS_CMSIS_NN_PREBUILT_LIBS_STAGED: "1"

@@ -13,7 +13,6 @@ REQUIRED_GEN_PACK_LIB="0.11.3"
 
 # Set default command line arguments
 DEFAULT_ARGS=(-c "v")
-: "${PACK_CHANGELOG_MODE:=full}"
 
 # Pack warehouse directory - destination
 # Default: ./output
@@ -94,7 +93,7 @@ PACKCHK_DEPS="
 # unescaped in the pdsc <release> body in "release"/"full" modes and break the
 # packchk schema validation against PACK.xsd. With "tag" mode only the version
 # and date are emitted; full release notes still live on the GitHub Release page.
-PACK_CHANGELOG_MODE="tag"
+: "${PACK_CHANGELOG_MODE:=tag}"
 # custom pre-processing steps
 #
 # usage: preprocess <build>

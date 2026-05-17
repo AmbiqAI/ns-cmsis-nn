@@ -63,15 +63,15 @@ jobs:
           set -euo pipefail
 
           # NOTE: In a reusable workflow invoked via `uses:`, github.event_name
-          # reflects the *caller's* triggering event (e.g. 'push', 'schedule'),
-          # NOT 'workflow_call'. So we must detect the workflow_call path by
-          # the presence of CALL_IMAGE_TAG, not by EVENT_NAME.
-          if [[ -n "${CALL_IMAGE_TAG}" ]]; then
-            image_tag="${CALL_IMAGE_TAG}"
-            publish_latest="${CALL_PUBLISH_LATEST:-false}"
-          elif [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+          # can reflect the caller's triggering event (e.g. 'push'), not
+          # necessarily 'workflow_call'. Manual dispatch still has its own
+          # defaults, so handle it before falling back to workflow-call inputs.
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
             image_tag="${DISPATCH_IMAGE_TAG:-latest}"
             publish_latest="${DISPATCH_PUBLISH_LATEST:-true}"
+          elif [[ -n "${CALL_IMAGE_TAG}" ]]; then
+            image_tag="${CALL_IMAGE_TAG}"
+            publish_latest="${CALL_PUBLISH_LATEST:-false}"
           elif [[ "${EVENT_NAME}" == "schedule" ]]; then
             image_tag='latest'
             publish_latest='true'
