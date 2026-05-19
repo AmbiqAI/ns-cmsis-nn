@@ -1,5 +1,18 @@
 # Changelog
 
+## [7.26.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.25.0...v7.26.0) (2026-05-19)
+
+
+### Features
+
+* **ci:** publish multi-toolchain staticlibs ([0c33b87](https://github.com/AmbiqAI/ns-cmsis-nn/commit/0c33b879c57388a2102b38ccc1b35768b1bde910))
+
+
+### Bug Fixes
+
+* Add missing endif to zephyr/Kconfig ([#192](https://github.com/AmbiqAI/ns-cmsis-nn/issues/192)) ([46b6b39](https://github.com/AmbiqAI/ns-cmsis-nn/commit/46b6b39d4ab5f73da2a220d72c212f6368943237))
+* **release:** harden pack changelog and CI image tagging ([#183](https://github.com/AmbiqAI/ns-cmsis-nn/issues/183)) ([fa8e5ea](https://github.com/AmbiqAI/ns-cmsis-nn/commit/fa8e5ea828f45e4095e3bbdd00f60ce4be41bcf9))
+
 ## [7.25.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.24.1...v7.25.0) (2026-05-15)
 
 

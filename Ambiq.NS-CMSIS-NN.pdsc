@@ -17,7 +17,7 @@
   <repository type="git">https://github.com/AmbiqAI/ns-cmsis-nn</repository>
 
   <releases>
-    <release version="7.25.0"> <!-- x-release-please-version -->
+    <release version="7.26.0"> <!-- x-release-please-version -->
       Active development
     </release>
   </releases>
@@ -59,7 +59,7 @@
 
   <components>
     <!-- heliaCORE NN — Source variant: build the 200+ kernel sources in-tree. -->
-    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.25.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.26.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
       <description>heliaCORE NN — Ambiq's optimized superset of Arm CMSIS-NN, tuned for Apollo SoCs.</description>
       <files>
         <file category="doc" name="Documentation/html/index.html"/>
@@ -298,7 +298,7 @@
          libns-cmsis-nn.a instead of compiling sources. One <file> entry per
          supported core; CMSIS-Pack pickers (Keil/CMSIS-Toolbox) resolve the
          right archive via the Dcore + Tcompiler conditions above. -->
-    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.25.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.26.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
       <description>heliaCORE NN — Ambiq's prebuilt GCC archive for Cortex-M0/M0+/M4/M55.</description>
       <files>
         <file category="doc"    name="Documentation/html/index.html"/>
