@@ -177,7 +177,7 @@ jobs:
 
       - name: Upload artefacts (cross-job)
         # Pack-prebuilt job (M3 #167 follow-up) downloads these.
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ns-cmsis-nn-staticlib-${{ matrix.toolchain }}-${{ matrix.target_cpu }}
           path: |
@@ -194,7 +194,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Download staticlib artefacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ./_artifacts
           pattern: ns-cmsis-nn-staticlib-*
@@ -285,7 +285,7 @@ jobs:
         run: rm -f ./output/*.pack
 
       - name: Download per-arch staticlib artefacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ./_artifacts
           pattern: ns-cmsis-nn-staticlib-gcc-*
@@ -342,7 +342,7 @@ jobs:
             --clobber
 
       - name: Setup Python for docs
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
