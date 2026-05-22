@@ -39,10 +39,14 @@ function heliaCoreInitCharts() {
     if (canvas.chartjsInitialized) return;
     canvas.chartjsInitialized = true;
 
-    const config = JSON.parse(canvas.getAttribute('data-chart-config'));
-    const chart = new Chart(canvas.getContext('2d'), config);
-    canvas.heliaCoreChart = chart;
-    heliaCoreApplyChartTheme(chart);
+    try {
+      const config = JSON.parse(canvas.getAttribute('data-chart-config'));
+      const chart = new Chart(canvas.getContext('2d'), config);
+      canvas.heliaCoreChart = chart;
+      heliaCoreApplyChartTheme(chart);
+    } catch (e) {
+      console.error('heliaCORE chart-init: failed to initialize chart', canvas.id, e);
+    }
   });
 }
 

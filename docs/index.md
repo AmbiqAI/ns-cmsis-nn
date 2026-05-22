@@ -51,6 +51,7 @@ getting-started/index
 guides/index
 guides/operator-kernel-coverage
 guides/dsp-mve-coverage
+guides/kernel-benchmarks
 guides/releases
 guides/toolchains
 reference/api-groups

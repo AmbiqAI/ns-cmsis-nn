@@ -146,3 +146,6 @@ not a performance benchmark and is not a statement about the broader Arm
 CMSIS-NN ecosystem. For vendor-neutral Cortex-M kernel work, Arm CMSIS-NN
 remains the upstream ecosystem reference.
 :::
+
+For measured cycle counts comparing MVE, DSP, and Scalar C on Apollo hardware, see
+[Kernel Benchmarks](kernel-benchmarks.md).
