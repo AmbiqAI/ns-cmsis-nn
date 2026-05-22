@@ -131,12 +131,19 @@
     #endif
 #endif
 
+#ifdef __cplusplus
+// Arm MVE intrinsics provide C++ overloads and must not inherit C linkage.
+extern "C++" {
+#endif
 #if defined(__ARM_FEATURE_MVE) && (((__ARM_FEATURE_MVE & 3) == 3) || (__ARM_FEATURE_MVE & 1))
     #include <arm_mve.h>
 #endif
 
 #if defined(__ARM_ARCH) || defined(__ARM_ACLE)
     #include <arm_acle.h>
+#endif
+#ifdef __cplusplus
+}
 #endif
 
 #if defined(__GNUC__)
@@ -153,7 +160,7 @@
 // as __GNUC__ is defined by non-GCC compilers as well
 
 /* Common intrinsics for all architectures */
-#if (defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)) || defined(__ICCARM__) ||                            \
+#if (defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)) || defined(__ICCARM__) ||                               \
     (defined(__clang__) && !defined(__ARMCC_VERSION))
     #define CLZ __clz
 #elif defined(__GNUC__)
@@ -202,7 +209,7 @@ __STATIC_FORCEINLINE uint8_t CLZ(uint32_t value)
     // ACLE DSP intrinsics as armclang via <arm_acle.h>, so route it through
     // the AC6/IAR path. armclang is identified by both __clang__ and
     // __ARMCC_VERSION; ATfE defines __clang__ but not __ARMCC_VERSION.
-    #if (defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)) || defined(__ICCARM__) ||                          \
+    #if (defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)) || defined(__ICCARM__) ||                           \
         (defined(__clang__) && !defined(__ARMCC_VERSION))
 
         #define SMULBB __smulbb
