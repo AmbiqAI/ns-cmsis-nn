@@ -5,12 +5,14 @@ comparing the scalar reference, DSP, and MVE acceleration paths. All three
 paths run on the **same SoC** at the **same clock speed**, so the comparison
 is a direct apples-to-apples ISA measurement.
 
-:::{note} What these numbers measure
-All values are **average CPU cycles** collected over 100 iterations on an
-Apollo510 EVB running at **250 MHz** (HP mode). Because every path runs on
-the same hardware, the only variable is the ISA code path. To convert to
-microseconds: `time_µs = cycles / 250`.
+:::{note}
+The REF path represents the portable C implementation of each kernel compiled
+for Cortex-M55. Compiler optimizations may still generate DSP or other
+architecture-specific instructions where profitable. REF therefore reflects
+the practical baseline performance achievable from portable source code on
+M55, rather than a strictly scalar instruction stream.
 :::
+ 
 
 ## Convolution & matrix-multiply kernels
 
@@ -24,20 +26,20 @@ and scalar C's single-element loops.
 
 | Kernel | Shape | REF (GCC) | DSP (GCC) | MVE (GCC) | DSP speedup | MVE speedup |
 |--------|-------|----------:|----------:|----------:|------------:|------------:|
-| `arm_convolve_s8` | 32x32x64 k3 oc64 | 12,189 | 8,096 | 1,106 | 1.51x | 11.02x |
-| `arm_convolve_s4` | 32x32x64 k3 oc64 | 13,206 | 17,028 | 2,432 | 0.78x | 5.43x |
-| `arm_convolve_s16` | 32x32x64 k3 oc64 | 12,964 | 11,283 | 4,177 | 1.15x | 3.10x |
-| `arm_convolve_1x1_s8_fast` | 32x32x64 oc64 | 1,635 | 1,273 | 286 | 1.28x | 5.72x |
-| `arm_depthwise_conv_s8_opt` | 32x32x64 k3 | 2,453 | 1,070 | 236 | 2.29x | 10.39x |
-| `arm_depthwise_conv_s4_opt` | 32x32x64 k3 | 1,134 | 1,345 | 294 | 0.84x | 3.86x |
-| `arm_depthwise_conv_fast_s16` | 32x32x64 k3 | 2,374 | 1,414 | 914 | 1.68x | 2.60x |
-| `arm_nn_mat_mult_nt_t_s8` | 64x512 × 256x512 | 2,643 | 1,860 | 396 | 1.42x | 6.67x |
-| `arm_nn_mat_mult_nt_t_s4` | 64x512 × 256x512 | 3,551 | 3,493 | 634 | 1.02x | 5.60x |
-| `arm_nn_vec_mat_mult_t_s8` | 512 × 256 | 69 | 49 | 15 | 1.41x | 4.60x |
-| `arm_nn_vec_mat_mult_t_s16` | 512 × 256 | 76 | 60 | 18 | 1.27x | 4.22x |
-| `arm_nn_vec_mat_mult_t_s4` | 512 × 256 | 66 | 77 | 13 | 0.86x | 5.08x |
-| `arm_avgpool_s8` | 32x32x64 k3 | 1,736 | 535 | 288 | 3.24x | 6.03x |
-| `arm_avgpool_s16` | 32x32x64 k3 | 858 | 551 | 318 | 1.56x | 2.70x |
+| `arm_convolve_s8 (contains full im2col)` | 32x32x64 k3 oc64 | 91,508,570 | 59,724,899 | 7,855,297 | 1.53x | 11.65x |
+| `arm_convolve_s4 (contains full im2col)` | 32x32x64 k3 oc64 | 100,429,550 | 129,526,146 | 18,506,232 | 0.78x | 5.43x |
+| `arm_convolve_s16 (contains full im2col)` | 32x32x64 k3 oc64 | 95,924,158 | 82,518,621 | 31,815,146 | 1.16x | 3.02x |
+| `arm_convolve_1x1_s8_fast (contains simplified im2col)` | 32x32x64 oc64 | 12,455,209 | 9,526,873 | 1,839,405 | 1.31x | 6.77x |
+| `arm_depthwise_conv_s8_opt (contains input packing)` | 32x32x64 k3 | 18,716,382 | 7,794,105 | 1,751,320 | 2.40x | 10.69x |
+| `arm_depthwise_conv_s4_opt (contains input packing)` | 32x32x64 k3 | 8,341,819 | 9,922,017 | 2,198,403 | 0.84x | 3.79x |
+| `arm_depthwise_conv_fast_s16 (contains input packing)` | 32x32x64 k3 | 18,160,003 | 7,619,179 | 3,903,131 | 2.38x | 4.65x |
+| `arm_nn_mat_mult_nt_t_s8` | 64x512 × 256x512 | 20,159,721 | 13,924,038 | 2,452,107 | 1.45x | 8.22x |
+| `arm_nn_mat_mult_nt_t_s4` | 64x512 × 256x512 | 27,086,756 | 26,504,290 | 4,305,830 | 1.02x | 6.29x |
+| `arm_nn_vec_mat_mult_t_s8` | 512 × 256 | 528,987 | 369,311 | 105,856 | 1.43x | 5.00x |
+| `arm_nn_vec_mat_mult_t_s16` | 512 × 256 | 578,682 | 459,348 | 137,337 | 1.26x | 4.21x |
+| `arm_nn_vec_mat_mult_t_s4` | 512 × 256 | 507,839 | 591,498 | 90,839 | 0.86x | 5.59x |
+| `arm_avgpool_s8` | 32x32x64 k3 | 13,245,517 | 4,060,374 | 2,153,231 | 3.26x | 6.15x |
+| `arm_avgpool_s16` | 32x32x64 k3 | 6,552,871 | 4,200,737 | 2,445,854 | 1.56x | 2.68x |
 
 ## Elementwise & scalar kernels
 
@@ -50,20 +52,20 @@ process 16 int8 or 8 int16 values per vector instruction.
 
 | Kernel | Shape | REF (GCC) | DSP (GCC) | MVE (GCC) | DSP speedup | MVE speedup |
 |--------|-------|----------:|----------:|----------:|------------:|------------:|
-| `arm_elementwise_add_s8` | n4096 | 50 | 39 | 8 | 1.28x | 6.25x |
-| `arm_elementwise_add_s16` | n4096 | 43 | 43 | 7 | 1.00x | 6.14x |
-| `arm_elementwise_mul_s8` | n4096 | 18 | 21 | 3 | 0.86x | 6.00x |
-| `arm_elementwise_mul_s16` | n4096 | 14 | 20 | 3 | 0.70x | 4.67x |
-| `arm_elementwise_sub_s8` | n4096 | 49 | 41 | 8 | 1.20x | 6.13x |
-| `arm_elementwise_mul_acc_s16` | n4096 | 17 | 20 | 4 | 0.85x | 4.25x |
-| `arm_elementwise_mul_s16_s8` | n4096 | 17 | 19 | 3 | 0.89x | 5.67x |
-| `arm_elementwise_mul_s16_batch_offset` | n4096 | 16 | 18 | 3 | 0.89x | 5.33x |
-| `arm_add_scalar_s8` | n4096 | 36 | 28 | 5 | 1.29x | 7.20x |
-| `arm_sub_scalar_s8` | n4096 | 37 | 28 | 5 | 1.32x | 7.40x |
-| `arm_mul_scalar_s8` | n4096 | 17 | 20 | 2 | 0.85x | 8.50x |
-| `arm_mul_scalar_s16` | n4096 | 15 | 17 | 3 | 0.88x | 5.00x |
-| `arm_comparison_s8` | n4096 | 43 | 32 | 10 | 1.34x | 4.30x |
-| `arm_comparison_s16` | n4096 | 43 | 36 | 10 | 1.19x | 4.30x |
+| `arm_elementwise_add_s8` | n4096 | 385,147 | 302,208 | 61,572 | 1.27x | 6.26x |
+| `arm_elementwise_add_s16` | n4096 | 331,969 | 331,972 | 53,365 | 1.00x | 6.22x |
+| `arm_elementwise_mul_s8` | n4096 | 143,599 | 165,137 | 22,645 | 0.87x | 6.34x |
+| `arm_elementwise_mul_s16` | n4096 | 110,680 | 151,638 | 28,750 | 0.73x | 3.85x |
+| `arm_elementwise_sub_s8` | n4096 | 381,344 | 314,493 | 61,567 | 1.21x | 6.19x |
+| `arm_elementwise_mul_acc_s16` | n4096 | 133,212 | 155,742 | 31,998 | 0.86x | 4.16x |
+| `arm_elementwise_mul_s16_s8` | n4096 | 131,162 | 141,768 | 28,790 | 0.93x | 4.56x |
+| `arm_elementwise_mul_s16_batch_offset` | n4096 | 121,098 | 133,235 | 28,773 | 0.91x | 4.21x |
+| `arm_add_scalar_s8` | n4096 | 270,440 | 218,657 | 42,120 | 1.24x | 6.42x |
+| `arm_sub_scalar_s8` | n4096 | 291,139 | 218,873 | 42,169 | 1.33x | 6.90x |
+| `arm_mul_scalar_s8` | n4096 | 135,228 | 156,778 | 20,081 | 0.86x | 6.73x |
+| `arm_mul_scalar_s16` | n4096 | 114,765 | 137,300 | 27,718 | 0.84x | 4.14x |
+| `arm_comparison_s8` | n4096 | 327,815 | 244,901 | 77,994 | 1.34x | 4.20x |
+| `arm_comparison_s16` | n4096 | 327,814 | 274,791 | 77,981 | 1.19x | 4.20x |
 
 ## ATfE vs GCC on MVE
 
@@ -77,20 +79,20 @@ Apollo510 hardware.
 
 | Kernel | MVE (GCC) | MVE (ATfE) | ATfE speedup |
 |--------|----------:|-----------:|-------------:|
-| `arm_convolve_s8` | 1,106 | 1,009 | 1.10x |
-| `arm_convolve_s4` | 2,432 | 1,971 | 1.23x |
-| `arm_convolve_s16` | 4,177 | 2,188 | 1.91x |
-| `arm_convolve_1x1_s8_fast` | 286 | 222 | 1.29x |
-| `arm_depthwise_conv_s8_opt` | 236 | 212 | 1.11x |
-| `arm_depthwise_conv_s4_opt` | 294 | 288 | 1.02x |
-| `arm_depthwise_conv_fast_s16` | 914 | 1,048 | 0.87x |
-| `arm_nn_mat_mult_nt_t_s8` | 396 | 337 | 1.18x |
-| `arm_nn_mat_mult_nt_t_s4` | 634 | 496 | 1.28x |
-| `arm_nn_vec_mat_mult_t_s8` | 15 | 14 | 1.07x |
-| `arm_nn_vec_mat_mult_t_s16` | 18 | 17 | 1.06x |
-| `arm_nn_vec_mat_mult_t_s4` | 13 | 8 | 1.63x |
-| `arm_avgpool_s8` | 288 | 230 | 1.25x |
-| `arm_avgpool_s16` | 318 | 257 | 1.24x |
+| `arm_convolve_s8` | 7,855,297 | 7,500,319 | 1.05x |
+| `arm_convolve_s4` | 18,506,232 | 14,976,687 | 1.24x |
+| `arm_convolve_s16` | 31,815,146 | 16,901,027 | 1.88x |
+| `arm_convolve_1x1_s8_fast` | 1,839,405 | 1,534,130 | 1.20x |
+| `arm_depthwise_conv_s8_opt` | 1,751,320 | 1,584,841 | 1.11x |
+| `arm_depthwise_conv_s4_opt` | 2,198,403 | 2,163,861 | 1.02x |
+| `arm_depthwise_conv_fast_s16` | 3,903,131 | 4,009,775 | 0.97x |
+| `arm_nn_mat_mult_nt_t_s8` | 2,452,107 | 2,357,922 | 1.04x |
+| `arm_nn_mat_mult_nt_t_s4` | 4,305,830 | 3,531,101 | 1.22x |
+| `arm_nn_vec_mat_mult_t_s8` | 105,856 | 108,992 | 0.97x |
+| `arm_nn_vec_mat_mult_t_s16` | 137,337 | 135,408 | 1.01x |
+| `arm_nn_vec_mat_mult_t_s4` | 90,839 | 62,916 | 1.44x |
+| `arm_avgpool_s8` | 2,153,231 | 1,724,589 | 1.25x |
+| `arm_avgpool_s16` | 2,445,854 | 2,043,942 | 1.20x |
 
 
 ## Test conditions
@@ -99,7 +101,9 @@ Apollo510 hardware.
 |-----------|-------|
 | **Board** | Apollo510 EVB (Cortex-M55) |
 | **Clock** | 250 MHz (HP mode) |
+| **Timer** | DWT->CYCCNT |
 | **ISA paths** | Scalar C (REF), DSP SIMD, MVE / Helium |
 | **Toolchains** | arm-none-eabi-gcc 14.3.0, ATfE 22.1.0 |
+| **Optimization** | -O3 |
 | **Iterations** | 100 per kernel |
 | **Metric** | Average CPU cycles |
