@@ -16,9 +16,7 @@ M55, rather than a strictly scalar instruction stream.
 
 ## Convolution & matrix-multiply kernels
 
-The biggest MVE gains appear in MAC-dominated kernels where Helium's 128-bit
-vector unit processes 16 × int8 elements per cycle versus DSP's dual-MAC
-and scalar C's single-element loops.
+The largest MVE gains appear in MAC-dominated kernels where Helium's 128-bit vector engine amortizes unpacking, memory access, and accumulation overhead across wide vector operations. DSP kernels generally improve throughput on s8/s16 workloads, though some s4 kernels remain dominated by packing and unpacking overhead.
 
 <div class="chart-wrap" style="position:relative; max-width:860px; margin:2em auto;">
 <canvas id="chart-conv-cycles" height="440"></canvas>
