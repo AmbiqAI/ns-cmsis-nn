@@ -204,6 +204,7 @@
   }
 
   function refreshBenchmarkTheme() {
+    if (!window.Chart) return;
     var c = themeColors(detectDark());
     Object.keys(chartBuilders).forEach(function (id) {
       var canvas = document.getElementById(id);
