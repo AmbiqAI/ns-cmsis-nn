@@ -24,8 +24,6 @@
 
   var teal = 'rgba(0, 184, 148, 0.82)';
   var tealBorder = 'rgba(0, 184, 148, 1)';
-  var purple = 'rgba(99, 110, 250, 0.78)';
-  var purpleBorder = 'rgba(99, 110, 250, 1)';
   var dspColor = 'rgba(99, 110, 250, 0.78)';
   var dspBorder = 'rgba(99, 110, 250, 1)';
   var gray = 'rgba(160, 160, 160, 0.65)';
@@ -57,148 +55,157 @@
     return opts;
   }
 
-  var convLabels = [
-    'convolve_s8', 'convolve_s4', 'convolve_s16', 'conv_1x1_s8',
-    'dw_conv_s8', 'dw_conv_s4', 'dw_conv_s16',
-    'mat_mult_s8', 'mat_mult_s4',
-    'vec_mat_s8', 'vec_mat_s16', 'vec_mat_s4',
-    'avgpool_s8', 'avgpool_s16'
-  ];
+  var kernelLabelMap = {
+    'arm_convolve_s8': 'convolve_s8',
+    'arm_convolve_s4': 'convolve_s4',
+    'arm_convolve_s16': 'convolve_s16',
+    'arm_convolve_1x1_s8_fast': 'conv_1x1_s8',
+    'arm_depthwise_conv_s8_opt': 'dw_conv_s8',
+    'arm_depthwise_conv_s4_opt': 'dw_conv_s4',
+    'arm_depthwise_conv_fast_s16': 'dw_conv_s16',
+    'arm_nn_mat_mult_nt_t_s8': 'mat_mult_s8',
+    'arm_nn_mat_mult_nt_t_s4': 'mat_mult_s4',
+    'arm_nn_vec_mat_mult_t_s8': 'vec_mat_s8',
+    'arm_nn_vec_mat_mult_t_s16': 'vec_mat_s16',
+    'arm_nn_vec_mat_mult_t_s4': 'vec_mat_s4',
+    'arm_avgpool_s8': 'avgpool_s8',
+    'arm_avgpool_s16': 'avgpool_s16',
+    'arm_elementwise_add_s8': 'add_s8',
+    'arm_elementwise_add_s16': 'add_s16',
+    'arm_elementwise_mul_s8': 'mul_s8',
+    'arm_elementwise_mul_s16': 'mul_s16',
+    'arm_elementwise_sub_s8': 'sub_s8',
+    'arm_elementwise_mul_acc_s16': 'mul_acc_s16',
+    'arm_elementwise_mul_s16_s8': 'mul_s16_s8',
+    'arm_elementwise_mul_s16_batch_offset': 'mul_s16_batch',
+    'arm_add_scalar_s8': 'add_scalar_s8',
+    'arm_sub_scalar_s8': 'sub_scalar_s8',
+    'arm_mul_scalar_s8': 'mul_scalar_s8',
+    'arm_mul_scalar_s16': 'mul_scalar_s16',
+    'arm_comparison_s8': 'comparison_s8',
+    'arm_comparison_s16': 'comparison_s16'
+  };
 
-  var charts = {
-    'chart-conv-cycles': {
+  function compactKernelLabel(rawLabel) {
+    var base = rawLabel.replace(/\s*\(.*\)$/, '');
+    return kernelLabelMap[base] || base;
+  }
+
+  function parseCycles(text) {
+    return parseInt(String(text).replace(/,/g, '').trim(), 10);
+  }
+
+  function nextTableAfterCanvas(canvas) {
+    var node = canvas && canvas.parentElement;
+    while (node && node.nextElementSibling) {
+      node = node.nextElementSibling;
+      if (node.tagName === 'TABLE') return node;
+      if (node.tagName === 'DIV') {
+        var nestedTable = node.querySelector('table');
+        if (nestedTable) return nestedTable;
+      }
+    }
+    return null;
+  }
+
+  function buildSpeedupChartFromTable(canvasId, seriesDefs, titleText, xMin) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return null;
+    var table = nextTableAfterCanvas(canvas);
+    if (!table || !table.tBodies || !table.tBodies.length) return null;
+
+    var rows = table.tBodies[0].rows;
+    var labels = [];
+    var datasets = seriesDefs.map(function (series) {
+      return {
+        label: series.label,
+        data: [],
+        backgroundColor: series.backgroundColor,
+        borderColor: series.borderColor,
+        borderWidth: 1
+      };
+    });
+
+    for (var i = 0; i < rows.length; i++) {
+      var cells = rows[i].cells;
+      if (!cells || !cells.length) continue;
+      labels.push(compactKernelLabel(cells[0].textContent || ''));
+      var refValue = parseCycles(cells[seriesDefs[0].referenceColumn].textContent);
+      for (var j = 0; j < seriesDefs.length; j++) {
+        var currentValue = parseCycles(cells[seriesDefs[j].column].textContent);
+        datasets[j].data.push(refValue / currentValue);
+      }
+    }
+
+    return {
       type: 'bar',
-      data: {
-        labels: convLabels,
-        datasets: [
-          {
-            label: 'Reference (GCC)',
-            data: [12189, 13206, 12964, 1635, 2453, 1134, 2374, 2643, 3551, 69, 76, 66, 1736, 858],
-            backgroundColor: gray,
-            borderColor: grayBorder,
-            borderWidth: 1
-          },
-          {
-            label: 'DSP (GCC)',
-            data: [8096, 17028, 11283, 1273, 1070, 1345, 1414, 1860, 3493, 49, 60, 77, 535, 551],
-            backgroundColor: dspColor,
-            borderColor: dspBorder,
-            borderWidth: 1
-          },
-          {
-            label: 'MVE (GCC)',
-            data: [1106, 2432, 4177, 286, 236, 294, 914, 396, 634, 15, 18, 13, 288, 318],
-            backgroundColor: teal,
-            borderColor: tealBorder,
-            borderWidth: 1
-          }
-        ]
-      },
+      data: { labels: labels, datasets: datasets },
       options: {
         indexAxis: 'y',
         responsive: true,
-        plugins: pluginOpts('REF vs DSP vs MVE \u2014 Convolution & MatMul (avg cycles, GCC, 250 MHz)'),
+        plugins: pluginOpts(titleText),
         scales: {
-          x: scaleOpts('Avg cycles (log scale)', { min: 10 }),
+          x: scaleOpts('Speedup vs REF (log scale)', { min: xMin }),
           y: yOpts
         }
       }
-    },
+    };
+  }
 
-    'chart-elem-cycles': {
-      type: 'bar',
-      data: {
-        labels: [
-          'add_s8', 'add_s16', 'mul_s8', 'mul_s16', 'sub_s8',
-          'mul_acc_s16', 'mul_s16_s8', 'mul_s16_batch',
-          'add_scalar_s8', 'sub_scalar_s8', 'mul_scalar_s8', 'mul_scalar_s16',
-          'comparison_s8', 'comparison_s16'
+  var chartBuilders = {
+    'chart-conv-cycles': function () {
+      return buildSpeedupChartFromTable(
+        'chart-conv-cycles',
+        [
+          { label: 'Reference (GCC)', column: 2, referenceColumn: 2, backgroundColor: gray, borderColor: grayBorder },
+          { label: 'DSP (GCC)', column: 3, referenceColumn: 2, backgroundColor: dspColor, borderColor: dspBorder },
+          { label: 'MVE (GCC)', column: 4, referenceColumn: 2, backgroundColor: teal, borderColor: tealBorder }
         ],
-        datasets: [
-          {
-            label: 'Reference (GCC)',
-            data: [50, 43, 18, 14, 49, 17, 17, 16, 36, 37, 17, 15, 43, 43],
-            backgroundColor: gray,
-            borderColor: grayBorder,
-            borderWidth: 1
-          },
-          {
-            label: 'DSP (GCC)',
-            data: [39, 43, 21, 20, 41, 20, 19, 18, 28, 28, 20, 17, 32, 36],
-            backgroundColor: dspColor,
-            borderColor: dspBorder,
-            borderWidth: 1
-          },
-          {
-            label: 'MVE (GCC)',
-            data: [8, 7, 3, 3, 8, 4, 3, 3, 5, 5, 2, 3, 10, 10],
-            backgroundColor: teal,
-            borderColor: tealBorder,
-            borderWidth: 1
-          }
-        ]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        plugins: pluginOpts('REF vs DSP vs MVE \u2014 Elementwise & Scalar (avg cycles, GCC, 250 MHz)'),
-        scales: {
-          x: scaleOpts('Avg cycles (log scale)', { min: 1 }),
-          y: yOpts
-        }
-      }
+        'REF speedup — Convolution & MatMul (GCC, 250 MHz)',
+        0.5
+      );
     },
-
-    'chart-atfe-cycles': {
-      type: 'bar',
-      data: {
-        labels: convLabels,
-        datasets: [
-          {
-            label: 'MVE GCC',
-            data: [1106, 2432, 4177, 286, 236, 294, 914, 396, 634, 15, 18, 13, 288, 318],
-            backgroundColor: teal,
-            borderColor: tealBorder,
-            borderWidth: 1
-          },
-          {
-            label: 'MVE ATfE',
-            data: [1009, 1971, 2188, 222, 212, 288, 1048, 337, 496, 14, 17, 8, 230, 257],
-            backgroundColor: purple,
-            borderColor: purpleBorder,
-            borderWidth: 1
-          }
-        ]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        plugins: pluginOpts('MVE: GCC vs ATfE (avg cycles, 250 MHz)'),
-        scales: {
-          x: scaleOpts('Avg cycles (log scale)', { min: 5 }),
-          y: yOpts
-        }
-      }
+    'chart-elem-cycles': function () {
+      return buildSpeedupChartFromTable(
+        'chart-elem-cycles',
+        [
+          { label: 'Reference (GCC)', column: 2, referenceColumn: 2, backgroundColor: gray, borderColor: grayBorder },
+          { label: 'DSP (GCC)', column: 3, referenceColumn: 2, backgroundColor: dspColor, borderColor: dspBorder },
+          { label: 'MVE (GCC)', column: 4, referenceColumn: 2, backgroundColor: teal, borderColor: tealBorder }
+        ],
+        'REF speedup — Elementwise & Scalar (GCC, 250 MHz)',
+        0.5
+      );
     }
   };
 
-  function initBenchmarkCharts() {
+  function initBenchmarkCharts(attempt) {
+    attempt = attempt || 0;
     if (!window.Chart) return;
-    Object.keys(charts).forEach(function (id) {
+    var pending = false;
+    Object.keys(chartBuilders).forEach(function (id) {
       var canvas = document.getElementById(id);
       if (!canvas || canvas.chartjsInitialized) return;
+      var config = chartBuilders[id]();
+      if (!config) {
+        pending = true;
+        return;
+      }
       canvas.chartjsInitialized = true;
       try {
-        new Chart(canvas.getContext('2d'), charts[id]);
+        new Chart(canvas.getContext('2d'), config);
       } catch (e) {
         console.error('benchmark chart error:', id, e);
       }
     });
+    if (pending && attempt < 20) {
+      window.setTimeout(function () { initBenchmarkCharts(attempt + 1); }, 100);
+    }
   }
 
   function refreshBenchmarkTheme() {
     var c = themeColors(detectDark());
-    Object.keys(charts).forEach(function (id) {
+    Object.keys(chartBuilders).forEach(function (id) {
       var canvas = document.getElementById(id);
       if (!canvas) return;
       var inst = Chart.getChart(canvas);
