@@ -18,8 +18,6 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
-#include <string.h>
-
 /**
  *  @ingroup Public
  */
@@ -46,7 +44,7 @@ arm_cmsis_nn_status arm_tile_s16(const int16_t *input, const cmsis_nn_tile_param
         input_size *= input_shape[d];
     }
 
-    memcpy(output, input, (size_t)input_size * sizeof(int16_t));
+    arm_memcpy_s16(output, input, (uint32_t)input_size);
 
     int32_t current_size = input_size;
 
@@ -69,7 +67,7 @@ arm_cmsis_nn_status arm_tile_s16(const int16_t *input, const cmsis_nn_tile_param
                 const int32_t dst_off = c * m * chunk_size;
                 for (int32_t t = m - 1; t > 0; t--)
                 {
-                    memcpy(output + dst_off + t * chunk_size, output + src_off, (size_t)chunk_size * sizeof(int16_t));
+                    arm_memcpy_s16(output + dst_off + t * chunk_size, output + src_off, (uint32_t)chunk_size);
                 }
                 if (dst_off != src_off)
                 {

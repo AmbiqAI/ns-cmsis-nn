@@ -18,8 +18,6 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
-#include <string.h>
-
 /**
  *  @ingroup Public
  */
@@ -48,7 +46,7 @@ arm_cmsis_nn_status arm_tile_s8(const int8_t *input, const cmsis_nn_tile_params 
     }
 
     /* Copy input into the beginning of output */
-    memcpy(output, input, (size_t)input_size * sizeof(int8_t));
+    arm_memcpy_s8(output, input, (uint32_t)input_size);
 
     /* Expand each dimension in-place from innermost to outermost.
      * Processing back-to-front avoids overwriting source data. */
@@ -75,7 +73,7 @@ arm_cmsis_nn_status arm_tile_s8(const int8_t *input, const cmsis_nn_tile_params 
                 const int32_t dst_off = c * m * chunk_size;
                 for (int32_t t = m - 1; t > 0; t--)
                 {
-                    memcpy(output + dst_off + t * chunk_size, output + src_off, (size_t)chunk_size * sizeof(int8_t));
+                    arm_memcpy_s8(output + dst_off + t * chunk_size, output + src_off, (uint32_t)chunk_size);
                 }
                 /* Move original chunk to final position */
                 if (dst_off != src_off)

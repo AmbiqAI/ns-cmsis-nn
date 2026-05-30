@@ -18,8 +18,6 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
-#include <string.h>
-
 /**
  *  @ingroup Public
  */
@@ -52,7 +50,7 @@ arm_cmsis_nn_status arm_dynamic_update_slice_s16(const int16_t *operand,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    memcpy(output, operand, (size_t)operand_size * sizeof(int16_t));
+    arm_memcpy_s16(output, operand, (uint32_t)operand_size);
 
     int32_t clamped_starts[8];
     for (int32_t d = 0; d < rank; d++)
@@ -89,7 +87,7 @@ arm_cmsis_nn_status arm_dynamic_update_slice_s16(const int16_t *operand,
             out_offset += (clamped_starts[d] + upd_coord) * operand_strides[d];
         }
         out_offset += clamped_starts[rank - 1];
-        memcpy(output + out_offset, update + row * inner_dim, (size_t)inner_dim * sizeof(int16_t));
+        arm_memcpy_s16(output + out_offset, update + row * inner_dim, (uint32_t)inner_dim);
     }
 
     return ARM_CMSIS_NN_SUCCESS;

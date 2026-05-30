@@ -18,8 +18,6 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
-#include <string.h>
-
 /**
  *  @ingroup Public
  */
@@ -53,7 +51,7 @@ arm_cmsis_nn_status arm_dynamic_update_slice_s8(const int8_t *operand,
     }
 
     /* Copy operand to output */
-    memcpy(output, operand, (size_t)operand_size * sizeof(int8_t));
+    arm_memcpy_s8(output, operand, (uint32_t)operand_size);
 
     /* Clamp start indices to valid range [0, operand_dim - update_dim] */
     int32_t clamped_starts[8];
@@ -93,7 +91,7 @@ arm_cmsis_nn_status arm_dynamic_update_slice_s8(const int8_t *operand,
             out_offset += (clamped_starts[d] + upd_coord) * operand_strides[d];
         }
         out_offset += clamped_starts[rank - 1];
-        memcpy(output + out_offset, update + row * inner_dim, (size_t)inner_dim * sizeof(int8_t));
+        arm_memcpy_s8(output + out_offset, update + row * inner_dim, (uint32_t)inner_dim);
     }
 
     return ARM_CMSIS_NN_SUCCESS;

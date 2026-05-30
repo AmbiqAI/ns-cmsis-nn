@@ -18,8 +18,6 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
-#include <string.h>
-
 /**
  *  @ingroup Public
  */
@@ -106,7 +104,7 @@ arm_broadcast_to_s16(const int16_t *input, const cmsis_nn_broadcast_to_params *p
                 remainder %= outer_stride;
                 in_idx += (input_shape[d] > 1 ? coord : 0) * input_strides[d];
             }
-            memcpy(output + outer * inner_size, input + in_idx, (size_t)inner_size * sizeof(int16_t));
+            arm_memcpy_s16(output + outer * inner_size, input + in_idx, (uint32_t)inner_size);
         }
     }
     else
