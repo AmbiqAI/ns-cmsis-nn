@@ -49,13 +49,20 @@ arm_cmsis_nn_status arm_broadcast_to_s8(const int8_t *input, const cmsis_nn_broa
     int32_t output_strides[8];
     int32_t input_strides[8];
 
+    /* Compute real memory strides for input (unconditional) */
+    int32_t real_input_strides[8];
+    real_input_strides[rank - 1] = 1;
     output_strides[rank - 1] = 1;
-    input_strides[rank - 1] = (input_shape[rank - 1] > 1) ? 1 : 0;
-
     for (int32_t d = rank - 2; d >= 0; d--)
     {
+        real_input_strides[d] = real_input_strides[d + 1] * input_shape[d + 1];
         output_strides[d] = output_strides[d + 1] * output_shape[d + 1];
-        input_strides[d] = (input_shape[d] > 1) ? (input_strides[d + 1] * input_shape[d + 1]) : 0;
+    }
+
+    /* Broadcast mask: stride = 0 for dims where input_shape == 1 */
+    for (int32_t d = 0; d < rank; d++)
+    {
+        input_strides[d] = (input_shape[d] > 1) ? real_input_strides[d] : 0;
     }
 
     /* Find innermost contiguous (non-broadcast) dims for memcpy optimization */
