@@ -92,12 +92,12 @@ set(EXPECTED_COUNT_transpose       2)
 set(EXPECTED_COUNT_tile            2)
 set(EXPECTED_COUNT_broadcast       2)
 set(EXPECTED_COUNT_scatter         2)
-set(EXPECTED_COUNT_select          3)
+set(EXPECTED_COUNT_select          4)
 set(EXPECTED_COUNT_reversesequence 2)
 set(EXPECTED_COUNT_dynamicupdateslice 2)
 set(EXPECTED_COUNT_nnsupport      30)
 
-set(EXPECTED_TOTAL 221)
+set(EXPECTED_TOTAL 222)
 
 # ----------------------------------------------------------------------------
 # Test harness: collect failures, report them all at once.

@@ -301,6 +301,7 @@
         <file category="source" name="Source/SelectFunctions/arm_select_v2_s8.c"/>
         <file category="source" name="Source/SelectFunctions/arm_select_v2_s16.c"/>
         <file category="source" name="Source/SelectFunctions/arm_where_s8.c"/>
+        <file category="source" name="Source/SelectFunctions/arm_where_s16.c"/>
         <file category="source" name="Source/ReverseSequenceFunctions/arm_reverse_sequence_s8.c"/>
         <file category="source" name="Source/ReverseSequenceFunctions/arm_reverse_sequence_s16.c"/>
         <file category="source" name="Source/DynamicUpdateSliceFunctions/arm_dynamic_update_slice_s8.c"/>

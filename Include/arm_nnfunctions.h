@@ -5852,6 +5852,20 @@ arm_cmsis_nn_status
 arm_where_s8(const int8_t *condition, const cmsis_nn_where_params *params, int32_t *output, int32_t *num_true);
 
 /**
+ * @brief WHERE operator: return coordinates of non-zero elements in condition (int16).
+ *
+ * @param[in]   condition   Pointer to condition tensor data (int16, non-zero = true)
+ * @param[in]   params      Pointer to where parameters (rank, shape)
+ * @param[out]  output      Pointer to output coordinates (int32, shape [max_true, rank])
+ * @param[out]  num_true    Number of true elements found
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status
+arm_where_s16(const int16_t *condition, const cmsis_nn_where_params *params, int32_t *output, int32_t *num_true);
+
+/**
  * @brief SELECT_V2 with broadcast for int8 tensors.
  *
  * @param[in]   condition   Pointer to condition tensor data (int8, non-zero = true)
