@@ -97,7 +97,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
 
     #ifdef ARM_MATH_MVEI
     /* Generate two columns from the input tensor */
-    int32_t* weight_sum_buf = (int32_t *)weight_sum_ctx->buf;
+    int32_t *weight_sum_buf = (int32_t *)weight_sum_ctx->buf;
     int8_t *lhs_buffer = (int8_t *)buffer_a;
     int8_t *out = output;
     int buffer_count = 0;

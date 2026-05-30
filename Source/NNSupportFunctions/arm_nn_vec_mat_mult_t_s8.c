@@ -48,30 +48,30 @@
  */
 
 /*
-* s8 vector(lhs) by matrix (transposed) multiplication
-*
-* Refer header file for details.
-*
-*/
-#if !defined(ARM_MATH_MVEI) && defined(ARM_MATH_DSP) && !defined(__ARMCC_VERSION) && !defined(__ICCARM__) &&         \
+ * s8 vector(lhs) by matrix (transposed) multiplication
+ *
+ * Refer header file for details.
+ *
+ */
+#if !defined(ARM_MATH_MVEI) && defined(ARM_MATH_DSP) && !defined(__ARMCC_VERSION) && !defined(__ICCARM__) &&           \
     !defined(__clang__)
     #pragma GCC optimize("unroll-loops")
 #endif
 arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
-                                            const int8_t *rhs,
-                                            const int32_t *kernel_sum,
-                                            const int32_t *bias,
-                                            int8_t *dst,
-                                            const int32_t lhs_offset,
-                                            const int32_t dst_offset,
-                                            const int32_t dst_multiplier,
-                                            const int32_t dst_shift,
-                                            const int32_t rhs_cols,
-                                            const int32_t rhs_rows,
-                                            const int32_t activation_min,
-                                            const int32_t activation_max,
-                                            const int32_t address_offset,
-                                            const int32_t rhs_offset)
+                                             const int8_t *rhs,
+                                             const int32_t *kernel_sum,
+                                             const int32_t *bias,
+                                             int8_t *dst,
+                                             const int32_t lhs_offset,
+                                             const int32_t dst_offset,
+                                             const int32_t dst_multiplier,
+                                             const int32_t dst_shift,
+                                             const int32_t rhs_cols,
+                                             const int32_t rhs_rows,
+                                             const int32_t activation_min,
+                                             const int32_t activation_max,
+                                             const int32_t address_offset,
+                                             const int32_t rhs_offset)
 {
     if (rhs_offset)
     {
@@ -100,44 +100,39 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
             const int8_t *rhs_3_ptr = rhs_2_ptr + rhs_cols;
             rhs = rhs_3_ptr + rhs_cols;
 
-            __ASM volatile(
-                " .p2align 2                                 \n"
-                "   wlstp.8         lr, %[cnt], 1f           \n"
-                "   mov             %[out0], 0               \n"
-                "   mov             %[out1], 0               \n"
-                "   mov             %[out2], 0               \n"
-                "   mov             %[out3], 0               \n"
-                "   mov             %[sum], 0                \n"
-                "   vldrb.8         q0, [%[col]], #16        \n"
-                "2:                                          \n"
-                "   vaddva.s8      %[sum], q0                \n"
-                "   vldrb.8         q1, [%[row0]], #16       \n"
-                "   vmladava.s8     %[out0], q0, q1          \n"
-                "   vldrb.8         q2, [%[row1]], #16       \n"
-                "   vmladava.s8     %[out1], q0, q2          \n"
-                "   vldrb.8         q3, [%[row2]], #16       \n"
-                "   vmladava.s8     %[out2], q0, q3          \n"
-                "   vldrb.8         q4, [%[row3]], #16       \n"
-                "   vmladava.s8     %[out3], q0, q4          \n"
-                "   vldrb.8         q0, [%[col]], #16        \n"
-                "   letp            lr, 2b                   \n"
-                "1:                                          \n"
-            :
-                [col] "+r"(lhs_vec),
-                [sum] "=Te"(lhs_sum),
-                [row0] "+r"(rhs_0_ptr),
-                [row1] "+r"(rhs_1_ptr),
-                [row2] "+r"(rhs_2_ptr),
-                [row3] "+r"(rhs_3_ptr),
-                [out0] "=Te"(acc_0),
-                [out1] "=Te"(acc_1),
-                [out2] "=Te"(acc_2),
-                [out3] "=Te"(acc_3)
-            :
-                [cnt] "r"(rhs_cols)
-            :
-                "q0", "q1", "q2", "q3", "q4", "memory", "r14"
-            );
+            __ASM volatile(" .p2align 2                                 \n"
+                           "   wlstp.8         lr, %[cnt], 1f           \n"
+                           "   mov             %[out0], 0               \n"
+                           "   mov             %[out1], 0               \n"
+                           "   mov             %[out2], 0               \n"
+                           "   mov             %[out3], 0               \n"
+                           "   mov             %[sum], 0                \n"
+                           "   vldrb.8         q0, [%[col]], #16        \n"
+                           "2:                                          \n"
+                           "   vaddva.s8      %[sum], q0                \n"
+                           "   vldrb.8         q1, [%[row0]], #16       \n"
+                           "   vmladava.s8     %[out0], q0, q1          \n"
+                           "   vldrb.8         q2, [%[row1]], #16       \n"
+                           "   vmladava.s8     %[out1], q0, q2          \n"
+                           "   vldrb.8         q3, [%[row2]], #16       \n"
+                           "   vmladava.s8     %[out2], q0, q3          \n"
+                           "   vldrb.8         q4, [%[row3]], #16       \n"
+                           "   vmladava.s8     %[out3], q0, q4          \n"
+                           "   vldrb.8         q0, [%[col]], #16        \n"
+                           "   letp            lr, 2b                   \n"
+                           "1:                                          \n"
+                           : [col] "+r"(lhs_vec),
+                             [sum] "=Te"(lhs_sum),
+                             [row0] "+r"(rhs_0_ptr),
+                             [row1] "+r"(rhs_1_ptr),
+                             [row2] "+r"(rhs_2_ptr),
+                             [row3] "+r"(rhs_3_ptr),
+                             [out0] "=Te"(acc_0),
+                             [out1] "=Te"(acc_1),
+                             [out2] "=Te"(acc_2),
+                             [out3] "=Te"(acc_3)
+                           : [cnt] "r"(rhs_cols)
+                           : "q0", "q1", "q2", "q3", "q4", "memory", "r14");
             lhs_vec -= 8;
 
             int32x4_t acc = {acc_0, acc_1, acc_2, acc_3};
@@ -168,29 +163,21 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
 
             lhs_sum = 0;
 
-            __ASM volatile(
-                " .p2align 2                                 \n"
-                "   wlstp.8         lr, %[cnt], 1f           \n"
-                "   mov             %[out0], 0               \n"
-                "   mov             %[sum], 0                \n"
-                "   vldrb.8         q0, [%[col]], #16        \n"
-                "2:                                          \n"
-                "   vaddva.s8      %[sum], q0                \n"
-                "   vldrb.8         q1, [%[row0]], #16       \n"
-                "   vmladava.s8     %[out0], q0, q1          \n"
-                "   vldrb.8         q0, [%[col]], #16        \n"
-                "   letp            lr, 2b                   \n"
-                "1:                                          \n"
-            :
-                [col] "+r"(lhs_vec),
-                [sum] "=Te"(lhs_sum),
-                [row0] "+r"(rhs_ptr),
-                [out0] "=Te"(acc_0)
-            :
-                [cnt] "r"(col_cnt)
-            :
-            "q0", "q1", "q2", "q3", "q4", "memory", "r14"
-            );
+            __ASM volatile(" .p2align 2                                 \n"
+                           "   wlstp.8         lr, %[cnt], 1f           \n"
+                           "   mov             %[out0], 0               \n"
+                           "   mov             %[sum], 0                \n"
+                           "   vldrb.8         q0, [%[col]], #16        \n"
+                           "2:                                          \n"
+                           "   vaddva.s8      %[sum], q0                \n"
+                           "   vldrb.8         q1, [%[row0]], #16       \n"
+                           "   vmladava.s8     %[out0], q0, q1          \n"
+                           "   vldrb.8         q0, [%[col]], #16        \n"
+                           "   letp            lr, 2b                   \n"
+                           "1:                                          \n"
+                           : [col] "+r"(lhs_vec), [sum] "=Te"(lhs_sum), [row0] "+r"(rhs_ptr), [out0] "=Te"(acc_0)
+                           : [cnt] "r"(col_cnt)
+                           : "q0", "q1", "q2", "q3", "q4", "memory", "r14");
             lhs_vec -= 8;
 
             acc_0 += *kernel_sum++;
@@ -450,41 +437,36 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
             const int8_t *rhs_3_ptr = rhs_2_ptr + rhs_cols;
             rhs = rhs_3_ptr + rhs_cols;
 
-            __ASM volatile(
-                " .p2align 2                                 \n"
-                "   wlstp.8         lr, %[cnt], 1f           \n"
-                "   mov             %[out0], 0               \n"
-                "   mov             %[out1], 0               \n"
-                "   mov             %[out2], 0               \n"
-                "   mov             %[out3], 0               \n"
-                "   vldrb.8         q0, [%[col]], #16        \n"
-                "2:                                          \n"
-                "   vldrb.8         q1, [%[row0]], #16       \n"
-                "   vmladava.s8     %[out0], q0, q1          \n"
-                "   vldrb.8         q2, [%[row1]], #16       \n"
-                "   vmladava.s8     %[out1], q0, q2          \n"
-                "   vldrb.8         q3, [%[row2]], #16       \n"
-                "   vmladava.s8     %[out2], q0, q3          \n"
-                "   vldrb.8         q4, [%[row3]], #16       \n"
-                "   vmladava.s8     %[out3], q0, q4          \n"
-                "   vldrb.8         q0, [%[col]], #16        \n"
-                "   letp            lr, 2b                   \n"
-                "1:                                          \n"
-            :
-                [col] "+r"(lhs_vec),
-                [row0] "+r"(rhs_0_ptr),
-                [row1] "+r"(rhs_1_ptr),
-                [row2] "+r"(rhs_2_ptr),
-                [row3] "+r"(rhs_3_ptr),
-                [out0] "=Te"(acc_0),
-                [out1] "=Te"(acc_1),
-                [out2] "=Te"(acc_2),
-                [out3] "=Te"(acc_3)
-            :
-                [cnt] "r"(rhs_cols)
-            :
-                "q0", "q1", "q2", "q3", "q4", "memory", "r14"
-            );
+            __ASM volatile(" .p2align 2                                 \n"
+                           "   wlstp.8         lr, %[cnt], 1f           \n"
+                           "   mov             %[out0], 0               \n"
+                           "   mov             %[out1], 0               \n"
+                           "   mov             %[out2], 0               \n"
+                           "   mov             %[out3], 0               \n"
+                           "   vldrb.8         q0, [%[col]], #16        \n"
+                           "2:                                          \n"
+                           "   vldrb.8         q1, [%[row0]], #16       \n"
+                           "   vmladava.s8     %[out0], q0, q1          \n"
+                           "   vldrb.8         q2, [%[row1]], #16       \n"
+                           "   vmladava.s8     %[out1], q0, q2          \n"
+                           "   vldrb.8         q3, [%[row2]], #16       \n"
+                           "   vmladava.s8     %[out2], q0, q3          \n"
+                           "   vldrb.8         q4, [%[row3]], #16       \n"
+                           "   vmladava.s8     %[out3], q0, q4          \n"
+                           "   vldrb.8         q0, [%[col]], #16        \n"
+                           "   letp            lr, 2b                   \n"
+                           "1:                                          \n"
+                           : [col] "+r"(lhs_vec),
+                             [row0] "+r"(rhs_0_ptr),
+                             [row1] "+r"(rhs_1_ptr),
+                             [row2] "+r"(rhs_2_ptr),
+                             [row3] "+r"(rhs_3_ptr),
+                             [out0] "=Te"(acc_0),
+                             [out1] "=Te"(acc_1),
+                             [out2] "=Te"(acc_2),
+                             [out3] "=Te"(acc_3)
+                           : [cnt] "r"(rhs_cols)
+                           : "q0", "q1", "q2", "q3", "q4", "memory", "r14");
             lhs_vec -= 8;
 
             int32x4_t acc = {acc_0, acc_1, acc_2, acc_3};
@@ -502,47 +484,40 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s8(const int8_t *lhs,
             dst += next_dst_offset;
         }
 
-    const int loop_cnt = rhs_rows % 4;
-    for (int32_t i_row_loop_cnt = 0; i_row_loop_cnt < loop_cnt; i_row_loop_cnt++)
-    {
-        int32_t acc_0 = 0;
-        const int8_t *lhs_vec = lhs;
-        const int8_t *rhs_ptr = rhs;
-        uint32_t col_cnt = (uint32_t)rhs_cols;
-        rhs += rhs_cols;
+        const int loop_cnt = rhs_rows % 4;
+        for (int32_t i_row_loop_cnt = 0; i_row_loop_cnt < loop_cnt; i_row_loop_cnt++)
+        {
+            int32_t acc_0 = 0;
+            const int8_t *lhs_vec = lhs;
+            const int8_t *rhs_ptr = rhs;
+            uint32_t col_cnt = (uint32_t)rhs_cols;
+            rhs += rhs_cols;
 
-        __ASM volatile(
-            " .p2align 2                                 \n"
-            "   wlstp.8         lr, %[cnt], 1f           \n"
-            "   mov             %[out0], 0               \n"
-            "   vldrb.8         q0, [%[col]], #16        \n"
-            "2:                                          \n"
-            "   vldrb.8         q1, [%[row0]], #16       \n"
-            "   vmladava.s8     %[out0], q0, q1          \n"
-            "   vldrb.8         q0, [%[col]], #16        \n"
-            "   letp            lr, 2b                   \n"
-            "1:                                          \n"
-        :
-            [col] "+r"(lhs_vec),
-            [row0] "+r"(rhs_ptr),
-            [out0] "=Te"(acc_0)
-        :
-            [cnt] "r"(col_cnt)
-        :
-            "q0", "q1", "q2", "q3", "q4", "memory", "r14"
-        );
-        lhs_vec -= 8;
+            __ASM volatile(" .p2align 2                                 \n"
+                           "   wlstp.8         lr, %[cnt], 1f           \n"
+                           "   mov             %[out0], 0               \n"
+                           "   vldrb.8         q0, [%[col]], #16        \n"
+                           "2:                                          \n"
+                           "   vldrb.8         q1, [%[row0]], #16       \n"
+                           "   vmladava.s8     %[out0], q0, q1          \n"
+                           "   vldrb.8         q0, [%[col]], #16        \n"
+                           "   letp            lr, 2b                   \n"
+                           "1:                                          \n"
+                           : [col] "+r"(lhs_vec), [row0] "+r"(rhs_ptr), [out0] "=Te"(acc_0)
+                           : [cnt] "r"(col_cnt)
+                           : "q0", "q1", "q2", "q3", "q4", "memory", "r14");
+            lhs_vec -= 8;
 
-        acc_0 += *kernel_sum++;
+            acc_0 += *kernel_sum++;
 
-        acc_0 = arm_nn_requantize(acc_0, dst_multiplier, dst_shift);
-        acc_0 += dst_offset;
+            acc_0 = arm_nn_requantize(acc_0, dst_multiplier, dst_shift);
+            acc_0 += dst_offset;
 
-        // Clamp the result
-        acc_0 = MAX(acc_0, activation_min);
-        *dst = MIN(acc_0, activation_max);
-        dst += address_offset;
-    }
+            // Clamp the result
+            acc_0 = MAX(acc_0, activation_min);
+            *dst = MIN(acc_0, activation_max);
+            dst += address_offset;
+        }
 
 #elif defined(ARM_MATH_DSP)
         (void)kernel_sum;

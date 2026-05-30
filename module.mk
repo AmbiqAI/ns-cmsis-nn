@@ -15,6 +15,12 @@ local_src += $(wildcard $(subdirectory)/Source/StridedSliceFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/SVDFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/TransposeFunctions/*.c)
 local_src += $(wildcard $(subdirectory)/Source/GatherFunctions/*.c)
+local_src += $(wildcard $(subdirectory)/Source/TileFunctions/*.c)
+local_src += $(wildcard $(subdirectory)/Source/BroadcastFunctions/*.c)
+local_src += $(wildcard $(subdirectory)/Source/ScatterFunctions/*.c)
+local_src += $(wildcard $(subdirectory)/Source/SelectFunctions/*.c)
+local_src += $(wildcard $(subdirectory)/Source/ReverseSequenceFunctions/*.c)
+local_src += $(wildcard $(subdirectory)/Source/DynamicUpdateSliceFunctions/*.c)
 
 includes_api += $(subdirectory)/Include
 includes_api += $(subdirectory)/Include/Internal

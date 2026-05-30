@@ -70,10 +70,10 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
     const int32x4_t out_shift_vec = vdupq_n_s32(out_shift);
     const int16_t casted_input_1_offset = (int16_t)input_1_offset;
     const int16_t casted_input_2_offset = (int16_t)input_2_offset;
-    //NOTE: key optimization comes from processing 8 elements at a time
-    //and performing a 16 bit add of the input offsets
-    //this conforms to the tensorflowlite 8-bit quantization specification
-    //but it will not conform to general runtimes which allow greater than 8-bit int offsets
+    // NOTE: key optimization comes from processing 8 elements at a time
+    // and performing a 16 bit add of the input offsets
+    // this conforms to the tensorflowlite 8-bit quantization specification
+    // but it will not conform to general runtimes which allow greater than 8-bit int offsets
     for (size_t i = 0; i < nonpredicate_loops; i++)
     {
         int16x8_t in16_1_a = vldrbq_s16(input_1_vect);
@@ -82,14 +82,13 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
         int16x8_t in16_2_a = vldrbq_s16(input_2_vect);
         in16_2_a = vaddq_n_s16(in16_2_a, casted_input_2_offset);
 
-
         int32x4_t res_a = vmullbq_int_s16(in16_1_a, in16_2_a);
         res_a = arm_requantize_mve_32x4(res_a, out_mult_vec, out_shift_vec);
 
         int32x4_t res_b = vmulltq_int_s16(in16_1_a, in16_2_a);
         res_b = arm_requantize_mve_32x4(res_b, out_mult_vec, out_shift_vec);
 
-        //narrow from 32 bit to 16 bit
+        // narrow from 32 bit to 16 bit
         int16x8_t half0 = vdupq_n_s16(0);
         half0 = vqmovnbq_s32(half0, res_a);
         half0 = vqmovntq_s32(half0, res_b);
@@ -98,7 +97,7 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
         half0 = vmaxq_s16(half0, vdupq_n_s16(out_activation_min));
         half0 = vminq_s16(half0, vdupq_n_s16(out_activation_max));
 
-        //perfom 64 bit store
+        // perfom 64 bit store
         vstrbq_s16(output, half0);
 
         input_1_vect += 8;
@@ -106,8 +105,9 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
         output += 8;
     }
 
-    //handle leftover elements
-    while (predicate_elements > 0) {
+    // handle leftover elements
+    while (predicate_elements > 0)
+    {
 
         mve_pred16_t p = vctp32q(predicate_elements);
         int32x4_t input_1 = vldrbq_z_s32(input_1_vect, p);

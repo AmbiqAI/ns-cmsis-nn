@@ -14,33 +14,6 @@ menuconfig NS_CMSIS_NN
 
 if NS_CMSIS_NN
 
-config NS_CMSIS_NN_USE_PREBUILT
-        bool "Consume a pre-compiled libns-cmsis-nn.a instead of building from source"
-        help
-          When enabled, the Zephyr module skips compiling cmsis-nn from
-          source and instead imports a pre-built static library from a
-          per-arch SDK tarball already extracted on the filesystem
-          (see NS_CMSIS_NN_PREBUILT_PATH). The tarball is what the
-          upstream release publishes alongside each tag as
-          ns-cmsis-nn-<cpu>-<toolchain>-<version>.tar.gz.
-
-          The application is responsible for ensuring the tarball's
-          target_cpu matches the board's Cortex-M variant; an ABI
-          mismatch will surface as a link error.
-
-          Mutually exclusive with the source build: the per-kernel
-          NS_CMSIS_NN_* group knobs below are ignored in prebuilt mode
-          (the prebuilt .a already contains every kernel).
-
-config NS_CMSIS_NN_PREBUILT_PATH
-        string "Filesystem path to an extracted ns-cmsis-nn SDK tarball"
-        depends on NS_CMSIS_NN_USE_PREBUILT
-        help
-          Absolute path to the directory produced by extracting a
-          per-arch SDK tarball, e.g.
-              /opt/ns-cmsis-nn-cortex-m4-gcc-7.24.1/
-          The directory must contain lib/libns-cmsis-nn.a and include/.
-
 config NS_CMSIS_NN_ALL
 	bool "Enable all NS-CMSIS-NN kernels"
 	help
@@ -65,6 +38,12 @@ config NS_CMSIS_NN_ALL
 	imply NS_CMSIS_NN_SVDF
 	imply NS_CMSIS_NN_TRANSPOSE
 	imply NS_CMSIS_NN_GATHER
+	imply NS_CMSIS_NN_TILE
+	imply NS_CMSIS_NN_BROADCAST
+	imply NS_CMSIS_NN_SCATTER
+	imply NS_CMSIS_NN_SELECT
+	imply NS_CMSIS_NN_REVERSESEQUENCE
+	imply NS_CMSIS_NN_DYNAMICUPDATESLICE
 
 config NS_CMSIS_NN_ACTIVATION
 	bool "Activation"
@@ -175,49 +154,57 @@ config NS_CMSIS_NN_GATHER
 	help
 	  This option enables the NN libraries for the gather layers.
 
-config NS_CMSIS_NN_REQUANTIZE_INLINE_ASSEMBLY
-        bool "Use inline-assembly requantize routine"
-        depends on CPU_CORTEX_M
-        help
-          When enabled, defines CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY for
-          both this library and any consumer that includes its headers. This
-          switches the requantize routines (used in many hot kernels) to
-          hand-tuned inline-assembly variants that are noticeably faster than
-          the C fallbacks on Cortex-M cores. Defaults off to match the
-          standalone CMake build's default; safe to enable on any Cortex-M.
+config NS_CMSIS_NN_TILE
+	bool "Tile"
+	help
+	  This option enables the NN libraries for the tile operator.
 
-# ---------------------------------------------------------------------------
-# DEPRECATED aliases — kept for one release cycle so existing prj.conf files
-# keep configuring. The renamed targets (BASICMATHSNN, STRIDEDSLICE, SVDF)
-# match the SSoT group ids used by the standalone CMake build and the NSX
-# module. Remove these in the next major.
-# ---------------------------------------------------------------------------
+config NS_CMSIS_NN_BROADCAST
+	bool "Broadcast"
+	help
+	  This option enables the NN libraries for the broadcast_to operator.
 
-# DEPRECATED: use NS_CMSIS_NN_BASICMATHSNN
+config NS_CMSIS_NN_SCATTER
+	bool "Scatter"
+	help
+	  This option enables the NN libraries for the scatter_nd operator.
+
+config NS_CMSIS_NN_SELECT
+	bool "Select"
+	help
+	  This option enables the NN libraries for select_v2 and where operators.
+
+config NS_CMSIS_NN_REVERSESEQUENCE
+	bool "ReverseSequence"
+	help
+	  This option enables the NN libraries for the reverse_sequence operator.
+
+config NS_CMSIS_NN_DYNAMICUPDATESLICE
+	bool "DynamicUpdateSlice"
+	help
+	  This option enables the NN libraries for the dynamic_update_slice operator.
+
+# ---- Deprecated aliases (from #160 rename) ----
+
 config NS_CMSIS_NN_BASICMATH
-	bool "[DEPRECATED] Basic Math for NN (use NS_CMSIS_NN_BASICMATHSNN)"
-	select DEPRECATED
+	bool "Basic Math for NN [DEPRECATED]"
 	select NS_CMSIS_NN_BASICMATHSNN
+	select DEPRECATED
 	help
-	  Deprecated alias for NS_CMSIS_NN_BASICMATHSNN. Update your prj.conf
-	  to use the new name; this symbol will be removed in a future release.
+	  Deprecated: use NS_CMSIS_NN_BASICMATHSNN instead.
 
-# DEPRECATED: use NS_CMSIS_NN_STRIDEDSLICE
 config NS_CMSIS_NN_STRIDED_SLICE
-	bool "[DEPRECATED] Strided Slice (use NS_CMSIS_NN_STRIDEDSLICE)"
-	select DEPRECATED
+	bool "Strided Slice [DEPRECATED]"
 	select NS_CMSIS_NN_STRIDEDSLICE
-	help
-	  Deprecated alias for NS_CMSIS_NN_STRIDEDSLICE. Update your prj.conf
-	  to use the new name; this symbol will be removed in a future release.
-
-# DEPRECATED: use NS_CMSIS_NN_SVDF
-config NS_CMSIS_NN_SVD
-	bool "[DEPRECATED] SVD (use NS_CMSIS_NN_SVDF)"
 	select DEPRECATED
-	select NS_CMSIS_NN_SVDF
 	help
-	  Deprecated alias for NS_CMSIS_NN_SVDF. Update your prj.conf
-	  to use the new name; this symbol will be removed in a future release.
+	  Deprecated: use NS_CMSIS_NN_STRIDEDSLICE instead.
 
-endif # NS_CMSIS_NN
+config NS_CMSIS_NN_SVD
+	bool "SVD [DEPRECATED]"
+	select NS_CMSIS_NN_SVDF
+	select DEPRECATED
+	help
+	  Deprecated: use NS_CMSIS_NN_SVDF instead.
+
+endif #NS_CMSIS_NN

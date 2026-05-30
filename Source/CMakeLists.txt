@@ -39,6 +39,12 @@ option(TRANSPOSE            "Transpose"             ON)
 option(QUANTIZATION         "Quantization"          ON)
 option(STRIDEDSLICE         "Strided Slice"         ON)
 option(GATHER               "Gather"                ON)
+option(TILE                 "Tile"                  ON)
+option(BROADCAST            "Broadcast"             ON)
+option(SCATTER              "Scatter"               ON)
+option(SELECT               "Select"                ON)
+option(REVERSESEQUENCE      "Reverse Sequence"      ON)
+option(DYNAMICUPDATESLICE   "Dynamic Update Slice"  ON)
 
 option(CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY
        "Enable inline‐assembly version of the requantize routine" OFF)
@@ -119,6 +125,30 @@ endif()
 
 if (GATHER)
   add_subdirectory(GatherFunctions)
+endif()
+
+if (TILE)
+  add_subdirectory(TileFunctions)
+endif()
+
+if (BROADCAST)
+  add_subdirectory(BroadcastFunctions)
+endif()
+
+if (SCATTER)
+  add_subdirectory(ScatterFunctions)
+endif()
+
+if (SELECT)
+  add_subdirectory(SelectFunctions)
+endif()
+
+if (REVERSESEQUENCE)
+  add_subdirectory(ReverseSequenceFunctions)
+endif()
+
+if (DYNAMICUPDATESLICE)
+  add_subdirectory(DynamicUpdateSliceFunctions)
 endif()
 
 # Keep NNSUPPORT at the end

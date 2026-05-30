@@ -45,7 +45,7 @@
  * Refer header file for details.
  *
  */
-arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t* weight_sum_buf,
+arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
                                                   const int8_t *lhs,
                                                   const int8_t *rhs,
                                                   const int32_t input_offset,
@@ -61,13 +61,12 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t* weight_sum_buf,
                                                   int8_t *out)
 {
 #if defined(ARM_MATH_MVEI)
-    //not used currently with new weight sum approach
-    (void) input_offset;
-    (void) output_bias;
+    // not used currently with new weight sum approach
+    (void)input_offset;
+    (void)output_bias;
     int32_t loop_count = (active_ch + 3) / 4;
     uint32_t num_ch_to_process = active_ch;
     const int32_t *weight_sum_base = weight_sum_buf;
-
 
     for (int i_loop_cnt = 0, offset = 0; i_loop_cnt < loop_count;
          num_ch_to_process -= 4, offset += 4, out += 4, i_loop_cnt++)
@@ -77,7 +76,6 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t* weight_sum_buf,
         int32x4_t out_1 = base;
         int32x4_t out_2 = base;
         int32x4_t out_3 = base;
-
 
         const int8_t *rhs_0 = rhs + offset;
         const int8_t *lhs_0 = lhs + offset;

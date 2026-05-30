@@ -274,6 +274,8 @@
         <file category="source" name="Source/SoftmaxFunctions/arm_softmax_u8.c"/>
         <file category="source" name="Source/PadFunctions/arm_pad_s8.c"/>
         <file category="source" name="Source/PadFunctions/arm_pad_s16.c"/>
+        <file category="source" name="Source/PadFunctions/arm_mirror_pad_s8.c"/>
+        <file category="source" name="Source/PadFunctions/arm_mirror_pad_s16.c"/>
 
         <file category="source" name="Source/QuantizationFunctions/arm_dequantize_s8_f32.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_dequantize_s16_f32.c"/>
@@ -290,6 +292,20 @@
         <file category="source" name="Source/GatherFunctions/arm_gather_s16.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_nd_s8.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_nd_s16.c"/>
+        <file category="source" name="Source/TileFunctions/arm_tile_s8.c"/>
+        <file category="source" name="Source/TileFunctions/arm_tile_s16.c"/>
+        <file category="source" name="Source/BroadcastFunctions/arm_broadcast_to_s8.c"/>
+        <file category="source" name="Source/BroadcastFunctions/arm_broadcast_to_s16.c"/>
+        <file category="source" name="Source/ScatterFunctions/arm_scatter_nd_s8.c"/>
+        <file category="source" name="Source/ScatterFunctions/arm_scatter_nd_s16.c"/>
+        <file category="source" name="Source/SelectFunctions/arm_select_v2_s8.c"/>
+        <file category="source" name="Source/SelectFunctions/arm_select_v2_s16.c"/>
+        <file category="source" name="Source/SelectFunctions/arm_where_s8.c"/>
+        <file category="source" name="Source/SelectFunctions/arm_where_s16.c"/>
+        <file category="source" name="Source/ReverseSequenceFunctions/arm_reverse_sequence_s8.c"/>
+        <file category="source" name="Source/ReverseSequenceFunctions/arm_reverse_sequence_s16.c"/>
+        <file category="source" name="Source/DynamicUpdateSliceFunctions/arm_dynamic_update_slice_s8.c"/>
+        <file category="source" name="Source/DynamicUpdateSliceFunctions/arm_dynamic_update_slice_s16.c"/>
 
       </files>
     </component>
