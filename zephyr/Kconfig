@@ -65,8 +65,12 @@ config NS_CMSIS_NN_ALL
 	imply NS_CMSIS_NN_SVDF
 	imply NS_CMSIS_NN_TRANSPOSE
 	imply NS_CMSIS_NN_GATHER
-
-config NS_CMSIS_NN_ACTIVATION
+        imply NS_CMSIS_NN_TILE
+        imply NS_CMSIS_NN_BROADCAST
+        imply NS_CMSIS_NN_SCATTER
+        imply NS_CMSIS_NN_SELECT
+        imply NS_CMSIS_NN_REVERSESEQUENCE
+        imply NS_CMSIS_NN_DYNAMICUPDATESLICE
 	bool "Activation"
 	imply NS_CMSIS_NN_NNSUPPORT
 	help
@@ -174,6 +178,36 @@ config NS_CMSIS_NN_GATHER
 	imply NS_CMSIS_NN_NNSUPPORT
 	help
 	  This option enables the NN libraries for the gather layers.
+
+config NS_CMSIS_NN_TILE
+	bool "Tile"
+	help
+	  This option enables the NN libraries for the tile operator.
+
+config NS_CMSIS_NN_BROADCAST
+	bool "Broadcast"
+	help
+	  This option enables the NN libraries for the broadcast_to operator.
+
+config NS_CMSIS_NN_SCATTER
+	bool "Scatter"
+	help
+	  This option enables the NN libraries for the scatter_nd operator.
+
+config NS_CMSIS_NN_SELECT
+	bool "Select"
+	help
+	  This option enables the NN libraries for select_v2 and where operators.
+
+config NS_CMSIS_NN_REVERSESEQUENCE
+	bool "ReverseSequence"
+	help
+	  This option enables the NN libraries for the reverse_sequence operator.
+
+config NS_CMSIS_NN_DYNAMICUPDATESLICE
+	bool "DynamicUpdateSlice"
+	help
+	  This option enables the NN libraries for the dynamic_update_slice operator.
 
 config NS_CMSIS_NN_REQUANTIZE_INLINE_ASSEMBLY
         bool "Use inline-assembly requantize routine"

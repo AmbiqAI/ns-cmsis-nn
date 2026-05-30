@@ -27,9 +27,7 @@
  * @{
  */
 
-arm_cmsis_nn_status arm_mirror_pad_s8(const int8_t *input,
-                                      const cmsis_nn_mirror_pad_params *params,
-                                      int8_t *output)
+arm_cmsis_nn_status arm_mirror_pad_s8(const int8_t *input, const cmsis_nn_mirror_pad_params *params, int8_t *output)
 {
     if (!input || !params || !output)
     {

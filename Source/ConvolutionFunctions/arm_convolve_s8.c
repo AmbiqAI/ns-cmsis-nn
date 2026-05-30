@@ -64,7 +64,6 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
 {
     (void)bias_dims;
 
-
     if (ctx->buf == NULL)
     {
         return ARM_CMSIS_NN_ARG_ERROR;

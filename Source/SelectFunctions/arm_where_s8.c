@@ -28,10 +28,8 @@
  * @{
  */
 
-arm_cmsis_nn_status arm_where_s8(const int8_t *condition,
-                                 const cmsis_nn_where_params *params,
-                                 int32_t *output,
-                                 int32_t *num_true)
+arm_cmsis_nn_status
+arm_where_s8(const int8_t *condition, const cmsis_nn_where_params *params, int32_t *output, int32_t *num_true)
 {
     if (!condition || !params || !output || !num_true)
     {

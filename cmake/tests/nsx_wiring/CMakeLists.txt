@@ -11,7 +11,7 @@
 # and asserts on the resulting target graph.
 #
 # Parameterised by -DCASE=<case>, where <case> is one of:
-#   source_all      (default) — 206 sources attached, alias present.
+#   source_all      (default) — 221 sources attached, alias present.
 #   source_subset             — NSX_CMSIS_NN_GROUPS=activation;convolution,
 #                               expect 62 sources.
 #   inline_asm                — NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM=ON,
@@ -53,7 +53,7 @@ set(NSX_BOARD_FLAGS_TARGET _nsx_board_flags)
 # nsx CMakeLists reads them at configure time.
 # ----------------------------------------------------------------------------
 if(CASE STREQUAL "source_all")
-  set(_expected_sources 206)
+  set(_expected_sources 221)
 
 elseif(CASE STREQUAL "source_subset")
   # activation (18) + convolution (44) = 62. If the SSoT counts drift, the
@@ -64,7 +64,7 @@ elseif(CASE STREQUAL "source_subset")
 
 elseif(CASE STREQUAL "inline_asm")
   set(NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM ON CACHE BOOL "" FORCE)
-  set(_expected_sources 206)
+  set(_expected_sources 221)
   set(_expect_inline_asm_define TRUE)
 
 elseif(CASE STREQUAL "prebuilt")

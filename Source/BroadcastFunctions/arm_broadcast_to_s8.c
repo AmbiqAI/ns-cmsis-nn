@@ -29,9 +29,7 @@
  * @{
  */
 
-arm_cmsis_nn_status arm_broadcast_to_s8(const int8_t *input,
-                                        const cmsis_nn_broadcast_to_params *params,
-                                        int8_t *output)
+arm_cmsis_nn_status arm_broadcast_to_s8(const int8_t *input, const cmsis_nn_broadcast_to_params *params, int8_t *output)
 {
     if (!input || !params || !output)
     {
@@ -57,9 +55,7 @@ arm_cmsis_nn_status arm_broadcast_to_s8(const int8_t *input,
     for (int32_t d = rank - 2; d >= 0; d--)
     {
         output_strides[d] = output_strides[d + 1] * output_shape[d + 1];
-        input_strides[d] = (input_shape[d] > 1)
-                               ? (input_strides[d + 1] * input_shape[d + 1])
-                               : 0;
+        input_strides[d] = (input_shape[d] > 1) ? (input_strides[d + 1] * input_shape[d + 1]) : 0;
     }
 
     /* Find innermost contiguous (non-broadcast) dims for memcpy optimization */
@@ -105,8 +101,7 @@ arm_cmsis_nn_status arm_broadcast_to_s8(const int8_t *input,
                 remainder %= outer_stride;
                 in_idx += (input_shape[d] > 1 ? coord : 0) * input_strides[d];
             }
-            memcpy(output + outer * inner_size, input + in_idx,
-                   (size_t)inner_size * sizeof(int8_t));
+            memcpy(output + outer * inner_size, input + in_idx, (size_t)inner_size * sizeof(int8_t));
         }
     }
     else

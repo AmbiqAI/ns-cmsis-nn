@@ -56,8 +56,7 @@ arm_cmsis_nn_status arm_scatter_nd_s8(const int32_t *indices,
         {
             flat_index += indices[i * index_depth + d] * output_strides[d];
         }
-        memcpy(output + flat_index, updates + i * slice_size,
-               (size_t)slice_size * sizeof(int8_t));
+        memcpy(output + flat_index, updates + i * slice_size, (size_t)slice_size * sizeof(int8_t));
     }
 
     return ARM_CMSIS_NN_SUCCESS;

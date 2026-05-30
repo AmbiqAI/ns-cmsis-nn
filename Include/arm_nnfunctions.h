@@ -2419,10 +2419,8 @@ arm_cmsis_nn_status arm_sqrt_s8(const int8_t *input, const cmsis_nn_dims *input_
  * @param[in]       sqrt_lut            pointer to 513-entry lookup table (int16_t)
  * @return          The function returns    ARM_CMSIS_NN_SUCCESS
  */
-arm_cmsis_nn_status arm_sqrt_s16(const int16_t *input,
-                                 const cmsis_nn_dims *input_dims,
-                                 int16_t *output,
-                                 const int16_t *sqrt_lut);
+arm_cmsis_nn_status
+arm_sqrt_s16(const int16_t *input, const cmsis_nn_dims *input_dims, int16_t *output, const int16_t *sqrt_lut);
 
 /**
  * @brief s16 elementwise absolute value
@@ -5719,9 +5717,7 @@ arm_cmsis_nn_status arm_gather_nd_s16(const int16_t *params_data,
  *    2. Maximum rank: 8
  *
  */
-arm_cmsis_nn_status arm_tile_s8(const int8_t *input,
-                                const cmsis_nn_tile_params *params,
-                                int8_t *output);
+arm_cmsis_nn_status arm_tile_s8(const int8_t *input, const cmsis_nn_tile_params *params, int8_t *output);
 
 /**
  * @brief Tile an int16 tensor along each dimension.
@@ -5733,9 +5729,7 @@ arm_cmsis_nn_status arm_tile_s8(const int8_t *input,
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  */
-arm_cmsis_nn_status arm_tile_s16(const int16_t *input,
-                                 const cmsis_nn_tile_params *params,
-                                 int16_t *output);
+arm_cmsis_nn_status arm_tile_s16(const int16_t *input, const cmsis_nn_tile_params *params, int16_t *output);
 
 /**
  * @defgroup Broadcast Broadcast Functions:
@@ -5756,9 +5750,8 @@ arm_cmsis_nn_status arm_tile_s16(const int16_t *input,
  *    2. Maximum rank: 8
  *
  */
-arm_cmsis_nn_status arm_broadcast_to_s8(const int8_t *input,
-                                        const cmsis_nn_broadcast_to_params *params,
-                                        int8_t *output);
+arm_cmsis_nn_status
+arm_broadcast_to_s8(const int8_t *input, const cmsis_nn_broadcast_to_params *params, int8_t *output);
 
 /**
  * @brief Broadcast an int16 tensor to a target shape.
@@ -5770,9 +5763,8 @@ arm_cmsis_nn_status arm_broadcast_to_s8(const int8_t *input,
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  */
-arm_cmsis_nn_status arm_broadcast_to_s16(const int16_t *input,
-                                         const cmsis_nn_broadcast_to_params *params,
-                                         int16_t *output);
+arm_cmsis_nn_status
+arm_broadcast_to_s16(const int16_t *input, const cmsis_nn_broadcast_to_params *params, int16_t *output);
 
 /**
  * @defgroup ScatterND ScatterND Functions:
@@ -5826,9 +5818,7 @@ arm_cmsis_nn_status arm_scatter_nd_s16(const int32_t *indices,
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  */
-arm_cmsis_nn_status arm_mirror_pad_s8(const int8_t *input,
-                                      const cmsis_nn_mirror_pad_params *params,
-                                      int8_t *output);
+arm_cmsis_nn_status arm_mirror_pad_s8(const int8_t *input, const cmsis_nn_mirror_pad_params *params, int8_t *output);
 
 /**
  * @brief Mirror-pad an int16 tensor (REFLECT or SYMMETRIC mode).
@@ -5840,9 +5830,7 @@ arm_cmsis_nn_status arm_mirror_pad_s8(const int8_t *input,
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  */
-arm_cmsis_nn_status arm_mirror_pad_s16(const int16_t *input,
-                                       const cmsis_nn_mirror_pad_params *params,
-                                       int16_t *output);
+arm_cmsis_nn_status arm_mirror_pad_s16(const int16_t *input, const cmsis_nn_mirror_pad_params *params, int16_t *output);
 
 /**
  * @defgroup Select Select/Where Functions:
@@ -5860,10 +5848,8 @@ arm_cmsis_nn_status arm_mirror_pad_s16(const int16_t *input,
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  */
-arm_cmsis_nn_status arm_where_s8(const int8_t *condition,
-                                 const cmsis_nn_where_params *params,
-                                 int32_t *output,
-                                 int32_t *num_true);
+arm_cmsis_nn_status
+arm_where_s8(const int8_t *condition, const cmsis_nn_where_params *params, int32_t *output, int32_t *num_true);
 
 /**
  * @brief SELECT_V2 with broadcast for int8 tensors.

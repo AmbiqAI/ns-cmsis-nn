@@ -29,9 +29,7 @@
  * @{
  */
 
-arm_cmsis_nn_status arm_tile_s8(const int8_t *input,
-                                const cmsis_nn_tile_params *params,
-                                int8_t *output)
+arm_cmsis_nn_status arm_tile_s8(const int8_t *input, const cmsis_nn_tile_params *params, int8_t *output)
 {
     if (!input || !params || !output)
     {
@@ -77,15 +75,12 @@ arm_cmsis_nn_status arm_tile_s8(const int8_t *input,
                 const int32_t dst_off = c * m * chunk_size;
                 for (int32_t t = m - 1; t > 0; t--)
                 {
-                    memcpy(output + dst_off + t * chunk_size,
-                           output + src_off,
-                           (size_t)chunk_size * sizeof(int8_t));
+                    memcpy(output + dst_off + t * chunk_size, output + src_off, (size_t)chunk_size * sizeof(int8_t));
                 }
                 /* Move original chunk to final position */
                 if (dst_off != src_off)
                 {
-                    memmove(output + dst_off, output + src_off,
-                            (size_t)chunk_size * sizeof(int8_t));
+                    memmove(output + dst_off, output + src_off, (size_t)chunk_size * sizeof(int8_t));
                 }
             }
             current_size *= m;

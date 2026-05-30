@@ -31,8 +31,7 @@ static inline int32_t arm_rsqrt_s16_scaled_positive(const int32_t *lut,
                                                     const int32_t out_shift,
                                                     const bool needs_rescale)
 {
-    int32_t lut_index =
-        (q_value + ((1 << ARM_RSQRT_S16_BASE_STEP_SHIFT) - 1)) >> ARM_RSQRT_S16_BASE_STEP_SHIFT;
+    int32_t lut_index = (q_value + ((1 << ARM_RSQRT_S16_BASE_STEP_SHIFT) - 1)) >> ARM_RSQRT_S16_BASE_STEP_SHIFT;
     if (lut_index >= ARM_RSQRT_S16_BASE_LUT_SIZE)
     {
         lut_index = ARM_RSQRT_S16_BASE_LUT_SIZE - 1;
@@ -97,7 +96,7 @@ static arm_cmsis_nn_status arm_rsqrt_s16_universal_core(const int16_t *input,
 
         for (size_t lane = 0; lane < 4; lane++)
         {
-            int32_t val = (int32_t) input[i + lane] - input_offset;
+            int32_t val = (int32_t)input[i + lane] - input_offset;
             if (val < 0)
             {
                 return ARM_CMSIS_NN_ARG_ERROR;
@@ -137,7 +136,7 @@ static arm_cmsis_nn_status arm_rsqrt_s16_universal_core(const int16_t *input,
     for (int32_t i = 0; i < block_size; i++)
     {
 #endif
-        int32_t val = (int32_t) input[i] - input_offset;
+        int32_t val = (int32_t)input[i] - input_offset;
         if (val < 0)
         {
             return ARM_CMSIS_NN_ARG_ERROR;
@@ -153,14 +152,13 @@ static arm_cmsis_nn_status arm_rsqrt_s16_universal_core(const int16_t *input,
         const int32_t y0 = arm_rsqrt_s16_sample_slot(lut, idx, out_mult, out_shift, needs_rescale);
         const int32_t y1 = arm_rsqrt_s16_sample_slot(lut, idx + 1, out_mult, out_shift, needs_rescale);
         const int64_t interp_delta =
-            (((int64_t) (y1 - y0) * (int64_t) frac) + ARM_RSQRT_S16_INTERP_ROUND_BIAS) >>
-            ARM_RSQRT_S16_SLOT_SHIFT;
-        int32_t rsqrt_res = (int32_t) ((int64_t) y0 + interp_delta);
+            (((int64_t)(y1 - y0) * (int64_t)frac) + ARM_RSQRT_S16_INTERP_ROUND_BIAS) >> ARM_RSQRT_S16_SLOT_SHIFT;
+        int32_t rsqrt_res = (int32_t)((int64_t)y0 + interp_delta);
 
         rsqrt_res += out_offset;
         rsqrt_res = MIN(out_activation_max, rsqrt_res);
         rsqrt_res = MAX(out_activation_min, rsqrt_res);
-        output[i] = (int16_t) rsqrt_res;
+        output[i] = (int16_t)rsqrt_res;
     }
 
     return ARM_CMSIS_NN_SUCCESS;
@@ -210,7 +208,7 @@ arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
 
         for (size_t lane = 0; lane < 4; lane++)
         {
-            int32_t value = (int32_t) input[i + lane] - input_offset;
+            int32_t value = (int32_t)input[i + lane] - input_offset;
             if (value < 0)
             {
                 return ARM_CMSIS_NN_ARG_ERROR;
@@ -220,9 +218,9 @@ arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
                 value = 0x7FFF;
             }
 
-            const uint16_t index = (uint16_t) (256 + (value >> ARM_RSQRT_S16_SLOT_SHIFT));
+            const uint16_t index = (uint16_t)(256 + (value >> ARM_RSQRT_S16_SLOT_SHIFT));
             idx_buf[lane] = index;
-            idx_next_buf[lane] = (uint16_t) (index + 1);
+            idx_next_buf[lane] = (uint16_t)(index + 1);
             frac_buf[lane] = value & ARM_RSQRT_S16_SLOT_MASK;
         }
 
@@ -232,14 +230,14 @@ arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
         int16x8_t vy1h = vldrhq_gather_shifted_offset_s16(lut, vidx_next);
         int32x4_t vy0 = vdupq_n_s32(0);
         int32x4_t vy1 = vdupq_n_s32(0);
-        vy0 = vsetq_lane_s32((int32_t) vgetq_lane_s16(vy0h, 0), vy0, 0);
-        vy0 = vsetq_lane_s32((int32_t) vgetq_lane_s16(vy0h, 1), vy0, 1);
-        vy0 = vsetq_lane_s32((int32_t) vgetq_lane_s16(vy0h, 2), vy0, 2);
-        vy0 = vsetq_lane_s32((int32_t) vgetq_lane_s16(vy0h, 3), vy0, 3);
-        vy1 = vsetq_lane_s32((int32_t) vgetq_lane_s16(vy1h, 0), vy1, 0);
-        vy1 = vsetq_lane_s32((int32_t) vgetq_lane_s16(vy1h, 1), vy1, 1);
-        vy1 = vsetq_lane_s32((int32_t) vgetq_lane_s16(vy1h, 2), vy1, 2);
-        vy1 = vsetq_lane_s32((int32_t) vgetq_lane_s16(vy1h, 3), vy1, 3);
+        vy0 = vsetq_lane_s32((int32_t)vgetq_lane_s16(vy0h, 0), vy0, 0);
+        vy0 = vsetq_lane_s32((int32_t)vgetq_lane_s16(vy0h, 1), vy0, 1);
+        vy0 = vsetq_lane_s32((int32_t)vgetq_lane_s16(vy0h, 2), vy0, 2);
+        vy0 = vsetq_lane_s32((int32_t)vgetq_lane_s16(vy0h, 3), vy0, 3);
+        vy1 = vsetq_lane_s32((int32_t)vgetq_lane_s16(vy1h, 0), vy1, 0);
+        vy1 = vsetq_lane_s32((int32_t)vgetq_lane_s16(vy1h, 1), vy1, 1);
+        vy1 = vsetq_lane_s32((int32_t)vgetq_lane_s16(vy1h, 2), vy1, 2);
+        vy1 = vsetq_lane_s32((int32_t)vgetq_lane_s16(vy1h, 3), vy1, 3);
         int32x4_t vfrac = vldrwq_s32(frac_buf);
         int32x4_t vdelta = vsubq_s32(vy1, vy0);
         int32x4_t vinterp = vmulq_s32(vdelta, vfrac);
@@ -261,7 +259,7 @@ arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
     for (int32_t i = 0; i < block_size; i++)
     {
 #endif
-        int32_t value = (int32_t) input[i] - input_offset;
+        int32_t value = (int32_t)input[i] - input_offset;
         if (value < 0)
         {
             return ARM_CMSIS_NN_ARG_ERROR;
@@ -271,7 +269,7 @@ arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
             value = 0x7FFF;
         }
 
-        const uint16_t index = (uint16_t) (256 + (value >> ARM_RSQRT_S16_SLOT_SHIFT));
+        const uint16_t index = (uint16_t)(256 + (value >> ARM_RSQRT_S16_SLOT_SHIFT));
         const int32_t frac = value & ARM_RSQRT_S16_SLOT_MASK;
         const int32_t y0 = lut[index];
         const int32_t y1 = lut[index + 1];
@@ -281,7 +279,7 @@ arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
         rsqrt_res += out_offset;
         rsqrt_res = MIN(out_activation_max, rsqrt_res);
         rsqrt_res = MAX(out_activation_min, rsqrt_res);
-        output[i] = (int16_t) rsqrt_res;
+        output[i] = (int16_t)rsqrt_res;
     }
 
     return ARM_CMSIS_NN_SUCCESS;

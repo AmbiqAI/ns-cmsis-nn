@@ -48,16 +48,16 @@
  * Supports arbitrary strides, dilation and padding.
  */
 arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx,
-                                                    const cmsis_nn_conv_params *conv_params,
-                                                  const cmsis_nn_per_channel_quant_params *quant_params,
-                                                  const cmsis_nn_dims *input_dims,
-                                                  const int16_t *input_data,
-                                                  const cmsis_nn_dims *filter_dims,
-                                                  const int8_t *filter_data,
-                                                  const cmsis_nn_dims *bias_dims,
-                                                  const cmsis_nn_bias_data *bias_data,
-                                                  const cmsis_nn_dims *output_dims,
-                                                  int16_t *output_data)
+                                                     const cmsis_nn_conv_params *conv_params,
+                                                     const cmsis_nn_per_channel_quant_params *quant_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const int16_t *input_data,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const int8_t *filter_data,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const cmsis_nn_bias_data *bias_data,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     int16_t *output_data)
 {
     (void)ctx;
     (void)bias_dims;
@@ -100,9 +100,8 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
        For rhs_cols > 8 (e.g. 3x3=9), split across two vector pairs. */
     /* Guard: gather offsets are uint16, so max byte offset must fit in 16 bits.
        Worst-case tap is at (kernel_y-1)*dilation_y rows + (kernel_x-1)*dilation_x cols. */
-    const int32_t max_byte_offset = (((kernel_y - 1) * dilation_y * input_x +
-                                      (kernel_x - 1) * dilation_x) *
-                                     input_ch * (int32_t)sizeof(int16_t));
+    const int32_t max_byte_offset =
+        (((kernel_y - 1) * dilation_y * input_x + (kernel_x - 1) * dilation_x) * input_ch * (int32_t)sizeof(int16_t));
 
     if (rhs_cols <= 16 && pad_y == 0 && pad_x == 0 && max_byte_offset <= 0xFFFF)
     {
@@ -116,8 +115,8 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
             for (int32_t kx = 0; kx < kernel_x; kx++)
             {
                 int32_t idx = ky * kernel_x + kx;
-                uint16_t off = (uint16_t)((ky * dilation_y * input_x + kx * dilation_x) *
-                                           input_ch * (int32_t)sizeof(int16_t));
+                uint16_t off =
+                    (uint16_t)((ky * dilation_y * input_x + kx * dilation_x) * input_ch * (int32_t)sizeof(int16_t));
                 if (idx < 8)
                 {
                     offset_src_0[idx] = off;
@@ -296,7 +295,7 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
                         {
                             const int32_t ix = base_x + kx * dilation_x;
                             acc += (int64_t)input_data[(iy * input_x + ix) * input_ch + c] *
-                                   (int64_t)filter_ptr[ky * kernel_x + kx];
+                                (int64_t)filter_ptr[ky * kernel_x + kx];
                         }
                     }
 

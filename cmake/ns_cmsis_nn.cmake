@@ -67,6 +67,12 @@ set(_NS_CMSIS_NN_GROUPS
     stridedslice
     svd
     transpose
+    tile
+    broadcast
+    scatter
+    select
+    reversesequence
+    dynamicupdateslice
     nnsupport
 )
 
@@ -140,6 +146,24 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     set(patterns "*_s8.c")
   elseif(group STREQUAL "transpose")
     set(subdir   "TransposeFunctions")
+    set(patterns "*_s8.c" "*_s16.c")
+  elseif(group STREQUAL "tile")
+    set(subdir   "TileFunctions")
+    set(patterns "*_s8.c" "*_s16.c")
+  elseif(group STREQUAL "broadcast")
+    set(subdir   "BroadcastFunctions")
+    set(patterns "*_s8.c" "*_s16.c")
+  elseif(group STREQUAL "scatter")
+    set(subdir   "ScatterFunctions")
+    set(patterns "*_s8.c" "*_s16.c")
+  elseif(group STREQUAL "select")
+    set(subdir   "SelectFunctions")
+    set(patterns "*_s8.c" "*_s16.c")
+  elseif(group STREQUAL "reversesequence")
+    set(subdir   "ReverseSequenceFunctions")
+    set(patterns "*_s8.c" "*_s16.c")
+  elseif(group STREQUAL "dynamicupdateslice")
+    set(subdir   "DynamicUpdateSliceFunctions")
     set(patterns "*_s8.c" "*_s16.c")
   else()
     message(FATAL_ERROR "ns_cmsis_nn: unknown group '${group}'. Valid groups: ${_NS_CMSIS_NN_GROUPS}")

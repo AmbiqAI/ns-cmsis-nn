@@ -93,8 +93,7 @@ arm_cmsis_nn_status arm_dynamic_update_slice_s8(const int8_t *operand,
             out_offset += (clamped_starts[d] + upd_coord) * operand_strides[d];
         }
         out_offset += clamped_starts[rank - 1];
-        memcpy(output + out_offset, update + row * inner_dim,
-               (size_t)inner_dim * sizeof(int8_t));
+        memcpy(output + out_offset, update + row * inner_dim, (size_t)inner_dim * sizeof(int8_t));
     }
 
     return ARM_CMSIS_NN_SUCCESS;
