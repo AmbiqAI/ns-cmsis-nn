@@ -232,6 +232,79 @@ typedef struct
     int32_t batch_dims;   /**< Number of batch dimensions */
 } cmsis_nn_gather_nd_params;
 
+/** CMSIS-NN object for the tile operator */
+typedef struct
+{
+    int32_t rank;              /**< Rank of the input tensor (range: [1, 8]) */
+    const int32_t *input_shape;  /**< Input shape array (length = rank) */
+    const int32_t *multiples;    /**< Multiples array (length = rank) */
+} cmsis_nn_tile_params;
+
+/** CMSIS-NN object for the broadcast_to operator */
+typedef struct
+{
+    int32_t rank;                /**< Rank of input/output tensors (range: [1, 8]) */
+    const int32_t *input_shape;  /**< Input shape array (length = rank) */
+    const int32_t *output_shape; /**< Output (broadcast target) shape array (length = rank) */
+} cmsis_nn_broadcast_to_params;
+
+/** CMSIS-NN object for the scatter_nd operator */
+typedef struct
+{
+    int32_t num_updates;         /**< Number of update slices */
+    int32_t index_depth;         /**< Depth of each index vector */
+    int32_t slice_size;          /**< Size of each update slice */
+    int32_t output_size;         /**< Total number of elements in output */
+    const int32_t *output_strides; /**< Strides of the output tensor (length = index_depth) */
+} cmsis_nn_scatter_nd_params;
+
+/** CMSIS-NN object for the mirror_pad operator */
+typedef struct
+{
+    int32_t rank;                /**< Rank of the input tensor (range: [1, 8]) */
+    const int32_t *input_shape;  /**< Input shape array (length = rank) */
+    const int32_t *output_shape; /**< Output shape array (length = rank) */
+    const int32_t *pad_before;   /**< Padding before each dimension (length = rank) */
+    int32_t mode;                /**< 0 = REFLECT, 1 = SYMMETRIC */
+} cmsis_nn_mirror_pad_params;
+
+/** CMSIS-NN object for the WHERE operator */
+typedef struct
+{
+    int32_t rank;           /**< Rank of the condition tensor (range: [1, 8]) */
+    const int32_t *shape;   /**< Condition tensor shape array (length = rank) */
+} cmsis_nn_where_params;
+
+/** CMSIS-NN object for the select_v2 operator (with broadcast) */
+typedef struct
+{
+    int32_t rank;                /**< Rank of the output tensor (range: [1, 8]) */
+    const int32_t *output_shape; /**< Output shape array (length = rank) */
+    const int32_t *cond_strides; /**< Condition tensor broadcast strides (length = rank) */
+    const int32_t *x_strides;   /**< X tensor broadcast strides (length = rank) */
+    const int32_t *y_strides;   /**< Y tensor broadcast strides (length = rank) */
+} cmsis_nn_select_v2_params;
+
+/** CMSIS-NN object for the reverse_sequence operator */
+typedef struct
+{
+    int32_t rank;           /**< Rank of the input tensor (range: [1, 8]) */
+    const int32_t *shape;   /**< Input shape array (length = rank) */
+    int32_t seq_dim;        /**< Dimension along which to reverse */
+    int32_t batch_dim;      /**< Batch dimension */
+} cmsis_nn_reverse_sequence_params;
+
+/** CMSIS-NN object for the dynamic_update_slice operator */
+typedef struct
+{
+    int32_t rank;                  /**< Rank of the operand tensor (range: [1, 8]) */
+    const int32_t *operand_shape;  /**< Operand shape array (length = rank) */
+    const int32_t *update_shape;   /**< Update shape array (length = rank) */
+    int32_t operand_size;          /**< Total number of elements in operand */
+    int32_t update_size;           /**< Total number of elements in update */
+    const int32_t *operand_strides; /**< Strides of the operand tensor (length = rank) */
+} cmsis_nn_dynamic_update_slice_params;
+
 /** CMSIS-NN object for Fully Connected layer parameters */
 typedef struct
 {

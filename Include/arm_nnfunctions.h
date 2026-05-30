@@ -5700,6 +5700,285 @@ arm_cmsis_nn_status arm_gather_nd_s16(const int16_t *params_data,
                                       int16_t *output_data,
                                       const cmsis_nn_dims *output_dims);
 
+/**
+ * @defgroup Tile Tile Functions:
+ *
+ */
+
+/**
+ * @brief Tile an int8 tensor along each dimension.
+ *
+ * @param[in]   input       Pointer to input tensor data
+ * @param[in]   params      Pointer to tile parameters (rank, input_shape, multiples)
+ * @param[out]  output      Pointer to output tensor data (pre-allocated by caller)
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite Micro
+ *    2. Maximum rank: 8
+ *
+ */
+arm_cmsis_nn_status arm_tile_s8(const int8_t *input,
+                                const cmsis_nn_tile_params *params,
+                                int8_t *output);
+
+/**
+ * @brief Tile an int16 tensor along each dimension.
+ *
+ * @param[in]   input       Pointer to input tensor data
+ * @param[in]   params      Pointer to tile parameters (rank, input_shape, multiples)
+ * @param[out]  output      Pointer to output tensor data (pre-allocated by caller)
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_tile_s16(const int16_t *input,
+                                 const cmsis_nn_tile_params *params,
+                                 int16_t *output);
+
+/**
+ * @defgroup Broadcast Broadcast Functions:
+ *
+ */
+
+/**
+ * @brief Broadcast an int8 tensor to a target shape.
+ *
+ * @param[in]   input       Pointer to input tensor data
+ * @param[in]   params      Pointer to broadcast parameters (rank, input/output shapes)
+ * @param[out]  output      Pointer to output tensor data (pre-allocated by caller)
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details
+ *    1. Input dimensions must be 1 or match the output dimension for each axis.
+ *    2. Maximum rank: 8
+ *
+ */
+arm_cmsis_nn_status arm_broadcast_to_s8(const int8_t *input,
+                                        const cmsis_nn_broadcast_to_params *params,
+                                        int8_t *output);
+
+/**
+ * @brief Broadcast an int16 tensor to a target shape.
+ *
+ * @param[in]   input       Pointer to input tensor data
+ * @param[in]   params      Pointer to broadcast parameters (rank, input/output shapes)
+ * @param[out]  output      Pointer to output tensor data (pre-allocated by caller)
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_broadcast_to_s16(const int16_t *input,
+                                         const cmsis_nn_broadcast_to_params *params,
+                                         int16_t *output);
+
+/**
+ * @defgroup ScatterND ScatterND Functions:
+ *
+ */
+
+/**
+ * @brief Scatter updates into a zero-initialized output tensor for int8.
+ *
+ * @param[in]   indices     Pointer to indices data (int32, shape [num_updates, index_depth])
+ * @param[in]   updates     Pointer to updates data
+ * @param[in]   params      Pointer to scatter_nd parameters
+ * @param[out]  output      Pointer to output tensor data (pre-allocated by caller)
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_scatter_nd_s8(const int32_t *indices,
+                                      const int8_t *updates,
+                                      const cmsis_nn_scatter_nd_params *params,
+                                      int8_t *output);
+
+/**
+ * @brief Scatter updates into a zero-initialized output tensor for int16.
+ *
+ * @param[in]   indices     Pointer to indices data (int32, shape [num_updates, index_depth])
+ * @param[in]   updates     Pointer to updates data
+ * @param[in]   params      Pointer to scatter_nd parameters
+ * @param[out]  output      Pointer to output tensor data (pre-allocated by caller)
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_scatter_nd_s16(const int32_t *indices,
+                                       const int16_t *updates,
+                                       const cmsis_nn_scatter_nd_params *params,
+                                       int16_t *output);
+
+/**
+ * @defgroup MirrorPad Mirror Pad Functions:
+ *
+ */
+
+/**
+ * @brief Mirror-pad an int8 tensor (REFLECT or SYMMETRIC mode).
+ *
+ * @param[in]   input       Pointer to input tensor data
+ * @param[in]   params      Pointer to mirror_pad parameters
+ * @param[out]  output      Pointer to output tensor data (pre-allocated by caller)
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_mirror_pad_s8(const int8_t *input,
+                                      const cmsis_nn_mirror_pad_params *params,
+                                      int8_t *output);
+
+/**
+ * @brief Mirror-pad an int16 tensor (REFLECT or SYMMETRIC mode).
+ *
+ * @param[in]   input       Pointer to input tensor data
+ * @param[in]   params      Pointer to mirror_pad parameters
+ * @param[out]  output      Pointer to output tensor data (pre-allocated by caller)
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_mirror_pad_s16(const int16_t *input,
+                                       const cmsis_nn_mirror_pad_params *params,
+                                       int16_t *output);
+
+/**
+ * @defgroup Select Select/Where Functions:
+ *
+ */
+
+/**
+ * @brief WHERE operator: return coordinates of non-zero elements in condition.
+ *
+ * @param[in]   condition   Pointer to condition tensor data (int8, non-zero = true)
+ * @param[in]   params      Pointer to where parameters (rank, shape)
+ * @param[out]  output      Pointer to output coordinates (int32, shape [max_true, rank])
+ * @param[out]  num_true    Number of true elements found
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_where_s8(const int8_t *condition,
+                                 const cmsis_nn_where_params *params,
+                                 int32_t *output,
+                                 int32_t *num_true);
+
+/**
+ * @brief SELECT_V2 with broadcast for int8 tensors.
+ *
+ * @param[in]   condition   Pointer to condition tensor data (int8, non-zero = true)
+ * @param[in]   x           Pointer to x tensor data (selected when condition is true)
+ * @param[in]   y           Pointer to y tensor data (selected when condition is false)
+ * @param[in]   params      Pointer to select_v2 parameters (broadcast strides)
+ * @param[out]  output      Pointer to output tensor data
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_select_v2_s8(const int8_t *condition,
+                                     const int8_t *x,
+                                     const int8_t *y,
+                                     const cmsis_nn_select_v2_params *params,
+                                     int8_t *output);
+
+/**
+ * @brief SELECT_V2 with broadcast for int16 tensors.
+ *
+ * @param[in]   condition   Pointer to condition tensor data (int8, non-zero = true)
+ * @param[in]   x           Pointer to x tensor data
+ * @param[in]   y           Pointer to y tensor data
+ * @param[in]   params      Pointer to select_v2 parameters (broadcast strides)
+ * @param[out]  output      Pointer to output tensor data
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_select_v2_s16(const int8_t *condition,
+                                      const int16_t *x,
+                                      const int16_t *y,
+                                      const cmsis_nn_select_v2_params *params,
+                                      int16_t *output);
+
+/**
+ * @defgroup ReverseSequence ReverseSequence Functions:
+ *
+ */
+
+/**
+ * @brief Reverse variable-length sequences along a dimension for int8.
+ *
+ * @param[in]   input         Pointer to input tensor data
+ * @param[in]   seq_lengths   Pointer to per-batch sequence lengths (int32)
+ * @param[in]   params        Pointer to reverse_sequence parameters
+ * @param[out]  output        Pointer to output tensor data
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_reverse_sequence_s8(const int8_t *input,
+                                            const int32_t *seq_lengths,
+                                            const cmsis_nn_reverse_sequence_params *params,
+                                            int8_t *output);
+
+/**
+ * @brief Reverse variable-length sequences along a dimension for int16.
+ *
+ * @param[in]   input         Pointer to input tensor data
+ * @param[in]   seq_lengths   Pointer to per-batch sequence lengths (int32)
+ * @param[in]   params        Pointer to reverse_sequence parameters
+ * @param[out]  output        Pointer to output tensor data
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_reverse_sequence_s16(const int16_t *input,
+                                             const int32_t *seq_lengths,
+                                             const cmsis_nn_reverse_sequence_params *params,
+                                             int16_t *output);
+
+/**
+ * @defgroup DynamicUpdateSlice DynamicUpdateSlice Functions:
+ *
+ */
+
+/**
+ * @brief Update a slice of an int8 operand tensor at runtime-determined indices.
+ *
+ * @param[in]   operand       Pointer to operand tensor data (copied to output first)
+ * @param[in]   update        Pointer to update tensor data
+ * @param[in]   start_indices Pointer to start index per dimension (int32, length = rank)
+ * @param[in]   params        Pointer to dynamic_update_slice parameters
+ * @param[out]  output        Pointer to output tensor data
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_dynamic_update_slice_s8(const int8_t *operand,
+                                                const int8_t *update,
+                                                const int32_t *start_indices,
+                                                const cmsis_nn_dynamic_update_slice_params *params,
+                                                int8_t *output);
+
+/**
+ * @brief Update a slice of an int16 operand tensor at runtime-determined indices.
+ *
+ * @param[in]   operand       Pointer to operand tensor data (copied to output first)
+ * @param[in]   update        Pointer to update tensor data
+ * @param[in]   start_indices Pointer to start index per dimension (int32, length = rank)
+ * @param[in]   params        Pointer to dynamic_update_slice parameters
+ * @param[out]  output        Pointer to output tensor data
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ */
+arm_cmsis_nn_status arm_dynamic_update_slice_s16(const int16_t *operand,
+                                                 const int16_t *update,
+                                                 const int32_t *start_indices,
+                                                 const cmsis_nn_dynamic_update_slice_params *params,
+                                                 int16_t *output);
+
 #if defined(ARM_FLOAT16_SUPPORTED)
 
 /**
