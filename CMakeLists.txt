@@ -50,6 +50,12 @@ option(SOFTMAX         "Softmax"            ON)
 option(STRIDEDSLICE    "Strided Slice"      ON)
 option(SVDF            "SVDF"               ON)
 option(TRANSPOSE       "Transpose"          ON)
+option(TILE            "Tile"               ON)
+option(BROADCAST       "Broadcast"          ON)
+option(SCATTER         "Scatter"            ON)
+option(SELECTOPS       "Select"             ON)
+option(REVERSESEQUENCE "Reverse Sequence"   ON)
+option(DYNAMICUPDATESLICE "Dynamic Update Slice" ON)
 # Always needed if any other module above is on.
 option(NNSUPPORT       "NN Support"         ON)
 
@@ -75,6 +81,12 @@ foreach(_pair
     "STRIDEDSLICE;stridedslice"
     "SVDF;svd"
     "TRANSPOSE;transpose"
+    "TILE;tile"
+    "BROADCAST;broadcast"
+    "SCATTER;scatter"
+    "SELECTOPS;select"
+    "REVERSESEQUENCE;reversesequence"
+    "DYNAMICUPDATESLICE;dynamicupdateslice"
     "NNSUPPORT;nnsupport"
     )
   list(GET _pair 0 _opt)
