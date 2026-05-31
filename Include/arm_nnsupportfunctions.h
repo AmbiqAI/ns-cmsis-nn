@@ -1830,10 +1830,10 @@ __STATIC_FORCEINLINE int32_t arm_nn_requantize(const int32_t val, const int32_t 
     const int64_t total_shift = 31 - shift;
     const int64_t new_val = val * (int64_t)multiplier;
 
-    int32_t result = new_val >> (total_shift - 1);
+    int64_t result = new_val >> (total_shift - 1);
     result = (result + 1) >> 1;
 
-    return result;
+    return (int32_t)result;
 #elif defined(CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY)
     if (shift >= 0)
     {
