@@ -41,6 +41,7 @@ html_show_sourcelink = False
 html_js_files = [
     "https://cdn.jsdelivr.net/npm/chart.js",
     "chart-init.js",
+    "benchmark-charts.js",
     "api-filter.js",
 ]
 html_theme_options = {}

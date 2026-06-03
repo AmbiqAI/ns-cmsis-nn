@@ -23,6 +23,7 @@ Then `west update`.
 
 ```kconfig
 CONFIG_NS_CMSIS_NN=y
+CONFIG_NS_CMSIS_NN_ALL=y
 ```
 
 That's the source build — Zephyr will compile the kernels with your

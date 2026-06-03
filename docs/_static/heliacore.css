@@ -90,6 +90,50 @@ body[data-theme="dark"] {
   --hc-toggle-fg: #eef8f7;
 }
 
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] {
+    --color-foreground-primary: #f3f5f6;
+    --color-foreground-secondary: #bbc4cc;
+    --color-foreground-muted: #98a9b6;
+    --color-background-primary: #131416;
+    --color-background-secondary: #191f24;
+    --color-background-hover: #232a30;
+    --color-background-border: rgba(213, 219, 225, 0.14);
+    --color-content-foreground: var(--color-foreground-primary);
+    --color-content-background: transparent;
+    --color-brand-primary: var(--hc-accent);
+    --color-brand-content: #d7bd75;
+    --color-link: #d7bd75;
+    --color-link--hover: #efdcaa;
+    --color-link--visited: #d7bd75;
+    --color-link--visited--hover: #efdcaa;
+    --color-link-underline: rgba(var(--hc-accent-rgb), 0.38);
+    --color-link-underline--hover: rgba(239, 220, 170, 0.62);
+    --color-link-underline--visited: rgba(var(--hc-accent-rgb), 0.38);
+    --color-link-underline--visited--hover: rgba(239, 220, 170, 0.62);
+    --hc-ink: #f3f5f6;
+    --hc-muted: #bbc4cc;
+    --hc-line: rgba(213, 219, 225, 0.14);
+    --hc-panel: #14191e;
+    --hc-card: #191f24;
+    --hc-warm: rgba(var(--hc-accent-rgb), 0.14);
+    --hc-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+    --hc-sidebar-bg: #0f171d;
+    --hc-sidebar-border: rgba(var(--hc-accent-rgb), 0.18);
+    --hc-sidebar-fg: #eef8f7;
+    --hc-sidebar-muted: #98a9b6;
+    --hc-sidebar-link: #c8d5dc;
+    --hc-sidebar-link-strong: #d7bd75;
+    --hc-sidebar-hover: rgba(var(--hc-accent-rgb), 0.12);
+    --hc-sidebar-current: rgba(var(--hc-accent-rgb), 0.17);
+    --hc-sidebar-search-bg: rgba(255, 255, 255, 0.06);
+    --hc-toggle-bg: #1b272d;
+    --hc-toggle-hover: rgba(var(--hc-accent-rgb), 0.12);
+    --hc-toggle-border: rgba(var(--hc-accent-rgb), 0.28);
+    --hc-toggle-fg: #eef8f7;
+  }
+}
+
 .sidebar-logo-container {
   display: none;
 }
@@ -107,6 +151,12 @@ body[data-theme="dark"] {
 
 body[data-theme="dark"] .sidebar-sticky::after {
   background-image: url("helia-core-icon-white.png");
+}
+
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] .sidebar-sticky::after {
+    background-image: url("helia-core-icon-white.png");
+  }
 }
 
 .sidebar-drawer {
@@ -328,6 +378,84 @@ h1, h2, h3 {
   color: #ffffff;
 }
 
+.bench-hero {
+  margin: 1.6rem 0 1.25rem;
+  padding: 1.35rem;
+  border: 1px solid var(--hc-line);
+  border-radius: calc(var(--hc-radius) * 1.15);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(var(--hc-accent-rgb), 0.16), transparent 24rem),
+    linear-gradient(180deg, rgba(var(--hc-accent-rgb), 0.04), rgba(0, 0, 0, 0));
+  box-shadow: 0 16px 36px rgba(16, 32, 51, 0.08);
+}
+
+.bench-hero-title {
+  margin: 0.35rem 0 0.55rem;
+  color: var(--hc-ink);
+  font-size: clamp(1.45rem, 2vw, 2rem);
+  font-weight: 850;
+  line-height: 1.05;
+}
+
+.bench-hero-copy {
+  max-width: 68rem;
+  margin-bottom: 0;
+  color: var(--hc-muted);
+}
+
+.bench-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.bench-stat-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1rem 0.95rem;
+  border: 1px solid var(--hc-line);
+  border-radius: var(--hc-radius);
+  background: var(--hc-card);
+  box-shadow: 0 10px 28px rgba(16, 32, 51, 0.06);
+}
+
+.bench-stat-card::before {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 0.26rem;
+  background: linear-gradient(90deg, var(--hc-accent), rgba(var(--hc-accent-rgb), 0.3));
+  content: "";
+}
+
+.bench-stat-value {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--hc-ink);
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.bench-stat-label {
+  color: var(--color-brand-content);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bench-stat-note {
+  color: var(--hc-muted);
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
 .hero-badge {
   display: inline-flex;
   align-items: center;
@@ -530,6 +658,34 @@ body[data-theme="dark"] article[role="main"] div[class*=" highlight-"] .copybtn:
 body[data-theme="dark"] article[role="main"] div[class^="highlight-"] .copybtn:hover {
   border-color: var(--hc-accent);
   background: #111a22;
+}
+
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] article[role="main"] div[class*=" highlight-"],
+  body[data-theme="auto"] article[role="main"] div[class^="highlight-"] {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--hc-radius);
+    background: #080d12;
+  }
+
+  body[data-theme="auto"] article[role="main"] div[class*=" highlight-"] pre,
+  body[data-theme="auto"] article[role="main"] div[class^="highlight-"] pre {
+    background: #080d12;
+    color: #d9e1e8;
+  }
+
+  body[data-theme="auto"] article[role="main"] div[class*=" highlight-"] .copybtn,
+  body[data-theme="auto"] article[role="main"] div[class^="highlight-"] .copybtn {
+    border-color: rgba(255, 255, 255, 0.16);
+    background: #080d12;
+    color: #d9e1e8;
+  }
+
+  body[data-theme="auto"] article[role="main"] div[class*=" highlight-"] .copybtn:hover,
+  body[data-theme="auto"] article[role="main"] div[class^="highlight-"] .copybtn:hover {
+    border-color: var(--hc-accent);
+    background: #111a22;
+  }
 }
 
 .logo-rail {
