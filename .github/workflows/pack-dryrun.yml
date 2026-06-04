@@ -63,7 +63,7 @@ jobs:
             --outdir     "./output/$TARGET_CPU"
 
       - name: Upload staticlib artefact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pack-dryrun-staticlib-${{ matrix.target_cpu }}
           path: ./output/${{ matrix.target_cpu }}/libns-cmsis-nn-*.a
@@ -84,7 +84,7 @@ jobs:
         run: git fetch --tags --force
 
       - name: Download per-arch staticlib artefacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ./_artifacts
           pattern: pack-dryrun-staticlib-*
@@ -149,7 +149,7 @@ jobs:
           esac
 
       - name: Upload pack artefact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ns-cmsis-nn-pack-dryrun
           path: ./output/*.pack
