@@ -67,7 +67,8 @@ arm_cmsis_nn_status arm_tile_s8(const int8_t *input, const cmsis_nn_tile_params 
             {
                 tiled_inner *= input_shape[dd] * multiples[dd];
             }
-            const int32_t chunk_size = input_shape[d] * tiled_inner;            const int32_t num_outer = current_size / chunk_size;
+            const int32_t chunk_size = input_shape[d] * tiled_inner;
+            const int32_t num_outer = current_size / chunk_size;
 
             /* Expand each chunk into m copies, processing back-to-front */
             for (int32_t c = num_outer - 1; c >= 0; c--)
