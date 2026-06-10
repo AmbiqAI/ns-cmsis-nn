@@ -41,6 +41,10 @@ arm_cmsis_nn_status arm_tile_s16(const int16_t *input, const cmsis_nn_tile_param
     int32_t input_size = 1;
     for (int32_t d = 0; d < rank; d++)
     {
+        if (input_shape[d] == 0 || multiples[d] == 0)
+        {
+            return ARM_CMSIS_NN_SUCCESS;
+        }
         input_size *= input_shape[d];
     }
 

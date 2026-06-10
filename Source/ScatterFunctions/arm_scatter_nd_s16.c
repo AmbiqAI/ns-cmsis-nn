@@ -43,7 +43,7 @@ arm_cmsis_nn_status arm_scatter_nd_s16(const int32_t *indices,
     const int32_t output_size = params->output_size;
     const int32_t *output_strides = params->output_strides;
 
-    memset(output, 0, (size_t)output_size * sizeof(int16_t));
+    arm_memset_s16(output, 0, (uint32_t)output_size);
 
     for (int32_t i = 0; i < num_updates; i++)
     {
@@ -52,7 +52,15 @@ arm_cmsis_nn_status arm_scatter_nd_s16(const int32_t *indices,
         {
             flat_index += indices[i * index_depth + d] * output_strides[d];
         }
-        arm_memcpy_s16(output + flat_index, updates + i * slice_size, (uint32_t)slice_size);
+        if (flat_index < 0 || flat_index + slice_size > output_size)
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+
+        for (int32_t j = 0; j < slice_size; j++)
+        {
+            output[flat_index + j] += updates[i * slice_size + j];
+        }
     }
 
     return ARM_CMSIS_NN_SUCCESS;

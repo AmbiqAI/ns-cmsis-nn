@@ -27,7 +27,7 @@
  * @{
  */
 
-arm_cmsis_nn_status arm_select_v2_s8(const int8_t *condition,
+arm_cmsis_nn_status arm_select_v2_s8(const bool *condition,
                                      const int8_t *x,
                                      const int8_t *y,
                                      const cmsis_nn_select_v2_params *params,

@@ -52,6 +52,11 @@ arm_cmsis_nn_status arm_dynamic_update_slice_s16(const int16_t *operand,
 
     arm_memcpy_s16(output, operand, (uint32_t)operand_size);
 
+    if (update_size == 0)
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+
     int32_t clamped_starts[8];
     for (int32_t d = 0; d < rank; d++)
     {

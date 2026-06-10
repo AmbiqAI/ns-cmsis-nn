@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Ambiq
+ * SPDX-FileCopyrightText: 2026 Ambiq
  *
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  *
@@ -29,4 +29,17 @@ void setUp(void)
 
 void tearDown(void) {}
 
-void test_reverse_sequence_2d_arm_reverse_sequence_s16(void) { reverse_sequence_2d_arm_reverse_sequence_s16(); }
+void test_reverse_sequence_2d_s16_arm_reverse_sequence_s16(void)
+{
+    reverse_sequence_2d_s16_arm_reverse_sequence_s16();
+}
+
+void test_reverse_sequence_full_and_single_s16_arm_reverse_sequence_s16(void)
+{
+    reverse_sequence_full_and_single_s16_arm_reverse_sequence_s16();
+}
+
+void test_reverse_sequence_axis0_s16_arm_reverse_sequence_s16(void)
+{
+    reverse_sequence_axis0_s16_arm_reverse_sequence_s16();
+}

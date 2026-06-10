@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Ambiq
+ * SPDX-FileCopyrightText: 2026 Ambiq
  *
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  *
@@ -7,26 +7,65 @@
  * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  */
 
-#include "arm_nnfunctions.h"
 #include "arm_nn_types.h"
+#include "arm_nnfunctions.h"
 #include "unity.h"
 
+#include "../TestData/where_3d_sparse_s8/test_data.h"
+#include "../TestData/where_all_true_2d_s8/test_data.h"
 #include "../TestData/where_2d_s8/test_data.h"
+#include "../Utils/validate.h"
 
-void where_2d_arm_where_s8(void)
+void where_2d_s8_arm_where_s8(void)
 {
-    int32_t output[WHERE_2D_S8_NUM_TRUE * WHERE_2D_S8_RANK];
-    int32_t num_true = 0;
-
+    const int32_t shape[] = WHERE_2D_S8_SHAPE;
     const cmsis_nn_where_params params = {
         .rank = WHERE_2D_S8_RANK,
-        .shape = where_2d_s8_shape,
+        .shape = shape,
     };
+    const int32_t expected_output_len = (int32_t)(sizeof(where_2d_s8_output) / sizeof(where_2d_s8_output[0]));
+    int64_t output[WHERE_2D_S8_COND_SIZE * WHERE_2D_S8_RANK] = {0};
+    int32_t num_true = 0;
 
-    const arm_cmsis_nn_status result = arm_where_s8(
-        where_2d_s8_condition, &params, output, &num_true);
+    const arm_cmsis_nn_status result = arm_where_s8(where_2d_s8_condition_input_tensor, &params, output, &num_true);
 
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
-    TEST_ASSERT_EQUAL_INT32(WHERE_2D_S8_NUM_TRUE, num_true);
-    TEST_ASSERT_EQUAL_INT32_ARRAY(where_2d_s8_output, output, WHERE_2D_S8_NUM_TRUE * WHERE_2D_S8_RANK);
+    TEST_ASSERT_EQUAL(expected_output_len / WHERE_2D_S8_RANK, num_true);
+    TEST_ASSERT_TRUE(validate_s64(output, where_2d_s8_output, expected_output_len));
+}
+
+void where_all_true_2d_s8_arm_where_s8(void)
+{
+    const int32_t shape[] = WHERE_ALL_TRUE_2D_S8_SHAPE;
+    const cmsis_nn_where_params params = {
+        .rank = WHERE_ALL_TRUE_2D_S8_RANK,
+        .shape = shape,
+    };
+    const int32_t expected_output_len = (int32_t)(sizeof(where_all_true_2d_s8_output) / sizeof(where_all_true_2d_s8_output[0]));
+    int64_t output[WHERE_ALL_TRUE_2D_S8_COND_SIZE * WHERE_ALL_TRUE_2D_S8_RANK] = {0};
+    int32_t num_true = 0;
+
+    const arm_cmsis_nn_status result = arm_where_s8(where_all_true_2d_s8_condition_input_tensor, &params, output, &num_true);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+    TEST_ASSERT_EQUAL(expected_output_len / WHERE_ALL_TRUE_2D_S8_RANK, num_true);
+    TEST_ASSERT_TRUE(validate_s64(output, where_all_true_2d_s8_output, expected_output_len));
+}
+
+void where_3d_sparse_s8_arm_where_s8(void)
+{
+    const int32_t shape[] = WHERE_3D_SPARSE_S8_SHAPE;
+    const cmsis_nn_where_params params = {
+        .rank = WHERE_3D_SPARSE_S8_RANK,
+        .shape = shape,
+    };
+    const int32_t expected_output_len = (int32_t)(sizeof(where_3d_sparse_s8_output) / sizeof(where_3d_sparse_s8_output[0]));
+    int64_t output[WHERE_3D_SPARSE_S8_COND_SIZE * WHERE_3D_SPARSE_S8_RANK] = {0};
+    int32_t num_true = 0;
+
+    const arm_cmsis_nn_status result = arm_where_s8(where_3d_sparse_s8_condition_input_tensor, &params, output, &num_true);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+    TEST_ASSERT_EQUAL(expected_output_len / WHERE_3D_SPARSE_S8_RANK, num_true);
+    TEST_ASSERT_TRUE(validate_s64(output, where_3d_sparse_s8_output, expected_output_len));
 }

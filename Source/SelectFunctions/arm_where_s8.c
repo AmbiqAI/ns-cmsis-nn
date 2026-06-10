@@ -29,7 +29,7 @@
  */
 
 arm_cmsis_nn_status
-arm_where_s8(const int8_t *condition, const cmsis_nn_where_params *params, int32_t *output, int32_t *num_true)
+arm_where_s8(const int8_t *condition, const cmsis_nn_where_params *params, int64_t *output, int32_t *num_true)
 {
     if (!condition || !params || !output || !num_true)
     {
@@ -67,7 +67,7 @@ arm_where_s8(const int8_t *condition, const cmsis_nn_where_params *params, int32
             int32_t remainder = flat;
             for (int32_t d = 0; d < rank; d++)
             {
-                int32_t coord = remainder / strides[d];
+                const int64_t coord = remainder / strides[d];
                 remainder %= strides[d];
                 output[count * rank + d] = coord;
             }

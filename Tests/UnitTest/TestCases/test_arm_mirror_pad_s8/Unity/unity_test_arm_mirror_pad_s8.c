@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Ambiq
+ * SPDX-FileCopyrightText: 2026 Ambiq
  *
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  *
@@ -29,4 +29,6 @@ void setUp(void)
 
 void tearDown(void) {}
 
-void test_mirror_pad_reflect_arm_mirror_pad_s8(void) { mirror_pad_reflect_arm_mirror_pad_s8(); }
+void test_mirror_pad_reflect_s8_arm_mirror_pad_s8(void) { mirror_pad_reflect_s8_arm_mirror_pad_s8(); }
+void test_mirror_pad_reflect_2d_s8_arm_mirror_pad_s8(void) { mirror_pad_reflect_2d_s8_arm_mirror_pad_s8(); }
+void test_mirror_pad_reflect_wide_s8_arm_mirror_pad_s8(void) { mirror_pad_reflect_wide_s8_arm_mirror_pad_s8(); }

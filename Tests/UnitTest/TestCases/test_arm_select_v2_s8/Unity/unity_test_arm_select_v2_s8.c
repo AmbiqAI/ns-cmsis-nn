@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Ambiq
+ * SPDX-FileCopyrightText: 2026 Ambiq
  *
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  *
@@ -29,4 +29,6 @@ void setUp(void)
 
 void tearDown(void) {}
 
-void test_select_v2_broadcast_arm_select_v2_s8(void) { select_v2_broadcast_arm_select_v2_s8(); }
+void test_select_v2_broadcast_s8_arm_select_v2_s8(void) { select_v2_broadcast_s8_arm_select_v2_s8(); }
+void test_select_v2_scalar_condition_true_s8_arm_select_v2_s8(void) { select_v2_scalar_condition_true_s8_arm_select_v2_s8(); }
+void test_select_v2_row_mask_s8_arm_select_v2_s8(void) { select_v2_row_mask_s8_arm_select_v2_s8(); }
