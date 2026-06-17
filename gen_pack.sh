@@ -114,6 +114,28 @@ function postprocess() {
   # Set component version to match pack version
   VERSION=$(git_describe "${CHANGELOG}" | sed -e "s/+g.*$//")
   sed -i -e "s/Cgroup=\"NN Lib\" Cversion=\"[^\"]*\"/Cgroup=\"NN Lib\" Cversion=\"${VERSION}\"/" ${PACK_BUILD}/Ambiq.NS-CMSIS-NN.pdsc
+
+  # When the prebuilt libs are not staged, strip the Cvariant="Prebuilt"
+  # component (and its preceding comment) from the build-dir PDSC copy so
+  # that packchk does not fail on missing lib/*/libns-cmsis-nn.a files.
+  # The release pipeline sets NS_CMSIS_NN_PREBUILT_LIBS_STAGED=1 after
+  # staging the archives, so the Prebuilt variant is preserved there.
+  if [[ "${NS_CMSIS_NN_PREBUILT_LIBS_STAGED:-0}" != "1" ]]; then
+    python3 - "${PACK_BUILD}/Ambiq.NS-CMSIS-NN.pdsc" <<'PYEOF'
+import re, sys
+with open(sys.argv[1]) as f:
+    content = f.read()
+# Remove the Prebuilt component element (the preceding comment is harmless).
+content = re.sub(
+    r'\n[ \t]*<component[^>]*Cvariant="Prebuilt"[^>]*>.*?</component>',
+    '',
+    content,
+    flags=re.DOTALL
+)
+with open(sys.argv[1], 'w') as f:
+    f.write(content)
+PYEOF
+  fi
 }
 
 ############ DO NOT EDIT BELOW ###########
