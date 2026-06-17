@@ -36,10 +36,10 @@
  * arrangement. This version uses MVE intrinsics when available.
  */
 static arm_cmsis_nn_status arm_transpose_s16_nhcw(const int16_t *input,
-                                                 int16_t *const output,
-                                                 const cmsis_nn_dims *const input_dims,
-                                                 const int32_t *const in_strides,
-                                                 const int32_t *const out_strides)
+                                                  int16_t *const output,
+                                                  const cmsis_nn_dims *const input_dims,
+                                                  const int32_t *const in_strides,
+                                                  const int32_t *const out_strides)
 {
     const int32_t n = input_dims->n;
     const int32_t h = input_dims->h;
@@ -100,7 +100,7 @@ static arm_cmsis_nn_status arm_transpose_s16_nhcw(const int16_t *input,
                     block_count -= 8;
                 }
 
-                input_c++;  /* Next column */
+                input_c++;            /* Next column */
                 output_c += src_rows; /* Advance output pointer by the number of rows */
             }
 #else
@@ -129,10 +129,10 @@ static arm_cmsis_nn_status arm_transpose_s16_nhcw(const int16_t *input,
 }
 
 static arm_cmsis_nn_status arm_transpose_s16_default(const int16_t *input,
-                                                    int16_t *const output,
-                                                    const cmsis_nn_dims *const input_dims,
-                                                    const int32_t *const in_strides,
-                                                    const int32_t *const out_strides)
+                                                     int16_t *const output,
+                                                     const cmsis_nn_dims *const input_dims,
+                                                     const int32_t *const in_strides,
+                                                     const int32_t *const out_strides)
 {
     const int32_t n = input_dims->n;
     const int32_t h = input_dims->h;
@@ -169,10 +169,10 @@ static arm_cmsis_nn_status arm_transpose_s16_default(const int16_t *input,
  *
  */
 arm_cmsis_nn_status arm_transpose_s16(const int16_t *input,
-                                     int16_t *const output,
-                                     const cmsis_nn_dims *const input_dims,
-                                     const cmsis_nn_dims *const output_dims,
-                                     const cmsis_nn_transpose_params *const transpose_params)
+                                      int16_t *const output,
+                                      const cmsis_nn_dims *const input_dims,
+                                      const cmsis_nn_dims *const output_dims,
+                                      const cmsis_nn_transpose_params *const transpose_params)
 {
     int32_t in_strides[4];
     int32_t out_strides[4] = {0};

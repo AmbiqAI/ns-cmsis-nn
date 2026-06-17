@@ -22,14 +22,13 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
-arm_cmsis_nn_status arm_convolve_weight_sum(
-        int32_t* vector_sum_buf,
-        const int8_t *rhs,
-        const cmsis_nn_dims *input_dims,
-        const cmsis_nn_dims *filter_dims,
-        const cmsis_nn_dims *output_dims,
-        const int32_t lhs_offset,
-        const int32_t *bias_data )
+arm_cmsis_nn_status arm_convolve_weight_sum(int32_t *vector_sum_buf,
+                                            const int8_t *rhs,
+                                            const cmsis_nn_dims *input_dims,
+                                            const cmsis_nn_dims *filter_dims,
+                                            const cmsis_nn_dims *output_dims,
+                                            const int32_t lhs_offset,
+                                            const int32_t *bias_data)
 {
 #if !defined(ARM_MATH_MVEI)
     (void)vector_sum_buf;
@@ -40,8 +39,8 @@ arm_cmsis_nn_status arm_convolve_weight_sum(
     (void)lhs_offset;
     (void)bias_data;
     return ARM_CMSIS_NN_NO_IMPL_ERROR;
-#else //defined(ARM_MATH_MVEI)
-    (void) input_dims;
+#else // defined(ARM_MATH_MVEI)
+    (void)input_dims;
     const uint16_t kernel_x = filter_dims->w;
     const uint16_t kernel_y = filter_dims->h;
     const uint16_t kernel_ch = filter_dims->c;

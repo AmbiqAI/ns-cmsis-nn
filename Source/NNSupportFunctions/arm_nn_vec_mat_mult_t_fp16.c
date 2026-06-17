@@ -37,9 +37,9 @@ __STATIC_FORCEINLINE float16_t vec_add_across_f16_mve(float16x8_t in)
     float16x8_t tmp_vec;
     float16_t acc;
 
-    tmp_vec = (float16x8_t) vrev32q_s16((int16x8_t) in);
+    tmp_vec = (float16x8_t)vrev32q_s16((int16x8_t)in);
     in = vaddq_f16(tmp_vec, in);
-    tmp_vec = (float16x8_t) vrev64q_s32((int32x4_t) in);
+    tmp_vec = (float16x8_t)vrev64q_s32((int32x4_t)in);
     in = vaddq_f16(tmp_vec, in);
     acc = (float16_t)vgetq_lane_f16(in, 0) + (float16_t)vgetq_lane_f16(in, 4);
 
@@ -52,16 +52,15 @@ __STATIC_FORCEINLINE float16_t vec_add_across_f16_mve(float16x8_t in)
  * Refer header file for details.
  *
  */
-arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
-    const float16_t *lhs,
-    const float16_t *rhs,
-    const float16_t *bias,
-    float16_t       *dst,
-    const int32_t    rhs_cols,
-    const int32_t    rhs_rows,
-    const float16_t  activation_min,
-    const float16_t  activation_max
-) {
+arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(const float16_t *lhs,
+                                               const float16_t *rhs,
+                                               const float16_t *bias,
+                                               float16_t *dst,
+                                               const int32_t rhs_cols,
+                                               const int32_t rhs_rows,
+                                               const float16_t activation_min,
+                                               const float16_t activation_max)
+{
 
     const int32_t unroll_factor = 4;
     const int32_t row_unroll = rhs_rows / unroll_factor;
@@ -106,11 +105,11 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
             acc2 = vfmaq_f16(acc2, lhs_val, rhs_val2);
             acc3 = vfmaq_f16(acc3, lhs_val, rhs_val3);
 
-            lhs_ptr   += 8;
-            rhs_ptr0  += 8;
-            rhs_ptr1  += 8;
-            rhs_ptr2  += 8;
-            rhs_ptr3  += 8;
+            lhs_ptr += 8;
+            rhs_ptr0 += 8;
+            rhs_ptr1 += 8;
+            rhs_ptr2 += 8;
+            rhs_ptr3 += 8;
         }
 
         // Manually reduce each accumulator vector to a scalar.
@@ -176,7 +175,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
 }
 
 #else
-#if defined(ARM_FLOAT16_SUPPORTED)
+    #if defined(ARM_FLOAT16_SUPPORTED)
 
 /*
  * fp16 vector(lhs) by fp16 matrix (transposed) multiplication
@@ -184,16 +183,15 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
  * Refer header file for details.
  *
  */
-arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
-    const float16_t *lhs,
-    const float16_t *rhs,
-    const float16_t *bias,
-    float16_t       *dst,
-    const int32_t    rhs_cols,
-    const int32_t    rhs_rows,
-    const float16_t  activation_min,
-    const float16_t  activation_max
-) {
+arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(const float16_t *lhs,
+                                               const float16_t *rhs,
+                                               const float16_t *bias,
+                                               float16_t *dst,
+                                               const int32_t rhs_cols,
+                                               const int32_t rhs_rows,
+                                               const float16_t activation_min,
+                                               const float16_t activation_max)
+{
 
     for (int i = 0; i < rhs_rows; i++)
     {
@@ -220,9 +218,9 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-#endif /* defined(ARM_FLOAT16_SUPPORTED */
-#endif /* defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE) */
+    #endif /* defined(ARM_FLOAT16_SUPPORTED */
+#endif     /* defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE) */
 
- /**
-  * @} end of Doxygen group
-  */
+/**
+ * @} end of Doxygen group
+ */

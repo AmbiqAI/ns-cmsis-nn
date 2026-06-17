@@ -60,7 +60,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
 {
 
 #if defined(ARM_MATH_MVEI)
-    const uint32_t rhs_rows_offset = (uint32_t) row_address_offset * sizeof(int16_t);
+    const uint32_t rhs_rows_offset = (uint32_t)row_address_offset * sizeof(int16_t);
     const uint32x4_t scatter_offset = {
         0, (uint32_t)rhs_rows_offset, (uint32_t)rhs_rows_offset * 2, (uint32_t)rhs_rows_offset * 3};
 
@@ -239,7 +239,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                                : [cnt] "r"(rhs_cols)
                                : "q0", "q1", "memory", "r14");
     #endif
-                if ( bias_s32)
+                if (bias_s32)
                 {
                     acc_n0 += bias_s32[i];
                 }

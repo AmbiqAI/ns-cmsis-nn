@@ -64,103 +64,93 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
 #if defined(ARM_MATH_MVEI)
 
     if ( // CASE_CONV_1X1
-        (input_dims->c == filter_dims->c) &&  \
-        (conv_params->stride.w == 1) && (conv_params->stride.h == 1) && \
-        (conv_params->padding.w == 0) && (conv_params->padding.h == 0) && \
-        (filter_dims->w == 1) && (filter_dims->h == 1) && \
-        (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1)
-    )
+        (input_dims->c == filter_dims->c) && (conv_params->stride.w == 1) && (conv_params->stride.h == 1) &&
+        (conv_params->padding.w == 0) && (conv_params->padding.h == 0) && (filter_dims->w == 1) &&
+        (filter_dims->h == 1) && (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1))
     {
-        return arm_convolve_1x1_s16_ns_np_nd(
-            ctx,
-            conv_params,
-            quant_params,
-            input_dims,
-            input_data,
-            filter_dims,
-            filter_data,
-            bias_dims,
-            bias_data,
-            output_dims,
-            output_data
-        );
+        return arm_convolve_1x1_s16_ns_np_nd(ctx,
+                                             conv_params,
+                                             quant_params,
+                                             input_dims,
+                                             input_data,
+                                             filter_dims,
+                                             filter_data,
+                                             bias_dims,
+                                             bias_data,
+                                             output_dims,
+                                             output_data);
     }
     else if ( // CASE_CONV_SMALL_KERNEL
-        ((filter_dims->w * filter_dims->h * filter_dims->c) < 9) && (conv_params->padding.h == 0) && (conv_params->padding.w == 0))
+        ((filter_dims->w * filter_dims->h * filter_dims->c) < 9) && (conv_params->padding.h == 0) &&
+        (conv_params->padding.w == 0))
     {
-        return arm_convolve_s16_fast_small_kernel(
-            ctx,
-            conv_params,
-            quant_params,
-            input_dims,
-            input_data,
-            filter_dims,
-            filter_data,
-            bias_dims,
-            bias_data,
-            output_dims,
-            output_data
-        );
+        return arm_convolve_s16_fast_small_kernel(ctx,
+                                                  conv_params,
+                                                  quant_params,
+                                                  input_dims,
+                                                  input_data,
+                                                  filter_dims,
+                                                  filter_data,
+                                                  bias_dims,
+                                                  bias_data,
+                                                  output_dims,
+                                                  output_data);
     }
     else if (filter_dims->c == 1 && input_dims->c == output_dims->c)
     {
         return arm_convolve_s16_group_ch_mult_1(ctx,
-                                               conv_params,
-                                               quant_params,
-                                               input_dims,
-                                               input_data,
-                                               filter_dims,
-                                               filter_data,
-                                               bias_dims,
-                                               bias_data,
-                                               output_dims,
-                                               output_data);
+                                                conv_params,
+                                                quant_params,
+                                                input_dims,
+                                                input_data,
+                                                filter_dims,
+                                                filter_data,
+                                                bias_dims,
+                                                bias_data,
+                                                output_dims,
+                                                output_data);
     }
     else // CASE_CONV_GENERAL
     {
-        return arm_convolve_s16(
-            ctx,
-            conv_params,
-            quant_params,
-            input_dims,
-            input_data,
-            filter_dims,
-            filter_data,
-            bias_dims,
-            bias_data,
-            output_dims,
-            output_data
-        );
+        return arm_convolve_s16(ctx,
+                                conv_params,
+                                quant_params,
+                                input_dims,
+                                input_data,
+                                filter_dims,
+                                filter_data,
+                                bias_dims,
+                                bias_data,
+                                output_dims,
+                                output_data);
     }
-
 
 #else
     if (filter_dims->c == 1 && input_dims->c == output_dims->c)
     {
         return arm_convolve_s16_group_ch_mult_1(ctx,
-                                               conv_params,
-                                               quant_params,
-                                               input_dims,
-                                               input_data,
-                                               filter_dims,
-                                               filter_data,
-                                               bias_dims,
-                                               bias_data,
-                                               output_dims,
-                                               output_data);
+                                                conv_params,
+                                                quant_params,
+                                                input_dims,
+                                                input_data,
+                                                filter_dims,
+                                                filter_data,
+                                                bias_dims,
+                                                bias_data,
+                                                output_dims,
+                                                output_data);
     }
-    return arm_convolve_s16(
-        ctx,
-        conv_params,
-        quant_params,
-        input_dims,
-        input_data,
-        filter_dims,
-        filter_data,
-        bias_dims,
-        bias_data,
-        output_dims,
-        output_data);
+    return arm_convolve_s16(ctx,
+                            conv_params,
+                            quant_params,
+                            input_dims,
+                            input_data,
+                            filter_dims,
+                            filter_data,
+                            bias_dims,
+                            bias_data,
+                            output_dims,
+                            output_data);
 #endif
 }
 

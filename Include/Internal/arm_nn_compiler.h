@@ -22,8 +22,8 @@
  * Title:        arm_nn_compiler.h
  * Description:  Generic compiler header
  *
- * $Date:        10 April 2025
- * $Revision:    V.1.3.1
+ * $Date:        28 April 2026
+ * $Revision:    V.1.3.2
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
@@ -54,6 +54,9 @@
     #ifndef __RESTRICT
         #define __RESTRICT __restrict
     #endif
+    #ifndef UNUSED_ATTR
+        #define UNUSED_ATTR __attribute__((unused))
+    #endif
 
 #elif defined(__ICCARM__)
 
@@ -76,12 +79,15 @@
     #ifndef __RESTRICT
         #define __RESTRICT __restrict
     #endif
+    #ifndef UNUSED_ATTR
+        #define UNUSED_ATTR __attribute__((unused))
+    #endif
 
 #elif defined(_MSC_VER)
 
     // Build for non Arm Cortex-M processors is not tested or supported.
     // Use this section to stub any macros or intrinsics
-    #warning Unsupported compiler
+    #pragma message("Unsupported compiler")
     #ifndef __STATIC_FORCEINLINE
         #define __STATIC_FORCEINLINE static __forceinline
     #endif
@@ -91,6 +97,26 @@
     #ifndef __ALIGNED
         #define __ALIGNED(x) __declspec(align(x))
     #endif
+    #ifndef __RESTRICT
+        #define __RESTRICT __restrict
+    #endif
+    #ifndef UNUSED_ATTR
+        #define UNUSED_ATTR
+    #endif
+
+    #include "intrin.h"
+static inline unsigned clz_u32(unsigned long mask)
+{
+    unsigned long index;
+    if (_BitScanReverse(&index, mask))
+    {
+        return 31u - index;
+    }
+    // Return value of zero indicates no set bit found.
+    return 32u;
+}
+
+    #define CLZ(x) clz_u32((unsigned long)(x))
 
 #elif defined(__GNUC__)
 
@@ -108,6 +134,9 @@
     #endif
     #ifndef __RESTRICT
         #define __RESTRICT __restrict
+    #endif
+    #ifndef UNUSED_ATTR
+        #define UNUSED_ATTR __attribute__((unused))
     #endif
 
 #else
@@ -153,7 +182,7 @@
 // as __GNUC__ is defined by non-GCC compilers as well
 
 /* Common intrinsics for all architectures */
-#if (defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)) || defined(__ICCARM__) ||                            \
+#if (defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)) || defined(__ICCARM__) ||                               \
     (defined(__clang__) && !defined(__ARMCC_VERSION))
     #define CLZ __clz
 #elif defined(__GNUC__)
@@ -202,7 +231,7 @@ __STATIC_FORCEINLINE uint8_t CLZ(uint32_t value)
     // ACLE DSP intrinsics as armclang via <arm_acle.h>, so route it through
     // the AC6/IAR path. armclang is identified by both __clang__ and
     // __ARMCC_VERSION; ATfE defines __clang__ but not __ARMCC_VERSION.
-    #if (defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)) || defined(__ICCARM__) ||                          \
+    #if (defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)) || defined(__ICCARM__) ||                           \
         (defined(__clang__) && !defined(__ARMCC_VERSION))
 
         #define SMULBB __smulbb

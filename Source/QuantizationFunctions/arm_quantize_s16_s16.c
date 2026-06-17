@@ -37,22 +37,21 @@
  * Refer header file for details.
  *
  */
-arm_cmsis_nn_status
-arm_requantize_s16_s16(
-  const int16_t *input,
-  int16_t* output,
-  int32_t size,
-  int32_t effective_scale_multiplier,
-  int32_t effective_scale_shift,
-  int32_t input_zeropoint,
-  int32_t output_zeropoint
-) {
+arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
+                                           int16_t *output,
+                                           int32_t size,
+                                           int32_t effective_scale_multiplier,
+                                           int32_t effective_scale_shift,
+                                           int32_t input_zeropoint,
+                                           int32_t output_zeropoint)
+{
 
 #if defined(ARM_MATH_MVEI)
     int32_t count = (size + 3) / 4;
     int32x4_t max = vdupq_n_s32(INT16_MAX);
     int32x4_t min = vdupq_n_s32(INT16_MIN);
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++)
+    {
         mve_pred16_t pred = vctp32q(size);
         size -= 4;
         int32x4_t vals = vldrhq_z_s32(input, pred);
@@ -65,7 +64,8 @@ arm_requantize_s16_s16(
         output += 4;
     }
 #else
-    for (int i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++)
+    {
         int32_t val = input[i] - input_zeropoint;
         val = arm_nn_requantize(val, effective_scale_multiplier, effective_scale_shift);
         val += output_zeropoint;
@@ -74,7 +74,6 @@ arm_requantize_s16_s16(
 #endif
 
     return ARM_CMSIS_NN_SUCCESS;
-
 }
 /**
  * @} end of Dequantization group

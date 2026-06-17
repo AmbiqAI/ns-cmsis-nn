@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2010-2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2010-2024, 2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -33,7 +33,7 @@ void kernel1x1_arm_convolve_1x1_s8_fast(void)
     int8_t output[KERNEL1X1_DST_SIZE] = {0};
 
     cmsis_nn_context ctx;
-    cmsis_nn_context weights_sum_ctx;  // New weights-sum context.
+    cmsis_nn_context weights_sum_ctx; // New weights-sum context.
     cmsis_nn_conv_params conv_params;
     cmsis_nn_per_channel_quant_params quant_params;
     cmsis_nn_dims input_dims, filter_dims, bias_dims, output_dims;
@@ -80,7 +80,8 @@ void kernel1x1_arm_convolve_1x1_s8_fast(void)
         weights_sum_ctx.buf = malloc(weights_sum_buf_size);
         weights_sum_ctx.size = weights_sum_buf_size;
         uint32_t lhs_offset = conv_params.input_offset;
-        arm_convolve_weight_sum(weights_sum_ctx.buf, kernel1x1_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+        arm_convolve_weight_sum(
+            weights_sum_ctx.buf, kernel1x1_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
     }
 
     arm_cmsis_nn_status result = arm_convolve_1x1_s8_fast(&ctx,
@@ -156,7 +157,7 @@ void kernel1x1_stride_x_arm_convolve_1x1_s8(void)
     quant_params.multiplier = (int32_t *)kernel1x1_stride_x_output_mult;
     quant_params.shift = (int32_t *)kernel1x1_stride_x_output_shift;
 
-    //const int32_t buf_size = arm_convolve_1x1_s8_fast_get_buffer_size(&input_dims);
+    // const int32_t buf_size = arm_convolve_1x1_s8_fast_get_buffer_size(&input_dims);
     ctx.buf = NULL;
     ctx.size = 0;
 
@@ -165,7 +166,13 @@ void kernel1x1_stride_x_arm_convolve_1x1_s8(void)
         weights_sum_ctx.buf = malloc(weights_sum_buf_size);
         weights_sum_ctx.size = weights_sum_buf_size;
         uint32_t lhs_offset = conv_params.input_offset;
-        arm_convolve_weight_sum(weights_sum_ctx.buf, kernel1x1_stride_x_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+        arm_convolve_weight_sum(weights_sum_ctx.buf,
+                                kernel1x1_stride_x_weights,
+                                &input_dims,
+                                &filter_dims,
+                                &output_dims,
+                                lhs_offset,
+                                bias_data);
     }
     arm_cmsis_nn_status result = arm_convolve_1x1_s8_fast(&ctx,
                                                           &weights_sum_ctx,
@@ -191,7 +198,13 @@ void kernel1x1_stride_x_arm_convolve_1x1_s8(void)
         weights_sum_ctx.buf = malloc(weights_sum_buf_size);
         weights_sum_ctx.size = weights_sum_buf_size;
         uint32_t lhs_offset = conv_params.input_offset;
-        arm_convolve_weight_sum(weights_sum_ctx.buf, kernel1x1_stride_x_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+        arm_convolve_weight_sum(weights_sum_ctx.buf,
+                                kernel1x1_stride_x_weights,
+                                &input_dims,
+                                &filter_dims,
+                                &output_dims,
+                                lhs_offset,
+                                bias_data);
     }
     result = arm_convolve_1x1_s8(&ctx,
                                  &weights_sum_ctx,
@@ -260,7 +273,8 @@ void kernel1x1_stride_x_y_arm_convolve_1x1_s8(void)
     quant_params.multiplier = (int32_t *)kernel1x1_stride_x_y_output_mult;
     quant_params.shift = (int32_t *)kernel1x1_stride_x_y_output_shift;
 
-    const int32_t buf_size = arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    const int32_t buf_size =
+        arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
@@ -269,7 +283,13 @@ void kernel1x1_stride_x_y_arm_convolve_1x1_s8(void)
         weights_sum_ctx.buf = malloc(weights_sum_buf_size);
         weights_sum_ctx.size = weights_sum_buf_size;
         uint32_t lhs_offset = conv_params.input_offset;
-        arm_convolve_weight_sum(weights_sum_ctx.buf, kernel1x1_stride_x_y_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+        arm_convolve_weight_sum(weights_sum_ctx.buf,
+                                kernel1x1_stride_x_y_weights,
+                                &input_dims,
+                                &filter_dims,
+                                &output_dims,
+                                lhs_offset,
+                                bias_data);
     }
     arm_cmsis_nn_status result = arm_convolve_wrapper_s8(&ctx,
                                                          &weights_sum_ctx,
@@ -301,7 +321,13 @@ void kernel1x1_stride_x_y_arm_convolve_1x1_s8(void)
         weights_sum_ctx.buf = malloc(weights_sum_buf_size);
         weights_sum_ctx.size = weights_sum_buf_size;
         uint32_t lhs_offset = conv_params.input_offset;
-        arm_convolve_weight_sum(weights_sum_ctx.buf, kernel1x1_stride_x_y_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+        arm_convolve_weight_sum(weights_sum_ctx.buf,
+                                kernel1x1_stride_x_y_weights,
+                                &input_dims,
+                                &filter_dims,
+                                &output_dims,
+                                lhs_offset,
+                                bias_data);
     }
     result = arm_convolve_1x1_s8(&ctx,
                                  &weights_sum_ctx,
@@ -377,7 +403,13 @@ void kernel1x1_stride_x_y_1_arm_convolve_1x1_s8(void)
         weights_sum_ctx.buf = malloc(weights_sum_buf_size);
         weights_sum_ctx.size = weights_sum_buf_size;
         uint32_t lhs_offset = conv_params.input_offset;
-        arm_convolve_weight_sum(weights_sum_ctx.buf, kernel1x1_stride_x_y_1_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+        arm_convolve_weight_sum(weights_sum_ctx.buf,
+                                kernel1x1_stride_x_y_1_weights,
+                                &input_dims,
+                                &filter_dims,
+                                &output_dims,
+                                lhs_offset,
+                                bias_data);
     }
     arm_cmsis_nn_status result = arm_convolve_1x1_s8(&ctx,
                                                      &weights_sum_ctx,
@@ -399,7 +431,6 @@ void kernel1x1_stride_x_y_1_arm_convolve_1x1_s8(void)
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, kernel1x1_stride_x_y_1_output_ref, KERNEL1X1_STRIDE_X_Y_1_DST_SIZE));
 }
-
 
 void kernel1x1_stride_x_y_2_arm_convolve_1x1_s8(void)
 {
@@ -455,7 +486,13 @@ void kernel1x1_stride_x_y_2_arm_convolve_1x1_s8(void)
         weights_sum_ctx.buf = malloc(weights_sum_buf_size);
         weights_sum_ctx.size = weights_sum_buf_size;
         uint32_t lhs_offset = conv_params.input_offset;
-        arm_convolve_weight_sum(weights_sum_ctx.buf, kernel1x1_stride_x_y_2_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+        arm_convolve_weight_sum(weights_sum_ctx.buf,
+                                kernel1x1_stride_x_y_2_weights,
+                                &input_dims,
+                                &filter_dims,
+                                &output_dims,
+                                lhs_offset,
+                                bias_data);
     }
     arm_cmsis_nn_status result = arm_convolve_1x1_s8(&ctx,
                                                      &weights_sum_ctx,
@@ -491,6 +528,7 @@ void buffer_size_arm_convolve_1x1_s8_fast(void)
     input_dims.c = KERNEL1X1_IN_CH;
     filter_dims.w = KERNEL1X1_FILTER_X;
     filter_dims.h = KERNEL1X1_FILTER_Y;
+    filter_dims.c = KERNEL1X1_IN_CH;
     output_dims.w = KERNEL1X1_OUTPUT_W;
     output_dims.h = KERNEL1X1_OUTPUT_H;
     output_dims.c = KERNEL1X1_OUT_CH;
@@ -531,6 +569,7 @@ void buffer_size_mve_arm_convolve_1x1_s8_fast(void)
     input_dims.c = KERNEL1X1_STRIDE_X_Y_2_IN_CH;
     filter_dims.w = KERNEL1X1_STRIDE_X_Y_2_FILTER_X;
     filter_dims.h = KERNEL1X1_STRIDE_X_Y_2_FILTER_Y;
+    filter_dims.c = KERNEL1X1_STRIDE_X_Y_2_IN_CH;
     output_dims.w = KERNEL1X1_STRIDE_X_Y_2_OUTPUT_W;
     output_dims.h = KERNEL1X1_STRIDE_X_Y_2_OUTPUT_H;
     output_dims.c = KERNEL1X1_STRIDE_X_Y_2_OUT_CH;
@@ -570,6 +609,7 @@ void buffer_size_dsp_arm_convolve_1x1_s8_fast(void)
     input_dims.c = KERNEL1X1_STRIDE_X_Y_2_IN_CH;
     filter_dims.w = KERNEL1X1_STRIDE_X_Y_2_FILTER_X;
     filter_dims.h = KERNEL1X1_STRIDE_X_Y_2_FILTER_Y;
+    filter_dims.c = KERNEL1X1_STRIDE_X_Y_2_IN_CH;
     output_dims.w = KERNEL1X1_STRIDE_X_Y_2_OUTPUT_W;
     output_dims.h = KERNEL1X1_STRIDE_X_Y_2_OUTPUT_H;
     output_dims.c = KERNEL1X1_STRIDE_X_Y_2_OUT_CH;

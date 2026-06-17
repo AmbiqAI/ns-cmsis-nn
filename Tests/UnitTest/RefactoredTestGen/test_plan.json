@@ -679,34 +679,39 @@
     "bias_data_type": "int64_t",
     "interpreter": "tflite_micro",
     "tflite_generator": "json",
-    "tests": [
-      {
-        "name": "lstm_1_s16",
-        "time_major": true,
-        "batch_size": 1,
-        "time_steps": 10,
-        "input_size": 22,
-        "hidden_size": 11,
-        "json_template": "lstm_s16_tm.json"
-      },
-      {
-        "name": "lstm_2_s16",
-        "time_major": false,
-        "batch_size": 1,
-        "time_steps": 9,
-        "input_size": 6,
-        "hidden_size": 7,
-        "json_template": "lstm_s16.json"
-      },
-      {
-        "name": "lstm_one_time_step_s16",
-        "time_major": false,
-        "batch_size": 3,
-        "time_steps": 1,
-        "input_size": 22,
-        "hidden_size": 3,
-        "json_template": "lstm_s16.json"
-      }
+    "tests" : [
+        {"name" : "lstm_1_s16",
+         "time_major" : true,
+         "batch_size" : 1,
+         "time_steps" : 10,
+         "input_size" : 22,
+         "hidden_size" : 11,
+         "json_template": "lstm_s16_tm.json"
+        },
+        {"name" : "lstm_2_s16",
+         "time_major" : false,
+         "batch_size" : 1,
+         "time_steps" : 9,
+         "input_size" : 6,
+         "hidden_size" : 7,
+         "json_template": "lstm_s16.json"
+        },
+        {"name" : "lstm_one_time_step_s16",
+         "time_major" : false,
+         "batch_size" : 3,
+         "time_steps" : 1,
+         "input_size" : 22,
+         "hidden_size" : 3,
+         "json_template": "lstm_s16.json"
+        },
+        {"name" : "lstm_stateful_batch_major_multibatch_s16",
+         "time_major" : false,
+         "batch_size" : 2,
+         "time_steps" : 2,
+         "input_size" : 6,
+         "hidden_size" : 7,
+         "json_template": "lstm_s16.json"
+        }
     ]
   },
   {
@@ -717,31 +722,35 @@
     "bias_data_type": "int32_t",
     "interpreter": "tflite_micro",
     "tflite_generator": "keras",
-    "tests": [
-      {
-        "name": "lstm_1",
-        "time_major": true,
-        "batch_size": 1,
-        "time_steps": 10,
-        "input_size": 22,
-        "hidden_size": 11
-      },
-      {
-        "name": "lstm_2",
-        "time_major": false,
-        "batch_size": 1,
-        "time_steps": 9,
-        "input_size": 6,
-        "hidden_size": 7
-      },
-      {
-        "name": "lstm_one_time_step",
-        "time_major": false,
-        "batch_size": 3,
-        "time_steps": 1,
-        "input_size": 22,
-        "hidden_size": 3
-      }
+    "tests" : [
+        {"name" : "lstm_1",
+         "time_major" : true,
+         "batch_size" : 1,
+         "time_steps" : 10,
+         "input_size" : 22,
+         "hidden_size" : 11
+        },
+        {"name" : "lstm_2",
+         "time_major" : false,
+         "batch_size" : 1,
+         "time_steps" : 9,
+         "input_size" : 6,
+         "hidden_size" : 7
+        },
+        {"name" : "lstm_one_time_step",
+         "time_major" : false,
+         "batch_size" : 3,
+         "time_steps" : 1,
+         "input_size" : 22,
+         "hidden_size" : 3
+        },
+        {"name" : "lstm_stateful_batch_major_multibatch",
+         "time_major" : false,
+         "batch_size" : 2,
+         "time_steps" : 2,
+         "input_size" : 6,
+         "hidden_size" : 7
+        }
     ]
   },
   {

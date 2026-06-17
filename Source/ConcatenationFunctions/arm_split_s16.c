@@ -31,7 +31,6 @@
  * @{
  */
 
-
 arm_cmsis_nn_status arm_split_s16(const int16_t *input_data,
                                   const int32_t input_dims,
                                   const int32_t *input_shape,
@@ -48,15 +47,18 @@ arm_cmsis_nn_status arm_split_s16(const int16_t *input_data,
     }
     // Compute base "inner" size: product of dims after 'axis'.
     int64_t base_inner_size = 1;
-    for (int32_t d = axis + 1; d < input_dims; d++) {
+    for (int32_t d = axis + 1; d < input_dims; d++)
+    {
         base_inner_size *= input_shape[d];
     }
 
     // For each outer index...
-    for (int k = 0; k < outer_size; k++) {
+    for (int k = 0; k < outer_size; k++)
+    {
 
         // For each output tensor (split)...
-        for (int s = 0; s < num_splits; s++) {
+        for (int s = 0; s < num_splits; s++)
+        {
 
             // The number of elements to copy for this output.
             const int copy_size = split_dims[s] * base_inner_size;

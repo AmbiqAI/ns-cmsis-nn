@@ -35,17 +35,15 @@
  * @{
  */
 
-arm_cmsis_nn_status arm_argmin_s8(const int8_t *input_data,
-                                  const cmsis_nn_dims *input_dims,
-                                  const int32_t axis,
-                                  int32_t *output_data)
+arm_cmsis_nn_status
+arm_argmin_s8(const int8_t *input_data, const cmsis_nn_dims *input_dims, const int32_t axis, int32_t *output_data)
 {
     if ((axis < 0) || (axis > 3))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    const int32_t dims[4] = { input_dims->n, input_dims->h, input_dims->w, input_dims->c };
+    const int32_t dims[4] = {input_dims->n, input_dims->h, input_dims->w, input_dims->c};
     const int32_t axis_dim = dims[axis];
 
     if (axis_dim <= 0)
@@ -98,4 +96,3 @@ arm_cmsis_nn_status arm_argmin_s8(const int8_t *input_data,
 /**
  * @} end of groupBasicMath
  */
-

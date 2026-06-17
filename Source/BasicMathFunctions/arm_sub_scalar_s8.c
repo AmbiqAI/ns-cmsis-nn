@@ -206,7 +206,6 @@ static arm_cmsis_nn_status arm_sub_scalar_s8_core(const int8_t *scalar_vect,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-
 /*
  * s8 elementwise subtract with scalar (scalar - vector)
  *

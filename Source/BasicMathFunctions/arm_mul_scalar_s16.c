@@ -31,7 +31,6 @@
  * @{
  */
 
-
 /*
  * s16 elementwise add with scalar input
  *
@@ -39,16 +38,16 @@
  *
  */
 arm_cmsis_nn_status arm_mul_scalar_s16(const int16_t *input_1_vect,
-                                      const int16_t *input_2_vect,
-                                      const int32_t input_1_offset,
-                                      const int32_t input_2_offset,
-                                      int16_t *output,
-                                      const int32_t out_offset,
-                                      const int32_t out_mult,
-                                      const int32_t out_shift,
-                                      const int32_t out_activation_min,
-                                      const int32_t out_activation_max,
-                                      const int32_t block_size)
+                                       const int16_t *input_2_vect,
+                                       const int32_t input_1_offset,
+                                       const int32_t input_2_offset,
+                                       int16_t *output,
+                                       const int32_t out_offset,
+                                       const int32_t out_mult,
+                                       const int32_t out_shift,
+                                       const int32_t out_activation_min,
+                                       const int32_t out_activation_max,
+                                       const int32_t block_size)
 {
     (void)input_1_offset;
     (void)input_2_offset;
@@ -129,7 +128,6 @@ arm_cmsis_nn_status arm_mul_scalar_s16(const int16_t *input_1_vect,
     while (loop_count > 0)
     {
         /* C = A * B */
-
 
         input_2 = *input_2_vect++;
 

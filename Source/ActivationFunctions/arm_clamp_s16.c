@@ -24,27 +24,26 @@
 #include "arm_nnsupportfunctions.h"
 
 /**
-*  @ingroup groupNN
-*/
+ *  @ingroup groupNN
+ */
 
 /**
-* @addtogroup Acti
-* @{
-*/
+ * @addtogroup Acti
+ * @{
+ */
 
 /*
-* Clamp activation functions for int16_t data type.
-*
-* Refer header file for details.
-*
-*/
-arm_cmsis_nn_status arm_clamp_s16(
-    const int16_t *input,
-    const int16_t act_min,
-    const int16_t act_max,
-    int16_t *output,
-    const int32_t output_size
-) {
+ * Clamp activation functions for int16_t data type.
+ *
+ * Refer header file for details.
+ *
+ */
+arm_cmsis_nn_status arm_clamp_s16(const int16_t *input,
+                                  const int16_t act_min,
+                                  const int16_t act_max,
+                                  int16_t *output,
+                                  const int32_t output_size)
+{
 
     int32_t flat_size = output_size;
 
