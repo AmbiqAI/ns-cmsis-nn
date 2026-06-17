@@ -131,9 +131,10 @@ def check_versions(pkg: ET.Element, comp: ET.Element | None) -> None:
     else:
         fail("Include/arm_nn_types.h is missing one of the NS_CMSIS_NN_VERSION_* markers")
 
-    rev_ver = m_rev.group(1) if m_rev else None
-    if not rev_ver:
-        fail('Include/arm_nn_types.h is missing the `$Revision: "vX.Y.Z"` marker')
+    # Upstream Arm headers may carry an Arm-local revision marker such as
+    # `$Revision: V.3.6.1`; NS-CMSIS-NN's package version is tracked by the
+    # explicit NS_CMSIS_NN_VERSION_* macros instead.
+    rev_ver = m_rev.group(1) if m_rev else header_ver
 
     # NSX module manifest version.
     nsx_ver: str | None = None
@@ -162,7 +163,7 @@ def check_versions(pkg: ET.Element, comp: ET.Element | None) -> None:
         "<release version>": rel_ver,
         "component Cversion": comp_ver,
         "arm_nn_types.h NS_CMSIS_NN_VERSION_*": header_ver,
-        "arm_nn_types.h $Revision": rev_ver,
+        "arm_nn_types.h $Revision or NS_CMSIS_NN_VERSION_*": rev_ver,
         "nsx/nsx-module.yaml module.version": nsx_ver,
         ".release-please-manifest.json": manifest_ver,
     }

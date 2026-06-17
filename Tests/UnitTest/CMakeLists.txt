@@ -51,7 +51,7 @@ if(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300)
     set(FVP_CORSTONE_300_PATH "${CMAKE_CURRENT_SOURCE_DIR}/Corstone-300" CACHE PATH
         "Dependencies for using FVP based on Arm Corstone-300 software.")
     set(CMAKE_EXECUTABLE_SUFFIX ".elf")
-elseif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
     # The host Clang regression build treats -Ofast as deprecated and Unity
     # relies on isnan/isinf checks, so use a conforming optimization level.
     set(CMSIS_OPTIMIZATION_LEVEL "-O3" CACHE STRING "Compiler optimization level." FORCE)
@@ -59,12 +59,12 @@ endif()
 
 # Build the functions to be tested.
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../.. cmsis-nn)
-if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
+if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 AND CMAKE_C_COMPILER_ID MATCHES "Clang")
     target_compile_options(cmsis-nn PRIVATE -Wno-error=unknown-attributes)
 endif()
 if(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300)
     add_compile_options(${CMSIS_OPTIMIZATION_LEVEL})
-elseif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
     # Unity checks NaN/Inf explicitly in host regressions, so keep finite-math
     # assumptions disabled for Clang instead of inheriting the library's -Ofast.
     add_compile_options(-O3
@@ -245,6 +245,7 @@ set(MAKE_CMD_SCRIPT_OPTION "--download-and-generate-test-runners")
 MESSAGE(STATUS "Downloading Unity and generating test runners for CMSIS-NN unit tests if needed..")
 execute_process(COMMAND ${MAKE_CMD} ${MAKE_CMD_SCRIPT} ${MAKE_CMD_SCRIPT_OPTION}
                         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "Allow vendored Unity CMake compatibility with CMake 4" FORCE)
 add_subdirectory(Unity)
 
 # Link common dependencies.
