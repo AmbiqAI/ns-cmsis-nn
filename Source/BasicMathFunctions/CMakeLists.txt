@@ -18,6 +18,7 @@
 
 file(GLOB SRC "./*_s8*.c" "./*_s16*.c")
 set(SRC_FLT "")
+set(SRC_FP16 arm_elementwise_add_fp16.c)
 if (ARM_NN_ENABLE_F32)
   list(APPEND SRC_FLT arm_elementwise_add_f32.c
                       arm_elementwise_mul_f32.c
@@ -30,4 +31,4 @@ if (ARM_NN_ENABLE_F16)
                       arm_minimum_f16.c
                       arm_maximum_f16.c)
 endif()
-target_sources(cmsis-nn PRIVATE ${SRC} ${SRC_FLT})
+target_sources(cmsis-nn PRIVATE ${SRC} ${SRC_FP16} ${SRC_FLT})
