@@ -2414,9 +2414,11 @@ PREDEFINED             = ARM_MATH_NEON=1 \
                          ARM_FLOAT16_SUPPORTED=1 \
                          ARM_NN_ENABLE_F32=1 \
                          ARM_NN_ENABLE_F16=1 \
+                         __RESTRICT= \
                          __STATIC_FORCEINLINE=static \
                          __STATIC_INLINE=static \
-                         __ALIGNED(x)=
+                         __ALIGNED(x)= \
+                         ARM_NN_STATIC_ASSERT(cond,msg)=
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The
