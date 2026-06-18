@@ -9,7 +9,7 @@ on:
     branches:
       - main
 
-# jobs:
+jobs:
 #   legacy-tests:
 #     uses: ./.github/workflows/legacy-tester.yml
 
