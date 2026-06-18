@@ -31,8 +31,6 @@ from pathlib import Path
 
 UNIT_TEST_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = UNIT_TEST_ROOT.parents[1]
-DEFAULT_DOWNLOADS_ROOT = UNIT_TEST_ROOT / "downloads"
-DEFAULT_CMSIS_ROOT = DEFAULT_DOWNLOADS_ROOT / "CMSIS_5"
 
 INTEGER_TEST_DIR = UNIT_TEST_ROOT / "TestCases"
 
@@ -209,31 +207,14 @@ def resolve_pack_dir(pack_root: Path, vendor: str, name: str, preferred_version:
     return versions[-1]
 
 
-def resolve_vendored_cmsis_checkout(search_root: Path) -> Path | None:
-    candidate = search_root / "CMSIS_5"
-    if (candidate / "CMSIS" / "Core" / "Include").exists() and (candidate / "Device" / "ARM" / "ARMCM55").exists():
-        return candidate
-    return None
-
-
 def create_cmsis_overlay(overlay_root: Path, pack_root: Path, cmsis_version: str, cortex_dfp_version: str) -> Path:
+    cmsis_dir = resolve_pack_dir(pack_root, "ARM", "CMSIS", cmsis_version)
+    cortex_dfp_dir = resolve_pack_dir(pack_root, "ARM", "Cortex_DFP", cortex_dfp_version)
+
     if overlay_root.exists():
         shutil.rmtree(overlay_root)
 
     (overlay_root / "Device" / "ARM").mkdir(parents=True, exist_ok=True)
-
-    vendored_cmsis = resolve_vendored_cmsis_checkout(pack_root)
-    if vendored_cmsis is not None:
-        os.symlink(vendored_cmsis / "CMSIS", overlay_root / "CMSIS", target_is_directory=True)
-        os.symlink(
-            vendored_cmsis / "Device" / "ARM" / "ARMCM55",
-            overlay_root / "Device" / "ARM" / "ARMCM55",
-            target_is_directory=True,
-        )
-        return overlay_root
-
-    cmsis_dir = resolve_pack_dir(pack_root, "ARM", "CMSIS", cmsis_version)
-    cortex_dfp_dir = resolve_pack_dir(pack_root, "ARM", "Cortex_DFP", cortex_dfp_version)
 
     os.symlink(cmsis_dir / "CMSIS", overlay_root / "CMSIS", target_is_directory=True)
     os.symlink(cortex_dfp_dir / "Device" / "ARMCM55", overlay_root / "Device" / "ARM" / "ARMCM55", target_is_directory=True)
@@ -398,11 +379,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--jobs", type=int, default=4, help="Parallel jobs for CMake builds.")
     parser.add_argument("--clean", action="store_true", help="Delete existing build directories before configuring.")
     parser.add_argument("--build-root", default="/tmp/cmsis-nn-integer-fvp", help="Root build directory.")
-    parser.add_argument(
-        "--cmsis-pack-root",
-        default=os.environ.get("CMSIS_PACK_ROOT", str(DEFAULT_DOWNLOADS_ROOT)),
-        help="CMSIS pack root, or Tests/UnitTest/downloads containing a vendored CMSIS_5 checkout.",
-    )
+    parser.add_argument("--cmsis-pack-root", default=os.environ.get("CMSIS_PACK_ROOT", "/home/runner/.cache/arm/packs"), help="CMSIS pack root.")
     parser.add_argument("--cmsis-version", default="6.3.0", help="Preferred ARM::CMSIS pack version.")
     parser.add_argument("--cortex-dfp-version", default="1.1.0", help="Preferred ARM::Cortex_DFP pack version.")
     parser.add_argument("--optimization-level", default="-O3", help="CMSIS optimization level for the integer FVP build.")
