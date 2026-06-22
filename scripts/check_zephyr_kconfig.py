@@ -57,6 +57,12 @@ RENAMED_KNOBS = [
     "STRIDEDSLICE",
     "SVDF",
     "TRANSPOSE",
+    "TILE",
+    "BROADCAST",
+    "SCATTER",
+    "SELECT",
+    "REVERSESEQUENCE",
+    "DYNAMICUPDATESLICE",
 ]
 
 failures: list[str] = []
