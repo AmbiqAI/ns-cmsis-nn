@@ -27,6 +27,10 @@ on:
         description: Comma-separated toolchains to run (no spaces)
         required: false
         default: GCC@14.3.1,AC6@6.24.0
+      container_image:
+        description: Optional CI container image override.
+        required: false
+        default: ''
   pull_request:
     branches: [main]
   push:
@@ -38,11 +42,20 @@ concurrency:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
+  resolve-container-image:
+    uses: ./.github/workflows/resolve-ci-image.yml
+    with:
+      container_image: ${{ github.event.inputs.container_image || '' }}
+
   fvp:
     name: FVP ${{ matrix.toolchain_label }}
     runs-on: ubuntu-24.04-arm
+    needs: resolve-container-image
+    container:
+      image: ${{ needs.resolve-container-image.outputs.container_image }}
     strategy:
       fail-fast: false
       matrix:
@@ -64,16 +77,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
+      - name: Mark workspace as a safe git directory
+        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
 
-      - name: Install Python dependencies
+      - name: Log selected container image
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install termcolor pyserial
+          {
+            echo "### Job container image"
+            echo "- selected image: \`${{ needs.resolve-container-image.outputs.container_image }}\`"
+            echo "- source: \`${{ needs.resolve-container-image.outputs.resolved_from }}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Check toolchain selection
         id: select
@@ -93,23 +106,13 @@ jobs:
             echo "Skipped by workflow_dispatch filter."
           } >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Install Arm tools
-        if: steps.select.outputs.enabled == 'true'
-        uses: ARM-software/cmsis-actions/vcpkg@v1
-
       - name: Activate Arm tool license
         if: steps.select.outputs.enabled == 'true' && matrix.toolchain == 'AC6'
         uses: ARM-software/cmsis-actions/armlm@v1
 
-      - name: Export generic toolchain aliases
+      - name: Set up CMSIS toolchain environment
         if: steps.select.outputs.enabled == 'true'
-        run: |
-          if [[ -n "${GCC_TOOLCHAIN_14_3_1:-}" ]]; then
-            echo "GCC_TOOLCHAIN=${GCC_TOOLCHAIN_14_3_1}" >> "${GITHUB_ENV}"
-          fi
-          if [[ -n "${AC6_TOOLCHAIN_6_24_0:-}" ]]; then
-            echo "AC6_TOOLCHAIN=${AC6_TOOLCHAIN_6_24_0}" >> "${GITHUB_ENV}"
-          fi
+        uses: ./.github/actions/cmsis-env
 
       - name: Run integer CMSIS/FVP regression
         if: steps.select.outputs.enabled == 'true'

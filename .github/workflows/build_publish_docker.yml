@@ -50,6 +50,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Resolve image tags
         id: meta
         shell: bash
@@ -87,32 +93,34 @@ jobs:
 
           {
             echo 'image_tag='"$image_tag"
-            echo 'build_args=--build-arg NS_CMSIS_NN_TAG='"$image_tag"
             echo 'docker_tags<<EOF'
             printf '%s\n' "${tags[@]}"
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - name: Build Docker Image
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ steps.meta.outputs.docker_tags }}
+          build-args: |
+            NS_CMSIS_NN_TAG=${{ steps.meta.outputs.image_tag }}
+
+      - name: Publish build summary
+        if: always()
         shell: bash
         run: |
-          set -euo pipefail
-          tag_args=()
-          while IFS= read -r tag; do
-            [[ -n "$tag" ]] || continue
-            tag_args+=(-t "$tag")
-          done <<< "${{ steps.meta.outputs.docker_tags }}"
+          {
+            echo "### CI image build"
+            echo "- platforms: \`linux/amd64, linux/arm64\`"
+            echo "- tags:"
+            while IFS= read -r tag; do
+              [[ -n "$tag" ]] || continue
+              echo "  - \`${tag}\`"
+            done <<< "${{ steps.meta.outputs.docker_tags }}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          docker build \
-            "${tag_args[@]}" \
-            ${{ steps.meta.outputs.build_args }} \
-            -f .devcontainer/Dockerfile .
-
-      - name: Push Docker Image
-        shell: bash
-        run: |
-          set -euo pipefail
-          while IFS= read -r tag; do
-            [[ -n "$tag" ]] || continue
-            docker push "$tag"
-          done <<< "${{ steps.meta.outputs.docker_tags }}"

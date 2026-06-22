@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: Apache-2.0
+#
+# Replays the Arm tool environment baked into the ns-cmsis-nn CI container image
+# by .devcontainer/Dockerfile. The image runs `vcpkg activate --json` at build
+# time and stores the result at ${NS_CMSIS_NN_VCPKG_ENV}. This action exports the
+# captured PATH entries and per-tool environment variables (for example
+# AC6_TOOLCHAIN_6_24_0, GCC_TOOLCHAIN_14_3_1, CLANG_TOOLCHAIN_20_1_0) plus the
+# generic GCC_TOOLCHAIN / AC6_TOOLCHAIN / CLANG_TOOLCHAIN aliases the unit-test
+# drivers consume. No toolchains are downloaded at job runtime.
+
+name: 'CMSIS toolchain environment'
+description: 'Replay the baked vcpkg tool environment and export generic toolchain aliases.'
+
+inputs:
+  env-file:
+    description: 'Path to the baked vcpkg activation JSON inside the CI image.'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Replay baked vcpkg environment
+      shell: bash
+      env:
+        INPUT_ENV_FILE: ${{ inputs.env-file }}
+      run: |
+        set -euo pipefail
+
+        env_file="${INPUT_ENV_FILE:-${NS_CMSIS_NN_VCPKG_ENV:-/opt/ns-cmsis-nn/vcpkg-env.json}}"
+        if [[ ! -f "${env_file}" ]]; then
+          echo "Baked vcpkg environment not found at '${env_file}'." >&2
+          echo "This action must run inside the ns-cmsis-nn CI container image" >&2
+          echo "(ghcr.io/ambiqai/ns-cmsis-nn-ci)." >&2
+          exit 1
+        fi
+
+        # PATH entries: cbuild/cpackget/csolution, cmake, ninja, the Corstone-300
+        # FVP, and each compiler's bin directory.
+        while IFS= read -r path_entry; do
+          [[ -n "${path_entry}" ]] || continue
+          echo "${path_entry}" >> "${GITHUB_PATH}"
+        done < <(jq -r '.paths.PATH[]?' "${env_file}")
+
+        # Per-tool environment variables, version-suffixed by vcpkg.
+        jq -r '.tools | to_entries[] | "\(.key)=\(.value)"' "${env_file}" >> "${GITHUB_ENV}"
+
+        # Generic aliases consumed by the test drivers. Take the first match per
+        # family so callers do not need to know the pinned version suffix.
+        for family in GCC AC6 CLANG; do
+          value="$(jq -r --arg p "^${family}_TOOLCHAIN_" \
+            '[.tools | to_entries[] | select(.key | test($p)) | .value][0] // empty' \
+            "${env_file}")"
+          if [[ -n "${value}" ]]; then
+            echo "${family}_TOOLCHAIN=${value}" >> "${GITHUB_ENV}"
+          fi
+        done
+
+        {
+          echo "### CMSIS toolchain environment"
+          echo "- source: \`${env_file}\`"
+          echo "- tools: \`$(jq -r '.tools | keys | join(", ")' "${env_file}")\`"
+        } >> "${GITHUB_STEP_SUMMARY}"

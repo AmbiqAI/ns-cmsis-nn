@@ -79,14 +79,27 @@ jobs:
           echo "TAG=$tag" >> "$GITHUB_OUTPUT"
           echo "VERSION=$version" >> "$GITHUB_OUTPUT"
 
+  resolve-container-image:
+    # Pin the staticlib build to the current :latest CI image. During a release
+    # run the NEW tag's image is not published until publish-ci-image (below),
+    # so we deliberately consume the previous :latest, which already carries the
+    # baked toolchains.
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    needs: release-please
+    uses: ./.github/workflows/resolve-ci-image.yml
+    with:
+      container_image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+
   publish-staticlibs:
     # Cross-compile cmsis-nn as static libraries for cortex-m0 / m4 / m55
     # across the supported release toolchains. Uploads workflow artefacts for
     # downstream release jobs; publish-staticlib-bundles owns GitHub Release
     # uploads so the release page does not grow loose .a/.sha256 pairs.
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    needs: release-please
+    needs: [release-please, resolve-container-image]
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.resolve-container-image.outputs.container_image }}
     strategy:
       fail-fast: false
       matrix:
@@ -96,32 +109,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Install GNU Arm Embedded toolchain
-        if: ${{ matrix.toolchain == 'gcc' }}
-        uses: carlosperate/arm-none-eabi-gcc-action@v1
-        with:
-          release: 13.2.Rel1
+      - name: Mark workspace as a safe git directory
+        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
 
-      - name: Install LLVM archive tools
+      - name: Activate Arm tool license
         if: ${{ matrix.toolchain == 'armclang' }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends llvm
+        uses: ARM-software/cmsis-actions/armlm@v1
 
-      - name: Fetch external toolchain
-        if: ${{ matrix.toolchain != 'gcc' }}
-        id: fetch_toolchain
+      - name: Set up CMSIS toolchain environment
+        uses: ./.github/actions/cmsis-env
+
+      - name: Resolve baked toolchain
+        env:
+          TOOLCHAIN: ${{ matrix.toolchain }}
         run: |
-          bash scripts/fetch_toolchain.sh \
-            --manifest "ci/toolchains/${{ matrix.toolchain }}.json" \
-            --platform linux-x86_64 \
-            --outdir "${RUNNER_TEMP}/toolchains"
+          set -euo pipefail
+          case "${TOOLCHAIN}" in
+            gcc)
+              root=""
+              version="$(arm-none-eabi-gcc -dumpfullversion 2>/dev/null || arm-none-eabi-gcc -dumpversion)"
+              ;;
+            atfe)
+              [[ -n "${CLANG_TOOLCHAIN:-}" ]] || { echo "CLANG_TOOLCHAIN unset" >&2; exit 1; }
+              root="$(cd "$(dirname "${CLANG_TOOLCHAIN}")" && pwd)"
+              version="$("${CLANG_TOOLCHAIN}/clang" --version | sed -n 's/.*version \([0-9.]*\).*/\1/p' | head -n1)"
+              ;;
+            armclang)
+              [[ -n "${AC6_TOOLCHAIN:-}" ]] || { echo "AC6_TOOLCHAIN unset" >&2; exit 1; }
+              root="$(cd "$(dirname "${AC6_TOOLCHAIN}")" && pwd)"
+              version="$("${AC6_TOOLCHAIN}/armclang" --version | sed -n 's/.*Compiler \([0-9.]*\).*/\1/p' | head -n1)"
+              ;;
+          esac
+          {
+            echo "TOOLCHAIN_ROOT=${root}"
+            echo "TOOLCHAIN_VERSION=${version}"
+          } >> "${GITHUB_ENV}"
 
       - name: Build static library
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
           TOOLCHAIN: ${{ matrix.toolchain }}
-          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
           bash scripts/build_staticlib.sh \
@@ -138,7 +165,6 @@ jobs:
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
           TOOLCHAIN: ${{ matrix.toolchain }}
-          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
           if [[ "$TOOLCHAIN" == "gcc" ]]; then
@@ -157,22 +183,19 @@ jobs:
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
           TOOLCHAIN: ${{ matrix.toolchain }}
-          TOOLCHAIN_VERSION: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
           if [[ "$TOOLCHAIN" == "gcc" ]]; then
             lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
-            toolchain_version="13.2.Rel1"
           else
             lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TOOLCHAIN}-${TARGET_CPU}-${VERSION}.a"
-            toolchain_version="$TOOLCHAIN_VERSION"
           fi
           bash scripts/build_sdk_tarball.sh \
             --target-cpu         "$TARGET_CPU" \
             --version            "$VERSION"    \
             --staticlib          "$lib"        \
             --toolchain          "$TOOLCHAIN"  \
-            --toolchain-version  "$toolchain_version" \
+            --toolchain-version  "$TOOLCHAIN_VERSION" \
             --outdir             "./output/${TOOLCHAIN}/${TARGET_CPU}"
 
       - name: Upload artefacts (cross-job)
