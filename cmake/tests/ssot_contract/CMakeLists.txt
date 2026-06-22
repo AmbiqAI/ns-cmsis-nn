@@ -60,6 +60,12 @@ set(EXPECTED_GROUPS
     stridedslice
     svd
     transpose
+    tile
+    broadcast
+    scatter
+    select
+    reversesequence
+    dynamicupdateslice
     nnsupport
 )
 
@@ -75,17 +81,23 @@ set(EXPECTED_COUNT_convolution    44)
 set(EXPECTED_COUNT_fullyconnected 13)
 set(EXPECTED_COUNT_gather          4)
 set(EXPECTED_COUNT_lstm            2)
-set(EXPECTED_COUNT_pad             2)
-set(EXPECTED_COUNT_pooling         6)
-set(EXPECTED_COUNT_quantization    6)
+set(EXPECTED_COUNT_pad             4)
+set(EXPECTED_COUNT_pooling          6)
+set(EXPECTED_COUNT_quantization     6)
 set(EXPECTED_COUNT_reshape        11)
 set(EXPECTED_COUNT_softmax         4)
 set(EXPECTED_COUNT_stridedslice    3)
 set(EXPECTED_COUNT_svd             3)
 set(EXPECTED_COUNT_transpose       2)
+set(EXPECTED_COUNT_tile            2)
+set(EXPECTED_COUNT_broadcast       2)
+set(EXPECTED_COUNT_scatter         2)
+set(EXPECTED_COUNT_select          4)
+set(EXPECTED_COUNT_reversesequence 2)
+set(EXPECTED_COUNT_dynamicupdateslice 2)
 set(EXPECTED_COUNT_nnsupport      30)
 
-set(EXPECTED_TOTAL 206)
+set(EXPECTED_TOTAL 222)
 
 # ----------------------------------------------------------------------------
 # Test harness: collect failures, report them all at once.
@@ -176,4 +188,4 @@ if(_failures)
   message(FATAL_ERROR "SSoT contract test FAILED:${_failures}")
 endif()
 
-message(STATUS "SSoT contract OK: 17 groups, ${EXPECTED_TOTAL} sources (ALL), ${_ns8} sources (DTYPES=s8).")
+message(STATUS "SSoT contract OK: 23 groups, ${EXPECTED_TOTAL} sources (ALL), ${_ns8} sources (DTYPES=s8).")

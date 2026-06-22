@@ -105,7 +105,6 @@ int32_t arm_convolve_s8_get_buffer_size(const cmsis_nn_dims *input_dims, const c
 #endif
 }
 
-
 int32_t arm_convolve_s8_get_weights_sum_size(const cmsis_nn_dims *output_dims)
 {
 #if !defined(ARM_MATH_MVEI)

@@ -96,6 +96,31 @@ static inline int validate_s32(int32_t *act, const int32_t *ref, int size)
     return test_passed;
 }
 
+static inline int validate_s64(int64_t *act, const int64_t *ref, int size)
+{
+    int test_passed = true;
+    int count = 0;
+    int total = 0;
+
+    for (int i = 0; i < size; ++i)
+    {
+        total++;
+        if (act[i] != ref[i])
+        {
+            count++;
+            printf("ERROR at pos %d: Act: %lld Ref: %lld\r\n", i, (long long)act[i], (long long)ref[i]);
+            test_passed = false;
+        }
+    }
+
+    if (!test_passed)
+    {
+        printf("%d of %d failed\r\n", count, total);
+    }
+
+    return test_passed;
+}
+
 static inline int validate_bool(const bool *act, const bool *ref, int size)
 {
     int test_passed = true;

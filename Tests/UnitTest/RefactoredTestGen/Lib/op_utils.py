@@ -83,12 +83,18 @@ def get_dtype(name, params):
         if params["weights_data_type"] == "int4_t":
             return "int8_t"
         return params["weights_data_type"]
+    elif "condition" in name:
+        return params.get("condition_data_type", params["input_data_type"])
     elif "multiplier" in name or "shift" in name:
         return params["shift_and_mult_data_type"]
     elif "output" in name:
         return params.get("output_data_type", params["input_data_type"])
+    elif "seq_lengths" in name or "multiples" in name:
+        return "int32_t"
     elif "indices" in name:
         return "int32_t"
+    elif name in ("x", "y") or "operand" in name or "update" in name:
+        return params["input_data_type"]
     elif "input" in name or "transpose" in name:
         return params["input_data_type"]
     else:

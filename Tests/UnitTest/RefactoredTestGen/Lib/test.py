@@ -46,6 +46,14 @@ import Lib.op_squared_difference
 import Lib.op_arg_min_max
 import Lib.op_gather
 import Lib.op_gather_nd
+import Lib.op_broadcast_to
+import Lib.op_dynamic_update_slice
+import Lib.op_mirror_pad
+import Lib.op_reverse_sequence
+import Lib.op_scatter_nd
+import Lib.op_select_v2
+import Lib.op_tile
+import Lib.op_where
 import Lib.op_resize_nearest_neighbor
 import tensorflow as tf
 import numpy as np
@@ -114,11 +122,12 @@ def generate(params, args, fpaths):
         effective_output_dtype = params.get("output_data_type", params["input_data_type"])
         disable_quant_for_int32_io = (params["input_data_type"] == "int32_t" and
                                       effective_output_dtype == "int32_t")
+        disable_quantization = disable_quant_for_int32_io or params.get("force_no_quantize", False)
 
         if op_type == Lib.op_quantize.Op_quantize or op_type == Lib.op_dequantize.Op_dequantize:
             convert_keras_to_tflite(fpaths["tflite"],
                                     keras_model,
-                                    quantize=not disable_quant_for_int32_io,
+                                    quantize=not disable_quantization,
                                     input_dtype=params["input_data_type"],
                                     bias_dtype=bias_dtype,
                                     shape=shapes,
@@ -128,7 +137,7 @@ def generate(params, args, fpaths):
         else:
             convert_keras_to_tflite(fpaths["tflite"],
                                     keras_model,
-                                    quantize=not disable_quant_for_int32_io,
+                                    quantize=not disable_quantization,
                                     input_dtype=params["input_data_type"],
                                     bias_dtype=bias_dtype,
                                     shape=shapes,
@@ -324,6 +333,22 @@ def get_op_type(op_type_string):
         return Lib.op_gather.Op_gather
     elif op_type_string == "gather_nd":
         return Lib.op_gather_nd.Op_gather_nd
+    elif op_type_string == "broadcast_to":
+        return Lib.op_broadcast_to.Op_broadcast_to
+    elif op_type_string == "dynamic_update_slice":
+        return Lib.op_dynamic_update_slice.Op_dynamic_update_slice
+    elif op_type_string == "mirror_pad":
+        return Lib.op_mirror_pad.Op_mirror_pad
+    elif op_type_string == "reverse_sequence":
+        return Lib.op_reverse_sequence.Op_reverse_sequence
+    elif op_type_string == "scatter_nd":
+        return Lib.op_scatter_nd.Op_scatter_nd
+    elif op_type_string == "select_v2":
+        return Lib.op_select_v2.Op_select_v2
+    elif op_type_string == "tile":
+        return Lib.op_tile.Op_tile
+    elif op_type_string == "where":
+        return Lib.op_where.Op_where
     elif op_type_string == "resize_nearest_neighbor":
         return Lib.op_resize_nearest_neighbor.Op_resize_nearest_neighbor
     else:

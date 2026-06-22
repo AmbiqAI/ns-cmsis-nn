@@ -78,7 +78,13 @@ if(CONFIG_NS_CMSIS_NN)
             "SOFTMAX;softmax"
             "STRIDEDSLICE;stridedslice"
             "SVDF;svd"
-            "TRANSPOSE;transpose")
+            "TRANSPOSE;transpose"
+            "TILE;tile"
+            "BROADCAST;broadcast"
+            "SCATTER;scatter"
+            "SELECT;select"
+            "REVERSESEQUENCE;reversesequence"
+            "DYNAMICUPDATESLICE;dynamicupdateslice")
     list(GET _pair 0 _kconfig)
     list(GET _pair 1 _group)
     if(CONFIG_NS_CMSIS_NN_${_kconfig})

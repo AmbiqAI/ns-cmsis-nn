@@ -623,7 +623,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             lhs_offset_contribution1 += bias[rhs_rows_idx + 1];
         }
 
-
         int32_t lhs_rows_idx = lhs_rows >> 1;
 
         while (lhs_rows_idx)
