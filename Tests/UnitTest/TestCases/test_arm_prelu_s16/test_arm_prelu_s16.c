@@ -73,6 +73,35 @@ void prelu_per_channel_s16_arm_prelu_s16(void)
     TEST_ASSERT_TRUE(validate_s16(output, expected, 4));
 }
 
+void prelu_alpha_width_broadcast_s16_arm_prelu_s16(void)
+{
+    const cmsis_nn_dims input_dims = {1, 1, 2, 2};
+    const cmsis_nn_dims alpha_dims = {1, 1, 1, 2};
+    const cmsis_nn_dims output_dims = {1, 1, 2, 2};
+    const int16_t input_data[] = {-4, 6, -2, 3};
+    const int16_t alpha_data[] = {3, 5};
+    const int16_t expected[] = {-12, 6, -6, 3};
+    int16_t output[4] = {0};
+
+    const arm_cmsis_nn_status result =
+        arm_prelu_s16(&input_dims,
+                      input_data,
+                      &alpha_dims,
+                      alpha_data,
+                      0,
+                      0,
+                      0,
+                      prelu_identity_multiplier,
+                      prelu_identity_shift,
+                      prelu_identity_multiplier,
+                      prelu_identity_shift,
+                      &output_dims,
+                      output);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+    TEST_ASSERT_TRUE(validate_s16(output, expected, 4));
+}
+
 void prelu_output_shape_mismatch_s16_arm_prelu_s16(void)
 {
     const cmsis_nn_dims input_dims = {1, 1, 1, 2};

@@ -4026,7 +4026,8 @@ arm_cmsis_nn_status arm_prelu_scalar_s8(const int8_t *scalar_vect,
  * @param[in]      output_shift_alpha          Output shift when input < 0
  * @param[in]      output_dims                 Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output                      Pointer to the output buffer
- * @return         The function returns ARM_MATH_SUCCESS
+ * @return         ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR if the output dimensions do not match the
+ *                 input dimensions
  */
 arm_cmsis_nn_status arm_prelu_s16(const cmsis_nn_dims *input_dims,
                                   const int16_t *input,
@@ -4056,7 +4057,7 @@ arm_cmsis_nn_status arm_prelu_s16(const cmsis_nn_dims *input_dims,
  * @param[in]      output_shift_alpha          Output shift when input < 0
  * @param[out]     output                      Pointer to the output buffer
  * @param[in]      block_size                  Number of elements to process
- * @return         The function returns ARM_MATH_SUCCESS
+ * @return         ARM_CMSIS_NN_SUCCESS
  */
 arm_cmsis_nn_status arm_elementwise_prelu_s16(const int16_t *input,
                                               const int16_t *alpha,
@@ -4085,7 +4086,7 @@ arm_cmsis_nn_status arm_elementwise_prelu_s16(const int16_t *input,
  * @param[in]      output_shift_alpha          Output shift when input < 0
  * @param[out]     output                      Pointer to the output buffer
  * @param[in]      block_size                  Number of elements to process when the non-scalar vector is used
- * @return         The function returns ARM_MATH_SUCCESS
+ * @return         ARM_CMSIS_NN_SUCCESS
  */
 arm_cmsis_nn_status arm_prelu_scalar_s16(const int16_t *scalar_vect,
                                          const int16_t *non_scalar_vect,
