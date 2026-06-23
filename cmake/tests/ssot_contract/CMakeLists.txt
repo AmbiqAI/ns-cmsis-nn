@@ -73,7 +73,7 @@ set(EXPECTED_GROUPS
 # Expected per-group source counts (DTYPES = ALL). Sum must equal
 # EXPECTED_TOTAL below.
 # ----------------------------------------------------------------------------
-set(EXPECTED_COUNT_activation     18)
+set(EXPECTED_COUNT_activation     21)
 set(EXPECTED_COUNT_basicmath      46)
 set(EXPECTED_COUNT_comparison      2)
 set(EXPECTED_COUNT_concatenation   9)
@@ -97,7 +97,7 @@ set(EXPECTED_COUNT_reversesequence 2)
 set(EXPECTED_COUNT_dynamicupdateslice 2)
 set(EXPECTED_COUNT_nnsupport      30)
 
-set(EXPECTED_TOTAL 221)
+set(EXPECTED_TOTAL 224)
 
 # ----------------------------------------------------------------------------
 # Test harness: collect failures, report them all at once.

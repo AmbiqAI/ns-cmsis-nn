@@ -31,7 +31,6 @@
  * @{
  */
 
-
 /*
  * s16 elementwise prelu with scalar
  *
@@ -92,7 +91,8 @@ arm_cmsis_nn_status arm_prelu_scalar_s16(const int16_t *scalar_vect,
             int32_t acc;
             if (input_value >= 0)
             {
-                acc = arm_nn_requantize(input_value, output_multiplier_identity, output_shift_identity) + output_offset;
+                acc =
+                    arm_nn_requantize(input_value, output_multiplier_identity, output_shift_identity) + output_offset;
             }
             else
             {
@@ -108,7 +108,6 @@ arm_cmsis_nn_status arm_prelu_scalar_s16(const int16_t *scalar_vect,
 
     return ARM_CMSIS_NN_SUCCESS;
 }
-
 
 /**
  * @} end of Doxygen group
