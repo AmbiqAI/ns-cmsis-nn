@@ -44,14 +44,14 @@ void prelu_scalar_alpha_s16_arm_prelu_s16(void)
     TEST_ASSERT_TRUE(validate_s16(output, expected, 4));
 }
 
-void prelu_scalar_input_s16_arm_prelu_s16(void)
+void prelu_per_channel_s16_arm_prelu_s16(void)
 {
-    const cmsis_nn_dims input_dims = {1, 1, 1, 1};
+    const cmsis_nn_dims input_dims = {1, 1, 1, 4};
     const cmsis_nn_dims alpha_dims = {1, 1, 1, 4};
     const cmsis_nn_dims output_dims = {1, 1, 1, 4};
-    const int16_t input_data[] = {-3};
-    const int16_t alpha_data[] = {1, 2, 4, 7};
-    const int16_t expected[] = {-3, -6, -12, -21};
+    const int16_t input_data[] = {-4, -1, 2, 5};
+    const int16_t alpha_data[] = {3, 2, 1, 4};
+    const int16_t expected[] = {-12, -2, 2, 5};
     int16_t output[4] = {0};
 
     const arm_cmsis_nn_status result =
