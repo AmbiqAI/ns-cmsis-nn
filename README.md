@@ -229,7 +229,7 @@ inference libraries such as Arm Compute Library or XNNPACK.
 | Comparison (==, !=, <, >, ...) | Yes    | Yes     | N/A     | Yes      | Yes       | N/A       | Yes      | Yes       | N/A       |
 | ReLU / ReLU6                   | Yes    | Yes     | N/A     | Yes      | Yes       | N/A       | Yes      | Yes       | N/A       |
 | Leaky ReLU                     | Yes    | Yes     | N/A     | Yes      | Yes       | N/A       | Yes      | Yes       | N/A       |
-| PReLU                          | Yes    | No      | N/A     | Yes      | No        | N/A       | Yes      | No        | N/A       |
+| PReLU                          | Yes    | Yes     | N/A     | Yes      | No        | N/A       | Yes      | No        | N/A       |
 | Hard-Swish                     | Yes    | Yes     | N/A     | Yes      | Yes       | N/A       | Yes      | Yes       | N/A       |
 | Logistic                       | Yes    | Yes     | N/A     | Yes      | Yes       | N/A       | Yes      | Yes       | N/A       |
 | Tanh                           | Yes    | Yes     | N/A     | Yes      | Yes       | N/A       | Yes      | Yes       | N/A       |
