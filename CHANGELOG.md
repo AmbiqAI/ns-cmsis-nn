@@ -1,5 +1,36 @@
 # Changelog
 
+## [7.27.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.26.0...v7.27.0) (2026-06-22)
+
+
+### Features
+
+* add arm_where_s16 kernel + unit test ([634aa2d](https://github.com/AmbiqAI/ns-cmsis-nn/commit/634aa2d458698beee7f163a0383223131ca782ed))
+* add tensor shaping kernels (tile, broadcast_to, scatter_nd, mirror_pad, select_v2, where, reverse_sequence, dynamic_update_slice) ([8335274](https://github.com/AmbiqAI/ns-cmsis-nn/commit/8335274b2ed1a9b9476b24b4cd34b4f2e2704b8b))
+* add tensor shaping kernels (tile, broadcast_to, scatter_nd, mirror_pad, select_v2, where, reverse_sequence, dynamic_update_slice) ([8335274](https://github.com/AmbiqAI/ns-cmsis-nn/commit/8335274b2ed1a9b9476b24b4cd34b4f2e2704b8b))
+* add tensor shaping kernels (tile, broadcast_to, scatter_nd, mirror_pad, select_v2, where, reverse_sequence, dynamic_update_slice) ([dd04ea4](https://github.com/AmbiqAI/ns-cmsis-nn/commit/dd04ea4ced273861dc8674b50c60e7c2c4a0a115))
+* Update docs with MVE vs DSP vs Scalar C kernel-benchmarks.md ([8246c60](https://github.com/AmbiqAI/ns-cmsis-nn/commit/8246c607b37e8f44f1bd553e6b899b42f7dd95b0))
+* Update docs with MVE vs DSP vs Scalar C kernel-benchmarks.md ([f33a188](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f33a188c851938ff8c557e6947e0acf45f647e4e))
+
+
+### Bug Fixes
+
+* add new operator groups to CMake build options ([3a3c1d7](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3a3c1d703ba2ef05069b2cf22b5d344196a22c5d))
+* avoid single-rounding requantize overflow ([#197](https://github.com/AmbiqAI/ns-cmsis-nn/issues/197)) ([d6735fd](https://github.com/AmbiqAI/ns-cmsis-nn/commit/d6735fd06049574e1cec2821a3cff8ff33738636))
+* **broadcast_to:** decouple stride computation from broadcast mask ([0b14668](https://github.com/AmbiqAI/ns-cmsis-nn/commit/0b1466805044ce62ef9bab803aea4a012c9ab856))
+* Correct formatting in arm_tile_s8.c ([6266e9e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/6266e9e9005ac99660c363366f2bdaee65a574e1))
+* Correct kernel-benchmarks.md cycle counts ([9e75bea](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9e75beafe109bbfd5d0f4505aab6ca6b022bc359))
+* pass CI contracts (formatting, PDSC, SSoT, Zephyr/NSX wiring) ([1cd2050](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1cd20502d6cfa7fe17b1ae78300fe567654c6631))
+* Update benchmark with LP mode results ([8c1eebc](https://github.com/AmbiqAI/ns-cmsis-nn/commit/8c1eebc23a370e781390b06a8fc7c80aedce7bea))
+* Update conv benchmark paragraph and add extra prj.conf setting to Zephyr doc ([c2fa2c5](https://github.com/AmbiqAI/ns-cmsis-nn/commit/c2fa2c5a0a6a47af88a544c883507d50c28c7e4a))
+* **zephyr:** align Kconfig with renamed-knob contract ([e2b1a61](https://github.com/AmbiqAI/ns-cmsis-nn/commit/e2b1a61c78e4039fde039c77fab816c1060f5038))
+
+
+### Refactoring
+
+* **nsx:** make ns-cmsis-nn SoC compatibility wildcard ([#200](https://github.com/AmbiqAI/ns-cmsis-nn/issues/200)) ([3dc5bf2](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3dc5bf2fba329674c3c4e9d2b527169be6e6a5d2))
+* use arm_memcpy_s8/s16 instead of raw memcpy ([ea005a6](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ea005a631b7b908f90721602636cfaccd8aaa5a7))
+
 ## [7.26.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.25.0...v7.26.0) (2026-05-19)
 
 

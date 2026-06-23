@@ -39,7 +39,7 @@
 
 // Version information
 #define NS_CMSIS_NN_VERSION_MAJOR (7)  /* x-release-please-major */
-#define NS_CMSIS_NN_VERSION_MINOR (26) /* x-release-please-minor */
+#define NS_CMSIS_NN_VERSION_MINOR (27) /* x-release-please-minor */
 #define NS_CMSIS_NN_VERSION_PATCH (0)  /* x-release-please-patch */
 
 /**
