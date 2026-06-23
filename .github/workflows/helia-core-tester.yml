@@ -100,7 +100,7 @@ jobs:
       - name: Run helia-core-tester full pipeline with coverage and JUnit
         run: |
           cd Tests/helia-core-tester
-          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --coverage --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
+          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --suite both --coverage --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
 
       - name: Upload per-CPU reports
         if: ${{ always() }}
@@ -193,7 +193,7 @@ jobs:
       - name: Publish CPU coverage and test summary table
         run: |
           cd Tests/helia-core-tester
-          uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --summary-file "$GITHUB_STEP_SUMMARY"
+          uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --suite both --summary-file "$GITHUB_STEP_SUMMARY"
 
       - name: Upload merged coverage reports
         uses: actions/upload-artifact@v7
