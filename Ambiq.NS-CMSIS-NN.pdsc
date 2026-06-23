@@ -317,7 +317,6 @@
 
         <file category="source" name="Source/QuantizationFunctions/arm_dequantize_s8_f32.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_dequantize_s16_f32.c"/>
-        <file category="source" name="Source/QuantizationFunctions/arm_dequantize_s8_f32.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_quantize_f32_s16.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_quantize_f32_s8.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_quantize_s16_s16.c"/>
@@ -355,10 +354,6 @@
         <file category="source" name="Source/TransposeFunctions/arm_transpose_s16.c"/>
         <file category="source" name="Source/TransposeFunctions/arm_transpose_s8.c"/>
 
-        <file category="source" name="Source/GatherFunctions/arm_gather_s8.c"/>
-        <file category="source" name="Source/GatherFunctions/arm_gather_s16.c"/>
-        <file category="source" name="Source/GatherFunctions/arm_gather_nd_s8.c"/>
-        <file category="source" name="Source/GatherFunctions/arm_gather_nd_s16.c"/>
         <file category="source" name="Source/TileFunctions/arm_tile_s8.c"/>
         <file category="source" name="Source/TileFunctions/arm_tile_s16.c"/>
         <file category="source" name="Source/BroadcastFunctions/arm_broadcast_to_s8.c"/>
