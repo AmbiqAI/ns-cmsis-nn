@@ -22,6 +22,27 @@ DEFAULT_BUILD_ROOT = Path("/tmp/cmsis-nn-lib-variants")
 DEFAULT_DOWNLOADS_ROOT = REPO_ROOT / "Tests" / "UnitTest" / "downloads"
 
 
+CPU_FLOAT_ABI = {
+    "cortex-m0": "soft",
+    "cortex-m4": "soft",
+    "cortex-m55": "hard",
+}
+
+CPU_ALIASES = {
+    "m0": "cortex-m0",
+    "m4": "cortex-m4",
+    "m55": "cortex-m55",
+}
+
+
+def normalize_cpu(cpu: str) -> str:
+    key = CPU_ALIASES.get(cpu.strip().lower(), cpu.strip().lower())
+    if key not in CPU_FLOAT_ABI:
+        supported = ", ".join(sorted(CPU_FLOAT_ABI))
+        raise RuntimeError(f"Unsupported CPU '{cpu}'. Supported values: {supported}")
+    return key
+
+
 @dataclasses.dataclass(frozen=True)
 class Variant:
     key: str
@@ -185,6 +206,8 @@ def resolve_cmsis_path(cmsis_path: str | None, cmsis_pack_root: str | None, cmsi
 
 
 def resolve_toolchain(requested: str, cpu: str, toolchain_bin: str | None) -> Toolchain:
+    normalized_cpu = normalize_cpu(cpu)
+    float_abi = CPU_FLOAT_ABI[normalized_cpu]
     family = requested.split("@", 1)[0].upper()
     exact_env = env_name_for_toolchain(requested)
 
@@ -222,7 +245,7 @@ def resolve_toolchain(requested: str, cpu: str, toolchain_bin: str | None) -> To
         if not cc or not cxx:
             raise RuntimeError("Unable to resolve arm-none-eabi-gcc/g++ for GCC toolchain.")
         flags = (
-            f"-mcpu={cpu} -mthumb -mfloat-abi=hard "
+            f"-mcpu={normalized_cpu} -mthumb -mfloat-abi={float_abi} "
             "-fdisable-rtl-ce1 -fdisable-rtl-ce2"
         )
         return Toolchain(requested, family, cc, cxx, flags, flags, ar=ar, ranlib=ranlib, size_mode=size_mode, size_tool=size_tool)
@@ -232,7 +255,7 @@ def resolve_toolchain(requested: str, cpu: str, toolchain_bin: str | None) -> To
         ar = resolve_tool(bin_dir, "armar")
         if not cc:
             raise RuntimeError("Unable to resolve armclang for AC6 toolchain.")
-        flags = f"--target=arm-arm-none-eabi -mcpu={cpu} -mfloat-abi=hard"
+        flags = f"--target=arm-arm-none-eabi -mcpu={normalized_cpu} -mfloat-abi={float_abi}"
         return Toolchain(requested, family, cc, cc, flags, flags, ar=ar, size_mode=size_mode, size_tool=size_tool)
 
     if family == "CLANG":
@@ -242,7 +265,7 @@ def resolve_toolchain(requested: str, cpu: str, toolchain_bin: str | None) -> To
         ranlib = resolve_tool(bin_dir, "llvm-ranlib")
         if not cc or not cxx:
             raise RuntimeError("Unable to resolve clang/clang++ for CLANG toolchain.")
-        flags = f"--target=arm-arm-none-eabi -mcpu={cpu} -mthumb -mfloat-abi=hard"
+        flags = f"--target=arm-arm-none-eabi -mcpu={normalized_cpu} -mthumb -mfloat-abi={float_abi}"
         runtime_root = clang_runtime_root(bin_dir)
         if runtime_root:
             flags = f"{flags} --sysroot {runtime_root}"
@@ -541,7 +564,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    toolchain = resolve_toolchain(args.toolchain, args.cpu, args.toolchain_bin)
+    normalized_cpu = normalize_cpu(args.cpu)
+    toolchain = resolve_toolchain(args.toolchain, normalized_cpu, args.toolchain_bin)
     build_root = Path(args.build_root).resolve()
     cmsis_path = resolve_cmsis_path(args.cmsis_path or None, args.cmsis_pack_root or None, args.cmsis_version)
     variants = parse_variants(args.variants)
@@ -551,7 +575,7 @@ def main() -> int:
 
     for variant in variants:
         print(f"==> Building {variant.label} [{variant.key}] with {toolchain.requested}")
-        result = build_variant(REPO_ROOT, build_root, cmsis_path, toolchain, variant, args.cpu, args.optimization, args.jobs)
+        result = build_variant(REPO_ROOT, build_root, cmsis_path, toolchain, variant, normalized_cpu, args.optimization, args.jobs)
         results.append(result)
         if result.status != "PASS":
             failed = True

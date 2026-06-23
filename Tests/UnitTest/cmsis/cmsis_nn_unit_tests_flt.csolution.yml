@@ -15,6 +15,16 @@ solution:
     - pack: ARM::CMSIS-Compiler
 
   target-types:
+    - type: Cortex-M0-FVP
+      device: ARM::ARMCM0
+      define:
+        - FVP
+
+    - type: Cortex-M4-FVP
+      device: ARM::ARMCM4
+      define:
+        - FVP
+
     - type: Corstone-300-FVP
       device: ARM::SSE-300-MPS3
       define:

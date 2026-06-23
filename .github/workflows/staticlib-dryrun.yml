@@ -22,32 +22,18 @@ on:
         required: false
         default: 0.0.0-dryrun
         type: string
-      container_image:
-        description: Optional CI container image override.
-        required: false
-        default: ''
-        type: string
 
 permissions:
   contents: read
-  packages: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  resolve-container-image:
-    uses: ./.github/workflows/resolve-ci-image.yml
-    with:
-      container_image: ${{ github.event.inputs.container_image || '' }}
-
   build:
     name: ${{ matrix.toolchain }} / ${{ matrix.target_cpu }}
     runs-on: ubuntu-latest
-    needs: resolve-container-image
-    container:
-      image: ${{ needs.resolve-container-image.outputs.container_image }}
     strategy:
       fail-fast: false
       matrix:
@@ -57,41 +43,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Mark workspace as a safe git directory
-        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+      - name: Install GNU Arm Embedded toolchain
+        if: ${{ matrix.toolchain == 'gcc' }}
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: 13.2.Rel1
 
-      - name: Activate Arm tool license
+      - name: Install LLVM archive tools
         if: ${{ matrix.toolchain == 'armclang' }}
-        uses: ARM-software/cmsis-actions/armlm@v1
-
-      - name: Set up CMSIS toolchain environment
-        uses: ./.github/actions/cmsis-env
-
-      - name: Resolve baked toolchain
-        env:
-          TOOLCHAIN: ${{ matrix.toolchain }}
         run: |
-          set -euo pipefail
-          case "${TOOLCHAIN}" in
-            gcc)
-              root=""
-              version="$(arm-none-eabi-gcc -dumpfullversion 2>/dev/null || arm-none-eabi-gcc -dumpversion)"
-              ;;
-            atfe)
-              [[ -n "${CLANG_TOOLCHAIN:-}" ]] || { echo "CLANG_TOOLCHAIN unset" >&2; exit 1; }
-              root="$(cd "$(dirname "${CLANG_TOOLCHAIN}")" && pwd)"
-              version="$("${CLANG_TOOLCHAIN}/clang" --version | sed -n 's/.*version \([0-9.]*\).*/\1/p' | head -n1)"
-              ;;
-            armclang)
-              [[ -n "${AC6_TOOLCHAIN:-}" ]] || { echo "AC6_TOOLCHAIN unset" >&2; exit 1; }
-              root="$(cd "$(dirname "${AC6_TOOLCHAIN}")" && pwd)"
-              version="$("${AC6_TOOLCHAIN}/armclang" --version | sed -n 's/.*Compiler \([0-9.]*\).*/\1/p' | head -n1)"
-              ;;
-          esac
-          {
-            echo "TOOLCHAIN_ROOT=${root}"
-            echo "TOOLCHAIN_VERSION=${version}"
-          } >> "${GITHUB_ENV}"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends llvm
+
+      - name: Fetch external toolchain
+        if: ${{ matrix.toolchain != 'gcc' }}
+        id: fetch_toolchain
+        run: |
+          bash scripts/fetch_toolchain.sh \
+            --manifest "ci/toolchains/${{ matrix.toolchain }}.json" \
+            --platform linux-x86_64 \
+            --outdir "${RUNNER_TEMP}/toolchains"
 
       - name: Build static library
         # User-supplied inputs flow through env, never via ${{ }} into a shell
@@ -99,6 +70,7 @@ jobs:
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
           TOOLCHAIN: ${{ matrix.toolchain }}
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           VERSION: ${{ inputs.version }}
         run: |
           bash scripts/build_staticlib.sh \
@@ -115,6 +87,7 @@ jobs:
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
           TOOLCHAIN: ${{ matrix.toolchain }}
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           VERSION: ${{ inputs.version }}
         run: |
           if [[ "$TOOLCHAIN" == "gcc" ]]; then
@@ -133,19 +106,22 @@ jobs:
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
           TOOLCHAIN: ${{ matrix.toolchain }}
+          TOOLCHAIN_VERSION: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
           VERSION: ${{ inputs.version }}
         run: |
           if [[ "$TOOLCHAIN" == "gcc" ]]; then
             lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
+            toolchain_version="13.2.Rel1"
           else
             lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TOOLCHAIN}-${TARGET_CPU}-${VERSION}.a"
+            toolchain_version="$TOOLCHAIN_VERSION"
           fi
           bash scripts/build_sdk_tarball.sh \
             --target-cpu         "$TARGET_CPU" \
             --version            "$VERSION"    \
             --staticlib          "$lib"        \
             --toolchain          "$TOOLCHAIN"  \
-            --toolchain-version  "$TOOLCHAIN_VERSION" \
+            --toolchain-version  "$toolchain_version" \
             --outdir             "./output/${TOOLCHAIN}/${TARGET_CPU}"
 
       - name: Upload artefact

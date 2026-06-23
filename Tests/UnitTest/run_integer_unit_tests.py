@@ -60,8 +60,82 @@ class IntegerTestSpec:
     cmake_target: str
 
 
+@dataclass(frozen=True)
+class CPUConfig:
+    key: str
+    cmake_processor: str
+    gcc_flags: str
+    ac6_flags: str
+    dfp_device: str
+    default_fvp_bin: str
+    default_fvp_board_args: list[str]
+
+
+CPU_CONFIGS: dict[str, CPUConfig] = {
+    "cortex-m0": CPUConfig(
+        key="cortex-m0",
+        cmake_processor="cortex-m0",
+        gcc_flags="-mcpu=cortex-m0 -mthumb -mfloat-abi=soft",
+        ac6_flags="--target=arm-arm-none-eabi -mcpu=Cortex-M0",
+        dfp_device="ARMCM0",
+        default_fvp_bin="FVP_Corstone_SSE-300_Ethos-U55",
+        default_fvp_board_args=[
+            "mps3_board.visualisation.disable-visualisation=1",
+            "mps3_board.telnetterminal0.start_telnet=0",
+            "mps3_board.uart0.out_file=-",
+            "mps3_board.uart0.unbuffered_output=1",
+            "mps3_board.uart0.shutdown_on_eot=1",
+        ],
+    ),
+    "cortex-m4": CPUConfig(
+        key="cortex-m4",
+        cmake_processor="cortex-m4",
+        gcc_flags="-mcpu=cortex-m4 -mthumb -mfloat-abi=soft",
+        ac6_flags="--target=arm-arm-none-eabi -mcpu=Cortex-M4",
+        dfp_device="ARMCM4",
+        default_fvp_bin="FVP_Corstone_SSE-300_Ethos-U55",
+        default_fvp_board_args=[
+            "mps3_board.visualisation.disable-visualisation=1",
+            "mps3_board.telnetterminal0.start_telnet=0",
+            "mps3_board.uart0.out_file=-",
+            "mps3_board.uart0.unbuffered_output=1",
+            "mps3_board.uart0.shutdown_on_eot=1",
+        ],
+    ),
+    "cortex-m55": CPUConfig(
+        key="cortex-m55",
+        cmake_processor="cortex-m55",
+        gcc_flags="-mcpu=cortex-m55 -mthumb -mfloat-abi=hard",
+        ac6_flags="--target=arm-arm-none-eabi -mcpu=Cortex-M55",
+        dfp_device="ARMCM55",
+        default_fvp_bin="FVP_Corstone_SSE-300_Ethos-U55",
+        default_fvp_board_args=[
+            "mps3_board.visualisation.disable-visualisation=1",
+            "mps3_board.telnetterminal0.start_telnet=0",
+            "mps3_board.uart0.out_file=-",
+            "mps3_board.uart0.unbuffered_output=1",
+            "mps3_board.uart0.shutdown_on_eot=1",
+        ],
+    ),
+}
+
+CPU_ALIASES = {
+    "m0": "cortex-m0",
+    "m4": "cortex-m4",
+    "m55": "cortex-m55",
+}
+
+
 def parse_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def resolve_cpu_config(cpu: str) -> CPUConfig:
+    key = CPU_ALIASES.get(cpu.strip().lower(), cpu.strip().lower())
+    if key not in CPU_CONFIGS:
+        supported = ", ".join(sorted(CPU_CONFIGS))
+        raise RuntimeError(f"Unsupported CPU '{cpu}'. Supported values: {supported}")
+    return CPU_CONFIGS[key]
 
 
 def discover_integer_tests() -> list[IntegerTestSpec]:
@@ -147,7 +221,7 @@ def toolchain_dirs_from_env(prefix: str) -> list[Path]:
     return deduped
 
 
-def resolve_toolchain(requested: str) -> Toolchain:
+def resolve_toolchain(requested: str, cpu: CPUConfig) -> Toolchain:
     family = requested.split("@", 1)[0].upper()
     exact_env = env_name_for_toolchain(requested)
     search_dirs: list[Path | None] = []
@@ -172,7 +246,7 @@ def resolve_toolchain(requested: str) -> Toolchain:
                 "Unable to resolve arm-none-eabi-gcc/g++. Export GCC_TOOLCHAIN "
                 "(or a versioned GCC_TOOLCHAIN_<version>) or add the compiler to PATH."
             )
-        flags = "-mcpu=cortex-m55 -mthumb -mfloat-abi=hard"
+        flags = cpu.gcc_flags
         return Toolchain(requested=requested, family=family, cc=cc, cxx=cxx, c_flags=flags, cxx_flags=flags)
 
     if family == "AC6":
@@ -186,7 +260,7 @@ def resolve_toolchain(requested: str) -> Toolchain:
                 "Unable to resolve armclang. Export AC6_TOOLCHAIN "
                 "(or a versioned AC6_TOOLCHAIN_<version>) or add armclang to PATH."
             )
-        flags = "--target=arm-arm-none-eabi -mcpu=Cortex-M55"
+        flags = cpu.ac6_flags
         return Toolchain(requested=requested, family=family, cc=cc, cxx=cc, c_flags=flags, cxx_flags=flags)
 
     raise RuntimeError(f"Unsupported toolchain family '{family}'. Supported families: GCC, AC6.")
@@ -207,7 +281,13 @@ def resolve_pack_dir(pack_root: Path, vendor: str, name: str, preferred_version:
     return versions[-1]
 
 
-def create_cmsis_overlay(overlay_root: Path, pack_root: Path, cmsis_version: str, cortex_dfp_version: str) -> Path:
+def create_cmsis_overlay(
+    overlay_root: Path,
+    pack_root: Path,
+    cmsis_version: str,
+    cortex_dfp_version: str,
+    dfp_device: str,
+) -> Path:
     cmsis_dir = resolve_pack_dir(pack_root, "ARM", "CMSIS", cmsis_version)
     cortex_dfp_dir = resolve_pack_dir(pack_root, "ARM", "Cortex_DFP", cortex_dfp_version)
 
@@ -217,7 +297,11 @@ def create_cmsis_overlay(overlay_root: Path, pack_root: Path, cmsis_version: str
     (overlay_root / "Device" / "ARM").mkdir(parents=True, exist_ok=True)
 
     os.symlink(cmsis_dir / "CMSIS", overlay_root / "CMSIS", target_is_directory=True)
-    os.symlink(cortex_dfp_dir / "Device" / "ARMCM55", overlay_root / "Device" / "ARM" / "ARMCM55", target_is_directory=True)
+    os.symlink(
+        cortex_dfp_dir / "Device" / dfp_device,
+        overlay_root / "Device" / "ARM" / dfp_device,
+        target_is_directory=True,
+    )
 
     return overlay_root
 
@@ -262,6 +346,7 @@ def configure_build(
     build_dir: Path,
     overlay_root: Path,
     toolchain: Toolchain,
+    cpu: CPUConfig,
     optimization_level: str,
     log_dir: Path,
 ) -> subprocess.CompletedProcess[str]:
@@ -273,7 +358,7 @@ def configure_build(
         str(build_dir),
         f"-DCMSIS_PATH={overlay_root}",
         "-DCMAKE_SYSTEM_NAME=Generic",
-        "-DCMAKE_SYSTEM_PROCESSOR=cortex-m55",
+        f"-DCMAKE_SYSTEM_PROCESSOR={cpu.cmake_processor}",
         "-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY",
         f"-DCMAKE_C_COMPILER={toolchain.cc}",
         f"-DCMAKE_CXX_COMPILER={toolchain.cxx}",
@@ -317,6 +402,7 @@ def run_fvp_target(
     cmake_target: str,
     fvp_bin: str,
     fvp_image_arg: str,
+    fvp_board_args: list[str],
     timeout: int,
     log_dir: Path,
 ) -> subprocess.CompletedProcess[str]:
@@ -326,20 +412,8 @@ def run_fvp_target(
     if fvp_image_arg:
         cmd.append(fvp_image_arg)
     cmd.append(str(image))
-    cmd.extend(
-        [
-            "-C",
-            "mps3_board.visualisation.disable-visualisation=1",
-            "-C",
-            "mps3_board.telnetterminal0.start_telnet=0",
-            "-C",
-            "mps3_board.uart0.out_file=-",
-            "-C",
-            "mps3_board.uart0.unbuffered_output=1",
-            "-C",
-            "mps3_board.uart0.shutdown_on_eot=1",
-        ]
-    )
+    for board_arg in fvp_board_args:
+        cmd.extend(["-C", board_arg])
     return run_command(cmd, log_dir / f"{test_name}.log", timeout=timeout)
 
 
@@ -370,8 +444,13 @@ def print_summary(results: list[StepResult]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build and run legacy CMSIS-NN integer unit tests on Corstone-300 FVP.")
+    parser = argparse.ArgumentParser(description="Build and run CMSIS-NN integer unit tests on FVP.")
     parser.add_argument("--tests", default="all", help="Comma-separated integer test targets to run, or all.")
+    parser.add_argument(
+        "--cpu",
+        default="cortex-m55",
+        help="Target CPU. Supported values: cortex-m0, cortex-m4, cortex-m55.",
+    )
     parser.add_argument("--toolchains", default="GCC,AC6", help="Comma-separated toolchains to use. Supported: GCC, AC6.")
     parser.add_argument("--list", action="store_true", help="List supported integer test targets and exit.")
     parser.add_argument("--build-fvp", action="store_true", help="Configure and build integer FVP tests.")
@@ -383,8 +462,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cmsis-version", default="6.3.0", help="Preferred ARM::CMSIS pack version.")
     parser.add_argument("--cortex-dfp-version", default="1.1.0", help="Preferred ARM::Cortex_DFP pack version.")
     parser.add_argument("--optimization-level", default="-O3", help="CMSIS optimization level for the integer FVP build.")
-    parser.add_argument("--fvp-bin", default="FVP_Corstone_SSE-300", help="FVP executable.")
+    parser.add_argument("--fvp-bin", default="", help="FVP executable. When omitted, a CPU-specific default is used.")
     parser.add_argument("--fvp-image-arg", default="", help="Optional image argument flag for the FVP binary, for example -a.")
+    parser.add_argument(
+        "--disable-default-board-args",
+        action="store_true",
+        help="Do not append default board-specific -C arguments to the FVP command.",
+    )
     parser.add_argument("--fvp-timeout", type=int, default=90, help="FVP timeout in seconds per test image.")
     return parser.parse_args()
 
@@ -404,6 +488,7 @@ def resolve_tests(selected: str) -> list[str]:
 
 def main() -> int:
     args = parse_args()
+    cpu = resolve_cpu_config(args.cpu)
 
     if args.list:
         for target in INTEGER_TEST_NAMES:
@@ -422,13 +507,19 @@ def main() -> int:
     build_root = Path(args.build_root).resolve()
     pack_root = Path(args.cmsis_pack_root).resolve()
     overlay_root = build_root / "cmsis-overlay"
-    overlay_root = create_cmsis_overlay(overlay_root, pack_root, args.cmsis_version, args.cortex_dfp_version)
+    overlay_root = create_cmsis_overlay(
+        overlay_root,
+        pack_root,
+        args.cmsis_version,
+        args.cortex_dfp_version,
+        cpu.dfp_device,
+    )
 
     results: list[StepResult] = []
     failed = False
 
     for requested_toolchain in requested_toolchains:
-        toolchain = resolve_toolchain(requested_toolchain)
+        toolchain = resolve_toolchain(requested_toolchain, cpu)
         build_dir = build_root / toolchain.family.lower()
         log_dir = build_dir / "logs"
 
@@ -440,6 +531,7 @@ def main() -> int:
                 build_dir,
                 overlay_root,
                 toolchain,
+                cpu,
                 args.optimization_level,
                 log_dir,
             )
@@ -459,6 +551,9 @@ def main() -> int:
                 failed = True
                 continue
 
+        fvp_bin = args.fvp_bin.strip() if args.fvp_bin else cpu.default_fvp_bin
+        fvp_board_args = [] if args.disable_default_board_args else cpu.default_fvp_board_args
+
         if args.run_fvp:
             for test_name in selected_tests:
                 spec = INTEGER_TEST_MAP[test_name]
@@ -467,8 +562,9 @@ def main() -> int:
                         build_dir,
                         test_name,
                         spec.cmake_target,
-                        args.fvp_bin,
+                        fvp_bin,
                         args.fvp_image_arg,
+                        fvp_board_args,
                         args.fvp_timeout,
                         log_dir / "fvp",
                     )

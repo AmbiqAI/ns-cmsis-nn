@@ -44,8 +44,8 @@ class FloatTestFamily:
     def host_target(self, dtype_name: str) -> str:
         return f"{self.host_target_prefix}_{dtype_name}"
 
-    def cmsis_context(self, dtype_name: str) -> str:
-        return f"{self.cmsis_project}.{dtype_name.upper()}+Corstone-300-FVP"
+    def cmsis_context(self, dtype_name: str, target_type: str) -> str:
+        return f"{self.cmsis_project}.{dtype_name.upper()}+{target_type}"
 
 
 @dataclass(frozen=True)
@@ -63,6 +63,48 @@ UNIT_TEST_ROOT = Path(__file__).resolve().parent
 CMSIS_UNIT_TEST_ROOT = UNIT_TEST_ROOT / "cmsis"
 CMSIS_SOLUTION = CMSIS_UNIT_TEST_ROOT / "cmsis_nn_unit_tests_flt.csolution.yml"
 CMSIS_OUTPUT_ROOT = os.environ.get("CMSIS_NN_CBUILD_OUTPUT_ROOT", "").strip()
+
+CPU_TARGET_TYPES = {
+    "cortex-m0": "Cortex-M0-FVP",
+    "cortex-m4": "Cortex-M4-FVP",
+    "cortex-m55": "Corstone-300-FVP",
+}
+
+CPU_DEFAULT_FVP_BINS = {
+    "cortex-m0": "FVP_Corstone_SSE-300_Ethos-U55",
+    "cortex-m4": "FVP_Corstone_SSE-300_Ethos-U55",
+    "cortex-m55": "FVP_Corstone_SSE-300_Ethos-U55",
+}
+
+CPU_DEFAULT_FVP_BOARD_ARGS = {
+    "cortex-m0": [
+        "mps3_board.visualisation.disable-visualisation=1",
+        "mps3_board.telnetterminal0.start_telnet=0",
+        "mps3_board.uart0.out_file=-",
+        "mps3_board.uart0.unbuffered_output=1",
+        "mps3_board.uart0.shutdown_on_eot=1",
+    ],
+    "cortex-m4": [
+        "mps3_board.visualisation.disable-visualisation=1",
+        "mps3_board.telnetterminal0.start_telnet=0",
+        "mps3_board.uart0.out_file=-",
+        "mps3_board.uart0.unbuffered_output=1",
+        "mps3_board.uart0.shutdown_on_eot=1",
+    ],
+    "cortex-m55": [
+        "mps3_board.visualisation.disable-visualisation=1",
+        "mps3_board.telnetterminal0.start_telnet=0",
+        "mps3_board.uart0.out_file=-",
+        "mps3_board.uart0.unbuffered_output=1",
+        "mps3_board.uart0.shutdown_on_eot=1",
+    ],
+}
+
+CPU_ALIASES = {
+    "m0": "cortex-m0",
+    "m4": "cortex-m4",
+    "m55": "cortex-m55",
+}
 
 FAMILY_CONFIGS: dict[str, FloatTestFamily] = {
     "activation": FloatTestFamily(
@@ -213,6 +255,14 @@ def parse_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def normalize_cpu(cpu: str) -> str:
+    key = CPU_ALIASES.get(cpu.strip().lower(), cpu.strip().lower())
+    if key not in CPU_TARGET_TYPES:
+        supported = ", ".join(sorted(CPU_TARGET_TYPES))
+        raise SystemExit(f"Unsupported CPU '{cpu}'. Supported values: {supported}")
+    return key
+
+
 def parse_args() -> argparse.Namespace:
     default_cmsis_path = os.environ.get("CMSIS_PATH", "")
     parser = argparse.ArgumentParser(description="Run CMSIS-NN float unit-test generation/build flows.")
@@ -236,8 +286,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--generate", action="store_true", help="Generate float reference data.")
     parser.add_argument("--build-host", action="store_true", help="Configure and build host unit tests.")
     parser.add_argument("--run-host", action="store_true", help="Run host unit-test executables.")
-    parser.add_argument("--build-cmsis", action="store_true", help="Build CMSIS-Toolbox Corstone-300 test contexts.")
+    parser.add_argument("--build-cmsis", action="store_true", help="Build CMSIS-Toolbox test contexts.")
     parser.add_argument("--run-fvp", action="store_true", help="Run CMSIS-Toolbox test images on FVP.")
+    parser.add_argument(
+        "--cpu",
+        default="cortex-m55",
+        help="Target CPU. Supported values: cortex-m0, cortex-m4, cortex-m55.",
+    )
+    parser.add_argument(
+        "--target-type",
+        default="",
+        help="CMSIS-Toolbox target-type name. Defaults to a CPU-specific value.",
+    )
     parser.add_argument(
         "--cbuild-packs",
         action="store_true",
@@ -268,7 +328,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--clean-host", action="store_true", help="Delete the host build directory before configuring.")
     parser.add_argument(
         "--fvp-bin",
-        help="Path to the Corstone-300 FVP binary. Required when --run-fvp is used.",
+        default="",
+        help="Path to the FVP binary. When omitted, a CPU-specific default is used.",
     )
     parser.add_argument(
         "--fvp-image-arg",
@@ -280,6 +341,11 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=30,
         help="Timeout in seconds for each FVP run before the runner is terminated.",
+    )
+    parser.add_argument(
+        "--disable-default-board-args",
+        action="store_true",
+        help="Do not append default board-specific -C arguments to the FVP command.",
     )
     return parser.parse_args()
 
@@ -578,12 +644,13 @@ def build_cmsis_tests(
     jobs: int,
     results: list[StepResult],
     cbuild_packs: bool,
+    target_type: str,
 ) -> bool:
     all_ok = True
     for toolchain in toolchains:
         for family in families:
             for dtype_name in dtypes:
-                context = family.cmsis_context(dtype_name)
+                context = family.cmsis_context(dtype_name, target_type)
                 update_cmd = [
                     "cbuild",
                     "--update-rte",
@@ -627,11 +694,12 @@ def build_cmsis_tests(
     return all_ok
 
 
-def cmsis_image_path(family: FloatTestFamily, dtype_name: str, toolchain: str) -> Path:
+def cmsis_image_path(family: FloatTestFamily, dtype_name: str, toolchain: str, target_type: str) -> Path:
     family_name = toolchain_family(toolchain)
     binary_name = family.host_target(dtype_name)
     output_root = Path(CMSIS_OUTPUT_ROOT) if CMSIS_OUTPUT_ROOT else CMSIS_UNIT_TEST_ROOT
-    return output_root / f"{family.cmsis_context(dtype_name)}-{family_name}" / "outdir" / f"{binary_name}.{cmsis_image_suffix(toolchain)}"
+    context = family.cmsis_context(dtype_name, target_type)
+    return output_root / f"{context}-{family_name}" / "outdir" / f"{binary_name}.{cmsis_image_suffix(toolchain)}"
 
 
 def run_fvp_tests(
@@ -640,36 +708,26 @@ def run_fvp_tests(
     toolchains: list[str],
     fvp_bin: Path,
     fvp_image_arg: str,
+    fvp_board_args: list[str],
+    target_type: str,
     fvp_timeout: int,
     results: list[StepResult],
 ) -> bool:
     if not fvp_bin:
         raise SystemExit("--fvp-bin is required when --run-fvp is used.")
 
-    fvp_common_args = [
-        "-C",
-        "mps3_board.visualisation.disable-visualisation=1",
-        "-C",
-        "mps3_board.telnetterminal0.start_telnet=0",
-        "-C",
-        "mps3_board.uart0.out_file=-",
-        "-C",
-        "mps3_board.uart0.unbuffered_output=1",
-        "-C",
-        "mps3_board.uart0.shutdown_on_eot=1",
-    ]
-
     all_ok = True
     for toolchain in toolchains:
         for family in families:
             for dtype_name in dtypes:
-                image_path = cmsis_image_path(family, dtype_name, toolchain)
+                image_path = cmsis_image_path(family, dtype_name, toolchain, target_type)
                 fvp_cmd = [str(fvp_bin)]
                 if fvp_image_arg:
                     fvp_cmd.extend([fvp_image_arg, str(image_path)])
                 else:
                     fvp_cmd.append(str(image_path))
-                fvp_cmd.extend(fvp_common_args)
+                for board_arg in fvp_board_args:
+                    fvp_cmd.extend(["-C", board_arg])
                 ok, detail = try_fvp_command(fvp_cmd, CMSIS_UNIT_TEST_ROOT, fvp_timeout)
                 if not ok:
                     all_ok = False
@@ -681,6 +739,10 @@ def run_fvp_tests(
 
 def main() -> None:
     args = parse_args()
+    cpu = normalize_cpu(args.cpu)
+    target_type = args.target_type.strip() if args.target_type else CPU_TARGET_TYPES[cpu]
+    fvp_bin_value = args.fvp_bin.strip() if args.fvp_bin else CPU_DEFAULT_FVP_BINS[cpu]
+    fvp_board_args = [] if args.disable_default_board_args else CPU_DEFAULT_FVP_BOARD_ARGS[cpu]
     if args.list:
         for family_name in sorted(FAMILY_CONFIGS):
             print(family_name)
@@ -713,14 +775,16 @@ def main() -> None:
     if args.run_host:
         failed |= not run_host_tests(families, dtypes, Path(args.host_build_dir), results)
     if args.build_cmsis:
-        failed |= not build_cmsis_tests(families, dtypes, toolchains, args.jobs, results, args.cbuild_packs)
+        failed |= not build_cmsis_tests(families, dtypes, toolchains, args.jobs, results, args.cbuild_packs, target_type)
     if args.run_fvp:
         failed |= not run_fvp_tests(
             families,
             dtypes,
             toolchains,
-            Path(args.fvp_bin) if args.fvp_bin else None,
+            Path(fvp_bin_value),
             args.fvp_image_arg,
+            fvp_board_args,
+            target_type,
             args.fvp_timeout,
             results,
         )
