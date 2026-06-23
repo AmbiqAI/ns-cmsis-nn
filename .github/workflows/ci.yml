@@ -9,6 +9,7 @@ on:
     branches:
       - main
 
+jobs:
   helia-core-tester:
     uses: ./.github/workflows/helia-core-tester.yml
 
