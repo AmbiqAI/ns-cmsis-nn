@@ -194,6 +194,17 @@ jobs:
 
           jq -r '.paths.PATH[]?' "${ns_cmsis_nn_vcpkg_env}" >> "$GITHUB_PATH"
 
+          # Export the scalar environment entries the Arm vcpkg artifacts
+          # define (e.g. AC6_TOOLCHAIN_6_24_0). cbuild needs these toolchain
+          # registration variables to resolve the selected compiler; with
+          # only PATH exported it reports "no compiler registered".
+          jq -r '
+            ((.environment // {}) + (.tools // {}))
+            | to_entries[]
+            | select((.value | type) == "string" and .key != "PATH")
+            | "\(.key)=\(.value)"
+          ' "${ns_cmsis_nn_vcpkg_env}" >> "$GITHUB_ENV"
+
       - name: Restore tests-downloads cache
         id: cache-downloads
         uses: actions/cache@v5
