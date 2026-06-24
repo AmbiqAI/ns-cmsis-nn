@@ -242,6 +242,10 @@ jobs:
           rm -rf "${CMSIS_PACK_ROOT}/.Local"
           cpackget add Ambiq.NS-CMSIS-NN.pdsc -R "${CMSIS_PACK_ROOT}" -F --agree-embedded-license
 
+      - name: Verify float CMSIS component wiring
+        shell: bash
+        run: python3 scripts/check_float_cmsis_components.py
+
       - name: Bootstrap Unity test runners
         shell: bash
         working-directory: Tests/UnitTest

@@ -482,6 +482,24 @@ def append_result(
     )
 
 
+def find_result(
+    results: list[StepResult],
+    stage: str,
+    family: str,
+    dtype_name: str,
+    toolchain: str,
+) -> StepResult | None:
+    for result in results:
+        if (
+            result.stage == stage
+            and result.family == family
+            and result.dtype == dtype_name
+            and result.toolchain == toolchain
+        ):
+            return result
+    return None
+
+
 def print_summary(results: list[StepResult]) -> None:
     if not results:
         return
@@ -720,7 +738,17 @@ def run_fvp_tests(
     for toolchain in toolchains:
         for family in families:
             for dtype_name in dtypes:
+                build_result = find_result(results, "build-cmsis", family.name, dtype_name, toolchain)
+                if build_result and build_result.status != "PASS":
+                    append_result(results, "run-fvp", family.name, dtype_name, toolchain, "SKIP", "build-cmsis failed")
+                    continue
+
                 image_path = cmsis_image_path(family, dtype_name, toolchain, target_type)
+                if not image_path.exists():
+                    all_ok = False
+                    append_result(results, "run-fvp", family.name, dtype_name, toolchain, "FAIL", f"image not found: {image_path}")
+                    continue
+
                 fvp_cmd = [str(fvp_bin)]
                 if fvp_image_arg:
                     fvp_cmd.extend([fvp_image_arg, str(image_path)])
