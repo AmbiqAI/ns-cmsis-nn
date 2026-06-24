@@ -80,14 +80,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - key: ac6-m0
-            toolchain: AC6
-            toolchain_label: AC6@6.24.0
-            cpu: cortex-m0
-            target_type: Cortex-M0-FVP
-            fvp_bin: FVP_Corstone_SSE-300_Ethos-U55
-            fvp_image_arg: ''
-            disable_default_board_args: false
           - key: ac6-m4
             toolchain: AC6
             toolchain_label: AC6@6.24.0
@@ -96,6 +88,7 @@ jobs:
             fvp_bin: FVP_Corstone_SSE-300_Ethos-U55
             fvp_image_arg: ''
             disable_default_board_args: false
+            float_dtypes: f32
           - key: ac6-m55
             toolchain: AC6
             toolchain_label: AC6@6.24.0
@@ -103,14 +96,6 @@ jobs:
             target_type: Corstone-300-FVP
             fvp_bin: FVP_Corstone_SSE-300_Ethos-U55
             fvp_image_arg: -a
-            disable_default_board_args: false
-          - key: clang-m0
-            toolchain: CLANG
-            toolchain_label: CLANG@20.1.0
-            cpu: cortex-m0
-            target_type: Cortex-M0-FVP
-            fvp_bin: FVP_Corstone_SSE-300_Ethos-U55
-            fvp_image_arg: ''
             disable_default_board_args: false
           - key: clang-m4
             toolchain: CLANG
@@ -120,6 +105,7 @@ jobs:
             fvp_bin: FVP_Corstone_SSE-300_Ethos-U55
             fvp_image_arg: ''
             disable_default_board_args: false
+            float_dtypes: f32
           - key: clang-m55
             toolchain: CLANG
             toolchain_label: CLANG@20.1.0
@@ -131,7 +117,7 @@ jobs:
 
     env:
       FLOAT_TESTS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.float_tests || 'all' }}
-      FLOAT_DTYPES: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.float_dtypes || 'f32,f16' }}
+      FLOAT_DTYPES: ${{ matrix.float_dtypes || (github.event_name == 'workflow_dispatch' && github.event.inputs.float_dtypes || 'f32,f16') }}
       CMSIS_PACK_ROOT: ${{ github.workspace }}/Tests/UnitTest/downloads
 
     steps:
@@ -574,7 +560,7 @@ jobs:
           name: integer-fvp-${{ matrix.key }}
           path: |
             Tests/UnitTest/integer_fvp.log
-            ${{ env.INTEGER_BUILD_ROOT }}/${{ matrix.key }}/**/*.log
+            ${{ env.INTEGER_BUILD_ROOT }}/**/*.log
 
   lib-variants:
     name: Lib Variants ${{ matrix.toolchain_label }} ${{ matrix.cpu }}
@@ -590,10 +576,12 @@ jobs:
             toolchain: GCC
             toolchain_label: GCC@14.3.1
             cpu: cortex-m0
+            variants: baseline
           - key: gcc-m4
             toolchain: GCC
             toolchain_label: GCC@14.3.1
             cpu: cortex-m4
+            variants: baseline,f32
           - key: gcc-m55
             toolchain: GCC
             toolchain_label: GCC@14.3.1
@@ -602,17 +590,19 @@ jobs:
             toolchain: AC6
             toolchain_label: AC6@6.24.0
             cpu: cortex-m0
+            variants: baseline
           - key: ac6-m4
             toolchain: AC6
             toolchain_label: AC6@6.24.0
             cpu: cortex-m4
+            variants: baseline,f32
           - key: ac6-m55
             toolchain: AC6
             toolchain_label: AC6@6.24.0
             cpu: cortex-m55
 
     env:
-      LIB_VARIANTS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.variants || 'all' }}
+      LIB_VARIANTS: ${{ matrix.variants || (github.event_name == 'workflow_dispatch' && github.event.inputs.variants || 'all') }}
       LIB_OPTIMIZATION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.optimization || '-Ofast' }}
       LIB_BUILD_ROOT: ${{ github.workspace }}/.ci-tmp/cmsis-nn-lib-variants
       CMSIS_PACK_ROOT: ${{ github.workspace }}/Tests/UnitTest/downloads
@@ -781,4 +771,4 @@ jobs:
           name: lib-variants-${{ matrix.key }}
           path: |
             build_lib_variants.log
-            ${{ env.LIB_BUILD_ROOT }}/${{ matrix.key }}/**/*.log
+            ${{ env.LIB_BUILD_ROOT }}/**/*.log

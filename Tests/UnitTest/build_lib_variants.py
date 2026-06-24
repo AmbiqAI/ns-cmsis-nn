@@ -10,6 +10,7 @@ import argparse
 import dataclasses
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -84,6 +85,13 @@ VARIANTS: list[Variant] = [
     Variant("f32", "baseline + float32", False, True),
     Variant("f16_f32", "baseline + float16 + float32", True, True),
 ]
+
+
+F16_COMPILER_MACROS = (
+    "__FLT16_MAX__",
+    "__ARM_FP16_FORMAT_IEEE",
+    "__ARM_FP16_FORMAT_ALTERNATIVE",
+)
 
 
 SECTION_LINE_RE = re.compile(r"^(\S+)\s+(\d+)\s+\d+$")
@@ -387,6 +395,16 @@ def cmake_generator_args() -> list[str]:
     return []
 
 
+def toolchain_supports_f16(toolchain: Toolchain) -> bool:
+    cmd = [toolchain.cc, *shlex.split(toolchain.c_flags), "-dM", "-E", "-x", "c", "-"]
+    completed = subprocess.run(cmd, input="", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    if completed.returncode != 0:
+        return False
+
+    output = completed.stdout
+    return any(f"#define {macro} " in output for macro in F16_COMPILER_MACROS)
+
+
 def build_variant(
     repo_root: Path,
     build_root: Path,
@@ -490,12 +508,20 @@ def print_summary(toolchain: Toolchain, results: Iterable[VariantResult]) -> Non
     for row in rows:
         print(" | ".join(value.ljust(widths[index]) for index, value in enumerate(row)))
 
-    failures = [result for result in results if result.status != "PASS"]
+    failures = [result for result in results if result.status == "FAIL"]
     if failures:
         print("")
         print("Failures")
         print("--------")
         for result in failures:
+            print(f"{result.variant.key}: {result.detail}")
+
+    skipped = [result for result in results if result.status == "SKIP"]
+    if skipped:
+        print("")
+        print("Skipped")
+        print("-------")
+        for result in skipped:
             print(f"{result.variant.key}: {result.detail}")
 
 
@@ -569,17 +595,32 @@ def main() -> int:
     build_root = Path(args.build_root).resolve()
     cmsis_path = resolve_cmsis_path(args.cmsis_path or None, args.cmsis_pack_root or None, args.cmsis_version)
     variants = parse_variants(args.variants)
+    supports_f16 = toolchain_supports_f16(toolchain)
 
     results: list[VariantResult] = []
     failed = False
 
     for variant in variants:
         print(f"==> Building {variant.label} [{variant.key}] with {toolchain.requested}")
-        result = build_variant(REPO_ROOT, build_root, cmsis_path, toolchain, variant, normalized_cpu, args.optimization, args.jobs)
+        if variant.enable_f16 and not supports_f16:
+            result = VariantResult(variant=variant, status="SKIP", detail="float16 unsupported by compiler/flags")
+        else:
+            result = build_variant(
+                REPO_ROOT,
+                build_root,
+                cmsis_path,
+                toolchain,
+                variant,
+                normalized_cpu,
+                args.optimization,
+                args.jobs,
+            )
         results.append(result)
-        if result.status != "PASS":
+        if result.status == "FAIL":
             failed = True
             print(f"    FAIL: {variant.key}")
+        elif result.status == "SKIP":
+            print(f"    SKIP: {variant.key}")
         else:
             print(f"    PASS: {variant.key}")
 

@@ -41,7 +41,7 @@ project:
     - ../../Corstone-300
 
   components:
-    - component: ARM::CMSIS:NN Lib
+    - component: Machine Learning:NN Lib:heliaCORE
 
   layers:
     - layer: ../corstone300_unittest.clayer.yml
