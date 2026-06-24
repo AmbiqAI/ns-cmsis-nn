@@ -158,7 +158,13 @@ jobs:
 
       - name: Source vcpkg toolset environment
         shell: bash
-        run: jq -r '.paths.PATH[]?' "${NS_CMSIS_NN_VCPKG_ENV}" >> "$GITHUB_PATH"
+        run: |
+          ns_cmsis_nn_vcpkg_env="${NS_CMSIS_NN_VCPKG_ENV:-/opt/ns-cmsis-nn/vcpkg-env.json}"
+          if [[ ! -f "${ns_cmsis_nn_vcpkg_env}" ]]; then
+            echo "Error: vcpkg env file not found: ${ns_cmsis_nn_vcpkg_env}" >&2
+            exit 1
+          fi
+          jq -r '.paths.PATH[]?' "${ns_cmsis_nn_vcpkg_env}" >> "$GITHUB_PATH"
 
       - name: Restore tests-downloads cache
         id: cache-downloads
@@ -359,7 +365,13 @@ jobs:
 
       - name: Source vcpkg toolset environment
         shell: bash
-        run: jq -r '.paths.PATH[]?' "${NS_CMSIS_NN_VCPKG_ENV}" >> "$GITHUB_PATH"
+        run: |
+          ns_cmsis_nn_vcpkg_env="${NS_CMSIS_NN_VCPKG_ENV:-/opt/ns-cmsis-nn/vcpkg-env.json}"
+          if [[ ! -f "${ns_cmsis_nn_vcpkg_env}" ]]; then
+            echo "Error: vcpkg env file not found: ${ns_cmsis_nn_vcpkg_env}" >&2
+            exit 1
+          fi
+          jq -r '.paths.PATH[]?' "${ns_cmsis_nn_vcpkg_env}" >> "$GITHUB_PATH"
 
       - name: Restore tests-downloads cache
         id: cache-downloads
@@ -527,7 +539,13 @@ jobs:
 
       - name: Source vcpkg toolset environment
         shell: bash
-        run: jq -r '.paths.PATH[]?' "${NS_CMSIS_NN_VCPKG_ENV}" >> "$GITHUB_PATH"
+        run: |
+          ns_cmsis_nn_vcpkg_env="${NS_CMSIS_NN_VCPKG_ENV:-/opt/ns-cmsis-nn/vcpkg-env.json}"
+          if [[ ! -f "${ns_cmsis_nn_vcpkg_env}" ]]; then
+            echo "Error: vcpkg env file not found: ${ns_cmsis_nn_vcpkg_env}" >&2
+            exit 1
+          fi
+          jq -r '.paths.PATH[]?' "${ns_cmsis_nn_vcpkg_env}" >> "$GITHUB_PATH"
 
       - name: Restore tests-downloads cache
         id: cache-downloads

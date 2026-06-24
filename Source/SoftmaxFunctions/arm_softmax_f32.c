@@ -143,7 +143,7 @@ arm_softmax_f32(const float32_t *input, const int32_t num_rows, const int32_t ro
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-void arm_nn_softmax_1x2_f32(const float32_t in[2], float32_t out[2])
+void arm_nn_softmax_1x2_f32(const float32_t *in, float32_t *out)
 {
     float32_t e0;
     float32_t e1;

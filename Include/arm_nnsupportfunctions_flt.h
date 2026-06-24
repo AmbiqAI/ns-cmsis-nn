@@ -462,8 +462,11 @@ void arm_nn_pack_conv_patch_f32(const float32_t *__RESTRICT input,
 
 /**
  * @brief Specialized softmax helper for a single float32 row of length 2.
+ *
+ * @param[in]  in   Pointer to two contiguous float32 input values.
+ * @param[out] out  Pointer to two contiguous float32 output values.
  */
-void arm_nn_softmax_1x2_f32(const float32_t in[2], float32_t out[2]);
+void arm_nn_softmax_1x2_f32(const float32_t *in, float32_t *out);
 
 #endif /* ARM_NN_ENABLE_F32 */
 
@@ -922,9 +925,12 @@ void arm_nn_pack_conv_patch_f16(const float16_t *__RESTRICT input,
                                 float16_t *__RESTRICT patch_row);
 
 /**
- * @copydoc arm_nn_softmax_1x2_f32
+ * @brief Specialized softmax helper for a single float16 row of length 2.
+ *
+ * @param[in]  in   Pointer to two contiguous float16 input values.
+ * @param[out] out  Pointer to two contiguous float16 output values.
  */
-void arm_nn_softmax_1x2_f16(const float16_t in[2], float16_t out[2]);
+void arm_nn_softmax_1x2_f16(const float16_t *in, float16_t *out);
 
 #endif /* ARM_NN_ENABLE_F16 */
 

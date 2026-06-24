@@ -151,7 +151,7 @@ arm_cmsis_nn_status arm_softmax_f16(const float16_t *input, int32_t rows, int32_
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-void arm_nn_softmax_1x2_f16(const float16_t in[2], float16_t out[2])
+void arm_nn_softmax_1x2_f16(const float16_t *in, float16_t *out)
 {
     _Float16 e0;
     _Float16 e1;
