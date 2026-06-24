@@ -167,7 +167,38 @@ mkdir -p "${generated_api_dir}"
 find "${generated_api_dir}" -mindepth 1 ! -name .gitignore -exec rm -rf {} +
 rm -rf "${site_dir}"
 
-log "Building Sphinx site"
+log "Generating Sphinx API pages (non-fatal pass)"
+if ! "${sphinx_build_cmd}" -b html --keep-going "${sphinx_src}" "${site_dir}"; then
+  log "Non-fatal generation pass reported warnings/errors; continuing to post-process generated API pages"
+fi
+
+log "Normalizing generated doxygenfunction directives for softmax helpers"
+python - <<'PY'
+from pathlib import Path
+
+api_dir = Path("docs/api")
+if not api_dir.exists():
+  raise SystemExit(0)
+
+replacements = {
+  ".. doxygenfunction:: arm_nn_softmax_1x2_f16(const float16_t, float16_t)":
+    ".. doxygenfunction:: arm_nn_softmax_1x2_f16",
+  ".. doxygenfunction:: arm_nn_softmax_1x2_f32(const float32_t, float32_t)":
+    ".. doxygenfunction:: arm_nn_softmax_1x2_f32",
+}
+
+for path in api_dir.glob("*.rst"):
+  text = path.read_text(encoding="utf-8")
+  updated = text
+  for old, new in replacements.items():
+    updated = updated.replace(old, new)
+  if updated != text:
+    path.write_text(updated, encoding="utf-8")
+PY
+
+rm -rf "${site_dir}"
+
+log "Building Sphinx site (strict pass)"
 "${sphinx_build_cmd}" -b html -W --keep-going "${sphinx_src}" "${site_dir}"
 
 api_index="${site_dir%/}/api/library_root.html"

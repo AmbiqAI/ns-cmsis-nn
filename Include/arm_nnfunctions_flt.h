@@ -64,7 +64,7 @@ extern "C" {
  * @param[out]    output         Pointer to the output tensor data.
  *
  * @note When @p ctx->buf is used for internal kernel repacking, it must be aligned to the element type stored in
- * scratch: at least 4-byte aligned for float32_t and, via @copydoc, at least 2-byte aligned for float16_t.
+ * scratch: at least 4-byte aligned for float32_t and at least 2-byte aligned for float16_t.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -96,7 +96,7 @@ arm_cmsis_nn_status arm_depthwise_nhwc_conv_f32(const cmsis_nn_context *ctx,
  * @param[in]     layout         Tensor layout selector. Current float APIs require `ARM_NN_LAYOUT_NHWC`.
  *
  * @note When @p ctx->buf is used for internal kernel repacking, it must be aligned to the element type stored in
- * scratch: at least 4-byte aligned for float32_t and, via @copydoc, at least 2-byte aligned for float16_t.
+ * scratch: at least 4-byte aligned for float32_t and at least 2-byte aligned for float16_t.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -127,7 +127,7 @@ arm_cmsis_nn_status arm_depthwise_conv_f32(const cmsis_nn_context *ctx,
  * @param[out]    output         Pointer to the output tensor data.
  *
  * @note When @p ctx->buf is used for internal kernel repacking, it must be aligned to the element type stored in
- * scratch: at least 4-byte aligned for float32_t and, via @copydoc, at least 2-byte aligned for float16_t.
+ * scratch: at least 4-byte aligned for float32_t and at least 2-byte aligned for float16_t.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
