@@ -41,7 +41,7 @@ project:
     - ../../Corstone-300
 
   components:
-    - component: Machine Learning:NN Lib:heliaCORE
+    - component: Ambiq::Machine Learning:NN Lib:heliaCORE&Source
 
   layers:
     - layer: ../corstone300_unittest.clayer.yml

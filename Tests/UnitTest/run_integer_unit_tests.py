@@ -33,6 +33,7 @@ UNIT_TEST_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = UNIT_TEST_ROOT.parents[1]
 
 INTEGER_TEST_DIR = UNIT_TEST_ROOT / "TestCases"
+LEGACY_CMSIS_ROOT = UNIT_TEST_ROOT / "downloads" / "CMSIS_5"
 
 
 @dataclass(frozen=True)
@@ -288,6 +289,11 @@ def create_cmsis_overlay(
     cortex_dfp_version: str,
     dfp_device: str,
 ) -> Path:
+    legacy_device_dir = LEGACY_CMSIS_ROOT / "Device" / "ARM" / dfp_device
+    legacy_cmsis_dir = LEGACY_CMSIS_ROOT / "CMSIS"
+    if legacy_device_dir.exists() and legacy_cmsis_dir.exists():
+        return LEGACY_CMSIS_ROOT
+
     cmsis_dir = resolve_pack_dir(pack_root, "ARM", "CMSIS", cmsis_version)
     cortex_dfp_dir = resolve_pack_dir(pack_root, "ARM", "Cortex_DFP", cortex_dfp_version)
 

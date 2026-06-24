@@ -8,7 +8,8 @@ solution:
   cdefault:
 
   packs:
-    - pack: Ambiq::NS-CMSIS-NN@7.27.0
+    - pack: Ambiq::NS-CMSIS-NN
+      path: ../../..
     - pack: ARM::CMSIS@6.3.0
     - pack: ARM::Cortex_DFP@1.1.0
     - pack: ARM::V2M_MPS3_SSE_300_BSP@1.5.0
