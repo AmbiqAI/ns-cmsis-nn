@@ -240,6 +240,15 @@ jobs:
           source Tests/UnitTest/downloads/cmsis_nn_venv/bin/activate
           python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
 
+      - name: Install required CMSIS packs
+        shell: bash
+        run: |
+          mkdir -p "${CMSIS_PACK_ROOT}"
+          cpackget add "ARM::CMSIS@6.3.0" -R "${CMSIS_PACK_ROOT}" -F --agree-embedded-license
+          cpackget add "ARM::Cortex_DFP@1.1.0" -R "${CMSIS_PACK_ROOT}" -F --agree-embedded-license
+          cpackget add "ARM::V2M_MPS3_SSE_300_BSP@1.5.0" -R "${CMSIS_PACK_ROOT}" -F --agree-embedded-license
+          cpackget add "ARM::CMSIS-Compiler@2.3.0" -R "${CMSIS_PACK_ROOT}" -F --agree-embedded-license
+
       - name: Register local NS-CMSIS-NN pack
         shell: bash
         run: |
@@ -272,7 +281,8 @@ jobs:
 
             fvp_image_args=()
             if [[ -n "${{ matrix.fvp_image_arg }}" ]]; then
-              fvp_image_args=(--fvp-image-arg "${{ matrix.fvp_image_arg }}")
+              # Keep dash-prefixed values like -a bound to the option for argparse.
+              fvp_image_args=("--fvp-image-arg=${{ matrix.fvp_image_arg }}")
             fi
 
             board_args=()
@@ -483,6 +493,13 @@ jobs:
         if: matrix.toolchain == 'AC6'
         uses: ARM-software/cmsis-actions/armlm@v1
 
+      - name: Install required CMSIS packs
+        shell: bash
+        run: |
+          mkdir -p "${CMSIS_PACK_ROOT}"
+          cpackget add "ARM::CMSIS@6.3.0" -R "${CMSIS_PACK_ROOT}" -F --agree-embedded-license
+          cpackget add "ARM::Cortex_DFP@1.1.0" -R "${CMSIS_PACK_ROOT}" -F --agree-embedded-license
+
       - name: Register local NS-CMSIS-NN pack
         shell: bash
         run: |
@@ -508,7 +525,8 @@ jobs:
 
             fvp_image_args=()
             if [[ -n "${{ matrix.fvp_image_arg }}" ]]; then
-              fvp_image_args=(--fvp-image-arg "${{ matrix.fvp_image_arg }}")
+              # Keep dash-prefixed values like -a bound to the option for argparse.
+              fvp_image_args=("--fvp-image-arg=${{ matrix.fvp_image_arg }}")
             fi
 
             board_args=()
@@ -699,6 +717,12 @@ jobs:
         if: matrix.toolchain == 'AC6'
         uses: ARM-software/cmsis-actions/armlm@v1
 
+      - name: Install required CMSIS packs
+        shell: bash
+        run: |
+          mkdir -p "${CMSIS_PACK_ROOT}"
+          cpackget add "ARM::CMSIS@6.3.0" -R "${CMSIS_PACK_ROOT}" -F --agree-embedded-license
+
       - name: Register local NS-CMSIS-NN pack
         shell: bash
         run: |
@@ -717,7 +741,8 @@ jobs:
 
           optimization_args=()
           if [[ -n "${LIB_OPTIMIZATION}" ]]; then
-            optimization_args=(--optimization "${LIB_OPTIMIZATION}")
+            # Keep dash-prefixed values like -Ofast bound to the option for argparse.
+            optimization_args=("--optimization=${LIB_OPTIMIZATION}")
           fi
 
           python3 Tests/UnitTest/build_lib_variants.py \
