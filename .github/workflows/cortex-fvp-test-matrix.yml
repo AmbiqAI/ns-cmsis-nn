@@ -156,6 +156,10 @@ jobs:
         shell: bash
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Source vcpkg toolset environment
+        shell: bash
+        run: jq -r '.paths.PATH[]?' "${NS_CMSIS_NN_VCPKG_ENV}" >> "$GITHUB_PATH"
+
       - name: Restore tests-downloads cache
         id: cache-downloads
         uses: actions/cache@v5
@@ -353,6 +357,10 @@ jobs:
         shell: bash
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Source vcpkg toolset environment
+        shell: bash
+        run: jq -r '.paths.PATH[]?' "${NS_CMSIS_NN_VCPKG_ENV}" >> "$GITHUB_PATH"
+
       - name: Restore tests-downloads cache
         id: cache-downloads
         uses: actions/cache@v5
@@ -516,6 +524,10 @@ jobs:
       - name: Mark workspace as a safe git directory
         shell: bash
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Source vcpkg toolset environment
+        shell: bash
+        run: jq -r '.paths.PATH[]?' "${NS_CMSIS_NN_VCPKG_ENV}" >> "$GITHUB_PATH"
 
       - name: Restore tests-downloads cache
         id: cache-downloads
