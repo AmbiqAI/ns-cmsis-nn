@@ -160,10 +160,52 @@ jobs:
         shell: bash
         run: |
           ns_cmsis_nn_vcpkg_env="${NS_CMSIS_NN_VCPKG_ENV:-/opt/ns-cmsis-nn/vcpkg-env.json}"
+
+          if [[ ! -f "${ns_cmsis_nn_vcpkg_env}" ]]; then
+            workspace_root="${GITHUB_WORKSPACE:-$PWD}"
+            config_path="${workspace_root}/vcpkg-configuration.json"
+            runner_tmp="${RUNNER_TEMP:-/tmp}"
+            vcpkg_root="${VCPKG_ROOT:-${runner_tmp}/ns-cmsis-nn-vcpkg}"
+            downloads_root="${VCPKG_DOWNLOADS:-${runner_tmp}/ns-cmsis-nn-vcpkg-downloads}"
+            bootstrap_script="${runner_tmp}/ns-cmsis-nn-vcpkg-init.sh"
+
+            if [[ ! -f "${config_path}" ]]; then
+              echo "Error: vcpkg configuration file not found: ${config_path}" >&2
+              exit 1
+            fi
+
+            if ! command -v curl >/dev/null 2>&1; then
+              echo "Error: curl is required to bootstrap vcpkg" >&2
+              exit 1
+            fi
+
+            if [[ "${ns_cmsis_nn_vcpkg_env}" == /opt/ns-cmsis-nn/* ]]; then
+              ns_cmsis_nn_vcpkg_env="${runner_tmp}/ns-cmsis-nn-vcpkg-env.json"
+            fi
+
+            mkdir -p "${vcpkg_root}" "${downloads_root}" "$(dirname "${ns_cmsis_nn_vcpkg_env}")"
+            curl -fsSL https://aka.ms/vcpkg-init.sh -o "${bootstrap_script}"
+
+            export VCPKG_ROOT="${vcpkg_root}"
+            export VCPKG_DOWNLOADS="${downloads_root}"
+
+            # shellcheck disable=SC1090
+            . "${bootstrap_script}"
+
+            (
+              cd "${workspace_root}"
+              "${VCPKG_ROOT}/vcpkg" x-update-registry --all
+              "${VCPKG_ROOT}/vcpkg" activate \
+                --downloads-root="${downloads_root}" \
+                --json="${ns_cmsis_nn_vcpkg_env}"
+            )
+          fi
+
           if [[ ! -f "${ns_cmsis_nn_vcpkg_env}" ]]; then
             echo "Error: vcpkg env file not found: ${ns_cmsis_nn_vcpkg_env}" >&2
             exit 1
           fi
+
           jq -r '.paths.PATH[]?' "${ns_cmsis_nn_vcpkg_env}" >> "$GITHUB_PATH"
 
       - name: Restore tests-downloads cache
@@ -367,10 +409,52 @@ jobs:
         shell: bash
         run: |
           ns_cmsis_nn_vcpkg_env="${NS_CMSIS_NN_VCPKG_ENV:-/opt/ns-cmsis-nn/vcpkg-env.json}"
+
+          if [[ ! -f "${ns_cmsis_nn_vcpkg_env}" ]]; then
+            workspace_root="${GITHUB_WORKSPACE:-$PWD}"
+            config_path="${workspace_root}/vcpkg-configuration.json"
+            runner_tmp="${RUNNER_TEMP:-/tmp}"
+            vcpkg_root="${VCPKG_ROOT:-${runner_tmp}/ns-cmsis-nn-vcpkg}"
+            downloads_root="${VCPKG_DOWNLOADS:-${runner_tmp}/ns-cmsis-nn-vcpkg-downloads}"
+            bootstrap_script="${runner_tmp}/ns-cmsis-nn-vcpkg-init.sh"
+
+            if [[ ! -f "${config_path}" ]]; then
+              echo "Error: vcpkg configuration file not found: ${config_path}" >&2
+              exit 1
+            fi
+
+            if ! command -v curl >/dev/null 2>&1; then
+              echo "Error: curl is required to bootstrap vcpkg" >&2
+              exit 1
+            fi
+
+            if [[ "${ns_cmsis_nn_vcpkg_env}" == /opt/ns-cmsis-nn/* ]]; then
+              ns_cmsis_nn_vcpkg_env="${runner_tmp}/ns-cmsis-nn-vcpkg-env.json"
+            fi
+
+            mkdir -p "${vcpkg_root}" "${downloads_root}" "$(dirname "${ns_cmsis_nn_vcpkg_env}")"
+            curl -fsSL https://aka.ms/vcpkg-init.sh -o "${bootstrap_script}"
+
+            export VCPKG_ROOT="${vcpkg_root}"
+            export VCPKG_DOWNLOADS="${downloads_root}"
+
+            # shellcheck disable=SC1090
+            . "${bootstrap_script}"
+
+            (
+              cd "${workspace_root}"
+              "${VCPKG_ROOT}/vcpkg" x-update-registry --all
+              "${VCPKG_ROOT}/vcpkg" activate \
+                --downloads-root="${downloads_root}" \
+                --json="${ns_cmsis_nn_vcpkg_env}"
+            )
+          fi
+
           if [[ ! -f "${ns_cmsis_nn_vcpkg_env}" ]]; then
             echo "Error: vcpkg env file not found: ${ns_cmsis_nn_vcpkg_env}" >&2
             exit 1
           fi
+
           jq -r '.paths.PATH[]?' "${ns_cmsis_nn_vcpkg_env}" >> "$GITHUB_PATH"
 
       - name: Restore tests-downloads cache
@@ -541,10 +625,52 @@ jobs:
         shell: bash
         run: |
           ns_cmsis_nn_vcpkg_env="${NS_CMSIS_NN_VCPKG_ENV:-/opt/ns-cmsis-nn/vcpkg-env.json}"
+
+          if [[ ! -f "${ns_cmsis_nn_vcpkg_env}" ]]; then
+            workspace_root="${GITHUB_WORKSPACE:-$PWD}"
+            config_path="${workspace_root}/vcpkg-configuration.json"
+            runner_tmp="${RUNNER_TEMP:-/tmp}"
+            vcpkg_root="${VCPKG_ROOT:-${runner_tmp}/ns-cmsis-nn-vcpkg}"
+            downloads_root="${VCPKG_DOWNLOADS:-${runner_tmp}/ns-cmsis-nn-vcpkg-downloads}"
+            bootstrap_script="${runner_tmp}/ns-cmsis-nn-vcpkg-init.sh"
+
+            if [[ ! -f "${config_path}" ]]; then
+              echo "Error: vcpkg configuration file not found: ${config_path}" >&2
+              exit 1
+            fi
+
+            if ! command -v curl >/dev/null 2>&1; then
+              echo "Error: curl is required to bootstrap vcpkg" >&2
+              exit 1
+            fi
+
+            if [[ "${ns_cmsis_nn_vcpkg_env}" == /opt/ns-cmsis-nn/* ]]; then
+              ns_cmsis_nn_vcpkg_env="${runner_tmp}/ns-cmsis-nn-vcpkg-env.json"
+            fi
+
+            mkdir -p "${vcpkg_root}" "${downloads_root}" "$(dirname "${ns_cmsis_nn_vcpkg_env}")"
+            curl -fsSL https://aka.ms/vcpkg-init.sh -o "${bootstrap_script}"
+
+            export VCPKG_ROOT="${vcpkg_root}"
+            export VCPKG_DOWNLOADS="${downloads_root}"
+
+            # shellcheck disable=SC1090
+            . "${bootstrap_script}"
+
+            (
+              cd "${workspace_root}"
+              "${VCPKG_ROOT}/vcpkg" x-update-registry --all
+              "${VCPKG_ROOT}/vcpkg" activate \
+                --downloads-root="${downloads_root}" \
+                --json="${ns_cmsis_nn_vcpkg_env}"
+            )
+          fi
+
           if [[ ! -f "${ns_cmsis_nn_vcpkg_env}" ]]; then
             echo "Error: vcpkg env file not found: ${ns_cmsis_nn_vcpkg_env}" >&2
             exit 1
           fi
+
           jq -r '.paths.PATH[]?' "${ns_cmsis_nn_vcpkg_env}" >> "$GITHUB_PATH"
 
       - name: Restore tests-downloads cache
