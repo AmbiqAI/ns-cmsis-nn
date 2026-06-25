@@ -80,15 +80,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - key: ac6-m4
-            toolchain: AC6
-            toolchain_label: AC6@6.24.0
-            cpu: cortex-m4
-            target_type: Cortex-M4-FVP
-            fvp_bin: FVP_Corstone_SSE-300_Ethos-U55
-            fvp_image_arg: ''
-            disable_default_board_args: false
-            float_dtypes: f32
           - key: ac6-m55
             toolchain: AC6
             toolchain_label: AC6@6.24.0
@@ -97,15 +88,6 @@ jobs:
             fvp_bin: FVP_Corstone_SSE-300_Ethos-U55
             fvp_image_arg: -a
             disable_default_board_args: false
-          - key: clang-m4
-            toolchain: CLANG
-            toolchain_label: CLANG@20.1.0
-            cpu: cortex-m4
-            target_type: Cortex-M4-FVP
-            fvp_bin: FVP_Corstone_SSE-300_Ethos-U55
-            fvp_image_arg: ''
-            disable_default_board_args: false
-            float_dtypes: f32
           - key: clang-m55
             toolchain: CLANG
             toolchain_label: CLANG@20.1.0
@@ -296,6 +278,7 @@ jobs:
             --dtypes "${FLOAT_DTYPES}" \
               --cpu "${{ matrix.cpu }}" \
               --target-type "${{ matrix.target_type }}" \
+            --generate \
             --build-cmsis \
             --run-fvp \
             --toolchains "${{ matrix.toolchain }}" \

@@ -10,8 +10,8 @@ on:
       - main
 
 jobs:
+  operator-matrix-tests:
+    uses: ./.github/workflows/operator-matrix-tester.yml
+
   helia-core-tester:
     uses: ./.github/workflows/helia-core-tester.yml
-
-  cortex-fvp-test-matrix:
-    uses: ./.github/workflows/cortex-fvp-test-matrix.yml

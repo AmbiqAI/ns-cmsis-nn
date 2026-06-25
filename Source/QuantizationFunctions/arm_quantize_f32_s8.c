@@ -42,7 +42,7 @@ arm_cmsis_nn_status
 arm_quantize_f32_s8(const float *input, int8_t *output, int32_t size, int32_t zero_point, float scale)
 {
 
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     int32_t count = (size + 3) / 4;
     float mul_scale = 1.0f / scale;
     int32x4_t max = vdupq_n_s32(INT8_MAX);
