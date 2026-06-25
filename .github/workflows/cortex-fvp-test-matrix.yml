@@ -520,7 +520,7 @@ jobs:
 
             python3 run_integer_unit_tests.py \
             --tests "${INTEGER_TESTS}" \
-              --cpu "${{ matrix.cpu }}" \
+              --target-cpu "${{ matrix.cpu }}" \
             --build-fvp \
             --run-fvp \
             --toolchains "${{ matrix.toolchain }}" \
