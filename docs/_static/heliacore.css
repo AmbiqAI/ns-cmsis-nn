@@ -322,6 +322,11 @@ h1, h2, h3 {
   box-shadow: 0 28px 70px rgba(13, 20, 26, 0.22);
 }
 
+.landing-hero > div,
+.hero-panel {
+  min-width: 0;
+}
+
 .hero-logo {
   width: min(165px, 60%);
   height: auto;
@@ -376,6 +381,12 @@ h1, h2, h3 {
 .hero-summary strong,
 .hero-summary code {
   color: #ffffff;
+}
+
+.hero-summary code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .bench-hero {
@@ -615,6 +626,12 @@ h1, h2, h3 {
 
 .hero-panel pre {
   color: #d9e1e8;
+}
+
+.hero-panel pre code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .hero-panel div[class*=" highlight-"] span,
@@ -1145,5 +1162,48 @@ article[role="main"] a:visited {
 
   .hero-title {
     font-size: 2.35rem;
+  }
+}
+
+@media (max-width: 500px) {
+  .landing-hero {
+    gap: 1.35rem;
+    padding: 1.1rem;
+  }
+
+  .hero-kicker {
+    gap: 0.45rem;
+    letter-spacing: 0.08em;
+  }
+
+  .hero-title {
+    max-width: none;
+    font-size: clamp(1.95rem, 11vw, 2.35rem);
+    line-height: 0.98;
+  }
+
+  .hero-summary {
+    font-size: 1rem;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+  }
+
+  .hero-actions .hc-button {
+    box-sizing: border-box;
+    width: 100%;
+  }
+
+  .panel-topline {
+    flex-wrap: wrap;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-panel {
+    padding: 1rem;
   }
 }
