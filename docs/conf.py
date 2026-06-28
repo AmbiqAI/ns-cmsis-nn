@@ -10,6 +10,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "docs" / "_ext"))
 DOXYGEN_XML = ROOT / "Documentation" / "xml"
 
+# Fast iteration mode for local previews. When DOCS_FAST is truthy, skip the
+# heavy Doxygen/Breathe/Exhale C API generation (hundreds of generated pages)
+# so landing-page and CSS edits rebuild in a fraction of the time. The full API
+# reference still builds in CI and in the default (unset) configuration.
+DOCS_FAST = os.environ.get("DOCS_FAST", "").strip().lower() in {"1", "true", "yes", "on"}
+
 project = "heliaCORE"
 author = "Ambiq Micro, Inc."
 copyright = "Ambiq Micro, Inc. Built on Arm CMSIS-NN."
@@ -29,6 +35,16 @@ source_suffix = {
 }
 master_doc = "index"
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "scripts", "assets/README.md"]
+
+if DOCS_FAST:
+    # Drop the extensions that parse Doxygen XML and emit the generated C API
+    # tree, and exclude the API pages that depend on them. This avoids reading
+    # and writing the ~400 generated API documents on every rebuild.
+    extensions = [ext for ext in extensions if ext not in {"api_group_index", "breathe", "exhale"}]
+    exclude_patterns += ["api", "reference/api-groups.md", "reference/doxygen.md"]
+    # The hidden landing-page toctree still references the excluded API pages;
+    # keep those expected warnings quiet so fast rebuilds stay readable.
+    suppress_warnings = ["toc.excluded", "toc.not_readable", "ref.ref", "myst.xref_missing"]
 
 html_theme = "furo"
 html_title = "heliaCORE"
