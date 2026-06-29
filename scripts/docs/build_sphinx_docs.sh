@@ -11,6 +11,10 @@ doxygen_xml_dir="Documentation/xml"
 doxygen_version="${DOXYGEN_VERSION:-1.9.6}"
 install_doxygen=0
 generate_doxygen=1
+fast_mode=0
+clean_build=1
+strict=1
+doctree_dir="${DOCS_DOCTREES:-build/docs/doctrees}"
 sphinx_build_cmd="${SPHINXBUILD:-sphinx-build}"
 
 usage() {
@@ -26,6 +30,13 @@ Options:
   --install-doxygen          Download Doxygen 1.9.6 to /tmp if it is not on PATH.
   --doxygen-version VERSION  Doxygen version to require/install (default: 1.9.6).
   --skip-doxygen             Reuse an existing Documentation/xml/ output.
+  --fast                     Fast preview build: skip Doxygen and the generated
+                             C API pages, reuse caches, and drop -W. Ideal for
+                             iterating on landing-page content and CSS.
+  --incremental              Reuse the doctree cache and existing HTML output
+                             instead of doing a clean rebuild.
+  --no-strict                Do not treat Sphinx warnings as errors.
+  --doctree-dir DIR          Cached doctree directory (default: build/docs/doctrees).
   --site-dir DIR             Sphinx HTML output directory (default: site).
   --sphinx-src DIR           Sphinx source directory (default: docs).
   --doxygen-xml-dir DIR      Generated Doxygen XML directory (default: Documentation/xml).
@@ -33,6 +44,7 @@ Options:
 
 Environment:
   SPHINXBUILD                sphinx-build executable (default: sphinx-build).
+  DOCS_DOCTREES              Cached doctree directory (default: build/docs/doctrees).
   DOXYGEN_URL                Override Doxygen tarball URL.
 USAGE
 }
@@ -57,6 +69,23 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-doxygen)
       generate_doxygen=0
+      ;;
+    --fast)
+      fast_mode=1
+      generate_doxygen=0
+      clean_build=0
+      strict=0
+      ;;
+    --incremental)
+      clean_build=0
+      ;;
+    --no-strict)
+      strict=0
+      ;;
+    --doctree-dir)
+      require_value "$1" "${2:-}"
+      doctree_dir="$2"
+      shift
       ;;
     --site-dir)
       require_value "$1" "${2:-}"
@@ -146,7 +175,10 @@ else
   log "Skipping Doxygen generation; reusing ${doxygen_xml_dir}"
 fi
 
-if [[ ! -f "${doxygen_xml_dir}/index.xml" ]]; then
+if [[ ${fast_mode} -eq 1 ]]; then
+  export DOCS_FAST=1
+  log "Fast mode: skipping the generated C API pages (DOCS_FAST=1)"
+elif [[ ! -f "${doxygen_xml_dir}/index.xml" ]]; then
   echo "Doxygen XML index not found: ${doxygen_xml_dir}/index.xml" >&2
   exit 1
 fi
@@ -164,8 +196,11 @@ fi
 
 generated_api_dir="${sphinx_src%/}/api"
 mkdir -p "${generated_api_dir}"
-find "${generated_api_dir}" -mindepth 1 ! -name .gitignore -exec rm -rf {} +
-rm -rf "${site_dir}"
+if [[ ${clean_build} -eq 1 ]]; then
+  find "${generated_api_dir}" -mindepth 1 ! -name .gitignore -exec rm -rf {} +
+  rm -rf "${site_dir}"
+fi
+mkdir -p "${doctree_dir}"
 
 log "Generating Sphinx API pages (non-fatal pass)"
 if ! "${sphinx_build_cmd}" -b html --keep-going "${sphinx_src}" "${site_dir}"; then
@@ -200,13 +235,26 @@ rm -rf "${site_dir}"
 
 log "Building Sphinx site (strict pass)"
 "${sphinx_build_cmd}" -b html -W --keep-going "${sphinx_src}" "${site_dir}"
+sphinx_args=(-b html -d "${doctree_dir}")
+if [[ ${strict} -eq 1 ]]; then
+  sphinx_args+=(-W --keep-going)
+fi
 
-api_index="${site_dir%/}/api/library_root.html"
-if [[ ! -f "${api_index}" ]]; then
-  echo "Generated Sphinx API index not found: ${api_index}" >&2
-  exit 1
+if [[ ${fast_mode} -eq 1 ]]; then
+  log "Building Sphinx site (fast preview)"
+else
+  log "Building Sphinx site"
+fi
+"${sphinx_build_cmd}" "${sphinx_args[@]}" "${sphinx_src}" "${site_dir}"
+
+if [[ ${fast_mode} -eq 0 ]]; then
+  api_index="${site_dir%/}/api/library_root.html"
+  if [[ ! -f "${api_index}" ]]; then
+    echo "Generated Sphinx API index not found: ${api_index}" >&2
+    exit 1
+  fi
+  printf 'Generated API: %s\n' "${api_index}"
 fi
 
 log "Sphinx docs built successfully"
 printf 'Sphinx site: %s\n' "${site_dir}"
-printf 'Generated API: %s\n' "${api_index}"

@@ -7,3 +7,5 @@ breathe>=4.35,<5
 exhale>=0.3.7,<0.4
 sphinx-copybutton>=0.5,<0.6
 sphinx-design>=0.6,<0.7
+# Live-reload local previews (scripts/docs/serve_sphinx_docs.sh --watch).
+sphinx-autobuild>=2024.2.4
