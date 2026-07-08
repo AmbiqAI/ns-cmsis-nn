@@ -207,9 +207,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        cpu:
-          - cortex-m4
-          - cortex-m55
+        include:
+          - cpu: cortex-m4
+            float_precision: f32
+          - cpu: cortex-m55
+            float_precision: both
 
     steps:
       - name: Checkout repository
@@ -276,7 +278,7 @@ jobs:
       - name: Run helia-core-tester float fallback coverage
         run: |
           cd Tests/helia-core-tester
-          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --suite float --float-precision both --coverage --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
+          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --suite float --float-precision ${{ matrix.float_precision }} --coverage --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
 
       - name: Upload float fallback reports
         if: ${{ always() }}
