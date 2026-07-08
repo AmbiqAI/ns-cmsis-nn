@@ -100,7 +100,7 @@ jobs:
       - name: Run helia-core-tester full pipeline with coverage and JUnit
         run: |
           cd Tests/helia-core-tester
-          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --suite both --float-precision both --coverage --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
+          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --suite int --coverage --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
 
       - name: Upload per-CPU reports
         if: ${{ always() }}
@@ -115,6 +115,14 @@ jobs:
     needs: resolve-container-image
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - float_precision: f32
+            profile_name: m55-f32-mvef
+          - float_precision: f16
+            profile_name: m55-f16-mvef
 
     steps:
       - name: Checkout repository
@@ -181,21 +189,13 @@ jobs:
       - name: Run helia-core-tester float suite with MVE float coverage
         run: |
           cd Tests/helia-core-tester
-          uv run helia_core_tester full --cpu cortex-m55 --suite float --float-precision both --coverage --coverage-mve-float --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
-
-      - name: Upload cortex-m55 MVE float coverage
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: reports-cortex-m55-mve-float
-          path: Tests/helia-core-tester/artifacts/reports/coverage/float-mve
-          if-no-files-found: error
+          uv run helia_core_tester full --cpu cortex-m55 --suite float --float-precision ${{ matrix.float_precision }} --coverage --coverage-mve-float --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
 
       - name: Upload cortex-m55 MVE float full reports
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
-          name: reports-cortex-m55-mvef
+          name: reports-${{ matrix.profile_name }}
           path: Tests/helia-core-tester/artifacts/reports
           if-no-files-found: error
 
@@ -210,8 +210,13 @@ jobs:
         include:
           - cpu: cortex-m4
             float_precision: f32
+            profile_name: m4-f32-fallback
           - cpu: cortex-m55
-            float_precision: both
+            float_precision: f32
+            profile_name: m55-f32-fallback
+          - cpu: cortex-m55
+            float_precision: f16
+            profile_name: m55-f16-fallback
 
     steps:
       - name: Checkout repository
@@ -284,7 +289,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
-          name: reports-${{ matrix.cpu }}-fallback
+          name: reports-${{ matrix.profile_name }}
           path: Tests/helia-core-tester/artifacts/reports
           if-no-files-found: error
 
@@ -365,39 +370,45 @@ jobs:
           name: reports-cortex-m55
           path: Tests/helia-core-tester/artifacts/reports
 
-      - name: Download cortex-m55 MVE float coverage
+      - name: Download m4 f32 float fallback reports
         uses: actions/download-artifact@v8
         with:
-          name: reports-cortex-m55-mve-float
-          path: Tests/helia-core-tester/artifacts/reports/coverage/float-mve
+          name: reports-m4-f32-fallback
+          path: Tests/helia-core-tester/artifacts/reports-fallback/m4-f32
 
-      - name: Download cortex-m4 float fallback reports
+      - name: Download m55 f32 float fallback reports
         uses: actions/download-artifact@v8
         with:
-          name: reports-cortex-m4-fallback
-          path: Tests/helia-core-tester/artifacts/reports-fallback/m4
+          name: reports-m55-f32-fallback
+          path: Tests/helia-core-tester/artifacts/reports-fallback/m55-f32
 
-      - name: Download cortex-m55 float fallback reports
+      - name: Download m55 f16 float fallback reports
         uses: actions/download-artifact@v8
         with:
-          name: reports-cortex-m55-fallback
-          path: Tests/helia-core-tester/artifacts/reports-fallback/m55
+          name: reports-m55-f16-fallback
+          path: Tests/helia-core-tester/artifacts/reports-fallback/m55-f16
 
-      - name: Download cortex-m55 MVE float full reports
+      - name: Download m55 f32 MVE float reports
         uses: actions/download-artifact@v8
         with:
-          name: reports-cortex-m55-mvef
-          path: Tests/helia-core-tester/artifacts/reports-mvef/m55
+          name: reports-m55-f32-mvef
+          path: Tests/helia-core-tester/artifacts/reports-mvef/m55-f32
+
+      - name: Download m55 f16 MVE float reports
+        uses: actions/download-artifact@v8
+        with:
+          name: reports-m55-f16-mvef
+          path: Tests/helia-core-tester/artifacts/reports-mvef/m55-f16
 
       - name: Run helia-core-tester coverage merge
         run: |
           cd Tests/helia-core-tester
-          uv run helia_core_tester coverage-merge --cpu cortex-m0,cortex-m4,cortex-m55 --include-mve-float
+          uv run helia_core_tester coverage-merge --cpu cortex-m0,cortex-m4,cortex-m55 --suite int
 
       - name: Publish CPU coverage and test summary table
         run: |
           cd Tests/helia-core-tester
-          uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --suite both --include-mve-float --profile "m4-fallback|cortex-m4|artifacts/reports-fallback/m4|float|float" --profile "m55-fallback|cortex-m55|artifacts/reports-fallback/m55|float|float" --profile "m55-mvef|cortex-m55|artifacts/reports-mvef/m55|float-mve|float" --summary-file "$GITHUB_STEP_SUMMARY"
+          uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --suite int --profile "m4-f32-fallback|cortex-m4|artifacts/reports-fallback/m4-f32|float|float" --profile "m55-f32-fallback|cortex-m55|artifacts/reports-fallback/m55-f32|float|float" --profile "m55-f16-fallback|cortex-m55|artifacts/reports-fallback/m55-f16|float|float" --profile "m55-f32-mvef|cortex-m55|artifacts/reports-mvef/m55-f32|float-mve|float" --profile "m55-f16-mvef|cortex-m55|artifacts/reports-mvef/m55-f16|float-mve|float" --summary-file "$GITHUB_STEP_SUMMARY"
 
       - name: Upload merged coverage reports
         uses: actions/upload-artifact@v7
