@@ -16,6 +16,8 @@
 #   NSX_CMSIS_NN_LIB                         — path to prebuilt .a (optional)
 #   NSX_CMSIS_NN_OPTIMIZATION                — compiler optimization (default: -Ofast)
 #   NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM   — enable inline-asm requantize (OFF)
+#   NSX_CMSIS_NN_ENABLE_F32                  — enable FP32 kernels in source mode (OFF)
+#   NSX_CMSIS_NN_ENABLE_F16                  — enable FP16 kernels in source mode (OFF)
 #   NSX_CMSIS_NN_GROUPS                      — operator groups to compile in
 #                                              source mode (default: ALL; or a
 #                                              CMake list of group ids — see
@@ -36,6 +38,10 @@ set(NSX_CMSIS_NN_OPTIMIZATION "-Ofast" CACHE STRING
     "Compiler optimization level for ns-cmsis-nn source builds.")
 option(NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM
     "Enable inline-assembly version of the requantize routine" OFF)
+option(NSX_CMSIS_NN_ENABLE_F32
+    "Enable experimental FP32 kernels in source builds" OFF)
+option(NSX_CMSIS_NN_ENABLE_F16
+    "Enable experimental FP16 kernels in source builds" OFF)
 set(NSX_CMSIS_NN_GROUPS "ALL" CACHE STRING
     "Operator groups to compile into nsx_cmsis_nn (ALL or a CMake list of \
 group ids; see cmake/ns_cmsis_nn.cmake).")
@@ -72,6 +78,16 @@ else()
     # ── Source build mode ─────────────────────────────────────────────────
     message(STATUS "nsx-cmsis-nn: building from source (groups=${NSX_CMSIS_NN_GROUPS})")
 
+    # Bridge NSX float options to the SSoT float gates.
+    set(ARM_NN_ENABLE_F32 0)
+    set(ARM_NN_ENABLE_F16 0)
+    if(NSX_CMSIS_NN_ENABLE_F32)
+        set(ARM_NN_ENABLE_F32 1)
+    endif()
+    if(NSX_CMSIS_NN_ENABLE_F16)
+        set(ARM_NN_ENABLE_F16 1)
+    endif()
+
     add_library(nsx_cmsis_nn STATIC)
 
     ns_cmsis_nn_attach(nsx_cmsis_nn
@@ -85,6 +101,12 @@ else()
     )
 
     target_compile_options(nsx_cmsis_nn PRIVATE ${NSX_CMSIS_NN_OPTIMIZATION})
+
+    target_compile_definitions(nsx_cmsis_nn
+        PUBLIC
+            ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32}
+            ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16}
+    )
 
     target_link_libraries(nsx_cmsis_nn
         PUBLIC ${NSX_BOARD_FLAGS_TARGET}

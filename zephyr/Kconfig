@@ -125,6 +125,33 @@ config NS_CMSIS_NN_NNSUPPORT
 	help
 	  When off, its default behavior is all tables are included.
 
+config NS_CMSIS_NN_ENABLE_F32
+	bool "Enable experimental FP32 kernels"
+	default n
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  Enables experimental floating-point FP32 kernels in the Zephyr
+	  module build. This maps to ARM_NN_ENABLE_F32 for source selection
+	  and compile-time guards.
+
+	  IMPORTANT: If your runtime (for example TFLM) also uses CMSIS-NN
+	  float APIs, it must be built with matching float enable flags.
+
+config NS_CMSIS_NN_ENABLE_F16
+	bool "Enable experimental FP16 kernels"
+	default n
+	imply NS_CMSIS_NN_NNSUPPORT
+	help
+	  Enables experimental floating-point FP16 kernels in the Zephyr
+	  module build. This maps to ARM_NN_ENABLE_F16 for source selection
+	  and compile-time guards.
+
+	  IMPORTANT: If your runtime (for example TFLM) also uses CMSIS-NN
+	  float APIs, it must be built with matching float enable flags.
+
+	  Requires compiler support for float16 types; unsupported toolchains
+	  will fail with explicit compile-time diagnostics.
+
 config NS_CMSIS_NN_PAD
 	bool "Pad"
 	imply NS_CMSIS_NN_NNSUPPORT

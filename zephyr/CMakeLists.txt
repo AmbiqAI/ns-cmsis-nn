@@ -57,6 +57,25 @@ if(CONFIG_NS_CMSIS_NN)
   zephyr_include_directories(${ZEPHYR_CURRENT_MODULE_DIR}/Include)
   zephyr_library_include_directories(${ZEPHYR_CMSIS_MODULE_DIR}/CMSIS/Core/Include)
 
+  # Bridge Zephyr Kconfig float toggles into the SSoT float gates.
+  # These variables are consumed by ns_cmsis_nn_group_sources() when it resolves
+  # per-group source lists.
+  set(ARM_NN_ENABLE_F32 0)
+  set(ARM_NN_ENABLE_F16 0)
+  if(CONFIG_NS_CMSIS_NN_ENABLE_F32)
+    set(ARM_NN_ENABLE_F32 1)
+  endif()
+  if(CONFIG_NS_CMSIS_NN_ENABLE_F16)
+    set(ARM_NN_ENABLE_F16 1)
+  endif()
+
+  # Keep float feature guards visible in all translation units that include
+  # CMSIS-NN public/internal headers.
+  zephyr_compile_definitions(
+    ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32}
+    ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16}
+  )
+
   # Translate the existing CONFIG_NS_CMSIS_NN_* knobs into SSoT group names.
   # Kconfig symbol names are aligned with SSoT group ids (#151); deprecated
   # spellings (BASICMATH / STRIDED_SLICE / SVD) `select` into the new ones.
