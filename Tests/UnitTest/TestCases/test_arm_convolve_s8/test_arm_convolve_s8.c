@@ -1799,6 +1799,7 @@ void conv_1x1_out_tail_arm_convolve_s8(void)
         max_output_channels = 9,
         input_channels = 4,
         kernel_elements = 4,
+        input_size = input_channels * kernel_elements,
         output_elements = 1
     };
     const int32_t output_channels_to_test[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
@@ -1807,7 +1808,6 @@ void conv_1x1_out_tail_arm_convolve_s8(void)
     const int32_t output_offset = -3;
     const int32_t activation_min = -11;
     const int32_t activation_max = 9;
-    const int32_t input_size = input_channels * kernel_elements;
     int8_t input[input_size];
     int8_t kernel[max_output_channels * input_size];
     int32_t bias[max_output_channels];
