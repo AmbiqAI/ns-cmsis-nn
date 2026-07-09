@@ -140,11 +140,14 @@ config NS_CMSIS_NN_ENABLE_F32
 config NS_CMSIS_NN_ENABLE_F16
 	bool "Enable experimental FP16 kernels"
 	default n
+	depends on ARMV8_1_M_MVEF
 	imply NS_CMSIS_NN_NNSUPPORT
 	help
 	  Enables experimental floating-point FP16 kernels in the Zephyr
 	  module build. This maps to ARM_NN_ENABLE_F16 for source selection
 	  and compile-time guards.
+
+	  Requires MVE floating-point (Armv8.1-M MVEF, e.g. Cortex-M55).
 
 	  IMPORTANT: If your runtime (for example TFLM) also uses CMSIS-NN
 	  float APIs, it must be built with matching float enable flags.
