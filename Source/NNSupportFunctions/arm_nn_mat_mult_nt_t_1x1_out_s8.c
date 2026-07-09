@@ -68,7 +68,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
 
     int out_idx;
     const int num_elems = 4;
-    for (out_idx = 0; out_idx < rhs_rows; out_idx+=num_elems)
+    for (out_idx = 0; out_idx + num_elems <= rhs_rows; out_idx += num_elems)
     {
         int32_t acc_n0 = 0;
         int32_t acc_n1 = 0;
@@ -142,8 +142,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
 
     const int32_t *multipliers = dst_multipliers;
     const int32_t *shifts = dst_shifts;
-    //finish last rows that aren't multiple of 4
-    out_idx -= num_elems;
+    // Finish output channels that are not a multiple of four.
     for (; out_idx < rhs_rows; out_idx++)
     {
         int32_t acc_n0 = 0;

@@ -1044,12 +1044,8 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_padded_s8(const int8_t *lhs,
  *                  - Updated output pointer if an implementation is available
  *                  - NULL if no implementation is available.
  *
- * @note           If number of channels is not a multiple of 4, upto 3 elements outside the boundary will be read
- * out for the following.
- *                  - Output shift
- *                  - Output multiplier
- *                  - Output bias
- *                  - rhs
+ * @note           Tail channel loads and stores are predicated, so channel-indexed arrays are not accessed beyond
+ *                @p active_ch.
  */
 arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
                                                   const int8_t *lhs,

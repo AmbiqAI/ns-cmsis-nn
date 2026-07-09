@@ -64,14 +64,13 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
     // not used currently with new weight sum approach
     (void)input_offset;
     (void)output_bias;
-    int32_t loop_count = (active_ch + 3) / 4;
-    uint32_t num_ch_to_process = active_ch;
     const int32_t *weight_sum_base = weight_sum_buf;
 
-    for (int i_loop_cnt = 0, offset = 0; i_loop_cnt < loop_count;
-         num_ch_to_process -= 4, offset += 4, out += 4, i_loop_cnt++)
+    for (int32_t offset = 0; offset < active_ch; offset += 4)
     {
-        int32x4_t base = vldrwq_s32(weight_sum_base + offset);
+        const uint32_t num_ch_to_process = MIN(4, active_ch - offset);
+        const mve_pred16_t p = vctp32q(num_ch_to_process);
+        int32x4_t base = vldrwq_z_s32(weight_sum_base + offset, p);
         int32x4_t out_0 = base;
         int32x4_t out_1 = base;
         int32x4_t out_2 = base;
@@ -85,33 +84,34 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
 
         for (int i_row_x_col = 0; i_row_x_col < row_x_col; i_row_x_col++)
         {
-            const int32x4_t ker_0 = vldrbq_s32(rhs_0);
+            const int32x4_t ker_0 = vldrbq_z_s32(rhs_0, p);
 
-            int32x4_t ip_0 = vldrbq_s32(lhs_0);
+            int32x4_t ip_0 = vldrbq_z_s32(lhs_0, p);
             out_0 += vmulq_s32(ip_0, ker_0);
 
-            int32x4_t ip_1 = vldrbq_s32(lhs_1);
+            int32x4_t ip_1 = vldrbq_z_s32(lhs_1, p);
             out_1 += vmulq_s32(ip_1, ker_0);
 
-            int32x4_t ip_2 = vldrbq_s32(lhs_2);
+            int32x4_t ip_2 = vldrbq_z_s32(lhs_2, p);
             out_2 += vmulq_s32(ip_2, ker_0);
 
-            int32x4_t ip_3 = vldrbq_s32(lhs_3);
+            int32x4_t ip_3 = vldrbq_z_s32(lhs_3, p);
             out_3 += vmulq_s32(ip_3, ker_0);
 
-            lhs_0 += CH_IN_BLOCK_MVE;
-            lhs_1 += CH_IN_BLOCK_MVE;
-            lhs_2 += CH_IN_BLOCK_MVE;
-            lhs_3 += CH_IN_BLOCK_MVE;
-
-            rhs_0 += total_ch;
+            if (i_row_x_col + 1 < row_x_col)
+            {
+                lhs_0 += CH_IN_BLOCK_MVE;
+                lhs_1 += CH_IN_BLOCK_MVE;
+                lhs_2 += CH_IN_BLOCK_MVE;
+                lhs_3 += CH_IN_BLOCK_MVE;
+                rhs_0 += total_ch;
+            }
         }
 
-        const int32x4_t mult = vldrwq_s32(out_mult);
-        const int32x4_t shift = vldrwq_s32(out_shift);
-        out_mult += 4;
-        out_shift += 4;
-        mve_pred16_t p = vctp32q(num_ch_to_process);
+        const int32x4_t mult = vldrwq_z_s32(out_mult, p);
+        const int32x4_t shift = vldrwq_z_s32(out_shift, p);
+        out_mult += num_ch_to_process;
+        out_shift += num_ch_to_process;
 
         out_0 = arm_requantize_mve_32x4(out_0, mult, shift);
         out_0 = vaddq_n_s32(out_0, out_offset);
@@ -136,6 +136,8 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
         out_3 = vmaxq_s32(out_3, vdupq_n_s32(activation_min));
         out_3 = vminq_s32(out_3, vdupq_n_s32(activation_max));
         vstrbq_p_s32(out + 3 * total_ch, out_3, p);
+
+        out += num_ch_to_process;
     }
 
     return ARM_CMSIS_NN_SUCCESS;

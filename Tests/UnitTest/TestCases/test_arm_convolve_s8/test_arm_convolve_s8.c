@@ -19,6 +19,7 @@
 #include <stdlib.h>
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <unity.h>
 
 #include "../TestData/basic/test_data.h"
@@ -1789,6 +1790,132 @@ void conv_refactored_fc_conv_int8_1x1_kernel(void)
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
 }
+
+void conv_1x1_out_tail_arm_convolve_s8(void)
+{
+#if defined(ARM_MATH_MVEI)
+    enum
+    {
+        max_output_channels = 9,
+        input_channels = 4,
+        kernel_elements = 4,
+        output_elements = 1
+    };
+    const int32_t output_channels_to_test[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+    const int8_t guard_value = 0x5A;
+    const int32_t input_offset = 5;
+    const int32_t output_offset = -3;
+    const int32_t activation_min = -11;
+    const int32_t activation_max = 9;
+    const int32_t input_size = input_channels * kernel_elements;
+    int8_t input[input_size];
+    int8_t kernel[max_output_channels * input_size];
+    int32_t bias[max_output_channels];
+    int32_t multiplier[max_output_channels];
+    int32_t shift[max_output_channels];
+    int32_t weight_sum[max_output_channels + 4];
+    int8_t output_storage[max_output_channels + 4];
+
+    for (int i = 0; i < input_size; i++)
+    {
+        input[i] = (int8_t)((i * 7) % 23 - 11);
+    }
+    for (int i = 0; i < max_output_channels; i++)
+    {
+        bias[i] = i * 37 - 100;
+        multiplier[i] = (i % 3 == 0) ? (1 << 30) : ((i % 3 == 1) ? (1 << 29) : (3 << 29));
+        shift[i] = (i % 4) - 2;
+        for (int j = 0; j < input_size; j++)
+        {
+            kernel[i * input_size + j] = (int8_t)((i * 5 + j * 3) % 17 - 8);
+        }
+    }
+
+    cmsis_nn_dims input_dims = {1, 2, 2, input_channels};
+    cmsis_nn_dims filter_dims = {max_output_channels, 2, 2, input_channels};
+    cmsis_nn_dims bias_dims = {1, 1, 1, max_output_channels};
+    cmsis_nn_dims output_dims = {1, 1, 1, max_output_channels};
+    cmsis_nn_conv_params conv_params = {
+        .input_offset = input_offset,
+        .output_offset = output_offset,
+        .stride = {1, 1},
+        .padding = {0, 0},
+        .dilation = {1, 1},
+        .activation = {activation_min, activation_max},
+    };
+    cmsis_nn_context ctx;
+    cmsis_nn_context weight_sum_ctx;
+    cmsis_nn_per_channel_quant_params quant_params = {
+        .multiplier = multiplier,
+        .shift = shift,
+    };
+
+    const int32_t buffer_size =
+        arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    TEST_ASSERT_TRUE(buffer_size > 0);
+    ctx.buf = malloc(buffer_size);
+    ctx.size = buffer_size;
+    weight_sum_ctx.buf = weight_sum;
+    weight_sum_ctx.size = max_output_channels * (int32_t)sizeof(int32_t);
+
+    for (size_t test_index = 0; test_index < sizeof(output_channels_to_test) / sizeof(output_channels_to_test[0]);
+         test_index++)
+    {
+        const int32_t output_channels = output_channels_to_test[test_index];
+        output_dims.c = output_channels;
+        filter_dims.n = output_channels;
+        bias_dims.c = output_channels;
+        memset(output_storage, guard_value, sizeof(output_storage));
+        memset(weight_sum + output_channels, 0xA5, (max_output_channels + 4 - output_channels) * sizeof(int32_t));
+
+        TEST_ASSERT_EQUAL(
+            ARM_CMSIS_NN_SUCCESS,
+            arm_convolve_weight_sum(weight_sum, kernel, &input_dims, &filter_dims, &output_dims, input_offset, bias));
+
+        const arm_cmsis_nn_status result = arm_convolve_wrapper_s8(&ctx,
+                                                                   &weight_sum_ctx,
+                                                                   &conv_params,
+                                                                   &quant_params,
+                                                                   &input_dims,
+                                                                   input,
+                                                                   &filter_dims,
+                                                                   kernel,
+                                                                   &bias_dims,
+                                                                   bias,
+                                                                   &output_dims,
+                                                                   output_storage + 2);
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+        TEST_ASSERT_EQUAL_INT8(guard_value, output_storage[0]);
+        TEST_ASSERT_EQUAL_INT8(guard_value, output_storage[1]);
+        TEST_ASSERT_EQUAL_INT8(guard_value, output_storage[output_channels + 2]);
+        TEST_ASSERT_EQUAL_INT8(guard_value, output_storage[output_channels + 3]);
+
+        int saw_clip = 0;
+        for (int i = 0; i < output_channels; i++)
+        {
+            int32_t acc = bias[i];
+            for (int j = 0; j < input_size; j++)
+            {
+                acc += (input[j] + input_offset) * kernel[i * input_size + j];
+            }
+            int32_t expected = arm_nn_requantize(acc, multiplier[i], shift[i]) + output_offset;
+            expected = MAX(expected, activation_min);
+            expected = MIN(expected, activation_max);
+            saw_clip |= expected == activation_min || expected == activation_max;
+            TEST_ASSERT_EQUAL_INT8((int8_t)expected, output_storage[i + 2]);
+        }
+        TEST_ASSERT_TRUE(saw_clip);
+        for (int i = output_channels; i < max_output_channels; i++)
+        {
+            TEST_ASSERT_EQUAL_INT32(0xA5A5A5A5, weight_sum[i]);
+        }
+    }
+
+    memset(ctx.buf, 0, buffer_size);
+    free(ctx.buf);
+#endif
+}
+
 void buffer_size_arm_convolve_s8(void)
 {
     cmsis_nn_conv_params conv_params;

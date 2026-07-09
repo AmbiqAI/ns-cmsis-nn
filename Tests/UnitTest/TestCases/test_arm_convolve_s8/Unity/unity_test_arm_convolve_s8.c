@@ -55,9 +55,7 @@ void test_conv_refactored_fc_conv_dilated(void) { conv_refactored_fc_conv_dilate
 void test_conv_refactored_fc_conv_int8_diff_channels(void) { conv_refactored_fc_conv_int8_diff_channels(); }
 void test_conv_refactored_fc_conv_int8_non_4_multiple(void) { conv_refactored_fc_conv_int8_non_4_multiple(); }
 void test_conv_refactored_fc_conv_int8_1x1_kernel(void) { conv_refactored_fc_conv_int8_1x1_kernel(); }
-
-
-
+void test_conv_1x1_out_tail_arm_convolve_s8(void) { conv_1x1_out_tail_arm_convolve_s8(); }
 
 void test_conv_out_activation_arm_convolve_s8(void) { conv_out_activation_arm_convolve_s8(); }
 void test_conv_dilation_golden_arm_convolve_s8(void) { conv_dilation_golden_arm_convolve_s8(); }
