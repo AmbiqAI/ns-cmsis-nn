@@ -10,7 +10,8 @@
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
  * Title:        arm_nn_mat_mult_nt_t_1x1_out_s8.c
- * Description:  Matrix multiplication support function with the right-hand-side (rhs) matrix transposed, optimized for fetching lhs and keeping rhs stationary
+ * Description:  Matrix multiplication support function with the right-hand-side (rhs) matrix transposed, optimized for
+ * fetching lhs and keeping rhs stationary
  *
  * $Date:        04 January 2024
  * $Revision:    V.3.0.0
@@ -37,23 +38,22 @@
  *
  */
 
-
 arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_buf,
-                                            const int8_t *lhs,
-                                            const int8_t *rhs,
-                                            const int32_t *bias,
-                                            int8_t *dst,
-                                            const int32_t *dst_multipliers,
-                                            const int32_t *dst_shifts,
-                                            const int32_t lhs_rows,
-                                            const int32_t rhs_rows,
-                                            const int32_t rhs_cols,
-                                            const int32_t lhs_offset,
-                                            const int32_t dst_offset,
-                                            const int32_t activation_min,
-                                            const int32_t activation_max,
-                                            const int32_t row_address_offset,
-                                            const int32_t lhs_cols_offset)
+                                                    const int8_t *lhs,
+                                                    const int8_t *rhs,
+                                                    const int32_t *bias,
+                                                    int8_t *dst,
+                                                    const int32_t *dst_multipliers,
+                                                    const int32_t *dst_shifts,
+                                                    const int32_t lhs_rows,
+                                                    const int32_t rhs_rows,
+                                                    const int32_t rhs_cols,
+                                                    const int32_t lhs_offset,
+                                                    const int32_t dst_offset,
+                                                    const int32_t activation_min,
+                                                    const int32_t activation_max,
+                                                    const int32_t row_address_offset,
+                                                    const int32_t lhs_cols_offset)
 {
 
 #if defined(ARM_MATH_MVEI)
@@ -61,14 +61,15 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
     (void)row_address_offset;
     (void)lhs_cols_offset;
     (void)lhs_offset;
-    //lhs rows is 1
-    if (lhs_rows != 1) {
+    // lhs rows is 1
+    if (lhs_rows != 1)
+    {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
     int out_idx;
     const int num_elems = 4;
-    for (out_idx = 0; out_idx < rhs_rows; out_idx+=num_elems)
+    for (out_idx = 0; out_idx + num_elems <= rhs_rows; out_idx += num_elems)
     {
         int32_t acc_n0 = 0;
         int32_t acc_n1 = 0;
@@ -80,17 +81,17 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
         const int8_t *ip_col_2 = col_base + (2 * rhs_cols);
         const int8_t *ip_col_3 = col_base + (3 * rhs_cols);
 
-#if defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_AUTOVECTORIZE)
         for (int j = 0; j < rhs_cols; j++)
         {
-            int8_t row = lhs[j];
+            int8_t row = row_base[j];
 
-            acc_n0 += row *col_base[j];
-            acc_n1 += row *ip_col_1[j];
-            acc_n2 += row *ip_col_2[j];
-            acc_n3 += row *ip_col_3[j];
+            acc_n0 += row * col_base[j];
+            acc_n1 += row * ip_col_1[j];
+            acc_n2 += row * ip_col_2[j];
+            acc_n3 += row * ip_col_3[j];
         }
-#else
+    #else
         // Note: If operand initialization is moved around, use '&' constraint to
         // specify earlyclobber operands.
         //
@@ -124,7 +125,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
                          [out3] "=Te"(acc_n3)
                        : [cnt] "r"(rhs_cols)
                        : "q0", "q1", "q2", "q3", "memory", "r14");
-#endif
+    #endif
         int32x4_t res = {acc_n0, acc_n1, acc_n2, acc_n3};
         int32x4_t sum_tmps = vldrwq_s32(weight_sum_buf + out_idx);
         res = vaddq_s32(res, sum_tmps);
@@ -142,21 +143,20 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
 
     const int32_t *multipliers = dst_multipliers;
     const int32_t *shifts = dst_shifts;
-    //finish last rows that aren't multiple of 4
-    out_idx -= num_elems;
+    // Finish output channels that are not a multiple of four.
     for (; out_idx < rhs_rows; out_idx++)
     {
         int32_t acc_n0 = 0;
         const int8_t *lhs_vec = lhs;
         const int8_t *col_base = rhs + out_idx * rhs_cols;
 
-#if defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_AUTOVECTORIZE)
         for (int j = 0; j < rhs_cols; j++)
         {
             int32_t col = col_base[j];
             acc_n0 += lhs_vec[j] * col;
         }
-#else
+    #else
         __ASM volatile(" .p2align 2                             \n"
                        "   wlstp.8         lr, %[cnt], 1f       \n"
                        "   mov             %[out0], 0            \n"
@@ -170,7 +170,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
                        : [col] "+r"(col_base), [row0] "+r"(lhs_vec), [out0] "=Te"(acc_n0)
                        : [cnt] "r"(rhs_cols)
                        : "q0", "q1", "memory", "r14");
-#endif
+    #endif
         int32_t sum_tmp = weight_sum_buf[out_idx];
         acc_n0 += sum_tmp;
         acc_n0 = arm_nn_requantize(acc_n0, multipliers[out_idx], shifts[out_idx]);
@@ -179,6 +179,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
         acc_n0 = MIN(acc_n0, activation_max);
         *dst++ = (int8_t)acc_n0;
     }
+    return ARM_CMSIS_NN_SUCCESS;
 #else
     (void)weight_sum_buf;
     (void)lhs;
@@ -197,8 +198,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
     (void)row_address_offset;
     (void)lhs_cols_offset;
     return ARM_CMSIS_NN_NO_IMPL_ERROR;
-#endif //defined(ARM_MATH_MVEI)
-    return ARM_CMSIS_NN_SUCCESS;
+#endif // defined(ARM_MATH_MVEI)
 }
 
 /**
