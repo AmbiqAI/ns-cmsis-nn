@@ -77,6 +77,39 @@ void arm_nn_conv1d_k5_packed_f32(const float32_t *__RESTRICT x_nhwc,
             vst1q(y0 + oc, vacc0);
             vst1q(y1 + oc, vacc1);
         }
+
+        if (oc < out_c)
+        {
+            const int32_t valid_cols = out_c - oc;
+            const mve_pred16_t p = vctp32q((uint32_t)valid_cols);
+            const float32_t *w_base = kernel_packed + ((size_t)oc / block_cols) * 5U * (size_t)in_c * block_cols;
+            float32x4_t vacc0 = b ? vld1q_z(b + oc, p) : vdupq_n_f32(0.0f);
+            float32x4_t vacc1 = vacc0;
+
+            for (int32_t ic = 0; ic < in_c; ++ic)
+            {
+                const float32_t *w_ic = w_base + (size_t)ic * block_cols;
+                const float32x4_t vw0 = vld1q_z(w_ic + 0U * in_c * block_cols, p);
+                const float32x4_t vw1 = vld1q_z(w_ic + 1U * in_c * block_cols, p);
+                const float32x4_t vw2 = vld1q_z(w_ic + 2U * in_c * block_cols, p);
+                const float32x4_t vw3 = vld1q_z(w_ic + 3U * in_c * block_cols, p);
+                const float32x4_t vw4 = vld1q_z(w_ic + 4U * in_c * block_cols, p);
+
+                vacc0 = vfmaq(vacc0, vw0, x0[ic]);
+                vacc1 = vfmaq(vacc1, vw0, x1[ic]);
+                vacc0 = vfmaq(vacc0, vw1, x1[ic]);
+                vacc1 = vfmaq(vacc1, vw1, x2[ic]);
+                vacc0 = vfmaq(vacc0, vw2, x2[ic]);
+                vacc1 = vfmaq(vacc1, vw2, x3[ic]);
+                vacc0 = vfmaq(vacc0, vw3, x3[ic]);
+                vacc1 = vfmaq(vacc1, vw3, x4[ic]);
+                vacc0 = vfmaq(vacc0, vw4, x4[ic]);
+                vacc1 = vfmaq(vacc1, vw4, x5[ic]);
+            }
+
+            vst1q_p(y0 + oc, vacc0, p);
+            vst1q_p(y1 + oc, vacc1, p);
+        }
     }
 
     if ((out_w & 1) != 0)

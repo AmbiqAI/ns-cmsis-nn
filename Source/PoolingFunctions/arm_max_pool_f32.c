@@ -85,8 +85,15 @@ arm_cmsis_nn_status arm_max_pool_f32(const cmsis_nn_context *ctx,
 
     while (batch_cnt)
     {
+        /*
+         * pad_x == 0 only guarantees the first output window starts in bounds. SAME-style
+         * shapes can still have right-edge-only clipping (e.g. input_x=5, kernel_x=2,
+         * stride_x=2 -> output_x=3), so also require the final output window to fit
+         * entirely within input_x before taking the unclipped fast path.
+         */
+        const bool last_window_fits_x_k2 = (output_x - 1) * stride_x + 2 <= input_x;
         bool use_specialized = (input_y == 1 && output_y == 1 && kernel_y == 1 && stride_y == 1 && pad_y == 0 &&
-                                kernel_x == 2 && stride_x == 2 && pad_x == 0);
+                                kernel_x == 2 && stride_x == 2 && pad_x == 0 && last_window_fits_x_k2);
 #ifdef NN_DISABLE_SPECIALIZATION
         use_specialized = false;
 #endif
@@ -106,9 +113,10 @@ arm_cmsis_nn_status arm_max_pool_f32(const cmsis_nn_context *ctx,
             continue;
         }
 
-        use_specialized =
-            (input_y == 1 && output_y == 1 && kernel_y == 1 && stride_y == 1 && pad_y == 0 && kernel_x == 3 &&
-             stride_x == 3 && pad_x == 0 && act_min <= ARM_NN_F32_FINITE_LOWEST && act_max >= ARM_NN_F32_FINITE_MAX);
+        const bool last_window_fits_x_k3 = (output_x - 1) * stride_x + 3 <= input_x;
+        use_specialized = (input_y == 1 && output_y == 1 && kernel_y == 1 && stride_y == 1 && pad_y == 0 &&
+                           kernel_x == 3 && stride_x == 3 && pad_x == 0 && last_window_fits_x_k3 &&
+                           act_min <= ARM_NN_F32_FINITE_LOWEST && act_max >= ARM_NN_F32_FINITE_MAX);
 #ifdef NN_DISABLE_SPECIALIZATION
         use_specialized = false;
 #endif

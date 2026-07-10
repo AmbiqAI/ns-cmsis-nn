@@ -68,6 +68,19 @@
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>
         <file category="header" name="Include/arm_nn_tables.h"/>
         <file category="header" name="Include/arm_nn_math_types.h"/>
+        <file category="header" name="Include/arm_nnfunctions_flt.h"/>
+        <file category="header" name="Include/arm_nnsupportfunctions_flt.h"/>
+        <file category="header" name="Include/arm_nn_types_flt.h"/>
+        <file category="header" name="Include/arm_nn_math_types_flt.h"/>
+        <file category="header" name="Include/Internal/arm_nn_activation_flt.h"/>
+        <file category="header" name="Include/Internal/arm_conv1x1_opt_f16.h"/>
+        <file category="header" name="Include/Internal/arm_conv1x1_opt_f32.h"/>
+        <file category="header" name="Include/Internal/arm_conv_opt_f16.h"/>
+        <file category="header" name="Include/Internal/arm_conv_opt_f32.h"/>
+        <file category="header" name="Include/Internal/arm_depthwise_conv_opt_f16.h"/>
+        <file category="header" name="Include/Internal/arm_depthwise_conv_opt_f32.h"/>
+        <file category="header" name="Include/Internal/arm_minmax_f16_common.h"/>
+        <file category="header" name="Include/Internal/arm_minmax_f32_common.h"/>
 
         <file category="source" name="Source/ActivationFunctions/arm_clamp_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_clamp_s8.c"/>
@@ -385,6 +398,10 @@
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>
         <file category="header" name="Include/arm_nn_tables.h"/>
         <file category="header" name="Include/arm_nn_math_types.h"/>
+        <file category="header" name="Include/arm_nnfunctions_flt.h"/>
+        <file category="header" name="Include/arm_nnsupportfunctions_flt.h"/>
+        <file category="header" name="Include/arm_nn_types_flt.h"/>
+        <file category="header" name="Include/arm_nn_math_types_flt.h"/>
 
         <file category="library" condition="ARMv6-M GCC"        name="lib/cortex-m0/libns-cmsis-nn.a"/>
         <file category="library" condition="ARMv6-M+ GCC"       name="lib/cortex-m0/libns-cmsis-nn.a"/>

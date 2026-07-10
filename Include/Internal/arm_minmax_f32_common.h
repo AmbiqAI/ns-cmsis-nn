@@ -219,14 +219,12 @@ __STATIC_INLINE arm_cmsis_nn_status arm_minmax_f32_impl(const cmsis_nn_context *
                         {
                             arm_minmax_scalar_f32(input_1_ptr, input_2_ptr, output_data, flat_size_2, select_max);
                             output_data += flat_size_2;
-                            ++input_1_ptr;
                             input_2_ptr += flat_size_2;
                         }
                         else if (flat_size_2 == 1)
                         {
                             arm_minmax_scalar_f32(input_2_ptr, input_1_ptr, output_data, flat_size_1, select_max);
                             output_data += flat_size_1;
-                            ++input_2_ptr;
                             input_1_ptr += flat_size_1;
                         }
                         else
