@@ -1039,9 +1039,8 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_padded_s8(const int8_t *lhs,
  * @param[in]      output_bias     Per channel output bias. Length of vector is equal to number of channels.
  * @param[in]      out             Output pointer
  *
- * @return         The function returns one of the two
- *                  - Updated output pointer if an implementation is available
- *                  - NULL if no implementation is available.
+ * @return         The function returns <code>ARM_CMSIS_NN_SUCCESS</code> if an implementation is available or
+ *                 <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> otherwise
  *
  * @note           Tail channel loads and stores are predicated, so channel-indexed arrays are not accessed beyond
  *                @p active_ch.

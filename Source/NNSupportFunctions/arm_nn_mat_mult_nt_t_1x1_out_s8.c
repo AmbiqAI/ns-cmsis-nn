@@ -179,6 +179,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
         acc_n0 = MIN(acc_n0, activation_max);
         *dst++ = (int8_t)acc_n0;
     }
+    return ARM_CMSIS_NN_SUCCESS;
 #else
     (void)weight_sum_buf;
     (void)lhs;
@@ -198,7 +199,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
     (void)lhs_cols_offset;
     return ARM_CMSIS_NN_NO_IMPL_ERROR;
 #endif // defined(ARM_MATH_MVEI)
-    return ARM_CMSIS_NN_SUCCESS;
 }
 
 /**
