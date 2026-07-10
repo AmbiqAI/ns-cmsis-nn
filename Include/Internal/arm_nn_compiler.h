@@ -131,12 +131,19 @@
     #endif
 #endif
 
+#ifdef __cplusplus
+// Arm MVE intrinsics provide C++ overloads and must not inherit C linkage.
+extern "C++" {
+#endif
 #if defined(__ARM_FEATURE_MVE) && (((__ARM_FEATURE_MVE & 3) == 3) || (__ARM_FEATURE_MVE & 1))
     #include <arm_mve.h>
 #endif
 
 #if defined(__ARM_ARCH) || defined(__ARM_ACLE)
     #include <arm_acle.h>
+#endif
+#ifdef __cplusplus
+}
 #endif
 
 #if defined(__GNUC__)
