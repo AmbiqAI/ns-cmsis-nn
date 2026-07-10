@@ -958,6 +958,7 @@ void depthwise_nt_t_tail_arm_depthwise_conv_s8_opt(void)
     ctx.size = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
     TEST_ASSERT_EQUAL(4 * channel_block, ctx.size);
     ctx.buf = malloc(ctx.size);
+    TEST_ASSERT_NOT_NULL(ctx.buf);
     weight_sum_ctx.buf = weight_sum;
     weight_sum_ctx.size = max_channels * (int32_t)sizeof(int32_t);
 
@@ -1024,7 +1025,7 @@ void depthwise_nt_t_tail_arm_depthwise_conv_s8_opt(void)
             }
         }
         TEST_ASSERT_TRUE(saw_clip);
-        for (int i = channels; i < max_channels; i++)
+        for (int i = channels; i < max_channels + 4; i++)
         {
             TEST_ASSERT_EQUAL_INT32((int32_t)0xA5A5A5A5, weight_sum[i]);
         }

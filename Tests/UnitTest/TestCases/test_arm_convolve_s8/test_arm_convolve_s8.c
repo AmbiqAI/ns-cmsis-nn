@@ -1854,6 +1854,7 @@ void conv_1x1_out_tail_arm_convolve_s8(void)
         arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     TEST_ASSERT_TRUE(buffer_size > 0);
     ctx.buf = malloc(buffer_size);
+    TEST_ASSERT_NOT_NULL(ctx.buf);
     ctx.size = buffer_size;
     weight_sum_ctx.buf = weight_sum;
     weight_sum_ctx.size = max_output_channels * (int32_t)sizeof(int32_t);
@@ -1905,7 +1906,7 @@ void conv_1x1_out_tail_arm_convolve_s8(void)
             TEST_ASSERT_EQUAL_INT8((int8_t)expected, output_storage[i + 2]);
         }
         TEST_ASSERT_TRUE(saw_clip);
-        for (int i = output_channels; i < max_output_channels; i++)
+        for (int i = output_channels; i < max_output_channels + 4; i++)
         {
             TEST_ASSERT_EQUAL_INT32(0xA5A5A5A5, weight_sum[i]);
         }

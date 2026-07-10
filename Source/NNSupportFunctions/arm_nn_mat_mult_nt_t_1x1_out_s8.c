@@ -84,7 +84,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
     #if defined(ARM_MATH_AUTOVECTORIZE)
         for (int j = 0; j < rhs_cols; j++)
         {
-            int8_t row = lhs[j];
+            int8_t row = row_base[j];
 
             acc_n0 += row * col_base[j];
             acc_n1 += row * ip_col_1[j];
