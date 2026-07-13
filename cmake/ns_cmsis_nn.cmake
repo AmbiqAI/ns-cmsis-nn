@@ -105,6 +105,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     if(ARM_NN_ENABLE_F32)
       list(APPEND extras "arm_elementwise_add_f32.c"
                          "arm_elementwise_mul_f32.c"
+                         "arm_minmax_common_f32.c"
                          "arm_minimum_f32.c"
                          "arm_maximum_f32.c")
     endif()
@@ -112,6 +113,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
       list(APPEND extras "arm_elementwise_add_fp16.c"
                          "arm_elementwise_add_f16.c"
                          "arm_elementwise_mul_f16.c"
+                         "arm_minmax_common_f16.c"
                          "arm_minimum_f16.c"
                          "arm_maximum_f16.c")
     endif()
