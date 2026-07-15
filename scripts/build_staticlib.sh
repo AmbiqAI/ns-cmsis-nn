@@ -11,11 +11,27 @@
 #                      --version    <X.Y.Z>          \
 #                      --outdir     <dir>             \
 #                      [--toolchain gcc|atfe|armclang] \
-#                      [--toolchain-root <dir>]
+#                      [--toolchain-root <dir>]        \
+#                      [--enable-f32] [--enable-f16]   \
+#                      [--enable-requantize-inline-asm]
+#
+# --enable-f32/--enable-f16/--enable-requantize-inline-asm pass explicit
+# -DARM_NN_ENABLE_F32/F16=ON and -DCMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY=ON
+# into the configure step — the archive's contents are always driven by
+# what is explicitly requested here, never by CMake option() defaults.
+# This project publishes F16 support for cortex-m55 only (matches the
+# ARMV8_1_M_MVEF Kconfig restriction in zephyr/Kconfig); --enable-f16 is
+# rejected for any other --target-cpu.
+#
+# A "<final_name>.buildconfig.json" sidecar is written next to the
+# archive recording exactly which flags produced it. This is the single
+# source of truth build_sdk_tarball.sh reads to populate the SDK
+# manifest's "features" block, so the manifest can never drift from what
+# was actually compiled into the archive.
 #
 # Outputs in <outdir>:
-#   gcc:               libns-cmsis-nn-<target-cpu>-<version>.a
-#   atfe / armclang:   libns-cmsis-nn-<toolchain>-<target-cpu>-<version>.a
+#   gcc:               libns-cmsis-nn-<target-cpu>-<version>.a(.buildconfig.json)
+#   atfe / armclang:   libns-cmsis-nn-<toolchain>-<target-cpu>-<version>.a(.buildconfig.json)
 
 set -euo pipefail
 
@@ -24,6 +40,9 @@ VERSION=""
 OUTDIR=""
 TOOLCHAIN="gcc"
 TOOLCHAIN_ROOT=""
+ENABLE_F32=0
+ENABLE_F16=0
+ENABLE_REQUANTIZE_INLINE_ASM=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -32,6 +51,9 @@ while [[ $# -gt 0 ]]; do
     --outdir)     OUTDIR="${2:?}";     shift 2 ;;
     --toolchain)  TOOLCHAIN="${2:?}";  shift 2 ;;
     --toolchain-root) TOOLCHAIN_ROOT="${2-}"; shift 2 ;;
+    --enable-f32) ENABLE_F32=1; shift ;;
+    --enable-f16) ENABLE_F16=1; shift ;;
+    --enable-requantize-inline-asm) ENABLE_REQUANTIZE_INLINE_ASM=1; shift ;;
     -h|--help)
       sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
@@ -57,6 +79,12 @@ case "${TARGET_CPU}" in
     exit 2
     ;;
 esac
+
+if [[ "${ENABLE_F16}" == "1" && "${TARGET_CPU}" != "cortex-m55" ]]; then
+  echo "--enable-f16 is only qualified for cortex-m55 (got --target-cpu ${TARGET_CPU});" \
+       "this matches the ARMV8_1_M_MVEF restriction in zephyr/Kconfig." >&2
+  exit 2
+fi
 
 case "${OUTDIR}" in
   /|"."|"..")
@@ -110,12 +138,15 @@ trap 'rm -rf "${build_dir}"' EXIT
 generator="Unix Makefiles"
 command -v ninja >/dev/null && generator="Ninja"
 
-echo ">>> configuring (${TOOLCHAIN}, ${TARGET_CPU})"
+echo ">>> configuring (${TOOLCHAIN}, ${TARGET_CPU}, F32=${ENABLE_F32} F16=${ENABLE_F16} requantize-asm=${ENABLE_REQUANTIZE_INLINE_ASM})"
 cmake -S "${repo_root}" -B "${build_dir}" -G "${generator}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
   -DNS_CMSIS_NN_TOOLCHAIN_ROOT="${TOOLCHAIN_ROOT}" \
-  -DNS_CMSIS_NN_TARGET_CPU="${TARGET_CPU}"
+  -DNS_CMSIS_NN_TARGET_CPU="${TARGET_CPU}" \
+  -DARM_NN_ENABLE_F32="$([[ "${ENABLE_F32}" == "1" ]] && echo ON || echo OFF)" \
+  -DARM_NN_ENABLE_F16="$([[ "${ENABLE_F16}" == "1" ]] && echo ON || echo OFF)" \
+  -DCMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY="$([[ "${ENABLE_REQUANTIZE_INLINE_ASM}" == "1" ]] && echo ON || echo OFF)"
 
 echo ">>> building"
 cmake --build "${build_dir}" --target cmsis-nn --parallel
@@ -139,6 +170,22 @@ fi
 
 ( cd "${OUTDIR}" && sha256sum "${final_name}" > "${final_name}.sha256" )
 
+# Sidecar: single source of truth for what was actually compiled into this
+# archive. build_sdk_tarball.sh reads this to populate the SDK manifest's
+# "features" block, so the manifest can never claim a feature that wasn't
+# actually passed into this configure step.
+buildconfig_path="${final_path}.buildconfig.json"
+cat > "${buildconfig_path}" <<EOF
+{
+  "target_cpu": "${TARGET_CPU}",
+  "toolchain": "${TOOLCHAIN}",
+  "version": "${VERSION}",
+  "arm_nn_enable_f32": $([[ "${ENABLE_F32}" == "1" ]] && echo true || echo false),
+  "arm_nn_enable_f16": $([[ "${ENABLE_F16}" == "1" ]] && echo true || echo false),
+  "cmsis_nn_use_requantize_inline_assembly": $([[ "${ENABLE_REQUANTIZE_INLINE_ASM}" == "1" ]] && echo true || echo false)
+}
+EOF
+
 echo ">>> done: ${final_path}"
 echo ">>> compiler: ${compiler_version}"
-ls -lh "${final_path}" "${final_path}.sha256"
+ls -lh "${final_path}" "${final_path}.sha256" "${buildconfig_path}"

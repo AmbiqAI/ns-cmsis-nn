@@ -73,12 +73,23 @@ jobs:
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           VERSION: ${{ inputs.version }}
         run: |
+          # Superset build: F32 for every combination in this matrix, F16
+          # only for the currently qualified cortex-m55 (matches the
+          # ARMV8_1_M_MVEF Zephyr Kconfig restriction). Flags are always
+          # explicit so the archive's actual contents never silently
+          # drift from what this workflow intended to publish.
+          f16_flag=()
+          if [[ "$TARGET_CPU" == "cortex-m55" ]]; then
+            f16_flag=(--enable-f16)
+          fi
           bash scripts/build_staticlib.sh \
             --target-cpu "$TARGET_CPU" \
             --version    "$VERSION" \
             --toolchain  "$TOOLCHAIN" \
             --toolchain-root "$TOOLCHAIN_ROOT" \
-            --outdir     "./output/$TOOLCHAIN/$TARGET_CPU"
+            --outdir     "./output/$TOOLCHAIN/$TARGET_CPU" \
+            --enable-f32 \
+            "${f16_flag[@]}"
 
       - name: Smoke-verify static library
         # GCC and ATfE get a bare-metal link smoke test. armclang currently gets
@@ -116,13 +127,56 @@ jobs:
             lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TOOLCHAIN}-${TARGET_CPU}-${VERSION}.a"
             toolchain_version="$TOOLCHAIN_VERSION"
           fi
+          # Re-pass the same feature selection so build_sdk_tarball.sh
+          # cross-checks it against the "<lib>.buildconfig.json" sidecar
+          # build_staticlib.sh wrote, catching any drift between what this
+          # workflow requested and what was actually compiled.
+          f16_flag=()
+          if [[ "$TARGET_CPU" == "cortex-m55" ]]; then
+            f16_flag=(--enable-f16)
+          fi
           bash scripts/build_sdk_tarball.sh \
             --target-cpu         "$TARGET_CPU" \
             --version            "$VERSION"    \
             --staticlib          "$lib"        \
             --toolchain          "$TOOLCHAIN"  \
             --toolchain-version  "$toolchain_version" \
-            --outdir             "./output/${TOOLCHAIN}/${TARGET_CPU}"
+            --outdir             "./output/${TOOLCHAIN}/${TARGET_CPU}" \
+            --enable-f32 \
+            "${f16_flag[@]}"
+
+      - name: Verify manifest matches requested features
+        # Guards against metadata drift: the published manifest.json must
+        # report exactly what this job requested (F32 always on, F16 only
+        # for cortex-m55), and must be marked "verified" (sourced from the
+        # buildconfig.json sidecar, not an unverified CLI-flag fallback).
+        env:
+          TARGET_CPU: ${{ matrix.target_cpu }}
+          TOOLCHAIN: ${{ matrix.toolchain }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          pkg_dir="./output/${TOOLCHAIN}/${TARGET_CPU}"
+          tarball="${pkg_dir}/ns-cmsis-nn-${TARGET_CPU}-${TOOLCHAIN}-${VERSION}.tar.gz"
+          extract_dir="${pkg_dir}/_manifest_check"
+          rm -rf "$extract_dir"; mkdir -p "$extract_dir"
+          tar -xzf "$tarball" -C "$extract_dir"
+          manifest="${extract_dir}/ns-cmsis-nn-${TARGET_CPU}-${TOOLCHAIN}-${VERSION}/manifest.json"
+          expected_f16=false
+          [[ "$TARGET_CPU" == "cortex-m55" ]] && expected_f16=true
+          got_f32="$(jq -r '.features.f32' "$manifest")"
+          got_f16="$(jq -r '.features.f16' "$manifest")"
+          got_verified="$(jq -r '.features.verified' "$manifest")"
+          if [[ "$got_f32" != "true" ]]; then
+            echo "manifest f32=$got_f32, expected true" >&2; exit 1
+          fi
+          if [[ "$got_f16" != "$expected_f16" ]]; then
+            echo "manifest f16=$got_f16, expected $expected_f16 for $TARGET_CPU" >&2; exit 1
+          fi
+          if [[ "$got_verified" != "true" ]]; then
+            echo "manifest features.verified=$got_verified, expected true" >&2; exit 1
+          fi
+          echo "manifest OK: f32=$got_f32 f16=$got_f16 verified=$got_verified"
 
       - name: Upload artefact
         uses: actions/upload-artifact@v4

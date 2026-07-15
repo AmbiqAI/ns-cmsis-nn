@@ -26,17 +26,29 @@
 #   prebuilt                  — NSX_CMSIS_NN_LIB=<dummy.a>, expect the
 #                               IMPORTED prebuilt target + INTERFACE wrapper
 #                               + alias.
+#   prebuilt_manifest_ok      — NSX_CMSIS_NN_LIB with a sibling manifest.json
+#                               reporting f32=true, NSX_CMSIS_NN_ENABLE_F32=ON;
+#                               expect configure success + ARM_NN_ENABLE_F32=1.
+#   prebuilt_manifest_reject  — same, but manifest reports f32=false; expect
+#                               a configure-time FATAL_ERROR (via a child
+#                               cmake probe), not a silent link-time failure.
+#   prebuilt_manifest_legacy  — manifest.json has no "features" block
+#                               (pre-existing schema_version 1 package);
+#                               requesting F32 must FATAL_ERROR per the
+#                               documented conservative integer-only fallback.
 #
 # Invoke as:
 #
 #     cmake -S cmake/tests/nsx_wiring -B build/nsx_wiring -DCASE=source_all
 #
-cmake_minimum_required(VERSION 3.15)
+# string(JSON ...) (used by the prebuilt_manifest_* cases) requires CMake >= 3.19.
+cmake_minimum_required(VERSION 3.19)
 project(ns_cmsis_nn_nsx_wiring C)
 
 set(CASE "source_all" CACHE STRING "Which wiring case to exercise.")
 set_property(CACHE CASE PROPERTY STRINGS
-  source_all source_subset inline_asm float_f32 float_f16 float_both prebuilt)
+  source_all source_subset inline_asm float_f32 float_f16 float_both prebuilt
+  prebuilt_manifest_ok prebuilt_manifest_reject prebuilt_manifest_legacy)
 
 get_filename_component(_repo_root "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
 include("${_repo_root}/cmake/ns_cmsis_nn.cmake")
@@ -71,6 +83,66 @@ set(_failures "")
 function(_fail msg)
   set(_failures "${_failures}\n  - ${msg}" PARENT_SCOPE)
 endfunction()
+
+# ----------------------------------------------------------------------------
+# prebuilt_manifest_reject / prebuilt_manifest_legacy: nsx/CMakeLists.txt's
+# manifest validation raises a configure-time FATAL_ERROR, which would abort
+# this whole test script if triggered directly via add_subdirectory(). Drive
+# it via a child cmake invocation instead (same pattern as
+# cmake/tests/find_package's cpu_mismatch case) and assert on the non-zero
+# exit + diagnostic message.
+# ----------------------------------------------------------------------------
+if(CASE STREQUAL "prebuilt_manifest_reject" OR CASE STREQUAL "prebuilt_manifest_legacy")
+  set(_fake_lib "${CMAKE_BINARY_DIR}/_fake_prebuilt_reject.a")
+  file(TOUCH "${_fake_lib}")
+
+  if(CASE STREQUAL "prebuilt_manifest_reject")
+    # Archive explicitly reports it does NOT have f32.
+    file(WRITE "${CMAKE_BINARY_DIR}/manifest.json" "{
+  \"schema_version\": 2,
+  \"features\": { \"integer\": true, \"f32\": false, \"f16\": false, \"requantize_inline_asm\": false, \"verified\": true }
+}
+")
+  else()
+    # Pre-existing schema_version 1 package: no "features" block at all.
+    file(WRITE "${CMAKE_BINARY_DIR}/manifest.json" "{
+  \"schema_version\": 1
+}
+")
+  endif()
+
+  set(_probe "${CMAKE_BINARY_DIR}/_manifest_probe")
+  file(REMOVE_RECURSE "${_probe}")
+  file(MAKE_DIRECTORY "${_probe}")
+  file(WRITE "${_probe}/CMakeLists.txt"
+"cmake_minimum_required(VERSION 3.19)
+project(probe C)
+add_library(_nsx_board_flags INTERFACE)
+set(NSX_BOARD_FLAGS_TARGET _nsx_board_flags)
+set(NSX_CMSIS_NN_LIB \"${_fake_lib}\" CACHE FILEPATH \"\" FORCE)
+set(NSX_CMSIS_NN_ENABLE_F32 ON CACHE BOOL \"\" FORCE)
+add_subdirectory(\"${_repo_root}/nsx\" nsx)
+")
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -S "${_probe}" -B "${_probe}/_b"
+    RESULT_VARIABLE _rc
+    OUTPUT_VARIABLE _out
+    ERROR_VARIABLE  _err)
+  if(_rc EQUAL 0)
+    _fail("${CASE}: probe unexpectedly succeeded (expected FATAL_ERROR)\n${_out}\n${_err}")
+  else()
+    string(FIND "${_err}" "NSX_CMSIS_NN_ENABLE_F32 was requested" _msg_idx)
+    if(_msg_idx EQUAL -1)
+      _fail("${CASE}: probe failed but without the expected diagnostic; stderr:\n${_err}")
+    endif()
+  endif()
+
+  if(_failures)
+    message(FATAL_ERROR "NSX wiring [${CASE}] FAILED:${_failures}")
+  endif()
+  message(STATUS "NSX wiring [${CASE}] OK.")
+  return()
+endif()
 
 # ----------------------------------------------------------------------------
 # Required host plumbing: the NSX board provides this; we stub it.
@@ -131,8 +203,24 @@ elseif(CASE STREQUAL "prebuilt")
   set(NSX_CMSIS_NN_LIB "${_fake_lib}" CACHE FILEPATH "" FORCE)
   set(_expect_prebuilt TRUE)
 
+elseif(CASE STREQUAL "prebuilt_manifest_ok")
+  set(_fake_lib "${CMAKE_BINARY_DIR}/_fake_prebuilt_ok.a")
+  file(TOUCH "${_fake_lib}")
+  # manifest.json sits next to the archive — matches the tarball's
+  # "lib/libns-cmsis-nn.a" + root "manifest.json" layout auto-discovery rule.
+  file(WRITE "${CMAKE_BINARY_DIR}/manifest.json" "{
+  \"schema_version\": 2,
+  \"features\": { \"integer\": true, \"f32\": true, \"f16\": false, \"requantize_inline_asm\": false, \"verified\": true }
+}
+")
+  set(NSX_CMSIS_NN_LIB "${_fake_lib}" CACHE FILEPATH "" FORCE)
+  set(NSX_CMSIS_NN_ENABLE_F32 ON CACHE BOOL "" FORCE)
+  set(_expect_prebuilt TRUE)
+  set(_expect_f32_define 1)
+  set(_expect_f16_define 0)
+
 else()
-  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: source_all, source_subset, inline_asm, float_f32, float_f16, float_both, prebuilt.")
+  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: source_all, source_subset, inline_asm, float_f32, float_f16, float_both, prebuilt, prebuilt_manifest_ok, prebuilt_manifest_reject, prebuilt_manifest_legacy.")
 endif()
 
 # ----------------------------------------------------------------------------

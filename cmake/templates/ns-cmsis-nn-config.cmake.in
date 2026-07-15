@@ -19,6 +19,15 @@ set(NS_CMSIS_NN_ARCH_FLAGS          "@NS_CMSIS_NN_ARCH_FLAGS@")
 set(NS_CMSIS_NN_TOOLCHAIN           "@NS_CMSIS_NN_TOOLCHAIN@")
 set(NS_CMSIS_NN_TOOLCHAIN_COMPILER  "@NS_CMSIS_NN_TOOLCHAIN_COMPILER@")
 
+# Capability flags: what this specific archive was actually compiled with.
+# These describe archive *contents*, distinct from a consumer's feature
+# *request* (NSX's NSX_CMSIS_NN_ENABLE_F32/F16, Zephyr's
+# CONFIG_NS_CMSIS_NN_ENABLE_F32/F16). Consumers should validate their
+# requests against these before turning ARM_NN_ENABLE_F32/F16 on.
+set(NS_CMSIS_NN_HAS_F32                   @NS_CMSIS_NN_HAS_F32@)
+set(NS_CMSIS_NN_HAS_F16                   @NS_CMSIS_NN_HAS_F16@)
+set(NS_CMSIS_NN_HAS_REQUANTIZE_INLINE_ASM @NS_CMSIS_NN_HAS_REQUANTIZE_INLINE_ASM@)
+
 get_filename_component(_ns_cmsis_nn_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(NS_CMSIS_NN_INCLUDE_DIR "${_ns_cmsis_nn_root}/include")
 set(NS_CMSIS_NN_LIBRARY     "${_ns_cmsis_nn_root}/lib/libns-cmsis-nn.a")
@@ -69,6 +78,25 @@ if(NOT TARGET cmsis-nn)
     INTERFACE_INCLUDE_DIRECTORIES "${NS_CMSIS_NN_INCLUDE_DIR}")
   add_library(ns-cmsis-nn  ALIAS cmsis-nn)
   add_library(ns::cmsis-nn ALIAS cmsis-nn)
+
+  # Auto-expose every float capability this archive was actually compiled
+  # with. Unlike NSX/Zephyr (which have pre-existing opt-in toggles this
+  # package config has no such API, so the documented policy here is full
+  # automatic exposure: if the archive HAS a feature, consumers linking
+  # against it get the matching ARM_NN_ENABLE_* macro for free, so the
+  # float headers declare what the archive actually implements.
+  set(_ns_cmsis_nn_defs "")
+  if(NS_CMSIS_NN_HAS_F32)
+    list(APPEND _ns_cmsis_nn_defs "ARM_NN_ENABLE_F32=1")
+  endif()
+  if(NS_CMSIS_NN_HAS_F16)
+    list(APPEND _ns_cmsis_nn_defs "ARM_NN_ENABLE_F16=1")
+  endif()
+  if(_ns_cmsis_nn_defs)
+    set_property(TARGET cmsis-nn APPEND PROPERTY
+      INTERFACE_COMPILE_DEFINITIONS "${_ns_cmsis_nn_defs}")
+  endif()
+  unset(_ns_cmsis_nn_defs)
 endif()
 
 set(${CMAKE_FIND_PACKAGE_NAME}_FOUND TRUE)

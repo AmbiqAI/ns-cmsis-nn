@@ -19,17 +19,29 @@
 #                               fail (PACKAGE_VERSION_COMPATIBLE=FALSE).
 #   cpu_mismatch              — consumer's CMAKE_C_FLAGS specifies a different
 #                               -mcpu, config must FATAL_ERROR.
+#   features_superset         — archive built with a buildconfig.json sidecar
+#                               reporting f32/f16=true; expect
+#                               NS_CMSIS_NN_HAS_F32/F16=TRUE and
+#                               ARM_NN_ENABLE_F32=1;ARM_NN_ENABLE_F16=1
+#                               auto-forwarded onto cmsis-nn.
+#   features_legacy_manifest  — manifest.json has no "features" block
+#                               (pre-existing schema_version 1 package);
+#                               expect the conservative integer-only
+#                               fallback (NS_CMSIS_NN_HAS_F32/F16=FALSE,
+#                               no ARM_NN_ENABLE_* forwarded).
 #
 # Invoke as:
 #
 #     cmake -S cmake/tests/find_package -B build/find_package -DCASE=happy
 #
 # Requires bash + tar + sha256sum + a fake .a (no real toolchain needed).
-cmake_minimum_required(VERSION 3.15)
+# string(JSON ...) (used by features_superset) requires CMake >= 3.19.
+cmake_minimum_required(VERSION 3.19)
 project(ns_cmsis_nn_find_package_test C)
 
 set(CASE "happy" CACHE STRING "Which find_package case to exercise.")
-set_property(CACHE CASE PROPERTY STRINGS happy version_mismatch cpu_mismatch)
+set_property(CACHE CASE PROPERTY STRINGS
+  happy version_mismatch cpu_mismatch features_superset features_legacy_manifest)
 
 get_filename_component(_repo_root "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
 set(_fake_version "9.9.9")
@@ -42,6 +54,22 @@ set(_toolchain    "gcc")
 # ----------------------------------------------------------------------------
 set(_fake_lib "${CMAKE_BINARY_DIR}/libns-cmsis-nn-${_target_cpu}-${_fake_version}.a")
 file(WRITE "${_fake_lib}" "fake archive\n")
+
+# features_superset drives build_sdk_tarball.sh's authoritative sidecar path
+# by writing a "<fake_lib>.buildconfig.json" next to the fake archive — no
+# real Cortex-M toolchain build is required to exercise this wiring.
+if(CASE STREQUAL "features_superset")
+  file(WRITE "${_fake_lib}.buildconfig.json" "{
+  \"target_cpu\": \"${_target_cpu}\",
+  \"toolchain\": \"${_toolchain}\",
+  \"version\": \"${_fake_version}\",
+  \"arm_nn_enable_f32\": true,
+  \"arm_nn_enable_f16\": true,
+  \"cmsis_nn_use_requantize_inline_assembly\": false
+}
+")
+endif()
+
 
 set(_pkg_outdir "${CMAKE_BINARY_DIR}/sdk")
 file(MAKE_DIRECTORY "${_pkg_outdir}")
@@ -78,6 +106,26 @@ if(NOT _rc EQUAL 0)
 endif()
 
 set(_pkg_dir "${_extract_root}/ns-cmsis-nn-${_target_cpu}-${_toolchain}-${_fake_version}")
+
+# features_legacy_manifest simulates a pre-existing schema_version 1
+# package (published before float support existed): overwrite the
+# freshly-rendered manifest.json/cmake config with the old, feature-less
+# shape so we can assert on the documented conservative fallback.
+if(CASE STREQUAL "features_legacy_manifest")
+  file(WRITE "${_pkg_dir}/manifest.json" "{
+  \"schema_version\": 1,
+  \"package\": \"ns-cmsis-nn\",
+  \"version\": \"${_fake_version}\",
+  \"target_cpu\": \"${_target_cpu}\"
+}
+")
+  # An old cmake config template never had NS_CMSIS_NN_HAS_* vars either;
+  # simulate that by dropping those lines from the rendered config.
+  file(READ "${_pkg_dir}/cmake/ns-cmsis-nn-config.cmake" _legacy_cfg)
+  string(REGEX REPLACE "set\\(NS_CMSIS_NN_HAS_[A-Z_]+ +[a-z]+\\)\n" "" _legacy_cfg "${_legacy_cfg}")
+  string(REGEX REPLACE "if\\(NS_CMSIS_NN_HAS_[A-Z_]+\\)\n *list\\(APPEND[^\n]*\n *endif\\(\\)\n" "" _legacy_cfg "${_legacy_cfg}")
+  file(WRITE "${_pkg_dir}/cmake/ns-cmsis-nn-config.cmake" "${_legacy_cfg}")
+endif()
 
 # ----------------------------------------------------------------------------
 # Failure collector.
@@ -160,8 +208,70 @@ find_package(ns-cmsis-nn REQUIRED PATHS \"${_pkg_dir}/cmake\" NO_DEFAULT_PATH)
     _fail("cpu mismatch probe failed but without the expected diagnostic; stderr:\n${_err}")
   endif()
 
+elseif(CASE STREQUAL "features_superset")
+  find_package(ns-cmsis-nn ${_fake_version} EXACT REQUIRED
+               PATHS "${_pkg_dir}/cmake" NO_DEFAULT_PATH)
+
+  if(NOT NS_CMSIS_NN_HAS_F32)
+    _fail("features_superset: NS_CMSIS_NN_HAS_F32='${NS_CMSIS_NN_HAS_F32}', expected true")
+  endif()
+  if(NOT NS_CMSIS_NN_HAS_F16)
+    _fail("features_superset: NS_CMSIS_NN_HAS_F16='${NS_CMSIS_NN_HAS_F16}', expected true")
+  endif()
+  if(TARGET cmsis-nn)
+    get_target_property(_defs cmsis-nn INTERFACE_COMPILE_DEFINITIONS)
+    list(FIND _defs "ARM_NN_ENABLE_F32=1" _f32_idx)
+    if(_f32_idx EQUAL -1)
+      _fail("features_superset: ARM_NN_ENABLE_F32=1 not auto-forwarded onto cmsis-nn; got: ${_defs}")
+    endif()
+    list(FIND _defs "ARM_NN_ENABLE_F16=1" _f16_idx)
+    if(_f16_idx EQUAL -1)
+      _fail("features_superset: ARM_NN_ENABLE_F16=1 not auto-forwarded onto cmsis-nn; got: ${_defs}")
+    endif()
+  endif()
+  # manifest.json itself must also record the same capabilities (what was
+  # actually compiled in, per the buildconfig.json sidecar) — not just the
+  # cmake config's mirror of it.
+  file(READ "${_pkg_dir}/manifest.json" _manifest_json)
+  string(JSON _manifest_f32 GET "${_manifest_json}" features f32)
+  string(JSON _manifest_f16 GET "${_manifest_json}" features f16)
+  string(JSON _manifest_verified GET "${_manifest_json}" features verified)
+  if(NOT _manifest_f32)
+    _fail("features_superset: manifest.json features.f32='${_manifest_f32}', expected true")
+  endif()
+  if(NOT _manifest_f16)
+    _fail("features_superset: manifest.json features.f16='${_manifest_f16}', expected true")
+  endif()
+  if(NOT _manifest_verified)
+    _fail("features_superset: manifest.json features.verified='${_manifest_verified}', expected true (sourced from buildconfig.json sidecar)")
+  endif()
+
+elseif(CASE STREQUAL "features_legacy_manifest")
+  find_package(ns-cmsis-nn ${_fake_version} EXACT REQUIRED
+               PATHS "${_pkg_dir}/cmake" NO_DEFAULT_PATH)
+
+  # Conservative fallback: a manifest/config with no feature metadata at
+  # all must never claim float capability.
+  if(NS_CMSIS_NN_HAS_F32)
+    _fail("features_legacy_manifest: NS_CMSIS_NN_HAS_F32='${NS_CMSIS_NN_HAS_F32}', expected unset/FALSE for a feature-less legacy package")
+  endif()
+  if(NS_CMSIS_NN_HAS_F16)
+    _fail("features_legacy_manifest: NS_CMSIS_NN_HAS_F16='${NS_CMSIS_NN_HAS_F16}', expected unset/FALSE for a feature-less legacy package")
+  endif()
+  if(TARGET cmsis-nn)
+    get_target_property(_defs cmsis-nn INTERFACE_COMPILE_DEFINITIONS)
+    list(FIND _defs "ARM_NN_ENABLE_F32=1" _f32_idx)
+    if(NOT _f32_idx EQUAL -1)
+      _fail("features_legacy_manifest: ARM_NN_ENABLE_F32=1 unexpectedly forwarded for a legacy package with no features block")
+    endif()
+    list(FIND _defs "ARM_NN_ENABLE_F16=1" _f16_idx)
+    if(NOT _f16_idx EQUAL -1)
+      _fail("features_legacy_manifest: ARM_NN_ENABLE_F16=1 unexpectedly forwarded for a legacy package with no features block")
+    endif()
+  endif()
+
 else()
-  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: happy, version_mismatch, cpu_mismatch.")
+  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: happy, version_mismatch, cpu_mismatch, features_superset, features_legacy_manifest.")
 endif()
 
 # ----------------------------------------------------------------------------

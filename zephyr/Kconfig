@@ -32,6 +32,14 @@ config NS_CMSIS_NN_USE_PREBUILT
 	  NS_CMSIS_NN_* group knobs below are ignored in prebuilt mode
 	  (the prebuilt .a already contains every kernel).
 
+	  NS_CMSIS_NN_ENABLE_F32 and NS_CMSIS_NN_ENABLE_F16 are the
+	  exception: they still control whether the float API declarations
+	  are visible to consumer code. When the extracted tarball ships a
+	  manifest.json describing which float features were actually
+	  compiled in, these requests are validated against it at configure
+	  time and a clear error is raised for any request the archive
+	  doesn't support — see NS_CMSIS_NN_ENABLE_F32/F16 below.
+
 config NS_CMSIS_NN_PREBUILT_PATH
 	string "Filesystem path to an extracted ns-cmsis-nn SDK tarball"
 	depends on NS_CMSIS_NN_USE_PREBUILT
@@ -134,6 +142,16 @@ config NS_CMSIS_NN_ENABLE_F32
 	  module build. This maps to ARM_NN_ENABLE_F32 for source selection
 	  and compile-time guards.
 
+	  In NS_CMSIS_NN_USE_PREBUILT mode this only controls header
+	  visibility of the float declarations — it does not affect the
+	  prebuilt archive's contents. If the extracted tarball has a
+	  manifest.json recording its compiled-in features, this request is
+	  validated against it and CMake FATAL_ERRORs at configure time if
+	  the archive doesn't actually implement F32 (rather than surfacing
+	  as an undefined-reference link error). Manifests without feature
+	  metadata (older packages) are conservatively treated as
+	  integer-only.
+
 	  IMPORTANT: If your runtime (for example TFLM) also uses CMSIS-NN
 	  float APIs, it must be built with matching float enable flags.
 
@@ -148,6 +166,16 @@ config NS_CMSIS_NN_ENABLE_F16
 	  and compile-time guards.
 
 	  Requires MVE floating-point (Armv8.1-M MVEF, e.g. Cortex-M55).
+
+	  In NS_CMSIS_NN_USE_PREBUILT mode this only controls header
+	  visibility of the float declarations — it does not affect the
+	  prebuilt archive's contents. If the extracted tarball has a
+	  manifest.json recording its compiled-in features, this request is
+	  validated against it and CMake FATAL_ERRORs at configure time if
+	  the archive doesn't actually implement F16 (rather than surfacing
+	  as an undefined-reference link error). Manifests without feature
+	  metadata (older packages) are conservatively treated as
+	  integer-only.
 
 	  IMPORTANT: If your runtime (for example TFLM) also uses CMSIS-NN
 	  float APIs, it must be built with matching float enable flags.

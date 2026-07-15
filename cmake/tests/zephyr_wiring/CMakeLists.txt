@@ -25,7 +25,7 @@
 #     CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY define;
 #   - the module is guarded on CONFIG_NS_CMSIS_NN.
 #
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.20)
 # C is enabled so add_library(STATIC) (used internally by the stubs) works.
 project(ns_cmsis_nn_zephyr_wiring C)
 
@@ -438,10 +438,93 @@ if(_inc_idx EQUAL -1)
 endif()
 
 # ----------------------------------------------------------------------------
+# Case 3b: prebuilt mode with a manifest.json reporting f32=true. Requesting
+# CONFIG_NS_CMSIS_NN_ENABLE_F32=y must succeed and forward ARM_NN_ENABLE_F32=1.
+# ----------------------------------------------------------------------------
+set(STUB_LIBRARY_NAME "")
+set(STUB_COMPILE_OPTIONS "")
+set(STUB_GLOBAL_INCLUDE_DIRS "")
+set(STUB_LIBRARY_INCLUDE_DIRS "")
+set(STUB_COMPILE_DEFINITIONS "")
+set(STUB_APP_LINK_LIBRARIES "")
+
+file(WRITE "${_fake_sdk}/manifest.json" "{
+  \"schema_version\": 2,
+  \"features\": { \"integer\": true, \"f32\": true, \"f16\": false, \"requantize_inline_asm\": false, \"verified\": true }
+}
+")
+set(CONFIG_NS_CMSIS_NN_ENABLE_F32 1)
+unset(CONFIG_NS_CMSIS_NN_ENABLE_F16)
+
+include("${_repo_root}/zephyr/CMakeLists.txt")
+
+list(FIND STUB_COMPILE_DEFINITIONS "ARM_NN_ENABLE_F32=1" _prebuilt_f32_idx)
+if(_prebuilt_f32_idx EQUAL -1)
+  _fail("prebuilt manifest-ok case: ARM_NN_ENABLE_F32=1 missing from compile definitions; got: ${STUB_COMPILE_DEFINITIONS}")
+endif()
+list(FIND STUB_COMPILE_DEFINITIONS "ARM_NN_ENABLE_F16=0" _prebuilt_f16_idx)
+if(_prebuilt_f16_idx EQUAL -1)
+  _fail("prebuilt manifest-ok case: ARM_NN_ENABLE_F16=0 missing from compile definitions; got: ${STUB_COMPILE_DEFINITIONS}")
+endif()
+
+# ----------------------------------------------------------------------------
+# Case 3c: prebuilt mode, manifest reports f32=false. Requesting
+# CONFIG_NS_CMSIS_NN_ENABLE_F32=y must FATAL_ERROR at configure time rather
+# than silently producing an undefined-reference link error later. Driven
+# via a child cmake invocation (the FATAL_ERROR would otherwise abort this
+# whole test script).
+# ----------------------------------------------------------------------------
+file(WRITE "${_fake_sdk}/manifest.json" "{
+  \"schema_version\": 2,
+  \"features\": { \"integer\": true, \"f32\": false, \"f16\": false, \"requantize_inline_asm\": false, \"verified\": true }
+}
+")
+
+set(_zephyr_probe "${CMAKE_BINARY_DIR}/_zephyr_manifest_probe")
+file(REMOVE_RECURSE "${_zephyr_probe}")
+file(MAKE_DIRECTORY "${_zephyr_probe}")
+file(WRITE "${_zephyr_probe}/CMakeLists.txt"
+"cmake_minimum_required(VERSION 3.20)
+project(zephyr_manifest_reject_probe C)
+macro(zephyr_library)
+endmacro()
+macro(zephyr_library_compile_options)
+endmacro()
+macro(zephyr_include_directories)
+endmacro()
+macro(zephyr_library_include_directories)
+endmacro()
+macro(zephyr_compile_definitions)
+endmacro()
+macro(zephyr_link_libraries)
+endmacro()
+set(ZEPHYR_CURRENT_MODULE_DIR \"${_repo_root}\")
+set(ZEPHYR_CMSIS_MODULE_DIR \"${CMAKE_CURRENT_BINARY_DIR}/__fake_cmsis_module__\")
+set(CONFIG_NS_CMSIS_NN 1)
+set(CONFIG_NS_CMSIS_NN_USE_PREBUILT 1)
+set(CONFIG_NS_CMSIS_NN_PREBUILT_PATH \"${_fake_sdk}\")
+set(CONFIG_NS_CMSIS_NN_ENABLE_F32 1)
+include(\"${_repo_root}/zephyr/CMakeLists.txt\")
+")
+execute_process(
+  COMMAND ${CMAKE_COMMAND} -S "${_zephyr_probe}" -B "${_zephyr_probe}/_b"
+  RESULT_VARIABLE _zephyr_probe_rc
+  OUTPUT_VARIABLE _zephyr_probe_out
+  ERROR_VARIABLE  _zephyr_probe_err)
+if(_zephyr_probe_rc EQUAL 0)
+  _fail("prebuilt manifest-reject case: probe unexpectedly succeeded (expected FATAL_ERROR)\n${_zephyr_probe_out}\n${_zephyr_probe_err}")
+else()
+  string(FIND "${_zephyr_probe_err}" "CONFIG_NS_CMSIS_NN_ENABLE_F32=y but the prebuilt SDK's manifest" _zephyr_probe_msg_idx)
+  if(_zephyr_probe_msg_idx EQUAL -1)
+    _fail("prebuilt manifest-reject case: probe failed but without the expected diagnostic; stderr:\n${_zephyr_probe_err}")
+  endif()
+endif()
+
+# ----------------------------------------------------------------------------
 # Report.
 # ----------------------------------------------------------------------------
 if(_failures)
   message(FATAL_ERROR "Zephyr wiring test FAILED:${_failures}")
 endif()
 
-message(STATUS "Zephyr wiring OK: 23 knobs translated, baseline source set attached, float source gates validated, inline-asm define propagated, prebuilt mode imports SDK tarball.")
+message(STATUS "Zephyr wiring OK: 23 knobs translated, baseline source set attached, float source gates validated, inline-asm define propagated, prebuilt mode imports SDK tarball, prebuilt manifest validation accepts/rejects float requests.")

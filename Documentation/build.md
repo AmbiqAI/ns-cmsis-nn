@@ -105,7 +105,11 @@ target_link_libraries(my_app PRIVATE nsx::cmsis_nn)
 ```
 
 Prebuilt mode (set `NSX_CMSIS_NN_LIB` to an `.a`) bypasses the SSoT
-entirely and only exposes headers.
+entirely and only exposes headers. When a `manifest.json` sidecar is
+discoverable next to the archive (see
+["Float (F32/F16) capability manifest"](#float-f32f16-capability-manifest)
+below), requesting `NSX_CMSIS_NN_ENABLE_F32`/`F16` is validated against
+it at configure time.
 
 ### Prebuilt static library
 
@@ -133,6 +137,11 @@ target_link_libraries(my_app PRIVATE ns::cmsis-nn)
 The same target names (`cmsis-nn`, `ns-cmsis-nn`, `ns::cmsis-nn`) the
 source build exposes resolve to the imported archive, so consumer code
 is build-mode agnostic.
+
+The full SDK tarball (see below) additionally ships a `manifest.json`
+and a `find_package(ns-cmsis-nn)`-compatible CMake package config that
+auto-forwards the archive's compiled-in float capabilities — prefer
+that path over the bare-archive helper above when you need F32/F16.
 
 ## Adding a new kernel group
 
@@ -188,7 +197,14 @@ cross-compiler required:
    `zephyr/CMakeLists.txt` and asserts the captured wiring: 206 sources
    attached, `Include/` exposed globally, `CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY`
    propagated, and every SSoT group covered by the Kconfig translation
-   table. Run with:
+   table. It also drives the prebuilt path against a fake extracted SDK
+   tarball with a `manifest.json` sidecar, asserting that a requested
+   `CONFIG_NS_CMSIS_NN_ENABLE_F32/F16` is forwarded as `ARM_NN_ENABLE_F32/F16`
+   compile definitions when the manifest reports that capability, and
+   that requesting a capability the manifest does not report aborts
+   configure with `FATAL_ERROR` (verified via a child `cmake` probe
+   process, since a direct failure would abort the whole test script).
+   Run with:
 
    ```sh
    cmake -S cmake/tests/zephyr_wiring -B build/zephyr_wiring
@@ -231,6 +247,9 @@ rules incorrectly. Two checks pin that contract:
    | `source_subset` | `NSX_CMSIS_NN_GROUPS="activation;convolution"` resolves to exactly 62 sources. |
    | `inline_asm` | `NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM=ON` propagates `CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY`. |
    | `prebuilt` | `NSX_CMSIS_NN_LIB=…` builds an INTERFACE wrapper + IMPORTED prebuilt target, alias still works. |
+   | `prebuilt_manifest_ok` | Prebuilt lib + sibling `manifest.json` reporting `f32=true`; `NSX_CMSIS_NN_ENABLE_F32=ON` succeeds and forwards `ARM_NN_ENABLE_F32=1`. |
+   | `prebuilt_manifest_reject` | Manifest reports `f32=false`; requesting `NSX_CMSIS_NN_ENABLE_F32=ON` aborts with `FATAL_ERROR` (via child `cmake` probe). |
+   | `prebuilt_manifest_legacy` | Manifest has no `features` block (schema v1); requesting F32 is conservatively rejected the same way. |
 
    Run any case locally with:
 
@@ -351,13 +370,105 @@ for the smoke link):
 | `cortex-m4`  | `-mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard` |
 | `cortex-m55` | `-mcpu=cortex-m55 -mthumb -mfloat-abi=hard` |
 
+Each archive is built as a **superset for its target_cpu/toolchain**:
+integer kernels are always included, and `scripts/build_staticlib.sh`
+is invoked with the float flags qualified for that combination (see
+["Float (F32/F16) capability manifest"](#float-f32f16-capability-manifest)
+below). `release.yml` always passes `--enable-f32`; `--enable-f16` is
+passed only for `cortex-m55` (the only qualified combination today).
+There is still exactly one archive per `target_cpu`/toolchain — no
+separate int-only/float variant artifacts are produced.
+
 To exercise the staticlib pipeline without cutting a release, run the
 [`Static lib dry-run`](../.github/workflows/staticlib-dryrun.yml)
 workflow from the Actions tab. It cross-compiles + smokes all three
-targets and uploads the archives as workflow artefacts (14 day
+targets, packages each into an SDK tarball with the matching flags,
+verifies the produced `manifest.json` actually reports the requested
+features, and uploads the archives as workflow artefacts (14 day
 retention).
 
+## Float (F32/F16) capability manifest
+
+Published archives are **supersets**: each `target_cpu`/toolchain
+combination ships exactly one canonical archive containing every float
+implementation qualified for it, plus the always-present integer
+kernels. Today F32 is enabled on every prebuilt combination; F16 is
+enabled only on `cortex-m55` (the only target with qualified MVEF/toolchain
+support, mirroring the Zephyr `ARMV8_1_M_MVEF` Kconfig restriction).
+`scripts/build_staticlib.sh` fails fast (`exit 2`) if an unsupported
+combination is requested (e.g. `--enable-f16` on `cortex-m4`).
+
+**How capabilities are recorded.** `build_staticlib.sh` writes a
+`<archive>.buildconfig.json` sidecar next to the `.a` recording exactly
+which `ARM_NN_ENABLE_F32`/`ARM_NN_ENABLE_F16`/
+`CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY` flags were actually compiled
+in — this is the single source of truth. `scripts/build_sdk_tarball.sh`
+reads that sidecar (rather than trusting caller-supplied flags) and
+renders it into the packaged `manifest.json`:
+
+```json
+{
+  "schema_version": 2,
+  "target_cpu": "cortex-m55",
+  "compiler_id": "GNU",
+  "features": {
+    "integer": true,
+    "f32": true,
+    "f16": true,
+    "requantize_inline_asm": false,
+    "verified": true
+  }
+}
+```
+
+`features.verified` is `true` when the values came from the trusted
+`buildconfig.json` sidecar, and `false` if `build_sdk_tarball.sh` had
+to fall back to caller-supplied CLI flags because no sidecar was found
+(e.g. packaging an archive built outside this repo's own pipeline) —
+that fallback is unverified and only intended for manual/local use. If
+both a sidecar and CLI flags are given and they disagree,
+`build_sdk_tarball.sh` aborts rather than silently trusting one over
+the other.
+
+**Older manifests.** Any manifest with `schema_version < 2`, or missing
+the `features` object entirely, is conservatively interpreted as
+**integer-only** (`f32=false`, `f16=false`) by every consumer — NSX,
+Zephyr, and the `find_package` CMake config. This is a deliberate,
+documented fallback: it never lets an old manifest silently grant a
+float capability it never claimed to have.
+
+**Capability vs. request.** The manifest describes what the archive
+*contains*; `ARM_NN_ENABLE_F32`/`F16` on a consumer target describes
+what that consumer *requests*. Exposing a feature to consumer code that
+the linked archive does not actually implement produces undefined
+references at final link time (the original bug this system fixes) —
+so every prebuilt integration path now validates the request against
+the manifest at configure time and fails early with a clear message
+instead of deferring to a confusing link-time error.
+
+**How macros reach consumer code, per integration:**
+
+| Consumer | Capability variables | Request variables | Policy |
+|----------|----------------------|--------------------|--------|
+| `find_package(ns-cmsis-nn)` | `NS_CMSIS_NN_HAS_F32`, `NS_CMSIS_NN_HAS_F16`, `NS_CMSIS_NN_HAS_REQUANTIZE_INLINE_ASM` | *(none — no pre-existing opt-in API)* | Automatic: every capability the manifest reports is unconditionally forwarded onto the `cmsis-nn` imported target's `INTERFACE_COMPILE_DEFINITIONS` as `ARM_NN_ENABLE_F32`/`F16=1`. |
+| NSX (`nsx/CMakeLists.txt`) | discovered via `NSX_CMSIS_NN_MANIFEST` → `<lib_dir>/manifest.json` → `<lib_dir>/../manifest.json` → none | `NSX_CMSIS_NN_ENABLE_F32`/`F16` (default `OFF`) | Opt-in preserved: only forwards what's requested, but `FATAL_ERROR`s if the manifest doesn't report that capability. If no manifest is discoverable, the request is honored as before but logged as **unverified**. |
+| Zephyr (`zephyr/CMakeLists.txt`) | `${_ns_sdk}/manifest.json` (fixed tarball layout, no discovery needed) | `CONFIG_NS_CMSIS_NN_ENABLE_F32`/`F16` | Same opt-in + validate + fail-fast policy as NSX; existing FP16 arch/toolchain `Kconfig` restrictions (e.g. requires MVEF) are preserved unchanged. |
+
+**Inspecting a package's capabilities** — no CMake configure required:
+
+```sh
+tar xOf libns-cmsis-nn-cortex-m55-<version>-sdk.tar.gz manifest.json | jq .features
+```
+
+**Archive size vs. firmware size.** A superset archive is larger on
+disk than an int-only archive, but static linking only pulls in the
+`.o` members a consumer's final link actually references — an
+integer-only consumer linking against the F32/F16-enabled superset
+archive does not pay for the unused float object code in its firmware
+image.
+
 ## Why three group-id spellings?
+
 
 The standalone CMake `option()` names are the historical originals
 (`BASICMATHSNN`, `STRIDEDSLICE`, `SVDF`). The SSoT uses the lowercase

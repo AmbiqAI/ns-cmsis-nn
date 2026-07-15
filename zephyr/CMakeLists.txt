@@ -45,6 +45,76 @@ if(CONFIG_NS_CMSIS_NN)
     # define is irrelevant at consumer-side, so we deliberately do not
     # forward CONFIG_NS_CMSIS_NN_REQUANTIZE_INLINE_ASSEMBLY here.
 
+    # Unlike the requantize flag above, ARM_NN_ENABLE_F32/F16 gate the float
+    # *declarations* in the public headers (Include/Internal/arm_nn_config.h),
+    # not just internal implementation choices baked into the archive. They
+    # must therefore be forwarded to consumer translation units even in
+    # prebuilt mode, or the float API surface stays invisible and any direct
+    # use of the float headers fails to compile.
+    #
+    # When the SDK tarball at CONFIG_NS_CMSIS_NN_PREBUILT_PATH ships a
+    # manifest.json (schema_version >= 2 with a "features" block), the
+    # requested CONFIG_NS_CMSIS_NN_ENABLE_F32/F16 toggles are validated
+    # against it and a FATAL_ERROR is raised for any request the archive
+    # doesn't actually implement — this turns a predictable
+    # undefined-reference link error into a clear configure-time
+    # diagnostic. Older manifests without a "features" block (or no
+    # manifest.json at all) are treated conservatively as integer-only,
+    # per this project's documented compatibility fallback.
+    set(_ns_manifest "${_ns_sdk}/manifest.json")
+    set(_ns_has_f32 FALSE)
+    set(_ns_has_f16 FALSE)
+    if(EXISTS "${_ns_manifest}")
+      file(READ "${_ns_manifest}" _ns_manifest_json)
+      string(JSON _ns_schema_version ERROR_VARIABLE _ns_json_err
+             GET "${_ns_manifest_json}" schema_version)
+      string(JSON _ns_features ERROR_VARIABLE _ns_json_err
+             GET "${_ns_manifest_json}" features)
+      if(_ns_features STREQUAL "NOTFOUND" OR NOT _ns_schema_version OR _ns_schema_version LESS 2)
+        message(STATUS
+          "ns-cmsis-nn: ${_ns_manifest} has no schema_version>=2 'features' "
+          "block; treating prebuilt archive as integer-only.")
+      else()
+        string(JSON _ns_has_f32 GET "${_ns_manifest_json}" features f32)
+        string(JSON _ns_has_f16 GET "${_ns_manifest_json}" features f16)
+        message(STATUS
+          "ns-cmsis-nn: validated prebuilt archive at '${_ns_sdk}' against "
+          "${_ns_manifest} (f32=${_ns_has_f32} f16=${_ns_has_f16})")
+      endif()
+    else()
+      message(STATUS
+        "ns-cmsis-nn: no manifest.json found at '${_ns_sdk}'; "
+        "CONFIG_NS_CMSIS_NN_ENABLE_F32/F16 requests are UNVERIFIED against "
+        "archive contents and treated conservatively as integer-only for "
+        "validation purposes (the flags are still forwarded as requested).")
+    endif()
+
+    if(CONFIG_NS_CMSIS_NN_ENABLE_F32 AND EXISTS "${_ns_manifest}" AND NOT _ns_has_f32)
+      message(FATAL_ERROR
+        "CONFIG_NS_CMSIS_NN_ENABLE_F32=y but the prebuilt SDK's manifest "
+        "(${_ns_manifest}) does not report f32 support. Use an SDK tarball "
+        "built with F32 enabled, or disable CONFIG_NS_CMSIS_NN_ENABLE_F32.")
+    endif()
+    if(CONFIG_NS_CMSIS_NN_ENABLE_F16 AND EXISTS "${_ns_manifest}" AND NOT _ns_has_f16)
+      message(FATAL_ERROR
+        "CONFIG_NS_CMSIS_NN_ENABLE_F16=y but the prebuilt SDK's manifest "
+        "(${_ns_manifest}) does not report f16 support. Use an SDK tarball "
+        "built with F16 enabled, or disable CONFIG_NS_CMSIS_NN_ENABLE_F16.")
+    endif()
+
+    set(_ns_f32 0)
+    set(_ns_f16 0)
+    if(CONFIG_NS_CMSIS_NN_ENABLE_F32)
+      set(_ns_f32 1)
+    endif()
+    if(CONFIG_NS_CMSIS_NN_ENABLE_F16)
+      set(_ns_f16 1)
+    endif()
+    zephyr_compile_definitions(
+      ARM_NN_ENABLE_F32=${_ns_f32}
+      ARM_NN_ENABLE_F16=${_ns_f16}
+    )
+
   else()
 
   # Single source of truth for the per-group source lists, shared with the
