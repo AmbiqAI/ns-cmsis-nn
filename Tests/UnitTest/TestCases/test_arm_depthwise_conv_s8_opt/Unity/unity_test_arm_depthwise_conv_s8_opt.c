@@ -58,6 +58,7 @@ void test_depthwise_out_activation_arm_depthwise_conv_s8_opt(void)
 void test_depthwise_null_bias_0_arm_depthwise_conv_s8_opt(void) { depthwise_null_bias_0_arm_depthwise_conv_s8_opt(); }
 
 void test_depthwise_x_stride_arm_depthwise_conv_s8_opt(void) { depthwise_x_stride_arm_depthwise_conv_s8_opt(); }
+void test_depthwise_nt_t_tail_arm_depthwise_conv_s8_opt(void) { depthwise_nt_t_tail_arm_depthwise_conv_s8_opt(); }
 
 void test_buffer_size_arm_depthwise_conv_s8_opt(void) { buffer_size_arm_depthwise_conv_s8_opt(); }
 

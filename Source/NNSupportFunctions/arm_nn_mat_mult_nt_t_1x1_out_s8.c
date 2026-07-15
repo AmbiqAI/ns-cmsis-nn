@@ -69,7 +69,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
 
     int out_idx;
     const int num_elems = 4;
-    for (out_idx = 0; out_idx < rhs_rows; out_idx += num_elems)
+    for (out_idx = 0; out_idx + num_elems <= rhs_rows; out_idx += num_elems)
     {
         int32_t acc_n0 = 0;
         int32_t acc_n1 = 0;
@@ -84,7 +84,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
     #if defined(ARM_MATH_AUTOVECTORIZE)
         for (int j = 0; j < rhs_cols; j++)
         {
-            int8_t row = lhs[j];
+            int8_t row = row_base[j];
 
             acc_n0 += row * col_base[j];
             acc_n1 += row * ip_col_1[j];
@@ -143,8 +143,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
 
     const int32_t *multipliers = dst_multipliers;
     const int32_t *shifts = dst_shifts;
-    // finish last rows that aren't multiple of 4
-    out_idx -= num_elems;
+    // Finish output channels that are not a multiple of four.
     for (; out_idx < rhs_rows; out_idx++)
     {
         int32_t acc_n0 = 0;
@@ -180,6 +179,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
         acc_n0 = MIN(acc_n0, activation_max);
         *dst++ = (int8_t)acc_n0;
     }
+    return ARM_CMSIS_NN_SUCCESS;
 #else
     (void)weight_sum_buf;
     (void)lhs;
@@ -199,7 +199,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
     (void)lhs_cols_offset;
     return ARM_CMSIS_NN_NO_IMPL_ERROR;
 #endif // defined(ARM_MATH_MVEI)
-    return ARM_CMSIS_NN_SUCCESS;
 }
 
 /**

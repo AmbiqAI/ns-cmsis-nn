@@ -1044,9 +1044,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_svdf_s8(const int8_t *lhs,
  * @param[in]      output_bias     Per channel output bias. Length of vector is equal to number of channels
  * @param[in]      out             Output pointer
  *
- * @return         The function returns one of the two
- *                  - Updated output pointer if an implementation is available
- *                  - NULL if no implementation is available.
+ * @return         The function returns <code>ARM_CMSIS_NN_SUCCESS</code> if an implementation is available or
+ *                 <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> otherwise
  *
  * @note           If number of channels is not a multiple of 4, upto 3 elements outside the boundary will be read
  * out for the following.
@@ -1088,16 +1087,11 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_padded_s8(const int8_t *lhs,
  * @param[in]      output_bias     Per channel output bias. Length of vector is equal to number of channels.
  * @param[in]      out             Output pointer
  *
- * @return         The function returns one of the two
- *                  - Updated output pointer if an implementation is available
- *                  - NULL if no implementation is available.
+ * @return         The function returns <code>ARM_CMSIS_NN_SUCCESS</code> if an implementation is available or
+ *                 <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> otherwise
  *
- * @note           If number of channels is not a multiple of 4, upto 3 elements outside the boundary will be read
- * out for the following.
- *                  - Output shift
- *                  - Output multiplier
- *                  - Output bias
- *                  - rhs
+ * @note           Tail channel loads and stores are predicated, so channel-indexed arrays are not accessed beyond
+ *                @p active_ch.
  */
 arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
                                                   const int8_t *lhs,

@@ -17,7 +17,9 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unity.h>
 
 #include "../TestData/basic/test_data.h"
@@ -899,6 +901,139 @@ void depthwise_x_stride_arm_depthwise_conv_s8_opt(void)
     }
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, depthwise_x_stride_output_ref, DEPTHWISE_X_STRIDE_DST_SIZE));
+}
+
+void depthwise_nt_t_tail_arm_depthwise_conv_s8_opt(void)
+{
+#if defined(ARM_MATH_MVEI)
+    enum
+    {
+        max_channels = 126,
+        packed_patches = 5,
+        channel_block = 124
+    };
+    const int32_t channels_to_test[] = {1, 2, 3, 4, 5, 6, 7, 15, 16, 17, 123, 124, 125, 126};
+    const int8_t input_guard = 0x35;
+    const int8_t output_guard = 0x6B;
+    const int32_t input_offset = 4;
+    const int32_t output_offset = -3;
+    const int32_t activation_min = -10;
+    const int32_t activation_max = 11;
+    int8_t input[packed_patches * max_channels];
+    int8_t kernel[max_channels];
+    int32_t bias[max_channels];
+    int32_t multiplier[max_channels];
+    int32_t shift[max_channels];
+    int32_t weight_sum[max_channels + 4];
+    int8_t output_storage[packed_patches * max_channels + 8];
+
+    for (int i = 0; i < max_channels; i++)
+    {
+        kernel[i] = (int8_t)((i * 11) % 19 - 9);
+        bias[i] = (i * 29) % 127 - 63;
+        multiplier[i] = (i % 4 == 0) ? (1 << 30) : ((i % 4 == 1) ? (1 << 29) : ((i % 4 == 2) ? (3 << 29) : (1 << 28)));
+        shift[i] = (i % 5) - 2;
+    }
+
+    cmsis_nn_dims input_dims = {1, packed_patches, 1, max_channels};
+    cmsis_nn_dims filter_dims = {1, 1, 1, max_channels};
+    cmsis_nn_dims bias_dims = {1, 1, 1, max_channels};
+    cmsis_nn_dims output_dims = {1, packed_patches, 1, max_channels};
+    cmsis_nn_dw_conv_params dw_conv_params = {
+        .input_offset = input_offset,
+        .output_offset = output_offset,
+        .stride = {1, 1},
+        .padding = {0, 0},
+        .dilation = {1, 1},
+        .ch_mult = 1,
+        .activation = {activation_min, activation_max},
+    };
+    cmsis_nn_per_channel_quant_params quant_params = {
+        .multiplier = multiplier,
+        .shift = shift,
+    };
+    cmsis_nn_context ctx;
+    cmsis_nn_context weight_sum_ctx;
+
+    ctx.size = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
+    TEST_ASSERT_EQUAL(4 * channel_block, ctx.size);
+    ctx.buf = malloc(ctx.size);
+    TEST_ASSERT_NOT_NULL(ctx.buf);
+    weight_sum_ctx.buf = weight_sum;
+    weight_sum_ctx.size = max_channels * (int32_t)sizeof(int32_t);
+
+    for (size_t test_index = 0; test_index < sizeof(channels_to_test) / sizeof(channels_to_test[0]); test_index++)
+    {
+        const int32_t channels = channels_to_test[test_index];
+        input_dims.c = channels;
+        filter_dims.c = channels;
+        bias_dims.c = channels;
+        output_dims.c = channels;
+
+        for (int i_patch = 0; i_patch < packed_patches; i_patch++)
+        {
+            for (int i_ch = 0; i_ch < channels; i_ch++)
+            {
+                input[i_patch * channels + i_ch] = (int8_t)((i_patch * 17 + i_ch * 7) % 31 - 15);
+            }
+        }
+        memset(input + packed_patches * channels, input_guard, sizeof(input) - packed_patches * channels);
+        memset(output_storage, output_guard, sizeof(output_storage));
+        memset(weight_sum + channels, 0xA5, (max_channels + 4 - channels) * sizeof(int32_t));
+
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_depthwise_convolve_weight_sum(weight_sum,
+                                                            ctx.buf,
+                                                            kernel,
+                                                            &dw_conv_params,
+                                                            &input_dims,
+                                                            &filter_dims,
+                                                            &output_dims,
+                                                            input_offset,
+                                                            bias));
+
+        const arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt(&ctx,
+                                                                     &weight_sum_ctx,
+                                                                     &dw_conv_params,
+                                                                     &quant_params,
+                                                                     &input_dims,
+                                                                     input,
+                                                                     &filter_dims,
+                                                                     kernel,
+                                                                     &bias_dims,
+                                                                     bias,
+                                                                     &output_dims,
+                                                                     output_storage + 4);
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+        for (int i = 0; i < 4; i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(output_guard, output_storage[i]);
+            TEST_ASSERT_EQUAL_INT8(output_guard, output_storage[packed_patches * channels + 4 + i]);
+        }
+
+        int saw_clip = 0;
+        for (int i_patch = 0; i_patch < packed_patches; i_patch++)
+        {
+            for (int i_ch = 0; i_ch < channels; i_ch++)
+            {
+                int32_t acc = bias[i_ch] + (input[i_patch * channels + i_ch] + input_offset) * kernel[i_ch];
+                int32_t expected = arm_nn_requantize(acc, multiplier[i_ch], shift[i_ch]) + output_offset;
+                expected = MAX(expected, activation_min);
+                expected = MIN(expected, activation_max);
+                saw_clip |= expected == activation_min || expected == activation_max;
+                TEST_ASSERT_EQUAL_INT8((int8_t)expected, output_storage[4 + i_patch * channels + i_ch]);
+            }
+        }
+        TEST_ASSERT_TRUE(saw_clip);
+        for (int i = channels; i < max_channels + 4; i++)
+        {
+            TEST_ASSERT_EQUAL_INT32((int32_t)0xA5A5A5A5, weight_sum[i]);
+        }
+    }
+
+    memset(ctx.buf, 0, ctx.size);
+    free(ctx.buf);
+#endif
 }
 
 void buffer_size_arm_depthwise_conv_s8_opt(void)

@@ -84,7 +84,7 @@ probe_path=""
 while IFS= read -r candidate; do
   probe_path="${candidate}"
   break
-done < <(find "${extract_dir}" -path "*/${PROBE}" -type f | sort)
+done < <(find "${extract_dir}" -path "*/${PROBE}" \( -type f -o -type l \) | sort)
 
 if [[ -z "${probe_path}" ]]; then
   echo "could not find ${PROBE} under ${extract_dir}" >&2
