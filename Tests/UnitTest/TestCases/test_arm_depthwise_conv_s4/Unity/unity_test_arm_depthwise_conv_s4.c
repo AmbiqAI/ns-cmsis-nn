@@ -50,3 +50,4 @@ void test_depthwise_int4_generic_3_arm_depthwise_conv_s4(void) { depthwise_int4_
 void test_depthwise_int4_generic_4_arm_depthwise_conv_s4(void) { depthwise_int4_generic_4_arm_depthwise_conv_s4(); }
 void test_depthwise_int4_generic_5_arm_depthwise_conv_s4(void) { depthwise_int4_generic_5_arm_depthwise_conv_s4(); }
 void test_depthwise_int4_generic_6_arm_depthwise_conv_s4(void) { depthwise_int4_generic_6_arm_depthwise_conv_s4(); }
+void test_depthwise_int4_generic_7_arm_depthwise_weight_presum(void) { depthwise_int4_generic_weight_presum_s4(); }

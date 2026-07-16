@@ -490,6 +490,7 @@ static void depthwise_conv_s4_generic(const int8_t *input,
  *
  */
 arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
+                                          const cmsis_nn_context *weight_sum_ctx,
                                           const cmsis_nn_dw_conv_params *dw_conv_params,
                                           const cmsis_nn_per_channel_quant_params *quant_params,
                                           const cmsis_nn_dims *input_dims,
@@ -506,6 +507,15 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
 
     const int32_t dilation_x = dw_conv_params->dilation.w;
     const int32_t dilation_y = dw_conv_params->dilation.h;
+
+    const int32_t *eff_bias = bias;
+    int32_t eff_input_offset = dw_conv_params->input_offset;
+    if (weight_sum_ctx && weight_sum_ctx->buf)
+    {
+        eff_bias = (const int32_t *)weight_sum_ctx->buf;
+        eff_input_offset = 0;
+    }
+
     depthwise_conv_s4_generic(input,
                               input_dims->n,
                               input_dims->w,
@@ -520,14 +530,14 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
                               dw_conv_params->padding.h,
                               dw_conv_params->stride.w,
                               dw_conv_params->stride.h,
-                              bias,
+                              eff_bias,
                               output,
                               quant_params->shift,
                               quant_params->multiplier,
                               output_dims->w,
                               output_dims->h,
                               dw_conv_params->output_offset,
-                              dw_conv_params->input_offset,
+                              eff_input_offset,
                               dw_conv_params->activation.min,
                               dw_conv_params->activation.max,
                               dilation_x,
