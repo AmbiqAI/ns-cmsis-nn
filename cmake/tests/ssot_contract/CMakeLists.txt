@@ -77,7 +77,7 @@ set(EXPECTED_COUNT_activation     18)
 set(EXPECTED_COUNT_basicmath      46)
 set(EXPECTED_COUNT_comparison      2)
 set(EXPECTED_COUNT_concatenation   9)
-set(EXPECTED_COUNT_convolution    44)
+set(EXPECTED_COUNT_convolution    45)
 set(EXPECTED_COUNT_fullyconnected 14)
 set(EXPECTED_COUNT_gather          4)
 set(EXPECTED_COUNT_lstm            2)
@@ -97,7 +97,7 @@ set(EXPECTED_COUNT_reversesequence 2)
 set(EXPECTED_COUNT_dynamicupdateslice 2)
 set(EXPECTED_COUNT_nnsupport      30)
 
-set(EXPECTED_TOTAL 222)
+set(EXPECTED_TOTAL 223)
 
 # ----------------------------------------------------------------------------
 # Test harness: collect failures, report them all at once.
