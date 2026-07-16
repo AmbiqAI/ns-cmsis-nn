@@ -22,19 +22,19 @@
 #include <arm_nnfunctions.h>
 #include <unity.h>
 
-#include "../TestData/int16xint8_kernel_less_than_9/test_data.h"
+#include "../TestData/int16xint8/test_data.h"
 #include "../TestData/int16xint8_1x1_ns_np_nd/test_data.h"
+#include "../TestData/int16xint8_dilation_1/test_data.h"
+#include "../TestData/int16xint8_dilation_2/test_data.h"
+#include "../TestData/int16xint8_dilation_3/test_data.h"
+#include "../TestData/int16xint8_group2/test_data.h"
 #include "../TestData/int16xint8_group_batch2_dilated/test_data.h"
 #include "../TestData/int16xint8_group_depthwise/test_data.h"
 #include "../TestData/int16xint8_group_depthwise_3x3/test_data.h"
 #include "../TestData/int16xint8_group_depthwise_3x3_pad/test_data.h"
 #include "../TestData/int16xint8_group_depthwise_3x3_stride_dilation/test_data.h"
-#include "../TestData/int16xint8_group2/test_data.h"
 #include "../TestData/int16xint8_group_same/test_data.h"
-#include "../TestData/int16xint8/test_data.h"
-#include "../TestData/int16xint8_dilation_1/test_data.h"
-#include "../TestData/int16xint8_dilation_2/test_data.h"
-#include "../TestData/int16xint8_dilation_3/test_data.h"
+#include "../TestData/int16xint8_kernel_less_than_9/test_data.h"
 #include "../TestData/int16xint8_spill/test_data.h"
 #include "../TestData/int16xint8_spill2/test_data.h"
 #include "../TestData/int16xint8xint32_1/test_data.h"
@@ -94,7 +94,13 @@ void int16xint8_1x1_ns_np_nd_arm_convolve_s16(void)
 
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
+
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
+
     result = arm_convolve_s16(&ctx,
+                              &weights_sum_ctx,
                               &conv_params,
                               &quant_params,
                               &input_dims,
@@ -119,6 +125,7 @@ void int16xint8_1x1_ns_np_nd_arm_convolve_s16(void)
     buf_size = arm_convolve_wrapper_s16_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -186,7 +193,11 @@ void int16xint8_kernel_less_than_9_arm_convolve_s16(void)
 
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
     result = arm_convolve_s16(&ctx,
+                              &weights_sum_ctx,
                               &conv_params,
                               &quant_params,
                               &input_dims,
@@ -210,6 +221,7 @@ void int16xint8_kernel_less_than_9_arm_convolve_s16(void)
     buf_size = arm_convolve_wrapper_s16_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -277,7 +289,11 @@ void int16xint8_group_depthwise_arm_convolve_s16(void)
 
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
     result = arm_convolve_s16(&ctx,
+                              &weights_sum_ctx,
                               &conv_params,
                               &quant_params,
                               &input_dims,
@@ -301,6 +317,7 @@ void int16xint8_group_depthwise_arm_convolve_s16(void)
     buf_size = arm_convolve_wrapper_s16_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -638,7 +655,13 @@ void int16xint8_group2_arm_convolve_s16(void)
 
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
+
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
+
     result = arm_convolve_s16(&ctx,
+                              &weights_sum_ctx,
                               &conv_params,
                               &quant_params,
                               &input_dims,
@@ -662,6 +685,7 @@ void int16xint8_group2_arm_convolve_s16(void)
     buf_size = arm_convolve_wrapper_s16_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -910,7 +934,13 @@ void int16xint8_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
+
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
+
     result = arm_convolve_s16(&ctx,
+                              &weights_sum_ctx,
                               &conv_params,
                               &quant_params,
                               &input_dims,
@@ -935,6 +965,7 @@ void int16xint8_arm_convolve_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -980,7 +1011,7 @@ void requantize_s64_arm_convolve_s16(void)
     filter_dims.w = REQUANTIZE_S64_FILTER_X;
     filter_dims.h = REQUANTIZE_S64_FILTER_Y;
     filter_dims.c = REQUANTIZE_S64_IN_CH;
-    
+
     output_dims.w = REQUANTIZE_S64_OUTPUT_W;
     output_dims.h = REQUANTIZE_S64_OUTPUT_H;
     output_dims.c = REQUANTIZE_S64_OUT_CH;
@@ -1002,7 +1033,12 @@ void requantize_s64_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
+
     arm_cmsis_nn_status result = arm_convolve_s16(&ctx,
+                                                  &weights_sum_ctx,
                                                   &conv_params,
                                                   &quant_params,
                                                   &input_dims,
@@ -1026,6 +1062,7 @@ void requantize_s64_arm_convolve_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -1072,7 +1109,7 @@ void int16xint8_dilation_1_arm_convolve_s16(void)
     filter_dims.w = INT16XINT8_DILATION_1_FILTER_X;
     filter_dims.h = INT16XINT8_DILATION_1_FILTER_Y;
     filter_dims.c = INT16XINT8_DILATION_1_IN_CH;
-    
+
     output_dims.w = INT16XINT8_DILATION_1_OUTPUT_W;
     output_dims.h = INT16XINT8_DILATION_1_OUTPUT_H;
     output_dims.c = INT16XINT8_DILATION_1_OUT_CH;
@@ -1094,7 +1131,12 @@ void int16xint8_dilation_1_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
+
     arm_cmsis_nn_status result = arm_convolve_s16(&ctx,
+                                                  &weights_sum_ctx,
                                                   &conv_params,
                                                   &quant_params,
                                                   &input_dims,
@@ -1118,6 +1160,7 @@ void int16xint8_dilation_1_arm_convolve_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -1164,7 +1207,7 @@ void int16xint8_dilation_2_arm_convolve_s16(void)
     filter_dims.w = INT16XINT8_DILATION_2_FILTER_X;
     filter_dims.h = INT16XINT8_DILATION_2_FILTER_Y;
     filter_dims.c = INT16XINT8_DILATION_2_IN_CH;
-    
+
     output_dims.w = INT16XINT8_DILATION_2_OUTPUT_W;
     output_dims.h = INT16XINT8_DILATION_2_OUTPUT_H;
     output_dims.c = INT16XINT8_DILATION_2_OUT_CH;
@@ -1186,7 +1229,12 @@ void int16xint8_dilation_2_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
+
     arm_cmsis_nn_status result = arm_convolve_s16(&ctx,
+                                                  &weights_sum_ctx,
                                                   &conv_params,
                                                   &quant_params,
                                                   &input_dims,
@@ -1210,6 +1258,7 @@ void int16xint8_dilation_2_arm_convolve_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -1277,7 +1326,12 @@ void int16xint8_dilation_3_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
+
     arm_cmsis_nn_status result = arm_convolve_s16(&ctx,
+                                                  &weights_sum_ctx,
                                                   &conv_params,
                                                   &quant_params,
                                                   &input_dims,
@@ -1301,6 +1355,7 @@ void int16xint8_dilation_3_arm_convolve_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -1413,7 +1468,7 @@ void buffer_size_dsp_arm_convolve_s16(void)
     filter_dims.w = INT16XINT8_DILATION_3_FILTER_X;
     filter_dims.h = INT16XINT8_DILATION_3_FILTER_Y;
     filter_dims.c = INT16XINT8_DILATION_3_IN_CH;
-    
+
     output_dims.w = INT16XINT8_DILATION_3_OUTPUT_W;
     output_dims.h = INT16XINT8_DILATION_3_OUTPUT_H;
     output_dims.c = INT16XINT8_DILATION_3_OUT_CH;
@@ -1465,7 +1520,7 @@ void int16xint8_spill_arm_convolve_s16(void)
     filter_dims.w = INT16XINT8_SPILL_FILTER_X;
     filter_dims.h = INT16XINT8_SPILL_FILTER_Y;
     filter_dims.c = INT16XINT8_SPILL_IN_CH;
-    
+
     output_dims.w = INT16XINT8_SPILL_OUTPUT_W;
     output_dims.h = INT16XINT8_SPILL_OUTPUT_H;
     output_dims.c = INT16XINT8_SPILL_OUT_CH;
@@ -1487,7 +1542,13 @@ void int16xint8_spill_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
+
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
+
     result = arm_convolve_s16(&ctx,
+                              &weights_sum_ctx,
                               &conv_params,
                               &quant_params,
                               &input_dims,
@@ -1512,6 +1573,7 @@ void int16xint8_spill_arm_convolve_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -1578,7 +1640,13 @@ void int16xint8_spill2_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
+
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
+
     result = arm_convolve_s16(&ctx,
+                              &weights_sum_ctx,
                               &conv_params,
                               &quant_params,
                               &input_dims,
@@ -1603,6 +1671,7 @@ void int16xint8_spill2_arm_convolve_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -1669,7 +1738,12 @@ void int16xint8xint32_1_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
+
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
     result = arm_convolve_s16(&ctx,
+                              &weights_sum_ctx,
                               &conv_params,
                               &quant_params,
                               &input_dims,
@@ -1694,6 +1768,7 @@ void int16xint8xint32_1_arm_convolve_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -1760,7 +1835,12 @@ void int16xint8xint32_2_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
+
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
     result = arm_convolve_s16(&ctx,
+                              &weights_sum_ctx,
                               &conv_params,
                               &quant_params,
                               &input_dims,
@@ -1785,6 +1865,7 @@ void int16xint8xint32_2_arm_convolve_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -1851,7 +1932,12 @@ void int16xint8xint32_3_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
+
     result = arm_convolve_s16(&ctx,
+                              &weights_sum_ctx,
                               &conv_params,
                               &quant_params,
                               &input_dims,
@@ -1876,6 +1962,7 @@ void int16xint8xint32_3_arm_convolve_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -1942,7 +2029,12 @@ void int16xint8xint32_4_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
+
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
     result = arm_convolve_s16(&ctx,
+                              &weights_sum_ctx,
                               &conv_params,
                               &quant_params,
                               &input_dims,
@@ -1965,8 +2057,8 @@ void int16xint8xint32_4_arm_convolve_s16(void)
 
     buf_size = arm_convolve_wrapper_s16_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
-
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -2033,7 +2125,11 @@ void int16xint8xint32_5_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
     result = arm_convolve_s16(&ctx,
+                              &weights_sum_ctx,
                               &conv_params,
                               &quant_params,
                               &input_dims,
@@ -2058,6 +2154,7 @@ void int16xint8xint32_5_arm_convolve_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
@@ -2124,7 +2221,11 @@ void int16xint8xint32_6_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
+    cmsis_nn_context weights_sum_ctx;
+    weights_sum_ctx.buf = NULL;
+    weights_sum_ctx.size = 0;
     result = arm_convolve_s16(&ctx,
+                              &weights_sum_ctx,
                               &conv_params,
                               &quant_params,
                               &input_dims,
@@ -2149,6 +2250,7 @@ void int16xint8xint32_6_arm_convolve_s16(void)
     ctx.buf = malloc(buf_size);
 
     result = arm_convolve_wrapper_s16(&ctx,
+                                      &weights_sum_ctx,
                                       &conv_params,
                                       &quant_params,
                                       &input_dims,
