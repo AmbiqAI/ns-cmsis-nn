@@ -1321,6 +1321,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
  *                                 definition file to see if an additional buffer is required.
  *                                 Optional function {API}_get_buffer_size() provides the buffer
  *                                 size if required.
+ * @param[in, out] weight_sum_ctx  Function context that contains the weight sum buffer if required by the function.
  *                                 The caller is expected to clear the buffer ,if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
@@ -1346,6 +1347,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
  *    - Supported framework: TensorFlow Lite
  */
 arm_cmsis_nn_status arm_depthwise_conv_wrapper_s4(const cmsis_nn_context *ctx,
+                                                  const cmsis_nn_context *weight_sum_ctx,
                                                   const cmsis_nn_dw_conv_params *dw_conv_params,
                                                   const cmsis_nn_per_channel_quant_params *quant_params,
                                                   const cmsis_nn_dims *input_dims,
@@ -1494,6 +1496,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
  *                                 Optional function {API}_get_buffer_size() provides the buffer
  *                                 size if an additional buffer is required exists if additional memory is.
  *                                 The caller is expected to clear the buffer ,if applicable, for security reasons.
+ * @param[in, out] weight_sum_ctx  Function context that contains the weight sum buffer if required by the function.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
@@ -1517,6 +1520,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
  *    - Supported framework: TensorFlow Lite
  */
 arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
+                                          const cmsis_nn_context *weight_sum_ctx,
                                           const cmsis_nn_dw_conv_params *dw_conv_params,
                                           const cmsis_nn_per_channel_quant_params *quant_params,
                                           const cmsis_nn_dims *input_dims,
@@ -1527,6 +1531,39 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
                                           const int32_t *bias,
                                           const cmsis_nn_dims *output_dims,
                                           int8_t *output);
+
+/**
+ * @brief Compute the bias-folded per-output-channel weight sum for s4 depthwise convolution (HWIM layout).
+ *
+ * Computes, for each output channel oc:
+ *    vector_sum_buf[oc] = (bias_data ? bias_data[oc] : 0) - lhs_offset * Σ_s W_s4[s, oc]
+ *    where W_s4 are int4 weights packed two per int8_t (lower nibble = index 2*n, upper nibble = 2*n+1),
+ *    and s iterates over the K_h * K_w spatial positions. Out channels = input_dims->c * dw_params->ch_mult.
+ *
+ * @param[out]      vector_sum_buf        Output buffer for folded terms. Length: output_dims->c. Element type: int32_t.
+ * @param[in]       weights_s4            Int4-packed depthwise kernel weights; two signed 4-bit values per int8_t byte.
+ * @param[in]       input_dims            Input activation tensor dimensions. Format: [N, H_in, W_in, C_in] (uses C_in).
+ * @param[in]       filter_dims           Depthwise kernel dimensions. Format: [K_h, K_w, C_in, ch_mult] (uses K_h,
+ * K_w).
+ * @param[in]       output_dims           Output activation tensor dimensions. Format: [N, H_out, W_out, C_out] with
+ * C_out = C_in * ch_mult.
+ * @param[in]       lhs_offset            Input zero-point (lhs/input offset) to be folded with the weight sums.
+ * @param[in]       bias_data             Optional per-output-channel bias. Length: output_dims->c. May be NULL.
+ * @return          The function returns ARM_CMSIS_NN_SUCCESS on success; ARM_CMSIS_NN_ARG_ERROR on invalid arguments.
+ *
+ * @details
+ * Layout assumption: weights are stored HWIM with linear index:
+ *   (((h * K_w) + w) * C_in + i) * ch_mult + m
+ * which makes elem_index = s * C_out + oc with s in [0, K_h*K_w). If your depthwise layout differs (e.g., IHWM/OIHW),
+ * adapt the element indexing only; packing/sign-extension logic is unchanged.
+ */
+arm_cmsis_nn_status arm_depthwise_weight_sum_s4(int32_t *vector_sum_buf,
+                                                const int8_t *weights_s4,
+                                                const cmsis_nn_dims *input_dims,
+                                                const cmsis_nn_dims *filter_dims,
+                                                const cmsis_nn_dims *output_dims,
+                                                const int32_t lhs_offset,
+                                                const int32_t *bias_data);
 
 /**
  * @brief Basic s16 depthwise convolution function that doesn't have any constraints on the input dimensions.
@@ -1788,6 +1825,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
  *
  */
 arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
+                                              const cmsis_nn_context *weight_sum_ctx,
                                               const cmsis_nn_dw_conv_params *dw_conv_params,
                                               const cmsis_nn_per_channel_quant_params *quant_params,
                                               const cmsis_nn_dims *input_dims,
