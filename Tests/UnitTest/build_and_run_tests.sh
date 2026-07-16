@@ -78,6 +78,8 @@ do
     esac
 done
 
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd -P)
+
 Setup_Environment() {
     set -e
     echo "++ Downloading Corstone300"
@@ -216,6 +218,7 @@ fi
 
 mkdir -p downloads
 pushd downloads
+cd $(pwd -P)
 WORKING_DIR=$(pwd)
 
 if [[ ${SETUP_ENVIRONMENT} -eq 1 ]]; then

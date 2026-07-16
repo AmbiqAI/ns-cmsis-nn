@@ -22,7 +22,6 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
-
 /**
  *  @ingroup Public
  */
@@ -31,7 +30,6 @@
  * @addtogroup groupElementwise
  * @{
  */
-
 
 /*
  * s8 elementwise add with scalar

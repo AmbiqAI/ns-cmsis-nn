@@ -24,20 +24,20 @@
 #include "arm_nnsupportfunctions.h"
 
 /**
-*  @ingroup groupNN
-*/
+ *  @ingroup groupNN
+ */
 
 /**
-* @addtogroup Acti
-* @{
-*/
+ * @addtogroup Acti
+ * @{
+ */
 
 /*
-* ReLU activation functions for int16_t data type.
-*
-* Refer header file for details.
-*
-*/
+ * ReLU activation functions for int16_t data type.
+ *
+ * Refer header file for details.
+ *
+ */
 arm_cmsis_nn_status arm_relu_generic_s16(const int16_t *input,
                                          const int32_t input_offset,
                                          const int32_t output_offset,
@@ -99,7 +99,6 @@ arm_cmsis_nn_status arm_relu_generic_s16(const int16_t *input,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-
 arm_cmsis_nn_status arm_relu_s16(const int16_t *input,
                                  const int32_t input_offset,
                                  const int32_t output_offset,
@@ -112,16 +111,7 @@ arm_cmsis_nn_status arm_relu_s16(const int16_t *input,
     int32_t act_max = INT16_MAX;
 
     return arm_relu_generic_s16(
-        input,
-        input_offset,
-        output_offset,
-        output_multiplier,
-        output_shift,
-        act_min,
-        act_max,
-        output,
-        output_size
-    );
+        input, input_offset, output_offset, output_multiplier, output_shift, act_min, act_max, output, output_size);
 }
 
 /**

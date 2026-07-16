@@ -10,8 +10,6 @@ on:
       - main
 
 jobs:
-  legacy-tests:
-    uses: ./.github/workflows/legacy-tester.yml
 
   helia-core-tester:
     uses: ./.github/workflows/helia-core-tester.yml

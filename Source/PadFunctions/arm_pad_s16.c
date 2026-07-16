@@ -40,11 +40,11 @@
  */
 
 arm_cmsis_nn_status arm_pad_s16(const int16_t *input,
-                               int16_t *output,
-                               const int16_t pad_value,
-                               const cmsis_nn_dims *input_size,
-                               const cmsis_nn_dims *pre_pad,
-                               const cmsis_nn_dims *post_pad)
+                                int16_t *output,
+                                const int16_t pad_value,
+                                const cmsis_nn_dims *input_size,
+                                const cmsis_nn_dims *pre_pad,
+                                const cmsis_nn_dims *post_pad)
 {
 
     const cmsis_nn_dims output_size = {pre_pad->n + input_size->n + post_pad->n,

@@ -100,7 +100,7 @@ jobs:
       - name: Run helia-core-tester full pipeline with coverage and JUnit
         run: |
           cd Tests/helia-core-tester
-          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --coverage --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
+          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --suite int --coverage --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
 
       - name: Upload per-CPU reports
         if: ${{ always() }}
@@ -110,11 +110,196 @@ jobs:
           path: Tests/helia-core-tester/artifacts/reports
           if-no-files-found: error
 
+  codegen-tests-mve-float:
+    runs-on: ubuntu-latest
+    needs: resolve-container-image
+    container:
+      image: ${{ needs.resolve-container-image.outputs.container_image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - float_precision: f32
+            profile_name: m55-f32-mvef
+          - float_precision: f16
+            profile_name: m55-f16-mvef
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Log selected container image
+        shell: bash
+        run: |
+          {
+            echo "### Job container image"
+            echo "- selected image: \`${{ needs.resolve-container-image.outputs.container_image }}\`"
+            echo "- source: \`${{ needs.resolve-container-image.outputs.resolved_from }}\`"
+            if [[ -n "${{ needs.resolve-container-image.outputs.release_tag }}" ]]; then
+              echo "- latest release tag: \`${{ needs.resolve-container-image.outputs.release_tag }}\`"
+            else
+              echo "- latest release tag: _(unavailable)_"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Mark workspace as a safe git directory
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Verify pinned helia-core-tester release tag
+        id: helia-core-meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          submodule_path='Tests/helia-core-tester'
+          git -C "${submodule_path}" fetch --force --tags
+          helia_sha="$(git rev-parse HEAD:${submodule_path})"
+          helia_tag="$(git -C "${submodule_path}" describe --tags --abbrev=0 2>/dev/null || echo 'no-tag')"
+
+          echo "helia_sha=${helia_sha}" >> "$GITHUB_OUTPUT"
+          echo "helia_tag=${helia_tag}" >> "$GITHUB_OUTPUT"
+
+          printf 'Pinned helia-core-tester: %s (%s)\n' "${helia_tag}" "${helia_sha}"
+          {
+            echo "### helia-core-tester version"
+            echo "- tag: \`${helia_tag}\`"
+            echo "- sha: \`${helia_sha}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Cache helia-core-tester downloads
+        uses: actions/cache@v5
+        with:
+          path: Tests/helia-core-tester/artifacts/downloads
+          key: helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Tests/helia-core-tester/scripts/setup_ci.sh', 'Tests/helia-core-tester/helia_core_tester/scripts/setup_dependencies.py') }}
+          restore-keys: |
+            helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Setup helia-core-tester build dependencies
+        run: |
+          cd Tests/helia-core-tester
+          ./scripts/setup_ci.sh
+
+      - name: Run helia-core-tester float suite with MVE float coverage
+        run: |
+          cd Tests/helia-core-tester
+          uv run helia_core_tester full --cpu cortex-m55 --suite float --float-precision ${{ matrix.float_precision }} --coverage --coverage-mve-float --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
+
+      - name: Upload cortex-m55 MVE float full reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports-${{ matrix.profile_name }}
+          path: Tests/helia-core-tester/artifacts/reports
+          if-no-files-found: error
+
+  codegen-tests-float-fallback:
+    runs-on: ubuntu-latest
+    needs: resolve-container-image
+    container:
+      image: ${{ needs.resolve-container-image.outputs.container_image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cpu: cortex-m4
+            float_precision: f32
+            profile_name: m4-f32-fallback
+          - cpu: cortex-m55
+            float_precision: f32
+            profile_name: m55-f32-fallback
+          - cpu: cortex-m55
+            float_precision: f16
+            profile_name: m55-f16-fallback
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Log selected container image
+        shell: bash
+        run: |
+          {
+            echo "### Job container image"
+            echo "- selected image: \`${{ needs.resolve-container-image.outputs.container_image }}\`"
+            echo "- source: \`${{ needs.resolve-container-image.outputs.resolved_from }}\`"
+            if [[ -n "${{ needs.resolve-container-image.outputs.release_tag }}" ]]; then
+              echo "- latest release tag: \`${{ needs.resolve-container-image.outputs.release_tag }}\`"
+            else
+              echo "- latest release tag: _(unavailable)_"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Mark workspace as a safe git directory
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Verify pinned helia-core-tester release tag
+        id: helia-core-meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          submodule_path='Tests/helia-core-tester'
+          git -C "${submodule_path}" fetch --force --tags
+          helia_sha="$(git rev-parse HEAD:${submodule_path})"
+          helia_tag="$(git -C "${submodule_path}" describe --tags --abbrev=0 2>/dev/null || echo 'no-tag')"
+
+          echo "helia_sha=${helia_sha}" >> "$GITHUB_OUTPUT"
+          echo "helia_tag=${helia_tag}" >> "$GITHUB_OUTPUT"
+
+          printf 'Pinned helia-core-tester: %s (%s)\n' "${helia_tag}" "${helia_sha}"
+          {
+            echo "### helia-core-tester version"
+            echo "- tag: \`${helia_tag}\`"
+            echo "- sha: \`${helia_sha}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Cache helia-core-tester downloads
+        uses: actions/cache@v5
+        with:
+          path: Tests/helia-core-tester/artifacts/downloads
+          key: helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Tests/helia-core-tester/scripts/setup_ci.sh', 'Tests/helia-core-tester/helia_core_tester/scripts/setup_dependencies.py') }}
+          restore-keys: |
+            helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Setup helia-core-tester build dependencies
+        run: |
+          cd Tests/helia-core-tester
+          ./scripts/setup_ci.sh
+
+      - name: Run helia-core-tester float fallback coverage
+        run: |
+          cd Tests/helia-core-tester
+          uv run helia_core_tester full --cpu ${{ matrix.cpu }} --suite float --float-precision ${{ matrix.float_precision }} --coverage --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
+
+      - name: Upload float fallback reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports-${{ matrix.profile_name }}
+          path: Tests/helia-core-tester/artifacts/reports
+          if-no-files-found: error
+
   coverage-merge-summary:
     runs-on: ubuntu-latest
     needs:
       - resolve-container-image
       - codegen-tests
+      - codegen-tests-mve-float
+      - codegen-tests-float-fallback
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}
 
@@ -185,15 +370,45 @@ jobs:
           name: reports-cortex-m55
           path: Tests/helia-core-tester/artifacts/reports
 
+      - name: Download m4 f32 float fallback reports
+        uses: actions/download-artifact@v8
+        with:
+          name: reports-m4-f32-fallback
+          path: Tests/helia-core-tester/artifacts/reports-fallback/m4-f32
+
+      - name: Download m55 f32 float fallback reports
+        uses: actions/download-artifact@v8
+        with:
+          name: reports-m55-f32-fallback
+          path: Tests/helia-core-tester/artifacts/reports-fallback/m55-f32
+
+      - name: Download m55 f16 float fallback reports
+        uses: actions/download-artifact@v8
+        with:
+          name: reports-m55-f16-fallback
+          path: Tests/helia-core-tester/artifacts/reports-fallback/m55-f16
+
+      - name: Download m55 f32 MVE float reports
+        uses: actions/download-artifact@v8
+        with:
+          name: reports-m55-f32-mvef
+          path: Tests/helia-core-tester/artifacts/reports-mvef/m55-f32
+
+      - name: Download m55 f16 MVE float reports
+        uses: actions/download-artifact@v8
+        with:
+          name: reports-m55-f16-mvef
+          path: Tests/helia-core-tester/artifacts/reports-mvef/m55-f16
+
       - name: Run helia-core-tester coverage merge
         run: |
           cd Tests/helia-core-tester
-          uv run helia_core_tester coverage-merge --cpu cortex-m0,cortex-m4,cortex-m55
+          uv run helia_core_tester coverage-merge --cpu cortex-m0,cortex-m4,cortex-m55 --suite int
 
       - name: Publish CPU coverage and test summary table
         run: |
           cd Tests/helia-core-tester
-          uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --summary-file "$GITHUB_STEP_SUMMARY"
+          uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --suite int --profile "m4-f32-fallback|cortex-m4|artifacts/reports-fallback/m4-f32|float|float" --profile "m55-f32-fallback|cortex-m55|artifacts/reports-fallback/m55-f32|float|float" --profile "m55-f16-fallback|cortex-m55|artifacts/reports-fallback/m55-f16|float|float" --profile "m55-f32-mvef|cortex-m55|artifacts/reports-mvef/m55-f32|float-mve|float" --profile "m55-f16-mvef|cortex-m55|artifacts/reports-mvef/m55-f16|float-mve|float" --summary-file "$GITHUB_STEP_SUMMARY"
 
       - name: Upload merged coverage reports
         uses: actions/upload-artifact@v7

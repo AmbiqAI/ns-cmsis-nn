@@ -75,47 +75,45 @@ arm_cmsis_nn_status arm_mean_reduce_generic_s16(const int16_t *input_data,
     const int32_t zp = input_offset * count;
 
     for (int n = 0; n < out_N; ++n)
-    for (int h = 0; h < out_H; ++h)
-    for (int w = 0; w < out_W; ++w)
-    for (int c = 0; c < out_C; ++c)
-    {
-        int32_t acc = zp;
+        for (int h = 0; h < out_H; ++h)
+            for (int w = 0; w < out_W; ++w)
+                for (int c = 0; c < out_C; ++c)
+                {
+                    int32_t acc = zp;
 
-        for (int ni = 0; ni < N_limit; ++ni)
-        for (int hi = 0; hi < H_limit; ++hi)
-        for (int wi = 0; wi < W_limit; ++wi)
-        for (int ci = 0; ci < C_limit; ++ci)
-        {
-            int idx_n = axis_dims->n ? ni : n;
-            int idx_h = axis_dims->h ? hi : h;
-            int idx_w = axis_dims->w ? wi : w;
-            int idx_c = axis_dims->c ? ci : c;
+                    for (int ni = 0; ni < N_limit; ++ni)
+                        for (int hi = 0; hi < H_limit; ++hi)
+                            for (int wi = 0; wi < W_limit; ++wi)
+                                for (int ci = 0; ci < C_limit; ++ci)
+                                {
+                                    int idx_n = axis_dims->n ? ni : n;
+                                    int idx_h = axis_dims->h ? hi : h;
+                                    int idx_w = axis_dims->w ? wi : w;
+                                    int idx_c = axis_dims->c ? ci : c;
 
-            int flat_index = ((idx_n * H + idx_h) * W + idx_w) * C + idx_c;
-            acc += input_data[flat_index];
-        }
+                                    int flat_index = ((idx_n * H + idx_h) * W + idx_w) * C + idx_c;
+                                    acc += input_data[flat_index];
+                                }
 
-        acc = arm_nn_requantize(acc, out_mult, out_shift);
-        acc += out_offset;
-        acc = CLAMP(acc, 32767, -32768);
+                    acc = arm_nn_requantize(acc, out_mult, out_shift);
+                    acc += out_offset;
+                    acc = CLAMP(acc, 32767, -32768);
 
-        int out_index = ((n * out_H + h) * out_W + w) * out_C + c;
-        output_data[out_index] = (int16_t)acc;
-    }
+                    int out_index = ((n * out_H + h) * out_W + w) * out_C + c;
+                    output_data[out_index] = (int16_t)acc;
+                }
 
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-
-arm_cmsis_nn_status
-arm_mean_flatten_reduce_last_dims_s16(const int16_t *input_data,
-                                      int32_t input_offset,
-                                      int16_t *output_data,
-                                      int32_t out_offset,
-                                      int32_t out_mult,
-                                      int32_t out_shift,
-                                      int32_t outer_size,
-                                      int32_t inner_size)
+arm_cmsis_nn_status arm_mean_flatten_reduce_last_dims_s16(const int16_t *input_data,
+                                                          int32_t input_offset,
+                                                          int16_t *output_data,
+                                                          int32_t out_offset,
+                                                          int32_t out_mult,
+                                                          int32_t out_shift,
+                                                          int32_t outer_size,
+                                                          int32_t inner_size)
 {
     const int32_t zp = input_offset * inner_size;
 
@@ -156,9 +154,9 @@ arm_mean_flatten_reduce_last_dims_s16(const int16_t *input_data,
             acc += input_data[base + j];
         }
 
-        acc  = arm_nn_requantize(acc, out_mult, out_shift);
+        acc = arm_nn_requantize(acc, out_mult, out_shift);
         acc += out_offset;
-        acc  = CLAMP(acc, 32767, -32768);
+        acc = CLAMP(acc, 32767, -32768);
         output_data[i] = (int16_t)acc;
     }
 
@@ -169,27 +167,26 @@ arm_mean_flatten_reduce_last_dims_s16(const int16_t *input_data,
 
 #if defined(ARM_MATH_MVEI)
 
-arm_cmsis_nn_status
-arm_mean_reduce_spatial_mve_s16(const int16_t *input_data,
-                                const cmsis_nn_dims *input_dims,
-                                int32_t input_offset,
-                                int16_t *output_data,
-                                int32_t out_offset,
-                                int32_t out_mult,
-                                int32_t out_shift)
+arm_cmsis_nn_status arm_mean_reduce_spatial_mve_s16(const int16_t *input_data,
+                                                    const cmsis_nn_dims *input_dims,
+                                                    int32_t input_offset,
+                                                    int16_t *output_data,
+                                                    int32_t out_offset,
+                                                    int32_t out_mult,
+                                                    int32_t out_shift)
 {
-    const int N       = input_dims->n;
-    const int H       = input_dims->h;
-    const int W       = input_dims->w;
-    const int C       = input_dims->c;
+    const int N = input_dims->n;
+    const int H = input_dims->h;
+    const int W = input_dims->w;
+    const int C = input_dims->c;
     const int spatial = H * W;
 
     const int32_t zp = input_offset * spatial;
 
     for (int n = 0; n < N; ++n)
     {
-        const int16_t *in_ptr  = input_data  + n * spatial * C;
-              int16_t *out_ptr = output_data + n * C;
+        const int16_t *in_ptr = input_data + n * spatial * C;
+        int16_t *out_ptr = output_data + n * C;
 
         int c = 0;
         // Process blocks of 8 channels
@@ -238,7 +235,7 @@ arm_mean_reduce_spatial_mve_s16(const int16_t *input_data,
                 acc += in_ptr[i * C + c];
             }
             // requantize
-            acc  = arm_nn_requantize(acc, out_mult, out_shift);
+            acc = arm_nn_requantize(acc, out_mult, out_shift);
             acc += out_offset;
             // clamp to int16
             acc = CLAMP(acc, 32767, -32768);
@@ -274,14 +271,8 @@ arm_cmsis_nn_status arm_mean_s16(const int16_t *input_data,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    int32_t in_dims[4]   = { input_dims->n,
-                             input_dims->h,
-                             input_dims->w,
-                             input_dims->c };
-    int32_t axis_arr[4]  = { axis_dims->n ? 1 : 0,
-                             axis_dims->h ? 1 : 0,
-                             axis_dims->w ? 1 : 0,
-                             axis_dims->c ? 1 : 0 };
+    int32_t in_dims[4] = {input_dims->n, input_dims->h, input_dims->w, input_dims->c};
+    int32_t axis_arr[4] = {axis_dims->n ? 1 : 0, axis_dims->h ? 1 : 0, axis_dims->w ? 1 : 0, axis_dims->c ? 1 : 0};
 
     int32_t suffix_start = arm_reduce_get_flatten_suffix_start_from_arrays(in_dims, axis_arr);
 
@@ -291,17 +282,13 @@ arm_cmsis_nn_status arm_mean_s16(const int16_t *input_data,
         // compute outer/inner
         int32_t outer_size = 1, inner_size = 1;
 
-        for (int32_t d = 0; d < suffix_start; ++d) outer_size *= in_dims[d];
-        for (int32_t d = suffix_start; d < 4;       ++d) inner_size *= in_dims[d];
+        for (int32_t d = 0; d < suffix_start; ++d)
+            outer_size *= in_dims[d];
+        for (int32_t d = suffix_start; d < 4; ++d)
+            inner_size *= in_dims[d];
 
-        return arm_mean_flatten_reduce_last_dims_s16(input_data,
-                                                    input_offset,
-                                                    output_data,
-                                                    out_offset,
-                                                    out_mult,
-                                                    out_shift,
-                                                    outer_size,
-                                                    inner_size);
+        return arm_mean_flatten_reduce_last_dims_s16(
+            input_data, input_offset, output_data, out_offset, out_mult, out_shift, outer_size, inner_size);
     }
 
 #if defined(ARM_MATH_MVEI)
@@ -309,28 +296,15 @@ arm_cmsis_nn_status arm_mean_s16(const int16_t *input_data,
     // Check for spatial reduction axis=[H,W]
     if (!axis_dims->n && axis_dims->h && axis_dims->w && !axis_dims->c)
     {
-        return arm_mean_reduce_spatial_mve_s16(input_data,
-                                              input_dims,
-                                              input_offset,
-                                              output_data,
-                                              out_offset,
-                                              out_mult,
-                                              out_shift);
+        return arm_mean_reduce_spatial_mve_s16(
+            input_data, input_dims, input_offset, output_data, out_offset, out_mult, out_shift);
     }
 
 #endif // ARM_MATH_MVEI
 
     // Fallback to general-purpose scalar implementation
-    return arm_mean_reduce_generic_s16(input_data,
-                                      input_dims,
-                                      input_offset,
-                                      axis_dims,
-                                      output_data,
-                                      output_dims,
-                                      out_offset,
-                                      out_mult,
-                                      out_shift);
-
+    return arm_mean_reduce_generic_s16(
+        input_data, input_dims, input_offset, axis_dims, output_data, output_dims, out_offset, out_mult, out_shift);
 }
 
 /**

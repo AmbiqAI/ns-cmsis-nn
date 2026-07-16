@@ -24,31 +24,30 @@
 #include "arm_nnsupportfunctions.h"
 
 /**
-*  @ingroup groupNN
-*/
+ *  @ingroup groupNN
+ */
 
 /**
-* @addtogroup Acti
-* @{
-*/
+ * @addtogroup Acti
+ * @{
+ */
 
 /*
-* Hard Swish activation function for int8_t data type.
-*
-* Refer header file for details.
-*
-*/
-arm_cmsis_nn_status arm_hard_swish_precise_s8(
-    const int8_t *input,
-    const int32_t input_offset,
-    const int32_t output_offset,
-    const int32_t output_multiplier,
-    const int32_t output_shift,
-    const int32_t relu_q3,
-    const int32_t relu_q6,
-    const int32_t prescale,
-    int8_t *output,
-    const int32_t output_size)
+ * Hard Swish activation function for int8_t data type.
+ *
+ * Refer header file for details.
+ *
+ */
+arm_cmsis_nn_status arm_hard_swish_precise_s8(const int8_t *input,
+                                              const int32_t input_offset,
+                                              const int32_t output_offset,
+                                              const int32_t output_multiplier,
+                                              const int32_t output_shift,
+                                              const int32_t relu_q3,
+                                              const int32_t relu_q6,
+                                              const int32_t prescale,
+                                              int8_t *output,
+                                              const int32_t output_size)
 {
 
     if (!input || !output || output_size < 0)
@@ -128,7 +127,6 @@ arm_cmsis_nn_status arm_hard_swish_precise_s8(
 #endif
 
     return ARM_CMSIS_NN_SUCCESS;
-
 }
 
 /**

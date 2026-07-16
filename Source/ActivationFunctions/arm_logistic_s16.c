@@ -39,13 +39,11 @@
  * @note  Refer header file for details.
  *
  */
-arm_cmsis_nn_status arm_logistic_s16(
-    const int16_t *input,
-    int16_t *output,
-    const int32_t input_size,
-    int32_t input_multiplier,
-    int32_t input_left_shift
-)
+arm_cmsis_nn_status arm_logistic_s16(const int16_t *input,
+                                     int16_t *output,
+                                     const int32_t input_size,
+                                     int32_t input_multiplier,
+                                     int32_t input_left_shift)
 {
     // power-of-two case
     if (input_multiplier == 0)
@@ -181,7 +179,6 @@ arm_cmsis_nn_status arm_logistic_s16(
 
     return ARM_CMSIS_NN_SUCCESS;
 }
-
 
 /**
  * @} end of Doxygen group

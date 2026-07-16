@@ -22,7 +22,6 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
-
 /**
  *  @ingroup Public
  */
@@ -32,7 +31,6 @@
  * @{
  */
 
-
 /*
  * s8 elementwise add with scalar
  *
@@ -40,26 +38,25 @@
  *
  */
 arm_cmsis_nn_status arm_add_scalar_s16(const int16_t *input_1_vect,
-                                      const int16_t *input_2_vect,
-                                      const int32_t input_1_offset,
-                                      const int32_t input_1_mult,
-                                      const int32_t input_1_shift,
-                                      const int32_t input_2_offset,
-                                      const int32_t input_2_mult,
-                                      const int32_t input_2_shift,
-                                      const int32_t left_shift,
-                                      int16_t *output,
-                                      const int32_t out_offset,
-                                      const int32_t out_mult,
-                                      const int32_t out_shift,
-                                      const int32_t out_activation_min,
-                                      const int32_t out_activation_max,
-                                      const int32_t block_size)
+                                       const int16_t *input_2_vect,
+                                       const int32_t input_1_offset,
+                                       const int32_t input_1_mult,
+                                       const int32_t input_1_shift,
+                                       const int32_t input_2_offset,
+                                       const int32_t input_2_mult,
+                                       const int32_t input_2_shift,
+                                       const int32_t left_shift,
+                                       int16_t *output,
+                                       const int32_t out_offset,
+                                       const int32_t out_mult,
+                                       const int32_t out_shift,
+                                       const int32_t out_activation_min,
+                                       const int32_t out_activation_max,
+                                       const int32_t block_size)
 {
     (void)input_1_offset;
     (void)input_2_offset;
     (void)out_offset;
-
 
 #if defined(ARM_MATH_MVEI)
 

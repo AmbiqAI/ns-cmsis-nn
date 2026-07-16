@@ -60,11 +60,12 @@ void verifyTest(void)
 {
   CMock_Verify();
 }
+
 /*=======Test Runner Used To Run Each Test=====*/
-static void run_test(UnityTestFunction func, const char* name, int line_num)
+static void run_test(UnityTestFunction func, const char* name, UNITY_LINE_TYPE line_num)
 {
     Unity.CurrentTestName = name;
-    Unity.CurrentTestLineNumber = line_num;
+    Unity.CurrentTestLineNumber = (UNITY_UINT) line_num;
 #ifdef UNITY_USE_COMMAND_LINE_ARGS
     if (!UnityTestMatches())
         return;
@@ -75,10 +76,8 @@ static void run_test(UnityTestFunction func, const char* name, int line_num)
     CMock_Init();
     if (TEST_PROTECT())
     {
-
-            setUp();
-            func();
-
+        setUp();
+        func();
     }
     if (TEST_PROTECT())
     {
@@ -89,7 +88,6 @@ static void run_test(UnityTestFunction func, const char* name, int line_num)
     UNITY_EXEC_TIME_STOP();
     UnityConcludeTest();
 }
-
 
 /*=======MAIN=====*/
 int main(void)
@@ -121,5 +119,5 @@ int main(void)
   run_test(test_int16xint8_kernel_less_than_9_arm_convolve_s16, "test_int16xint8_kernel_less_than_9_arm_convolve_s16", 75);
   run_test(test_int16xint8_1x1_ns_np_nd_arm_convolve_s16, "test_int16xint8_1x1_ns_np_nd_arm_convolve_s16", 76);
 
-  return UnityEnd();
+  exit(UNITY_END());
 }

@@ -77,7 +77,7 @@ set(_NS_CMSIS_NN_GROUPS
 )
 
 # All known dtype tags; used by the DTYPES filter.
-set(_NS_CMSIS_NN_DTYPES s4 s8 s16 s32 s64 q7 q15)
+set(_NS_CMSIS_NN_DTYPES s4 s8 s16 s32 s64 q7 q15 f16 f32)
 
 # ----------------------------------------------------------------------------
 # Internal: per-group definition.
@@ -93,60 +93,199 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     set(subdir   "ActivationFunctions")
     set(patterns "*_s8*.c" "*_s16*.c")
     set(extras   "arm_relu_q7.c" "arm_relu6_q7.c" "arm_relu_q15.c")
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_nn_activation_f32.c")
+    endif()
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_nn_activation_f16.c")
+    endif()
   elseif(group STREQUAL "basicmath")
     set(subdir   "BasicMathFunctions")
-    set(patterns "*_*.c")
+    set(patterns "*_s8*.c" "*_s16*.c")
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_elementwise_add_f32.c"
+                         "arm_elementwise_mul_f32.c"
+                         "arm_minmax_common_f32.c"
+                         "arm_minimum_f32.c"
+                         "arm_maximum_f32.c")
+    endif()
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_elementwise_add_fp16.c"
+                         "arm_elementwise_add_f16.c"
+                         "arm_elementwise_mul_f16.c"
+                         "arm_minmax_common_f16.c"
+                         "arm_minimum_f16.c"
+                         "arm_maximum_f16.c")
+    endif()
   elseif(group STREQUAL "comparison")
     set(subdir   "ComparisonFunctions")
     set(patterns "*.c")
   elseif(group STREQUAL "concatenation")
     set(subdir   "ConcatenationFunctions")
-    set(patterns "*_*.c")
+    set(patterns "*_s8*.c" "*_s16*.c" "*_s32*.c")
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_concatenation_f32.c")
+    endif()
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_concatenation_f16.c")
+    endif()
   elseif(group STREQUAL "convolution")
     set(subdir   "ConvolutionFunctions")
     set(patterns "*_s4*.c" "*_s8*.c" "*_s16*.c")
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_convolve_f32.c"
+                         "arm_convolve_1_x_n_f32.c"
+                         "arm_convolve_1x1_f32.c"
+                         "arm_depthwise_conv_f32.c"
+                         "arm_transpose_conv_f32.c")
+    endif()
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_convolve_f16.c"
+                         "arm_convolve_1_x_n_f16.c"
+                         "arm_convolve_1x1_f16.c"
+                         "arm_depthwise_conv_f16.c"
+                         "arm_transpose_conv_f16.c")
+    endif()
   elseif(group STREQUAL "fullyconnected")
     set(subdir   "FullyConnectedFunctions")
     set(patterns "*_s4.c" "*_s8.c" "*_s16*.c" "*_s64.c")
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_batch_matmul_f32.c"
+                         "arm_fully_connected_f32.c")
+    endif()
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_batch_matmul_f16.c"
+                         "arm_fully_connected_f16.c")
+    endif()
   elseif(group STREQUAL "gather")
     set(subdir   "GatherFunctions")
     set(patterns "*_*.c")
   elseif(group STREQUAL "lstm")
     set(subdir   "LSTMFunctions")
     set(patterns "*_s8.c" "*_s16.c")
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_lstm_unidirectional_f32.c")
+    endif()
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_lstm_unidirectional_f16.c")
+    endif()
   elseif(group STREQUAL "nnsupport")
     set(subdir   "NNSupportFunctions")
     set(patterns "*_s4*.c" "*_s8*.c" "*_s16*.c" "*_s32*.c")
     set(extras   "arm_nntables.c"
                  "arm_q7_to_q15_with_offset.c"
                  "arm_s8_to_s16_unordered_with_offset.c")
+    if(ARM_NN_ENABLE_F32 OR ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_nntables_flt.c")
+    endif()
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_batch_norm_f32.c"
+                         "arm_get_buffer_size_f32.c"
+                         "arm_nn_conv1d_k3_f32.c"
+                         "arm_nn_conv1d_k3_packed_f32.c"
+                         "arm_nn_conv1d_k5_f32.c"
+                         "arm_nn_conv1d_k5_packed_f32.c"
+                         "arm_nn_depthwise_conv1d_k3_f32.c"
+                         "arm_nn_depthwise_conv3x3_f32.c"
+                         "arm_nn_depthwise_conv_nt_t_f32.c"
+                         "arm_nn_maxpool1d_f32.c"
+                         "arm_nn_pack_conv_patch_f32.c"
+                         "arm_nn_lstm_step_f32.c"
+                         "arm_nn_mat_mult_nt_t_f32.c"
+                         "arm_nn_mat_mult_nt_n_packed_f32.c")
+    endif()
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_batch_norm_f16.c"
+                         "arm_get_buffer_size_f16.c"
+                         "arm_nn_conv1d_k3_f16.c"
+                         "arm_nn_conv1d_k3_packed_f16.c"
+                         "arm_nn_conv1d_k5_f16.c"
+                         "arm_nn_conv1d_k5_packed_f16.c"
+                         "arm_nn_depthwise_conv1d_k3_f16.c"
+                         "arm_nn_depthwise_conv2x5_f16.c"
+                         "arm_nn_depthwise_conv3x3_f16.c"
+                         "arm_nn_depthwise_conv_nt_t_f16.c"
+                         "arm_nn_pack_conv_patch_f16.c"
+                         "arm_nn_lstm_step_f16.c"
+                         "arm_nn_maxpool1d_f16.c"
+                         "arm_nn_mat_mult_nt_t_f16.c"
+                         "arm_nn_mat_mult_nt_n_packed_f16.c")
+    endif()
   elseif(group STREQUAL "pad")
     set(subdir   "PadFunctions")
     set(patterns "*_s8.c" "*_s16.c")
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_pad_f32.c")
+    endif()
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_pad_f16.c")
+    endif()
   elseif(group STREQUAL "pooling")
     set(subdir   "PoolingFunctions")
     set(patterns "*_s8.c" "*_s16.c")
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_avg_pool_f32.c"
+                         "arm_max_pool_f32.c")
+    endif()
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_avg_pool_f16.c"
+                         "arm_max_pool_f16.c")
+    endif()
   elseif(group STREQUAL "quantization")
     set(subdir   "QuantizationFunctions")
     set(patterns "*_*.c")
   elseif(group STREQUAL "reshape")
     set(subdir   "ReshapeFunctions")
-    set(patterns "*_*.c")
+    set(patterns "arm_reshape_s8.c"
+                 "arm_batch_to_space_nd_s8.c"
+                 "arm_batch_to_space_nd_s16.c"
+                 "arm_depth_to_space_s8.c"
+                 "arm_depth_to_space_s16.c"
+                 "arm_resize_nearest_neighbor_s8.c"
+                 "arm_resize_nearest_neighbor_s16.c"
+                 "arm_space_to_batch_nd_s8.c"
+                 "arm_space_to_batch_nd_s16.c"
+                 "arm_space_to_depth_s8.c"
+                 "arm_space_to_depth_s16.c")
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_reshape_f32.c")
+    endif()
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_reshape_f16.c")
+    endif()
   elseif(group STREQUAL "softmax")
     set(subdir   "SoftmaxFunctions")
     set(patterns "*_s8.c")
     set(extras   "arm_softmax_s8_s16.c"
                  "arm_softmax_s16.c"
                  "arm_nn_softmax_common_s8.c")
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_softmax_f32.c")
+    endif()
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_softmax_f16.c")
+    endif()
   elseif(group STREQUAL "stridedslice")
     set(subdir   "StridedSliceFunctions")
     set(patterns "*_*.c")
   elseif(group STREQUAL "svd")
     set(subdir   "SVDFunctions")
     set(patterns "*_s8.c")
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_svdf_f32.c")
+    endif()
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_svdf_f16.c")
+    endif()
   elseif(group STREQUAL "transpose")
     set(subdir   "TransposeFunctions")
     set(patterns "*_s8.c" "*_s16.c")
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_transpose_f32.c")
+    endif()
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_transpose_f16.c")
+    endif()
   elseif(group STREQUAL "tile")
     set(subdir   "TileFunctions")
     set(patterns "*_s8.c" "*_s16.c")
@@ -188,12 +327,16 @@ function(_ns_cmsis_nn_filter_dtypes allowed_dtypes out_var)
   foreach(file IN LISTS ARGN)
     get_filename_component(base "${file}" NAME)
     set(tag "")
-    foreach(dt IN LISTS _NS_CMSIS_NN_DTYPES)
-      if(base MATCHES "_${dt}([._]|$)")
-        set(tag "${dt}")
-        break()
-      endif()
-    endforeach()
+    if(base MATCHES "_fp16([._]|$)")
+      set(tag "f16")
+    else()
+      foreach(dt IN LISTS _NS_CMSIS_NN_DTYPES)
+        if(base MATCHES "_${dt}([._]|$)")
+          set(tag "${dt}")
+          break()
+        endif()
+      endforeach()
+    endif()
     if(tag STREQUAL "")
       list(APPEND kept "${file}")
     else()

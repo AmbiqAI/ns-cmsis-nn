@@ -39,13 +39,11 @@
  * @note  Refer header file for details.
  *
  */
-arm_cmsis_nn_status arm_tanh_s16(
-    const int16_t *input,
-    int16_t *output,
-    const int32_t input_size,
-    int32_t input_multiplier,
-    int32_t input_left_shift
-)
+arm_cmsis_nn_status arm_tanh_s16(const int16_t *input,
+                                 int16_t *output,
+                                 const int32_t input_size,
+                                 int32_t input_multiplier,
+                                 int32_t input_left_shift)
 {
     // power-of-two case
     if (input_multiplier == 0)
@@ -116,7 +114,7 @@ arm_cmsis_nn_status arm_tanh_s16(
         interp_hi = vpselq_u32(interp_hi, vdupq_n_u32(0xFFFF << 8), p_sat);
 
         /* Tanh sign/center correction. */
-        const uint32x4_t center = vdupq_n_u32(1u << (14 + 9));   // 1<<23
+        const uint32x4_t center = vdupq_n_u32(1u << (14 + 9)); // 1<<23
         mve_pred16_t p_pos_lo = vcmpgeq_n_s32(scaled_lo, 0);
         mve_pred16_t p_pos_hi = vcmpgeq_n_s32(scaled_hi, 0);
 
@@ -125,12 +123,10 @@ arm_cmsis_nn_status arm_tanh_s16(
         uint32x4_t pos_hi = vaddq_n_u32(vsubq_u32(interp_hi, center), (1u << 7));
 
         // neg = (-interp + center) + ((1<<7) - 1)
-        uint32x4_t neg_lo = vaddq_u32(center,
-                               vaddq_n_u32(vreinterpretq_u32_s32(vnegq_s32(vreinterpretq_s32_u32(interp_lo))),
-                                           (1u << 7) - 1u));
-        uint32x4_t neg_hi = vaddq_u32(center,
-                               vaddq_n_u32(vreinterpretq_u32_s32(vnegq_s32(vreinterpretq_s32_u32(interp_hi))),
-                                           (1u << 7) - 1u));
+        uint32x4_t neg_lo = vaddq_u32(
+            center, vaddq_n_u32(vreinterpretq_u32_s32(vnegq_s32(vreinterpretq_s32_u32(interp_lo))), (1u << 7) - 1u));
+        uint32x4_t neg_hi = vaddq_u32(
+            center, vaddq_n_u32(vreinterpretq_u32_s32(vnegq_s32(vreinterpretq_s32_u32(interp_hi))), (1u << 7) - 1u));
 
         uint32x4_t final_lo = vpselq_u32(pos_lo, neg_lo, p_pos_lo);
         uint32x4_t final_hi = vpselq_u32(pos_hi, neg_hi, p_pos_hi);
@@ -146,9 +142,9 @@ arm_cmsis_nn_status arm_tanh_s16(
         /* Store masked */
         vst1q_p_s16(output, vreinterpretq_s16_u16(vec_result), p);
 
-        input  += adv;
+        input += adv;
         output += adv;
-        count  -= adv;
+        count -= adv;
         blk_size--;
     }
 
@@ -171,9 +167,8 @@ arm_cmsis_nn_status arm_tanh_s16(
             uint32_t ut = abs_input_data & 0xFF;
             result = (ua << 8) + ut * (ub - ua);
         }
-        result = (input_data >= 0)
-                    ? (result - (1 << (14 + 9)) + (1 << (9 - 2)))
-                    : (-result + (1 << (14 + 9)) + (1 << (9 - 2)) - 1);
+        result = (input_data >= 0) ? (result - (1 << (14 + 9)) + (1 << (9 - 2)))
+                                   : (-result + (1 << (14 + 9)) + (1 << (9 - 2)) - 1);
         result >>= (9 - 1);
         output[i] = (int16_t)result;
     }
@@ -182,7 +177,6 @@ arm_cmsis_nn_status arm_tanh_s16(
 
     return ARM_CMSIS_NN_SUCCESS;
 }
-
 
 /**
  * @} end of Doxygen group

@@ -126,12 +126,25 @@ jobs:
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
+          # Published archives are supersets: F32 is enabled for every
+          # qualified CPU/toolchain combination in this matrix, and F16 is
+          # enabled only where currently qualified (cortex-m55, matching
+          # the ARMV8_1_M_MVEF Kconfig restriction). Flags are always
+          # passed explicitly — never relying on CMake option() defaults —
+          # so the archive's actual contents can never silently drift from
+          # what this workflow intended to publish.
+          f16_flag=()
+          if [[ "$TARGET_CPU" == "cortex-m55" ]]; then
+            f16_flag=(--enable-f16)
+          fi
           bash scripts/build_staticlib.sh \
             --target-cpu "$TARGET_CPU" \
             --version    "$VERSION" \
             --toolchain  "$TOOLCHAIN" \
             --toolchain-root "$TOOLCHAIN_ROOT" \
-            --outdir     "./output/$TOOLCHAIN/$TARGET_CPU"
+            --outdir     "./output/$TOOLCHAIN/$TARGET_CPU" \
+            --enable-f32 \
+            "${f16_flag[@]}"
 
       - name: Smoke-verify static library
         # GCC and ATfE get a bare-metal link smoke test. armclang currently gets
@@ -169,13 +182,24 @@ jobs:
             lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TOOLCHAIN}-${TARGET_CPU}-${VERSION}.a"
             toolchain_version="$TOOLCHAIN_VERSION"
           fi
+          # Feature metadata is authoritatively sourced from the
+          # "<lib>.buildconfig.json" sidecar build_staticlib.sh just wrote;
+          # re-passing the same flags here makes build_sdk_tarball.sh
+          # cross-check them and fail loudly on any drift between what
+          # this workflow requested and what was actually compiled.
+          f16_flag=()
+          if [[ "$TARGET_CPU" == "cortex-m55" ]]; then
+            f16_flag=(--enable-f16)
+          fi
           bash scripts/build_sdk_tarball.sh \
             --target-cpu         "$TARGET_CPU" \
             --version            "$VERSION"    \
             --staticlib          "$lib"        \
             --toolchain          "$TOOLCHAIN"  \
             --toolchain-version  "$toolchain_version" \
-            --outdir             "./output/${TOOLCHAIN}/${TARGET_CPU}"
+            --outdir             "./output/${TOOLCHAIN}/${TARGET_CPU}" \
+            --enable-f32 \
+            "${f16_flag[@]}"
 
       - name: Upload artefacts (cross-job)
         # Pack-prebuilt job (M3 #167 follow-up) downloads these.

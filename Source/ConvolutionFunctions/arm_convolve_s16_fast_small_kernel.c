@@ -39,18 +39,18 @@
  *
  */
 // #include <stdio.h>
-arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
-    const cmsis_nn_context *ctx,
-    const cmsis_nn_conv_params *conv_params,
-    const cmsis_nn_per_channel_quant_params *quant_params,
-    const cmsis_nn_dims *input_dims,
-    const int16_t *input_data, // Format: [N, H, W, C_IN]
-    const cmsis_nn_dims *filter_dims,// Format: [C_OUT, HK, WK, C_IN]
-    const int8_t *filter_data,
-    const cmsis_nn_dims *bias_dims,
-    const cmsis_nn_bias_data *bias_data,
-    const cmsis_nn_dims *output_dims,
-    int16_t *output_data)
+arm_cmsis_nn_status
+arm_convolve_s16_fast_small_kernel(const cmsis_nn_context *ctx,
+                                   const cmsis_nn_conv_params *conv_params,
+                                   const cmsis_nn_per_channel_quant_params *quant_params,
+                                   const cmsis_nn_dims *input_dims,
+                                   const int16_t *input_data,        // Format: [N, H, W, C_IN]
+                                   const cmsis_nn_dims *filter_dims, // Format: [C_OUT, HK, WK, C_IN]
+                                   const int8_t *filter_data,
+                                   const cmsis_nn_dims *bias_dims,
+                                   const cmsis_nn_bias_data *bias_data,
+                                   const cmsis_nn_dims *output_dims,
+                                   int16_t *output_data)
 {
 #if defined(ARM_MATH_MVEI)
     (void)ctx;
@@ -65,7 +65,6 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
     const int32_t output_x = output_dims->w;
     const int32_t output_y = output_dims->h;
     const int32_t output_ch = output_dims->c;
-
 
     const int32_t dilation_x = conv_params->dilation.w;
     const int32_t dilation_y = conv_params->dilation.h;
@@ -87,7 +86,7 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
-    int32_t stride_edge = input_x - (output_x-1) * stride_x + (stride_y-1) * input_x;
+    int32_t stride_edge = input_x - (output_x - 1) * stride_x + (stride_y - 1) * input_x;
     uint16x8_t offset_src;
     if (rhs_cols < 9)
     {
@@ -96,15 +95,14 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
             int id = i * dilation_y;
             for (int j = 0; j < kernel_x; j++)
             {
-                int jd= j * dilation_x;
-                int idx = (i*kernel_x+j);
+                int jd = j * dilation_x;
+                int idx = (i * kernel_x + j);
                 for (int c = 0; c < kernel_ch; c++)
                 {
                     int idc = idx * kernel_ch + c;
                     offset_src[idc] = (id * input_x + jd) * input_ch + c;
                     offset_src[idc] *= sizeof(int16_t);
                 }
-
             }
         }
     }
@@ -120,7 +118,8 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
         const int64_t *bias_s64 = (const int64_t *)bias_data->data;
         const int32_t *bias_s32 = (const int32_t *)bias_data->data;
 
-        for (int32_t i_group = 0; i_group < groups; i_group++){
+        for (int32_t i_group = 0; i_group < groups; i_group++)
+        {
             /*
                 Output shape= [HK, WK, C_OUT]
                 where  C_OUT = groups * output_ch_per_group
@@ -129,18 +128,17 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                     output + i_group * output_ch_per_group
             */
 
-
             for (int c = 0; c < output_ch_per_group; c++)
             {
-                int16_t *input_data_pr = (int16_t*) input_data + i_group * kernel_ch;
+                int16_t *input_data_pr = (int16_t *)input_data + i_group * kernel_ch;
                 int16_t *out_c = output_data + i_group * output_ch_per_group + c;
                 int16x8_t weight = vldrbq_z_s16(filter_data_ptr, p); // load weight
-                filter_data_ptr+= rhs_cols;
+                filter_data_ptr += rhs_cols;
 
-                int32_t bias_s32_val=0;
-                int64_t bias_s64_val=0;
+                int32_t bias_s32_val = 0;
+                int64_t bias_s64_val = 0;
 
-                int32_t reduced_multiplier=0;
+                int32_t reduced_multiplier = 0;
                 int32_t multiplier = *output_mult_ptr++;
                 int32_t shift = *output_shift_ptr++;
 
@@ -150,7 +148,6 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                     {
                         bias_s32_val = *bias_s32++;
                     }
-
                 }
                 else
                 {
@@ -163,7 +160,7 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
 
                 for (int32_t i_out_y = 0; i_out_y < output_y; i_out_y++)
                 {
-                    for (int32_t i_out_x = 0; i_out_x < output_x-1; i_out_x++)
+                    for (int32_t i_out_x = 0; i_out_x < output_x - 1; i_out_x++)
                     {
                         /*
                         Extract kernel_y * kernel_x * kernel_ch
@@ -194,7 +191,6 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                             }
 
                             result = arm_nn_requantize(result, multiplier, shift);
-
                         }
                         else
                         {
@@ -208,13 +204,13 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                         }
                         result = MAX(result, out_activation_min);
                         result = MIN(result, out_activation_max);
-                        *out_c = (int16_t) result;
+                        *out_c = (int16_t)result;
                         out_c += output_ch;
                     }
                     // in the boundary of output_x
                     {
 
-                        int16x8_t in = vldrhq_gather_offset_z_s16(input_data_pr, offset_src,p);
+                        int16x8_t in = vldrhq_gather_offset_z_s16(input_data_pr, offset_src, p);
                         input_data_pr += input_ch * stride_edge;
                         int32_t result = vmladavq_s16(weight, in); // perform MAC
                         if (is_int32_bias)
@@ -225,7 +221,6 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                                 result += bias_s32_val;
                             }
                             result = arm_nn_requantize(result, multiplier, shift);
-
                         }
                         else
                         {
@@ -237,11 +232,10 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                             }
 
                             result = arm_nn_requantize_s64(acc_s64, reduced_multiplier, shift);
-
                         }
                         result = MAX(result, out_activation_min);
                         result = MIN(result, out_activation_max);
-                        *out_c = (int16_t) result;
+                        *out_c = (int16_t)result;
                         out_c += output_ch;
                     }
 
@@ -249,11 +243,10 @@ arm_cmsis_nn_status arm_convolve_s16_fast_small_kernel(
                     {
                         return ARM_CMSIS_NN_NO_IMPL_ERROR;
                     }
-
                 }
 
             } // (int c = 0; c < output_ch_per_group; c++)
-        } // i_group
+        }     // i_group
         /* Advance to the next batch */
 
         input_data += (input_x * input_y * input_ch);

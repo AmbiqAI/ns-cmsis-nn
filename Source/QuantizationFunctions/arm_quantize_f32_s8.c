@@ -19,8 +19,8 @@
  *
  * -------------------------------------------------------------------- */
 
-#include "arm_nnsupportfunctions.h"
 #include "arm_nnfunctions.h"
+#include "arm_nnsupportfunctions.h"
 #include <math.h>
 
 /**
@@ -39,20 +39,16 @@
  *
  */
 arm_cmsis_nn_status
-arm_quantize_f32_s8(
-    const float* input,
-    int8_t* output,
-    int32_t size,
-    int32_t zero_point,
-    float scale
-) {
+arm_quantize_f32_s8(const float *input, int8_t *output, int32_t size, int32_t zero_point, float scale)
+{
 
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     int32_t count = (size + 3) / 4;
     float mul_scale = 1.0f / scale;
     int32x4_t max = vdupq_n_s32(INT8_MAX);
     int32x4_t min = vdupq_n_s32(INT8_MIN);
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++)
+    {
         mve_pred16_t pred = vctp32q(size);
         size -= 4;
         float32x4_t vals = vldrwq_z_f32(input, pred);
@@ -62,9 +58,10 @@ arm_quantize_f32_s8(
         vstrbq_p_s32(output, clamped, pred);
         input += 4;
         output += 4;
-  }
+    }
 #else
-    for (int i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++)
+    {
         float val = input[i];
         int32_t rounded = (int32_t)(round(val / scale)) + zero_point;
         int32_t clamped = CLAMP(rounded, INT8_MAX, INT8_MIN);
@@ -73,7 +70,6 @@ arm_quantize_f32_s8(
 #endif
 
     return ARM_CMSIS_NN_SUCCESS;
-
 }
 
 /**

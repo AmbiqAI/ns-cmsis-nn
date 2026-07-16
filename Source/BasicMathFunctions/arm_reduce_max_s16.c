@@ -31,7 +31,6 @@
  * @{
  */
 
-
 /**
  * @brief Generic fallback reduce max operator for quantized s16 tensors.
  *
@@ -66,30 +65,31 @@ arm_cmsis_nn_status arm_reduce_max_generic_s16(const int16_t *input_data,
     const int C_limit = axis_dims->c ? C : 1;
 
     for (int n = 0; n < out_N; ++n)
-    for (int h = 0; h < out_H; ++h)
-    for (int w = 0; w < out_W; ++w)
-    for (int c = 0; c < out_C; ++c)
-    {
-        int16_t max_val = INT16_MIN;
+        for (int h = 0; h < out_H; ++h)
+            for (int w = 0; w < out_W; ++w)
+                for (int c = 0; c < out_C; ++c)
+                {
+                    int16_t max_val = INT16_MIN;
 
-        for (int ni = 0; ni < N_limit; ++ni)
-        for (int hi = 0; hi < H_limit; ++hi)
-        for (int wi = 0; wi < W_limit; ++wi)
-        for (int ci = 0; ci < C_limit; ++ci)
-        {
-            int idx_n = axis_dims->n ? ni : n;
-            int idx_h = axis_dims->h ? hi : h;
-            int idx_w = axis_dims->w ? wi : w;
-            int idx_c = axis_dims->c ? ci : c;
+                    for (int ni = 0; ni < N_limit; ++ni)
+                        for (int hi = 0; hi < H_limit; ++hi)
+                            for (int wi = 0; wi < W_limit; ++wi)
+                                for (int ci = 0; ci < C_limit; ++ci)
+                                {
+                                    int idx_n = axis_dims->n ? ni : n;
+                                    int idx_h = axis_dims->h ? hi : h;
+                                    int idx_w = axis_dims->w ? wi : w;
+                                    int idx_c = axis_dims->c ? ci : c;
 
-            int flat_index = ((idx_n * H + idx_h) * W + idx_w) * C + idx_c;
-            int16_t v = input_data[flat_index];
-            if (v > max_val) max_val = v;
-        }
+                                    int flat_index = ((idx_n * H + idx_h) * W + idx_w) * C + idx_c;
+                                    int16_t v = input_data[flat_index];
+                                    if (v > max_val)
+                                        max_val = v;
+                                }
 
-        int out_index = ((n * out_H + h) * out_W + w) * out_C + c;
-        output_data[out_index] = max_val;
-    }
+                    int out_index = ((n * out_H + h) * out_W + w) * out_C + c;
+                    output_data[out_index] = max_val;
+                }
 
     return ARM_CMSIS_NN_SUCCESS;
 }
@@ -122,7 +122,8 @@ arm_cmsis_nn_status arm_reduce_max_flatten_last_dims_s16(const int16_t *input_da
 
         int32_t j = 0;
         // Process 8 lanes at a time
-        for (; j <= inner_size - 8; j += 8) {
+        for (; j <= inner_size - 8; j += 8)
+        {
             int16x8_t v = vld1q_s16(p + j);
             vmax = vmaxq_s16(vmax, v);
         }
@@ -131,7 +132,8 @@ arm_cmsis_nn_status arm_reduce_max_flatten_last_dims_s16(const int16_t *input_da
         max_val = vmaxvq_s16(max_val, vmax);
 
         // Tail
-        for (; j < inner_size; ++j) {
+        for (; j < inner_size; ++j)
+        {
             max_val = MAX(max_val, p[j]);
         }
 
@@ -186,7 +188,8 @@ arm_cmsis_nn_status arm_reduce_max_flatten_last_dims_s16(const int16_t *input_da
         for (int j = 1; j < inner_size; ++j)
         {
             int16_t v = *in_ptr++;
-            if (v > max_val) max_val = v;
+            if (v > max_val)
+                max_val = v;
         }
         *out_ptr++ = max_val;
     }
@@ -194,7 +197,6 @@ arm_cmsis_nn_status arm_reduce_max_flatten_last_dims_s16(const int16_t *input_da
 
     return ARM_CMSIS_NN_SUCCESS;
 }
-
 
 /**
  * @brief Spatial reduce max operator for quantized s16 tensors.
@@ -207,12 +209,11 @@ arm_cmsis_nn_status arm_reduce_max_flatten_last_dims_s16(const int16_t *input_da
  *
  * @return     ARM_CMSIS_NN_SUCCESS on success
  */
-arm_cmsis_nn_status
-arm_reduce_max_spatial_s16(const int16_t *input_data,
-                           const cmsis_nn_dims *input_dims,
-                           const cmsis_nn_dims *axis_dims,
-                           int16_t *output_data,
-                           const cmsis_nn_dims *output_dims)
+arm_cmsis_nn_status arm_reduce_max_spatial_s16(const int16_t *input_data,
+                                               const cmsis_nn_dims *input_dims,
+                                               const cmsis_nn_dims *axis_dims,
+                                               int16_t *output_data,
+                                               const cmsis_nn_dims *output_dims)
 {
 
 #if defined(ARM_MATH_MVEI)
@@ -220,15 +221,15 @@ arm_reduce_max_spatial_s16(const int16_t *input_data,
     (void)axis_dims;
     (void)output_dims;
 
-    const int32_t N       = input_dims->n;
-    const int32_t H       = input_dims->h;
-    const int32_t W       = input_dims->w;
-    const int32_t C       = input_dims->c;
+    const int32_t N = input_dims->n;
+    const int32_t H = input_dims->h;
+    const int32_t W = input_dims->w;
+    const int32_t C = input_dims->c;
     const int32_t spatial = H * W;
 
     for (int n = 0; n < N; ++n)
     {
-        const int16_t *in_ptr  = input_data  + n * spatial * C;
+        const int16_t *in_ptr = input_data + n * spatial * C;
         int16_t *out_ptr = output_data + n * C;
 
         int c = 0;
@@ -255,7 +256,8 @@ arm_reduce_max_spatial_s16(const int16_t *input_data,
             for (int i = 0; i < spatial; ++i)
             {
                 int16_t v = in_ptr[i * C + c];
-                if (v > m) m = v;
+                if (v > m)
+                    m = v;
             }
             out_ptr[c] = m;
         }
@@ -267,33 +269,35 @@ arm_reduce_max_spatial_s16(const int16_t *input_data,
     (void)axis_dims;
     (void)output_dims;
 
-    const int32_t N       = input_dims->n;
-    const int32_t H       = input_dims->h;
-    const int32_t W       = input_dims->w;
-    const int32_t C       = input_dims->c;
+    const int32_t N = input_dims->n;
+    const int32_t H = input_dims->h;
+    const int32_t W = input_dims->w;
+    const int32_t C = input_dims->c;
     const int32_t spatial = H * W;
 
-    for (int n = 0; n < N; ++n) {
-        const int16_t *base = input_data  + n * spatial * C;
-              int16_t *out  = output_data + n * C;
+    for (int n = 0; n < N; ++n)
+    {
+        const int16_t *base = input_data + n * spatial * C;
+        int16_t *out = output_data + n * C;
 
-        for (int c = 0; c < C; ++c) {
+        for (int c = 0; c < C; ++c)
+        {
             int32_t s = 0;
             // pack two 16-bit lanes, both init to INT16_MIN
             int32_t max_pair = PKHBT(INT16_MIN, INT16_MIN, 16);
 
             // handle groups of 2 spatial elements at a time
-            for (; s <= spatial - 2; s += 2) {
+            for (; s <= spatial - 2; s += 2)
+            {
                 // gather two samples
                 int16_t v0 = base[(s + 0) * C + c];
                 int16_t v1 = base[(s + 1) * C + c];
                 // pack *unsigned* to avoid sign-bleed
-                uint32_t op = (uint32_t)(uint16_t)v0
-                            | ((uint32_t)(uint16_t)v1 << 16);
+                uint32_t op = (uint32_t)(uint16_t)v0 | ((uint32_t)(uint16_t)v1 << 16);
                 // extract lanes and compare
-                int16_t a0 = (int16_t)( op        & 0xFFFF);
+                int16_t a0 = (int16_t)(op & 0xFFFF);
                 int16_t a1 = (int16_t)((op >> 16) & 0xFFFF);
-                int16_t m0 = (int16_t)( max_pair        & 0xFFFF);
+                int16_t m0 = (int16_t)(max_pair & 0xFFFF);
                 int16_t m1 = (int16_t)((max_pair >> 16) & 0xFFFF);
                 m0 = MAX(m0, a0);
                 m1 = MAX(m1, a1);
@@ -301,12 +305,13 @@ arm_reduce_max_spatial_s16(const int16_t *input_data,
             }
 
             // collapse the two lanes into one int16
-            int16_t m = (int16_t)( max_pair        & 0xFFFF);
+            int16_t m = (int16_t)(max_pair & 0xFFFF);
             int16_t t = (int16_t)((max_pair >> 16) & 0xFFFF);
             m = MAX(m, t);
 
             // process any tail
-            for (; s < spatial; ++s) {
+            for (; s < spatial; ++s)
+            {
                 int16_t v = base[s * C + c];
                 m = MAX(m, v);
             }
@@ -318,14 +323,9 @@ arm_reduce_max_spatial_s16(const int16_t *input_data,
 
 #else
 
-    return arm_reduce_max_generic_s16(input_data,
-                                     input_dims,
-                                     axis_dims,
-                                     output_data,
-                                     output_dims);
+    return arm_reduce_max_generic_s16(input_data, input_dims, axis_dims, output_data, output_dims);
 
 #endif
-
 }
 
 /*
@@ -335,10 +335,10 @@ arm_reduce_max_spatial_s16(const int16_t *input_data,
  *
  */
 arm_cmsis_nn_status arm_reduce_max_s16(const int16_t *input_data,
-                                      const cmsis_nn_dims *input_dims,
-                                      const cmsis_nn_dims *axis_dims,
-                                      int16_t *output_data,
-                                      const cmsis_nn_dims *output_dims)
+                                       const cmsis_nn_dims *input_dims,
+                                       const cmsis_nn_dims *axis_dims,
+                                       int16_t *output_data,
+                                       const cmsis_nn_dims *output_dims)
 {
 
     // Validate input
@@ -347,11 +347,8 @@ arm_cmsis_nn_status arm_reduce_max_s16(const int16_t *input_data,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    int32_t in_dims[4] = { input_dims->n, input_dims->h, input_dims->w, input_dims->c };
-    int32_t axis_arr[4] = { axis_dims->n ? 1 : 0,
-                            axis_dims->h ? 1 : 0,
-                            axis_dims->w ? 1 : 0,
-                            axis_dims->c ? 1 : 0 };
+    int32_t in_dims[4] = {input_dims->n, input_dims->h, input_dims->w, input_dims->c};
+    int32_t axis_arr[4] = {axis_dims->n ? 1 : 0, axis_dims->h ? 1 : 0, axis_dims->w ? 1 : 0, axis_dims->c ? 1 : 0};
 
     int32_t suffix_start = arm_reduce_get_flatten_suffix_start_from_arrays(in_dims, axis_arr);
 
@@ -359,32 +356,22 @@ arm_cmsis_nn_status arm_reduce_max_s16(const int16_t *input_data,
     {
         int32_t outer_size = 1, inner_size = 1;
 
-        for (int32_t d = 0; d < suffix_start; ++d) outer_size *= in_dims[d];
-        for (int32_t d = suffix_start; d < 4; ++d) inner_size *= in_dims[d];
+        for (int32_t d = 0; d < suffix_start; ++d)
+            outer_size *= in_dims[d];
+        for (int32_t d = suffix_start; d < 4; ++d)
+            inner_size *= in_dims[d];
 
-        return arm_reduce_max_flatten_last_dims_s16(input_data,
-                                                    output_data,
-                                                    outer_size,
-                                                    inner_size);
+        return arm_reduce_max_flatten_last_dims_s16(input_data, output_data, outer_size, inner_size);
     }
 
     // Check for spatial reduction axis=[H,W]
     if (!axis_dims->n && axis_dims->h && axis_dims->w && !axis_dims->c)
     {
-        return arm_reduce_max_spatial_s16(input_data,
-                                          input_dims,
-                                          axis_dims,
-                                          output_data,
-                                          output_dims);
+        return arm_reduce_max_spatial_s16(input_data, input_dims, axis_dims, output_data, output_dims);
     }
 
     // Fallback to general-purpose scalar implementation
-    return arm_reduce_max_generic_s16(input_data,
-                                      input_dims,
-                                      axis_dims,
-                                      output_data,
-                                      output_dims);
-
+    return arm_reduce_max_generic_s16(input_data, input_dims, axis_dims, output_data, output_dims);
 }
 
 /**

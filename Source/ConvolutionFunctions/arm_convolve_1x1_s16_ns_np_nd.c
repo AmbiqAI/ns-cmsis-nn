@@ -19,39 +19,38 @@
  *
  * -------------------------------------------------------------------- */
 
- #include "arm_nnfunctions.h"
- #include "arm_nnsupportfunctions.h"
+#include "arm_nnfunctions.h"
+#include "arm_nnsupportfunctions.h"
 
- /**
-  *  @ingroup Public
-  */
+/**
+ *  @ingroup Public
+ */
 
- /**
-  * @addtogroup NNConv
-  * @{
-  */
+/**
+ * @addtogroup NNConv
+ * @{
+ */
 
- /*
-  * Pointwise s16 convolution function: no stride, no padding, no dilation.
-  *
-  * Refer header file for details. Optimal use case for the DSP/MVE implementation is when input and output channels
-  * are multiples of 4 or atleast greater than 4.
-  *
-  */
+/*
+ * Pointwise s16 convolution function: no stride, no padding, no dilation.
+ *
+ * Refer header file for details. Optimal use case for the DSP/MVE implementation is when input and output channels
+ * are multiples of 4 or atleast greater than 4.
+ *
+ */
 
- arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(
-    const cmsis_nn_context *ctx,
-    const cmsis_nn_conv_params *conv_params,
-    const cmsis_nn_per_channel_quant_params *quant_params,
-    const cmsis_nn_dims *input_dims,
-    const int16_t *input_data,
-    const cmsis_nn_dims *filter_dims,
-    const int8_t *filter_data,
-    const cmsis_nn_dims *bias_dims,
-    const cmsis_nn_bias_data *bias_data,
-    const cmsis_nn_dims *output_dims,
-    int16_t *output_data)
- {
+arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
+                                                  const cmsis_nn_conv_params *conv_params,
+                                                  const cmsis_nn_per_channel_quant_params *quant_params,
+                                                  const cmsis_nn_dims *input_dims,
+                                                  const int16_t *input_data,
+                                                  const cmsis_nn_dims *filter_dims,
+                                                  const int8_t *filter_data,
+                                                  const cmsis_nn_dims *bias_dims,
+                                                  const cmsis_nn_bias_data *bias_data,
+                                                  const cmsis_nn_dims *output_dims,
+                                                  int16_t *output_data)
+{
     (void)ctx;
     (void)bias_dims;
 
@@ -75,17 +74,17 @@
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {
         arm_nn_mat_mult_nt_t_s16(input_data,
-            filter_data,
-            bias_data,
-            out,
-            output_mult,
-            output_shift,
-            lhs_rows,
-            output_dims->c,
-            rhs_cols,
-            out_activation_min,
-            out_activation_max,
-            output_dims->c);
+                                 filter_data,
+                                 bias_data,
+                                 out,
+                                 output_mult,
+                                 output_shift,
+                                 lhs_rows,
+                                 output_dims->c,
+                                 rhs_cols,
+                                 out_activation_min,
+                                 out_activation_max,
+                                 output_dims->c);
 
         if (out == NULL)
         {
@@ -99,8 +98,8 @@
 
     /* Return to application */
     return ARM_CMSIS_NN_SUCCESS;
- }
+}
 
- /**
-  * @} end of NNConv group
-  */
+/**
+ * @} end of NNConv group
+ */

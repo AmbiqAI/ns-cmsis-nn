@@ -37,30 +37,27 @@
  * Refer header file for details.
  *
  */
-arm_cmsis_nn_status
-arm_batch_to_space_nd_s16(
-    const int16_t *input_data,
-    const cmsis_nn_dims *input_dims,
-    const cmsis_nn_tile *block_shape,
-    const cmsis_nn_dims *crop, // n->top, h->left, w->bottom, c->right
-    int16_t *output_data,
-    const cmsis_nn_dims *output_dims
-) {
-    if (!input_data || !output_data || !input_dims || !block_shape || !crop || !output_dims) {
+arm_cmsis_nn_status arm_batch_to_space_nd_s16(const int16_t *input_data,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_tile *block_shape,
+                                              const cmsis_nn_dims *crop, // n->top, h->left, w->bottom, c->right
+                                              int16_t *output_data,
+                                              const cmsis_nn_dims *output_dims)
+{
+    if (!input_data || !output_data || !input_dims || !block_shape || !crop || !output_dims)
+    {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
     cmsis_nn_dims in8 = *input_dims, out8 = *output_dims;
-    in8.c  *= 2;
+    in8.c *= 2;
     out8.c *= 2;
 
-    return arm_batch_to_space_nd_s8(
-        (const int8_t *)input_data,
-        &in8,
-        block_shape,
-        crop, // cropping in spatial elements; unchanged
-        (int8_t *)output_data,
-        &out8
-    );
+    return arm_batch_to_space_nd_s8((const int8_t *)input_data,
+                                    &in8,
+                                    block_shape,
+                                    crop, // cropping in spatial elements; unchanged
+                                    (int8_t *)output_data,
+                                    &out8);
 }
 
 /**

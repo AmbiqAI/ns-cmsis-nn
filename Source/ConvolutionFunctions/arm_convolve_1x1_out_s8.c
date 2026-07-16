@@ -40,7 +40,6 @@
 
 #if defined(ARM_MATH_MVEI)
 
-
 arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
                                             const cmsis_nn_context *weight_sum_ctx,
                                             const cmsis_nn_conv_params *conv_params,
@@ -62,7 +61,6 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
     }
     int16_t *buffer_a = (int16_t *)ctx->buf;
 
-
     const int32_t input_batches = input_dims->n;
     const uint16_t input_x = input_dims->w;
     const uint16_t input_y = input_dims->h;
@@ -72,7 +70,7 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
     const uint16_t kernel_ch = filter_dims->c;
     const uint16_t output_x = output_dims->w;
     const uint16_t output_y = output_dims->h;
-    //special impl for Nx1x1xC only
+    // special impl for Nx1x1xC only
 
     const uint16_t output_ch = output_dims->c;
 
@@ -103,7 +101,6 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
     // the ordinary case, there is no difference. The division is implemented as a rshift for optimization purposes.
     uint32_t y_rshift = 0;
     uint32_t x_rshift = 0;
-
 
     const int32_t input_x_rshifted = input_x >> x_rshift;
     const int32_t input_y_rshifted = input_y >> y_rshift;
@@ -171,25 +168,25 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
                 return ARM_CMSIS_NN_NO_IMPL_ERROR;
             }
 
-            //there is only one column in the Bx1x1xC case
+            // there is only one column in the Bx1x1xC case
             if (lhs_rows != 0)
             {
                 arm_nn_mat_mult_nt_t_1x1_out_s8(weight_sum_ctx->buf,
-                                        (int8_t *)buffer_a,
-                                        filter_data_ptr,
-                                        bias_data_ptr,
-                                        out,
-                                        output_mult_ptr,
-                                        output_shift_ptr,
-                                        lhs_rows,
-                                        output_ch_per_group,
-                                        rhs_cols,
-                                        input_offset,
-                                        out_offset,
-                                        out_activation_min,
-                                        out_activation_max,
-                                        output_ch,
-                                        aligned_rhs_cols);
+                                                (int8_t *)buffer_a,
+                                                filter_data_ptr,
+                                                bias_data_ptr,
+                                                out,
+                                                output_mult_ptr,
+                                                output_shift_ptr,
+                                                lhs_rows,
+                                                output_ch_per_group,
+                                                rhs_cols,
+                                                input_offset,
+                                                out_offset,
+                                                out_activation_min,
+                                                out_activation_max,
+                                                output_ch,
+                                                aligned_rhs_cols);
 
                 out += lhs_rows * output_ch;
                 lhs_rows = 0;
@@ -209,8 +206,7 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-
-#endif //defined(ARM_MATH_MVEI)
+#endif // defined(ARM_MATH_MVEI)
        //
 /**
  * @} end of NNConv group

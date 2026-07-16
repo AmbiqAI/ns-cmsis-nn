@@ -46,19 +46,17 @@
  * Refer header file for details.
  *
  */
-arm_cmsis_nn_status arm_fully_connected_per_channel_s16(
-    const cmsis_nn_context *ctx,
-    const cmsis_nn_fc_params *fc_params,
-    const cmsis_nn_per_channel_quant_params *quant_params,
-    const cmsis_nn_dims *input_dims,
-    const int16_t *input_data,
-    const cmsis_nn_dims *filter_dims,
-    const int8_t *kernel,
-    const cmsis_nn_dims *bias_dims,
-    const int64_t *bias_data,
-    const cmsis_nn_dims *output_dims,
-    int16_t *output_data
-)
+arm_cmsis_nn_status arm_fully_connected_per_channel_s16(const cmsis_nn_context *ctx,
+                                                        const cmsis_nn_fc_params *fc_params,
+                                                        const cmsis_nn_per_channel_quant_params *quant_params,
+                                                        const cmsis_nn_dims *input_dims,
+                                                        const int16_t *input_data,
+                                                        const cmsis_nn_dims *filter_dims,
+                                                        const int8_t *kernel,
+                                                        const cmsis_nn_dims *bias_dims,
+                                                        const int64_t *bias_data,
+                                                        const cmsis_nn_dims *output_dims,
+                                                        int16_t *output_data)
 {
     (void)bias_dims;
 
@@ -89,18 +87,16 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s16(
     while (batch_cnt)
     {
 
-        arm_nn_vec_mat_mult_t_per_ch_s16(
-            input_data,
-            kernel,
-            bias_data,
-            output_data,
-            reduced_multiplier,
-            quant_params->shift,
-            filter_dims->n, /* col_dim or accum_depth */
-            output_dims->c, /* row_dim or output_depth */
-            fc_params->activation.min,
-            fc_params->activation.max
-        );
+        arm_nn_vec_mat_mult_t_per_ch_s16(input_data,
+                                         kernel,
+                                         bias_data,
+                                         output_data,
+                                         reduced_multiplier,
+                                         quant_params->shift,
+                                         filter_dims->n, /* col_dim or accum_depth */
+                                         output_dims->c, /* row_dim or output_depth */
+                                         fc_params->activation.min,
+                                         fc_params->activation.max);
 
         input_data += filter_dims->n;
         output_data += output_dims->c;

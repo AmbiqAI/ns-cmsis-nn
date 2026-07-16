@@ -29,7 +29,6 @@
 
 #define CMSIS_NN_MAX_RANK (4)
 
-
 arm_cmsis_nn_status arm_gather_nd_s16(const int16_t *params_data,
                                       const cmsis_nn_dims *params_dims,
                                       const int32_t *indices_data,

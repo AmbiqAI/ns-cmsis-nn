@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright 2019-2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
+# SPDX-FileCopyrightText: Copyright 2019-2024, 2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -30,6 +30,10 @@ add_compile_options(-fomit-frame-pointer
                     -Wno-redundant-decls
                     -Wvla)
 
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(-Wjump-misses-init)
+endif()
+
 option(BUILD_CMSIS_NN_UNIT "If building the unit tests from another project, i.e. \
 platform dependencies need to be provided externally." OFF)
 
@@ -47,11 +51,28 @@ if(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300)
     set(FVP_CORSTONE_300_PATH "${CMAKE_CURRENT_SOURCE_DIR}/Corstone-300" CACHE PATH
         "Dependencies for using FVP based on Arm Corstone-300 software.")
     set(CMAKE_EXECUTABLE_SUFFIX ".elf")
+elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
+    # The host Clang regression build treats -Ofast as deprecated and Unity
+    # relies on isnan/isinf checks, so use a conforming optimization level.
+    set(CMSIS_OPTIMIZATION_LEVEL "-O3" CACHE STRING "Compiler optimization level." FORCE)
 endif()
 
 # Build the functions to be tested.
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../.. cmsis-nn)
-add_compile_options(${CMSIS_OPTIMIZATION_LEVEL})
+if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 AND CMAKE_C_COMPILER_ID MATCHES "Clang")
+    target_compile_options(cmsis-nn PRIVATE -Wno-error=unknown-attributes)
+endif()
+if(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300)
+    add_compile_options(${CMSIS_OPTIMIZATION_LEVEL})
+elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
+    # Unity checks NaN/Inf explicitly in host regressions, so keep finite-math
+    # assumptions disabled for Clang instead of inheriting the library's -Ofast.
+    add_compile_options(-O3
+                        -fno-finite-math-only
+                        -Wno-error=unknown-attributes)
+else()
+    add_compile_options(${CMSIS_OPTIMIZATION_LEVEL})
+endif()
 
 # Target for all unit tests.
 add_custom_target(cmsis_nn_unit_tests)
@@ -63,7 +84,7 @@ function(add_cmsis_nn_unit_test_executable)
     foreach(target ${ARGV})
         set(tmp "${tmp} ${target}")
         add_executable(${target})
-        if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        if (BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
             target_link_options(${target} PRIVATE "--specs=nosys.specs")
         endif()
         add_dependencies(cmsis_nn_unit_tests ${target})
@@ -170,13 +191,77 @@ add_subdirectory(TestCases/test_arm_abs_s8)
 add_subdirectory(TestCases/test_arm_abs_s16)
 add_subdirectory(TestCases/test_arm_sqrt_s8)
 add_subdirectory(TestCases/test_arm_sqrt_s16)
+add_subdirectory(TestCases/test_arm_broadcast_to_s8)
+add_subdirectory(TestCases/test_arm_broadcast_to_s16)
+add_subdirectory(TestCases/test_arm_dynamic_update_slice_s8)
+add_subdirectory(TestCases/test_arm_dynamic_update_slice_s16)
+add_subdirectory(TestCases/test_arm_mirror_pad_s8)
+add_subdirectory(TestCases/test_arm_mirror_pad_s16)
+add_subdirectory(TestCases/test_arm_reverse_sequence_s8)
+add_subdirectory(TestCases/test_arm_reverse_sequence_s16)
+add_subdirectory(TestCases/test_arm_scatter_nd_s8)
+add_subdirectory(TestCases/test_arm_scatter_nd_s16)
+add_subdirectory(TestCases/test_arm_select_v2_s8)
+add_subdirectory(TestCases/test_arm_select_v2_s16)
+add_subdirectory(TestCases/test_arm_tile_s8)
+add_subdirectory(TestCases/test_arm_tile_s16)
+add_subdirectory(TestCases/test_arm_where_s8)
+add_subdirectory(TestCases/test_arm_where_s16)
 
-set(MAKE_CMD "python3")
+if(ARM_NN_ENABLE_F32)
+    add_subdirectory(TestCases/test_arm_activation_f32)
+    add_subdirectory(TestCases/test_arm_avg_pool_f32)
+    add_subdirectory(TestCases/test_arm_batch_matmul_f32)
+    add_subdirectory(TestCases/test_arm_batch_norm_f32)
+    add_subdirectory(TestCases/test_arm_concatenation_f32)
+    add_subdirectory(TestCases/test_arm_ds_cnn_s_body_f32)
+    add_subdirectory(TestCases/test_arm_convolve_f32)
+    add_subdirectory(TestCases/test_arm_depthwise_conv_f32)
+    add_subdirectory(TestCases/test_arm_elementwise_add_f32)
+    add_subdirectory(TestCases/test_arm_elementwise_mul_f32)
+    add_subdirectory(TestCases/test_arm_fully_connected_f32)
+    add_subdirectory(TestCases/test_arm_lstm_unidirectional_f32)
+    add_subdirectory(TestCases/test_arm_max_pool_f32)
+    add_subdirectory(TestCases/test_arm_maximum_minimum_f32)
+    add_subdirectory(TestCases/test_arm_pad_f32)
+    add_subdirectory(TestCases/test_arm_reshape_f32)
+    add_subdirectory(TestCases/test_arm_softmax_f32)
+    add_subdirectory(TestCases/test_arm_svdf_f32)
+    add_subdirectory(TestCases/test_arm_transpose_f32)
+    add_subdirectory(TestCases/test_arm_transpose_conv_f32)
+endif()
+
+if(ARM_NN_ENABLE_F16)
+    add_subdirectory(TestCases/test_arm_activation_f16)
+    add_subdirectory(TestCases/test_arm_avg_pool_f16)
+    add_subdirectory(TestCases/test_arm_batch_matmul_f16)
+    add_subdirectory(TestCases/test_arm_batch_norm_f16)
+    add_subdirectory(TestCases/test_arm_concatenation_f16)
+    add_subdirectory(TestCases/test_arm_ds_cnn_s_body_f16)
+    add_subdirectory(TestCases/test_arm_convolve_f16)
+    add_subdirectory(TestCases/test_arm_depthwise_conv_f16)
+    add_subdirectory(TestCases/test_arm_elementwise_add_f16)
+    add_subdirectory(TestCases/test_arm_elementwise_mul_f16)
+    add_subdirectory(TestCases/test_arm_fully_connected_f16)
+    add_subdirectory(TestCases/test_arm_lstm_unidirectional_f16)
+    add_subdirectory(TestCases/test_arm_max_pool_f16)
+    add_subdirectory(TestCases/test_arm_maximum_minimum_f16)
+    add_subdirectory(TestCases/test_arm_pad_f16)
+    add_subdirectory(TestCases/test_arm_reshape_f16)
+    add_subdirectory(TestCases/test_arm_softmax_f16)
+    add_subdirectory(TestCases/test_arm_svdf_f16)
+    add_subdirectory(TestCases/test_arm_transpose_f16)
+    add_subdirectory(TestCases/test_arm_transpose_conv_f16)
+endif()
+
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(MAKE_CMD "${Python3_EXECUTABLE}")
 set(MAKE_CMD_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/unittest_targets.py")
 set(MAKE_CMD_SCRIPT_OPTION "--download-and-generate-test-runners")
 MESSAGE(STATUS "Downloading Unity and generating test runners for CMSIS-NN unit tests if needed..")
 execute_process(COMMAND ${MAKE_CMD} ${MAKE_CMD_SCRIPT} ${MAKE_CMD_SCRIPT_OPTION}
                         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "Allow vendored Unity CMake compatibility with CMake 4" FORCE)
 add_subdirectory(Unity)
 
 # Link common dependencies.
@@ -185,6 +270,9 @@ string(REPLACE " " ";" cmsis_nn_unit_test_list_of_executables ${executables})
 foreach(target ${cmsis_nn_unit_test_list_of_executables})
     target_link_libraries(${target} LINK_PUBLIC unity)
     target_link_libraries(${target} LINK_PUBLIC cmsis-nn)
+    if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300)
+        target_link_libraries(${target} PRIVATE m)
+    endif()
 endforeach()
 
 if(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300)
@@ -233,7 +321,6 @@ if(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300)
     foreach(target ${cmsis_nn_unit_test_list_of_executables})
         target_link_libraries(${target} PRIVATE retarget)
         target_link_libraries(${target} PRIVATE $<TARGET_OBJECTS:cmsis_startup> cmsis_startup)
-
         add_dependencies(${target} retarget cmsis_startup)
 
         target_compile_definitions(${target} PUBLIC USING_FVP_CORSTONE_300)

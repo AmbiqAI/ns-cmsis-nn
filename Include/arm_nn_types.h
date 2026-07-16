@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2020-2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2020-2024, 2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-FileCopyrightText: Copyright 2024-2026 Ambiq <opensource@ambiq.com>
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -23,14 +23,16 @@
  * Description:  Public header file to contain the CMSIS-NN structs for the
  *               TensorFlowLite micro compliant functions
  *
- * $Date:        03 Oct 2025
- * $Revision:    "v7.27.0"  x-release-please-version
+ * $Date:        21 May 2026
+ * $Revision:    V.3.6.1
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
 
 #ifndef ARM_NN_TYPES_H
 #define ARM_NN_TYPES_H
+
+#include "Internal/arm_nn_config.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -416,10 +418,15 @@ typedef struct
     void *temp1;
     void *temp2;
     void *cell_state;
+    void *hidden_state;
 } cmsis_nn_lstm_context;
 
 /**
  * @} // end group genPubTypes
  */
+
+#if ARM_NN_FLOAT_API_ENABLED
+    #include "arm_nn_types_flt.h"
+#endif
 
 #endif /* ARM_NN_TYPES_H */

@@ -24,13 +24,13 @@
 #include "arm_nnsupportfunctions.h"
 
 /**
-*  @ingroup groupNN
-*/
+ *  @ingroup groupNN
+ */
 
 /**
-* @addtogroup Acti
-* @{
-*/
+ * @addtogroup Acti
+ * @{
+ */
 
 /*
  * Hard Swish activation function for int8_t data type.
@@ -38,16 +38,15 @@
  * Refer header file for details.
  *
  */
-arm_cmsis_nn_status arm_hard_swish_compat_s8(
-    const int8_t *input,
-    const int32_t input_offset,
-    const int32_t output_offset,
-    const int32_t output_multiplier_fp,
-    const int32_t output_multiplier_exp,
-    const int32_t relu_multiplier_fp,
-    const int32_t relu_multiplier_exp,
-    int8_t *output,
-    const int32_t output_size)
+arm_cmsis_nn_status arm_hard_swish_compat_s8(const int8_t *input,
+                                             const int32_t input_offset,
+                                             const int32_t output_offset,
+                                             const int32_t output_multiplier_fp,
+                                             const int32_t output_multiplier_exp,
+                                             const int32_t relu_multiplier_fp,
+                                             const int32_t relu_multiplier_exp,
+                                             int8_t *output,
+                                             const int32_t output_size)
 {
     if (output_multiplier_exp > 0)
     {
@@ -100,7 +99,8 @@ arm_cmsis_nn_status arm_hard_swish_compat_s8(
         int16x8_t y = vqdmulhq_s16(rel, y_pre);
 
         // Finally apply output multiplier exponent
-        if (output_multiplier_exp < 0) {
+        if (output_multiplier_exp < 0)
+        {
             y = arm_divide_by_power_of_two_mve_s16(y, -output_multiplier_exp);
         }
 
@@ -150,13 +150,14 @@ arm_cmsis_nn_status arm_hard_swish_compat_s8(
         }
 
         // shift [-1,1] → [0,1]: (rel + 32768) >> 1  (rounded)
-        rel = (int16_t)(( (int32_t)rel + 32768 ) >> 1);
+        rel = (int16_t)(((int32_t)rel + 32768) >> 1);
 
         // y_pre is on preshift output scale. Multiply by relu using **non-rounded** SDHM
         int16_t y = arm_nn_sqdmulh_s16(rel, y_pre);
 
         // Finally apply output multiplier exponent
-        if (output_multiplier_exp < 0) {
+        if (output_multiplier_exp < 0)
+        {
             y = arm_nn_divide_by_power_of_two_s16(y, -output_multiplier_exp);
         }
 
