@@ -1455,6 +1455,7 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv
  *                                 Optional function {API}_get_buffer_size() provides the buffer
  *                                 size if an additional buffer is required exists if additional memory is.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in, out] weight_sum_ctx  Function context that contains the weight sum buffer if required by the function.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
@@ -1477,6 +1478,7 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv
  *    - Supported framework: TensorFlow Lite
  */
 arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
+                                          const cmsis_nn_context *weight_sum_ctx,
                                           const cmsis_nn_dw_conv_params *dw_conv_params,
                                           const cmsis_nn_per_channel_quant_params *quant_params,
                                           const cmsis_nn_dims *input_dims,
@@ -1756,6 +1758,7 @@ int32_t arm_depthwise_conv_fast_s16_get_buffer_size(const cmsis_nn_dims *input_d
  *
  */
 arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
+                                              const cmsis_nn_context *weight_sum_ctx,
                                               const cmsis_nn_dw_conv_params *dw_conv_params,
                                               const cmsis_nn_per_channel_quant_params *quant_params,
                                               const cmsis_nn_dims *input_dims,
