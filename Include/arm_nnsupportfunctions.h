@@ -1569,6 +1569,7 @@ int8_t *arm_nn_mat_mult_kernel_s4_s16(const int8_t *input_a,
  * @param[in]       aligned_num_col_a  number of columns of A aligned by 4
  * @param[in]       output_bias        per output channel bias. Range : int32
  * @param[in,out]   out_0              pointer to output
+ * @param[in]       kernel_sum         pointer to the sum of weights * input offset
  * @return     The function returns one of the two
  *              1. The incremented output pointer for a successful operation or
  *              2. NULL if implementation is not available.
@@ -1607,6 +1608,7 @@ int8_t *arm_nn_mat_mult_kernel_s8_s16(const int8_t *input_a,
  * @param[in]       output_bias        per output channel bias. Range : int32
  * @param[in]       row_address_offset address offset between rows in the output
  * @param[in,out]   out_0              pointer to output
+ * @param[in]       kernel_sum         pointer to the sum of weights * input offset
  * @return     The function returns one of the two
  *              1. The incremented output pointer for a successful operation or
  *              2. NULL if implementation is not available.
@@ -2698,6 +2700,30 @@ __STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(con
         return (union_mask & 0x1) == 0x1 ? 3 : -1;
     }
     return -1;
+}
+
+static inline int8_t s4_from_u4(uint8_t u4)
+{
+    /* sign-extend 4-bit two's complement to int8 */
+    return (int8_t)((u4 & 0x8u) ? ((int)u4 - 16) : (int)u4);
+}
+
+static inline int8_t s4_unpack_elem(const int8_t *packed_s4, uint32_t elem_index)
+{
+    /* elem_index counts logical int4 elements. Two per byte. */
+    const uint32_t byte_index = elem_index >> 1; /* /2 */
+    const uint8_t byte_val = (uint8_t)packed_s4[byte_index];
+
+    if ((elem_index & 1u) == 0u)
+    {
+        /* lower nibble */
+        return s4_from_u4(byte_val & 0x0Fu);
+    }
+    else
+    {
+        /* upper nibble */
+        return s4_from_u4((byte_val >> 4) & 0x0Fu);
+    }
 }
 
 #if defined(ARM_FLOAT16_SUPPORTED)

@@ -2027,6 +2027,36 @@ arm_cmsis_nn_status arm_vector_sum_s8_s64(int64_t *vector_sum_buf,
                                           const int64_t *bias_data);
 
 /**
+ * @brief Calculate the sum of int4 weights per output neuron (row) for a fully connected layer,
+ *        multiply by lhs_offset, and fold in optional bias.
+ *
+ * This function iterates over each row (corresponding to one output channel) in the
+ * int4-packed weight matrix. Each row contains K elements (K = input_dims->w * input_dims->h * input_dims->c),
+ * packed two per byte, with the lower nibble stored first. The sum of weights for each row
+ * is accumulated, multiplied by the provided lhs_offset (typically the input zero-point),
+ * and then the corresponding bias (if provided) is added. The folded result is written to
+ * the vector_sum_buf and can be passed into fully connected int4 kernels to avoid recomputing
+ * the offset contribution at runtime.
+ *
+ * @param[out]     vector_sum_buf   Buffer for folded sums, size [output_dims->c]
+ * @param[in]      weights_s4       Int4-packed weights, two per int8_t
+ * @param[in]      input_dims       Input tensor dimensions; uses .w, .h, .c to compute K
+ * @param[in]      output_dims      Output tensor dimensions; uses .c = number of output neurons
+ * @param[in]      lhs_offset       Constant multiplied with each sum (input offset / zero-point)
+ * @param[in]      bias_data        Optional bias vector [output_dims->c]; may be NULL
+ *
+ * @return         The function returns
+ *                 - <code>ARM_CMSIS_NN_SUCCESS</code> on successful operation
+ *                 - <code>ARM_CMSIS_NN_ARG_ERROR</code> if arguments are invalid
+ */
+arm_cmsis_nn_status arm_vector_sum_s4(int32_t *vector_sum_buf,
+                                      const int8_t *weights_s4,
+                                      const cmsis_nn_dims *input_dims,
+                                      const cmsis_nn_dims *output_dims,
+                                      const int32_t lhs_offset,
+                                      const int32_t *bias_data);
+
+/**
  * @brief Get size of additional buffer required by arm_fully_connected_s8().
  *        See also arm_vector_sum_s8, which is required if buffer size is > 0.
  * @param[in]      filter_dims             dimension of filter
