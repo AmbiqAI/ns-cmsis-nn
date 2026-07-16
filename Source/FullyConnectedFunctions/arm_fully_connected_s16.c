@@ -61,7 +61,6 @@ arm_cmsis_nn_status arm_fully_connected_s16(const cmsis_nn_context *ctx,
     (void)bias_dims;
     (void)ctx;
     (void)fc_params->filter_offset;
-
     int32_t batch_cnt = input_dims->n;
 
     const int32_t reduced_multiplier = REDUCE_MULTIPLIER(quant_params->multiplier);
