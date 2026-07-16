@@ -49,6 +49,7 @@
  */
 
 arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx,
+                                            const cmsis_nn_context *weight_sum_ctx,
                                             const cmsis_nn_conv_params *conv_params,
                                             const cmsis_nn_per_channel_quant_params *quant_params,
                                             const cmsis_nn_dims *input_dims,
@@ -65,6 +66,7 @@ arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx,
         if (arm_nn_is_convolve_1x1_fast(conv_params))
         {
             return arm_convolve_1x1_s4_fast(ctx,
+                                            weight_sum_ctx,
                                             conv_params,
                                             quant_params,
                                             input_dims,
@@ -79,6 +81,7 @@ arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx,
         else
         {
             return arm_convolve_1x1_s4(ctx,
+                                       weight_sum_ctx,
                                        conv_params,
                                        quant_params,
                                        input_dims,
@@ -94,6 +97,7 @@ arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx,
     else if (arm_nn_is_convolve_1_x_n(conv_params, input_dims, filter_dims))
     {
         return arm_convolve_1_x_n_s4(ctx,
+                                     weight_sum_ctx,
                                      conv_params,
                                      quant_params,
                                      input_dims,
@@ -109,6 +113,7 @@ arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx,
     else if (((filter_dims->h * filter_dims->w * input_dims->c) & 0x1) == 0)
     {
         return arm_convolve_even_s4(ctx,
+                                    weight_sum_ctx,
                                     conv_params,
                                     quant_params,
                                     input_dims,
@@ -124,6 +129,7 @@ arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx,
     else
     {
         return arm_convolve_s4(ctx,
+                               weight_sum_ctx,
                                conv_params,
                                quant_params,
                                input_dims,
