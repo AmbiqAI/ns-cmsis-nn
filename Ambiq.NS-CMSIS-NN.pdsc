@@ -242,6 +242,7 @@
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_wrapper_s16.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_wrapper_s8.c"/>
+        <file category="source" name="Source/FullyConnectedFunctions/arm_vector_sum_s4.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_vector_sum_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_vector_sum_s8_s64.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_nd_s16.c"/>
