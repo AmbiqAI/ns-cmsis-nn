@@ -143,7 +143,6 @@ depthwise_conv_s8_mult_4(const int8_t *input,
                     *output++ = (int8_t)out_buff[1];
                     *output++ = (int8_t)out_buff[2];
                     *output++ = (int8_t)out_buff[3];
-
 #endif
                 }
             }
@@ -247,7 +246,6 @@ static void depthwise_conv_s8_generic(const int8_t *input,
                             }
                         }
 
-                        /* Requantize and clamp output to provided range */
                         acc_0 = arm_nn_requantize(acc_0, output_mult[idx_out_ch], output_shift[idx_out_ch]);
                         acc_0 += output_offset;
                         acc_0 = MAX(acc_0, output_activation_min);
@@ -271,6 +269,7 @@ static void depthwise_conv_s8_generic(const int8_t *input,
  *
  */
 arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
+                                          const cmsis_nn_context *weight_sum_ctx,
                                           const cmsis_nn_dw_conv_params *dw_conv_params,
                                           const cmsis_nn_per_channel_quant_params *quant_params,
                                           const cmsis_nn_dims *input_dims,
@@ -288,6 +287,21 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
     (void)bias_dims;
     (void)ctx;
 
+    const bool full_x = (dw_conv_params->padding.w == 0) &&
+        (((output_dims->w - 1) * dw_conv_params->stride.w) + ((filter_dims->w - 1) * (int32_t)dilation_x) <
+         input_dims->w);
+    const bool full_y = (dw_conv_params->padding.h == 0) &&
+        (((output_dims->h - 1) * dw_conv_params->stride.h) + ((filter_dims->h - 1) * (int32_t)dilation_y) <
+         input_dims->h);
+
+    const int32_t *eff_bias = bias;
+    int32_t eff_input_offset = dw_conv_params->input_offset;
+    if (weight_sum_ctx && weight_sum_ctx->buf && full_x && full_y)
+    {
+        eff_bias = (const int32_t *)weight_sum_ctx->buf;
+        eff_input_offset = 0;
+    }
+
     if (dw_conv_params->ch_mult % 4 == 0 && input_dims->n == 1 && dw_conv_params->dilation.w == 1 &&
         dw_conv_params->dilation.h == 1)
     {
@@ -304,14 +318,14 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
                                  dw_conv_params->padding.h,
                                  dw_conv_params->stride.w,
                                  dw_conv_params->stride.h,
-                                 bias,
+                                 eff_bias,
                                  output,
                                  quant_params->shift,
                                  quant_params->multiplier,
                                  output_dims->w,
                                  output_dims->h,
                                  dw_conv_params->output_offset,
-                                 dw_conv_params->input_offset,
+                                 eff_input_offset,
                                  dw_conv_params->activation.min,
                                  dw_conv_params->activation.max);
     }
@@ -331,14 +345,14 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
                                   dw_conv_params->padding.h,
                                   dw_conv_params->stride.w,
                                   dw_conv_params->stride.h,
-                                  bias,
+                                  eff_bias,
                                   output,
                                   quant_params->shift,
                                   quant_params->multiplier,
                                   output_dims->w,
                                   output_dims->h,
                                   dw_conv_params->output_offset,
-                                  dw_conv_params->input_offset,
+                                  eff_input_offset,
                                   dw_conv_params->activation.min,
                                   dw_conv_params->activation.max,
                                   dilation_x,

@@ -136,6 +136,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
             dw_conv_params->padding.w <= 1)
         {
             status = arm_depthwise_conv_3x3_s8(ctx,
+                                               weight_sum_ctx,
                                                dw_conv_params,
                                                quant_params,
                                                input_dims,
@@ -167,6 +168,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
     else
     {
         status = arm_depthwise_conv_s8(ctx,
+                                       weight_sum_ctx,
                                        dw_conv_params,
                                        quant_params,
                                        input_dims,
