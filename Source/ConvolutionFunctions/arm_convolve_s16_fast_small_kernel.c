@@ -41,6 +41,7 @@
 // #include <stdio.h>
 arm_cmsis_nn_status
 arm_convolve_s16_fast_small_kernel(const cmsis_nn_context *ctx,
+                                   const cmsis_nn_context *weight_sum_ctx,
                                    const cmsis_nn_conv_params *conv_params,
                                    const cmsis_nn_per_channel_quant_params *quant_params,
                                    const cmsis_nn_dims *input_dims,
@@ -53,9 +54,9 @@ arm_convolve_s16_fast_small_kernel(const cmsis_nn_context *ctx,
                                    int16_t *output_data)
 {
 #if defined(ARM_MATH_MVEI)
-    (void)ctx;
     (void)bias_dims;
-
+    (void)weight_sum_ctx;
+    (void)ctx;
     const int32_t input_batches = input_dims->n;
     const int32_t input_x = input_dims->w;
     const int32_t input_y = input_dims->h;
@@ -253,7 +254,6 @@ arm_convolve_s16_fast_small_kernel(const cmsis_nn_context *ctx,
         output_data += (output_x * output_y * output_ch);
     }
 #else
-    (void)ctx;
     (void)conv_params;
     (void)quant_params;
     (void)input_dims;
@@ -264,6 +264,8 @@ arm_convolve_s16_fast_small_kernel(const cmsis_nn_context *ctx,
     (void)bias_data;
     (void)output_dims;
     (void)output_data;
+    (void)weight_sum_ctx;
+    (void)ctx;
     return ARM_CMSIS_NN_NO_IMPL_ERROR;
 #endif
     /* Return to application */

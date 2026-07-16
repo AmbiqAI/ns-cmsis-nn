@@ -76,6 +76,7 @@ static arm_cmsis_nn_status arm_convolve_s16_dsp(const cmsis_nn_context *ctx,
  */
 
 arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
+                                     const cmsis_nn_context *weight_sum_ctx,
                                      const cmsis_nn_conv_params *conv_params,
                                      const cmsis_nn_per_channel_quant_params *quant_params,
                                      const cmsis_nn_dims *input_dims,
@@ -88,7 +89,7 @@ arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
                                      int16_t *output_data)
 {
     (void)bias_dims;
-
+    (void)weight_sum_ctx;
     if (ctx->buf == NULL)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
