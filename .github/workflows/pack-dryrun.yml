@@ -45,7 +45,7 @@ jobs:
         target_cpu: [cortex-m0, cortex-m4, cortex-m55]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install GNU Arm Embedded toolchain
         uses: carlosperate/arm-none-eabi-gcc-action@v1
@@ -63,7 +63,7 @@ jobs:
             --outdir     "./output/$TARGET_CPU"
 
       - name: Upload staticlib artefact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pack-dryrun-staticlib-${{ matrix.target_cpu }}
           path: ./output/${{ matrix.target_cpu }}/libns-cmsis-nn-*.a
@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -84,7 +84,7 @@ jobs:
         run: git fetch --tags --force
 
       - name: Download per-arch staticlib artefacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ./_artifacts
           pattern: pack-dryrun-staticlib-*
@@ -149,7 +149,7 @@ jobs:
           esac
 
       - name: Upload pack artefact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ns-cmsis-nn-pack-dryrun
           path: ./output/*.pack

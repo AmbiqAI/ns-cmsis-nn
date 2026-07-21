@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -85,7 +85,7 @@ jobs:
           enable-cache: true
 
       - name: Cache helia-core-tester downloads
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: Tests/helia-core-tester/artifacts/downloads
           key: helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Tests/helia-core-tester/scripts/setup_ci.sh', 'Tests/helia-core-tester/helia_core_tester/scripts/setup_dependencies.py') }}
@@ -126,7 +126,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -174,7 +174,7 @@ jobs:
           enable-cache: true
 
       - name: Cache helia-core-tester downloads
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: Tests/helia-core-tester/artifacts/downloads
           key: helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Tests/helia-core-tester/scripts/setup_ci.sh', 'Tests/helia-core-tester/helia_core_tester/scripts/setup_dependencies.py') }}
@@ -220,7 +220,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -268,7 +268,7 @@ jobs:
           enable-cache: true
 
       - name: Cache helia-core-tester downloads
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: Tests/helia-core-tester/artifacts/downloads
           key: helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Tests/helia-core-tester/scripts/setup_ci.sh', 'Tests/helia-core-tester/helia_core_tester/scripts/setup_dependencies.py') }}
@@ -305,7 +305,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 

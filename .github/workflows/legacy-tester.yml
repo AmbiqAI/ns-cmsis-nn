@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Log selected container image
         shell: bash
@@ -60,7 +60,7 @@ jobs:
 
       - name: Restore tests-downloads cache
         id: cache-downloads
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: Tests/UnitTest/downloads
           key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
@@ -79,7 +79,7 @@ jobs:
 
       - name: Save tests-downloads cache
         if: steps.cache-downloads.outputs.cache-hit != 'true'
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: Tests/UnitTest/downloads
           key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
