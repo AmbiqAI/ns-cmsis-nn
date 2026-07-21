@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Run SSoT contract test
         run: cmake -S cmake/tests/ssot_contract -B build/ssot_contract
@@ -36,7 +36,7 @@ jobs:
         case: [happy, version_mismatch, cpu_mismatch]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Run find_package wiring test
         env:

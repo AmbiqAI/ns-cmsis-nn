@@ -41,7 +41,7 @@ jobs:
         toolchain: [gcc, atfe, armclang]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install GNU Arm Embedded toolchain
         if: ${{ matrix.toolchain == 'gcc' }}
@@ -179,7 +179,7 @@ jobs:
           echo "manifest OK: f32=$got_f32 f16=$got_f16 verified=$got_verified"
 
       - name: Upload artefact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ns-cmsis-nn-staticlib-${{ matrix.toolchain }}-${{ matrix.target_cpu }}-dryrun
           path: |

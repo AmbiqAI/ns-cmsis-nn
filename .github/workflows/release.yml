@@ -34,7 +34,7 @@ jobs:
       # 2) Only do the rest when a NEW release was created by the step above
       - name: Checkout code
         if: ${{ steps.rp.outputs.release_created }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -96,7 +96,7 @@ jobs:
         toolchain: [gcc, atfe, armclang]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install GNU Arm Embedded toolchain
         if: ${{ matrix.toolchain == 'gcc' }}
@@ -203,7 +203,7 @@ jobs:
 
       - name: Upload artefacts (cross-job)
         # Pack-prebuilt job (M3 #167 follow-up) downloads these.
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ns-cmsis-nn-staticlib-${{ matrix.toolchain }}-${{ matrix.target_cpu }}
           path: |
@@ -220,7 +220,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Download staticlib artefacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ./_artifacts
           pattern: ns-cmsis-nn-staticlib-*
@@ -283,7 +283,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -311,7 +311,7 @@ jobs:
         run: rm -f ./output/*.pack
 
       - name: Download per-arch staticlib artefacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ./_artifacts
           pattern: ns-cmsis-nn-staticlib-gcc-*
@@ -368,7 +368,7 @@ jobs:
             --clobber
 
       - name: Setup Python for docs
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
