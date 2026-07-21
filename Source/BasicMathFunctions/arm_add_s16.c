@@ -221,6 +221,10 @@ arm_cmsis_nn_status arm_add_s16(const int16_t *input1_data,
                                        out_activation_min,
                                        out_activation_max,
                                        flat2_total);
+                    if (hd1 == 0)
+                    {
+                        p1++;
+                    }
                     p2 += flat2_total;
                     output_data += flat2_total;
                 }
@@ -243,6 +247,10 @@ arm_cmsis_nn_status arm_add_s16(const int16_t *input1_data,
                                        out_activation_min,
                                        out_activation_max,
                                        flat1_total);
+                    if (hd2 == 0)
+                    {
+                        p2++;
+                    }
                     p1 += flat1_total;
                     output_data += flat1_total;
                 }
