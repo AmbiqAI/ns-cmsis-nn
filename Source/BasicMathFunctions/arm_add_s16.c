@@ -247,7 +247,7 @@ arm_cmsis_nn_status arm_add_s16(const int16_t *input1_data,
                                        out_activation_min,
                                        out_activation_max,
                                        flat1_total);
-                    if (hd2 == 0)
+                    if ((in2_h >= in1_h) && (hd2 == 0))
                     {
                         p2++;
                     }
