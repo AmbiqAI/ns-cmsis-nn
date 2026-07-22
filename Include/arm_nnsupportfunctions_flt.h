@@ -913,7 +913,9 @@ arm_cmsis_nn_status arm_nn_lstm_step_f16(const float16_t *data_in,
  * @param[in]   params        Struct describing the GRU operator.
  * @param[in]   buffers       Scratch buffers. temp1 (>= hidden_size) is required when reset_after == 0.
  * @param[in]   batch_offset  Number of timesteps between consecutive batches.
- * @return                    The function returns ARM_CMSIS_NN_SUCCESS.
+ * @return                    ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR on
+ *                            invalid arguments (NULL data_in/hidden_out/params, batch_offset <= 0,
+ *                            or missing temp1 when reset_after == 0).
  */
 arm_cmsis_nn_status arm_nn_gru_step_f16(const float16_t *data_in,
                                         const float16_t *hidden_in,
