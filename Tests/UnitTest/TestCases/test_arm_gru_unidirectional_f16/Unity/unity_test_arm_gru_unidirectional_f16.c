@@ -27,3 +27,4 @@ void setUp(void)
 void tearDown(void) {}
 
 void test_gru_small_f16_arm_gru_unidirectional_f16(void) { gru_small_f16_arm_gru_unidirectional_f16(); }
+void test_gru_stream_f16_arm_gru_unidirectional_f16(void) { gru_stream_f16_arm_gru_unidirectional_f16(); }
