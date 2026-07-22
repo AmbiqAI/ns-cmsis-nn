@@ -464,11 +464,15 @@ typedef struct
  * @note ``temp1`` must point to at least ``hidden_size`` elements when
  *       ``reset_after == 0`` (it holds the reset-gate vector). It is unused
  *       for the reset-after formulation and may be NULL there.
+ * @note ``hidden_state`` enables streaming state carry (``batch_size == 1``):
+ *       when non-NULL it is read as the initial hidden state (seed to zero for
+ *       a fresh sequence) and overwritten with the final hidden state on
+ *       return. When NULL the state is zero-initialised and not written back.
  */
 typedef struct
 {
     float16_t *temp1;        /**< Scratch buffer (>= hidden_size) required when reset_after == 0. */
-    float16_t *hidden_state; /**< Optional mutable hidden-state buffer. */
+    float16_t *hidden_state; /**< Optional in/out persistent hidden state [hidden_size] for streaming (batch_size == 1). */
 } cmsis_nn_gru_context_f16;
 
 #endif

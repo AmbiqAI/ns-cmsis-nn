@@ -1487,7 +1487,10 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f16(const float16_t *input,
  *
  * Implements the reset-after GRU (Keras / TFLite default) when
  * ``params->reset_after`` is non-zero, and the pre-reset variant otherwise.
- * The hidden state is zero-initialised for the first time step.
+ * The hidden state is zero-initialised for the first time step, unless
+ * ``buffers->hidden_state`` is supplied for streaming state carry
+ * (``batch_size == 1``), in which case it seeds the initial state and receives
+ * the final hidden state on return.
  *
  * @param[in]   input    Input sequence tensor.
  * @param[out]  output   Output (hidden-state) sequence tensor.

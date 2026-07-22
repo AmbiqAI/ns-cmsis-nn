@@ -64,7 +64,18 @@ arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    const float16_t *hidden_in = NULL; // h_{-1} == 0 for the first step.
+    // Streaming state carry: when a hidden_state buffer is supplied it is used
+    // as the initial state (seed to zero for a fresh sequence) and updated with
+    // the final hidden state on return. This carries state across calls (e.g.
+    // chunked inference). It is only defined for batch_size == 1.
+    const int stateful = (buffers != NULL && buffers->hidden_state != NULL);
+    if (stateful && params->batch_size != 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    const float16_t *hidden_in = stateful ? buffers->hidden_state : NULL;
+    float16_t *last_hidden = NULL;
 
     if (params->time_major)
     {
@@ -78,6 +89,7 @@ arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
                 return status;
             }
             hidden_in = hidden_out;
+            last_hidden = hidden_out;
         }
     }
     else
@@ -93,6 +105,16 @@ arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
                 return status;
             }
             hidden_in = hidden_out;
+            last_hidden = hidden_out;
+        }
+    }
+
+    // Persist the final hidden state for the next streaming call.
+    if (stateful && last_hidden != NULL)
+    {
+        for (int32_t h = 0; h < params->hidden_size; h++)
+        {
+            buffers->hidden_state[h] = last_hidden[h];
         }
     }
 
