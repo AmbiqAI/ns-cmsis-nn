@@ -51,7 +51,7 @@ __STATIC_INLINE _Float16 arm_nn_gru_dot_f16(const float16_t *lhs, const float16_
 {
     _Float16 acc = (_Float16)0.0f;
 
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     float16x8_t vacc = vdupq_n_f16((float16_t)0.0f);
 
     for (int32_t i = 0; i < count; i += 8)
@@ -61,12 +61,12 @@ __STATIC_INLINE _Float16 arm_nn_gru_dot_f16(const float16_t *lhs, const float16_
     }
 
     acc += (_Float16)arm_nn_vec_reduce_add_f16(vacc);
-#else
+    #else
     for (int32_t i = 0; i < count; ++i)
     {
         acc += (_Float16)lhs[i] * (_Float16)rhs[i];
     }
-#endif
+    #endif
 
     return acc;
 }
@@ -74,10 +74,8 @@ __STATIC_INLINE _Float16 arm_nn_gru_dot_f16(const float16_t *lhs, const float16_
 /*
  * Input projection for gate at hidden index h:  (W . x) + input_bias[h].
  */
-__STATIC_INLINE _Float16 arm_nn_gru_input_proj_f16(const cmsis_nn_gru_gate_f16 *gate,
-                                                   const float16_t *input,
-                                                   int32_t input_size,
-                                                   int32_t h)
+__STATIC_INLINE _Float16
+arm_nn_gru_input_proj_f16(const cmsis_nn_gru_gate_f16 *gate, const float16_t *input, int32_t input_size, int32_t h)
 {
     _Float16 acc = gate->input_bias ? (_Float16)gate->input_bias[h] : (_Float16)0.0f;
     if (gate->input_weights)
@@ -93,10 +91,8 @@ __STATIC_INLINE _Float16 arm_nn_gru_input_proj_f16(const cmsis_nn_gru_gate_f16 *
  * When hidden is NULL (first step), the U . h_prev term is zero but the bias
  * still contributes.
  */
-__STATIC_INLINE _Float16 arm_nn_gru_hidden_proj_f16(const cmsis_nn_gru_gate_f16 *gate,
-                                                    const float16_t *hidden,
-                                                    int32_t hidden_size,
-                                                    int32_t h)
+__STATIC_INLINE _Float16
+arm_nn_gru_hidden_proj_f16(const cmsis_nn_gru_gate_f16 *gate, const float16_t *hidden, int32_t hidden_size, int32_t h)
 {
     _Float16 acc = gate->hidden_bias ? (_Float16)gate->hidden_bias[h] : (_Float16)0.0f;
     if (hidden && gate->hidden_weights)
@@ -151,27 +147,24 @@ arm_cmsis_nn_status arm_nn_gru_step_f16(const float16_t *data_in,
         {
             for (int32_t h = 0; h < hidden_size; h++)
             {
-                const _Float16 r_pre =
-                    (_Float16)(arm_nn_gru_input_proj_f16(rg, x, input_size, h)
-                             + arm_nn_gru_hidden_proj_f16(rg, h_prev, hidden_size, h));
+                const _Float16 r_pre = (_Float16)(arm_nn_gru_input_proj_f16(rg, x, input_size, h) +
+                                                  arm_nn_gru_hidden_proj_f16(rg, h_prev, hidden_size, h));
                 reset_buf[h] = arm_nn_sigmoid_scalar_f16((float16_t)r_pre);
             }
         }
 
         for (int32_t h = 0; h < hidden_size; h++)
         {
-            const _Float16 z_pre =
-                (_Float16)(arm_nn_gru_input_proj_f16(zg, x, input_size, h)
-                         + arm_nn_gru_hidden_proj_f16(zg, h_prev, hidden_size, h));
+            const _Float16 z_pre = (_Float16)(arm_nn_gru_input_proj_f16(zg, x, input_size, h) +
+                                              arm_nn_gru_hidden_proj_f16(zg, h_prev, hidden_size, h));
             const _Float16 z = (_Float16)arm_nn_sigmoid_scalar_f16((float16_t)z_pre);
 
             _Float16 cand_pre;
             if (reset_after)
             {
                 // n = tanh( Wn.x + b_in + r * (Un.h_prev + b_hn) )
-                const _Float16 r_pre =
-                    (_Float16)(arm_nn_gru_input_proj_f16(rg, x, input_size, h)
-                             + arm_nn_gru_hidden_proj_f16(rg, h_prev, hidden_size, h));
+                const _Float16 r_pre = (_Float16)(arm_nn_gru_input_proj_f16(rg, x, input_size, h) +
+                                                  arm_nn_gru_hidden_proj_f16(rg, h_prev, hidden_size, h));
                 const _Float16 r = (_Float16)arm_nn_sigmoid_scalar_f16((float16_t)r_pre);
                 const _Float16 xh = arm_nn_gru_input_proj_f16(ng, x, input_size, h);
                 const _Float16 hh = arm_nn_gru_hidden_proj_f16(ng, h_prev, hidden_size, h);

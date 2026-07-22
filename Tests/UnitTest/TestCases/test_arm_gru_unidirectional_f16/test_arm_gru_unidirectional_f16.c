@@ -34,8 +34,7 @@
                                .input_bias = case_name##_candidate_input_bias,                                         \
                                .hidden_bias = case_name##_candidate_hidden_bias}};                                     \
                                                                                                                        \
-        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,                                                                        \
-                          arm_gru_unidirectional_f16(case_name##_input, output, &params, NULL));                       \
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_gru_unidirectional_f16(case_name##_input, output, &params, NULL)); \
                                                                                                                        \
         for (int i = 0; i < CASE_PREFIX##_DST_SIZE; ++i)                                                               \
         {                                                                                                              \
@@ -52,18 +51,26 @@ RUN_GRU_F16_CASE(GRU_SMALL_F16, gru_small_f16, 8.0e-2f)
  * and the full run must match the reference. Requires batch_size == 1.
  */
 #define GRU_STREAM_GATES(case_name)                                                                                    \
-    {.time_major = GRU_STREAM_F16_TIME_MAJOR,                                                                          \
-     .batch_size = GRU_STREAM_F16_BATCH_SIZE,                                                                          \
-     .time_steps = 0, /* filled per call */                                                                           \
-     .input_size = GRU_STREAM_F16_INPUT_SIZE,                                                                          \
-     .hidden_size = GRU_STREAM_F16_HIDDEN_SIZE,                                                                        \
-     .reset_after = GRU_STREAM_F16_RESET_AFTER,                                                                        \
-     .update_gate = {case_name##_update_input_weights, case_name##_update_hidden_weights,                              \
-                     case_name##_update_input_bias, case_name##_update_hidden_bias},                                   \
-     .reset_gate = {case_name##_reset_input_weights, case_name##_reset_hidden_weights,                                 \
-                    case_name##_reset_input_bias, case_name##_reset_hidden_bias},                                      \
-     .candidate_gate = {case_name##_candidate_input_weights, case_name##_candidate_hidden_weights,                     \
-                        case_name##_candidate_input_bias, case_name##_candidate_hidden_bias}}
+    {                                                                                                                  \
+        .time_major = GRU_STREAM_F16_TIME_MAJOR, .batch_size = GRU_STREAM_F16_BATCH_SIZE,                              \
+        .time_steps = 0, /* filled per call */                                                                         \
+            .input_size = GRU_STREAM_F16_INPUT_SIZE, .hidden_size = GRU_STREAM_F16_HIDDEN_SIZE,                        \
+        .reset_after = GRU_STREAM_F16_RESET_AFTER,                                                                     \
+        .update_gate = {case_name##_update_input_weights,                                                              \
+                        case_name##_update_hidden_weights,                                                             \
+                        case_name##_update_input_bias,                                                                 \
+                        case_name##_update_hidden_bias},                                                               \
+        .reset_gate = {case_name##_reset_input_weights,                                                                \
+                       case_name##_reset_hidden_weights,                                                               \
+                       case_name##_reset_input_bias,                                                                   \
+                       case_name##_reset_hidden_bias},                                                                 \
+        .candidate_gate = {                                                                                            \
+            case_name##_candidate_input_weights,                                                                       \
+            case_name##_candidate_hidden_weights,                                                                      \
+            case_name##_candidate_input_bias,                                                                          \
+            case_name##_candidate_hidden_bias                                                                          \
+        }                                                                                                              \
+    }
 
 void gru_stream_f16_arm_gru_unidirectional_f16(void)
 {
@@ -79,18 +86,15 @@ void gru_stream_f16_arm_gru_unidirectional_f16(void)
     /* Full, stateless run over all time steps. */
     cmsis_nn_gru_params_f16 pf = GRU_STREAM_GATES(gru_stream_f16);
     pf.time_steps = ts;
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                      arm_gru_unidirectional_f16(gru_stream_f16_input, out_full, &pf, NULL));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_gru_unidirectional_f16(gru_stream_f16_input, out_full, &pf, NULL));
 
     /* Chunked run carrying state across two calls. */
     cmsis_nn_gru_context_f16 buf = {.temp1 = NULL, .hidden_state = hstate};
     cmsis_nn_gru_params_f16 ph = GRU_STREAM_GATES(gru_stream_f16);
     ph.time_steps = half;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_gru_unidirectional_f16(gru_stream_f16_input, out_split, &ph, &buf));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                      arm_gru_unidirectional_f16(gru_stream_f16_input, out_split, &ph, &buf));
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                      arm_gru_unidirectional_f16(gru_stream_f16_input + half * in,
-                                                 out_split + half * hs, &ph, &buf));
+                      arm_gru_unidirectional_f16(gru_stream_f16_input + half * in, out_split + half * hs, &ph, &buf));
 
     /* Chunked (stateful) == full (stateless), and full == reference. */
     for (int i = 0; i < GRU_STREAM_F16_DST_SIZE; ++i)

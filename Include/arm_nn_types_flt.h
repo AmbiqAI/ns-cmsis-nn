@@ -471,8 +471,9 @@ typedef struct
  */
 typedef struct
 {
-    float16_t *temp1;        /**< Scratch buffer (>= hidden_size) required when reset_after == 0. */
-    float16_t *hidden_state; /**< Optional in/out persistent hidden state [hidden_size] for streaming (batch_size == 1). */
+    float16_t *temp1; /**< Scratch buffer (>= hidden_size) required when reset_after == 0. */
+    float16_t
+        *hidden_state; /**< Optional in/out persistent hidden state [hidden_size] for streaming (batch_size == 1). */
 } cmsis_nn_gru_context_f16;
 
 #endif
