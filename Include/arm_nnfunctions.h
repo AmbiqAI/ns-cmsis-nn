@@ -6020,6 +6020,69 @@ arm_cmsis_nn_status arm_fully_connected_fp16(const cmsis_nn_context *ctx,
                                              const float16_t out_activation_min,
                                              const float16_t out_activation_max);
 
+/**
+ * @brief fp16 elementwise subtract of two vectors
+ * @param[in]       input_1_vect        pointer to input vector 1
+ * @param[in]       input_2_vect        pointer to input vector 2
+ * @param[out]      output              pointer to output vector
+ * @param[in]       out_activation_min  minimum value to clamp output to
+ * @param[in]       out_activation_max  maximum value to clamp output to
+ * @param[in]       block_size          number of samples
+ * @return          The function returns  ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_elementwise_sub_fp16(const float16_t *input_1_vect,
+                                             const float16_t *input_2_vect,
+                                             float16_t *output,
+                                             const float16_t out_activation_min,
+                                             const float16_t out_activation_max,
+                                             const int32_t block_size);
+
+/**
+ * @brief  float16 split function to be used for splitting a tensor into multiple tensors along the target axis
+ * @param  input_data      Pointer to the flattened input tensor data.
+ * @param  input_dims      Number of dimensions in input_shape.
+ * @param  input_shape     Array of length input_dims describing the shape of input_data.
+ * @param  axis            Axis along which to split (0 <= axis < input_dims).
+ * @param  num_splits      Number of output tensors to produce.
+ * @param  split_dims      Array of length num_splits giving size of each slice along axis.
+ * @param  output_data     Array of pointers; output_data[i] points to storage for the i-th output tensor.
+ *
+ * @return ARM_CMSIS_NN_SUCCESS on success.
+ *
+ * @note This function is data-layout independent; it performs no arithmetic, so
+ *       float16 payloads are copied bit-exact.
+ */
+arm_cmsis_nn_status arm_split_fp16(const float16_t *input_data,
+                                   const int32_t input_dims,
+                                   const int32_t *input_shape,
+                                   const int32_t axis,
+                                   const int32_t num_splits,
+                                   const int32_t *split_dims,
+                                   float16_t *const *output_data);
+
+/**
+ * @brief Strided slice function for float16 data
+ *
+ * @param[in]   input_data         Pointer to input tensor
+ * @param[out]  output_data        Pointer to output tensor
+ * @param[in]   input_dims         Input tensor dimensions
+ * @param[in]   begin_dims         Begin dimensions for slicing
+ * @param[in]   stride_dims        Stride dimensions for slicing
+ * @param[in]   output_dims        Output tensor dimensions
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite Micro
+ *
+ */
+arm_cmsis_nn_status arm_strided_slice_fp16(const float16_t *input_data,
+                                           float16_t *output_data,
+                                           const cmsis_nn_dims *const input_dims,
+                                           const cmsis_nn_dims *const begin_dims,
+                                           const cmsis_nn_dims *const stride_dims,
+                                           const cmsis_nn_dims *const output_dims);
+
 #endif /*defined(ARM_FLOAT16_SUPPORTED)*/
 
 #ifdef __cplusplus
