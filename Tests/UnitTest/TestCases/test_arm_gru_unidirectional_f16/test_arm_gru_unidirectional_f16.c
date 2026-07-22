@@ -7,7 +7,7 @@
 #include <arm_nnfunctions.h>
 #include <unity.h>
 
-#include "../TestData/gru_small_f16/test_data.h"
+#include "gru_small_f16_data.h"
 
 #define RUN_GRU_F16_CASE(CASE_PREFIX, case_name, tolerance)                                                            \
     void case_name##_arm_gru_unidirectional_f16(void)                                                                  \
