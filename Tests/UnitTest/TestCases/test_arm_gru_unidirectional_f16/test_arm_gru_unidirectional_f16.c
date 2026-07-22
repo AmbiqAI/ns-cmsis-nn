@@ -59,19 +59,19 @@ RUN_GRU_F16_CASE(GRU_SMALL_F16, gru_small_f16, 8.0e-2f)
         .time_steps = 0, /* filled per call */                                                                         \
             .input_size = GRU_STREAM_F16_INPUT_SIZE, .hidden_size = GRU_STREAM_F16_HIDDEN_SIZE,                        \
         .reset_after = GRU_STREAM_F16_RESET_AFTER,                                                                     \
-        .update_gate = {case_name##_update_input_weights,                                                              \
-                        case_name##_update_hidden_weights,                                                             \
-                        case_name##_update_input_bias,                                                                 \
-                        case_name##_update_hidden_bias},                                                               \
-        .reset_gate = {case_name##_reset_input_weights,                                                                \
-                       case_name##_reset_hidden_weights,                                                               \
-                       case_name##_reset_input_bias,                                                                   \
-                       case_name##_reset_hidden_bias},                                                                 \
+        .update_gate = {.input_weights = case_name##_update_input_weights,                                             \
+                        .hidden_weights = case_name##_update_hidden_weights,                                           \
+                        .input_bias = case_name##_update_input_bias,                                                   \
+                        .hidden_bias = case_name##_update_hidden_bias},                                                \
+        .reset_gate = {.input_weights = case_name##_reset_input_weights,                                               \
+                       .hidden_weights = case_name##_reset_hidden_weights,                                             \
+                       .input_bias = case_name##_reset_input_bias,                                                     \
+                       .hidden_bias = case_name##_reset_hidden_bias},                                                  \
         .candidate_gate = {                                                                                            \
-            case_name##_candidate_input_weights,                                                                       \
-            case_name##_candidate_hidden_weights,                                                                      \
-            case_name##_candidate_input_bias,                                                                          \
-            case_name##_candidate_hidden_bias                                                                          \
+            .input_weights = case_name##_candidate_input_weights,                                                      \
+            .hidden_weights = case_name##_candidate_hidden_weights,                                                    \
+            .input_bias = case_name##_candidate_input_bias,                                                            \
+            .hidden_bias = case_name##_candidate_hidden_bias                                                           \
         }                                                                                                              \
     }
 
@@ -103,8 +103,8 @@ void gru_stream_f16_arm_gru_unidirectional_f16(void)
     for (int i = 0; i < GRU_STREAM_F16_DST_SIZE; ++i)
     {
         uint16_t full_bits, split_bits;
-        memcpy(&full_bits, &out_full[i], sizeof(uint16_t));
-        memcpy(&split_bits, &out_split[i], sizeof(uint16_t));
+        memcpy(&full_bits, &out_full[i], sizeof(full_bits));
+        memcpy(&split_bits, &out_split[i], sizeof(split_bits));
         TEST_ASSERT_EQUAL_HEX16(full_bits, split_bits);
         TEST_ASSERT_FLOAT_WITHIN(8.0e-2f, (float)gru_stream_f16_output_ref[i], (float)out_full[i]);
     }
