@@ -88,19 +88,34 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f32(const float32_t *input,
                 buffers->hidden_state, hidden_in, (uint32_t)((size_t)params->batch_size * (size_t)params->hidden_size));
         }
     }
+    else if (buffers->hidden_state == NULL)
+    {
+        // Batch major, stateless: process the whole batch at once (fast path,
+        // unchanged from the pre-streaming implementation).
+        for (int32_t t = 0; t < params->time_steps; t++)
+        {
+            const float32_t *data_in = input + (size_t)t * (size_t)params->input_size;
+            float32_t *hidden_out = output + (size_t)t * (size_t)params->hidden_size;
+            arm_cmsis_nn_status status =
+                arm_nn_lstm_step_f32(data_in, hidden_in, hidden_out, params, buffers, params->time_steps);
+            if (status != ARM_CMSIS_NN_SUCCESS)
+            {
+                return status;
+            }
+            hidden_in = hidden_out;
+        }
+    }
     else
     {
-        // Batch major: [batch, time, size]. arm_nn_lstm_step_f32 expects data_in
-        // and hidden_in to share a batch_offset, but a streaming initial hidden
-        // state is contiguous ([batch, hidden]); process one batch at a time.
+        // Batch major, streaming: the contiguous [batch, hidden] initial state
+        // forces one batch at a time (arm_nn_lstm_step_f32 shares a batch_offset for data_in
+        // and hidden_in).
         cmsis_nn_lstm_params_f32 step_params = *params;
         step_params.batch_size = 1;
 
         for (int32_t b = 0; b < params->batch_size; b++)
         {
-            float32_t *step_hidden_in = (buffers->hidden_state != NULL)
-                ? (buffers->hidden_state + (size_t)b * (size_t)params->hidden_size)
-                : NULL;
+            float32_t *step_hidden_in = buffers->hidden_state + (size_t)b * (size_t)params->hidden_size;
 
             cmsis_nn_lstm_context_f32 step_buffers = *buffers;
             step_buffers.cell_state = buffers->cell_state + (size_t)b * (size_t)params->hidden_size;
@@ -120,7 +135,7 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f32(const float32_t *input,
                 step_hidden_in = hidden_out;
             }
 
-            if (buffers->hidden_state != NULL && params->time_steps > 0)
+            if (params->time_steps > 0)
             {
                 arm_memcpy_f32(buffers->hidden_state + (size_t)b * (size_t)params->hidden_size,
                                step_hidden_in,
