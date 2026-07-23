@@ -38,3 +38,4 @@ void test_lstm_small_f32_stateful_arm_lstm_unidirectional_f32(void)
 {
     lstm_small_f32_stateful_arm_lstm_unidirectional_f32();
 }
+void test_lstm_match_2_f32_stateful_arm_lstm_unidirectional_f32(void) { lstm_match_2_f32_stateful_arm_lstm_unidirectional_f32(); }

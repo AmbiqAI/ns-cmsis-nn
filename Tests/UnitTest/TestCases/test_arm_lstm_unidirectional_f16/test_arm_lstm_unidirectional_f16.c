@@ -129,3 +129,66 @@ void lstm_small_f16_stateful_arm_lstm_unidirectional_f16(void)
         TEST_ASSERT_EQUAL_HEX16(fa, sa);
     }
 }
+
+#define LSTM_MATCH_2_F16_STATE_PARAMS(ts)                                                                              \
+    {                                                                                                                  \
+        .time_major = LSTM_MATCH_2_F16_TIME_MAJOR, .batch_size = LSTM_MATCH_2_F16_BATCH_SIZE, .time_steps = (ts),      \
+        .input_size = LSTM_MATCH_2_F16_INPUT_SIZE, .hidden_size = LSTM_MATCH_2_F16_HIDDEN_SIZE,                        \
+        .cell_clip = (float16_t)LSTM_MATCH_2_F16_CELL_CLIP,                                                            \
+        .forget_gate = {.input_weights = lstm_match_2_f16_forget_input_weights,                                        \
+                        .hidden_weights = lstm_match_2_f16_forget_hidden_weights,                                      \
+                        .bias = lstm_match_2_f16_forget_bias,                                                          \
+                        .activation_type = ARM_NN_FLT_ACT_SIGMOID},                                                    \
+        .input_gate = {.input_weights = lstm_match_2_f16_input_input_weights,                                          \
+                       .hidden_weights = lstm_match_2_f16_input_hidden_weights,                                        \
+                       .bias = lstm_match_2_f16_input_bias,                                                            \
+                       .activation_type = ARM_NN_FLT_ACT_SIGMOID},                                                     \
+        .cell_gate = {.input_weights = lstm_match_2_f16_cell_input_weights,                                            \
+                      .hidden_weights = lstm_match_2_f16_cell_hidden_weights,                                          \
+                      .bias = lstm_match_2_f16_cell_bias,                                                              \
+                      .activation_type = ARM_NN_FLT_ACT_TANH},                                                         \
+        .output_gate = {                                                                                               \
+            .input_weights = lstm_match_2_f16_output_input_weights,                                                    \
+            .hidden_weights = lstm_match_2_f16_output_hidden_weights,                                                  \
+            .bias = lstm_match_2_f16_output_bias,                                                                      \
+            .activation_type = ARM_NN_FLT_ACT_SIGMOID                                                                  \
+        }                                                                                                              \
+    }
+
+void lstm_match_2_f16_stateful_arm_lstm_unidirectional_f16(void)
+{
+    const int b = LSTM_MATCH_2_F16_BATCH_SIZE;
+    const int hh = LSTM_MATCH_2_F16_HIDDEN_SIZE;
+    const int in = LSTM_MATCH_2_F16_INPUT_SIZE;
+    const int ts = LSTM_MATCH_2_F16_TIME_STEPS;
+    const int h1 = ts / 2; /* first chunk length (time-major) */
+
+    float16_t t1[LSTM_MATCH_2_F16_CELL_STATE_SIZE], t2[LSTM_MATCH_2_F16_CELL_STATE_SIZE];
+    float16_t cs[LSTM_MATCH_2_F16_CELL_STATE_SIZE], hs[LSTM_MATCH_2_F16_CELL_STATE_SIZE];
+    float16_t out_full[LSTM_MATCH_2_F16_DST_SIZE] = {0};
+    float16_t out_split[LSTM_MATCH_2_F16_DST_SIZE] = {0};
+
+    /* Full, stateless run (hidden_state = NULL). */
+    cmsis_nn_lstm_context_f16 bf = {.temp1 = t1, .temp2 = t2, .cell_state = cs, .hidden_state = NULL};
+    cmsis_nn_lstm_params_f16 pf = LSTM_MATCH_2_F16_STATE_PARAMS(ts);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_lstm_unidirectional_f16(lstm_match_2_f16_input, out_full, &pf, &bf));
+
+    /* Chunked streaming run carrying cell + hidden state across two calls. */
+    memset(cs, 0, sizeof(cs));
+    memset(hs, 0, sizeof(hs));
+    cmsis_nn_lstm_context_f16 bs = {.temp1 = t1, .temp2 = t2, .cell_state = cs, .hidden_state = hs};
+    cmsis_nn_lstm_params_f16 p1 = LSTM_MATCH_2_F16_STATE_PARAMS(h1);
+    cmsis_nn_lstm_params_f16 p2 = LSTM_MATCH_2_F16_STATE_PARAMS(ts - h1);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_lstm_unidirectional_f16(lstm_match_2_f16_input, out_split, &p1, &bs));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_lstm_unidirectional_f16(
+                          lstm_match_2_f16_input + (size_t)h1 * b * in, out_split + (size_t)h1 * b * hh, &p2, &bs));
+
+    for (int i = 0; i < LSTM_MATCH_2_F16_DST_SIZE; ++i)
+    {
+        uint16_t fa, sa;
+        memcpy(&fa, &out_full[i], sizeof(fa));
+        memcpy(&sa, &out_split[i], sizeof(sa));
+        TEST_ASSERT_EQUAL_HEX16(fa, sa);
+    }
+}
