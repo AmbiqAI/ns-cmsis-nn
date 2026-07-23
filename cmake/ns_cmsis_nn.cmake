@@ -112,6 +112,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     if(ARM_NN_ENABLE_F16)
       list(APPEND extras "arm_elementwise_add_fp16.c"
                          "arm_elementwise_add_f16.c"
+                         "arm_elementwise_sub_f16.c"
                          "arm_elementwise_mul_f16.c"
                          "arm_minmax_common_f16.c"
                          "arm_minimum_f16.c"
@@ -127,7 +128,8 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
       list(APPEND extras "arm_concatenation_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
-      list(APPEND extras "arm_concatenation_f16.c")
+      list(APPEND extras "arm_concatenation_f16.c"
+                         "arm_split_f16.c")
     endif()
   elseif(group STREQUAL "convolution")
     set(subdir   "ConvolutionFunctions")

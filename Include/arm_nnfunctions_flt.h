@@ -1164,6 +1164,62 @@ arm_cmsis_nn_status arm_elementwise_add_f16(const float16_t *input_1_vect,
                                             int32_t block_size);
 
 /**
+ * @brief float16 elementwise subtract of two vectors with fused clamp.
+ * @param[in]  input_1_vect        pointer to input vector 1
+ * @param[in]  input_2_vect        pointer to input vector 2
+ * @param[out] output              pointer to output vector
+ * @param[in]  out_activation_min  minimum value to clamp the output to
+ * @param[in]  out_activation_max  maximum value to clamp the output to
+ * @param[in]  block_size          number of samples
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR on invalid arguments.
+ */
+arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
+                                            const float16_t *input_2_vect,
+                                            float16_t *output,
+                                            float16_t out_activation_min,
+                                            float16_t out_activation_max,
+                                            int32_t block_size);
+
+/**
+ * @brief float16 split of a tensor into multiple tensors along the target axis.
+ *
+ * Data-layout independent pure copy; no arithmetic is performed.
+ *
+ * @param[in]  input_data   Pointer to the flattened input tensor data.
+ * @param[in]  input_dims   Number of dimensions in input_shape.
+ * @param[in]  input_shape  Array of length input_dims describing the input shape.
+ * @param[in]  axis         Axis along which to split (0 <= axis < input_dims).
+ * @param[in]  num_splits   Number of output tensors to produce.
+ * @param[in]  split_dims   Array of length num_splits giving each slice size along axis.
+ * @param[out] output_data  Array of pointers to per-output storage.
+ * @return     ARM_CMSIS_NN_SUCCESS on success.
+ */
+arm_cmsis_nn_status arm_split_f16(const float16_t *input_data,
+                                  const int32_t input_dims,
+                                  const int32_t *input_shape,
+                                  const int32_t axis,
+                                  const int32_t num_splits,
+                                  const int32_t *split_dims,
+                                  float16_t *const *output_data);
+
+/**
+ * @brief Strided slice for float16 data (pure copy, TensorFlow Lite compatible).
+ * @param[in]  input_data   Pointer to input tensor.
+ * @param[out] output_data  Pointer to output tensor.
+ * @param[in]  input_dims   Input tensor dimensions.
+ * @param[in]  begin_dims   Begin dimensions for slicing.
+ * @param[in]  stride_dims  Stride dimensions for slicing.
+ * @param[in]  output_dims  Output tensor dimensions.
+ * @return     ARM_CMSIS_NN_SUCCESS on success.
+ */
+arm_cmsis_nn_status arm_strided_slice_f16(const float16_t *input_data,
+                                          float16_t *output_data,
+                                          const cmsis_nn_dims *const input_dims,
+                                          const cmsis_nn_dims *const begin_dims,
+                                          const cmsis_nn_dims *const stride_dims,
+                                          const cmsis_nn_dims *const output_dims);
+
+/**
  * @copydoc arm_elementwise_mul_f32
  */
 arm_cmsis_nn_status arm_elementwise_mul_f16(const float16_t *input_1_vect,

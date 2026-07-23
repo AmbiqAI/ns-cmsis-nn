@@ -126,6 +126,7 @@
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_squared_difference_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_squared_difference_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_f16.c"/>
@@ -170,6 +171,7 @@
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8_x.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8_y.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8_z.c"/>
+        <file category="source" name="Source/ConcatenationFunctions/arm_split_f16.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_split_s16.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_split_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1_x_n_f16.c"/>
@@ -361,6 +363,7 @@
         <file category="source" name="Source/SoftmaxFunctions/arm_softmax_s8.c"/>
         <file category="source" name="Source/SoftmaxFunctions/arm_softmax_s8_s16.c"/>
         <file category="source" name="Source/SoftmaxFunctions/arm_softmax_u8.c"/>
+        <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_f16.c"/>
         <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s16.c"/>
         <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s32.c"/>
         <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s8.c"/>
