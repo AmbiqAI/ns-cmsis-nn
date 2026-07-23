@@ -21,7 +21,8 @@ if (ARM_NN_ENABLE_F32)
   list(APPEND SRC arm_concatenation_f32.c)
 endif()
 if (ARM_NN_ENABLE_F16)
-  list(APPEND SRC arm_concatenation_f16.c)
+  list(APPEND SRC arm_concatenation_f16.c
+                  arm_split_f16.c)
 endif()
 
 target_sources(cmsis-nn PRIVATE ${SRC})
