@@ -267,9 +267,10 @@ typedef struct
  */
 typedef struct
 {
-    float32_t *temp1;      /**< Temporary buffer used by matrix and gate computations. */
-    float32_t *temp2;      /**< Temporary buffer used by matrix and gate computations. */
-    float32_t *cell_state; /**< Mutable cell-state buffer. */
+    float32_t *temp1;        /**< Temporary buffer used by matrix and gate computations. */
+    float32_t *temp2;        /**< Temporary buffer used by matrix and gate computations. */
+    float32_t *cell_state;   /**< Mutable cell-state buffer (in/out when streaming). */
+    float32_t *hidden_state; /**< Optional in/out hidden state for streaming. NULL => zero-init, no writeback. */
 } cmsis_nn_lstm_context_f32;
 
 #endif
@@ -418,9 +419,10 @@ typedef struct
  */
 typedef struct
 {
-    float16_t *temp1;      /**< Temporary buffer used by matrix and gate computations. */
-    float16_t *temp2;      /**< Temporary buffer used by matrix and gate computations. */
-    float16_t *cell_state; /**< Mutable cell-state buffer. */
+    float16_t *temp1;        /**< Temporary buffer used by matrix and gate computations. */
+    float16_t *temp2;        /**< Temporary buffer used by matrix and gate computations. */
+    float16_t *cell_state;   /**< Mutable cell-state buffer (in/out when streaming). */
+    float16_t *hidden_state; /**< Optional in/out hidden state for streaming. NULL => zero-init, no writeback. */
 } cmsis_nn_lstm_context_f16;
 
 #endif

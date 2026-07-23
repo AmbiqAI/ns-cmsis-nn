@@ -34,3 +34,7 @@ void test_lstm_match_one_time_step_f32_arm_lstm_unidirectional_f32(void)
 {
     lstm_match_one_time_step_f32_arm_lstm_unidirectional_f32();
 }
+void test_lstm_small_f32_stateful_arm_lstm_unidirectional_f32(void)
+{
+    lstm_small_f32_stateful_arm_lstm_unidirectional_f32();
+}

@@ -57,9 +57,17 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f16(const float16_t *input,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    float16_t *hidden_in = NULL;
-    arm_memset_f16(
-        buffers->cell_state, (float16_t)0.0f, (uint32_t)((size_t)params->batch_size * (size_t)params->hidden_size));
+    // Streaming state carry: when hidden_state is supplied it seeds the initial
+    // hidden state and the cell_state buffer is treated as in/out (not zeroed);
+    // the final hidden state is written back on return. When NULL, both states
+    // start at zero and nothing is written back (single-shot behavior).
+    float16_t *hidden_in = buffers->hidden_state;
+
+    if (buffers->hidden_state == NULL)
+    {
+        arm_memset_f16(
+            buffers->cell_state, (float16_t)0.0f, (uint32_t)((size_t)params->batch_size * (size_t)params->hidden_size));
+    }
 
     if (params->time_major)
     {
@@ -74,20 +82,51 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f16(const float16_t *input,
             }
             hidden_in = hidden_out;
         }
+
+        if (buffers->hidden_state != NULL && params->time_steps > 0)
+        {
+            arm_memcpy_f16(
+                buffers->hidden_state, hidden_in, (uint32_t)((size_t)params->batch_size * (size_t)params->hidden_size));
+        }
     }
     else
     {
-        for (int32_t t = 0; t < params->time_steps; t++)
+        // Batch major: [batch, time, size]. arm_nn_lstm_step_f16 expects data_in
+        // and hidden_in to share a batch_offset, but a streaming initial hidden
+        // state is contiguous ([batch, hidden]); process one batch at a time.
+        cmsis_nn_lstm_params_f16 step_params = *params;
+        step_params.batch_size = 1;
+
+        for (int32_t b = 0; b < params->batch_size; b++)
         {
-            const float16_t *data_in = input + (size_t)t * (size_t)params->input_size;
-            float16_t *hidden_out = output + (size_t)t * (size_t)params->hidden_size;
-            arm_cmsis_nn_status status =
-                arm_nn_lstm_step_f16(data_in, hidden_in, hidden_out, params, buffers, params->time_steps);
-            if (status != ARM_CMSIS_NN_SUCCESS)
+            float16_t *step_hidden_in = (buffers->hidden_state != NULL)
+                ? (buffers->hidden_state + (size_t)b * (size_t)params->hidden_size)
+                : NULL;
+
+            cmsis_nn_lstm_context_f16 step_buffers = *buffers;
+            step_buffers.cell_state = buffers->cell_state + (size_t)b * (size_t)params->hidden_size;
+
+            for (int32_t t = 0; t < params->time_steps; t++)
             {
-                return status;
+                const float16_t *data_in =
+                    input + ((size_t)b * (size_t)params->time_steps + (size_t)t) * (size_t)params->input_size;
+                float16_t *hidden_out =
+                    output + ((size_t)b * (size_t)params->time_steps + (size_t)t) * (size_t)params->hidden_size;
+                arm_cmsis_nn_status status =
+                    arm_nn_lstm_step_f16(data_in, step_hidden_in, hidden_out, &step_params, &step_buffers, 1);
+                if (status != ARM_CMSIS_NN_SUCCESS)
+                {
+                    return status;
+                }
+                step_hidden_in = hidden_out;
             }
-            hidden_in = hidden_out;
+
+            if (buffers->hidden_state != NULL && params->time_steps > 0)
+            {
+                arm_memcpy_f16(buffers->hidden_state + (size_t)b * (size_t)params->hidden_size,
+                               step_hidden_in,
+                               (uint32_t)params->hidden_size);
+            }
         }
     }
 
