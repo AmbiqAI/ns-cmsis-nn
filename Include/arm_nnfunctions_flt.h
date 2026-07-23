@@ -1181,6 +1181,7 @@ arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
                                             int32_t block_size);
 
 /**
+ * @ingroup Concatenation
  * @brief float16 split of a tensor into multiple tensors along the target axis.
  *
  * Data-layout independent pure copy; no arithmetic is performed.
@@ -1203,6 +1204,7 @@ arm_cmsis_nn_status arm_split_f16(const float16_t *input_data,
                                   float16_t *const *output_data);
 
 /**
+ * @ingroup StridedSlice
  * @brief Strided slice for float16 data (pure copy, TensorFlow Lite compatible).
  * @param[in]  input_data   Pointer to input tensor.
  * @param[out] output_data  Pointer to output tensor.

@@ -22,6 +22,8 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
+#if ARM_NN_ENABLE_F16
+
 /**
  *  @ingroup Public
  */
@@ -75,3 +77,5 @@ arm_cmsis_nn_status arm_split_f16(const float16_t *input_data,
 /**
  * @} end of Concatenation group
  */
+
+#endif /* ARM_NN_ENABLE_F16 */
