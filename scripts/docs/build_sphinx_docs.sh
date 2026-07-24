@@ -144,14 +144,43 @@ ensure_doxygen() {
   if [[ ! -x "${doxygen_bin}" ]]; then
     log "Downloading Doxygen ${doxygen_version} to ${install_root}"
     archive="${install_root%/}/doxygen-${doxygen_version}.linux.bin.tar.gz"
-    url="${DOXYGEN_URL:-https://www.doxygen.nl/files/doxygen-${doxygen_version}.linux.bin.tar.gz}"
 
-    if command -v curl >/dev/null 2>&1; then
-      curl -fsSL "${url}" -o "${archive}"
-    elif command -v wget >/dev/null 2>&1; then
-      wget -O "${archive}" "${url}"
+    # Primary host (doxygen.nl) intermittently returns HTTP 403 to CI/cloud IP
+    # ranges, so fall back to the official GitHub releases mirror, which is
+    # served by GitHub's CDN and does not block CI runners.
+    github_tag="Release_${doxygen_version//./_}"
+    github_url="https://github.com/doxygen/doxygen/releases/download/${github_tag}/doxygen-${doxygen_version}.linux.bin.tar.gz"
+    if [[ -n "${DOXYGEN_URL:-}" ]]; then
+      download_urls=("${DOXYGEN_URL}")
     else
-      echo "Neither curl nor wget is available to download Doxygen." >&2
+      download_urls=(
+        "https://www.doxygen.nl/files/doxygen-${doxygen_version}.linux.bin.tar.gz"
+        "${github_url}"
+      )
+    fi
+
+    downloaded=0
+    for url in "${download_urls[@]}"; do
+      log "Trying ${url}"
+      if command -v curl >/dev/null 2>&1; then
+        if curl -fsSL "${url}" -o "${archive}"; then
+          downloaded=1
+          break
+        fi
+      elif command -v wget >/dev/null 2>&1; then
+        if wget -O "${archive}" "${url}"; then
+          downloaded=1
+          break
+        fi
+      else
+        echo "Neither curl nor wget is available to download Doxygen." >&2
+        exit 1
+      fi
+      echo "Download failed from ${url}; trying next source." >&2
+    done
+
+    if [[ ${downloaded} -ne 1 ]]; then
+      echo "Failed to download Doxygen ${doxygen_version} from all sources." >&2
       exit 1
     fi
 
