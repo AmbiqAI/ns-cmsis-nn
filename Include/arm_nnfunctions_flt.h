@@ -1495,7 +1495,7 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f16(const float16_t *input,
  * @param[in]   input    Input sequence tensor.
  * @param[out]  output   Output (hidden-state) sequence tensor.
  * @param[in]   params   Struct describing the GRU operator.
- * @param[in]   buffers  Scratch buffers. May be NULL when ``reset_after`` != 0.
+ * @param[in,out] buffers  Scratch buffers. May be NULL when ``reset_after`` != 0.
  * @return               ARM_CMSIS_NN_SUCCESS on success, ARM_CMSIS_NN_ARG_ERROR otherwise.
  */
 arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
