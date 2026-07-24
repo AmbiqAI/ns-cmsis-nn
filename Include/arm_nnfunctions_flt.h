@@ -1540,6 +1540,27 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f16(const float16_t *input,
                                                 const cmsis_nn_lstm_params_f16 *params,
                                                 cmsis_nn_lstm_context_f16 *buffers);
 
+/**
+ * @brief Unidirectional GRU layer for float16 input, output and state.
+ *
+ * Implements the reset-after GRU (Keras / TFLite default) when
+ * ``params->reset_after`` is non-zero, and the pre-reset variant otherwise.
+ * The hidden state is zero-initialised for the first time step, unless
+ * ``buffers->hidden_state`` is supplied for streaming state carry
+ * (``batch_size == 1``), in which case it seeds the initial state and receives
+ * the final hidden state on return.
+ *
+ * @param[in]   input    Input sequence tensor.
+ * @param[out]  output   Output (hidden-state) sequence tensor.
+ * @param[in]   params   Struct describing the GRU operator.
+ * @param[in,out] buffers  Scratch buffers. May be NULL when ``reset_after`` != 0.
+ * @return               ARM_CMSIS_NN_SUCCESS on success, ARM_CMSIS_NN_ARG_ERROR otherwise.
+ */
+arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
+                                               float16_t *output,
+                                               const cmsis_nn_gru_params_f16 *params,
+                                               cmsis_nn_gru_context_f16 *buffers);
+
 /** @} */
 
 /**

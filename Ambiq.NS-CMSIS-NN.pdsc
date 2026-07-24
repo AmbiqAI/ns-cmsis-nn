@@ -250,6 +250,7 @@
         <file category="source" name="Source/GatherFunctions/arm_gather_nd_s8.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_s16.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_s8.c"/>
+        <file category="source" name="Source/LSTMFunctions/arm_gru_unidirectional_f16.c"/>
         <file category="source" name="Source/LSTMFunctions/arm_lstm_unidirectional_f16.c"/>
         <file category="source" name="Source/LSTMFunctions/arm_lstm_unidirectional_f32.c"/>
         <file category="source" name="Source/LSTMFunctions/arm_lstm_unidirectional_s16.c"/>
@@ -277,6 +278,7 @@
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s4.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s8.c"/>
+        <file category="source" name="Source/NNSupportFunctions/arm_nn_gru_step_f16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_lstm_calculate_gate_s16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_lstm_calculate_gate_s8_s16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_lstm_step_f16.c"/>

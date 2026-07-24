@@ -50,6 +50,7 @@ if (ARM_NN_ENABLE_F16)
                       arm_nn_depthwise_conv3x3_f16.c
                       arm_nn_depthwise_conv_nt_t_f16.c
                       arm_nn_pack_conv_patch_f16.c
+                      arm_nn_gru_step_f16.c
                       arm_nn_lstm_step_f16.c
                       arm_nn_maxpool1d_f16.c)
 endif()

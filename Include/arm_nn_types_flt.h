@@ -423,6 +423,61 @@ typedef struct
     float16_t *cell_state; /**< Mutable cell-state buffer. */
 } cmsis_nn_lstm_context_f16;
 
+/**
+ * @brief Weights and biases for a single float16 GRU gate.
+ *
+ * The activation (sigmoid for update/reset, tanh for candidate) is implied by
+ * the gate's role and is not stored here. The reset-after formulation keeps
+ * the input-projection bias and the recurrent-projection bias separate,
+ * because the reset gate multiplies the recurrent projection (including its
+ * bias) after the matmul.
+ */
+typedef struct
+{
+    const float16_t *input_weights;  /**< Input-to-gate weight matrix [hidden_size, input_size]. */
+    const float16_t *hidden_weights; /**< Hidden-to-gate weight matrix [hidden_size, hidden_size]. */
+    const float16_t *input_bias;     /**< Optional input-projection bias [hidden_size]. May be NULL. */
+    const float16_t *hidden_bias;    /**< Optional recurrent-projection bias [hidden_size]. May be NULL. */
+} cmsis_nn_gru_gate_f16;
+
+/**
+ * @brief Parameters for a float16 unidirectional GRU invocation.
+ *
+ * GRU has three gates (update, reset, candidate) and, unlike LSTM, no cell
+ * state. The hidden state is the layer output.
+ */
+typedef struct
+{
+    int32_t time_major;  /**< Non-zero when input/output tensors are time-major. */
+    int32_t batch_size;  /**< Batch size processed per invocation. */
+    int32_t time_steps;  /**< Number of time steps processed per invocation. */
+    int32_t input_size;  /**< Input feature size per time step. */
+    int32_t hidden_size; /**< Hidden-state size. */
+    int32_t reset_after; /**< Non-zero: reset gate applied after the recurrent matmul (Keras/TFLite default). */
+
+    cmsis_nn_gru_gate_f16 update_gate;    /**< Update gate (z), sigmoid activation. */
+    cmsis_nn_gru_gate_f16 reset_gate;     /**< Reset gate (r), sigmoid activation. */
+    cmsis_nn_gru_gate_f16 candidate_gate; /**< Candidate/new gate (n), tanh activation. */
+} cmsis_nn_gru_params_f16;
+
+/**
+ * @brief Scratch buffers for a float16 GRU invocation.
+ *
+ * @note ``temp1`` must point to at least ``hidden_size`` elements when
+ *       ``reset_after == 0`` (it holds the reset-gate vector). It is unused
+ *       for the reset-after formulation and may be NULL there.
+ * @note ``hidden_state`` enables streaming state carry (``batch_size == 1``):
+ *       when non-NULL it is read as the initial hidden state (seed to zero for
+ *       a fresh sequence) and overwritten with the final hidden state on
+ *       return. When NULL the state is zero-initialised and not written back.
+ */
+typedef struct
+{
+    float16_t *temp1; /**< Scratch buffer (>= hidden_size) required when reset_after == 0. */
+    float16_t
+        *hidden_state; /**< Optional in/out persistent hidden state [hidden_size] for streaming (batch_size == 1). */
+} cmsis_nn_gru_context_f16;
+
 #endif
 
 /**
