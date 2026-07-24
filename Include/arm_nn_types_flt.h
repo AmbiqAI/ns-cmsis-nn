@@ -424,11 +424,13 @@ typedef struct
 } cmsis_nn_lstm_context_f16;
 
 /**
- * @brief Weights, biases and activation for a single float16 GRU gate.
+ * @brief Weights and biases for a single float16 GRU gate.
  *
- * The reset-after formulation keeps the input-projection bias and the
- * recurrent-projection bias separate, because the reset gate multiplies the
- * recurrent projection (including its bias) after the matmul.
+ * The activation (sigmoid for update/reset, tanh for candidate) is implied by
+ * the gate's role and is not stored here. The reset-after formulation keeps
+ * the input-projection bias and the recurrent-projection bias separate,
+ * because the reset gate multiplies the recurrent projection (including its
+ * bias) after the matmul.
  */
 typedef struct
 {
