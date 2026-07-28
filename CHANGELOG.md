@@ -24,7 +24,7 @@
 * gate arm_strided_slice_f16 behind ARM_NN_ENABLE_F16 ([5eb2993](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5eb2993673fdeee4bc8980946530f5820318c80e))
 * Gate the local increment on input1 not being height-broadcast (e.g. in1_h &gt;= in2_h) in addition to hd1 == 0. ([5e9513a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5e9513a195e53ebd0aa8a54d6ba9f50516fea24b))
 * Gate this increment on input1 not being height-broadcast (e.g. in1_h &gt;= in2_h) as well as hd1 == 0. ([3ad0350](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3ad035071c6d0696f6f1b06cae2d5cb7c7fe17fe))
-* Gate this increment on input2 not being height-broadcast (e.g. in2_h &gt;= in1_h) as well as hd2 == 0. ([fc99e04](https://github.com/AmbiqAI/ns-cmsis-nn/commit/fc99e046fb32ebd9fd1e40ad5c8297e39be8937e))
+* Gate this increment on input2 not being height-broadcast (e.g. `in2_h >= in1_h`) as well as hd2 == 0. ([fc99e04](https://github.com/AmbiqAI/ns-cmsis-nn/commit/fc99e046fb32ebd9fd1e40ad5c8297e39be8937e))
 * quantized mixed-broadcast ADD regressions in the vendored NS-CMS… ([85e0db2](https://github.com/AmbiqAI/ns-cmsis-nn/commit/85e0db2001cd00c34233eff26e5cc3b006c11c5f))
 * quantized mixed-broadcast ADD regressions in the vendored NS-CMSIS-NN arm_add_s8 and arm_add_s16 implementations used by the HELIA kernel path. ([d7bb316](https://github.com/AmbiqAI/ns-cmsis-nn/commit/d7bb316bb4d6175c234d67b3dc7a413a92f769fc))
 * register GRU sources in build manifests; address review ([4119264](https://github.com/AmbiqAI/ns-cmsis-nn/commit/41192643ae1d816549d8990fd6bc77d686ec4880))
