@@ -182,6 +182,10 @@ arm_cmsis_nn_status arm_prelu_s16(const cmsis_nn_dims *input_dims,
                                          output_shift_alpha,
                                          output,
                                          flat2_total);
+                    if ((in_h >= alpha_h) && (hd1 == 0))
+                    {
+                        p1++;
+                    }
                     p2 += flat2_total;
                     output += flat2_total;
                 }
@@ -199,6 +203,10 @@ arm_cmsis_nn_status arm_prelu_s16(const cmsis_nn_dims *input_dims,
                                          output_shift_alpha,
                                          output,
                                          flat1_total);
+                    if ((alpha_h >= in_h) && (hd2 == 0))
+                    {
+                        p2++;
+                    }
                     p1 += flat1_total;
                     output += flat1_total;
                 }
