@@ -55,6 +55,67 @@ extern "C" {
 #define MAX(A, B) ((A) > (B) ? (A) : (B))
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
 #define CLAMP(x, h, l) MAX(MIN((x), (h)), (l))
+
+/*
+ * Work around GCC PR target/118460: arm-none-eabi-gcc 14.x (and FSF 15.x
+ * releases predating the Nov 2025 backport, r15-10491/2) ICEs with
+ *   error: unrecognizable insn: (set (reg:HF ...) (if_then_else:HF ...))
+ *   during RTL pass: vregs
+ * for any scalar _Float16 conditional select (ternary / MIN / MAX / CLAMP)
+ * when scalar FP16 arithmetic is available (e.g. Cortex-M55 hard-float) at
+ * -O1 or higher: the broken movhfcc expander emits a vsel-form if_then_else
+ * that the backend's own recognizer rejects. Route scalar f16 min/max/clamp
+ * through VMINNM.F16/VMAXNM.F16 inline assembly instead, which bypasses the
+ * expander entirely and is the optimal codegen anyway. NaN semantics match
+ * the C fallback below for the clamp use case (a NaN accumulator resolves
+ * to the max-activation bound in both).
+ */
+#if defined(__GNUC__) && !defined(__clang__) && (__GNUC__ >= 14) && (__GNUC__ < 16) &&                                 \
+    defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
+    #define ARM_NN_F16_CMOV_WORKAROUND 1
+#endif
+
+#if defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
+__STATIC_FORCEINLINE _Float16 arm_nn_min_f16h(_Float16 a, _Float16 b)
+{
+    #if defined(ARM_NN_F16_CMOV_WORKAROUND)
+    _Float16 r;
+    __asm__("vminnm.f16 %0, %1, %2" : "=t"(r) : "t"(a), "t"(b));
+    return r;
+    #else
+    return MIN(a, b);
+    #endif
+}
+
+__STATIC_FORCEINLINE _Float16 arm_nn_max_f16h(_Float16 a, _Float16 b)
+{
+    #if defined(ARM_NN_F16_CMOV_WORKAROUND)
+    _Float16 r;
+    __asm__("vmaxnm.f16 %0, %1, %2" : "=t"(r) : "t"(a), "t"(b));
+    return r;
+    #else
+    return MAX(a, b);
+    #endif
+}
+
+/* Drop-in equivalent of CLAMP(x, h, l) for scalar _Float16 operands. */
+__STATIC_FORCEINLINE _Float16 arm_nn_clamp_f16h(_Float16 x, _Float16 h, _Float16 l)
+{
+    return arm_nn_max_f16h(arm_nn_min_f16h(x, h), l);
+}
+
+__STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)
+{
+    #if defined(ARM_NN_F16_CMOV_WORKAROUND)
+    _Float16 r;
+    __asm__("vabs.f16 %0, %1" : "=t"(r) : "t"(x));
+    return r;
+    #else
+    return (x < (_Float16)0.0f) ? -x : x;
+    #endif
+}
+#endif /* __ARM_FEATURE_FP16_SCALAR_ARITHMETIC */
+
 #define ARM_NN_ROUND_UP(x, multiple) ((((x) + (multiple)-1) / (multiple)) * (multiple))
 #define REDUCE_MULTIPLIER(_mult) ((_mult < 0x7FFF0000) ? ((_mult + (1 << 15)) >> 16) : 0x7FFF)
 

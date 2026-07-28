@@ -221,7 +221,7 @@ arm_cmsis_nn_status arm_batch_matmul_f16(const cmsis_nn_context *ctx,
                         {
                             acc = dot_contig_strided_f16_scalar(lhs_ptr, rhs_mat + i_rhs_rows, rhs_cols, rhs_rows);
                         }
-                        output[i_rhs_rows] = (float16_t)(_Float16)CLAMP(
+                        output[i_rhs_rows] = (float16_t)arm_nn_clamp_f16h(
                             (_Float16)acc, (_Float16)bmm_params->activation.max, (_Float16)bmm_params->activation.min);
                     }
                     output += rhs_rows;
@@ -246,7 +246,7 @@ arm_cmsis_nn_status arm_batch_matmul_f16(const cmsis_nn_context *ctx,
                         {
                             acc = dot_contig_strided_f16_scalar(rhs_ptr, lhs_mat + i_lhs_rows, rhs_cols, lhs_rows);
                         }
-                        output[i_rhs_rows] = (float16_t)(_Float16)CLAMP(
+                        output[i_rhs_rows] = (float16_t)arm_nn_clamp_f16h(
                             (_Float16)acc, (_Float16)bmm_params->activation.max, (_Float16)bmm_params->activation.min);
                     }
                     output += rhs_rows;
@@ -276,7 +276,7 @@ arm_cmsis_nn_status arm_batch_matmul_f16(const cmsis_nn_context *ctx,
                             acc = dot_strided_strided_f16_scalar(
                                 lhs_mat + i_lhs_rows, lhs_rows, rhs_mat + i_rhs_rows, rhs_rows, rhs_cols);
                         }
-                        output[i_rhs_rows] = (float16_t)(_Float16)CLAMP(
+                        output[i_rhs_rows] = (float16_t)arm_nn_clamp_f16h(
                             (_Float16)acc, (_Float16)bmm_params->activation.max, (_Float16)bmm_params->activation.min);
                     }
                     output += rhs_rows;
