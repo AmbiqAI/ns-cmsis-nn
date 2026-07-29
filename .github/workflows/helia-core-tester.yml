@@ -403,12 +403,6 @@ jobs:
       - name: Stage combined float/float-mve coverage inputs for merge
         run: |
           cd Tests/helia-core-tester
-          # coverage-merge expects exactly one coverage.info per (suite, cpu) at the
-          # default artifacts/reports/coverage/<suite>/<cpu> location, but float
-          # coverage is produced per-precision (f32/f16) in separate jobs/artifacts.
-          # Combine them (summing per-line hits) into the canonical location so
-          # `coverage-merge --suite both --include-mve-float` picks up float and
-          # float-mve coverage alongside int.
           uv run python -m helia_core_tester.scripts.merge_lcov_inputs \
             --input artifacts/reports-fallback/m4-f32/coverage/float/cortex-m4/coverage.info \
             --output artifacts/reports/coverage/float/cortex-m4/coverage.info
