@@ -5,10 +5,8 @@
 
 ### Bug Fixes
 
-* Correct arm_sub_s8/s16 broadcast bug ([055e0a5](https://github.com/AmbiqAI/ns-cmsis-nn/commit/055e0a5b2c3759a17b509df9f37727ebcdd68e04))
-* Correct arm_sub_s8/s16 broadcast bug ([5216e48](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5216e484d21a2fe48ee3036848e11dd18b791bed))
 * Correct broadcast bug for sub, prelu, mul, squared diff ([055e0a5](https://github.com/AmbiqAI/ns-cmsis-nn/commit/055e0a5b2c3759a17b509df9f37727ebcdd68e04))
-* correct missing pointer increment in row-scalar/channel broadcast for mul, squared_difference, prelu ([780d3e2](https://github.com/AmbiqAI/ns-cmsis-nn/commit/780d3e223b79366561ff45a1cda7409e3fb60672))
+* Correct missing pointer increment in row-scalar/channel broadcast for mul, squared_difference, prelu ([780d3e2](https://github.com/AmbiqAI/ns-cmsis-nn/commit/780d3e223b79366561ff45a1cda7409e3fb60672))
 
 ## [7.29.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.28.0...v7.29.0) (2026-07-28)
 
