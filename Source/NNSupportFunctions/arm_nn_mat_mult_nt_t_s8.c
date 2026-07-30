@@ -215,7 +215,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
         int32_t lhs_offset_contribution0 = 0;
         int32_t lhs_offset_contribution1 = 0;
 
-        // if provided, usesum of weights; else keep original path
+        // Use the precomputed folded weight sum and bias when provided; otherwise compute them here.
         if (weight_sum_buf)
         {
             lhs_offset_contribution0 = weight_sum_buf[rhs_rows_idx];
@@ -576,7 +576,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
         for (int32_t lhs_rows_idx = 0; lhs_rows_idx < lhs_rows; ++lhs_rows_idx)
         {
             const int8_t *rhs_ptr = &rhs[0];
-            int32_t res00 = eff_bias[rhs_rows - 1];
+            int32_t res00 = eff_bias ? eff_bias[rhs_rows - 1] : 0;
 
             for (int32_t rhs_cols_idx = 0; rhs_cols_idx < rhs_cols; ++rhs_cols_idx)
             {
@@ -750,12 +750,12 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
         for (int32_t lhs_rows_idx = 0; lhs_rows_idx < lhs_rows; ++lhs_rows_idx)
         {
             const int8_t *rhs_ptr = &rhs[0];
-            int32_t res00 = eff_bias[rhs_rows - 1];
+            int32_t res00 = eff_bias ? eff_bias[rhs_rows - 1] : 0;
 
             for (int32_t rhs_cols_idx = rhs_cols; rhs_cols_idx != 0; rhs_cols_idx--)
             {
                 int32_t rhs_value = rhs_ptr[0];
-                int32_t lhs_value = lhs_ptr[0] + (int8_t)eff_input_offset;
+                int32_t lhs_value = lhs_ptr[0] + eff_input_offset;
 
                 res00 += lhs_value * rhs_value;
 
