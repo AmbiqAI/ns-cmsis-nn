@@ -27,6 +27,7 @@ endif()
 if (ARM_NN_ENABLE_F16)
   list(APPEND SRC_FLT arm_elementwise_add_fp16.c
                       arm_elementwise_add_f16.c
+                      arm_elementwise_sub_f16.c
                       arm_elementwise_mul_f16.c
                       arm_minimum_f16.c
                       arm_maximum_f16.c)

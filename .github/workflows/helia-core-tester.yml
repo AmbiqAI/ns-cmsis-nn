@@ -400,10 +400,27 @@ jobs:
           name: reports-m55-f16-mvef
           path: Tests/helia-core-tester/artifacts/reports-mvef/m55-f16
 
+      - name: Stage combined float/float-mve coverage inputs for merge
+        run: |
+          cd Tests/helia-core-tester
+          uv run python -m helia_core_tester.scripts.merge_lcov_inputs \
+            --input artifacts/reports-fallback/m4-f32/coverage/float/cortex-m4/coverage.info \
+            --output artifacts/reports/coverage/float/cortex-m4/coverage.info
+
+          uv run python -m helia_core_tester.scripts.merge_lcov_inputs \
+            --input artifacts/reports-fallback/m55-f32/coverage/float/cortex-m55/coverage.info \
+            --input artifacts/reports-fallback/m55-f16/coverage/float/cortex-m55/coverage.info \
+            --output artifacts/reports/coverage/float/cortex-m55/coverage.info
+
+          uv run python -m helia_core_tester.scripts.merge_lcov_inputs \
+            --input artifacts/reports-mvef/m55-f32/coverage/float-mve/cortex-m55/coverage.info \
+            --input artifacts/reports-mvef/m55-f16/coverage/float-mve/cortex-m55/coverage.info \
+            --output artifacts/reports/coverage/float-mve/cortex-m55/coverage.info
+
       - name: Run helia-core-tester coverage merge
         run: |
           cd Tests/helia-core-tester
-          uv run helia_core_tester coverage-merge --cpu cortex-m0,cortex-m4,cortex-m55 --suite int
+          uv run helia_core_tester coverage-merge --cpu cortex-m0,cortex-m4,cortex-m55 --suite both --include-mve-float
 
       - name: Publish CPU coverage and test summary table
         run: |

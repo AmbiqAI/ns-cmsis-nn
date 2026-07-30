@@ -1,5 +1,80 @@
 # Changelog
 
+## [7.29.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.29.0...v7.29.1) (2026-07-29)
+
+
+### Bug Fixes
+
+* Correct broadcast bug for sub, prelu, mul, squared diff ([055e0a5](https://github.com/AmbiqAI/ns-cmsis-nn/commit/055e0a5b2c3759a17b509df9f37727ebcdd68e04))
+* Correct missing pointer increment in row-scalar/channel broadcast for mul, squared_difference, prelu ([780d3e2](https://github.com/AmbiqAI/ns-cmsis-nn/commit/780d3e223b79366561ff45a1cda7409e3fb60672))
+
+## [7.29.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.28.0...v7.29.0) (2026-07-28)
+
+
+### Features
+
+* add float16 unidirectional GRU kernel ([ec23611](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ec23611298e81fe87d4ac8354c685b305dd83893))
+* add fp16 split, strided_slice, and elementwise_sub kernels ([cbee573](https://github.com/AmbiqAI/ns-cmsis-nn/commit/cbee573768c6dc53ac62c15520aaa5fe53629b45))
+* add streaming hidden-state carry to arm_gru_unidirectional_f16 ([f518244](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f5182442df8457222c4f0b3e4587213138eefa42))
+* float16 split, strided_slice, and elementwise_sub kernels ([d7276d1](https://github.com/AmbiqAI/ns-cmsis-nn/commit/d7276d124fe48bc857b101f4ce4b0cbe06e74e07))
+* float16 unidirectional GRU kernel (rolled GRU support) ([4d82494](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4d82494dd59ecd847a457c81d8f292b42e02cd5c))
+* stateful (streaming) support for float LSTM (f16/f32) ([63fe798](https://github.com/AmbiqAI/ns-cmsis-nn/commit/63fe7981f8cc048fe7713cf923dde253c5b347c2))
+* stateful (streaming) support for float LSTM (f16/f32) ([63fe798](https://github.com/AmbiqAI/ns-cmsis-nn/commit/63fe7981f8cc048fe7713cf923dde253c5b347c2))
+* stateful (streaming) support for float LSTM (f16/f32) ([2f2d666](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2f2d666ff905249fed6dad9999111bf561bbddb6))
+
+
+### Bug Fixes
+
+* Add an explicit guard that input2 is not height-broadcast (e.g. in2_h &gt;= in1_h) along with hd2 == 0. ([a03e9e8](https://github.com/AmbiqAI/ns-cmsis-nn/commit/a03e9e830be4c0ec11b6b0eebf13b296ca04a9f8))
+* address latest PR review comments on f16 split/strided_slice ([f535a95](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f535a957b9d97158c7f429f1571981990252bad9))
+* correct copyright year to 2026 in s16 PReLU source files ([2bcbf1c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2bcbf1cac80f659faceb27f05e7e47b4b5a6802d))
+* correct stale cmsis_nn_gru_gate_f16 doc comment ([2218933](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2218933c52ebde3c31aec4473cb77194ccfe0f05))
+* gate arm_strided_slice_f16 behind ARM_NN_ENABLE_F16 ([5eb2993](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5eb2993673fdeee4bc8980946530f5820318c80e))
+* Gate the local increment on input1 not being height-broadcast (e.g. in1_h &gt;= in2_h) in addition to hd1 == 0. ([5e9513a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5e9513a195e53ebd0aa8a54d6ba9f50516fea24b))
+* Gate this increment on input1 not being height-broadcast (e.g. in1_h &gt;= in2_h) as well as hd1 == 0. ([3ad0350](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3ad035071c6d0696f6f1b06cae2d5cb7c7fe17fe))
+* Gate this increment on input2 not being height-broadcast (e.g. `in2_h >= in1_h`) as well as hd2 == 0. ([fc99e04](https://github.com/AmbiqAI/ns-cmsis-nn/commit/fc99e046fb32ebd9fd1e40ad5c8297e39be8937e))
+* quantized mixed-broadcast ADD regressions in the vendored NS-CMSIS-NN arm_add_s8 and arm_add_s16 implementations used by the HELIA kernel path. ([85e0db2](https://github.com/AmbiqAI/ns-cmsis-nn/commit/85e0db2001cd00c34233eff26e5cc3b006c11c5f))
+* quantized mixed-broadcast ADD regressions in the vendored NS-CMSIS-NN arm_add_s8 and arm_add_s16 implementations used by the HELIA kernel path. ([d7bb316](https://github.com/AmbiqAI/ns-cmsis-nn/commit/d7bb316bb4d6175c234d67b3dc7a413a92f769fc))
+* register GRU sources in build manifests; address review ([4119264](https://github.com/AmbiqAI/ns-cmsis-nn/commit/41192643ae1d816549d8990fd6bc77d686ec4880))
+* restore stateless batch-major fast path; drop stray unrolled test files ([789ce3d](https://github.com/AmbiqAI/ns-cmsis-nn/commit/789ce3ddfbcfb3707e20b4b19406911ebcee1fff))
+
+## [7.28.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.27.0...v7.28.0) (2026-07-16)
+
+
+### Features
+
+* add dependency for experimental FP16 kernels on ARMv8.1-M MVEF ([8ad53c4](https://github.com/AmbiqAI/ns-cmsis-nn/commit/8ad53c42f3e6bebafa585b174e52e9e759722141))
+* add support for experimental FP32 and FP16 kernels in Zephyr and NSX modules ([8980fb3](https://github.com/AmbiqAI/ns-cmsis-nn/commit/8980fb35cabb8ae5ea02ea97c9dd34b65b61874d))
+* **ci:** add installation of required CMSIS packs in CI workflow ([b241244](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b241244bac343c703e26fb09a278cba87f2cc2b7))
+* **ci:** add verification step for float CMSIS component wiring and update unit test configurations ([43e7ede](https://github.com/AmbiqAI/ns-cmsis-nn/commit/43e7ede85c023ab4bf1f5dcb66d3799678c45781))
+* **ci:** export scalar environment entries for Arm vcpkg artifacts to resolve compiler registration ([2d7d9ba](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2d7d9ba6d5040e06cd8dcf2cfbdea35a4c162fc3))
+* Merge upstream CMSIS-NN with float16/float32 implementation and testing ([9d48aa0](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9d48aa00cf2140b3ee79d9032ce0e1d51f878928))
+* **tests:** add 1D max pooling test cases and update uv.lock configuration ([de16c6f](https://github.com/AmbiqAI/ns-cmsis-nn/commit/de16c6ff7419d4d2e15c0e6ce31b1625c94169e3))
+* **tests:** enhance coverage reporting for cortex-m4 and cortex-m55 float fallback tests ([c25796e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/c25796e5ef5035e2001c09360b873a2e7ffa72df))
+
+
+### Bug Fixes
+
+* address critical/high severity bugs flagged in PR [#199](https://github.com/AmbiqAI/ns-cmsis-nn/issues/199) review ([6e002c1](https://github.com/AmbiqAI/ns-cmsis-nn/commit/6e002c14bb3f564a404f7d6b21da6e12f2e0797d))
+* **ci:** add armclang license env and fix symlink probe in fetch_tool… ([f585a2c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f585a2c3ecf7e61d9061983175bdf79e6c57ba2f))
+* **ci:** add armclang license env and fix symlink probe in fetch_toolchain ([5080478](https://github.com/AmbiqAI/ns-cmsis-nn/commit/50804784adc889eb11f4ddc9f9a6b78dc651e4d3))
+* **ci:** update operator-matrix-tests to use cortex-fvp-test-matrix workflow ([28871e9](https://github.com/AmbiqAI/ns-cmsis-nn/commit/28871e9ee3d9cd635def56798e13239b546c1974))
+* correct expected counts for basic math functions in SSoT contract test ([91ce5f4](https://github.com/AmbiqAI/ns-cmsis-nn/commit/91ce5f4df6a271c2a45c6d4b0b7c88ecd28b061b))
+* guard Arm intrinsics for C++ consumers ([#194](https://github.com/AmbiqAI/ns-cmsis-nn/issues/194)) ([2779793](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2779793e26b75b7f8f6d93143449e81c9c55c6ae))
+* make MVE convolution tails memory safe ([#206](https://github.com/AmbiqAI/ns-cmsis-nn/issues/206)) ([13a7397](https://github.com/AmbiqAI/ns-cmsis-nn/commit/13a73977b829e00b961f2a1380261e8127293b3e))
+* **tests:** fix float precision for cortex-m4 and cortex-m55 in helia-core-tester ([85d3dee](https://github.com/AmbiqAI/ns-cmsis-nn/commit/85d3dee78eb4e7a4f298dc773487bc58af74623e))
+* update subproject commit reference in helia-core-tester ([7796416](https://github.com/AmbiqAI/ns-cmsis-nn/commit/7796416498359bd70d5305193581d8dd007e0727))
+
+
+### Refactoring
+
+* **ci:** enhance vcpkg initialization in CI workflow to ensure proper environment setup ([b7ae5c8](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b7ae5c8a3debe8ae0eba4fea92d43205bc97409f))
+* **ci:** remove legacy tests and update helia-core-tester commands for suite execution ([4eaf50e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4eaf50ed4d3c5d77df2b319f0fde62c868433fec))
+* **ci:** update project components to use Machine Learning:NN Lib:heliaCORE ([ab77280](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ab77280a0dec695499200978d1704909cc050393))
+* **docs:** enhance Sphinx API generation and normalize softmax helper directives ([2e21e0a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2e21e0a6aad8aa8c7101b1ce98a05cc663015607))
+* **softmax:** update softmax helper function signatures to use pointer parameters ([99bb416](https://github.com/AmbiqAI/ns-cmsis-nn/commit/99bb4160ad8783e31f31d75f3ec1f3b81a5e825d))
+* **tests:** update project components to use Ambiq::Machine Learning:NN Lib:heliaCORE and enhance test configurations ([1b28667](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1b28667ced20faa532afefeeb084c79b7e8240dd))
+
 ## [7.27.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.26.0...v7.27.0) (2026-06-22)
 
 
