@@ -47,7 +47,7 @@ static inline int8_t s4_at(const int8_t *w, uint32_t nib_idx)
 {
     const uint8_t b = (uint8_t)w[nib_idx >> 1];
     const uint8_t u = (nib_idx & 1u) ? (uint8_t)(b >> 4) : (uint8_t)(b & 0x0F);
-    return s4_from_u4(u);
+    return arm_nn_s4_from_u4(u);
 }
 
 arm_cmsis_nn_status arm_vector_sum_s4(int32_t *vector_sum_buf,
@@ -105,10 +105,10 @@ arm_cmsis_nn_status arm_vector_sum_s4(int32_t *vector_sum_buf,
         while (pairs >= 4)
         {
             uint8_t b0 = p[0], b1 = p[1], b2 = p[2], b3 = p[3];
-            sum_w += (int32_t)s4_from_u4(b0 & 0x0F) + (int32_t)s4_from_u4(b0 >> 4);
-            sum_w += (int32_t)s4_from_u4(b1 & 0x0F) + (int32_t)s4_from_u4(b1 >> 4);
-            sum_w += (int32_t)s4_from_u4(b2 & 0x0F) + (int32_t)s4_from_u4(b2 >> 4);
-            sum_w += (int32_t)s4_from_u4(b3 & 0x0F) + (int32_t)s4_from_u4(b3 >> 4);
+            sum_w += (int32_t)arm_nn_s4_from_u4(b0 & 0x0F) + (int32_t)arm_nn_s4_from_u4(b0 >> 4);
+            sum_w += (int32_t)arm_nn_s4_from_u4(b1 & 0x0F) + (int32_t)arm_nn_s4_from_u4(b1 >> 4);
+            sum_w += (int32_t)arm_nn_s4_from_u4(b2 & 0x0F) + (int32_t)arm_nn_s4_from_u4(b2 >> 4);
+            sum_w += (int32_t)arm_nn_s4_from_u4(b3 & 0x0F) + (int32_t)arm_nn_s4_from_u4(b3 >> 4);
             p += 4;
             pairs -= 4;
         }
@@ -117,8 +117,8 @@ arm_cmsis_nn_status arm_vector_sum_s4(int32_t *vector_sum_buf,
         for (uint32_t i = 0; i < pairs; ++i)
         {
             const uint8_t b = p[i];
-            sum_w += (int32_t)s4_from_u4(b & 0x0F);
-            sum_w += (int32_t)s4_from_u4(b >> 4);
+            sum_w += (int32_t)arm_nn_s4_from_u4(b & 0x0F);
+            sum_w += (int32_t)arm_nn_s4_from_u4(b >> 4);
         }
 
         if ((K - consumed) & 1u)
