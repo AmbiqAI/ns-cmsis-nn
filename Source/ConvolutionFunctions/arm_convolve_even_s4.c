@@ -47,7 +47,6 @@
  *
  */
 arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
-                                         const cmsis_nn_context *weight_sum_ctx,
                                          const cmsis_nn_conv_params *conv_params,
                                          const cmsis_nn_per_channel_quant_params *quant_params,
                                          const cmsis_nn_dims *input_dims,
@@ -58,6 +57,33 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
                                          const int32_t *bias_data,
                                          const cmsis_nn_dims *output_dims,
                                          int8_t *output_data)
+{
+    return arm_convolve_even_s4_with_weight_sum(ctx,
+                                                NULL,
+                                                conv_params,
+                                                quant_params,
+                                                input_dims,
+                                                input_data,
+                                                filter_dims,
+                                                packed_filter_data,
+                                                bias_dims,
+                                                bias_data,
+                                                output_dims,
+                                                output_data);
+}
+
+arm_cmsis_nn_status arm_convolve_even_s4_with_weight_sum(const cmsis_nn_context *ctx,
+                                                         const cmsis_nn_context *weight_sum_ctx,
+                                                         const cmsis_nn_conv_params *conv_params,
+                                                         const cmsis_nn_per_channel_quant_params *quant_params,
+                                                         const cmsis_nn_dims *input_dims,
+                                                         const int8_t *input_data,
+                                                         const cmsis_nn_dims *filter_dims,
+                                                         const int8_t *packed_filter_data,
+                                                         const cmsis_nn_dims *bias_dims,
+                                                         const int32_t *bias_data,
+                                                         const cmsis_nn_dims *output_dims,
+                                                         int8_t *output_data)
 {
     (void)bias_dims;
 #if defined(ARM_MATH_MVEI)
@@ -93,7 +119,8 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
     const int32_t *eff_bias = bias_data;
     int32_t eff_input_offset = input_offset;
 
-    if (weight_sum_ctx && weight_sum_ctx->buf)
+    const int32_t required_weight_sum_size = rhs_rows * (int32_t)sizeof(int32_t);
+    if (weight_sum_ctx && weight_sum_ctx->buf && weight_sum_ctx->size >= required_weight_sum_size)
     {
         eff_bias = (const int32_t *)weight_sum_ctx->buf;
         eff_input_offset = 0;

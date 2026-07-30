@@ -55,7 +55,7 @@ arm_cmsis_nn_status arm_convolve_weight_sum_s4(int32_t *vector_sum_buf,
         uint32_t consumed = 0;
         if ((base_elem & 1u) != 0u)
         {
-            sum_w += (int32_t)s4_unpack_elem(weights_s4, base_elem);
+            sum_w += (int32_t)arm_nn_s4_unpack_elem(weights_s4, base_elem);
             consumed = 1;
         }
 
@@ -89,8 +89,8 @@ arm_cmsis_nn_status arm_convolve_weight_sum_s4(int32_t *vector_sum_buf,
         for (uint32_t i = 0; i < rem; ++i)
         {
             const uint8_t b8 = p[i];
-            sum_w += (int32_t)s4_from_u4(b8 & 0x0Fu);
-            sum_w += (int32_t)s4_from_u4((b8 >> 4) & 0x0Fu);
+            sum_w += (int32_t)arm_nn_s4_from_u4(b8 & 0x0Fu);
+            sum_w += (int32_t)arm_nn_s4_from_u4((b8 >> 4) & 0x0Fu);
         }
 #elif defined(ARM_MATH_DSP)
         uint32_t blk = pairs >> 2;
@@ -98,30 +98,30 @@ arm_cmsis_nn_status arm_convolve_weight_sum_s4(int32_t *vector_sum_buf,
         {
             uint8_t b0 = p[0], b1 = p[1], b2 = p[2], b3 = p[3];
 
-            sum_w += (int32_t)s4_from_u4(b0 & 0x0Fu) + (int32_t)s4_from_u4((b0 >> 4) & 0x0Fu);
-            sum_w += (int32_t)s4_from_u4(b1 & 0x0Fu) + (int32_t)s4_from_u4((b1 >> 4) & 0x0Fu);
-            sum_w += (int32_t)s4_from_u4(b2 & 0x0Fu) + (int32_t)s4_from_u4((b2 >> 4) & 0x0Fu);
-            sum_w += (int32_t)s4_from_u4(b3 & 0x0Fu) + (int32_t)s4_from_u4((b3 >> 4) & 0x0Fu);
+            sum_w += (int32_t)arm_nn_s4_from_u4(b0 & 0x0Fu) + (int32_t)arm_nn_s4_from_u4((b0 >> 4) & 0x0Fu);
+            sum_w += (int32_t)arm_nn_s4_from_u4(b1 & 0x0Fu) + (int32_t)arm_nn_s4_from_u4((b1 >> 4) & 0x0Fu);
+            sum_w += (int32_t)arm_nn_s4_from_u4(b2 & 0x0Fu) + (int32_t)arm_nn_s4_from_u4((b2 >> 4) & 0x0Fu);
+            sum_w += (int32_t)arm_nn_s4_from_u4(b3 & 0x0Fu) + (int32_t)arm_nn_s4_from_u4((b3 >> 4) & 0x0Fu);
 
             p += 4;
         }
         for (uint32_t i = (pairs & ~3u); i < pairs; ++i)
         {
             const uint8_t b8 = p[i - ((pairs & ~3u))];
-            sum_w += (int32_t)s4_from_u4(b8 & 0x0Fu);
-            sum_w += (int32_t)s4_from_u4((b8 >> 4) & 0x0Fu);
+            sum_w += (int32_t)arm_nn_s4_from_u4(b8 & 0x0Fu);
+            sum_w += (int32_t)arm_nn_s4_from_u4((b8 >> 4) & 0x0Fu);
         }
 #else
         for (uint32_t i = 0; i < pairs; ++i)
         {
             const uint8_t b8 = p[i];
-            sum_w += (int32_t)s4_from_u4(b8 & 0x0Fu);
-            sum_w += (int32_t)s4_from_u4((b8 >> 4) & 0x0Fu);
+            sum_w += (int32_t)arm_nn_s4_from_u4(b8 & 0x0Fu);
+            sum_w += (int32_t)arm_nn_s4_from_u4((b8 >> 4) & 0x0Fu);
         }
 #endif
         if (((K - consumed) & 1u) != 0u)
         {
-            sum_w += (int32_t)s4_unpack_elem(weights_s4, base_elem + (K - 1));
+            sum_w += (int32_t)arm_nn_s4_unpack_elem(weights_s4, base_elem + (K - 1));
         }
 
         const int32_t b = (bias_data) ? bias_data[o] : 0;

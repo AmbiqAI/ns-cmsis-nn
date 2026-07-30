@@ -49,7 +49,6 @@
  */
 
 arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx,
-                                            const cmsis_nn_context *weight_sum_ctx,
                                             const cmsis_nn_conv_params *conv_params,
                                             const cmsis_nn_per_channel_quant_params *quant_params,
                                             const cmsis_nn_dims *input_dims,
@@ -61,85 +60,112 @@ arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx,
                                             const cmsis_nn_dims *output_dims,
                                             int8_t *output_data)
 {
+    return arm_convolve_wrapper_s4_with_weight_sum(ctx,
+                                                   NULL,
+                                                   conv_params,
+                                                   quant_params,
+                                                   input_dims,
+                                                   input_data,
+                                                   filter_dims,
+                                                   filter_data,
+                                                   bias_dims,
+                                                   bias_data,
+                                                   output_dims,
+                                                   output_data);
+}
+
+arm_cmsis_nn_status arm_convolve_wrapper_s4_with_weight_sum(const cmsis_nn_context *ctx,
+                                                            const cmsis_nn_context *weight_sum_ctx,
+                                                            const cmsis_nn_conv_params *conv_params,
+                                                            const cmsis_nn_per_channel_quant_params *quant_params,
+                                                            const cmsis_nn_dims *input_dims,
+                                                            const int8_t *input_data,
+                                                            const cmsis_nn_dims *filter_dims,
+                                                            const int8_t *filter_data,
+                                                            const cmsis_nn_dims *bias_dims,
+                                                            const int32_t *bias_data,
+                                                            const cmsis_nn_dims *output_dims,
+                                                            int8_t *output_data)
+{
     if (arm_nn_is_convolve_1x1(conv_params, input_dims, filter_dims))
     {
         if (arm_nn_is_convolve_1x1_fast(conv_params))
         {
-            return arm_convolve_1x1_s4_fast(ctx,
-                                            weight_sum_ctx,
-                                            conv_params,
-                                            quant_params,
-                                            input_dims,
-                                            input_data,
-                                            filter_dims,
-                                            filter_data,
-                                            bias_dims,
-                                            bias_data,
-                                            output_dims,
-                                            output_data);
+            return arm_convolve_1x1_s4_fast_with_weight_sum(ctx,
+                                                            weight_sum_ctx,
+                                                            conv_params,
+                                                            quant_params,
+                                                            input_dims,
+                                                            input_data,
+                                                            filter_dims,
+                                                            filter_data,
+                                                            bias_dims,
+                                                            bias_data,
+                                                            output_dims,
+                                                            output_data);
         }
         else
         {
-            return arm_convolve_1x1_s4(ctx,
-                                       weight_sum_ctx,
-                                       conv_params,
-                                       quant_params,
-                                       input_dims,
-                                       input_data,
-                                       filter_dims,
-                                       filter_data,
-                                       bias_dims,
-                                       bias_data,
-                                       output_dims,
-                                       output_data);
+            return arm_convolve_1x1_s4_with_weight_sum(ctx,
+                                                       weight_sum_ctx,
+                                                       conv_params,
+                                                       quant_params,
+                                                       input_dims,
+                                                       input_data,
+                                                       filter_dims,
+                                                       filter_data,
+                                                       bias_dims,
+                                                       bias_data,
+                                                       output_dims,
+                                                       output_data);
         }
     }
     else if (arm_nn_is_convolve_1_x_n(conv_params, input_dims, filter_dims))
     {
-        return arm_convolve_1_x_n_s4(ctx,
-                                     weight_sum_ctx,
-                                     conv_params,
-                                     quant_params,
-                                     input_dims,
-                                     input_data,
-                                     filter_dims,
-                                     filter_data,
-                                     bias_dims,
-                                     bias_data,
-                                     output_dims,
-                                     output_data);
+        return arm_convolve_1_x_n_s4_with_weight_sum(ctx,
+                                                     weight_sum_ctx,
+                                                     conv_params,
+                                                     quant_params,
+                                                     input_dims,
+                                                     input_data,
+                                                     filter_dims,
+                                                     filter_data,
+                                                     bias_dims,
+                                                     bias_data,
+                                                     output_dims,
+                                                     output_data);
     }
 #if defined(ARM_MATH_MVEI)
     else if (((filter_dims->h * filter_dims->w * input_dims->c) & 0x1) == 0)
     {
-        return arm_convolve_even_s4(ctx,
-                                    weight_sum_ctx,
-                                    conv_params,
-                                    quant_params,
-                                    input_dims,
-                                    input_data,
-                                    filter_dims,
-                                    filter_data,
-                                    bias_dims,
-                                    bias_data,
-                                    output_dims,
-                                    output_data);
+        return arm_convolve_even_s4_with_weight_sum(ctx,
+                                                    weight_sum_ctx,
+                                                    conv_params,
+                                                    quant_params,
+                                                    input_dims,
+                                                    input_data,
+                                                    filter_dims,
+                                                    filter_data,
+                                                    bias_dims,
+                                                    bias_data,
+                                                    output_dims,
+                                                    output_data);
     }
 #endif
     else
     {
-        return arm_convolve_s4(ctx,
-                               weight_sum_ctx,
-                               conv_params,
-                               quant_params,
-                               input_dims,
-                               input_data,
-                               filter_dims,
-                               filter_data,
-                               bias_dims,
-                               bias_data,
-                               output_dims,
-                               output_data);
+        return arm_convolve_s4_with_weight_sum(ctx,
+                                               weight_sum_ctx,
+                                               conv_params,
+                                               quant_params,
+                                               input_dims,
+                                               input_data,
+                                               filter_dims,
+                                               filter_data,
+                                               bias_dims,
+                                               bias_data,
+                                               output_dims,
+                                               output_data);
     }
 }
 /**

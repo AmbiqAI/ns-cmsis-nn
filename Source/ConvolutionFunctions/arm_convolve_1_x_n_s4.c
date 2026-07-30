@@ -47,7 +47,6 @@
  */
 
 arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
-                                          const cmsis_nn_context *weight_sum_ctx,
                                           const cmsis_nn_conv_params *conv_params,
                                           const cmsis_nn_per_channel_quant_params *quant_params,
                                           const cmsis_nn_dims *input_dims,
@@ -58,6 +57,33 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
                                           const int32_t *bias_data,
                                           const cmsis_nn_dims *output_dims,
                                           int8_t *output_data)
+{
+    return arm_convolve_1_x_n_s4_with_weight_sum(ctx,
+                                                 NULL,
+                                                 conv_params,
+                                                 quant_params,
+                                                 input_dims,
+                                                 input_data,
+                                                 filter_dims,
+                                                 filter_data,
+                                                 bias_dims,
+                                                 bias_data,
+                                                 output_dims,
+                                                 output_data);
+}
+
+arm_cmsis_nn_status arm_convolve_1_x_n_s4_with_weight_sum(const cmsis_nn_context *ctx,
+                                                          const cmsis_nn_context *weight_sum_ctx,
+                                                          const cmsis_nn_conv_params *conv_params,
+                                                          const cmsis_nn_per_channel_quant_params *quant_params,
+                                                          const cmsis_nn_dims *input_dims,
+                                                          const int8_t *input_data,
+                                                          const cmsis_nn_dims *filter_dims,
+                                                          const int8_t *filter_data,
+                                                          const cmsis_nn_dims *bias_dims,
+                                                          const int32_t *bias_data,
+                                                          const cmsis_nn_dims *output_dims,
+                                                          int8_t *output_data)
 {
     arm_cmsis_nn_status status = ARM_CMSIS_NN_SUCCESS;
     int32_t buffer_size = arm_convolve_1_x_n_s4_get_buffer_size(conv_params, input_dims, filter_dims, output_dims);
@@ -187,18 +213,18 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
         input_data += (input_x * input_ch);
     }
 #else
-    status = arm_convolve_s4(ctx,
-                             weight_sum_ctx,
-                             conv_params,
-                             quant_params,
-                             input_dims,
-                             input_data,
-                             filter_dims,
-                             filter_data,
-                             bias_dims,
-                             bias_data,
-                             output_dims,
-                             output_data);
+    status = arm_convolve_s4_with_weight_sum(ctx,
+                                             weight_sum_ctx,
+                                             conv_params,
+                                             quant_params,
+                                             input_dims,
+                                             input_data,
+                                             filter_dims,
+                                             filter_data,
+                                             bias_dims,
+                                             bias_data,
+                                             output_dims,
+                                             output_data);
 
 #endif
 

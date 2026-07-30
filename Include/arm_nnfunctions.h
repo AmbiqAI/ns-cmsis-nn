@@ -74,7 +74,6 @@ extern "C" {
  * @param[in, out] ctx            Function context that contains the additional buffer if required by the function.
  *                                arm_convolve_wrapper_s4_get_buffer_size will return the buffer_size if required.
  *                                The caller is expected to clear the buffer ,if applicable, for security reasons.
- * @param[in, out] weight_sum_ctx Function context that contains the weight sum buffer if required by the function.
  * @param[in]      conv_params    Convolution parameters (e.g. strides, dilations, pads,...).
  *                                Range of conv_params->input_offset  : [-127, 128]
  *                                Range of conv_params->output_offset : [-128, 127]
@@ -96,7 +95,6 @@ extern "C" {
  *
  */
 arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx,
-                                            const cmsis_nn_context *weight_sum_ctx,
                                             const cmsis_nn_conv_params *conv_params,
                                             const cmsis_nn_per_channel_quant_params *quant_params,
                                             const cmsis_nn_dims *input_dims,
@@ -107,6 +105,25 @@ arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx,
                                             const int32_t *bias_data,
                                             const cmsis_nn_dims *output_dims,
                                             int8_t *output_data);
+
+/**
+ * @brief s4 convolution wrapper with an optional precomputed weight-sum context.
+ *
+ * @param[in, out] weight_sum_ctx Function context containing at least output_dims->c int32_t folded weight sums.
+ *                                Pass NULL to use the standard input-offset path.
+ */
+arm_cmsis_nn_status arm_convolve_wrapper_s4_with_weight_sum(const cmsis_nn_context *ctx,
+                                                            const cmsis_nn_context *weight_sum_ctx,
+                                                            const cmsis_nn_conv_params *conv_params,
+                                                            const cmsis_nn_per_channel_quant_params *quant_params,
+                                                            const cmsis_nn_dims *input_dims,
+                                                            const int8_t *input_data,
+                                                            const cmsis_nn_dims *filter_dims,
+                                                            const int8_t *filter_data,
+                                                            const cmsis_nn_dims *bias_dims,
+                                                            const int32_t *bias_data,
+                                                            const cmsis_nn_dims *output_dims,
+                                                            int8_t *output_data);
 
 /**
  * @brief Get the required buffer size for arm_convolve_wrapper_s4
@@ -394,7 +411,6 @@ int32_t arm_convolve_wrapper_s16_get_buffer_size_mve(const cmsis_nn_conv_params 
  *
  */
 arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
-                                    const cmsis_nn_context *weight_sum_ctx,
                                     const cmsis_nn_conv_params *conv_params,
                                     const cmsis_nn_per_channel_quant_params *quant_params,
                                     const cmsis_nn_dims *input_dims,
@@ -407,11 +423,29 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
                                     int8_t *output_data);
 
 /**
+ * @brief Basic s4 convolution with an optional precomputed weight-sum context.
+ *
+ * @param[in, out] weight_sum_ctx Function context containing at least output_dims->c int32_t folded weight sums.
+ *                                Pass NULL to use the standard input-offset path.
+ */
+arm_cmsis_nn_status arm_convolve_s4_with_weight_sum(const cmsis_nn_context *ctx,
+                                                    const cmsis_nn_context *weight_sum_ctx,
+                                                    const cmsis_nn_conv_params *conv_params,
+                                                    const cmsis_nn_per_channel_quant_params *quant_params,
+                                                    const cmsis_nn_dims *input_dims,
+                                                    const int8_t *input_data,
+                                                    const cmsis_nn_dims *filter_dims,
+                                                    const int8_t *packed_filter_data,
+                                                    const cmsis_nn_dims *bias_dims,
+                                                    const int32_t *bias_data,
+                                                    const cmsis_nn_dims *output_dims,
+                                                    int8_t *output_data);
+
+/**
  * @brief Basic s4 convolution function with a requirement of even number of kernels.
  * @param[in, out] ctx            Function context that contains the additional buffer if required by the function.
  *                                arm_convolve_s4_get_buffer_size will return the buffer_size if required.
  *                                The caller is expected to clear the buffer ,if applicable, for security reasons.
- * @param[in, out] weight_sum_ctx Function context that contains the weight sum buffer if required by the function.
  * @param[in]      conv_params    Convolution parameters (e.g. strides, dilations, pads,...).
  *                                Range of conv_params->input_offset  : [-127, 128]
  *                                Range of conv_params->output_offset : [-128, 127]
@@ -437,7 +471,6 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
  *
  */
 arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
-                                         const cmsis_nn_context *weight_sum_ctx,
                                          const cmsis_nn_conv_params *conv_params,
                                          const cmsis_nn_per_channel_quant_params *quant_params,
                                          const cmsis_nn_dims *input_dims,
@@ -448,11 +481,30 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
                                          const int32_t *bias_data,
                                          const cmsis_nn_dims *output_dims,
                                          int8_t *output_data);
+
+/**
+ * @brief Even-column s4 convolution with an optional precomputed weight-sum context.
+ *
+ * @param[in, out] weight_sum_ctx Function context containing at least output_dims->c int32_t folded weight sums.
+ *                                Pass NULL to use the standard input-offset path.
+ */
+arm_cmsis_nn_status arm_convolve_even_s4_with_weight_sum(const cmsis_nn_context *ctx,
+                                                         const cmsis_nn_context *weight_sum_ctx,
+                                                         const cmsis_nn_conv_params *conv_params,
+                                                         const cmsis_nn_per_channel_quant_params *quant_params,
+                                                         const cmsis_nn_dims *input_dims,
+                                                         const int8_t *input_data,
+                                                         const cmsis_nn_dims *filter_dims,
+                                                         const int8_t *packed_filter_data,
+                                                         const cmsis_nn_dims *bias_dims,
+                                                         const int32_t *bias_data,
+                                                         const cmsis_nn_dims *output_dims,
+                                                         int8_t *output_data);
 /**
  * @brief Compute the bias-folded per-output-channel weight sum for s4 convolution (OHWI layout).
  *
  * Computes, for each output channel o:
- *    vector_sum_buf[o] = (bias_data ? bias_data[o] : 0) - lhs_offset * Σ_k W_s4[o, k]
+ *    vector_sum_buf[o] = (bias_data ? bias_data[o] : 0) + lhs_offset * Σ_k W_s4[o, k]
  *    where W_s4 are int4 weights packed two per int8_t (lower nibble = index 2*n, upper nibble = 2*n+1).
  *
  * @param[out]      vector_sum_buf        Output buffer for folded terms. Length: output_dims->c. Element type: int32_t.
@@ -839,8 +891,6 @@ int32_t arm_convolve_s16_get_buffer_size(const cmsis_nn_dims *input_dims, const 
  * @param[in, out] ctx           Function context that contains the additional buffer if required by the function.
  *                               arm_convolve_1x1_s4_fast_get_buffer_size will return the buffer_size if required.
  *                               The caller is expected to clear the buffer ,if applicable, for security reasons.
- * @param[in, out] weight_sum_ctx Function context that contains the weight sum buffer if required by the function.
- *                               Not used in this case.
  * @param[in]      conv_params   Convolution parameters (e.g. strides, dilations, pads,...).
  *                               Range of conv_params->input_offset  : [-127, 128]
  *                               Range of conv_params->output_offset : [-128, 127]
@@ -867,7 +917,6 @@ int32_t arm_convolve_s16_get_buffer_size(const cmsis_nn_dims *input_dims, const 
  *
  */
 arm_cmsis_nn_status arm_convolve_1x1_s4_fast(const cmsis_nn_context *ctx,
-                                             const cmsis_nn_context *weight_sum_ctx,
                                              const cmsis_nn_conv_params *conv_params,
                                              const cmsis_nn_per_channel_quant_params *quant_params,
                                              const cmsis_nn_dims *input_dims,
@@ -880,11 +929,29 @@ arm_cmsis_nn_status arm_convolve_1x1_s4_fast(const cmsis_nn_context *ctx,
                                              int8_t *output_data);
 
 /**
+ * @brief Fast 1x1 s4 convolution with an optional precomputed weight-sum context.
+ *
+ * @param[in, out] weight_sum_ctx Function context containing at least output_dims->c int32_t folded weight sums.
+ *                                Pass NULL to use the standard input-offset path.
+ */
+arm_cmsis_nn_status arm_convolve_1x1_s4_fast_with_weight_sum(const cmsis_nn_context *ctx,
+                                                             const cmsis_nn_context *weight_sum_ctx,
+                                                             const cmsis_nn_conv_params *conv_params,
+                                                             const cmsis_nn_per_channel_quant_params *quant_params,
+                                                             const cmsis_nn_dims *input_dims,
+                                                             const int8_t *input_data,
+                                                             const cmsis_nn_dims *filter_dims,
+                                                             const int8_t *filter_data,
+                                                             const cmsis_nn_dims *bias_dims,
+                                                             const int32_t *bias_data,
+                                                             const cmsis_nn_dims *output_dims,
+                                                             int8_t *output_data);
+
+/**
  * @brief s4 version for 1x1 convolution with support for non-unity stride values
  *
  * @param[in, out] ctx           Function context that contains the additional buffer if required by the function.
  *                               None is required by this function.
- * @param[in, out] weight_sum_ctx Function context that contains the weight sum buffer if required by the function.
  * @param[in]      conv_params   Convolution parameters (e.g. strides, dilations, pads,...).
  *                               Range of conv_params->input_offset  : [-127, 128]
  *                               Range of conv_params->output_offset : [-128, 127]
@@ -909,7 +976,6 @@ arm_cmsis_nn_status arm_convolve_1x1_s4_fast(const cmsis_nn_context *ctx,
  *
  */
 arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
-                                        const cmsis_nn_context *weight_sum_ctx,
                                         const cmsis_nn_conv_params *conv_params,
                                         const cmsis_nn_per_channel_quant_params *quant_params,
                                         const cmsis_nn_dims *input_dims,
@@ -920,6 +986,25 @@ arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
                                         const int32_t *bias_data,
                                         const cmsis_nn_dims *output_dims,
                                         int8_t *output_data);
+
+/**
+ * @brief 1x1 s4 convolution with an optional precomputed weight-sum context.
+ *
+ * @param[in, out] weight_sum_ctx Function context containing at least output_dims->c int32_t folded weight sums.
+ *                                Pass NULL to use the standard input-offset path.
+ */
+arm_cmsis_nn_status arm_convolve_1x1_s4_with_weight_sum(const cmsis_nn_context *ctx,
+                                                        const cmsis_nn_context *weight_sum_ctx,
+                                                        const cmsis_nn_conv_params *conv_params,
+                                                        const cmsis_nn_per_channel_quant_params *quant_params,
+                                                        const cmsis_nn_dims *input_dims,
+                                                        const int8_t *input_data,
+                                                        const cmsis_nn_dims *filter_dims,
+                                                        const int8_t *filter_data,
+                                                        const cmsis_nn_dims *bias_dims,
+                                                        const int32_t *bias_data,
+                                                        const cmsis_nn_dims *output_dims,
+                                                        int8_t *output_data);
 
 /**
  * @brief Fast s8 version for 1x1 convolution (non-square shape)
@@ -1214,7 +1299,6 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
  *
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
-                                          const cmsis_nn_context *weight_sum_ctx,
                                           const cmsis_nn_conv_params *conv_params,
                                           const cmsis_nn_per_channel_quant_params *quant_params,
                                           const cmsis_nn_dims *input_dims,
@@ -1225,6 +1309,25 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
                                           const int32_t *bias_data,
                                           const cmsis_nn_dims *output_dims,
                                           int8_t *output_data);
+
+/**
+ * @brief 1_x_n s4 convolution with an optional precomputed weight-sum context.
+ *
+ * @param[in, out] weight_sum_ctx Function context containing at least output_dims->c int32_t folded weight sums.
+ *                                Pass NULL to use the standard input-offset path.
+ */
+arm_cmsis_nn_status arm_convolve_1_x_n_s4_with_weight_sum(const cmsis_nn_context *ctx,
+                                                          const cmsis_nn_context *weight_sum_ctx,
+                                                          const cmsis_nn_conv_params *conv_params,
+                                                          const cmsis_nn_per_channel_quant_params *quant_params,
+                                                          const cmsis_nn_dims *input_dims,
+                                                          const int8_t *input_data,
+                                                          const cmsis_nn_dims *filter_dims,
+                                                          const int8_t *filter_data,
+                                                          const cmsis_nn_dims *bias_dims,
+                                                          const int32_t *bias_data,
+                                                          const cmsis_nn_dims *output_dims,
+                                                          int8_t *output_data);
 
 /**
  * @brief Get the required additional buffer size for 1xn convolution
