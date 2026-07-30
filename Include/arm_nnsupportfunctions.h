@@ -2702,13 +2702,13 @@ __STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(con
     return -1;
 }
 
-static inline int8_t s4_from_u4(uint8_t u4)
+__STATIC_FORCEINLINE int8_t arm_nn_s4_from_u4(uint8_t u4)
 {
     /* sign-extend 4-bit two's complement to int8 */
     return (int8_t)((u4 & 0x8u) ? ((int)u4 - 16) : (int)u4);
 }
 
-static inline int8_t s4_unpack_elem(const int8_t *packed_s4, uint32_t elem_index)
+__STATIC_FORCEINLINE int8_t arm_nn_s4_unpack_elem(const int8_t *packed_s4, uint32_t elem_index)
 {
     /* elem_index counts logical int4 elements. Two per byte. */
     const uint32_t byte_index = elem_index >> 1; /* /2 */
@@ -2717,12 +2717,12 @@ static inline int8_t s4_unpack_elem(const int8_t *packed_s4, uint32_t elem_index
     if ((elem_index & 1u) == 0u)
     {
         /* lower nibble */
-        return s4_from_u4(byte_val & 0x0Fu);
+        return arm_nn_s4_from_u4(byte_val & 0x0Fu);
     }
     else
     {
         /* upper nibble */
-        return s4_from_u4((byte_val >> 4) & 0x0Fu);
+        return arm_nn_s4_from_u4((byte_val >> 4) & 0x0Fu);
     }
 }
 
