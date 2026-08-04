@@ -18,7 +18,7 @@
 #   - the Kconfig -> SSoT-group translation table is complete (every one of
 #     the 23 group ids is referenced) and uses the exact group spellings the
 #     SSoT exposes;
-#   - turning every CONFIG_NS_CMSIS_NN_<knob>=y on resolves to all 222
+#   - turning every CONFIG_NS_CMSIS_NN_<knob>=y on resolves to all 225
 #     sources via ns_cmsis_nn_attach();
 #   - Include/ is exposed via zephyr_include_directories();
 #   - CONFIG_NS_CMSIS_NN_REQUANTIZE_INLINE_ASSEMBLY=y propagates as the
@@ -165,7 +165,7 @@ if(NOT STUB_LIBRARY_NAME)
   _fail("zephyr_library() was never called; wiring not reached")
 endif()
 
-# All 222 sources attached.
+# All 225 sources attached.
 if(TARGET ${STUB_LIBRARY_NAME})
   get_target_property(_srcs ${STUB_LIBRARY_NAME} SOURCES)
   if(NOT _srcs)

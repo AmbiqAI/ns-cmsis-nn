@@ -17,7 +17,7 @@
   <repository type="git">https://github.com/AmbiqAI/ns-cmsis-nn</repository>
 
   <releases>
-    <release version="7.27.0"> <!-- x-release-please-version -->
+    <release version="7.29.1"> <!-- x-release-please-version -->
       Active development
     </release>
   </releases>
@@ -59,7 +59,7 @@
 
   <components>
     <!-- heliaCORE NN — Source variant: build the 200+ kernel sources in-tree. -->
-    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.27.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.29.1" condition="CMSIS-NN"> <!-- x-release-please-version -->
       <description>heliaCORE NN — Ambiq's optimized superset of Arm CMSIS-NN, tuned for Apollo SoCs.</description>
       <files>
         <file category="doc" name="Documentation/html/index.html"/>
@@ -84,6 +84,7 @@
 
         <file category="source" name="Source/ActivationFunctions/arm_clamp_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_clamp_s8.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_elementwise_prelu_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_elementwise_prelu_s8.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_hard_swish_compat_s8.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_hard_swish_precise_s16.c"/>
@@ -94,7 +95,9 @@
         <file category="source" name="Source/ActivationFunctions/arm_nn_activation_f16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_nn_activation_f32.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_nn_activation_s16.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_prelu_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_prelu_s8.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_prelu_scalar_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_prelu_scalar_s8.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_relu6_q7.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_relu_q15.c"/>
@@ -126,6 +129,7 @@
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_squared_difference_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_squared_difference_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_f16.c"/>
@@ -170,6 +174,7 @@
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8_x.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8_y.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8_z.c"/>
+        <file category="source" name="Source/ConcatenationFunctions/arm_split_f16.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_split_s16.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_split_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1_x_n_f16.c"/>
@@ -251,6 +256,7 @@
         <file category="source" name="Source/GatherFunctions/arm_gather_nd_s8.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_s16.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_s8.c"/>
+        <file category="source" name="Source/LSTMFunctions/arm_gru_unidirectional_f16.c"/>
         <file category="source" name="Source/LSTMFunctions/arm_lstm_unidirectional_f16.c"/>
         <file category="source" name="Source/LSTMFunctions/arm_lstm_unidirectional_f32.c"/>
         <file category="source" name="Source/LSTMFunctions/arm_lstm_unidirectional_s16.c"/>
@@ -278,6 +284,7 @@
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s4.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s8.c"/>
+        <file category="source" name="Source/NNSupportFunctions/arm_nn_gru_step_f16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_lstm_calculate_gate_s16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_lstm_calculate_gate_s8_s16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_lstm_step_f16.c"/>
@@ -364,6 +371,7 @@
         <file category="source" name="Source/SoftmaxFunctions/arm_softmax_s8.c"/>
         <file category="source" name="Source/SoftmaxFunctions/arm_softmax_s8_s16.c"/>
         <file category="source" name="Source/SoftmaxFunctions/arm_softmax_u8.c"/>
+        <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_f16.c"/>
         <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s16.c"/>
         <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s32.c"/>
         <file category="source" name="Source/StridedSliceFunctions/arm_strided_slice_s8.c"/>
@@ -394,7 +402,7 @@
          libns-cmsis-nn.a instead of compiling sources. One <file> entry per
          supported core; CMSIS-Pack pickers (Keil/CMSIS-Toolbox) resolve the
          right archive via the Dcore + Tcompiler conditions above. -->
-    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.27.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.29.1" condition="CMSIS-NN"> <!-- x-release-please-version -->
       <description>heliaCORE NN — Ambiq's prebuilt GCC archive for Cortex-M0/M0+/M4/M55.</description>
       <files>
         <file category="doc"    name="Documentation/html/index.html"/>
