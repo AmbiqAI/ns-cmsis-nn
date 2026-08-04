@@ -40,12 +40,23 @@ arm_cmsis_nn_status arm_convolve_weight_sum_s4(int32_t *vector_sum_buf,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
+    /* Reject non-positive dims before the uint32_t casts below: a negative dim would otherwise wrap to a huge
+     * unsigned value, driving the output loop and weight index arithmetic out of bounds. */
+    if (output_dims->c <= 0 || input_dims->c <= 0 || filter_dims->h <= 0 || filter_dims->w <= 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     const uint32_t out_c = (uint32_t)output_dims->c;
     const uint32_t in_c = (uint32_t)input_dims->c;
     const uint32_t filter_h = (uint32_t)filter_dims->h;
     const uint32_t filter_w = (uint32_t)filter_dims->w;
 
     const uint32_t K = filter_h * filter_w * in_c;
+    if (K == 0u)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
 
     uint32_t base_elem = 0;
     for (uint32_t o = 0; o < out_c; ++o, base_elem += K)
