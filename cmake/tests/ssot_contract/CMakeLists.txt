@@ -73,7 +73,7 @@ set(EXPECTED_GROUPS
 # Expected per-group source counts (DTYPES = ALL). Sum must equal
 # EXPECTED_TOTAL below.
 # ----------------------------------------------------------------------------
-set(EXPECTED_COUNT_activation     18)
+set(EXPECTED_COUNT_activation     21)
 set(EXPECTED_COUNT_basicmath      46)
 set(EXPECTED_COUNT_comparison      2)
 set(EXPECTED_COUNT_concatenation   9)

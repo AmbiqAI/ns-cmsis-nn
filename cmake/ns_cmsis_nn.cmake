@@ -112,6 +112,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     if(ARM_NN_ENABLE_F16)
       list(APPEND extras "arm_elementwise_add_fp16.c"
                          "arm_elementwise_add_f16.c"
+                         "arm_elementwise_sub_f16.c"
                          "arm_elementwise_mul_f16.c"
                          "arm_minmax_common_f16.c"
                          "arm_minimum_f16.c"
@@ -127,7 +128,8 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
       list(APPEND extras "arm_concatenation_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
-      list(APPEND extras "arm_concatenation_f16.c")
+      list(APPEND extras "arm_concatenation_f16.c"
+                         "arm_split_f16.c")
     endif()
   elseif(group STREQUAL "convolution")
     set(subdir   "ConvolutionFunctions")
@@ -167,6 +169,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
       list(APPEND extras "arm_lstm_unidirectional_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_gru_unidirectional_f16.c")
       list(APPEND extras "arm_lstm_unidirectional_f16.c")
     endif()
   elseif(group STREQUAL "nnsupport")
@@ -206,6 +209,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_nn_depthwise_conv3x3_f16.c"
                          "arm_nn_depthwise_conv_nt_t_f16.c"
                          "arm_nn_pack_conv_patch_f16.c"
+                         "arm_nn_gru_step_f16.c"
                          "arm_nn_lstm_step_f16.c"
                          "arm_nn_maxpool1d_f16.c"
                          "arm_nn_mat_mult_nt_t_f16.c"
@@ -267,7 +271,10 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     endif()
   elseif(group STREQUAL "stridedslice")
     set(subdir   "StridedSliceFunctions")
-    set(patterns "*_*.c")
+    set(patterns "*_s8.c" "*_s16.c" "*_s32.c")
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_strided_slice_f16.c")
+    endif()
   elseif(group STREQUAL "svd")
     set(subdir   "SVDFunctions")
     set(patterns "*_s8.c")
