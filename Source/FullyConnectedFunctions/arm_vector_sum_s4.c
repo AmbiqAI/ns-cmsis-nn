@@ -43,13 +43,6 @@
     #include "arm_mve.h"
 #endif
 
-static inline int8_t s4_at(const int8_t *w, uint32_t nib_idx)
-{
-    const uint8_t b = (uint8_t)w[nib_idx >> 1];
-    const uint8_t u = (nib_idx & 1u) ? (uint8_t)(b >> 4) : (uint8_t)(b & 0x0F);
-    return arm_nn_s4_from_u4(u);
-}
-
 arm_cmsis_nn_status arm_vector_sum_s4(int32_t *vector_sum_buf,
                                       const int8_t *weights_s4,
                                       const cmsis_nn_dims *input_dims,
@@ -58,6 +51,11 @@ arm_cmsis_nn_status arm_vector_sum_s4(int32_t *vector_sum_buf,
                                       const int32_t *bias_data)
 {
     if (!vector_sum_buf || !weights_s4 || !input_dims || !output_dims)
+        return ARM_CMSIS_NN_ARG_ERROR;
+
+    /* Validate signed dims before casting to uint32_t: a negative dim would otherwise wrap to a huge
+     * positive value and bypass the K == 0 / out_c == 0 checks below, leading to out-of-bounds access. */
+    if (output_dims->c <= 0 || input_dims->w <= 0 || input_dims->h <= 0 || input_dims->c <= 0)
         return ARM_CMSIS_NN_ARG_ERROR;
 
     const uint32_t out_c = (uint32_t)output_dims->c;
@@ -73,7 +71,7 @@ arm_cmsis_nn_status arm_vector_sum_s4(int32_t *vector_sum_buf,
         uint32_t consumed = 0;
         if (base_nib & 1u)
         {
-            sum_w += (int32_t)s4_at(weights_s4, base_nib);
+            sum_w += (int32_t)arm_nn_s4_unpack_elem(weights_s4, base_nib);
             consumed = 1;
         }
 
@@ -123,7 +121,7 @@ arm_cmsis_nn_status arm_vector_sum_s4(int32_t *vector_sum_buf,
 
         if ((K - consumed) & 1u)
         {
-            sum_w += (int32_t)s4_at(weights_s4, base_nib + (K - 1));
+            sum_w += (int32_t)arm_nn_s4_unpack_elem(weights_s4, base_nib + (K - 1));
         }
 
         const int32_t b = (bias_data) ? bias_data[oc] : 0;
