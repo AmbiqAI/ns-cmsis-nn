@@ -905,6 +905,26 @@ arm_cmsis_nn_status arm_nn_lstm_step_f16(const float16_t *data_in,
                                          const int32_t batch_offset);
 
 /**
+ * @brief Update GRU function for a single iteration step using float16 data.
+ *
+ * @param[in]   data_in       Data input pointer for this time step.
+ * @param[in]   hidden_in     Recurrent input pointer. NULL for the first step (h_prev = 0).
+ * @param[out]  hidden_out    Hidden-state output pointer for this time step.
+ * @param[in]   params        Struct describing the GRU operator.
+ * @param[in,out] buffers   Scratch buffers. temp1 (>= hidden_size) is required when reset_after == 0.
+ * @param[in]   batch_offset  Number of timesteps between consecutive batches.
+ * @return                    ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR on
+ *                            invalid arguments (NULL data_in/hidden_out/params, batch_offset <= 0,
+ *                            or missing temp1 when reset_after == 0).
+ */
+arm_cmsis_nn_status arm_nn_gru_step_f16(const float16_t *data_in,
+                                        const float16_t *hidden_in,
+                                        float16_t *hidden_out,
+                                        const cmsis_nn_gru_params_f16 *params,
+                                        cmsis_nn_gru_context_f16 *buffers,
+                                        const int32_t batch_offset);
+
+/**
  * @copydoc arm_nn_pack_conv_patch_f32
  */
 void arm_nn_pack_conv_patch_f16(const float16_t *__RESTRICT input,
