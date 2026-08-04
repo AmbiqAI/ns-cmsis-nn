@@ -154,18 +154,18 @@ arm_cmsis_nn_status arm_convolve_wrapper_s4_with_weight_sum(const cmsis_nn_conte
 #endif
     else
     {
-        return arm_convolve_s4_with_weight_sum(ctx,
-                                               weight_sum_ctx,
-                                               conv_params,
-                                               quant_params,
-                                               input_dims,
-                                               input_data,
-                                               filter_dims,
-                                               filter_data,
-                                               bias_dims,
-                                               bias_data,
-                                               output_dims,
-                                               output_data);
+        return arm_convolve_s4(ctx,
+                               weight_sum_ctx,
+                               conv_params,
+                               quant_params,
+                               input_dims,
+                               input_data,
+                               filter_dims,
+                               filter_data,
+                               bias_dims,
+                               bias_data,
+                               output_dims,
+                               output_data);
     }
 }
 /**

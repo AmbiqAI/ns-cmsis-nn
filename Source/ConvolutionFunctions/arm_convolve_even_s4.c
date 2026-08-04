@@ -118,6 +118,7 @@ arm_cmsis_nn_status arm_convolve_even_s4_with_weight_sum(const cmsis_nn_context 
     const int32_t input_offset = conv_params->input_offset;
     const int32_t *eff_bias = bias_data;
     int32_t eff_input_offset = input_offset;
+    const int32_t rhs_rows = output_dims->c;
 
     const int32_t required_weight_sum_size = rhs_rows * (int32_t)sizeof(int32_t);
     if (weight_sum_ctx && weight_sum_ctx->buf && weight_sum_ctx->size >= required_weight_sum_size)
@@ -141,7 +142,6 @@ arm_cmsis_nn_status arm_convolve_even_s4_with_weight_sum(const cmsis_nn_context 
     {
         /* Generate up to four columns from the input tensor a GEMM computation */
         int8_t *im2col_buf = (int8_t *)buffer_a;
-        const int32_t rhs_rows = output_dims->c;
         int8_t *out = output_data;
         int32_t lhs_rows = 0;
 
