@@ -98,7 +98,9 @@ fi
 # tag object of the same name; this is purely local (no `git push` anywhere
 # in this script) and pins the new annotated object to the SAME commit the
 # lightweight tag already pointed at, so the tag's meaning never changes.
-git tag -f -a "${tag}" -m "${message}" "${commit_before}" >/dev/null
+git -c user.name="ns-cmsis-nn release recovery" \
+  -c user.email="opensource@ambiq.com" \
+  tag -f -a "${tag}" -m "${message}" "${commit_before}" >/dev/null
 
 commit_after="$(git rev-list -n1 "${tag}")"
 if [[ "${commit_after}" != "${commit_before}" ]]; then

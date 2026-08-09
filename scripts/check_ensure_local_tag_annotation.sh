@@ -83,6 +83,8 @@ run_case() {
   else
     git -C "${dir}" tag v1.2.3
   fi
+  git -C "${dir}" config --unset user.email
+  git -C "${dir}" config --unset user.name
 
   local commit_before
   commit_before="$(git -C "${dir}" rev-list -n1 v1.2.3)"
@@ -90,14 +92,14 @@ run_case() {
   local path
   if [[ -n "${gh_body}" ]]; then
     install_fake_gh "${gh_body}"
-    path="${FAKE_BIN}:${PATH}"
   else
-    # Simulate `gh` being entirely absent from PATH.
-    path="${PATH}"
+    # Shadow any runner-provided gh with a hermetic command-not-found stub.
+    install_fake_gh "exit 127"
   fi
+  path="${FAKE_BIN}:${PATH}"
 
   local rc=0
-  ( cd "${dir}" && PATH="${path}" bash "${SCRIPT}" v1.2.3 "owner/repo" ) \
+  ( cd "${dir}" && GIT_CONFIG_GLOBAL=/dev/null PATH="${path}" bash "${SCRIPT}" v1.2.3 "owner/repo" ) \
     > "${WORK}/${name}.log" 2>&1 || rc=$?
 
   if [[ "${expect_success}" == "true" ]]; then
