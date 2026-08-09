@@ -83,7 +83,16 @@ ENV NS_CMSIS_NN_VCPKG_ENV=/opt/ns-cmsis-nn/vcpkg-env.json
 ARG VCPKG_TOOL_VERSION=2026-07-27
 ARG VCPKG_TOOL_SHA256=7e97ef6bcd58f74d079f40d086b801a0222c5d15e4ea0d8d507a538033493d04
 
-# Bootstrap the vcpkg tool (artifacts-enabled) into VCPKG_ROOT.
+# Pin the companion vcpkg-artifacts STANDALONE BUNDLE release asset (the
+# same release tag as VCPKG_TOOL_VERSION, unless a mismatch is ever
+# intentionally needed). Bump alongside VCPKG_TOOL_VERSION/VCPKG_TOOL_SHA256;
+# get the sha256 from the matching GitHub release's
+# vcpkg-standalone-bundle.tar.gz asset.
+ARG VCPKG_STANDALONE_BUNDLE_VERSION=2026-07-27
+ARG VCPKG_STANDALONE_BUNDLE_SHA256=55c0af29ee5075feeb94cec3f7ba64f17638deaace930b7ef0b5793ea0e7c379
+
+# Bootstrap the vcpkg-artifacts standalone bundle into VCPKG_ROOT, THEN
+# place the separately pinned vcpkg-glibc binary on top of it.
 #
 # Historical note (AmbiqAI/ns-cmsis-nn#228): dot-sourcing Microsoft's
 # aka.ms/vcpkg-init.sh only downloads the vcpkg binary and defines a
@@ -96,8 +105,31 @@ ARG VCPKG_TOOL_SHA256=7e97ef6bcd58f74d079f40d086b801a0222c5d15e4ea0d8d507a538033
 # (matching the fetch_toolchain.sh convention used elsewhere in this repo),
 # and place it on PATH ourselves so both this Dockerfile and anything that
 # later shells into the image can invoke `vcpkg` reliably.
+#
+# Second historical note (live recovery run 31337539282 job 93305784722,
+# after the fix above landed): the vcpkg-glibc BINARY alone is NOT
+# sufficient for artifacts commands (`vcpkg x-update-registry --all`,
+# `vcpkg activate`). Those shell out to the bundled Node-based
+# vcpkg-artifacts tooling described by scripts/vcpkg-tools.json -- that
+# file (along with vcpkg-artifacts.mjs, .vcpkg-root, and the scripts/ and
+# triplets/ trees) only ships in the STANDALONE BUNDLE release asset, never
+# in the vcpkg-glibc binary alone. Downloading only vcpkg-glibc (as this
+# Dockerfile did before this second fix) built the image and ran
+# `vcpkg version` successfully, but `vcpkg x-update-registry --all` then
+# failed with:
+#   /opt/vcpkg/scripts/vcpkg-tools.json: No such file or directory
+# We download+checksum+extract the standalone bundle first (it has no
+# top-level directory, so it unpacks directly into VCPKG_ROOT), THEN
+# download+checksum+install the pinned vcpkg-glibc binary over it --
+# mirroring the aka.ms one-liner bootstrap's own two-artifact shape, but
+# fully pinned/checksummed instead of floating.
 RUN set -eux; \
       mkdir -p "${VCPKG_ROOT}" /opt/ns-cmsis-nn; \
+      curl -fsSL "https://github.com/microsoft/vcpkg-tool/releases/download/${VCPKG_STANDALONE_BUNDLE_VERSION}/vcpkg-standalone-bundle.tar.gz" \
+            -o /tmp/vcpkg-standalone-bundle.tar.gz; \
+      echo "${VCPKG_STANDALONE_BUNDLE_SHA256}  /tmp/vcpkg-standalone-bundle.tar.gz" | sha256sum -c -; \
+      tar -xzf /tmp/vcpkg-standalone-bundle.tar.gz -C "${VCPKG_ROOT}"; \
+      rm -f /tmp/vcpkg-standalone-bundle.tar.gz; \
       curl -fsSL "https://github.com/microsoft/vcpkg-tool/releases/download/${VCPKG_TOOL_VERSION}/vcpkg-glibc" \
             -o "${VCPKG_ROOT}/vcpkg"; \
       echo "${VCPKG_TOOL_SHA256}  ${VCPKG_ROOT}/vcpkg" | sha256sum -c -; \
@@ -110,6 +142,20 @@ ENV PATH="${VCPKG_ROOT}:${PATH}"
 # below), so a regression here fails the image build instead of silently
 # skipping downstream release assets.
 RUN vcpkg version
+
+# Build-time contract: the standalone bundle's companion files that
+# artifacts commands (x-update-registry, activate) depend on must be
+# present BEFORE we ever invoke those commands below. Fail the image build
+# here, with a specific message, instead of surfacing an oblique "No such
+# file or directory" from deep inside vcpkg's Node-based artifacts tooling.
+RUN set -eux; \
+      for f in .vcpkg-root scripts/vcpkg-tools.json vcpkg-artifacts.mjs; do \
+            if [ ! -f "${VCPKG_ROOT}/${f}" ]; then \
+                  echo "missing required vcpkg-artifacts companion file: ${VCPKG_ROOT}/${f} (standalone bundle extraction incomplete or missing)" >&2; \
+                  exit 1; \
+            fi; \
+      done; \
+      [ -d "${VCPKG_ROOT}/triplets" ] || { echo "missing required vcpkg-artifacts companion directory: ${VCPKG_ROOT}/triplets" >&2; exit 1; }
 
 # Resolve and install the pinned tool set, then bake the activation environment.
 COPY vcpkg-configuration.json /opt/ns-cmsis-nn/vcpkg-configuration.json

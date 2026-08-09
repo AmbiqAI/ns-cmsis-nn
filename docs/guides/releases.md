@@ -164,6 +164,38 @@ overwrite the other:
   `_tooling/` is never read by `gen-pack-action` or packaged into the
   `.pack` output — it exists solely to supply the helper script.
 
+A third live recovery run against `v7.29.2` (31337539282) got past both of
+the issues above and surfaced one more, purely internal to the CI image's
+own vcpkg bootstrap (no checkout-path involvement): the Dockerfile pinned
+and installed only the `vcpkg-glibc` binary release asset, but
+`vcpkg x-update-registry --all` / `vcpkg activate` shell out to Node-based
+vcpkg-artifacts tooling (`scripts/vcpkg-tools.json`, `vcpkg-artifacts.mjs`,
+`.vcpkg-root`, `triplets/`, …) that ships only in the separate
+`vcpkg-standalone-bundle.tar.gz` release asset, so those commands failed
+with `.../scripts/vcpkg-tools.json: No such file or directory`. The
+Dockerfile now downloads, checksum-verifies, and extracts the pinned
+standalone bundle into `VCPKG_ROOT` first, then downloads/checksums/installs
+the pinned `vcpkg-glibc` binary on top of it (its executable, not the
+bundle's own bootstrap binaries, is what ends up on `PATH`), and asserts at
+build time that the bundle's companion files actually landed before any
+artifacts command runs — so a future regression here fails the image build
+with a specific message instead of an oblique one from deep inside vcpkg's
+Node tooling.
+
+> **Known upstream risk (unresolved):** local isolated builds of the fixed
+> Dockerfile get past the companion-files defect above, but then hit a
+> separate, deterministic internal vcpkg error (`z-extract.cpp: Value was
+> null`) while `vcpkg x-update-registry` downloads Microsoft's
+> `vcpkg-ce-catalog` registry archive — independent of anything this repo's
+> Dockerfile controls. vcpkg's own CLI warns that vcpkg artifacts will be
+> removed shortly after July 1, 2026, so this may be an active
+> upstream deprecation of the entire artifacts subsystem rather than a
+> transient failure. If a live `publish-ci-image` run still fails at the
+> `x-update-registry`/`activate` step after this fix, this is the likely
+> cause and needs separate triage (e.g. migrating off vcpkg artifacts, or
+> vendoring a known-good registry snapshot) — it is out of scope for the
+> companion-files fix itself.
+
 ## See also
 
 - Maintainer release notes in [Contributing](../contributing.md#maintainer-release-notes)

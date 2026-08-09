@@ -21,6 +21,8 @@ on:
       - 'scripts/check_docker_checkout_order.sh'
       - 'scripts/check_publish_pack_tooling_checkout.sh'
       - 'scripts/check_gh_repo_flags.sh'
+      - 'scripts/check_vcpkg_bundle_companion_files.sh'
+      - '.devcontainer/Dockerfile'
       - '.github/workflows/release.yml'
       - '.github/workflows/build_publish_docker.yml'
       - '.github/workflows/legacy-tester.yml'
@@ -36,6 +38,8 @@ on:
       - 'scripts/check_docker_checkout_order.sh'
       - 'scripts/check_publish_pack_tooling_checkout.sh'
       - 'scripts/check_gh_repo_flags.sh'
+      - 'scripts/check_vcpkg_bundle_companion_files.sh'
+      - '.devcontainer/Dockerfile'
       - '.github/workflows/release.yml'
       - '.github/workflows/build_publish_docker.yml'
       - '.github/workflows/legacy-tester.yml'
@@ -106,3 +110,13 @@ jobs:
 
       - name: Run gh --repo flag contract
         run: scripts/check_gh_repo_flags.sh
+
+  vcpkg-bundle-companion-files:
+    name: vcpkg-artifacts standalone-bundle companion files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run vcpkg standalone-bundle companion-files contract
+        run: scripts/check_vcpkg_bundle_companion_files.sh
