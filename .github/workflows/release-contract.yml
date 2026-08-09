@@ -1,0 +1,60 @@
+# SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+#
+# Release automation contract checks (AmbiqAI/ns-cmsis-nn#228). Pure bash,
+# no network access, no Apollo toolchain / NSX board -- these validate the
+# extracted release-pipeline scripts (scripts/ci/resolve_image_tags.sh and
+# scripts/ci/resolve_release_commit.sh) directly, so pipeline precedence /
+# checkout-pinning regressions are caught on every PR instead of only being
+# discoverable during a live release or recovery run.
+
+name: Release Pipeline Contract
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/ci/**'
+      - 'scripts/check_release_image_tags.sh'
+      - 'scripts/check_release_commit_resolution.sh'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/build_publish_docker.yml'
+      - '.github/workflows/legacy-tester.yml'
+      - '.github/workflows/helia-core-tester.yml'
+      - '.github/workflows/release-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/ci/**'
+      - 'scripts/check_release_image_tags.sh'
+      - 'scripts/check_release_commit_resolution.sh'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/build_publish_docker.yml'
+      - '.github/workflows/legacy-tester.yml'
+      - '.github/workflows/helia-core-tester.yml'
+      - '.github/workflows/release-contract.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image-tag-precedence:
+    name: Docker image-tag/workflow_call precedence
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run image-tag resolution contract
+        run: scripts/check_release_image_tags.sh
+
+  release-commit-resolution:
+    name: Release tag -> commit resolution
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run commit-resolution contract
+        run: scripts/check_release_commit_resolution.sh

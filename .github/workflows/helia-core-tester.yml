@@ -8,10 +8,28 @@ on:
         required: false
         default: ''
         type: string
+      source_ref:
+        description: >-
+          Exact commit SHA (or other ref) to check out the test source
+          (Tests/helia-core-tester) from. Leave unset to use the ref that
+          triggered this run. Release callers MUST pass the verified commit
+          the release tag resolves to, so tests run against the same source
+          the image/assets were built from.
+        required: false
+        default: ''
+        type: string
   workflow_dispatch:
     inputs:
       container_image:
         description: Optional container image override for the test jobs. When unset, the workflow tries the latest release-tagged image and falls back to :latest.
+        required: false
+        default: ''
+        type: string
+      source_ref:
+        description: >-
+          Exact commit SHA (or other ref) to check out the test source
+          (Tests/helia-core-tester) from. Leave unset to use the ref that
+          triggered this run.
         required: false
         default: ''
         type: string
@@ -39,6 +57,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.source_ref || github.sha }}
           submodules: recursive
 
       - name: Log selected container image
@@ -128,6 +147,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.source_ref || github.sha }}
           submodules: recursive
 
       - name: Log selected container image
@@ -222,6 +242,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.source_ref || github.sha }}
           submodules: recursive
 
       - name: Log selected container image
@@ -307,6 +328,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.source_ref || github.sha }}
           submodules: recursive
 
       - name: Log selected container image

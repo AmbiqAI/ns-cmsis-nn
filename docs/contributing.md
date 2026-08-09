@@ -109,6 +109,21 @@ it cannot be used to create a new tag/release under a different name. See
 for which assets are safe to be missing (armclang) versus which indicate a
 real regression.
 
+`release-please`'s job resolves `v7.29.2` to its exact target commit exactly
+once (`scripts/ci/resolve_release_commit.sh`, via the GitHub API) and
+publishes it as the `commit_sha` job output; every downstream job checks that
+exact commit out (`ref: needs.release-please.outputs.commit_sha`, or
+`source_ref:` for the reusable Docker/test workflows) rather than whatever
+ref was selected when dispatching the recovery run. `publish-ci-image` also
+passes `publish_latest: false` whenever `recovery_mode == 'true'`, so
+recovering an old tag can never repoint the `:latest` image alias. If you
+need to independently confirm which commit a recovered tag's assets were
+built from:
+
+```bash
+gh api repos/AmbiqAI/ns-cmsis-nn/commits/v7.29.2 -q .sha
+```
+
 Useful release commands:
 
 ```bash

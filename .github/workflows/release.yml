@@ -42,6 +42,12 @@ jobs:
       assets_enabled: ${{ steps.rp.outputs.release_created == 'true' || steps.recover.outputs.tag != '' }}
       tag_name: ${{ steps.ver.outputs.TAG || steps.rp.outputs.tag_name }}
       version: ${{ steps.ver.outputs.VERSION }}
+      # The exact, verified commit the release tag points at (AmbiqAI/ns-cmsis-nn#228).
+      # ALL downstream asset-building/testing jobs must check out THIS commit,
+      # never github.sha/github.ref of whatever ref triggered this workflow
+      # run -- for a recovery dispatch that's an arbitrary branch selection
+      # with no required relationship to the tag being recovered.
+      commit_sha: ${{ steps.resolve.outputs.commit_sha }}
     steps:
       # 0) Detect explicit existing-tag asset-recovery mode. This never
       # creates or moves a tag -- it only unlocks the downstream
@@ -87,7 +93,15 @@ jobs:
           echo "Recovery mode confirmed: '${RECOVER_TAG}' has a published release; re-running asset publication without touching the tag."
 
       # 3) Only do the rest for a NEW release or a confirmed recovery tag.
-      - name: Checkout code
+      # This first checkout is a bootstrap only: it exists to get
+      # scripts/ci/resolve_release_commit.sh onto disk so the next step can
+      # run it. It intentionally does NOT pin a ref -- it uses whatever ref
+      # triggered this workflow run, which for a recovery dispatch of an OLD
+      # tag (e.g. v7.29.1) predates this recovery tooling and would not even
+      # contain the script. Nothing that reads release source/assets runs
+      # against this checkout; every one of those steps runs after the
+      # re-checkout below, pinned to the resolved, trusted commit.
+      - name: Checkout code (bootstrap)
         if: ${{ steps.rp.outputs.release_created == 'true' || steps.recover.outputs.tag != '' }}
         uses: actions/checkout@v6
         with:
@@ -96,6 +110,35 @@ jobs:
       - name: Fetch tags
         if: ${{ steps.rp.outputs.release_created == 'true' || steps.recover.outputs.tag != '' }}
         run: git fetch --tags --force
+
+      # 3a) Resolve the release tag to its exact, immutable target commit
+      # SHA exactly once (AmbiqAI/ns-cmsis-nn#228). Uses the GitHub REST "Get
+      # a commit" endpoint, which transparently peels annotated tags. This is
+      # the single trusted commit that every downstream build/test job pins
+      # its checkout to -- it is never re-derived independently downstream.
+      - name: Resolve trusted release commit
+        if: ${{ steps.rp.outputs.release_created == 'true' || steps.recover.outputs.tag != '' }}
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.recover.outputs.tag || steps.rp.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          scripts/ci/resolve_release_commit.sh \
+            "${{ github.repository }}" "${RELEASE_TAG}" "$GITHUB_OUTPUT"
+
+      # 3b) Re-checkout at the resolved trusted commit. actions/checkout can
+      # be invoked more than once per job; this second call re-syncs the
+      # working tree so every step from here on -- Compute version, Clean
+      # output dir, and (via job outputs) publish-staticlibs, publish-pack,
+      # and the CI image/test workflows -- builds from the exact commit the
+      # tag points at, never the workflow-dispatch/push ref.
+      - name: Checkout code (pinned to resolved commit)
+        if: ${{ steps.rp.outputs.release_created == 'true' || steps.recover.outputs.tag != '' }}
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.resolve.outputs.commit_sha }}
+          fetch-depth: 0
 
       - name: Wait for release API to be ready
         if: ${{ steps.rp.outputs.release_created == 'true' }}
@@ -191,8 +234,15 @@ jobs:
         target_cpu: [cortex-m0, cortex-m4, cortex-m55]
         toolchain: [gcc, atfe, armclang]
     steps:
+      # Pinned to the exact commit release-please resolved the release tag
+      # to -- never the ref that triggered this workflow run
+      # (AmbiqAI/ns-cmsis-nn#228). Required for recovery dispatches, where
+      # that triggering ref has no required relationship to the tag being
+      # recovered.
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.release-please.outputs.commit_sha }}
 
       - name: Install GNU Arm Embedded toolchain
         if: ${{ matrix.toolchain == 'gcc' }}
@@ -420,9 +470,13 @@ jobs:
     needs: [release-please, publish-staticlibs]
     runs-on: ubuntu-22.04
     steps:
+      # Pinned to the exact commit release-please resolved the release tag
+      # to -- never the ref that triggered this workflow run
+      # (AmbiqAI/ns-cmsis-nn#228).
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          ref: ${{ needs.release-please.outputs.commit_sha }}
           fetch-depth: 0
 
       - name: Fetch tags
@@ -543,6 +597,9 @@ jobs:
       # existing-tag asset recovery run (recovery_mode == 'true') must not
       # be able to move :latest to an older tag (AmbiqAI/ns-cmsis-nn#228).
       publish_latest: ${{ needs.release-please.outputs.recovery_mode != 'true' }}
+      # Build the image from the exact commit the release tag resolved to,
+      # never the ref that triggered this workflow run.
+      source_ref: ${{ needs.release-please.outputs.commit_sha }}
     secrets: inherit
 
   release-unit-tests:
@@ -553,6 +610,7 @@ jobs:
     uses: ./.github/workflows/legacy-tester.yml
     with:
       container_image: ghcr.io/ambiqai/ns-cmsis-nn-ci:${{ needs.release-please.outputs.tag_name }}
+      source_ref: ${{ needs.release-please.outputs.commit_sha }}
     secrets: inherit
 
   release-helia-core-tester:
@@ -563,4 +621,5 @@ jobs:
     uses: ./.github/workflows/helia-core-tester.yml
     with:
       container_image: ghcr.io/ambiqai/ns-cmsis-nn-ci:${{ needs.release-please.outputs.tag_name }}
+      source_ref: ${{ needs.release-please.outputs.commit_sha }}
     secrets: inherit

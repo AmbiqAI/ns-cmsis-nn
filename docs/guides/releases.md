@@ -101,6 +101,17 @@ so it can't be used to sneak out a brand-new tag. See
 [Contributing → Release recovery](../contributing.md#release-recovery) for
 the full recovery runbook.
 
+Every recovery run — and every normal release run — resolves `recover_tag`
+(or the freshly-cut tag) to its exact target commit **once**, via the GitHub
+API, and pins every downstream checkout (`publish-staticlibs`,
+`publish-pack`, the CI image build, and the release test suites) to that
+exact commit. A recovery dispatch's own triggering ref (whatever branch was
+selected when running the workflow, typically `main`) is never used to build
+release assets; only the commit the tag itself points at is. `:latest` is
+also never repointed during a recovery run (`publish_latest` is forced off
+whenever `recovery_mode == 'true'`), so recovering an old tag like `v7.29.1`
+can never regress what `:latest` resolves to.
+
 ## See also
 
 - Maintainer release notes in [Contributing](../contributing.md#maintainer-release-notes)
