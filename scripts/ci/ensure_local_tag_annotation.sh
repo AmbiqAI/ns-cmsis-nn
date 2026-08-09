@@ -35,14 +35,24 @@
 #     real release notes when they're available.
 #
 # Usage:
-#   ensure_local_tag_annotation.sh <tag> <owner/repo>
+#   ensure_local_tag_annotation.sh <tag> <owner/repo> [worktree-path]
 #
-# Must be run from within the git checkout containing <tag> (i.e. after a
-# `fetch --tags`). Requires `git`; `gh` is used best-effort (a missing/
-# failing `gh` falls back to the deterministic message, it is not fatal).
+# <worktree-path> (optional, defaults to ".") is the historical git
+# checkout containing <tag> -- i.e. after a `fetch --tags`. This script
+# itself is invoked from a CURRENT/tooling checkout (AmbiqAI/ns-cmsis-nn#228,
+# live recovery run 31335858426, defect 2: the historical v7.29.2 source
+# predates this script's very existence, so it cannot be checked out from
+# the pinned historical commit). Passing <worktree-path> explicitly, rather
+# than relying on an ambient `cd`, means the script's own on-disk location
+# and the repository it operates on are never required to be the same
+# checkout -- the "two-tree" recovery architecture depends on that: the
+# helper survives being read from a tooling tree while it mutates local
+# refs in a separate, immutable historical source tree. Requires `git`;
+# `gh` is used best-effort (a missing/failing `gh` falls back to the
+# deterministic message, it is not fatal).
 #
 # Exits non-zero, without changing the tag, if:
-#   - <tag> does not exist in the current checkout.
+#   - <tag> does not exist in <worktree-path>.
 #   - the resulting annotated tag's target commit would differ from the
 #     original lightweight tag's commit (defensive: this must never move
 #     the tag to a different commit).
@@ -51,9 +61,12 @@ set -euo pipefail
 
 tag="${1:?tag required}"
 repo="${2:?owner/repo required}"
+worktree="${3:-.}"
+
+cd -- "${worktree}"
 
 if ! git rev-parse --verify --quiet "refs/tags/${tag}" >/dev/null; then
-  echo "ensure_local_tag_annotation.sh: tag '${tag}' not found in this checkout" >&2
+  echo "ensure_local_tag_annotation.sh: tag '${tag}' not found in worktree '${worktree}'" >&2
   exit 1
 fi
 

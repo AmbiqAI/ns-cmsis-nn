@@ -189,6 +189,63 @@ if [[ "${rc}" -eq 0 ]]; then
   report "missing_tag: expected failure for a non-existent tag, got exit 0"
 fi
 
+# --- Case 8: explicit worktree-path argument, invoked from an unrelated cwd -
+# Mirrors release.yml's publish-pack job: the CURRENT script (from a
+# `_tooling/` checkout) is invoked while the shell's cwd is neither the
+# script's own directory NOR the target repo -- it must operate entirely
+# via the explicit 3rd argument, proving the helper's invocation survives
+# a historical checkout living at an unrelated path
+# (AmbiqAI/ns-cmsis-nn#228, live recovery run 31335858426, job
+# 93301568122).
+make_repo "worktree_arg_target"
+target_dir="${WORK}/repos/worktree_arg_target"
+git -C "${target_dir}" tag v1.2.3
+git -C "${target_dir}" config --unset user.email
+git -C "${target_dir}" config --unset user.name
+
+# A third, unrelated directory: not the script's own directory
+# (${REPO}/scripts/ci), not the target repo (${target_dir}) -- e.g. an
+# unpinned `_tooling` checkout sitting alongside the historical checkout.
+neutral_cwd="${WORK}/neutral_tooling_checkout"
+mkdir -p "${neutral_cwd}"
+
+install_fake_gh 'echo "Bug Fixes:
+- fixed thing from a neutral cwd"'
+path="${FAKE_BIN}:${PATH}"
+
+commit_before="$(git -C "${target_dir}" rev-list -n1 v1.2.3)"
+
+rc=0
+( cd "${neutral_cwd}" && GIT_CONFIG_GLOBAL=/dev/null PATH="${path}" \
+    bash "${SCRIPT}" v1.2.3 "owner/repo" "${target_dir}" ) \
+  > "${WORK}/worktree_arg.log" 2>&1 || rc=$?
+
+if [[ "${rc}" -ne 0 ]]; then
+  report "worktree_arg: expected success invoking with an explicit worktree-path argument from an unrelated cwd, got exit ${rc}. Log:
+$(cat "${WORK}/worktree_arg.log")"
+else
+  commit_after="$(git -C "${target_dir}" rev-list -n1 v1.2.3)"
+  if [[ "${commit_after}" != "${commit_before}" ]]; then
+    report "worktree_arg: tag commit changed from ${commit_before} to ${commit_after} -- tag was moved!"
+  fi
+
+  objecttype="$(git -C "${target_dir}" for-each-ref --format '%(objecttype)' refs/tags/v1.2.3)"
+  if [[ "${objecttype}" != "tag" ]]; then
+    report "worktree_arg: expected the TARGET repo's tag to become annotated, got objecttype='${objecttype}'"
+  fi
+
+  contents="$(git -C "${target_dir}" tag -l -n99 --format '%(contents)' v1.2.3)"
+  if [[ "${contents}" != *"fixed thing from a neutral cwd"* ]]; then
+    report "worktree_arg: annotation message '${contents}' does not reflect the target repo's release body"
+  fi
+
+  # The neutral cwd itself must remain untouched -- it is not a git repo
+  # and must never become one as a side effect of this invocation.
+  if [[ -e "${neutral_cwd}/.git" ]]; then
+    report "worktree_arg: the neutral invocation cwd unexpectedly gained a .git directory"
+  fi
+fi
+
 check_release_api_annotation_order() {
   local workflow="$1"
   local publish_pack_matches publish_pack_start publish_pack_end publish_pack_steps
@@ -241,4 +298,4 @@ if [[ "${fail}" -ne 0 ]]; then
   exit 1
 fi
 
-echo "local tag-annotation compatibility contract OK: already-annotated tags left unaltered, lightweight tags gain a non-empty local-only annotation (release body when available, deterministic fallback otherwise, XML-escaped), tag commits never move, missing tags fail loudly."
+echo "local tag-annotation compatibility contract OK: already-annotated tags left unaltered, lightweight tags gain a non-empty local-only annotation (release body when available, deterministic fallback otherwise, XML-escaped), tag commits never move, missing tags fail loudly, and the explicit worktree-path argument correctly targets a repo distinct from the invocation cwd."

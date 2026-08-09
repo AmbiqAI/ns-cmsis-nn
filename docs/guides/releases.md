@@ -113,25 +113,56 @@ whenever `recovery_mode == 'true'`), so recovering an old tag like `v7.29.1`
 can never regress what `:latest` resolves to.
 
 Recovering a genuinely old tag surfaces two more subtleties, both handled
-automatically:
+automatically via an explicit **two-tree checkout architecture**: a
+*trusted/current* tree (this repo's current `main`, whatever ref/commit
+triggered the run) supplies recovery tooling — helper scripts and the
+hardened Dockerfile — while a *distinct, immutable/historical* tree (pinned
+to the resolved historical commit) supplies the only source payload that is
+ever built, packaged, or uploaded. The two trees always use different
+on-disk paths (never the same checkout directory), so neither can silently
+overwrite the other:
 
 - **CI-image tooling vs. source.** The reusable Docker build workflow
-  checks out the repository twice: once *unpinned* (whatever ref/commit
-  triggered the run) purely to obtain `scripts/ci/resolve_image_tags.sh` —
-  a historical tag can predate that helper script entirely — and a second
-  time pinned to the resolved historical commit for the actual `docker
-  build` context/Dockerfile. Only the pinned checkout ever contributes to
-  the built image.
+  checks out the repository twice, into two *different* directories: an
+  unpinned checkout at `_tooling/` (whatever ref/commit triggered the run)
+  purely to obtain `scripts/ci/resolve_image_tags.sh` — a historical tag
+  can predate that helper script entirely — and a second checkout pinned to
+  the resolved historical commit at `_source/` for the actual Docker build
+  context. `docker build` is then invoked as
+  `-f _tooling/.devcontainer/Dockerfile _source`: the **Dockerfile always
+  comes from the current, hardened tree** (so a historical, pre-fix
+  Dockerfile bootstrap bug can never resurface), while the **build context
+  is always the immutable historical source** (so the built image still
+  reflects exactly what that historical tag shipped). Giving each checkout
+  its own `path:` is required, not cosmetic: an earlier revision of this
+  recovery path had both checkouts default to the *same* directory, so the
+  historical, pinned checkout silently clobbered the current tooling
+  checkout's files — including the Dockerfile — right before the build ran
+  (AmbiqAI/ns-cmsis-nn#228). Normal push/direct-dispatch/schedule runs are
+  unaffected by this split: with no `recover_tag`, both `_tooling` and
+  `_source` resolve to the same `github.sha`, so the two trees are
+  identical content living at two paths, and the build behaves exactly as
+  it always has.
 - **Lightweight vs. annotated tags for `gen_pack.sh`.** Release Please
   creates lightweight tags, but Open-CMSIS-Pack's `gen-pack` (run with
   `PACK_CHANGELOG_MODE=tag`) requires an *annotated* tag with a non-empty
-  message. `publish-pack` runs
-  `scripts/ci/ensure_local_tag_annotation.sh` first, which — for a
+  message. `publish-pack`'s only long-lived checkout is pinned directly to
+  the resolved historical commit — that historical tree is the *only*
+  source `gen_pack.sh` ever packages. Because
+  `scripts/ci/ensure_local_tag_annotation.sh` is itself part of the
+  *current* repository, `publish-pack` also checks out the current,
+  merged repository into a second, unpinned directory (`_tooling/`) purely
+  to obtain that helper, then invokes it explicitly against the historical
+  checkout's working directory (`bash
+  _tooling/scripts/ci/ensure_local_tag_annotation.sh "$TAG"
+  "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"`). The helper — for a
   lightweight tag only — creates a **local-only** annotated tag at the
   exact same commit (message sourced from the existing GitHub Release
   body, XML-escaped, or a deterministic fallback) so `gen_pack.sh`
   succeeds. It never runs `git push`; the remote/immutable tag is
-  untouched, and already-annotated tags are left completely unaltered.
+  untouched, already-annotated tags are left completely unaltered, and
+  `_tooling/` is never read by `gen-pack-action` or packaged into the
+  `.pack` output — it exists solely to supply the helper script.
 
 ## See also
 
