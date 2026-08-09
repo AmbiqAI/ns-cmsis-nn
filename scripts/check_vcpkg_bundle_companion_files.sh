@@ -53,8 +53,8 @@ line_of() {
   awk -v pat="$1" '$0 !~ /^[[:space:]]*#/ && $0 ~ pat { print NR; exit }' "${DOCKERFILE}"
 }
 
-bundle_sha_arg_line="$(line_of '^ARG VCPKG_STANDALONE_BUNDLE_SHA256=')"
-bundle_version_arg_line="$(line_of '^ARG VCPKG_STANDALONE_BUNDLE_VERSION=')"
+bundle_sha_arg_line="$(line_of '^[[:space:]]*ARG VCPKG_STANDALONE_BUNDLE_SHA256=')"
+bundle_version_arg_line="$(line_of '^[[:space:]]*ARG VCPKG_STANDALONE_BUNDLE_VERSION=')"
 bootstrap_run_line="$(line_of 'vcpkg-standalone-bundle\.tar\.gz')"
 tool_run_line="$(line_of '/vcpkg-glibc"')"
 companion_check_line="$(line_of 'vcpkg-artifacts\.mjs')"
@@ -88,7 +88,7 @@ if [[ "${fail}" -eq 0 ]]; then
   fi
 
   # The bundle version must be a non-empty, non-placeholder release tag.
-  bundle_version_value="$(sed -n "${bundle_version_arg_line}p" "${DOCKERFILE}" | sed -E 's/^ARG VCPKG_STANDALONE_BUNDLE_VERSION=//')"
+  bundle_version_value="$(sed -n "${bundle_version_arg_line}p" "${DOCKERFILE}" | sed -E 's/^[[:space:]]*ARG VCPKG_STANDALONE_BUNDLE_VERSION=//')"
   if [[ -z "${bundle_version_value}" || "${bundle_version_value}" == "unknown" ]]; then
     report "VCPKG_STANDALONE_BUNDLE_VERSION must be pinned to a real release tag, found '${bundle_version_value}'"
   fi
@@ -133,6 +133,12 @@ if [[ "${fail}" -eq 0 ]]; then
       report "the build-time companion-file assertion must check for '${required}'"
     fi
   done
+  # triplets/ is required companion content too (a directory, not a file --
+  # checked separately since the Dockerfile uses `-d` for it), so assert it
+  # explicitly instead of relying on the file-only loop above.
+  if ! grep -qF -- 'triplets' <<< "${companion_block}"; then
+    report "the build-time companion-file assertion must check for the 'triplets' directory"
+  fi
 fi
 
 # --- Fixture: prove this test rejects the pre-fix, glibc-binary-only shape ---
