@@ -13,6 +13,15 @@ on:
         required: false
         default: false
         type: boolean
+      source_ref:
+        description: >-
+          Exact commit SHA (or other ref) to build the image from. Leave
+          unset to build from the ref that triggered this run. Callers
+          recovering assets for an existing release tag MUST pass the
+          verified commit that tag resolves to, not a branch name.
+        required: false
+        default: ''
+        type: string
   workflow_dispatch:
     inputs:
       image_tag:
@@ -25,6 +34,13 @@ on:
         required: false
         default: true
         type: boolean
+      source_ref:
+        description: >-
+          Exact commit SHA (or other ref) to build the image from. Leave
+          unset to build from the ref that triggered this run.
+        required: false
+        default: ''
+        type: string
   schedule:
     - cron: '0 16 * * 1' # 8 AM PST every Monday
 
@@ -42,6 +58,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
@@ -53,45 +71,24 @@ jobs:
       - name: Resolve image tags
         id: meta
         shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          CALL_IMAGE_TAG: ${{ inputs.image_tag }}
-          CALL_PUBLISH_LATEST: ${{ inputs.publish_latest }}
-          DISPATCH_IMAGE_TAG: ${{ github.event.inputs.image_tag }}
-          DISPATCH_PUBLISH_LATEST: ${{ github.event.inputs.publish_latest }}
+        # NOTE (AmbiqAI/ns-cmsis-nn#228): do NOT branch on github.event_name
+        # or read github.event.inputs.* here. When this workflow is invoked
+        # via `uses:` from a workflow_dispatch-triggered caller (e.g.
+        # release.yml's `recover_tag` recovery flow), github.event_name is
+        # inherited from the OUTER caller and github.event.inputs.* refers to
+        # the OUTER caller's own dispatch inputs, not the image_tag /
+        # publish_latest this workflow was actually invoked with. The
+        # unified `inputs` context is correct for both workflow_call and
+        # workflow_dispatch, so resolve_image_tags.sh uses it unconditionally
+        # (schedule is the sole exception: it has no `inputs` at all).
         run: |
           set -euo pipefail
-
-          # NOTE: In a reusable workflow invoked via `uses:`, github.event_name
-          # can reflect the caller's triggering event (e.g. 'push'), not
-          # necessarily 'workflow_call'. Manual dispatch still has its own
-          # defaults, so handle it before falling back to workflow-call inputs.
-          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
-            image_tag="${DISPATCH_IMAGE_TAG:-latest}"
-            publish_latest="${DISPATCH_PUBLISH_LATEST:-true}"
-          elif [[ -n "${CALL_IMAGE_TAG}" ]]; then
-            image_tag="${CALL_IMAGE_TAG}"
-            publish_latest="${CALL_PUBLISH_LATEST:-false}"
-          elif [[ "${EVENT_NAME}" == "schedule" ]]; then
-            image_tag='latest'
-            publish_latest='true'
-          else
-            image_tag='latest'
-            publish_latest='false'
-          fi
-
-          tags=("${{ env.REGISTRY_IMAGE }}:$image_tag")
-          if [[ "$publish_latest" == 'true' && "$image_tag" != 'latest' ]]; then
-            tags+=("${{ env.REGISTRY_IMAGE }}:latest")
-          fi
-
-          {
-            echo 'image_tag='"$image_tag"
-            echo 'build_args=--build-arg NS_CMSIS_NN_TAG='"$image_tag"
-            echo 'docker_tags<<EOF'
-            printf '%s\n' "${tags[@]}"
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
+          bash scripts/ci/resolve_image_tags.sh \
+            "${{ github.event_name }}" \
+            "${{ inputs.image_tag }}" \
+            "${{ inputs.publish_latest }}" \
+            "${{ env.REGISTRY_IMAGE }}" \
+            "$GITHUB_OUTPUT"
 
       - name: Build Docker Image
         shell: bash

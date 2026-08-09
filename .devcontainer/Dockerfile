@@ -78,11 +78,38 @@ ENV VCPKG_ROOT=/opt/vcpkg \
     VCPKG_DISABLE_METRICS=1
 ENV NS_CMSIS_NN_VCPKG_ENV=/opt/ns-cmsis-nn/vcpkg-env.json
 
+# Pin the vcpkg-tool release. Bump both when adopting a newer vcpkg-tool;
+# get the sha256 from the matching GitHub release's vcpkg-glibc asset.
+ARG VCPKG_TOOL_VERSION=2026-07-27
+ARG VCPKG_TOOL_SHA256=7e97ef6bcd58f74d079f40d086b801a0222c5d15e4ea0d8d507a538033493d04
+
 # Bootstrap the vcpkg tool (artifacts-enabled) into VCPKG_ROOT.
+#
+# Historical note (AmbiqAI/ns-cmsis-nn#228): dot-sourcing Microsoft's
+# aka.ms/vcpkg-init.sh only downloads the vcpkg binary and defines a
+# `vcpkg-shell` shell *function* in the sourcing process -- it never puts a
+# `vcpkg` command on PATH. `bash -c '. vcpkg-init.sh && vcpkg version'`
+# therefore failed with "vcpkg: command not found" even though the
+# download itself succeeded, and the floating aka.ms script can also bump
+# its pinned VCPKG_BASE_VERSION upstream without notice. We instead
+# download the pinned vcpkg-tool release directly, checksum-verify it
+# (matching the fetch_toolchain.sh convention used elsewhere in this repo),
+# and place it on PATH ourselves so both this Dockerfile and anything that
+# later shells into the image can invoke `vcpkg` reliably.
 RUN set -eux; \
       mkdir -p "${VCPKG_ROOT}" /opt/ns-cmsis-nn; \
-      curl -fsSL https://aka.ms/vcpkg-init.sh -o /opt/vcpkg-init.sh; \
-      bash -c '. /opt/vcpkg-init.sh && vcpkg version'
+      curl -fsSL "https://github.com/microsoft/vcpkg-tool/releases/download/${VCPKG_TOOL_VERSION}/vcpkg-glibc" \
+            -o "${VCPKG_ROOT}/vcpkg"; \
+      echo "${VCPKG_TOOL_SHA256}  ${VCPKG_ROOT}/vcpkg" | sha256sum -c -; \
+      chmod +x "${VCPKG_ROOT}/vcpkg"; \
+      echo "${VCPKG_TOOL_VERSION}" > "${VCPKG_ROOT}/vcpkg-version.txt"
+
+ENV PATH="${VCPKG_ROOT}:${PATH}"
+
+# Verify `vcpkg` reliably resolves via PATH (not just via the full path used
+# below), so a regression here fails the image build instead of silently
+# skipping downstream release assets.
+RUN vcpkg version
 
 # Resolve and install the pinned tool set, then bake the activation environment.
 COPY vcpkg-configuration.json /opt/ns-cmsis-nn/vcpkg-configuration.json

@@ -86,6 +86,44 @@ gh run rerun <release-run-id> --failed
 `main` after the original release run, cut the next release or add a deliberate
 `workflow_dispatch` path to the affected workflow and run it against `main`.
 
+If an entire release run failed before uploading pack/bundle/tarball assets
+(for example the CI image failed to build, or every `armclang` static-lib leg
+failed because of an unrelated licensing problem), `gh run rerun --failed`
+may not be enough, since the failed jobs' `needs:` graph can be stuck on a
+job (`release-please`) that only runs once per tag. For that case,
+`release.yml` supports a manual, idempotent recovery dispatch that targets an
+**existing, already-published** tag without ever creating, moving, or
+re-publishing it:
+
+```bash
+gh workflow run release.yml --ref main -f recover_tag=v7.29.2
+```
+
+This re-runs `resolve-release-capabilities`, `publish-staticlibs`,
+`publish-staticlib-bundles`, `publish-pack`, `publish-ci-image`, and the
+release test jobs against the release already published at `v7.29.2`,
+re-uploading (`--clobber`) any missing or stale assets. It refuses to run
+(fails fast) if `v7.29.2` doesn't already have a published GitHub Release, so
+it cannot be used to create a new tag/release under a different name. See
+[Required vs optional assets](guides/releases.md#required-vs-optional-assets)
+for which assets are safe to be missing (armclang) versus which indicate a
+real regression.
+
+`release-please`'s job resolves `v7.29.2` to its exact target commit exactly
+once (`scripts/ci/resolve_release_commit.sh`, via the GitHub API) and
+publishes it as the `commit_sha` job output; every downstream job checks that
+exact commit out (`ref: needs.release-please.outputs.commit_sha`, or
+`source_ref:` for the reusable Docker/test workflows) rather than whatever
+ref was selected when dispatching the recovery run. `publish-ci-image` also
+passes `publish_latest: false` whenever `recovery_mode == 'true'`, so
+recovering an old tag can never repoint the `:latest` image alias. If you
+need to independently confirm which commit a recovered tag's assets were
+built from:
+
+```bash
+gh api repos/AmbiqAI/ns-cmsis-nn/commits/v7.29.2 -q .sha
+```
+
 Useful release commands:
 
 ```bash
