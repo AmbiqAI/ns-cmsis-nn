@@ -486,6 +486,23 @@ jobs:
       - name: Fetch tags
         run: git fetch --tags --force
 
+      - name: Wait for release API to be ready
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          set -e
+          for i in {1..10}; do
+            if gh api "repos/${{ github.repository }}/releases/tags/$TAG" >/dev/null 2>&1; then
+              echo "Release $TAG is available."
+              exit 0
+            fi
+            echo "Waiting for release $TAG (try $i/10)..."
+            sleep 3
+          done
+          echo "Release $TAG not visible to API yet." >&2
+          exit 1
+
       # gen_pack.sh runs with PACK_CHANGELOG_MODE=tag (see its header
       # comment), which requires the release tag to be an ANNOTATED git tag
       # object with a non-empty message. Release Please creates LIGHTWEIGHT
@@ -504,23 +521,6 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/ci/ensure_local_tag_annotation.sh "${TAG}" "${{ github.repository }}"
-
-      - name: Wait for release API to be ready
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ needs.release-please.outputs.tag_name }}
-        run: |
-          set -e
-          for i in {1..10}; do
-            if gh api "repos/${{ github.repository }}/releases/tags/$TAG" >/dev/null 2>&1; then
-              echo "Release $TAG is available."
-              exit 0
-            fi
-            echo "Waiting for release $TAG (try $i/10)..."
-            sleep 3
-          done
-          echo "Release $TAG not visible to API yet." >&2
-          exit 1
 
       - name: Clean output dir
         run: rm -f ./output/*.pack

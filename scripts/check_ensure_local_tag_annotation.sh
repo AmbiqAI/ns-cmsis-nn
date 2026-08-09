@@ -189,6 +189,16 @@ if [[ "${rc}" -eq 0 ]]; then
   report "missing_tag: expected failure for a non-existent tag, got exit 0"
 fi
 
+# The release-body lookup must run only after the release API retry gate.
+release_workflow="${REPO}/.github/workflows/release.yml"
+annotation_line="$(grep -nF 'name: Ensure tag has a local annotation for gen-pack' "${release_workflow}" | cut -d: -f1)"
+wait_line="$(grep -nF 'name: Wait for release API to be ready' "${release_workflow}" \
+  | cut -d: -f1 \
+  | awk -v annotation="${annotation_line}" '$1 < annotation { line = $1 } END { print line }')"
+if [[ -z "${annotation_line}" || -z "${wait_line}" || "${wait_line}" -ge "${annotation_line}" ]]; then
+  report "release workflow must wait for the release API before sourcing the annotation body"
+fi
+
 if [[ "${fail}" -ne 0 ]]; then
   echo "local tag-annotation compatibility contract FAILED" >&2
   exit 1
