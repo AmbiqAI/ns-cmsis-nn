@@ -87,15 +87,10 @@ run_case() {
   fi
 }
 
-# --- Case 1: recovery-mode reusable call ------------------------------------
-# release.yml's publish-ci-image job, dispatched via workflow_dispatch with
-# recover_tag=v7.29.2, calls this workflow with
-# `with: { image_tag: v7.29.2, publish_latest: false }`. Because it's a
-# reusable call from a workflow_dispatch-triggered caller, github.event_name
-# here is "workflow_dispatch" (inherited) even though this is really a
-# workflow_call -- the fix must NOT let that fool it into reading
-# github.event.inputs.* (which would be empty/wrong here). This is the exact
-# regression this test guards against.
+# --- Case 1: reusable call that must not publish latest ---------------------
+# A workflow_dispatch-triggered caller may invoke this reusable workflow with
+# `publish_latest: false`. The inherited event name must not override the
+# workflow_call inputs and accidentally publish `:latest`.
 run_case "recovery_reusable_call" \
   "workflow_dispatch" "v7.29.2" "false" \
   "v7.29.2" "false" \
@@ -183,9 +178,40 @@ run_reject_case "reject_image_tag_charset" \
 run_reject_case "reject_publish_latest_value" \
   "workflow_dispatch" "v7.29.2" "yes"
 
+workflow_job_block() {
+  local workflow="$1" job="$2" start end
+  start="$(grep -nE "^  ${job}:$" "${workflow}" | cut -d: -f1)"
+  [[ -n "${start}" ]] || return 1
+  end="$(awk -v start="${start}" \
+    'NR > start && /^  [[:alnum:]_-]+:$/ { print NR; exit }' "${workflow}")"
+  if [[ -z "${end}" ]]; then
+    end="$(($(wc -l < "${workflow}") + 1))"
+  fi
+  sed -n "${start},$((end - 1))p" "${workflow}"
+}
+
+# Existing-tag recovery restores GitHub Release assets only. The CI image and
+# its container test suites remain required for genuine new releases, but must
+# be skipped in recovery mode so an old tag cannot publish infrastructure
+# images or depend on the retired vcpkg-artifacts subsystem.
+release_workflow="${REPO}/.github/workflows/release.yml"
+for job in publish-ci-image release-unit-tests release-helia-core-tester; do
+  block="$(workflow_job_block "${release_workflow}" "${job}" || true)"
+  if [[ "${block}" != *"assets_enabled == 'true'"* \
+    || "${block}" != *"recovery_mode != 'true'"* ]]; then
+    report "${job}: must run for new releases and skip existing-tag recovery"
+  fi
+done
+for job in publish-staticlibs publish-staticlib-bundles publish-pack; do
+  block="$(workflow_job_block "${release_workflow}" "${job}" || true)"
+  if [[ "${block}" != *"assets_enabled == 'true'"* || "${block}" == *"recovery_mode"* ]]; then
+    report "${job}: customer asset publication must remain enabled during recovery"
+  fi
+done
+
 if [[ "${fail}" -ne 0 ]]; then
   echo "release image-tag resolution contract FAILED" >&2
   exit 1
 fi
 
-echo "release image-tag resolution contract OK: recovery/new-release/direct-dispatch/schedule cases all resolve image_tag, publish_latest, and docker_tags correctly."
+echo "release image contract OK: reusable/new-release/direct-dispatch/schedule tags resolve correctly, and existing-tag recovery skips infrastructure images/tests while retaining customer asset jobs."
