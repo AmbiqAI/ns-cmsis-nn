@@ -62,11 +62,11 @@ gap (see [AmbiqAI/ns-cmsis-nn#228](https://github.com/AmbiqAI/ns-cmsis-nn/issues
 |-----------------------------------------------------------------------|--------------|----------------------------------------------------------------------|
 | `vX.Y.Z` tag + GitHub Release (source)                                | **Required** | Created by release-please; the release exists once this lands.       |
 | `Ambiq.NS-CMSIS-NN.<version>.pack`                                     | **Required** | Only depends on the `gcc` static libs.                                |
-| `ns-cmsis-nn-<cpu>-<version>.tar.gz` (gcc)                             | **Required** | Free toolchain, no license dependency.                                 |
-| `ns-cmsis-nn-<toolchain>-<cpu>-<version>.tar.gz` (atfe)                | **Required** | Free toolchain (LLVM-Embedded-Toolchain-for-Arm), no license dependency. |
+| `ns-cmsis-nn-<cpu>-gcc-<version>.tar.gz`                               | **Required** | Free toolchain, no license dependency.                                 |
+| `ns-cmsis-nn-<cpu>-atfe-<version>.tar.gz`                              | **Required** | Free toolchain (LLVM-Embedded-Toolchain-for-Arm), no license dependency. |
 | `ns-cmsis-nn-staticlibs-gcc-<version>.zip`                             | **Required** | Same as above.                                                          |
 | `ns-cmsis-nn-staticlibs-atfe-<version>.zip`                            | **Required** | Same as above.                                                          |
-| `ns-cmsis-nn-<toolchain>-<cpu>-<version>.tar.gz` (armclang)            | **Optional** | Requires a commercial Arm Compiler for Embedded license.                |
+| `ns-cmsis-nn-<cpu>-armclang-<version>.tar.gz`                          | **Optional** | Requires a commercial Arm Compiler for Embedded license.                |
 | `ns-cmsis-nn-staticlibs-armclang-<version>.zip`                        | **Optional** | Same as above.                                                          |
 | `ghcr.io/ambiqai/ns-cmsis-nn-ci:vX.Y.Z` image                          | **Required** | Needed by `release-unit-tests` / `release-helia-core-tester`.           |
 | GitHub Pages docs update                                               | **Required** | Rides along with `publish-pack`.                                       |

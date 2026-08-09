@@ -144,6 +144,13 @@ jobs:
     # and ATfE static libs, the source tag, and the CMSIS-Pack remain
     # required and are never gated by this job. See docs/guides/releases.md
     # for the full required-vs-optional asset matrix.
+    #
+    # Only runs when assets are actually going to be published (a new
+    # release-please release or a confirmed recover_tag run), so ordinary
+    # pushes to main that don't cut a release don't pay for this job or
+    # emit a spurious "no license configured" warning.
+    if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
+    needs: release-please
     runs-on: ubuntu-22.04
     outputs:
       armclang_available: ${{ steps.check.outputs.armclang_available }}
@@ -194,7 +201,7 @@ jobs:
           release: 13.2.Rel1
 
       - name: Install LLVM archive tools
-        if: ${{ matrix.toolchain == 'armclang' }}
+        if: ${{ matrix.toolchain == 'armclang' && needs.resolve-release-capabilities.outputs.armclang_available == 'true' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends llvm
@@ -532,7 +539,10 @@ jobs:
     uses: ./.github/workflows/build_publish_docker.yml
     with:
       image_tag: ${{ needs.release-please.outputs.tag_name }}
-      publish_latest: true
+      # Only move the :latest alias for a genuine new release. An
+      # existing-tag asset recovery run (recovery_mode == 'true') must not
+      # be able to move :latest to an older tag (AmbiqAI/ns-cmsis-nn#228).
+      publish_latest: ${{ needs.release-please.outputs.recovery_mode != 'true' }}
     secrets: inherit
 
   release-unit-tests:
