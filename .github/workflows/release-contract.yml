@@ -19,6 +19,7 @@ on:
       - 'scripts/check_release_commit_resolution.sh'
       - 'scripts/check_ensure_local_tag_annotation.sh'
       - 'scripts/check_docker_checkout_order.sh'
+      - 'scripts/check_publish_pack_tooling_checkout.sh'
       - 'scripts/check_gh_repo_flags.sh'
       - '.github/workflows/release.yml'
       - '.github/workflows/build_publish_docker.yml'
@@ -33,6 +34,7 @@ on:
       - 'scripts/check_release_commit_resolution.sh'
       - 'scripts/check_ensure_local_tag_annotation.sh'
       - 'scripts/check_docker_checkout_order.sh'
+      - 'scripts/check_publish_pack_tooling_checkout.sh'
       - 'scripts/check_gh_repo_flags.sh'
       - '.github/workflows/release.yml'
       - '.github/workflows/build_publish_docker.yml'
@@ -84,6 +86,16 @@ jobs:
 
       - name: Run checkout-order contract
         run: scripts/check_docker_checkout_order.sh
+
+  publish-pack-tooling-checkout:
+    name: publish-pack tooling/historical checkout separation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run publish-pack tooling-checkout contract
+        run: scripts/check_publish_pack_tooling_checkout.sh
 
   gh-repo-flags:
     name: gh release calls target --repo explicitly

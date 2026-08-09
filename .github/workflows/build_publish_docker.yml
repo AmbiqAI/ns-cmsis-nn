@@ -56,17 +56,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Bootstrap checkout: gets scripts/ci/resolve_image_tags.sh onto disk
-      # from whatever ref/commit triggered this workflow run. Deliberately
-      # does NOT pin `source_ref` -- a historical release tag (e.g. v7.29.1)
-      # can predate this helper script entirely (AmbiqAI/ns-cmsis-nn#228),
-      # so resolving tags must run against the CURRENT, merged workflow
-      # tooling, never against the immutable historical source being
-      # recovered. Nothing that reads release SOURCE (the Dockerfile, the
-      # build context) runs against this checkout; the pinned re-checkout
-      # below replaces it before "Build Docker Image" runs.
+      # Bootstrap/tooling checkout: gets scripts/ci/resolve_image_tags.sh AND
+      # the CURRENT, hardened .devcontainer/Dockerfile onto disk from
+      # whatever ref/commit triggered this workflow run, into a DEDICATED
+      # `_tooling/` subdirectory. Deliberately does NOT pin `source_ref` -- a
+      # historical release tag (e.g. v7.29.1/v7.29.2) can predate the helper
+      # script entirely, and its own historical Dockerfile can carry
+      # bootstrap defects (e.g. the aka.ms vcpkg-init.sh breakage) that have
+      # since been fixed on main (AmbiqAI/ns-cmsis-nn#228; both confirmed
+      # live in recovery run 31335858426, jobs 93301489901/93301568122).
+      # Using a separate `path:` (rather than re-checking out over the same
+      # directory) is the load-bearing part of this fix: two
+      # actions/checkout@ calls to the SAME path silently clobber each
+      # other, which is exactly how the historical Dockerfile previously
+      # shadowed this current one. Nothing that reads release SOURCE (the
+      # Docker build context) ever comes from `_tooling/`; only the pinned
+      # `_source/` checkout below does.
       - name: Checkout Repository (workflow tooling)
         uses: actions/checkout@v6
+        with:
+          path: _tooling
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
@@ -90,28 +99,41 @@ jobs:
         # (schedule is the sole exception: it has no `inputs` at all).
         run: |
           set -euo pipefail
-          bash scripts/ci/resolve_image_tags.sh \
+          bash _tooling/scripts/ci/resolve_image_tags.sh \
             "${{ github.event_name }}" \
             "${{ inputs.image_tag }}" \
             "${{ inputs.publish_latest }}" \
             "${{ env.REGISTRY_IMAGE }}" \
             "$GITHUB_OUTPUT"
 
-      # Re-checkout pinned to the immutable source being built. For a normal
-      # dispatch/schedule run (source_ref unset) this resolves to the same
-      # github.sha as the bootstrap checkout above, so it's a no-op re-sync.
-      # For a recovery run it replaces the working tree with the EXACT
-      # historical commit the recovered tag points at -- actions/checkout
-      # can be invoked more than once per job. Everything that reads release
-      # source from here on (the Docker build context and Dockerfile) must
-      # come entirely from this checkout, never the tooling one above.
+      # Immutable historical source checkout: pinned to the exact commit
+      # being built/recovered, into its OWN `_source/` subdirectory,
+      # completely separate from `_tooling/` above. For a normal
+      # push/direct-dispatch/schedule run `source_ref` is unset and resolves
+      # to the same github.sha as the tooling checkout, so `_source/` and
+      # `_tooling/` end up as identical trees -- this is a structural,
+      # no-behavior-change fix for that path. For a recovery run this is the
+      # EXACT historical commit the recovered tag points at, and it is the
+      # ONLY tree that ever becomes part of the Docker build context (see
+      # "Build Docker Image" below): it never contributes a Dockerfile of
+      # its own to the build.
       - name: Checkout Repository (pinned to source_ref)
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.source_ref || github.sha }}
+          path: _source
 
       - name: Build Docker Image
         shell: bash
+        # Dockerfile path and build context are deliberately two DIFFERENT
+        # trusted/historical trees (AmbiqAI/ns-cmsis-nn#228): `-f` reads the
+        # CURRENT, hardened Dockerfile from `_tooling/`, while the build
+        # context (the trailing path argument) is `_source/` -- the pinned,
+        # immutable historical checkout -- so `COPY`/build-context files
+        # (e.g. vcpkg-configuration.json) always come from the historical
+        # release being recovered, never from current main, while the
+        # Dockerfile's bootstrap LOGIC always comes from current main, never
+        # a historical (possibly broken) copy of the same file.
         run: |
           set -euo pipefail
           tag_args=()
@@ -123,7 +145,7 @@ jobs:
           docker build \
             "${tag_args[@]}" \
             ${{ steps.meta.outputs.build_args }} \
-            -f .devcontainer/Dockerfile .
+            -f _tooling/.devcontainer/Dockerfile _source
 
       - name: Push Docker Image
         shell: bash

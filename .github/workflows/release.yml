@@ -474,9 +474,12 @@ jobs:
     needs: [release-please, publish-staticlibs]
     runs-on: ubuntu-22.04
     steps:
-      # Pinned to the exact commit release-please resolved the release tag
-      # to -- never the ref that triggered this workflow run
-      # (AmbiqAI/ns-cmsis-nn#228).
+      # Immutable historical source checkout, pinned to the exact commit
+      # release-please resolved the release tag to -- never the ref that
+      # triggered this workflow run (AmbiqAI/ns-cmsis-nn#228). This is the
+      # ONLY tree gen-pack ever packages: docs, PDSC, and everything
+      # gen-pack-action reads below come entirely from here at the job's
+      # default working directory.
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -503,24 +506,48 @@ jobs:
           echo "Release $TAG not visible to API yet." >&2
           exit 1
 
+      # Recovery-tooling checkout: fetches the CURRENT, merged
+      # scripts/ci/ensure_local_tag_annotation.sh helper into a DEDICATED
+      # `_tooling/` subdirectory, unpinned (whatever ref triggered this
+      # workflow run). A historical recovery tag (e.g. v7.29.2) predates
+      # this helper script entirely, so it cannot be obtained from the
+      # pinned historical checkout above -- AmbiqAI/ns-cmsis-nn#228, live
+      # recovery run 31335858426, job 93301568122 ("No such file or
+      # directory", exit 127). Using a separate `path:` (rather than
+      # re-checking out over the main working directory) means this
+      # checkout can NEVER contaminate the packaged historical source
+      # above: `_tooling/` contributes only the helper script, nothing
+      # under `_tooling/` is ever read by gen-pack-action or uploaded as a
+      # release asset.
+      - name: Checkout current recovery tooling
+        uses: actions/checkout@v6
+        with:
+          path: _tooling
+
       # gen_pack.sh runs with PACK_CHANGELOG_MODE=tag (see its header
       # comment), which requires the release tag to be an ANNOTATED git tag
       # object with a non-empty message. Release Please creates LIGHTWEIGHT
       # tags, so a from-scratch v7.29.1/v7.29.2 recovery build fails with
       # "Tag has no annotation message." (AmbiqAI/ns-cmsis-nn#228). This
-      # step is a LOCAL-ONLY compatibility shim: it never runs `git push`,
-      # so the remote tag is never touched/moved -- see
-      # scripts/ci/ensure_local_tag_annotation.sh for the full contract,
-      # including the defensive same-commit check and XML-escaping of any
-      # sourced GitHub Release body text. Already-annotated tags are left
-      # unaltered.
+      # step runs the CURRENT helper (from `_tooling/`, see above) against
+      # the historical source checkout's working directory/git repo
+      # (explicit `${{ github.workspace }}` third argument -- the pinned
+      # historical checkout above) as a LOCAL-ONLY compatibility shim: it
+      # never runs `git push`, so the remote tag is never touched/moved --
+      # see scripts/ci/ensure_local_tag_annotation.sh for the full
+      # contract, including the defensive same-commit check and
+      # XML-escaping of any sourced GitHub Release body text.
+      # Already-annotated tags are left unaltered. Only the historical
+      # checkout's local refs are mutated; `_tooling/` itself is never
+      # touched and never becomes part of the packaged pack/docs sources.
       - name: Ensure tag has a local annotation for gen-pack
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.release-please.outputs.tag_name }}
         run: |
           set -euo pipefail
-          bash scripts/ci/ensure_local_tag_annotation.sh "${TAG}" "${{ github.repository }}"
+          bash _tooling/scripts/ci/ensure_local_tag_annotation.sh \
+            "${TAG}" "${{ github.repository }}" "${{ github.workspace }}"
 
       - name: Clean output dir
         run: rm -f ./output/*.pack
