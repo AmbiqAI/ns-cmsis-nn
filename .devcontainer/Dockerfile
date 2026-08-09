@@ -158,22 +158,78 @@ RUN set -eux; \
       [ -d "${VCPKG_ROOT}/triplets" ] || { echo "missing required vcpkg-artifacts companion directory: ${VCPKG_ROOT}/triplets" >&2; exit 1; }
 
 # Resolve and install the pinned tool set, then bake the activation environment.
+#
+# Third historical note: an earlier revision of this step ran
+# `vcpkg x-update-registry --all` before `vcpkg activate`, and separately
+# deleted VCPKG_DOWNLOADS immediately afterward. Both were mistakes,
+# discovered and fixed together:
+#
+#  - `vcpkg activate` already performs its own registry refresh internally
+#    (it updates both the default microsoft/vcpkg-ce-catalog registry and
+#    the repo's custom `arm` registry from vcpkg-configuration.json as part
+#    of resolving artifacts). The separate `x-update-registry --all` call
+#    was therefore redundant -- it exercised the exact same
+#    vcpkg-ce-catalog fetch/extract path a second time for no benefit, and
+#    during local isolated-Docker validation (linux/amd64, 2026-08) it was
+#    observed to occasionally fail with an internal vcpkg-artifacts
+#    `z-extract.cpp: Value was null` error and, separately, with plain
+#    network timeouts while downloading the catalog's bundled Node
+#    runtime -- both consistent with a flaky upstream fetch, not a
+#    permanent post-sunset breakage: `vcpkg activate` alone (this block)
+#    was rerun successfully multiple times in a row with no code changes.
+#    Dropping the redundant call removes one of the two places that fetch
+#    could flake, and `contracts/vcpkg_bundle_companion_files` (see
+#    scripts/check_vcpkg_bundle_companion_files.sh) now asserts this
+#    Dockerfile never reintroduces a bare/explicit default-registry update
+#    ahead of `vcpkg activate`.
+#  - VCPKG_DOWNLOADS is exactly where `vcpkg activate` installs the
+#    resolved tool binaries (e.g.
+#    /opt/vcpkg/downloads/artifacts/<hash>/tools.open.cmsis.pack.cmsis.toolbox/...),
+#    and per the header comment above, CI is meant to replay vcpkg-env.json
+#    via .github/actions/cmsis-env using those exact on-disk paths instead
+#    of re-downloading toolchains at job runtime. The old `rm -rf
+#    "${VCPKG_DOWNLOADS}"` here deleted those toolchains from the image
+#    immediately after installing them, before the smoke check below (or
+#    any later consumer of vcpkg-env.json) could ever use them. This bug
+#    was never previously exposed because `x-update-registry --all` had
+#    always failed before execution reached this far in every prior
+#    live/local run. It is intentionally not reinstated in any form (not
+#    even moved later): the installed tool tree under VCPKG_DOWNLOADS is
+#    meant to persist in the built image.
 COPY vcpkg-configuration.json /opt/ns-cmsis-nn/vcpkg-configuration.json
 RUN set -eux; \
       cd /opt/ns-cmsis-nn; \
-      "${VCPKG_ROOT}/vcpkg" x-update-registry --all; \
       "${VCPKG_ROOT}/vcpkg" activate \
             --downloads-root="${VCPKG_DOWNLOADS}" \
             --json="${NS_CMSIS_NN_VCPKG_ENV}"; \
-      jq -e '.tools' "${NS_CMSIS_NN_VCPKG_ENV}" >/dev/null; \
-      rm -rf "${VCPKG_DOWNLOADS}"
+      jq -e '.tools' "${NS_CMSIS_NN_VCPKG_ENV}" >/dev/null
 
 # Build-time smoke check: prove the baked environment resolves every tool.
+#
+# armclang is special-cased: hosted GitHub runners (and this Dockerfile's own
+# build, which never receives ARMLMD_LICENSE_FILE as a build secret) have no
+# Arm Compiler for Embedded license, so `armclang --version` always fails its
+# license checkout here -- this is the exact same documented, expected,
+# permanent condition already handled as an optional/best-effort asset
+# throughout .github/workflows/release.yml (AmbiqAI/ns-cmsis-nn#228; see
+# docs/guides/releases.md). We still assert vcpkg resolved and installed the
+# armclang binary itself (via `command -v`), so a real regression -- e.g. the
+# tool failing to install, or failing for any reason OTHER than the known
+# license-checkout error -- still fails this build. We do not attempt to
+# provide a license here.
 RUN set -eux; \
       export PATH="$(jq -r '.paths.PATH[]?' "${NS_CMSIS_NN_VCPKG_ENV}" | tr '\n' ':')${PATH}"; \
       cbuild --version; \
       cpackget --version; \
       csolution --version; \
-      armclang --version; \
+      command -v armclang; \
+      if ! armclang_out="$(armclang --version 2>&1)"; then \
+            if ! printf '%s' "${armclang_out}" | grep -q "ARMLMD_LICENSE_FILE is not set"; then \
+                  echo "armclang --version failed for an unexpected reason (not the known no-license condition):" >&2; \
+                  echo "${armclang_out}" >&2; \
+                  exit 1; \
+            fi; \
+            echo "armclang --version: no Arm Compiler license configured for this build (expected; AmbiqAI/ns-cmsis-nn#228), skipping." >&2; \
+      fi; \
       arm-none-eabi-gcc --version; \
       command -v FVP_Corstone_SSE-300

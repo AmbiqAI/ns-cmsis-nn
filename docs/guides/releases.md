@@ -182,19 +182,64 @@ artifacts command runs — so a future regression here fails the image build
 with a specific message instead of an oblique one from deep inside vcpkg's
 Node tooling.
 
-> **Known upstream risk (unresolved):** local isolated builds of the fixed
-> Dockerfile get past the companion-files defect above, but then hit a
-> separate, deterministic internal vcpkg error (`z-extract.cpp: Value was
-> null`) while `vcpkg x-update-registry` downloads Microsoft's
-> `vcpkg-ce-catalog` registry archive — independent of anything this repo's
-> Dockerfile controls. vcpkg's own CLI warns that vcpkg artifacts will be
-> removed shortly after July 1, 2026, so this may be an active
-> upstream deprecation of the entire artifacts subsystem rather than a
-> transient failure. If a live `publish-ci-image` run still fails at the
-> `x-update-registry`/`activate` step after this fix, this is the likely
-> cause and needs separate triage (e.g. migrating off vcpkg artifacts, or
-> vendoring a known-good registry snapshot) — it is out of scope for the
-> companion-files fix itself.
+> **Resolved: redundant registry-update call removed, plus a downstream
+> `VCPKG_DOWNLOADS` bug fixed (AmbiqAI/ns-cmsis-nn#228 follow-up).** An
+> earlier revision of the fix above ran `vcpkg x-update-registry --all` as
+> a separate step immediately before `vcpkg activate`. Local isolated
+> `linux/amd64` Docker reproduction (2026-08) found that call redundant —
+> `vcpkg activate` already performs its own registry refresh internally
+> (both the default Microsoft `vcpkg-ce-catalog` registry and this repo's
+> custom `arm` registry from `vcpkg-configuration.json`) as part of
+> resolving artifacts — and it was the exact call that had been observed,
+> in earlier local testing, to intermittently fail with an internal
+> vcpkg-artifacts error (`z-extract.cpp: Value was null`) or a plain
+> network timeout while fetching the catalog archive. Repeated isolated
+> trials in this session (one full `vcpkg activate` run installing all
+> seven pinned tools, plus three additional fast `x-update-registry --all`
+> reruns against a cached pre-activate image) succeeded 3 of 4 times, with
+> the one failure being a plain 120s network timeout during a Node.js
+> download rather than the `z-extract` error — evidence that the earlier
+> failure was upstream/network flakiness rather than a permanent
+> post-`vcpkg`-artifacts-sunset breakage. Removing the separate
+> `x-update-registry --all` call removes one of the two places that fetch
+> could flake, without changing which registries get refreshed (`activate`
+> still refreshes both). `scripts/check_vcpkg_bundle_companion_files.sh`
+> now asserts `x-update-registry` never reappears anywhere in the
+> Dockerfile, so this simplification can't silently regress.
+>
+> The same reproduction, now reaching further than any previous run,
+> exposed a second, unrelated pre-existing bug: the artifacts-resolution
+> step ended with `rm -rf "${VCPKG_DOWNLOADS}"` immediately after
+> `vcpkg activate` succeeded — deleting the just-installed tool binaries
+> (that's exactly where `activate --downloads-root=...` places them)
+> before the very next step's build-time smoke check (or, per this file's
+> own header comment, before `.github/actions/cmsis-env`'s intended
+> replay-via-`vcpkg-env.json` at CI job runtime) could ever use them. This
+> was never previously exposed because `x-update-registry --all` had
+> always failed before execution reached this far in every prior live or
+> local run. It has been removed (not moved or reinstated in any form);
+> the installed tool tree under `VCPKG_DOWNLOADS` is meant to persist in
+> the built image.
+>
+> Fixing both of the above let the build-time smoke check reach `armclang
+> --version` for the first time ever, which failed on a license checkout
+> (`ARMLMD_LICENSE_FILE is not set`) — expected and unrelated to any of
+> the above: hosted GitHub runners have no Arm Compiler for Embedded
+> license (this is the exact, already-documented condition
+> `resolve-release-capabilities` / `publish-staticlibs` treat as an
+> optional, best-effort asset elsewhere in `release.yml`, per
+> AmbiqAI/ns-cmsis-nn#228), and this Dockerfile's own build never receives
+> `ARMLMD_LICENSE_FILE` as a build secret either. The smoke check now
+> tolerates only that specific, known error message and still fails the
+> build on any other `armclang` failure, so a real regression (e.g. the
+> tool failing to install at all) is still caught. With these three fixes
+> in place, a full isolated `linux/amd64` Docker build was run end-to-end
+> through activation and every smoke tool: `cbuild`, `cpackget`,
+> `csolution`, `arm-none-eabi-gcc`, and `FVP_Corstone_SSE-300` all
+> succeeded; `armclang` correctly self-skipped on the documented
+> no-license condition. This upstream risk is therefore considered
+> resolved for this repository's usage, pending confirmation on a live
+> `publish-ci-image` run.
 
 ## See also
 

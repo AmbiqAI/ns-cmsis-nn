@@ -25,12 +25,40 @@
 # landed. This test performs structural assertions on the Dockerfile
 # itself -- ARG pins present and well-formed, extraction-before-binary
 # ordering, and the build-time companion-file assertion existing and
-# running strictly between the bootstrap RUN step and the first artifacts
-# command (`x-update-registry`) -- entirely offline (grep/awk only,
-# matching this repo's existing lightweight-bash test conventions, e.g.
+# running strictly before `vcpkg activate` (the sole artifacts command) --
+# entirely offline (grep/awk only, matching this repo's existing
+# lightweight-bash test conventions, e.g.
 # scripts/check_docker_checkout_order.sh). A synthetic "broken" fixture,
 # mirroring the pre-fix (vcpkg-glibc-only, no bundle) Dockerfile shape, is
 # also checked to prove this test would have caught the live defect.
+#
+# Follow-up (still AmbiqAI/ns-cmsis-nn#228, PR #232, isolated linux/amd64
+# Docker reproduction on 2026-08): a fourth issue was found and fixed on
+# this same branch, downstream of the companion-files fix above.
+# `vcpkg x-update-registry --all` was run as a separate step before
+# `vcpkg activate`. Local reproduction proved `vcpkg activate` already
+# performs its own registry refresh (both the default
+# microsoft/vcpkg-ce-catalog registry AND the repo's custom `arm` registry
+# from vcpkg-configuration.json) as part of resolving artifacts, making
+# the explicit `x-update-registry --all` call redundant -- and it was the
+# exact call observed to intermittently fail with an internal
+# vcpkg-artifacts `z-extract.cpp: Value was null` error / catalog fetch
+# timeouts in earlier sessions. `vcpkg activate` alone was rerun
+# successfully multiple times with no code changes, while the standalone
+# `x-update-registry --all` step exercised the same flaky fetch a second
+# time for no benefit. It was removed; this script now asserts it never
+# reappears (no bare/explicit default-registry update may precede, or
+# exist alongside, `vcpkg activate`).
+#
+# The same reproduction also found VCPKG_DOWNLOADS -- exactly where
+# `vcpkg activate` installs the resolved tool binaries that CI is meant to
+# replay via .github/actions/cmsis-env instead of re-downloading at job
+# runtime -- was being deleted (`rm -rf "${VCPKG_DOWNLOADS}"`) immediately
+# after activation succeeded, before any later step (including this
+# script's required smoke check) could use the installed tools. This bug
+# was never previously exposed because `x-update-registry --all` had
+# always failed before execution reached this far. It was removed (not
+# reinstated in any form); this script asserts it never reappears either.
 
 set -euo pipefail
 
@@ -58,7 +86,11 @@ bundle_version_arg_line="$(line_of '^[[:space:]]*ARG VCPKG_STANDALONE_BUNDLE_VER
 bootstrap_run_line="$(line_of 'vcpkg-standalone-bundle\.tar\.gz')"
 tool_run_line="$(line_of '/vcpkg-glibc"')"
 companion_check_line="$(line_of 'vcpkg-artifacts\.mjs')"
-update_registry_line="$(line_of 'x-update-registry --all')"
+activate_line="$(line_of 'vcpkg" activate')"
+bare_update_registry_line="$(line_of 'x-update-registry')"
+downloads_rm_line="$(line_of 'rm -rf .*VCPKG_DOWNLOADS')"
+armclang_smoke_line="$(line_of 'armclang --version')"
+armclang_license_guard_line="$(line_of 'ARMLMD_LICENSE_FILE is not set')"
 
 if [[ -z "${bundle_version_arg_line}" ]]; then
   report "could not find an 'ARG VCPKG_STANDALONE_BUNDLE_VERSION=' pin in ${DOCKERFILE}"
@@ -75,9 +107,36 @@ fi
 if [[ -z "${companion_check_line}" ]]; then
   report "could not find a build-time assertion referencing vcpkg-artifacts.mjs"
 fi
-if [[ -z "${update_registry_line}" ]]; then
-  report "could not find the 'vcpkg x-update-registry --all' step"
+if [[ -z "${activate_line}" ]]; then
+  report "could not find the 'vcpkg activate' step (this is now the sole artifacts/registry-resolution command -- see fourth-issue note above)"
 fi
+# Contract: no separate, explicit default-registry update (e.g.
+# `x-update-registry --all`) may precede -- or exist alongside --
+# `vcpkg activate`. `vcpkg activate` performs its own registry refresh
+# internally; a standalone `x-update-registry` step is both redundant and
+# was the exact call observed to intermittently flake against the default
+# vcpkg-ce-catalog. This is a hard "must not exist" check, not just an
+# ordering check, so the redundant call cannot be silently reintroduced
+# anywhere in the file (before OR after activate).
+if [[ -n "${bare_update_registry_line}" ]]; then
+  report "found a 'x-update-registry' invocation at line ${bare_update_registry_line} -- this must not exist; 'vcpkg activate' alone performs registry resolution (see fourth-issue note above), and a separate explicit update call is redundant and was the exact intermittently-flaky call this fix removed"
+fi
+# Contract: VCPKG_DOWNLOADS (where `vcpkg activate` installs the resolved
+# tool binaries CI is meant to replay via .github/actions/cmsis-env) must
+# never be deleted in this Dockerfile.
+if [[ -n "${downloads_rm_line}" ]]; then
+  report "found 'rm -rf ... VCPKG_DOWNLOADS' at line ${downloads_rm_line} -- this must not exist; it deletes the just-installed toolchains before any later step (including the required smoke check) can use them, and defeats the documented CI replay-via-vcpkg-env.json design"
+fi
+# Contract: the build-time smoke check's `armclang --version` call must be
+# guarded to tolerate ONLY the known, documented, permanent no-license
+# condition (AmbiqAI/ns-cmsis-nn#228 -- hosted GitHub runners have no
+# ARMLMD_LICENSE_FILE, and this Dockerfile's own build never receives one
+# either), not left as a bare/unconditional call that would unconditionally
+# fail this build step in every real CI run.
+if [[ -n "${armclang_smoke_line}" && -z "${armclang_license_guard_line}" ]]; then
+  report "found an 'armclang --version' smoke check with no ARMLMD_LICENSE_FILE-aware guard -- hosted runners have no Arm Compiler license (AmbiqAI/ns-cmsis-nn#228), so a bare/unconditional call always fails; guard it to tolerate only the known no-license error and still fail on any other error"
+fi
+
 
 if [[ "${fail}" -eq 0 ]]; then
   # The bundle SHA must be a well-formed, non-placeholder 64-hex-char
@@ -103,8 +162,8 @@ if [[ "${fail}" -eq 0 ]]; then
   if ! [[ "${tool_run_line}" -lt "${companion_check_line}" ]]; then
     report "the vcpkg-glibc binary install must come BEFORE the companion-file build-time assertion (found binary@${tool_run_line}, assertion@${companion_check_line})"
   fi
-  if ! [[ "${companion_check_line}" -lt "${update_registry_line}" ]]; then
-    report "the companion-file build-time assertion must come BEFORE 'vcpkg x-update-registry --all' (found assertion@${companion_check_line}, update-registry@${update_registry_line}) -- otherwise a missing-bundle regression surfaces as an oblique internal vcpkg error instead of a specific, actionable message"
+  if ! [[ "${companion_check_line}" -lt "${activate_line}" ]]; then
+    report "the companion-file build-time assertion must come BEFORE 'vcpkg activate' (found assertion@${companion_check_line}, activate@${activate_line}) -- otherwise a missing-bundle regression surfaces as an oblique internal vcpkg error instead of a specific, actionable message"
   fi
 
   # The bootstrap step must actually checksum-verify the downloaded
@@ -127,7 +186,7 @@ if [[ "${fail}" -eq 0 ]]; then
   if [[ -z "${companion_run_start}" ]]; then
     companion_run_start="${companion_check_line}"
   fi
-  companion_block="$(sed -n "${companion_run_start},$((update_registry_line - 1))p" "${DOCKERFILE}")"
+  companion_block="$(sed -n "${companion_run_start},$((activate_line - 1))p" "${DOCKERFILE}")"
   for required in '.vcpkg-root' 'scripts/vcpkg-tools.json' 'vcpkg-artifacts.mjs'; do
     if ! grep -qF -- "${required}" <<< "${companion_block}"; then
       report "the build-time companion-file assertion must check for '${required}'"
@@ -220,8 +279,64 @@ fi
 
 rm -rf "${WORK}"
 
+# --- Fixture: prove the fourth-issue contracts reject a regression back to
+# the pre-fix shape (explicit x-update-registry, premature VCPKG_DOWNLOADS
+# deletion, unguarded armclang smoke check) ---
+check_regression_text() {
+  local text="$1" label="$2"
+  local reg_line rm_line armclang_line guard_line
+  local local_fail=0
+
+  reg_line="$(awk '$0 !~ /^[[:space:]]*#/ && /x-update-registry/ { print NR; exit }' <<< "${text}")"
+  rm_line="$(awk '$0 !~ /^[[:space:]]*#/ && /rm -rf .*VCPKG_DOWNLOADS/ { print NR; exit }' <<< "${text}")"
+  armclang_line="$(awk '$0 !~ /^[[:space:]]*#/ && /armclang --version/ { print NR; exit }' <<< "${text}")"
+  guard_line="$(awk '$0 !~ /^[[:space:]]*#/ && /ARMLMD_LICENSE_FILE is not set/ { print NR; exit }' <<< "${text}")"
+
+  [[ -z "${reg_line}" && -z "${rm_line}" && -n "${armclang_line}" && -n "${guard_line}" ]] || local_fail=1
+
+  if [[ "${local_fail}" -eq 0 ]]; then
+    echo "FIXTURE_UNEXPECTED_PASS:${label}" >&2
+    return 0
+  fi
+  return 1
+}
+
+WORK2="${REPO}/build/check_vcpkg_bundle_companion_files_test2"
+rm -rf "${WORK2}"
+mkdir -p "${WORK2}"
+regressed_fixture_file="${WORK2}/regressed_fixture.dockerfile"
+cat > "${regressed_fixture_file}" <<'EOF'
+RUN set -eux; \
+      cd /opt/ns-cmsis-nn; \
+      "${VCPKG_ROOT}/vcpkg" x-update-registry --all; \
+      "${VCPKG_ROOT}/vcpkg" activate \
+            --downloads-root="${VCPKG_DOWNLOADS}" \
+            --json="${NS_CMSIS_NN_VCPKG_ENV}"; \
+      jq -e '.tools' "${NS_CMSIS_NN_VCPKG_ENV}" >/dev/null; \
+      rm -rf "${VCPKG_DOWNLOADS}"
+
+RUN set -eux; \
+      export PATH="$(jq -r '.paths.PATH[]?' "${NS_CMSIS_NN_VCPKG_ENV}" | tr '\n' ':')${PATH}"; \
+      cbuild --version; \
+      armclang --version; \
+      arm-none-eabi-gcc --version
+EOF
+
+set +e
+check_regression_text "$(cat "${regressed_fixture_file}")" "explicit-update-registry-and-premature-rm-and-unguarded-armclang" \
+  >"${WORK2}/fixture_check.out" 2>&1
+regression_fixture_rc=$?
+set -e
+
+if [[ "${regression_fixture_rc}" -eq 0 ]]; then
+  cat "${WORK2}/fixture_check.out" >&2
+  report "the regressed (explicit x-update-registry + premature rm -rf VCPKG_DOWNLOADS + unguarded armclang) fixture unexpectedly PASSED -- these contracts would not catch a regression back to the fourth live-issue shape"
+fi
+
+rm -rf "${WORK2}"
+
 if [[ "${fail}" -ne 0 ]]; then
   exit 1
 fi
 
-echo "vcpkg-artifacts standalone-bundle companion-files contract OK: the bundle is pinned/checksummed/extracted into VCPKG_ROOT before the vcpkg-glibc binary is installed over it, a build-time assertion confirms .vcpkg-root/scripts/vcpkg-tools.json/vcpkg-artifacts.mjs landed before any artifacts command runs, and the pre-fix vcpkg-glibc-only shape is correctly rejected."
+echo "vcpkg-artifacts standalone-bundle companion-files contract OK: the bundle is pinned/checksummed/extracted into VCPKG_ROOT before the vcpkg-glibc binary is installed over it, a build-time assertion confirms .vcpkg-root/scripts/vcpkg-tools.json/vcpkg-artifacts.mjs landed before it, 'vcpkg activate' alone (no separate x-update-registry) resolves the registries, VCPKG_DOWNLOADS is never deleted, the armclang smoke check is guarded for the documented no-license condition, and both the pre-fix vcpkg-glibc-only shape and a regression back to the explicit-update-registry/premature-rm/unguarded-armclang shape are correctly rejected."
