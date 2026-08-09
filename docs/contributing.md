@@ -100,9 +100,12 @@ gh workflow run release.yml --ref main -f recover_tag=v7.29.2
 ```
 
 This re-runs `resolve-release-capabilities`, `publish-staticlibs`,
-`publish-staticlib-bundles`, `publish-pack`, `publish-ci-image`, and the
-release test jobs against the release already published at `v7.29.2`,
-re-uploading (`--clobber`) any missing or stale assets. It refuses to run
+`publish-staticlib-bundles`, and `publish-pack` against the release already
+published at `v7.29.2`, re-uploading (`--clobber`) any missing or stale
+customer assets. Historical recovery deliberately skips the CI image and its
+container test jobs: that image is build infrastructure rather than a GitHub
+Release asset, and its retired vcpkg-artifacts dependency is tracked in #233.
+It refuses to run
 (fails fast) if `v7.29.2` doesn't already have a published GitHub Release, so
 it cannot be used to create a new tag/release under a different name. See
 [Required vs optional assets](guides/releases.md#required-vs-optional-assets)
@@ -111,25 +114,19 @@ real regression.
 
 `release-please`'s job resolves `v7.29.2` to its exact target commit exactly
 once (`scripts/ci/resolve_release_commit.sh`, via the GitHub API) and
-publishes it as the `commit_sha` job output; every downstream job checks that
-exact commit out (`ref: needs.release-please.outputs.commit_sha`, or
-`source_ref:` for the reusable Docker/test workflows) rather than whatever
-ref was selected when dispatching the recovery run. `publish-ci-image` also
-passes `publish_latest: false` whenever `recovery_mode == 'true'`, so
-recovering an old tag can never repoint the `:latest` image alias. If you
-need to independently confirm which commit a recovered tag's assets were
-built from:
+publishes it as the `commit_sha` job output; every recovery asset job checks
+that exact commit out (`ref: needs.release-please.outputs.commit_sha`) rather
+than whatever ref was selected when dispatching the recovery run. Because
+recovery never invokes `publish-ci-image`, it cannot publish a versioned image
+or repoint the `:latest` alias. If you need to independently confirm which
+commit a recovered tag's assets were built from:
 
 ```bash
 gh api repos/AmbiqAI/ns-cmsis-nn/commits/v7.29.2 -q .sha
 ```
 
-Three runtime-only failure modes were fixed for recovering genuinely old
-tags (AmbiqAI/ns-cmsis-nn#228): `publish-ci-image` no longer requires the
-historical `source_ref` commit to already contain
-`scripts/ci/resolve_image_tags.sh` (it resolves tags from a separate,
-unpinned "tooling" checkout and only uses the pinned historical checkout
-for the actual Docker build context); `publish-pack` no longer fails with
+Two runtime-only failure modes were fixed for recovering genuinely old
+tags (AmbiqAI/ns-cmsis-nn#228): `publish-pack` no longer fails with
 `Tag has no annotation message` against Release Please's lightweight tags
 (a local-only compatibility step, `scripts/ci/ensure_local_tag_annotation.sh`,
 annotates the tag in the runner's local checkout only — see
