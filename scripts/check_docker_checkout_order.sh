@@ -104,11 +104,27 @@ if [[ "${fail}" -eq 0 ]]; then
     report "the 'pinned to source_ref' checkout step must set ref: \${{ inputs.source_ref || github.sha }}"
   fi
 
-  # The build step must not itself perform another checkout (i.e. there
-  # should be exactly two actions/checkout@ uses in the whole file).
-  checkout_count="$(grep -c 'uses: actions/checkout@' "${WORKFLOW}")"
+  # The build-and-push job must not itself perform another checkout (i.e.
+  # there should be exactly two actions/checkout@ uses within THAT job).
+  # Scoped to the job block (not the whole file) so this doesn't produce a
+  # brittle false negative if an unrelated job elsewhere in the file
+  # legitimately adds its own checkout step in the future.
+  job_start_line="$(line_of '^  build-and-push:')"
+  if [[ -z "${job_start_line}" ]]; then
+    report "could not find the 'build-and-push:' job definition"
+    job_start_line=1
+  fi
+  job_end_line="$(awk -v start="${job_start_line}" \
+    'NR > start && /^  [A-Za-z0-9_-]+:/ { print NR; exit }' "${WORKFLOW}")"
+  if [[ -z "${job_end_line}" ]]; then
+    job_end_line="$(wc -l < "${WORKFLOW}")"
+  else
+    job_end_line=$((job_end_line - 1))
+  fi
+  job_block="$(sed -n "${job_start_line},${job_end_line}p" "${WORKFLOW}")"
+  checkout_count="$(grep -c 'uses: actions/checkout@' <<< "${job_block}")"
   if [[ "${checkout_count}" -ne 2 ]]; then
-    report "expected exactly 2 actions/checkout@ steps (tooling + pinned), found ${checkout_count}"
+    report "expected exactly 2 actions/checkout@ steps in the build-and-push job (tooling + pinned), found ${checkout_count}"
   fi
 
   # --- Path isolation (live defect 1b, run 31335858426 job 93301489901) ---
