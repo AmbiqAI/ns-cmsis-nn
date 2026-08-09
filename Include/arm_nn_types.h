@@ -40,7 +40,7 @@
 // Version information
 #define NS_CMSIS_NN_VERSION_MAJOR (7)  /* x-release-please-major */
 #define NS_CMSIS_NN_VERSION_MINOR (29) /* x-release-please-minor */
-#define NS_CMSIS_NN_VERSION_PATCH (1)  /* x-release-please-patch */
+#define NS_CMSIS_NN_VERSION_PATCH (2)  /* x-release-please-patch */
 
 /**
  * @brief Identity macros for the ns-cmsis-nn (Ambiq) superset of CMSIS-NN.

@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.29.2](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.29.1...v7.29.2) (2026-08-09)
+
+
+### Bug Fixes
+
+* recover MVE depthwise full-width latency ([#226](https://github.com/AmbiqAI/ns-cmsis-nn/issues/226)) ([f7eb37e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f7eb37e8a86e71d6199ac1e22b40ef35630abc09))
+
 ## [7.29.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.29.0...v7.29.1) (2026-07-29)
 
 
