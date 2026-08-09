@@ -56,6 +56,23 @@ else
   publish_latest="${input_publish_latest:-false}"
 fi
 
+# Validate before writing to $GITHUB_OUTPUT: a malformed/unexpected
+# image_tag (whitespace, newlines, or characters outside the Docker tag
+# charset) could corrupt the output file's key=value/heredoc format or
+# produce an invalid image reference. Docker tags allow
+# [A-Za-z0-9_][A-Za-z0-9._-]{0,127}.
+if [[ ! "${image_tag}" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$ ]]; then
+  echo "resolve_image_tags.sh: invalid image_tag '${image_tag}'" \
+    "(must match Docker tag charset [A-Za-z0-9_][A-Za-z0-9._-]{0,127})" >&2
+  exit 1
+fi
+
+if [[ "${publish_latest}" != 'true' && "${publish_latest}" != 'false' ]]; then
+  echo "resolve_image_tags.sh: invalid publish_latest '${publish_latest}'" \
+    "(must be exactly 'true' or 'false')" >&2
+  exit 1
+fi
+
 tags=("${registry_image}:${image_tag}")
 if [[ "${publish_latest}" == 'true' && "${image_tag}" != 'latest' ]]; then
   tags+=("${registry_image}:latest")

@@ -83,7 +83,7 @@ jobs:
         # (schedule is the sole exception: it has no `inputs` at all).
         run: |
           set -euo pipefail
-          scripts/ci/resolve_image_tags.sh \
+          bash scripts/ci/resolve_image_tags.sh \
             "${{ github.event_name }}" \
             "${{ inputs.image_tag }}" \
             "${{ inputs.publish_latest }}" \

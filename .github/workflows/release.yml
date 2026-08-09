@@ -124,7 +124,7 @@ jobs:
           RELEASE_TAG: ${{ steps.recover.outputs.tag || steps.rp.outputs.tag_name }}
         run: |
           set -euo pipefail
-          scripts/ci/resolve_release_commit.sh \
+          bash scripts/ci/resolve_release_commit.sh \
             "${{ github.repository }}" "${RELEASE_TAG}" "$GITHUB_OUTPUT"
 
       # 3b) Re-checkout at the resolved trusted commit. actions/checkout can

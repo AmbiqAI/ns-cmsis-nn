@@ -151,6 +151,38 @@ run_case "reusable_call_defaults" \
   "latest" "false" \
   "${REGISTRY_IMAGE}:latest"
 
+# run_reject_case <name> <event_name> <input_image_tag> <input_publish_latest>
+# Asserts the script exits non-zero and writes nothing to the output file,
+# for inputs that must never reach `docker build`/`$GITHUB_OUTPUT`.
+run_reject_case() {
+  local name="$1" event_name="$2" input_image_tag="$3" input_publish_latest="$4"
+  local out="${WORK}/${name}.out"
+  rm -f "${out}"
+
+  if bash "${SCRIPT}" "${event_name}" "${input_image_tag}" "${input_publish_latest}" \
+    "${REGISTRY_IMAGE}" "${out}" 2>/dev/null; then
+    report "${name}: expected non-zero exit, got success"
+  fi
+  if [[ -s "${out}" ]]; then
+    report "${name}: expected no output written, but ${out} is non-empty"
+  fi
+}
+
+# --- Case 8: image_tag with embedded whitespace/newline ---------------------
+# A malformed/injected image_tag must be rejected before it can corrupt the
+# $GITHUB_OUTPUT key=value/heredoc format or produce an invalid image ref.
+run_reject_case "reject_image_tag_whitespace" \
+  "workflow_dispatch" "v7.29.2 EOF
+malicious_key=malicious_value" "false"
+
+# --- Case 9: image_tag with characters outside the Docker tag charset -------
+run_reject_case "reject_image_tag_charset" \
+  "workflow_dispatch" 'v7.29.2;rm -rf /' "false"
+
+# --- Case 10: publish_latest not exactly 'true'/'false' ---------------------
+run_reject_case "reject_publish_latest_value" \
+  "workflow_dispatch" "v7.29.2" "yes"
+
 if [[ "${fail}" -ne 0 ]]; then
   echo "release image-tag resolution contract FAILED" >&2
   exit 1
