@@ -88,9 +88,8 @@ on hosted runners today.
 `release.yml` also accepts a manual, idempotent recovery run via
 `workflow_dispatch` with a `recover_tag` input (e.g. `v7.29.2`). This
 **never creates, moves, or re-publishes a tag** — it only re-runs the
-staticlib/bundle/pack/CI-image jobs against an already-published release and
-re-uploads (`gh release upload --clobber`) any assets that are missing or
-need updating:
+staticlib/bundle/pack jobs against an already-published release and re-uploads
+(`gh release upload --clobber`) any assets that are missing or need updating:
 
 ```bash
 gh workflow run release.yml --ref main -f recover_tag=v7.29.2
@@ -103,14 +102,18 @@ the full recovery runbook.
 
 Every recovery run — and every normal release run — resolves `recover_tag`
 (or the freshly-cut tag) to its exact target commit **once**, via the GitHub
-API, and pins every downstream checkout (`publish-staticlibs`,
-`publish-pack`, the CI image build, and the release test suites) to that
-exact commit. A recovery dispatch's own triggering ref (whatever branch was
-selected when running the workflow, typically `main`) is never used to build
-release assets; only the commit the tag itself points at is. `:latest` is
-also never repointed during a recovery run (`publish_latest` is forced off
-whenever `recovery_mode == 'true'`), so recovering an old tag like `v7.29.1`
-can never regress what `:latest` resolves to.
+API. A recovery dispatch's own triggering ref (whatever branch was selected
+when running the workflow, typically `main`) is never used to build release
+assets; only the commit the tag itself points at is.
+
+Historical recovery restores customer GitHub Release assets only:
+static-library archives/bundles and the CMSIS-Pack. It deliberately skips
+`publish-ci-image`, `release-unit-tests`, and `release-helia-core-tester`.
+The CI image is build infrastructure rather than a release asset, and its
+retired vcpkg-artifacts dependency requires the separate migration tracked by
+#233. Skipping it also makes recovery incapable of publishing an old versioned
+image or repointing `:latest`. Normal new releases continue to require the
+versioned CI image and both container test suites.
 
 Recovering a genuinely old tag surfaces two more subtleties, both handled
 automatically via an explicit **two-tree checkout architecture**: a
