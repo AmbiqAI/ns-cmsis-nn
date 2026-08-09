@@ -56,10 +56,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      # Bootstrap checkout: gets scripts/ci/resolve_image_tags.sh onto disk
+      # from whatever ref/commit triggered this workflow run. Deliberately
+      # does NOT pin `source_ref` -- a historical release tag (e.g. v7.29.1)
+      # can predate this helper script entirely (AmbiqAI/ns-cmsis-nn#228),
+      # so resolving tags must run against the CURRENT, merged workflow
+      # tooling, never against the immutable historical source being
+      # recovered. Nothing that reads release SOURCE (the Dockerfile, the
+      # build context) runs against this checkout; the pinned re-checkout
+      # below replaces it before "Build Docker Image" runs.
+      - name: Checkout Repository (workflow tooling)
         uses: actions/checkout@v6
-        with:
-          ref: ${{ inputs.source_ref || github.sha }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
@@ -89,6 +96,19 @@ jobs:
             "${{ inputs.publish_latest }}" \
             "${{ env.REGISTRY_IMAGE }}" \
             "$GITHUB_OUTPUT"
+
+      # Re-checkout pinned to the immutable source being built. For a normal
+      # dispatch/schedule run (source_ref unset) this resolves to the same
+      # github.sha as the bootstrap checkout above, so it's a no-op re-sync.
+      # For a recovery run it replaces the working tree with the EXACT
+      # historical commit the recovered tag points at -- actions/checkout
+      # can be invoked more than once per job. Everything that reads release
+      # source from here on (the Docker build context and Dockerfile) must
+      # come entirely from this checkout, never the tooling one above.
+      - name: Checkout Repository (pinned to source_ref)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
 
       - name: Build Docker Image
         shell: bash

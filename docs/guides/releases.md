@@ -112,6 +112,27 @@ also never repointed during a recovery run (`publish_latest` is forced off
 whenever `recovery_mode == 'true'`), so recovering an old tag like `v7.29.1`
 can never regress what `:latest` resolves to.
 
+Recovering a genuinely old tag surfaces two more subtleties, both handled
+automatically:
+
+- **CI-image tooling vs. source.** The reusable Docker build workflow
+  checks out the repository twice: once *unpinned* (whatever ref/commit
+  triggered the run) purely to obtain `scripts/ci/resolve_image_tags.sh` —
+  a historical tag can predate that helper script entirely — and a second
+  time pinned to the resolved historical commit for the actual `docker
+  build` context/Dockerfile. Only the pinned checkout ever contributes to
+  the built image.
+- **Lightweight vs. annotated tags for `gen_pack.sh`.** Release Please
+  creates lightweight tags, but Open-CMSIS-Pack's `gen-pack` (run with
+  `PACK_CHANGELOG_MODE=tag`) requires an *annotated* tag with a non-empty
+  message. `publish-pack` runs
+  `scripts/ci/ensure_local_tag_annotation.sh` first, which — for a
+  lightweight tag only — creates a **local-only** annotated tag at the
+  exact same commit (message sourced from the existing GitHub Release
+  body, XML-escaped, or a deterministic fallback) so `gen_pack.sh`
+  succeeds. It never runs `git push`; the remote/immutable tag is
+  untouched, and already-annotated tags are left completely unaltered.
+
 ## See also
 
 - Maintainer release notes in [Contributing](../contributing.md#maintainer-release-notes)

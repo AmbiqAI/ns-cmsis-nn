@@ -17,6 +17,9 @@ on:
       - 'scripts/ci/**'
       - 'scripts/check_release_image_tags.sh'
       - 'scripts/check_release_commit_resolution.sh'
+      - 'scripts/check_ensure_local_tag_annotation.sh'
+      - 'scripts/check_docker_checkout_order.sh'
+      - 'scripts/check_gh_repo_flags.sh'
       - '.github/workflows/release.yml'
       - '.github/workflows/build_publish_docker.yml'
       - '.github/workflows/legacy-tester.yml'
@@ -28,6 +31,9 @@ on:
       - 'scripts/ci/**'
       - 'scripts/check_release_image_tags.sh'
       - 'scripts/check_release_commit_resolution.sh'
+      - 'scripts/check_ensure_local_tag_annotation.sh'
+      - 'scripts/check_docker_checkout_order.sh'
+      - 'scripts/check_gh_repo_flags.sh'
       - '.github/workflows/release.yml'
       - '.github/workflows/build_publish_docker.yml'
       - '.github/workflows/legacy-tester.yml'
@@ -58,3 +64,33 @@ jobs:
 
       - name: Run commit-resolution contract
         run: scripts/check_release_commit_resolution.sh
+
+  tag-annotation-compat:
+    name: Lightweight-tag gen-pack annotation compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run local tag-annotation compatibility contract
+        run: scripts/check_ensure_local_tag_annotation.sh
+
+  docker-checkout-order:
+    name: Docker build tooling/source-ref checkout ordering
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run checkout-order contract
+        run: scripts/check_docker_checkout_order.sh
+
+  gh-repo-flags:
+    name: gh release calls target --repo explicitly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run gh --repo flag contract
+        run: scripts/check_gh_repo_flags.sh

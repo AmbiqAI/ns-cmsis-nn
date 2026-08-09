@@ -124,6 +124,21 @@ built from:
 gh api repos/AmbiqAI/ns-cmsis-nn/commits/v7.29.2 -q .sha
 ```
 
+Three runtime-only failure modes were fixed for recovering genuinely old
+tags (AmbiqAI/ns-cmsis-nn#228): `publish-ci-image` no longer requires the
+historical `source_ref` commit to already contain
+`scripts/ci/resolve_image_tags.sh` (it resolves tags from a separate,
+unpinned "tooling" checkout and only uses the pinned historical checkout
+for the actual Docker build context); `publish-pack` no longer fails with
+`Tag has no annotation message` against Release Please's lightweight tags
+(a local-only compatibility step, `scripts/ci/ensure_local_tag_annotation.sh`,
+annotates the tag in the runner's local checkout only — see
+[Recovering assets for an existing tag](guides/releases.md#recovering-assets-for-an-existing-tag));
+and `publish-staticlib-bundles`'s `gh release upload` no longer fails with
+`fatal: not a git repository` in its no-checkout job, since every `gh
+release` call now passes `--repo` explicitly instead of relying on git
+remote inference.
+
 Useful release commands:
 
 ```bash

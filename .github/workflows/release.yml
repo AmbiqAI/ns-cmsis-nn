@@ -448,11 +448,15 @@ jobs:
           ls -lh ./release-assets
 
       - name: Upload SDK tarballs and staticlib bundles to GitHub Release
+        # This job has no checkout step, so `gh` has no git remote to infer
+        # the target repository from -- `gh release upload` would otherwise
+        # fail with "fatal: not a git repository" (AmbiqAI/ns-cmsis-nn#228).
+        # Pass --repo explicitly so this works regardless of checkout state.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.release-please.outputs.tag_name }}
         run: |
-          gh release upload "$TAG" ./release-assets/* --clobber
+          gh release upload "$TAG" ./release-assets/* --clobber --repo "${{ github.repository }}"
 
   publish-pack:
     # Build the CMSIS-Pack and publish the Sphinx docs site to Pages. Runs after
@@ -498,6 +502,25 @@ jobs:
           done
           echo "Release $TAG not visible to API yet." >&2
           exit 1
+
+      # gen_pack.sh runs with PACK_CHANGELOG_MODE=tag (see its header
+      # comment), which requires the release tag to be an ANNOTATED git tag
+      # object with a non-empty message. Release Please creates LIGHTWEIGHT
+      # tags, so a from-scratch v7.29.1/v7.29.2 recovery build fails with
+      # "Tag has no annotation message." (AmbiqAI/ns-cmsis-nn#228). This
+      # step is a LOCAL-ONLY compatibility shim: it never runs `git push`,
+      # so the remote tag is never touched/moved -- see
+      # scripts/ci/ensure_local_tag_annotation.sh for the full contract,
+      # including the defensive same-commit check and XML-escaping of any
+      # sourced GitHub Release body text. Already-annotated tags are left
+      # unaltered.
+      - name: Ensure tag has a local annotation for gen-pack
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          bash scripts/ci/ensure_local_tag_annotation.sh "${TAG}" "${{ github.repository }}"
 
       - name: Clean output dir
         run: rm -f ./output/*.pack
@@ -550,6 +573,11 @@ jobs:
           gh-pages-deploy: ""
 
       - name: Upload pack to GitHub Release
+        # Defensive/consistent with the no-checkout job above
+        # (AmbiqAI/ns-cmsis-nn#228): this job does have a checkout, but
+        # --repo removes the implicit dependency on git remote inference
+        # entirely, so this keeps working even if the checkout step is ever
+        # reordered or removed.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG:     ${{ needs.release-please.outputs.tag_name }}
@@ -557,7 +585,7 @@ jobs:
         run: |
           gh release upload "$TAG" \
             "./output/Ambiq.NS-CMSIS-NN.${VERSION}.pack" \
-            --clobber
+            --clobber --repo "${{ github.repository }}"
 
       - name: Setup Python for docs
         uses: actions/setup-python@v5
