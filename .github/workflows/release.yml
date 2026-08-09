@@ -646,9 +646,7 @@ jobs:
     # Historical recovery restores customer release assets only. The CI image
     # is build infrastructure, not a release asset, and its retired vcpkg
     # artifacts dependency is tracked separately in #233.
-    if: >-
-      ${{ needs.release-please.outputs.assets_enabled == 'true' &&
-          needs.release-please.outputs.recovery_mode != 'true' }}
+    if: ${{ needs.release-please.outputs.assets_enabled == 'true' && needs.release-please.outputs.recovery_mode != 'true' }}
     needs: release-please
     uses: ./.github/workflows/build_publish_docker.yml
     with:
@@ -663,9 +661,7 @@ jobs:
     secrets: inherit
 
   release-unit-tests:
-    if: >-
-      ${{ needs.release-please.outputs.assets_enabled == 'true' &&
-          needs.release-please.outputs.recovery_mode != 'true' }}
+    if: ${{ needs.release-please.outputs.assets_enabled == 'true' && needs.release-please.outputs.recovery_mode != 'true' }}
     needs:
       - release-please
       - publish-ci-image
@@ -676,9 +672,7 @@ jobs:
     secrets: inherit
 
   release-helia-core-tester:
-    if: >-
-      ${{ needs.release-please.outputs.assets_enabled == 'true' &&
-          needs.release-please.outputs.recovery_mode != 'true' }}
+    if: ${{ needs.release-please.outputs.assets_enabled == 'true' && needs.release-please.outputs.recovery_mode != 'true' }}
     needs:
       - release-please
       - publish-ci-image

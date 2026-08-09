@@ -190,6 +190,13 @@ workflow_job_block() {
   sed -n "${start},$((end - 1))p" "${workflow}"
 }
 
+job_skips_recovery() {
+  local block="$1" if_line
+  if_line="$(printf '%s\n' "${block}" | grep -E '^    if:' || true)"
+  [[ "${if_line}" == *"assets_enabled == 'true'"* \
+    && "${if_line}" == *"recovery_mode != 'true'"* ]]
+}
+
 # Existing-tag recovery restores GitHub Release assets only. The CI image and
 # its container test suites remain required for genuine new releases, but must
 # be skipped in recovery mode so an old tag cannot publish infrastructure
@@ -197,17 +204,28 @@ workflow_job_block() {
 release_workflow="${REPO}/.github/workflows/release.yml"
 for job in publish-ci-image release-unit-tests release-helia-core-tester; do
   block="$(workflow_job_block "${release_workflow}" "${job}" || true)"
-  if [[ "${block}" != *"assets_enabled == 'true'"* \
-    || "${block}" != *"recovery_mode != 'true'"* ]]; then
+  if ! job_skips_recovery "${block}"; then
     report "${job}: must run for new releases and skip existing-tag recovery"
   fi
 done
 for job in publish-staticlibs publish-staticlib-bundles publish-pack; do
   block="$(workflow_job_block "${release_workflow}" "${job}" || true)"
-  if [[ "${block}" != *"assets_enabled == 'true'"* || "${block}" == *"recovery_mode"* ]]; then
+  if_line="$(printf '%s\n' "${block}" | grep -E '^    if:' || true)"
+  if [[ "${if_line}" != *"assets_enabled == 'true'"* || "${if_line}" == *"recovery_mode"* ]]; then
     report "${job}: customer asset publication must remain enabled during recovery"
   fi
 done
+
+# Keep the pre-existing publish_latest expression in this negative fixture:
+# it must not mask a regressed publish-ci-image job-level if condition.
+publish_ci_block="$(workflow_job_block "${release_workflow}" publish-ci-image)"
+regressed_publish_ci_block="$(printf '%s\n' "${publish_ci_block}" \
+  | sed "s/^    if:.*/    if: \${{ needs.release-please.outputs.assets_enabled == 'true' }}/")"
+if [[ "${regressed_publish_ci_block}" != *"publish_latest:"*"recovery_mode != 'true'"* ]]; then
+  report "publish-ci-image regression fixture lost its unrelated publish_latest expression"
+elif job_skips_recovery "${regressed_publish_ci_block}"; then
+  report "publish-ci-image gate contract accepted a recovery-enabled job"
+fi
 
 if [[ "${fail}" -ne 0 ]]; then
   echo "release image-tag resolution contract FAILED" >&2
