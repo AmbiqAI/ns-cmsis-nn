@@ -66,9 +66,84 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
     (void)output_bias;
     const int32_t *weight_sum_base = weight_sum_buf;
 
-    for (int32_t offset = 0; offset < active_ch; offset += 4)
+    const int32_t full_ch = active_ch & ~0x3;
+    int32_t offset = 0;
+
+    for (; offset < full_ch; offset += 4)
     {
-        const uint32_t num_ch_to_process = MIN(4, active_ch - offset);
+        int32x4_t base = vldrwq_s32(weight_sum_base + offset);
+        int32x4_t out_0 = base;
+        int32x4_t out_1 = base;
+        int32x4_t out_2 = base;
+        int32x4_t out_3 = base;
+
+        const int8_t *rhs_0 = rhs + offset;
+        const int8_t *lhs_0 = lhs + offset;
+        const int8_t *lhs_1 = lhs + row_x_col * CH_IN_BLOCK_MVE + offset;
+        const int8_t *lhs_2 = lhs + (row_x_col * CH_IN_BLOCK_MVE * 2) + offset;
+        const int8_t *lhs_3 = lhs + (row_x_col * CH_IN_BLOCK_MVE * 3) + offset;
+
+        for (int i_row_x_col = 0; i_row_x_col < row_x_col; i_row_x_col++)
+        {
+            const int32x4_t ker_0 = vldrbq_s32(rhs_0);
+
+            int32x4_t ip_0 = vldrbq_s32(lhs_0);
+            out_0 += vmulq_s32(ip_0, ker_0);
+
+            int32x4_t ip_1 = vldrbq_s32(lhs_1);
+            out_1 += vmulq_s32(ip_1, ker_0);
+
+            int32x4_t ip_2 = vldrbq_s32(lhs_2);
+            out_2 += vmulq_s32(ip_2, ker_0);
+
+            int32x4_t ip_3 = vldrbq_s32(lhs_3);
+            out_3 += vmulq_s32(ip_3, ker_0);
+
+            if (i_row_x_col + 1 < row_x_col)
+            {
+                lhs_0 += CH_IN_BLOCK_MVE;
+                lhs_1 += CH_IN_BLOCK_MVE;
+                lhs_2 += CH_IN_BLOCK_MVE;
+                lhs_3 += CH_IN_BLOCK_MVE;
+                rhs_0 += total_ch;
+            }
+        }
+
+        const int32x4_t mult = vldrwq_s32(out_mult);
+        const int32x4_t shift = vldrwq_s32(out_shift);
+        out_mult += 4;
+        out_shift += 4;
+
+        out_0 = arm_requantize_mve_32x4(out_0, mult, shift);
+        out_0 = vaddq_n_s32(out_0, out_offset);
+        out_0 = vmaxq_s32(out_0, vdupq_n_s32(activation_min));
+        out_0 = vminq_s32(out_0, vdupq_n_s32(activation_max));
+        vstrbq_s32(out, out_0);
+
+        out_1 = arm_requantize_mve_32x4(out_1, mult, shift);
+        out_1 = vaddq_n_s32(out_1, out_offset);
+        out_1 = vmaxq_s32(out_1, vdupq_n_s32(activation_min));
+        out_1 = vminq_s32(out_1, vdupq_n_s32(activation_max));
+        vstrbq_s32(out + total_ch, out_1);
+
+        out_2 = arm_requantize_mve_32x4(out_2, mult, shift);
+        out_2 = vaddq_n_s32(out_2, out_offset);
+        out_2 = vmaxq_s32(out_2, vdupq_n_s32(activation_min));
+        out_2 = vminq_s32(out_2, vdupq_n_s32(activation_max));
+        vstrbq_s32(out + 2 * total_ch, out_2);
+
+        out_3 = arm_requantize_mve_32x4(out_3, mult, shift);
+        out_3 = vaddq_n_s32(out_3, out_offset);
+        out_3 = vmaxq_s32(out_3, vdupq_n_s32(activation_min));
+        out_3 = vminq_s32(out_3, vdupq_n_s32(activation_max));
+        vstrbq_s32(out + 3 * total_ch, out_3);
+
+        out += 4;
+    }
+
+    if (offset < active_ch)
+    {
+        const uint32_t num_ch_to_process = (uint32_t)(active_ch - offset);
         const mve_pred16_t p = vctp32q(num_ch_to_process);
         int32x4_t base = vldrwq_z_s32(weight_sum_base + offset, p);
         int32x4_t out_0 = base;
@@ -110,8 +185,6 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
 
         const int32x4_t mult = vldrwq_z_s32(out_mult, p);
         const int32x4_t shift = vldrwq_z_s32(out_shift, p);
-        out_mult += num_ch_to_process;
-        out_shift += num_ch_to_process;
 
         out_0 = arm_requantize_mve_32x4(out_0, mult, shift);
         out_0 = vaddq_n_s32(out_0, out_offset);
@@ -136,8 +209,6 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
         out_3 = vmaxq_s32(out_3, vdupq_n_s32(activation_min));
         out_3 = vminq_s32(out_3, vdupq_n_s32(activation_max));
         vstrbq_p_s32(out + 3 * total_ch, out_3, p);
-
-        out += num_ch_to_process;
     }
 
     return ARM_CMSIS_NN_SUCCESS;

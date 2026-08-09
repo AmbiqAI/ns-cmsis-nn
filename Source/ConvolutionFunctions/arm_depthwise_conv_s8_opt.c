@@ -153,7 +153,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
                                                   output_activation_min,
                                                   output_activation_max,
                                                   kernel_size,
-                                                  bias + block_offset,
+                                                  bias == NULL ? NULL : bias + block_offset,
                                                   out);
 
                     if ((i_out_y * output_x + i_out_x + 1) < (output_x * output_y))
@@ -170,14 +170,46 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
         int8_t *out_base = out;
         for (int i_buf = 0; i_buf < buffer_count; i_buf++)
         {
-            int32_t loop_count = (active_ch + 3) / 4;
-            int32_t num_ch_to_process = active_ch;
+            const int32_t full_ch = active_ch & ~0x3;
+            int32_t channel_offset = 0;
             out = out_base + (i_buf * input_ch);
-            for (int i_loop_cnt = 0, offset = i_ch * CH_IN_BLOCK_MVE; i_loop_cnt < loop_count;
-                 num_ch_to_process -= 4, offset += 4, i_loop_cnt++)
+            for (; channel_offset < full_ch; channel_offset += 4)
             {
-                const mve_pred16_t p = vctp32q((uint32_t)MIN(4, num_ch_to_process));
-                const int8_t *col_0 = lhs_buffer + (kernel_size * CH_IN_BLOCK_MVE * i_buf) + (i_loop_cnt * 4);
+                const int32_t offset = i_ch * CH_IN_BLOCK_MVE + channel_offset;
+                const int8_t *col_0 = lhs_buffer + (kernel_size * CH_IN_BLOCK_MVE * i_buf) + channel_offset;
+                const int8_t *row_0 = kernel + offset;
+                int32x4_t out_0 = vdupq_n_s32(0);
+
+                for (int i_ker = 0; i_ker < kernel_size; i_ker++)
+                {
+                    const int32x4_t ker_0 = vldrbq_s32(row_0);
+                    int32x4_t ip_0 = vldrbq_s32(col_0);
+                    out_0 += vmulq_s32(ip_0, ker_0);
+                    if (i_ker + 1 < kernel_size)
+                    {
+                        col_0 += CH_IN_BLOCK_MVE;
+                        row_0 += input_ch;
+                    }
+                }
+                out_0 += vldrwq_s32(&weight_sum_buf[offset]);
+
+                const int32x4_t mult = vldrwq_s32(&output_mult[offset]);
+                const int32x4_t shift = vldrwq_s32(&output_shift[offset]);
+
+                out_0 = arm_requantize_mve_32x4(out_0, mult, shift);
+                out_0 = vaddq_n_s32(out_0, output_offset);
+                out_0 = vmaxq_s32(out_0, vdupq_n_s32(output_activation_min));
+                out_0 = vminq_s32(out_0, vdupq_n_s32(output_activation_max));
+                vstrbq_s32(out, out_0);
+
+                out += 4;
+            }
+
+            if (channel_offset < active_ch)
+            {
+                const int32_t offset = i_ch * CH_IN_BLOCK_MVE + channel_offset;
+                const mve_pred16_t p = vctp32q((uint32_t)(active_ch - channel_offset));
+                const int8_t *col_0 = lhs_buffer + (kernel_size * CH_IN_BLOCK_MVE * i_buf) + channel_offset;
                 const int8_t *row_0 = kernel + offset;
                 int32x4_t out_0 = vdupq_n_s32(0);
 
@@ -202,8 +234,6 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
                 out_0 = vmaxq_s32(out_0, vdupq_n_s32(output_activation_min));
                 out_0 = vminq_s32(out_0, vdupq_n_s32(output_activation_max));
                 vstrbq_p_s32(out, out_0, p);
-
-                out += MIN(4, num_ch_to_process);
             }
         }
         buffer_count = 0;

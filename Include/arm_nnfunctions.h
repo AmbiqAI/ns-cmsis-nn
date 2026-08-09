@@ -1695,12 +1695,8 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *                                                      ch_mult != 1
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
- * @note       If number of channels is not a multiple of 4, upto 3 elements outside the boundary will be read out
- *             for the following if MVE optimizations(Arm Helium Technology) are used.
- *               - Output shift
- *               - Output multiplier
- *               - Output bias
- *               - kernel
+ * @note       MVE channel tail loads and stores are predicated, so channel-indexed arrays are not accessed beyond
+ *             the number of channels.
  * @details
  *    - Supported framework: TensorFlow Lite
  *    - The following constrains on the arguments apply
