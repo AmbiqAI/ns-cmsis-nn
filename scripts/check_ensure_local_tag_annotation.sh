@@ -189,14 +189,51 @@ if [[ "${rc}" -eq 0 ]]; then
   report "missing_tag: expected failure for a non-existent tag, got exit 0"
 fi
 
-# The release-body lookup must run only after the release API retry gate.
-release_workflow="${REPO}/.github/workflows/release.yml"
-annotation_line="$(grep -nF 'name: Ensure tag has a local annotation for gen-pack' "${release_workflow}" | cut -d: -f1)"
-wait_line="$(grep -nF 'name: Wait for release API to be ready' "${release_workflow}" \
-  | cut -d: -f1 \
-  | awk -v annotation="${annotation_line}" '$1 < annotation { line = $1 } END { print line }')"
-if [[ -z "${annotation_line}" || -z "${wait_line}" || "${wait_line}" -ge "${annotation_line}" ]]; then
+check_release_api_annotation_order() {
+  local workflow="$1"
+  local publish_pack_matches publish_pack_start publish_pack_end publish_pack_steps
+  local annotation_matches wait_matches annotation_line wait_line
+
+  publish_pack_matches="$(grep -nE '^  publish-pack:$' "${workflow}" || true)"
+  [[ "$(printf '%s\n' "${publish_pack_matches}" | grep -c . || true)" -eq 1 ]] || return 1
+  publish_pack_start="${publish_pack_matches%%:*}"
+  publish_pack_end="$(awk -v start="${publish_pack_start}" \
+    'NR > start && /^  [[:alnum:]_-]+:$/ { print NR; exit }' "${workflow}")"
+  [[ -n "${publish_pack_end}" ]] || return 1
+
+  publish_pack_steps="$(sed -n "${publish_pack_start},$((publish_pack_end - 1))p" "${workflow}")"
+  annotation_matches="$(printf '%s\n' "${publish_pack_steps}" \
+    | grep -nF 'name: Ensure tag has a local annotation for gen-pack' || true)"
+  wait_matches="$(printf '%s\n' "${publish_pack_steps}" \
+    | grep -nF 'name: Wait for release API to be ready' || true)"
+  [[ "$(printf '%s\n' "${annotation_matches}" | grep -c . || true)" -eq 1 ]] || return 1
+  [[ "$(printf '%s\n' "${wait_matches}" | grep -c . || true)" -eq 1 ]] || return 1
+  annotation_line="${annotation_matches%%:*}"
+  wait_line="${wait_matches%%:*}"
+  [[ "${wait_line}" -lt "${annotation_line}" ]]
+}
+
+# The release-body lookup must run only after the publish-pack API retry gate.
+if ! check_release_api_annotation_order "${REPO}/.github/workflows/release.yml"; then
   report "release workflow must wait for the release API before sourcing the annotation body"
+fi
+
+# Prove that an unrelated earlier wait step cannot mask broken publish-pack ordering.
+broken_order_workflow="${WORK}/broken_release_order.yml"
+cat > "${broken_order_workflow}" <<'EOF'
+jobs:
+  release-please:
+    steps:
+      - name: Wait for release API to be ready
+  publish-pack:
+    steps:
+      - name: Ensure tag has a local annotation for gen-pack
+      - name: Wait for release API to be ready
+  publish-ci-image:
+    steps: []
+EOF
+if check_release_api_annotation_order "${broken_order_workflow}"; then
+  report "publish-pack ordering contract did not reject annotation before API readiness"
 fi
 
 if [[ "${fail}" -ne 0 ]]; then
