@@ -52,6 +52,55 @@ The release asset name uses `cortex-m0` for the baseline ARMv6-M package. Use
 that artifact for Cortex-M0/M0+ class Apollo targets.
 :::
 
+## Required vs optional assets
+
+Not every asset is equally load-bearing. If a release is missing something,
+use this table to know whether that's a release-blocking bug or an expected
+gap (see [AmbiqAI/ns-cmsis-nn#228](https://github.com/AmbiqAI/ns-cmsis-nn/issues/228)):
+
+| Asset                                                                | Status       | Why                                                                 |
+|-----------------------------------------------------------------------|--------------|----------------------------------------------------------------------|
+| `vX.Y.Z` tag + GitHub Release (source)                                | **Required** | Created by release-please; the release exists once this lands.       |
+| `Ambiq.NS-CMSIS-NN.<version>.pack`                                     | **Required** | Only depends on the `gcc` static libs.                                |
+| `ns-cmsis-nn-<cpu>-<version>.tar.gz` (gcc)                             | **Required** | Free toolchain, no license dependency.                                 |
+| `ns-cmsis-nn-<toolchain>-<cpu>-<version>.tar.gz` (atfe)                | **Required** | Free toolchain (LLVM-Embedded-Toolchain-for-Arm), no license dependency. |
+| `ns-cmsis-nn-staticlibs-gcc-<version>.zip`                             | **Required** | Same as above.                                                          |
+| `ns-cmsis-nn-staticlibs-atfe-<version>.zip`                            | **Required** | Same as above.                                                          |
+| `ns-cmsis-nn-<toolchain>-<cpu>-<version>.tar.gz` (armclang)            | **Optional** | Requires a commercial Arm Compiler for Embedded license.                |
+| `ns-cmsis-nn-staticlibs-armclang-<version>.zip`                        | **Optional** | Same as above.                                                          |
+| `ghcr.io/ambiqai/ns-cmsis-nn-ci:vX.Y.Z` image                          | **Required** | Needed by `release-unit-tests` / `release-helia-core-tester`.           |
+| GitHub Pages docs update                                               | **Required** | Rides along with `publish-pack`.                                       |
+
+Hosted GitHub runners have no Arm Compiler for Embedded license configured
+(no `ARMLMD_LICENSE_FILE` secret), so the `armclang` static-library legs of
+`publish-staticlibs` are **skipped intentionally** — they self-report via a
+`::notice::`/`::warning::` annotation rather than failing the job — and the
+`armclang` bundle is omitted from `publish-staticlib-bundles` the same way.
+Every required asset above is unaffected: it is produced by a different
+job/toolchain leg entirely, so an unlicensed armclang has no way to hold up
+the tag, pack, gcc/atfe libs, CI image, or tests. Provisioning a real
+Armclang license (e.g. on a protected self-hosted runner) is tracked
+separately; this repo does not claim armclang static-lib publication works
+on hosted runners today.
+
+## Recovering assets for an existing tag
+
+`release.yml` also accepts a manual, idempotent recovery run via
+`workflow_dispatch` with a `recover_tag` input (e.g. `v7.29.2`). This
+**never creates, moves, or re-publishes a tag** — it only re-runs the
+staticlib/bundle/pack/CI-image jobs against an already-published release and
+re-uploads (`gh release upload --clobber`) any assets that are missing or
+need updating:
+
+```bash
+gh workflow run release.yml --ref main -f recover_tag=v7.29.2
+```
+
+The run fails fast if `recover_tag` isn't already a published GitHub Release,
+so it can't be used to sneak out a brand-new tag. See
+[Contributing → Release recovery](../contributing.md#release-recovery) for
+the full recovery runbook.
+
 ## See also
 
 - Maintainer release notes in [Contributing](../contributing.md#maintainer-release-notes)

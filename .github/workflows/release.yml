@@ -4,6 +4,18 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      recover_tag:
+        description: >
+          Existing release tag (e.g. v7.29.2) to re-run asset publication
+          for. Idempotent recovery only: never creates, moves, or
+          re-publishes a tag/release -- it just re-runs the
+          staticlib/bundle/pack/CI-image jobs against an ALREADY-EXISTING
+          GitHub Release and re-uploads any missing/updated assets to it.
+          Leave empty for a normal push-triggered release.
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write        # tag, releases, uploads
@@ -21,29 +33,72 @@ jobs:
     runs-on: ubuntu-22.04
     outputs:
       release_created: ${{ steps.rp.outputs.release_created }}
+      recovery_mode: ${{ steps.recover.outputs.tag != '' }}
+      # Gate for downstream asset-publishing jobs: true for a genuine new
+      # release-please release AND for an explicit existing-tag asset
+      # recovery run (AmbiqAI/ns-cmsis-nn#228). `release_created` above
+      # keeps its original, narrower meaning (a NEW tag/release was just
+      # cut) for anything that cares about that distinction specifically.
+      assets_enabled: ${{ steps.rp.outputs.release_created == 'true' || steps.recover.outputs.tag != '' }}
       tag_name: ${{ steps.ver.outputs.TAG || steps.rp.outputs.tag_name }}
       version: ${{ steps.ver.outputs.VERSION }}
     steps:
-      # 1) Create/Update Release PR; on merge, tag + create release
+      # 0) Detect explicit existing-tag asset-recovery mode. This never
+      # creates or moves a tag -- it only unlocks the downstream
+      # asset-publishing jobs for a tag/release that must already exist.
+      - name: Detect recovery mode
+        id: recover
+        env:
+          RECOVER_TAG: ${{ github.event.inputs.recover_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${RECOVER_TAG:-}"
+          if [[ -n "$tag" && ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::recover_tag '${tag}' does not match the expected vX.Y.Z tag format." >&2
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      # 1) Create/Update Release PR; on merge, tag + create release. Skipped
+      # entirely in recovery mode so this run can never create or move a tag.
       - uses: googleapis/release-please-action@v5
         id: rp
+        if: ${{ steps.recover.outputs.tag == '' }}
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-      # 2) Only do the rest when a NEW release was created by the step above
+      # 2) Recovery mode: verify the requested tag already has a published
+      # GitHub Release before unlocking any asset-publishing job. Fails
+      # loudly rather than silently falling through if the tag is unknown,
+      # so this can never be mistaken for a way to publish a brand-new tag.
+      - name: Verify recovery tag already has a published release
+        if: ${{ steps.recover.outputs.tag != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RECOVER_TAG: ${{ steps.recover.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if ! gh api "repos/${{ github.repository }}/releases/tags/${RECOVER_TAG}" >/dev/null 2>&1; then
+            echo "::error::Tag '${RECOVER_TAG}' has no existing GitHub Release. Recovery mode only re-runs asset publication for an ALREADY-PUBLISHED release; it never creates or moves tags. Publish '${RECOVER_TAG}' through the normal release-please flow first." >&2
+            exit 1
+          fi
+          echo "Recovery mode confirmed: '${RECOVER_TAG}' has a published release; re-running asset publication without touching the tag."
+
+      # 3) Only do the rest for a NEW release or a confirmed recovery tag.
       - name: Checkout code
-        if: ${{ steps.rp.outputs.release_created }}
+        if: ${{ steps.rp.outputs.release_created == 'true' || steps.recover.outputs.tag != '' }}
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Fetch tags
-        if: ${{ steps.rp.outputs.release_created }}
+        if: ${{ steps.rp.outputs.release_created == 'true' || steps.recover.outputs.tag != '' }}
         run: git fetch --tags --force
 
       - name: Wait for release API to be ready
-        if: ${{ steps.rp.outputs.release_created }}
+        if: ${{ steps.rp.outputs.release_created == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -61,17 +116,17 @@ jobs:
           exit 1
 
       - name: Clean output dir
-        if: ${{ steps.rp.outputs.release_created }}
+        if: ${{ steps.rp.outputs.release_created == 'true' || steps.recover.outputs.tag != '' }}
         run: |
           rm -f ./output/*.pack
 
       - name: Compute version
-        if: ${{ steps.rp.outputs.release_created }}
+        if: ${{ steps.rp.outputs.release_created == 'true' || steps.recover.outputs.tag != '' }}
         id: ver
         shell: bash
         run: |
           set -euo pipefail
-          tag='${{ steps.rp.outputs.tag_name }}'
+          tag='${{ steps.recover.outputs.tag || steps.rp.outputs.tag_name }}'
           version='${{ steps.rp.outputs.version }}'
           if [[ -z "$version" ]]; then
             version="$(printf '%s\n' "$tag" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
@@ -79,16 +134,50 @@ jobs:
           echo "TAG=$tag" >> "$GITHUB_OUTPUT"
           echo "VERSION=$version" >> "$GITHUB_OUTPUT"
 
+
+  resolve-release-capabilities:
+    # Decides which OPTIONAL release assets this run can actually produce,
+    # without ever printing secret values. See AmbiqAI/ns-cmsis-nn#228:
+    # hosted GitHub runners have no Arm Compiler for Embedded license, so
+    # Armclang static-library/bundle publication is best-effort and must be
+    # skipped (not fail the release) when ARMLMD_LICENSE_FILE is unset. GCC
+    # and ATfE static libs, the source tag, and the CMSIS-Pack remain
+    # required and are never gated by this job. See docs/guides/releases.md
+    # for the full required-vs-optional asset matrix.
+    runs-on: ubuntu-22.04
+    outputs:
+      armclang_available: ${{ steps.check.outputs.armclang_available }}
+    steps:
+      - name: Check Armclang license availability
+        id: check
+        env:
+          ARMLMD_LICENSE_FILE: ${{ secrets.ARMLMD_LICENSE_FILE }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${ARMLMD_LICENSE_FILE:-}" ]]; then
+            echo "armclang_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "armclang_available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Optional asset skipped::ARMLMD_LICENSE_FILE is not configured on this repository, so Armclang static-library assets will be skipped for this release. Source tag, GCC/ATfE static libs, and the CMSIS-Pack are unaffected. See docs/guides/releases.md."
+          fi
+
   publish-staticlibs:
     # Cross-compile cmsis-nn as static libraries for cortex-m0 / m4 / m55
     # across the supported release toolchains. Uploads workflow artefacts for
     # downstream release jobs; publish-staticlib-bundles owns GitHub Release
     # uploads so the release page does not grow loose .a/.sha256 pairs.
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    needs: release-please
+    #
+    # gcc/atfe legs are REQUIRED: a failure here fails the release. armclang
+    # legs are OPTIONAL and self-skip (exit 0, no artefact) whenever
+    # resolve-release-capabilities reports no Arm Compiler license is
+    # configured, so a missing license never fails this job or blocks the
+    # required downstream pack/bundle jobs (AmbiqAI/ns-cmsis-nn#228).
+    if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
+    needs: [release-please, resolve-release-capabilities]
     runs-on: ubuntu-latest
     env:
       ARMLMD_LICENSE_FILE: ${{ secrets.ARMLMD_LICENSE_FILE }}
+      ARMCLANG_AVAILABLE: ${{ needs.resolve-release-capabilities.outputs.armclang_available }}
     strategy:
       fail-fast: false
       matrix:
@@ -111,7 +200,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends llvm
 
       - name: Fetch external toolchain
-        if: ${{ matrix.toolchain != 'gcc' }}
+        if: ${{ matrix.toolchain != 'gcc' && !(matrix.toolchain == 'armclang' && needs.resolve-release-capabilities.outputs.armclang_available != 'true') }}
         id: fetch_toolchain
         run: |
           bash scripts/fetch_toolchain.sh \
@@ -126,6 +215,13 @@ jobs:
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
+          # Optional-asset gate: skip the whole armclang leg (no license) as
+          # a no-op success rather than letting the license checkout fail
+          # the job. See resolve-release-capabilities above.
+          if [[ "$TOOLCHAIN" == "armclang" && "$ARMCLANG_AVAILABLE" != "true" ]]; then
+            echo "::notice title=Optional asset skipped::No Arm Compiler license configured; skipping armclang static library for ${TARGET_CPU}."
+            exit 0
+          fi
           # Published archives are supersets: F32 is enabled for every
           # qualified CPU/toolchain combination in this matrix, and F16 is
           # enabled only where currently qualified (cortex-m55, matching
@@ -156,6 +252,10 @@ jobs:
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
+          if [[ "$TOOLCHAIN" == "armclang" && "$ARMCLANG_AVAILABLE" != "true" ]]; then
+            echo "::notice title=Optional asset skipped::Skipping armclang smoke-verify for ${TARGET_CPU} (no license configured)."
+            exit 0
+          fi
           if [[ "$TOOLCHAIN" == "gcc" ]]; then
             lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
           else
@@ -175,6 +275,10 @@ jobs:
           TOOLCHAIN_VERSION: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
+          if [[ "$TOOLCHAIN" == "armclang" && "$ARMCLANG_AVAILABLE" != "true" ]]; then
+            echo "::notice title=Optional asset skipped::Skipping armclang SDK tarball for ${TARGET_CPU} (no license configured)."
+            exit 0
+          fi
           if [[ "$TOOLCHAIN" == "gcc" ]]; then
             lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
             toolchain_version="13.2.Rel1"
@@ -202,7 +306,10 @@ jobs:
             "${f16_flag[@]}"
 
       - name: Upload artefacts (cross-job)
-        # Pack-prebuilt job (M3 #167 follow-up) downloads these.
+        # Pack-prebuilt job (M3 #167 follow-up) downloads these. Skipped
+        # entirely for armclang legs with no license so if-no-files-found
+        # never trips on an intentionally-absent optional artefact.
+        if: ${{ !(matrix.toolchain == 'armclang' && needs.resolve-release-capabilities.outputs.armclang_available != 'true') }}
         uses: actions/upload-artifact@v4
         with:
           name: ns-cmsis-nn-staticlib-${{ matrix.toolchain }}-${{ matrix.target_cpu }}
@@ -215,7 +322,7 @@ jobs:
           retention-days: 7
 
   publish-staticlib-bundles:
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
     needs: [release-please, publish-staticlibs]
     runs-on: ubuntu-22.04
     steps:
@@ -226,6 +333,13 @@ jobs:
           pattern: ns-cmsis-nn-staticlib-*
 
       - name: Build per-toolchain staticlib bundles
+        # gcc/atfe bundles are REQUIRED: a missing per-cpu archive fails the
+        # job. The armclang bundle is OPTIONAL (AmbiqAI/ns-cmsis-nn#228: no
+        # Arm Compiler license on hosted runners) -- if any cortex-m*
+        # armclang archive is absent (either because the license was
+        # unavailable or a real build failure occurred upstream), the
+        # armclang bundle is skipped with a warning instead of failing the
+        # whole release.
         env:
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
@@ -238,6 +352,7 @@ jobs:
             mkdir -p "$root"
             printf '{\n  "schema_version": 1,\n  "package": "ns-cmsis-nn-staticlibs",\n  "version": "%s",\n  "toolchain": "%s",\n  "libraries": [\n' "$VERSION" "$toolchain" > "$root/manifest.json"
             first=1
+            skip_bundle=0
             for cpu in cortex-m0 cortex-m4 cortex-m55; do
               src_dir="./_artifacts/ns-cmsis-nn-staticlib-${toolchain}-${cpu}"
               if [[ "$toolchain" == "gcc" ]]; then
@@ -245,7 +360,15 @@ jobs:
               else
                 src="${src_dir}/libns-cmsis-nn-${toolchain}-${cpu}-${VERSION}.a"
               fi
-              [[ -f "$src" ]] || { echo "missing staticlib: $src" >&2; exit 1; }
+              if [[ ! -f "$src" ]]; then
+                if [[ "$toolchain" == "armclang" ]]; then
+                  echo "::warning title=Optional asset skipped::missing optional armclang staticlib for ${cpu} (${src}); skipping the armclang bundle. See docs/guides/releases.md." >&2
+                  skip_bundle=1
+                  break
+                fi
+                echo "missing required staticlib: $src" >&2
+                exit 1
+              fi
               mkdir -p "$root/$cpu"
               cp "$src" "$root/$cpu/libns-cmsis-nn.a"
               ( cd "$root/$cpu" && sha256sum libns-cmsis-nn.a > libns-cmsis-nn.a.sha256 )
@@ -255,6 +378,10 @@ jobs:
               first=0
               printf '    { "target_cpu": "%s", "path": "%s/libns-cmsis-nn.a", "sha256": "%s", "size_bytes": %s }' "$cpu" "$cpu" "$sha" "$size" >> "$root/manifest.json"
             done
+            if (( skip_bundle == 1 )); then
+              rm -rf "$root"
+              continue
+            fi
             printf '\n  ]\n}\n' >> "$root/manifest.json"
             ( cd ./_bundle && zip -qr "../release-assets/${bundle}.zip" "$bundle" )
             ( cd ./release-assets && sha256sum "${bundle}.zip" > "${bundle}.zip.sha256" )
@@ -278,7 +405,11 @@ jobs:
     # artefacts exist. Pages publishing rides along with this job because
     # gen-pack-action's Doxygen step also produces ./Documentation/xml for
     # the Sphinx/Breathe/Exhale API reference.
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    #
+    # REQUIRED asset. Only downloads gcc staticlib artefacts (see the
+    # download-artifact "pattern" below), so it is unaffected by an
+    # optional armclang license gap (AmbiqAI/ns-cmsis-nn#228).
+    if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
     needs: [release-please, publish-staticlibs]
     runs-on: ubuntu-22.04
     steps:
@@ -396,7 +527,7 @@ jobs:
         uses: actions/deploy-pages@v5
 
   publish-ci-image:
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
     needs: release-please
     uses: ./.github/workflows/build_publish_docker.yml
     with:
@@ -405,7 +536,7 @@ jobs:
     secrets: inherit
 
   release-unit-tests:
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
     needs:
       - release-please
       - publish-ci-image
@@ -415,7 +546,7 @@ jobs:
     secrets: inherit
 
   release-helia-core-tester:
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
     needs:
       - release-please
       - publish-ci-image
