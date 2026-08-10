@@ -644,8 +644,7 @@ jobs:
 
   publish-ci-image:
     # Historical recovery restores customer release assets only. The CI image
-    # is build infrastructure, not a release asset, and its retired vcpkg
-    # artifacts dependency is tracked separately in #233.
+    # is build infrastructure rather than an immutable release asset.
     if: ${{ needs.release-please.outputs.assets_enabled == 'true' && needs.release-please.outputs.recovery_mode != 'true' }}
     needs: release-please
     uses: ./.github/workflows/build_publish_docker.yml

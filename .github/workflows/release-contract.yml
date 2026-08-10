@@ -21,6 +21,10 @@ on:
       - 'scripts/check_docker_checkout_order.sh'
       - 'scripts/check_publish_pack_tooling_checkout.sh'
       - 'scripts/check_gh_repo_flags.sh'
+      - 'scripts/check_ci_tool_manifest.sh'
+      - 'scripts/install_ci_tools.sh'
+      - 'ci/tools/manifest.json'
+      - '.devcontainer/Dockerfile'
       - '.github/workflows/release.yml'
       - '.github/workflows/build_publish_docker.yml'
       - '.github/workflows/legacy-tester.yml'
@@ -36,6 +40,10 @@ on:
       - 'scripts/check_docker_checkout_order.sh'
       - 'scripts/check_publish_pack_tooling_checkout.sh'
       - 'scripts/check_gh_repo_flags.sh'
+      - 'scripts/check_ci_tool_manifest.sh'
+      - 'scripts/install_ci_tools.sh'
+      - 'ci/tools/manifest.json'
+      - '.devcontainer/Dockerfile'
       - '.github/workflows/release.yml'
       - '.github/workflows/build_publish_docker.yml'
       - '.github/workflows/legacy-tester.yml'
@@ -47,6 +55,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  ci-tool-manifest:
+    name: Immutable CI tool manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate manifest and Dockerfile
+        run: bash scripts/check_ci_tool_manifest.sh
+
   image-tag-precedence:
     name: Docker image-tag/workflow_call precedence
     runs-on: ubuntu-latest

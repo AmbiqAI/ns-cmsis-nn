@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "platform": "linux-x86_64",
+  "tools": [
+    {
+      "id": "cmsis-toolbox",
+      "version": "2.13.0",
+      "url": "https://artifacts.keil.arm.com/cmsis-toolbox/2.13.0/cmsis-toolbox-linux-amd64.tar.gz",
+      "sha256": "d23ef84f067f08c82fdbd04a011adf29743a9af2f04d4ac22b3d285c0a52848c",
+      "archive": "tar.gz",
+      "strip_components": 1,
+      "probe": "bin/cbuild",
+      "path": "bin",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "cmake",
+      "version": "3.31.5",
+      "url": "https://cmake.org/files/v3.31/cmake-3.31.5-linux-x86_64.tar.gz",
+      "sha256": "2984e70515ff60c5e4a41922b5d715a8168a696a89721e3b114e36f453244f72",
+      "archive": "tar.gz",
+      "strip_components": 1,
+      "probe": "bin/cmake",
+      "path": "bin",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "id": "ninja",
+      "version": "1.13.2",
+      "url": "https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-linux.zip",
+      "sha256": "5749cbc4e668273514150a80e387a957f933c6ed3f5f11e03fb30955e2bbead6",
+      "archive": "zip",
+      "strip_components": 0,
+      "probe": "ninja",
+      "path": ".",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "arm-gnu",
+      "version": "14.3.1",
+      "url": "https://artifacts.tools.arm.com/arm-none-eabi-gcc/14.3.1/arm-gnu-toolchain-x86_64-arm-none-eabi.tar.xz",
+      "sha256": "8f6903f8ceb084d9227b9ef991490413014d991874a1e34074443c2a72b14dbd",
+      "archive": "tar.xz",
+      "strip_components": 1,
+      "probe": "bin/arm-none-eabi-gcc",
+      "path": "bin",
+      "environment": {
+        "GCC_TOOLCHAIN_14_3_1": "bin"
+      },
+      "license": "Arm GNU Toolchain EULA"
+    },
+    {
+      "id": "llvm-embedded",
+      "version": "20.1.0",
+      "url": "https://artifacts.tools.arm.com/llvm-embedded/20.1.0/ATfE-20.1.0-Linux-x86_64.tar.xz",
+      "sha256": "c1179396608c07bf68f3014923cfdfcd11c8402a3732f310c23d07c9a726b275",
+      "archive": "tar.xz",
+      "strip_components": 1,
+      "probe": "bin/clang",
+      "path": "bin",
+      "environment": {
+        "CLANG_TOOLCHAIN_20_1_0": "bin"
+      },
+      "license": "Apache-2.0 WITH LLVM-exception"
+    },
+    {
+      "id": "armclang",
+      "version": "6.24.0",
+      "url": "https://artifacts.tools.arm.com/arm-compiler/6.24/19/standalone-linux-x86_64-rel.tar.gz",
+      "sha256": "55cdfa20b2588ea52222d9f836258b0e01c220251ddf46d39605939ce07e9117",
+      "archive": "tar.gz",
+      "strip_components": 0,
+      "probe": "bin/armclang",
+      "path": "bin",
+      "environment": {
+        "AC6_TOOLCHAIN_6_24_0": "bin"
+      },
+      "license": "Arm Compiler for Embedded EULA",
+      "runtime_license": "ARMLMD_LICENSE_FILE"
+    },
+    {
+      "id": "corstone-300-fvp",
+      "version": "11.31.28",
+      "url": "https://artifacts.tools.arm.com/avh/11.31.28/avh-linux-x86_11.31_28_Linux64.tar.gz",
+      "sha256": "f06035a0e46897a134336ffdcee87f7af164b0ffc72d497de7e9f10906aebb26",
+      "archive": "tar.gz",
+      "strip_components": 1,
+      "probe": "bin/FVP_Corstone_SSE-300",
+      "path": "bin",
+      "environment": {
+        "AVH_FVP_PLUGINS": "plugins"
+      },
+      "license": "Arm Virtual Hardware EULA"
+    }
+  ]
+}

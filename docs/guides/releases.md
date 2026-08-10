@@ -110,10 +110,26 @@ Historical recovery restores customer GitHub Release assets only:
 static-library archives/bundles and the CMSIS-Pack. It deliberately skips
 `publish-ci-image`, `release-unit-tests`, and `release-helia-core-tester`.
 The CI image is build infrastructure rather than a release asset, and its
-retired vcpkg-artifacts dependency requires the separate migration tracked by
-#233. Skipping it also makes recovery incapable of publishing an old versioned
-image or repointing `:latest`. Normal new releases continue to require the
-versioned CI image and both container test suites.
+tool acquisition is qualified independently of historical asset recovery.
+Skipping it also makes recovery incapable of publishing an old versioned image
+or repointing `:latest`. Normal new releases continue to require the versioned
+CI image and both container test suites.
+
+### Immutable CI tool acquisition
+
+Normal-release CI images install their build and simulation tools from
+`ci/tools/manifest.json`. Each entry records an exact version, vendor HTTPS
+URL, SHA-256 digest, extraction rule, executable probe, environment export,
+and license classification. `scripts/install_ci_tools.sh` validates the
+manifest, verifies every archive before extraction, and emits
+`/opt/ns-cmsis-nn/tool-env.json` with the resolved paths and provenance.
+
+This repository-owned manifest replaces the retired vcpkg-artifacts/vcpkg-ce
+registry. The image build has no package-solver or floating-registry dependency.
+Armclang remains installed from Arm's vendor-hosted archive, but licensed
+execution is capability-gated separately through `ARMLMD_LICENSE_FILE`.
+Updating any tool requires a reviewed manifest version, URL, and digest change
+plus a clean image build and version smoke test.
 
 Recovering a genuinely old tag surfaces two more subtleties, both handled
 automatically via an explicit **two-tree checkout architecture**: a

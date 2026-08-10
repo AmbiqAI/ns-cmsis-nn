@@ -1,4 +1,4 @@
-FROM python:3.10-bookworm AS ns-cmsis-nn-ci
+FROM python:3.10-bookworm@sha256:2cffd68eda34762d010cba5de2e4462fcdab15ac2a53722b7cb17e8c76255cb3 AS ns-cmsis-nn-ci
 
 ARG NS_CMSIS_NN_TAG=unknown
 ARG FLATBUFFERS_VERSION=v25.2.10
@@ -63,71 +63,33 @@ RUN \
     cmake --install /tmp/flatbuffers/build && \
     rm -rf /tmp/flatbuffers
 
-# ---------------------------------------------------------------------------
-# Arm tooling (CMSIS-Toolbox, compilers, Corstone-300 FVP) baked via vcpkg.
-#
-# The repo's vcpkg-configuration.json is the single source of truth for the
-# pinned tool set. We install the artifacts at build time and capture the
-# activation environment (PATH entries + per-tool env vars such as
-# AC6_TOOLCHAIN_6_24_0 / GCC_TOOLCHAIN_14_3_1 / CLANG_TOOLCHAIN_20_1_0) into
-# vcpkg-env.json. CI jobs replay that file via .github/actions/cmsis-env
-# instead of downloading toolchains at job runtime.
-# ---------------------------------------------------------------------------
-ENV VCPKG_ROOT=/opt/vcpkg \
-    VCPKG_DOWNLOADS=/opt/vcpkg/downloads \
-    VCPKG_DISABLE_METRICS=1
-ENV NS_CMSIS_NN_VCPKG_ENV=/opt/ns-cmsis-nn/vcpkg-env.json
+# Immutable CI tooling is installed directly from vendor archives recorded in
+# the repository-owned manifest. No package solver or floating registry is
+# involved; every downloaded byte is SHA-256 verified before extraction.
+ENV NS_CMSIS_NN_TOOLS=/opt/ns-cmsis-nn/tools \
+    NS_CMSIS_NN_TOOL_ENV=/opt/ns-cmsis-nn/tool-env.json
+COPY ci/tools/manifest.json /opt/ns-cmsis-nn/tool-manifest.json
+COPY scripts/install_ci_tools.sh /opt/ns-cmsis-nn/install_ci_tools.sh
+RUN bash /opt/ns-cmsis-nn/install_ci_tools.sh \
+      /opt/ns-cmsis-nn/tool-manifest.json \
+      "${NS_CMSIS_NN_TOOLS}" \
+      "${NS_CMSIS_NN_TOOL_ENV}"
 
-# Pin the vcpkg-tool release. Bump both when adopting a newer vcpkg-tool;
-# get the sha256 from the matching GitHub release's vcpkg-glibc asset.
-ARG VCPKG_TOOL_VERSION=2026-07-27
-ARG VCPKG_TOOL_SHA256=7e97ef6bcd58f74d079f40d086b801a0222c5d15e4ea0d8d507a538033493d04
+ENV PATH="/opt/ns-cmsis-nn/tools/cmsis-toolbox/bin:/opt/ns-cmsis-nn/tools/cmake/bin:/opt/ns-cmsis-nn/tools/ninja:/opt/ns-cmsis-nn/tools/arm-gnu/bin:/opt/ns-cmsis-nn/tools/llvm-embedded/bin:/opt/ns-cmsis-nn/tools/armclang/bin:/opt/ns-cmsis-nn/tools/corstone-300-fvp/bin:${PATH}" \
+    GCC_TOOLCHAIN_14_3_1="/opt/ns-cmsis-nn/tools/arm-gnu/bin" \
+    CLANG_TOOLCHAIN_20_1_0="/opt/ns-cmsis-nn/tools/llvm-embedded/bin" \
+    AC6_TOOLCHAIN_6_24_0="/opt/ns-cmsis-nn/tools/armclang/bin" \
+    AVH_FVP_PLUGINS="/opt/ns-cmsis-nn/tools/corstone-300-fvp/plugins"
 
-# Bootstrap the vcpkg tool (artifacts-enabled) into VCPKG_ROOT.
-#
-# Historical note (AmbiqAI/ns-cmsis-nn#228): dot-sourcing Microsoft's
-# aka.ms/vcpkg-init.sh only downloads the vcpkg binary and defines a
-# `vcpkg-shell` shell *function* in the sourcing process -- it never puts a
-# `vcpkg` command on PATH. `bash -c '. vcpkg-init.sh && vcpkg version'`
-# therefore failed with "vcpkg: command not found" even though the
-# download itself succeeded, and the floating aka.ms script can also bump
-# its pinned VCPKG_BASE_VERSION upstream without notice. We instead
-# download the pinned vcpkg-tool release directly, checksum-verify it
-# (matching the fetch_toolchain.sh convention used elsewhere in this repo),
-# and place it on PATH ourselves so both this Dockerfile and anything that
-# later shells into the image can invoke `vcpkg` reliably.
+# Build-time smoke check: prove the baked environment resolves every required
+# tool. Armclang's executable is checked without requiring a license checkout.
 RUN set -eux; \
-      mkdir -p "${VCPKG_ROOT}" /opt/ns-cmsis-nn; \
-      curl -fsSL "https://github.com/microsoft/vcpkg-tool/releases/download/${VCPKG_TOOL_VERSION}/vcpkg-glibc" \
-            -o "${VCPKG_ROOT}/vcpkg"; \
-      echo "${VCPKG_TOOL_SHA256}  ${VCPKG_ROOT}/vcpkg" | sha256sum -c -; \
-      chmod +x "${VCPKG_ROOT}/vcpkg"; \
-      echo "${VCPKG_TOOL_VERSION}" > "${VCPKG_ROOT}/vcpkg-version.txt"
-
-ENV PATH="${VCPKG_ROOT}:${PATH}"
-
-# Verify `vcpkg` reliably resolves via PATH (not just via the full path used
-# below), so a regression here fails the image build instead of silently
-# skipping downstream release assets.
-RUN vcpkg version
-
-# Resolve and install the pinned tool set, then bake the activation environment.
-COPY vcpkg-configuration.json /opt/ns-cmsis-nn/vcpkg-configuration.json
-RUN set -eux; \
-      cd /opt/ns-cmsis-nn; \
-      "${VCPKG_ROOT}/vcpkg" x-update-registry --all; \
-      "${VCPKG_ROOT}/vcpkg" activate \
-            --downloads-root="${VCPKG_DOWNLOADS}" \
-            --json="${NS_CMSIS_NN_VCPKG_ENV}"; \
-      jq -e '.tools' "${NS_CMSIS_NN_VCPKG_ENV}" >/dev/null; \
-      rm -rf "${VCPKG_DOWNLOADS}"
-
-# Build-time smoke check: prove the baked environment resolves every tool.
-RUN set -eux; \
-      export PATH="$(jq -r '.paths.PATH[]?' "${NS_CMSIS_NN_VCPKG_ENV}" | tr '\n' ':')${PATH}"; \
       cbuild --version; \
       cpackget --version; \
       csolution --version; \
-      armclang --version; \
+      command -v armclang; \
       arm-none-eabi-gcc --version; \
+      clang --version; \
+      cmake --version; \
+      ninja --version; \
       command -v FVP_Corstone_SSE-300

@@ -62,7 +62,7 @@ jobs:
       # `_tooling/` subdirectory. Deliberately does NOT pin `source_ref` -- a
       # historical release tag (e.g. v7.29.1/v7.29.2) can predate the helper
       # script entirely, and its own historical Dockerfile can carry
-      # bootstrap defects (e.g. the aka.ms vcpkg-init.sh breakage) that have
+      # bootstrap defects in historical tool-acquisition logic that have
       # since been fixed on main (AmbiqAI/ns-cmsis-nn#228; both confirmed
       # live in recovery run 31335858426, jobs 93301489901/93301568122).
       # Using a separate `path:` (rather than re-checking out over the same
@@ -130,7 +130,7 @@ jobs:
         # CURRENT, hardened Dockerfile from `_tooling/`, while the build
         # context (the trailing path argument) is `_source/` -- the pinned,
         # immutable historical checkout -- so `COPY`/build-context files
-        # (e.g. vcpkg-configuration.json) always come from the historical
+        # (e.g. ci/tools/manifest.json) always come from the historical
         # release being recovered, never from current main, while the
         # Dockerfile's bootstrap LOGIC always comes from current main, never
         # a historical (possibly broken) copy of the same file.
