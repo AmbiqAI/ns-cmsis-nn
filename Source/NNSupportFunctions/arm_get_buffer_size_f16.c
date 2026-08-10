@@ -148,6 +148,12 @@ int32_t arm_convolve_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *conv_pa
         return 0;
     }
 
+    /* Grouped convolution takes the generic fallback, which needs no scratch buffer. */
+    if (filter_dims->c > 0 && (input_dims->c / filter_dims->c) > 1)
+    {
+        return 0;
+    }
+
     if (filter_dims->h == 1 && filter_dims->w == 1 && conv_params->padding.h == 0 && conv_params->padding.w == 0)
     {
         return arm_convolve_1x1_f16_get_buffer_size(conv_params, input_dims, filter_dims, output_dims, layout);

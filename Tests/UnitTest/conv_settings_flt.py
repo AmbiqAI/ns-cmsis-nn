@@ -97,7 +97,7 @@ class ConvSettingsFlt:
         groups = self.case.groups
         if groups < 1 or self.case.input_channels % groups != 0 or self.case.output_channels % groups != 0:
             raise RuntimeError(
-                "ERROR: input/output channels must be an even multiple of groups "
+                "ERROR: input/output channels must be divisible by groups "
                 f"(in_ch={self.case.input_channels}, out_ch={self.case.output_channels}, groups={groups})"
             )
         input_shape = (self.case.batches, self.case.input_channels, self.case.input_h, self.case.input_w)
