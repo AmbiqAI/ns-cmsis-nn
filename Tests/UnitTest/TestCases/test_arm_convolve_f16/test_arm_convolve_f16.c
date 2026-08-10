@@ -48,6 +48,7 @@
 #include "../TestData/conv_match_dilation_golden_f16/test_data.h"
 #include "../TestData/conv_match_out_activation_f16/test_data.h"
 #include "../TestData/conv_match_stride2pad1_f16/test_data.h"
+#include "../TestData/conv_small_kernel_grouped_nhwc_f16/test_data.h"
 
 #define RUN_CONV_F16_CASE(CASE_PREFIX, case_name, tolerance)                                                           \
     void case_name##_arm_convolve_f16(void)                                                                            \
@@ -291,6 +292,73 @@ void conv_grouped_dilation_nhwc_f16_arm_convolve_f16(void)
     for (int i = 0; i < CONV_GROUPED_DILATION_NHWC_F16_DST_SIZE; ++i)
     {
         TEST_ASSERT_FLOAT_WITHIN(2.0e-2f, (float)conv_grouped_dilation_nhwc_f16_output_ref_data[i], (float)output[i]);
+    }
+
+    if (ctx.buf != NULL)
+    {
+        memset(ctx.buf, 0, (size_t)buf_size);
+        free(ctx.buf);
+        ctx.buf = NULL;
+        ctx.size = 0;
+    }
+}
+
+/*
+ * Small-kernel grouped case: rhs_cols = FILTER_H * FILTER_W * FILTER_CH <= 8 and
+ * zero padding, which exercises the MVE gather fast path (arm_convolve_f16_fast_small_kernel).
+ */
+void conv_small_kernel_grouped_nhwc_f16_arm_convolve_f16(void)
+{
+    float16_t output[CONV_SMALL_KERNEL_GROUPED_NHWC_F16_DST_SIZE] = {0};
+    cmsis_nn_context ctx = {0};
+    const cmsis_nn_conv_params_f16 conv_params = {
+        .padding = {.w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_PADDING_W,
+                    .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_PADDING_H},
+        .stride = {.w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_STRIDE_W, .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_STRIDE_H},
+        .dilation = {.w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_DILATION_W,
+                     .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_DILATION_H},
+        .activation = {.min = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUT_ACTIVATION_MIN,
+                       .max = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUT_ACTIVATION_MAX}};
+    const cmsis_nn_dims input_dims = {.n = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_INPUT_BATCHES,
+                                      .w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_INPUT_W,
+                                      .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_INPUT_H,
+                                      .c = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_IN_CH};
+    const cmsis_nn_dims filter_dims = {.n = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUT_CH,
+                                       .w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_FILTER_W,
+                                       .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_FILTER_H,
+                                       .c = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_FILTER_CH};
+    const cmsis_nn_dims bias_dims = {.n = 1, .w = 1, .h = 1, .c = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUT_CH};
+    const cmsis_nn_dims output_dims = {.n = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_INPUT_BATCHES,
+                                       .w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUTPUT_W,
+                                       .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUTPUT_H,
+                                       .c = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUTPUT_C};
+    const int32_t buf_size = arm_convolve_f16_get_buffer_size(
+        &conv_params, &input_dims, &filter_dims, &output_dims, CONV_SMALL_KERNEL_GROUPED_NHWC_F16_LAYOUT);
+
+    if (buf_size > 0)
+    {
+        ctx.buf = malloc((size_t)buf_size);
+        ctx.size = buf_size;
+        TEST_ASSERT_NOT_NULL(ctx.buf);
+    }
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16(&ctx,
+                                       &conv_params,
+                                       &input_dims,
+                                       conv_small_kernel_grouped_nhwc_f16_input_data,
+                                       &filter_dims,
+                                       conv_small_kernel_grouped_nhwc_f16_weights_data,
+                                       &bias_dims,
+                                       conv_small_kernel_grouped_nhwc_f16_biases_data,
+                                       &output_dims,
+                                       output,
+                                       CONV_SMALL_KERNEL_GROUPED_NHWC_F16_LAYOUT));
+
+    for (int i = 0; i < CONV_SMALL_KERNEL_GROUPED_NHWC_F16_DST_SIZE; ++i)
+    {
+        TEST_ASSERT_FLOAT_WITHIN(
+            2.0e-2f, (float)conv_small_kernel_grouped_nhwc_f16_output_ref_data[i], (float)output[i]);
     }
 
     if (ctx.buf != NULL)
