@@ -237,6 +237,8 @@ void conv_grouped_nhwc_f16_arm_convolve_f16(void)
     {
         memset(ctx.buf, 0, (size_t)buf_size);
         free(ctx.buf);
+        ctx.buf = NULL;
+        ctx.size = 0;
     }
 }
 
@@ -295,6 +297,8 @@ void conv_grouped_dilation_nhwc_f16_arm_convolve_f16(void)
     {
         memset(ctx.buf, 0, (size_t)buf_size);
         free(ctx.buf);
+        ctx.buf = NULL;
+        ctx.size = 0;
     }
 }
 
