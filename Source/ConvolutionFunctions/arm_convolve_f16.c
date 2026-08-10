@@ -373,8 +373,15 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
 
         if (use_patch_gemm)
         {
-            arm_cmsis_nn_status st = arm_convolve_nhwc_patch_gemm_f16(
-                ctx, conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data);
+            arm_cmsis_nn_status st = arm_convolve_nhwc_patch_gemm_f16(ctx,
+                                                                      conv_params,
+                                                                      input_dims,
+                                                                      input_data,
+                                                                      filter_dims,
+                                                                      filter_data,
+                                                                      bias_data,
+                                                                      output_dims,
+                                                                      output_data);
             if (st == ARM_CMSIS_NN_SUCCESS)
             {
                 return st;

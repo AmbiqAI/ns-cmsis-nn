@@ -28,10 +28,7 @@ void tearDown(void) {}
 void test_conv_basic_f16_arm_convolve_f16(void) { conv_basic_f16_arm_convolve_f16(); }
 void test_conv_basic_nhwc_f16_arm_convolve_f16(void) { conv_basic_nhwc_f16_arm_convolve_f16(); }
 void test_conv_grouped_nhwc_f16_arm_convolve_f16(void) { conv_grouped_nhwc_f16_arm_convolve_f16(); }
-void test_conv_grouped_dilation_nhwc_f16_arm_convolve_f16(void)
-{
-    conv_grouped_dilation_nhwc_f16_arm_convolve_f16();
-}
+void test_conv_grouped_dilation_nhwc_f16_arm_convolve_f16(void) { conv_grouped_dilation_nhwc_f16_arm_convolve_f16(); }
 void test_conv_1x1_stride2_nhwc_f16_arm_convolve_f16(void) { conv_1x1_stride2_nhwc_f16_arm_convolve_f16(); }
 void test_conv_k3_opt_f16_arm_convolve_f16(void) { conv_k3_opt_f16_arm_convolve_f16(); }
 void test_conv_k5_opt_f16_arm_convolve_f16(void) { conv_k5_opt_f16_arm_convolve_f16(); }

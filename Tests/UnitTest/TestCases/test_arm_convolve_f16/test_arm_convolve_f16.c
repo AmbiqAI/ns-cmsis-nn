@@ -190,7 +190,8 @@ void conv_grouped_nhwc_f16_arm_convolve_f16(void)
         .padding = {.w = CONV_GROUPED_NHWC_F16_PADDING_W, .h = CONV_GROUPED_NHWC_F16_PADDING_H},
         .stride = {.w = CONV_GROUPED_NHWC_F16_STRIDE_W, .h = CONV_GROUPED_NHWC_F16_STRIDE_H},
         .dilation = {.w = CONV_GROUPED_NHWC_F16_DILATION_W, .h = CONV_GROUPED_NHWC_F16_DILATION_H},
-        .activation = {.min = CONV_GROUPED_NHWC_F16_OUT_ACTIVATION_MIN, .max = CONV_GROUPED_NHWC_F16_OUT_ACTIVATION_MAX}};
+        .activation = {.min = CONV_GROUPED_NHWC_F16_OUT_ACTIVATION_MIN,
+                       .max = CONV_GROUPED_NHWC_F16_OUT_ACTIVATION_MAX}};
     const cmsis_nn_dims input_dims = {.n = CONV_GROUPED_NHWC_F16_INPUT_BATCHES,
                                       .w = CONV_GROUPED_NHWC_F16_INPUT_W,
                                       .h = CONV_GROUPED_NHWC_F16_INPUT_H,
@@ -287,8 +288,7 @@ void conv_grouped_dilation_nhwc_f16_arm_convolve_f16(void)
 
     for (int i = 0; i < CONV_GROUPED_DILATION_NHWC_F16_DST_SIZE; ++i)
     {
-        TEST_ASSERT_FLOAT_WITHIN(
-            2.0e-2f, (float)conv_grouped_dilation_nhwc_f16_output_ref_data[i], (float)output[i]);
+        TEST_ASSERT_FLOAT_WITHIN(2.0e-2f, (float)conv_grouped_dilation_nhwc_f16_output_ref_data[i], (float)output[i]);
     }
 
     if (ctx.buf != NULL)
