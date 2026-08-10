@@ -70,6 +70,7 @@ ENV NS_CMSIS_NN_TOOLS=/opt/ns-cmsis-nn/tools \
     NS_CMSIS_NN_TOOL_ENV=/opt/ns-cmsis-nn/tool-env.json
 COPY ci/tools/manifest.json /opt/ns-cmsis-nn/tool-manifest.json
 COPY scripts/install_ci_tools.sh /opt/ns-cmsis-nn/install_ci_tools.sh
+COPY scripts/ci/validate_ci_tool_manifest.jq /opt/ns-cmsis-nn/ci/validate_ci_tool_manifest.jq
 RUN bash /opt/ns-cmsis-nn/install_ci_tools.sh \
       /opt/ns-cmsis-nn/tool-manifest.json \
       "${NS_CMSIS_NN_TOOLS}" \

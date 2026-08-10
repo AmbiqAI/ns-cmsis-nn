@@ -7,6 +7,7 @@ set -euo pipefail
 manifest="${1:?manifest path required}"
 destination="${2:?destination required}"
 environment_json="${3:?environment output path required}"
+validator="$(cd "$(dirname "$0")" && pwd)/ci/validate_ci_tool_manifest.jq"
 
 for command in curl jq sha256sum tar unzip; do
   command -v "${command}" >/dev/null || {
@@ -15,21 +16,7 @@ for command in curl jq sha256sum tar unzip; do
   }
 done
 
-jq -e '
-  .schema_version == 1
-  and .platform == "linux-x86_64"
-  and (.tools | length > 0)
-  and all(.tools[];
-    (.id | test("^[a-z0-9][a-z0-9-]*$"))
-    and (.version | length > 0)
-    and (.url | startswith("https://"))
-    and (.sha256 | test("^[0-9a-f]{64}$"))
-    and (.archive == "tar.gz" or .archive == "tar.xz" or .archive == "zip")
-    and (.strip_components | type == "number")
-    and (.probe | length > 0)
-    and (.path | length > 0)
-    and (.license | length > 0))
-' "${manifest}" >/dev/null
+jq -e -f "${validator}" "${manifest}" >/dev/null
 
 rm -rf "${destination}"
 mkdir -p "${destination}"
@@ -92,12 +79,20 @@ jq --arg root "${destination}" '
     schema_version: 1,
     platform: .platform,
     paths: {
-      PATH: [.tools[] | "\($root)/\(.id)/\(.path)"]
+      PATH: [
+        .tools[] |
+        if .path == "." then "\($root)/\(.id)"
+        else "\($root)/\(.id)/\(.path)"
+        end
+      ]
     },
     tools: (
       reduce .tools[] as $tool ({};
         reduce (($tool.environment // {}) | to_entries[]) as $entry (.;
-          .[$entry.key] = "\($root)/\($tool.id)/\($entry.value)"))
+          .[$entry.key] = (
+            if $entry.value == "." then "\($root)/\($tool.id)"
+            else "\($root)/\($tool.id)/\($entry.value)"
+            end)))
     ),
     provenance: [
       .tools[] | {
