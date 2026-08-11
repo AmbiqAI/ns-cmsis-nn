@@ -33,6 +33,7 @@ void test_conv_small_kernel_grouped_nhwc_f16_arm_convolve_f16(void)
 {
     conv_small_kernel_grouped_nhwc_f16_arm_convolve_f16();
 }
+void test_conv_small_kernel_nhwc_f16_arm_convolve_f16(void) { conv_small_kernel_nhwc_f16_arm_convolve_f16(); }
 void test_conv_1x1_stride2_nhwc_f16_arm_convolve_f16(void) { conv_1x1_stride2_nhwc_f16_arm_convolve_f16(); }
 void test_conv_k3_opt_f16_arm_convolve_f16(void) { conv_k3_opt_f16_arm_convolve_f16(); }
 void test_conv_k5_opt_f16_arm_convolve_f16(void) { conv_k5_opt_f16_arm_convolve_f16(); }
