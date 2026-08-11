@@ -148,7 +148,7 @@ int32_t arm_convolve_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *conv_pa
         return 0;
     }
 
-    /* Grouped convolution takes the generic fallback, which needs no scratch buffer. */
+    /* Grouped convolution only uses scratch-free paths (fast small-kernel or generic fallback). */
     if (filter_dims->c > 0 && (input_dims->c / filter_dims->c) > 1)
     {
         return 0;

@@ -1107,8 +1107,11 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
  * @brief Fast float16 convolution for kernels whose flattened receptive field
  *        (filter_dims->h * filter_dims->w * filter_dims->c) fits in one MVE
  *        float16 vector (<= 8) with zero padding. Supports grouped convolution.
- *        Returns ARM_CMSIS_NN_NO_IMPL_ERROR when the shape is not supported or
- *        when MVE float16 is unavailable, so callers can fall back.
+ *        Returns ARM_CMSIS_NN_ARG_ERROR for invalid grouped channel parameters
+ *        (input_c not a multiple of filter_dims->c, or output_c not a multiple
+ *        of the derived group count). Returns ARM_CMSIS_NN_NO_IMPL_ERROR when
+ *        the shape is not supported or when MVE float16 is unavailable, so
+ *        callers can fall back to the generic path.
  */
 arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *ctx,
                                                        const cmsis_nn_conv_params_f16 *conv_params,
