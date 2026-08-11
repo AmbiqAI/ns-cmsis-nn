@@ -103,8 +103,8 @@ This re-runs `resolve-release-capabilities`, `publish-staticlibs`,
 `publish-staticlib-bundles`, and `publish-pack` against the release already
 published at `v7.29.2`, re-uploading (`--clobber`) any missing or stale
 customer assets. Historical recovery deliberately skips the CI image and its
-container test jobs: that image is build infrastructure rather than a GitHub
-Release asset, and its retired vcpkg-artifacts dependency is tracked in #233.
+container test jobs because that image is build infrastructure rather than a
+GitHub Release asset.
 It refuses to run
 (fails fast) if `v7.29.2` doesn't already have a published GitHub Release, so
 it cannot be used to create a new tag/release under a different name. See
