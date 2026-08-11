@@ -49,6 +49,7 @@
 #include "../TestData/conv_match_out_activation_f16/test_data.h"
 #include "../TestData/conv_match_stride2pad1_f16/test_data.h"
 #include "../TestData/conv_small_kernel_grouped_nhwc_f16/test_data.h"
+#include "../TestData/conv_small_kernel_nhwc_f16/test_data.h"
 
 #define RUN_CONV_F16_CASE(CASE_PREFIX, case_name, tolerance)                                                           \
     void case_name##_arm_convolve_f16(void)                                                                            \
