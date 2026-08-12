@@ -24,7 +24,8 @@ if (ARM_NN_ENABLE_F32)
                       arm_elementwise_sub_f32.c
                       arm_elementwise_mul_f32.c
                       arm_minimum_f32.c
-                      arm_maximum_f32.c)
+                      arm_maximum_f32.c
+                      arm_reduce_sum_f32.c)
 endif()
 if (ARM_NN_ENABLE_F16)
   list(APPEND SRC_FLT arm_abs_f16.c
@@ -33,6 +34,7 @@ if (ARM_NN_ENABLE_F16)
                       arm_elementwise_sub_f16.c
                       arm_elementwise_mul_f16.c
                       arm_minimum_f16.c
-                      arm_maximum_f16.c)
+                      arm_maximum_f16.c
+                      arm_reduce_sum_f16.c)
 endif()
 target_sources(cmsis-nn PRIVATE ${SRC} ${SRC_FLT})
