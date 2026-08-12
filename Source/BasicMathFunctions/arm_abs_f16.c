@@ -46,8 +46,10 @@ arm_cmsis_nn_status arm_abs_f16(const float16_t *input, float16_t *output, int32
 #else
     for (int32_t i = 0; i < block_size; ++i)
     {
-        const _Float16 v = (_Float16)input[i];
-        output[i] = (float16_t)((v < (_Float16)0.0f) ? -v : v);
+        // Promote-abs-demote is exact for every half value and clears the
+        // sign bit even for -0.0 and -NaN, keeping the scalar path
+        // bit-exact with the MVE vabsq path.
+        output[i] = (float16_t)__builtin_fabsf((float32_t)input[i]);
     }
 #endif
 

@@ -46,7 +46,9 @@ arm_cmsis_nn_status arm_abs_f32(const float32_t *input, float32_t *output, int32
 #else
     for (int32_t i = 0; i < block_size; ++i)
     {
-        output[i] = (input[i] < 0.0f) ? -input[i] : input[i];
+        // __builtin_fabsf clears the sign bit even for -0.0 and -NaN,
+        // keeping the scalar path bit-exact with the MVE vabsq path.
+        output[i] = __builtin_fabsf(input[i]);
     }
 #endif
 
