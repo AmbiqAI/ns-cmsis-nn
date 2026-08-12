@@ -35,9 +35,11 @@ silently omits it (the unit-test build uses #2, Zephyr/NSX use #2, packs use #3)
 
 1. `Source/<Group>Functions/CMakeLists.txt` — float files are listed
    explicitly under `if (ARM_NN_ENABLE_F32/F16)`; the globs only match
-   `*_s8*/_s16*/...` patterns.
+   `*_s8*/_s16*/...` patterns. Kept for upstream-style external consumers
+   and upstream sync friction; no in-repo build consumes these.
 2. `cmake/ns_cmsis_nn.cmake` — the SSoT per-group manifest
-   (`_ns_cmsis_nn_group_def`). This is the authoritative one.
+   (`_ns_cmsis_nn_group_def`). This is the authoritative one: every
+   in-repo build (unit tests, Zephyr, NSX) resolves sources through it.
 3. `Ambiq.NS-CMSIS-NN.pdsc` — one `<file>` entry per source, alphabetical.
    `scripts/check_pdsc.py` validates it against `git ls-files`, so stage new
    files (`git add`) before running it.
@@ -69,7 +71,11 @@ count so the MVE tail-predication path is exercised.
 
 ## Formatting and checks
 
-- `clang-format` 16.0.6 (the CI version) on `Source|Include` C/H files.
+- clang-format via `scripts/check_clang_format_changed.sh` — that script is
+  the authority on the required clang-format version and covered paths
+  (currently LLVM 18 over `Include`, `Source`, and
+  `Tests/UnitTest/Corstone-300`); `.pre-commit-config.yaml` pins the
+  pre-commit hook version separately.
 - `python3 scripts/check_pdsc.py` after any manifest change.
 - License headers: new source files use the Ambiq SPDX header
   (`LicenseRef-Ambiq-Apollo-SDK`); generated test-data headers use Apache-2.0

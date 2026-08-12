@@ -21,6 +21,8 @@
 
 #include "Internal/arm_nn_activation_flt.h"
 
+#if ARM_NN_ENABLE_F32
+
 /**
  *  @ingroup Public
  */
@@ -33,7 +35,7 @@
 // out[i] = input[i] >= 0 ? input[i] : input[i] * alpha[i]
 static void arm_prelu_vec_f32(const float32_t *input, const float32_t *alpha, float32_t *output, int32_t flat_size)
 {
-#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     for (int32_t i = 0; i < flat_size; i += 4)
     {
         const mve_pred16_t p = vctp32q((uint32_t)(flat_size - i));
@@ -43,20 +45,20 @@ static void arm_prelu_vec_f32(const float32_t *input, const float32_t *alpha, fl
         const mve_pred16_t pos = vcmpgeq_n_f32(vx, 0.0f);
         vst1q_p(&output[i], vpselq(vx, vneg, pos), p);
     }
-#else
+    #else
     for (int32_t i = 0; i < flat_size; ++i)
     {
         const float32_t x = input[i];
         output[i] = (x >= 0.0f) ? x : x * alpha[i];
     }
-#endif
+    #endif
 }
 
 // out[i] = input[i] >= 0 ? input[i] : input[i] * alpha_value
 static void
 arm_prelu_alpha_scalar_f32(const float32_t *input, float32_t alpha_value, float32_t *output, int32_t flat_size)
 {
-#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     const float32x4_t va = vdupq_n_f32(alpha_value);
     for (int32_t i = 0; i < flat_size; i += 4)
     {
@@ -66,13 +68,13 @@ arm_prelu_alpha_scalar_f32(const float32_t *input, float32_t alpha_value, float3
         const mve_pred16_t pos = vcmpgeq_n_f32(vx, 0.0f);
         vst1q_p(&output[i], vpselq(vx, vneg, pos), p);
     }
-#else
+    #else
     for (int32_t i = 0; i < flat_size; ++i)
     {
         const float32_t x = input[i];
         output[i] = (x >= 0.0f) ? x : x * alpha_value;
     }
-#endif
+    #endif
 }
 
 /*
@@ -170,3 +172,5 @@ arm_cmsis_nn_status arm_prelu_f32(const cmsis_nn_dims *input_dims,
 /**
  * @} end of Acti group
  */
+
+#endif /* ARM_NN_ENABLE_F32 */

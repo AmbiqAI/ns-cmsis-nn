@@ -21,6 +21,8 @@
 
 #include "Internal/arm_nn_activation_flt.h"
 
+#if ARM_NN_ENABLE_F16
+
 /**
  *  @ingroup Public
  */
@@ -33,7 +35,7 @@
 // out[i] = input[i] >= 0 ? input[i] : input[i] * alpha[i]
 static void arm_prelu_vec_f16(const float16_t *input, const float16_t *alpha, float16_t *output, int32_t flat_size)
 {
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     for (int32_t i = 0; i < flat_size; i += 8)
     {
         const mve_pred16_t p = vctp16q((uint32_t)(flat_size - i));
@@ -43,20 +45,20 @@ static void arm_prelu_vec_f16(const float16_t *input, const float16_t *alpha, fl
         const mve_pred16_t pos = vcmpgeq_n_f16(vx, (float16_t)0.0f);
         vst1q_p(&output[i], vpselq(vx, vneg, pos), p);
     }
-#else
+    #else
     for (int32_t i = 0; i < flat_size; ++i)
     {
         const _Float16 x = (_Float16)input[i];
         output[i] = (float16_t)((x >= (_Float16)0.0f) ? x : x * (_Float16)alpha[i]);
     }
-#endif
+    #endif
 }
 
 // out[i] = input[i] >= 0 ? input[i] : input[i] * alpha_value
 static void
 arm_prelu_alpha_scalar_f16(const float16_t *input, float16_t alpha_value, float16_t *output, int32_t flat_size)
 {
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     const float16x8_t va = vdupq_n_f16(alpha_value);
     for (int32_t i = 0; i < flat_size; i += 8)
     {
@@ -66,14 +68,14 @@ arm_prelu_alpha_scalar_f16(const float16_t *input, float16_t alpha_value, float1
         const mve_pred16_t pos = vcmpgeq_n_f16(vx, (float16_t)0.0f);
         vst1q_p(&output[i], vpselq(vx, vneg, pos), p);
     }
-#else
+    #else
     const _Float16 a = (_Float16)alpha_value;
     for (int32_t i = 0; i < flat_size; ++i)
     {
         const _Float16 x = (_Float16)input[i];
         output[i] = (float16_t)((x >= (_Float16)0.0f) ? x : x * a);
     }
-#endif
+    #endif
 }
 
 /*
@@ -171,3 +173,5 @@ arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
 /**
  * @} end of Acti group
  */
+
+#endif /* ARM_NN_ENABLE_F16 */

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2026 Ambiq
+ * SPDX-FileCopyrightText: Copyright 2026 Ambiq
  *
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  *
