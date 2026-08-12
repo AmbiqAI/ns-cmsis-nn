@@ -56,6 +56,12 @@ void prelu_f16_alpha_broadcast_w_arm_prelu_f16(void)
     prelu_f16_check(&alpha_dims, prelu_f16_alpha_gen, prelu_f16_ref_gen);
 }
 
+void prelu_f16_alpha_broadcast_c_arm_prelu_f16(void)
+{
+    const cmsis_nn_dims alpha_dims = {1, 3, 4, 1};
+    prelu_f16_check(&alpha_dims, prelu_f16_alpha_gen2, prelu_f16_ref_gen2);
+}
+
 void prelu_f16_arg_error_arm_prelu_f16(void)
 {
     float16_t output[PRELU_F16_DST_SIZE] = {0};

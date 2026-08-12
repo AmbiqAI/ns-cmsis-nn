@@ -37,4 +37,6 @@ void test_prelu_f16_alpha_scalar_arm_prelu_f16(void) { prelu_f16_alpha_scalar_ar
 
 void test_prelu_f16_alpha_broadcast_w_arm_prelu_f16(void) { prelu_f16_alpha_broadcast_w_arm_prelu_f16(); }
 
+void test_prelu_f16_alpha_broadcast_c_arm_prelu_f16(void) { prelu_f16_alpha_broadcast_c_arm_prelu_f16(); }
+
 void test_prelu_f16_arg_error_arm_prelu_f16(void) { prelu_f16_arg_error_arm_prelu_f16(); }

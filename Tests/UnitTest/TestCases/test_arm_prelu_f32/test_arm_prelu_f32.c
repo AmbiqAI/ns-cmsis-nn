@@ -56,6 +56,12 @@ void prelu_f32_alpha_broadcast_w_arm_prelu_f32(void)
     prelu_f32_check(&alpha_dims, prelu_f32_alpha_gen, prelu_f32_ref_gen);
 }
 
+void prelu_f32_alpha_broadcast_c_arm_prelu_f32(void)
+{
+    const cmsis_nn_dims alpha_dims = {1, 3, 4, 1};
+    prelu_f32_check(&alpha_dims, prelu_f32_alpha_gen2, prelu_f32_ref_gen2);
+}
+
 void prelu_f32_arg_error_arm_prelu_f32(void)
 {
     float32_t output[PRELU_F32_DST_SIZE] = {0};
