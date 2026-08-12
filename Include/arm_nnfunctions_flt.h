@@ -445,6 +445,36 @@ arm_cmsis_nn_status arm_elementwise_add_f32(const float32_t *input_1_vect,
                                             int32_t block_size);
 
 /**
+ * @brief Elementwise subtract with optional output clamp.
+ *
+ * @param[in]  input_1_vect        Pointer to the first input vector (minuend).
+ * @param[in]  input_2_vect        Pointer to the second input vector (subtrahend).
+ * @param[out] output              Pointer to the output vector.
+ * @param[in]  out_activation_min  Minimum output clamp value.
+ * @param[in]  out_activation_max  Maximum output clamp value.
+ * @param[in]  block_size          Number of elements to process.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_elementwise_sub_f32(const float32_t *input_1_vect,
+                                            const float32_t *input_2_vect,
+                                            float32_t *output,
+                                            float32_t out_activation_min,
+                                            float32_t out_activation_max,
+                                            int32_t block_size);
+
+/**
+ * @brief Elementwise absolute value.
+ *
+ * @param[in]  input       Pointer to the input vector.
+ * @param[out] output      Pointer to the output vector.
+ * @param[in]  block_size  Number of elements to process.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_abs_f32(const float32_t *input, float32_t *output, int32_t block_size);
+
+/**
  * @brief Elementwise multiply with optional output clamp.
  *
  * @param[in]  input_1_vect        Pointer to the first input vector.
@@ -1179,6 +1209,11 @@ arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
                                             float16_t out_activation_min,
                                             float16_t out_activation_max,
                                             int32_t block_size);
+
+/**
+ * @copydoc arm_abs_f32
+ */
+arm_cmsis_nn_status arm_abs_f16(const float16_t *input, float16_t *output, int32_t block_size);
 
 /**
  * @ingroup Concatenation

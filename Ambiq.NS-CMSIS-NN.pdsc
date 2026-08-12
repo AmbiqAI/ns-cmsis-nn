@@ -105,6 +105,8 @@
         <file category="source" name="Source/ActivationFunctions/arm_relu_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_relu_s8.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_tanh_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_abs_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_abs_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_abs_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_abs_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_s16.c"/>
@@ -130,6 +132,7 @@
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_squared_difference_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_squared_difference_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_f16.c"/>
