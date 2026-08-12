@@ -17,6 +17,9 @@
 #
 
 file(GLOB SRC "./*_s8.c" "./*_s16.c" "./*_s32.c")
+if (ARM_NN_ENABLE_F32)
+  list(APPEND SRC arm_strided_slice_f32.c)
+endif()
 if (ARM_NN_ENABLE_F16)
   list(APPEND SRC arm_strided_slice_f16.c)
 endif()
