@@ -1222,15 +1222,7 @@ arm_cmsis_nn_status arm_split_f16(const float16_t *input_data,
                                   float16_t *const *output_data);
 
 /**
- * @ingroup StridedSlice
- * @brief Strided slice for float16 data (pure copy, TensorFlow Lite compatible).
- * @param[in]  input_data   Pointer to input tensor.
- * @param[out] output_data  Pointer to output tensor.
- * @param[in]  input_dims   Input tensor dimensions.
- * @param[in]  begin_dims   Begin dimensions for slicing.
- * @param[in]  stride_dims  Stride dimensions for slicing.
- * @param[in]  output_dims  Output tensor dimensions.
- * @return     ARM_CMSIS_NN_SUCCESS on success.
+ * @copydoc arm_strided_slice_f32
  */
 arm_cmsis_nn_status arm_strided_slice_f16(const float16_t *input_data,
                                           float16_t *output_data,

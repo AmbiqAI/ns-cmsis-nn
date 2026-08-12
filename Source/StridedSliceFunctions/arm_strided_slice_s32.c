@@ -13,7 +13,7 @@
  * Description:  StridedSlice function for s32 data compatible with TF Lite.
  *
  * $Date:        12 August 2026
- * $Revision:    V.2.0.0
+ * $Revision:    V.1.1.0
  *
  * Target :  Arm(R) M-Profile Architecture
  *

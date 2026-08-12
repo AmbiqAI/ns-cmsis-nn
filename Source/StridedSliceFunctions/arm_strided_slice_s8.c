@@ -13,7 +13,7 @@
  * Description:  StridedSlice function for s8 data compatible with TF Lite.
  *
  * $Date:        12 August 2026
- * $Revision:    V.2.0.0
+ * $Revision:    V.1.1.0
  *
  * Target :  Arm(R) M-Profile Architecture
  *
@@ -38,7 +38,7 @@
  * Refer header file for details.
  *
  */
-/* arm_memcpy_s8 takes a byte count, which equals the element count for s8. */
+/* arm_memcpy_s8's byte-count contract coincides with the element count for 1-byte elements. */
 ARM_STRIDED_SLICE_DEFINE(arm_strided_slice_s8, int8_t, arm_memcpy_s8)
 
 /**

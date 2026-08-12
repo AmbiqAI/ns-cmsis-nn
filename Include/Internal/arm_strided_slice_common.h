@@ -21,13 +21,16 @@
 #ifndef ARM_STRIDED_SLICE_COMMON_H
 #define ARM_STRIDED_SLICE_COMMON_H
 
+#include "arm_nn_types.h"
+
 /*
  * StridedSlice is pure data movement, so every dtype variant shares one
  * element-indexed implementation; only the scalar type and the copy helper
- * differ. MEMCPY_FUNC must take an element count, not a byte count
- * (arm_memcpy_s8 satisfies this for 1-byte elements).
+ * differ. MEMCPY_FUNC must accept an element count; arm_memcpy_s8's
+ * byte-count contract coincides with this for 1-byte elements.
  */
 #define ARM_STRIDED_SLICE_DEFINE(FUNC_NAME, SCALAR_T, MEMCPY_FUNC)                                                     \
+    /* Inline helper: choose < or > based on stride sign */                                                            \
     static inline bool FUNC_NAME##_stride_continue(int32_t idx, int32_t stop, int32_t stride)                          \
     {                                                                                                                  \
         return (stride > 0) ? (idx < stop) : (idx > stop);                                                             \
