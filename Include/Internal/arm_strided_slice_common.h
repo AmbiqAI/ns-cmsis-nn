@@ -43,10 +43,23 @@
                                   const cmsis_nn_dims *const stride_dims,                                              \
                                   const cmsis_nn_dims *const output_dims)                                              \
     {                                                                                                                  \
+        if (!input_data || !output_data || !input_dims || !begin_dims || !stride_dims || !output_dims)                 \
+        {                                                                                                              \
+            return ARM_CMSIS_NN_ARG_ERROR;                                                                             \
+        }                                                                                                              \
+                                                                                                                       \
         const int32_t in_h = input_dims->h, in_w = input_dims->w, in_c = input_dims->c;                                \
         const int32_t b_n = begin_dims->n, b_h = begin_dims->h, b_w = begin_dims->w, b_c = begin_dims->c;              \
         const int32_t s_n = stride_dims->n, s_h = stride_dims->h, s_w = stride_dims->w, s_c = stride_dims->c;          \
         const int32_t o_n = output_dims->n, o_h = output_dims->h, o_w = output_dims->w, o_c = output_dims->c;          \
+                                                                                                                       \
+        /* A non-positive dim would wrap to a huge unsigned count at the                                               \
+         * memcpy boundary; a zero stride would silently truncate. */                                                  \
+        if (input_dims->n < 1 || in_h < 1 || in_w < 1 || in_c < 1 || o_n < 1 || o_h < 1 || o_w < 1 || o_c < 1 ||       \
+            s_n == 0 || s_h == 0 || s_w == 0 || s_c == 0)                                                              \
+        {                                                                                                              \
+            return ARM_CMSIS_NN_ARG_ERROR;                                                                             \
+        }                                                                                                              \
                                                                                                                        \
         const int32_t plane_elems = in_h * in_w * in_c; /* H x W x C */                                                \
         const int32_t slice_elems = in_w * in_c;        /* W x C */                                                    \

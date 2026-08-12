@@ -32,3 +32,5 @@ void tearDown(void) {}
 void test_slice_f32_arm_strided_slice_f32(void) { slice_f32_arm_strided_slice_f32(); }
 
 void test_slice_f32_general_arm_strided_slice_f32(void) { slice_f32_general_arm_strided_slice_f32(); }
+
+void test_slice_f32_arg_error_arm_strided_slice_f32(void) { slice_f32_arg_error_arm_strided_slice_f32(); }
