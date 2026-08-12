@@ -418,6 +418,29 @@ arm_cmsis_nn_status arm_nn_activation_f32(const float32_t *input,
                                           arm_nn_activation_type_flt type,
                                           float32_t act_param);
 
+/**
+ * @brief Parametric ReLU for float32 data.
+ *
+ * Computes output = input >= 0 ? input : input * alpha, with alpha broadcast
+ * onto the input (TensorFlow Lite semantics): each alpha dimension must equal
+ * the matching input dimension or 1.
+ *
+ * @param[in]  input_dims   Input tensor dimensions. Must equal output_dims.
+ * @param[in]  input        Pointer to the input tensor.
+ * @param[in]  alpha_dims   Alpha tensor dimensions.
+ * @param[in]  alpha        Pointer to the alpha (slope) tensor.
+ * @param[in]  output_dims  Output tensor dimensions.
+ * @param[out] output       Pointer to the output tensor.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_prelu_f32(const cmsis_nn_dims *input_dims,
+                                  const float32_t *input,
+                                  const cmsis_nn_dims *alpha_dims,
+                                  const float32_t *alpha,
+                                  const cmsis_nn_dims *output_dims,
+                                  float32_t *output);
+
 /** @} */
 
 /**
@@ -1199,6 +1222,16 @@ arm_cmsis_nn_status arm_nn_activation_f16(const float16_t *input,
                                           int32_t size,
                                           arm_nn_activation_type_flt type,
                                           float16_t act_param);
+
+/**
+ * @copydoc arm_prelu_f32
+ */
+arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
+                                  const float16_t *input,
+                                  const cmsis_nn_dims *alpha_dims,
+                                  const float16_t *alpha,
+                                  const cmsis_nn_dims *output_dims,
+                                  float16_t *output);
 
 /** @} */
 
