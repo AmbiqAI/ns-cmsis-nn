@@ -971,6 +971,30 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f32(const float32_t *input,
  */
 arm_cmsis_nn_status arm_softmax_f32(const float32_t *input, int32_t num_rows, int32_t row_size, float32_t *output);
 
+/**
+ * @ingroup Reduction
+ * @brief Computes the sum of the input tensor along the specified axes.
+ *
+ * Sums are accumulated in float32 (also for the float16 variant, which
+ * rounds once to float16 at the end), so results do not overflow at
+ * float16 range and precision does not degrade with the reduction count.
+ * NaN and Inf propagate. Vector and scalar builds may differ in final
+ * ulps because float accumulation order differs.
+ *
+ * @param[in]   input_data   Pointer to input tensor
+ * @param[in]   input_dims   Input tensor dimensions (4D NHWC)
+ * @param[in]   axis_dims    4D binary axis mask (non-zero = reduce that axis)
+ * @param[out]  output_data  Pointer to output tensor
+ * @param[in]   output_dims  Output tensor dimensions (reduced axes have size 1)
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_reduce_sum_f32(const float32_t *input_data,
+                                       const cmsis_nn_dims *input_dims,
+                                       const cmsis_nn_dims *axis_dims,
+                                       float32_t *output_data,
+                                       const cmsis_nn_dims *output_dims);
+
     /** @} */
 
 #endif /* ARM_NN_ENABLE_F32 */
@@ -1656,6 +1680,16 @@ arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
  * @copydoc arm_softmax_f32
  */
 arm_cmsis_nn_status arm_softmax_f16(const float16_t *input, int32_t num_rows, int32_t row_size, float16_t *output);
+
+/**
+ * @ingroup Reduction
+ * @copydoc arm_reduce_sum_f32
+ */
+arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
+                                       const cmsis_nn_dims *input_dims,
+                                       const cmsis_nn_dims *axis_dims,
+                                       float16_t *output_data,
+                                       const cmsis_nn_dims *output_dims);
 
     /** @} */
 
