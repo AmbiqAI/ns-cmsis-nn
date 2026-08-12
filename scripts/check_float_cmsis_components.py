@@ -6,9 +6,10 @@
 # Fast static guard for the float CMSIS unit-test wiring.
 #
 # `cbuild` cannot run in every environment (no CMSIS-Toolbox, no FVP),
-# so this pure-Python check pins the invariants that previously caused
-# "component not found" / cascade failures on the Cortex-M float FVP
-# matrix. Runs in <1s, no Open-CMSIS-Pack tooling required.
+# so this check pins the invariants that previously caused "component
+# not found" / cascade failures on the Cortex-M float FVP matrix. Runs
+# in <1s and needs no Open-CMSIS-Pack tooling; PyYAML is its only
+# dependency, and the only non-stdlib import under scripts/.
 #
 #   1. Single pack source — the float csolution pins
 #      Ambiq::NS-CMSIS-NN@<version> exactly once, with no `path:`
@@ -22,26 +23,25 @@
 #      cproject on disk is registered in the csolution.
 #   3. Device-component gating — the SSE-300-only device components in
 #      corstone300_unittest.clayer.yml are all present and each
-#      restricted to `for-context: +Corstone-300-FVP`, so generic
-#      ARMCM0/ARMCM4 targets do not try to resolve them.
+#      restricted to exactly `for-context: +Corstone-300-FVP`, so
+#      generic ARMCM0/ARMCM4 targets do not try to resolve them.
 #
-# These files are parsed as YAML rather than scanned line by line.
-# Comments, quoting and key order are the toolchain's business; an
-# earlier text-matching version of this script silently passed real
-# regressions that happened to be spelled differently (a trailing
-# comment on a `- component:` line was enough to skip its gating check
-# entirely), and failed valid files that interleaved other keys.
+# These files are parsed as YAML, not line-matched, so comments,
+# quoting and key order are the parser's problem rather than this
+# script's. scripts/tests/test_check_float_cmsis_components.py pins the
+# behaviour in both directions: text matching used to miss real
+# regressions, and a careless structural rewrite can miss different ones.
 
 from __future__ import annotations
 
-import re
 import sys
+import re
 from pathlib import Path
 from typing import Any
 
 try:
     import yaml
-except ModuleNotFoundError:  # pragma: no cover - environment problem, not a finding
+except ModuleNotFoundError:
     raise SystemExit(
         "FAIL: check_float_cmsis_components.py requires PyYAML.\n"
         "      Install it with: pip install pyyaml"
@@ -80,9 +80,9 @@ def rel(path: Path) -> str:
         return str(path)
 
 
+# Record a readable error rather than raising, so one broken file does
+# not mask the findings of the other checks.
 def load_yaml(path: Path, errors: list[str]) -> dict[str, Any] | None:
-    """Parse `path` as a YAML mapping, recording a readable error instead
-    of raising so one broken file does not mask the other checks."""
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -99,7 +99,9 @@ def load_yaml(path: Path, errors: list[str]) -> dict[str, Any] | None:
     return data
 
 
-def section(data: dict[str, Any], key: str, path: Path, errors: list[str]):
+def require_mapping(
+    data: dict[str, Any], key: str, path: Path, errors: list[str]
+) -> dict[str, Any] | None:
     node = data.get(key)
     if not isinstance(node, dict):
         errors.append(f"{rel(path)}: missing top-level `{key}:` mapping")
@@ -107,12 +109,9 @@ def section(data: dict[str, Any], key: str, path: Path, errors: list[str]):
     return node
 
 
+# Returns every entry, not a name-keyed mapping: a component declared
+# twice must have each occurrence validated, since csolution sees both.
 def components_of(node: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
-    """Return (name, entry) for each `- component:` in node's list.
-
-    An entry may be a bare string or a mapping carrying extra keys such
-    as `define:` or `for-context:` in any order.
-    """
     raw = node.get("components")
     if not isinstance(raw, list):
         return []
@@ -138,14 +137,12 @@ def pdsc_release_version(errors: list[str]) -> str | None:
     return match.group(1)
 
 
-def check_pack_source(csolution: dict[str, Any], errors: list[str]) -> None:
-    solution = section(csolution, "solution", CSOLUTION, errors)
-    if solution is None:
-        return
+def check_pack_source(solution: dict[str, Any], errors: list[str]) -> str | None:
+    """Validate the Ambiq pack pin; returns the pinned version if sound."""
     packs = solution.get("packs")
     if not isinstance(packs, list):
-        errors.append(f"{CSOLUTION.name}: missing `solution.packs:` list")
-        return
+        errors.append(f"{rel(CSOLUTION)}: missing `solution.packs:` list")
+        return None
 
     entries: list[tuple[str, dict[str, Any]]] = []
     for entry in packs:
@@ -159,55 +156,61 @@ def check_pack_source(csolution: dict[str, Any], errors: list[str]) -> None:
             entries.append((spec.strip(), mapping))
 
     if not entries:
-        errors.append(f"{CSOLUTION.name}: no {PACK_NAME} pack entry found")
-        return
+        errors.append(f"{rel(CSOLUTION)}: no {PACK_NAME} pack entry found")
+        return None
     if len(entries) > 1:
         errors.append(
-            f"{CSOLUTION.name}: {PACK_NAME} is declared {len(entries)} times; "
+            f"{rel(CSOLUTION)}: {PACK_NAME} is declared {len(entries)} times; "
             f"exactly one entry may resolve the cpackget .Local registration"
         )
 
     expected = pdsc_release_version(errors)
+    pinned: str | None = None
     for spec, mapping in entries:
         # A `path:` override re-introduces a duplicate pack definition
         # that competes with the cpackget .Local registration.
         if "path" in mapping:
             errors.append(
-                f"{CSOLUTION.name}: {PACK_NAME} must not use a `path:` "
+                f"{rel(CSOLUTION)}: {PACK_NAME} must not use a `path:` "
                 f"override (single source = cpackget .Local registration)"
             )
         _, at, version = spec.partition("@")
         version = version.strip()
         if not at or not version:
             errors.append(
-                f"{CSOLUTION.name}: {PACK_NAME} must be pinned as "
+                f"{rel(CSOLUTION)}: {PACK_NAME} must be pinned as "
                 f"{PACK_NAME}@<version> (single cpackget-registered source)"
             )
         elif RANGE_SPECIFIER.match(version):
             errors.append(
-                f"{CSOLUTION.name}: {PACK_NAME} must use an exact pin, not "
+                f"{rel(CSOLUTION)}: {PACK_NAME} must use an exact pin, not "
                 f"the range specifier '@{version}'"
             )
         elif expected is not None and version != expected:
             errors.append(
-                f"{CSOLUTION.name}: pack pinned at @{version} but pdsc "
+                f"{rel(CSOLUTION)}: pack pinned at @{version} but pdsc "
                 f"<release version> is {expected}"
             )
+        else:
+            pinned = version
+    return pinned
 
 
 def csolution_projects(
-    csolution: dict[str, Any], errors: list[str]
-) -> list[tuple[str, Path]]:
-    """Resolve `solution.projects:` to (as-written, absolute path) pairs."""
-    solution = section(csolution, "solution", CSOLUTION, errors)
-    if solution is None:
-        return []
+    solution: dict[str, Any], errors: list[str]
+) -> list[tuple[str, Path]] | None:
+    """Resolve `solution.projects:` to (as-written, absolute path) pairs.
+
+    None means the list itself could not be read, which lets callers skip
+    checks that would otherwise report every project as unregistered.
+    """
     projects = solution.get("projects")
     if not isinstance(projects, list) or not projects:
-        errors.append(f"{CSOLUTION.name}: missing or empty `solution.projects:` list")
-        return []
+        errors.append(f"{rel(CSOLUTION)}: missing or empty `solution.projects:` list")
+        return None
 
     resolved: list[tuple[str, Path]] = []
+    seen: set[Path] = set()
     for entry in projects:
         if isinstance(entry, str):
             spec = entry
@@ -215,23 +218,30 @@ def csolution_projects(
             spec = entry["project"]
         else:
             continue
-        resolved.append((spec, (CMSIS_DIR / spec).resolve()))
+        path = (CMSIS_DIR / spec).resolve()
+        if path in seen:
+            errors.append(
+                f"{rel(CSOLUTION)}: project '{spec}' is registered more than once"
+            )
+            continue
+        seen.add(path)
+        resolved.append((spec, path))
     return resolved
 
 
-def check_component_selector(csolution: dict[str, Any], errors: list[str]) -> None:
+def check_component_selector(
+    projects: list[tuple[str, Path]], errors: list[str]
+) -> None:
     # Driven by the csolution's own project list rather than a glob, so a
     # project cbuild actually builds can never be skipped by this check.
-    for spec, cproject in csolution_projects(csolution, errors):
+    for spec, cproject in projects:
         if not cproject.is_file():
-            errors.append(
-                f"{CSOLUTION.name}: project '{spec}' does not exist on disk"
-            )
+            errors.append(f"{rel(CSOLUTION)}: project '{spec}' does not exist on disk")
             continue
         data = load_yaml(cproject, errors)
         if data is None:
             continue
-        project = section(data, "project", cproject, errors)
+        project = require_mapping(data, "project", cproject, errors)
         if project is None:
             continue
 
@@ -248,15 +258,16 @@ def check_component_selector(csolution: dict[str, Any], errors: list[str]) -> No
             )
         else:
             errors.append(
-                f"{rel(cproject)}: missing component selector "
-                f"'{EXPECTED_SELECTOR}'"
+                f"{rel(cproject)}: missing component selector '{EXPECTED_SELECTOR}'"
             )
 
 
-def check_project_registration(csolution: dict[str, Any], errors: list[str]) -> None:
-    """A float cproject on disk but absent from the csolution is never
-    built, so its selector is never validated by the check above."""
-    registered = {path for _, path in csolution_projects(csolution, errors)}
+def check_project_registration(
+    projects: list[tuple[str, Path]], errors: list[str]
+) -> None:
+    # A float cproject on disk but absent from the csolution is never
+    # built, so its selector is never validated by the check above.
+    registered = {path for _, path in projects}
     on_disk = sorted(CMSIS_DIR.glob("test_arm_*_flt/*.cproject.yml"))
     if not on_disk:
         errors.append("no float .cproject.yml files found under Tests/UnitTest/cmsis")
@@ -273,36 +284,48 @@ def check_device_gating(errors: list[str]) -> None:
     data = load_yaml(CLAYER, errors)
     if data is None:
         return
-    layer = section(data, "layer", CLAYER, errors)
+    layer = require_mapping(data, "layer", CLAYER, errors)
     if layer is None:
         return
 
-    declared = dict(components_of(layer))
+    declared = components_of(layer)
+    names = {name for name, _ in declared}
     for component in SSE300_ONLY_COMPONENTS:
-        entry = declared.get(component)
-        if entry is None:
+        if component not in names:
             errors.append(
-                f"{CLAYER.name}: SSE-300-only component '{component}' is not "
+                f"{rel(CLAYER)}: SSE-300-only component '{component}' is not "
                 f"declared, so its '{SSE300_CONTEXT}' gating cannot be enforced"
             )
+
+    for name, entry in declared:
+        if name not in SSE300_ONLY_COMPONENTS:
             continue
         context = entry.get("for-context")
         contexts = context if isinstance(context, list) else [context]
-        if SSE300_CONTEXT not in [c for c in contexts if isinstance(c, str)]:
+        # Exactly the SSE-300 context, not merely including it: a list
+        # that also names the generic targets re-opens the very failure
+        # this gating exists to prevent.
+        if contexts != [SSE300_CONTEXT]:
             errors.append(
-                f"{CLAYER.name}: component '{component}' must be gated with "
+                f"{rel(CLAYER)}: component '{name}' must be gated with exactly "
                 f"'for-context: {SSE300_CONTEXT}' (found: {context!r})"
             )
 
 
 def main() -> int:
     errors: list[str] = []
+    pinned: str | None = None
+    projects: list[tuple[str, Path]] | None = None
 
     csolution = load_yaml(CSOLUTION, errors)
     if csolution is not None:
-        check_pack_source(csolution, errors)
-        check_component_selector(csolution, errors)
-        check_project_registration(csolution, errors)
+        solution = require_mapping(csolution, "solution", CSOLUTION, errors)
+        if solution is not None:
+            pinned = check_pack_source(solution, errors)
+            projects = csolution_projects(solution, errors)
+            if projects is not None:
+                check_component_selector(projects, errors)
+                check_project_registration(projects, errors)
     check_device_gating(errors)
 
     if errors:
@@ -311,9 +334,13 @@ def main() -> int:
             print(f"  - {error}", file=sys.stderr)
         return 1
 
-    print("Float CMSIS component check passed.")
+    print(
+        f"Float CMSIS component check OK: pack pinned at {pinned}, "
+        f"{len(projects or [])} float projects wired, "
+        f"{len(SSE300_ONLY_COMPONENTS)} SSE-300 components gated."
+    )
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

@@ -317,6 +317,42 @@ python3 scripts/check_pdsc.py
 The `Verify that PDSC file is up to date` GitHub Actions workflow runs
 both `check_pdsc.sh` and `scripts/check_pdsc.py` on every PR.
 
+### Float CMSIS component wiring
+
+No CI job runs `cbuild` against
+`Tests/UnitTest/cmsis/cmsis_nn_unit_tests_flt.csolution.yml`, so
+[`scripts/check_float_cmsis_components.py`](../scripts/check_float_cmsis_components.py)
+statically pins the wiring that a build would otherwise catch:
+
+- **Single pack source** — the csolution pins `Ambiq::NS-CMSIS-NN` exactly
+  once, as an exact `@<version>` matching the pdsc `<release version>`,
+  with no `path:` override. release-please keeps the pin in step with the
+  pdsc; a drift here means the pack cannot resolve at all.
+- **Component selector** — every float `.cproject.yml` the csolution
+  builds uses the fully-qualified
+  `Ambiq::Machine Learning:NN Lib:heliaCORE&Source` selector, and every
+  float cproject on disk is registered in the csolution.
+- **Device-component gating** — the SSE-300-only components in
+  `corstone300_unittest.clayer.yml` are present and gated on exactly
+  `for-context: +Corstone-300-FVP`, so the generic ARMCM0/ARMCM4 targets
+  do not try to resolve them.
+
+Unlike the other checkers this one needs PyYAML — the invariants are
+structural, and matching the YAML as text silently missed regressions
+spelled with a trailing comment. Run locally with:
+
+```sh
+pip install pyyaml
+python3 scripts/check_float_cmsis_components.py
+```
+
+Its own behaviour is pinned by mutation tests, which CI runs alongside
+it:
+
+```sh
+python3 scripts/tests/test_check_float_cmsis_components.py
+```
+
 ## Publishing the CMSIS-Pack
 
 The release flow is driven by release-please. When a release-please
