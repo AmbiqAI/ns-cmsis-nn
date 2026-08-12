@@ -39,4 +39,10 @@ void test_rsum_f16_axis_hw_arm_reduce_sum_f16(void) { rsum_f16_axis_hw_arm_reduc
 
 void test_rsum_f16_axis_h_arm_reduce_sum_f16(void) { rsum_f16_axis_h_arm_reduce_sum_f16(); }
 
+void test_rsum_f16_identity_arm_reduce_sum_f16(void) { rsum_f16_identity_arm_reduce_sum_f16(); }
+
+void test_rsum_f16_size_one_dims_arm_reduce_sum_f16(void) { rsum_f16_size_one_dims_arm_reduce_sum_f16(); }
+
+void test_rsum_f16_nan_inf_arm_reduce_sum_f16(void) { rsum_f16_nan_inf_arm_reduce_sum_f16(); }
+
 void test_rsum_f16_arg_error_arm_reduce_sum_f16(void) { rsum_f16_arg_error_arm_reduce_sum_f16(); }

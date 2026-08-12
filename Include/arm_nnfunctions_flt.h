@@ -1682,6 +1682,7 @@ arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
 arm_cmsis_nn_status arm_softmax_f16(const float16_t *input, int32_t num_rows, int32_t row_size, float16_t *output);
 
 /**
+ * @ingroup Reduction
  * @copydoc arm_reduce_sum_f32
  */
 arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
