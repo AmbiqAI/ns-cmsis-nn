@@ -8,6 +8,7 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <math.h>
 #include <unity.h>
 
 #include "sub_f32_data.h"
@@ -28,6 +29,23 @@ void sub_f32_arm_elementwise_sub_f32(void)
     {
         TEST_ASSERT_FLOAT_WITHIN(1.0e-6f, sub_f32_output_ref[i], output[i]);
     }
+}
+
+void sub_f32_nan_inf_arm_elementwise_sub_f32(void)
+{
+    // Inf - Inf = NaN must propagate through the clamp (TFLite semantics);
+    // Inf/-Inf overflow must clamp to the activation bounds.
+    const float32_t inf = (float32_t)INFINITY;
+    const float32_t in1[4] = {inf, (float32_t)NAN, inf, -inf};
+    const float32_t in2[4] = {inf, 0.0f, 1.0f, 1.0f};
+    float32_t output[4] = {0};
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_elementwise_sub_f32(in1, in2, output, -6.0f, 6.0f, 4));
+
+    TEST_ASSERT_FLOAT_IS_NAN(output[0]);
+    TEST_ASSERT_FLOAT_IS_NAN(output[1]);
+    TEST_ASSERT_EQUAL_FLOAT(6.0f, output[2]);
+    TEST_ASSERT_EQUAL_FLOAT(-6.0f, output[3]);
 }
 
 void sub_f32_arg_error_arm_elementwise_sub_f32(void)

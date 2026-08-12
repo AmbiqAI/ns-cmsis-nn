@@ -51,14 +51,14 @@ arm_cmsis_nn_status arm_elementwise_sub_f32(const float32_t *input_1_vect,
         const float32x4_t va = vld1q_z(&input_1_vect[i], p);
         const float32x4_t vb = vld1q_z(&input_2_vect[i], p);
         float32x4_t vr = vsubq(va, vb);
-        vr = arm_nn_clamp_mve_f32(vr, vmin, vmax);
+        vr = arm_nn_clamp_propagate_nan_mve_f32(vr, vmin, vmax);
         vstrwq_p(&output[i], vr, p);
     }
 #else
     for (int32_t i = 0; i < block_size; ++i)
     {
         const float32_t v = input_1_vect[i] - input_2_vect[i];
-        output[i] = CLAMP(v, out_activation_max, out_activation_min);
+        output[i] = arm_nn_clamp_scalar_f32(v, out_activation_min, out_activation_max);
     }
 #endif
 

@@ -428,6 +428,8 @@ arm_cmsis_nn_status arm_nn_activation_f32(const float32_t *input,
 /**
  * @brief Elementwise add with optional output clamp.
  *
+ * NaN results propagate through the clamp (TensorFlow Lite semantics).
+ *
  * @param[in]  input_1_vect        Pointer to the first input vector.
  * @param[in]  input_2_vect        Pointer to the second input vector.
  * @param[out] output              Pointer to the output vector.
@@ -446,6 +448,8 @@ arm_cmsis_nn_status arm_elementwise_add_f32(const float32_t *input_1_vect,
 
 /**
  * @brief Elementwise subtract with optional output clamp.
+ *
+ * NaN results propagate through the clamp (TensorFlow Lite semantics).
  *
  * @param[in]  input_1_vect        Pointer to the first input vector (minuend).
  * @param[in]  input_2_vect        Pointer to the second input vector (subtrahend).
@@ -476,6 +480,8 @@ arm_cmsis_nn_status arm_abs_f32(const float32_t *input, float32_t *output, int32
 
 /**
  * @brief Elementwise multiply with optional output clamp.
+ *
+ * NaN results propagate through the clamp (TensorFlow Lite semantics).
  *
  * @param[in]  input_1_vect        Pointer to the first input vector.
  * @param[in]  input_2_vect        Pointer to the second input vector.

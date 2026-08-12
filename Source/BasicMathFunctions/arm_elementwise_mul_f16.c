@@ -60,7 +60,7 @@ arm_cmsis_nn_status arm_elementwise_mul_f16(const float16_t *input_1_vect,
         const float16x8_t va = vld1q_z(&input_1_vect[i], p);
         const float16x8_t vb = vld1q_z(&input_2_vect[i], p);
         float16x8_t vr = vmulq(va, vb);
-        vr = arm_nn_clamp_mve_f16(vr, vmin, vmax);
+        vr = arm_nn_clamp_propagate_nan_mve_f16(vr, vmin, vmax);
         vstrhq_p(&output[i], vr, p);
     }
 #else

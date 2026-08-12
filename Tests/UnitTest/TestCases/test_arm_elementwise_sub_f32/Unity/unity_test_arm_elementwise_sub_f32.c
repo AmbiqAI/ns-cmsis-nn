@@ -31,4 +31,6 @@ void tearDown(void) {}
 
 void test_sub_f32_arm_elementwise_sub_f32(void) { sub_f32_arm_elementwise_sub_f32(); }
 
+void test_sub_f32_nan_inf_arm_elementwise_sub_f32(void) { sub_f32_nan_inf_arm_elementwise_sub_f32(); }
+
 void test_sub_f32_arg_error_arm_elementwise_sub_f32(void) { sub_f32_arg_error_arm_elementwise_sub_f32(); }

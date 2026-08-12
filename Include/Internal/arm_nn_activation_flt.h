@@ -112,12 +112,28 @@ __STATIC_INLINE float32_t arm_nn_apply_activation_type_f32(float32_t x,
     }
 }
 
+__STATIC_INLINE float32_t arm_nn_clamp_scalar_f32(float32_t x, float32_t min_v, float32_t max_v)
+{
+    // Comparisons are false for NaN, so NaN propagates (TFLite semantics)
+    return (x < min_v) ? min_v : ((x > max_v) ? max_v : x);
+}
+
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
 __STATIC_INLINE float32x4_t arm_nn_clamp_mve_f32(float32x4_t x, float32x4_t min_v, float32x4_t max_v)
 {
     x = vmaxnmq(x, min_v);
     x = vminnmq(x, max_v);
     return x;
+}
+
+__STATIC_INLINE float32x4_t arm_nn_clamp_propagate_nan_mve_f32(float32x4_t x, float32x4_t min_v, float32x4_t max_v)
+{
+    // vmaxnmq/vminnmq are IEEE maxNum/minNum and suppress NaN, so restore
+    // NaN lanes afterwards to match the scalar path and TFLite
+    const mve_pred16_t nan_p = vcmpneq(x, x);
+    float32x4_t y = vmaxnmq(x, min_v);
+    y = vminnmq(y, max_v);
+    return vpselq(x, y, nan_p);
 }
 
 __STATIC_INLINE float32x4_t arm_nn_vtanh_lut_direct_mve_f32(float32x4_t x)
@@ -251,6 +267,16 @@ __STATIC_INLINE float16x8_t arm_nn_clamp_mve_f16(float16x8_t x, float16x8_t min_
     x = vmaxnmq(x, min_v);
     x = vminnmq(x, max_v);
     return x;
+}
+
+__STATIC_INLINE float16x8_t arm_nn_clamp_propagate_nan_mve_f16(float16x8_t x, float16x8_t min_v, float16x8_t max_v)
+{
+    // vmaxnmq/vminnmq are IEEE maxNum/minNum and suppress NaN, so restore
+    // NaN lanes afterwards to match the scalar path and TFLite
+    const mve_pred16_t nan_p = vcmpneq(x, x);
+    float16x8_t y = vmaxnmq(x, min_v);
+    y = vminnmq(y, max_v);
+    return vpselq(x, y, nan_p);
 }
 
 __STATIC_INLINE float16x8_t arm_nn_vtanh_lut_direct_mve_f16(float16x8_t x)
