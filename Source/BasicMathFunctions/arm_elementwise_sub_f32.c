@@ -1,27 +1,18 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: 2026 Ambiq
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  *
- * Licensed under the Apache License, Version 2.0 (the License); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an AS IS BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Licensed under the Ambiq Apollo SDK License.
+ * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  */
 
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
- * Title:        arm_elementwise_add_f32.c
- * Description:  Elementwise add for float32 tensors
+ * Title:        arm_elementwise_sub_f32.c
+ * Description:  Elementwise subtract for float32 tensors
  *
- * $Date:        19 March 2026
+ * $Date:        12 August 2026
  * $Revision:    V.1.0.0
  *
  * Target :  Arm(R) M-Profile Architecture
@@ -38,7 +29,7 @@
  * @{
  */
 
-arm_cmsis_nn_status arm_elementwise_add_f32(const float32_t *input_1_vect,
+arm_cmsis_nn_status arm_elementwise_sub_f32(const float32_t *input_1_vect,
                                             const float32_t *input_2_vect,
                                             float32_t *output,
                                             float32_t out_activation_min,
@@ -59,14 +50,14 @@ arm_cmsis_nn_status arm_elementwise_add_f32(const float32_t *input_1_vect,
         const mve_pred16_t p = vctp32q((uint32_t)(block_size - i));
         const float32x4_t va = vld1q_z(&input_1_vect[i], p);
         const float32x4_t vb = vld1q_z(&input_2_vect[i], p);
-        float32x4_t vr = vaddq(va, vb);
+        float32x4_t vr = vsubq(va, vb);
         vr = arm_nn_clamp_propagate_nan_mve_f32(vr, vmin, vmax);
         vstrwq_p(&output[i], vr, p);
     }
 #else
     for (int32_t i = 0; i < block_size; ++i)
     {
-        const float32_t v = input_1_vect[i] + input_2_vect[i];
+        const float32_t v = input_1_vect[i] - input_2_vect[i];
         output[i] = arm_nn_clamp_scalar_f32(v, out_activation_min, out_activation_max);
     }
 #endif
