@@ -464,6 +464,24 @@ arm_cmsis_nn_status arm_elementwise_mul_f32(const float32_t *input_1_vect,
                                             int32_t block_size);
 
 /**
+ * @ingroup StridedSlice
+ * @brief Strided slice for float32 data (pure copy, TensorFlow Lite compatible).
+ * @param[in]  input_data   Pointer to input tensor.
+ * @param[out] output_data  Pointer to output tensor.
+ * @param[in]  input_dims   Input tensor dimensions.
+ * @param[in]  begin_dims   Begin dimensions for slicing.
+ * @param[in]  stride_dims  Stride dimensions for slicing.
+ * @param[in]  output_dims  Output tensor dimensions.
+ * @return     ARM_CMSIS_NN_SUCCESS on success.
+ */
+arm_cmsis_nn_status arm_strided_slice_f32(const float32_t *input_data,
+                                          float32_t *output_data,
+                                          const cmsis_nn_dims *const input_dims,
+                                          const cmsis_nn_dims *const begin_dims,
+                                          const cmsis_nn_dims *const stride_dims,
+                                          const cmsis_nn_dims *const output_dims);
+
+/**
  * @brief Elementwise minimum.
  */
 arm_cmsis_nn_status arm_minimum_f32(const cmsis_nn_context *ctx,

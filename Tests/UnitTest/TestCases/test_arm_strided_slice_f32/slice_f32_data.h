@@ -1,0 +1,50 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 Ambiq
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Generated golden data (numpy reference).
+ */
+#pragma once
+
+#define SLICE_F32_INPUT_N 1
+#define SLICE_F32_INPUT_H 4
+#define SLICE_F32_INPUT_W 4
+#define SLICE_F32_INPUT_C 2
+#define SLICE_F32_BEGIN_N 0
+#define SLICE_F32_BEGIN_H 0
+#define SLICE_F32_BEGIN_W 0
+#define SLICE_F32_BEGIN_C 0
+#define SLICE_F32_STRIDES_N 1
+#define SLICE_F32_STRIDES_H 2
+#define SLICE_F32_STRIDES_W 2
+#define SLICE_F32_STRIDES_C 1
+#define SLICE_F32_OUTPUT_N 1
+#define SLICE_F32_OUTPUT_H 2
+#define SLICE_F32_OUTPUT_W 2
+#define SLICE_F32_OUTPUT_C 2
+#define SLICE_F32_OUTPUT_SIZE 8
+
+/* Second case: channel stride 2, exercises the general strided path. */
+#define SLICE_F32_GEN_BEGIN_N 0
+#define SLICE_F32_GEN_BEGIN_H 1
+#define SLICE_F32_GEN_BEGIN_W 0
+#define SLICE_F32_GEN_BEGIN_C 1
+#define SLICE_F32_GEN_STRIDES_N 1
+#define SLICE_F32_GEN_STRIDES_H 2
+#define SLICE_F32_GEN_STRIDES_W 1
+#define SLICE_F32_GEN_STRIDES_C 2
+#define SLICE_F32_GEN_OUTPUT_N 1
+#define SLICE_F32_GEN_OUTPUT_H 2
+#define SLICE_F32_GEN_OUTPUT_W 4
+#define SLICE_F32_GEN_OUTPUT_C 1
+#define SLICE_F32_GEN_OUTPUT_SIZE 8
+
+static const float32_t slice_f32_input[] = {
+    -1.69730175f,  -1.29750383f, 0.969724476f, -1.43041265f, 1.00706768f,   1.16654336f,  1.3596884f,   0.516561866f,
+    -0.509916127f, -3.13093352f, -1.65282261f, 0.229914054f, 1.06770158f,   -0.160729825f, 0.214391991f, 1.79438031f,
+    2.59732628f,   1.84966767f,  0.359294146f, -0.439293265f, 0.194544002f, 1.26027954f,  -0.511380255f, 1.76722944f,
+    1.05525136f,   -4.44104958f, -2.83254242f, -2.44011068f, -0.0261729956f, -0.489106536f, 1.76837254f, 1.30923796f};
+static const float32_t slice_f32_output_ref[] =
+    {-1.69730175f, -1.29750383f, 1.00706768f, 1.16654336f, 2.59732628f, 1.84966767f, 0.194544002f, 1.26027954f};
+static const float32_t slice_f32_gen_output_ref[] =
+    {-3.13093352f, 0.229914054f, -0.160729825f, 1.79438031f, -4.44104958f, -2.44011068f, -0.489106536f, 1.30923796f};
