@@ -24,6 +24,16 @@ break the embedded build. When writing SIMD paths:
   `vcmpgeq` return predicates in MVE, vectors in NEON.
 - Guard macros: `ARM_MATH_MVEF` (f32), `ARM_MATH_MVE_FLOAT16` (f16),
   `ARM_MATH_MVEI` (integer) — always with `&& !defined(ARM_MATH_AUTOVECTORIZE)`.
+- **Cross-dtype helpers**: an f16 kernel may legitimately use f32 MVE vectors
+  (e.g. widening accumulation), but any helper it calls must NOT be declared
+  inside an `#if ARM_NN_ENABLE_F32` block — that gate is off in F16-only
+  builds even though `float32x4_t` (a hardware type) is available. Scope such
+  helpers on `ARM_NN_FLOAT_API_ENABLED` + the MVE macro instead. This broke
+  `main` once (arm_reduce_sum_f16 → arm_nn_vec_reduce_add_f32).
+- **Compile new float kernels in all three configs** before pushing — F16-only
+  is a real CI target (`m55-f16-mvef`), not a hypothetical:
+  `for CFG in "F32=1 F16=1" "F32=0 F16=1" "F32=1 F16=0"; do ...
+  arm-none-eabi-gcc -mcpu=cortex-m55 ... -DARM_NN_ENABLE_$CFG ...; done`
 - If an intrinsic you want isn't used anywhere in `Source/` or
   `Include/Internal/`, treat that as a red flag and verify it exists in
   `arm_mve.h` before using it.
