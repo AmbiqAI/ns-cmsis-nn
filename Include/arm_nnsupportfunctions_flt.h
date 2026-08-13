@@ -44,6 +44,20 @@ extern "C" {
  * @{
  */
 
+#if ARM_NN_FLOAT_API_ENABLED && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+/**
+ * @brief Reduce a float32 MVE vector with addition.
+ *
+ * Gated on MVE availability rather than ARM_NN_ENABLE_F32: float32x4_t is a
+ * hardware register type, and float16 kernels that accumulate in float32
+ * (e.g. arm_reduce_sum_f16) need this helper in F16-only builds.
+ */
+__STATIC_INLINE float32_t arm_nn_vec_reduce_add_f32(float32x4_t v)
+{
+    return vgetq_lane_f32(v, 0) + vgetq_lane_f32(v, 1) + vgetq_lane_f32(v, 2) + vgetq_lane_f32(v, 3);
+}
+#endif
+
 #if ARM_NN_ENABLE_F32
 
 /**
@@ -175,14 +189,6 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp_scalar_f32(float32_t x)
 extern const float32_t arm_nn_tanh_lut256_f32[257];
 
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-/**
- * @brief Reduce a float32 MVE vector with addition.
- */
-__STATIC_INLINE float32_t arm_nn_vec_reduce_add_f32(float32x4_t v)
-{
-    return vgetq_lane_f32(v, 0) + vgetq_lane_f32(v, 1) + vgetq_lane_f32(v, 2) + vgetq_lane_f32(v, 3);
-}
-
 /**
  * @brief MVE float32 exp approximation used by float softmax paths.
  */
