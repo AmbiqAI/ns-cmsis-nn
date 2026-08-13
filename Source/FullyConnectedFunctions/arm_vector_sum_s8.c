@@ -150,6 +150,41 @@ arm_cmsis_nn_status arm_vector_sum_s8(int32_t *vector_sum_buf,
 
             vector_sum_buf[i_row_loop_cnt] += vector_sum_0;
         }
+#elif defined(ARM_MATH_DSP)
+        const int8_t *row_ptr = vector_data;
+
+        for (int32_t row = 0; row < vector_rows; ++row)
+        {
+            const int8_t *col_ptr = row_ptr;
+            int32_t cols = vector_cols;
+            int32_t sum = 0;
+            while (cols >= 4)
+            {
+
+                uint32_t word;
+                memcpy(&word, col_ptr, sizeof(uint32_t));
+                int32_t pair16 = SXTB16(word);
+                sum = SMLAD(pair16, 0x00010001, sum);
+
+                pair16 = SXTB16(word >> 8);
+                sum = SMLAD(pair16, 0x00010001, sum);
+
+                col_ptr += 4;
+                cols -= 4;
+            }
+
+            while (cols--)
+            {
+                sum += *col_ptr++;
+            }
+            if (rhs_offset)
+                sum += vector_cols * rhs_offset;
+
+            sum *= lhs_offset;
+
+            vector_sum_buf[row] += sum;
+            row_ptr += vector_cols;
+        }
 #else
         for (int i = 0; i < vector_rows; i++)
         {
