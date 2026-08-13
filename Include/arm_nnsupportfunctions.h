@@ -75,7 +75,7 @@ extern "C" {
     #define ARM_NN_F16_CMOV_WORKAROUND 1
 #endif
 
-#if defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
+#if ARM_NN_ENABLE_F16
 __STATIC_FORCEINLINE _Float16 arm_nn_min_f16h(_Float16 a, _Float16 b)
 {
     #if defined(ARM_NN_F16_CMOV_WORKAROUND)
@@ -114,7 +114,7 @@ __STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)
     return (x < (_Float16)0.0f) ? -x : x;
     #endif
 }
-#endif /* __ARM_FEATURE_FP16_SCALAR_ARITHMETIC */
+#endif /* ARM_NN_ENABLE_F16 */
 
 #define ARM_NN_ROUND_UP(x, multiple) ((((x) + (multiple)-1) / (multiple)) * (multiple))
 #define REDUCE_MULTIPLIER(_mult) ((_mult < 0x7FFF0000) ? ((_mult + (1 << 15)) >> 16) : 0x7FFF)

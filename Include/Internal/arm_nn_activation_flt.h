@@ -253,8 +253,12 @@ __STATIC_INLINE float16_t arm_nn_apply_activation_type_f16(float16_t x,
         return arm_nn_tanh_scalar_ref_f16(x);
     case ARM_NN_FLT_ACT_HARDSWISH:
         return arm_nn_hardswish_scalar_f16(x);
-    case ARM_NN_FLT_ACT_LEAKY_RELU:
-        return (float16_t)((_Float16)x >= (_Float16)0.0f ? (_Float16)x : (_Float16)((_Float16)act_param * (_Float16)x));
+    case ARM_NN_FLT_ACT_LEAKY_RELU: {
+        /* max(x, 0) + alpha * min(x, 0) avoids a scalar _Float16 conditional select (GCC PR target/118460). */
+        const _Float16 pos = arm_nn_max_f16h((_Float16)x, (_Float16)0.0f);
+        const _Float16 neg = arm_nn_min_f16h((_Float16)x, (_Float16)0.0f);
+        return (float16_t)(pos + (_Float16)act_param * neg);
+    }
     default:
         return x;
     }
