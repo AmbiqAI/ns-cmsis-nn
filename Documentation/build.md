@@ -315,7 +315,8 @@ python3 scripts/check_pdsc.py
 ```
 
 The `Verify that PDSC file is up to date` GitHub Actions workflow runs
-both `check_pdsc.sh` and `scripts/check_pdsc.py` on every PR.
+`check_pdsc.sh` and `scripts/check_pdsc.py` on every PR, alongside the
+float component checks described below.
 
 ### Float CMSIS component wiring
 
