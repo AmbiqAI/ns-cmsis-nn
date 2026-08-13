@@ -58,8 +58,34 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
                                          const cmsis_nn_dims *output_dims,
                                          int8_t *output_data)
 {
-    (void)bias_dims;
+    return arm_convolve_even_s4_with_weight_sum(ctx,
+                                                NULL,
+                                                conv_params,
+                                                quant_params,
+                                                input_dims,
+                                                input_data,
+                                                filter_dims,
+                                                packed_filter_data,
+                                                bias_dims,
+                                                bias_data,
+                                                output_dims,
+                                                output_data);
+}
 
+arm_cmsis_nn_status arm_convolve_even_s4_with_weight_sum(const cmsis_nn_context *ctx,
+                                                         const cmsis_nn_context *weight_sum_ctx,
+                                                         const cmsis_nn_conv_params *conv_params,
+                                                         const cmsis_nn_per_channel_quant_params *quant_params,
+                                                         const cmsis_nn_dims *input_dims,
+                                                         const int8_t *input_data,
+                                                         const cmsis_nn_dims *filter_dims,
+                                                         const int8_t *packed_filter_data,
+                                                         const cmsis_nn_dims *bias_dims,
+                                                         const int32_t *bias_data,
+                                                         const cmsis_nn_dims *output_dims,
+                                                         int8_t *output_data)
+{
+    (void)bias_dims;
 #if defined(ARM_MATH_MVEI)
 
     if (ctx->buf == NULL)
@@ -90,7 +116,16 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
     const int32_t out_activation_max = conv_params->activation.max;
     const int32_t rhs_cols = kernel_x * kernel_y * input_ch;
     const int32_t input_offset = conv_params->input_offset;
+    const int32_t *eff_bias = bias_data;
+    int32_t eff_input_offset = input_offset;
+    const int32_t rhs_rows = output_dims->c;
 
+    const int32_t required_weight_sum_size = rhs_rows * (int32_t)sizeof(int32_t);
+    if (weight_sum_ctx && weight_sum_ctx->buf && weight_sum_ctx->size >= required_weight_sum_size)
+    {
+        eff_bias = (const int32_t *)weight_sum_ctx->buf;
+        eff_input_offset = 0;
+    }
     if (rhs_cols & 0x1)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
@@ -107,7 +142,6 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
     {
         /* Generate up to four columns from the input tensor a GEMM computation */
         int8_t *im2col_buf = (int8_t *)buffer_a;
-        const int32_t rhs_rows = output_dims->c;
         int8_t *out = output_data;
         int32_t lhs_rows = 0;
 
@@ -158,14 +192,14 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
                 {
                     arm_nn_mat_mult_nt_interleaved_t_even_s4((int8_t *)buffer_a,
                                                              packed_filter_data,
-                                                             bias_data,
+                                                             eff_bias,
                                                              out,
                                                              output_mult,
                                                              output_shift,
                                                              lhs_rows,
                                                              rhs_rows,
                                                              rhs_cols,
-                                                             input_offset,
+                                                             eff_input_offset,
                                                              out_offset,
                                                              out_activation_min,
                                                              out_activation_max,
@@ -184,14 +218,14 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
         {
             arm_nn_mat_mult_nt_interleaved_t_even_s4((int8_t *)buffer_a,
                                                      packed_filter_data,
-                                                     bias_data,
+                                                     eff_bias,
                                                      out,
                                                      output_mult,
                                                      output_shift,
                                                      lhs_rows,
                                                      rhs_rows,
                                                      rhs_cols,
-                                                     input_offset,
+                                                     eff_input_offset,
                                                      out_offset,
                                                      out_activation_min,
                                                      out_activation_max,
@@ -216,7 +250,7 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
     (void)bias_data;
     (void)output_dims;
     (void)output_data;
-
+    (void)weight_sum_ctx;
     return ARM_CMSIS_NN_NO_IMPL_ERROR;
 
 #endif // #if defined(ARM_MATH_MVEI)

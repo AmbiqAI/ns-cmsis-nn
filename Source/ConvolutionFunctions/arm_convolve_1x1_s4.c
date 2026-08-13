@@ -59,9 +59,37 @@ arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
                                         const cmsis_nn_dims *output_dims,
                                         int8_t *output_data)
 {
+    return arm_convolve_1x1_s4_with_weight_sum(ctx,
+                                               NULL,
+                                               conv_params,
+                                               quant_params,
+                                               input_dims,
+                                               input_data,
+                                               filter_dims,
+                                               filter_data,
+                                               bias_dims,
+                                               bias_data,
+                                               output_dims,
+                                               output_data);
+}
+
+arm_cmsis_nn_status arm_convolve_1x1_s4_with_weight_sum(const cmsis_nn_context *ctx,
+                                                        const cmsis_nn_context *weight_sum_ctx,
+                                                        const cmsis_nn_conv_params *conv_params,
+                                                        const cmsis_nn_per_channel_quant_params *quant_params,
+                                                        const cmsis_nn_dims *input_dims,
+                                                        const int8_t *input_data,
+                                                        const cmsis_nn_dims *filter_dims,
+                                                        const int8_t *filter_data,
+                                                        const cmsis_nn_dims *bias_dims,
+                                                        const int32_t *bias_data,
+                                                        const cmsis_nn_dims *output_dims,
+                                                        int8_t *output_data)
+{
     (void)ctx;
     (void)filter_dims;
     (void)bias_dims;
+
     if (conv_params->padding.w != 0 || conv_params->padding.h != 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
@@ -77,6 +105,15 @@ arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
     const int32_t batch = input_dims->n;
     const int8_t *input_data_ref = input_data;
 
+    const int32_t *eff_bias = bias_data;
+    int32_t eff_input_offset = conv_params->input_offset;
+    const int32_t required_weight_sum_size = rhs_rows * (int32_t)sizeof(int32_t);
+    if (weight_sum_ctx && weight_sum_ctx->buf && weight_sum_ctx->size >= required_weight_sum_size)
+    {
+        eff_bias = (const int32_t *)weight_sum_ctx->buf;
+        eff_input_offset = 0;
+    }
+
     for (int i_batch = 0; i_batch < batch; i_batch++)
     {
         input_data = input_data_ref + (i_batch * rhs_cols * input_dims->w * input_dims->h);
@@ -85,14 +122,14 @@ arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
             // Process one input row
             arm_cmsis_nn_status result = arm_nn_mat_mult_nt_t_s4(input_data,
                                                                  filter_data,
-                                                                 bias_data,
+                                                                 eff_bias,
                                                                  output_data,
                                                                  quant_params->multiplier,
                                                                  quant_params->shift,
                                                                  lhs_rows,
                                                                  rhs_rows,
                                                                  rhs_cols,
-                                                                 conv_params->input_offset,
+                                                                 eff_input_offset,
                                                                  conv_params->output_offset,
                                                                  conv_params->activation.min,
                                                                  conv_params->activation.max,

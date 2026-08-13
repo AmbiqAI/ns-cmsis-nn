@@ -89,7 +89,14 @@ void basic_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
     arm_cmsis_nn_status result = arm_convolve_s4(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -115,17 +122,18 @@ void basic_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    result = arm_convolve_wrapper_s4(&ctx,
-                                     &conv_params,
-                                     &quant_params,
-                                     &input_dims,
-                                     input_data,
-                                     &filter_dims,
-                                     kernel_data,
-                                     &bias_dims,
-                                     bias_data,
-                                     &output_dims,
-                                     output);
+    result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                     &weights_sum_ctx,
+                                                     &conv_params,
+                                                     &quant_params,
+                                                     &input_dims,
+                                                     input_data,
+                                                     &filter_dims,
+                                                     kernel_data,
+                                                     &bias_dims,
+                                                     bias_data,
+                                                     &output_dims,
+                                                     output);
 
     if (ctx.buf)
     {
@@ -183,7 +191,15 @@ void basic_2_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
     arm_cmsis_nn_status result = arm_convolve_s4(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -209,17 +225,18 @@ void basic_2_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    result = arm_convolve_wrapper_s4(&ctx,
-                                     &conv_params,
-                                     &quant_params,
-                                     &input_dims,
-                                     input_data,
-                                     &filter_dims,
-                                     kernel_data,
-                                     &bias_dims,
-                                     bias_data,
-                                     &output_dims,
-                                     output);
+    result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                     &weights_sum_ctx,
+                                                     &conv_params,
+                                                     &quant_params,
+                                                     &input_dims,
+                                                     input_data,
+                                                     &filter_dims,
+                                                     kernel_data,
+                                                     &bias_dims,
+                                                     bias_data,
+                                                     &output_dims,
+                                                     output);
 
     if (ctx.buf)
     {
@@ -277,7 +294,15 @@ void stride2pad1_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
     arm_cmsis_nn_status result = arm_convolve_s4(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -302,17 +327,18 @@ void stride2pad1_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    result = arm_convolve_wrapper_s4(&ctx,
-                                     &conv_params,
-                                     &quant_params,
-                                     &input_dims,
-                                     input_data,
-                                     &filter_dims,
-                                     kernel_data,
-                                     &bias_dims,
-                                     bias_data,
-                                     &output_dims,
-                                     output);
+    result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                     &weights_sum_ctx,
+                                                     &conv_params,
+                                                     &quant_params,
+                                                     &input_dims,
+                                                     input_data,
+                                                     &filter_dims,
+                                                     kernel_data,
+                                                     &bias_dims,
+                                                     bias_data,
+                                                     &output_dims,
+                                                     output);
 
     if (ctx.buf)
     {
@@ -370,7 +396,15 @@ void conv_2_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
     arm_cmsis_nn_status result = arm_convolve_s4(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -395,17 +429,18 @@ void conv_2_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    result = arm_convolve_wrapper_s4(&ctx,
-                                     &conv_params,
-                                     &quant_params,
-                                     &input_dims,
-                                     input_data,
-                                     &filter_dims,
-                                     kernel_data,
-                                     &bias_dims,
-                                     bias_data,
-                                     &output_dims,
-                                     output);
+    result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                     &weights_sum_ctx,
+                                                     &conv_params,
+                                                     &quant_params,
+                                                     &input_dims,
+                                                     input_data,
+                                                     &filter_dims,
+                                                     kernel_data,
+                                                     &bias_dims,
+                                                     bias_data,
+                                                     &output_dims,
+                                                     output);
 
     if (ctx.buf)
     {
@@ -463,7 +498,15 @@ void conv_3_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
     arm_cmsis_nn_status result = arm_convolve_s4(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -488,17 +531,18 @@ void conv_3_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    result = arm_convolve_wrapper_s4(&ctx,
-                                     &conv_params,
-                                     &quant_params,
-                                     &input_dims,
-                                     input_data,
-                                     &filter_dims,
-                                     kernel_data,
-                                     &bias_dims,
-                                     bias_data,
-                                     &output_dims,
-                                     output);
+    result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                     &weights_sum_ctx,
+                                                     &conv_params,
+                                                     &quant_params,
+                                                     &input_dims,
+                                                     input_data,
+                                                     &filter_dims,
+                                                     kernel_data,
+                                                     &bias_dims,
+                                                     bias_data,
+                                                     &output_dims,
+                                                     output);
 
     if (ctx.buf)
     {
@@ -556,7 +600,15 @@ void conv_4_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
     arm_cmsis_nn_status result = arm_convolve_s4(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -581,17 +633,18 @@ void conv_4_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    result = arm_convolve_wrapper_s4(&ctx,
-                                     &conv_params,
-                                     &quant_params,
-                                     &input_dims,
-                                     input_data,
-                                     &filter_dims,
-                                     kernel_data,
-                                     &bias_dims,
-                                     bias_data,
-                                     &output_dims,
-                                     output);
+    result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                     &weights_sum_ctx,
+                                                     &conv_params,
+                                                     &quant_params,
+                                                     &input_dims,
+                                                     input_data,
+                                                     &filter_dims,
+                                                     kernel_data,
+                                                     &bias_dims,
+                                                     bias_data,
+                                                     &output_dims,
+                                                     output);
 
     if (ctx.buf)
     {
@@ -647,17 +700,25 @@ void conv_out_activation_arm_convolve_s4(void)
     int32_t buf_size = arm_convolve_wrapper_s4_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
 
-    arm_cmsis_nn_status result = arm_convolve_wrapper_s4(&ctx,
-                                                         &conv_params,
-                                                         &quant_params,
-                                                         &input_dims,
-                                                         input_data,
-                                                         &filter_dims,
-                                                         kernel_data,
-                                                         &bias_dims,
-                                                         bias_data,
-                                                         &output_dims,
-                                                         output);
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
+    arm_cmsis_nn_status result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                                         &weights_sum_ctx,
+                                                                         &conv_params,
+                                                                         &quant_params,
+                                                                         &input_dims,
+                                                                         input_data,
+                                                                         &filter_dims,
+                                                                         kernel_data,
+                                                                         &bias_dims,
+                                                                         bias_data,
+                                                                         &output_dims,
+                                                                         output);
     if (ctx.buf)
     {
         memset(ctx.buf, 0, buf_size);
@@ -714,7 +775,15 @@ void conv_2x2_dilation_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
     arm_cmsis_nn_status result = arm_convolve_s4(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -739,17 +808,18 @@ void conv_2x2_dilation_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    result = arm_convolve_wrapper_s4(&ctx,
-                                     &conv_params,
-                                     &quant_params,
-                                     &input_dims,
-                                     input_data,
-                                     &filter_dims,
-                                     kernel_data,
-                                     &bias_dims,
-                                     bias_data,
-                                     &output_dims,
-                                     output);
+    result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                     &weights_sum_ctx,
+                                                     &conv_params,
+                                                     &quant_params,
+                                                     &input_dims,
+                                                     input_data,
+                                                     &filter_dims,
+                                                     kernel_data,
+                                                     &bias_dims,
+                                                     bias_data,
+                                                     &output_dims,
+                                                     output);
 
     if (ctx.buf)
     {
@@ -806,7 +876,15 @@ void conv_2x2_dilation_5x5_input_arm_convolve_s4(void)
     int32_t buf_size = arm_convolve_s4_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
     arm_cmsis_nn_status result = arm_convolve_s4(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -830,17 +908,18 @@ void conv_2x2_dilation_5x5_input_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    result = arm_convolve_wrapper_s4(&ctx,
-                                     &conv_params,
-                                     &quant_params,
-                                     &input_dims,
-                                     input_data,
-                                     &filter_dims,
-                                     kernel_data,
-                                     &bias_dims,
-                                     bias_data,
-                                     &output_dims,
-                                     output);
+    result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                     &weights_sum_ctx,
+                                                     &conv_params,
+                                                     &quant_params,
+                                                     &input_dims,
+                                                     input_data,
+                                                     &filter_dims,
+                                                     kernel_data,
+                                                     &bias_dims,
+                                                     bias_data,
+                                                     &output_dims,
+                                                     output);
 
     if (ctx.buf)
     {
@@ -897,7 +976,15 @@ void conv_3x3_dilation_5x5_input_arm_convolve_s4(void)
     int32_t buf_size = arm_convolve_s4_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
     arm_cmsis_nn_status result = arm_convolve_s4(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -921,17 +1008,18 @@ void conv_3x3_dilation_5x5_input_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    result = arm_convolve_wrapper_s4(&ctx,
-                                     &conv_params,
-                                     &quant_params,
-                                     &input_dims,
-                                     input_data,
-                                     &filter_dims,
-                                     kernel_data,
-                                     &bias_dims,
-                                     bias_data,
-                                     &output_dims,
-                                     output);
+    result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                     &weights_sum_ctx,
+                                                     &conv_params,
+                                                     &quant_params,
+                                                     &input_dims,
+                                                     input_data,
+                                                     &filter_dims,
+                                                     kernel_data,
+                                                     &bias_dims,
+                                                     bias_data,
+                                                     &output_dims,
+                                                     output);
 
     if (ctx.buf)
     {
@@ -988,7 +1076,15 @@ void conv_2x3_dilation_arm_convolve_s4(void)
     int32_t buf_size = arm_convolve_s4_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
     arm_cmsis_nn_status result = arm_convolve_s4(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -1012,17 +1108,18 @@ void conv_2x3_dilation_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    result = arm_convolve_wrapper_s4(&ctx,
-                                     &conv_params,
-                                     &quant_params,
-                                     &input_dims,
-                                     input_data,
-                                     &filter_dims,
-                                     kernel_data,
-                                     &bias_dims,
-                                     bias_data,
-                                     &output_dims,
-                                     output);
+    result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                     &weights_sum_ctx,
+                                                     &conv_params,
+                                                     &quant_params,
+                                                     &input_dims,
+                                                     input_data,
+                                                     &filter_dims,
+                                                     kernel_data,
+                                                     &bias_dims,
+                                                     bias_data,
+                                                     &output_dims,
+                                                     output);
 
     if (ctx.buf)
     {
@@ -1079,7 +1176,15 @@ void conv_3x2_dilation_arm_convolve_s4(void)
     int32_t buf_size = arm_convolve_s4_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
     arm_cmsis_nn_status result = arm_convolve_s4(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -1103,17 +1208,18 @@ void conv_3x2_dilation_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    result = arm_convolve_wrapper_s4(&ctx,
-                                     &conv_params,
-                                     &quant_params,
-                                     &input_dims,
-                                     input_data,
-                                     &filter_dims,
-                                     kernel_data,
-                                     &bias_dims,
-                                     bias_data,
-                                     &output_dims,
-                                     output);
+    result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                     &weights_sum_ctx,
+                                                     &conv_params,
+                                                     &quant_params,
+                                                     &input_dims,
+                                                     input_data,
+                                                     &filter_dims,
+                                                     kernel_data,
+                                                     &bias_dims,
+                                                     bias_data,
+                                                     &output_dims,
+                                                     output);
 
     if (ctx.buf)
     {
@@ -1170,7 +1276,15 @@ void conv_dilation_golden_arm_convolve_s4(void)
     int32_t buf_size = arm_convolve_s4_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
     arm_cmsis_nn_status result = arm_convolve_s4(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -1194,17 +1308,18 @@ void conv_dilation_golden_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    result = arm_convolve_wrapper_s4(&ctx,
-                                     &conv_params,
-                                     &quant_params,
-                                     &input_dims,
-                                     input_data,
-                                     &filter_dims,
-                                     kernel_data,
-                                     &bias_dims,
-                                     bias_data,
-                                     &output_dims,
-                                     output);
+    result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                     &weights_sum_ctx,
+                                                     &conv_params,
+                                                     &quant_params,
+                                                     &input_dims,
+                                                     input_data,
+                                                     &filter_dims,
+                                                     kernel_data,
+                                                     &bias_dims,
+                                                     bias_data,
+                                                     &output_dims,
+                                                     output);
 
     if (ctx.buf)
     {
@@ -1262,7 +1377,15 @@ void conv_5_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
     arm_cmsis_nn_status result = arm_convolve_s4(&ctx,
+                                                 &weights_sum_ctx,
                                                  &conv_params,
                                                  &quant_params,
                                                  &input_dims,
@@ -1287,17 +1410,18 @@ void conv_5_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    result = arm_convolve_wrapper_s4(&ctx,
-                                     &conv_params,
-                                     &quant_params,
-                                     &input_dims,
-                                     input_data,
-                                     &filter_dims,
-                                     kernel_data,
-                                     &bias_dims,
-                                     bias_data,
-                                     &output_dims,
-                                     output);
+    result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                     &weights_sum_ctx,
+                                                     &conv_params,
+                                                     &quant_params,
+                                                     &input_dims,
+                                                     input_data,
+                                                     &filter_dims,
+                                                     kernel_data,
+                                                     &bias_dims,
+                                                     bias_data,
+                                                     &output_dims,
+                                                     output);
 
     if (ctx.buf)
     {
@@ -1469,17 +1593,25 @@ void conv_1_x_n_1_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    arm_cmsis_nn_status result = arm_convolve_wrapper_s4(&ctx,
-                                                         &conv_params,
-                                                         &quant_params,
-                                                         &input_dims,
-                                                         input_data,
-                                                         &filter_dims,
-                                                         kernel_data,
-                                                         &bias_dims,
-                                                         bias_data,
-                                                         &output_dims,
-                                                         output);
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
+    arm_cmsis_nn_status result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                                         &weights_sum_ctx,
+                                                                         &conv_params,
+                                                                         &quant_params,
+                                                                         &input_dims,
+                                                                         input_data,
+                                                                         &filter_dims,
+                                                                         kernel_data,
+                                                                         &bias_dims,
+                                                                         bias_data,
+                                                                         &output_dims,
+                                                                         output);
 
     if (ctx.buf)
     {
@@ -1493,17 +1625,18 @@ void conv_1_x_n_1_arm_convolve_s4(void)
     buf_size = arm_convolve_wrapper_s4_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
 
-    result = arm_convolve_1_x_n_s4(&ctx,
-                                   &conv_params,
-                                   &quant_params,
-                                   &input_dims,
-                                   input_data,
-                                   &filter_dims,
-                                   kernel_data,
-                                   &bias_dims,
-                                   bias_data,
-                                   &output_dims,
-                                   output);
+    result = arm_convolve_1_x_n_s4_with_weight_sum(&ctx,
+                                                   &weights_sum_ctx,
+                                                   &conv_params,
+                                                   &quant_params,
+                                                   &input_dims,
+                                                   input_data,
+                                                   &filter_dims,
+                                                   kernel_data,
+                                                   &bias_dims,
+                                                   bias_data,
+                                                   &output_dims,
+                                                   output);
     if (ctx.buf)
     {
         memset(ctx.buf, 0, buf_size);
@@ -1560,17 +1693,25 @@ void conv_1_x_n_2_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    arm_cmsis_nn_status result = arm_convolve_wrapper_s4(&ctx,
-                                                         &conv_params,
-                                                         &quant_params,
-                                                         &input_dims,
-                                                         input_data,
-                                                         &filter_dims,
-                                                         kernel_data,
-                                                         &bias_dims,
-                                                         bias_data,
-                                                         &output_dims,
-                                                         output);
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
+    arm_cmsis_nn_status result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                                         &weights_sum_ctx,
+                                                                         &conv_params,
+                                                                         &quant_params,
+                                                                         &input_dims,
+                                                                         input_data,
+                                                                         &filter_dims,
+                                                                         kernel_data,
+                                                                         &bias_dims,
+                                                                         bias_data,
+                                                                         &output_dims,
+                                                                         output);
 
     if (ctx.buf)
     {
@@ -1584,17 +1725,18 @@ void conv_1_x_n_2_arm_convolve_s4(void)
 
     ctx.buf = malloc(buf_size);
 
-    result = arm_convolve_1_x_n_s4(&ctx,
-                                   &conv_params,
-                                   &quant_params,
-                                   &input_dims,
-                                   input_data,
-                                   &filter_dims,
-                                   kernel_data,
-                                   &bias_dims,
-                                   bias_data,
-                                   &output_dims,
-                                   output);
+    result = arm_convolve_1_x_n_s4_with_weight_sum(&ctx,
+                                                   &weights_sum_ctx,
+                                                   &conv_params,
+                                                   &quant_params,
+                                                   &input_dims,
+                                                   input_data,
+                                                   &filter_dims,
+                                                   kernel_data,
+                                                   &bias_dims,
+                                                   bias_data,
+                                                   &output_dims,
+                                                   output);
     if (ctx.buf)
     {
         memset(ctx.buf, 0, buf_size);
@@ -1650,17 +1792,25 @@ void conv_1_x_n_3_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    arm_cmsis_nn_status result = arm_convolve_wrapper_s4(&ctx,
-                                                         &conv_params,
-                                                         &quant_params,
-                                                         &input_dims,
-                                                         input_data,
-                                                         &filter_dims,
-                                                         kernel_data,
-                                                         &bias_dims,
-                                                         bias_data,
-                                                         &output_dims,
-                                                         output);
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
+    arm_cmsis_nn_status result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                                         &weights_sum_ctx,
+                                                                         &conv_params,
+                                                                         &quant_params,
+                                                                         &input_dims,
+                                                                         input_data,
+                                                                         &filter_dims,
+                                                                         kernel_data,
+                                                                         &bias_dims,
+                                                                         bias_data,
+                                                                         &output_dims,
+                                                                         output);
 
     if (ctx.buf)
     {
@@ -1674,17 +1824,18 @@ void conv_1_x_n_3_arm_convolve_s4(void)
     buf_size = arm_convolve_wrapper_s4_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
 
-    result = arm_convolve_1_x_n_s4(&ctx,
-                                   &conv_params,
-                                   &quant_params,
-                                   &input_dims,
-                                   input_data,
-                                   &filter_dims,
-                                   kernel_data,
-                                   &bias_dims,
-                                   bias_data,
-                                   &output_dims,
-                                   output);
+    result = arm_convolve_1_x_n_s4_with_weight_sum(&ctx,
+                                                   &weights_sum_ctx,
+                                                   &conv_params,
+                                                   &quant_params,
+                                                   &input_dims,
+                                                   input_data,
+                                                   &filter_dims,
+                                                   kernel_data,
+                                                   &bias_dims,
+                                                   bias_data,
+                                                   &output_dims,
+                                                   output);
     if (ctx.buf)
     {
         memset(ctx.buf, 0, buf_size);
@@ -1742,17 +1893,25 @@ void conv_1_x_n_4_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    arm_cmsis_nn_status result = arm_convolve_wrapper_s4(&ctx,
-                                                         &conv_params,
-                                                         &quant_params,
-                                                         &input_dims,
-                                                         input_data,
-                                                         &filter_dims,
-                                                         kernel_data,
-                                                         &bias_dims,
-                                                         bias_data,
-                                                         &output_dims,
-                                                         output);
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+
+    arm_cmsis_nn_status result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                                         &weights_sum_ctx,
+                                                                         &conv_params,
+                                                                         &quant_params,
+                                                                         &input_dims,
+                                                                         input_data,
+                                                                         &filter_dims,
+                                                                         kernel_data,
+                                                                         &bias_dims,
+                                                                         bias_data,
+                                                                         &output_dims,
+                                                                         output);
 
     if (ctx.buf)
     {
@@ -1767,17 +1926,18 @@ void conv_1_x_n_4_arm_convolve_s4(void)
 
     ctx.buf = malloc(buf_size);
 
-    result = arm_convolve_1_x_n_s4(&ctx,
-                                   &conv_params,
-                                   &quant_params,
-                                   &input_dims,
-                                   input_data,
-                                   &filter_dims,
-                                   kernel_data,
-                                   &bias_dims,
-                                   bias_data,
-                                   &output_dims,
-                                   output);
+    result = arm_convolve_1_x_n_s4_with_weight_sum(&ctx,
+                                                   &weights_sum_ctx,
+                                                   &conv_params,
+                                                   &quant_params,
+                                                   &input_dims,
+                                                   input_data,
+                                                   &filter_dims,
+                                                   kernel_data,
+                                                   &bias_dims,
+                                                   bias_data,
+                                                   &output_dims,
+                                                   output);
     if (ctx.buf)
     {
         memset(ctx.buf, 0, buf_size);
@@ -1834,17 +1994,24 @@ void conv_1_x_n_5_arm_convolve_s4(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
-    arm_cmsis_nn_status result = arm_convolve_wrapper_s4(&ctx,
-                                                         &conv_params,
-                                                         &quant_params,
-                                                         &input_dims,
-                                                         input_data,
-                                                         &filter_dims,
-                                                         kernel_data,
-                                                         &bias_dims,
-                                                         bias_data,
-                                                         &output_dims,
-                                                         output);
+    int32_t weights_sum_buf[output_dims.c];
+    cmsis_nn_context weights_sum_ctx = {weights_sum_buf, (int32_t)sizeof(weights_sum_buf)};
+    uint32_t lhs_offset = conv_params.input_offset;
+
+    arm_convolve_weight_sum_s4(
+        (int32_t *)weights_sum_ctx.buf, kernel_data, &input_dims, &filter_dims, &output_dims, lhs_offset, bias_data);
+    arm_cmsis_nn_status result = arm_convolve_wrapper_s4_with_weight_sum(&ctx,
+                                                                         &weights_sum_ctx,
+                                                                         &conv_params,
+                                                                         &quant_params,
+                                                                         &input_dims,
+                                                                         input_data,
+                                                                         &filter_dims,
+                                                                         kernel_data,
+                                                                         &bias_dims,
+                                                                         bias_data,
+                                                                         &output_dims,
+                                                                         output);
 
     if (ctx.buf)
     {
@@ -1857,17 +2024,18 @@ void conv_1_x_n_5_arm_convolve_s4(void)
     buf_size = arm_convolve_wrapper_s4_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
 
-    result = arm_convolve_1_x_n_s4(&ctx,
-                                   &conv_params,
-                                   &quant_params,
-                                   &input_dims,
-                                   input_data,
-                                   &filter_dims,
-                                   kernel_data,
-                                   &bias_dims,
-                                   bias_data,
-                                   &output_dims,
-                                   output);
+    result = arm_convolve_1_x_n_s4_with_weight_sum(&ctx,
+                                                   &weights_sum_ctx,
+                                                   &conv_params,
+                                                   &quant_params,
+                                                   &input_dims,
+                                                   input_data,
+                                                   &filter_dims,
+                                                   kernel_data,
+                                                   &bias_dims,
+                                                   bias_data,
+                                                   &output_dims,
+                                                   output);
     if (ctx.buf)
     {
         memset(ctx.buf, 0, buf_size);
@@ -1875,4 +2043,108 @@ void conv_1_x_n_5_arm_convolve_s4(void)
     }
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
     TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
+}
+
+void convolve_int4_weight_presum_s4(void)
+{
+    const cmsis_nn_dims input_dims = {.n = 1, .w = 1, .h = 1, .c = 3};
+    const cmsis_nn_dims filter_dims = {.n = 2, .w = 1, .h = 1, .c = 3};
+    const cmsis_nn_dims out_dims = {.n = 1, .w = 1, .h = 1, .c = 2};
+
+    const int32_t bias[2] = {10, 20};
+    const int32_t lhs_offset = 5;
+    int8_t weights_s4[3];
+    weights_s4[0] = (int8_t)((1 & 0x0F) | ((2 & 0x0F) << 4));
+    weights_s4[1] = (int8_t)((3 & 0x0F) | ((4 & 0x0F) << 4));
+    weights_s4[2] = (int8_t)((5 & 0x0F) | ((6 & 0x0F) << 4));
+
+    int32_t sum_buf[2] = {0, 0};
+
+    arm_cmsis_nn_status result =
+        arm_convolve_weight_sum_s4(sum_buf, weights_s4, &input_dims, &filter_dims, &out_dims, lhs_offset, bias);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+    const int32_t expected[2] = {40, 95};
+    TEST_ASSERT_EQUAL_INT32_ARRAY(expected, sum_buf, 2);
+}
+
+void convolve_s4_fallback_and_context_validation(void)
+{
+    const cmsis_nn_dims input_dims = {.n = 1, .h = 1, .w = 1, .c = 2};
+    const cmsis_nn_dims filter_dims = {.n = 1, .h = 1, .w = 1, .c = 2};
+    const cmsis_nn_dims bias_dims = {0};
+    const cmsis_nn_dims output_dims = {.n = 1, .h = 1, .w = 1, .c = 1};
+    const int8_t input_data[2] = {3, -4};
+    const int8_t filter_data[1] = {0x21};
+    const int32_t multiplier[1] = {1073741824};
+    const int32_t shift[1] = {1};
+    int16_t scratch[4] = {0};
+    cmsis_nn_context ctx = {scratch, (int32_t)sizeof(scratch)};
+    cmsis_nn_conv_params conv_params = {0};
+    cmsis_nn_per_channel_quant_params quant_params = {
+        .multiplier = (int32_t *)multiplier,
+        .shift = (int32_t *)shift,
+    };
+    int8_t fallback_output[1] = {0};
+    int8_t weight_sum_output[1] = {0};
+    int8_t undersized_output[1] = {0};
+
+    conv_params.stride.h = 1;
+    conv_params.stride.w = 1;
+    conv_params.dilation.h = 1;
+    conv_params.dilation.w = 1;
+    conv_params.input_offset = 5;
+    conv_params.activation.min = -128;
+    conv_params.activation.max = 127;
+
+    arm_cmsis_nn_status result = arm_convolve_s4(&ctx,
+                                                 NULL,
+                                                 &conv_params,
+                                                 &quant_params,
+                                                 &input_dims,
+                                                 input_data,
+                                                 &filter_dims,
+                                                 filter_data,
+                                                 &bias_dims,
+                                                 NULL,
+                                                 &output_dims,
+                                                 fallback_output);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+
+    int32_t weight_sum_buf[1] = {0};
+    result = arm_convolve_weight_sum_s4(
+        weight_sum_buf, filter_data, &input_dims, &filter_dims, &output_dims, conv_params.input_offset, NULL);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+
+    cmsis_nn_context weight_sum_ctx = {weight_sum_buf, (int32_t)sizeof(weight_sum_buf)};
+    result = arm_convolve_s4(&ctx,
+                             &weight_sum_ctx,
+                             &conv_params,
+                             &quant_params,
+                             &input_dims,
+                             input_data,
+                             &filter_dims,
+                             filter_data,
+                             &bias_dims,
+                             NULL,
+                             &output_dims,
+                             weight_sum_output);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+    TEST_ASSERT_EQUAL_INT8(fallback_output[0], weight_sum_output[0]);
+
+    weight_sum_ctx.size = (int32_t)sizeof(weight_sum_buf) - 1;
+    result = arm_convolve_s4(&ctx,
+                             &weight_sum_ctx,
+                             &conv_params,
+                             &quant_params,
+                             &input_dims,
+                             input_data,
+                             &filter_dims,
+                             filter_data,
+                             &bias_dims,
+                             NULL,
+                             &output_dims,
+                             undersized_output);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+    TEST_ASSERT_EQUAL_INT8(fallback_output[0], undersized_output[0]);
 }

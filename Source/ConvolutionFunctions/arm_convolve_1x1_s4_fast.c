@@ -59,6 +59,33 @@ arm_cmsis_nn_status arm_convolve_1x1_s4_fast(const cmsis_nn_context *ctx,
                                              const cmsis_nn_dims *output_dims,
                                              int8_t *output_data)
 {
+    return arm_convolve_1x1_s4_fast_with_weight_sum(ctx,
+                                                    NULL,
+                                                    conv_params,
+                                                    quant_params,
+                                                    input_dims,
+                                                    input_data,
+                                                    filter_dims,
+                                                    filter_data,
+                                                    bias_dims,
+                                                    bias_data,
+                                                    output_dims,
+                                                    output_data);
+}
+
+arm_cmsis_nn_status arm_convolve_1x1_s4_fast_with_weight_sum(const cmsis_nn_context *ctx,
+                                                             const cmsis_nn_context *weight_sum_ctx,
+                                                             const cmsis_nn_conv_params *conv_params,
+                                                             const cmsis_nn_per_channel_quant_params *quant_params,
+                                                             const cmsis_nn_dims *input_dims,
+                                                             const int8_t *input_data,
+                                                             const cmsis_nn_dims *filter_dims,
+                                                             const int8_t *filter_data,
+                                                             const cmsis_nn_dims *bias_dims,
+                                                             const int32_t *bias_data,
+                                                             const cmsis_nn_dims *output_dims,
+                                                             int8_t *output_data)
+{
     if (conv_params->padding.w != 0 || conv_params->padding.h != 0 || conv_params->stride.w != 1 ||
         conv_params->stride.h != 1)
     {
@@ -68,27 +95,34 @@ arm_cmsis_nn_status arm_convolve_1x1_s4_fast(const cmsis_nn_context *ctx,
     (void)ctx;
     (void)filter_dims;
     (void)bias_dims;
-
     const int32_t lhs_rows = input_dims->w * input_dims->h * input_dims->n;
     const int32_t rhs_rows = output_dims->c;
     const int32_t rhs_cols = input_dims->c;
 
+    const int32_t *eff_bias = bias_data;
+    int32_t eff_input_offset = conv_params->input_offset;
+    const int32_t required_weight_sum_size = rhs_rows * (int32_t)sizeof(int32_t);
+    if (weight_sum_ctx && weight_sum_ctx->buf && weight_sum_ctx->size >= required_weight_sum_size)
+    {
+        eff_bias = (const int32_t *)weight_sum_ctx->buf;
+        eff_input_offset = 0;
+    }
+
     arm_nn_mat_mult_nt_t_s4(input_data,
                             filter_data,
-                            bias_data,
+                            eff_bias,
                             output_data,
                             quant_params->multiplier,
                             quant_params->shift,
                             lhs_rows,
                             rhs_rows,
                             rhs_cols,
-                            conv_params->input_offset,
+                            eff_input_offset,
                             conv_params->output_offset,
                             conv_params->activation.min,
                             conv_params->activation.max,
                             rhs_cols);
 
-    /* Return to application */
     return ARM_CMSIS_NN_SUCCESS;
 }
 
