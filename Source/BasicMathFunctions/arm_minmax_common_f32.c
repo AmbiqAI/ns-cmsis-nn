@@ -40,10 +40,14 @@ static int32_t arm_check_broadcast_required_f32(const cmsis_nn_dims *shape_1, co
     return 0;
 }
 
+/* Scalar-path helper: only referenced from the #else branches of the loops
+ * below, so keep it out of MVE builds (-Wunused-function, issue #246). */
+#if !defined(ARM_MATH_MVEF) || defined(ARM_MATH_AUTOVECTORIZE)
 static float32_t arm_minmax_select_f32(float32_t a, float32_t b, int32_t select_max)
 {
     return (a >= b) ? (select_max ? a : b) : (select_max ? b : a);
 }
+#endif
 
 static arm_cmsis_nn_status arm_minmax_no_broadcast_f32(const float32_t *input_1,
                                                        const float32_t *input_2,

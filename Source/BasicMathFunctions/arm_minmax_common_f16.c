@@ -40,11 +40,32 @@ static int32_t arm_check_broadcast_required_f16(const cmsis_nn_dims *shape_1, co
     return 0;
 }
 
+/* Scalar-path helper: only referenced from the #else branches of the loops
+ * below, so keep it out of MVE builds (-Wunused-function, issue #246). */
+#if !defined(ARM_MATH_MVE_FLOAT16) || defined(ARM_MATH_AUTOVECTORIZE)
 static float16_t arm_minmax_select_f16(float16_t a, float16_t b, int32_t select_max)
 {
-    return ((_Float16)a >= (_Float16)b) ? (select_max ? (_Float16)a : (_Float16)b)
-                                        : (select_max ? (_Float16)b : (_Float16)a);
+    /* Bitwise select (the arm_nn_propagate_nan_f16h idiom): a _Float16 ternary
+     * here becomes an HFmode conditional move that ICEs GCC 14.3 at -O3
+     * (PR target/118460) — even when written as a float32 select, since GCC
+     * narrows a select of exactly-round-tripped halves back to HFmode. The
+     * mask form has no FP select at all, and returns the chosen operand's
+     * exact bits. Kept self-contained instead of using the arm_nn_*_f16h
+     * helpers because this file must also compile with ARM_NN_ENABLE_F16=0,
+     * where those helpers are gated out. */
+    uint16_t a_bits, b_bits;
+    memcpy(&a_bits, &a, sizeof(a_bits));
+    memcpy(&b_bits, &b, sizeof(b_bits));
+
+    const int32_t a_ge_b = ((float32_t)a >= (float32_t)b);
+    const uint16_t pick_a = (uint16_t)(0U - (uint32_t)(a_ge_b == (select_max != 0)));
+    const uint16_t r_bits = (uint16_t)((a_bits & pick_a) | (b_bits & (uint16_t)~pick_a));
+
+    float16_t r;
+    memcpy(&r, &r_bits, sizeof(r));
+    return r;
 }
+#endif
 
 static arm_cmsis_nn_status arm_minmax_no_broadcast_f16(const float16_t *input_1,
                                                        const float16_t *input_2,
