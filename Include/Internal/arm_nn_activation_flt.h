@@ -190,26 +190,29 @@ arm_nn_vector_clamp_f32(float32_t *data, int32_t block_size, float32_t activatio
 
 __STATIC_INLINE float16_t arm_nn_clamp_scalar_f16(float16_t x, float16_t min_v, float16_t max_v)
 {
-    const _Float16 xh = (_Float16)x;
-    const _Float16 min_h = (_Float16)min_v;
-    const _Float16 max_h = (_Float16)max_v;
-    const _Float16 y = (xh < min_h) ? min_h : ((xh > max_h) ? max_h : xh);
+    /* NaN propagates (TFLite semantics), matching arm_nn_clamp_scalar_f32 and
+     * the MVE path in arm_nn_clamp_propagate_nan_mve_f16(). Bounds are assumed
+     * ordered; inverted bounds are unspecified. */
+    const _Float16 y = arm_nn_clamp_propagate_nan_f16h((_Float16)x, (_Float16)min_v, (_Float16)max_v);
     return (float16_t)y;
 }
 
 __STATIC_INLINE float16_t arm_nn_hardswish_scalar_f16(float16_t x)
 {
     _Float16 t = (_Float16)x * (_Float16)(1.0f / 6.0f) + (_Float16)0.5f;
-    t = CLAMP(t, (_Float16)1.0f, (_Float16)0.0f);
+    t = arm_nn_clamp_f16h(t, (_Float16)1.0f, (_Float16)0.0f);
     return (float16_t)((_Float16)x * t);
 }
 
 __STATIC_INLINE float16_t arm_nn_tanh_scalar_ref_f16(float16_t x)
 {
-    const _Float16 ax = ((_Float16)x < (_Float16)0.0f) ? -(_Float16)x : (_Float16)x;
+    const _Float16 ax = arm_nn_abs_f16h((_Float16)x);
     if (ax > (_Float16)arm_nn_tanh_approx_coeffs_f16[0])
     {
-        return ((_Float16)x < (_Float16)0.0f) ? (_Float16)-1.0f : (_Float16)1.0f;
+        /* Select the saturation sign in float32: SFmode conditional moves are
+         * unaffected by GCC PR target/118460 (HFmode only). */
+        const float32_t sign = ((float32_t)(_Float16)x < 0.0f) ? -1.0f : 1.0f;
+        return (float16_t)(_Float16)sign;
     }
 
     const _Float16 x2 = (_Float16)x * (_Float16)x;
@@ -245,17 +248,21 @@ __STATIC_INLINE float16_t arm_nn_apply_activation_type_f16(float16_t x,
     case ARM_NN_FLT_ACT_SIGMOID:
         return arm_nn_sigmoid_scalar_f16(x);
     case ARM_NN_FLT_ACT_RELU:
-        return (float16_t)((_Float16)x < (_Float16)0.0f ? (_Float16)0.0f : (_Float16)x);
-    case ARM_NN_FLT_ACT_RELU6: {
-        const float16_t y = ((_Float16)x < (_Float16)0.0f) ? (_Float16)0.0f : (_Float16)x;
-        return (float16_t)((_Float16)y > (_Float16)6.0f ? (_Float16)6.0f : (_Float16)y);
-    }
+        /* NaN propagates, matching the f32 path and the TFLite reference. */
+        return (float16_t)arm_nn_propagate_nan_f16h((_Float16)x, arm_nn_max_f16h((_Float16)x, (_Float16)0.0f));
+    case ARM_NN_FLT_ACT_RELU6:
+        return (float16_t)arm_nn_clamp_propagate_nan_f16h((_Float16)x, (_Float16)0.0f, (_Float16)6.0f);
     case ARM_NN_FLT_ACT_TANH:
         return arm_nn_tanh_scalar_ref_f16(x);
     case ARM_NN_FLT_ACT_HARDSWISH:
         return arm_nn_hardswish_scalar_f16(x);
-    case ARM_NN_FLT_ACT_LEAKY_RELU:
-        return (float16_t)((_Float16)x >= (_Float16)0.0f ? (_Float16)x : (_Float16)((_Float16)act_param * (_Float16)x));
+    case ARM_NN_FLT_ACT_LEAKY_RELU: {
+        /* max(x, 0) + alpha * min(x, 0) avoids a scalar _Float16 conditional select (GCC PR target/118460).
+         * vmaxnm/vminnm suppress NaN, so restore it to match the f32 path. */
+        const _Float16 pos = arm_nn_max_f16h((_Float16)x, (_Float16)0.0f);
+        const _Float16 neg = arm_nn_min_f16h((_Float16)x, (_Float16)0.0f);
+        return (float16_t)arm_nn_propagate_nan_f16h((_Float16)x, pos + (_Float16)act_param * neg);
+    }
     default:
         return x;
     }

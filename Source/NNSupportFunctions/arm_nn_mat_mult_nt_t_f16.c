@@ -199,7 +199,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
             acc += (_Float16)dot_nt_t_f16_scalar(lhs_row, rhs_row, rhs_cols);
     #endif
 
-            dst_row[c] = (float16_t)CLAMP(acc, (_Float16)activation_max, (_Float16)activation_min);
+            dst_row[c] = (float16_t)arm_nn_clamp_f16h(acc, (_Float16)activation_max, (_Float16)activation_min);
         }
     }
 

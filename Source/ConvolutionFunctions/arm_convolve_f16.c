@@ -397,7 +397,8 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                         }
                     }
 
-                    acc = CLAMP(acc, (_Float16)conv_params->activation.max, (_Float16)conv_params->activation.min);
+                    acc = arm_nn_clamp_f16h(
+                        acc, (_Float16)conv_params->activation.max, (_Float16)conv_params->activation.min);
                     output_b[((size_t)out_y * output_w + (size_t)out_x) * output_c + (size_t)oc] = (float16_t)acc;
                 }
             }

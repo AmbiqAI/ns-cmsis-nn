@@ -232,7 +232,7 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_f16(const float16_t *__RESTRICT l
                 const float16_t *rhs_val = rhs + (size_t)k * total_ch + cc;
                 acc += (_Float16)(*lhs_val) * (_Float16)(*rhs_val);
             }
-            out_row[cc] = (float16_t)CLAMP(acc, (_Float16)activation_max, (_Float16)activation_min);
+            out_row[cc] = (float16_t)arm_nn_clamp_f16h(acc, (_Float16)activation_max, (_Float16)activation_min);
         }
     }
 

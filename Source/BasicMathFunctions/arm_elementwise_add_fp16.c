@@ -88,8 +88,9 @@ arm_cmsis_nn_status arm_elementwise_add_fp16(const float16_t *input_1_vect,
     for (int32_t i = 0; i < block_size; i++)
     {
         sum = input_1_vect[i] + input_2_vect[i];
-        sum = MAX(sum, out_activation_min);
-        sum = MIN(sum, out_activation_max);
+        /* Clamp in the same order as the MVE path above (upper bound first), which
+         * also keeps this kernel off the GCC PR target/118460 HFmode cmov path. */
+        sum = (float16_t)arm_nn_clamp_f16h((_Float16)sum, (_Float16)out_activation_max, (_Float16)out_activation_min);
         output[i] = sum;
     }
     return (ARM_CMSIS_NN_SUCCESS);

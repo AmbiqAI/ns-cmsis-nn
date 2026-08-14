@@ -575,7 +575,8 @@ static void arm_depthwise_conv_f16_generic(const float16_t *input,
                             }
                         }
 
-                        acc_0 = CLAMP(acc_0, (_Float16)output_activation_max, (_Float16)output_activation_min);
+                        acc_0 =
+                            arm_nn_clamp_f16h(acc_0, (_Float16)output_activation_max, (_Float16)output_activation_min);
                         const int32_t out_idx =
                             arm_depthwise_conv_output_index_nhwc(i_out_x, i_out_y, idx_out_ch, output_x, output_ch);
                         output_b[out_idx] = (float16_t)acc_0;

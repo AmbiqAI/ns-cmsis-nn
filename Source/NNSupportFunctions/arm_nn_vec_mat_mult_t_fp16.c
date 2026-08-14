@@ -128,10 +128,14 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(const float16_t *lhs,
         }
 
         // Clamp results to the activation range.
-        sum0 = MIN(MAX(sum0, activation_min), activation_max);
-        sum1 = MIN(MAX(sum1, activation_min), activation_max);
-        sum2 = MIN(MAX(sum2, activation_min), activation_max);
-        sum3 = MIN(MAX(sum3, activation_min), activation_max);
+        sum0 = (float16_t)arm_nn_clamp_propagate_nan_f16h(
+            (_Float16)sum0, (_Float16)activation_min, (_Float16)activation_max);
+        sum1 = (float16_t)arm_nn_clamp_propagate_nan_f16h(
+            (_Float16)sum1, (_Float16)activation_min, (_Float16)activation_max);
+        sum2 = (float16_t)arm_nn_clamp_propagate_nan_f16h(
+            (_Float16)sum2, (_Float16)activation_min, (_Float16)activation_max);
+        sum3 = (float16_t)arm_nn_clamp_propagate_nan_f16h(
+            (_Float16)sum3, (_Float16)activation_min, (_Float16)activation_max);
 
         // Store the four results.
         *dst++ = sum0;
@@ -167,7 +171,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(const float16_t *lhs,
         {
             sum += *bias++;
         }
-        sum = MIN(MAX(sum, activation_min), activation_max);
+        sum = (float16_t)arm_nn_clamp_propagate_nan_f16h(
+            (_Float16)sum, (_Float16)activation_min, (_Float16)activation_max);
         *dst++ = sum;
     }
 
@@ -209,8 +214,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(const float16_t *lhs,
             sum += bias[i];
         }
 
-        sum = MAX(sum, activation_min);
-        sum = MIN(sum, activation_max);
+        sum = (float16_t)arm_nn_clamp_propagate_nan_f16h(
+            (_Float16)sum, (_Float16)activation_min, (_Float16)activation_max);
 
         dst[i] = sum;
     }

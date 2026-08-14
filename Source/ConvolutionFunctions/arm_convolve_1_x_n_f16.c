@@ -176,7 +176,7 @@ __STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mult_nt_t_strided_f16
             const float16_t *rhs_row = rhs + (size_t)c * rhs_cols;
             _Float16 acc = bias ? (_Float16)bias[c] : (_Float16)0.0f;
             acc += (_Float16)arm_convolve_1_x_n_dot_f16(lhs_row, rhs_row, rhs_cols);
-            dst_row[c] = (float16_t)(_Float16)CLAMP(acc, (_Float16)activation_max, (_Float16)activation_min);
+            dst_row[c] = (float16_t)arm_nn_clamp_f16h(acc, (_Float16)activation_max, (_Float16)activation_min);
         }
     }
 

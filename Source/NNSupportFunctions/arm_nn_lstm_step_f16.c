@@ -184,7 +184,7 @@ arm_cmsis_nn_status arm_nn_lstm_step_f16(const float16_t *data_in,
             if (cell_clip > (_Float16)0.0f)
             {
                 const _Float16 clip = (_Float16)cell_clip;
-                c = CLAMP(c, clip, -clip);
+                c = arm_nn_clamp_f16h(c, clip, -clip);
             }
             c_prev[h] = (float16_t)c;
             h_out[h] = (float16_t)((_Float16)o * (_Float16)arm_nn_tanh_scalar_ref_f16((float16_t)c));
