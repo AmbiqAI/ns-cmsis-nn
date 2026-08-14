@@ -37,6 +37,19 @@ break the embedded build. When writing SIMD paths:
 - If an intrinsic you want isn't used anywhere in `Source/` or
   `Include/Internal/`, treat that as a red flag and verify it exists in
   `arm_mve.h` before using it.
+- **No scalar `_Float16` conditional selects**: GCC 14.x ICEs on HFmode
+  conditional moves (ternary / `MIN` / `MAX` / `CLAMP` on `_Float16` — GCC
+  PR target/118460); auto-vectorization at `-O3` can synthesize one even
+  from code 14.2 accepts (seen on 14.3). For min/max/clamp/abs use the
+  `arm_nn_*_f16h` helpers in `arm_nnsupportfunctions.h` — but note they are
+  gated on `ARM_NN_ENABLE_F16`, so a file that must also compile with F16
+  disabled (e.g. `arm_minmax_common_f16.c`) cannot use them. For a general
+  two-way select, or when the helpers are out of reach, use a **bitwise mask
+  select** (the `arm_nn_propagate_nan_f16h` idiom: memcpy to `uint16_t`,
+  mask from the comparison, recombine) — see `arm_prelu_select_f16` /
+  `arm_minmax_select_f16`. Doing the select in `float32` is NOT a fix when
+  both arms are round-tripped halves: GCC narrows it back to HFmode and
+  still ICEs (observed on 14.3 at `-O3`).
 
 ## Adding a kernel: three build manifests + header
 
