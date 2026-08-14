@@ -66,9 +66,14 @@ extern "C" {
  * -O1 or higher: the broken movhfcc expander emits a vsel-form if_then_else
  * that the backend's own recognizer rejects. Route scalar f16 min/max/clamp
  * through VMINNM.F16/VMAXNM.F16 inline assembly instead, which bypasses the
- * expander entirely and is the optimal codegen anyway. NaN semantics match
- * the C fallback below for the clamp use case (a NaN accumulator resolves
- * to the max-activation bound in both).
+ * expander entirely and is the optimal codegen anyway.
+ *
+ * Version gate: 12.2/13.2/13.3 are clean, 14.2/14.3 ICE, and Arm GNU
+ * Toolchain 15.2.Rel1 (build 20251203) is clean because it carries the
+ * backport (r15-10491/2). FSF 15.1 and pre-backport 15.x builds still ICE,
+ * so the gate deliberately stays at __GNUC__ < 16 rather than < 15: it is
+ * conservative for fixed 15.x builds, where the asm path is still equal or
+ * better codegen than the compiler's native vminnm/vmaxnm sequence.
  */
 #if defined(__GNUC__) && !defined(__clang__) && (__GNUC__ >= 14) && (__GNUC__ < 16) &&                                 \
     defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
@@ -76,6 +81,8 @@ extern "C" {
 #endif
 
 #if ARM_NN_ENABLE_F16
+/* IEEE 754 minNum/maxNum: NaN operands are suppressed (the non-NaN operand
+ * wins), matching both VMINNM.F16/VMAXNM.F16 and the MIN/MAX fallback. */
 __STATIC_FORCEINLINE _Float16 arm_nn_min_f16h(_Float16 a, _Float16 b)
 {
     #if defined(ARM_NN_F16_CMOV_WORKAROUND)
@@ -98,10 +105,46 @@ __STATIC_FORCEINLINE _Float16 arm_nn_max_f16h(_Float16 a, _Float16 b)
     #endif
 }
 
-/* Drop-in equivalent of CLAMP(x, h, l) for scalar _Float16 operands. */
+/*
+ * Returns x when x is NaN, otherwise y. The select is performed on the bit
+ * patterns so that it neither expands to an HFmode conditional move (PR
+ * target/118460) nor quiets/retags the NaN payload.
+ */
+__STATIC_FORCEINLINE _Float16 arm_nn_propagate_nan_f16h(_Float16 x, _Float16 y)
+{
+    uint16_t x_bits, y_bits, r_bits;
+    memcpy(&x_bits, &x, sizeof(x_bits));
+    memcpy(&y_bits, &y, sizeof(y_bits));
+
+    const uint16_t nan_mask = (uint16_t)(0U - (uint32_t)(x != x));
+    r_bits = (uint16_t)((x_bits & nan_mask) | (y_bits & (uint16_t)~nan_mask));
+
+    _Float16 r;
+    memcpy(&r, &r_bits, sizeof(r));
+    return r;
+}
+
+/*
+ * Drop-in equivalent of CLAMP(x, h, l) for scalar _Float16 operands,
+ * including its NaN behaviour: MIN(NaN, h) is h, so a NaN input resolves to
+ * the high bound, exactly as the macro does. Use
+ * arm_nn_clamp_propagate_nan_f16h() where TFLite NaN propagation is required.
+ */
 __STATIC_FORCEINLINE _Float16 arm_nn_clamp_f16h(_Float16 x, _Float16 h, _Float16 l)
 {
     return arm_nn_max_f16h(arm_nn_min_f16h(x, h), l);
+}
+
+/*
+ * Clamp with TFLite NaN semantics: NaN passes through unchanged. Mirrors the
+ * MVE idiom in arm_nn_clamp_propagate_nan_mve_f16() (lower bound first, then
+ * upper bound, then restore NaN lanes). Bounds are assumed ordered
+ * (l <= h); inverted bounds are unspecified.
+ */
+__STATIC_FORCEINLINE _Float16 arm_nn_clamp_propagate_nan_f16h(_Float16 x, _Float16 l, _Float16 h)
+{
+    const _Float16 y = arm_nn_min_f16h(arm_nn_max_f16h(x, l), h);
+    return arm_nn_propagate_nan_f16h(x, y);
 }
 
 __STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)

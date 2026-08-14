@@ -30,4 +30,5 @@ void setUp(void)
 void tearDown(void) {}
 
 void test_sub_f16_arm_elementwise_sub_f16(void) { sub_f16_arm_elementwise_sub_f16(); }
+void test_sub_f16_nan_inf_arm_elementwise_sub_f16(void) { sub_f16_nan_inf_arm_elementwise_sub_f16(); }
 void test_sub_f16_arg_error_arm_elementwise_sub_f16(void) { sub_f16_arg_error_arm_elementwise_sub_f16(); }
