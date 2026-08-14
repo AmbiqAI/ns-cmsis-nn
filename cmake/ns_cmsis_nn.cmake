@@ -173,6 +173,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     set(subdir   "LSTMFunctions")
     set(patterns "*_s8.c" "*_s16.c")
     if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_gru_unidirectional_f32.c")
       list(APPEND extras "arm_lstm_unidirectional_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
@@ -200,6 +201,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_nn_depthwise_conv_nt_t_f32.c"
                          "arm_nn_maxpool1d_f32.c"
                          "arm_nn_pack_conv_patch_f32.c"
+                         "arm_nn_gru_step_f32.c"
                          "arm_nn_lstm_step_f32.c"
                          "arm_nn_mat_mult_nt_t_f32.c"
                          "arm_nn_mat_mult_nt_n_packed_f32.c")
