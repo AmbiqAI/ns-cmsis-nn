@@ -58,6 +58,14 @@ arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    // Reject non-positive dimensions: a negative size would otherwise reach
+    // (size_t)h * (size_t)size pointer arithmetic (wraps; formal UB) and
+    // return SUCCESS with garbage or no output at all. time_steps == 0 stays
+    // legal: a zero-length streaming chunk is a well-defined no-op.
+    if (params->batch_size < 1 || params->time_steps < 0 || params->input_size < 1 || params->hidden_size < 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     // The pre-reset formulation needs scratch; reset-after does not.
     if (!params->reset_after && (!buffers || !buffers->temp1))
     {

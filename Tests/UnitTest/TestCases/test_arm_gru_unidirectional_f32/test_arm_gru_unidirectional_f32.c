@@ -44,6 +44,14 @@
         }                                                                                                              \
     }
 
+/*
+ * Tolerance rationale: measured kernel error on these cases is <= 2.1e-5,
+ * dominated by the shared tanh 256-entry LUT (2.35e-5 max inside |x| <= 4).
+ * 1e-4 is valid because every candidate pre-activation in these goldens stays
+ * below 2.9 — inside the LUT window. The helper clamps to exactly +/-1.0 for
+ * |x| > 4 (a 6.1e-4 step, see issue #250), so a larger-layer case whose
+ * pre-activations cross 4 would need a proportionally larger tolerance.
+ */
 RUN_GRU_F32_CASE(GRU_SMALL_F32, gru_small_f32, 1.0e-4f)
 
 /* Time-major layout (input [time, batch, feature]): exercises the
@@ -118,9 +126,11 @@ void gru_stream_f32_arm_gru_unidirectional_f32(void)
 
 /*
  * Pre-reset case (reset_after == 0): the reset gate is applied before the
- * recurrent matmul, which requires the buffers->temp1 scratch. Validates both
- * the argument-error path (missing temp1) and numerical correctness against a
- * Keras GRU(reset_after=False) reference.
+ * recurrent matmul, which requires the buffers->temp1 scratch. Validates the
+ * argument-error paths (missing temp1, non-positive dimensions) and numerical
+ * correctness against a float64 reference of the pre-reset formulation.
+ * Note: this is a superset of Keras GRU(reset_after=False), which has no
+ * recurrent biases in that mode; the kernel (and this golden) keep them.
  */
 void gru_prereset_f32_arm_gru_unidirectional_f32(void)
 {
@@ -153,6 +163,25 @@ void gru_prereset_f32_arm_gru_unidirectional_f32(void)
                       arm_gru_unidirectional_f32(gru_prereset_f32_input, output, &params, &no_scratch));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_gru_unidirectional_f32(gru_prereset_f32_input, output, &params, NULL));
+
+    /* Non-positive dimensions must be rejected, not silently produce output. */
+    cmsis_nn_gru_context_f32 scratch_ok = {.temp1 = temp1, .hidden_state = NULL};
+    cmsis_nn_gru_params_f32 bad = params;
+    bad.input_size = -5;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_gru_unidirectional_f32(gru_prereset_f32_input, output, &bad, &scratch_ok));
+    bad = params;
+    bad.hidden_size = 0;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_gru_unidirectional_f32(gru_prereset_f32_input, output, &bad, &scratch_ok));
+    bad = params;
+    bad.batch_size = 0;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_gru_unidirectional_f32(gru_prereset_f32_input, output, &bad, &scratch_ok));
+    bad = params;
+    bad.time_steps = -1;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_gru_unidirectional_f32(gru_prereset_f32_input, output, &bad, &scratch_ok));
 
     /* With scratch: succeeds and matches the reference. */
     cmsis_nn_gru_context_f32 buffers = {.temp1 = temp1, .hidden_state = NULL};

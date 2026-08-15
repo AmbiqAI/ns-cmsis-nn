@@ -962,7 +962,9 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f32(const float32_t *input,
  * (``batch_size == 1``), in which case it seeds the initial state and receives
  * the final hidden state on return.
  *
- * @param[in]   input    Input sequence tensor.
+ * @param[in]   input    Input sequence tensor. Must not overlap ``output``:
+ *                       earlier outputs are re-read as the recurrent state
+ *                       for later time steps, so aliasing corrupts silently.
  * @param[out]  output   Output (hidden-state) sequence tensor.
  * @param[in]   params   Struct describing the GRU operator.
  * @param[in,out] buffers  Scratch buffers. May be NULL when ``reset_after`` != 0.
@@ -1679,7 +1681,9 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f16(const float16_t *input,
  * (``batch_size == 1``), in which case it seeds the initial state and receives
  * the final hidden state on return.
  *
- * @param[in]   input    Input sequence tensor.
+ * @param[in]   input    Input sequence tensor. Must not overlap ``output``:
+ *                       earlier outputs are re-read as the recurrent state
+ *                       for later time steps, so aliasing corrupts silently.
  * @param[out]  output   Output (hidden-state) sequence tensor.
  * @param[in]   params   Struct describing the GRU operator.
  * @param[in,out] buffers  Scratch buffers. May be NULL when ``reset_after`` != 0.
