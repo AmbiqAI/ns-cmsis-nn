@@ -29,7 +29,7 @@ coverage shape without duplicating the full API reference.
 |---|---|---|
 | Convolution | Conv2D, DepthwiseConv2D, TransposeConv2D | int8 is the common path; selected operators also include int16 and int4-weight variants. |
 | Dense / matrix | Fully Connected, Batch MatMul, SVDF | Includes helper kernels under `NNSupportFunctions/` for matmul and requantization paths. |
-| Recurrent | LSTM, SVDF | Used by speech and sequence workloads in Ambiq model flows. |
+| Recurrent | LSTM, GRU, SVDF | Used by speech and sequence workloads in Ambiq model flows. LSTM and GRU have float16 and float32 kernels with streaming state carry. |
 | Activation | ReLU, ReLU6, LeakyReLU, PReLU, Hard-Swish, Logistic, Tanh, Clamp | Includes Ambiq coverage for glue operators that appear frequently in field-like models. |
 | Elementwise / math | Add, Sub, Mul, Min/Max, Abs, Squared Difference, Sqrt/Rsqrt, Mean | Often small individually, but can matter for end-to-end latency. |
 | Comparison / reduction | Equal/NotEqual/Less/Greater, ArgMin/ArgMax, Reduce Min/Max | Maintains quantized operator coverage used by embedded inference graphs. |

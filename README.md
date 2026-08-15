@@ -275,12 +275,19 @@ unless the target or toolchain cannot provide the required floating-point type.
 | MaxPool / AvgPool | Yes | Yes | Yes | Yes |
 | Softmax | Yes | Yes | Yes | Yes |
 | LSTM (unidirectional) | Yes | Yes | Yes | Yes |
+| GRU (unidirectional) | Yes | Yes | Yes | Yes |
 | SVDF | Yes | Yes | Yes | Yes |
 | Batch Norm | Yes | Yes | Yes | Yes |
+| Sub | Yes | Yes | Yes | Yes |
+| Abs | Yes | Yes | Yes | Yes |
+| PReLU | Yes | Yes | Yes | Yes |
+| Reduce Sum | Yes | Yes | Yes | Yes |
 | Pad | Yes | Yes | No | No |
 | Transpose | Yes | Yes | Yes | Yes |
 | Reshape | Yes | Yes | No | No |
 | Concatenation | Yes | Yes | No | No |
+| StridedSlice | Yes | Yes | No | No |
+| Split | Yes | No | No | No |
 | Dequantize | N/A | Yes | N/A | Yes |
 
 ---
