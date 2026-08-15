@@ -18,13 +18,13 @@
 
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
- * Title:        arm_gru_unidirectional_f16.c
- * Description:  Unidirectional GRU (float16)
+ * Title:        arm_gru_unidirectional_f32.c
+ * Description:  Unidirectional GRU (float32)
  *
- * $Date:        22 July 2026
+ * $Date:        14 August 2026
  * $Revision:    V.1.0.0
  *
- * Target :  Arm(R) M-Profile Architecture with FP16 support
+ * Target :  Arm(R) M-Profile Architecture
  *
  * -------------------------------------------------------------------- */
 
@@ -40,19 +40,19 @@
  * @{
  */
 
-#if ARM_NN_ENABLE_F16
+#if ARM_NN_ENABLE_F32
 
 /*
- * Unidirectional GRU (float16)
+ * Unidirectional GRU (float32)
  *
  * Refer to header file for details.
  *
  */
 
-arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
-                                               float16_t *output,
-                                               const cmsis_nn_gru_params_f16 *params,
-                                               cmsis_nn_gru_context_f16 *buffers)
+arm_cmsis_nn_status arm_gru_unidirectional_f32(const float32_t *input,
+                                               float32_t *output,
+                                               const cmsis_nn_gru_params_f32 *params,
+                                               cmsis_nn_gru_context_f32 *buffers)
 {
     if (!input || !output || !params)
     {
@@ -82,16 +82,16 @@ arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    const float16_t *hidden_in = stateful ? buffers->hidden_state : NULL;
-    float16_t *last_hidden = NULL;
+    const float32_t *hidden_in = stateful ? buffers->hidden_state : NULL;
+    float32_t *last_hidden = NULL;
 
     if (params->time_major)
     {
         for (int32_t t = 0; t < params->time_steps; t++)
         {
-            const float16_t *data_in = input + (size_t)t * (size_t)params->batch_size * (size_t)params->input_size;
-            float16_t *hidden_out = output + (size_t)t * (size_t)params->batch_size * (size_t)params->hidden_size;
-            arm_cmsis_nn_status status = arm_nn_gru_step_f16(data_in, hidden_in, hidden_out, params, buffers, 1);
+            const float32_t *data_in = input + (size_t)t * (size_t)params->batch_size * (size_t)params->input_size;
+            float32_t *hidden_out = output + (size_t)t * (size_t)params->batch_size * (size_t)params->hidden_size;
+            arm_cmsis_nn_status status = arm_nn_gru_step_f32(data_in, hidden_in, hidden_out, params, buffers, 1);
             if (status != ARM_CMSIS_NN_SUCCESS)
             {
                 return status;
@@ -104,10 +104,10 @@ arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
     {
         for (int32_t t = 0; t < params->time_steps; t++)
         {
-            const float16_t *data_in = input + (size_t)t * (size_t)params->input_size;
-            float16_t *hidden_out = output + (size_t)t * (size_t)params->hidden_size;
+            const float32_t *data_in = input + (size_t)t * (size_t)params->input_size;
+            float32_t *hidden_out = output + (size_t)t * (size_t)params->hidden_size;
             arm_cmsis_nn_status status =
-                arm_nn_gru_step_f16(data_in, hidden_in, hidden_out, params, buffers, params->time_steps);
+                arm_nn_gru_step_f32(data_in, hidden_in, hidden_out, params, buffers, params->time_steps);
             if (status != ARM_CMSIS_NN_SUCCESS)
             {
                 return status;
@@ -129,6 +129,6 @@ arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-#endif /* ARM_NN_ENABLE_F16 */
+#endif /* ARM_NN_ENABLE_F32 */
 
 /** @} */

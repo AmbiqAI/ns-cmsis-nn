@@ -85,6 +85,8 @@ GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
     "sequence": (
         r"^arm_lstm",
         r"^arm_nn_lstm",
+        r"^arm_gru",
+        r"^arm_nn_gru",
         r"^arm_svdf",
     ),
 }

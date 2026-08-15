@@ -36,6 +36,7 @@ if (ARM_NN_ENABLE_F32)
                       arm_nn_depthwise_conv_nt_t_f32.c
                       arm_nn_maxpool1d_f32.c
                       arm_nn_pack_conv_patch_f32.c
+                      arm_nn_gru_step_f32.c
                       arm_nn_lstm_step_f32.c)
 endif()
 if (ARM_NN_ENABLE_F16)
