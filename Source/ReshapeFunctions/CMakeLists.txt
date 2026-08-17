@@ -31,6 +31,7 @@ if (ARM_NN_ENABLE_F32)
   list(APPEND SRC arm_reshape_f32.c)
 endif()
 if (ARM_NN_ENABLE_F16)
-  list(APPEND SRC arm_reshape_f16.c)
+  list(APPEND SRC arm_reshape_f16.c
+                  arm_resize_nearest_neighbor_f16.c)
 endif()
 target_sources(cmsis-nn PRIVATE ${SRC})
