@@ -166,6 +166,11 @@ extern "C++" {
 #endif
 #if defined(__ARM_FEATURE_MVE) && (((__ARM_FEATURE_MVE & 3) == 3) || (__ARM_FEATURE_MVE & 1))
     #include <arm_mve.h>
+    // GCC 15/Zephyr compatibility shim
+    #if defined(__ZEPHYR__) && defined(__GNUC__) && !defined(__clang__) && (__GNUC__ >= 15)
+        #define vldrwq_s32(base) vldrwq_s32((const long int *)(base))
+        #define vldrwq_z_s32(base, p) vldrwq_z_s32((const long int *)(base), (p))
+    #endif
 #endif
 
 #if defined(__ARM_ARCH) || defined(__ARM_ACLE)
