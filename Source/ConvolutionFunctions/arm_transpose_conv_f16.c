@@ -78,8 +78,11 @@ arm_cmsis_nn_status arm_transpose_conv_nhwc_f16(const cmsis_nn_context *ctx,
     const int32_t stride_w = transpose_conv_params->stride.w;
     const int32_t pad_h = transpose_conv_params->padding.h;
     const int32_t pad_w = transpose_conv_params->padding.w;
-    const int32_t pad_off_h = transpose_conv_params->padding_offsets.h;
-    const int32_t pad_off_w = transpose_conv_params->padding_offsets.w;
+    // padding_offsets is deliberately NOT used: TFLite's SAME-padding offset
+    // is extra trailing pad (pad_after = pad + offset) and never shifts the
+    // output origin. Adding it here displaced the whole output by +1 in H/W
+    // for odd-remainder SAME configs (found via helia-core-tester #54 once
+    // float comparisons became real). The s8 kernel has never used it.
     const int32_t dil_h = transpose_conv_params->dilation.h;
     const int32_t dil_w = transpose_conv_params->dilation.w;
     const size_t kernel_oc_stride = (size_t)kernel_h * (size_t)kernel_w * (size_t)input_c;
@@ -151,14 +154,14 @@ arm_cmsis_nn_status arm_transpose_conv_nhwc_f16(const cmsis_nn_context *ctx,
                     }
                     for (int32_t ky = 0; ky < kernel_h; ++ky)
                     {
-                        const int32_t out_y = in_y * stride_h - pad_h + ky * dil_h + pad_off_h;
+                        const int32_t out_y = in_y * stride_h - pad_h + ky * dil_h;
                         if ((uint32_t)out_y >= (uint32_t)output_h)
                         {
                             continue;
                         }
                         for (int32_t kx = 0; kx < kernel_w; ++kx)
                         {
-                            const int32_t out_x = in_x * stride_w - pad_w + kx * dil_w + pad_off_w;
+                            const int32_t out_x = in_x * stride_w - pad_w + kx * dil_w;
                             if ((uint32_t)out_x >= (uint32_t)output_w)
                             {
                                 continue;

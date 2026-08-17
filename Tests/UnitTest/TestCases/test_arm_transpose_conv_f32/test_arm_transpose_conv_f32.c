@@ -7,8 +7,8 @@
 #include <arm_nnfunctions.h>
 #include <unity.h>
 
-#include "../TestData/transpose_conv_basic_f32/test_data.h"
-#include "../TestData/transpose_conv_basic_nhwc_f32/test_data.h"
+#include "transpose_conv_basic_f32_data.h"
+#include "transpose_conv_basic_nhwc_f32_data.h"
 
 #define RUN_TRANSPOSE_CONV_F32_CASE(CASE_PREFIX, case_name, tolerance)                                                 \
     void case_name##_arm_transpose_conv_f32(void)                                                                      \
