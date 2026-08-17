@@ -2,7 +2,15 @@
  * SPDX-FileCopyrightText: Copyright 2026 Ambiq
  * SPDX-License-Identifier: Apache-2.0
  *
- * Generated golden data for the float transpose-conv unit test.
+ * Golden data for the float transpose-conv unit test.
+ *
+ * HAND-AUTHORED REGRESSION PIN -- not reproducible by
+ * Tests/UnitTest/transpose_conv_settings_flt.py (which hardcodes
+ * PADDING_OFFSET 0 and uses different shapes). Do not regenerate over
+ * this file: the odd-remainder SAME configuration (padding_offsets
+ * {1,1}) is the exact case where the pre-fix kernel shifted the whole
+ * output by +1 in H/W (PR #253). If the generator is ever taught to
+ * produce odd-offset cases, migrate deliberately.
  * float64 reference; TFLite TRANSPOSE_CONV semantics (padding_offsets is
  * trailing pad only and must never shift the output origin).
  * padding_offsets = {1,1} <- odd-remainder regression pin
