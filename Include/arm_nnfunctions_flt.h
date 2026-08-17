@@ -1146,6 +1146,27 @@ arm_cmsis_nn_status arm_nn_activation_f16(const float16_t *input,
                                           arm_nn_activation_type_flt type,
                                           float16_t act_param);
 
+/**
+ * @brief Float16 PReLU activation with NHWC broadcasting.
+ *
+ * Computes `output = input >= 0 ? input : input * alpha`. Each alpha dimension must be either one or equal to the
+ * corresponding input dimension. The output dimensions must equal the input dimensions.
+ *
+ * @param[in]  input_dims   Input tensor dimensions in NHWC format.
+ * @param[in]  input        Input tensor data.
+ * @param[in]  alpha_dims   Alpha tensor dimensions in NHWC format.
+ * @param[in]  alpha        Alpha tensor data.
+ * @param[in]  output_dims  Output tensor dimensions in NHWC format.
+ * @param[out] output       Output tensor data. May alias @p input.
+ * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when an argument constraint fails.
+ */
+arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
+                                  const float16_t *input,
+                                  const cmsis_nn_dims *alpha_dims,
+                                  const float16_t *alpha,
+                                  const cmsis_nn_dims *output_dims,
+                                  float16_t *output);
+
 /** @} */
 
 /**

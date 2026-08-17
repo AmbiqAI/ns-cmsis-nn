@@ -23,6 +23,7 @@ if (ARM_NN_ENABLE_F32)
   list(APPEND SRC_FLT arm_nn_activation_f32.c)
 endif()
 if (ARM_NN_ENABLE_F16)
-  list(APPEND SRC_FLT arm_nn_activation_f16.c)
+  list(APPEND SRC_FLT arm_nn_activation_f16.c
+                      arm_prelu_f16.c)
 endif()
 target_sources(cmsis-nn PRIVATE ${SRC} ${SRC_S16} ${SRC_FLT} arm_relu_q7.c arm_relu6_q7.c arm_relu_q15.c)
