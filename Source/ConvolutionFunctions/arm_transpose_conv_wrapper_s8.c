@@ -68,6 +68,13 @@ arm_cmsis_nn_status arm_transpose_conv_wrapper_s8(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
+    // Neither route below implements dilation (the reverse-conv route hard-codes conv dilation to
+    // 1), so reject it here rather than let one route silently ignore it (issue #261).
+    if (transpose_conv_params->dilation.w != 1 || transpose_conv_params->dilation.h != 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     const bool reverse_conv_possible =
         ((transpose_conv_params->stride.w <= 2) && (transpose_conv_params->stride.h <= 2));
     const bool reverse_conv_efficient = (input_dims->c > REVERSE_TCOL_EFFICIENT_THRESHOLD);

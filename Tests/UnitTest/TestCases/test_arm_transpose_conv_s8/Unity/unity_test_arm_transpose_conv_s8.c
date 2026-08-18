@@ -48,3 +48,13 @@ void test_transpose_conv_2_arm_transpose_conv_s8(void) { transpose_conv_2_arm_tr
 void test_transpose_conv_3_arm_transpose_conv_s8(void) { transpose_conv_3_arm_transpose_conv_s8(); }
 void test_transpose_conv_4_arm_transpose_conv_s8(void) { transpose_conv_4_arm_transpose_conv_s8(); }
 void test_transpose_conv_5_arm_transpose_conv_s8(void) { transpose_conv_5_arm_transpose_conv_s8(); }
+void test_transpose_conv_6_arm_transpose_conv_s8(void) { transpose_conv_6_arm_transpose_conv_s8(); }
+void test_transpose_conv_7_arm_transpose_conv_s8(void) { transpose_conv_7_arm_transpose_conv_s8(); }
+void test_transpose_conv_dilation_rejected_arm_transpose_conv_s8(void)
+{
+    transpose_conv_dilation_rejected_arm_transpose_conv_s8();
+}
+void test_transpose_conv_buffer_size_covers_direct_call_arm_transpose_conv_s8(void)
+{
+    transpose_conv_buffer_size_covers_direct_call_arm_transpose_conv_s8();
+}

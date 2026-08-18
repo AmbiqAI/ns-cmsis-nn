@@ -555,6 +555,8 @@ int32_t arm_convolve_s8_get_weights_sum_size(const cmsis_nn_dims *output_dims);
  * @details
  *    1. Supported framework: TensorFlow Lite micro
  *    2. Additional memory is required for optimization. Refer to arguments 'ctx' and 'output_ctx' for details.
+ *    3. Dilation is not supported: transpose_conv_params->dilation must be 1 in both dimensions,
+ *       otherwise <code>ARM_CMSIS_NN_ARG_ERROR</code> is returned.
  *
  */
 arm_cmsis_nn_status arm_transpose_conv_wrapper_s8(const cmsis_nn_context *ctx,
@@ -604,6 +606,8 @@ arm_cmsis_nn_status arm_transpose_conv_wrapper_s8(const cmsis_nn_context *ctx,
  * @details
  *    1. Supported framework: TensorFlow Lite micro
  *    2. Additional memory is required for optimization. Refer to arguments 'ctx' and 'output_ctx' for details.
+ *    3. Dilation is not supported: transpose_conv_params->dilation must be 1 in both dimensions,
+ *       otherwise <code>ARM_CMSIS_NN_ARG_ERROR</code> is returned.
  *
  */
 arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
@@ -629,6 +633,9 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
  * @param[in]       out_dims                Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @return          The function returns required buffer size(bytes)
  *
+ * @details    The returned size is safe for both arm_transpose_conv_s8() and
+ *             arm_transpose_conv_wrapper_s8(): it is the larger of the two routes' requirements,
+ *             so it may exceed what the wrapper's reverse-convolution route alone would need.
  */
 int32_t arm_transpose_conv_s8_get_buffer_size(const cmsis_nn_transpose_conv_params *transposed_conv_params,
                                               const cmsis_nn_dims *input_dims,
