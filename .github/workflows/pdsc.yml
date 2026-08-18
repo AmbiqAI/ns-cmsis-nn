@@ -53,6 +53,11 @@ jobs:
       - name: Run contract test
         run: python3 scripts/check_pdsc.py
 
+      # Check #7 (float dtype gating) guards a bug class that is green
+      # everywhere else in CI, so its own mutation tests gate it in turn.
+      - name: Run float dtype gating tests
+        run: python3 scripts/tests/test_check_pdsc_float_gating.py
+
   float_cmsis_components:
     # Static guard for the float unit-test wiring: the csolution pack pin
     # tracks the pdsc <release version>, component selectors are fully
