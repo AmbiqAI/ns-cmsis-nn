@@ -17,6 +17,7 @@ capabilities:
   - cmsis_nn
   - neural_network_kernels
   - quantized_inference
+  - float_inference
   - dsp_acceleration
   - mve_acceleration
 
@@ -24,6 +25,7 @@ use_cases:
   - quantized neural network inference on Cortex-M
   - optimized convolution and fully-connected kernels
   - int8/int16/int4 quantized model support
+  - fp32/fp16 floating-point model support
 
 agent_keywords:
   - cmsis-nn
@@ -33,6 +35,9 @@ agent_keywords:
   - inference
   - dsp
   - mve
+  - fp32
+  - fp16
+  - float
 
 build:
   cmake:

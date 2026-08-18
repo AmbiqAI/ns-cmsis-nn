@@ -29,7 +29,7 @@ Each tarball contains `manifest.json`:
 {
   "schema_version": 1,
   "package": "ns-cmsis-nn",
-  "version": "7.25.0",
+  "version": "7.30.0",
   "target_cpu": "cortex-m4",
   "toolchain": {
     "id": "atfe",

@@ -13,7 +13,12 @@
         {
           "type": "generic",
           "path": "Tests/UnitTest/cmsis/cmsis_nn_unit_tests_flt.csolution.yml"
-        }
+        },
+        { "type": "generic", "path": "docs/getting-started/cmake.md" },
+        { "type": "generic", "path": "docs/getting-started/cmsis-pack.md" },
+        { "type": "generic", "path": "docs/getting-started/neuralspot-x.md" },
+        { "type": "generic", "path": "docs/getting-started/zephyr.md" },
+        { "type": "generic", "path": "docs/guides/toolchains.md" }
       ],
       "changelog-sections": [
         { "type": "feat",     "section": "Features" },
