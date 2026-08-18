@@ -583,10 +583,11 @@ arm_cmsis_nn_status arm_transpose_conv_wrapper_s8(const cmsis_nn_context *ctx,
  *                                       arm_transpose_conv_s8_get_buffer_size will return the buffer_size if required.
  *                                       The caller is expected to clear the buffer, if applicable, for security
  reasons.
- * @param[in, out] output_ctx            Temporary scratch buffer.
- *                                       The size required size is: output width * output height * output channel * 4
- *                                       The caller is expected to clear the buffer, if applicable, for security
- *                                        reasons.
+ * @param[in, out] output_ctx            Not accessed by this function: its buffer is neither read nor written, and it
+ *                                       therefore has no size requirement. The parameter exists only to keep one
+ *                                       signature across the transpose-conv family, whose float twins ignore it the
+ *                                       same way; arm_transpose_conv_wrapper_s8() forwards its reverse_conv_ctx into
+ *                                       this slot. In-tree callers pass a valid context, whose buf may be NULL.
  * @param[in]      transpose_conv_params Convolution parameters (e.g. strides, dilations, pads,...).
  *                                       Range of transpose_conv_params->input_offset  : [-127, 128]
  *                                       Range of transpose_conv_params->output_offset : [-128, 127]
@@ -608,7 +609,7 @@ arm_cmsis_nn_status arm_transpose_conv_wrapper_s8(const cmsis_nn_context *ctx,
  *
  * @details
  *    1. Supported framework: TensorFlow Lite micro
- *    2. Additional memory is required for optimization. Refer to arguments 'ctx' and 'output_ctx' for details.
+ *    2. Additional memory is required for optimization. Refer to argument 'ctx' for details; 'output_ctx' is unused.
  *    3. Dilation is not supported: transpose_conv_params->dilation must be 1 in both dimensions,
  *       otherwise <code>ARM_CMSIS_NN_ARG_ERROR</code> is returned.
  *
