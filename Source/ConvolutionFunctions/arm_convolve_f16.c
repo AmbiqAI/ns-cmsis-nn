@@ -318,7 +318,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
     }
     const int32_t output_ch_per_group = output_c / groups;
 
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     /* Small kernels (including grouped) map the whole receptive field onto one MVE gather. */
     if (conv_params->padding.h == 0 && conv_params->padding.w == 0 && (kernel_h * kernel_w * kernel_ch) <= 8)
     {
@@ -337,7 +337,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
             return st;
         }
     }
-#endif
+    #endif
 
     /* The fast paths below assume a single group (filter spans all input channels). */
     if (groups == 1)
@@ -370,7 +370,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                                                output_data);
         }
 
-#ifndef NN_DISABLE_SPECIALIZATION
+    #ifndef NN_DISABLE_SPECIALIZATION
         /*
          * Let direct specializations claim their shapes first. Packed-patch GEMM
          * remains the generic fallback for shapes that are not handled by a tuned
@@ -388,7 +388,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                           bias_data,
                           output_dims,
                           output_data);
-#endif
+    #endif
 
         const bool use_patch_gemm = arm_conv_nhwc_use_patch_gemm_f16(ctx, patch_len, output_c, output_positions);
 
