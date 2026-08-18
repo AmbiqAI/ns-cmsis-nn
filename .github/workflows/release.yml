@@ -473,13 +473,12 @@ jobs:
     if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
     needs: [release-please, publish-staticlibs]
     runs-on: ubuntu-22.04
-    # Bounded because this job runs AFTER release-please has already created the
-    # tag and GitHub Release: a silent hang here leaves a published release with
-    # no .pack asset until the 6-hour default timeout expires. gen-pack-action's
-    # own `apt-get update` is the observed hang point (issue #271). Failing at 20
-    # minutes surfaces it while the release is fresh enough for the #228 recovery
-    # path.
-    timeout-minutes: 20
+    # Generous job bound only. The precise bound lives on the gen-pack step below,
+    # because this job ALSO runs the full Sphinx/Breathe/Exhale docs build, whose
+    # healthy duration is 13-15 min and has been observed as high as 30.6 min. A
+    # tight job-level bound would kill healthy releases (2 of 60 August doc builds
+    # exceeded 20 min) and would fire long AFTER the pack was already uploaded.
+    timeout-minutes: 60
     steps:
       # Immutable historical source checkout, pinned to the exact commit
       # release-please resolved the release tag to -- never the ref that
@@ -590,6 +589,12 @@ jobs:
 
       - name: Generate pack and docs
         uses: Open-CMSIS-Pack/gen-pack-action@main
+        # The observed hang (issue #271) is inside this action's own `apt-get
+        # update`, which stalls when the runner's package mirrors misbehave.
+        # Green gen-pack takes 28-43 s, so 10 minutes is ~14-21x headroom and
+        # cannot fire on a viable run -- while still failing fast instead of
+        # burning the job's full budget in silence.
+        timeout-minutes: 10
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
