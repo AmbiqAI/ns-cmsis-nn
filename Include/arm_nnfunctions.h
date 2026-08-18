@@ -969,9 +969,11 @@ arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
  *                                Fill it with arm_convolve_weight_sum(), passing conv_params->input_offset as
  *                                lhs_offset and the same bias_data given here. That helper returns
  *                                ARM_CMSIS_NN_NO_IMPL_ERROR on non-MVE builds, which is not a failure.
- *                                This function currently dereferences weight_sum_ctx->buf on EVERY build, not
- *                                only under MVE, and does not check it for NULL: the context must be valid
- *                                regardless of the target. The buffer contents are currently consumed only on
+ *                                This function currently dereferences weight_sum_ctx->buf on nearly every build,
+ *                                not only under MVE, and does not check it for NULL, so pass a valid context
+ *                                regardless of the target. The sole exception is an Arm Compiler build
+ *                                (__ARMCC_VERSION >= 6010050) with ARM_MATH_DSP and without ARM_MATH_MVEI, where
+ *                                supplying ctx->buf selects a buffered path that never reads weight_sum_ctx.
  *                                builds with the MVE extension (ARM_MATH_MVEI), where an unfilled buffer yields
  *                                wrong output while still returning ARM_CMSIS_NN_SUCCESS. None of this is a
  *                                guarantee about future versions.
@@ -1235,10 +1237,12 @@ arm_cmsis_nn_status arm_convolve_weight_sum(int32_t *vector_sum_buf,
  *   - Not interchangeable with arm_convolve_weight_sum(): this function walks the channel-interleaved depthwise
  *     layout <code>[1, KH, KW, C_OUT]</code> with a stride of C_OUT, whereas arm_convolve_weight_sum() sums
  *     contiguous runs of <code>KH * KW * C_IN</code> weights. The two agree only by coincidence. Several in-tree
- *     tests do fill a depthwise weight_sum_ctx with arm_convolve_weight_sum(), but only on routes where
- *     arm_depthwise_conv_wrapper_s8() does not consume the buffer at all (ch_mult != 1, batches != 1 or
- *     dilation != 1), or where the wrapper converts the layer to a regular convolution and conv-style sums are
- *     what is wanted. Use this function wherever the sums are actually read.
+ *     tests do fill a depthwise weight_sum_ctx with arm_convolve_weight_sum() and are still correct, for one of
+ *     three unrelated reasons: arm_depthwise_conv_wrapper_s8() does not consume the buffer on that route at all
+ *     (ch_mult != 1, batches != 1 or dilation != 1); the wrapper converts the layer to a regular convolution, so
+ *     conv-style sums are what is wanted; or C_OUT is 1, which collapses the stride-C_OUT walk to a contiguous
+ *     one and makes the two helpers compute identical values. None of those generalise, so do not read them as
+ *     licence to substitute one helper for the other. Use this function wherever the sums are actually read.
  */
 arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
                                                       int8_t *scratch_buf,
