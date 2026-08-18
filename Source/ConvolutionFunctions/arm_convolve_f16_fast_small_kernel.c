@@ -60,7 +60,7 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
                                                        const cmsis_nn_dims *output_dims,
                                                        float16_t *output_data)
 {
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     (void)ctx;
     (void)bias_dims;
 
@@ -176,7 +176,7 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
     }
 
     return ARM_CMSIS_NN_SUCCESS;
-#else
+    #else
     (void)ctx;
     (void)conv_params;
     (void)input_dims;
@@ -188,7 +188,7 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
     (void)output_dims;
     (void)output_data;
     return ARM_CMSIS_NN_NO_IMPL_ERROR;
-#endif
+    #endif
 }
 
 /**
