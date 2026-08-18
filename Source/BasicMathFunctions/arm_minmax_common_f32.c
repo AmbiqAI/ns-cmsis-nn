@@ -27,7 +27,9 @@
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
 
-#include "Internal/arm_minmax_f32_common.h"
+#if ARM_NN_ENABLE_F32
+
+    #include "Internal/arm_minmax_f32_common.h"
 
 static int32_t arm_check_broadcast_required_f32(const cmsis_nn_dims *shape_1, const cmsis_nn_dims *shape_2)
 {
@@ -40,14 +42,14 @@ static int32_t arm_check_broadcast_required_f32(const cmsis_nn_dims *shape_1, co
     return 0;
 }
 
-/* Scalar-path helper: only referenced from the #else branches of the loops
- * below, so keep it out of MVE builds (-Wunused-function, issue #246). */
-#if !defined(ARM_MATH_MVEF) || defined(ARM_MATH_AUTOVECTORIZE)
+    /* Scalar-path helper: only referenced from the #else branches of the loops
+     * below, so keep it out of MVE builds (-Wunused-function, issue #246). */
+    #if !defined(ARM_MATH_MVEF) || defined(ARM_MATH_AUTOVECTORIZE)
 static float32_t arm_minmax_select_f32(float32_t a, float32_t b, int32_t select_max)
 {
     return (a >= b) ? (select_max ? a : b) : (select_max ? b : a);
 }
-#endif
+    #endif
 
 static arm_cmsis_nn_status arm_minmax_no_broadcast_f32(const float32_t *input_1,
                                                        const float32_t *input_2,
@@ -55,7 +57,7 @@ static arm_cmsis_nn_status arm_minmax_no_broadcast_f32(const float32_t *input_1,
                                                        int32_t flat_size,
                                                        int32_t select_max)
 {
-#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     if (select_max)
     {
         for (int32_t i = 0; i < flat_size; i += 4)
@@ -76,12 +78,12 @@ static arm_cmsis_nn_status arm_minmax_no_broadcast_f32(const float32_t *input_1,
             vst1q_p(output + i, vminnmq(v_in1, v_in2), p);
         }
     }
-#else
+    #else
     for (int32_t i = 0; i < flat_size; ++i)
     {
         output[i] = arm_minmax_select_f32(input_1[i], input_2[i], select_max);
     }
-#endif
+    #endif
 
     return ARM_CMSIS_NN_SUCCESS;
 }
@@ -93,7 +95,7 @@ static arm_cmsis_nn_status arm_minmax_scalar_f32(const float32_t *input_1,
                                                  int32_t select_max)
 {
     const float32_t in1 = *input_1;
-#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     const float32x4_t v_in1 = vdupq_n_f32(in1);
     if (select_max)
     {
@@ -113,12 +115,12 @@ static arm_cmsis_nn_status arm_minmax_scalar_f32(const float32_t *input_1,
             vst1q_p(output + i, vminnmq(v_in1, v_in2), p);
         }
     }
-#else
+    #else
     for (int32_t i = 0; i < flat_size; ++i)
     {
         output[i] = arm_minmax_select_f32(in1, input_2[i], select_max);
     }
-#endif
+    #endif
 
     return ARM_CMSIS_NN_SUCCESS;
 }
@@ -275,3 +277,5 @@ arm_cmsis_nn_status arm_minmax_f32_impl(const cmsis_nn_context *ctx,
 
     return ARM_CMSIS_NN_SUCCESS;
 }
+
+#endif /* ARM_NN_ENABLE_F32 */

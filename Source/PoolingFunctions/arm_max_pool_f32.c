@@ -32,6 +32,8 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
+#if ARM_NN_ENABLE_F32
+
 /**
  *  @ingroup Public
  */
@@ -94,9 +96,9 @@ arm_cmsis_nn_status arm_max_pool_f32(const cmsis_nn_context *ctx,
         const bool last_window_fits_x_k2 = (output_x - 1) * stride_x + 2 <= input_x;
         bool use_specialized = (input_y == 1 && output_y == 1 && kernel_y == 1 && stride_y == 1 && pad_y == 0 &&
                                 kernel_x == 2 && stride_x == 2 && pad_x == 0 && last_window_fits_x_k2);
-#ifdef NN_DISABLE_SPECIALIZATION
+    #ifdef NN_DISABLE_SPECIALIZATION
         use_specialized = false;
-#endif
+    #endif
         if (use_specialized)
         {
             if (act_min <= ARM_NN_F32_FINITE_LOWEST && act_max >= ARM_NN_F32_FINITE_MAX)
@@ -117,9 +119,9 @@ arm_cmsis_nn_status arm_max_pool_f32(const cmsis_nn_context *ctx,
         use_specialized = (input_y == 1 && output_y == 1 && kernel_y == 1 && stride_y == 1 && pad_y == 0 &&
                            kernel_x == 3 && stride_x == 3 && pad_x == 0 && last_window_fits_x_k3 &&
                            act_min <= ARM_NN_F32_FINITE_LOWEST && act_max >= ARM_NN_F32_FINITE_MAX);
-#ifdef NN_DISABLE_SPECIALIZATION
+    #ifdef NN_DISABLE_SPECIALIZATION
         use_specialized = false;
-#endif
+    #endif
         if (use_specialized)
         {
             arm_nn_maxpool1d_k3s3_nhwc_f32(src, channel_in, input_x, dst, output_x);
@@ -138,7 +140,7 @@ arm_cmsis_nn_status arm_max_pool_f32(const cmsis_nn_context *ctx,
                 const int32_t kernel_y_end = MIN(kernel_y, input_y - base_idx_y);
                 const int32_t kernel_x_end = MIN(kernel_x, input_x - base_idx_x);
 
-#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
                 const float32x4_t v_act_min = vdupq_n_f32(act_min);
                 const float32x4_t v_act_max = vdupq_n_f32(act_max);
                 for (int32_t c = 0; c < channel_in; c += 4)
@@ -158,7 +160,7 @@ arm_cmsis_nn_status arm_max_pool_f32(const cmsis_nn_context *ctx,
                     v_max = arm_nn_clamp_mve_f32(v_max, v_act_min, v_act_max);
                     vst1q_p(dst + (i_y * output_x + i_x) * channel_in + c, v_max, p);
                 }
-#else
+    #else
                 for (int32_t c = 0; c < channel_in; ++c)
                 {
                     float32_t max_val = ARM_NN_F32_FINITE_LOWEST;
@@ -172,7 +174,7 @@ arm_cmsis_nn_status arm_max_pool_f32(const cmsis_nn_context *ctx,
                     }
                     dst[(i_y * output_x + i_x) * channel_in + c] = CLAMP(max_val, act_max, act_min);
                 }
-#endif
+    #endif
             }
         }
 
@@ -198,3 +200,5 @@ arm_cmsis_nn_status arm_max_pool_nhwc_f32(const cmsis_nn_context *ctx,
 {
     return arm_max_pool_f32(ctx, pool_params, input_dims, src, filter_dims, output_dims, dst);
 }
+
+#endif /* ARM_NN_ENABLE_F32 */

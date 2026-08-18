@@ -21,6 +21,8 @@
 
 #include "arm_nnsupportfunctions.h"
 
+#if ARM_NN_ENABLE_F16
+
 /**
  * @ingroup groupSupport
  */
@@ -30,7 +32,7 @@
  * @{
  */
 
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
 
 __STATIC_FORCEINLINE float16_t vec_add_across_f16_mve(float16x8_t in)
 {
@@ -179,8 +181,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(const float16_t *lhs,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-#else
-    #if defined(ARM_FLOAT16_SUPPORTED)
+    #else
+        #if defined(ARM_FLOAT16_SUPPORTED)
 
 /*
  * fp16 vector(lhs) by fp16 matrix (transposed) multiplication
@@ -223,9 +225,11 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(const float16_t *lhs,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-    #endif /* defined(ARM_FLOAT16_SUPPORTED */
-#endif     /* defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE) */
+        #endif /* defined(ARM_FLOAT16_SUPPORTED */
+    #endif     /* defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE) */
 
 /**
  * @} end of Doxygen group
  */
+
+#endif /* ARM_NN_ENABLE_F16 */

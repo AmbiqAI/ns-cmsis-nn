@@ -20,6 +20,8 @@
 
 #include "Internal/arm_nn_activation_flt.h"
 
+#if ARM_NN_ENABLE_F16
+
 /**
  * @ingroup Public
  */
@@ -41,7 +43,7 @@ arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     int32_t i = 0;
     const float16x8_t vmin = vdupq_n_f16(out_activation_min);
     const float16x8_t vmax = vdupq_n_f16(out_activation_max);
@@ -54,16 +56,18 @@ arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
         vr = arm_nn_clamp_propagate_nan_mve_f16(vr, vmin, vmax);
         vstrhq_p(&output[i], vr, p);
     }
-#else
+    #else
     for (int32_t i = 0; i < block_size; ++i)
     {
         const _Float16 v = (_Float16)input_1_vect[i] - (_Float16)input_2_vect[i];
         output[i] = arm_nn_clamp_scalar_f16((float16_t)v, out_activation_min, out_activation_max);
     }
-#endif
+    #endif
 
     return ARM_CMSIS_NN_SUCCESS;
 }
 /**
  * @} end of groupElementwise group
  */
+
+#endif /* ARM_NN_ENABLE_F16 */

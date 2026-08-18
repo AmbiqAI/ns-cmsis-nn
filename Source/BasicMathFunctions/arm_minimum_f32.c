@@ -27,7 +27,9 @@
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
 
-#include "Internal/arm_minmax_f32_common.h"
+#if ARM_NN_ENABLE_F32
+
+    #include "Internal/arm_minmax_f32_common.h"
 
 /**
  * @ingroup Public
@@ -52,3 +54,5 @@ arm_cmsis_nn_status arm_minimum_f32(const cmsis_nn_context *ctx,
 /**
  * @} end of groupElementwise group
  */
+
+#endif /* ARM_NN_ENABLE_F32 */

@@ -20,6 +20,8 @@
 
 #include "Internal/arm_nn_activation_flt.h"
 
+#if ARM_NN_ENABLE_F16
+
 /**
  * @ingroup Public
  */
@@ -36,14 +38,14 @@ arm_cmsis_nn_status arm_abs_f16(const float16_t *input, float16_t *output, int32
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     for (int32_t i = 0; i < block_size; i += 8)
     {
         const mve_pred16_t p = vctp16q((uint32_t)(block_size - i));
         const float16x8_t va = vld1q_z(&input[i], p);
         vstrhq_p(&output[i], vabsq_f16(va), p);
     }
-#else
+    #else
     for (int32_t i = 0; i < block_size; ++i)
     {
         // Promote-abs-demote is exact for every half value and clears the
@@ -51,10 +53,12 @@ arm_cmsis_nn_status arm_abs_f16(const float16_t *input, float16_t *output, int32
         // bit-exact with the MVE vabsq path.
         output[i] = (float16_t)__builtin_fabsf((float32_t)input[i]);
     }
-#endif
+    #endif
 
     return ARM_CMSIS_NN_SUCCESS;
 }
 /**
  * @} end of groupElementwise group
  */
+
+#endif /* ARM_NN_ENABLE_F16 */
