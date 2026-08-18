@@ -159,7 +159,27 @@ int32_t arm_convolve_wrapper_s4_get_buffer_size_dsp(const cmsis_nn_conv_params *
  * @param[in, out] ctx            Function context that contains the additional buffer if required by the function.
  *                                arm_convolve_wrapper_s8_get_buffer_size will return the buffer_size if required.
  *                                The caller is expected to clear the buffer, if applicable, for security reasons.
- * @param[in, out] weight_sum_ctx Function context that contains the weight sum buffer if required by the function.
+ * @param[in]      weight_sum_ctx Per-output-channel weight sums, supplied by the caller. The selected kernel only
+ *                                reads this buffer and never writes it, so it is filled once and may then be
+ *                                reused for as long as filter_data, bias_data and conv_params->input_offset are
+ *                                unchanged - see arm_convolve_weight_sum() for the layout and the full reuse
+ *                                rules.
+ *                                Fill it with arm_convolve_weight_sum(), passing conv_params->input_offset as
+ *                                lhs_offset and the same bias_data given here, so that entry j holds
+ *                                input_offset * sum(weights of output channel j) + bias_data[j]. That helper
+ *                                returns ARM_CMSIS_NN_NO_IMPL_ERROR on non-MVE builds, which is not a failure.
+ *                                Pass a valid context on every build: this wrapper dispatches to
+ *                                arm_convolve_s8(), arm_convolve_1x1_s8(), arm_convolve_1x1_s8_fast(),
+ *                                arm_convolve_1_x_n_s8() and arm_convolve_1x1_out_s8(), and some of those read
+ *                                weight_sum_ctx->buf on every build rather than only under MVE. Currently the
+ *                                buffer contents are consumed only on builds with the MVE extension
+ *                                (ARM_MATH_MVEI); an unfilled buffer there yields wrong output while still
+ *                                returning ARM_CMSIS_NN_SUCCESS. A NULL buf is not diagnosed on every route, so
+ *                                do not rely on getting an error back. None of this is a guarantee about future
+ *                                versions.
+ *                                Sized by arm_convolve_s8_get_weights_sum_size():
+ *                                output_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise.
+ *                                The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      conv_params    Convolution parameters (e.g. strides, dilations, pads,...).
  *                                Range of conv_params->input_offset  : [-127, 128]
  *                                Range of conv_params->output_offset : [-128, 127]
@@ -448,7 +468,25 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
  * @param[in, out] ctx            Function context that contains the additional buffer if required by the function.
  *                                arm_convolve_s8_get_buffer_size will return the buffer_size if required.
  *                                The caller is expected to clear the buffer, if applicable, for security reasons.
- * @param[in, out] weight_sum_ctx Function context that contains the weight sum buffer if required by the function.
+ * @param[in]      weight_sum_ctx Per-output-channel weight sums, supplied by the caller. This function only reads
+ *                                the buffer and never writes it, so it is filled once and may then be reused for
+ *                                as long as filter_data, bias_data and conv_params->input_offset are unchanged -
+ *                                see arm_convolve_weight_sum() for the layout and the full reuse rules.
+ *                                Fill it with arm_convolve_weight_sum(), passing conv_params->input_offset as
+ *                                lhs_offset and the same bias_data given here, so that entry j holds
+ *                                input_offset * sum(weights of output channel j) + bias_data[j]. For grouped
+ *                                convolution the entries run over all output_dims->c channels, groups laid out
+ *                                consecutively. That helper returns ARM_CMSIS_NN_NO_IMPL_ERROR on non-MVE builds,
+ *                                which is not a failure.
+ *                                Pass a valid context on every build. Currently the contents are read only on
+ *                                builds with the MVE extension (ARM_MATH_MVEI); an unfilled buffer there yields
+ *                                wrong output while still returning ARM_CMSIS_NN_SUCCESS, and a NULL buf is
+ *                                currently reported as ARM_CMSIS_NN_ARG_ERROR. On other builds this function
+ *                                currently derives the same quantity itself and does not read the context. None
+ *                                of this is a guarantee about future versions.
+ *                                Sized by arm_convolve_s8_get_weights_sum_size():
+ *                                output_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise.
+ *                                The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      conv_params    Convolution parameters (e.g. strides, dilations, pads,...).
  *                                Range of conv_params->input_offset  : [-127, 128]
  *                                Range of conv_params->output_offset : [-128, 127]
@@ -525,10 +563,36 @@ int32_t arm_convolve_s8_get_weights_sum_size(const cmsis_nn_dims *output_dims);
  * @brief Wrapper to select optimal transposed convolution algorithm depending on parameters.
  * @param[in, out] ctx                   Function context that contains the additional buffer if required by the
  *                                       function.
- * @param[in, out] weight_sum_ctx Function context that contains the weight sum buffer if required by the function.
- *                                       arm_transpose_conv_s8_get_buffer_size will return the buffer_size if required.
+ *                                       arm_transpose_conv_s8_get_buffer_size() will return the buffer_size if
+ *                                       required.
  *                                       The caller is expected to clear the buffer, if applicable, for security
- reasons.
+ *                                       reasons.
+ * @param[in]      weight_sum_ctx        Per-output-channel weight sums, supplied by the caller. The function
+ *                                       only reads this buffer and never writes it, so it is filled once and
+ *                                       may then be reused for as long as filter_data, bias_data and
+ *                                       transpose_conv_params->input_offset are unchanged - see
+ *                                       arm_convolve_weight_sum() for the layout and the full reuse rules.
+ *                                       Fill it with arm_convolve_weight_sum(), passing
+ *                                       transpose_conv_params->input_offset as lhs_offset and the same bias_data
+ *                                       given here, so that entry j holds
+ *                                       input_offset * sum(weights of output channel j) + bias_data[j]. That
+ *                                       helper returns ARM_CMSIS_NN_NO_IMPL_ERROR on non-MVE builds, which is
+ *                                       not a failure.
+ *                                       Compute the sums over filter_data exactly as passed to this function:
+ *                                       this wrapper guarantees that whatever filter preparation it performs
+ *                                       internally preserves the per-output-channel sums, so no reversed or
+ *                                       otherwise rearranged copy of the weights is needed for this step.
+ *                                       Pass a valid context on every build. Currently the contents are read
+ *                                       only on builds with the MVE extension (ARM_MATH_MVEI), where the
+ *                                       reverse-convolution route forwards this context to arm_convolve_s8();
+ *                                       an unfilled buffer there yields wrong output while still returning
+ *                                       ARM_CMSIS_NN_SUCCESS, and a NULL buf is currently reported as
+ *                                       ARM_CMSIS_NN_ARG_ERROR. On other builds the contents are currently not
+ *                                       read. None of this is a guarantee about future versions.
+ *                                       Sized by arm_convolve_s8_get_weights_sum_size():
+ *                                       output_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise.
+ *                                       The caller is expected to clear the buffer, if applicable, for security
+ *                                       reasons.
  * @param[in, out] reverse_conv_ctx      Function context for the reversed filter used when this wrapper routes to the
  *                                       reverse convolution. Holds filter height * filter width * input channels *
  *                                       output channels int8 values;
@@ -581,8 +645,8 @@ arm_cmsis_nn_status arm_transpose_conv_wrapper_s8(const cmsis_nn_context *ctx,
  * @param[in, out] ctx                   Function context that contains the additional buffer if required by the
  *                                       function.
  *                                       arm_transpose_conv_s8_get_buffer_size will return the buffer_size if required.
- *                                       The caller is expected to clear the buffer, if applicable, for security
- reasons.
+ *                                       The caller is expected to clear the buffer, if applicable, for
+ *                                       security reasons.
  * @param[in, out] output_ctx            Not accessed by this function: its buffer is neither read nor written, and it
  *                                       therefore has no size requirement. The parameter exists only to keep one
  *                                       signature across the transpose-conv family, whose float twins ignore it the
@@ -898,7 +962,24 @@ arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
  *                               arm_convolve_1x1_s8_fast_get_buffer_size will return the buffer_size if required.
  *                               The caller is expected to clear the buffer, if applicable, for security reasons.
  *
- * @param[in, out] weight_sum_ctx Function context that contains the weight sum buffer if required by the function.
+ * @param[in]      weight_sum_ctx Per-output-channel weight sums, supplied by the caller. This function only reads
+ *                                the buffer and never writes it, so it is filled once and may then be reused for
+ *                                as long as filter_data, bias_data and conv_params->input_offset are unchanged -
+ *                                see arm_convolve_weight_sum() for the layout and the full reuse rules.
+ *                                Fill it with arm_convolve_weight_sum(), passing conv_params->input_offset as
+ *                                lhs_offset and the same bias_data given here. That helper returns
+ *                                ARM_CMSIS_NN_NO_IMPL_ERROR on non-MVE builds, which is not a failure.
+ *                                This function currently dereferences weight_sum_ctx->buf on nearly every build,
+ *                                not only under MVE, and does not check it for NULL, so pass a valid context
+ *                                regardless of the target. The sole exception is an Arm Compiler build
+ *                                (__ARMCC_VERSION >= 6010050) with ARM_MATH_DSP and without ARM_MATH_MVEI, where
+ *                                supplying ctx->buf selects a buffered path that never reads weight_sum_ctx.
+ *                                builds with the MVE extension (ARM_MATH_MVEI), where an unfilled buffer yields
+ *                                wrong output while still returning ARM_CMSIS_NN_SUCCESS. None of this is a
+ *                                guarantee about future versions.
+ *                                Sized by arm_convolve_s8_get_weights_sum_size():
+ *                                output_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise.
+ *                                The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      conv_params   Convolution parameters (e.g. strides, dilations, pads,...).
  *                               Range of conv_params->input_offset  : [-127, 128]
  *                               Range of conv_params->output_offset : [-128, 127]
@@ -960,7 +1041,22 @@ int32_t arm_convolve_1x1_s8_fast_get_buffer_size(const cmsis_nn_dims *input_dims
  *
  * @param[in, out] ctx           Function context that contains the additional buffer if required by the function.
  *                               None is required by this function.
- * @param[in, out] weight_sum_ctx Function context that contains the weight sum buffer if required by the function.
+ * @param[in]      weight_sum_ctx Per-output-channel weight sums, supplied by the caller. This function only reads
+ *                                the buffer and never writes it, so it is filled once and may then be reused for
+ *                                as long as filter_data, bias_data and conv_params->input_offset are unchanged -
+ *                                see arm_convolve_weight_sum() for the layout and the full reuse rules.
+ *                                Fill it with arm_convolve_weight_sum(), passing conv_params->input_offset as
+ *                                lhs_offset and the same bias_data given here. That helper returns
+ *                                ARM_CMSIS_NN_NO_IMPL_ERROR on non-MVE builds, which is not a failure.
+ *                                This function currently dereferences weight_sum_ctx->buf on EVERY build, not
+ *                                only under MVE, and does not check it for NULL: the context must be valid
+ *                                regardless of the target. The buffer contents are currently consumed only on
+ *                                builds with the MVE extension (ARM_MATH_MVEI), where an unfilled buffer yields
+ *                                wrong output while still returning ARM_CMSIS_NN_SUCCESS. None of this is a
+ *                                guarantee about future versions.
+ *                                Sized by arm_convolve_s8_get_weights_sum_size():
+ *                                output_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise.
+ *                                The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      conv_params   Convolution parameters (e.g. strides, dilations, pads,...).
  *                               Range of conv_params->input_offset  : [-127, 128]
  *                               Range of conv_params->output_offset : [-128, 127]
@@ -1003,7 +1099,21 @@ arm_cmsis_nn_status arm_convolve_1x1_s8(const cmsis_nn_context *ctx,
  * @param[in, out] ctx           Function context that contains the additional buffer if required by the function.
  *                               arm_convolve_1_x_n_s8_get_buffer_size will return the buffer_size if required
  *                               The caller is expected to clear the buffer, if applicable, for security reasons.
- * @param[in, out] weight_sum_ctx Function context that contains the weight sum buffer if required by the function.
+ * @param[in]      weight_sum_ctx Per-output-channel weight sums, supplied by the caller. This function only reads
+ *                                the buffer and never writes it, so it is filled once and may then be reused for
+ *                                as long as filter_data, bias_data and conv_params->input_offset are unchanged -
+ *                                see arm_convolve_weight_sum() for the layout and the full reuse rules.
+ *                                Fill it with arm_convolve_weight_sum(), passing conv_params->input_offset as
+ *                                lhs_offset and the same bias_data given here. That helper returns
+ *                                ARM_CMSIS_NN_NO_IMPL_ERROR on non-MVE builds, which is not a failure.
+ *                                Pass a valid context on every build. Currently the contents are read only on
+ *                                builds with the MVE extension (ARM_MATH_MVEI), where an unfilled buffer yields
+ *                                wrong output while still returning ARM_CMSIS_NN_SUCCESS. A NULL buf is not
+ *                                checked for here, so do not rely on getting an error back. None of this is a
+ *                                guarantee about future versions.
+ *                                Sized by arm_convolve_s8_get_weights_sum_size():
+ *                                output_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise.
+ *                                The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      conv_params   Convolution parameters (e.g. strides, dilations, pads,...).
  *                               Range of conv_params->input_offset  : [-127, 128]
  *                               Range of conv_params->output_offset : [-128, 127]
@@ -1059,13 +1169,32 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
  * @param[in]     lhs_offset      Input-offset added to every input element before MAC. Range: [-127, 128]
  * @param[in]     bias_data       Optional bias pointer. Data type: int32
  *
- * @return        <code>ARM_CMSIS_NN_ARG_ERROR</code> on invalid arguments, or
- *                <code>ARM_CMSIS_NN_SUCCESS</code> on success.
+ * @return        <code>ARM_CMSIS_NN_ARG_ERROR</code> on invalid arguments,
+ *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> on builds without the MVE extension, where the sums are
+ *                currently not consumed and the buffer is left untouched, or
+ *                <code>ARM_CMSIS_NN_SUCCESS</code> on success. Portable code should not treat the
+ *                <code>NO_IMPL_ERROR</code> case as a failure.
  *
  * @details
  *   - Supported framework : TensorFlow Lite Micro
  *   - The buffer pointed to by @p vector_sum_buf must be at least
  *     <code>output_dims->c × sizeof(int32_t)</code> bytes.
+ *     arm_convolve_s8_get_weights_sum_size() returns that size on builds that use the sums, and 0 elsewhere.
+ *   - Layout: one int32 per output channel, indexed 0..<code>output_dims->c - 1</code>. Entry j holds
+ *     <code>lhs_offset * sum(weights of output channel j) + bias_data[j]</code>, i.e. the bias and the
+ *     input-offset contribution folded together. For grouped convolution the entries run over all
+ *     output channels, with the groups laid out consecutively.
+ *   - This is the buffer the @p weight_sum_ctx parameter of the s8 convolution kernels carries. Those kernels
+ *     currently treat it as an input they only read, so it has to be filled before the call - see the
+ *     individual functions for what each one currently does on MVE and non-MVE builds.
+ *   - Reuse and invalidation: the contents depend only on @p rhs, @p bias_data and @p lhs_offset. They do not
+ *     depend on the activations, so a buffer stays valid across calls and across batches for as long as those
+ *     three are unchanged - for a static model the sums can be computed once at load time rather than per
+ *     inference. Recompute whenever the weights, the bias or the input offset change (for example on
+ *     requantization or a weight reload). The buffer is sized by one layer's <code>output_dims->c</code> and is
+ *     specific to that layer's weights, so it cannot be shared between layers; give each layer its own.
+ *   - Returns <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> on builds without the MVE extension, where the sums are
+ *     currently not consumed.
  */
 arm_cmsis_nn_status arm_convolve_weight_sum(int32_t *vector_sum_buf,
                                             const int8_t *rhs,
@@ -1079,7 +1208,9 @@ arm_cmsis_nn_status arm_convolve_weight_sum(int32_t *vector_sum_buf,
  * @brief Pre-computes per-channel weight sums for a depthwise convolution
  *
  * @param[out]    vector_sum_buf  Buffer to hold the computed weight sums.
- * @param[in,out] scratch_buf     Scratch buffer used internally; caller must clear for security.
+ * @param[in,out] scratch_buf     Currently unused: the implementation does not read or write it on any build, so
+ *                                NULL is accepted. Retained for signature compatibility; if a real buffer is
+ *                                passed, the caller is expected to clear it for security reasons.
  * @param[in]     rhs             Depthwise convolution weights. Data type: int8
  * @param[in]     dw_conv_params  Depthwise-convolution parameters (stride, dilation, pad, etc.)
  * @param[in]     input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
@@ -1088,11 +1219,30 @@ arm_cmsis_nn_status arm_convolve_weight_sum(int32_t *vector_sum_buf,
  * @param[in]     lhs_offset      Input-offset applied before MAC. Range: [-127, 128]
  * @param[in]     bias_data       Optional bias pointer. Data type: int32
  *
- * @return        <code>ARM_CMSIS_NN_ARG_ERROR</code> on invalid arguments, or
- *                <code>ARM_CMSIS_NN_SUCCESS</code> on success.
+ * @return        <code>ARM_CMSIS_NN_ARG_ERROR</code> on invalid arguments,
+ *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> on builds without the MVE extension, where the sums are
+ *                currently not consumed and the buffer is left untouched, or
+ *                <code>ARM_CMSIS_NN_SUCCESS</code> on success. Portable code should not treat the
+ *                <code>NO_IMPL_ERROR</code> case as a failure.
  *
  * @details
  *   - Supported framework : TensorFlow Lite Micro
+ *   - Layout: one int32 per channel, sized by arm_convolve_s8_get_weights_sum_size(). Entry j holds
+ *     <code>bias_data[j] + lhs_offset * sum(kernel values of channel j)</code>.
+ *   - Reuse and invalidation follow the same rules as arm_convolve_weight_sum(): the contents depend only on
+ *     @p rhs, @p bias_data and @p lhs_offset, so they may be computed once and reused until one of those changes,
+ *     and they are specific to a single layer.
+ *   - Returns <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> on builds without the MVE extension, where the sums are
+ *     currently not consumed.
+ *   - Not interchangeable with arm_convolve_weight_sum(): this function walks the channel-interleaved depthwise
+ *     layout <code>[1, KH, KW, C_OUT]</code> with a stride of C_OUT, whereas arm_convolve_weight_sum() sums
+ *     contiguous runs of <code>KH * KW * C_IN</code> weights. The two agree only by coincidence. Several in-tree
+ *     tests do fill a depthwise weight_sum_ctx with arm_convolve_weight_sum() and are still correct, for one of
+ *     three unrelated reasons: arm_depthwise_conv_wrapper_s8() does not consume the buffer on that route at all
+ *     (ch_mult != 1, batches != 1 or dilation != 1); the wrapper converts the layer to a regular convolution, so
+ *     conv-style sums are what is wanted; or C_OUT is 1, which collapses the stride-C_OUT walk to a contiguous
+ *     one and makes the two helpers compute identical values. None of those generalise, so do not read them as
+ *     licence to substitute one helper for the other. Use this function wherever the sums are actually read.
  */
 arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
                                                       int8_t *scratch_buf,
@@ -1109,7 +1259,21 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
  *
  * @param[in,out] ctx             Function context that may supply an additional buffer for activation rearrangement.
  *
- * @param[in,out] weight_sum_ctx  Context holding the weight-sum buffer.
+ * @param[in]     weight_sum_ctx  Per-output-channel weight sums, supplied by the caller. This function only reads
+ *                                the buffer and never writes it, so it is filled once and may then be reused for
+ *                                as long as filter_data, bias_data and conv_params->input_offset are unchanged -
+ *                                see arm_convolve_weight_sum() for the layout and the full reuse rules.
+ *                                Fill it with arm_convolve_weight_sum(), passing conv_params->input_offset as
+ *                                lhs_offset and the same bias_data given here. That helper returns
+ *                                ARM_CMSIS_NN_NO_IMPL_ERROR on non-MVE builds, which is not a failure.
+ *                                Pass a valid context on every build. Currently the contents are read only on
+ *                                builds with the MVE extension (ARM_MATH_MVEI), where an unfilled buffer yields
+ *                                wrong output while still returning ARM_CMSIS_NN_SUCCESS. A NULL buf is not
+ *                                checked for here, so do not rely on getting an error back. None of this is a
+ *                                guarantee about future versions.
+ *                                Sized by arm_convolve_s8_get_weights_sum_size():
+ *                                output_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise.
+ *                                The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]     conv_params     Convolution parameters (stride, dilation, pad, offsets).
  *                                Range of conv_params->input_offset  : [-127, 128]
  *                                Range of conv_params->output_offset : [-128, 127]
@@ -1239,7 +1403,31 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  *                                 Optional function {API}_get_buffer_size() provides the buffer
  *                                 size if required.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
- * @param[in, out] weight_sum_ctx  Function context that contains the weight sum buffer if required by the function.
+ * @param[in]      weight_sum_ctx  Per-channel weight sums, supplied by the caller. The selected kernel only reads
+ *                                 this buffer and never writes it, so it is filled once and may then be reused for
+ *                                 as long as filter, bias and dw_conv_params->input_offset are unchanged - see
+ *                                 arm_depthwise_convolve_weight_sum() for the layout and the full reuse rules.
+ *                                 Whether the buffer is consumed at all depends on the route this wrapper takes.
+ *                                 It is forwarded to arm_depthwise_conv_s8_opt(), which reads it under MVE, only
+ *                                 when dw_conv_params->ch_mult == 1, input_dims->n == 1 and both dilations are 1.
+ *                                 Outside that case the wrapper calls arm_depthwise_conv_s8(), which has no such
+ *                                 parameter and ignores the context entirely - which is why several in-tree tests
+ *                                 legitimately pass sums built by arm_convolve_weight_sum(), or none at all, on
+ *                                 those routes. On MVE with input_dims->c == 1 and a large output channel count
+ *                                 the layer is instead converted to a regular convolution, and conv-style sums
+ *                                 from arm_convolve_weight_sum() are what that route wants.
+ *                                 Where the sums are actually read, fill the buffer with
+ *                                 arm_depthwise_convolve_weight_sum(), passing dw_conv_params->input_offset as
+ *                                 lhs_offset and the same bias given here, so that entry j holds
+ *                                 input_offset * sum(weights of channel j) + bias[j]. That helper returns
+ *                                 ARM_CMSIS_NN_NO_IMPL_ERROR on non-MVE builds, which is not a failure.
+ *                                 Pass a valid context on every build. A NULL buf is NOT diagnosed on the
+ *                                 arm_depthwise_conv_s8_opt() route: it returns ARM_CMSIS_NN_SUCCESS and produces
+ *                                 wrong output rather than ARM_CMSIS_NN_ARG_ERROR, so unlike arm_convolve_s8()
+ *                                 there is no safety net here. None of this is a guarantee about future versions.
+ *                                 Sized by arm_convolve_s8_get_weights_sum_size():
+ *                                 output_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise.
+ *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
@@ -1699,7 +1887,25 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
 
 /**
  * @brief Optimized s8 depthwise convolution function with constraint that in_channel equals out_channel.
- *        Refer arm_depthwise_conv_s8() for function argument details.
+ *        Refer arm_depthwise_conv_s8() for the argument details it has in common with this function.
+ *
+ * @note       The second argument, weight_sum_ctx, has no counterpart on arm_depthwise_conv_s8(), so it is
+ *             described here rather than by reference. It carries per-channel weight sums that the caller
+ *             supplies: this function only reads the buffer and never writes it, so it is filled once and may
+ *             then be reused for as long as the weights, the bias and dw_conv_params->input_offset are
+ *             unchanged - see arm_depthwise_convolve_weight_sum() for the layout and the full reuse rules.
+ *             Fill it with arm_depthwise_convolve_weight_sum(), which walks the channel-interleaved depthwise
+ *             weight layout; arm_convolve_weight_sum() sums a different set of weights and is not a substitute
+ *             here. That helper returns <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> on non-MVE builds, which is not
+ *             a failure. Size the buffer with arm_convolve_s8_get_weights_sum_size(): output_dims->c *
+ *             sizeof(int32_t) where the sums are used, 0 otherwise, and clear it afterwards if applicable for
+ *             security reasons.
+ *             Pass a valid context on every build. Currently the contents are read only on builds with the MVE
+ *             extension (ARM_MATH_MVEI). A NULL buf is NOT diagnosed here: unlike arm_convolve_s8(), this
+ *             function does not check it and will not return <code>ARM_CMSIS_NN_ARG_ERROR</code>. On MVE a NULL
+ *             or unfilled buffer produces wrong output while still returning
+ *             <code>ARM_CMSIS_NN_SUCCESS</code>, and on targets where address 0 is readable it will not fault
+ *             either, so there is no safety net to rely on. None of this is a guarantee about future versions.
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or
