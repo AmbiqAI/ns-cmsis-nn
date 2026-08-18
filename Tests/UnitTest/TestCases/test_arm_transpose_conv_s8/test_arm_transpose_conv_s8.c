@@ -17,7 +17,6 @@
  */
 
 #include <arm_nnfunctions.h>
-#include <arm_nnsupportfunctions.h>
 #include <unity.h>
 
 #include "../TestData/transpose_conv_1/test_data.h"
@@ -667,6 +666,13 @@ void transpose_conv_6_arm_transpose_conv_s8(void)
  * Regression pin for issue #261 defect 2: pad_h > input_h * stride_h. Pre-fix the leftover-row
  * loop emitted rows from the wrong rolling-buffer slot, so the output was shifted by
  * pad_h - input_h * stride_h rows.
+ *
+ * The defect class is TFLite-reachable: SAME padding with input_h = 1, stride_h = 1,
+ * filter_h = 5 gives output_h = 1 and pad_h = ((input_h - 1) * stride_h + filter_h - output_h) / 2
+ * = 2, i.e. pad_h = 2 > input_h * stride_h = 1. This case is a hand-widened variant of that
+ * shape (output_h opened from 1 to 3, plus more channels and columns) so the one-row slip is
+ * visible across several rows rather than in a single value; the widened pad_h = 2 with
+ * output_h = 3 pair is not itself converter-emittable.
  */
 void transpose_conv_7_arm_transpose_conv_s8(void)
 {
@@ -868,31 +874,135 @@ void transpose_conv_dilation_rejected_arm_transpose_conv_s8(void)
 
 /*
  * Regression pin for issue #261 defect 3: arm_transpose_conv_s8_get_buffer_size() is documented as
- * the ctx size for arm_transpose_conv_s8(), which callers may invoke directly, so it must never
- * return less than the rolling row buffer that kernel indexes -- not even for the in_ch > 16,
- * stride <= 2 shapes the wrapper would route to the reverse convolution instead.
+ * the ctx size for arm_transpose_conv_s8(), which callers may invoke directly, so it must cover
+ * everything that kernel indexes -- not even the in_ch > 16, stride <= 2 shapes the wrapper would
+ * route to the reverse convolution instead may under-report.
+ *
+ * This is checked by execution rather than by recomputing the sizing formula: the kernel is run
+ * with a ctx buffer allocated at exactly the advertised size, followed by guard bytes. Any byte
+ * the kernel writes beyond the advertised size trips a guard, so an error in the formula itself is
+ * caught, not just a disagreement between two copies of it.
  */
 void transpose_conv_buffer_size_covers_direct_call_arm_transpose_conv_s8(void)
 {
-    /* The shape reported in issue #261: 80 bytes returned, 96 bytes indexed. */
-    const int32_t in_ch = 17, out_ch = 1, input_w = 6, filter_w = 1, filter_h = 1, stride = 2;
+    /* The shape reported in issue #261: in_ch > 16 with both strides <= 2, where the reverse-conv
+     * size (80 bytes) is smaller than the rolling row buffer arm_transpose_conv_s8 indexes (96). */
+    enum
+    {
+        IN_CH = 17,
+        OUT_CH = 1,
+        INPUT_H = 1,
+        INPUT_W = 6,
+        FILTER_H = 1,
+        FILTER_W = 1,
+        STRIDE = 2,
+        OUTPUT_H = (INPUT_H - 1) * STRIDE + FILTER_H,
+        OUTPUT_W = (INPUT_W - 1) * STRIDE + FILTER_W,
+        DST_SIZE = OUTPUT_H * OUTPUT_W * OUT_CH,
+        GUARD_BYTES = 64
+    };
+    const uint8_t guard_pattern = 0xA5;
+
+    int8_t input_data[INPUT_H * INPUT_W * IN_CH];
+    int8_t kernel_data[OUT_CH * FILTER_H * FILTER_W * IN_CH];
+    int32_t bias_data[OUT_CH] = {1234};
+    int32_t output_mult[OUT_CH] = {1893289283};
+    int32_t output_shift[OUT_CH] = {-8};
+    /* Slack past DST_SIZE so that this ctx-sizing pin stays a ctx-sizing pin: a row-scheduling
+     * regression would otherwise write past these arrays instead of failing its own pin
+     * (transpose_conv_6). Only the first DST_SIZE bytes are compared. */
+    int8_t output_reference[DST_SIZE + 64] = {0};
+    int8_t output[DST_SIZE + 64] = {0};
+    /* Comfortably larger than any sizing this shape can produce, for the known-good run. */
+    int32_t oversized_buf[256];
+
+    for (int i = 0; i < (int)sizeof(input_data); i++)
+    {
+        input_data[i] = (int8_t)(((i * 7) % 255) - 128);
+    }
+    for (int i = 0; i < (int)sizeof(kernel_data); i++)
+    {
+        kernel_data[i] = (int8_t)(((i * 13) % 255) - 128);
+    }
 
     cmsis_nn_transpose_conv_params transpose_conv_params;
     memset(&transpose_conv_params, 0, sizeof(transpose_conv_params));
-    transpose_conv_params.stride.w = stride;
-    transpose_conv_params.stride.h = stride;
+    transpose_conv_params.stride.w = STRIDE;
+    transpose_conv_params.stride.h = STRIDE;
     transpose_conv_params.dilation.w = 1;
     transpose_conv_params.dilation.h = 1;
+    transpose_conv_params.input_offset = -13;
+    transpose_conv_params.output_offset = 9;
+    transpose_conv_params.activation.min = -128;
+    transpose_conv_params.activation.max = 127;
 
-    cmsis_nn_dims input_dims = {1, 1, input_w, in_ch};
-    cmsis_nn_dims filter_dims = {out_ch, filter_h, filter_w, in_ch};
-    cmsis_nn_dims output_dims = {1, filter_h, (input_w - 1) * stride + filter_w, out_ch};
+    cmsis_nn_per_channel_quant_params quant_params = {output_mult, output_shift};
+    cmsis_nn_dims input_dims = {1, INPUT_H, INPUT_W, IN_CH};
+    cmsis_nn_dims filter_dims = {OUT_CH, FILTER_H, FILTER_W, IN_CH};
+    cmsis_nn_dims bias_dims = {1, 1, 1, OUT_CH};
+    cmsis_nn_dims output_dims = {1, OUTPUT_H, OUTPUT_W, OUT_CH};
+    cmsis_nn_context unused_ctx = {NULL, 0};
 
-    const int32_t rolling_buffer_bytes =
-        MAX(filter_h, stride) * ((input_w - 1) * stride + MAX(filter_w, stride)) * out_ch * (int32_t)sizeof(int32_t);
+    /* Known-good run: scratch that is certainly large enough. */
+    cmsis_nn_context roomy_ctx = {oversized_buf, (int32_t)sizeof(oversized_buf)};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_transpose_conv_s8(&roomy_ctx,
+                                            &unused_ctx,
+                                            &transpose_conv_params,
+                                            &quant_params,
+                                            &input_dims,
+                                            input_data,
+                                            &filter_dims,
+                                            kernel_data,
+                                            &bias_dims,
+                                            bias_data,
+                                            &output_dims,
+                                            output_reference));
 
-    TEST_ASSERT_TRUE(arm_transpose_conv_s8_get_buffer_size(
-                         &transpose_conv_params, &input_dims, &filter_dims, &output_dims) >= rolling_buffer_bytes);
-    TEST_ASSERT_TRUE(arm_transpose_conv_s8_get_buffer_size_mve(
-                         &transpose_conv_params, &input_dims, &filter_dims, &output_dims) >= rolling_buffer_bytes);
+    /* Both sizing entry points must survive being taken literally. */
+    for (int variant = 0; variant < 2; variant++)
+    {
+        const int32_t buf_size = (variant == 0)
+            ? arm_transpose_conv_s8_get_buffer_size(&transpose_conv_params, &input_dims, &filter_dims, &output_dims)
+            : arm_transpose_conv_s8_get_buffer_size_mve(
+                  &transpose_conv_params, &input_dims, &filter_dims, &output_dims);
+
+        TEST_ASSERT_TRUE(buf_size > 0);
+        uint8_t *guarded_buf = malloc((size_t)buf_size + GUARD_BYTES);
+        TEST_ASSERT_NOT_NULL(guarded_buf);
+        memset(guarded_buf + buf_size, guard_pattern, GUARD_BYTES);
+        memset(output, 0, sizeof(output));
+
+        cmsis_nn_context ctx = {guarded_buf, buf_size};
+        const arm_cmsis_nn_status result = arm_transpose_conv_s8(&ctx,
+                                                                 &unused_ctx,
+                                                                 &transpose_conv_params,
+                                                                 &quant_params,
+                                                                 &input_dims,
+                                                                 input_data,
+                                                                 &filter_dims,
+                                                                 kernel_data,
+                                                                 &bias_dims,
+                                                                 bias_data,
+                                                                 &output_dims,
+                                                                 output);
+
+        int guard_intact = 1;
+        for (int i = 0; i < GUARD_BYTES; i++)
+        {
+            if (guarded_buf[buf_size + i] != guard_pattern)
+            {
+                guard_intact = 0;
+            }
+        }
+
+        // The caller is responsible to clear the scratch buffers for security reasons if applicable.
+        memset(guarded_buf, 0, (size_t)buf_size + GUARD_BYTES);
+        free(guarded_buf);
+
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+        /* Fails when get_buffer_size() advertises less than arm_transpose_conv_s8 writes. */
+        TEST_ASSERT_TRUE(guard_intact);
+        TEST_ASSERT_TRUE(validate(output, output_reference, DST_SIZE));
+    }
 }

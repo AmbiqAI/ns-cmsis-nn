@@ -529,8 +529,11 @@ int32_t arm_convolve_s8_get_weights_sum_size(const cmsis_nn_dims *output_dims);
  *                                       arm_transpose_conv_s8_get_buffer_size will return the buffer_size if required.
  *                                       The caller is expected to clear the buffer, if applicable, for security
  reasons.
- * @param[in, out] output_ctx            Temporary scratch buffer.
- *                                       The size required size is: output width * output height * output channel * 4
+ * @param[in, out] reverse_conv_ctx      Function context for the reversed filter used when this wrapper routes to the
+ *                                       reverse convolution. Holds filter height * filter width * input channels *
+ *                                       output channels int8 values;
+ *                                       arm_transpose_conv_s8_get_reverse_conv_buffer_size() returns the required size
+ *                                       (0 when the reverse-convolution route is not taken).
  *                                       The caller is expected to clear the buffer, if applicable, for security
  *                                        reasons.
  * @param[in]      transpose_conv_params Convolution parameters (e.g. strides, dilations, pads,...).
@@ -554,14 +557,14 @@ int32_t arm_convolve_s8_get_weights_sum_size(const cmsis_nn_dims *output_dims);
  *
  * @details
  *    1. Supported framework: TensorFlow Lite micro
- *    2. Additional memory is required for optimization. Refer to arguments 'ctx' and 'output_ctx' for details.
+ *    2. Additional memory is required for optimization. Refer to arguments 'ctx' and 'reverse_conv_ctx' for details.
  *    3. Dilation is not supported: transpose_conv_params->dilation must be 1 in both dimensions,
  *       otherwise <code>ARM_CMSIS_NN_ARG_ERROR</code> is returned.
  *
  */
 arm_cmsis_nn_status arm_transpose_conv_wrapper_s8(const cmsis_nn_context *ctx,
                                                   const cmsis_nn_context *weight_sum_ctx,
-                                                  const cmsis_nn_context *output_ctx,
+                                                  const cmsis_nn_context *reverse_conv_ctx,
                                                   const cmsis_nn_transpose_conv_params *transpose_conv_params,
                                                   const cmsis_nn_per_channel_quant_params *quant_params,
                                                   const cmsis_nn_dims *input_dims,
