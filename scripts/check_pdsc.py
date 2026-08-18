@@ -31,6 +31,17 @@
 #      them unconditionally while cmake/ns_cmsis_nn.cmake lists them only
 #      under the matching ARM_NN_ENABLE_F32/F16 block, so an ungated
 #      kernel builds fine in CI and breaks pack consumers (#264).
+#   8. extra-files annotation coverage — release-please's own generic
+#      updater (generic.js) silently leaves a line untouched if nothing
+#      on it matches the scope's value regex, and its manifest strategy
+#      only *warns* (does not fail) about an extra-files path that does
+#      not exist. Both mean a broken or inert extra-files entry ships
+#      silently, which is the exact failure class this script exists to
+#      catch elsewhere. Assert every release-please-config.json
+#      extra-files entry exists, carries at least one working
+#      x-release-please-* annotation (or is on the explicit
+#      LITERAL_ONLY_EXTRA_FILES allowlist), and that every annotated /
+#      allowlisted value agrees with the canonical arm_nn_types.h version.
 #
 
 from __future__ import annotations
@@ -47,6 +58,36 @@ PDSC = REPO / "Ambiq.NS-CMSIS-NN.pdsc"
 TYPES_H = REPO / "Include" / "arm_nn_types.h"
 NSX_MODULE = REPO / "nsx" / "nsx-module.yaml"
 RP_MANIFEST = REPO / ".release-please-manifest.json"
+RP_CONFIG = REPO / "release-please-config.json"
+
+# release-please's generic updater (src/updaters/generic.js) matches these
+# same patterns: x-release-please-<scope> anywhere on a line selects that
+# line for replacement, using a bare \d+\.\d+\.\d+ for "version" and a bare
+# \d+ for "major"/"minor"/"patch". Mirrored here (not imported — this is a
+# pure-Python script with no Node dependency) so this check fails the same
+# way the real updater would silently no-op.
+RP_INLINE_SCOPE_RE = re.compile(
+    r"x-release-please-(major|minor|patch|version-date|version|date)"
+)
+RP_VERSION_TRIPLET_RE = re.compile(r"\d+\.\d+\.\d+")
+RP_BARE_INT_RE = re.compile(r"\d+\b")
+
+# Extra-files entries whose version literal cannot carry an
+# x-release-please annotation, mapped to a regex whose first capture group
+# is the literal to check against the canonical version. Today this is
+# just docs/guides/toolchains.md's manifest.json illustration: JSON has no
+# comment syntax, and wrapping it in an x-release-please-start-version/-end
+# block would also rewrite the unrelated ATfE compiler version a few lines
+# below ("toolchain": {"version": "19.1.5"}), since the block updater
+# rewrites the first semver-shaped string on *every* line it spans. The
+# regex is anchored to exactly two leading spaces so it matches only the
+# top-level manifest.json `"version"` field, not the nested toolchain one
+# (four leading spaces) — if that example's fields are ever reordered or
+# re-indented, the anchor (correctly) stops matching and this check fails
+# loudly instead of silently checking the wrong field.
+LITERAL_ONLY_EXTRA_FILES: dict[str, re.Pattern[str]] = {
+    "docs/guides/toolchains.md": re.compile(r'^ {2}"version": "([^"]+)",?$', re.MULTILINE),
+}
 
 EXPECTED_PACK = {
     "schemaVersion": "1.7.36",
@@ -108,6 +149,19 @@ def find_component(pkg: ET.Element) -> ET.Element | None:
     return None
 
 
+def parse_header_version(text: str) -> tuple[str, str, str] | None:
+    """Pull (major, minor, patch) strings out of arm_nn_types.h's
+    NS_CMSIS_NN_VERSION_* macros. Shared by check_versions() (pdsc/nsx/
+    manifest sync) and check_extra_files_annotations() (extra-files
+    cross-check), so both agree on exactly one canonical source."""
+    m_major = re.search(r"NS_CMSIS_NN_VERSION_MAJOR\s*\((\d+)\)", text)
+    m_minor = re.search(r"NS_CMSIS_NN_VERSION_MINOR\s*\((\d+)\)", text)
+    m_patch = re.search(r"NS_CMSIS_NN_VERSION_PATCH\s*\((\d+)\)", text)
+    if m_major and m_minor and m_patch:
+        return m_major.group(1), m_minor.group(1), m_patch.group(1)
+    return None
+
+
 def check_versions(pkg: ET.Element, comp: ET.Element | None) -> None:
     # Latest release version (first <release> under <releases>).
     releases = pkg.find("releases")
@@ -126,13 +180,11 @@ def check_versions(pkg: ET.Element, comp: ET.Element | None) -> None:
 
     # arm_nn_types.h version markers.
     th = TYPES_H.read_text()
-    m_major = re.search(r"NS_CMSIS_NN_VERSION_MAJOR\s*\((\d+)\)", th)
-    m_minor = re.search(r"NS_CMSIS_NN_VERSION_MINOR\s*\((\d+)\)", th)
-    m_patch = re.search(r"NS_CMSIS_NN_VERSION_PATCH\s*\((\d+)\)", th)
+    header_parts = parse_header_version(th)
     m_rev = re.search(r'\$Revision:\s*"v(\d+\.\d+\.\d+)"', th)
     header_ver: str | None = None
-    if m_major and m_minor and m_patch:
-        header_ver = f"{m_major.group(1)}.{m_minor.group(1)}.{m_patch.group(1)}"
+    if header_parts:
+        header_ver = ".".join(header_parts)
     else:
         fail("Include/arm_nn_types.h is missing one of the NS_CMSIS_NN_VERSION_* markers")
 
@@ -359,6 +411,143 @@ def check_float_source_gating(entries: list[tuple[str, str]]) -> None:
             )
 
 
+def check_extra_files_annotations() -> None:
+    """Guard release-please-config.json's `extra-files` list against the
+    two silent failure modes release-please itself has: a path that no
+    longer exists (manifest.js only warns), and a listed file that
+    carries no matching annotation, so the generic updater quietly
+    changes zero lines in it forever (generic.js just leaves such lines
+    alone — no warning, no error). Also cross-checks every annotated
+    value, plus every LITERAL_ONLY_EXTRA_FILES literal, against the
+    canonical version in Include/arm_nn_types.h, so a hand-bumped docs
+    literal that drifts from the real version fails here instead of
+    shipping quietly.
+    """
+    try:
+        config = json.loads(RP_CONFIG.read_text())
+    except Exception as e:
+        fail(f"could not read {RP_CONFIG.relative_to(REPO)}: {e}")
+        return
+
+    canonical_parts = parse_header_version(TYPES_H.read_text()) if TYPES_H.is_file() else None
+    if canonical_parts is None:
+        fail(
+            "cannot cross-check extra-files versions: "
+            "Include/arm_nn_types.h NS_CMSIS_NN_VERSION_* markers unreadable"
+        )
+        return
+    canonical = dict(zip(("major", "minor", "patch"), canonical_parts))
+    canonical_full = ".".join(canonical_parts)
+
+    # Normalize both entry forms release-please accepts: the object form
+    # used everywhere in this repo ({"type": ..., "path": ...}), and the
+    # bare-string form (path only, updater picked by file extension).
+    # Existence is checked for every entry regardless of form; the
+    # annotation/literal checks below only apply to the object form with
+    # "type": "generic", since that is the only form this repo uses and
+    # the only one that means "look for x-release-please comments" --
+    # the jsonpath-based updaters (json/yaml/toml/xml, object form with a
+    # "type" other than "generic") and the bare-string, extension-sniffed
+    # form both use a different, non-comment mechanism this check does
+    # not pin.
+    extra_files: list[tuple[str, str | None]] = []  # (path, type or None)
+    for pkg_cfg in config.get("packages", {}).values():
+        for entry in pkg_cfg.get("extra-files", []):
+            if isinstance(entry, dict):
+                rel = entry.get("path")
+                if not rel:
+                    fail(f"extra-files entry missing 'path': {entry!r}")
+                    continue
+                extra_files.append((rel, entry.get("type")))
+            elif isinstance(entry, str):
+                extra_files.append((entry, None))
+            else:
+                fail(f"extra-files entry is neither a path string nor an object: {entry!r}")
+
+    if not extra_files:
+        fail(f"{RP_CONFIG.relative_to(REPO)} has no extra-files entries to check")
+        return
+
+    for rel, entry_type in extra_files:
+        path = REPO / rel
+        if not path.is_file():
+            fail(f"extra-files entry does not exist on disk: {rel}")
+            continue
+        if entry_type != "generic":
+            continue  # not a comment-annotation-based updater; nothing more to check here
+        text = path.read_text(encoding="utf-8")
+
+        if rel in LITERAL_ONLY_EXTRA_FILES:
+            pattern = LITERAL_ONLY_EXTRA_FILES[rel]
+            m = pattern.search(text)
+            if not m:
+                fail(
+                    f"{rel}: on the literal-only allowlist but pattern "
+                    f"{pattern.pattern!r} found no match — did the file move "
+                    "or get reformatted?"
+                )
+                continue
+            literal = m.group(1)
+            if literal != canonical_full:
+                fail(
+                    f"{rel}: literal version {literal!r} does not match canonical "
+                    f"{canonical_full!r} (Include/arm_nn_types.h) — this file has no "
+                    "working annotation, so it must be bumped by hand at release time"
+                )
+            continue
+
+        annotations_found = 0
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            scope_match = RP_INLINE_SCOPE_RE.search(line)
+            if not scope_match:
+                continue
+            scope = scope_match.group(1)
+            if scope == "version":
+                value_match = RP_VERSION_TRIPLET_RE.search(line)
+                if not value_match:
+                    fail(
+                        f"{rel}:{lineno}: x-release-please-version annotation but no "
+                        "M.m.p value on the line — release-please's generic updater "
+                        "will silently skip this line"
+                    )
+                    continue
+                annotations_found += 1
+                if value_match.group(0) != canonical_full:
+                    fail(
+                        f"{rel}:{lineno}: annotated version {value_match.group(0)!r} "
+                        f"!= canonical {canonical_full!r} (Include/arm_nn_types.h)"
+                    )
+            elif scope in ("major", "minor", "patch"):
+                value_match = RP_BARE_INT_RE.search(line)
+                if not value_match:
+                    fail(
+                        f"{rel}:{lineno}: x-release-please-{scope} annotation but no "
+                        "integer value on the line — release-please's generic updater "
+                        "will silently skip this line"
+                    )
+                    continue
+                annotations_found += 1
+                if value_match.group(0) != canonical[scope]:
+                    fail(
+                        f"{rel}:{lineno}: annotated {scope} {value_match.group(0)!r} "
+                        f"!= canonical {canonical[scope]!r} (Include/arm_nn_types.h)"
+                    )
+            else:
+                # version-date / date: not used by any file in this repo
+                # today. Counted so an unrecognized-but-present annotation
+                # doesn't trip the "zero annotations" check below.
+                annotations_found += 1
+
+        if annotations_found == 0:
+            fail(
+                f"{rel}: listed in extra-files but carries zero x-release-please "
+                "annotations and is not on LITERAL_ONLY_EXTRA_FILES — release-please "
+                "will never touch this file, so it will drift silently. Either add a "
+                "matching x-release-please-* annotation or add it to "
+                "LITERAL_ONLY_EXTRA_FILES with a pattern that pins its literal."
+            )
+
+
 def main() -> int:
     if not PDSC.is_file():
         fail(f"{PDSC.relative_to(REPO)} not found")
@@ -374,6 +563,7 @@ def main() -> int:
     check_file_existence(entries)
     check_source_coverage(entries)
     check_float_source_gating(entries)
+    check_extra_files_annotations()
 
     report()
     return 1 if failures else 0
@@ -388,7 +578,8 @@ def report() -> None:
         print(
             "PDSC contract OK: pack/component identity, versions in sync, "
             "NSX module version synced, licenses declared, all <file> paths exist, "
-            "Source/ coverage complete, float sources dtype-gated."
+            "Source/ coverage complete, float sources dtype-gated, "
+            "extra-files annotations live and in sync."
         )
 
 
