@@ -33,7 +33,7 @@
  * CMSIS-NN style API, without quantization.
  */
 
-#include "Internal/arm_nn_config.h"
+#include "arm_nn_types.h"
 
 #if ARM_NN_ENABLE_F32
 

@@ -30,7 +30,7 @@
 
 /* Generic float16 1x1 convolution. */
 
-#include "Internal/arm_nn_config.h"
+#include "arm_nn_types.h"
 
 #if ARM_NN_ENABLE_F16
 
