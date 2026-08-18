@@ -69,6 +69,18 @@ RP_CONFIG = REPO / "release-please-config.json"
 RP_INLINE_SCOPE_RE = re.compile(
     r"x-release-please-(major|minor|patch|version-date|version|date)"
 )
+# Block form: content between a x-release-please-start-<scope> line and the
+# next x-release-please-end line is scope-replaced line by line (used where
+# the annotation and its value can't share a line without also being on a
+# line that isn't safe to put an inline comment on -- e.g. inside a Kconfig
+# `help` block, which has no comment syntax of its own; see zephyr/Kconfig's
+# NS_CMSIS_NN_PREBUILT_PATH entry). Checked with lower priority than the
+# inline regex, same as generic.js: a line only opens/continues a block if
+# it didn't already match the inline regex.
+RP_BLOCK_START_RE = re.compile(
+    r"x-release-please-start-(major|minor|patch|version-date|version|date)"
+)
+RP_BLOCK_END_RE = re.compile(r"x-release-please-end")
 RP_VERSION_TRIPLET_RE = re.compile(r"\d+\.\d+\.\d+")
 RP_BARE_INT_RE = re.compile(r"\d+\b")
 
@@ -411,6 +423,39 @@ def check_float_source_gating(entries: list[tuple[str, str]]) -> None:
             )
 
 
+def _annotated_value(line: str, scope: str) -> str | None:
+    """The substring release-please's generic updater would substitute in
+    for this (line, scope) pair, mirroring VERSION_REGEX / MAJOR_VERSION_REGEX
+    / SINGLE_VERSION_REGEX from generic.js exactly. None means the real
+    updater's `line.replace(...)` finds nothing to replace and leaves the
+    line untouched -- for an inline annotation that is always a bug; inside
+    a block it is normal for most lines (most of a block's lines have no
+    version-shaped content at all, e.g. Kconfig help prose)."""
+    if scope == "version":
+        m = RP_VERSION_TRIPLET_RE.search(line)
+        return m.group(0) if m else None
+    if scope in ("major", "minor", "patch"):
+        m = RP_BARE_INT_RE.search(line)
+        return m.group(0) if m else None
+    return "<unchecked: version-date/date not used in this repo>"
+
+
+def _check_annotated_value(
+    rel: str, lineno: int, scope: str, value: str, canonical: dict[str, str], canonical_full: str
+) -> None:
+    if scope == "version":
+        expected = canonical_full
+    elif scope in ("major", "minor", "patch"):
+        expected = canonical[scope]
+    else:
+        return  # version-date / date: nothing in this repo to cross-check against
+    if value != expected:
+        fail(
+            f"{rel}:{lineno}: annotated {scope} {value!r} != canonical "
+            f"{expected!r} (Include/arm_nn_types.h)"
+        )
+
+
 def check_extra_files_annotations() -> None:
     """Guard release-please-config.json's `extra-files` list against the
     two silent failure modes release-please itself has: a path that no
@@ -496,47 +541,52 @@ def check_extra_files_annotations() -> None:
                 )
             continue
 
+        # Mirrors generic.js's own per-line state machine: an inline
+        # annotation always wins over an open block; otherwise, once inside
+        # a block, every line (including the x-release-please-end line
+        # itself) is scope-replaced until the end marker; otherwise look for
+        # a block-start marker (that line itself is never scope-replaced).
         annotations_found = 0
+        block_scope: str | None = None
+        block_started_at: int | None = None
         for lineno, line in enumerate(text.splitlines(), start=1):
-            scope_match = RP_INLINE_SCOPE_RE.search(line)
-            if not scope_match:
-                continue
-            scope = scope_match.group(1)
-            if scope == "version":
-                value_match = RP_VERSION_TRIPLET_RE.search(line)
-                if not value_match:
-                    fail(
-                        f"{rel}:{lineno}: x-release-please-version annotation but no "
-                        "M.m.p value on the line — release-please's generic updater "
-                        "will silently skip this line"
-                    )
-                    continue
-                annotations_found += 1
-                if value_match.group(0) != canonical_full:
-                    fail(
-                        f"{rel}:{lineno}: annotated version {value_match.group(0)!r} "
-                        f"!= canonical {canonical_full!r} (Include/arm_nn_types.h)"
-                    )
-            elif scope in ("major", "minor", "patch"):
-                value_match = RP_BARE_INT_RE.search(line)
-                if not value_match:
+            inline_match = RP_INLINE_SCOPE_RE.search(line)
+            if inline_match:
+                scope = inline_match.group(1)
+                value = _annotated_value(line, scope)
+                if value is None:
                     fail(
                         f"{rel}:{lineno}: x-release-please-{scope} annotation but no "
-                        "integer value on the line — release-please's generic updater "
-                        "will silently skip this line"
+                        "value on the line — release-please's generic updater will "
+                        "silently skip this line"
                     )
                     continue
                 annotations_found += 1
-                if value_match.group(0) != canonical[scope]:
-                    fail(
-                        f"{rel}:{lineno}: annotated {scope} {value_match.group(0)!r} "
-                        f"!= canonical {canonical[scope]!r} (Include/arm_nn_types.h)"
-                    )
-            else:
-                # version-date / date: not used by any file in this repo
-                # today. Counted so an unrecognized-but-present annotation
-                # doesn't trip the "zero annotations" check below.
-                annotations_found += 1
+                _check_annotated_value(rel, lineno, scope, value, canonical, canonical_full)
+                continue
+
+            if block_scope is not None:
+                value = _annotated_value(line, block_scope)
+                if value is not None:
+                    annotations_found += 1
+                    _check_annotated_value(rel, lineno, block_scope, value, canonical, canonical_full)
+                if RP_BLOCK_END_RE.search(line):
+                    block_scope = None
+                    block_started_at = None
+                continue
+
+            block_start_match = RP_BLOCK_START_RE.search(line)
+            if block_start_match:
+                block_scope = block_start_match.group(1)
+                block_started_at = lineno
+            # else: an ordinary line outside any annotation, nothing to do.
+
+        if block_scope is not None:
+            fail(
+                f"{rel}:{block_started_at}: x-release-please-start-{block_scope} block "
+                "is never closed with a matching x-release-please-end — release-please "
+                "would keep scope-replacing every line through end of file"
+            )
 
         if annotations_found == 0:
             fail(

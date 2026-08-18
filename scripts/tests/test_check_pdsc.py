@@ -249,6 +249,116 @@ class CheckExtraFilesAnnotations(unittest.TestCase):
             any("found no match" in f and "toolchains.md" in f for f in failures), failures
         )
 
+    # -- block form (x-release-please-start-*/-end) ---------------------
+    #
+    # Needed for files where the annotation and its value can share a
+    # line, but a comment can't safely live on *that* line -- e.g.
+    # zephyr/Kconfig's NS_CMSIS_NN_PREBUILT_PATH: the example path is
+    # inside a `help` block, which Kconfig has no comment syntax for at
+    # all (unlike toolchains.md's JSON problem, nothing else on the
+    # surrounding lines collides, so a block is safe here).
+
+    def test_block_form_matching_canonical_is_accepted(self):
+        # Mirrors the real zephyr/Kconfig shape: a start/end pair wrapped
+        # around a Kconfig help block, with only one line inside it
+        # carrying a version-shaped value.
+        self.write(
+            "zephyr/Kconfig",
+            "# x-release-please-start-version\n"
+            "config NS_CMSIS_NN_PREBUILT_PATH\n"
+            '\tstring "Filesystem path to an extracted ns-cmsis-nn SDK tarball"\n'
+            "\thelp\n"
+            "\t  Absolute path to the directory produced by extracting a\n"
+            "\t  per-arch SDK tarball, e.g.\n"
+            "\t      /opt/ns-cmsis-nn-cortex-m4-gcc-7.29.2/\n"
+            "\t  The directory must contain lib/libns-cmsis-nn.a and include/.\n"
+            "# x-release-please-end\n",
+        )
+        self.write_config([{"type": "generic", "path": "zephyr/Kconfig"}])
+        self.assertEqual(self.run_check(), [])
+
+    def test_block_form_only_replaces_lines_with_a_value(self):
+        # Most lines inside a block have no version-shaped content at all
+        # (Kconfig help prose) -- those must be silently skipped, not
+        # treated as "annotation present but no value" errors, which is
+        # correct only for the *inline* form where the annotation itself
+        # promises a value is right there.
+        self.write(
+            "zephyr/Kconfig",
+            "# x-release-please-start-version\n"
+            "config X\n"
+            "\thelp\n"
+            "\t  no version-shaped text on this line at all\n"
+            "\t      7.29.2\n"
+            "# x-release-please-end\n",
+        )
+        self.write_config([{"type": "generic", "path": "zephyr/Kconfig"}])
+        self.assertEqual(self.run_check(), [])
+
+    def test_block_form_drifted_value_is_rejected(self):
+        self.write(
+            "zephyr/Kconfig",
+            "# x-release-please-start-version\n"
+            "\t      /opt/ns-cmsis-nn-cortex-m4-gcc-7.24.1/\n"
+            "# x-release-please-end\n",
+        )
+        self.write_config([{"type": "generic", "path": "zephyr/Kconfig"}])
+        failures = self.run_check()
+        self.assertTrue(any("'7.24.1' != canonical '7.29.2'" in f for f in failures), failures)
+
+    def test_block_form_unclosed_is_rejected(self):
+        self.write(
+            "zephyr/Kconfig",
+            "# x-release-please-start-version\n" "\t      /opt/foo-7.29.2/\n",  # no -end
+        )
+        self.write_config([{"type": "generic", "path": "zephyr/Kconfig"}])
+        failures = self.run_check()
+        self.assertTrue(
+            any("never closed" in f and "zephyr/Kconfig:1" in f for f in failures), failures
+        )
+
+    def test_block_start_line_itself_is_not_scope_replaced(self):
+        # If the start marker line happens to carry a stray digit (e.g. an
+        # issue number in a trailing comment), that must not be treated as
+        # the block's value -- generic.js pushes the start line through
+        # unchanged, never through replaceVersion(). Uses "minor" (bare
+        # integer extraction) rather than "version" (M.m.p extraction) so
+        # a lone stray digit like "999" is actually something the buggy
+        # behavior *could* pick up -- a bare "999" would never match the
+        # M.m.p-shaped version regex either way, which would make this
+        # test pass regardless of whether the bug exists.
+        self.write(
+            "zephyr/Kconfig",
+            "# x-release-please-start-minor (see issue 999)\n"
+            "\t      29\n"
+            "# x-release-please-end\n",
+        )
+        self.write_config([{"type": "generic", "path": "zephyr/Kconfig"}])
+        # If the start line were (wrongly) scope-replaced too, its stray
+        # "999" would be compared against canonical minor "29" and fail;
+        # correctly, only line 2's "29" is a real value, and it matches.
+        self.assertEqual(self.run_check(), [])
+
+    def test_inline_annotation_on_a_line_takes_priority_over_an_open_block(self):
+        # generic.js checks the inline regex before block state on every
+        # line. Uses mismatched scopes (block wants "minor", the line's
+        # inline annotation is "version") with values that only agree with
+        # canonical under the correct (inline-wins) reading, so a
+        # block-priority bug would produce a real, different verdict
+        # instead of coincidentally passing anyway.
+        self.write(
+            "zephyr/Kconfig",
+            "# x-release-please-start-minor\n"
+            "\t      99 units, current release 7.29.2 # x-release-please-version\n"
+            "# x-release-please-end\n",
+        )
+        self.write_config([{"type": "generic", "path": "zephyr/Kconfig"}])
+        # Wrong (block-priority) would read this as scope "minor" and
+        # extract the line's first bare integer, 99, failing against
+        # canonical minor "29". Correct (inline-priority) reads it as
+        # scope "version" and extracts "7.29.2", which matches canonical.
+        self.assertEqual(self.run_check(), [])
+
     def test_empty_extra_files_is_rejected(self):
         self.write_config([])
         failures = self.run_check()
