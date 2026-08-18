@@ -58,6 +58,12 @@ jobs:
       - name: Run float dtype gating tests
         run: python3 scripts/tests/test_check_pdsc_float_gating.py
 
+      # Check #8 (extra-files annotations) guards a release-time-only bug
+      # class -- a broken annotation is invisible until a release bumps
+      # nothing -- so its own mutation tests gate it in turn.
+      - name: Run extra-files annotation tests
+        run: python3 scripts/tests/test_check_pdsc.py
+
   float_cmsis_components:
     # Static guard for the float unit-test wiring: the csolution pack pin
     # tracks the pdsc <release version>, component selectors are fully

@@ -7,7 +7,7 @@ linking the prebuilt `.a` we already validated in CI.
 ## Install
 
 ```bash
-VERSION=7.25.0
+VERSION=7.29.2 # x-release-please-version
 curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/Ambiq.NS-CMSIS-NN.${VERSION}.pack
 
 # CMSIS-Toolbox
@@ -29,8 +29,8 @@ The pack defines the component **`Ambiq::NN Lib`** with two variants:
 In your `.cproject` or IDE, select **one** of:
 
 ```xml
-<component Cclass="Ambiq" Cgroup="NN Lib" Cvariant="Source"   Cversion="7.25.0"/>
-<component Cclass="Ambiq" Cgroup="NN Lib" Cvariant="Prebuilt" Cversion="7.25.0"/>
+<component Cclass="Ambiq" Cgroup="NN Lib" Cvariant="Source"   Cversion="7.29.2"/> <!-- x-release-please-version -->
+<component Cclass="Ambiq" Cgroup="NN Lib" Cvariant="Prebuilt" Cversion="7.29.2"/> <!-- x-release-please-version -->
 ```
 
 ## Prebuilt — supported architectures

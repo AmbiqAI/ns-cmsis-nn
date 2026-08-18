@@ -40,14 +40,16 @@ config NS_CMSIS_NN_USE_PREBUILT
 	  time and a clear error is raised for any request the archive
 	  doesn't support — see NS_CMSIS_NN_ENABLE_F32/F16 below.
 
+# x-release-please-start-version
 config NS_CMSIS_NN_PREBUILT_PATH
 	string "Filesystem path to an extracted ns-cmsis-nn SDK tarball"
 	depends on NS_CMSIS_NN_USE_PREBUILT
 	help
 	  Absolute path to the directory produced by extracting a
 	  per-arch SDK tarball, e.g.
-	      /opt/ns-cmsis-nn-cortex-m4-gcc-7.24.1/
+	      /opt/ns-cmsis-nn-cortex-m4-gcc-7.29.2/
 	  The directory must contain lib/libns-cmsis-nn.a and include/.
+# x-release-please-end
 
 config NS_CMSIS_NN_ALL
 	bool "Enable all NS-CMSIS-NN kernels"

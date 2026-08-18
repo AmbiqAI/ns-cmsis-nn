@@ -128,7 +128,7 @@ visibility into the cmsis-nn source tree via the prebuilt helper:
 include(<path>/ns-cmsis-nn/cmake/ns-cmsis-nn-prebuilt.cmake)
 
 ns_cmsis_nn_import_prebuilt(
-  LIBRARY      ${CMAKE_CURRENT_LIST_DIR}/libns-cmsis-nn-cortex-m4-7.24.1.a
+  LIBRARY      ${CMAKE_CURRENT_LIST_DIR}/libns-cmsis-nn-cortex-m4-7.29.2.a # x-release-please-version
   INCLUDE_DIRS ${CMAKE_CURRENT_LIST_DIR}/ns-cmsis-nn/Include)
 
 target_link_libraries(my_app PRIVATE ns::cmsis-nn)
