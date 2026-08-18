@@ -74,6 +74,9 @@ jobs:
     name: Build pack (no upload)
     needs: build-staticlibs
     runs-on: ubuntu-22.04
+    # Generous job bound; the precise one is on the gen-pack step below, matching
+    # release.yml so both paths fail at the same point for the same reason.
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -111,6 +114,9 @@ jobs:
 
       - name: Generate pack and docs
         uses: Open-CMSIS-Pack/gen-pack-action@main
+        # Bounds the observed hang in the action's own apt-get update (issue #271).
+        # Green gen-pack is 28-43 s, so this has ~14-21x headroom.
+        timeout-minutes: 10
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
