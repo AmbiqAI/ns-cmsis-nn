@@ -33,6 +33,8 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
+#if ARM_NN_ENABLE_F16
+
 /**
  * @ingroup Public
  */
@@ -192,3 +194,5 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
 /**
  * @} end of NNConv group
  */
+
+#endif /* ARM_NN_ENABLE_F16 */
