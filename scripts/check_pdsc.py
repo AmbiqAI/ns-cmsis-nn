@@ -26,6 +26,11 @@
 #      repo is enumerated under <files> with category="source", so
 #      adding a kernel without updating the pack fails CI (replaces the
 #      old check_pdsc.sh diff).
+#   7. Float dtype gating — every float source the pdsc ships collapses
+#      to an empty translation unit when its dtype is off. The pdsc lists
+#      them unconditionally while cmake/ns_cmsis_nn.cmake lists them only
+#      under the matching ARM_NN_ENABLE_F32/F16 block, so an ungated
+#      kernel builds fine in CI and breaks pack consumers (#264).
 #
 
 from __future__ import annotations
@@ -242,6 +247,118 @@ def check_source_coverage(entries: list[tuple[str, str]]) -> None:
         fail(f"pdsc references nonexistent Source/ file: {x}")
 
 
+# --- float dtype gating -------------------------------------------------
+#
+# Every float kernel the pdsc ships must collapse to an empty translation
+# unit when its dtype is disabled. The pdsc lists float sources
+# unconditionally, so a CMSIS-Pack consumer (and the module.mk glob) hands
+# them to the compiler even in an integer-only build; cmake/ns_cmsis_nn.cmake
+# adds them only under the matching ARM_NN_ENABLE_F32/F16 block, which is why
+# a missing gate is invisible to the CMake build and to CI until a pack
+# consumer trips over it.
+
+# Matches the dtype token anywhere in the basename, not just as a suffix:
+# arm_convolve_f16_fast_small_kernel.c is as much a float source as
+# arm_convolve_f16.c, and a suffix-only pattern would wave it through.
+FLOAT_SRC_RE = re.compile(r"(?:^|_)(?:f16|f32|fp16|fp32)(?:_|\.c$)")
+GATE_RE = re.compile(r"^\s*#\s*if\s+ARM_NN_ENABLE_(F16|F32)\b")
+COND_OPEN_RE = re.compile(r"^\s*#\s*(if|ifdef|ifndef)\b")
+COND_CLOSE_RE = re.compile(r"^\s*#\s*endif\b")
+PP_RE = re.compile(r"^\s*#")
+
+# Frozen legacy allowlist. Do not extend it for new kernels: a new float
+# source must carry its own ARM_NN_ENABLE_F32/F16 gate.
+#   - the two *_fp16.c files predate the gate and self-guard on
+#     ARM_FLOAT16_SUPPORTED / MVE instead;
+#   - QuantizationFunctions/ takes float32_t across an otherwise integer
+#     API by design, so it is built in integer-only configurations.
+GATE_EXEMPT_FILES = {
+    "Source/BasicMathFunctions/arm_elementwise_add_fp16.c",
+    "Source/FullyConnectedFunctions/arm_fully_connected_fp16.c",
+}
+GATE_EXEMPT_DIRS = ("Source/QuantizationFunctions/",)
+
+
+def _code_line_numbers(lines: list[str]) -> list[int]:
+    """Indices of file-scope C code lines, ignoring comments and directives."""
+    out: list[int] = []
+    in_block = False
+    for i, raw in enumerate(lines):
+        line = raw
+        if in_block:
+            end = line.find("*/")
+            if end < 0:
+                continue
+            line = line[end + 2 :]
+            in_block = False
+        while True:
+            start = line.find("/*")
+            if start < 0:
+                break
+            end = line.find("*/", start + 2)
+            if end < 0:
+                line = line[:start]
+                in_block = True
+                break
+            line = line[:start] + line[end + 2 :]
+        line = re.sub(r"//.*", "", line).strip()
+        if not line or PP_RE.match(line):
+            continue
+        out.append(i)
+    return out
+
+
+def check_float_source_gating(entries: list[tuple[str, str]]) -> None:
+    for cat, name in entries:
+        base = name.rsplit("/", 1)[-1]
+        if cat != "source" or not name or not FLOAT_SRC_RE.search(base):
+            continue
+        if name in GATE_EXEMPT_FILES or name.startswith(GATE_EXEMPT_DIRS):
+            continue
+        path = REPO / name
+        if not path.is_file():
+            continue  # already reported by check_file_existence
+        lines = path.read_text(encoding="utf-8").splitlines()
+
+        gate_idx = next((i for i, ln in enumerate(lines) if GATE_RE.match(ln)), None)
+        if gate_idx is None:
+            fail(
+                f"{name}: float source has no `#if ARM_NN_ENABLE_F16/F32` gate — it "
+                f"would not compile when its dtype is disabled (the pdsc builds it "
+                f"unconditionally)"
+            )
+            continue
+
+        expected = "F16" if re.search(r"(?:^|_)f?p?16(?:_|\.c$)", base) else "F32"
+        actual = GATE_RE.match(lines[gate_idx]).group(1)
+        if actual != expected:
+            fail(f"{name}: gated on ARM_NN_ENABLE_{actual}, expected ARM_NN_ENABLE_{expected}")
+            continue
+
+        # Locate the #endif that closes the gate.
+        depth = 0
+        close_idx = None
+        for i in range(gate_idx, len(lines)):
+            if COND_OPEN_RE.match(lines[i]):
+                depth += 1
+            elif COND_CLOSE_RE.match(lines[i]):
+                depth -= 1
+                if depth == 0:
+                    close_idx = i
+                    break
+        if close_idx is None:
+            fail(f"{name}: `#if ARM_NN_ENABLE_{expected}` is never closed by a matching #endif")
+            continue
+
+        stray = [i for i in _code_line_numbers(lines) if i < gate_idx or i > close_idx]
+        if stray:
+            fail(
+                f"{name}: code at line {stray[0] + 1} sits outside the "
+                f"ARM_NN_ENABLE_{expected} gate (lines {gate_idx + 1}-{close_idx + 1}); "
+                f"the file must be an empty translation unit when the dtype is off"
+            )
+
+
 def main() -> int:
     if not PDSC.is_file():
         fail(f"{PDSC.relative_to(REPO)} not found")
@@ -256,6 +373,7 @@ def main() -> int:
     entries = collect_file_entries(comp)
     check_file_existence(entries)
     check_source_coverage(entries)
+    check_float_source_gating(entries)
 
     report()
     return 1 if failures else 0
@@ -270,7 +388,7 @@ def report() -> None:
         print(
             "PDSC contract OK: pack/component identity, versions in sync, "
             "NSX module version synced, licenses declared, all <file> paths exist, "
-            "Source/ coverage complete."
+            "Source/ coverage complete, float sources dtype-gated."
         )
 
 

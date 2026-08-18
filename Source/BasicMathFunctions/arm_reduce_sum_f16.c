@@ -22,6 +22,8 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
+#if ARM_NN_ENABLE_F16
+
 /**
  *  @ingroup Public
  */
@@ -92,7 +94,7 @@ static arm_cmsis_nn_status arm_reduce_sum_flatten_last_dims_f16(const float16_t 
     {
         const float16_t *row = &input_data[i * inner_size];
 
-#if defined(ARM_MATH_MVE_FLOAT16) && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVE_FLOAT16) && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
         // Widen each half vector to float32 before accumulating; predicated
         // loads zero inactive lanes, the identity for summation.
         float32x4_t vacc_lo = vdupq_n_f32(0.0f);
@@ -106,14 +108,14 @@ static arm_cmsis_nn_status arm_reduce_sum_flatten_last_dims_f16(const float16_t 
         }
         const float32_t acc = arm_nn_vec_reduce_add_f32(vaddq(vacc_lo, vacc_hi));
         output_data[i] = (float16_t)acc;
-#else
+    #else
         float32_t acc = 0.0f;
         for (int32_t j = 0; j < inner_size; ++j)
         {
             acc += (float32_t)row[j];
         }
         output_data[i] = (float16_t)acc;
-#endif
+    #endif
     }
 
     return ARM_CMSIS_NN_SUCCESS;
@@ -163,3 +165,5 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
 /**
  * @} end of Reduction group
  */
+
+#endif /* ARM_NN_ENABLE_F16 */

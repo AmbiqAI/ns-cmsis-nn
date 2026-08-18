@@ -31,6 +31,8 @@
 #include "Internal/arm_nn_activation_flt.h"
 #include "arm_nnsupportfunctions.h"
 
+#if ARM_NN_ENABLE_F32
+
 /**
  * @ingroup groupSupport
  */
@@ -58,7 +60,7 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_f32(const float32_t *__RESTRICT l
     }
 
     int32_t c = 0;
-#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     const float32x4_t v_act_min = vdupq_n_f32(activation_min);
     const float32x4_t v_act_max = vdupq_n_f32(activation_max);
     for (; c + 4 <= total_ch; c += 4)
@@ -228,7 +230,7 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_f32(const float32_t *__RESTRICT l
         }
         c = total_ch;
     }
-#endif
+    #endif
 
     for (int32_t row = 0; row < lhs_rows; ++row)
     {
@@ -251,3 +253,5 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_f32(const float32_t *__RESTRICT l
 /**
  * @} end of supportConvolution group
  */
+
+#endif /* ARM_NN_ENABLE_F32 */

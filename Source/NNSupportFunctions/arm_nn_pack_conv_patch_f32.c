@@ -30,6 +30,8 @@
 
 #include "arm_nnsupportfunctions.h"
 
+#if ARM_NN_ENABLE_F32
+
 /**
  * @ingroup groupSupport
  */
@@ -84,3 +86,5 @@ void arm_nn_pack_conv_patch_f32(const float32_t *__RESTRICT input,
 /**
  * @} end of supportConvolution group
  */
+
+#endif /* ARM_NN_ENABLE_F32 */

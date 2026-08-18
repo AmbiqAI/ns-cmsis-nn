@@ -31,6 +31,8 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
+#if ARM_NN_ENABLE_F16
+
 /**
  * @ingroup Public
  */
@@ -149,3 +151,5 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f16(const float16_t *input,
 }
 
 /** @} */
+
+#endif /* ARM_NN_ENABLE_F16 */

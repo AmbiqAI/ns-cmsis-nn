@@ -27,11 +27,13 @@
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
 
-#include "Internal/arm_transpose_common.h"
-#include "arm_nnfunctions.h"
-#include "arm_nnsupportfunctions.h"
+#include "arm_nn_types.h"
 
 #if ARM_NN_ENABLE_F32
+
+    #include "Internal/arm_transpose_common.h"
+    #include "arm_nnfunctions.h"
+    #include "arm_nnsupportfunctions.h"
 
 /**
  *  @ingroup Public

@@ -27,7 +27,11 @@
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
 
-#include "Internal/arm_minmax_f16_common.h"
+#include "arm_nn_types.h"
+
+#if ARM_NN_ENABLE_F16
+
+    #include "Internal/arm_minmax_f16_common.h"
 
 static int32_t arm_check_broadcast_required_f16(const cmsis_nn_dims *shape_1, const cmsis_nn_dims *shape_2)
 {
@@ -40,9 +44,9 @@ static int32_t arm_check_broadcast_required_f16(const cmsis_nn_dims *shape_1, co
     return 0;
 }
 
-/* Scalar-path helper: only referenced from the #else branches of the loops
- * below, so keep it out of MVE builds (-Wunused-function, issue #246). */
-#if !defined(ARM_MATH_MVE_FLOAT16) || defined(ARM_MATH_AUTOVECTORIZE)
+    /* Scalar-path helper: only referenced from the #else branches of the loops
+     * below, so keep it out of MVE builds (-Wunused-function, issue #246). */
+    #if !defined(ARM_MATH_MVE_FLOAT16) || defined(ARM_MATH_AUTOVECTORIZE)
 static float16_t arm_minmax_select_f16(float16_t a, float16_t b, int32_t select_max)
 {
     /* Bitwise select (the arm_nn_propagate_nan_f16h idiom): a _Float16 ternary
@@ -65,7 +69,7 @@ static float16_t arm_minmax_select_f16(float16_t a, float16_t b, int32_t select_
     memcpy(&r, &r_bits, sizeof(r));
     return r;
 }
-#endif
+    #endif
 
 static arm_cmsis_nn_status arm_minmax_no_broadcast_f16(const float16_t *input_1,
                                                        const float16_t *input_2,
@@ -73,7 +77,7 @@ static arm_cmsis_nn_status arm_minmax_no_broadcast_f16(const float16_t *input_1,
                                                        int32_t flat_size,
                                                        int32_t select_max)
 {
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     if (select_max)
     {
         for (int32_t i = 0; i < flat_size; i += 8)
@@ -94,12 +98,12 @@ static arm_cmsis_nn_status arm_minmax_no_broadcast_f16(const float16_t *input_1,
             vst1q_p(output + i, vminnmq(v_in1, v_in2), p);
         }
     }
-#else
+    #else
     for (int32_t i = 0; i < flat_size; ++i)
     {
         output[i] = arm_minmax_select_f16(input_1[i], input_2[i], select_max);
     }
-#endif
+    #endif
 
     return ARM_CMSIS_NN_SUCCESS;
 }
@@ -111,7 +115,7 @@ static arm_cmsis_nn_status arm_minmax_scalar_f16(const float16_t *input_1,
                                                  int32_t select_max)
 {
     const float16_t in1 = *input_1;
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     const float16x8_t v_in1 = vdupq_n_f16(in1);
     if (select_max)
     {
@@ -131,12 +135,12 @@ static arm_cmsis_nn_status arm_minmax_scalar_f16(const float16_t *input_1,
             vst1q_p(output + i, vminnmq(v_in1, v_in2), p);
         }
     }
-#else
+    #else
     for (int32_t i = 0; i < flat_size; ++i)
     {
         output[i] = arm_minmax_select_f16(in1, input_2[i], select_max);
     }
-#endif
+    #endif
 
     return ARM_CMSIS_NN_SUCCESS;
 }
@@ -293,3 +297,5 @@ arm_cmsis_nn_status arm_minmax_f16_impl(const cmsis_nn_context *ctx,
 
     return ARM_CMSIS_NN_SUCCESS;
 }
+
+#endif /* ARM_NN_ENABLE_F16 */

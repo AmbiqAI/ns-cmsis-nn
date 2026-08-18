@@ -27,7 +27,11 @@
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
 
-#include "Internal/arm_minmax_f16_common.h"
+#include "arm_nn_types.h"
+
+#if ARM_NN_ENABLE_F16
+
+    #include "Internal/arm_minmax_f16_common.h"
 
 /**
  * @ingroup Public
@@ -52,3 +56,5 @@ arm_cmsis_nn_status arm_maximum_f16(const cmsis_nn_context *ctx,
 /**
  * @} end of groupElementwise group
  */
+
+#endif /* ARM_NN_ENABLE_F16 */
