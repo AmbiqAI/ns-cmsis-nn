@@ -28,6 +28,8 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_config.h"
+
 #if ARM_NN_ENABLE_F16
 
     #include "Internal/arm_depthwise_conv_opt_common.h"

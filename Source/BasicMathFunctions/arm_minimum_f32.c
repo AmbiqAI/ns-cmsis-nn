@@ -27,6 +27,8 @@
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_config.h"
+
 #if ARM_NN_ENABLE_F32
 
     #include "Internal/arm_minmax_f32_common.h"

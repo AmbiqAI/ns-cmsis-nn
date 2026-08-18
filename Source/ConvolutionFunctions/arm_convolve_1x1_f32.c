@@ -30,6 +30,8 @@
 
 /* Generic float32 1x1 convolution. */
 
+#include "Internal/arm_nn_config.h"
+
 #if ARM_NN_ENABLE_F32
 
     #include "Internal/arm_conv1x1_opt_common.h"
