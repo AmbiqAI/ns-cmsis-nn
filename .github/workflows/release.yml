@@ -24,8 +24,41 @@ permissions:
   pages: write           # publish Pages
   id-token: write        # OIDC for Pages deploy
 
+# A release run publishes the tag and the non-draft GitHub Release FIRST and
+# then spends 15-20 min producing assets, so being cancelled halfway leaves a
+# permanently broken public release -- and `gh release upload --clobber`
+# deletes an existing asset before re-uploading it, so a cancellation during
+# a recovery run can leave a release strictly worse than before
+# (AmbiqAI/ns-cmsis-nn#274, section 3).
+#
+# `cancel-in-progress` is a property of the INCOMING run: it decides whether
+# the run being queued cancels whatever is already running in its group. So
+# setting `cancel-in-progress: false` on release runs would NOT have helped --
+# the killer is the ordinary merge that lands next, and this repo merges
+# several PRs a day. Isolating the group is what actually makes a release run
+# uncancellable. The mechanism is demonstrated live, twice: Release runs
+# 31342565693 (2026-08-09, killed at 5m11s) and 32090494932 (2026-08-18) were
+# both cancelled mid-flight by the next push to main. Neither happened to be
+# a release-CUTTING run, but a release-cutting run sits in the identical group
+# and is exposed for its full 15-20 min instead of five.
+#
+# Ordinary pushes to main keep the old cancellable behaviour: only
+# release-please does any work on them, and superseding a queued Release-PR
+# refresh is exactly what the setting is good for. Release-cutting pushes and
+# manual recovery dispatches each get a run-unique group, so nothing can ever
+# land in their group to cancel them.
+#
+# `github.event.head_commit` is null on workflow_dispatch. The
+# `github.event_name == 'push'` guard is evaluated first, and even if the
+# right-hand side were still evaluated, a null property yields '' and
+# startsWith('', ...) is false -- so a dispatch run always falls through to
+# the run-unique branch. Release commit subjects are always
+# `chore(main): release <version>`, with or without a squash-merge ` (#NNN)`
+# suffix, and `startsWith` matches both forms.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Double-quoted because the expression embeds `chore(main): release` --
+  # a bare `: ` inside a plain YAML scalar would be parsed as a mapping.
+  group: "${{ github.workflow }}-${{ github.ref }}-${{ (github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(main): release')) && 'rolling' || github.run_id }}"
   cancel-in-progress: true
 
 jobs:
@@ -225,6 +258,34 @@ jobs:
     if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
     needs: [release-please, resolve-release-capabilities]
     runs-on: ubuntu-latest
+    # Structural belt-and-braces for AmbiqAI/ns-cmsis-nn#275.
+    #
+    # The #228 capability gate below already turns an unlicensed armclang leg
+    # into a no-op SUCCESS (every armclang step either has an `if:` that
+    # skips it or `exit 0`s), so on paper the cascade is already broken. But
+    # that gate has never executed on a real `chore(main): release` push --
+    # only under workflow_dispatch recovery -- and it defends against exactly
+    # ONE failure mode: the secret being absent. It does nothing if the
+    # secret is present but invalid, if artifacts.tools.arm.com is down, if
+    # the license server is unreachable, or if the gate itself misfires
+    # (e.g. resolve-release-capabilities' output arriving empty).
+    #
+    # `continue-on-error` is evaluated per matrix leg (the documented
+    # `continue-on-error: ${{ matrix.experimental }}` pattern), so this makes
+    # the three armclang legs non-blocking for EVERY failure mode while
+    # leaving all six gcc/atfe legs fully required. armclang is an OPTIONAL
+    # asset (docs/guides/releases.md), and a failed optional leg must never
+    # again fail this job and cascade into skipping publish-pack /
+    # publish-staticlib-bundles the way it did on v7.28.0, v7.29.0 and
+    # v7.29.1 -- all three of which are published with zero assets today.
+    #
+    # publish-staticlib-bundles already treats a missing armclang archive as
+    # an expected gap (it warns and omits the armclang bundle), and
+    # publish-pack only consumes the gcc artefacts, so a tolerated armclang
+    # failure degrades cleanly to "no armclang assets" rather than to a
+    # broken release. release-verify at the end of this workflow is the
+    # independent check that the REQUIRED assets actually landed.
+    continue-on-error: ${{ matrix.toolchain == 'armclang' }}
     env:
       ARMLMD_LICENSE_FILE: ${{ secrets.ARMLMD_LICENSE_FILE }}
       ARMCLANG_AVAILABLE: ${{ needs.resolve-release-capabilities.outputs.armclang_available }}
@@ -692,3 +753,132 @@ jobs:
       container_image: ghcr.io/ambiqai/ns-cmsis-nn-ci:${{ needs.release-please.outputs.tag_name }}
       source_ref: ${{ needs.release-please.outputs.commit_sha }}
     secrets: inherit
+
+  release-verify:
+    # THE release gate (AmbiqAI/ns-cmsis-nn#274, section 2) -- and the one acceptance
+    # criterion #228 was closed without.
+    #
+    # release-please creates the tag AND the non-draft GitHub Release before
+    # any asset job runs, so every downstream failure lands *after*
+    # publication. Nothing in this repo noticed: v7.28.0, v7.29.0 and v7.29.1
+    # are all public with ZERO assets right now, and v7.29.1's gap went
+    # unnoticed for 11 days until v7.29.2 repeated it. This job turns that
+    # silence into a red run.
+    #
+    # `always()` is load-bearing: the situation this job exists to catch is
+    # precisely the one where an upstream asset job FAILED or was SKIPPED by a
+    # `needs:` cascade, which is when a default `success()` gate would skip
+    # this job too and reproduce the original silence. It also means a
+    # cancelled release run reports red, which is correct -- a half-finished
+    # release is exactly what needs a human.
+    #
+    # It deliberately checks the published GitHub Release rather than job
+    # results: job success is not evidence that an upload landed, and a
+    # `gh release upload --clobber` that deletes an asset and then fails to
+    # replace it is green-adjacent but customer-visible.
+    if: ${{ always() && needs.release-please.outputs.assets_enabled == 'true' }}
+    needs:
+      - release-please
+      - publish-staticlibs
+      - publish-staticlib-bundles
+      - publish-pack
+    runs-on: ubuntu-22.04
+    # Plain `runs-on` job, so a job-level bound is permitted here (it is NOT
+    # permitted on the reusable-workflow callers above -- see #274, section 5).
+    # Two `gh` calls; 10 min is pure hang insurance.
+    timeout-minutes: 10
+    steps:
+      - name: Verify required release assets are published
+        # No checkout in this job, so `gh release view` has no git remote to
+        # infer the repository from and MUST be given --repo explicitly
+        # (AmbiqAI/ns-cmsis-nn#228; enforced by scripts/check_gh_repo_flags.sh).
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          VERSION: ${{ needs.release-please.outputs.version }}
+          R_STATICLIBS: ${{ needs.publish-staticlibs.result }}
+          R_BUNDLES: ${{ needs.publish-staticlib-bundles.result }}
+          R_PACK: ${{ needs.publish-pack.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          upstream="publish-staticlibs=${R_STATICLIBS}, publish-staticlib-bundles=${R_BUNDLES}, publish-pack=${R_PACK}"
+          echo "Upstream asset jobs: ${upstream}"
+
+          if [[ -z "${TAG}" || -z "${VERSION}" ]]; then
+            echo "::error title=Release verification failed::release-please produced no tag/version for this run, so its assets cannot be verified. Upstream asset jobs: ${upstream}." >&2
+            exit 1
+          fi
+
+          # REQUIRED set, transcribed from the "Required vs optional assets"
+          # table in docs/guides/releases.md and cross-checked against the
+          # 17 assets the #228 recovery actually published for v7.29.2:
+          #   1 pack
+          # + 12 SDK tarballs   (gcc|atfe x m0|m4|m55, each with a .sha256)
+          # + 4  staticlib bundles (gcc|atfe .zip, each with a .sha256)
+          # Names come from scripts/build_sdk_tarball.sh's PKG_NAME
+          # ("ns-cmsis-nn-<cpu>-<toolchain>-<version>") and from the bundle
+          # name built in publish-staticlib-bundles above. armclang is
+          # OPTIONAL in that same table (commercial licence) and is reported
+          # but never fails this job.
+          required=( "Ambiq.NS-CMSIS-NN.${VERSION}.pack" )
+          optional=()
+          for tc in gcc atfe armclang; do
+            names=( "ns-cmsis-nn-staticlibs-${tc}-${VERSION}.zip" )
+            names+=( "ns-cmsis-nn-staticlibs-${tc}-${VERSION}.zip.sha256" )
+            for cpu in cortex-m0 cortex-m4 cortex-m55; do
+              names+=( "ns-cmsis-nn-${cpu}-${tc}-${VERSION}.tar.gz" )
+              names+=( "ns-cmsis-nn-${cpu}-${tc}-${VERSION}.tar.gz.sha256" )
+            done
+            if [[ "${tc}" == "armclang" ]]; then
+              optional+=( "${names[@]}" )
+            else
+              required+=( "${names[@]}" )
+            fi
+          done
+
+          if ! published="$(gh release view "${TAG}" --repo "${REPO}" --json assets --jq '.assets[].name')"; then
+            echo "::error title=Release verification failed::could not read the asset list for release '${TAG}'. Upstream asset jobs: ${upstream}." >&2
+            exit 1
+          fi
+          echo "Assets currently published on ${TAG}:"
+          printf '%s\n' "${published}" | sed 's/^/  /'
+
+          missing=()
+          for asset in "${required[@]}"; do
+            grep -Fxq -- "${asset}" <<< "${published}" || missing+=( "${asset}" )
+          done
+          missing_optional=()
+          for asset in "${optional[@]}"; do
+            grep -Fxq -- "${asset}" <<< "${published}" || missing_optional+=( "${asset}" )
+          done
+
+          {
+            echo "### Release asset verification -- ${TAG}"
+            echo
+            echo "| class | found | expected |"
+            echo "| --- | --- | --- |"
+            echo "| required | $(( ${#required[@]} - ${#missing[@]} )) | ${#required[@]} |"
+            echo "| optional (armclang) | $(( ${#optional[@]} - ${#missing_optional[@]} )) | ${#optional[@]} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if (( ${#missing_optional[@]} > 0 )); then
+            echo "::notice title=Optional assets absent::${#missing_optional[@]} optional armclang asset(s) are not published for ${TAG}. armclang needs a commercial Arm Compiler licence that hosted runners do not have, so its absence is expected and is NOT a release failure by itself. See docs/guides/releases.md."
+          fi
+
+          if (( ${#missing[@]} > 0 )); then
+            {
+              echo
+              echo "**FAILED -- missing required assets:**"
+              # shellcheck disable=SC2016  # backticks are Markdown code spans
+              printf -- '- `%s`\n' "${missing[@]}"
+            } >> "${GITHUB_STEP_SUMMARY}"
+            echo "Missing required assets:" >&2
+            printf '  %s\n' "${missing[@]}" >&2
+            echo "::error title=Release ${TAG} is missing ${#missing[@]} of ${#required[@]} required assets::MISSING: ${missing[*]} -- the tag and the non-draft GitHub Release are ALREADY PUBLIC, so this release is broken as shipped. Upstream asset jobs: ${upstream}. Re-run asset publication for this tag with 'gh workflow run release.yml --ref main -f recover_tag=${TAG}' (docs/guides/releases.md)." >&2
+            exit 1
+          fi
+
+          echo "OK: all ${#required[@]} required assets are published on ${TAG}."
