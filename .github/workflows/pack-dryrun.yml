@@ -74,6 +74,12 @@ jobs:
     name: Build pack (no upload)
     needs: build-staticlibs
     runs-on: ubuntu-22.04
+    # gen-pack-action's own `apt-get update` can hang indefinitely when the
+    # runner's package mirrors misbehave (issue #271: two runs stalled 51 and
+    # 13 minutes with no output). Without an explicit bound the job burns the
+    # 6-hour default timeout in silence. Green runs take ~95 seconds, so this
+    # is generous while still failing fast and visibly.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v6
