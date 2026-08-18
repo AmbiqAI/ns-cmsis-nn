@@ -61,6 +61,15 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
     (void)bias_dims;
     (void)output_ctx;
 
+    // This kernel implements the TFLite TRANSPOSE_CONV contract, which has no dilation. The
+    // parameter block is shared with the float twins (which do honour dilation), so a caller
+    // asking for dilation here would previously get non-dilated output with SUCCESS. Reject it
+    // instead of silently computing the wrong thing (issue #261).
+    if (transpose_conv_params->dilation.w != 1 || transpose_conv_params->dilation.h != 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     const int32_t activation_min = transpose_conv_params->activation.min;
     const int32_t activation_max = transpose_conv_params->activation.max;
 
@@ -114,6 +123,15 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
             arm_memset_s8((int8_t *)buf, 0, buf_size * sizeof(int32_t));
         }
 
+        // Index of the output row currently held in the buf_row slot. Both loops below advance
+        // buf_row and output_row together, so for every row that is still inside output_data the
+        // slot at buf_row is exactly output row 'output_row', and rows are produced in increasing
+        // order. That makes output_row the one correct emit gate: it bounds the flush against
+        // output_data (issue #261 defect 1) and it range-checks the leftover rows (issue #261
+        // defect 2). The old leftover gate instead assumed buf_row had advanced once per unpadded
+        // row, which the MAX(0, ...) clamp on the flush count breaks when pad_y > input_y *
+        // stride_y: the first emitted row then came out of the wrong buffer slot.
+        int32_t output_row = 0;
         int32_t buf_row = 0;
         for (int j = 0; j < input_y; j++)
         {
@@ -145,7 +163,15 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
             // pad_y is not a multiple of stride_y, otherwise the flush under-counts on the
             // transition row and every following row is written to the wrong place in the
             // circular buffer (see issue #230).
-            const int32_t rows_to_flush = MAX(0, (j + 1) * stride_y - pad_y) - MAX(0, j * stride_y - pad_y);
+            int32_t rows_to_flush = MAX(0, (j + 1) * stride_y - pad_y) - MAX(0, j * stride_y - pad_y);
+
+            // Never flush past the end of output_data. The unbounded total,
+            // MAX(0, input_y * stride_y - pad_y), exceeds output_y whenever filter_y < stride_y
+            // (e.g. plain TFLite VALID padding), and the leftover loop below cannot make up for
+            // it because it runs zero times in exactly that case (issue #261 defect 1). Rows are
+            // emitted in increasing order, so once output_row reaches output_y nothing further is
+            // emitted and the rolling buffer no longer has to advance.
+            rows_to_flush = MIN(rows_to_flush, output_y - output_row);
 
             if (rows_to_flush > 0)
             {
@@ -217,6 +243,7 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
 
                     // Next row in the rolling buffer
                     buf_row = (buf_row + buf_x) % buf_size;
+                    output_row++;
                 }
             }
         }
@@ -225,7 +252,7 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
         for (int y = 0; y < filter_y - stride_y; y++)
         {
             int32_t *buf_out = buf + buf_row;
-            if ((input_y * stride_y + y >= pad_y) && (input_y * stride_y + y < pad_y + output_y))
+            if (output_row < output_y)
             {
                 buf_out += output_ch * pad_x;
 #if defined(ARM_MATH_MVEI)
@@ -275,6 +302,7 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
 #endif
             }
             buf_row = (buf_row + buf_x) % buf_size;
+            output_row++;
         }
 
         batch_cnt--;
