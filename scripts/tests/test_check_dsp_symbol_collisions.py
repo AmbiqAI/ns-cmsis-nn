@@ -28,10 +28,27 @@
 #     '('" shape with a real declaration but are not one;
 #   - correctly tolerates CMSIS-DSP's indented declaration style, without
 #     which the check would be blind to the exact collision (arm_abs_f32)
-#     it exists to catch (test_matches_indented_dsp_style_declaration); and
+#     it exists to catch (test_matches_indented_dsp_style_declaration);
 #   - does not scan Include/Internal/ -- the deliberate scope decision, see
 #     check_dsp_symbol_collisions.py's header comment
-#     (test_internal_headers_are_not_scanned).
+#     (test_internal_headers_are_not_scanned);
+#   - catches a collision written as a SPLIT-LINE declaration (return type
+#     alone on one line, name starting the next), not just the same-line
+#     form -- an earlier version of DECL_RE required a same-line prefix and
+#     was blind to this shape, missing 17 real public symbols including
+#     arm_sqrt_s16 itself (found in #285 review; see
+#     test_mutation_split_line_collision_is_caught and
+#     test_adjacent_same_line_and_split_line_declarations_both_found,
+#     which mirrors the real, ten-lines-apart arm_sqrt_s8/arm_sqrt_s16
+#     shape in Include/arm_nnfunctions.h); and
+#   - ALLOWLIST stays empty (test_allowlist_is_currently_empty) -- any
+#     addition must be a deliberate edit to this test, not something that
+#     creeps in unreviewed.
+#
+# Also covers list_hazards()/--list-hazards (test_list_hazards_*): the
+# derived, not hand-maintained, "stems" (dtype-suffix stripped names) our
+# public API shares with CMSIS-DSP -- the mechanism AGENTS.md's naming
+# rule points at instead of a comment that can silently go stale.
 #
 # Run with: python3 scripts/tests/test_check_dsp_symbol_collisions.py
 
@@ -91,6 +108,32 @@ extern "C"
 FUNCTION_POINTER_TYPEDEF = (
     "typedef arm_cmsis_nn_status (*arm_conv1x1_call_f16)(const int32_t *a, "
     "const int32_t *b);\n"
+)
+
+# The #285 review finding: a mutation written as a SPLIT-LINE declaration
+# (return type alone on its own line, name starting the next line with
+# nothing before it). Same collision as ABS_F32_DECL-style fixtures above,
+# just spelled the other way clang-format's 120-column limit produces it.
+SQRT_F32_SAME_LINE_DECL = (
+    "arm_cmsis_nn_status arm_sqrt_f32(const float32_t *input, "
+    "float32_t *output, int32_t block_size);\n"
+)
+SQRT_F32_SPLIT_DECL = (
+    "arm_cmsis_nn_status\n"
+    "arm_sqrt_f32(const float32_t *input, float32_t *output, "
+    "int32_t block_size);\n"
+)
+
+# The REAL shape in Include/arm_nnfunctions.h, ten lines apart: arm_sqrt_s8
+# same-line, arm_sqrt_s16 split-line. Both must be found, not just
+# whichever style happens to come first.
+REAL_SQRT_PAIR_S8_S16 = (
+    "arm_cmsis_nn_status arm_sqrt_s8(const int8_t *input, "
+    "const cmsis_nn_dims *input_dims, int8_t *output, int8_t *sqrt_lut);\n"
+    "\n"
+    "arm_cmsis_nn_status\n"
+    "arm_sqrt_s16(const int16_t *input, const cmsis_nn_dims *input_dims, "
+    "int16_t *output, const int16_t *sqrt_lut);\n"
 )
 
 
@@ -286,6 +329,98 @@ class DspSymbolCollisionCase(unittest.TestCase):
             header="# generated from upstream CMSIS-DSP\n# refresh monthly\n\n",
         )
         self.assertClean()
+
+    # -- #285 review: split-line declarations (the blocking finding) -----
+
+    def test_mutation_split_line_collision_is_caught(self):
+        """THE required regression case: a collision introduced as a
+        split-line declaration (return type alone on its own line) must
+        fail the check exactly like the same-line spelling does. Before
+        the #285 fix, this mutation passed silently -- DECL_RE required a
+        same-line prefix, so a same-line arm_sqrt_f32 was caught but a
+        split-line one was invisible. clang-format's 120-column limit is
+        what produces the split form for a long float prototype, so this
+        is the realistic shape a future arm_sqrt_f32 port would take."""
+        self.write_header("arm_nnfunctions_flt.h", SQRT_F32_SPLIT_DECL)
+        self.write_dsp_symbols("arm_sqrt_f32")
+        self.assertCollides("arm_sqrt_f32")
+
+    def test_same_line_and_split_line_spellings_are_equivalent(self):
+        """The same declaration, spelled two ways, must extract to the
+        identical symbol -- the split-line path is not a weaker check
+        than the same-line path."""
+        same_path = self.write_header("a_same.h", SQRT_F32_SAME_LINE_DECL)
+        split_path = self.write_header("b_split.h", SQRT_F32_SPLIT_DECL)
+        same = self.mod.extract_symbols([same_path])
+        split = self.mod.extract_symbols([split_path])
+        self.assertEqual(same, {"arm_sqrt_f32"})
+        self.assertEqual(same, split)
+
+    def test_adjacent_same_line_and_split_line_declarations_both_found(self):
+        """Mirrors the real shape in Include/arm_nnfunctions.h: arm_sqrt_s8
+        (same-line) and arm_sqrt_s16 (split-line) declared ten lines apart
+        in the same file. Both must be extracted, not just whichever style
+        happens to come first -- this is the exact case the #285 review
+        caught: arm_sqrt_s8 was found, arm_sqrt_s16 was silently missed."""
+        path = self.write_header("arm_nnfunctions.h", REAL_SQRT_PAIR_S8_S16)
+        names = self.mod.extract_symbols([path])
+        self.assertEqual(names, {"arm_sqrt_s8", "arm_sqrt_s16"})
+
+    # -- ALLOWLIST must stay empty (or grow only deliberately) -----------
+
+    def test_allowlist_is_currently_empty(self):
+        """ALLOWLIST's own comment requires an approving issue/PR before
+        any entry is added. Nothing else enforces that -- this test does:
+        growing ALLOWLIST means deliberately editing this assertion too,
+        not something that can happen silently alongside an unrelated
+        change."""
+        self.assertEqual(self.mod.ALLOWLIST, frozenset())
+
+    # -- list_hazards() / --list-hazards: derived, not hand-maintained ----
+
+    def test_list_hazards_derives_shared_stems(self):
+        """arm_abs_s8/s16 (ours) and arm_abs_f32/arm_abs_q7 (dsp) share
+        the stem 'arm_abs' even though neither individual name collides --
+        this is the #285 review finding that a hand-maintained hazard list
+        missed (an earlier draft named four families and dropped 'abs',
+        since #281 already resolved abs's own float collision)."""
+        self.write_header(
+            "arm_nnfunctions_flt.h",
+            "arm_cmsis_nn_status arm_abs_s8(const int8_t *a, int8_t *b, "
+            "int32_t c);\n"
+            "arm_cmsis_nn_status arm_abs_s16(const int16_t *a, int16_t *b, "
+            "int32_t c);\n"
+            "arm_cmsis_nn_status arm_unrelated_s8(void);\n",
+        )
+        self.write_dsp_symbols("arm_abs_f32", "arm_abs_q7", "arm_other_f32")
+        hazards = self.mod.list_hazards(
+            include_dir=self.include_dir, dsp_symbols_file=self.dsp_file
+        )
+        self.assertEqual(set(hazards), {"arm_abs"})
+        our_names, dsp_names = hazards["arm_abs"]
+        self.assertEqual(our_names, ["arm_abs_s16", "arm_abs_s8"])
+        self.assertEqual(dsp_names, ["arm_abs_f32", "arm_abs_q7"])
+
+    def test_list_hazards_empty_when_no_shared_stems(self):
+        self.write_header(
+            "arm_nnfunctions_flt.h",
+            "arm_cmsis_nn_status arm_totally_unique_s8(void);\n",
+        )
+        self.write_dsp_symbols("arm_something_else_f32")
+        hazards = self.mod.list_hazards(
+            include_dir=self.include_dir, dsp_symbols_file=self.dsp_file
+        )
+        self.assertEqual(hazards, {})
+
+    def test_list_hazards_on_real_repo_finds_five_stems(self):
+        """The real tree today: arm_abs/add/mean/sqrt/sub are exactly the
+        five stems ns-cmsis-nn and CMSIS-DSP currently share (verified by
+        #285 review as the corrected, complete list)."""
+        hazards = self.mod.list_hazards()
+        self.assertEqual(
+            set(hazards),
+            {"arm_abs", "arm_add", "arm_mean", "arm_sqrt", "arm_sub"},
+        )
 
 
 if __name__ == "__main__":

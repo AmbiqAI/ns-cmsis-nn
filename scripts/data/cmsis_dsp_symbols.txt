@@ -26,6 +26,27 @@
 # a valid refresh source; upstream is used here so refreshing this file
 # never requires private-repo access.
 #
+# Acknowledged limit -- the real staleness axis is helia-dsp, not upstream:
+# the symbol-identity check above is a snapshot in time, and what actually
+# links against ns-cmsis-nn in Ambiq products is helia-dsp, a fork Ambiq
+# patches -- not upstream CMSIS-DSP. An Ambiq engineer adding a DSP-side
+# helper directly to helia-dsp under an obvious bare name (e.g. a
+# hypothetical arm_softmax_f32 added there without ever going upstream) is
+# a substantially more likely event than ARM adding a new bare NN-style
+# verb upstream, and this guard is structurally blind to it: nothing
+# re-derives this file from helia-dsp, so a helia-dsp-only addition would
+# not appear here until the next manual refresh, if ever. Refreshing from
+# helia-dsp instead of upstream on a schedule would close this, but no
+# such job exists today -- upstream's own track record is why: diffing
+# upstream tag v1.10.1 (2022-07-05) against the ref below (2026-08-12, so
+# just over four years) adds 202 symbols and removes 10, and NONE of the
+# 202 additions collide with what ns-cmsis-nn ships publicly today
+# (verified by re-running check_dsp_symbol_collisions.py's own
+# extract_symbols() against a v1.10.1 checkout). That is a good track
+# record for upstream -- but helia-dsp is the fork that actually matters
+# here, this file cannot see it, and a clean upstream history says
+# nothing about what an Ambiq engineer might add there directly.
+#
 # Generated from:
 #   upstream ARM-software/CMSIS-DSP @ c0c8640de1a6e190c35535d7069594ceb5855161
 #     (2026-08-12, "arm_pid_q31: document that the final conversion does

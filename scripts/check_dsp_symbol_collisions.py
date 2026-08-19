@@ -20,10 +20,18 @@
 # different headers, so the compiler had no way to warn, and link order
 # would have silently picked whichever one the linker resolved first. It
 # was caught by hand in review (#281) and renamed to arm_nn_abs_f16/f32 one
-# release before it shipped. Four more of our shipped integer kernel
-# families (arm_add_s8/s16, arm_sub_s8/s16, arm_mean_s8/s16, arm_sqrt_s8/s16)
-# have an "obvious" float name that CMSIS-DSP already owns -- this guard
-# exists so the next one is caught by CI, not by hand.
+# release before it shipped. It was not a one-off: run this script with
+# --list-hazards to DERIVE every "stem" (dtype-suffix stripped name) our
+# public API and CMSIS-DSP's both use today -- each is a future kernel
+# that must not take the bare, shorter name. Hand-maintaining that list in
+# a comment is exactly how it goes stale: an earlier draft of this file
+# named four families (add/sub/mean/sqrt) and missed a fifth, "abs"
+# itself -- #281 fixed only the float half of that collision, so
+# arm_abs_s8/s16 still shares a stem with CMSIS-DSP's arm_abs_q7/q15/q31/
+# f16/f32/f64. --list-hazards cannot go stale the same way: it looks the
+# answer up in the same two symbol sets check_dsp_symbol_collisions()
+# compares, every time it runs. This guard exists so the next actual
+# collision is caught by CI, not by hand.
 #
 # Method: parse `arm_*` function declarations directly out of header text
 # (regex, no compiler/build) and intersect the two symbol sets. This was
@@ -38,7 +46,7 @@
 #   here; PrivateInclude/ upstream) that ships in the same archive but is
 #   not meant to be #included by a consumer. Internal symbols ARE still
 #   linked, so they are not risk-free -- but empirically, none of this
-#   repo's 41 Include/Internal/*.h symbols intersect CMSIS-DSP's public
+#   repo's 57 Include/Internal/*.h symbols intersect CMSIS-DSP's public
 #   surface, which is exactly what you'd expect: they carry compound,
 #   already-scoped names (arm_nn_*_scalar_f16, *_opt_f16, *_common, *_impl)
 #   precisely because they already have to avoid colliding with this
@@ -48,9 +56,10 @@
 #   Include/Internal/*.h later is a one-line change (glob -> rglob) if a
 #   future internal symbol ever takes a bare-verb shape.
 #
-# Regex notes (two deliberate departures from the literal #282 prototype,
-# both required for the CMSIS-DSP side and both verified to be no-ops on
-# this repo's own Include/*.h and on upstream ARM-software/CMSIS-NN's):
+# Regex notes (three deliberate departures from the literal #282 prototype,
+# all three verified to be no-ops on this repo's own Include/*.h and on
+# upstream ARM-software/CMSIS-NN's; #1 and #3 are also required for a
+# complete CMSIS-DSP-side snapshot -- see each note):
 #
 #   1. Leading whitespace is allowed (`^[ \t]*` instead of a bare `^`).
 #      This repo's headers declare functions at column 0, but CMSIS-DSP's
@@ -74,6 +83,38 @@
 #      but the same shape appears in CMSIS-DSP's own headers in other
 #      forms, so the guard is kept on both sides rather than relying on
 #      today's scope decision to make it moot forever.
+#   3. The type/qualifier prefix before the arm_* name is OPTIONAL, to
+#      match a split-line declaration where the return type sits alone on
+#      the previous line and the arm_* name starts its own line with
+#      nothing before it. Real example, ten lines apart, in this repo's
+#      own Include/arm_nnfunctions.h: `arm_cmsis_nn_status arm_sqrt_s8(`
+#      (same line) vs. `arm_cmsis_nn_status` / `arm_sqrt_s16(` (split).
+#      A required-prefix regex found the first and missed the second --
+#      17 public symbols invisible, including arm_sqrt_s16, the exact
+#      family this guard watches. clang-format's 120-column limit is what
+#      produces the split form, so a long float prototype is a likely
+#      future trigger. Verified a no-op on the CMSIS-DSP side (upstream
+#      never splits a declaration across lines: same 763-symbol snapshot
+#      with or without this) and a strict superset on the "ours" side
+#      (finds everything the required-prefix version found, plus the 17).
+#      See DECL_RE's own comment below for the mechanics.
+#
+# Coverage boundary: this is the DECLARED public API (488 symbols today),
+# not the full exported link surface. Two things beyond that boundary,
+# neither scanned:
+#   - Include/Internal/*.h itself declares 57 more symbols -- excluded by
+#     the scope decision above, not by oversight.
+#   - Source/**/*.c defines 25 more non-static (externally linked)
+#     symbols that no header, public or Internal, declares anywhere (e.g.
+#     arm_avg_pool_nhwc_f16, arm_mean_reduce_generic_s8 -- verified by a
+#     one-off extension of extract_symbols() to Source/, not something
+#     this script checks on every run). They compile clean because C
+#     lets a definition serve as its own prototype for later use in the
+#     same file, and today each is only ever called from the file that
+#     defines it -- but "compiles clean" and "not externally linked" are
+#     different properties, and nothing here verifies the second one. A
+#     collision hiding among those ~82 symbols would be exactly as fatal
+#     as one in the declared 488, and entirely invisible to this guard.
 #
 # Data file: scripts/data/cmsis_dsp_symbols.txt is a checked-in snapshot of
 # CMSIS-DSP's public symbol surface, extracted with extract_symbols() below
@@ -93,14 +134,28 @@ INCLUDE_DIR = REPO / "Include"
 DSP_SYMBOLS_FILE = REPO / "scripts" / "data" / "cmsis_dsp_symbols.txt"
 
 # Matches a `arm_*` function declaration or definition at file scope:
-# an optional-whitespace-led type/qualifier prefix (letters, digits,
+# an OPTIONAL whitespace-led type/qualifier prefix (letters, digits,
 # underscore, space, '*', tab -- deliberately no '(' or ')', so it cannot
 # skip over an intervening parameter list or macro invocation to reach a
 # later, unrelated arm_* token), then the arm_* name itself immediately
-# followed by '(' and NOT a '*' -- see the "Regex notes" above for why both
-# the leading-whitespace allowance and the (?!\s*\*) guard are there.
+# followed by '(' and NOT a '*' -- see the "Regex notes" above for why the
+# leading-whitespace allowance and the (?!\s*\*) guard are there.
+#
+# The prefix is optional to cover split-line declarations, where the
+# return type sits alone on its own line and the arm_* name starts the
+# next line with nothing before it (clang-format's 120-column limit wraps
+# a long prototype exactly this way -- Include/arm_nnfunctions.h has both
+# styles ten lines apart: `arm_cmsis_nn_status arm_sqrt_s8(...)` then
+# `arm_cmsis_nn_status\narm_sqrt_s16(...)`). A prior version of this regex
+# required the prefix, so a same-line declaration was found but its
+# split-line neighbor was invisible -- 17 public symbols missed, including
+# arm_sqrt_s16 itself, the exact family this guard is watching. Verified
+# empirically that making the prefix optional changes nothing on the
+# CMSIS-DSP side (upstream never splits a declaration across lines) and
+# is a strict superset on the "ours" side (finds everything the required-
+# prefix version found, plus the 17 split-line names).
 DECL_RE = re.compile(
-    r"^[ \t]*[A-Za-z_][A-Za-z0-9_ \*\t]*\b(arm_[a-z0-9_]+)\s*\((?!\s*\*)",
+    r"^[ \t]*(?:[A-Za-z_][A-Za-z0-9_ \*\t]*\b)?(arm_[a-z0-9_]+)\s*\((?!\s*\*)",
     re.M,
 )
 
@@ -200,6 +255,64 @@ def check_dsp_symbol_collisions(
         )
 
 
+# --- --list-hazards: derive, don't hand-maintain, the future-collision list
+
+# Dtype suffixes stripped from a symbol name to get its "stem" -- covers
+# every dtype either library attaches: ns-cmsis-nn's _s8/_s16/_s32/_u8/...
+# /_f16/_f32, plus CMSIS-DSP's additional _q7/_q15/_q31/_q63/_f64.
+_DTYPE_SUFFIX_RE = re.compile(
+    r"_(?:f16|f32|f64|s8|s16|s32|s64|u8|u16|u32|u64|q7|q15|q31|q63)$"
+)
+
+
+def _stem(name: str) -> str:
+    return _DTYPE_SUFFIX_RE.sub("", name)
+
+
+def list_hazards(
+    include_dir: Path = INCLUDE_DIR, dsp_symbols_file: Path = DSP_SYMBOLS_FILE
+) -> dict[str, tuple[list[str], list[str]]]:
+    """Stems (dtype-suffix stripped names) our public API and CMSIS-DSP's
+    both use today. A shared stem is not itself a collision -- the check
+    above is what enforces that -- it is advance warning: it means one
+    library's convention for extending that verb to a new dtype is a bare
+    name the other library may already own. Derived from the same two
+    symbol sets check_dsp_symbol_collisions() compares, so unlike a
+    hand-maintained comment this cannot silently go stale or drop a name.
+    """
+    ours = extract_symbols(sorted(include_dir.glob("*.h")))
+    dsp = load_dsp_symbols(dsp_symbols_file)
+    if dsp is None:
+        return {}
+
+    our_by_stem: dict[str, list[str]] = {}
+    for n in ours:
+        our_by_stem.setdefault(_stem(n), []).append(n)
+    dsp_by_stem: dict[str, list[str]] = {}
+    for n in dsp:
+        dsp_by_stem.setdefault(_stem(n), []).append(n)
+
+    shared = set(our_by_stem) & set(dsp_by_stem)
+    return {s: (sorted(our_by_stem[s]), sorted(dsp_by_stem[s])) for s in sorted(shared)}
+
+
+def print_hazards() -> None:
+    hazards = list_hazards()
+    if not hazards:
+        print("No stems shared between our public symbols and CMSIS-DSP's.")
+        return
+    print(
+        f"{len(hazards)} stem(s) shared with CMSIS-DSP -- porting one of "
+        "our names below to a dtype CMSIS-DSP already lists is a future "
+        "collision (see AGENTS.md's naming rule before writing that "
+        "kernel):\n"
+    )
+    for stem, (our_names, dsp_names) in hazards.items():
+        print(f"  {stem}")
+        print(f"    ours: {', '.join(our_names)}")
+        print(f"    dsp:  {', '.join(dsp_names)}")
+
+
 def report() -> None:
     if failures:
         print("DSP symbol collision check FAILED:", file=sys.stderr)
@@ -216,6 +329,9 @@ def report() -> None:
 
 
 def main() -> int:
+    if "--list-hazards" in sys.argv[1:]:
+        print_hazards()
+        return 0
     check_dsp_symbol_collisions()
     report()
     return 1 if failures else 0

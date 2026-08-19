@@ -77,9 +77,12 @@ those, and a same-named export is a silent link-order collision, not a
 compile error (`arm_abs_f16/f32` shipped that way for a full cycle, caught
 by hand in #281). Prefer the upstream-consistent longer form
 (`arm_elementwise_add_f32`, `arm_maximum_f32`) or the `arm_nn_` prefix (125
-`arm_nn_*` tokens upstream, zero in CMSIS-DSP); `arm_add_s8/s16`,
-`arm_sub_s8/s16`, `arm_mean_s8/s16`, and `arm_sqrt_s8/s16` are the next four
-float ports that will hit this. `scripts/check_dsp_symbol_collisions.py`
+`arm_nn_*` tokens upstream, zero in CMSIS-DSP). Run
+`python3 scripts/check_dsp_symbol_collisions.py --list-hazards` before
+naming a new kernel to see the current, derived list of stems we share
+with CMSIS-DSP (not hand-maintained here on purpose — a stale copy of this
+list is how the next collision slips through; `--list-hazards` cannot drop
+a name the way a comment can). `scripts/check_dsp_symbol_collisions.py`
 enforces this in CI (#282).
 
 ## Float unit tests
