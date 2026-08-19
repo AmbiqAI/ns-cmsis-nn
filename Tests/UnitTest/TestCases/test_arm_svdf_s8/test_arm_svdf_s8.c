@@ -246,3 +246,142 @@ void svdf_int8_2_arm_svdf_s8(void)
     free(input_ctx.buf);
     free(output_ctx.buf);
 }
+
+/*
+ * Regression test for the ctx sizing contract, issue #269.
+ *
+ * arm_svdf_s8 reads one int32_t kernel sum per feature batch, i.e. weights_feature_dims->n of them, which is what
+ * arm_svdf_s8_get_buffer_size() returns. The header used to name arm_fully_connected_s8_get_buffer_size() instead,
+ * which sizes from ->c; the two differ whenever n != c, and the cases above never set weights_feature_dims.c at all.
+ * This case sets both fields, sizes ctx through the documented helper for a shape with n > c, and runs the kernel
+ * twice with different bytes living past the end of that allocation. Any read past the end shows up as a difference
+ * between the two runs; any write shows up in the guard.
+ */
+#define SVDF_CTX_INPUT_BATCHES 1
+#define SVDF_CTX_INPUT_SIZE 4
+#define SVDF_CTX_FEATURE_BATCHES 16
+#define SVDF_CTX_RANK 1
+#define SVDF_CTX_TIME_BATCHES 4
+#define SVDF_CTX_GUARD_WORDS 16
+
+static arm_cmsis_nn_status svdf_ctx_sizing_run(int32_t canary, int8_t *output_data, int32_t *guard_clobbered)
+{
+    cmsis_nn_context input_ctx;
+    cmsis_nn_context output_ctx;
+    cmsis_nn_context ctx;
+    cmsis_nn_svdf_params params;
+    cmsis_nn_per_tensor_quant_params input_quant_params = {1073741824, 1};
+    cmsis_nn_per_tensor_quant_params output_quant_params = {1073741824, -3};
+    cmsis_nn_dims input_dims = {SVDF_CTX_INPUT_BATCHES, SVDF_CTX_INPUT_SIZE, 1, 1};
+    cmsis_nn_dims weights_feature_dims = {SVDF_CTX_FEATURE_BATCHES, 1, 1, SVDF_CTX_INPUT_SIZE};
+    cmsis_nn_dims weights_time_dims = {1, SVDF_CTX_TIME_BATCHES, 1, 1};
+    cmsis_nn_dims state_dims = {1, 1, 1, SVDF_CTX_INPUT_BATCHES * SVDF_CTX_FEATURE_BATCHES * SVDF_CTX_TIME_BATCHES};
+    cmsis_nn_dims bias_dims = {1, 1, 1, SVDF_CTX_FEATURE_BATCHES / SVDF_CTX_RANK};
+    cmsis_nn_dims output_dims = {SVDF_CTX_INPUT_BATCHES, 1, 1, SVDF_CTX_FEATURE_BATCHES / SVDF_CTX_RANK};
+
+    int8_t weights_feature_data[SVDF_CTX_FEATURE_BATCHES * SVDF_CTX_INPUT_SIZE];
+    int8_t weights_time_data[SVDF_CTX_FEATURE_BATCHES * SVDF_CTX_TIME_BATCHES];
+    int8_t input_data[SVDF_CTX_INPUT_BATCHES * SVDF_CTX_INPUT_SIZE];
+    int8_t state_data[SVDF_CTX_INPUT_BATCHES * SVDF_CTX_FEATURE_BATCHES * SVDF_CTX_TIME_BATCHES] = {0};
+
+    for (int i = 0; i < SVDF_CTX_FEATURE_BATCHES * SVDF_CTX_INPUT_SIZE; i++)
+    {
+        weights_feature_data[i] = (int8_t)((i % 9) - 4);
+    }
+    for (int i = 0; i < SVDF_CTX_FEATURE_BATCHES * SVDF_CTX_TIME_BATCHES; i++)
+    {
+        weights_time_data[i] = (int8_t)((i % 7) - 3);
+    }
+    for (int i = 0; i < SVDF_CTX_INPUT_BATCHES * SVDF_CTX_INPUT_SIZE; i++)
+    {
+        input_data[i] = (int8_t)(i + 1);
+    }
+
+    params.input_activation.min = -128;
+    params.input_activation.max = 127;
+    params.output_activation.min = -128;
+    params.output_activation.max = 127;
+    params.input_offset = 5;
+    params.output_offset = -3;
+    params.rank = SVDF_CTX_RANK;
+
+    const int32_t buf_size = arm_svdf_s8_get_buffer_size(&weights_feature_dims);
+#if defined(ARM_MATH_MVEI)
+    // The kernel indexes one sum per feature batch, not one per input element.
+    TEST_ASSERT_TRUE(weights_feature_dims.n > weights_feature_dims.c);
+    TEST_ASSERT_TRUE(buf_size >= (int32_t)(weights_feature_dims.n * sizeof(int32_t)));
+#endif
+
+    const int32_t buf_words = buf_size / (int32_t)sizeof(int32_t);
+    int32_t *base = malloc((size_t)(buf_size + SVDF_CTX_GUARD_WORDS * (int32_t)sizeof(int32_t)));
+    TEST_ASSERT_NOT_NULL(base);
+    ctx.buf = base;
+    ctx.size = buf_size;
+
+#if defined(ARM_MATH_MVEI)
+    arm_vector_sum_s8(base, input_dims.h, weights_feature_dims.n, weights_feature_data, -params.input_offset, 0, NULL);
+#endif
+    for (int32_t i = buf_words; i < buf_words + SVDF_CTX_GUARD_WORDS; i++)
+    {
+        base[i] = canary;
+    }
+
+    const int scratch_size = SVDF_CTX_INPUT_BATCHES * SVDF_CTX_FEATURE_BATCHES * (int)sizeof(int32_t);
+    const int scratch_size_out =
+        SVDF_CTX_INPUT_BATCHES * (SVDF_CTX_FEATURE_BATCHES / SVDF_CTX_RANK) * (int)sizeof(int32_t);
+    input_ctx.buf = malloc(scratch_size);
+    output_ctx.buf = malloc(scratch_size_out);
+    TEST_ASSERT_NOT_NULL(input_ctx.buf);
+    TEST_ASSERT_NOT_NULL(output_ctx.buf);
+
+    arm_cmsis_nn_status result = arm_svdf_s8(&ctx,
+                                             &input_ctx,
+                                             &output_ctx,
+                                             &params,
+                                             &input_quant_params,
+                                             &output_quant_params,
+                                             &input_dims,
+                                             input_data,
+                                             &state_dims,
+                                             state_data,
+                                             &weights_feature_dims,
+                                             weights_feature_data,
+                                             &weights_time_dims,
+                                             weights_time_data,
+                                             &bias_dims,
+                                             NULL,
+                                             &output_dims,
+                                             output_data);
+
+    *guard_clobbered = 0;
+    for (int32_t i = buf_words; i < buf_words + SVDF_CTX_GUARD_WORDS; i++)
+    {
+        if (base[i] != canary)
+        {
+            (*guard_clobbered)++;
+        }
+    }
+
+    // The caller is responsible to clear the scratch buffers for security reasons if applicable.
+    memset(base, 0, (size_t)(buf_size + SVDF_CTX_GUARD_WORDS * (int32_t)sizeof(int32_t)));
+    free(base);
+    free(input_ctx.buf);
+    free(output_ctx.buf);
+    return result;
+}
+
+void svdf_int8_ctx_sizing_arm_svdf_s8(void)
+{
+    int8_t output_a[SVDF_CTX_INPUT_BATCHES * (SVDF_CTX_FEATURE_BATCHES / SVDF_CTX_RANK)] = {0};
+    int8_t output_b[SVDF_CTX_INPUT_BATCHES * (SVDF_CTX_FEATURE_BATCHES / SVDF_CTX_RANK)] = {0};
+    int32_t guard_a = 0;
+    int32_t guard_b = 0;
+
+    // Small canaries: an out-of-range value would saturate the activation clamp and hide the difference.
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, svdf_ctx_sizing_run(100, output_a, &guard_a));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, svdf_ctx_sizing_run(-100, output_b, &guard_b));
+
+    TEST_ASSERT_EQUAL_INT32(0, guard_a);
+    TEST_ASSERT_EQUAL_INT32(0, guard_b);
+    TEST_ASSERT_EQUAL_INT8_ARRAY(output_a, output_b, sizeof(output_a));
+}
