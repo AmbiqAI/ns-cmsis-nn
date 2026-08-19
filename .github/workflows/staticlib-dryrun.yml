@@ -192,6 +192,14 @@ jobs:
   armclang:
     name: armclang / all cortex-m
     runs-on: ubuntu-latest
+    # Runs in the CI container specifically so `armlm` executes as root.
+    # The Arm User-Based Licensing entitlement is bound to CI user "root";
+    # activating as the default hosted-runner user ("runner") is refused with
+    # "The activation code has already been used by another user". The image
+    # has no USER directive, so it runs as root. This mirrors helia-rt, whose
+    # working armclang activations all run in a container.
+    container:
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
     # Serial build of all three CPUs on one runner, so Arm's User-Based
     # Licensing is activated exactly once per run and the ~1 GB Arm Compiler
     # archive is fetched exactly once (AmbiqAI/ns-cmsis-nn#275).
@@ -202,10 +210,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Confirm the runtime user is root
+        # The Arm UBL entitlement is bound to CI user "root". If this prints
+        # anything else, activation will be refused -- fail here with a clear
+        # message rather than at `armlm activate` with a misleading one.
+        run: |
+          set -euo pipefail
+          echo "whoami: $(whoami)  (uid=$(id -u))"
+          if [[ "$(id -u)" -ne 0 ]]; then
+            echo "::error title=Not running as root::armlm must run as root for this entitlement; got $(whoami)." >&2
+            exit 1
+          fi
+
       - name: Install LLVM archive tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends llvm
+          apt-get update
+          apt-get install -y --no-install-recommends llvm
 
       - name: Fetch external toolchain
         id: fetch_toolchain
