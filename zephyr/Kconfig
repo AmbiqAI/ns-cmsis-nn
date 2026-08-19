@@ -54,7 +54,12 @@ config NS_CMSIS_NN_PREBUILT_PATH
 config NS_CMSIS_NN_ALL
 	bool "Enable all NS-CMSIS-NN kernels"
 	help
-	  When enabled, all NS-CMSIS-NN kernel groups are turned on.
+	  When enabled, all NS-CMSIS-NN kernel groups are turned on, along
+	  with the FP32 and FP16 kernels.
+
+	  FP16 additionally depends on ARMV8_1_M_MVEF, so it is only turned
+	  on where the target supports it -- 'imply' respects that, and this
+	  option never forces it on a target that cannot build it.
 
 	# Safer than 'select': respects other symbols' dependencies,
 	# and users can still turn individual groups off if they really want.
@@ -81,6 +86,12 @@ config NS_CMSIS_NN_ALL
 	imply NS_CMSIS_NN_SELECT
 	imply NS_CMSIS_NN_REVERSESEQUENCE
 	imply NS_CMSIS_NN_DYNAMICUPDATESLICE
+
+	# Dtype coverage, not a kernel group -- but an option prompted "Enable
+	# all NS-CMSIS-NN kernels" that silently excluded every float kernel
+	# was actively misleading (AmbiqAI/ns-cmsis-nn#273).
+	imply NS_CMSIS_NN_ENABLE_F32
+	imply NS_CMSIS_NN_ENABLE_F16
 
 config NS_CMSIS_NN_ACTIVATION
 	bool "Activation"
