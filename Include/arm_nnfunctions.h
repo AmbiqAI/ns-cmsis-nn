@@ -5267,12 +5267,24 @@ arm_cmsis_nn_status arm_split_s16(const int16_t *input_data,
  *                                    dimension field and under-allocates whenever
  *                                    weights_feature_dims->n > weights_feature_dims->c, which the kernel then
  *                                    reads past.
+ *                                    Do NOT clear this buffer between calls: zeroing it is indistinguishable from
+ *                                    leaving it unfilled, and produces the silently wrong output described above.
+ *                                    If it must be cleared for security reasons, clear it after the last call that
+ *                                    uses it, and refill it before any further call.
+ * @param[in]   input_ctx             Temporary scratch buffer, used to hold one accumulator per feature batch.
+ *                                    Written before it is read, so its contents on entry do not matter, but it is
+ *                                    written on EVERY build, not only under MVE. Mandatory: a NULL buf returns
+ *                                    ARM_CMSIS_NN_ARG_ERROR. There is no sizing helper for it; the buffer must
+ *                                    hold at least input_dims->n * weights_feature_dims->n int32_t elements.
  *                                    The caller is expected to clear the buffer, if applicable, for security
  * reasons.
- * @param[in]   input_ctx             Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security
- * reasons.
- * @param[in]   output_ctx            Temporary output scratch buffer
+ * @param[in]   output_ctx            Temporary output scratch buffer, used to hold one accumulator per output
+ *                                    unit. Written before it is read, so its contents on entry do not matter, but
+ *                                    it is written on EVERY build, not only under MVE. Mandatory: a NULL buf
+ *                                    returns ARM_CMSIS_NN_ARG_ERROR. There is no sizing helper for it; the buffer
+ *                                    must hold at least
+ *                                    input_dims->n * (weights_feature_dims->n / svdf_params->rank) int32_t
+ *                                    elements.
  *                                    The caller is expected to clear the buffer, if applicable, for security
  * reasons.
  * @param[in]   svdf_params           SVDF Parameters
@@ -5458,7 +5470,9 @@ arm_cmsis_nn_status arm_lstm_unidirectional_s16(const int16_t *input,
  *                                    The buffer is written before it is read, so its contents on entry do not
  *                                    matter. If ctx->size is set to a non-zero value it must be at least the
  *                                    required size, otherwise ARM_CMSIS_NN_ARG_ERROR is returned; a ctx->size of
- *                                    0 means "not supplied" and is not checked.
+ *                                    0 means "not supplied" and is not checked. An input_rhs_dims->w large enough
+ *                                    that the required size exceeds INT32_MAX is rejected with
+ *                                    ARM_CMSIS_NN_ARG_ERROR regardless of ctx->size.
  *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]   bmm_params            Batch matmul Parameters
  *                                    Adjoint flags are currently unused.

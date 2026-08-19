@@ -377,5 +377,20 @@ void batch_matmul_ctx_sizing_s8(void)
                                           rhs_input,
                                           &output_shape,
                                           output));
+
+    // A row count whose byte requirement overflows int32_t is rejected before anything is written, so a wrapped
+    // size cannot slip past the check above. The kernel returns before it reads any tensor data.
+    cmsis_nn_dims huge_rhs_shape = {1, 1, 1 << 30, BATCH_MATMUL_CTX_RHS_COLS};
+    cmsis_nn_context huge_ctx = {small_buf, 0};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_batch_matmul_s8(&huge_ctx,
+                                          &bmm_params,
+                                          &quant_params,
+                                          &lhs_shape,
+                                          lhs_input,
+                                          &huge_rhs_shape,
+                                          rhs_input,
+                                          &output_shape,
+                                          output));
 #endif
 }

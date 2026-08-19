@@ -54,16 +54,24 @@ arm_cmsis_nn_status arm_batch_matmul_s8(const cmsis_nn_context *ctx,
                                         int8_t *output)
 {
 #if defined(ARM_MATH_MVEI)
-    if (ctx->buf == NULL)
+    // arm_vector_sum_s8() below writes and reads one int32_t per RHS row. The requirement is computed in 64 bits so
+    // that a row count large enough to overflow the int32_t byte count cannot wrap past the size check.
+    const int64_t required_bytes = (int64_t)input_rhs_dims->w * (int64_t)sizeof(int32_t);
+
+    if ((ctx->buf == NULL) || (required_bytes > INT32_MAX))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
-    // arm_vector_sum_s8() below writes and reads one int32_t per RHS row. A ctx->size of 0 means the caller did not
-    // declare a size, so it cannot be checked; any non-zero size must cover the whole kernel-sum buffer.
-    if (ctx->size > 0 && ctx->size < arm_batch_matmul_s8_get_buffer_size_mve(input_rhs_dims))
+
+    const int32_t required_size = (int32_t)required_bytes;
+
+    // A ctx->size of 0 means the caller did not declare a size, so it cannot be checked; any non-zero size must
+    // cover the whole kernel-sum buffer.
+    if ((ctx->size != 0) && (ctx->size < required_size))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
     int32_t *vector_sum_buf = (int32_t *)ctx->buf;
 #else
     (void)ctx;
