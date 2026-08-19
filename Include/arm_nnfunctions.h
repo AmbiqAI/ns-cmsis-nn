@@ -5249,10 +5249,26 @@ arm_cmsis_nn_status arm_split_s16(const int16_t *input_data,
 /**
  * @brief s8 SVDF function with 8 bit state tensor and 8 bit time weights
  *
- * @param[in, out] ctx                Function context (e.g. temporary buffer). Check the function
- *                                    definition file to see if an additional buffer is required.
- *                                    Optional function arm_fully_connected_s8_get_buffer_size() provides the buffer
- *                                    size if an additional buffer is required.
+ * @param[in]   ctx                   Precomputed per-feature-batch kernel sums, supplied by the caller. This is an
+ *                                    input the function only reads, not scratch it fills: an allocated but unfilled
+ *                                    buffer yields wrong output while still returning ARM_CMSIS_NN_SUCCESS.
+ *                                    Mandatory on builds with the MVE extension (ARM_MATH_MVEI), where a NULL
+ *                                    ctx->buf is diagnosed with ARM_CMSIS_NN_ARG_ERROR. Unused on every other
+ *                                    build, where ctx->buf may be NULL.
+ *                                    Sized by arm_svdf_s8_get_buffer_size(weights_feature_dims):
+ *                                    weights_feature_dims->n * sizeof(int32_t) where the sums are used, 0 otherwise.
+ *                                    Note this is weights_feature_dims->n, not a filter_dims->c - do not size this
+ *                                    buffer with arm_fully_connected_s8_get_buffer_size(), which reads a different
+ *                                    field and under-allocates.
+ *                                    Fill it with
+ *                                    arm_vector_sum_s8(ctx->buf, input_dims->h, weights_feature_dims->n,
+ *                                                      weights_feature_data, -svdf_params->input_offset, 0, NULL)
+ *                                    so that entry j holds
+ *                                    -input_offset * sum(weights_feature row j).
+ *                                    The contents depend only on weights_feature_data and
+ *                                    svdf_params->input_offset, so they may be computed once at load time and
+ *                                    reused across calls until one of those changes. The buffer is specific to one
+ *                                    layer's weights and cannot be shared between layers.
  *                                    The caller is expected to clear the buffer, if applicable, for security
  * reasons.
  * @param[in]   input_ctx             Temporary scratch buffer
@@ -5354,32 +5370,38 @@ arm_cmsis_nn_status arm_svdf_state_s16_s8(const cmsis_nn_context *input_ctx,
                                           int8_t *output_data);
 
 /**
- * @brief Get size of additional buffer required by arm_svdf_s8().
- * @param[in]      filter_dims             dimension of filter
+ * @brief Get size of the kernel-sum buffer required by arm_svdf_s8().
+ * @param[in]      weights_feature_dims    dimensions of the weights (feature) tensor, i.e. the same
+ *                                         cmsis_nn_dims passed to arm_svdf_s8()
  * @return         The function returns    required buffer size in bytes
  *
+ * @details    Returns weights_feature_dims->n * sizeof(int32_t) on builds with the MVE extension and 0
+ *             elsewhere. arm_svdf_s8() has no filter_dims argument, and the buffer is indexed by
+ *             weights_feature_dims->n, so no other cmsis_nn_dims of that call can size it - in particular
+ *             arm_fully_connected_s8_get_buffer_size() reads a different field and under-allocates.
+ *             See arm_svdf_s8() for the buffer's layout, how to fill it and when it may be reused.
  */
-int32_t arm_svdf_s8_get_buffer_size(const cmsis_nn_dims *filter_dims);
+int32_t arm_svdf_s8_get_buffer_size(const cmsis_nn_dims *weights_feature_dims);
 
 /**
- * @brief Get size of additional buffer required by arm_svdf_s8() for processors with DSP extension.
+ * @brief Get size of the kernel-sum buffer required by arm_svdf_s8() for processors with DSP extension.
  *        Refer to arm_svdf_s8_get_buffer_size() for function argument details.
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_svdf_s8_get_buffer_size().
  *
  */
-int32_t arm_svdf_s8_get_buffer_size_dsp(const cmsis_nn_dims *filter_dims);
+int32_t arm_svdf_s8_get_buffer_size_dsp(const cmsis_nn_dims *weights_feature_dims);
 
 /**
- * @brief Get size of additional buffer required by arm_svdf_s8() for Arm(R) Helium Architecture case.
+ * @brief Get size of the kernel-sum buffer required by arm_svdf_s8() for Arm(R) Helium Architecture case.
  *        Refer to arm_svdf_s8_get_buffer_size() for function argument details.
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_svdf_s8_get_buffer_size().
  *
  */
-int32_t arm_svdf_s8_get_buffer_size_mve(const cmsis_nn_dims *filter_dims);
+int32_t arm_svdf_s8_get_buffer_size_mve(const cmsis_nn_dims *weights_feature_dims);
 
 /**
  * @defgroup LSTM LSTM Layer Functions
@@ -5431,10 +5453,21 @@ arm_cmsis_nn_status arm_lstm_unidirectional_s16(const int16_t *input,
 /**
  * @brief Batch matmul function with 8 bit input and output.
  *
- * @param[in]   ctx                   Temporary scratch buffer
+ * @param[in, out] ctx                Temporary scratch buffer for the per-row kernel sums of the RHS.
+ *                                    Mandatory on builds with the MVE extension (ARM_MATH_MVEI), where a NULL
+ *                                    ctx->buf is diagnosed with ARM_CMSIS_NN_ARG_ERROR. Unused on every other
+ *                                    build, where ctx->buf may be NULL.
+ *                                    Sized by arm_batch_matmul_s8_get_buffer_size(input_rhs_dims) - pass the same
+ *                                    input_rhs_dims given below. That is input_rhs_dims->w * sizeof(int32_t) where
+ *                                    the sums are used, 0 otherwise. Do not size this buffer with
+ *                                    arm_fully_connected_s8_get_buffer_size(): it reads a different field, and an
+ *                                    allocation short of input_rhs_dims->w words is written past its end.
+ *                                    The function fills the buffer itself before each use, so the caller does not
+ *                                    need to initialize it.
+ *                                    If ctx->size is non-zero it is validated against the requirement and a buffer
+ *                                    too small is rejected with ARM_CMSIS_NN_ARG_ERROR; a ctx->size of 0 skips
+ *                                    that check.
  *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
- *                                    Optional function arm_fully_connected_s8_get_buffer_size() provides the buffer
- *                                    size if an additional buffer is required.
  * @param[in]   bmm_params            Batch matmul Parameters
  *                                    Adjoint flags are currently unused.
  * @param[in]   quant_params          Quantization parameters
@@ -5468,10 +5501,13 @@ arm_cmsis_nn_status arm_batch_matmul_s8(const cmsis_nn_context *ctx,
 /**
  * @brief Batch matmul function with 16 bit input and output.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
- *                                    Optional function arm_fully_connected_s8_get_buffer_size() provides the buffer
- *                                    size if an additional buffer is required.
+ * @param[in]   ctx                   Unused: this function requires no scratch buffer and does not read or write
+ *                                    ctx on any build, so ctx->buf may be NULL. Retained for signature
+ *                                    compatibility with arm_batch_matmul_s8(). There is deliberately no
+ *                                    arm_batch_matmul_s16_get_buffer_size(); in particular
+ *                                    arm_fully_connected_s8_get_buffer_size() is not the sizer for this argument.
+ *                                    If a real buffer is passed, the caller is expected to clear it, if
+ *                                    applicable, for security reasons.
  * @param[in]   bmm_params            Batch matmul Parameters
  *                                    Adjoint flags are currently unused.
  * @param[in]   quant_params          Quantization parameters
@@ -5501,6 +5537,41 @@ arm_cmsis_nn_status arm_batch_matmul_s16(const cmsis_nn_context *ctx,
                                          const int16_t *input_rhs,
                                          const cmsis_nn_dims *output_dims,
                                          int16_t *output);
+
+/**
+ * @brief Get size of the scratch buffer required by arm_batch_matmul_s8().
+ * @param[in]      input_rhs_dims          dimensions of the (transposed) rhs tensor, i.e. the same
+ *                                         cmsis_nn_dims passed to arm_batch_matmul_s8()
+ * @return         The function returns    required buffer size in bytes
+ *
+ * @details    Returns input_rhs_dims->w * sizeof(int32_t) on builds with the MVE extension and 0 elsewhere.
+ *             input_rhs_dims->w is the rhs row count, which is what the kernel-sum buffer is indexed by;
+ *             sizing this buffer from any other dims (in particular with
+ *             arm_fully_connected_s8_get_buffer_size(), which reads .c) writes past the allocation whenever
+ *             the rhs has more rows than columns.
+ *             arm_batch_matmul_s16() needs no scratch buffer and so has no corresponding sizer.
+ */
+int32_t arm_batch_matmul_s8_get_buffer_size(const cmsis_nn_dims *input_rhs_dims);
+
+/**
+ * @brief Get size of the scratch buffer required by arm_batch_matmul_s8() for processors with DSP extension.
+ *        Refer to arm_batch_matmul_s8_get_buffer_size() for function argument details.
+ *
+ * @note       Intended for compilation on Host. If compiling for an Arm target, use
+ *             arm_batch_matmul_s8_get_buffer_size().
+ *
+ */
+int32_t arm_batch_matmul_s8_get_buffer_size_dsp(const cmsis_nn_dims *input_rhs_dims);
+
+/**
+ * @brief Get size of the scratch buffer required by arm_batch_matmul_s8() for Arm(R) Helium Architecture case.
+ *        Refer to arm_batch_matmul_s8_get_buffer_size() for function argument details.
+ *
+ * @note       Intended for compilation on Host. If compiling for an Arm target, use
+ *             arm_batch_matmul_s8_get_buffer_size().
+ *
+ */
+int32_t arm_batch_matmul_s8_get_buffer_size_mve(const cmsis_nn_dims *input_rhs_dims);
 
 /**
  * @defgroup Pad Pad Layer Functions:

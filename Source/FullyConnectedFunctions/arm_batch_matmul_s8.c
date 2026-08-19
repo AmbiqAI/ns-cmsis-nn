@@ -53,13 +53,20 @@ arm_cmsis_nn_status arm_batch_matmul_s8(const cmsis_nn_context *ctx,
                                         const cmsis_nn_dims *output_dims,
                                         int8_t *output)
 {
-    (void)ctx;
 #if defined(ARM_MATH_MVEI)
     if (ctx->buf == NULL)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    // A caller that reports its allocation gets it checked against what the kernel sums below actually index.
+    // ctx->size == 0 means "not reported" and skips the check, which is what the in-tree tests pass.
+    if (ctx->size > 0 && ctx->size < arm_batch_matmul_s8_get_buffer_size(input_rhs_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     int32_t *vector_sum_buf = (int32_t *)ctx->buf;
+#else
+    (void)ctx;
 #endif
     const int32_t output_batch = output_dims->n;
     const int32_t output_height = output_dims->h;

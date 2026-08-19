@@ -66,9 +66,12 @@ void batch_matmul_1_s8(void)
     const int8_t *lhs_input = batch_matmul_1_s8_lhs_input_tensor;
     const int8_t *rhs_input = batch_matmul_1_s8_rhs_transposed_tensor;
 
-    int32_t buf_size = arm_fully_connected_s8_get_buffer_size(&output_shape);
+    // The kernel-sum buffer is indexed by the rhs row count, so it is sized from the rhs dims - not from
+    // output_dims, and not with the fully-connected sizer, which reads a different field. Reporting
+    // ctx.size lets the kernel reject an undersized buffer instead of writing past it (see issue #269).
+    int32_t buf_size = arm_batch_matmul_s8_get_buffer_size(&rhs_shape_t);
     ctx.buf = malloc(buf_size);
-    ctx.size = 0;
+    ctx.size = buf_size;
 
     arm_cmsis_nn_status result = arm_batch_matmul_s8(
         &ctx, &bmm_params, &quant_params, &lhs_shape_nt, lhs_input, &rhs_shape_t, rhs_input, &output_shape, output);
@@ -114,9 +117,12 @@ void batch_matmul_2_s8(void)
     const int8_t *lhs_input = batch_matmul_2_s8_lhs_input_tensor;
     const int8_t *rhs_input = batch_matmul_2_s8_rhs_input_tensor;
 
-    int32_t buf_size = arm_fully_connected_s8_get_buffer_size(&output_shape);
+    // The kernel-sum buffer is indexed by the rhs row count, so it is sized from the rhs dims - not from
+    // output_dims, and not with the fully-connected sizer, which reads a different field. Reporting
+    // ctx.size lets the kernel reject an undersized buffer instead of writing past it (see issue #269).
+    int32_t buf_size = arm_batch_matmul_s8_get_buffer_size(&rhs_shape_nt);
     ctx.buf = malloc(buf_size);
-    ctx.size = 0;
+    ctx.size = buf_size;
 
     arm_cmsis_nn_status result = arm_batch_matmul_s8(
         &ctx, &bmm_params, &quant_params, &lhs_shape_nt, lhs_input, &rhs_shape_nt, rhs_input, &output_shape, output);
@@ -163,9 +169,12 @@ void batch_matmul_3_s8(void)
     const int8_t *lhs_input = batch_matmul_3_s8_lhs_transposed_tensor;
     const int8_t *rhs_input = batch_matmul_3_s8_rhs_transposed_tensor;
 
-    int32_t buf_size = arm_fully_connected_s8_get_buffer_size(&output_shape);
+    // The kernel-sum buffer is indexed by the rhs row count, so it is sized from the rhs dims - not from
+    // output_dims, and not with the fully-connected sizer, which reads a different field. Reporting
+    // ctx.size lets the kernel reject an undersized buffer instead of writing past it (see issue #269).
+    int32_t buf_size = arm_batch_matmul_s8_get_buffer_size(&rhs_shape_t);
     ctx.buf = malloc(buf_size);
-    ctx.size = 0;
+    ctx.size = buf_size;
 
     arm_cmsis_nn_status result = arm_batch_matmul_s8(
         &ctx, &bmm_params, &quant_params, &lhs_shape_t, lhs_input, &rhs_shape_t, rhs_input, &output_shape, output);
@@ -212,9 +221,12 @@ void batch_matmul_4_s8(void)
     const int8_t *lhs_input = batch_matmul_4_s8_lhs_transposed_tensor;
     const int8_t *rhs_input = batch_matmul_4_s8_rhs_input_tensor;
 
-    int32_t buf_size = arm_fully_connected_s8_get_buffer_size(&output_shape);
+    // The kernel-sum buffer is indexed by the rhs row count, so it is sized from the rhs dims - not from
+    // output_dims, and not with the fully-connected sizer, which reads a different field. Reporting
+    // ctx.size lets the kernel reject an undersized buffer instead of writing past it (see issue #269).
+    int32_t buf_size = arm_batch_matmul_s8_get_buffer_size(&rhs_shape_nt);
     ctx.buf = malloc(buf_size);
-    ctx.size = 0;
+    ctx.size = buf_size;
 
     arm_cmsis_nn_status result = arm_batch_matmul_s8(
         &ctx, &bmm_params, &quant_params, &lhs_shape_t, lhs_input, &rhs_shape_nt, rhs_input, &output_shape, output);
@@ -260,9 +272,12 @@ void batch_matmul_5_s8(void)
     const int8_t *lhs_input = batch_matmul_5_s8_lhs_input_tensor;
     const int8_t *rhs_input = batch_matmul_5_s8_rhs_input_tensor;
 
-    int32_t buf_size = arm_fully_connected_s8_get_buffer_size(&output_shape);
+    // The kernel-sum buffer is indexed by the rhs row count, so it is sized from the rhs dims - not from
+    // output_dims, and not with the fully-connected sizer, which reads a different field. Reporting
+    // ctx.size lets the kernel reject an undersized buffer instead of writing past it (see issue #269).
+    int32_t buf_size = arm_batch_matmul_s8_get_buffer_size(&rhs_shape_nt);
     ctx.buf = malloc(buf_size);
-    ctx.size = 0;
+    ctx.size = buf_size;
 
     arm_cmsis_nn_status result = arm_batch_matmul_s8(
         &ctx, &bmm_params, &quant_params, &lhs_shape_nt, lhs_input, &rhs_shape_nt, rhs_input, &output_shape, output);
