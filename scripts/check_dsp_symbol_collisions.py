@@ -56,17 +56,17 @@
 #   Include/Internal/*.h later is a one-line change (glob -> rglob) if a
 #   future internal symbol ever takes a bare-verb shape.
 #
-# Regex notes (three deliberate departures from the literal #282 prototype,
-# all three verified to be no-ops on this repo's own Include/*.h and on
-# upstream ARM-software/CMSIS-NN's; #1 and #3 are also required for a
-# complete CMSIS-DSP-side snapshot -- see each note):
+# Regex notes (four deliberate departures from the literal #282 prototype,
+# all four verified to be no-ops on this repo's own Include/*.h and on
+# upstream ARM-software/CMSIS-NN's; #1, #3, and #4 are also required for
+# a complete CMSIS-DSP-side snapshot -- see each note):
 #
 #   1. Leading whitespace is allowed (`^[ \t]*` instead of a bare `^`).
 #      This repo's headers declare functions at column 0, but CMSIS-DSP's
 #      public headers indent every declaration two spaces inside their
 #      `extern "C" { ... }` block -- e.g. Include/dsp/basic_math_functions.h
 #      has `  void arm_abs_f32(`. A column-0-anchored regex over CMSIS-DSP's
-#      headers finds only 341 of its 763 real declarations and silently
+#      headers finds only 342 of its 780 real declarations and silently
 #      misses arm_abs_f32/f16 themselves -- which would have made this
 #      exact check blind to the collision it exists to catch. Confirmed
 #      this is a no-op on the "ours" side: ns-cmsis-nn's own Include/*.h
@@ -94,10 +94,44 @@
 #      family this guard watches. clang-format's 120-column limit is what
 #      produces the split form, so a long float prototype is a likely
 #      future trigger. Verified a no-op on the CMSIS-DSP side (upstream
-#      never splits a declaration across lines: same 763-symbol snapshot
+#      never splits a declaration across lines: same 780-symbol snapshot
 #      with or without this) and a strict superset on the "ours" side
 #      (finds everything the required-prefix version found, plus the 17).
 #      See DECL_RE's own comment below for the mechanics.
+#   4. The tail of the captured name is `[A-Za-z0-9_]+`, not the
+#      lowercase-only `[a-z0-9_]+` the #282 prototype uses. CMSIS-DSP has
+#      17 real, unconditional, non-static declarations with an uppercase
+#      letter after "arm_" -- arm_biquad_cascade_df2T_{f16,f32,f64} (and
+#      _init/_stereo/_compute_coefs variants) and
+#      arm_circularRead/Write_{f32,q15,q7}. A lowercase-only capture does
+#      not truncate these at the uppercase letter and match a shorter,
+#      wrong name -- it fails to match AT ALL: the truncated capture
+#      "arm_biquad_cascade_df2" is not immediately followed by `\s*\(`
+#      (the next character is `T`), so the whole line yields zero match,
+#      not a wrong one. That is why a search for a truncated stem finds
+#      nothing -- the failure is silent non-detection, not corruption.
+#      Confirmed this is a no-op on the "ours" side and on upstream
+#      CMSIS-NN's control (488 and 321 symbols respectively, identical
+#      sets with or without the widened class -- neither repo has a
+#      mixed-case public name today) and adds exactly the 17 named
+#      symbols on the CMSIS-DSP side (763 -> 780), nothing else. The
+#      mechanism is identical on the "ours" side too, even though it is
+#      dormant today: a future kernel named with a capital letter would
+#      be just as invisible to this guard as these 17 were to the
+#      snapshot, which is why the class was widened here rather than
+#      special-cased for the DSP side only.
+#
+# A separate, lower-severity gap in the same spirit: DECL_RE has no
+# comment awareness, so extract_symbols() runs a lightweight comment
+# strip first (_strip_comments(), the same non-lexer idiom check_pdsc.py's
+# own _code_line_numbers() uses) -- otherwise a free-form doc-comment line
+# that happens to start with `arm_something(` and has no leading '*' or
+# '//' (an @code example, or prose describing a call) would be misread as
+# a real declaration. Demonstrated only synthetically so far, not present
+# in either real codebase; stripping comments first is a no-op on every
+# header this script scans today (verified: identical 488/780/321 symbol
+# sets with or without the strip), so it is a free robustness margin
+# rather than a fix for an active failure.
 #
 # Coverage boundary: this is the DECLARED public API (488 symbols today),
 # not the full exported link surface. Two things beyond that boundary,
@@ -137,9 +171,10 @@ DSP_SYMBOLS_FILE = REPO / "scripts" / "data" / "cmsis_dsp_symbols.txt"
 # an OPTIONAL whitespace-led type/qualifier prefix (letters, digits,
 # underscore, space, '*', tab -- deliberately no '(' or ')', so it cannot
 # skip over an intervening parameter list or macro invocation to reach a
-# later, unrelated arm_* token), then the arm_* name itself immediately
-# followed by '(' and NOT a '*' -- see the "Regex notes" above for why the
-# leading-whitespace allowance and the (?!\s*\*) guard are there.
+# later, unrelated arm_* token), then the arm_* name itself (case-
+# insensitive tail -- see below) immediately followed by '(' and NOT a
+# '*' -- see the "Regex notes" above for why the leading-whitespace
+# allowance and the (?!\s*\*) guard are there.
 #
 # The prefix is optional to cover split-line declarations, where the
 # return type sits alone on its own line and the arm_* name starts the
@@ -154,8 +189,17 @@ DSP_SYMBOLS_FILE = REPO / "scripts" / "data" / "cmsis_dsp_symbols.txt"
 # CMSIS-DSP side (upstream never splits a declaration across lines) and
 # is a strict superset on the "ours" side (finds everything the required-
 # prefix version found, plus the 17 split-line names).
+#
+# The captured tail is `[A-Za-z0-9_]+`, not `[a-z0-9_]+` as in the #282
+# prototype, so a declaration containing an uppercase letter after "arm_"
+# (e.g. arm_biquad_cascade_df2T_f32, arm_circularRead_f32 -- both real,
+# both upstream CMSIS-DSP) is captured in full. A lowercase-only tail
+# does not truncate and mismatch here; it fails to match the line at all,
+# because the truncated capture is not immediately followed by '(' -- see
+# the "Regex notes" above (item 4) for the full trace. 17 CMSIS-DSP
+# declarations were invisible to the snapshot as a result.
 DECL_RE = re.compile(
-    r"^[ \t]*(?:[A-Za-z_][A-Za-z0-9_ \*\t]*\b)?(arm_[a-z0-9_]+)\s*\((?!\s*\*)",
+    r"^[ \t]*(?:[A-Za-z_][A-Za-z0-9_ \*\t]*\b)?(arm_[A-Za-z0-9_]+)\s*\((?!\s*\*)",
     re.M,
 )
 
@@ -184,6 +228,38 @@ def fail(msg: str) -> None:
     failures.append(msg)
 
 
+def _strip_comments(text: str) -> str:
+    """Blank out /* ... */ and // ... comment content, preserving every
+    newline and non-comment character's column position so DECL_RE's line
+    anchors (^) still land in the right place. Same lightweight idiom as
+    check_pdsc.py's _code_line_numbers() -- not a real C lexer (a string
+    literal containing "//" or "/*" would be mishandled), which is an
+    accepted, precedented simplification in this repo. Without this, a
+    free-form line inside a doc comment that happens to start with
+    `arm_something(` -- e.g. an @code example or prose describing a call,
+    with no leading '*' or '//' -- would be misread as a real declaration.
+    Verified a no-op on every real header this script scans today (ours,
+    the DSP snapshot source, and the upstream CMSIS-NN control all extract
+    to the identical symbol sets with or without this)."""
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        if text[i : i + 2] == "/*":
+            j = text.find("*/", i + 2)
+            end = j + 2 if j >= 0 else n
+            out.append(re.sub(r"[^\n]", " ", text[i:end]))
+            i = end
+        elif text[i : i + 2] == "//":
+            j = text.find("\n", i)
+            end = j if j >= 0 else n
+            out.append(" " * (end - i))
+            i = end
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
+
+
 def extract_symbols(headers: list[Path]) -> set[str]:
     """Return every `arm_*` symbol DECL_RE finds declared across `headers`.
 
@@ -194,7 +270,8 @@ def extract_symbols(headers: list[Path]) -> set[str]:
     """
     names: set[str] = set()
     for header in headers:
-        names |= set(DECL_RE.findall(header.read_text(encoding="utf-8")))
+        text = _strip_comments(header.read_text(encoding="utf-8"))
+        names |= set(DECL_RE.findall(text))
     return names
 
 

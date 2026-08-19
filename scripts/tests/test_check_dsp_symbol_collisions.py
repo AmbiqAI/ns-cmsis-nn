@@ -43,7 +43,27 @@
 #     shape in Include/arm_nnfunctions.h); and
 #   - ALLOWLIST stays empty (test_allowlist_is_currently_empty) -- any
 #     addition must be a deliberate edit to this test, not something that
-#     creeps in unreviewed.
+#     creeps in unreviewed;
+#   - catches a collision whose name contains an UPPERCASE letter after
+#     "arm_", in BOTH same-line and split-line spelling -- an earlier
+#     version of DECL_RE's captured tail was lowercase-only ([a-z0-9_]+),
+#     so a real declaration like arm_circularRead_f32 or
+#     arm_biquad_cascade_df2T_f32 failed to match at all (not a truncated
+#     match -- the character right after the truncation point is the
+#     uppercase letter itself, never '(' or whitespace, so the whole line
+#     yields zero match). 17 real CMSIS-DSP declarations were invisible to
+#     the snapshot as a result (found independently in a second #285
+#     review round, converging with the split-line finding above). Every
+#     fixture before this fix used a lowercase-only name, which is exactly
+#     why this survived a full review round untouched -- see
+#     test_mutation_mixed_case_same_line_collision_is_caught,
+#     test_mutation_mixed_case_split_line_collision_is_caught, and
+#     test_same_line_and_split_line_mixed_case_spellings_are_equivalent;
+#     and
+#   - does NOT read a declaration-shaped line INSIDE a comment as real
+#     code -- extract_symbols() strips /* */ and // comments first
+#     (test_ignores_prose_inside_block_comment), closing a residual,
+#     synthetic-only gap flagged in the same review round.
 #
 # Also covers list_hazards()/--list-hazards (test_list_hazards_*): the
 # derived, not hand-maintained, "stems" (dtype-suffix stripped names) our
@@ -55,6 +75,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -135,6 +156,39 @@ REAL_SQRT_PAIR_S8_S16 = (
     "arm_sqrt_s16(const int16_t *input, const cmsis_nn_dims *input_dims, "
     "int16_t *output, const int16_t *sqrt_lut);\n"
 )
+
+# Second #285-review finding: DECL_RE's captured tail was lowercase-only
+# ([a-z0-9_]+), so a real, mixed-case CMSIS-DSP declaration -- e.g.
+# arm_circularRead_f32 (__STATIC_FORCEINLINE, Include/dsp/filtering_
+# functions.h) -- silently failed to match at all: the capture truncates
+# at "arm_circular" (stopping before the uppercase 'R'), and the very next
+# character is 'R', not '(' or whitespace, so `\s*\(` never matches and
+# the whole line yields nothing. All 20 tests before this fix used
+# lowercase-only names, which is exactly why this survived a full review
+# round. Both spellings, mirroring the two shapes CMSIS-DSP and this repo
+# actually use.
+CIRCULAR_READ_F32_SAME_LINE_DECL = (
+    "__STATIC_FORCEINLINE void arm_circularRead_f32(int32_t *circBuffer, "
+    "int32_t L, int32_t *readOffset, int32_t bufferInc, int32_t *dst);\n"
+)
+CIRCULAR_READ_F32_SPLIT_DECL = (
+    "__STATIC_FORCEINLINE void\n"
+    "arm_circularRead_f32(int32_t *circBuffer, int32_t L, "
+    "int32_t *readOffset, int32_t bufferInc, int32_t *dst);\n"
+)
+
+# Residual gap the same review flagged (lower severity, demonstrated only
+# synthetically): a free-form line inside a /* ... */ block comment, with
+# no leading '*' or '//', that happens to start with `arm_something(` --
+# an @code example or prose describing a call -- must NOT be read as a
+# real declaration. Closed by _strip_comments() in extract_symbols().
+PROSE_INSIDE_BLOCK_COMMENT = """\
+/*
+This paragraph is not code. It describes what
+arm_sqrt_f32(input, output, size) does, in prose,
+with no leading '*' on this continuation line.
+*/
+"""
 
 
 class DspSymbolCollisionCase(unittest.TestCase):
@@ -421,6 +475,68 @@ class DspSymbolCollisionCase(unittest.TestCase):
             set(hazards),
             {"arm_abs", "arm_add", "arm_mean", "arm_sqrt", "arm_sub"},
         )
+
+    # -- #285 review round 2: mixed-case tail (the second blocking bug) --
+
+    def test_mutation_mixed_case_same_line_collision_is_caught(self):
+        """A real, same-line, mixed-case CMSIS-DSP declaration
+        (arm_circularRead_f32) must be caught exactly like an all-
+        lowercase one."""
+        self.write_header(
+            "arm_nnfunctions_flt.h", CIRCULAR_READ_F32_SAME_LINE_DECL
+        )
+        self.write_dsp_symbols("arm_circularRead_f32")
+        self.assertCollides("arm_circularRead_f32")
+
+    def test_mutation_mixed_case_split_line_collision_is_caught(self):
+        """THE required combination: mixed-case AND split-line at once.
+        Before the case-tail fix, this mutation was invisible for two
+        independent reasons layered on top of each other; it must fail
+        now that both are fixed."""
+        self.write_header(
+            "arm_nnfunctions_flt.h", CIRCULAR_READ_F32_SPLIT_DECL
+        )
+        self.write_dsp_symbols("arm_circularRead_f32")
+        self.assertCollides("arm_circularRead_f32")
+
+    def test_same_line_and_split_line_mixed_case_spellings_are_equivalent(self):
+        """Mixed-case name, spelled two ways -- both extract to the
+        identical symbol, with the uppercase 'R' intact (not truncated,
+        not dropped)."""
+        same_path = self.write_header(
+            "a_same.h", CIRCULAR_READ_F32_SAME_LINE_DECL
+        )
+        split_path = self.write_header(
+            "b_split.h", CIRCULAR_READ_F32_SPLIT_DECL
+        )
+        same = self.mod.extract_symbols([same_path])
+        split = self.mod.extract_symbols([split_path])
+        self.assertEqual(same, {"arm_circularRead_f32"})
+        self.assertEqual(same, split)
+
+    def test_lowercase_only_tail_would_truncate_the_capture_not_match_it(self):
+        """Documents the exact failure mode: a lowercase-only tail class
+        does not capture "arm_circularRead_f32" as a shorter, wrong name
+        (e.g. "arm_circular") -- it fails to match the line at all, because
+        nothing immediately follows the truncated capture except the
+        uppercase letter itself, never '(' or whitespace."""
+        lowercase_only = re.compile(
+            r"^[ \t]*(?:[A-Za-z_][A-Za-z0-9_ \*\t]*\b)?(arm_[a-z0-9_]+)"
+            r"\s*\((?!\s*\*)",
+            re.M,
+        )
+        self.assertEqual(
+            lowercase_only.findall(CIRCULAR_READ_F32_SAME_LINE_DECL), []
+        )
+
+    def test_ignores_prose_inside_block_comment(self):
+        """A doc-comment line with no leading '*' that happens to start
+        with an arm_* call shape must not be read as a real declaration."""
+        path = self.write_header(
+            "arm_nnfunctions_flt.h", PROSE_INSIDE_BLOCK_COMMENT
+        )
+        names = self.mod.extract_symbols([path])
+        self.assertEqual(names, set())
 
 
 if __name__ == "__main__":

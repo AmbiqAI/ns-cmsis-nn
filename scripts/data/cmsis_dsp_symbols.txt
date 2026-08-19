@@ -22,9 +22,29 @@
 # plus a comment wording fix in Include/dsp/controller_functions.h --
 # 3 of 49 files under Include/, none of it touching a declared symbol
 # name), but extracting symbols from both trees with extract_symbols()
-# produces the identical 763-name set either way. Either tree is therefore
+# produces the identical 780-name set either way. Either tree is therefore
 # a valid refresh source; upstream is used here so refreshing this file
 # never requires private-repo access.
+#
+# The refresh recipe below and the live check both call the SAME
+# extract_symbols(), which is the point (one extraction rule, not two to
+# keep in sync) -- but it cuts both ways: a refresh can track upstream's
+# real additions and removals, but it is structurally incapable of
+# surfacing a bug IN the extractor itself. That happened here: an earlier
+# version of DECL_RE's capture class was lowercase-only and silently
+# dropped every declaration with an uppercase letter after "arm_" (e.g.
+# arm_biquad_cascade_df2T_f32, arm_circularRead_f32) -- 17 real,
+# unconditional, non-static symbols, some ordinary extern declarations,
+# some __STATIC_FORCEINLINE definitions (in scope either way, see
+# check_dsp_symbol_collisions.py's "Matches ... declaration or
+# definition" comment). Every one of the 17 was present in CMSIS-DSP back
+# in 2022's v1.10.1 too (see the four-year diff below), so this was never
+# a staleness problem a refresh could have caught -- re-extracting
+# against today's ref reproduced the old, wrong 763 byte-for-byte right
+# up until DECL_RE itself was fixed. A tool bug is a tool bug regardless
+# of how current the input is; only re-deriving this file after a
+# genuine extractor change (like this one) fixes it, not a routine
+# refresh.
 #
 # Acknowledged limit -- the real staleness axis is helia-dsp, not upstream:
 # the symbol-identity check above is a snapshot in time, and what actually
@@ -149,6 +169,17 @@ arm_biquad_cascade_df1_mve_init_f16
 arm_biquad_cascade_df1_mve_init_f32
 arm_biquad_cascade_df1_q15
 arm_biquad_cascade_df1_q31
+arm_biquad_cascade_df2T_compute_coefs_f32
+arm_biquad_cascade_df2T_f16
+arm_biquad_cascade_df2T_f32
+arm_biquad_cascade_df2T_f64
+arm_biquad_cascade_df2T_init_f16
+arm_biquad_cascade_df2T_init_f32
+arm_biquad_cascade_df2T_init_f64
+arm_biquad_cascade_stereo_df2T_f16
+arm_biquad_cascade_stereo_df2T_f32
+arm_biquad_cascade_stereo_df2T_init_f16
+arm_biquad_cascade_stereo_df2T_init_f32
 arm_blackman_harris_92db_f32
 arm_blackman_harris_92db_f64
 arm_braycurtis_distance_f16
@@ -236,6 +267,12 @@ arm_chebyshev_distance_f16
 arm_chebyshev_distance_f32
 arm_chebyshev_distance_f64
 arm_cifft_output_buffer_size
+arm_circularRead_f32
+arm_circularRead_q15
+arm_circularRead_q7
+arm_circularWrite_f32
+arm_circularWrite_q15
+arm_circularWrite_q7
 arm_cityblock_distance_f16
 arm_cityblock_distance_f32
 arm_cityblock_distance_f64
