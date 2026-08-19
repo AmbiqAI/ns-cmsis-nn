@@ -70,6 +70,13 @@ void batch_matmul_1_s8(void)
     // output_dims, and not with the fully-connected sizer, which reads a different field. Reporting
     // ctx.size lets the kernel reject an undersized buffer instead of writing past it (see issue #269).
     int32_t buf_size = arm_batch_matmul_s8_get_buffer_size(&rhs_shape_t);
+    // Pin the requirement independently of the sizer: allocating *and* validating through the same
+    // helper is self-consistent, so a sizer that read the wrong dims field would go unnoticed here.
+#if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(rhs_shape_t.w * (int32_t)sizeof(int32_t), buf_size);
+#else
+    TEST_ASSERT_EQUAL(0, buf_size);
+#endif
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
@@ -121,6 +128,13 @@ void batch_matmul_2_s8(void)
     // output_dims, and not with the fully-connected sizer, which reads a different field. Reporting
     // ctx.size lets the kernel reject an undersized buffer instead of writing past it (see issue #269).
     int32_t buf_size = arm_batch_matmul_s8_get_buffer_size(&rhs_shape_nt);
+    // Pin the requirement independently of the sizer: allocating *and* validating through the same
+    // helper is self-consistent, so a sizer that read the wrong dims field would go unnoticed here.
+#if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(rhs_shape_nt.w * (int32_t)sizeof(int32_t), buf_size);
+#else
+    TEST_ASSERT_EQUAL(0, buf_size);
+#endif
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
@@ -173,6 +187,13 @@ void batch_matmul_3_s8(void)
     // output_dims, and not with the fully-connected sizer, which reads a different field. Reporting
     // ctx.size lets the kernel reject an undersized buffer instead of writing past it (see issue #269).
     int32_t buf_size = arm_batch_matmul_s8_get_buffer_size(&rhs_shape_t);
+    // Pin the requirement independently of the sizer: allocating *and* validating through the same
+    // helper is self-consistent, so a sizer that read the wrong dims field would go unnoticed here.
+#if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(rhs_shape_t.w * (int32_t)sizeof(int32_t), buf_size);
+#else
+    TEST_ASSERT_EQUAL(0, buf_size);
+#endif
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
@@ -225,6 +246,13 @@ void batch_matmul_4_s8(void)
     // output_dims, and not with the fully-connected sizer, which reads a different field. Reporting
     // ctx.size lets the kernel reject an undersized buffer instead of writing past it (see issue #269).
     int32_t buf_size = arm_batch_matmul_s8_get_buffer_size(&rhs_shape_nt);
+    // Pin the requirement independently of the sizer: allocating *and* validating through the same
+    // helper is self-consistent, so a sizer that read the wrong dims field would go unnoticed here.
+#if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(rhs_shape_nt.w * (int32_t)sizeof(int32_t), buf_size);
+#else
+    TEST_ASSERT_EQUAL(0, buf_size);
+#endif
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
@@ -276,6 +304,13 @@ void batch_matmul_5_s8(void)
     // output_dims, and not with the fully-connected sizer, which reads a different field. Reporting
     // ctx.size lets the kernel reject an undersized buffer instead of writing past it (see issue #269).
     int32_t buf_size = arm_batch_matmul_s8_get_buffer_size(&rhs_shape_nt);
+    // Pin the requirement independently of the sizer: allocating *and* validating through the same
+    // helper is self-consistent, so a sizer that read the wrong dims field would go unnoticed here.
+#if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(rhs_shape_nt.w * (int32_t)sizeof(int32_t), buf_size);
+#else
+    TEST_ASSERT_EQUAL(0, buf_size);
+#endif
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
