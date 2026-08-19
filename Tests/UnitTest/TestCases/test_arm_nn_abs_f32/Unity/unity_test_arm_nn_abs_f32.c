@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../test_arm_abs_f16.c"
+#include "../test_arm_nn_abs_f32.c"
 #include "unity.h"
 
 #ifdef USING_FVP_CORSTONE_300
@@ -29,6 +29,6 @@ void setUp(void)
 
 void tearDown(void) {}
 
-void test_abs_f16_arm_abs_f16(void) { abs_f16_arm_abs_f16(); }
+void test_abs_f32_arm_nn_abs_f32(void) { abs_f32_arm_nn_abs_f32(); }
 
-void test_abs_f16_arg_error_arm_abs_f16(void) { abs_f16_arg_error_arm_abs_f16(); }
+void test_abs_f32_arg_error_arm_nn_abs_f32(void) { abs_f32_arg_error_arm_nn_abs_f32(); }
