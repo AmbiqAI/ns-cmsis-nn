@@ -7,8 +7,8 @@
 # See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
 #
 
-add_cmsis_nn_unit_test_executable(test_arm_abs_f16)
+add_cmsis_nn_unit_test_executable(test_arm_nn_abs_f32)
 
-target_sources(test_arm_abs_f16 PRIVATE
-    Unity/unity_test_arm_abs_f16.c
-    Unity/TestRunner/unity_test_arm_abs_f16_runner.c)
+target_sources(test_arm_nn_abs_f32 PRIVATE
+    Unity/unity_test_arm_nn_abs_f32.c
+    Unity/TestRunner/unity_test_arm_nn_abs_f32_runner.c)

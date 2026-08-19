@@ -34,6 +34,7 @@ GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         r"^arm_maximum",
         r"^arm_minimum",
         r"^arm_mul",
+        r"^arm_nn_abs",
         r"^arm_sqrt",
         r"^arm_squared_difference",
         r"^arm_sub",

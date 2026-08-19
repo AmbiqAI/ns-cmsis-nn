@@ -12,11 +12,11 @@
 
 #include "abs_f16_data.h"
 
-void abs_f16_arm_abs_f16(void)
+void abs_f16_arm_nn_abs_f16(void)
 {
     float16_t output[ABS_F16_DST_SIZE] = {0};
 
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_abs_f16(abs_f16_input, output, ABS_F16_DST_SIZE));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_nn_abs_f16(abs_f16_input, output, ABS_F16_DST_SIZE));
 
     for (int i = 0; i < ABS_F16_DST_SIZE; ++i)
     {
@@ -24,9 +24,9 @@ void abs_f16_arm_abs_f16(void)
     }
 }
 
-void abs_f16_arg_error_arm_abs_f16(void)
+void abs_f16_arg_error_arm_nn_abs_f16(void)
 {
     float16_t output[ABS_F16_DST_SIZE] = {0};
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_abs_f16(NULL, output, ABS_F16_DST_SIZE));
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_abs_f16(abs_f16_input, output, 0));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_nn_abs_f16(NULL, output, ABS_F16_DST_SIZE));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_nn_abs_f16(abs_f16_input, output, 0));
 }

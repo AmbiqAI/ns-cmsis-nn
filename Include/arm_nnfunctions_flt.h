@@ -499,7 +499,7 @@ arm_cmsis_nn_status arm_elementwise_sub_f32(const float32_t *input_1_vect,
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
-arm_cmsis_nn_status arm_abs_f32(const float32_t *input, float32_t *output, int32_t block_size);
+arm_cmsis_nn_status arm_nn_abs_f32(const float32_t *input, float32_t *output, int32_t block_size);
 
 /**
  * @brief Elementwise multiply with optional output clamp.
@@ -1315,9 +1315,9 @@ arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
                                             int32_t block_size);
 
 /**
- * @copydoc arm_abs_f32
+ * @copydoc arm_nn_abs_f32
  */
-arm_cmsis_nn_status arm_abs_f16(const float16_t *input, float16_t *output, int32_t block_size);
+arm_cmsis_nn_status arm_nn_abs_f16(const float16_t *input, float16_t *output, int32_t block_size);
 
 /**
  * @ingroup Concatenation

@@ -9,8 +9,8 @@
 
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
- * Title:        arm_abs_f32.c
- * Description:  Elementwise absolute value for float32 tensors
+ * Title:        arm_nn_abs_f16.c
+ * Description:  Elementwise absolute value for float16 tensors
  *
  * $Date:        12 August 2026
  * $Revision:    V.1.0.0
@@ -20,7 +20,7 @@
 
 #include "Internal/arm_nn_activation_flt.h"
 
-#if ARM_NN_ENABLE_F32
+#if ARM_NN_ENABLE_F16
 
 /**
  * @ingroup Public
@@ -31,26 +31,27 @@
  * @{
  */
 
-arm_cmsis_nn_status arm_abs_f32(const float32_t *input, float32_t *output, int32_t block_size)
+arm_cmsis_nn_status arm_nn_abs_f16(const float16_t *input, float16_t *output, int32_t block_size)
 {
     if (!input || !output || block_size < 1)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-    for (int32_t i = 0; i < block_size; i += 4)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    for (int32_t i = 0; i < block_size; i += 8)
     {
-        const mve_pred16_t p = vctp32q((uint32_t)(block_size - i));
-        const float32x4_t va = vld1q_z(&input[i], p);
-        vstrwq_p(&output[i], vabsq_f32(va), p);
+        const mve_pred16_t p = vctp16q((uint32_t)(block_size - i));
+        const float16x8_t va = vld1q_z(&input[i], p);
+        vstrhq_p(&output[i], vabsq_f16(va), p);
     }
     #else
     for (int32_t i = 0; i < block_size; ++i)
     {
-        // __builtin_fabsf clears the sign bit even for -0.0 and -NaN,
-        // keeping the scalar path bit-exact with the MVE vabsq path.
-        output[i] = __builtin_fabsf(input[i]);
+        // Promote-abs-demote is exact for every half value and clears the
+        // sign bit even for -0.0 and -NaN, keeping the scalar path
+        // bit-exact with the MVE vabsq path.
+        output[i] = (float16_t)__builtin_fabsf((float32_t)input[i]);
     }
     #endif
 
@@ -60,4 +61,4 @@ arm_cmsis_nn_status arm_abs_f32(const float32_t *input, float32_t *output, int32
  * @} end of groupElementwise group
  */
 
-#endif /* ARM_NN_ENABLE_F32 */
+#endif /* ARM_NN_ENABLE_F16 */
