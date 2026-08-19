@@ -100,6 +100,10 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
+    if (output_x <= 0 || output_y <= 0)
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
 
     /* Byte-scaled gather uses 16-bit per-lane offsets; bail out if the window does not fit. */
     uint16x8_t offset_src = vdupq_n_u16(0);
@@ -153,7 +157,7 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
                         const float16x8_t in = vldrhq_gather_shifted_offset_z(input_data_pr, offset_src, p);
                         input_data_pr += input_ch * stride_x;
                         _Float16 acc = (_Float16)arm_nn_vec_reduce_add_f16(vmulq(weight, in)) + bias_val;
-                        acc = CLAMP(acc, act_max, act_min);
+                        acc = arm_nn_clamp_f16h(acc, act_max, act_min);
                         *out_c = (float16_t)acc;
                         out_c += output_ch;
                     }
@@ -163,7 +167,7 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
                         const float16x8_t in = vldrhq_gather_shifted_offset_z(input_data_pr, offset_src, p);
                         input_data_pr += input_ch * stride_edge;
                         _Float16 acc = (_Float16)arm_nn_vec_reduce_add_f16(vmulq(weight, in)) + bias_val;
-                        acc = CLAMP(acc, act_max, act_min);
+                        acc = arm_nn_clamp_f16h(acc, act_max, act_min);
                         *out_c = (float16_t)acc;
                         out_c += output_ch;
                     }
