@@ -9,6 +9,11 @@
 # smoke-link verifier on each, and uploads the resulting .a files and
 # SDK tarballs as workflow artefacts.
 #
+# armclang lives in its own job rather than a matrix leg, for the same
+# reason as release.yml's publish-staticlibs-armclang: one Arm User-Based
+# Licensing activation and one ~1 GB toolchain fetch per run instead of
+# three (AmbiqAI/ns-cmsis-nn#275).
+#
 # Triggered manually only — verification path, not a publish path.
 # Companion to .github/workflows/pack-dryrun.yml (M3 #166).
 
@@ -38,7 +43,7 @@ jobs:
       fail-fast: false
       matrix:
         target_cpu: [cortex-m0, cortex-m4, cortex-m55]
-        toolchain: [gcc, atfe, armclang]
+        toolchain: [gcc, atfe]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -48,12 +53,6 @@ jobs:
         uses: carlosperate/arm-none-eabi-gcc-action@v1
         with:
           release: 13.2.Rel1
-
-      - name: Install LLVM archive tools
-        if: ${{ matrix.toolchain == 'armclang' }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends llvm
 
       - name: Fetch external toolchain
         if: ${{ matrix.toolchain != 'gcc' }}
@@ -92,9 +91,9 @@ jobs:
             "${f16_flag[@]}"
 
       - name: Smoke-verify static library
-        # GCC and ATfE get a bare-metal link smoke test. armclang currently gets
-        # compile-plus-archive-symbol verification because Arm's linker option
-        # dialect differs from the GNU/LLD path used by the other toolchains.
+        # GCC and ATfE get a bare-metal link smoke test. The armclang job
+        # below gets compile-plus-archive-symbol verification instead, because
+        # Arm's linker option dialect differs from the GNU/LLD path.
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
           TOOLCHAIN: ${{ matrix.toolchain }}
@@ -187,5 +186,150 @@ jobs:
             ./output/${{ matrix.toolchain }}/${{ matrix.target_cpu }}/libns-cmsis-nn-*.a.sha256
             ./output/${{ matrix.toolchain }}/${{ matrix.target_cpu }}/ns-cmsis-nn-*.tar.gz
             ./output/${{ matrix.toolchain }}/${{ matrix.target_cpu }}/ns-cmsis-nn-*.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  armclang:
+    name: armclang / all cortex-m
+    runs-on: ubuntu-latest
+    # Serial build of all three CPUs on one runner, so Arm's User-Based
+    # Licensing is activated exactly once per run and the ~1 GB Arm Compiler
+    # archive is fetched exactly once (AmbiqAI/ns-cmsis-nn#275).
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install LLVM archive tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends llvm
+
+      - name: Fetch external toolchain
+        id: fetch_toolchain
+        run: |
+          bash scripts/fetch_toolchain.sh \
+            --manifest "ci/toolchains/armclang.json" \
+            --platform linux-x86_64 \
+            --outdir "${RUNNER_TEMP}/toolchains"
+
+      # Mirrors AmbiqAI/helia-rt's helia_release.yml, which fails its armclang
+      # legs fast when the identifier is absent. This is a manual verification
+      # workflow, so a missing licence is an error worth surfacing loudly --
+      # release.yml is where armclang is optional and self-skips instead.
+      # Only presence is tested; the value is never printed.
+      - name: Validate armclang license
+        env:
+          ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${ARM_UBL_LICENSE_IDENTIFIER:-}" ]]; then
+            echo "::error title=Arm licence not configured::ARM_UBL_LICENSE_IDENTIFIER is required for armclang builds." >&2
+            exit 1
+          fi
+          if [[ ! -x "${TOOLCHAIN_ROOT}/bin/armlm" ]]; then
+            echo "::error title=Arm license manager missing::No executable armlm under ${TOOLCHAIN_ROOT}/bin." >&2
+            exit 1
+          fi
+          echo "${TOOLCHAIN_ROOT}/bin" >> "$GITHUB_PATH"
+
+      - name: Activate Arm tool license
+        uses: ARM-software/cmsis-actions/armlm@v1
+        with:
+          code: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+
+      - name: Build, smoke-verify and package static libraries
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+          TOOLCHAIN_VERSION: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
+        run: |
+          set -euo pipefail
+          for TARGET_CPU in cortex-m0 cortex-m4 cortex-m55; do
+            echo "::group::armclang / ${TARGET_CPU}"
+            outdir="./output/armclang/${TARGET_CPU}"
+            # Superset build: F32 for every combination, F16 only for the
+            # currently qualified cortex-m55 (matches the ARMV8_1_M_MVEF
+            # Zephyr Kconfig restriction). Flags are always explicit so the
+            # archive's actual contents never silently drift from what this
+            # workflow intended to publish.
+            f16_flag=()
+            if [[ "${TARGET_CPU}" == "cortex-m55" ]]; then
+              f16_flag=(--enable-f16)
+            fi
+            bash scripts/build_staticlib.sh \
+              --target-cpu "$TARGET_CPU" \
+              --version    "$VERSION" \
+              --toolchain  armclang \
+              --toolchain-root "$TOOLCHAIN_ROOT" \
+              --outdir     "$outdir" \
+              --enable-f32 \
+              "${f16_flag[@]}"
+
+            lib="${outdir}/libns-cmsis-nn-armclang-${TARGET_CPU}-${VERSION}.a"
+
+            # Compile-plus-archive-symbol verification rather than the
+            # bare-metal link GCC and ATfE get: Arm's linker option dialect
+            # differs from the GNU/LLD path.
+            bash scripts/smoke/smoke_staticlib.sh \
+              --target-cpu "$TARGET_CPU" \
+              --toolchain  armclang \
+              --toolchain-root "$TOOLCHAIN_ROOT" \
+              --library    "$lib" \
+              --outdir     "${outdir}/smoke"
+
+            # Re-pass the same feature selection so build_sdk_tarball.sh
+            # cross-checks it against the "<lib>.buildconfig.json" sidecar
+            # build_staticlib.sh wrote, catching any drift between what this
+            # workflow requested and what was actually compiled.
+            bash scripts/build_sdk_tarball.sh \
+              --target-cpu         "$TARGET_CPU" \
+              --version            "$VERSION"    \
+              --staticlib          "$lib"        \
+              --toolchain          armclang      \
+              --toolchain-version  "$TOOLCHAIN_VERSION" \
+              --outdir             "$outdir" \
+              --enable-f32 \
+              "${f16_flag[@]}"
+
+            # Guards against metadata drift: the published manifest.json must
+            # report exactly what this job requested, and must be marked
+            # "verified" (sourced from the buildconfig.json sidecar, not an
+            # unverified CLI-flag fallback).
+            tarball="${outdir}/ns-cmsis-nn-${TARGET_CPU}-armclang-${VERSION}.tar.gz"
+            extract_dir="${outdir}/_manifest_check"
+            rm -rf "$extract_dir"; mkdir -p "$extract_dir"
+            tar -xzf "$tarball" -C "$extract_dir"
+            manifest="${extract_dir}/ns-cmsis-nn-${TARGET_CPU}-armclang-${VERSION}/manifest.json"
+            expected_f16=false
+            [[ "$TARGET_CPU" == "cortex-m55" ]] && expected_f16=true
+            got_f32="$(jq -r '.features.f32' "$manifest")"
+            got_f16="$(jq -r '.features.f16' "$manifest")"
+            got_verified="$(jq -r '.features.verified' "$manifest")"
+            if [[ "$got_f32" != "true" ]]; then
+              echo "manifest f32=$got_f32, expected true" >&2; exit 1
+            fi
+            if [[ "$got_f16" != "$expected_f16" ]]; then
+              echo "manifest f16=$got_f16, expected $expected_f16 for $TARGET_CPU" >&2; exit 1
+            fi
+            if [[ "$got_verified" != "true" ]]; then
+              echo "manifest features.verified=$got_verified, expected true" >&2; exit 1
+            fi
+            echo "manifest OK: f32=$got_f32 f16=$got_f16 verified=$got_verified"
+            rm -rf "$extract_dir"
+            echo "::endgroup::"
+          done
+
+      - name: Upload artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ns-cmsis-nn-staticlib-armclang-dryrun
+          path: |
+            ./output/armclang/*/libns-cmsis-nn-*.a
+            ./output/armclang/*/libns-cmsis-nn-*.a.sha256
+            ./output/armclang/*/ns-cmsis-nn-*.tar.gz
+            ./output/armclang/*/ns-cmsis-nn-*.tar.gz.sha256
           if-no-files-found: error
           retention-days: 14

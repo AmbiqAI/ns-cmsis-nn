@@ -100,7 +100,8 @@ gh workflow run release.yml --ref main -f recover_tag=v7.29.2
 ```
 
 This re-runs `resolve-release-capabilities`, `publish-staticlibs`,
-`publish-staticlib-bundles`, and `publish-pack` against the release already
+`publish-staticlibs-armclang`, `publish-staticlib-bundles`, and
+`publish-pack` against the release already
 published at `v7.29.2`, re-uploading (`--clobber`) any missing or stale
 customer assets. Historical recovery deliberately skips the CI image and its
 container test jobs because that image is build infrastructure rather than a
@@ -109,8 +110,8 @@ It refuses to run
 (fails fast) if `v7.29.2` doesn't already have a published GitHub Release, so
 it cannot be used to create a new tag/release under a different name. See
 [Required vs optional assets](guides/releases.md#required-vs-optional-assets)
-for which assets are safe to be missing (armclang) versus which indicate a
-real regression.
+for which assets are safe to be missing (armclang, and only when no Arm
+licence is configured) versus which indicate a real regression.
 
 `release-please`'s job resolves `v7.29.2` to its exact target commit exactly
 once (`scripts/ci/resolve_release_commit.sh`, via the GitHub API) and

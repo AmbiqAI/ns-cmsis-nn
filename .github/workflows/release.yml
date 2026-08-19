@@ -233,13 +233,23 @@ jobs:
 
   resolve-release-capabilities:
     # Decides which OPTIONAL release assets this run can actually produce,
-    # without ever printing secret values. See AmbiqAI/ns-cmsis-nn#228:
-    # hosted GitHub runners have no Arm Compiler for Embedded license, so
-    # Armclang static-library/bundle publication is best-effort and must be
-    # skipped (not fail the release) when ARMLMD_LICENSE_FILE is unset. GCC
+    # without ever printing secret values. See AmbiqAI/ns-cmsis-nn#228 and
+    # #275: Armclang needs an Arm Compiler for Embedded licence, so its
+    # static-library/bundle publication is best-effort and must be skipped
+    # (not fail the release) when ARM_UBL_LICENSE_IDENTIFIER is unset. GCC
     # and ATfE static libs, the source tag, and the CMSIS-Pack remain
     # required and are never gated by this job. See docs/guides/releases.md
     # for the full required-vs-optional asset matrix.
+    #
+    # ARM_UBL_LICENSE_IDENTIFIER is Arm's User-Based Licensing activation
+    # code -- the scheme AmbiqAI/helia-rt already builds armclang with on
+    # hosted runners, redeemed by `armlm activate --code <identifier>`. It
+    # replaces ARMLMD_LICENSE_FILE, the legacy FlexLM licence-file variable
+    # this job used to read. That FlexLM secret has never been configured on
+    # this repository, so this gate has always resolved to "unavailable" and
+    # armclang assets have never shipped in any release (#275). The UBL
+    # identifier IS configured, so this gate now resolves to "available" and
+    # publish-staticlibs-armclang below genuinely builds and uploads.
     #
     # Only runs when assets are actually going to be published (a new
     # release-please release or a confirmed recover_tag run), so ordinary
@@ -259,14 +269,16 @@ jobs:
       - name: Check Armclang license availability
         id: check
         env:
-          ARMLMD_LICENSE_FILE: ${{ secrets.ARMLMD_LICENSE_FILE }}
+          ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
         run: |
           set -euo pipefail
-          if [[ -n "${ARMLMD_LICENSE_FILE:-}" ]]; then
+          # Presence only. The identifier's value is never echoed, written to
+          # a step output, or interpolated into any annotation below.
+          if [[ -n "${ARM_UBL_LICENSE_IDENTIFIER:-}" ]]; then
             echo "armclang_available=true" >> "$GITHUB_OUTPUT"
           else
             echo "armclang_available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Optional asset skipped::ARMLMD_LICENSE_FILE is not configured on this repository, so Armclang static-library assets will be skipped for this release. Source tag, GCC/ATfE static libs, and the CMSIS-Pack are unaffected. See docs/guides/releases.md."
+            echo "::warning title=Optional asset skipped::ARM_UBL_LICENSE_IDENTIFIER is not configured on this repository, so Armclang static-library assets will be skipped for this release. Source tag, GCC/ATfE static libs, and the CMSIS-Pack are unaffected. See docs/guides/releases.md."
           fi
 
   publish-staticlibs:
@@ -275,61 +287,21 @@ jobs:
     # downstream release jobs; publish-staticlib-bundles owns GitHub Release
     # uploads so the release page does not grow loose .a/.sha256 pairs.
     #
-    # gcc/atfe legs are REQUIRED: a failure here fails the release. armclang
-    # legs are OPTIONAL and self-skip (exit 0, no artefact) whenever
-    # resolve-release-capabilities reports no Arm Compiler license is
-    # configured, so a missing license never fails this job or blocks the
-    # required downstream pack/bundle jobs (AmbiqAI/ns-cmsis-nn#228).
+    # Every leg of this job is REQUIRED: a failure here fails the release.
+    # armclang is NOT a leg -- it lives in publish-staticlibs-armclang below,
+    # which is optional and tolerated. See that job's header for why it was
+    # split out (AmbiqAI/ns-cmsis-nn#275).
     if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
-    needs: [release-please, resolve-release-capabilities]
+    needs: release-please
     runs-on: ubuntu-latest
-    # Belt-and-braces for AmbiqAI/ns-cmsis-nn#275. NOT the primary fix: the
-    # #228 capability gate below (efebc247, 2026-08-09) already turns an
-    # unlicensed armclang leg into a no-op SUCCESS -- every armclang step
-    # either has an `if:` that skips it or `exit 0`s -- and it has since run
-    # correctly on four live recovery dispatches. The four failed release
-    # runs usually cited here (29525785520, 30383787304, 30482673956,
-    # 31327497393) all have head commits that PREDATE that gate, so they are
-    # evidence of a bug already fixed on main, not of one still open.
-    #
-    # The gate also fails SAFE if resolve-release-capabilities' output ever
-    # arrives empty: "" != "true", so every in-script test `exit 0`s and every
-    # step-level `if:` skips.
-    #
-    # What the gate does NOT cover is armclang failing for any reason OTHER
-    # than the secret being absent: an expired or invalid licence, an
-    # unreachable licence server, artifacts.tools.arm.com returning 500 during
-    # `Fetch external toolchain`, or a real armclang compile regression. Any
-    # of those still fails a leg, fails this job, and reproduces the `needs:`
-    # cascade that left FIVE releases with zero assets (v7.26.0, v7.27.0,
-    # v7.28.0, v7.29.0, v7.29.1).
-    #
-    # `continue-on-error` is evaluated per matrix leg (the documented
-    # `continue-on-error: ${{ matrix.experimental }}` pattern), so the three
-    # armclang legs become non-blocking for EVERY failure mode while all six
-    # gcc/atfe legs stay fully required. That asymmetry is deliberate:
-    # v7.26.0 went empty because the ATFE legs failed, not armclang, and this
-    # must keep failing the release when that recurs.
-    #
-    # Tolerating a leg is not the same as pretending it succeeded. armclang is
-    # optional in docs/guides/releases.md *because* it "Requires a commercial
-    # Arm Compiler for Embedded license" -- so release-verify below treats
-    # armclang assets as REQUIRED whenever that licence is configured, and a
-    # tolerated leg then still turns the release red. Unlicensed, a tolerated
-    # leg degrades cleanly: publish-staticlib-bundles warns and omits the
-    # armclang bundle, and publish-pack only consumes the gcc artefacts.
-    continue-on-error: ${{ matrix.toolchain == 'armclang' }}
     # Green legs run 18-47 s; 30 min is ~40x headroom over the slowest.
     # Bounded for the same reason as resolve-release-capabilities above.
     timeout-minutes: 30
-    env:
-      ARMLMD_LICENSE_FILE: ${{ secrets.ARMLMD_LICENSE_FILE }}
-      ARMCLANG_AVAILABLE: ${{ needs.resolve-release-capabilities.outputs.armclang_available }}
     strategy:
       fail-fast: false
       matrix:
         target_cpu: [cortex-m0, cortex-m4, cortex-m55]
-        toolchain: [gcc, atfe, armclang]
+        toolchain: [gcc, atfe]
     steps:
       # Pinned to the exact commit release-please resolved the release tag
       # to -- never the ref that triggered this workflow run
@@ -347,14 +319,8 @@ jobs:
         with:
           release: 13.2.Rel1
 
-      - name: Install LLVM archive tools
-        if: ${{ matrix.toolchain == 'armclang' && needs.resolve-release-capabilities.outputs.armclang_available == 'true' }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends llvm
-
       - name: Fetch external toolchain
-        if: ${{ matrix.toolchain != 'gcc' && !(matrix.toolchain == 'armclang' && needs.resolve-release-capabilities.outputs.armclang_available != 'true') }}
+        if: ${{ matrix.toolchain != 'gcc' }}
         id: fetch_toolchain
         run: |
           bash scripts/fetch_toolchain.sh \
@@ -369,13 +335,6 @@ jobs:
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
-          # Optional-asset gate: skip the whole armclang leg (no license) as
-          # a no-op success rather than letting the license checkout fail
-          # the job. See resolve-release-capabilities above.
-          if [[ "$TOOLCHAIN" == "armclang" && "$ARMCLANG_AVAILABLE" != "true" ]]; then
-            echo "::notice title=Optional asset skipped::No Arm Compiler license configured; skipping armclang static library for ${TARGET_CPU}."
-            exit 0
-          fi
           # Published archives are supersets: F32 is enabled for every
           # qualified CPU/toolchain combination in this matrix, and F16 is
           # enabled only where currently qualified (cortex-m55, matching
@@ -406,10 +365,6 @@ jobs:
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
-          if [[ "$TOOLCHAIN" == "armclang" && "$ARMCLANG_AVAILABLE" != "true" ]]; then
-            echo "::notice title=Optional asset skipped::Skipping armclang smoke-verify for ${TARGET_CPU} (no license configured)."
-            exit 0
-          fi
           if [[ "$TOOLCHAIN" == "gcc" ]]; then
             lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
           else
@@ -429,10 +384,6 @@ jobs:
           TOOLCHAIN_VERSION: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
-          if [[ "$TOOLCHAIN" == "armclang" && "$ARMCLANG_AVAILABLE" != "true" ]]; then
-            echo "::notice title=Optional asset skipped::Skipping armclang SDK tarball for ${TARGET_CPU} (no license configured)."
-            exit 0
-          fi
           if [[ "$TOOLCHAIN" == "gcc" ]]; then
             lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
             toolchain_version="13.2.Rel1"
@@ -460,10 +411,7 @@ jobs:
             "${f16_flag[@]}"
 
       - name: Upload artefacts (cross-job)
-        # Pack-prebuilt job (M3 #167 follow-up) downloads these. Skipped
-        # entirely for armclang legs with no license so if-no-files-found
-        # never trips on an intentionally-absent optional artefact.
-        if: ${{ !(matrix.toolchain == 'armclang' && needs.resolve-release-capabilities.outputs.armclang_available != 'true') }}
+        # Pack-prebuilt job (M3 #167 follow-up) downloads these.
         uses: actions/upload-artifact@v4
         with:
           name: ns-cmsis-nn-staticlib-${{ matrix.toolchain }}-${{ matrix.target_cpu }}
@@ -475,9 +423,236 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  publish-staticlib-bundles:
+  publish-staticlibs-armclang:
+    # armclang, split out of the publish-staticlibs matrix (AmbiqAI/ns-cmsis-nn#275).
+    #
+    # Two reasons, one licensing and one plain economics:
+    #
+    #   * ONE licence activation per release. Arm's User-Based Licensing
+    #     entitlement is redeemed per machine by `armlm activate`, and a
+    #     GitHub matrix leg is its own runner VM, so three armclang legs meant
+    #     three activations fired within seconds of each other on every
+    #     release. Activation state cannot be shared between runner VMs (it is
+    #     written to the machine's local licence store), so consolidating the
+    #     three CPUs into a single runner is the only way to activate once.
+    #   * ONE toolchain download per release. Each leg pulled the ~1 GB
+    #     standalone Arm Compiler archive from artifacts.tools.arm.com
+    #     (ci/toolchains/armclang.json); three legs pulled it three times.
+    #
+    # The three CPUs build sequentially here. Green armclang builds run
+    # 18-47 s each, so the serial cost is ~2 min against a toolchain fetch
+    # that dominates the job either way -- and the job as a whole is now
+    # cheaper in wall-clock than the three legs it replaces.
+    #
+    # This job is OPTIONAL. `continue-on-error: true` is the job-level form of
+    # the per-leg `continue-on-error: ${{ matrix.toolchain == 'armclang' }}`
+    # that #277 added, and it carries the same intent: a broken or unlicensed
+    # armclang must never fail the release or `needs:`-cascade into skipping
+    # the pack, bundles and test suites. Note the asymmetry is deliberate --
+    # publish-staticlibs (gcc/atfe) stays fully required, because v7.26.0 went
+    # empty when the ATFE legs failed and that must keep failing the release.
+    #
+    # It is deliberately NOT gated on the licence at the job level. When no
+    # identifier is configured every step self-skips and the job succeeds as a
+    # no-op, so it can never reach the `skipped` state that would cascade into
+    # publish-staticlib-bundles. Tolerating a job is not the same as
+    # pretending it succeeded: release-verify below promotes armclang's 8
+    # assets to REQUIRED whenever the licence IS configured, so a tolerated
+    # failure here still turns the release red there.
     if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
-    needs: [release-please, publish-staticlibs]
+    needs: [release-please, resolve-release-capabilities]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    # Toolchain fetch (~1 GB) plus three ~40 s builds. Bounded for the same
+    # reason as resolve-release-capabilities above.
+    timeout-minutes: 45
+    env:
+      ARMCLANG_AVAILABLE: ${{ needs.resolve-release-capabilities.outputs.armclang_available }}
+      VERSION: ${{ needs.release-please.outputs.version }}
+    steps:
+      # Pinned to the exact commit release-please resolved the release tag
+      # to -- never the ref that triggered this workflow run
+      # (AmbiqAI/ns-cmsis-nn#228), matching publish-staticlibs above.
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.release-please.outputs.commit_sha }}
+
+      - name: Install LLVM archive tools
+        if: ${{ needs.resolve-release-capabilities.outputs.armclang_available == 'true' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends llvm
+
+      - name: Fetch external toolchain
+        if: ${{ needs.resolve-release-capabilities.outputs.armclang_available == 'true' }}
+        id: fetch_toolchain
+        run: |
+          bash scripts/fetch_toolchain.sh \
+            --manifest "ci/toolchains/armclang.json" \
+            --platform linux-x86_64 \
+            --outdir "${RUNNER_TEMP}/toolchains"
+
+      # `armlm` is the Arm License Manager, and it ships inside the Arm
+      # Compiler install root rather than being installed separately -- the CI
+      # image puts this same bin/ on PATH (.devcontainer/Dockerfile), and
+      # AmbiqAI/helia-rt invokes it as "$(TARGET_TOOLCHAIN_ROOT)armlm". The
+      # activation action below calls a bare `armlm`, so the freshly fetched
+      # toolchain has to be on PATH first. Nothing here shadows the
+      # apt-installed llvm-ar/llvm-ranlib that cmake/toolchain/armclang.cmake
+      # resolves via find_program: Arm Compiler names its own archiver
+      # `armar`, not `llvm-ar`.
+      - name: Prepare Arm license manager
+        if: ${{ needs.resolve-release-capabilities.outputs.armclang_available == 'true' }}
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+        run: |
+          set -euo pipefail
+          if [[ ! -x "${TOOLCHAIN_ROOT}/bin/armlm" ]]; then
+            echo "::error title=Arm license manager missing::No executable armlm under ${TOOLCHAIN_ROOT}/bin -- the Arm Compiler archive named in ci/toolchains/armclang.json cannot activate a user-based licence." >&2
+            exit 1
+          fi
+          echo "${TOOLCHAIN_ROOT}/bin" >> "$GITHUB_PATH"
+
+      # Arm User-Based Licensing, activated exactly once per release run. The
+      # official action runs `armlm activate --code <identifier>` -- the same
+      # call AmbiqAI/helia-rt makes with this same secret from its Cortex-M
+      # makefiles, and the same action helia-rt's cortex_m_arm_compiler.yml
+      # uses. helia-rt has no matching `armlm deactivate` and none is added
+      # here: an always()-guarded deactivate would add a new failure path on
+      # runs where activation never happened, for no benefit.
+      #
+      # The identifier goes straight from `secrets` into the action's `code`
+      # input. GitHub masks it in logs and no step in this workflow echoes it.
+      - name: Activate Arm tool license
+        if: ${{ needs.resolve-release-capabilities.outputs.armclang_available == 'true' }}
+        uses: ARM-software/cmsis-actions/armlm@v1
+        with:
+          code: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+
+      - name: Build, smoke-verify and package static libraries
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+          TOOLCHAIN_VERSION: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
+        run: |
+          set -euo pipefail
+          # Optional-asset gate: no licence means this job is a no-op SUCCESS
+          # rather than a failure. Fails safe if the capability output ever
+          # arrives empty ("" != "true").
+          if [[ "${ARMCLANG_AVAILABLE}" != "true" ]]; then
+            echo "::notice title=Optional asset skipped::No Arm Compiler licence configured; skipping all armclang static libraries for this release."
+            exit 0
+          fi
+          for TARGET_CPU in cortex-m0 cortex-m4 cortex-m55; do
+            echo "::group::armclang / ${TARGET_CPU}"
+            outdir="./output/armclang/${TARGET_CPU}"
+            # Published archives are supersets: F32 is enabled for every
+            # qualified CPU/toolchain combination, and F16 only where
+            # currently qualified (cortex-m55, matching the ARMV8_1_M_MVEF
+            # Kconfig restriction). Flags are always passed explicitly --
+            # never relying on CMake option() defaults -- so the archive's
+            # actual contents can never silently drift from what this
+            # workflow intended to publish.
+            f16_flag=()
+            if [[ "${TARGET_CPU}" == "cortex-m55" ]]; then
+              f16_flag=(--enable-f16)
+            fi
+            bash scripts/build_staticlib.sh \
+              --target-cpu "$TARGET_CPU" \
+              --version    "$VERSION" \
+              --toolchain  armclang \
+              --toolchain-root "$TOOLCHAIN_ROOT" \
+              --outdir     "$outdir" \
+              --enable-f32 \
+              "${f16_flag[@]}"
+
+            lib="${outdir}/libns-cmsis-nn-armclang-${TARGET_CPU}-${VERSION}.a"
+
+            # armclang gets compile-plus-archive-symbol verification rather
+            # than the bare-metal link GCC and ATfE get, because Arm's linker
+            # option dialect differs from the GNU/LLD path.
+            bash scripts/smoke/smoke_staticlib.sh \
+              --target-cpu "$TARGET_CPU" \
+              --toolchain  armclang \
+              --toolchain-root "$TOOLCHAIN_ROOT" \
+              --library    "$lib" \
+              --outdir     "${outdir}/smoke"
+
+            # Feature metadata is authoritatively sourced from the
+            # "<lib>.buildconfig.json" sidecar build_staticlib.sh just wrote;
+            # re-passing the same flags here makes build_sdk_tarball.sh
+            # cross-check them and fail loudly on any drift between what this
+            # workflow requested and what was actually compiled.
+            bash scripts/build_sdk_tarball.sh \
+              --target-cpu         "$TARGET_CPU" \
+              --version            "$VERSION"    \
+              --staticlib          "$lib"        \
+              --toolchain          armclang      \
+              --toolchain-version  "$TOOLCHAIN_VERSION" \
+              --outdir             "$outdir" \
+              --enable-f32 \
+              "${f16_flag[@]}"
+            echo "::endgroup::"
+          done
+
+      # One upload per CPU, with names and paths byte-identical to what the
+      # old matrix legs produced, so publish-staticlib-bundles and
+      # release-verify need no knowledge of this restructure. `uses:` steps
+      # cannot be looped, hence the repetition.
+      - name: Upload cortex-m0 artefacts (cross-job)
+        if: ${{ needs.resolve-release-capabilities.outputs.armclang_available == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ns-cmsis-nn-staticlib-armclang-cortex-m0
+          path: |
+            ./output/armclang/cortex-m0/libns-cmsis-nn-*.a
+            ./output/armclang/cortex-m0/libns-cmsis-nn-*.a.sha256
+            ./output/armclang/cortex-m0/ns-cmsis-nn-*.tar.gz
+            ./output/armclang/cortex-m0/ns-cmsis-nn-*.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload cortex-m4 artefacts (cross-job)
+        if: ${{ needs.resolve-release-capabilities.outputs.armclang_available == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ns-cmsis-nn-staticlib-armclang-cortex-m4
+          path: |
+            ./output/armclang/cortex-m4/libns-cmsis-nn-*.a
+            ./output/armclang/cortex-m4/libns-cmsis-nn-*.a.sha256
+            ./output/armclang/cortex-m4/ns-cmsis-nn-*.tar.gz
+            ./output/armclang/cortex-m4/ns-cmsis-nn-*.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload cortex-m55 artefacts (cross-job)
+        if: ${{ needs.resolve-release-capabilities.outputs.armclang_available == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ns-cmsis-nn-staticlib-armclang-cortex-m55
+          path: |
+            ./output/armclang/cortex-m55/libns-cmsis-nn-*.a
+            ./output/armclang/cortex-m55/libns-cmsis-nn-*.a.sha256
+            ./output/armclang/cortex-m55/ns-cmsis-nn-*.tar.gz
+            ./output/armclang/cortex-m55/ns-cmsis-nn-*.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-staticlib-bundles:
+    # `!cancelled()` plus an EXPLICIT success test on publish-staticlibs,
+    # rather than the implicit `needs:` gate. publish-staticlibs-armclang is
+    # optional and tolerated, so this job must still run when that job failed
+    # -- but the required gcc/atfe job must keep holding the release, which
+    # the implicit gate stops doing as soon as any `always()`-family condition
+    # is present (AmbiqAI/ns-cmsis-nn#275, #277).
+    #
+    # `!cancelled()` and NOT `always()`: this job runs
+    # `gh release upload --clobber`, which deletes an asset before replacing
+    # it, and the concurrency block above exists precisely so a cancellation
+    # can never interrupt that. `always()` would opt this job back into
+    # running during a cancellation (AmbiqAI/ns-cmsis-nn#274).
+    if: ${{ !cancelled() && needs.release-please.outputs.assets_enabled == 'true' && needs.publish-staticlibs.result == 'success' }}
+    needs: [release-please, publish-staticlibs, publish-staticlibs-armclang]
     runs-on: ubuntu-22.04
     # Green in ~9 s (download, zip, upload). Bounded for the same reason as
     # resolve-release-capabilities above.
@@ -854,6 +1029,7 @@ jobs:
     needs:
       - release-please
       - publish-staticlibs
+      - publish-staticlibs-armclang
       - publish-staticlib-bundles
       - publish-pack
     # ubuntu-latest, not ubuntu-22.04: that image starts brownouts on
@@ -885,20 +1061,28 @@ jobs:
           # absolute: docs/guides/releases.md marks it optional precisely
           # because it "Requires a commercial Arm Compiler for Embedded
           # license". With that secret configured, armclang assets are
-          # expected to ship, and a `continue-on-error` armclang leg that
+          # expected to ship, and a `continue-on-error` armclang job that
           # failed must NOT be waved through as an expected gap. Comparing
           # the secret to '' yields only a boolean and never exposes its
           # value; this file already reads `secrets` from step `env` blocks
           # elsewhere, so this needs no extra `needs:` edge.
-          ARMCLANG_LICENSED: ${{ secrets.ARMLMD_LICENSE_FILE != '' }}
+          #
+          # This MUST name the same secret resolve-release-capabilities gates
+          # the build on. It used to read ARMLMD_LICENSE_FILE, the legacy
+          # FlexLM variable that has never been configured here, so it always
+          # evaluated false and treated armclang as forever-optional
+          # (AmbiqAI/ns-cmsis-nn#275). Against the configured UBL identifier
+          # it evaluates true, and the required bar moves 17 -> 25 assets.
+          ARMCLANG_LICENSED: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER != '' }}
           R_STATICLIBS: ${{ needs.publish-staticlibs.result }}
+          R_STATICLIBS_ARMCLANG: ${{ needs.publish-staticlibs-armclang.result }}
           R_BUNDLES: ${{ needs.publish-staticlib-bundles.result }}
           R_PACK: ${{ needs.publish-pack.result }}
         shell: bash
         run: |
           set -euo pipefail
 
-          upstream="publish-staticlibs=${R_STATICLIBS}, publish-staticlib-bundles=${R_BUNDLES}, publish-pack=${R_PACK}"
+          upstream="publish-staticlibs=${R_STATICLIBS}, publish-staticlibs-armclang=${R_STATICLIBS_ARMCLANG}, publish-staticlib-bundles=${R_BUNDLES}, publish-pack=${R_PACK}"
           echo "Upstream asset jobs: ${upstream}"
           echo "Armclang licence configured: ${ARMCLANG_LICENSED}"
 
@@ -913,6 +1097,8 @@ jobs:
           #   1 pack
           # + 12 SDK tarballs      (gcc|atfe x m0|m4|m55, each with a .sha256)
           # + 4  staticlib bundles (gcc|atfe .zip, each with a .sha256)
+          # With the Arm licence configured armclang's 8 (6 tarballs+sidecars,
+          # 1 bundle zip + sidecar) join that list, for 25 required.
           # Names come from scripts/build_sdk_tarball.sh's PKG_NAME
           # ("ns-cmsis-nn-<cpu>-<toolchain>-<version>") and from the bundle
           # name built in publish-staticlib-bundles above. armclang's 8 join
@@ -975,7 +1161,7 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
           if (( ${#missing_optional[@]} > 0 )); then
-            echo "::notice title=Optional assets absent::${#missing_optional[@]} optional armclang asset(s) are not published for ${TAG}. No ARMLMD_LICENSE_FILE secret is configured, so armclang cannot be built on hosted runners and its absence is expected; this is not a release failure. See docs/guides/releases.md."
+            echo "::notice title=Optional assets absent::${#missing_optional[@]} optional armclang asset(s) are not published for ${TAG}. No ARM_UBL_LICENSE_IDENTIFIER secret is configured, so armclang cannot be built and its absence is expected; this is not a release failure. See docs/guides/releases.md."
           fi
 
           if (( ${#missing[@]} > 0 )); then

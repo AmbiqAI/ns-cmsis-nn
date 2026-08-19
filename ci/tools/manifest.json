@@ -76,7 +76,7 @@
         "AC6_TOOLCHAIN_6_24_0": "bin"
       },
       "license": "Arm Compiler for Embedded EULA",
-      "runtime_license": "ARMLMD_LICENSE_FILE"
+      "runtime_license": "ARM_UBL_LICENSE_IDENTIFIER"
     },
     {
       "id": "corstone-300-fvp",

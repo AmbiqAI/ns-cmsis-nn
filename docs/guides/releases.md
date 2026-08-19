@@ -66,22 +66,34 @@ gap (see [AmbiqAI/ns-cmsis-nn#228](https://github.com/AmbiqAI/ns-cmsis-nn/issues
 | `ns-cmsis-nn-<cpu>-atfe-<version>.tar.gz`                              | **Required** | Free toolchain (LLVM-Embedded-Toolchain-for-Arm), no license dependency. |
 | `ns-cmsis-nn-staticlibs-gcc-<version>.zip`                             | **Required** | Same as above.                                                          |
 | `ns-cmsis-nn-staticlibs-atfe-<version>.zip`                            | **Required** | Same as above.                                                          |
-| `ns-cmsis-nn-<cpu>-armclang-<version>.tar.gz`                          | **Optional** | Requires a commercial Arm Compiler for Embedded license.                |
-| `ns-cmsis-nn-staticlibs-armclang-<version>.zip`                        | **Optional** | Same as above.                                                          |
+| `ns-cmsis-nn-<cpu>-armclang-<version>.tar.gz`                          | **Conditional** | Required when an Arm Compiler for Embedded licence is configured; optional otherwise. |
+| `ns-cmsis-nn-staticlibs-armclang-<version>.zip`                        | **Conditional** | Same as above.                                                          |
 | `ghcr.io/ambiqai/ns-cmsis-nn-ci:vX.Y.Z` image                          | **Required** | Needed by `release-unit-tests` / `release-helia-core-tester`.           |
 | GitHub Pages docs update                                               | **Required** | Rides along with `publish-pack`.                                       |
 
-Hosted GitHub runners have no Arm Compiler for Embedded license configured
-(no `ARMLMD_LICENSE_FILE` secret), so the `armclang` static-library legs of
-`publish-staticlibs` are **skipped intentionally** — they self-report via a
-`::notice::`/`::warning::` annotation rather than failing the job — and the
-`armclang` bundle is omitted from `publish-staticlib-bundles` the same way.
-Every required asset above is unaffected: it is produced by a different
-job/toolchain leg entirely, so an unlicensed armclang has no way to hold up
-the tag, pack, gcc/atfe libs, CI image, or tests. Provisioning a real
-Armclang license (e.g. on a protected self-hosted runner) is tracked
-separately; this repo does not claim armclang static-lib publication works
-on hosted runners today.
+Armclang is licensed through Arm's **User-Based Licensing**: the
+`ARM_UBL_LICENSE_IDENTIFIER` secret is an activation code, redeemed once per
+release run by `armlm activate --code` in the `publish-staticlibs-armclang`
+job before any compilation happens. That job builds all three Cortex-M
+targets on a single runner precisely so the licence is activated once and the
+Arm Compiler archive is downloaded once.
+
+With the identifier configured, the eight `armclang` assets are **required**
+— `release-verify` promotes them and fails the release if they are missing,
+taking the required bar from 17 assets to 25. Without it,
+`resolve-release-capabilities` reports the capability as unavailable, every
+step of `publish-staticlibs-armclang` self-skips (the job succeeds as a
+no-op and self-reports via `::notice::`/`::warning::` annotations), the
+`armclang` bundle is omitted from `publish-staticlib-bundles`, and the eight
+assets drop back to optional. Either way the required gcc/atfe assets are
+unaffected: they come from a different job entirely, and
+`publish-staticlibs-armclang` is `continue-on-error: true`, so armclang can
+never hold up the tag, pack, gcc/atfe libs, CI image, or tests.
+
+Before v7.30.0 this gate read `ARMLMD_LICENSE_FILE`, the legacy FlexLM
+licence-file variable, which has never been configured on this repository —
+which is why no release from v7.24.1 onward published any armclang asset
+(see [AmbiqAI/ns-cmsis-nn#275](https://github.com/AmbiqAI/ns-cmsis-nn/issues/275)).
 
 ## Recovering assets for an existing tag
 
@@ -127,7 +139,8 @@ manifest, verifies every archive before extraction, and emits
 This repository-owned manifest replaces the retired vcpkg-artifacts/vcpkg-ce
 registry. The image build has no package-solver or floating-registry dependency.
 Armclang remains installed from Arm's vendor-hosted archive, but licensed
-execution is capability-gated separately through `ARMLMD_LICENSE_FILE`.
+execution is capability-gated separately through
+`ARM_UBL_LICENSE_IDENTIFIER`.
 Updating any tool requires a reviewed manifest version, URL, and digest change
 plus a clean image build and version smoke test.
 
