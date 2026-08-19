@@ -200,6 +200,12 @@ jobs:
     # working armclang activations all run in a container.
     container:
       image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+    defaults:
+      run:
+        # Inside a container GitHub defaults to `sh -e`, which lacks
+        # `set -o pipefail` and `[[ ]]`. Every run: block in this job is
+        # bash, so pin it rather than degrade the scripts to POSIX sh.
+        shell: bash
     # Serial build of all three CPUs on one runner, so Arm's User-Based
     # Licensing is activated exactly once per run and the ~1 GB Arm Compiler
     # archive is fetched exactly once (AmbiqAI/ns-cmsis-nn#275).
