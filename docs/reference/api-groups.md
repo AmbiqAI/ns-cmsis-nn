@@ -25,12 +25,12 @@ doxygen
 <div class="api-group-grid">
   <a class="api-group-card" href="#convolution-functions" data-filter-kind="family" data-filter-value="convolution"><span class="api-tag">compute</span><strong>Convolution</strong><em>Conv2D, depthwise, transpose convolution, wrappers, and buffer helpers.</em></a>
   <a class="api-group-card" href="#fully-connected-layer-functions" data-filter-kind="family" data-filter-value="fully-connected"><span class="api-tag">compute</span><strong>Fully connected</strong><em>Dense layers, batch matmul paths, and scratch sizing helpers.</em></a>
-  <a class="api-group-card" href="#elementwise-functions" data-filter-kind="family" data-filter-value="elementwise"><span class="api-tag">graph glue</span><strong>Elementwise</strong><em>Add, sub, mul, square difference, min/max, mean, and arithmetic glue.</em></a>
-  <a class="api-group-card" href="#basic-math-and-reduction" data-filter-kind="family" data-filter-value="reduction-comparison"><span class="api-tag">selection</span><strong>Reduction and comparison</strong><em>Argmin/argmax, min/max reductions, comparisons, means, and vector sums.</em></a>
+  <a class="api-group-card" href="#elementwise-functions" data-filter-kind="family" data-filter-value="elementwise"><span class="api-tag">graph glue</span><strong>Elementwise</strong><em>Add, sub, mul, square difference, min/max, batch norm, select, and arithmetic glue.</em></a>
+  <a class="api-group-card" href="#basic-math-and-reduction" data-filter-kind="family" data-filter-value="reduction-comparison"><span class="api-tag">selection</span><strong>Reduction and comparison</strong><em>Argmin/argmax, min/max reductions, comparisons, means, vector sums, and where.</em></a>
   <a class="api-group-card" href="#activation-functions" data-filter-kind="family" data-filter-value="activation"><span class="api-tag">activation</span><strong>Activation</strong><em>ReLU, LeakyReLU, PReLU, Hard-Swish, Logistic, Tanh, and clamp.</em></a>
-  <a class="api-group-card" href="#data-movement" data-filter-kind="family" data-filter-value="data-movement"><span class="api-tag">layout</span><strong>Data movement</strong><em>Pad, reshape, transpose, concatenate, gather, resize, and strided slice.</em></a>
+  <a class="api-group-card" href="#data-movement" data-filter-kind="family" data-filter-value="data-movement"><span class="api-tag">layout</span><strong>Data movement</strong><em>Pad, reshape, transpose, concatenate, gather, resize, strided slice, tile, broadcast, scatter, mirror pad, and sequence/slice-update utilities.</em></a>
   <a class="api-group-card" href="#classifier-tail" data-filter-kind="family" data-filter-value="classifier-tail"><span class="api-tag">tail</span><strong>Pooling, softmax, quantization</strong><em>Classifier tail APIs plus dtype conversion and requantization utilities.</em></a>
-  <a class="api-group-card" href="#sequence-functions" data-filter-kind="family" data-filter-value="sequence"><span class="api-tag">sequence</span><strong>Sequence</strong><em>LSTM and SVDF functions for temporal workloads.</em></a>
+  <a class="api-group-card" href="#sequence-functions" data-filter-kind="family" data-filter-value="sequence"><span class="api-tag">sequence</span><strong>Sequence</strong><em>LSTM, GRU, and SVDF functions for temporal workloads.</em></a>
   <a class="api-group-card" href="../api/library_root.html"><span class="api-tag">index</span><strong>Types and support</strong><em>Structs, enums, files, and low-level support helpers in the full generated index.</em></a>
 </div>
 
@@ -57,7 +57,7 @@ doxygen
     <button type="button" class="api-filter-chip" data-filter-kind="dtype" data-filter-value="s16" aria-pressed="false">s16</button>
     <button type="button" class="api-filter-chip" data-filter-kind="dtype" data-filter-value="s32" aria-pressed="false">s32</button>
     <button type="button" class="api-filter-chip" data-filter-kind="dtype" data-filter-value="u8" aria-pressed="false">u8</button>
-    <button type="button" class="api-filter-chip" data-filter-kind="dtype" data-filter-value="fp16" aria-pressed="false">fp16</button>
+    <button type="button" class="api-filter-chip" data-filter-kind="dtype" data-filter-value="f16" aria-pressed="false">f16</button>
     <button type="button" class="api-filter-chip" data-filter-kind="dtype" data-filter-value="f32" aria-pressed="false">f32</button>
   </div>
   <div class="api-filter-row" aria-label="Filter by API role">
