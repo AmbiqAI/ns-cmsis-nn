@@ -2,7 +2,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 set(CMAKE_SYSTEM_NAME Generic)
-set(CMAKE_SYSTEM_PROCESSOR ARM)
+
+# CMake's ARMClang module (Modules/Compiler/ARMClang.cmake) hard-errors unless
+# CMAKE_SYSTEM_PROCESSOR names a processor it recognises -- the generic "ARM"
+# that the GCC and ATfE toolchain files use is rejected. It is consumed during
+# project() / compiler identification, so it has to be set before any of the
+# NS_CMSIS_NN_TARGET_CPU validation further down. cortex-m0, cortex-m4 and
+# cortex-m55 are all in the module's supported list.
+if(NOT NS_CMSIS_NN_TARGET_CPU)
+  set(NS_CMSIS_NN_TARGET_CPU "$ENV{NS_CMSIS_NN_TARGET_CPU}")
+endif()
+if(NS_CMSIS_NN_TARGET_CPU)
+  set(CMAKE_SYSTEM_PROCESSOR "${NS_CMSIS_NN_TARGET_CPU}")
+else()
+  # Leave the real diagnostic to the validation block below, which names the
+  # accepted values; a bare ARMClang error here would be far less useful.
+  set(CMAKE_SYSTEM_PROCESSOR cortex-m4)
+endif()
 
 set(_root "${NS_CMSIS_NN_TOOLCHAIN_ROOT}")
 if(NOT _root)
