@@ -71,6 +71,17 @@ Public float declarations go in `Include/arm_nnfunctions_flt.h` — the f32
 section and f16 section are separate `#if ARM_NN_ENABLE_*` blocks; put each
 declaration in the right one.
 
+**Naming — a new public float kernel must not take a bare CMSIS-DSP verb
+name** (`arm_add_f32`, `arm_sqrt_f32`, `arm_mean_f32`, ...) — CMSIS-DSP owns
+those, and a same-named export is a silent link-order collision, not a
+compile error (`arm_abs_f16/f32` shipped that way for a full cycle, caught
+by hand in #281). Prefer the upstream-consistent longer form
+(`arm_elementwise_add_f32`, `arm_maximum_f32`) or the `arm_nn_` prefix (125
+`arm_nn_*` tokens upstream, zero in CMSIS-DSP); `arm_add_s8/s16`,
+`arm_sub_s8/s16`, `arm_mean_s8/s16`, and `arm_sqrt_s8/s16` are the next four
+float ports that will hit this. `scripts/check_dsp_symbol_collisions.py`
+enforces this in CI (#282).
+
 ## Float unit tests
 
 Float suites live in `Tests/UnitTest/TestCases/test_arm_<kernel>/` with
