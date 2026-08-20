@@ -58,7 +58,7 @@ arm_cmsis_nn_status arm_batch_matmul_s8(const cmsis_nn_context *ctx,
     // that a row count large enough to overflow the int32_t byte count cannot wrap past the size check.
     const int64_t required_bytes = (int64_t)input_rhs_dims->w * (int64_t)sizeof(int32_t);
 
-    if ((ctx->buf == NULL) || (required_bytes > INT32_MAX))
+    if ((ctx == NULL) || (ctx->buf == NULL) || (input_rhs_dims->w < 0) || (required_bytes > INT32_MAX))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

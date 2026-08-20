@@ -5475,26 +5475,32 @@ arm_cmsis_nn_status arm_lstm_unidirectional_s16(const int16_t *input,
  *                                    arm_fully_connected_s8_get_buffer_size(): it reads a different field, and an
  *                                    allocation short of input_rhs_dims->w words is written past its end.
  *                                    The function fills the buffer itself before each use, so the caller does not
- *                                    need to initialize it.
+ *                                    need to initialize it. ctx->buf must be aligned to sizeof(int32_t).
  *                                    If ctx->size is non-zero it is validated against the requirement and a buffer
  *                                    too small is rejected with ARM_CMSIS_NN_ARG_ERROR; a ctx->size of 0 skips
- *                                    that check. An input_rhs_dims->w large enough that the required size exceeds
- *                                    INT32_MAX is rejected with ARM_CMSIS_NN_ARG_ERROR regardless of ctx->size.
+ *                                    that check. A negative input_rhs_dims->w, or one large enough that the required
+ *                                    size exceeds INT32_MAX, is rejected with ARM_CMSIS_NN_ARG_ERROR regardless of
+ *                                    ctx->size.
  *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]   bmm_params            Batch matmul Parameters
- *                                    Adjoint flags are currently unused.
+ *                                    Adjoint flags are currently unused and do not transpose either input; callers
+ *                                    must supply the tensors in the layouts described below.
  * @param[in]   quant_params          Quantization parameters
  * @param[in]   input_lhs_dims        Input lhs tensor dimensions.
- *                                    This should be NHWC where lhs C = rhs C
+ *                                    This s8 function treats w as the row count and c as the inner dimension.
+ *                                    This differs from arm_batch_matmul_f32(), so its dimension mapping must not be
+ *                                    reused here.
  * @param[in]   input_lhs             Pointer to input tensor
- * @param[in]   input_rhs_dims        Input lhs tensor dimensions.
- *                                    This is expected to be transposed so
- *                                    should be NHWC where lhs C = rhs C
+ * @param[in]   input_rhs_dims        Input rhs tensor dimensions. The RHS must already be transposed, with w as its
+ *                                    row count and c equal to input_lhs_dims->c.
  * @param[in]   input_rhs             Pointer to transposed input tensor
  * @param[in]   output_dims           Output tensor dimensions
  * @param[out]  output                Pointer to the output tensor
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     The function returns one of the following:
+ *               - <code>ARM_CMSIS_NN_ARG_ERROR</code> if an MVE build receives an invalid context, a negative or
+ *                 unrepresentable RHS row count, or a declared context size below the requirement.
+ *               - <code>ARM_CMSIS_NN_SUCCESS</code> on success.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro
