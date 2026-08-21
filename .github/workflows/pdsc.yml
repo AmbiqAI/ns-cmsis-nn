@@ -115,3 +115,25 @@ jobs:
       # either direction, so its mutation tests gate it in turn.
       - name: Run DSP symbol collision check tests
         run: python3 scripts/tests/test_check_dsp_symbol_collisions.py
+
+  api_group_classification:
+    # Guards docs/_ext/api_group_index.py's GROUP_PATTERNS: every public
+    # top-level kernel in Include/arm_nnfunctions*.h must match at least
+    # one group, or it silently disappears from the customer-facing
+    # "Browse By Kernel Family" docs page with an otherwise green docs
+    # build. 26 kernels -- every float pooling, batch-norm, transpose and
+    # depthwise-conv variant among them -- shipped in that state before
+    # being caught by hand in review. See #283.
+    name: Docs API group classification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run API group classification check
+        run: python3 scripts/check_api_group_classification.py
+
+      # The check is a merge gate whose own logic is easy to regress in
+      # either direction, so its mutation tests gate it in turn.
+      - name: Run API group classification check tests
+        run: python3 scripts/tests/test_check_api_group_classification.py

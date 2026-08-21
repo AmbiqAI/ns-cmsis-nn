@@ -5,9 +5,20 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from docutils import nodes
-from docutils.parsers.rst import Directive
-from sphinx.application import Sphinx
+# docutils/sphinx are only needed for the actual Sphinx directive below.
+# GROUP_PATTERNS and _matches (the pure data/logic this module owns) have
+# no dependency on either, so scripts/check_api_group_classification.py
+# can `importlib` this module with a bare `python3` -- no docs venv, no
+# Sphinx install -- and stay a millisecond, no-build CI check instead of
+# requiring the full doxygen+sphinx toolchain just to read a dict.
+try:
+    from docutils import nodes
+    from docutils.parsers.rst import Directive
+    from sphinx.application import Sphinx
+except ModuleNotFoundError:
+    nodes = None  # type: ignore[assignment]
+    Directive = object  # type: ignore[assignment,misc]
+    Sphinx = None  # type: ignore[assignment,misc]
 
 
 @dataclass(frozen=True)
@@ -16,11 +27,19 @@ class ApiFunction:
     href: str
 
 
+# Every public top-level kernel is expected to match at least one pattern
+# here; scripts/check_api_group_classification.py enforces that against
+# Include/arm_nnfunctions*.h on every PR (see #283) so a drifted or missing
+# pattern fails fast instead of silently dropping a kernel off the
+# customer-facing "Browse By Kernel Family" page. That check imports
+# GROUP_PATTERNS and _matches from this module directly, so this stays the
+# single source of truth for both the rendered grouping and the guard.
 GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
     "convolution": (
         r"^arm_convolve",
         r"^arm_depthwise_conv",
         r"^arm_depthwise_convolve",
+        r"^arm_depthwise_nhwc_conv",
         r"^arm_transpose_conv",
     ),
     "fully-connected": (
@@ -30,11 +49,14 @@ GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
     "elementwise": (
         r"^arm_abs",
         r"^arm_add",
+        r"^arm_batch_norm",
         r"^arm_elementwise",
         r"^arm_maximum",
         r"^arm_minimum",
         r"^arm_mul",
         r"^arm_nn_abs",
+        r"^arm_rsqrt",
+        r"^arm_select_v2",
         r"^arm_sqrt",
         r"^arm_squared_difference",
         r"^arm_sub",
@@ -50,6 +72,7 @@ GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         r"^arm_not_equal",
         r"^arm_reduce",
         r"^arm_vector_sum",
+        r"^arm_where",
     ),
     "activation": (
         r"^arm_clamp",
@@ -63,19 +86,26 @@ GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
     ),
     "data-movement": (
         r"^arm_batch_to_space",
+        r"^arm_broadcast_to",
         r"^arm_concatenation",
         r"^arm_depth_to_space",
+        r"^arm_dynamic_update_slice",
         r"^arm_gather",
+        r"^arm_mirror_pad",
         r"^arm_pad",
         r"^arm_reshape",
         r"^arm_resize",
+        r"^arm_reverse_sequence",
+        r"^arm_scatter_nd",
         r"^arm_space_to",
         r"^arm_split",
         r"^arm_strided_slice",
+        r"^arm_tile",
+        r"^arm_transpose_f",
         r"^arm_transpose_s",
     ),
     "classifier-tail": (
-        r"^arm_avgpool",
+        r"^arm_avg_?pool",
         r"^arm_dequantize",
         r"^arm_max_pool",
         r"^arm_q7_to_q15",
@@ -160,9 +190,16 @@ def _matches(name: str, patterns: tuple[str, ...]) -> bool:
 
 
 def _dtype(name: str) -> str:
-    for dtype in ("s4", "s8", "s16", "s32", "u8", "q7", "q15", "fp16", "f32"):
+    # `fp16` is a legacy spelling of the same half-precision bucket, still
+    # used by arm_fully_connected_fp16. It has to be probed separately --
+    # `(^|_)f16($|_)` cannot match `_fp16`, because the `f16` there is
+    # preceded by `p` rather than `_` -- and then folded into `f16`, since
+    # docs/_static/api-filter.js compares dtype for exact equality against
+    # the chip values in docs/reference/api-groups.md. Without the fold the
+    # kernel falls through to "mixed" and no chip on the page reaches it.
+    for dtype in ("s4", "s8", "s16", "s32", "u8", "q7", "q15", "f16", "fp16", "f32"):
         if re.search(rf"(^|_){dtype}($|_)", name):
-            return dtype
+            return "f16" if dtype == "fp16" else dtype
     return "mixed"
 
 
