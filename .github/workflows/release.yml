@@ -156,7 +156,7 @@ jobs:
       # re-checkout below, pinned to the resolved, trusted commit.
       - name: Checkout code (bootstrap)
         if: ${{ steps.rp.outputs.release_created == 'true' || steps.recover.outputs.tag != '' }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -188,7 +188,7 @@ jobs:
       # tag points at, never the workflow-dispatch/push ref.
       - name: Checkout code (pinned to resolved commit)
         if: ${{ steps.rp.outputs.release_created == 'true' || steps.recover.outputs.tag != '' }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.resolve.outputs.commit_sha }}
           fetch-depth: 0
@@ -337,7 +337,7 @@ jobs:
       # that triggering ref has no required relationship to the tag being
       # recovered.
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-please.outputs.commit_sha }}
 
@@ -464,7 +464,7 @@ jobs:
         # entirely for armclang legs with no license so if-no-files-found
         # never trips on an intentionally-absent optional artefact.
         if: ${{ !(matrix.toolchain == 'armclang' && needs.resolve-release-capabilities.outputs.armclang_available != 'true') }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ns-cmsis-nn-staticlib-${{ matrix.toolchain }}-${{ matrix.target_cpu }}
           path: |
@@ -484,7 +484,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Download staticlib artefacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ./_artifacts
           pattern: ns-cmsis-nn-staticlib-*
@@ -587,7 +587,7 @@ jobs:
       # gen-pack-action reads below come entirely from here at the job's
       # default working directory.
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-please.outputs.commit_sha }}
           fetch-depth: 0
@@ -626,7 +626,7 @@ jobs:
       # under `_tooling/` is ever read by gen-pack-action or uploaded as a
       # release asset.
       - name: Checkout current recovery tooling
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: _tooling
 
@@ -659,7 +659,7 @@ jobs:
         run: rm -f ./output/*.pack
 
       - name: Download per-arch staticlib artefacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ./_artifacts
           pattern: ns-cmsis-nn-staticlib-gcc-*
@@ -727,7 +727,7 @@ jobs:
             --clobber --repo "${{ github.repository }}"
 
       - name: Setup Python for docs
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip

@@ -73,7 +73,7 @@ jobs:
       # Docker build context) ever comes from `_tooling/`; only the pinned
       # `_source/` checkout below does.
       - name: Checkout Repository (workflow tooling)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: _tooling
 
@@ -118,7 +118,7 @@ jobs:
       # "Build Docker Image" below): it never contributes a Dockerfile of
       # its own to the build.
       - name: Checkout Repository (pinned to source_ref)
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_ref || github.sha }}
           path: _source

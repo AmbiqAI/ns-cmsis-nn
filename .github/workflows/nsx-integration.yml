@@ -32,7 +32,7 @@ jobs:
         case: [source_all, source_subset, inline_asm, prebuilt]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Run NSX wiring test
         run: cmake -S cmake/tests/nsx_wiring -B build/nsx_wiring -DCASE=${{ matrix.case }}
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Run NSX install contract
         run: scripts/check_nsx_install.sh
@@ -59,7 +59,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install GNU Arm Embedded toolchain
         uses: carlosperate/arm-none-eabi-gcc-action@v1
