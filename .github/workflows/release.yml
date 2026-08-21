@@ -455,13 +455,33 @@ jobs:
     # It is deliberately NOT gated on the licence at the job level. When no
     # identifier is configured every step self-skips and the job succeeds as a
     # no-op, so it can never reach the `skipped` state that would cascade into
-    # publish-staticlib-bundles. Tolerating a job is not the same as
-    # pretending it succeeded: release-verify below promotes armclang's 8
-    # assets to REQUIRED whenever the licence IS configured, so a tolerated
-    # failure here still turns the release red there.
+    # publish-staticlib-bundles.
+    #
+    # armclang's 8 assets stay OPTIONAL until the repository variable
+    # ARMCLANG_REQUIRED is set to "true". No release from v7.24.1 onward has
+    # published a single armclang asset, so requiring them before a run has
+    # proven the path works would turn every release red with no way out:
+    # release-verify would fail, auto-file a broken-release issue, and the
+    # recovery that issue prescribes would re-run this same job and fail
+    # again. Flip the variable once a release has actually produced the 8.
     if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
     needs: [release-please, resolve-release-capabilities]
     runs-on: ubuntu-latest
+    # Runs in the CI container specifically so `armlm` executes as root. The
+    # Arm User-Based Licensing entitlement is bound to CI user "root";
+    # activating as the default hosted-runner user ("runner") is refused with
+    # "The activation code has already been used by another user". The image
+    # has no USER directive, so it runs as root. This mirrors the dryrun
+    # workflow and AmbiqAI/helia-rt, whose working armclang activations all
+    # run in a container (AmbiqAI/ns-cmsis-nn#279).
+    container:
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+    defaults:
+      run:
+        # Inside a container GitHub defaults to `sh -e`, which lacks
+        # `set -o pipefail` and `[[ ]]`. Every run: block in this job is
+        # bash, so pin it rather than degrade the scripts to POSIX sh.
+        shell: bash
     continue-on-error: true
     # Toolchain fetch (~1 GB) plus three ~40 s builds. Bounded for the same
     # reason as resolve-release-capabilities above.
@@ -478,11 +498,30 @@ jobs:
         with:
           ref: ${{ needs.release-please.outputs.commit_sha }}
 
-      - name: Install LLVM archive tools
+      - name: Confirm the runtime user is root
         if: ${{ needs.resolve-release-capabilities.outputs.armclang_available == 'true' }}
+        # The Arm UBL entitlement is bound to CI user "root". If this prints
+        # anything else, activation will be refused -- fail here with a clear
+        # message rather than at `armlm activate` with a misleading one.
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends llvm
+          set -euo pipefail
+          echo "whoami: $(whoami)  (uid=$(id -u))"
+          if [[ "$(id -u)" -ne 0 ]]; then
+            echo "::error title=Not running as root::armlm must run as root for this entitlement; got $(whoami)." >&2
+            exit 1
+          fi
+
+      # llvm-nm, llvm-size and llvm-strip, which scripts/smoke/smoke_staticlib.sh
+      # and scripts/build_staticlib.sh resolve off PATH for this toolchain. The
+      # archiver is NOT from here -- cmake/toolchain/armclang.cmake takes armar
+      # from the Arm Compiler root, because CMake's ARMClang archive rule speaks
+      # armar's dialect and llvm-ar rejects it.
+      - name: Install LLVM binutils
+        if: ${{ needs.resolve-release-capabilities.outputs.armclang_available == 'true' }}
+        # No sudo: this job runs as root inside the CI container.
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends llvm
 
       - name: Fetch external toolchain
         if: ${{ needs.resolve-release-capabilities.outputs.armclang_available == 'true' }}
@@ -1067,13 +1106,23 @@ jobs:
           # value; this file already reads `secrets` from step `env` blocks
           # elsewhere, so this needs no extra `needs:` edge.
           #
-          # This MUST name the same secret resolve-release-capabilities gates
-          # the build on. It used to read ARMLMD_LICENSE_FILE, the legacy
-          # FlexLM variable that has never been configured here, so it always
-          # evaluated false and treated armclang as forever-optional
-          # (AmbiqAI/ns-cmsis-nn#275). Against the configured UBL identifier
-          # it evaluates true, and the required bar moves 17 -> 25 assets.
-          ARMCLANG_LICENSED: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER != '' }}
+          # Whether armclang's 8 assets are REQUIRED, taking the bar from 17
+          # to 25. This is an explicit operator switch, NOT an inference from
+          # whether a licence is configured. ARM_UBL_LICENSE_IDENTIFIER has
+          # been configured on this repo the whole time armclang was failing
+          # to build, so secret-presence would promote assets the pipeline has
+          # never once produced -- and a required-but-unproducible asset makes
+          # every release unrecoverably red (AmbiqAI/ns-cmsis-nn#279). A
+          # variable also gives an operator a kill switch during an Arm
+          # licensing outage. Unset, or anything other than "true", keeps the
+          # assets optional and the bar at 17.
+          ARMCLANG_REQUIRED: ${{ vars.ARMCLANG_REQUIRED == 'true' }}
+          # Distinguishes "no licence, so nothing could be built" from
+          # "licence present, assets simply not promoted" in the notice below.
+          # Read straight from secrets: release-verify has no `needs:` edge to
+          # resolve-release-capabilities, so that job's output is out of scope.
+          # This explains an absence; it never decides required vs optional.
+          ARMCLANG_LICENCE_CONFIGURED: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER != '' }}
           R_STATICLIBS: ${{ needs.publish-staticlibs.result }}
           R_STATICLIBS_ARMCLANG: ${{ needs.publish-staticlibs-armclang.result }}
           R_BUNDLES: ${{ needs.publish-staticlib-bundles.result }}
@@ -1084,7 +1133,7 @@ jobs:
 
           upstream="publish-staticlibs=${R_STATICLIBS}, publish-staticlibs-armclang=${R_STATICLIBS_ARMCLANG}, publish-staticlib-bundles=${R_BUNDLES}, publish-pack=${R_PACK}"
           echo "Upstream asset jobs: ${upstream}"
-          echo "Armclang licence configured: ${ARMCLANG_LICENSED}"
+          echo "Armclang assets required: ${ARMCLANG_REQUIRED}"
 
           if [[ -z "${TAG}" || -z "${VERSION}" ]]; then
             echo "::error title=Release verification failed::release-please produced no tag/version for this run, so its assets cannot be verified. If this is a re-run of a failed release, the original failure is NOT resolved -- re-running does not publish assets, it only hides the red (this is what left v7.27.0 empty behind a green run). Upstream asset jobs: ${upstream}." >&2
@@ -1097,12 +1146,12 @@ jobs:
           #   1 pack
           # + 12 SDK tarballs      (gcc|atfe x m0|m4|m55, each with a .sha256)
           # + 4  staticlib bundles (gcc|atfe .zip, each with a .sha256)
-          # With the Arm licence configured armclang's 8 (6 tarballs+sidecars,
+          # With ARMCLANG_REQUIRED=true armclang's 8 (6 tarballs+sidecars,
           # 1 bundle zip + sidecar) join that list, for 25 required.
           # Names come from scripts/build_sdk_tarball.sh's PKG_NAME
           # ("ns-cmsis-nn-<cpu>-<toolchain>-<version>") and from the bundle
           # name built in publish-staticlib-bundles above. armclang's 8 join
-          # either list depending on ARMCLANG_LICENSED, per the env comment.
+          # either list depending on ARMCLANG_REQUIRED, per the env comment.
           required=( "Ambiq.NS-CMSIS-NN.${VERSION}.pack" )
           optional=()
           for tc in gcc atfe armclang; do
@@ -1112,7 +1161,7 @@ jobs:
               names+=( "ns-cmsis-nn-${cpu}-${tc}-${VERSION}.tar.gz" )
               names+=( "ns-cmsis-nn-${cpu}-${tc}-${VERSION}.tar.gz.sha256" )
             done
-            if [[ "${tc}" == "armclang" && "${ARMCLANG_LICENSED}" != "true" ]]; then
+            if [[ "${tc}" == "armclang" && "${ARMCLANG_REQUIRED}" != "true" ]]; then
               optional+=( "${names[@]}" )
             else
               required+=( "${names[@]}" )
@@ -1152,7 +1201,7 @@ jobs:
           {
             echo "### Release asset verification -- ${TAG}"
             echo
-            echo "armclang licence configured: \`${ARMCLANG_LICENSED}\` (armclang assets are $( [[ "${ARMCLANG_LICENSED}" == "true" ]] && echo REQUIRED || echo optional ))"
+            echo "armclang assets required: \`${ARMCLANG_REQUIRED}\` (set repository variable ARMCLANG_REQUIRED=true to promote them; armclang assets are $( [[ "${ARMCLANG_REQUIRED}" == "true" ]] && echo REQUIRED || echo optional ))"
             echo
             echo "| class | found | expected |"
             echo "| --- | --- | --- |"
@@ -1161,7 +1210,16 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
           if (( ${#missing_optional[@]} > 0 )); then
-            echo "::notice title=Optional assets absent::${#missing_optional[@]} optional armclang asset(s) are not published for ${TAG}. No ARM_UBL_LICENSE_IDENTIFIER secret is configured, so armclang cannot be built and its absence is expected; this is not a release failure. See docs/guides/releases.md."
+            # Says WHY they are absent rather than asserting a cause. Before
+            # the ARMCLANG_REQUIRED switch this line claimed the secret was
+            # unconfigured, which is false on this repo -- it is configured,
+            # and armclang assets are optional because the switch is off.
+            if [[ "${ARMCLANG_LICENCE_CONFIGURED}" != "true" ]]; then
+              why="no ARM_UBL_LICENSE_IDENTIFIER secret is configured, so armclang could not be built"
+            else
+              why="repository variable ARMCLANG_REQUIRED is not \`true\`, so armclang assets are not promoted to required"
+            fi
+            echo "::notice title=Optional assets absent::${#missing_optional[@]} optional armclang asset(s) are not published for ${TAG}: ${why}. This is not a release failure. See docs/guides/releases.md."
           fi
 
           if (( ${#missing[@]} > 0 )); then

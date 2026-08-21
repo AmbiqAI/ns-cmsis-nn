@@ -78,14 +78,25 @@ job before any compilation happens. That job builds all three Cortex-M
 targets on a single runner precisely so the licence is activated once and the
 Arm Compiler archive is downloaded once.
 
-With the identifier configured, the eight `armclang` assets are **required**
-— `release-verify` promotes them and fails the release if they are missing,
-taking the required bar from 17 assets to 25. Without it,
+The eight `armclang` assets are **optional** unless the repository variable
+`ARMCLANG_REQUIRED` is set to `true`. Set it and `release-verify` promotes
+them, failing the release if they are missing and taking the required bar
+from 17 assets to 25; leave it unset and the bar stays at 17.
+
+The gate is deliberately an operator variable rather than an inference from
+whether `ARM_UBL_LICENSE_IDENTIFIER` is configured. That secret was configured
+throughout the period in which armclang published nothing at all, so keying
+off it would promote assets this pipeline has never once produced — and a
+required asset the pipeline cannot produce makes every release red with no
+way out, because the recovery such a failure prescribes re-runs the same job.
+Turn `ARMCLANG_REQUIRED` on only after a release run has actually published
+the eight, and turn it off to ride out an Arm licensing outage.
+
+Independently of that switch: when no licence is configured,
 `resolve-release-capabilities` reports the capability as unavailable, every
 step of `publish-staticlibs-armclang` self-skips (the job succeeds as a
-no-op and self-reports via `::notice::`/`::warning::` annotations), the
-`armclang` bundle is omitted from `publish-staticlib-bundles`, and the eight
-assets drop back to optional. Either way the required gcc/atfe assets are
+no-op and self-reports via `::notice::`/`::warning::` annotations), and the
+`armclang` bundle is omitted from `publish-staticlib-bundles`. Either way the required gcc/atfe assets are
 unaffected: they come from a different job entirely, and
 `publish-staticlibs-armclang` is `continue-on-error: true`, so armclang can
 never hold up the tag, pack, gcc/atfe libs, CI image, or tests.

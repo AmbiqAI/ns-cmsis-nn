@@ -110,8 +110,9 @@ It refuses to run
 (fails fast) if `v7.29.2` doesn't already have a published GitHub Release, so
 it cannot be used to create a new tag/release under a different name. See
 [Required vs optional assets](guides/releases.md#required-vs-optional-assets)
-for which assets are safe to be missing (armclang, and only when no Arm
-licence is configured) versus which indicate a real regression.
+for which assets are safe to be missing (armclang, unless the repository
+variable `ARMCLANG_REQUIRED` is set to `true`) versus which indicate a real
+regression.
 
 `release-please`'s job resolves `v7.29.2` to its exact target commit exactly
 once (`scripts/ci/resolve_release_commit.sh`, via the GitHub API) and
