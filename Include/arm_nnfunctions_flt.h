@@ -1535,6 +1535,36 @@ void arm_reshape_f16(const float16_t *input, float16_t *output, uint32_t total_s
 /** @} */
 
 /**
+ * @addtogroup Reshape
+ * @{
+ */
+
+/**
+ * @brief Nearest neighbor resize function for float16 data.
+ *
+ * @param[in]   ctx                Context buffer holding at least
+ *                                 (output_height + output_width) int32_t elements.
+ * @param[in]   resize_params      Resize parameters.
+ * @param[in]   input_shape        Input tensor dimensions in NHWC format.
+ * @param[in]   input_data         Input tensor data.
+ * @param[in]   output_size_shape  Dimensions of the output-size tensor.
+ * @param[in]   output_size_data   Output size as [output_height, output_width].
+ * @param[in]   output_shape       Output tensor dimensions in NHWC format.
+ * @param[out]  output_data        Output tensor data.
+ * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when an argument constraint fails.
+ */
+arm_cmsis_nn_status arm_resize_nearest_neighbor_f16(const cmsis_nn_context *ctx,
+                                                    const cmsis_nn_resize_params *resize_params,
+                                                    const cmsis_nn_dims *input_shape,
+                                                    const float16_t *input_data,
+                                                    const cmsis_nn_dims *output_size_shape,
+                                                    const int32_t *output_size_data,
+                                                    const cmsis_nn_dims *output_shape,
+                                                    float16_t *output_data);
+
+/** @} */
+
+/**
  * @addtogroup FC
  * @{
  */
