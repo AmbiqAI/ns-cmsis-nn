@@ -97,8 +97,11 @@ jobs:
     # same-named, differently-signed pair is a silent link-order bug with
     # no compiler warning. arm_abs_f16/arm_abs_f32 shipped in that state
     # for a full cycle (#240) before being caught by hand in review (#281)
-    # and renamed; four more of our shipped int8/int16 kernel families have
-    # an "obvious" float name CMSIS-DSP already owns. See #282.
+    # and renamed; more of our shipped int8/int16 kernel families have an
+    # "obvious" float name CMSIS-DSP already owns -- run the check with
+    # --list-hazards for the current set rather than trusting a count
+    # written here, which is exactly the drift --list-hazards exists to
+    # prevent. See #282.
     name: CMSIS-DSP symbol collisions
     runs-on: ubuntu-latest
     steps:
