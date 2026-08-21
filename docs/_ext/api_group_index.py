@@ -190,9 +190,16 @@ def _matches(name: str, patterns: tuple[str, ...]) -> bool:
 
 
 def _dtype(name: str) -> str:
-    for dtype in ("s4", "s8", "s16", "s32", "u8", "q7", "q15", "f16", "f32"):
+    # `fp16` is a legacy spelling of the same half-precision bucket, still
+    # used by arm_fully_connected_fp16. It has to be probed separately --
+    # `(^|_)f16($|_)` cannot match `_fp16`, because the `f16` there is
+    # preceded by `p` rather than `_` -- and then folded into `f16`, since
+    # docs/_static/api-filter.js compares dtype for exact equality against
+    # the chip values in docs/reference/api-groups.md. Without the fold the
+    # kernel falls through to "mixed" and no chip on the page reaches it.
+    for dtype in ("s4", "s8", "s16", "s32", "u8", "q7", "q15", "f16", "fp16", "f32"):
         if re.search(rf"(^|_){dtype}($|_)", name):
-            return dtype
+            return "f16" if dtype == "fp16" else dtype
     return "mixed"
 
 

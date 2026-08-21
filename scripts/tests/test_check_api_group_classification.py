@@ -140,6 +140,19 @@ class ApiGroupClassificationCase(unittest.TestCase):
         self.assertEqual(mod.failures, [])
         self.assertGreater(mod._stats.get("public", 0), 0)
 
+    def test_fp16_spelling_lands_in_the_f16_dtype_bucket(self):
+        """arm_fully_connected_fp16 is a real float16_t kernel -- declared
+        under ARM_FLOAT16_SUPPORTED, which nn.dxy.in predefines to 1, so it
+        renders on the page -- that spells the dtype `fp16` rather than
+        `f16`. api-filter.js compares dtype for exact equality against the
+        chip values in api-groups.md, so any return other than "f16" leaves
+        the kernel unreachable from every chip and badged wrong."""
+        mod = load_module("api_group_index", API_GROUP_INDEX)
+        self.assertEqual(mod._dtype("arm_fully_connected_fp16"), "f16")
+        self.assertEqual(mod._dtype("arm_avg_pool_f16"), "f16")
+        self.assertEqual(mod._dtype("arm_avg_pool_f32"), "f32")
+        self.assertEqual(mod._dtype("arm_convolve_s8"), "s8")
+
     # -- the required mutation case ----------------------------------------
 
     def test_mutation_ungrouped_public_kernel_is_caught(self):
