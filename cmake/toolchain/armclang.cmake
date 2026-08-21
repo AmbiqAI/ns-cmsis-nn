@@ -46,6 +46,15 @@ endif()
 
 set(CMAKE_C_COMPILER   "${_root}/bin/armclang")
 set(CMAKE_ASM_COMPILER "${_root}/bin/armclang")
+# CMSISNN's top-level project() declares "C CXX", so CMake tests a C++
+# compiler even though this project ships no C++ sources. Without this line
+# it auto-detects the HOST compiler, which is both wrong for a cross build
+# and fatal here: a non-ARMClang CXX compiler gets CMake's generic archive
+# rule ("<CMAKE_AR> qc ..."), and armar rejects a dashless action with
+# "L6839E: One of the actions -[dmpqrtx] must be specified". Naming armclang
+# for CXX loads Compiler/ARMClang-CXX.cmake, whose __compiler_armclang(CXX)
+# emits the same "--create -cr" form the C side already archives with.
+set(CMAKE_CXX_COMPILER "${_root}/bin/armclang")
 set(CMAKE_AR           "${_root}/bin/armar")
 
 # armar writes the archive symbol table itself and Arm Compiler ships no
@@ -53,6 +62,7 @@ set(CMAKE_AR           "${_root}/bin/armar")
 # back to its generic ARCHIVE_FINISH ("<CMAKE_RANLIB> <TARGET>") against an
 # unset CMAKE_RANLIB. Empty the finish rule instead of inventing a ranlib.
 set(CMAKE_C_ARCHIVE_FINISH   "")
+set(CMAKE_CXX_ARCHIVE_FINISH "")
 set(CMAKE_ASM_ARCHIVE_FINISH "")
 
 # Stripping is done by scripts/build_staticlib.sh, which resolves llvm-strip
