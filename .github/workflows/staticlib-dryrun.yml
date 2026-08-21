@@ -198,8 +198,11 @@ jobs:
     # "The activation code has already been used by another user". The image
     # has no USER directive, so it runs as root. This mirrors helia-rt, whose
     # working armclang activations all run in a container.
+    # Digest-pinned for the same reason as release.yml's armclang job: this
+    # job handles the Arm licensing secret, so the image it runs must be one
+    # that was actually reviewed, not whatever `:latest` points at today.
     container:
-      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci@sha256:0d18641d43015eba02d8e05821b59c95ddfcdf0d9ff7a070edd532bad3e09eeb
     defaults:
       run:
         # Inside a container GitHub defaults to `sh -e`, which lacks
@@ -263,7 +266,14 @@ jobs:
           echo "${TOOLCHAIN_ROOT}/bin" >> "$GITHUB_PATH"
 
       - name: Activate Arm tool license
-        uses: ARM-software/cmsis-actions/armlm@v1
+        # SHA-pinned, unlike every other action in this repo, because this is
+        # the only third-party action that receives a repository secret other
+        # than GITHUB_TOKEN -- it interpolates the activation code into a
+        # generated shell command. `v1` is a moving alias (it has tracked
+        # v1.0 -> v1.3), so a retag would silently replace the code handling
+        # that secret. Same reasoning as the sha256 pin on the Arm Compiler
+        # download in ci/toolchains/armclang.json.
+        uses: ARM-software/cmsis-actions/armlm@8a50b77681a484568e08f31fb7c2285c4735f682  # v1.3
         with:
           code: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
 

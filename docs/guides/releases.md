@@ -66,8 +66,8 @@ gap (see [AmbiqAI/ns-cmsis-nn#228](https://github.com/AmbiqAI/ns-cmsis-nn/issues
 | `ns-cmsis-nn-<cpu>-atfe-<version>.tar.gz`                              | **Required** | Free toolchain (LLVM-Embedded-Toolchain-for-Arm), no license dependency. |
 | `ns-cmsis-nn-staticlibs-gcc-<version>.zip`                             | **Required** | Same as above.                                                          |
 | `ns-cmsis-nn-staticlibs-atfe-<version>.zip`                            | **Required** | Same as above.                                                          |
-| `ns-cmsis-nn-<cpu>-armclang-<version>.tar.gz`                          | **Conditional** | Required when an Arm Compiler for Embedded licence is configured; optional otherwise. |
-| `ns-cmsis-nn-staticlibs-armclang-<version>.zip`                        | **Conditional** | Same as above.                                                          |
+| `ns-cmsis-nn-<cpu>-armclang-<version>.tar.gz`                          | **Optional** | Promoted to required only when the repository variable `ARMCLANG_REQUIRED` is `true`. Not keyed on whether a licence is configured. |
+| `ns-cmsis-nn-staticlibs-armclang-<version>.zip`                        | **Optional** | Same as above.                                                          |
 | `ghcr.io/ambiqai/ns-cmsis-nn-ci:vX.Y.Z` image                          | **Required** | Needed by `release-unit-tests` / `release-helia-core-tester`.           |
 | GitHub Pages docs update                                               | **Required** | Rides along with `publish-pack`.                                       |
 

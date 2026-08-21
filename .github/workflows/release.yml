@@ -454,8 +454,10 @@ jobs:
     #
     # It is deliberately NOT gated on the licence at the job level. When no
     # identifier is configured every step self-skips and the job succeeds as a
-    # no-op, so it can never reach the `skipped` state that would cascade into
-    # publish-staticlib-bundles.
+    # no-op rather than skipping. (It can still be skipped if a `needs:` job
+    # fails outright; that is survivable because publish-staticlib-bundles
+    # guards on `!cancelled()` and release-verify on `always()`, so neither
+    # waits on this job's own conclusion.)
     #
     # armclang's 8 assets stay OPTIONAL until the repository variable
     # ARMCLANG_REQUIRED is set to "true". No release from v7.24.1 onward has
@@ -467,6 +469,22 @@ jobs:
     if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
     needs: [release-please, resolve-release-capabilities]
     runs-on: ubuntu-latest
+    # This job runs a third-party action and an apt install as root with a
+    # licensing secret in scope, so it takes the narrowest token in the file
+    # rather than the workflow-level contents/packages/pages/id-token: write.
+    # It only reads the repo: artefact upload authenticates with
+    # ACTIONS_RUNTIME_TOKEN, and release assets are published by
+    # publish-staticlib-bundles, not here.
+    permissions:
+      contents: read
+    outputs:
+      # `built` is a job OUTPUT, deliberately not needs.<job>.result: a
+      # continue-on-error job that FAILED still reports result == 'success',
+      # so release-verify would announce a broken armclang build as a healthy
+      # one. Outputs are not laundered that way. "true" = archives produced,
+      # "skipped" = no licence so the step self-skipped, absent = the job
+      # actually broke.
+      built: ${{ steps.build_armclang.outputs.built }}
     # Runs in the CI container specifically so `armlm` executes as root. The
     # Arm User-Based Licensing entitlement is bound to CI user "root";
     # activating as the default hosted-runner user ("runner") is refused with
@@ -474,8 +492,18 @@ jobs:
     # has no USER directive, so it runs as root. This mirrors the dryrun
     # workflow and AmbiqAI/helia-rt, whose working armclang activations all
     # run in a container (AmbiqAI/ns-cmsis-nn#279).
+    # Digest-pinned, not `:latest`. publish-ci-image republishes `:latest` on
+    # every release and a weekly cron rebuilds it from main, so `:latest`
+    # would mean this secret-handling job runs an image nobody reviewed --
+    # and release N's assets would be built inside release N-1's image. The
+    # `:${{ tag_name }}` pin used by release-unit-tests and
+    # release-helia-core-tester is not available here: those jobs can wait on
+    # publish-ci-image, but adding that edge would let a failed image build
+    # SKIP this job, and a skipped job is exactly the state the comment above
+    # depends on never happening. Refresh with:
+    #   docker buildx imagetools inspect ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
     container:
-      image: ghcr.io/ambiqai/ns-cmsis-nn-ci:latest
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci@sha256:0d18641d43015eba02d8e05821b59c95ddfcdf0d9ff7a070edd532bad3e09eeb
     defaults:
       run:
         # Inside a container GitHub defaults to `sh -e`, which lacks
@@ -497,6 +525,10 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ needs.release-please.outputs.commit_sha }}
+          # Default true writes GITHUB_TOKEN into .git/config. Nothing here
+          # pushes, and this job runs third-party code as root, so keep the
+          # token out of the container filesystem entirely.
+          persist-credentials: false
 
       - name: Confirm the runtime user is root
         if: ${{ needs.resolve-release-capabilities.outputs.armclang_available == 'true' }}
@@ -565,11 +597,19 @@ jobs:
       # input. GitHub masks it in logs and no step in this workflow echoes it.
       - name: Activate Arm tool license
         if: ${{ needs.resolve-release-capabilities.outputs.armclang_available == 'true' }}
-        uses: ARM-software/cmsis-actions/armlm@v1
+        # SHA-pinned, unlike every other action in this repo, because this is
+        # the only third-party action that receives a repository secret other
+        # than GITHUB_TOKEN -- it interpolates the activation code into a
+        # generated shell command. `v1` is a moving alias (it has tracked
+        # v1.0 -> v1.3), so a retag would silently replace the code handling
+        # that secret. Same reasoning as the sha256 pin on the Arm Compiler
+        # download in ci/toolchains/armclang.json.
+        uses: ARM-software/cmsis-actions/armlm@8a50b77681a484568e08f31fb7c2285c4735f682  # v1.3
         with:
           code: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
 
       - name: Build, smoke-verify and package static libraries
+        id: build_armclang
         env:
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
           TOOLCHAIN_VERSION: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
@@ -580,6 +620,7 @@ jobs:
           # arrives empty ("" != "true").
           if [[ "${ARMCLANG_AVAILABLE}" != "true" ]]; then
             echo "::notice title=Optional asset skipped::No Arm Compiler licence configured; skipping all armclang static libraries for this release."
+            echo "built=skipped" >> "${GITHUB_OUTPUT}"
             exit 0
           fi
           for TARGET_CPU in cortex-m0 cortex-m4 cortex-m55; do
@@ -633,6 +674,11 @@ jobs:
               "${f16_flag[@]}"
             echo "::endgroup::"
           done
+          # Reached only when all three CPUs built, smoke-verified and
+          # packaged. If any of that failed, `set -e` aborted above and this
+          # output stays unset -- which is precisely how release-verify tells
+          # a real failure apart from a deliberate skip.
+          echo "built=true" >> "${GITHUB_OUTPUT}"
 
       # One upload per CPU, with names and paths byte-identical to what the
       # old matrix legs produced, so publish-staticlib-bundles and
@@ -1124,7 +1170,11 @@ jobs:
           # This explains an absence; it never decides required vs optional.
           ARMCLANG_LICENCE_CONFIGURED: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER != '' }}
           R_STATICLIBS: ${{ needs.publish-staticlibs.result }}
-          R_STATICLIBS_ARMCLANG: ${{ needs.publish-staticlibs-armclang.result }}
+          # NOT .result: this job is continue-on-error, and GitHub reports
+          # such a job as `success` even when it failed, so .result would
+          # announce a broken armclang build as a healthy one. The job's
+          # `built` output is not laundered that way.
+          R_STATICLIBS_ARMCLANG: ${{ needs.publish-staticlibs-armclang.outputs.built || 'failed' }}
           R_BUNDLES: ${{ needs.publish-staticlib-bundles.result }}
           R_PACK: ${{ needs.publish-pack.result }}
         shell: bash
@@ -1210,16 +1260,18 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
           if (( ${#missing_optional[@]} > 0 )); then
-            # Says WHY they are absent rather than asserting a cause. Before
-            # the ARMCLANG_REQUIRED switch this line claimed the secret was
-            # unconfigured, which is false on this repo -- it is configured,
-            # and armclang assets are optional because the switch is off.
-            if [[ "${ARMCLANG_LICENCE_CONFIGURED}" != "true" ]]; then
-              why="no ARM_UBL_LICENSE_IDENTIFIER secret is configured, so armclang could not be built"
+            # Says WHY they are absent rather than asserting a cause, and
+            # distinguishes a deliberate skip from a real failure. A build
+            # that actually broke is a WARNING, not a notice: it is the one
+            # case here that needs a human, and reporting it as routine is
+            # how armclang stayed silently broken from v7.24.1 (#275).
+            if [[ "${R_STATICLIBS_ARMCLANG}" == "failed" ]]; then
+              echo "::warning title=Armclang build FAILED::${#missing_optional[@]} armclang asset(s) are missing from ${TAG} because publish-staticlibs-armclang did not complete -- this is a real failure, not a skip. The release still shipped its ${#required[@]} required assets. Check that job's log before assuming armclang is merely unlicensed."
+            elif [[ "${ARMCLANG_LICENCE_CONFIGURED}" != "true" ]]; then
+              echo "::notice title=Optional assets absent::${#missing_optional[@]} optional armclang asset(s) are not published for ${TAG}: no ARM_UBL_LICENSE_IDENTIFIER secret is configured, so armclang could not be built. This is not a release failure. See docs/guides/releases.md."
             else
-              why="repository variable ARMCLANG_REQUIRED is not \`true\`, so armclang assets are not promoted to required"
+              echo "::notice title=Optional assets absent::${#missing_optional[@]} optional armclang asset(s) are not published for ${TAG}: repository variable ARMCLANG_REQUIRED is not \`true\`, so armclang assets are not promoted to required. This is not a release failure. See docs/guides/releases.md."
             fi
-            echo "::notice title=Optional assets absent::${#missing_optional[@]} optional armclang asset(s) are not published for ${TAG}: ${why}. This is not a release failure. See docs/guides/releases.md."
           fi
 
           if (( ${#missing[@]} > 0 )); then
@@ -1230,6 +1282,15 @@ jobs:
               printf -- '- `%s`\n' "${missing[@]}"
             } >> "${GITHUB_STEP_SUMMARY}"
             printf '%s\n' "${missing[@]}" > "${RUNNER_TEMP}/missing-assets.txt"
+            # ARMCLANG_REQUIRED promoted armclang's assets, but the licence
+            # they need is gone -- e.g. rotated or expired after the switch
+            # was flipped on. Recovery re-runs the same jobs against the same
+            # absent licence and fails identically, so the operator must be
+            # told to turn the switch off. Without this the run only says
+            # "missing 8 of 25" and prescribes a recovery that cannot work.
+            if [[ "${ARMCLANG_REQUIRED}" == "true" && "${ARMCLANG_LICENCE_CONFIGURED}" != "true" ]]; then
+              echo "::error title=ARMCLANG_REQUIRED is set but no Arm licence is configured::armclang assets are required by repository variable ARMCLANG_REQUIRED, but ARM_UBL_LICENSE_IDENTIFIER is not configured, so they can never be produced. Recovery will fail identically until you either restore the licence secret or set ARMCLANG_REQUIRED=false." >&2
+            fi
             echo "Missing required assets:" >&2
             printf '  %s\n' "${missing[@]}" >&2
             echo "::error title=Release ${TAG} is missing ${#missing[@]} of ${#required[@]} required assets::MISSING: ${missing[*]} -- the tag and the non-draft GitHub Release are ALREADY PUBLIC, so this release is broken as shipped. Upstream asset jobs: ${upstream}. Re-run asset publication for this tag with 'gh workflow run release.yml --ref main -f recover_tag=${TAG}' (docs/guides/releases.md). Do NOT simply re-run this workflow: a re-run publishes nothing and only turns the run green." >&2
