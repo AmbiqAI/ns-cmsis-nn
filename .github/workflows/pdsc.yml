@@ -90,3 +90,28 @@ jobs:
       # either direction, so its mutation tests gate it in turn.
       - name: Run float component check tests
         run: python3 scripts/tests/test_check_float_cmsis_components.py
+
+  dsp_symbol_collisions:
+    # Guards against a public ns-cmsis-nn symbol colliding with a CMSIS-DSP
+    # symbol -- two libraries Ambiq ships and links together, where a
+    # same-named, differently-signed pair is a silent link-order bug with
+    # no compiler warning. arm_abs_f16/arm_abs_f32 shipped in that state
+    # for a full cycle (#240) before being caught by hand in review (#281)
+    # and renamed; more of our shipped int8/int16 kernel families have an
+    # "obvious" float name CMSIS-DSP already owns -- run the check with
+    # --list-hazards for the current set rather than trusting a count
+    # written here, which is exactly the drift --list-hazards exists to
+    # prevent. See #282.
+    name: CMSIS-DSP symbol collisions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run DSP symbol collision check
+        run: python3 scripts/check_dsp_symbol_collisions.py
+
+      # The check is a merge gate whose own logic is easy to regress in
+      # either direction, so its mutation tests gate it in turn.
+      - name: Run DSP symbol collision check tests
+        run: python3 scripts/tests/test_check_dsp_symbol_collisions.py
