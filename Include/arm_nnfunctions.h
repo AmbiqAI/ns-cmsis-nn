@@ -2243,7 +2243,8 @@ arm_cmsis_nn_status arm_vector_sum_s8_s64(int64_t *vector_sum_buf,
  * @brief Get size of additional buffer required by arm_fully_connected_s8().
  *        See also arm_vector_sum_s8, which is required if buffer size is > 0.
  * @param[in]      filter_dims             dimension of filter
- * @return         The function returns    required buffer size in bytes
+ * @return         The function returns    required buffer size in bytes, or -1 if filter_dims->c is negative or
+ *                                         the required size would not fit in an int32_t
  *
  */
 int32_t arm_fully_connected_s8_get_buffer_size(const cmsis_nn_dims *filter_dims);
@@ -5385,7 +5386,8 @@ arm_cmsis_nn_status arm_svdf_state_s16_s8(const cmsis_nn_context *input_ctx,
  * @brief Get size of the kernel-sum buffer required by arm_svdf_s8().
  * @param[in]      weights_feature_dims    dimensions of the weights (feature) tensor, i.e. the same
  *                                         cmsis_nn_dims passed to arm_svdf_s8()
- * @return         The function returns    required buffer size in bytes
+ * @return         The function returns    required buffer size in bytes, or -1 if weights_feature_dims->n is
+ *                                         negative or the required size would not fit in an int32_t
  *
  * @details    Returns weights_feature_dims->n * sizeof(int32_t) on builds with the MVE extension and 0
  *             elsewhere. arm_svdf_s8() has no filter_dims argument, and the buffer is indexed by
@@ -5561,7 +5563,8 @@ arm_cmsis_nn_status arm_batch_matmul_s16(const cmsis_nn_context *ctx,
  * @brief Get size of the scratch buffer required by arm_batch_matmul_s8().
  * @param[in]      input_rhs_dims          dimensions of the (transposed) rhs tensor, i.e. the same
  *                                         cmsis_nn_dims passed to arm_batch_matmul_s8()
- * @return         The function returns    required buffer size in bytes
+ * @return         The function returns    required buffer size in bytes, or -1 if input_rhs_dims->w is negative
+ *                                         or the required size would not fit in an int32_t
  *
  * @details    Returns input_rhs_dims->w * sizeof(int32_t) on builds with the MVE extension and 0 elsewhere.
  *             input_rhs_dims->w is the rhs row count, which is what the kernel-sum buffer is indexed by;

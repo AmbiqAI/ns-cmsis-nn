@@ -38,7 +38,16 @@ int32_t arm_batch_matmul_s8_get_buffer_size_dsp(const cmsis_nn_dims *input_rhs_d
 
 int32_t arm_batch_matmul_s8_get_buffer_size_mve(const cmsis_nn_dims *input_rhs_dims)
 {
-    return input_rhs_dims->w * sizeof(int32_t);
+    // Computed in 64 bits so that a row count large enough to overflow the int32_t byte count cannot wrap past
+    // the range check below (mirrors the guard in arm_batch_matmul_s8()).
+    const int64_t required_bytes = (int64_t)input_rhs_dims->w * (int64_t)sizeof(int32_t);
+
+    if ((input_rhs_dims->w < 0) || (required_bytes > INT32_MAX))
+    {
+        return -1;
+    }
+
+    return (int32_t)required_bytes;
 }
 
 int32_t arm_batch_matmul_s8_get_buffer_size(const cmsis_nn_dims *input_rhs_dims)

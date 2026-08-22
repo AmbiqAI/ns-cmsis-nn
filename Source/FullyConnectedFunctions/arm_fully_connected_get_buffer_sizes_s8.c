@@ -47,7 +47,16 @@ int32_t arm_fully_connected_s8_get_buffer_size_dsp(const cmsis_nn_dims *filter_d
 
 int32_t arm_fully_connected_s8_get_buffer_size_mve(const cmsis_nn_dims *filter_dims)
 {
-    return filter_dims->c * sizeof(int32_t);
+    // Computed in 64 bits so that a channel count large enough to overflow the int32_t byte count cannot wrap
+    // past the range check below.
+    const int64_t required_bytes = (int64_t)filter_dims->c * (int64_t)sizeof(int32_t);
+
+    if ((filter_dims->c < 0) || (required_bytes > INT32_MAX))
+    {
+        return -1;
+    }
+
+    return (int32_t)required_bytes;
 }
 
 int32_t arm_fully_connected_s8_get_buffer_size(const cmsis_nn_dims *filter_dims)

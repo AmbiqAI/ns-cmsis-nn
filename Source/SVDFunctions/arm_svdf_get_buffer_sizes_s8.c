@@ -47,7 +47,16 @@ int32_t arm_svdf_s8_get_buffer_size_dsp(const cmsis_nn_dims *weights_feature_dim
 
 int32_t arm_svdf_s8_get_buffer_size_mve(const cmsis_nn_dims *weights_feature_dims)
 {
-    return weights_feature_dims->n * sizeof(int32_t);
+    // Computed in 64 bits so that a row count large enough to overflow the int32_t byte count cannot wrap past
+    // the range check below.
+    const int64_t required_bytes = (int64_t)weights_feature_dims->n * (int64_t)sizeof(int32_t);
+
+    if ((weights_feature_dims->n < 0) || (required_bytes > INT32_MAX))
+    {
+        return -1;
+    }
+
+    return (int32_t)required_bytes;
 }
 
 int32_t arm_svdf_s8_get_buffer_size(const cmsis_nn_dims *weights_feature_dims)
