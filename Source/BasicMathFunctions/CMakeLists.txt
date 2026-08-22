@@ -35,7 +35,7 @@ if (ARM_NN_ENABLE_F16)
                       arm_elementwise_mul_f16.c
                       arm_minimum_f16.c
                       arm_maximum_f16.c
-                      arm_mean_f16.c
+                      arm_nn_mean_f16.c
                       arm_reduce_sum_f16.c)
 endif()
 target_sources(cmsis-nn PRIVATE ${SRC} ${SRC_FLT})
