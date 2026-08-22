@@ -123,6 +123,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_minmax_common_f16.c"
                          "arm_minimum_f16.c"
                          "arm_maximum_f16.c"
+                         "arm_mean_f16.c"
                          "arm_reduce_sum_f16.c")
     endif()
   elseif(group STREQUAL "comparison")
