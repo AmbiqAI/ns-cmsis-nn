@@ -13,7 +13,7 @@
 #   include(<path>/cmake/ns-cmsis-nn-prebuilt.cmake)
 #
 #   ns_cmsis_nn_import_prebuilt(
-#     LIBRARY      /path/to/libns-cmsis-nn-cortex-m4-7.29.2.a # x-release-please-version
+#     LIBRARY      /path/to/libns-cmsis-nn-cortex-m4-7.30.0.a # x-release-please-version
 #     INCLUDE_DIRS /path/to/ns-cmsis-nn/Include
 #   )
 #
