@@ -1732,11 +1732,11 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
-arm_cmsis_nn_status arm_mean_f16(const float16_t *input_data,
-                                 const cmsis_nn_dims *input_dims,
-                                 const cmsis_nn_dims *axis_dims,
-                                 float16_t *output_data,
-                                 const cmsis_nn_dims *output_dims);
+arm_cmsis_nn_status arm_nn_mean_f16(const float16_t *input_data,
+                                    const cmsis_nn_dims *input_dims,
+                                    const cmsis_nn_dims *axis_dims,
+                                    float16_t *output_data,
+                                    const cmsis_nn_dims *output_dims);
 
     /** @} */
 

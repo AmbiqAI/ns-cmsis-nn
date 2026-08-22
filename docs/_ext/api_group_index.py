@@ -69,6 +69,7 @@ GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         r"^arm_greater",
         r"^arm_less",
         r"^arm_mean",
+        r"^arm_nn_mean",
         r"^arm_not_equal",
         r"^arm_reduce",
         r"^arm_vector_sum",

@@ -9,7 +9,7 @@
 
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
- * Title:        arm_mean_f16
+ * Title:        arm_nn_mean_f16
  * Description:  Mean reduction operator for float16 tensors
  *
  * $Date:        21 August 2026
@@ -111,11 +111,11 @@ static arm_cmsis_nn_status arm_mean_flatten_last_dims_f16(const float16_t *input
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-arm_cmsis_nn_status arm_mean_f16(const float16_t *input_data,
-                                 const cmsis_nn_dims *input_dims,
-                                 const cmsis_nn_dims *axis_dims,
-                                 float16_t *output_data,
-                                 const cmsis_nn_dims *output_dims)
+arm_cmsis_nn_status arm_nn_mean_f16(const float16_t *input_data,
+                                    const cmsis_nn_dims *input_dims,
+                                    const cmsis_nn_dims *axis_dims,
+                                    float16_t *output_data,
+                                    const cmsis_nn_dims *output_dims)
 {
     if (!input_data || !input_dims || !axis_dims || !output_data || !output_dims)
     {
