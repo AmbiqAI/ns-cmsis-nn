@@ -1152,22 +1152,22 @@ void depthwise_boundary_matrix_arm_depthwise_conv_s8_opt(void)
                 TEST_ASSERT_NOT_NULL(ctx.buf);
             }
 
-            if (!test_case->use_wrapper)
-            {
-                weight_sum_ctx.size = channels * (int32_t)sizeof(int32_t);
-                weight_sum_ctx.buf = malloc((size_t)weight_sum_ctx.size);
-                TEST_ASSERT_NOT_NULL(weight_sum_ctx.buf);
-                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                                  arm_depthwise_convolve_weight_sum(weight_sum_ctx.buf,
-                                                                    ctx.buf,
-                                                                    kernel,
-                                                                    &dw_conv_params,
-                                                                    &input_dims,
-                                                                    &filter_dims,
-                                                                    &output_dims,
-                                                                    input_offset,
-                                                                    bias));
-            }
+            /* Fill weight_sum_ctx on every route, wrapper included: even though the sole use_wrapper test case
+             * currently has dilation != 1 and so does not reach arm_depthwise_conv_s8_opt(), a future wrapper
+             * case with dilation == 1 must not silently rely on an unfilled buffer. */
+            weight_sum_ctx.size = channels * (int32_t)sizeof(int32_t);
+            weight_sum_ctx.buf = malloc((size_t)weight_sum_ctx.size);
+            TEST_ASSERT_NOT_NULL(weight_sum_ctx.buf);
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_depthwise_convolve_weight_sum(weight_sum_ctx.buf,
+                                                                ctx.buf,
+                                                                kernel,
+                                                                &dw_conv_params,
+                                                                &input_dims,
+                                                                &filter_dims,
+                                                                &output_dims,
+                                                                input_offset,
+                                                                bias));
 
             arm_cmsis_nn_status result;
             if (test_case->use_wrapper)
