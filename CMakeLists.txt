@@ -181,6 +181,7 @@ if(CMSISNN_BUILD_PYBIND)
     Source/Bindings/arm_py_module.cpp
     Source/Bindings/arm_py_backend.cpp
     Source/Bindings/arm_py_avgpool_buffer_size.cpp
+    Source/Bindings/arm_py_batch_matmul_buffer_size.cpp
     Source/Bindings/arm_py_conv_buffer_size.cpp
     Source/Bindings/arm_py_depthwise_conv_buffer_size.cpp
     Source/Bindings/arm_py_fully_connected_buffer_size.cpp

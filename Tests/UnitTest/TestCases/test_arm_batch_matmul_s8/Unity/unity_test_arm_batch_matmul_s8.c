@@ -48,3 +48,4 @@ void test_batch_matmul_2_s8(void) { batch_matmul_2_s8(); }
 void test_batch_matmul_3_s8(void) { batch_matmul_3_s8(); }
 void test_batch_matmul_4_s8(void) { batch_matmul_4_s8(); }
 void test_batch_matmul_5_s8(void) { batch_matmul_5_s8(); }
+void test_batch_matmul_ctx_sizing_s8(void) { batch_matmul_ctx_sizing_s8(); }

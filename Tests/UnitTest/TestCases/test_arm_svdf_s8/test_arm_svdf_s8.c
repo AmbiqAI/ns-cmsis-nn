@@ -70,7 +70,14 @@ void svdf_int8_arm_svdf_s8(void)
     const int scratch_size_out = SVDF_INT8_INPUT_BATCHES * number_units * sizeof(int32_t);
 
     cmsis_nn_context ctx;
+    // ctx->buf is a precomputed kernel-sum input indexed by weights_feature_dims->n, not scratch and not sized
+    // by any filter_dims. Pin that so a caller cannot be led back to a sizer reading a different field (#269).
     const int32_t buf_size = arm_svdf_s8_get_buffer_size(&weights_feature_dims);
+#if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(weights_feature_dims.n * (int32_t)sizeof(int32_t), buf_size);
+#else
+    TEST_ASSERT_EQUAL(0, buf_size);
+#endif
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
@@ -186,7 +193,14 @@ void svdf_int8_2_arm_svdf_s8(void)
     const int scratch_size_out = SVDF_INT8_2_INPUT_BATCHES * number_units * sizeof(int32_t);
 
     cmsis_nn_context ctx;
+    // ctx->buf is a precomputed kernel-sum input indexed by weights_feature_dims->n, not scratch and not sized
+    // by any filter_dims. Pin that so a caller cannot be led back to a sizer reading a different field (#269).
     const int32_t buf_size = arm_svdf_s8_get_buffer_size(&weights_feature_dims);
+#if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(weights_feature_dims.n * (int32_t)sizeof(int32_t), buf_size);
+#else
+    TEST_ASSERT_EQUAL(0, buf_size);
+#endif
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 

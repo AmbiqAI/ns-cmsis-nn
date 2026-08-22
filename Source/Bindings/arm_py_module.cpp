@@ -38,6 +38,7 @@ void fully_connected_buffer_size(py::module_ &m);
 void avgpool_buffer_size(py::module_ &m);
 void transpose_conv_buffer_size(py::module_ &m);
 void svdf_buffer_size(py::module_ &m);
+void batch_matmul_buffer_size(py::module_ &m);
 
 PYBIND11_MODULE(cmsis_nn, m)
 {
@@ -49,4 +50,5 @@ PYBIND11_MODULE(cmsis_nn, m)
     avgpool_buffer_size(m);
     transpose_conv_buffer_size(m);
     svdf_buffer_size(m);
+    batch_matmul_buffer_size(m);
 }
