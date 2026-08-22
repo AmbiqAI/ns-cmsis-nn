@@ -61,6 +61,15 @@ int32_t arm_fully_connected_s8_get_buffer_size_mve(const cmsis_nn_dims *filter_d
 
 int32_t arm_fully_connected_s8_get_buffer_size(const cmsis_nn_dims *filter_dims)
 {
+    // Validated once here, ahead of the dispatch below, so an invalid dim returns -1 on every build target -
+    // not just the MVE leg, which is also called directly by binding glue and re-checks this on its own.
+    const int64_t required_bytes = (int64_t)filter_dims->c * (int64_t)sizeof(int32_t);
+
+    if ((filter_dims->c < 0) || (required_bytes > INT32_MAX))
+    {
+        return -1;
+    }
+
 #if defined(ARM_MATH_MVEI)
     return arm_fully_connected_s8_get_buffer_size_mve(filter_dims);
 #else

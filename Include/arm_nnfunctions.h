@@ -5389,10 +5389,12 @@ arm_cmsis_nn_status arm_svdf_state_s16_s8(const cmsis_nn_context *input_ctx,
  * @return         The function returns    required buffer size in bytes, or -1 if weights_feature_dims->n is
  *                                         negative or the required size would not fit in an int32_t
  *
- * @details    Returns weights_feature_dims->n * sizeof(int32_t) on builds with the MVE extension and 0
- *             elsewhere. arm_svdf_s8() has no filter_dims argument, and the buffer is indexed by
- *             weights_feature_dims->n, so no other cmsis_nn_dims of that call can size it - in particular
- *             arm_fully_connected_s8_get_buffer_size() reads a different field and under-allocates.
+ * @details    For a valid (non-negative, in-range) weights_feature_dims->n, returns
+ *             weights_feature_dims->n * sizeof(int32_t) on builds with the MVE extension and 0 elsewhere. For an
+ *             invalid weights_feature_dims->n, returns -1 on every build target. arm_svdf_s8() has no filter_dims
+ *             argument, and the buffer is indexed by weights_feature_dims->n, so no other cmsis_nn_dims of that
+ *             call can size it - in particular arm_fully_connected_s8_get_buffer_size() reads a different field
+ *             and under-allocates.
  *             See arm_svdf_s8() for the buffer's layout, how to fill it and when it may be reused.
  */
 int32_t arm_svdf_s8_get_buffer_size(const cmsis_nn_dims *weights_feature_dims);
@@ -5566,9 +5568,10 @@ arm_cmsis_nn_status arm_batch_matmul_s16(const cmsis_nn_context *ctx,
  * @return         The function returns    required buffer size in bytes, or -1 if input_rhs_dims->w is negative
  *                                         or the required size would not fit in an int32_t
  *
- * @details    Returns input_rhs_dims->w * sizeof(int32_t) on builds with the MVE extension and 0 elsewhere.
- *             input_rhs_dims->w is the rhs row count, which is what the kernel-sum buffer is indexed by;
- *             sizing this buffer from any other dims (in particular with
+ * @details    For a valid (non-negative, in-range) input_rhs_dims->w, returns input_rhs_dims->w * sizeof(int32_t)
+ *             on builds with the MVE extension and 0 elsewhere. For an invalid input_rhs_dims->w, returns -1 on
+ *             every build target. input_rhs_dims->w is the rhs row count, which is what the kernel-sum buffer is
+ *             indexed by; sizing this buffer from any other dims (in particular with
  *             arm_fully_connected_s8_get_buffer_size(), which reads .c) writes past the allocation whenever
  *             the rhs has more rows than columns.
  *             arm_batch_matmul_s16() needs no scratch buffer and so has no corresponding sizer.

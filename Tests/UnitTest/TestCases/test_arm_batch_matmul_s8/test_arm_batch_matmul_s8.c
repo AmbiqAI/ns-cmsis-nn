@@ -367,6 +367,7 @@ void batch_matmul_ctx_sizing_s8(void)
     }
 
     const int32_t buf_size = arm_batch_matmul_s8_get_buffer_size(&rhs_shape);
+    TEST_ASSERT_GREATER_OR_EQUAL_INT32(0, buf_size);
     TEST_ASSERT_TRUE(rhs_shape.w > rhs_shape.c);
 
     cmsis_nn_context ref_ctx;
