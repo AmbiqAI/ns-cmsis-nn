@@ -42,6 +42,14 @@
 #      x-release-please-* annotation (or is on the explicit
 #      LITERAL_ONLY_EXTRA_FILES allowlist), and that every annotated /
 #      allowlisted value agrees with the canonical arm_nn_types.h version.
+#   9. SSoT/pdsc source-list agreement — the set of sources
+#      cmake/ns_cmsis_nn.cmake can resolve (unioned over every dtype
+#      gate) equals the set the pdsc ships, modulo an explicit
+#      allowlist. The two consumption paths are independent, so a file
+#      that is in the pdsc but not the SSoT builds for CMSIS-Pack
+#      consumers and link-errors for CMake / Zephyr / NSX consumers
+#      (#268), and a file in the SSoT but not the pdsc does the
+#      reverse.
 #
 
 from __future__ import annotations
@@ -51,10 +59,12 @@ import re
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+from fnmatch import fnmatch
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 PDSC = REPO / "Ambiq.NS-CMSIS-NN.pdsc"
+SSOT_CMAKE = REPO / "cmake" / "ns_cmsis_nn.cmake"
 TYPES_H = REPO / "Include" / "arm_nn_types.h"
 NSX_MODULE = REPO / "nsx" / "nsx-module.yaml"
 RP_MANIFEST = REPO / ".release-please-manifest.json"
@@ -286,11 +296,14 @@ def check_file_existence(entries: list[tuple[str, str]]) -> None:
             fail(f"<file name='{name}'/> not found on disk")
 
 
-def check_source_coverage(entries: list[tuple[str, str]]) -> None:
-    listed = sorted(name for cat, name in entries if cat == "source")
-    # Use `git ls-files` rather than a filesystem glob: matches the legacy
-    # check_pdsc.sh behaviour, and avoids false-positives from untracked
-    # .c files left around during local development.
+def tracked_source_files() -> list[str] | None:
+    """Repo-relative paths of every tracked Source/**/*.c.
+
+    Use `git ls-files` rather than a filesystem glob: matches the legacy
+    check_pdsc.sh behaviour, and avoids false-positives from untracked
+    .c files left around during local development. Returns None (after
+    recording a failure) when git is unavailable.
+    """
     try:
         out = subprocess.run(
             ["git", "ls-files", "Source/"],
@@ -301,8 +314,15 @@ def check_source_coverage(entries: list[tuple[str, str]]) -> None:
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         fail(f"`git ls-files Source/` failed: {e}")
+        return None
+    return sorted(p for p in out.splitlines() if p.endswith(".c"))
+
+
+def check_source_coverage(entries: list[tuple[str, str]]) -> None:
+    listed = sorted(name for cat, name in entries if cat == "source")
+    actual = tracked_source_files()
+    if actual is None:
         return
-    actual = sorted(p for p in out.splitlines() if p.endswith(".c"))
     missing_in_pdsc = set(actual) - set(listed)
     extra_in_pdsc = set(listed) - set(actual)
     for m in sorted(missing_in_pdsc):
@@ -598,6 +618,195 @@ def check_extra_files_annotations() -> None:
             )
 
 
+# --- SSoT (cmake) vs pdsc source-list agreement ------------------------
+#
+# `Ambiq.NS-CMSIS-NN.pdsc` and `cmake/ns_cmsis_nn.cmake` are two
+# independent enumerations of the same source tree: the pdsc feeds
+# CMSIS-Pack consumers, the SSoT feeds every in-repo CMake build plus
+# the Zephyr and NSX modules. Nothing structural keeps them in step, and
+# each direction of drift fails silently for exactly one audience:
+#
+#   - in the pdsc, not in the SSoT: pack consumers can call the kernel,
+#     CMake/Zephyr/NSX consumers get an undefined reference at link time
+#     (#268: arm_fully_connected_fp16, arm_nn_vec_mat_mult_t_fp16,
+#     arm_softmax_u8 shipped that way);
+#   - in the SSoT, not in the pdsc: the CMake build compiles a file the
+#     pack never ships (and, since check_source_coverage() pins the pdsc
+#     to `git ls-files Source/`, usually means the SSoT names a file that
+#     does not exist — a typo that `file(GLOB)` swallows but an explicit
+#     `extras` entry turns into a hard CMake error).
+#
+# The comparison is made against the *union* over every dtype gate
+# (ARM_NN_ENABLE_F32 and ARM_NN_ENABLE_F16 both treated as on), because
+# the question here is reachability under some flag combination, not
+# under one particular build. Gate *correctness* — that a float source
+# is under the matching gate — is check_float_source_gating()'s job.
+
+# Files intentionally listed in the pdsc but not built by the SSoT (or
+# vice versa), each mapped to the reason. Empty on purpose: an entry
+# here is a documented exception, not a parking spot. Adding one means
+# the file is reachable for one consumer and not the other, so say why
+# and link an issue.
+SSOT_PDSC_ALLOWLIST: dict[str, str] = {}
+
+# The SSoT is CMake, so reading it means a (small) CMake parse. Only the
+# `_ns_cmsis_nn_group_def` function is interpreted, and only the four
+# constructs it uses: `if/elseif(group STREQUAL "...")` to select a
+# branch, and `set`/`list(APPEND ...)` on subdir/patterns/extras. Nested
+# `if(ARM_NN_ENABLE_F32/F16)` blocks are deliberately *not* evaluated —
+# their bodies are folded in unconditionally to build the union. If the
+# SSoT ever grows a construct this does not model, the group-coverage
+# assertion below fails loudly rather than silently under-reporting.
+CMAKE_CMD_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+CMAKE_STRING_RE = re.compile(r'"([^"]*)"')
+CMAKE_GROUP_RE = re.compile(r'group\s+STREQUAL\s+"([^"]+)"')
+CMAKE_COMMENT_RE = re.compile(r"#.*")
+SSOT_LIST_VARS = ("subdir", "patterns", "extras")
+
+
+def _cmake_commands(text: str) -> list[tuple[str, str]]:
+    """(command name, raw argument text) for each invocation in <text>."""
+    out: list[tuple[str, str]] = []
+    pos = 0
+    while True:
+        m = CMAKE_CMD_RE.search(text, pos)
+        if not m:
+            return out
+        depth = 1
+        i = m.end()
+        while i < len(text) and depth:
+            if text[i] == "(":
+                depth += 1
+            elif text[i] == ")":
+                depth -= 1
+            i += 1
+        if depth:
+            return out  # unbalanced; caller's coverage assertion will catch it
+        out.append((m.group(1), text[m.end() : i - 1]))
+        pos = m.end()
+
+
+def _cmake_function_body(text: str, name: str) -> str | None:
+    m = re.search(rf"^function\(\s*{re.escape(name)}\b", text, re.MULTILINE)
+    if not m:
+        return None
+    end = re.search(r"^endfunction\(\)", text[m.start() :], re.MULTILINE)
+    if not end:
+        return None
+    return text[m.start() : m.start() + end.start()]
+
+
+def parse_ssot_sources() -> tuple[dict[str, set[str]], list[str]] | None:
+    """Repo-relative sources each SSoT group resolves to, plus the SSoT's
+    own canonical group list. Returns None (after recording a failure)
+    when the SSoT cannot be read or parsed."""
+    if not SSOT_CMAKE.is_file():
+        fail(f"{SSOT_CMAKE.relative_to(REPO)} not found")
+        return None
+    text = CMAKE_COMMENT_RE.sub("", SSOT_CMAKE.read_text(encoding="utf-8"))
+
+    declared: list[str] = []
+    for cmd, args in _cmake_commands(text):
+        toks = args.split()
+        if cmd == "set" and toks and toks[0] == "_NS_CMSIS_NN_GROUPS":
+            declared = toks[1:]
+            break
+    if not declared:
+        fail("could not parse _NS_CMSIS_NN_GROUPS from the SSoT cmake module")
+        return None
+
+    body = _cmake_function_body(text, "_ns_cmsis_nn_group_def")
+    if body is None:
+        fail("could not locate _ns_cmsis_nn_group_def() in the SSoT cmake module")
+        return None
+
+    # group -> {"subdir": [...], "patterns": [...], "extras": [...]}
+    defs: dict[str, dict[str, list[str]]] = {}
+    current: str | None = None
+    for cmd, args in _cmake_commands(body):
+        toks = args.split()
+        if cmd in ("if", "elseif"):
+            m = CMAKE_GROUP_RE.search(args)
+            if m:
+                current = m.group(1)
+                defs.setdefault(current, {k: [] for k in SSOT_LIST_VARS})
+            # A nested if(ARM_NN_ENABLE_*) does not change the current
+            # group: its body is folded into the union.
+            continue
+        if current is None:
+            continue
+        values = [v for v in CMAKE_STRING_RE.findall(args) if v]
+        if cmd == "set" and toks and toks[0] in SSOT_LIST_VARS:
+            defs[current][toks[0]] = values
+        elif cmd == "list" and len(toks) >= 2 and toks[0] == "APPEND" and toks[1] in SSOT_LIST_VARS:
+            defs[current][toks[1]].extend(values)
+
+    missing = [g for g in declared if g not in defs]
+    if missing:
+        fail(
+            "SSoT parse incomplete — no _ns_cmsis_nn_group_def branch found for "
+            f"group(s) {', '.join(missing)}; cmake/ns_cmsis_nn.cmake likely grew a "
+            "construct scripts/check_pdsc.py does not model"
+        )
+        return None
+
+    tracked = tracked_source_files()
+    if tracked is None:
+        return None
+
+    resolved: dict[str, set[str]] = {}
+    for group in declared:
+        subdirs = defs[group]["subdir"]
+        if len(subdirs) != 1:
+            fail(f"SSoT group '{group}' does not set exactly one subdir (got {subdirs})")
+            return None
+        prefix = f"Source/{subdirs[0]}/"
+        hit: set[str] = set()
+        for path in tracked:
+            if not path.startswith(prefix):
+                continue
+            base = path[len(prefix) :]
+            if "/" in base:
+                continue
+            if any(fnmatch(base, pat) for pat in defs[group]["patterns"]):
+                hit.add(path)
+        hit.update(prefix + extra for extra in defs[group]["extras"])
+        resolved[group] = hit
+    return resolved, declared
+
+
+def check_ssot_pdsc_agreement(entries: list[tuple[str, str]]) -> None:
+    parsed = parse_ssot_sources()
+    if parsed is None:
+        return
+    resolved, _declared = parsed
+    ssot = set().union(*resolved.values()) if resolved else set()
+    listed = {name for cat, name in entries if cat == "source" and name}
+
+    for name in sorted(listed - ssot - set(SSOT_PDSC_ALLOWLIST)):
+        fail(
+            f"{name}: shipped by the pdsc but unreachable from "
+            "cmake/ns_cmsis_nn.cmake under any dtype gate — CMake / Zephyr / NSX "
+            "consumers link-error on its public symbols (#268). Add it to the "
+            "matching group in the SSoT, or document the exception in "
+            "SSOT_PDSC_ALLOWLIST."
+        )
+    for name in sorted(ssot - listed - set(SSOT_PDSC_ALLOWLIST)):
+        fail(
+            f"{name}: referenced by cmake/ns_cmsis_nn.cmake but not shipped by the "
+            "pdsc. If the file does not exist, the SSoT `extras` entry is a typo and "
+            "will fail the CMake build; otherwise add it to the pdsc or document the "
+            "exception in SSOT_PDSC_ALLOWLIST."
+        )
+    for name in sorted(SSOT_PDSC_ALLOWLIST):
+        if name in listed and name in ssot:
+            fail(
+                f"{name}: on SSOT_PDSC_ALLOWLIST but the pdsc and the SSoT now agree "
+                "about it — drop the allowlist entry so the exception cannot outlive "
+                "its reason."
+            )
+
+
 def main() -> int:
     if not PDSC.is_file():
         fail(f"{PDSC.relative_to(REPO)} not found")
@@ -613,6 +822,7 @@ def main() -> int:
     check_file_existence(entries)
     check_source_coverage(entries)
     check_float_source_gating(entries)
+    check_ssot_pdsc_agreement(entries)
     check_extra_files_annotations()
 
     report()
@@ -629,6 +839,7 @@ def report() -> None:
             "PDSC contract OK: pack/component identity, versions in sync, "
             "NSX module version synced, licenses declared, all <file> paths exist, "
             "Source/ coverage complete, float sources dtype-gated, "
+            "pdsc and cmake/ns_cmsis_nn.cmake source lists agree, "
             "extra-files annotations live and in sync."
         )
 
