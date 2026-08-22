@@ -1320,6 +1320,23 @@ arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
 arm_cmsis_nn_status arm_nn_abs_f16(const float16_t *input, float16_t *output, int32_t block_size);
 
 /**
+ * @ingroup groupElementwise
+ * @brief Computes the elementwise reciprocal square root of a float16 tensor.
+ *
+ * Each value is evaluated in float32 as `1 / sqrt(input)` and rounded once
+ * to float16. IEEE floating-point behavior is preserved: positive zero maps
+ * to positive infinity, negative zero maps to negative infinity, negative
+ * finite values map to NaN, and NaN propagates.
+ *
+ * @param[in]  input       Pointer to the input tensor
+ * @param[out] output      Pointer to the output tensor; may alias @p input
+ * @param[in]  block_size  Number of tensor elements
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_rsqrt_f16(const float16_t *input, float16_t *output, int32_t block_size);
+
+/**
  * @ingroup Concatenation
  * @brief float16 split of a tensor into multiple tensors along the target axis.
  *
