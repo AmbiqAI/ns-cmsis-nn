@@ -139,6 +139,7 @@
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_maximum_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_mean_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_mean_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_mean_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_minimum_f16.c"/>
