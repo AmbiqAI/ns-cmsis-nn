@@ -107,10 +107,17 @@ CPU_ALIASES = {
 }
 
 FAMILY_CONFIGS: dict[str, FloatTestFamily] = {
+    # F16-only: the F32 half (host suite test_arm_convolve_f32 and the
+    # test_arm_convolve_flt.F32+... CMSIS context) was deleted with #256,
+    # so "f32" is intentionally absent from selector_by_dtype below --
+    # that absence is what the per-family dtype-availability guards in
+    # generate_float_test_data() / configure_and_build_host() /
+    # run_host_tests() / build_cmsis_tests() key off of to skip this
+    # family's f32 leg instead of erroring.
     "convolve": FloatTestFamily(
         name="convolve",
         generator_script="conv_settings_flt.py",
-        selector_by_dtype={"f32": ["conv_f32_family"], "f16": ["conv_f16_family"]},
+        selector_by_dtype={"f16": ["conv_f16_family"]},
         cmsis_project="test_arm_convolve_flt",
     ),
     "reshape": FloatTestFamily(
@@ -446,6 +453,12 @@ def generate_float_test_data(
             continue
         script_path = UNIT_TEST_ROOT / family.generator_script
         for dtype_name in dtypes:
+            if dtype_name not in family.selector_by_dtype:
+                append_result(
+                    results, "generate", family.name, dtype_name,
+                    status="SKIP", detail=f"{family.name} has no {dtype_name} suite",
+                )
+                continue
             family_ok = True
             for selector in family.selector_by_dtype[dtype_name]:
                 cmd = [sys.executable, str(script_path), "--dataset", selector]
@@ -493,6 +506,12 @@ def configure_and_build_host(
     all_ok = True
     for family in families:
         for dtype_name in dtypes:
+            if dtype_name not in family.selector_by_dtype:
+                append_result(
+                    results, "build-host", family.name, dtype_name,
+                    status="SKIP", detail=f"{family.name} has no {dtype_name} suite",
+                )
+                continue
             target = family.host_target(dtype_name)
             ok, detail = try_command(["cmake", "--build", str(build_dir), "-j", str(jobs), "--target", target], REPO_ROOT)
             if not ok:
@@ -519,6 +538,12 @@ def run_host_tests(families: list[FloatTestFamily], dtypes: list[str], build_dir
     all_ok = True
     for family in families:
         for dtype_name in dtypes:
+            if dtype_name not in family.selector_by_dtype:
+                append_result(
+                    results, "run-host", family.name, dtype_name,
+                    status="SKIP", detail=f"{family.name} has no {dtype_name} suite",
+                )
+                continue
             target_name = family.host_target(dtype_name)
             ok, detail = try_command([str(executable_path(build_dir, target_name))], REPO_ROOT)
             if not ok:
@@ -550,6 +575,12 @@ def build_cmsis_tests(
     for toolchain in toolchains:
         for family in families:
             for dtype_name in dtypes:
+                if dtype_name not in family.selector_by_dtype:
+                    append_result(
+                        results, "build-cmsis", family.name, dtype_name, toolchain,
+                        "SKIP", f"{family.name} has no {dtype_name} suite",
+                    )
+                    continue
                 context = family.cmsis_context(dtype_name, target_type)
                 update_cmd = [
                     "cbuild",
@@ -620,6 +651,12 @@ def run_fvp_tests(
     for toolchain in toolchains:
         for family in families:
             for dtype_name in dtypes:
+                if dtype_name not in family.selector_by_dtype:
+                    append_result(
+                        results, "run-fvp", family.name, dtype_name, toolchain,
+                        "SKIP", f"{family.name} has no {dtype_name} suite",
+                    )
+                    continue
                 build_result = find_result(results, "build-cmsis", family.name, dtype_name, toolchain)
                 if build_result and build_result.status != "PASS":
                     append_result(results, "run-fvp", family.name, dtype_name, toolchain, "SKIP", "build-cmsis failed")

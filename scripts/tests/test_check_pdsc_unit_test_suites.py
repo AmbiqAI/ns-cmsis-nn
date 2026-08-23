@@ -3,15 +3,17 @@
 # SPDX-FileCopyrightText: Copyright 2024-2026 Ambiq <opensource@ambiq.com>
 # SPDX-License-Identifier: Apache-2.0
 #
-# Mutation tests for check #10 (unit-test suite buildability) in
-# scripts/check_pdsc.py.
+# Mutation tests for check #10 (registered unit-test suites exist and
+# their relative includes resolve) in scripts/check_pdsc.py.
 #
 # The bug class this check guards is invisible everywhere else in CI, so
 # nothing else would notice the check going quiet. 36 float suites were
 # registered in Tests/UnitTest/CMakeLists.txt against
-# `../TestData/<name>/test_data.h` paths that no generator produces and
-# that are not checked in. Because no PR-gating job builds the float
-# suites at all (ARM_NN_ENABLE_F32/F16 default OFF in the legacy build),
+# `../TestData/<name>/test_data.h` paths that their `*_settings_flt.py`
+# generators do produce, but only into a gitignored `TestData/` tree --
+# the data was never checked in, so the suites were unbuildable in every
+# checkout. Because no PR-gating job builds the float suites at all
+# either way (ARM_NN_ENABLE_F32/F16 default OFF in the legacy build),
 # they were never configured, never compiled, and never run -- while
 # still reading as coverage on the tin. That is how the transpose-conv
 # output-shift bug reached a release (#253, #256).
@@ -29,15 +31,20 @@
 #   - a bare-name include such as `"unity.h"` must stay green: it is
 #     found on the compiler's include path, and flagging it would make
 #     the check unusable and get it deleted;
-#   - the allowlist must suppress only its own entry, and must go red
-#     once its entry is clean or unregistered, so the temporary #236
-#     exemption cannot outlive its reason.
+#   - the allowlist is keyed by exact resolved include path, not by
+#     suite name, so it must suppress only its own listed paths -- a new
+#     dangling include in the same allowlisted suite (the shape PR #236
+#     would add if it shipped a new float dataset without checking the
+#     data in) must still be red -- and must go red once a listed path
+#     stops dangling or its suite is unregistered, so the temporary #236
+#     exemption cannot silently grow or outlive its reason.
 #
 # Run with: python3 scripts/tests/test_check_pdsc_unit_test_suites.py
 
 from __future__ import annotations
 
 import importlib.util
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -99,7 +106,7 @@ class SuiteDataCase(unittest.TestCase):
         files: dict[str, str],
         suites: list[str],
         f32_suites: list[str] | None = None,
-        allowlist: dict[str, str] | None = None,
+        allowlist: dict[str, dict[str, str]] | None = None,
     ) -> list[str]:
         """Run check #10 over a synthetic tree; return its failures."""
         mod = load_checker()
@@ -172,6 +179,33 @@ class SuiteDataCase(unittest.TestCase):
         If this grows, the guard has become a parking spot."""
         mod = load_checker()
         self.assertEqual(list(mod.UNBUILDABLE_SUITE_ALLOWLIST), ["test_arm_convolve_f16"])
+
+    def test_convolve_f16_allowlist_matches_its_actual_dangling_includes(self):
+        """The allowlist is a snapshot of what was dangling when #256
+        landed, not a suite-wide exemption -- pin it against the real
+        `#include "../TestData/...\"` lines in the suite so the two
+        cannot silently drift apart (a path removed from the .c but left
+        allowlisted would go undetected by every other test here, since
+        they all use a synthetic tree)."""
+        mod = load_checker()
+        entries = mod.UNBUILDABLE_SUITE_ALLOWLIST["test_arm_convolve_f16"]
+        tracked = mod.tracked_repo_files()
+        self.assertIsNotNone(tracked)
+        src = REPO / "Tests/UnitTest/TestCases/test_arm_convolve_f16/test_arm_convolve_f16.c"
+        text = src.read_text(encoding="utf-8")
+        src_dir = "Tests/UnitTest/TestCases/test_arm_convolve_f16"
+        actually_dangling = set()
+        for inc in mod.QUOTED_INCLUDE_RE.findall(text):
+            if "/" not in inc:
+                continue
+            resolved = os.path.normpath(f"{src_dir}/{inc}")
+            if resolved not in tracked:
+                actually_dangling.add(resolved)
+        self.assertEqual(set(entries), actually_dangling)
+        # Every reason string names #236, since that PR is the sole
+        # justification for the whole allowlist existing.
+        for reason in entries.values():
+            self.assertIn("#236", reason)
 
     # -- must stay green -------------------------------------------------
 
@@ -253,7 +287,11 @@ class SuiteDataCase(unittest.TestCase):
             files={**HEALTHY, **DECOY},
             suites=["test_arm_add_s8"],
             f32_suites=["test_arm_softmax_f32"],
-            allowlist={"test_arm_softmax_f32": "rides with some PR"},
+            allowlist={
+                "test_arm_softmax_f32": {
+                    f"{PREFIX}TestData/softmax_f32/test_data.h": "rides with some PR",
+                },
+            },
         )
 
     def test_allowlist_does_not_suppress_anything_else(self):
@@ -267,20 +305,56 @@ class SuiteDataCase(unittest.TestCase):
             files={**HEALTHY, **DECOY, **other},
             suites=["test_arm_add_s8"],
             f32_suites=["test_arm_softmax_f32", "test_arm_other_f32"],
-            allowlist={"test_arm_softmax_f32": "rides with some PR"},
+            allowlist={
+                "test_arm_softmax_f32": {
+                    f"{PREFIX}TestData/softmax_f32/test_data.h": "rides with some PR",
+                },
+            },
         )
         joined = " ".join(got)
         self.assertIn("test_arm_other_f32", joined)
         self.assertNotIn("test_arm_softmax_f32", joined)
 
+    def test_allowlist_does_not_cover_a_new_dangling_path_in_the_same_suite(self):
+        """The shape PR #236 must not be able to slip past: adding a
+        second dataset to an already-allowlisted suite without checking
+        its data in must still be red, because the allowlist is keyed by
+        the exact path, not by suite name."""
+        files = dict(DECOY)
+        files[f"{PREFIX}test_arm_softmax_f32/test_arm_softmax_f32.c"] += (
+            '#include "../TestData/softmax_new_case_f32/test_data.h"\n'
+        )
+        got = self.assertRed(
+            files={**HEALTHY, **files},
+            suites=["test_arm_add_s8"],
+            f32_suites=["test_arm_softmax_f32"],
+            allowlist={
+                "test_arm_softmax_f32": {
+                    f"{PREFIX}TestData/softmax_f32/test_data.h": "rides with some PR",
+                },
+            },
+            needle="softmax_new_case_f32",
+        )
+        joined = " ".join(got)
+        self.assertIn(
+            "an unrelated existing entry for this suite does not cover a new path", joined
+        )
+        # The listed path stays suppressed; only the unlisted one fires.
+        self.assertNotIn("does not resolve (Tests/UnitTest/TestCases/TestData/softmax_f32/", joined)
+
     def test_clean_allowlist_entry_is_caught(self):
-        """Once the exempted suite is fixed, the entry must go -- an
-        exemption that outlives its reason is how allowlists rot."""
+        """Once the exempted path is fixed (checked in, or the include
+        removed), the entry must go -- an exemption that outlives its
+        reason is how allowlists rot."""
         self.assertRed(
             files=HEALTHY,
             suites=["test_arm_add_s8"],
-            allowlist={"test_arm_add_s8": "stale"},
-            needle="every include in it now resolves",
+            allowlist={
+                "test_arm_add_s8": {
+                    f"{PREFIX}TestData/nonexistent/test_data.h": "stale",
+                },
+            },
+            needle="no longer dangle",
         )
 
     def test_unregistered_allowlist_entry_is_caught(self):
@@ -288,7 +362,11 @@ class SuiteDataCase(unittest.TestCase):
         self.assertRed(
             files=HEALTHY,
             suites=["test_arm_add_s8"],
-            allowlist={"test_arm_gone_f16": "deleted elsewhere"},
+            allowlist={
+                "test_arm_gone_f16": {
+                    f"{PREFIX}TestData/whatever/test_data.h": "deleted elsewhere",
+                },
+            },
             needle="no longer registered",
         )
 
