@@ -64,6 +64,14 @@ jobs:
       - name: Run extra-files annotation tests
         run: python3 scripts/tests/test_check_pdsc.py
 
+      # Check #10 (unit-test suite buildability) is the only PR gate that
+      # looks at the float unit suites at all -- no job builds them, which
+      # is how 36 registered-but-uncompilable suites read as coverage for
+      # years and hid a shipped transpose-conv bug (#253, #256). A check
+      # whose failure mode is "silently passes" needs its own gate.
+      - name: Run unit-test suite buildability tests
+        run: python3 scripts/tests/test_check_pdsc_unit_test_suites.py
+
   float_cmsis_components:
     # Static guard for the float unit-test wiring: the csolution pack pin
     # tracks the pdsc <release version>, component selectors are fully
