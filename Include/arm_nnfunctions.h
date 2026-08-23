@@ -2246,6 +2246,9 @@ arm_cmsis_nn_status arm_vector_sum_s8_s64(int64_t *vector_sum_buf,
  * @return         The function returns    required buffer size in bytes, or -1 if filter_dims->c is negative or
  *                                         the required size would not fit in an int32_t
  *
+ * @details    For a valid (non-negative, in-range) filter_dims->c, returns filter_dims->c * sizeof(int32_t) on
+ *             builds with the MVE extension and 0 elsewhere. For an invalid filter_dims->c, returns -1 on every
+ *             build target.
  */
 int32_t arm_fully_connected_s8_get_buffer_size(const cmsis_nn_dims *filter_dims);
 
@@ -2255,6 +2258,7 @@ int32_t arm_fully_connected_s8_get_buffer_size(const cmsis_nn_dims *filter_dims)
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_fully_connected_s8_get_buffer_size().
+ * @note       This variant does not validate dims; validation lives in the top-level dispatcher.
  *
  */
 int32_t arm_fully_connected_s8_get_buffer_size_dsp(const cmsis_nn_dims *filter_dims);
@@ -2265,6 +2269,7 @@ int32_t arm_fully_connected_s8_get_buffer_size_dsp(const cmsis_nn_dims *filter_d
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_fully_connected_s8_get_buffer_size().
+ * @note       Also validates dims like the top-level dispatcher, returning -1 for invalid values.
  *
  */
 int32_t arm_fully_connected_s8_get_buffer_size_mve(const cmsis_nn_dims *filter_dims);
@@ -5405,6 +5410,7 @@ int32_t arm_svdf_s8_get_buffer_size(const cmsis_nn_dims *weights_feature_dims);
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_svdf_s8_get_buffer_size().
+ * @note       This variant does not validate dims; validation lives in the top-level dispatcher.
  *
  */
 int32_t arm_svdf_s8_get_buffer_size_dsp(const cmsis_nn_dims *weights_feature_dims);
@@ -5415,6 +5421,7 @@ int32_t arm_svdf_s8_get_buffer_size_dsp(const cmsis_nn_dims *weights_feature_dim
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_svdf_s8_get_buffer_size().
+ * @note       Also validates dims like the top-level dispatcher, returning -1 for invalid values.
  *
  */
 int32_t arm_svdf_s8_get_buffer_size_mve(const cmsis_nn_dims *weights_feature_dims);
@@ -5584,6 +5591,7 @@ int32_t arm_batch_matmul_s8_get_buffer_size(const cmsis_nn_dims *input_rhs_dims)
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_batch_matmul_s8_get_buffer_size().
+ * @note       This variant does not validate dims; validation lives in the top-level dispatcher.
  *
  */
 int32_t arm_batch_matmul_s8_get_buffer_size_dsp(const cmsis_nn_dims *input_rhs_dims);
@@ -5594,6 +5602,7 @@ int32_t arm_batch_matmul_s8_get_buffer_size_dsp(const cmsis_nn_dims *input_rhs_d
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_batch_matmul_s8_get_buffer_size().
+ * @note       Also validates dims like the top-level dispatcher, returning -1 for invalid values.
  *
  */
 int32_t arm_batch_matmul_s8_get_buffer_size_mve(const cmsis_nn_dims *input_rhs_dims);
