@@ -304,7 +304,15 @@ unless the target or toolchain cannot provide the required floating-point type.
   the [TFLM int8 quantization spec][quant-int8].
 - **Buffer convention.** Every kernel takes a `cmsis_nn_context` whose `buf`
   must be sized via the matching `arm_*_get_buffer_size*` query. If the query
-  returns 0, you may pass `{ NULL, 0 }`.
+  returns 0, you may pass `{ NULL, 0 }`. Sizing is not always sufficient: the
+  int8 fully-connected family (`arm_fully_connected_s8`,
+  `arm_fully_connected_per_channel_s8` and `arm_fully_connected_wrapper_s8`)
+  reads its context as a *precomputed input* rather than as scratch, so where
+  the query returns a non-zero size the caller must also fill the buffer with
+  `arm_vector_sum_s8()`. Passing a correctly sized but zeroed buffer there
+  produces wrong output while still returning `ARM_CMSIS_NN_SUCCESS`. See the
+  per-function `ctx` documentation in `Include/arm_nnfunctions.h` for the exact
+  contract of each kernel.
 - **Backend selection.** Compile-time, driven by preprocessor defines:
   - `ARM_MATH_MVEI` → Helium / MVE path
   - `ARM_MATH_DSP` (without MVE) → DSP intrinsics path
