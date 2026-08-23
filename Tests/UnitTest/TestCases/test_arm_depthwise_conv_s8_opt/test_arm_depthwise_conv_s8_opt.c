@@ -1232,9 +1232,10 @@ void depthwise_boundary_matrix_arm_depthwise_conv_s8_opt(void)
             /* Fill weight_sum_ctx on every route, wrapper included: even though the sole use_wrapper test case
              * currently has dilation != 1 and so does not reach arm_depthwise_conv_s8_opt(), a future wrapper
              * case must not silently rely on an unfilled buffer. Note that dilation == 1 alone does not guarantee
-             * the wrapper reaches arm_depthwise_conv_s8_opt() either: on MVE, input_dims->c == 1 with a large
-             * output channel count diverts to the conv-conversion route (arm_depthwise_conv_to_conv_s8()) instead,
-             * which wants conv-style sums from arm_convolve_weight_sum() rather than these depthwise sums. */
+             * the wrapper reaches arm_depthwise_conv_s8_opt() either: on MVE, input_dims->c == 1 with an output
+             * channel count above CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD (8 on armclang, 1
+             * otherwise) diverts to the conv-conversion route (arm_depthwise_conv_to_conv_s8()) instead, which
+             * wants conv-style sums from arm_convolve_weight_sum() rather than these depthwise sums. */
             weight_sum_ctx.size = channels * (int32_t)sizeof(int32_t);
             weight_sum_ctx.buf = malloc((size_t)weight_sum_ctx.size);
             TEST_ASSERT_NOT_NULL(weight_sum_ctx.buf);

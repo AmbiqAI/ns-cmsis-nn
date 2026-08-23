@@ -1413,9 +1413,10 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  *                                 Outside that case the wrapper calls arm_depthwise_conv_s8(), which has no such
  *                                 parameter and ignores the context entirely - which is why several in-tree tests
  *                                 legitimately pass sums built by arm_convolve_weight_sum(), or none at all, on
- *                                 those routes. On MVE with input_dims->c == 1 and a large output channel count
- *                                 the layer is instead converted to a regular convolution, and conv-style sums
- *                                 from arm_convolve_weight_sum() are what that route wants.
+ *                                 those routes. On MVE with input_dims->c == 1 and an output channel count above
+ *                                 CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD (8 on armclang, 1
+ *                                 otherwise), the layer is instead converted to a regular convolution, and
+ *                                 conv-style sums from arm_convolve_weight_sum() are what that route wants.
  *                                 Where the sums are actually read, fill the buffer with
  *                                 arm_depthwise_convolve_weight_sum(), passing dw_conv_params->input_offset as
  *                                 lhs_offset and the same bias given here, so that entry j holds
@@ -1424,11 +1425,13 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  *                                 Pass a valid context on every build. On the arm_depthwise_conv_s8_opt() route, a
  *                                 NULL buf is diagnosed with ARM_CMSIS_NN_ARG_ERROR on builds where the buffer is
  *                                 actually read (ARM_MATH_DSP and ARM_MATH_MVEI both defined); on other builds the
- *                                 parameter is unread and NULL is accepted. On MVE with input_dims->c == 1 and a
- *                                 large output channel count, this wrapper instead diverts to
- *                                 arm_convolve_wrapper_s8(), which can select kernels that do not check the buffer.
- *                                 A NULL buf is not diagnosed on every route, so do not rely on getting an error
- *                                 back. None of this is a guarantee about future versions.
+ *                                 parameter is unread and NULL is accepted. On MVE with input_dims->c == 1 and an
+ *                                 output channel count above
+ *                                 CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD (8 on armclang, 1
+ *                                 otherwise), this wrapper instead diverts to arm_convolve_wrapper_s8(), which can
+ *                                 select kernels that do not check the buffer. A NULL buf is not diagnosed on
+ *                                 every route, so do not rely on getting an error back. None of this is a
+ *                                 guarantee about future versions.
  *                                 Sized by arm_convolve_s8_get_weights_sum_size():
  *                                 output_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
@@ -1448,8 +1451,10 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  * @param[in]      bias_data       Bias data pointer. Data type: int32
  * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in, out] output_data     Output data pointer. Data type: int8
- * @return     The function returns
- *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion.
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion, or
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> on the arm_depthwise_conv_s8_opt() route if ctx->buf is NULL
+ *                when a scratch buffer is required, or if weight_sum_ctx->buf is NULL on builds where it is read
+ *                (ARM_MATH_DSP and ARM_MATH_MVEI both defined).
  *
  * @details
  *    - Supported framework: TensorFlow Lite
