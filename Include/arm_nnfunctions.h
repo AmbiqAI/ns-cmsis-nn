@@ -2243,8 +2243,12 @@ arm_cmsis_nn_status arm_vector_sum_s8_s64(int64_t *vector_sum_buf,
  * @brief Get size of additional buffer required by arm_fully_connected_s8().
  *        See also arm_vector_sum_s8, which is required if buffer size is > 0.
  * @param[in]      filter_dims             dimension of filter
- * @return         The function returns    required buffer size in bytes
+ * @return         The function returns    required buffer size in bytes, or -1 if filter_dims->c is negative or
+ *                                         the required size would not fit in an int32_t
  *
+ * @details    For a valid (non-negative, in-range) filter_dims->c, returns filter_dims->c * sizeof(int32_t) on
+ *             builds with the MVE extension and 0 elsewhere. For an invalid filter_dims->c, returns -1 on every
+ *             build target.
  */
 int32_t arm_fully_connected_s8_get_buffer_size(const cmsis_nn_dims *filter_dims);
 
@@ -2254,6 +2258,7 @@ int32_t arm_fully_connected_s8_get_buffer_size(const cmsis_nn_dims *filter_dims)
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_fully_connected_s8_get_buffer_size().
+ * @note       This variant does not validate dims; validation lives in the top-level dispatcher.
  *
  */
 int32_t arm_fully_connected_s8_get_buffer_size_dsp(const cmsis_nn_dims *filter_dims);
@@ -2264,6 +2269,7 @@ int32_t arm_fully_connected_s8_get_buffer_size_dsp(const cmsis_nn_dims *filter_d
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_fully_connected_s8_get_buffer_size().
+ * @note       Also validates dims like the top-level dispatcher, returning -1 for invalid values.
  *
  */
 int32_t arm_fully_connected_s8_get_buffer_size_mve(const cmsis_nn_dims *filter_dims);
@@ -5385,12 +5391,15 @@ arm_cmsis_nn_status arm_svdf_state_s16_s8(const cmsis_nn_context *input_ctx,
  * @brief Get size of the kernel-sum buffer required by arm_svdf_s8().
  * @param[in]      weights_feature_dims    dimensions of the weights (feature) tensor, i.e. the same
  *                                         cmsis_nn_dims passed to arm_svdf_s8()
- * @return         The function returns    required buffer size in bytes
+ * @return         The function returns    required buffer size in bytes, or -1 if weights_feature_dims->n is
+ *                                         negative or the required size would not fit in an int32_t
  *
- * @details    Returns weights_feature_dims->n * sizeof(int32_t) on builds with the MVE extension and 0
- *             elsewhere. arm_svdf_s8() has no filter_dims argument, and the buffer is indexed by
- *             weights_feature_dims->n, so no other cmsis_nn_dims of that call can size it - in particular
- *             arm_fully_connected_s8_get_buffer_size() reads a different field and under-allocates.
+ * @details    For a valid (non-negative, in-range) weights_feature_dims->n, returns
+ *             weights_feature_dims->n * sizeof(int32_t) on builds with the MVE extension and 0 elsewhere. For an
+ *             invalid weights_feature_dims->n, returns -1 on every build target. arm_svdf_s8() has no filter_dims
+ *             argument, and the buffer is indexed by weights_feature_dims->n, so no other cmsis_nn_dims of that
+ *             call can size it - in particular arm_fully_connected_s8_get_buffer_size() reads a different field
+ *             and under-allocates.
  *             See arm_svdf_s8() for the buffer's layout, how to fill it and when it may be reused.
  */
 int32_t arm_svdf_s8_get_buffer_size(const cmsis_nn_dims *weights_feature_dims);
@@ -5401,6 +5410,7 @@ int32_t arm_svdf_s8_get_buffer_size(const cmsis_nn_dims *weights_feature_dims);
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_svdf_s8_get_buffer_size().
+ * @note       This variant does not validate dims; validation lives in the top-level dispatcher.
  *
  */
 int32_t arm_svdf_s8_get_buffer_size_dsp(const cmsis_nn_dims *weights_feature_dims);
@@ -5411,6 +5421,7 @@ int32_t arm_svdf_s8_get_buffer_size_dsp(const cmsis_nn_dims *weights_feature_dim
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_svdf_s8_get_buffer_size().
+ * @note       Also validates dims like the top-level dispatcher, returning -1 for invalid values.
  *
  */
 int32_t arm_svdf_s8_get_buffer_size_mve(const cmsis_nn_dims *weights_feature_dims);
@@ -5561,11 +5572,13 @@ arm_cmsis_nn_status arm_batch_matmul_s16(const cmsis_nn_context *ctx,
  * @brief Get size of the scratch buffer required by arm_batch_matmul_s8().
  * @param[in]      input_rhs_dims          dimensions of the (transposed) rhs tensor, i.e. the same
  *                                         cmsis_nn_dims passed to arm_batch_matmul_s8()
- * @return         The function returns    required buffer size in bytes
+ * @return         The function returns    required buffer size in bytes, or -1 if input_rhs_dims->w is negative
+ *                                         or the required size would not fit in an int32_t
  *
- * @details    Returns input_rhs_dims->w * sizeof(int32_t) on builds with the MVE extension and 0 elsewhere.
- *             input_rhs_dims->w is the rhs row count, which is what the kernel-sum buffer is indexed by;
- *             sizing this buffer from any other dims (in particular with
+ * @details    For a valid (non-negative, in-range) input_rhs_dims->w, returns input_rhs_dims->w * sizeof(int32_t)
+ *             on builds with the MVE extension and 0 elsewhere. For an invalid input_rhs_dims->w, returns -1 on
+ *             every build target. input_rhs_dims->w is the rhs row count, which is what the kernel-sum buffer is
+ *             indexed by; sizing this buffer from any other dims (in particular with
  *             arm_fully_connected_s8_get_buffer_size(), which reads .c) writes past the allocation whenever
  *             the rhs has more rows than columns.
  *             arm_batch_matmul_s16() needs no scratch buffer and so has no corresponding sizer.
@@ -5578,6 +5591,7 @@ int32_t arm_batch_matmul_s8_get_buffer_size(const cmsis_nn_dims *input_rhs_dims)
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_batch_matmul_s8_get_buffer_size().
+ * @note       This variant does not validate dims; validation lives in the top-level dispatcher.
  *
  */
 int32_t arm_batch_matmul_s8_get_buffer_size_dsp(const cmsis_nn_dims *input_rhs_dims);
@@ -5588,6 +5602,7 @@ int32_t arm_batch_matmul_s8_get_buffer_size_dsp(const cmsis_nn_dims *input_rhs_d
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_batch_matmul_s8_get_buffer_size().
+ * @note       Also validates dims like the top-level dispatcher, returning -1 for invalid values.
  *
  */
 int32_t arm_batch_matmul_s8_get_buffer_size_mve(const cmsis_nn_dims *input_rhs_dims);
