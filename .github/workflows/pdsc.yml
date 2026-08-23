@@ -116,6 +116,31 @@ jobs:
       - name: Run DSP symbol collision check tests
         run: python3 scripts/tests/test_check_dsp_symbol_collisions.py
 
+  header_placeholders:
+    # Guards against an unsubstituted documentation template token -- the
+    # literal `{API}_get_buffer_size()` -- surviving into a public header.
+    # 17 public kernels shipped with that placeholder in their `ctx` doxygen,
+    # telling callers to size ctx->buf via a function whose name the docs
+    # then declined to supply. Twice (#269) someone resolved it by hand and
+    # got it wrong, landing on a sizer that reads a different cmsis_nn_dims
+    # field, under-sizing the allocation, and the kernel wrote past it: a
+    # shipped heap overflow originating in a docs placeholder. The
+    # placeholder is the defect source, so the placeholder is what gets
+    # gated. See #288.
+    name: Public header placeholders
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run header placeholder check
+        run: python3 scripts/check_header_placeholders.py
+
+      # The check is a merge gate whose own logic is easy to regress in
+      # either direction, so its mutation tests gate it in turn.
+      - name: Run header placeholder check tests
+        run: python3 scripts/tests/test_check_header_placeholders.py
+
   api_group_classification:
     # Guards docs/_ext/api_group_index.py's GROUP_PATTERNS: every public
     # top-level kernel in Include/arm_nnfunctions*.h must match at least
