@@ -2065,16 +2065,17 @@ arm_cmsis_nn_status arm_fully_connected_s4(const cmsis_nn_context *ctx,
 /**
  * @brief Basic s8 Fully Connected function.
  *
- * @param[in, out] ctx           Per-output-channel kernel sums, supplied by the caller - not scratch memory that
+ * @param[in]      ctx           Per-output-channel kernel sums, supplied by the caller - not scratch memory that
  *                               this function fills in. The library never populates ctx->buf for this function, and
- *                               clearing it is not a safe default: it makes the output silently wrong, because the
- *                               sums also carry the bias term.
+ *                               on builds with the MVE extension clearing it makes the output silently wrong,
+ *                               because the sums also carry the bias term.
  *                               Fill it with arm_vector_sum_s8(), passing filter_dims->n as vector_cols,
  *                               output_dims->c as vector_rows, filter_data as vector_data, fc_params->input_offset
  *                               as lhs_offset, fc_params->filter_offset as rhs_offset and the same bias_data given
- *                               here, so that entry j holds input_offset * (sum of the weights of output channel j
- *                               + filter_dims->n * filter_offset) + bias_data[j]. That helper is available on every
- *                               build and returns ARM_CMSIS_NN_SUCCESS.
+ *                               here, so that entry j holds bias_data[j] plus input_offset times the sum of the
+ *                               weights of output channel j, where each of those filter_dims->n weights first has
+ *                               filter_offset added to it. That helper is available on every build and returns
+ *                               ARM_CMSIS_NN_SUCCESS.
  *                               This function only reads the buffer and never writes it, so it is filled once and
  *                               may then be reused for as long as filter_data, bias_data, fc_params->input_offset
  *                               and fc_params->filter_offset are unchanged.
@@ -2087,6 +2088,10 @@ arm_cmsis_nn_status arm_fully_connected_s4(const cmsis_nn_context *ctx,
  *                               does not read ctx->buf. None of this is a guarantee about future versions.
  *                               Sized by arm_fully_connected_s8_get_buffer_size():
  *                               filter_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise.
+ *                               Do NOT clear this buffer between calls: zeroing it is indistinguishable from
+ *                               leaving it unfilled, and produces the silently wrong output described above. If it
+ *                               must be cleared for security reasons, clear it after the last call that uses it,
+ *                               and refill it before any further call.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : [-127, 128]
  *                               fc_params->filter_offset : 0
@@ -2132,16 +2137,17 @@ arm_cmsis_nn_status arm_fully_connected_s8(const cmsis_nn_context *ctx,
 /**
  * @brief Basic s8 Fully Connected function using per channel quantization.
  *
- * @param[in, out] ctx           Per-output-channel kernel sums, supplied by the caller - not scratch memory that
+ * @param[in]      ctx           Per-output-channel kernel sums, supplied by the caller - not scratch memory that
  *                               this function fills in. The library never populates ctx->buf for this function, and
- *                               clearing it is not a safe default: it makes the output silently wrong, because the
- *                               sums also carry the bias term.
+ *                               on builds with the MVE extension clearing it makes the output silently wrong,
+ *                               because the sums also carry the bias term.
  *                               Fill it with arm_vector_sum_s8(), passing filter_dims->n as vector_cols,
  *                               output_dims->c as vector_rows, filter_data as vector_data, fc_params->input_offset
  *                               as lhs_offset, fc_params->filter_offset as rhs_offset and the same bias_data given
- *                               here, so that entry j holds input_offset * (sum of the weights of output channel j
- *                               + filter_dims->n * filter_offset) + bias_data[j]. That helper is available on every
- *                               build and returns ARM_CMSIS_NN_SUCCESS.
+ *                               here, so that entry j holds bias_data[j] plus input_offset times the sum of the
+ *                               weights of output channel j, where each of those filter_dims->n weights first has
+ *                               filter_offset added to it. That helper is available on every build and returns
+ *                               ARM_CMSIS_NN_SUCCESS.
  *                               This function only reads the buffer and never writes it, so it is filled once and
  *                               may then be reused for as long as filter_data, bias_data, fc_params->input_offset
  *                               and fc_params->filter_offset are unchanged.
@@ -2155,6 +2161,10 @@ arm_cmsis_nn_status arm_fully_connected_s8(const cmsis_nn_context *ctx,
  *                               There is no per-channel sizer; arm_fully_connected_s8_get_buffer_size() returns
  *                               the same quantity this function needs, filter_dims->c * sizeof(int32_t) where the
  *                               sums are used and 0 otherwise.
+ *                               Do NOT clear this buffer between calls: zeroing it is indistinguishable from
+ *                               leaving it unfilled, and produces the silently wrong output described above. If it
+ *                               must be cleared for security reasons, clear it after the last call that uses it,
+ *                               and refill it before any further call.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : [-127, 128]
  *                               fc_params->filter_offset : 0
@@ -2200,18 +2210,19 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s8(const cmsis_nn_context *c
 /**
  * @brief s8 Fully Connected layer wrapper function
  *
- * @param[in, out] ctx           Per-output-channel kernel sums, supplied by the caller - not scratch memory that
- *                               this wrapper fills in. The library never populates ctx->buf here, and clearing it
- *                               is not a safe default: it makes the output silently wrong, because the sums also
- *                               carry the bias term. The context is passed straight through to
+ * @param[in]      ctx           Per-output-channel kernel sums, supplied by the caller - not scratch memory that
+ *                               this wrapper fills in. The library never populates ctx->buf here, and on builds
+ *                               with the MVE extension clearing it makes the output silently wrong, because the
+ *                               sums also carry the bias term. The context is passed straight through to
  *                               arm_fully_connected_per_channel_s8() or arm_fully_connected_s8() depending on
  *                               quant_params->is_per_channel, and both read it the same way.
  *                               Fill it with arm_vector_sum_s8(), passing filter_dims->n as vector_cols,
  *                               output_dims->c as vector_rows, filter_data as vector_data, fc_params->input_offset
  *                               as lhs_offset, fc_params->filter_offset as rhs_offset and the same bias_data given
- *                               here, so that entry j holds input_offset * (sum of the weights of output channel j
- *                               + filter_dims->n * filter_offset) + bias_data[j]. That helper is available on every
- *                               build and returns ARM_CMSIS_NN_SUCCESS.
+ *                               here, so that entry j holds bias_data[j] plus input_offset times the sum of the
+ *                               weights of output channel j, where each of those filter_dims->n weights first has
+ *                               filter_offset added to it. That helper is available on every build and returns
+ *                               ARM_CMSIS_NN_SUCCESS.
  *                               Neither selected kernel writes the buffer, so it is filled once and may then be
  *                               reused for as long as filter_data, bias_data, fc_params->input_offset and
  *                               fc_params->filter_offset are unchanged.
@@ -2225,6 +2236,10 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s8(const cmsis_nn_context *c
  *                               There is no wrapper sizer; arm_fully_connected_s8_get_buffer_size() returns the
  *                               quantity both routes need, filter_dims->c * sizeof(int32_t) where the sums are
  *                               used and 0 otherwise.
+ *                               Do NOT clear this buffer between calls: zeroing it is indistinguishable from
+ *                               leaving it unfilled, and produces the silently wrong output described above. If it
+ *                               must be cleared for security reasons, clear it after the last call that uses it,
+ *                               and refill it before any further call.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : [-127, 128]
  *                               fc_params->filter_offset : 0
