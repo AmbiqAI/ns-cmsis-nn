@@ -1091,8 +1091,10 @@ def check_ssot_pdsc_agreement(entries: list[tuple[str, str]]) -> None:
 #     (the legacy build defaults both OFF), so a float suite is never
 #     configured, never compiled, and never run in CI;
 #   - 36 of them included `../TestData/<name>/test_data.h` paths that
-#     unittest_targets.py has no generation path for and that are not
-#     checked in, so they could not compile at all.
+#     their `*_settings_flt.py` generators do produce, but only into a
+#     gitignored `TestData/` tree — the data was never force-added, so
+#     the paths did not resolve in any checkout and the suites could not
+#     compile at all, generator or not.
 #
 # The cost is not hypothetical: those registrations were counted as
 # transpose-conv float coverage while the shipped kernel had an
@@ -1309,7 +1311,17 @@ def check_unit_test_suite_data() -> None:
 
         for src in sources:
             src_dir = src.rsplit("/", 1)[0]
-            text = (REPO / src).read_text(encoding="utf-8", errors="ignore")
+            try:
+                text = (REPO / src).read_text(encoding="utf-8", errors="ignore")
+            except OSError as e:
+                # `src` came from `git ls-files`, so it is tracked, but a
+                # locally deleted/renamed working-tree file (or a broken
+                # symlink) would otherwise surface as an uncaught
+                # traceback instead of a normal fail() report.
+                fail(f"{src}: could not be read ({e}), but is a tracked source of "
+                     f"TestCases/{suite}, which is registered in "
+                     "Tests/UnitTest/CMakeLists.txt.")
+                continue
             for inc in QUOTED_INCLUDE_RE.findall(text):
                 if "/" not in inc:
                     continue  # bare name: resolved off the include path, not relative

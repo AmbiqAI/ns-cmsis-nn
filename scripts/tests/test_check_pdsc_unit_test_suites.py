@@ -107,6 +107,7 @@ class SuiteDataCase(unittest.TestCase):
         suites: list[str],
         f32_suites: list[str] | None = None,
         allowlist: dict[str, dict[str, str]] | None = None,
+        tracked_extra: list[str] | None = None,
     ) -> list[str]:
         """Run check #10 over a synthetic tree; return its failures."""
         mod = load_checker()
@@ -134,7 +135,7 @@ class SuiteDataCase(unittest.TestCase):
 
         mod.REPO = root
         mod.UNIT_TEST_CMAKE = cmake
-        mod.tracked_repo_files = lambda: set(files)
+        mod.tracked_repo_files = lambda: set(files) | set(tracked_extra or [])
         mod.UNBUILDABLE_SUITE_ALLOWLIST = {} if allowlist is None else allowlist
         mod.failures.clear()
         mod.check_unit_test_suite_data()
@@ -369,6 +370,24 @@ class SuiteDataCase(unittest.TestCase):
             },
             needle="no longer registered",
         )
+
+    # -- an unreadable tracked source must fail(), not raise -------------
+
+    def test_unreadable_tracked_source_is_a_clean_failure(self):
+        """`sources` comes from `tracked_repo_files()` (git ls-files), not
+        the working tree. A tracked file the working tree no longer has
+        (deleted locally, broken symlink, ...) must surface as a normal
+        fail() entry, not an uncaught FileNotFoundError traceback."""
+        got = self.assertRed(
+            files=HEALTHY,
+            suites=["test_arm_add_s8"],
+            tracked_extra=[f"{PREFIX}test_arm_add_s8/ghost.c"],
+            needle="could not be read",
+        )
+        self.assertIn("test_arm_add_s8/ghost.c", " ".join(got))
+        # The real, readable source must still be checked -- one bad file
+        # must not swallow the rest of the suite's sources.
+        self.assertIn("test_arm_add_s8", " ".join(got))
 
     # -- the parser must refuse what it cannot parse -----------------------
 

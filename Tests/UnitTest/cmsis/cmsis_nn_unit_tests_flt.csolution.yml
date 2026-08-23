@@ -41,7 +41,18 @@ solution:
       debug: on
 
   projects:
+    # F32 was dropped from this project with #256 (test_arm_convolve_f32's
+    # host suite was one of the 35 registered-but-unbuildable float suites
+    # deleted there; the F16 suite is broken the same way but rides with
+    # #236 -- see scripts/check_pdsc.py's UNBUILDABLE_SUITE_ALLOWLIST). Its
+    # cproject.yml only declares an F16 setup, but without this
+    # `for-context` restriction the solution-wide F32 build-type still made
+    # `test_arm_convolve_flt.F32+Corstone-300-FVP` resolve to a context that
+    # links only unity.c and the Corstone layer -- no `main`, a guaranteed
+    # link failure for anyone who tried it. Pin the project to the context
+    # it actually has.
     - project: ./test_arm_convolve_flt/test_arm_convolve_flt.cproject.yml
+      for-context: [.F16]
     - project: ./test_arm_reshape_flt/test_arm_reshape_flt.cproject.yml
     - project: ./test_arm_transpose_conv_flt/test_arm_transpose_conv_flt.cproject.yml
 
