@@ -1424,8 +1424,11 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  *                                 Pass a valid context on every build. On the arm_depthwise_conv_s8_opt() route, a
  *                                 NULL buf is diagnosed with ARM_CMSIS_NN_ARG_ERROR on builds where the buffer is
  *                                 actually read (ARM_MATH_DSP and ARM_MATH_MVEI both defined); on other builds the
- *                                 parameter is unread and NULL is accepted. None of this is a guarantee about
- *                                 future versions.
+ *                                 parameter is unread and NULL is accepted. On MVE with input_dims->c == 1 and a
+ *                                 large output channel count, this wrapper instead diverts to
+ *                                 arm_convolve_wrapper_s8(), which can select kernels that do not check the buffer.
+ *                                 A NULL buf is not diagnosed on every route, so do not rely on getting an error
+ *                                 back. None of this is a guarantee about future versions.
  *                                 Sized by arm_convolve_s8_get_weights_sum_size():
  *                                 output_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
@@ -1901,8 +1904,7 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *             a failure. Size the buffer with arm_convolve_s8_get_weights_sum_size(): output_dims->c *
  *             sizeof(int32_t) where the sums are used, 0 otherwise, and clear it afterwards if applicable for
  *             security reasons.
- *             Pass a valid context on every build. Currently the contents are read only on builds with the MVE
- *             extension (ARM_MATH_MVEI). On builds where the buffer is actually read (ARM_MATH_DSP and
+ *             Pass a valid context on every build. On builds where the buffer is actually read (ARM_MATH_DSP and
  *             ARM_MATH_MVEI both defined), a NULL buf is diagnosed and this function returns
  *             <code>ARM_CMSIS_NN_ARG_ERROR</code>, matching arm_convolve_s8(). On other builds the parameter is
  *             unread and NULL is accepted. An allocated-but-unfilled buffer cannot be diagnosed the same way: it
@@ -1910,10 +1912,9 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *             weight-sum vector is a legal result. None of this is a guarantee about future versions.
  *
  * @return     The function returns one of the following
- *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or
- *                                                      ch_mult != 1
- *                                                    - ctx->buf is NULL when a scratch buffer is required
- *                                                    - weight_sum_ctx->buf is NULL, on builds where it is read
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or ch_mult != 1, or
+ *                                                      ctx->buf is NULL when a scratch buffer is required, or
+ *                                                      weight_sum_ctx->buf is NULL on builds where it is read
  *                                                      (ARM_MATH_DSP and ARM_MATH_MVEI both defined)
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
