@@ -177,6 +177,83 @@ void basic_arm_depthwise_conv_s8_opt(void)
     TEST_ASSERT_TRUE(validate(output, basic_output_ref, BASIC_DST_SIZE));
 }
 
+void depthwise_null_weight_sum_arm_depthwise_conv_s8_opt(void)
+{
+    /* arm_depthwise_conv_s8_opt() only reads weight_sum_ctx->buf on builds where ARM_MATH_DSP and ARM_MATH_MVEI
+     * are both defined - that is exactly where the NULL guard lives, and exactly where a NULL buf must be
+     * diagnosed rather than silently producing garbage output. On any other build the parameter is unread, NULL
+     * is accepted, and the call succeeds - so the ARG_ERROR assertion below must not even compile there. */
+#if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_ARG_ERROR;
+    int8_t output[BASIC_DST_SIZE] = {0};
+
+    cmsis_nn_context ctx;
+    cmsis_nn_context weight_sum_ctx = {0};
+    cmsis_nn_dw_conv_params dw_conv_params;
+    cmsis_nn_per_channel_quant_params quant_params;
+    cmsis_nn_dims input_dims;
+    cmsis_nn_dims filter_dims;
+    cmsis_nn_dims bias_dims;
+    cmsis_nn_dims output_dims;
+
+    const int32_t *bias_data = basic_biases;
+    const int8_t *kernel_data = basic_weights;
+    const int8_t *input_data = basic_input;
+
+    input_dims.n = BASIC_INPUT_BATCHES;
+    input_dims.w = BASIC_INPUT_W;
+    input_dims.h = BASIC_INPUT_H;
+    input_dims.c = BASIC_IN_CH;
+    filter_dims.w = BASIC_FILTER_X;
+    filter_dims.h = BASIC_FILTER_Y;
+    output_dims.w = BASIC_OUTPUT_W;
+    output_dims.h = BASIC_OUTPUT_H;
+    output_dims.c = BASIC_OUT_CH;
+
+    dw_conv_params.padding.w = BASIC_PAD_X;
+    dw_conv_params.padding.h = BASIC_PAD_Y;
+    dw_conv_params.stride.w = BASIC_STRIDE_X;
+    dw_conv_params.stride.h = BASIC_STRIDE_Y;
+    dw_conv_params.dilation.w = BASIC_DILATION_X;
+    dw_conv_params.dilation.h = BASIC_DILATION_Y;
+
+    dw_conv_params.ch_mult = 1;
+
+    dw_conv_params.input_offset = BASIC_INPUT_OFFSET;
+    dw_conv_params.output_offset = BASIC_OUTPUT_OFFSET;
+    dw_conv_params.activation.min = BASIC_OUT_ACTIVATION_MIN;
+    dw_conv_params.activation.max = BASIC_OUT_ACTIVATION_MAX;
+    quant_params.multiplier = (int32_t *)basic_output_mult;
+    quant_params.shift = (int32_t *)basic_output_shift;
+
+    ctx.size = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
+    ctx.buf = malloc((size_t)ctx.size);
+    TEST_ASSERT_TRUE(ctx.size == 0 || ctx.buf != NULL);
+
+    /* weight_sum_ctx is left as {0} (buf == NULL) on purpose: this is the precondition the NULL guard exists to
+     * diagnose, so ctx must otherwise be entirely valid. */
+    arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt(&ctx,
+                                                           &weight_sum_ctx,
+                                                           &dw_conv_params,
+                                                           &quant_params,
+                                                           &input_dims,
+                                                           input_data,
+                                                           &filter_dims,
+                                                           kernel_data,
+                                                           &bias_dims,
+                                                           bias_data,
+                                                           &output_dims,
+                                                           output);
+
+    if (ctx.buf)
+    {
+        free(ctx.buf);
+    }
+
+    TEST_ASSERT_EQUAL(expected, result);
+#endif
+}
+
 void depthwise_eq_in_out_ch_arm_depthwise_conv_s8_opt(void)
 {
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
@@ -1152,22 +1229,26 @@ void depthwise_boundary_matrix_arm_depthwise_conv_s8_opt(void)
                 TEST_ASSERT_NOT_NULL(ctx.buf);
             }
 
-            if (!test_case->use_wrapper)
-            {
-                weight_sum_ctx.size = channels * (int32_t)sizeof(int32_t);
-                weight_sum_ctx.buf = malloc((size_t)weight_sum_ctx.size);
-                TEST_ASSERT_NOT_NULL(weight_sum_ctx.buf);
-                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                                  arm_depthwise_convolve_weight_sum(weight_sum_ctx.buf,
-                                                                    ctx.buf,
-                                                                    kernel,
-                                                                    &dw_conv_params,
-                                                                    &input_dims,
-                                                                    &filter_dims,
-                                                                    &output_dims,
-                                                                    input_offset,
-                                                                    bias));
-            }
+            /* Fill weight_sum_ctx on every route, wrapper included: even though the sole use_wrapper test case
+             * currently has dilation != 1 and so does not reach arm_depthwise_conv_s8_opt(), a future wrapper
+             * case must not silently rely on an unfilled buffer. Note that dilation == 1 alone does not guarantee
+             * the wrapper reaches arm_depthwise_conv_s8_opt() either: on MVE, input_dims->c == 1 with an output
+             * channel count above CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD (8 on armclang, 1
+             * otherwise) diverts to the conv-conversion route (arm_depthwise_conv_to_conv_s8()) instead, which
+             * wants conv-style sums from arm_convolve_weight_sum() rather than these depthwise sums. */
+            weight_sum_ctx.size = channels * (int32_t)sizeof(int32_t);
+            weight_sum_ctx.buf = malloc((size_t)weight_sum_ctx.size);
+            TEST_ASSERT_NOT_NULL(weight_sum_ctx.buf);
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_depthwise_convolve_weight_sum(weight_sum_ctx.buf,
+                                                                ctx.buf,
+                                                                kernel,
+                                                                &dw_conv_params,
+                                                                &input_dims,
+                                                                &filter_dims,
+                                                                &output_dims,
+                                                                input_offset,
+                                                                bias));
 
             arm_cmsis_nn_status result;
             if (test_case->use_wrapper)
