@@ -2065,11 +2065,33 @@ arm_cmsis_nn_status arm_fully_connected_s4(const cmsis_nn_context *ctx,
 /**
  * @brief Basic s8 Fully Connected function.
  *
- * @param[in, out] ctx           Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function {API}_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      ctx           Per-output-channel kernel sums, supplied by the caller - not scratch memory that
+ *                               this function fills in. The library never populates ctx->buf for this function, and
+ *                               on builds with the MVE extension clearing it makes the output silently wrong,
+ *                               because the sums also carry the bias term.
+ *                               Fill it with arm_vector_sum_s8(), passing filter_dims->n as vector_cols,
+ *                               output_dims->c as vector_rows, filter_data as vector_data, fc_params->input_offset
+ *                               as lhs_offset, fc_params->filter_offset as rhs_offset and the same bias_data given
+ *                               here, so that entry j holds bias_data[j] plus input_offset times the sum of the
+ *                               weights of output channel j, where each of those filter_dims->n weights first has
+ *                               filter_offset added to it. That helper is available on every build and returns
+ *                               ARM_CMSIS_NN_SUCCESS.
+ *                               This function only reads the buffer and never writes it, so it is filled once and
+ *                               may then be reused for as long as filter_data, bias_data, fc_params->input_offset
+ *                               and fc_params->filter_offset are unchanged.
+ *                               Pass a valid context on every build; ctx itself is dereferenced unconditionally.
+ *                               Currently the contents are read only on builds with the MVE extension
+ *                               (ARM_MATH_MVEI), where the bias_data argument is ignored because the sums already
+ *                               carry it and a NULL buf is reported as ARM_CMSIS_NN_ARG_ERROR; an unfilled or
+ *                               cleared buffer there yields wrong output while still returning
+ *                               ARM_CMSIS_NN_SUCCESS. On other builds this function adds bias_data directly and
+ *                               does not read ctx->buf. None of this is a guarantee about future versions.
+ *                               Sized by arm_fully_connected_s8_get_buffer_size():
+ *                               filter_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise.
+ *                               Do NOT clear this buffer between calls: zeroing it is indistinguishable from
+ *                               leaving it unfilled, and produces the silently wrong output described above. If it
+ *                               must be cleared for security reasons, clear it after the last call that uses it,
+ *                               and refill it before any further call.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : [-127, 128]
  *                               fc_params->filter_offset : 0
@@ -2115,11 +2137,34 @@ arm_cmsis_nn_status arm_fully_connected_s8(const cmsis_nn_context *ctx,
 /**
  * @brief Basic s8 Fully Connected function using per channel quantization.
  *
- * @param[in, out] ctx           Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function {API}_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      ctx           Per-output-channel kernel sums, supplied by the caller - not scratch memory that
+ *                               this function fills in. The library never populates ctx->buf for this function, and
+ *                               on builds with the MVE extension clearing it makes the output silently wrong,
+ *                               because the sums also carry the bias term.
+ *                               Fill it with arm_vector_sum_s8(), passing filter_dims->n as vector_cols,
+ *                               output_dims->c as vector_rows, filter_data as vector_data, fc_params->input_offset
+ *                               as lhs_offset, fc_params->filter_offset as rhs_offset and the same bias_data given
+ *                               here, so that entry j holds bias_data[j] plus input_offset times the sum of the
+ *                               weights of output channel j, where each of those filter_dims->n weights first has
+ *                               filter_offset added to it. That helper is available on every build and returns
+ *                               ARM_CMSIS_NN_SUCCESS.
+ *                               This function only reads the buffer and never writes it, so it is filled once and
+ *                               may then be reused for as long as filter_data, bias_data, fc_params->input_offset
+ *                               and fc_params->filter_offset are unchanged.
+ *                               Pass a valid context on every build; ctx itself is dereferenced unconditionally.
+ *                               Currently the contents are read only on builds with the MVE extension
+ *                               (ARM_MATH_MVEI), where the bias_data argument is ignored because the sums already
+ *                               carry it and a NULL buf is reported as ARM_CMSIS_NN_ARG_ERROR; an unfilled or
+ *                               cleared buffer there yields wrong output while still returning
+ *                               ARM_CMSIS_NN_SUCCESS. On other builds this function adds bias_data directly and
+ *                               does not read ctx->buf. None of this is a guarantee about future versions.
+ *                               There is no per-channel sizer; arm_fully_connected_s8_get_buffer_size() returns
+ *                               the same quantity this function needs, filter_dims->c * sizeof(int32_t) where the
+ *                               sums are used and 0 otherwise.
+ *                               Do NOT clear this buffer between calls: zeroing it is indistinguishable from
+ *                               leaving it unfilled, and produces the silently wrong output described above. If it
+ *                               must be cleared for security reasons, clear it after the last call that uses it,
+ *                               and refill it before any further call.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : [-127, 128]
  *                               fc_params->filter_offset : 0
@@ -2165,11 +2210,36 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s8(const cmsis_nn_context *c
 /**
  * @brief s8 Fully Connected layer wrapper function
  *
- * @param[in, out] ctx           Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function {API}_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      ctx           Per-output-channel kernel sums, supplied by the caller - not scratch memory that
+ *                               this wrapper fills in. The library never populates ctx->buf here, and on builds
+ *                               with the MVE extension clearing it makes the output silently wrong, because the
+ *                               sums also carry the bias term. The context is passed straight through to
+ *                               arm_fully_connected_per_channel_s8() or arm_fully_connected_s8() depending on
+ *                               quant_params->is_per_channel, and both read it the same way.
+ *                               Fill it with arm_vector_sum_s8(), passing filter_dims->n as vector_cols,
+ *                               output_dims->c as vector_rows, filter_data as vector_data, fc_params->input_offset
+ *                               as lhs_offset, fc_params->filter_offset as rhs_offset and the same bias_data given
+ *                               here, so that entry j holds bias_data[j] plus input_offset times the sum of the
+ *                               weights of output channel j, where each of those filter_dims->n weights first has
+ *                               filter_offset added to it. That helper is available on every build and returns
+ *                               ARM_CMSIS_NN_SUCCESS.
+ *                               Neither selected kernel writes the buffer, so it is filled once and may then be
+ *                               reused for as long as filter_data, bias_data, fc_params->input_offset and
+ *                               fc_params->filter_offset are unchanged.
+ *                               Pass a valid context on every build; ctx itself is dereferenced unconditionally.
+ *                               Currently the contents are read only on builds with the MVE extension
+ *                               (ARM_MATH_MVEI), where the bias_data argument is ignored because the sums already
+ *                               carry it and a NULL buf is reported as ARM_CMSIS_NN_ARG_ERROR; an unfilled or
+ *                               cleared buffer there yields wrong output while still returning
+ *                               ARM_CMSIS_NN_SUCCESS. On other builds the selected kernel adds bias_data directly
+ *                               and does not read ctx->buf. None of this is a guarantee about future versions.
+ *                               There is no wrapper sizer; arm_fully_connected_s8_get_buffer_size() returns the
+ *                               quantity both routes need, filter_dims->c * sizeof(int32_t) where the sums are
+ *                               used and 0 otherwise.
+ *                               Do NOT clear this buffer between calls: zeroing it is indistinguishable from
+ *                               leaving it unfilled, and produces the silently wrong output described above. If it
+ *                               must be cleared for security reasons, clear it after the last call that uses it,
+ *                               and refill it before any further call.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : [-127, 128]
  *                               fc_params->filter_offset : 0
@@ -2288,11 +2358,11 @@ int32_t arm_fully_connected_s8_get_buffer_size_mve(const cmsis_nn_dims *filter_d
 /**
  * @brief Basic s16 Fully Connected function.
  *
- * @param[in, out] ctx           Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function {API}_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in, out] ctx           Unused. This function currently ignores the context entirely on every build - it
+ *                               neither reads nor writes ctx->buf - and arm_fully_connected_s16_get_buffer_size()
+ *                               returns 0 accordingly, so { NULL, 0 } is accepted. Unlike the s8 variants, no
+ *                               precomputed kernel sums are required here. None of this is a guarantee about
+ *                               future versions.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               fc_params->input_offset  : 0
  *                               fc_params->filter_offset : 0
@@ -2335,11 +2405,18 @@ arm_cmsis_nn_status arm_fully_connected_s16(const cmsis_nn_context *ctx,
 /**
  * @brief Basic s16 Fully Connected function using per channel quantization.
  *
- * @param[in, out] ctx           Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function {API}_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in, out] ctx           Scratch buffer that this function writes before it reads, on every build. It is
+ *                               filled here with one reduced int32 multiplier per output channel derived from
+ *                               quant_params->multiplier, so the caller supplies the storage only and the incoming
+ *                               contents are never used. Unlike the s8 variants, no precomputed kernel sums are
+ *                               expected, and clearing the buffer is harmless.
+ *                               Required on every build, not only under MVE: ctx or ctx->buf being NULL is
+ *                               reported as ARM_CMSIS_NN_ARG_ERROR, as is a non-zero ctx->size smaller than the
+ *                               requirement. A ctx->size of 0 is treated as undeclared and is not checked.
+ *                               Sized by arm_fully_connected_per_channel_s16_get_buffer_size():
+ *                               filter_dims->c * sizeof(int32_t), which equals the output_dims->c entries written.
+ *                               The caller is expected to clear the buffer afterwards, if applicable, for security
+ *                               reasons.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : 0
  *                               fc_params->filter_offset : 0
@@ -2384,11 +2461,23 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s16(const cmsis_nn_context *
 
 /**
  * @brief s16 Fully Connected layer wrapper function
- * @param[in, out] ctx           Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function {API}_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in, out] ctx           Scratch buffer, whose use depends on the route taken. Unlike the s8 wrapper, no
+ *                               precomputed kernel sums are expected on either route, and clearing the buffer is
+ *                               harmless.
+ *                               When quant_params->is_per_channel is set, the context is passed to
+ *                               arm_fully_connected_per_channel_s16(), which writes it before reading it, on every
+ *                               build: it is filled there with one reduced int32 multiplier per output channel, so
+ *                               the caller supplies the storage only. On that route ctx or ctx->buf being NULL is
+ *                               reported as ARM_CMSIS_NN_ARG_ERROR, as is a non-zero ctx->size smaller than
+ *                               filter_dims->c * sizeof(int32_t); a ctx->size of 0 is treated as undeclared and is
+ *                               not checked. Size it with arm_fully_connected_per_channel_s16_get_buffer_size().
+ *                               Otherwise the context goes to arm_fully_connected_s16(), which currently ignores
+ *                               it entirely, so { NULL, 0 } is accepted on that route.
+ *                               A caller that does not know the route in advance should size for the per-channel
+ *                               case, since arm_fully_connected_s16_get_buffer_size() returns 0. None of this is a
+ *                               guarantee about future versions.
+ *                               The caller is expected to clear the buffer afterwards, if applicable, for security
+ *                               reasons.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : 0
  *                               fc_params->filter_offset : 0
