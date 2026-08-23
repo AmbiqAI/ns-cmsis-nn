@@ -1398,10 +1398,14 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
 /**
  * @brief Wrapper function to pick the right optimized s8 depthwise convolution function
  *
- * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
- *                                 definition file to see if an additional buffer is required.
- *                                 Optional function {API}_get_buffer_size() provides the buffer
- *                                 size if required.
+ * @param[in, out] ctx             Function context (e.g. temporary buffer). Size ctx->buf with
+ *                                 arm_depthwise_conv_wrapper_s8_get_buffer_size(), which accounts for whichever route
+ *                                 this wrapper selects. It returns 0 when no buffer is needed, in which case ctx->buf
+ *                                 may be NULL. arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp() and
+ *                                 arm_depthwise_conv_wrapper_s8_get_buffer_size_mve() each size the buffer for one
+ *                                 specific target and are not interchangeable. Use the variant matching the build the
+ *                                 library is compiled for; when unsure, call the unsuffixed dispatching sizer, which
+ *                                 always matches the wrapper's own routing.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      weight_sum_ctx  Per-channel weight sums, supplied by the caller. The selected kernel only reads
  *                                 this buffer and never writes it, so it is filled once and may then be reused for
@@ -1481,10 +1485,14 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
 /**
  * @brief Wrapper function to pick the right optimized s4 depthwise convolution function
  *
- * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
- *                                 definition file to see if an additional buffer is required.
- *                                 Optional function {API}_get_buffer_size() provides the buffer
- *                                 size if required.
+ * @param[in, out] ctx             Function context (e.g. temporary buffer). Size ctx->buf with
+ *                                 arm_depthwise_conv_wrapper_s4_get_buffer_size(), which accounts for whichever route
+ *                                 this wrapper selects. It returns 0 when no buffer is needed, in which case ctx->buf
+ *                                 may be NULL. arm_depthwise_conv_wrapper_s4_get_buffer_size_dsp() and
+ *                                 arm_depthwise_conv_wrapper_s4_get_buffer_size_mve() each size the buffer for one
+ *                                 specific target and are not interchangeable. Use the variant matching the build the
+ *                                 library is compiled for; when unsure, call the unsuffixed dispatching sizer, which
+ *                                 always matches the wrapper's own routing.
  *                                 The caller is expected to clear the buffer ,if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
@@ -1612,11 +1620,11 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv
 /**
  * @brief Basic s8 depthwise convolution function that doesn't have any constraints on the input dimensions.
  *
- * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
- *                                 definition file to see if an additional buffer is required.
- *                                 Optional function {API}_get_buffer_size() provides the buffer
- *                                 size if an additional buffer is required exists if additional memory is.
- *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
+ *                                 there is deliberately no arm_depthwise_conv_s8_get_buffer_size(). If you reached this
+ *                                 kernel through arm_depthwise_conv_wrapper_s8(), size the context with
+ *                                 arm_depthwise_conv_wrapper_s8_get_buffer_size() instead, because another route
+ *                                 through that wrapper does require a buffer.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
@@ -1653,11 +1661,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
 /**
  * @brief Basic s4 depthwise convolution function that doesn't have any constraints on the input dimensions.
  *
- * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
- *                                 definition file to see if an additional buffer is required.
- *                                 Optional function {API}_get_buffer_size() provides the buffer
- *                                 size if an additional buffer is required exists if additional memory is.
- *                                 The caller is expected to clear the buffer ,if applicable, for security reasons.
+ * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
+ *                                 there is deliberately no arm_depthwise_conv_s4_get_buffer_size(). If you reached this
+ *                                 kernel through arm_depthwise_conv_wrapper_s4(), size the context with
+ *                                 arm_depthwise_conv_wrapper_s4_get_buffer_size() instead, because another route
+ *                                 through that wrapper does require a buffer.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
@@ -1695,12 +1703,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
 /**
  * @brief Basic s16 depthwise convolution function that doesn't have any constraints on the input dimensions.
  *
- * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
- *                                 definition file to see if an additional buffer is required.
- *                                 Optional function {API}_get_buffer_size() provides the buffer
- *                                 size if an additional buffer is required.
- *                                 exists if additional memory is.
- *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
+ *                                 there is deliberately no arm_depthwise_conv_s16_get_buffer_size(). If you reached
+ *                                 this kernel through arm_depthwise_conv_wrapper_s16(), size the context with
+ *                                 arm_depthwise_conv_wrapper_s16_get_buffer_size() instead, because another route
+ *                                 through that wrapper does require a buffer.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 conv_params->input_offset  : Not used
  *                                 conv_params->output_offset : Not used
@@ -1736,10 +1743,14 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
 /**
  * @brief Wrapper function to pick the right optimized s16 depthwise convolution function
  *
- * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
- *                                 definition file to see if an additional buffer is required.
- *                                 Optional function {API}_get_buffer_size() provides the buffer
- *                                 size if required.
+ * @param[in, out] ctx             Function context (e.g. temporary buffer). Size ctx->buf with
+ *                                 arm_depthwise_conv_wrapper_s16_get_buffer_size(), which accounts for whichever route
+ *                                 this wrapper selects. It returns 0 when no buffer is needed, in which case ctx->buf
+ *                                 may be NULL. arm_depthwise_conv_wrapper_s16_get_buffer_size_dsp() and
+ *                                 arm_depthwise_conv_wrapper_s16_get_buffer_size_mve() each size the buffer for one
+ *                                 specific target and are not interchangeable. Use the variant matching the build the
+ *                                 library is compiled for; when unsure, call the unsuffixed dispatching sizer, which
+ *                                 always matches the wrapper's own routing.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
@@ -2017,11 +2028,10 @@ int32_t arm_depthwise_conv_s4_opt_get_buffer_size(const cmsis_nn_dims *input_dim
 /**
  * @brief Basic s4 Fully Connected function.
  *
- * @param[in, out] ctx           Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function {API}_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer ,if applicable, for security reasons.
+ * @param[in]      ctx           Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
+ *                               there is deliberately no arm_fully_connected_s4_get_buffer_size(). Do not size this
+ *                               context with arm_fully_connected_s8_get_buffer_size(): that sizes the kernel-sum buffer
+ *                               of a different kernel and does not describe this argument.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : [-127, 128]
  *                               fc_params->filter_offset : 0
@@ -4430,10 +4440,11 @@ arm_cmsis_nn_status arm_prelu_scalar_s16(const int16_t *scalar_vect,
 /**
  * @brief s8 average pooling function.
  *
- * @param[in, out] ctx          Function context (e.g. temporary buffer). Check the function
- *                              definition file to see if an additional buffer is required.
- *                              Optional function {API}_get_buffer_size() provides the buffer
- *                              size if an additional buffer is required.
+ * @param[in, out] ctx          Function context. Size ctx->buf with arm_avgpool_s8_get_buffer_size(output_dims->w,
+ *                              input_dims->c). Note that it takes the output width and the input channel count rather
+ *                              than a cmsis_nn_dims. arm_avgpool_s8_get_buffer_size_dsp() and
+ *                              arm_avgpool_s8_get_buffer_size_mve() size the same buffer for a specific target. It
+ *                              returns 0 where no buffer is needed, in which case ctx->buf may be NULL.
  *                              The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      pool_params  Pooling parameters
  * @param[in]      input_dims   Input (activation) tensor dimensions. Format: [H, W, C_IN]
@@ -4493,10 +4504,11 @@ int32_t arm_avgpool_s8_get_buffer_size_mve(const int dim_dst_width, const int ch
 /**
  * @brief s16 average pooling function.
  *
- * @param[in, out] ctx          Function context (e.g. temporary buffer). Check the function
- *                              definition file to see if an additional buffer is required.
- *                              Optional function {API}_get_buffer_size() provides the buffer
- *                              size if an additional buffer is required.
+ * @param[in, out] ctx          Function context. Size ctx->buf with arm_avgpool_s16_get_buffer_size(output_dims->w,
+ *                              input_dims->c). Note that it takes the output width and the input channel count rather
+ *                              than a cmsis_nn_dims. arm_avgpool_s16_get_buffer_size_dsp() and
+ *                              arm_avgpool_s16_get_buffer_size_mve() size the same buffer for a specific target. It
+ *                              returns 0 where no buffer is needed, in which case ctx->buf may be NULL.
  *                              The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      pool_params  Pooling parameters
  * @param[in]      input_dims   Input (activation) tensor dimensions. Format: [H, W, C_IN]
@@ -4556,11 +4568,10 @@ int32_t arm_avgpool_s16_get_buffer_size_mve(const int dim_dst_width, const int c
 /**
  * @brief s8 max pooling function.
  *
- * @param[in, out] ctx          Function context (e.g. temporary buffer). Check the function
- *                              definition file to see if an additional buffer is required.
- *                              Optional function {API}_get_buffer_size() provides the buffer
- *                              size if an additional buffer is required.
- *                              The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      ctx          Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
+ *                              there is deliberately no arm_max_pool_s8_get_buffer_size(). Max pooling needs no
+ *                              accumulator scratch, unlike arm_avgpool_s8(), whose sizer does not describe this
+ *                              argument.
  * @param[in]      pool_params  Pooling parameters
  * @param[in]      input_dims   Input (activation) tensor dimensions. Format: [H, W, C_IN]
  * @param[in]      input_data   Input (activation) data pointer. The input tensor must not
@@ -4591,11 +4602,10 @@ arm_cmsis_nn_status arm_max_pool_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s16 max pooling function.
  *
- * @param[in, out] ctx          Function context (e.g. temporary buffer). Check the function
- *                              definition file to see if an additional buffer is required.
- *                              Optional function {API}_get_buffer_size() provides the buffer
- *                              size if an additional buffer is required.
- *                              The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      ctx          Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
+ *                              there is deliberately no arm_max_pool_s16_get_buffer_size(). Max pooling needs no
+ *                              accumulator scratch, unlike arm_avgpool_s16(), whose sizer does not describe this
+ *                              argument.
  * @param[in]      pool_params  Pooling parameters
  * @param[in]      input_dims   Input (activation) tensor dimensions. Format: [H, W, C_IN]
  * @param[in]      src          Input (activation) data pointer. The input tensor must not
@@ -6496,11 +6506,11 @@ arm_cmsis_nn_status arm_dynamic_update_slice_s16(const int16_t *operand,
 /**
  * @brief Fully-connected layer function for float16
  *
- * @param[in]  ctx                Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function arm_fully_connected_fp16_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]  ctx                Function context. This kernel uses no additional buffer and never dereferences ctx, so
+ *                                ctx->buf may be NULL and there is deliberately no
+ *                                arm_fully_connected_fp16_get_buffer_size(). Do not size this context with
+ *                                arm_fully_connected_f16_get_buffer_size(), which belongs to the separate float API and
+ *                                describes a different function's buffer.
  * @param[in]  fc_params          Pointer to the fully-connected layer parameters
  * @param[in]  input_dims         Pointer to the input tensor dimensions
  * @param[in]  input              Pointer to the input tensor
