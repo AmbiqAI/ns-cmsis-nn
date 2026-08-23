@@ -712,8 +712,8 @@ def _cmake_commands(text: str, what: str) -> list[tuple[str, str]] | None:
 
     CMake commands do not nest, so scanning resumes after each closing
     paren. Returns None (after recording a failure) on unbalanced
-    parentheses — which is also how a `#` inside a quoted string surfaces,
-    since comment stripping is not quote-aware.
+    parentheses, whether from a stray paren or from a `#` inside a quoted
+    string (comment stripping is not quote-aware).
     """
     out: list[tuple[str, str]] = []
     pos = 0
@@ -732,9 +732,9 @@ def _cmake_commands(text: str, what: str) -> list[tuple[str, str]] | None:
         if depth:
             fail(
                 f"{what}: unbalanced parentheses after `{m.group(1)}(` — the SSoT "
-                "parser cannot read this file. A '#' inside a double-quoted CMake "
-                "string does this (comment stripping is not quote-aware); spell "
-                "source names without '#'."
+                "parser cannot read this file. Look for a stray or unmatched "
+                "parenthesis, or a '#' inside a double-quoted string (comment "
+                "stripping is not quote-aware)."
             )
             return None
         out.append((m.group(1), text[m.end() : i - 1]))
@@ -827,6 +827,19 @@ def _parse_ssot_defs(body: str) -> dict[str, dict[str, list]] | None:
                 gates = []
                 defs.setdefault(current, {k: [] for k in SSOT_LIST_VARS})
                 continue
+            if cmd == "elseif":
+                # Modelling this would mean tracking mutual exclusion with
+                # the sibling branch and popping the leaked gate at the
+                # single endif(). Treating it as a nested if() does
+                # neither: it AND-s the two conditions and lets the gate
+                # outlive the block, which resolves later appends under a
+                # gate that is not there. Refuse instead.
+                fail(
+                    f"`elseif({args.strip()})` inside a group branch is not modelled — "
+                    "the SSoT parser cannot tell which branch is live; use independent "
+                    "if(...) blocks or teach scripts/check_pdsc.py."
+                )
+                return None
             if current is None:
                 fail(f"`if({args.strip()})` outside any group branch is not modelled")
                 return None
@@ -906,7 +919,13 @@ def _parse_ssot_defs(body: str) -> dict[str, dict[str, list]] | None:
 def _ssot_dtype_tag(basename: str, dtypes: list[str]) -> str | None:
     """The dtype tag _ns_cmsis_nn_filter_dtypes() would assign, including
     its `_fp16` -> f16 special case. Order matters: the CMake loop breaks
-    on the first hit, so arm_quantize_f32_s8.c tags as s8, not f32."""
+    on the first hit, so arm_quantize_f32_s8.c tags as s8, not f32.
+
+    <dtypes> is read from the SSoT, but this algorithm is a hand mirror of
+    the CMake one and nothing links them — a second special case added
+    there would silently divorce the two and make assertion B skip the
+    affected files. test_filter_dtypes_special_cases_are_mirrored in
+    scripts/tests/test_check_pdsc_ssot.py is the canary for that."""
     if re.search(r"_fp16([._]|$)", basename):
         return "f16"
     for dt in dtypes:

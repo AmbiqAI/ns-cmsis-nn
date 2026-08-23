@@ -38,12 +38,14 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "scripts" / "check_pdsc.py"
+SSOT_CMAKE_REAL = REPO / "cmake" / "ns_cmsis_nn.cmake"
 
 
 def load_checker():
@@ -130,6 +132,26 @@ UNMODELLED_CONDITION = GOOD + """\
       list(APPEND extras "arm_softmax_bf16.c")
     endif()
 """
+# Reviewer fragment 1: an elseif dtype condition read as a nested if()
+# is AND-ed with the sibling branch, so arm_softmax_f16.c resolves only
+# in F32+F16 and assertion B blames correct CMake for a parser defect.
+ELSEIF_GATE = """\
+    set(extras   "arm_softmax_u8.c")
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_softmax_f32.c")
+    elseif(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_softmax_f16.c")
+    endif()
+"""
+
+# Reviewer fragment 2, the worse one: the single endif() pops only the
+# leaked elseif gate, so the trailing ungated append resolves as if it
+# were F32-gated. arm_softmax_s16.c carries an integer tag, so assertion
+# B skips it and assertion A still sees it in the union — a wrong model
+# that exits 0.
+ELSEIF_LEAK = ELSEIF_GATE + '    list(APPEND extras "arm_softmax_s16.c")\n'
+S16 = "Source/SoftmaxFunctions/arm_softmax_s16.c"
+
 SET_INSIDE_GATE = """\
     set(extras   "arm_softmax_u8.c")
     if(ARM_NN_ENABLE_F32)
@@ -279,6 +301,51 @@ class SsotAgreementCase(unittest.TestCase):
 
     def test_set_inside_dtype_gate_is_loud(self):
         self.assertRed(SET_INSIDE_GATE, "inside a dtype gate")
+
+    def test_elseif_inside_group_branch_is_loud(self):
+        self.assertRed(ELSEIF_GATE, "inside a group branch is not modelled")
+
+    def test_elseif_leaked_gate_does_not_resolve_silently(self):
+        """The dangerous shape: read as a nested if(), the leaked gate
+        outlives the single endif() and silently re-gates the append that
+        follows it, while the check still exits 0. The whole parse must be
+        refused — not partially resolved and reported on."""
+        got = self.run_check(ELSEIF_LEAK, pdsc=TRACKED + [S16], tracked=TRACKED + [S16])
+        self.assertEqual(
+            len(got),
+            1,
+            f"a refused parse must publish nothing else, got: {got}",
+        )
+        self.assertIn("inside a group branch is not modelled", got[0])
+        self.assertNotIn("arm_softmax_s16.c", got[0])
+
+    def test_filter_dtypes_special_cases_are_mirrored(self):
+        """Canary. _ssot_dtype_tag() hand-mirrors cmake's
+        _ns_cmsis_nn_filter_dtypes() and nothing links the two, so a
+        second special case added on the CMake side (an `_fp32` remap,
+        say) would silently divorce them: assertion B would skip the
+        affected files and a misplaced gate would pass green. Pin the
+        CMake side's shape so that change has to come here too."""
+        mod = load_checker()
+        text = mod.CMAKE_COMMENT_RE.sub("", SSOT_CMAKE_REAL.read_text(encoding="utf-8"))
+        body = mod._cmake_function_body(text, "_ns_cmsis_nn_filter_dtypes")
+        self.assertIsNotNone(body, "_ns_cmsis_nn_filter_dtypes() not found in the SSoT")
+        advice = (
+            "cmake/ns_cmsis_nn.cmake's _ns_cmsis_nn_filter_dtypes() changed how it "
+            "derives a file's dtype tag. _ssot_dtype_tag() in scripts/check_pdsc.py "
+            "hand-mirrors that algorithm and must be updated in the same change, or "
+            "check #9's gate-placement assertion will silently skip the affected "
+            "files."
+        )
+        # Exactly one literal special case, then the generic dtype loop.
+        self.assertEqual(
+            re.findall(r'MATCHES\s+"([^"]*)"', body),
+            ["_fp16([._]|$)", "_${dt}([._]|$)"],
+            advice,
+        )
+        # ... and it is still break-on-first-hit, which is why
+        # arm_quantize_f32_s8.c tags as s8 rather than f32.
+        self.assertIn("break()", body, advice)
 
     # -- gate placement ---------------------------------------------------
 
