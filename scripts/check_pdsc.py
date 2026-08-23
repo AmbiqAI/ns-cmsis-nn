@@ -56,11 +56,22 @@
 #      models a closed set of CMake constructs and fails on anything
 #      else rather than skipping it — a guard that silently ignores
 #      `list(REMOVE_ITEM ...)` reports drift as clean.
+#  10. Unit-test suite buildability — every suite registered with
+#      `add_subdirectory(TestCases/...)` in Tests/UnitTest/CMakeLists.txt
+#      exists on disk, and every path-shaped `#include "..."` in its
+#      tracked sources resolves to a tracked file. 36 float suites were
+#      registered against `../TestData/<name>/test_data.h` paths no
+#      generator produces; no PR-gating job builds the float suites
+#      (ARM_NN_ENABLE_F32/F16 default OFF in the legacy build), so they
+#      looked like coverage for years while being uncompilable — which is
+#      how a real transpose-conv output-shift bug survived to a release
+#      (#253, #256).
 #
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -1065,6 +1076,214 @@ def check_ssot_pdsc_agreement(entries: list[tuple[str, str]]) -> None:
                 )
 
 
+# --- unit-test suite registration vs on-disk test data -----------------
+#
+# Tests/UnitTest/CMakeLists.txt registers each suite with
+# `add_subdirectory(TestCases/<suite>)`. Registration is the only thing
+# that makes a suite look like coverage, and nothing checks that the
+# suite can actually be compiled:
+#
+#   - the float suites are registered under `if(ARM_NN_ENABLE_F32)` /
+#     `if(ARM_NN_ENABLE_F16)`, and no PR-gating job turns either flag on
+#     (the legacy build defaults both OFF), so a float suite is never
+#     configured, never compiled, and never run in CI;
+#   - 36 of them included `../TestData/<name>/test_data.h` paths that
+#     unittest_targets.py has no generation path for and that are not
+#     checked in, so they could not compile at all.
+#
+# The cost is not hypothetical: those registrations were counted as
+# transpose-conv float coverage while the shipped kernel had an
+# output-shift bug, which is what #253 found and #256 swept up. A
+# registered-but-unbuildable suite is worse than no suite, because it
+# stops anyone from writing the real one.
+#
+# Two things are asserted, both cheap and both textual:
+#
+#   A. Every registered TestCases/<suite> directory exists.
+#      Deleting a suite without unregistering it is a hard CMake error
+#      that only surfaces in a configure nobody runs.
+#   B. Every path-shaped `#include "..."` in a registered suite's tracked
+#      sources resolves to a tracked file, relative to the including
+#      file. "Path-shaped" means the include contains a `/`, which is
+#      what distinguishes `"../TestData/foo/test_data.h"` and
+#      `"../test_arm_reduce_sum_f32.c"` (relative, must resolve on disk)
+#      from `"unity.h"` (bare name, legitimately found on the compiler's
+#      include path, which this script cannot and should not model).
+#
+# Generated files are invisible to (B) by construction: the check reads
+# `git ls-files`, and Unity's TestRunner stubs are produced at configure
+# time and untracked. That is deliberate — a guard that trusted the
+# working tree would pass locally after a configure and fail on a clean
+# CI checkout, or vice versa.
+
+UNIT_TEST_CMAKE = REPO / "Tests" / "UnitTest" / "CMakeLists.txt"
+ADD_SUBDIR_RE = re.compile(r"^\s*add_subdirectory\(([^)]*)\)", re.MULTILINE)
+QUOTED_INCLUDE_RE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.MULTILINE)
+SUITE_SOURCE_SUFFIXES = (".c", ".h", ".cpp", ".hpp")
+
+# `add_subdirectory` arguments in Tests/UnitTest/CMakeLists.txt that are
+# not test suites: the library build itself (a `${CMAKE_CURRENT_SOURCE_DIR}`
+# path) and the vendored Unity checkout. Anything else that is neither one
+# of these nor a `TestCases/...` suite is a hard failure rather than a
+# silent skip — the whole point of this check is that an unexamined
+# registration is how the #256 suites hid.
+NON_SUITE_SUBDIRS = frozenset({"Unity"})
+
+# TEMPORARY ALLOWLIST — REMOVE WITH #236.
+#
+# ############################################################
+# #  Exactly one entry, and it is not a precedent. Do not add #
+# #  to this dict. A suite that cannot compile gets deleted   #
+# #  (#256's disposition), not allowlisted.                   #
+# ############################################################
+#
+# test_arm_convolve_f16 is broken in precisely the way this check exists
+# to catch: all 35 of its `../TestData/...` includes are dangling. It was
+# left in place by the #256 sweep only because PR #236 is open against
+# that exact directory, and deleting it underneath an in-flight PR trades
+# one avoidable mess for another. Its fate rides with #236 — whichever
+# way that PR lands, this entry and (if #236 does not fix the suite) the
+# directory itself must go with it. The stale-entry assertion below turns
+# "#236 fixed the suite" into a build failure here, so this cannot be
+# forgotten silently; only "#236 was closed and nobody looked" can slip,
+# which is why the deadline is named in the failure text.
+UNBUILDABLE_SUITE_ALLOWLIST: dict[str, str] = {
+    "test_arm_convolve_f16": (
+        "dangling ../TestData includes, same as the suites #256 deleted; "
+        "excluded from that sweep only because PR #236 has it open. Delete "
+        "this entry (and the suite, unless #236 repairs it) when #236 lands."
+    ),
+}
+
+
+def tracked_repo_files() -> set[str] | None:
+    """Every path `git ls-files` reports, as a set of repo-relative
+    strings. Used instead of the working tree so this check sees what a
+    clean CI checkout sees, not what a local configure left behind."""
+    try:
+        out = subprocess.run(
+            ["git", "ls-files"],
+            cwd=REPO,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        fail(f"`git ls-files` failed: {e}")
+        return None
+    return set(out.splitlines())
+
+
+def registered_unit_test_suites() -> list[str] | None:
+    """Suite names from `add_subdirectory(TestCases/<suite>)`, in file
+    order. Returns None (after recording a failure) on an
+    `add_subdirectory` argument this check does not model."""
+    if not UNIT_TEST_CMAKE.is_file():
+        fail(f"{UNIT_TEST_CMAKE.relative_to(REPO)} not found")
+        return None
+    text = CMAKE_COMMENT_RE.sub("", UNIT_TEST_CMAKE.read_text(encoding="utf-8"))
+
+    suites: list[str] = []
+    for m in ADD_SUBDIR_RE.finditer(text):
+        arg = m.group(1).split()[0] if m.group(1).split() else ""
+        if not arg or arg.startswith("${"):
+            continue  # the library build: add_subdirectory(${...}/../.. cmsis-nn)
+        if arg in NON_SUITE_SUBDIRS:
+            continue
+        if not arg.startswith("TestCases/"):
+            fail(
+                f"{UNIT_TEST_CMAKE.relative_to(REPO)}: unmodelled "
+                f"`add_subdirectory({arg})` — this check knows how to validate "
+                "`TestCases/<suite>` registrations and nothing else. Teach "
+                "scripts/check_pdsc.py about the new form rather than leaving it "
+                "unchecked."
+            )
+            return None
+        suites.append(arg[len("TestCases/") :].rstrip("/"))
+
+    if not suites:
+        fail(
+            f"{UNIT_TEST_CMAKE.relative_to(REPO)}: no "
+            "`add_subdirectory(TestCases/...)` registrations found — either the "
+            "file changed shape or this check stopped seeing any suites at all."
+        )
+        return None
+    return suites
+
+
+def check_unit_test_suite_data() -> None:
+    suites = registered_unit_test_suites()
+    if suites is None:
+        return
+    tracked = tracked_repo_files()
+    if tracked is None:
+        return
+
+    # Bucket tracked files by suite so each suite is a dict lookup rather
+    # than a scan of ~30k paths.
+    by_suite: dict[str, list[str]] = {}
+    prefix = "Tests/UnitTest/TestCases/"
+    for path in tracked:
+        if not path.startswith(prefix) or not path.endswith(SUITE_SOURCE_SUFFIXES):
+            continue
+        rest = path[len(prefix) :]
+        head, sep, _ = rest.partition("/")
+        if sep:
+            by_suite.setdefault(head, []).append(path)
+
+    broken: set[str] = set()
+    for suite in suites:
+        suite_dir = f"{prefix}{suite}"
+        sources = sorted(by_suite.get(suite, []))
+        if not sources:
+            broken.add(suite)
+            if suite not in UNBUILDABLE_SUITE_ALLOWLIST:
+                fail(
+                    f"Tests/UnitTest/CMakeLists.txt registers "
+                    f"`add_subdirectory(TestCases/{suite})` but {suite_dir}/ has no "
+                    "tracked source files — CMake fails to configure the unit tests "
+                    "at all. Drop the registration if the suite was deleted."
+                )
+            continue
+
+        for src in sources:
+            src_dir = src.rsplit("/", 1)[0]
+            text = (REPO / src).read_text(encoding="utf-8", errors="ignore")
+            for inc in QUOTED_INCLUDE_RE.findall(text):
+                if "/" not in inc:
+                    continue  # bare name: resolved off the include path, not relative
+                resolved = os.path.normpath(f"{src_dir}/{inc}")
+                if resolved in tracked:
+                    continue
+                broken.add(suite)
+                if suite in UNBUILDABLE_SUITE_ALLOWLIST:
+                    continue
+                fail(
+                    f"{src}: #include \"{inc}\" does not resolve ({resolved} is not "
+                    f"tracked), but TestCases/{suite} is registered in "
+                    "Tests/UnitTest/CMakeLists.txt. A registered suite that cannot "
+                    "compile reads as coverage and is not — see #256, where 36 such "
+                    "float suites hid a shipped transpose-conv bug. Either check the "
+                    "data in (the `<case>_data.h` convention) or delete the suite and "
+                    "its registration."
+                )
+
+    registered = set(suites)
+    for suite, reason in sorted(UNBUILDABLE_SUITE_ALLOWLIST.items()):
+        if suite not in registered:
+            fail(
+                f"TestCases/{suite} is on UNBUILDABLE_SUITE_ALLOWLIST but is no longer "
+                "registered in Tests/UnitTest/CMakeLists.txt — drop the allowlist "
+                f"entry so the exception cannot outlive its reason ({reason})"
+            )
+        elif suite not in broken:
+            fail(
+                f"TestCases/{suite} is on UNBUILDABLE_SUITE_ALLOWLIST but every include "
+                "in it now resolves — drop the allowlist entry (and its PR #236 "
+                "comment) so the exception cannot outlive its reason."
+            )
+
+
 def main() -> int:
     if not PDSC.is_file():
         fail(f"{PDSC.relative_to(REPO)} not found")
@@ -1082,6 +1301,7 @@ def main() -> int:
     check_float_source_gating(entries)
     check_ssot_pdsc_agreement(entries)
     check_extra_files_annotations()
+    check_unit_test_suite_data()
 
     report()
     return 1 if failures else 0
@@ -1099,7 +1319,8 @@ def report() -> None:
             "Source/ coverage complete, float sources dtype-gated, "
             "pdsc and cmake/ns_cmsis_nn.cmake source lists agree with "
             "dtype gates correctly placed, "
-            "extra-files annotations live and in sync."
+            "extra-files annotations live and in sync, "
+            "Tests/UnitTest/CMakeLists.txt registrations resolve to buildable suites."
         )
 
 

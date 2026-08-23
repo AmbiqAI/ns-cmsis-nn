@@ -15,26 +15,9 @@ want fresh sampled inputs.
 
 Current shared projects:
 
-- `test_arm_activation_flt`
-- `test_arm_avg_pool_flt`
-- `test_arm_batch_matmul_flt`
-- `test_arm_batch_norm_flt`
-- `test_arm_concatenation_flt`
 - `test_arm_convolve_flt`
-- `test_arm_depthwise_conv_flt`
-- `test_arm_ds_cnn_s_body_flt`
-- `test_arm_elementwise_add_flt`
-- `test_arm_elementwise_mul_flt`
-- `test_arm_fully_connected_flt`
-- `test_arm_lstm_unidirectional_flt`
-- `test_arm_maximum_minimum_flt`
-- `test_arm_max_pool_flt`
-- `test_arm_pad_flt`
 - `test_arm_reshape_flt`
-- `test_arm_softmax_flt`
-- `test_arm_svdf_flt`
 - `test_arm_transpose_conv_flt`
-- `test_arm_transpose_flt`
 
 ## Unified Runner
 
@@ -127,12 +110,12 @@ export GCC_TOOLCHAIN_15_2_1=<gcc-toolchain-bin>
 cd <repo-root>/Tests/UnitTest/cmsis
 
 cbuild --update-rte \
-  --context test_arm_softmax_flt.F32+Corstone-300-FVP \
+  --context test_arm_convolve_flt.F16+Corstone-300-FVP \
   cmsis_nn_unit_tests_flt.csolution.yml \
   -j4 \
   --toolchain GCC@15.2.1
 
-cbuild --context test_arm_softmax_flt.F32+Corstone-300-FVP \
+cbuild --context test_arm_convolve_flt.F16+Corstone-300-FVP \
   cmsis_nn_unit_tests_flt.csolution.yml \
   -j4 \
   --toolchain GCC@15.2.1
@@ -146,124 +129,17 @@ cd <repo-root>/Tests/UnitTest
 python3 unittest_targets.py --download-and-generate-test-runners
 ```
 
-You can replace `test_arm_softmax_flt` with any of:
+You can replace `test_arm_convolve_flt` with any of:
 
-- `test_arm_activation_flt`
-- `test_arm_avg_pool_flt`
-- `test_arm_batch_matmul_flt`
-- `test_arm_batch_norm_flt`
-- `test_arm_concatenation_flt`
 - `test_arm_convolve_flt`
-- `test_arm_depthwise_conv_flt`
-- `test_arm_ds_cnn_s_body_flt`
-- `test_arm_elementwise_add_flt`
-- `test_arm_elementwise_mul_flt`
-- `test_arm_fully_connected_flt`
-- `test_arm_lstm_unidirectional_flt`
-- `test_arm_maximum_minimum_flt`
-- `test_arm_max_pool_flt`
-- `test_arm_pad_flt`
 - `test_arm_reshape_flt`
-- `test_arm_softmax_flt`
-- `test_arm_svdf_flt`
 - `test_arm_transpose_conv_flt`
-- `test_arm_transpose_flt`
 
 and replace `F32` with `F16`.
 
 Examples for the newly added families:
 
 ```bash
-# avg pool f16
-cbuild --update-rte \
-  --context test_arm_avg_pool_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_avg_pool_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
-# max pool f32
-cbuild --update-rte \
-  --context test_arm_max_pool_flt.F32+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_max_pool_flt.F32+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
-# elementwise add f16
-cbuild --update-rte \
-  --context test_arm_elementwise_add_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_elementwise_add_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
-# elementwise mul f32
-cbuild --update-rte \
-  --context test_arm_elementwise_mul_flt.F32+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_elementwise_mul_flt.F32+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
-# fully connected f16
-cbuild --update-rte \
-  --context test_arm_fully_connected_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_fully_connected_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
-# lstm unidirectional f16
-cbuild --update-rte \
-  --context test_arm_lstm_unidirectional_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_lstm_unidirectional_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
-# batch matmul f32
-cbuild --update-rte \
-  --context test_arm_batch_matmul_flt.F32+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_batch_matmul_flt.F32+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
-# batch norm f16
-cbuild --update-rte \
-  --context test_arm_batch_norm_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_batch_norm_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
-# concatenation f32
-cbuild --update-rte \
-  --context test_arm_concatenation_flt.F32+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_concatenation_flt.F32+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
 # convolve f16
 cbuild --update-rte \
   --context test_arm_convolve_flt.F16+Corstone-300-FVP \
@@ -271,56 +147,6 @@ cbuild --update-rte \
   -j1 --toolchain GCC@15.2.1
 cbuild \
   --context test_arm_convolve_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
-# depthwise conv f32
-cbuild --update-rte \
-  --context test_arm_depthwise_conv_flt.F32+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_depthwise_conv_flt.F32+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
-# ds_cnn_s body f16
-cbuild --update-rte \
-  --context test_arm_ds_cnn_s_body_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_ds_cnn_s_body_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
-# maximum/minimum f16
-cbuild --update-rte \
-  --context test_arm_maximum_minimum_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_maximum_minimum_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
-# pad f32
-cbuild --update-rte \
-  --context test_arm_pad_flt.F32+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_pad_flt.F32+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
-# transpose f16
-cbuild --update-rte \
-  --context test_arm_transpose_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_transpose_flt.F16+Corstone-300-FVP \
   cmsis_nn_unit_tests_flt.csolution.yml \
   -j1 --toolchain GCC@15.2.1
 
@@ -333,25 +159,15 @@ cbuild \
   --context test_arm_transpose_conv_flt.F16+Corstone-300-FVP \
   cmsis_nn_unit_tests_flt.csolution.yml \
   -j1 --toolchain GCC@15.2.1
-
-# svdf f16
-cbuild --update-rte \
-  --context test_arm_svdf_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_svdf_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
 ```
 
 ## Run on FVP
 
-Example for the `f32` softmax test built with GCC:
+Example for the `f32` transpose-conv test built with GCC:
 
 ```bash
 <fvp-bin> \
-  test_arm_softmax_flt.F32+Corstone-300-FVP-GCC/outdir/test_arm_softmax_f32.elf \
+  test_arm_transpose_conv_flt.F32+Corstone-300-FVP-GCC/outdir/test_arm_transpose_conv_f32.elf \
   -C mps3_board.visualisation.disable-visualisation=1 \
   -C mps3_board.telnetterminal0.start_telnet=0 \
   -C mps3_board.uart0.out_file=- \
@@ -359,23 +175,11 @@ Example for the `f32` softmax test built with GCC:
   -C mps3_board.uart0.shutdown_on_eot=1
 ```
 
-Example for the validated `f16` depthwise-conv test built with GCC:
+Example for the validated `f16` reshape test built with GCC:
 
 ```bash
 <fvp-bin> \
-  test_arm_depthwise_conv_flt.F16+Corstone-300-FVP-GCC/outdir/test_arm_depthwise_conv_f16.elf \
-  -C mps3_board.visualisation.disable-visualisation=1 \
-  -C mps3_board.telnetterminal0.start_telnet=0 \
-  -C mps3_board.uart0.out_file=- \
-  -C mps3_board.uart0.unbuffered_output=1 \
-  -C mps3_board.uart0.shutdown_on_eot=1
-```
-
-Example for the validated `f16` DS-CNN-S body integration test built with GCC:
-
-```bash
-<fvp-bin> \
-  test_arm_ds_cnn_s_body_flt.F16+Corstone-300-FVP-GCC/outdir/test_arm_ds_cnn_s_body_f16.elf \
+  test_arm_reshape_flt.F16+Corstone-300-FVP-GCC/outdir/test_arm_reshape_f16.elf \
   -C mps3_board.visualisation.disable-visualisation=1 \
   -C mps3_board.telnetterminal0.start_telnet=0 \
   -C mps3_board.uart0.out_file=- \
@@ -387,7 +191,7 @@ Example for the validated `f16` SVDF test built with GCC:
 
 ```bash
 <fvp-bin> \
-  test_arm_svdf_flt.F16+Corstone-300-FVP-GCC/outdir/test_arm_svdf_f16.elf \
+  test_arm_reshape_flt.F16+Corstone-300-FVP-GCC/outdir/test_arm_reshape_f16.elf \
   -C mps3_board.visualisation.disable-visualisation=1 \
   -C mps3_board.telnetterminal0.start_telnet=0 \
   -C mps3_board.uart0.out_file=- \
