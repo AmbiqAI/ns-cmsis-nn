@@ -49,7 +49,13 @@
 #      that is in the pdsc but not the SSoT builds for CMSIS-Pack
 #      consumers and link-errors for CMake / Zephyr / NSX consumers
 #      (#268), and a file in the SSoT but not the pdsc does the
-#      reverse.
+#      reverse. Union-equality cannot see a *misplaced* gate, so each
+#      ARM_NN_ENABLE_F32/F16 combination is also resolved separately
+#      and every dtype-tagged source must be reachable in exactly the
+#      configurations that enable its own dtype. The SSoT parser
+#      models a closed set of CMake constructs and fails on anything
+#      else rather than skipping it — a guard that silently ignores
+#      `list(REMOVE_ITEM ...)` reports drift as clean.
 #
 
 from __future__ import annotations
@@ -636,11 +642,26 @@ def check_extra_files_annotations() -> None:
 #     does not exist — a typo that `file(GLOB)` swallows but an explicit
 #     `extras` entry turns into a hard CMake error).
 #
-# The comparison is made against the *union* over every dtype gate
-# (ARM_NN_ENABLE_F32 and ARM_NN_ENABLE_F16 both treated as on), because
-# the question here is reachability under some flag combination, not
-# under one particular build. Gate *correctness* — that a float source
-# is under the matching gate — is check_float_source_gating()'s job.
+# Two assertions are made, because set-equality alone is not enough:
+#
+#   A. Reachability. The union of what the SSoT resolves over every
+#      ARM_NN_ENABLE_F32/F16 combination equals the pdsc's source set.
+#   B. Gate placement. Every dtype-tagged source is reachable in exactly
+#      the configurations where its own dtype is enabled. Union-equality
+#      cannot see a *misplaced* gate — moving arm_softmax_f32.c under
+#      `if(ARM_NN_ENABLE_F16)` keeps the union identical while giving an
+#      F32-only consumer a fresh #268 — so each configuration is resolved
+#      separately and checked against the file's dtype tag.
+#
+# (B) overlaps check_float_source_gating() only superficially: that check
+# reads the *source file's* `#if ARM_NN_ENABLE_*` so the translation unit
+# collapses for pack consumers; this one reads the *SSoT's* gate so the
+# file is handed to the compiler in the right configurations. A file can
+# pass either one while failing the other.
+#
+# Out of scope, deliberately: the pdsc has no float toggle of its own
+# (it ships every source unconditionally), so pack-side reachability is a
+# different problem and this check cannot see #273.
 
 # Files intentionally listed in the pdsc but not built by the SSoT (or
 # vice versa), each mapped to the reason. Empty on purpose: an entry
@@ -649,23 +670,51 @@ def check_extra_files_annotations() -> None:
 # and link an issue.
 SSOT_PDSC_ALLOWLIST: dict[str, str] = {}
 
+# The four float configurations the SSoT distinguishes, as
+# (ARM_NN_ENABLE_F32, ARM_NN_ENABLE_F16). Every one is a shipped build:
+# integer-only is the default, and m55-f16-mvef / m55-f32-mvef are
+# separate CI targets.
+SSOT_CONFIGS: dict[str, tuple[bool, bool]] = {
+    "integer-only": (False, False),
+    "F32-only": (True, False),
+    "F16-only": (False, True),
+    "F32+F16": (True, True),
+}
+SSOT_ALL_CONFIGS = frozenset(SSOT_CONFIGS)
+
 # The SSoT is CMake, so reading it means a (small) CMake parse. Only the
-# `_ns_cmsis_nn_group_def` function is interpreted, and only the four
-# constructs it uses: `if/elseif(group STREQUAL "...")` to select a
-# branch, and `set`/`list(APPEND ...)` on subdir/patterns/extras. Nested
-# `if(ARM_NN_ENABLE_F32/F16)` blocks are deliberately *not* evaluated —
-# their bodies are folded in unconditionally to build the union. If the
-# SSoT ever grows a construct this does not model, the group-coverage
-# assertion below fails loudly rather than silently under-reporting.
+# `_ns_cmsis_nn_group_def` function is interpreted, and only over a
+# CLOSED set of constructs: `if/elseif(group STREQUAL "...")` to select a
+# branch, `if(ARM_NN_ENABLE_F32 [OR ARM_NN_ENABLE_F16])` to gate one, and
+# `set` / `list(APPEND ...)` on subdir/patterns/extras. Anything else —
+# another `list()` subcommand such as REMOVE_ITEM, an unrecognized
+# command, an unmodelled condition, an argument that is not a
+# double-quoted literal — is a hard failure, never a silent skip. That
+# distinction is the whole point: a parser that quietly ignores
+# `list(REMOVE_ITEM extras ...)` reports a removed file as still
+# reachable, which is exactly the drift this check exists to catch.
 CMAKE_CMD_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 CMAKE_STRING_RE = re.compile(r'"([^"]*)"')
 CMAKE_GROUP_RE = re.compile(r'group\s+STREQUAL\s+"([^"]+)"')
 CMAKE_COMMENT_RE = re.compile(r"#.*")
 SSOT_LIST_VARS = ("subdir", "patterns", "extras")
+# Commands the group_def parser knows how to interpret or safely ignore.
+# `message` is the FATAL_ERROR in the unknown-group else-branch.
+SSOT_IGNORED_COMMANDS = frozenset({"function", "endfunction", "message"})
+SSOT_ALLOWED_COMMANDS = SSOT_IGNORED_COMMANDS | frozenset(
+    {"if", "elseif", "else", "endif", "set", "list"}
+)
+SSOT_GATE_ATOM_RE = re.compile(r"^ARM_NN_ENABLE_(F16|F32)$")
 
 
-def _cmake_commands(text: str) -> list[tuple[str, str]]:
-    """(command name, raw argument text) for each invocation in <text>."""
+def _cmake_commands(text: str, what: str) -> list[tuple[str, str]] | None:
+    """(command name, raw argument text) for each invocation in <text>.
+
+    CMake commands do not nest, so scanning resumes after each closing
+    paren. Returns None (after recording a failure) on unbalanced
+    parentheses — which is also how a `#` inside a quoted string surfaces,
+    since comment stripping is not quote-aware.
+    """
     out: list[tuple[str, str]] = []
     pos = 0
     while True:
@@ -681,9 +730,15 @@ def _cmake_commands(text: str) -> list[tuple[str, str]]:
                 depth -= 1
             i += 1
         if depth:
-            return out  # unbalanced; caller's coverage assertion will catch it
+            fail(
+                f"{what}: unbalanced parentheses after `{m.group(1)}(` — the SSoT "
+                "parser cannot read this file. A '#' inside a double-quoted CMake "
+                "string does this (comment stripping is not quote-aware); spell "
+                "source names without '#'."
+            )
+            return None
         out.append((m.group(1), text[m.end() : i - 1]))
-        pos = m.end()
+        pos = i
 
 
 def _cmake_function_body(text: str, name: str) -> str | None:
@@ -696,23 +751,195 @@ def _cmake_function_body(text: str, name: str) -> str | None:
     return text[m.start() : m.start() + end.start()]
 
 
+def _ssot_gate_configs(cond: str, group: str) -> frozenset[str] | None:
+    """Configurations in which an `if(<cond>)` inside a group branch is
+    live. Only `ARM_NN_ENABLE_F32`/`ARM_NN_ENABLE_F16`, optionally
+    OR-joined, are modelled."""
+    toks = cond.split()
+    atoms: list[str] = []
+    ok = bool(toks)
+    for i, tok in enumerate(toks):
+        if i % 2 == 0:
+            m = SSOT_GATE_ATOM_RE.match(tok)
+            if not m:
+                ok = False
+                break
+            atoms.append(m.group(1).lower())
+        elif tok != "OR":
+            ok = False
+            break
+    if not ok or len(toks) % 2 == 0:
+        fail(
+            f"unmodelled condition in group '{group}': `if({cond.strip()})`. The SSoT "
+            "parser understands only ARM_NN_ENABLE_F32 / ARM_NN_ENABLE_F16, optionally "
+            "OR-joined; teach scripts/check_pdsc.py the new condition rather than "
+            "leaving its sources unchecked."
+        )
+        return None
+    return frozenset(
+        name
+        for name, (f32, f16) in SSOT_CONFIGS.items()
+        if any(f32 if atom == "f32" else f16 for atom in atoms)
+    )
+
+
+def _ssot_quoted_values(group: str, var: str, remainder: str) -> list[str] | None:
+    """Double-quoted literals in <remainder>. Returns None (after
+    recording a failure) if there is argument text but no quoted literal
+    in it — resolving that to "nothing" would silently drop real sources
+    and then misreport an innocent, reachable file as pdsc-only."""
+    raw = CMAKE_STRING_RE.findall(remainder)
+    if not raw and remainder.strip():
+        fail(
+            f"unquoted or variable argument in group '{group}': the SSoT parser reads "
+            f"only double-quoted literals, but `{var}` is given `{remainder.strip()}`. "
+            "Spell source names as \"...\" literals in cmake/ns_cmsis_nn.cmake."
+        )
+        return None
+    return [v for v in raw if v]
+
+
+def _parse_ssot_defs(body: str) -> dict[str, dict[str, list]] | None:
+    """group -> {subdir/patterns/extras: [(value, live_configs), ...]}."""
+    commands = _cmake_commands(body, "_ns_cmsis_nn_group_def")
+    if commands is None:
+        return None
+
+    defs: dict[str, dict[str, list]] = {}
+    current: str | None = None
+    gates: list[frozenset[str]] = []
+
+    for cmd, args in commands:
+        if cmd in SSOT_IGNORED_COMMANDS:
+            continue
+        if cmd not in SSOT_ALLOWED_COMMANDS:
+            fail(
+                f"unrecognized command `{cmd}(...)` in _ns_cmsis_nn_group_def "
+                f"(group '{current}') — the SSoT parser models a closed set of "
+                "constructs and will not guess at this one."
+            )
+            return None
+
+        if cmd in ("if", "elseif"):
+            m = CMAKE_GROUP_RE.search(args)
+            if m:
+                current = m.group(1)
+                gates = []
+                defs.setdefault(current, {k: [] for k in SSOT_LIST_VARS})
+                continue
+            if current is None:
+                fail(f"`if({args.strip()})` outside any group branch is not modelled")
+                return None
+            live = _ssot_gate_configs(args, current)
+            if live is None:
+                return None
+            gates.append((gates[-1] if gates else SSOT_ALL_CONFIGS) & live)
+            continue
+
+        if cmd == "endif":
+            if gates:
+                gates.pop()
+            else:
+                current = None
+            continue
+
+        if cmd == "else":
+            if gates:
+                fail(
+                    f"`else()` inside a dtype gate in group '{current}' is not "
+                    "modelled — the SSoT parser cannot tell which branch is live."
+                )
+                return None
+            current = None
+            continue
+
+        toks = args.split()
+        live_now = gates[-1] if gates else SSOT_ALL_CONFIGS
+
+        if cmd == "set":
+            if not toks or toks[0].startswith("${"):
+                continue  # the PARENT_SCOPE hand-back at the end of the function
+            if toks[0] not in SSOT_LIST_VARS:
+                fail(
+                    f"`set({toks[0]} ...)` in _ns_cmsis_nn_group_def (group "
+                    f"'{current}') targets a variable the SSoT parser does not model."
+                )
+                return None
+            if current is None:
+                continue  # the subdir/patterns/extras reset at the top of the function
+            if gates:
+                fail(
+                    f"`set({toks[0]} ...)` inside a dtype gate in group '{current}' is "
+                    "not modelled — it replaces rather than appends, so its effect "
+                    "depends on which gates are on. Use list(APPEND ...)."
+                )
+                return None
+            remainder = args.split(None, 1)[1] if len(toks) > 1 else ""
+            values = _ssot_quoted_values(current, toks[0], remainder)
+            if values is None:
+                return None
+            defs[current][toks[0]] = [(v, live_now) for v in values]
+            continue
+
+        # cmd == "list"
+        if len(toks) < 2 or toks[0] != "APPEND" or toks[1] not in SSOT_LIST_VARS:
+            detail = toks[0] if toks else "<empty>"
+            fail(
+                f"`list({detail} ...)` in _ns_cmsis_nn_group_def (group '{current}') — "
+                "the SSoT parser models only list(APPEND patterns|extras \"...\"). "
+                "Any other subcommand (REMOVE_ITEM, FILTER, ...) changes the resolved "
+                "source set in a way it would otherwise silently miss."
+            )
+            return None
+        if current is None:
+            fail("`list(APPEND ...)` outside any group branch is not modelled")
+            return None
+        remainder = args.split(None, 2)[2] if len(toks) > 2 else ""
+        values = _ssot_quoted_values(current, toks[1], remainder)
+        if values is None:
+            return None
+        defs[current][toks[1]].extend((v, live_now) for v in values)
+
+    return defs
+
+
+def _ssot_dtype_tag(basename: str, dtypes: list[str]) -> str | None:
+    """The dtype tag _ns_cmsis_nn_filter_dtypes() would assign, including
+    its `_fp16` -> f16 special case. Order matters: the CMake loop breaks
+    on the first hit, so arm_quantize_f32_s8.c tags as s8, not f32."""
+    if re.search(r"_fp16([._]|$)", basename):
+        return "f16"
+    for dt in dtypes:
+        if re.search(rf"_{dt}([._]|$)", basename):
+            return dt
+    return None
+
+
 def parse_ssot_sources() -> tuple[dict[str, set[str]], list[str]] | None:
-    """Repo-relative sources each SSoT group resolves to, plus the SSoT's
-    own canonical group list. Returns None (after recording a failure)
-    when the SSoT cannot be read or parsed."""
+    """(sources reachable in each SSOT_CONFIGS configuration, dtype tags).
+    Returns None (after recording a failure) when the SSoT cannot be read
+    or fully parsed — never a partial resolution."""
     if not SSOT_CMAKE.is_file():
         fail(f"{SSOT_CMAKE.relative_to(REPO)} not found")
         return None
     text = CMAKE_COMMENT_RE.sub("", SSOT_CMAKE.read_text(encoding="utf-8"))
 
+    top = _cmake_commands(text, SSOT_CMAKE.name)
+    if top is None:
+        return None
     declared: list[str] = []
-    for cmd, args in _cmake_commands(text):
+    dtypes: list[str] = []
+    for cmd, args in top:
         toks = args.split()
         if cmd == "set" and toks and toks[0] == "_NS_CMSIS_NN_GROUPS":
             declared = toks[1:]
-            break
-    if not declared:
-        fail("could not parse _NS_CMSIS_NN_GROUPS from the SSoT cmake module")
+        elif cmd == "set" and toks and toks[0] == "_NS_CMSIS_NN_DTYPES":
+            dtypes = toks[1:]
+    if not declared or not dtypes:
+        fail(
+            "could not parse _NS_CMSIS_NN_GROUPS / _NS_CMSIS_NN_DTYPES from the SSoT "
+            "cmake module"
+        )
         return None
 
     body = _cmake_function_body(text, "_ns_cmsis_nn_group_def")
@@ -720,26 +947,9 @@ def parse_ssot_sources() -> tuple[dict[str, set[str]], list[str]] | None:
         fail("could not locate _ns_cmsis_nn_group_def() in the SSoT cmake module")
         return None
 
-    # group -> {"subdir": [...], "patterns": [...], "extras": [...]}
-    defs: dict[str, dict[str, list[str]]] = {}
-    current: str | None = None
-    for cmd, args in _cmake_commands(body):
-        toks = args.split()
-        if cmd in ("if", "elseif"):
-            m = CMAKE_GROUP_RE.search(args)
-            if m:
-                current = m.group(1)
-                defs.setdefault(current, {k: [] for k in SSOT_LIST_VARS})
-            # A nested if(ARM_NN_ENABLE_*) does not change the current
-            # group: its body is folded into the union.
-            continue
-        if current is None:
-            continue
-        values = [v for v in CMAKE_STRING_RE.findall(args) if v]
-        if cmd == "set" and toks and toks[0] in SSOT_LIST_VARS:
-            defs[current][toks[0]] = values
-        elif cmd == "list" and len(toks) >= 2 and toks[0] == "APPEND" and toks[1] in SSOT_LIST_VARS:
-            defs[current][toks[1]].extend(values)
+    defs = _parse_ssot_defs(body)
+    if defs is None:
+        return None
 
     missing = [g for g in declared if g not in defs]
     if missing:
@@ -754,35 +964,37 @@ def parse_ssot_sources() -> tuple[dict[str, set[str]], list[str]] | None:
     if tracked is None:
         return None
 
-    resolved: dict[str, set[str]] = {}
+    per_config: dict[str, set[str]] = {name: set() for name in SSOT_CONFIGS}
     for group in declared:
-        subdirs = defs[group]["subdir"]
+        subdirs = [v for v, _live in defs[group]["subdir"]]
         if len(subdirs) != 1:
             fail(f"SSoT group '{group}' does not set exactly one subdir (got {subdirs})")
             return None
         prefix = f"Source/{subdirs[0]}/"
-        hit: set[str] = set()
-        for path in tracked:
-            if not path.startswith(prefix):
-                continue
-            base = path[len(prefix) :]
-            if "/" in base:
-                continue
-            if any(fnmatch(base, pat) for pat in defs[group]["patterns"]):
-                hit.add(path)
-        hit.update(prefix + extra for extra in defs[group]["extras"])
-        resolved[group] = hit
-    return resolved, declared
+        candidates = [
+            (p, p[len(prefix) :])
+            for p in tracked
+            if p.startswith(prefix) and "/" not in p[len(prefix) :]
+        ]
+        for config in SSOT_CONFIGS:
+            patterns = [v for v, live in defs[group]["patterns"] if config in live]
+            extras = [v for v, live in defs[group]["extras"] if config in live]
+            for path, base in candidates:
+                if any(fnmatch(base, pat) for pat in patterns):
+                    per_config[config].add(path)
+            per_config[config].update(prefix + extra for extra in extras)
+    return per_config, dtypes
 
 
 def check_ssot_pdsc_agreement(entries: list[tuple[str, str]]) -> None:
     parsed = parse_ssot_sources()
     if parsed is None:
         return
-    resolved, _declared = parsed
-    ssot = set().union(*resolved.values()) if resolved else set()
+    per_config, dtypes = parsed
+    ssot = set().union(*per_config.values())
     listed = {name for cat, name in entries if cat == "source" and name}
 
+    # A. Reachability under some configuration.
     for name in sorted(listed - ssot - set(SSOT_PDSC_ALLOWLIST)):
         fail(
             f"{name}: shipped by the pdsc but unreachable from "
@@ -805,6 +1017,33 @@ def check_ssot_pdsc_agreement(entries: list[tuple[str, str]]) -> None:
                 "about it — drop the allowlist entry so the exception cannot outlive "
                 "its reason."
             )
+
+    # B. Gate placement: reachable in exactly the configurations that
+    #    enable the file's own dtype.
+    for name in sorted(ssot):
+        if name in SSOT_PDSC_ALLOWLIST:
+            continue
+        tag = _ssot_dtype_tag(name.rsplit("/", 1)[-1], dtypes)
+        if tag not in ("f16", "f32"):
+            continue
+        for config, (f32_on, f16_on) in SSOT_CONFIGS.items():
+            enabled = f32_on if tag == "f32" else f16_on
+            if (name in per_config[config]) == enabled:
+                continue
+            if enabled:
+                fail(
+                    f"{name}: unreachable from cmake/ns_cmsis_nn.cmake in the "
+                    f"{config} configuration even though ARM_NN_ENABLE_"
+                    f"{tag.upper()} is on there — it sits under the wrong "
+                    "ARM_NN_ENABLE_* gate, so that build link-errors on its symbols."
+                )
+            else:
+                fail(
+                    f"{name}: reachable from cmake/ns_cmsis_nn.cmake in the {config} "
+                    f"configuration even though ARM_NN_ENABLE_{tag.upper()} is off "
+                    "there — it sits under the wrong ARM_NN_ENABLE_* gate, so that "
+                    "build compiles a translation unit its dtype does not support."
+                )
 
 
 def main() -> int:
@@ -839,7 +1078,8 @@ def report() -> None:
             "PDSC contract OK: pack/component identity, versions in sync, "
             "NSX module version synced, licenses declared, all <file> paths exist, "
             "Source/ coverage complete, float sources dtype-gated, "
-            "pdsc and cmake/ns_cmsis_nn.cmake source lists agree, "
+            "pdsc and cmake/ns_cmsis_nn.cmake source lists agree with "
+            "dtype gates correctly placed, "
             "extra-files annotations live and in sync."
         )
 
