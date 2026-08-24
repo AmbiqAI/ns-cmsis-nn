@@ -104,6 +104,11 @@ void mean_f16_arg_error_arm_nn_mean_f16(void)
     const cmsis_nn_dims axis_dims = {0, 0, 0, 1};
     const cmsis_nn_dims output_dims = {2, 3, 1, 1};
     const cmsis_nn_dims invalid_input_dims = {2, 0, 1, 5};
+    const cmsis_nn_dims invalid_unreduced_output_dims = {2, 4, 1, 1};
+    const cmsis_nn_dims invalid_reduced_output_dims = {2, 3, 1, 2};
+    const cmsis_nn_dims overflow_input_dims = {INT32_MAX, 2, 1, 1};
+    const cmsis_nn_dims overflow_axis_dims = {1, 1, 0, 0};
+    const cmsis_nn_dims overflow_output_dims = {1, 1, 1, 1};
 
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_nn_mean_f16(NULL, &mean_f16_input_dims, &axis_dims, output, &output_dims));
@@ -116,4 +121,13 @@ void mean_f16_arg_error_arm_nn_mean_f16(void)
                       arm_nn_mean_f16(mean_f16_input, &mean_f16_input_dims, &axis_dims, output, NULL));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_nn_mean_f16(mean_f16_input, &invalid_input_dims, &axis_dims, output, &output_dims));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_nn_mean_f16(
+                          mean_f16_input, &mean_f16_input_dims, &axis_dims, output, &invalid_unreduced_output_dims));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_nn_mean_f16(
+                          mean_f16_input, &mean_f16_input_dims, &axis_dims, output, &invalid_reduced_output_dims));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_nn_mean_f16(
+                          mean_f16_input, &overflow_input_dims, &overflow_axis_dims, output, &overflow_output_dims));
 }

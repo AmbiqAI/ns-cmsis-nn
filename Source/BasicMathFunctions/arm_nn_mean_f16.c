@@ -123,9 +123,11 @@ arm_cmsis_nn_status arm_nn_mean_f16(const float16_t *input_data,
     }
 
     const int32_t input_shape[4] = {input_dims->n, input_dims->h, input_dims->w, input_dims->c};
+    const int32_t output_shape[4] = {output_dims->n, output_dims->h, output_dims->w, output_dims->c};
     const int32_t axis_mask[4] = {
         axis_dims->n ? 1 : 0, axis_dims->h ? 1 : 0, axis_dims->w ? 1 : 0, axis_dims->c ? 1 : 0};
-    int32_t reduction_count = 1;
+    int64_t input_size = 1;
+    int64_t reduction_count = 1;
 
     for (int32_t dimension = 0; dimension < 4; ++dimension)
     {
@@ -133,8 +135,20 @@ arm_cmsis_nn_status arm_nn_mean_f16(const float16_t *input_data,
         {
             return ARM_CMSIS_NN_ARG_ERROR;
         }
+
+        const int32_t expected_output_dimension = axis_mask[dimension] ? 1 : input_shape[dimension];
+        if (output_shape[dimension] != expected_output_dimension || input_size > INT32_MAX / input_shape[dimension])
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+        input_size *= input_shape[dimension];
+
         if (axis_mask[dimension])
         {
+            if (reduction_count > INT32_MAX / input_shape[dimension])
+            {
+                return ARM_CMSIS_NN_ARG_ERROR;
+            }
             reduction_count *= input_shape[dimension];
         }
     }
@@ -157,7 +171,7 @@ arm_cmsis_nn_status arm_nn_mean_f16(const float16_t *input_data,
         return arm_mean_flatten_last_dims_f16(input_data, output_data, outer_size, inner_size);
     }
 
-    return arm_mean_generic_f16(input_data, input_dims, axis_dims, output_data, output_dims, reduction_count);
+    return arm_mean_generic_f16(input_data, input_dims, axis_dims, output_data, output_dims, (int32_t)reduction_count);
 }
 
 /**
