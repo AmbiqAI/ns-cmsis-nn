@@ -1013,9 +1013,12 @@ def _build_cases() -> list[ConvCaseFlt]:
             activation_max=127.0,
             seed=2126,
         ),
+    ]
+
+    grouped_f16_cases = [
         ConvCaseFlt(
-            dataset="conv_grouped_nhwc_f32",
-            dtype_name="f32",
+            dataset="conv_grouped_nhwc_f16",
+            dtype_name="f16",
             layout="nhwc",
             use_wrapper=False,
             batches=1,
@@ -1037,8 +1040,8 @@ def _build_cases() -> list[ConvCaseFlt]:
             groups=2,
         ),
         ConvCaseFlt(
-            dataset="conv_grouped_dilation_nhwc_f32",
-            dtype_name="f32",
+            dataset="conv_grouped_dilation_nhwc_f16",
+            dtype_name="f16",
             layout="nhwc",
             use_wrapper=False,
             batches=1,
@@ -1060,8 +1063,8 @@ def _build_cases() -> list[ConvCaseFlt]:
             groups=2,
         ),
         ConvCaseFlt(
-            dataset="conv_small_kernel_grouped_nhwc_f32",
-            dtype_name="f32",
+            dataset="conv_small_kernel_grouped_nhwc_f16",
+            dtype_name="f16",
             layout="nhwc",
             use_wrapper=False,
             batches=1,
@@ -1083,17 +1086,17 @@ def _build_cases() -> list[ConvCaseFlt]:
             groups=2,
         ),
         ConvCaseFlt(
-            dataset="conv_small_kernel_nhwc_f32",
-            dtype_name="f32",
+            dataset="conv_small_kernel_nhwc_f16",
+            dtype_name="f16",
             layout="nhwc",
             use_wrapper=False,
             batches=1,
             input_h=5,
             input_w=6,
-            input_channels=1,
-            output_channels=4,
-            kernel_h=2,
-            kernel_w=2,
+            input_channels=8,
+            output_channels=12,
+            kernel_h=1,
+            kernel_w=1,
             stride_h=1,
             stride_w=1,
             padding_h=0,
@@ -1111,7 +1114,7 @@ def _build_cases() -> list[ConvCaseFlt]:
         ConvCaseFlt(**{**case.__dict__, "dataset": case.dataset.replace("_f32", "_f16"), "dtype_name": "f16"})
         for case in base_cases
     ]
-    return base_cases + f16_cases
+    return base_cases + f16_cases + grouped_f16_cases
 
 
 def parse_args() -> argparse.Namespace:

@@ -1090,7 +1090,26 @@ int32_t arm_depthwise_conv_wrapper_f16_get_buffer_size(const cmsis_nn_dw_conv_pa
                                                        const cmsis_nn_dims *output_dims);
 
 /**
- * @copydoc arm_convolve_nhwc_f32
+ * @brief Float16 convolution in NHWC layout, including grouped convolution.
+ *
+ * @param[in,out] ctx         Function context that may hold a temporary scratch buffer.
+ * @param[in]     conv_params Convolution parameters (stride, padding, dilation, activation clamp and weight format).
+ * @param[in]     input_dims  Input dimensions in `[N, H, W, C_IN]` order.
+ * @param[in]     input_data  Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter dimensions in `[C_OUT, H_K, W_K, C_IN / groups]` order.
+ * @param[in]     filter_data Pointer to the filter tensor data.
+ * @param[in]     bias_dims   Bias dimensions. This parameter is currently unused.
+ * @param[in]     bias_data   Optional bias tensor with `C_OUT` elements.
+ * @param[in]     output_dims Output dimensions in `[N, H, W, C_OUT]` order.
+ * @param[out]    output_data Pointer to the output tensor data.
+ *
+ * @note The group count is derived as `input_dims->c / filter_dims->c`. Both the input and output channel counts must
+ *       be divisible by that group count. Grouped convolution requires `ARM_NN_WEIGHT_FORMAT_STANDARD` weights.
+ * @note For a single group, `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED` supplies an offline-packed filter to compatible
+ *       matmul-backed paths.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, `ARM_CMSIS_NN_ARG_ERROR` for NULL required pointers or invalid
+ *         grouped-channel parameters, or `ARM_CMSIS_NN_NO_IMPL_ERROR` for grouped convolution with packed weights.
  */
 arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                                           const cmsis_nn_conv_params_f16 *conv_params,
@@ -1104,14 +1123,21 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                                           float16_t *output_data);
 
 /**
- * @brief Fast float16 convolution for kernels whose flattened receptive field
- *        (filter_dims->h * filter_dims->w * filter_dims->c) fits in one MVE
- *        float16 vector (<= 8) with zero padding. Supports grouped convolution.
- *        Returns ARM_CMSIS_NN_ARG_ERROR for invalid grouped channel parameters
- *        (input_c not a multiple of filter_dims->c, or output_c not a multiple
- *        of the derived group count). Returns ARM_CMSIS_NN_NO_IMPL_ERROR when
- *        the shape is not supported or when MVE float16 is unavailable, so
- *        callers can fall back to the generic path.
+ * @brief Fast float16 grouped convolution for a receptive field of at most eight elements.
+ *
+ * @param[in,out] ctx         Unused; no scratch buffer is required.
+ * @param[in]     conv_params Convolution parameters. Padding must be zero and weights must use the standard format.
+ * @param[in]     input_dims  Input dimensions in `[N, H, W, C_IN]` order.
+ * @param[in]     input_data  Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter dimensions in `[C_OUT, H_K, W_K, C_IN / groups]` order.
+ * @param[in]     filter_data Pointer to the standard-format filter tensor data.
+ * @param[in]     bias_dims   Unused.
+ * @param[in]     bias_data   Optional bias tensor with `C_OUT` elements.
+ * @param[in]     output_dims Output dimensions in `[N, H, W, C_OUT]` order.
+ * @param[out]    output_data Pointer to the output tensor data.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, `ARM_CMSIS_NN_ARG_ERROR` for NULL required pointers or invalid grouped
+ *         channels, or `ARM_CMSIS_NN_NO_IMPL_ERROR` for an unsupported shape, weight format, or target.
  */
 arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *ctx,
                                                        const cmsis_nn_conv_params_f16 *conv_params,
@@ -1125,7 +1151,14 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
                                                        float16_t *output_data);
 
 /**
- * @copydoc arm_convolve_f32
+ * @brief Float16 convolution with layout dispatch and grouped-convolution support.
+ *
+ * Parameters and filter conventions match @ref arm_convolve_nhwc_f16. The current implementation accepts only
+ * `ARM_NN_LAYOUT_NHWC`.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, `ARM_CMSIS_NN_ARG_ERROR` for an unsupported layout, NULL required
+ *         pointers, or invalid grouped-channel parameters, or `ARM_CMSIS_NN_NO_IMPL_ERROR` for grouped convolution
+ *         with packed weights.
  */
 arm_cmsis_nn_status arm_convolve_f16(const cmsis_nn_context *ctx,
                                      const cmsis_nn_conv_params_f16 *conv_params,
@@ -1140,7 +1173,9 @@ arm_cmsis_nn_status arm_convolve_f16(const cmsis_nn_context *ctx,
                                      arm_nn_tensor_layout layout);
 
 /**
- * @copydoc arm_convolve_wrapper_f32
+ * @brief Float16 NHWC convolution wrapper with grouped-convolution support.
+ *
+ * Parameters, filter conventions, and return values match @ref arm_convolve_nhwc_f16.
  */
 arm_cmsis_nn_status arm_convolve_wrapper_f16(const cmsis_nn_context *ctx,
                                              const cmsis_nn_conv_params_f16 *conv_params,
@@ -1212,7 +1247,19 @@ arm_cmsis_nn_status arm_convolve_1_x_n_f16(const cmsis_nn_context *ctx,
                                            arm_nn_tensor_layout layout);
 
 /**
- * @copydoc arm_convolve_f32_get_buffer_size
+ * @brief Get the temporary buffer size required by float16 convolution.
+ *
+ * @param[in] conv_params Convolution parameters.
+ * @param[in] input_dims  Input dimensions in `[N, H, W, C_IN]` order.
+ * @param[in] filter_dims Filter dimensions in `[C_OUT, H_K, W_K, C_IN / groups]` order.
+ * @param[in] output_dims Output dimensions in `[N, H, W, C_OUT]` order.
+ * @param[in] layout      Tensor layout selector. Only `ARM_NN_LAYOUT_NHWC` is supported.
+ *
+ * @note Grouped convolution is scratch-free. Invalid grouped-channel dimensions also return zero because buffer-size
+ *       functions do not return a status code.
+ * @note For `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, the result excludes offline-packed filter storage.
+ *
+ * @return Required buffer size in bytes, or zero when no scratch is needed or the arguments are invalid.
  */
 int32_t arm_convolve_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *conv_params,
                                          const cmsis_nn_dims *input_dims,
@@ -1221,7 +1268,9 @@ int32_t arm_convolve_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *conv_pa
                                          arm_nn_tensor_layout layout);
 
 /**
- * @copydoc arm_convolve_wrapper_f32_get_buffer_size
+ * @brief Get the temporary buffer size required by the float16 NHWC convolution wrapper.
+ *
+ * Parameters, filter conventions, and return semantics match @ref arm_convolve_f16_get_buffer_size.
  */
 int32_t arm_convolve_wrapper_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *conv_params,
                                                  const cmsis_nn_dims *input_dims,

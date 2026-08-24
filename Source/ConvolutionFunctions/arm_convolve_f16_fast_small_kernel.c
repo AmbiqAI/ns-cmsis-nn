@@ -52,20 +52,41 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
                                                        const cmsis_nn_dims *output_dims,
                                                        float16_t *output_data)
 {
-    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     (void)ctx;
     (void)bias_dims;
 
+    if (!conv_params || !input_dims || !input_data || !filter_dims || !filter_data || !output_dims || !output_data)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    const int32_t input_ch = input_dims->c;
+    const int32_t kernel_ch = filter_dims->c;
+    const int32_t output_ch = output_dims->c;
+
+    if (kernel_ch <= 0 || input_ch <= 0 || input_ch % kernel_ch != 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    const int32_t groups = input_ch / kernel_ch;
+    if (output_ch <= 0 || output_ch % groups != 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     const int32_t input_batches = input_dims->n;
     const int32_t input_x = input_dims->w;
     const int32_t input_y = input_dims->h;
-    const int32_t input_ch = input_dims->c;
     const int32_t kernel_x = filter_dims->w;
     const int32_t kernel_y = filter_dims->h;
-    const int32_t kernel_ch = filter_dims->c;
     const int32_t output_x = output_dims->w;
     const int32_t output_y = output_dims->h;
-    const int32_t output_ch = output_dims->c;
 
     const int32_t dilation_x = conv_params->dilation.w;
     const int32_t dilation_y = conv_params->dilation.h;
@@ -75,20 +96,13 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
     const _Float16 act_min = (_Float16)conv_params->activation.min;
     const _Float16 act_max = (_Float16)conv_params->activation.max;
 
-    if (kernel_ch <= 0 || input_ch % kernel_ch != 0)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-    const int32_t groups = input_ch / kernel_ch;
-    if (groups <= 0 || output_ch % groups != 0)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
     const int32_t output_ch_per_group = output_ch / groups;
-    const int32_t rhs_cols = kernel_ch * kernel_y * kernel_x;
+    const int64_t rhs_cols_64 = (int64_t)kernel_ch * kernel_y * kernel_x;
 
     /* Only handle the shapes this kernel is specialized for. */
-    if (rhs_cols <= 0 || rhs_cols > 8 || conv_params->padding.w != 0 || conv_params->padding.h != 0)
+    if (kernel_x <= 0 || kernel_y <= 0 || rhs_cols_64 > 8 || conv_params->padding.w != 0 ||
+        conv_params->padding.h != 0 || input_x <= 0 || input_y <= 0 || conv_params->stride.w <= 0 ||
+        conv_params->stride.h <= 0 || conv_params->dilation.w <= 0 || conv_params->dilation.h <= 0)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
@@ -96,8 +110,14 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
     {
         return ARM_CMSIS_NN_SUCCESS;
     }
+    if ((int64_t)(output_x - 1) * stride_x + (int64_t)(kernel_x - 1) * dilation_x >= input_x ||
+        (int64_t)(output_y - 1) * stride_y + (int64_t)(kernel_y - 1) * dilation_y >= input_y)
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+    const int32_t rhs_cols = (int32_t)rhs_cols_64;
 
-    /* Byte-scaled gather uses 16-bit per-lane offsets; bail out if the window does not fit. */
+    /* Element-scaled gather uses 16-bit per-lane offsets; bail out if the window does not fit. */
     uint16x8_t offset_src = vdupq_n_u16(0);
     size_t max_offset = 0;
     for (int32_t i = 0; i < kernel_y; i++)
@@ -173,16 +193,7 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
 
     return ARM_CMSIS_NN_SUCCESS;
     #else
-    (void)ctx;
-    (void)conv_params;
-    (void)input_dims;
-    (void)input_data;
-    (void)filter_dims;
-    (void)filter_data;
-    (void)bias_dims;
     (void)bias_data;
-    (void)output_dims;
-    (void)output_data;
     return ARM_CMSIS_NN_NO_IMPL_ERROR;
     #endif
 }
