@@ -75,6 +75,16 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+#if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
+    /* Only the MVE path reads the per-channel weight sums. Diagnose a missing buffer here rather
+       than dereferencing NULL and silently returning garbage output. */
+    if (weight_sum_ctx->buf == NULL)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+#endif
+
 #ifdef ARM_MATH_DSP
     (void)bias_dims;
     const int32_t input_x = input_dims->w;

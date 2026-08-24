@@ -1398,10 +1398,14 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
 /**
  * @brief Wrapper function to pick the right optimized s8 depthwise convolution function
  *
- * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
- *                                 definition file to see if an additional buffer is required.
- *                                 Optional function {API}_get_buffer_size() provides the buffer
- *                                 size if required.
+ * @param[in, out] ctx             Function context (e.g. temporary buffer). Size ctx->buf with
+ *                                 arm_depthwise_conv_wrapper_s8_get_buffer_size(), which accounts for whichever route
+ *                                 this wrapper selects. It returns 0 when no buffer is needed, in which case ctx->buf
+ *                                 may be NULL. arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp() and
+ *                                 arm_depthwise_conv_wrapper_s8_get_buffer_size_mve() each size the buffer for one
+ *                                 specific target and are not interchangeable. Use the variant matching the build the
+ *                                 library is compiled for; when unsure, call the unsuffixed dispatching sizer, which
+ *                                 always matches the wrapper's own routing.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      weight_sum_ctx  Per-channel weight sums, supplied by the caller. The selected kernel only reads
  *                                 this buffer and never writes it, so it is filled once and may then be reused for
@@ -1413,18 +1417,25 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  *                                 Outside that case the wrapper calls arm_depthwise_conv_s8(), which has no such
  *                                 parameter and ignores the context entirely - which is why several in-tree tests
  *                                 legitimately pass sums built by arm_convolve_weight_sum(), or none at all, on
- *                                 those routes. On MVE with input_dims->c == 1 and a large output channel count
- *                                 the layer is instead converted to a regular convolution, and conv-style sums
- *                                 from arm_convolve_weight_sum() are what that route wants.
+ *                                 those routes. On MVE with input_dims->c == 1 and an output channel count above
+ *                                 CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD (8 on armclang, 1
+ *                                 otherwise), the layer is instead converted to a regular convolution, and
+ *                                 conv-style sums from arm_convolve_weight_sum() are what that route wants.
  *                                 Where the sums are actually read, fill the buffer with
  *                                 arm_depthwise_convolve_weight_sum(), passing dw_conv_params->input_offset as
  *                                 lhs_offset and the same bias given here, so that entry j holds
  *                                 input_offset * sum(weights of channel j) + bias[j]. That helper returns
  *                                 ARM_CMSIS_NN_NO_IMPL_ERROR on non-MVE builds, which is not a failure.
- *                                 Pass a valid context on every build. A NULL buf is NOT diagnosed on the
- *                                 arm_depthwise_conv_s8_opt() route: it returns ARM_CMSIS_NN_SUCCESS and produces
- *                                 wrong output rather than ARM_CMSIS_NN_ARG_ERROR, so unlike arm_convolve_s8()
- *                                 there is no safety net here. None of this is a guarantee about future versions.
+ *                                 Pass a valid context on every build. On the arm_depthwise_conv_s8_opt() route, a
+ *                                 NULL buf is diagnosed with ARM_CMSIS_NN_ARG_ERROR on builds where the buffer is
+ *                                 actually read (ARM_MATH_DSP and ARM_MATH_MVEI both defined); on other builds the
+ *                                 parameter is unread and NULL is accepted. On MVE with input_dims->c == 1 and an
+ *                                 output channel count above
+ *                                 CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD (8 on armclang, 1
+ *                                 otherwise), this wrapper instead diverts to arm_convolve_wrapper_s8(), which can
+ *                                 select kernels that do not check the buffer. A NULL buf is not diagnosed on
+ *                                 every route, so do not rely on getting an error back. None of this is a
+ *                                 guarantee about future versions.
  *                                 Sized by arm_convolve_s8_get_weights_sum_size():
  *                                 output_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
@@ -1444,8 +1455,10 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  * @param[in]      bias_data       Bias data pointer. Data type: int32
  * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in, out] output_data     Output data pointer. Data type: int8
- * @return     The function returns
- *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion.
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion, or
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> on the arm_depthwise_conv_s8_opt() route if ctx->buf is NULL
+ *                when a scratch buffer is required, or if weight_sum_ctx->buf is NULL on builds where it is read
+ *                (ARM_MATH_DSP and ARM_MATH_MVEI both defined).
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -1472,10 +1485,14 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
 /**
  * @brief Wrapper function to pick the right optimized s4 depthwise convolution function
  *
- * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
- *                                 definition file to see if an additional buffer is required.
- *                                 Optional function {API}_get_buffer_size() provides the buffer
- *                                 size if required.
+ * @param[in, out] ctx             Function context (e.g. temporary buffer). Size ctx->buf with
+ *                                 arm_depthwise_conv_wrapper_s4_get_buffer_size(), which accounts for whichever route
+ *                                 this wrapper selects. It returns 0 when no buffer is needed, in which case ctx->buf
+ *                                 may be NULL. arm_depthwise_conv_wrapper_s4_get_buffer_size_dsp() and
+ *                                 arm_depthwise_conv_wrapper_s4_get_buffer_size_mve() each size the buffer for one
+ *                                 specific target and are not interchangeable. Use the variant matching the build the
+ *                                 library is compiled for; when unsure, call the unsuffixed dispatching sizer, which
+ *                                 always matches the wrapper's own routing.
  *                                 The caller is expected to clear the buffer ,if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
@@ -1603,11 +1620,11 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv
 /**
  * @brief Basic s8 depthwise convolution function that doesn't have any constraints on the input dimensions.
  *
- * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
- *                                 definition file to see if an additional buffer is required.
- *                                 Optional function {API}_get_buffer_size() provides the buffer
- *                                 size if an additional buffer is required exists if additional memory is.
- *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
+ *                                 there is deliberately no arm_depthwise_conv_s8_get_buffer_size(). If you reached this
+ *                                 kernel through arm_depthwise_conv_wrapper_s8(), size the context with
+ *                                 arm_depthwise_conv_wrapper_s8_get_buffer_size() instead, because another route
+ *                                 through that wrapper does require a buffer.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
@@ -1644,11 +1661,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
 /**
  * @brief Basic s4 depthwise convolution function that doesn't have any constraints on the input dimensions.
  *
- * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
- *                                 definition file to see if an additional buffer is required.
- *                                 Optional function {API}_get_buffer_size() provides the buffer
- *                                 size if an additional buffer is required exists if additional memory is.
- *                                 The caller is expected to clear the buffer ,if applicable, for security reasons.
+ * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
+ *                                 there is deliberately no arm_depthwise_conv_s4_get_buffer_size(). If you reached this
+ *                                 kernel through arm_depthwise_conv_wrapper_s4(), size the context with
+ *                                 arm_depthwise_conv_wrapper_s4_get_buffer_size() instead, because another route
+ *                                 through that wrapper does require a buffer.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
@@ -1686,12 +1703,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
 /**
  * @brief Basic s16 depthwise convolution function that doesn't have any constraints on the input dimensions.
  *
- * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
- *                                 definition file to see if an additional buffer is required.
- *                                 Optional function {API}_get_buffer_size() provides the buffer
- *                                 size if an additional buffer is required.
- *                                 exists if additional memory is.
- *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
+ *                                 there is deliberately no arm_depthwise_conv_s16_get_buffer_size(). If you reached
+ *                                 this kernel through arm_depthwise_conv_wrapper_s16(), size the context with
+ *                                 arm_depthwise_conv_wrapper_s16_get_buffer_size() instead, because another route
+ *                                 through that wrapper does require a buffer.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 conv_params->input_offset  : Not used
  *                                 conv_params->output_offset : Not used
@@ -1727,10 +1743,14 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
 /**
  * @brief Wrapper function to pick the right optimized s16 depthwise convolution function
  *
- * @param[in, out] ctx             Function context (e.g. temporary buffer). Check the function
- *                                 definition file to see if an additional buffer is required.
- *                                 Optional function {API}_get_buffer_size() provides the buffer
- *                                 size if required.
+ * @param[in, out] ctx             Function context (e.g. temporary buffer). Size ctx->buf with
+ *                                 arm_depthwise_conv_wrapper_s16_get_buffer_size(), which accounts for whichever route
+ *                                 this wrapper selects. It returns 0 when no buffer is needed, in which case ctx->buf
+ *                                 may be NULL. arm_depthwise_conv_wrapper_s16_get_buffer_size_dsp() and
+ *                                 arm_depthwise_conv_wrapper_s16_get_buffer_size_mve() each size the buffer for one
+ *                                 specific target and are not interchangeable. Use the variant matching the build the
+ *                                 library is compiled for; when unsure, call the unsuffixed dispatching sizer, which
+ *                                 always matches the wrapper's own routing.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
@@ -1900,16 +1920,18 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *             a failure. Size the buffer with arm_convolve_s8_get_weights_sum_size(): output_dims->c *
  *             sizeof(int32_t) where the sums are used, 0 otherwise, and clear it afterwards if applicable for
  *             security reasons.
- *             Pass a valid context on every build. Currently the contents are read only on builds with the MVE
- *             extension (ARM_MATH_MVEI). A NULL buf is NOT diagnosed here: unlike arm_convolve_s8(), this
- *             function does not check it and will not return <code>ARM_CMSIS_NN_ARG_ERROR</code>. On MVE a NULL
- *             or unfilled buffer produces wrong output while still returning
- *             <code>ARM_CMSIS_NN_SUCCESS</code>, and on targets where address 0 is readable it will not fault
- *             either, so there is no safety net to rely on. None of this is a guarantee about future versions.
+ *             Pass a valid context on every build. On builds where the buffer is actually read (ARM_MATH_DSP and
+ *             ARM_MATH_MVEI both defined), a NULL buf is diagnosed and this function returns
+ *             <code>ARM_CMSIS_NN_ARG_ERROR</code>, matching arm_convolve_s8(). On other builds the parameter is
+ *             unread and NULL is accepted. An allocated-but-unfilled buffer cannot be diagnosed the same way: it
+ *             still produces wrong output while returning <code>ARM_CMSIS_NN_SUCCESS</code>, since an all-zero
+ *             weight-sum vector is a legal result. None of this is a guarantee about future versions.
  *
  * @return     The function returns one of the following
- *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or
- *                                                      ch_mult != 1
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or ch_mult != 1, or
+ *                                                      ctx->buf is NULL when a scratch buffer is required, or
+ *                                                      weight_sum_ctx->buf is NULL on builds where it is read
+ *                                                      (ARM_MATH_DSP and ARM_MATH_MVEI both defined)
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @note       MVE channel tail loads and stores are predicated, so channel-indexed arrays are not accessed beyond
@@ -2006,11 +2028,10 @@ int32_t arm_depthwise_conv_s4_opt_get_buffer_size(const cmsis_nn_dims *input_dim
 /**
  * @brief Basic s4 Fully Connected function.
  *
- * @param[in, out] ctx           Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function {API}_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer ,if applicable, for security reasons.
+ * @param[in]      ctx           Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
+ *                               there is deliberately no arm_fully_connected_s4_get_buffer_size(). Do not size this
+ *                               context with arm_fully_connected_s8_get_buffer_size(): that sizes the kernel-sum buffer
+ *                               of a different kernel and does not describe this argument.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : [-127, 128]
  *                               fc_params->filter_offset : 0
@@ -2054,11 +2075,33 @@ arm_cmsis_nn_status arm_fully_connected_s4(const cmsis_nn_context *ctx,
 /**
  * @brief Basic s8 Fully Connected function.
  *
- * @param[in, out] ctx           Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function {API}_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      ctx           Per-output-channel kernel sums, supplied by the caller - not scratch memory that
+ *                               this function fills in. The library never populates ctx->buf for this function, and
+ *                               on builds with the MVE extension clearing it makes the output silently wrong,
+ *                               because the sums also carry the bias term.
+ *                               Fill it with arm_vector_sum_s8(), passing filter_dims->n as vector_cols,
+ *                               output_dims->c as vector_rows, filter_data as vector_data, fc_params->input_offset
+ *                               as lhs_offset, fc_params->filter_offset as rhs_offset and the same bias_data given
+ *                               here, so that entry j holds bias_data[j] plus input_offset times the sum of the
+ *                               weights of output channel j, where each of those filter_dims->n weights first has
+ *                               filter_offset added to it. That helper is available on every build and returns
+ *                               ARM_CMSIS_NN_SUCCESS.
+ *                               This function only reads the buffer and never writes it, so it is filled once and
+ *                               may then be reused for as long as filter_data, bias_data, fc_params->input_offset
+ *                               and fc_params->filter_offset are unchanged.
+ *                               Pass a valid context on every build; ctx itself is dereferenced unconditionally.
+ *                               Currently the contents are read only on builds with the MVE extension
+ *                               (ARM_MATH_MVEI), where the bias_data argument is ignored because the sums already
+ *                               carry it and a NULL buf is reported as ARM_CMSIS_NN_ARG_ERROR; an unfilled or
+ *                               cleared buffer there yields wrong output while still returning
+ *                               ARM_CMSIS_NN_SUCCESS. On other builds this function adds bias_data directly and
+ *                               does not read ctx->buf. None of this is a guarantee about future versions.
+ *                               Sized by arm_fully_connected_s8_get_buffer_size():
+ *                               filter_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise.
+ *                               Do NOT clear this buffer between calls: zeroing it is indistinguishable from
+ *                               leaving it unfilled, and produces the silently wrong output described above. If it
+ *                               must be cleared for security reasons, clear it after the last call that uses it,
+ *                               and refill it before any further call.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : [-127, 128]
  *                               fc_params->filter_offset : 0
@@ -2104,11 +2147,34 @@ arm_cmsis_nn_status arm_fully_connected_s8(const cmsis_nn_context *ctx,
 /**
  * @brief Basic s8 Fully Connected function using per channel quantization.
  *
- * @param[in, out] ctx           Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function {API}_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      ctx           Per-output-channel kernel sums, supplied by the caller - not scratch memory that
+ *                               this function fills in. The library never populates ctx->buf for this function, and
+ *                               on builds with the MVE extension clearing it makes the output silently wrong,
+ *                               because the sums also carry the bias term.
+ *                               Fill it with arm_vector_sum_s8(), passing filter_dims->n as vector_cols,
+ *                               output_dims->c as vector_rows, filter_data as vector_data, fc_params->input_offset
+ *                               as lhs_offset, fc_params->filter_offset as rhs_offset and the same bias_data given
+ *                               here, so that entry j holds bias_data[j] plus input_offset times the sum of the
+ *                               weights of output channel j, where each of those filter_dims->n weights first has
+ *                               filter_offset added to it. That helper is available on every build and returns
+ *                               ARM_CMSIS_NN_SUCCESS.
+ *                               This function only reads the buffer and never writes it, so it is filled once and
+ *                               may then be reused for as long as filter_data, bias_data, fc_params->input_offset
+ *                               and fc_params->filter_offset are unchanged.
+ *                               Pass a valid context on every build; ctx itself is dereferenced unconditionally.
+ *                               Currently the contents are read only on builds with the MVE extension
+ *                               (ARM_MATH_MVEI), where the bias_data argument is ignored because the sums already
+ *                               carry it and a NULL buf is reported as ARM_CMSIS_NN_ARG_ERROR; an unfilled or
+ *                               cleared buffer there yields wrong output while still returning
+ *                               ARM_CMSIS_NN_SUCCESS. On other builds this function adds bias_data directly and
+ *                               does not read ctx->buf. None of this is a guarantee about future versions.
+ *                               There is no per-channel sizer; arm_fully_connected_s8_get_buffer_size() returns
+ *                               the same quantity this function needs, filter_dims->c * sizeof(int32_t) where the
+ *                               sums are used and 0 otherwise.
+ *                               Do NOT clear this buffer between calls: zeroing it is indistinguishable from
+ *                               leaving it unfilled, and produces the silently wrong output described above. If it
+ *                               must be cleared for security reasons, clear it after the last call that uses it,
+ *                               and refill it before any further call.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : [-127, 128]
  *                               fc_params->filter_offset : 0
@@ -2154,11 +2220,36 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s8(const cmsis_nn_context *c
 /**
  * @brief s8 Fully Connected layer wrapper function
  *
- * @param[in, out] ctx           Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function {API}_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      ctx           Per-output-channel kernel sums, supplied by the caller - not scratch memory that
+ *                               this wrapper fills in. The library never populates ctx->buf here, and on builds
+ *                               with the MVE extension clearing it makes the output silently wrong, because the
+ *                               sums also carry the bias term. The context is passed straight through to
+ *                               arm_fully_connected_per_channel_s8() or arm_fully_connected_s8() depending on
+ *                               quant_params->is_per_channel, and both read it the same way.
+ *                               Fill it with arm_vector_sum_s8(), passing filter_dims->n as vector_cols,
+ *                               output_dims->c as vector_rows, filter_data as vector_data, fc_params->input_offset
+ *                               as lhs_offset, fc_params->filter_offset as rhs_offset and the same bias_data given
+ *                               here, so that entry j holds bias_data[j] plus input_offset times the sum of the
+ *                               weights of output channel j, where each of those filter_dims->n weights first has
+ *                               filter_offset added to it. That helper is available on every build and returns
+ *                               ARM_CMSIS_NN_SUCCESS.
+ *                               Neither selected kernel writes the buffer, so it is filled once and may then be
+ *                               reused for as long as filter_data, bias_data, fc_params->input_offset and
+ *                               fc_params->filter_offset are unchanged.
+ *                               Pass a valid context on every build; ctx itself is dereferenced unconditionally.
+ *                               Currently the contents are read only on builds with the MVE extension
+ *                               (ARM_MATH_MVEI), where the bias_data argument is ignored because the sums already
+ *                               carry it and a NULL buf is reported as ARM_CMSIS_NN_ARG_ERROR; an unfilled or
+ *                               cleared buffer there yields wrong output while still returning
+ *                               ARM_CMSIS_NN_SUCCESS. On other builds the selected kernel adds bias_data directly
+ *                               and does not read ctx->buf. None of this is a guarantee about future versions.
+ *                               There is no wrapper sizer; arm_fully_connected_s8_get_buffer_size() returns the
+ *                               quantity both routes need, filter_dims->c * sizeof(int32_t) where the sums are
+ *                               used and 0 otherwise.
+ *                               Do NOT clear this buffer between calls: zeroing it is indistinguishable from
+ *                               leaving it unfilled, and produces the silently wrong output described above. If it
+ *                               must be cleared for security reasons, clear it after the last call that uses it,
+ *                               and refill it before any further call.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : [-127, 128]
  *                               fc_params->filter_offset : 0
@@ -2243,8 +2334,12 @@ arm_cmsis_nn_status arm_vector_sum_s8_s64(int64_t *vector_sum_buf,
  * @brief Get size of additional buffer required by arm_fully_connected_s8().
  *        See also arm_vector_sum_s8, which is required if buffer size is > 0.
  * @param[in]      filter_dims             dimension of filter
- * @return         The function returns    required buffer size in bytes
+ * @return         The function returns    required buffer size in bytes, or -1 if filter_dims->c is negative or
+ *                                         the required size would not fit in an int32_t
  *
+ * @details    For a valid (non-negative, in-range) filter_dims->c, returns filter_dims->c * sizeof(int32_t) on
+ *             builds with the MVE extension and 0 elsewhere. For an invalid filter_dims->c, returns -1 on every
+ *             build target.
  */
 int32_t arm_fully_connected_s8_get_buffer_size(const cmsis_nn_dims *filter_dims);
 
@@ -2254,6 +2349,7 @@ int32_t arm_fully_connected_s8_get_buffer_size(const cmsis_nn_dims *filter_dims)
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_fully_connected_s8_get_buffer_size().
+ * @note       This variant does not validate dims; validation lives in the top-level dispatcher.
  *
  */
 int32_t arm_fully_connected_s8_get_buffer_size_dsp(const cmsis_nn_dims *filter_dims);
@@ -2264,6 +2360,7 @@ int32_t arm_fully_connected_s8_get_buffer_size_dsp(const cmsis_nn_dims *filter_d
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_fully_connected_s8_get_buffer_size().
+ * @note       Also validates dims like the top-level dispatcher, returning -1 for invalid values.
  *
  */
 int32_t arm_fully_connected_s8_get_buffer_size_mve(const cmsis_nn_dims *filter_dims);
@@ -2271,11 +2368,11 @@ int32_t arm_fully_connected_s8_get_buffer_size_mve(const cmsis_nn_dims *filter_d
 /**
  * @brief Basic s16 Fully Connected function.
  *
- * @param[in, out] ctx           Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function {API}_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in, out] ctx           Unused. This function currently ignores the context entirely on every build - it
+ *                               neither reads nor writes ctx->buf - and arm_fully_connected_s16_get_buffer_size()
+ *                               returns 0 accordingly, so { NULL, 0 } is accepted. Unlike the s8 variants, no
+ *                               precomputed kernel sums are required here. None of this is a guarantee about
+ *                               future versions.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               fc_params->input_offset  : 0
  *                               fc_params->filter_offset : 0
@@ -2318,11 +2415,18 @@ arm_cmsis_nn_status arm_fully_connected_s16(const cmsis_nn_context *ctx,
 /**
  * @brief Basic s16 Fully Connected function using per channel quantization.
  *
- * @param[in, out] ctx           Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function {API}_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in, out] ctx           Scratch buffer that this function writes before it reads, on every build. It is
+ *                               filled here with one reduced int32 multiplier per output channel derived from
+ *                               quant_params->multiplier, so the caller supplies the storage only and the incoming
+ *                               contents are never used. Unlike the s8 variants, no precomputed kernel sums are
+ *                               expected, and clearing the buffer is harmless.
+ *                               Required on every build, not only under MVE: ctx or ctx->buf being NULL is
+ *                               reported as ARM_CMSIS_NN_ARG_ERROR, as is a non-zero ctx->size smaller than the
+ *                               requirement. A ctx->size of 0 is treated as undeclared and is not checked.
+ *                               Sized by arm_fully_connected_per_channel_s16_get_buffer_size():
+ *                               filter_dims->c * sizeof(int32_t), which equals the output_dims->c entries written.
+ *                               The caller is expected to clear the buffer afterwards, if applicable, for security
+ *                               reasons.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : 0
  *                               fc_params->filter_offset : 0
@@ -2367,11 +2471,23 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s16(const cmsis_nn_context *
 
 /**
  * @brief s16 Fully Connected layer wrapper function
- * @param[in, out] ctx           Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function {API}_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in, out] ctx           Scratch buffer, whose use depends on the route taken. Unlike the s8 wrapper, no
+ *                               precomputed kernel sums are expected on either route, and clearing the buffer is
+ *                               harmless.
+ *                               When quant_params->is_per_channel is set, the context is passed to
+ *                               arm_fully_connected_per_channel_s16(), which writes it before reading it, on every
+ *                               build: it is filled there with one reduced int32 multiplier per output channel, so
+ *                               the caller supplies the storage only. On that route ctx or ctx->buf being NULL is
+ *                               reported as ARM_CMSIS_NN_ARG_ERROR, as is a non-zero ctx->size smaller than
+ *                               filter_dims->c * sizeof(int32_t); a ctx->size of 0 is treated as undeclared and is
+ *                               not checked. Size it with arm_fully_connected_per_channel_s16_get_buffer_size().
+ *                               Otherwise the context goes to arm_fully_connected_s16(), which currently ignores
+ *                               it entirely, so { NULL, 0 } is accepted on that route.
+ *                               A caller that does not know the route in advance should size for the per-channel
+ *                               case, since arm_fully_connected_s16_get_buffer_size() returns 0. None of this is a
+ *                               guarantee about future versions.
+ *                               The caller is expected to clear the buffer afterwards, if applicable, for security
+ *                               reasons.
  * @param[in]      fc_params     Fully Connected layer parameters.
  *                               Range of fc_params->input_offset  : 0
  *                               fc_params->filter_offset : 0
@@ -4324,10 +4440,11 @@ arm_cmsis_nn_status arm_prelu_scalar_s16(const int16_t *scalar_vect,
 /**
  * @brief s8 average pooling function.
  *
- * @param[in, out] ctx          Function context (e.g. temporary buffer). Check the function
- *                              definition file to see if an additional buffer is required.
- *                              Optional function {API}_get_buffer_size() provides the buffer
- *                              size if an additional buffer is required.
+ * @param[in, out] ctx          Function context. Size ctx->buf with arm_avgpool_s8_get_buffer_size(output_dims->w,
+ *                              input_dims->c). Note that it takes the output width and the input channel count rather
+ *                              than a cmsis_nn_dims. arm_avgpool_s8_get_buffer_size_dsp() and
+ *                              arm_avgpool_s8_get_buffer_size_mve() size the same buffer for a specific target. It
+ *                              returns 0 where no buffer is needed, in which case ctx->buf may be NULL.
  *                              The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      pool_params  Pooling parameters
  * @param[in]      input_dims   Input (activation) tensor dimensions. Format: [H, W, C_IN]
@@ -4387,10 +4504,11 @@ int32_t arm_avgpool_s8_get_buffer_size_mve(const int dim_dst_width, const int ch
 /**
  * @brief s16 average pooling function.
  *
- * @param[in, out] ctx          Function context (e.g. temporary buffer). Check the function
- *                              definition file to see if an additional buffer is required.
- *                              Optional function {API}_get_buffer_size() provides the buffer
- *                              size if an additional buffer is required.
+ * @param[in, out] ctx          Function context. Size ctx->buf with arm_avgpool_s16_get_buffer_size(output_dims->w,
+ *                              input_dims->c). Note that it takes the output width and the input channel count rather
+ *                              than a cmsis_nn_dims. arm_avgpool_s16_get_buffer_size_dsp() and
+ *                              arm_avgpool_s16_get_buffer_size_mve() size the same buffer for a specific target. It
+ *                              returns 0 where no buffer is needed, in which case ctx->buf may be NULL.
  *                              The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      pool_params  Pooling parameters
  * @param[in]      input_dims   Input (activation) tensor dimensions. Format: [H, W, C_IN]
@@ -4450,11 +4568,10 @@ int32_t arm_avgpool_s16_get_buffer_size_mve(const int dim_dst_width, const int c
 /**
  * @brief s8 max pooling function.
  *
- * @param[in, out] ctx          Function context (e.g. temporary buffer). Check the function
- *                              definition file to see if an additional buffer is required.
- *                              Optional function {API}_get_buffer_size() provides the buffer
- *                              size if an additional buffer is required.
- *                              The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      ctx          Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
+ *                              there is deliberately no arm_max_pool_s8_get_buffer_size(). Max pooling needs no
+ *                              accumulator scratch, unlike arm_avgpool_s8(), whose sizer does not describe this
+ *                              argument.
  * @param[in]      pool_params  Pooling parameters
  * @param[in]      input_dims   Input (activation) tensor dimensions. Format: [H, W, C_IN]
  * @param[in]      input_data   Input (activation) data pointer. The input tensor must not
@@ -4485,11 +4602,10 @@ arm_cmsis_nn_status arm_max_pool_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s16 max pooling function.
  *
- * @param[in, out] ctx          Function context (e.g. temporary buffer). Check the function
- *                              definition file to see if an additional buffer is required.
- *                              Optional function {API}_get_buffer_size() provides the buffer
- *                              size if an additional buffer is required.
- *                              The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      ctx          Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
+ *                              there is deliberately no arm_max_pool_s16_get_buffer_size(). Max pooling needs no
+ *                              accumulator scratch, unlike arm_avgpool_s16(), whose sizer does not describe this
+ *                              argument.
  * @param[in]      pool_params  Pooling parameters
  * @param[in]      input_dims   Input (activation) tensor dimensions. Format: [H, W, C_IN]
  * @param[in]      src          Input (activation) data pointer. The input tensor must not
@@ -5385,12 +5501,15 @@ arm_cmsis_nn_status arm_svdf_state_s16_s8(const cmsis_nn_context *input_ctx,
  * @brief Get size of the kernel-sum buffer required by arm_svdf_s8().
  * @param[in]      weights_feature_dims    dimensions of the weights (feature) tensor, i.e. the same
  *                                         cmsis_nn_dims passed to arm_svdf_s8()
- * @return         The function returns    required buffer size in bytes
+ * @return         The function returns    required buffer size in bytes, or -1 if weights_feature_dims->n is
+ *                                         negative or the required size would not fit in an int32_t
  *
- * @details    Returns weights_feature_dims->n * sizeof(int32_t) on builds with the MVE extension and 0
- *             elsewhere. arm_svdf_s8() has no filter_dims argument, and the buffer is indexed by
- *             weights_feature_dims->n, so no other cmsis_nn_dims of that call can size it - in particular
- *             arm_fully_connected_s8_get_buffer_size() reads a different field and under-allocates.
+ * @details    For a valid (non-negative, in-range) weights_feature_dims->n, returns
+ *             weights_feature_dims->n * sizeof(int32_t) on builds with the MVE extension and 0 elsewhere. For an
+ *             invalid weights_feature_dims->n, returns -1 on every build target. arm_svdf_s8() has no filter_dims
+ *             argument, and the buffer is indexed by weights_feature_dims->n, so no other cmsis_nn_dims of that
+ *             call can size it - in particular arm_fully_connected_s8_get_buffer_size() reads a different field
+ *             and under-allocates.
  *             See arm_svdf_s8() for the buffer's layout, how to fill it and when it may be reused.
  */
 int32_t arm_svdf_s8_get_buffer_size(const cmsis_nn_dims *weights_feature_dims);
@@ -5401,6 +5520,7 @@ int32_t arm_svdf_s8_get_buffer_size(const cmsis_nn_dims *weights_feature_dims);
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_svdf_s8_get_buffer_size().
+ * @note       This variant does not validate dims; validation lives in the top-level dispatcher.
  *
  */
 int32_t arm_svdf_s8_get_buffer_size_dsp(const cmsis_nn_dims *weights_feature_dims);
@@ -5411,6 +5531,7 @@ int32_t arm_svdf_s8_get_buffer_size_dsp(const cmsis_nn_dims *weights_feature_dim
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_svdf_s8_get_buffer_size().
+ * @note       Also validates dims like the top-level dispatcher, returning -1 for invalid values.
  *
  */
 int32_t arm_svdf_s8_get_buffer_size_mve(const cmsis_nn_dims *weights_feature_dims);
@@ -5561,11 +5682,13 @@ arm_cmsis_nn_status arm_batch_matmul_s16(const cmsis_nn_context *ctx,
  * @brief Get size of the scratch buffer required by arm_batch_matmul_s8().
  * @param[in]      input_rhs_dims          dimensions of the (transposed) rhs tensor, i.e. the same
  *                                         cmsis_nn_dims passed to arm_batch_matmul_s8()
- * @return         The function returns    required buffer size in bytes
+ * @return         The function returns    required buffer size in bytes, or -1 if input_rhs_dims->w is negative
+ *                                         or the required size would not fit in an int32_t
  *
- * @details    Returns input_rhs_dims->w * sizeof(int32_t) on builds with the MVE extension and 0 elsewhere.
- *             input_rhs_dims->w is the rhs row count, which is what the kernel-sum buffer is indexed by;
- *             sizing this buffer from any other dims (in particular with
+ * @details    For a valid (non-negative, in-range) input_rhs_dims->w, returns input_rhs_dims->w * sizeof(int32_t)
+ *             on builds with the MVE extension and 0 elsewhere. For an invalid input_rhs_dims->w, returns -1 on
+ *             every build target. input_rhs_dims->w is the rhs row count, which is what the kernel-sum buffer is
+ *             indexed by; sizing this buffer from any other dims (in particular with
  *             arm_fully_connected_s8_get_buffer_size(), which reads .c) writes past the allocation whenever
  *             the rhs has more rows than columns.
  *             arm_batch_matmul_s16() needs no scratch buffer and so has no corresponding sizer.
@@ -5578,6 +5701,7 @@ int32_t arm_batch_matmul_s8_get_buffer_size(const cmsis_nn_dims *input_rhs_dims)
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_batch_matmul_s8_get_buffer_size().
+ * @note       This variant does not validate dims; validation lives in the top-level dispatcher.
  *
  */
 int32_t arm_batch_matmul_s8_get_buffer_size_dsp(const cmsis_nn_dims *input_rhs_dims);
@@ -5588,6 +5712,7 @@ int32_t arm_batch_matmul_s8_get_buffer_size_dsp(const cmsis_nn_dims *input_rhs_d
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_batch_matmul_s8_get_buffer_size().
+ * @note       Also validates dims like the top-level dispatcher, returning -1 for invalid values.
  *
  */
 int32_t arm_batch_matmul_s8_get_buffer_size_mve(const cmsis_nn_dims *input_rhs_dims);
@@ -6381,11 +6506,11 @@ arm_cmsis_nn_status arm_dynamic_update_slice_s16(const int16_t *operand,
 /**
  * @brief Fully-connected layer function for float16
  *
- * @param[in]  ctx                Function context (e.g. temporary buffer). Check the function
- *                               definition file to see if an additional buffer is required.
- *                               Optional function arm_fully_connected_fp16_get_buffer_size() provides the buffer
- *                               size if an additional buffer is required.
- *                               The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]  ctx                Function context. This kernel uses no additional buffer and never dereferences ctx, so
+ *                                ctx->buf may be NULL and there is deliberately no
+ *                                arm_fully_connected_fp16_get_buffer_size(). Do not size this context with
+ *                                arm_fully_connected_f16_get_buffer_size(), which belongs to the separate float API and
+ *                                describes a different function's buffer.
  * @param[in]  fc_params          Pointer to the fully-connected layer parameters
  * @param[in]  input_dims         Pointer to the input tensor dimensions
  * @param[in]  input              Pointer to the input tensor
