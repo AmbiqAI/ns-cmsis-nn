@@ -46,6 +46,11 @@ void tearDown(void) {}
 
 void test_basic_arm_depthwise_conv_s8_opt(void) { basic_arm_depthwise_conv_s8_opt(); }
 
+void test_depthwise_null_weight_sum_arm_depthwise_conv_s8_opt(void)
+{
+    depthwise_null_weight_sum_arm_depthwise_conv_s8_opt();
+}
+
 void test_depthwise_eq_in_out_ch_arm_depthwise_conv_s8_opt(void) { depthwise_eq_in_out_ch_arm_depthwise_conv_s8_opt(); }
 
 void test_depthwise_sub_block_arm_depthwise_conv_s8_opt(void) { depthwise_sub_block_arm_depthwise_conv_s8_opt(); }

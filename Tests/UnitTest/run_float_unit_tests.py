@@ -107,122 +107,24 @@ CPU_ALIASES = {
 }
 
 FAMILY_CONFIGS: dict[str, FloatTestFamily] = {
-    "activation": FloatTestFamily(
-        name="activation",
-        generator_script="activation_settings_flt.py",
-        selector_by_dtype={"f32": ["activation_f32"], "f16": ["activation_f16"]},
-        cmsis_project="test_arm_activation_flt",
-    ),
-    "avg_pool": FloatTestFamily(
-        name="avg_pool",
-        generator_script="pooling_settings_flt.py",
-        selector_by_dtype={"f32": ["avgpool_f32"], "f16": ["avgpool_f16"]},
-        cmsis_project="test_arm_avg_pool_flt",
-    ),
-    "batch_matmul": FloatTestFamily(
-        name="batch_matmul",
-        generator_script="batch_matmul_settings_flt.py",
-        selector_by_dtype={"f32": ["batch_matmul_f32_family"], "f16": ["batch_matmul_f16_family"]},
-        cmsis_project="test_arm_batch_matmul_flt",
-    ),
-    "batch_norm": FloatTestFamily(
-        name="batch_norm",
-        generator_script="batch_norm_settings_flt.py",
-        selector_by_dtype={"f32": ["batch_norm_f32_family"], "f16": ["batch_norm_f16_family"]},
-        cmsis_project="test_arm_batch_norm_flt",
-    ),
-    "concatenation": FloatTestFamily(
-        name="concatenation",
-        generator_script="concatenation_settings_flt.py",
-        selector_by_dtype={"f32": ["concatenation_f32_family"], "f16": ["concatenation_f16_family"]},
-        cmsis_project="test_arm_concatenation_flt",
-    ),
+    # F16-only: the F32 half (host suite test_arm_convolve_f32 and the
+    # test_arm_convolve_flt.F32+... CMSIS context) was deleted with #256,
+    # so "f32" is intentionally absent from selector_by_dtype below --
+    # that absence is what the per-family dtype-availability guards in
+    # generate_float_test_data() / configure_and_build_host() /
+    # run_host_tests() / build_cmsis_tests() key off of to skip this
+    # family's f32 leg instead of erroring.
     "convolve": FloatTestFamily(
         name="convolve",
         generator_script="conv_settings_flt.py",
-        selector_by_dtype={"f32": ["conv_f32_family"], "f16": ["conv_f16_family"]},
+        selector_by_dtype={"f16": ["conv_f16_family"]},
         cmsis_project="test_arm_convolve_flt",
-    ),
-    "depthwise_conv": FloatTestFamily(
-        name="depthwise_conv",
-        generator_script="depthwise_conv_settings_flt.py",
-        selector_by_dtype={"f32": ["depthwise_conv_f32_family"], "f16": ["depthwise_conv_f16_family"]},
-        cmsis_project="test_arm_depthwise_conv_flt",
-    ),
-    "ds_cnn_s_body": FloatTestFamily(
-        name="ds_cnn_s_body",
-        generator_script="ds_cnn_s_body_settings_flt.py",
-        selector_by_dtype={"f32": ["ds_cnn_s_body_f32_family"], "f16": ["ds_cnn_s_body_f16_family"]},
-        cmsis_project="test_arm_ds_cnn_s_body_flt",
-    ),
-    "elementwise_add": FloatTestFamily(
-        name="elementwise_add",
-        generator_script="add_mul_settings_flt.py",
-        selector_by_dtype={"f32": ["add_f32_family"], "f16": ["add_f16_family"]},
-        cmsis_project="test_arm_elementwise_add_flt",
-    ),
-    "elementwise_mul": FloatTestFamily(
-        name="elementwise_mul",
-        generator_script="add_mul_settings_flt.py",
-        selector_by_dtype={"f32": ["mul_f32_family"], "f16": ["mul_f16_family"]},
-        cmsis_project="test_arm_elementwise_mul_flt",
-    ),
-    "fully_connected": FloatTestFamily(
-        name="fully_connected",
-        generator_script="fully_connected_settings_flt.py",
-        selector_by_dtype={"f32": ["fully_connected_f32_family"], "f16": ["fully_connected_f16_family"]},
-        cmsis_project="test_arm_fully_connected_flt",
-    ),
-    "lstm": FloatTestFamily(
-        name="lstm",
-        generator_script="lstm_settings_flt.py",
-        selector_by_dtype={"f32": ["lstm_f32_family"], "f16": ["lstm_f16_family"]},
-        cmsis_project="test_arm_lstm_unidirectional_flt",
-    ),
-    "max_pool": FloatTestFamily(
-        name="max_pool",
-        generator_script="pooling_settings_flt.py",
-        selector_by_dtype={"f32": ["maxpool_f32"], "f16": ["maxpool_f16"]},
-        cmsis_project="test_arm_max_pool_flt",
-    ),
-    "maximum_minimum": FloatTestFamily(
-        name="maximum_minimum",
-        generator_script="minmax_settings_flt.py",
-        selector_by_dtype={
-            "f32": ["maximum_f32_family", "minimum_f32_family"],
-            "f16": ["maximum_f16_family", "minimum_f16_family"],
-        },
-        cmsis_project="test_arm_maximum_minimum_flt",
-    ),
-    "pad": FloatTestFamily(
-        name="pad",
-        generator_script="pad_settings_flt.py",
-        selector_by_dtype={"f32": ["pad_f32_family"], "f16": ["pad_f16_family"]},
-        cmsis_project="test_arm_pad_flt",
     ),
     "reshape": FloatTestFamily(
         name="reshape",
         generator_script=None,
         selector_by_dtype={"f32": [], "f16": []},
         cmsis_project="test_arm_reshape_flt",
-    ),
-    "softmax": FloatTestFamily(
-        name="softmax",
-        generator_script="softmax_settings_flt.py",
-        selector_by_dtype={"f32": ["softmax_f32"], "f16": ["softmax_f16"]},
-        cmsis_project="test_arm_softmax_flt",
-    ),
-    "svdf": FloatTestFamily(
-        name="svdf",
-        generator_script="svdf_settings_flt.py",
-        selector_by_dtype={"f32": ["svdf_f32_family"], "f16": ["svdf_f16_family"]},
-        cmsis_project="test_arm_svdf_flt",
-    ),
-    "transpose": FloatTestFamily(
-        name="transpose",
-        generator_script="transpose_settings_flt.py",
-        selector_by_dtype={"f32": ["transpose_f32_family"], "f16": ["transpose_f16_family"]},
-        cmsis_project="test_arm_transpose_flt",
     ),
     "transpose_conv": FloatTestFamily(
         name="transpose_conv",
@@ -233,19 +135,7 @@ FAMILY_CONFIGS: dict[str, FloatTestFamily] = {
 }
 
 FAMILY_ALIASES = {
-    "bn": "batch_norm",
-    "batchnorm": "batch_norm",
-    "concat": "concatenation",
     "conv": "convolve",
-    "depthwise": "depthwise_conv",
-    "ds_cnn_s": "ds_cnn_s_body",
-    "dwconv": "depthwise_conv",
-    "fc": "fully_connected",
-    "bmm": "batch_matmul",
-    "lstm_unidirectional": "lstm",
-    "minmax": "maximum_minimum",
-    "maximum": "maximum_minimum",
-    "minimum": "maximum_minimum",
     "transposeconv": "transpose_conv",
     "tconv": "transpose_conv",
 }
@@ -269,12 +159,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--tests",
         default="all",
+        # Listed from FAMILY_CONFIGS rather than spelled out: the previous
+        # hand-written list still named 17 families whose suites had been
+        # unbuildable for years (#256).
         help=(
-            "Comma-separated float test families to run. Supported values include "
-            "softmax, activation, reshape, avg_pool, batch_norm, batch_matmul, "
-            "concatenation, convolve, depthwise_conv, ds_cnn_s_body, elementwise_add, "
-            "elementwise_mul, fully_connected, lstm, max_pool, maximum_minimum, "
-            "pad, svdf, transpose, transpose_conv, or all."
+            "Comma-separated float test families to run. Supported values: "
+            + ", ".join(sorted(FAMILY_CONFIGS))
+            + ", or all."
         ),
     )
     parser.add_argument(
@@ -562,13 +453,17 @@ def generate_float_test_data(
             continue
         script_path = UNIT_TEST_ROOT / family.generator_script
         for dtype_name in dtypes:
+            if dtype_name not in family.selector_by_dtype:
+                append_result(
+                    results, "generate", family.name, dtype_name,
+                    status="SKIP", detail=f"{family.name} has no {dtype_name} suite",
+                )
+                continue
             family_ok = True
             for selector in family.selector_by_dtype[dtype_name]:
                 cmd = [sys.executable, str(script_path), "--dataset", selector]
                 if regenerate_input:
                     cmd.append("--regenerate-input")
-                if family.name == "fully_connected" and regenerate_input:
-                    cmd.extend(["--regenerate-weights", "--regenerate-biases"])
                 ok, detail = try_command(cmd, UNIT_TEST_ROOT)
                 if not ok:
                     family_ok = False
@@ -611,6 +506,12 @@ def configure_and_build_host(
     all_ok = True
     for family in families:
         for dtype_name in dtypes:
+            if dtype_name not in family.selector_by_dtype:
+                append_result(
+                    results, "build-host", family.name, dtype_name,
+                    status="SKIP", detail=f"{family.name} has no {dtype_name} suite",
+                )
+                continue
             target = family.host_target(dtype_name)
             ok, detail = try_command(["cmake", "--build", str(build_dir), "-j", str(jobs), "--target", target], REPO_ROOT)
             if not ok:
@@ -637,6 +538,12 @@ def run_host_tests(families: list[FloatTestFamily], dtypes: list[str], build_dir
     all_ok = True
     for family in families:
         for dtype_name in dtypes:
+            if dtype_name not in family.selector_by_dtype:
+                append_result(
+                    results, "run-host", family.name, dtype_name,
+                    status="SKIP", detail=f"{family.name} has no {dtype_name} suite",
+                )
+                continue
             target_name = family.host_target(dtype_name)
             ok, detail = try_command([str(executable_path(build_dir, target_name))], REPO_ROOT)
             if not ok:
@@ -668,6 +575,12 @@ def build_cmsis_tests(
     for toolchain in toolchains:
         for family in families:
             for dtype_name in dtypes:
+                if dtype_name not in family.selector_by_dtype:
+                    append_result(
+                        results, "build-cmsis", family.name, dtype_name, toolchain,
+                        "SKIP", f"{family.name} has no {dtype_name} suite",
+                    )
+                    continue
                 context = family.cmsis_context(dtype_name, target_type)
                 update_cmd = [
                     "cbuild",
@@ -738,6 +651,12 @@ def run_fvp_tests(
     for toolchain in toolchains:
         for family in families:
             for dtype_name in dtypes:
+                if dtype_name not in family.selector_by_dtype:
+                    append_result(
+                        results, "run-fvp", family.name, dtype_name, toolchain,
+                        "SKIP", f"{family.name} has no {dtype_name} suite",
+                    )
+                    continue
                 build_result = find_result(results, "build-cmsis", family.name, dtype_name, toolchain)
                 if build_result and build_result.status != "PASS":
                     append_result(results, "run-fvp", family.name, dtype_name, toolchain, "SKIP", "build-cmsis failed")
