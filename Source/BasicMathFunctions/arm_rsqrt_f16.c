@@ -22,6 +22,15 @@
 
 #if ARM_NN_ENABLE_F16
 
+    #if defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
+static inline _Float16 arm_nn_sqrt_f16h(_Float16 value)
+{
+    _Float16 result;
+    __asm__("vsqrt.f16 %0, %1" : "=t"(result) : "t"(value));
+    return result;
+}
+    #endif
+
 /**
  *  @ingroup Public
  */
@@ -38,12 +47,15 @@ arm_cmsis_nn_status arm_rsqrt_f16(const float16_t *input, float16_t *output, int
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    // MVE has no floating-point reciprocal-square-root instruction. Compute
-    // in float32 so each result is rounded only once on conversion to f16.
     for (int32_t i = 0; i < block_size; ++i)
     {
+    #if defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
+        const _Float16 root = arm_nn_sqrt_f16h((_Float16)input[i]);
+        output[i] = (float16_t)((_Float16)1.0f / root);
+    #else
         const float32_t value = (float32_t)input[i];
         output[i] = (float16_t)(1.0f / __builtin_sqrtf(value));
+    #endif
     }
 
     return ARM_CMSIS_NN_SUCCESS;
