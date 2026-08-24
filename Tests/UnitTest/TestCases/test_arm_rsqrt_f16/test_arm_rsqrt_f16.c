@@ -15,6 +15,16 @@
 
 #include "rsqrt_f16_data.h"
 
+static void assert_f16_within_one_ulp(float16_t expected, float16_t actual)
+{
+    uint16_t expected_bits;
+    uint16_t actual_bits;
+    memcpy(&expected_bits, &expected, sizeof(expected_bits));
+    memcpy(&actual_bits, &actual, sizeof(actual_bits));
+
+    TEST_ASSERT_INT_WITHIN(1, expected_bits, actual_bits);
+}
+
 void rsqrt_f16_arm_rsqrt_f16(void)
 {
     float16_t output[RSQRT_F16_DST_SIZE] = {0};
@@ -22,7 +32,7 @@ void rsqrt_f16_arm_rsqrt_f16(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_rsqrt_f16(rsqrt_f16_input, output, RSQRT_F16_DST_SIZE));
     for (int32_t i = 0; i < RSQRT_F16_DST_SIZE; ++i)
     {
-        TEST_ASSERT_FLOAT_WITHIN(1.0e-3f, (float)rsqrt_f16_output_ref[i], (float)output[i]);
+        assert_f16_within_one_ulp(rsqrt_f16_output_ref[i], output[i]);
     }
 }
 
@@ -34,7 +44,7 @@ void rsqrt_f16_in_place_arm_rsqrt_f16(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_rsqrt_f16(values, values, RSQRT_F16_DST_SIZE));
     for (int32_t i = 0; i < RSQRT_F16_DST_SIZE; ++i)
     {
-        TEST_ASSERT_FLOAT_WITHIN(1.0e-3f, (float)rsqrt_f16_output_ref[i], (float)values[i]);
+        assert_f16_within_one_ulp(rsqrt_f16_output_ref[i], values[i]);
     }
 }
 
