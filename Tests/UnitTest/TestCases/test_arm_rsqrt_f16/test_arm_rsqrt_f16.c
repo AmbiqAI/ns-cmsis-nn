@@ -51,6 +51,9 @@ void rsqrt_f16_in_place_arm_rsqrt_f16(void)
 
 void rsqrt_f16_special_values_arm_rsqrt_f16(void)
 {
+#if defined(__ARM_FP16_FORMAT_ALTERNATIVE)
+    TEST_IGNORE_MESSAGE("Arm alternative half precision has no infinity or NaN encodings");
+#else
     const uint16_t input_bits[] = {0x0000, 0x8000, 0xBC00, 0x7C00, 0xFC00, 0x7D55};
     const uint16_t expected_bits[] = {0x7C00, 0xFC00, 0x7E00, 0x0000, 0x7E00, 0x7F55};
     float16_t input[6];
@@ -62,6 +65,7 @@ void rsqrt_f16_special_values_arm_rsqrt_f16(void)
     {
         TEST_ASSERT_EQUAL_HEX16(expected_bits[i], f16_bits(output[i]));
     }
+#endif
 }
 
 void rsqrt_f16_arg_error_arm_rsqrt_f16(void)

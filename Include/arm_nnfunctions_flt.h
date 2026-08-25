@@ -1328,10 +1328,13 @@ arm_cmsis_nn_status arm_nn_abs_f16(const float16_t *input, float16_t *output, in
  * The scalar float16 path can differ from the float32 path by one float16 ULP
  * because its square-root intermediate is rounded before division.
  *
- * IEEE special-value behavior is preserved independently of compiler fast-math
- * settings: positive zero maps to positive infinity, negative zero maps to
- * negative infinity, negative finite values and negative infinity map to NaN,
- * positive infinity maps to positive zero, and NaN propagates as a quiet NaN.
+ * On IEEE binary16 targets, special-value behavior is preserved independently
+ * of compiler fast-math settings: positive zero maps to positive infinity,
+ * negative zero maps to negative infinity, negative finite values and negative
+ * infinity map to NaN, positive infinity maps to positive zero, and NaN
+ * propagates as a quiet NaN. Targets configured for Arm alternative half
+ * precision, which has no infinity or NaN encodings, use native arithmetic
+ * without IEEE bit-pattern classification.
  *
  * @param[in]  input       Pointer to the input tensor
  * @param[out] output      Pointer to the output tensor; may alias @p input
