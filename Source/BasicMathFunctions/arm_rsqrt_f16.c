@@ -33,6 +33,7 @@ static inline _Float16 arm_nn_sqrt_f16h(_Float16 value)
 }
     #endif
 
+    #if !defined(__ARM_FP16_FORMAT_ALTERNATIVE)
 static inline uint16_t arm_nn_f16_to_bits(float16_t value)
 {
     uint16_t bits;
@@ -46,6 +47,7 @@ static inline float16_t arm_nn_f16_from_bits(uint16_t bits)
     memcpy(&value, &bits, sizeof(value));
     return value;
 }
+    #endif
 
 /**
  *  @ingroup Public
@@ -65,6 +67,7 @@ arm_cmsis_nn_status arm_rsqrt_f16(const float16_t *input, float16_t *output, int
 
     for (int32_t i = 0; i < block_size; ++i)
     {
+    #if !defined(__ARM_FP16_FORMAT_ALTERNATIVE)
         const uint16_t input_bits = arm_nn_f16_to_bits(input[i]);
         const uint16_t magnitude = input_bits & UINT16_C(0x7FFF);
 
@@ -89,6 +92,7 @@ arm_cmsis_nn_status arm_rsqrt_f16(const float16_t *input, float16_t *output, int
             output[i] = arm_nn_f16_from_bits(UINT16_C(0x7E00));
             continue;
         }
+    #endif
 
     #if defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
         const _Float16 root = arm_nn_sqrt_f16h((_Float16)input[i]);
