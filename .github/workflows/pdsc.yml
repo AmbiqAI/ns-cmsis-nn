@@ -72,6 +72,13 @@ jobs:
       - name: Run unit-test suite buildability tests
         run: python3 scripts/tests/test_check_pdsc_unit_test_suites.py
 
+      # The float32 tanh LUT is generated data, and no test can catch a
+      # corrupted entry: the unit suite reads the same array it checks, so it
+      # pins the interpolation algorithm but not the table contents. Re-derive
+      # the table and compare it against what is checked in.
+      - name: Check generated f32 tanh LUT is re-derivable
+        run: python3 scripts/gen_tanh_lut_f32.py --check Source/NNSupportFunctions/arm_nntables_flt.c
+
   float_cmsis_components:
     # Static guard for the float unit-test wiring: the csolution pack pin
     # tracks the pdsc <release version>, component selectors are fully

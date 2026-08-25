@@ -34,6 +34,21 @@
 
 #if ARM_NN_ENABLE_F32
 
+    /*
+     * Shared geometry of arm_nn_tanh_lut384_f32, used by both the scalar and the
+     * MVE tanh helpers so the two legs cannot drift apart.
+     *
+     * The table samples tanh(x) on a uniform grid over |x| <= ARM_NN_TANH_F32_XMAX
+     * with ARM_NN_TANH_F32_LUT_SEGMENTS interpolation segments (and one extra entry
+     * so lut[idx + 1] is always in range). Grid spacing is 6/384 == 1/64, the same
+     * spacing the earlier [0, 4] table used, so the index multiplier
+     * (SEGMENTS / XMAX == 64) is unchanged and every output for |x| <= 4 is
+     * bit-identical to the previous table.
+     */
+    #define ARM_NN_TANH_F32_XMAX (6.0f)
+    #define ARM_NN_TANH_F32_LUT_SEGMENTS (384)
+    #define ARM_NN_TANH_F32_LUT_MAX_IDX (ARM_NN_TANH_F32_LUT_SEGMENTS - 1)
+
 __STATIC_INLINE float32_t arm_nn_hardswish_scalar_f32(float32_t x)
 {
     float32_t t = x * (1.0f / 6.0f) + 0.5f;
@@ -47,23 +62,75 @@ __STATIC_INLINE float32_t arm_nn_hardswish_scalar_f32(float32_t x)
  * accuracy over a wider input range, while float16 uses a compact rational
  * approximation because half precision does not benefit as much from a
  * larger table and the lower-order form is sufficient for its target error.
+ *
+ * Accuracy: max interpolation error is 2.35e-5 inside the table window
+ * (|x| < ARM_NN_TANH_F32_XMAX); at or outside the boundary the helper
+ * saturates to +/-1.0, a step of 1 - tanh(6) ~= 1.2e-5. Every result for
+ * |x| <= 4 is bit-identical to the earlier 257-entry [0, 4] table.
+ *
+ * NaN contract, and why the two legs differ. NOTE this contract holds only in
+ * builds WITHOUT -ffinite-math-only. The default library build uses -Ofast
+ * (CMSIS_OPTIMIZATION_LEVEL in the top-level CMakeLists.txt), which sets
+ * __FINITE_MATH_ONLY__ and lets the compiler delete the NaN test below
+ * outright -- there, NaN input is simply outside the language contract. It
+ * remains memory-safe: the conversion saturates and NaN propagates through
+ * frac, so a NaN still comes out, but that is an observation about today's
+ * codegen, not a guarantee.
+ *   - Scalar (this helper) propagates NaN. The saturation test is written as
+ *     !(ax < xmax) so NaN, which compares unordered, takes the cold branch;
+ *     that also keeps NaN away from the float->int conversion below, which
+ *     would otherwise be undefined behaviour. A quiet NaN passes through with
+ *     its payload and sign intact; a signalling NaN is quieted on return, so
+ *     its invalid-operation exception is raised here rather than being handed
+ *     to the caller.
+ *   - MVE (arm_nn_vtanh_lut_direct_mve_f32) does not. vminnmq is IEEE minNum,
+ *     which returns the numeric operand when the other is a quiet NaN, so a
+ *     qNaN lane is replaced by xmax and interpolates to tanh(xmax) ~=
+ *     0.9999877 -- and always with a NEGATIVE sign, giving -0.9999877
+ *     (0xbf7fff32). That sign is not a typo and not what C `x < 0.0f`
+ *     semantics would suggest: Armv8.1-M defines VCMP `lt` as the logical
+ *     inverse of `ge`, so it is TRUE for unordered operands, and the
+ *     vnegq_m negation predicate therefore fires on every NaN lane. A
+ *     signalling NaN is quieted and returned by minNum, and is then negated
+ *     the same way, so an sNaN lane yields a negated default qNaN
+ *     (0xffc00000). Restoring NaN in general would cost an extra compare and
+ *     select in the vector loop body, which this helper's callers (LSTM/GRU
+ *     step kernels) run per element. NaN is not a supported input to these
+ *     kernels, so the divergence is accepted rather than paid for. Finite
+ *     inputs, including |x| == xmax, agree exactly across legs.
  */
 __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
 {
     float32_t ax = (x < 0.0f) ? -x : x;
-    const float32_t xmax = 4.0f;
+    const float32_t xmax = ARM_NN_TANH_F32_XMAX;
 
-    if (ax > xmax)
+    if (!(ax < xmax))
     {
+        /* NaN (unordered) lands here too; propagate it rather than saturating.
+         * The + 0.0f is what quiets a signalling NaN, matching what the old
+         * code did incidentally by running the sNaN through the interpolation
+         * arithmetic. Returning x bare would hand an sNaN straight back and
+         * defer its invalid-operation exception to whatever the caller does
+         * next. IEEE addition propagates a quiet NaN operand unchanged, so
+         * qNaN payload and sign still pass through untouched. */
+        if (ax != ax)
+        {
+            return x + 0.0f;
+        }
         return (x < 0.0f) ? -1.0f : 1.0f;
     }
 
-    const float32_t t = ax * (256.0f / xmax);
-    int32_t idx = (int32_t)t;
-    idx = CLAMP(idx, 255, 0);
+    /* No index clamp: the strict test above leaves 0 <= ax < xmax, and the
+     * scale is an exact power of two, so 0 <= t < SEGMENTS and idx is in
+     * [0, SEGMENTS - 1] by construction -- lut[idx + 1] stays in range. The
+     * previous [0, 4] table needed a clamp because its test admitted ax ==
+     * xmax; keeping one here would cost three instructions per call in the hot
+     * path, because 383 (unlike 255) is not a `usat` saturation boundary. */
+    const float32_t t = ax * ((float32_t)ARM_NN_TANH_F32_LUT_SEGMENTS / xmax);
+    const int32_t idx = (int32_t)t;
     const float32_t frac = t - (float32_t)idx;
-    const float32_t y0 = arm_nn_tanh_lut256_f32[idx];
-    const float32_t y1 = arm_nn_tanh_lut256_f32[idx + 1];
+    const float32_t y0 = arm_nn_tanh_lut384_f32[idx];
+    const float32_t y1 = arm_nn_tanh_lut384_f32[idx + 1];
     const float32_t y = y0 + (y1 - y0) * frac;
     return (x < 0.0f) ? -y : y;
 }
@@ -136,19 +203,37 @@ __STATIC_INLINE float32x4_t arm_nn_clamp_propagate_nan_mve_f32(float32x4_t x, fl
     return vpselq(x, y, nan_p);
 }
 
+/*
+ * Vector twin of arm_nn_tanh_scalar_ref_f32, sharing arm_nn_tanh_lut384_f32 and
+ * the ARM_NN_TANH_F32_* geometry above so the two legs stay in step.
+ *
+ * Finite inputs agree with the scalar leg exactly, including at |x| == xmax:
+ * the predicate below is >=, matching the scalar helper's !(ax < xmax), so
+ * both legs saturate at the boundary rather than one interpolating to
+ * lut[SEGMENTS] there. NaN is the one place the legs differ: a qNaN lane comes
+ * out as -tanh(xmax) and an sNaN lane as a negated default qNaN, both NEGATIVE
+ * because the vnegq_m predicate below uses VCMP `lt`, which Armv8.1-M defines
+ * as !ge and is therefore true for unordered operands. See the scalar helper's
+ * comment for the full split and why the divergence is accepted.
+ */
 __STATIC_INLINE float32x4_t arm_nn_vtanh_lut_direct_mve_f32(float32x4_t x)
 {
     float32x4_t ax = vabsq(x);
-    const mve_pred16_t sat_p = vcmpgtq(ax, 4.0f);
-    ax = vminnmq(ax, vdupq_n_f32(4.0f));
-    const uint32_t xmax = 4U;
-    const uint32_t lut_tbl_max_idx = 256U;
-    const float32x4_t t = vmulq(ax, (float32_t)(lut_tbl_max_idx / xmax));
+    /* Splat once and compare vector-to-vector. The scalar-operand form of
+     * vcmpgeq() would force xmax into a GP register on every iteration,
+     * because 0x40c00000 (6.0f) is not a Thumb-2 modified immediate and so
+     * becomes a literal-pool load inside the loop. Against a vector operand
+     * the constant is materialised once (literal-pool load plus vdup) and
+     * hoisted above the `dls`, leaving the loop body free of it. */
+    const float32x4_t vmax = vdupq_n_f32(ARM_NN_TANH_F32_XMAX);
+    const mve_pred16_t sat_p = vcmpgeq(ax, vmax);
+    ax = vminnmq(ax, vmax);
+    const float32x4_t t = vmulq(ax, (float32_t)ARM_NN_TANH_F32_LUT_SEGMENTS / ARM_NN_TANH_F32_XMAX);
     uint32x4_t idx = vcvtmq_u32_f32(t);
-    idx = vminq(idx, vdupq_n_u32(255U));
+    idx = vminq(idx, vdupq_n_u32((uint32_t)ARM_NN_TANH_F32_LUT_MAX_IDX));
     const float32x4_t frac = vsubq(t, vcvtq_f32_u32(idx));
-    const float32x4_t y0 = vldrwq_gather_shifted_offset((const float32_t *)arm_nn_tanh_lut256_f32, idx);
-    const float32x4_t y1 = vldrwq_gather_shifted_offset((const float32_t *)arm_nn_tanh_lut256_f32, vaddq(idx, 1U));
+    const float32x4_t y0 = vldrwq_gather_shifted_offset((const float32_t *)arm_nn_tanh_lut384_f32, idx);
+    const float32x4_t y1 = vldrwq_gather_shifted_offset((const float32_t *)arm_nn_tanh_lut384_f32, vaddq(idx, 1U));
     float32x4_t y = vfmaq(y0, vsubq(y1, y0), frac);
     y = vpselq(vdupq_n_f32(1.0f), y, sat_p);
     return vnegq_m(y, y, vcmpltq(x, 0.0f));

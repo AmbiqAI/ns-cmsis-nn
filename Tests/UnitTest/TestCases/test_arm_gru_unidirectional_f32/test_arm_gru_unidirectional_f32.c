@@ -46,11 +46,15 @@
 
 /*
  * Tolerance rationale: measured kernel error on these cases is <= 2.1e-5,
- * dominated by the shared tanh 256-entry LUT (2.35e-5 max inside |x| <= 4).
- * 1e-4 is valid because every candidate pre-activation in these goldens stays
- * below 2.9 — inside the LUT window. The helper clamps to exactly +/-1.0 for
- * |x| > 4 (a 6.1e-4 step, see issue #250), so a larger-layer case whose
- * pre-activations cross 4 would need a proportionally larger tolerance.
+ * dominated by the shared tanh LUT (2.35e-5 max inside the window). 1e-4 is
+ * valid because every candidate pre-activation in these goldens stays below
+ * 2.9 — inside the LUT window, which now spans |x| < 6. The in-window bound
+ * is unchanged from the earlier 256-entry table because the grid spacing is
+ * the same (1/64). At and beyond the boundary the helper still clamps to
+ * exactly +/-1.0, but the step is now 1 - tanh(6) ~= 1.2e-5 rather than
+ * 1 - tanh(4) ~= 6.7e-4 (issue #250, fixed), so a larger-layer case whose
+ * pre-activations cross the boundary no longer needs a materially larger
+ * tolerance.
  */
 RUN_GRU_F32_CASE(GRU_SMALL_F32, gru_small_f32, 1.0e-4f)
 

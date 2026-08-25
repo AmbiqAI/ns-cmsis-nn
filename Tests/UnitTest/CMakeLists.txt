@@ -211,6 +211,7 @@ add_subdirectory(TestCases/test_arm_where_s16)
 
 if(ARM_NN_ENABLE_F32)
     add_subdirectory(TestCases/test_arm_nn_abs_f32)
+    add_subdirectory(TestCases/test_arm_nn_activation_helpers_f32)
     add_subdirectory(TestCases/test_arm_elementwise_sub_f32)
     add_subdirectory(TestCases/test_arm_gru_unidirectional_f32)
     add_subdirectory(TestCases/test_arm_prelu_f32)
