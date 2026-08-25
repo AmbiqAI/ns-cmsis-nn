@@ -41,13 +41,21 @@
 
 int32_t arm_avgpool_s16_get_buffer_size(const int output_x, const int ch_src)
 {
+    // Validated once here, ahead of the dispatch below, so an invalid dim returns -1 on every build target - not
+    // just the DSP leg, which is the one that computes a byte count here and re-checks this on its own.
+    const int64_t required_bytes = (int64_t)ch_src * (int64_t)sizeof(int32_t);
+
+    if ((ch_src < 0) || (required_bytes > INT32_MAX))
+    {
+        return -1;
+    }
+
 #if defined(ARM_MATH_MVEI)
     return arm_avgpool_s16_get_buffer_size_mve(output_x, ch_src);
 #elif defined(ARM_MATH_DSP) && !defined(ARM_MATH_MVEI)
     return arm_avgpool_s16_get_buffer_size_dsp(output_x, ch_src);
 #else
     (void)output_x;
-    (void)ch_src;
     return 0;
 #endif
 }
@@ -55,7 +63,18 @@ int32_t arm_avgpool_s16_get_buffer_size(const int output_x, const int ch_src)
 int32_t arm_avgpool_s16_get_buffer_size_dsp(const int output_x, const int ch_src)
 {
     (void)output_x;
-    return (ch_src * sizeof(int32_t));
+
+    // Computed in 64 bits so that a channel count large enough to overflow the int32_t byte count cannot wrap past
+    // the range check below. As in the s8 variant, the DSP leg is the one carrying the byte count, so it is the leg
+    // that has to guard.
+    const int64_t required_bytes = (int64_t)ch_src * (int64_t)sizeof(int32_t);
+
+    if ((ch_src < 0) || (required_bytes > INT32_MAX))
+    {
+        return -1;
+    }
+
+    return (int32_t)required_bytes;
 }
 
 int32_t arm_avgpool_s16_get_buffer_size_mve(const int output_x, const int ch_src)

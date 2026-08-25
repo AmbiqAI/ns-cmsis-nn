@@ -304,7 +304,10 @@ unless the target or toolchain cannot provide the required floating-point type.
   the [TFLM int8 quantization spec][quant-int8].
 - **Buffer convention.** Every kernel takes a `cmsis_nn_context` whose `buf`
   must be sized via the matching `arm_*_get_buffer_size*` query. If the query
-  returns 0, you may pass `{ NULL, 0 }`. Sizing is not always sufficient:
+  returns 0, you may pass `{ NULL, 0 }`. A negative return (`-1`) means the
+  dimensions are out of range — the required size does not fit in an `int32_t`,
+  or a dimension is negative — and must never be used to size a buffer.
+  Sizing is not always sufficient:
   several kernels read a `cmsis_nn_context` as a *precomputed input* rather
   than as scratch — the int8 fully-connected family
   (`arm_fully_connected_s8`, `arm_fully_connected_per_channel_s8` and their
@@ -420,6 +423,10 @@ arm_cmsis_nn_status run_fc(const int8_t *input)
     };
 
     int32_t buf_sz = arm_fully_connected_s8_get_buffer_size(&filter_dims);
+    if (buf_sz < 0)                      /* -1 => dims out of range; never size a buffer from it */
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     int8_t  scratch[buf_sz];             /* or pool / static buffer */
     cmsis_nn_context ctx = { .buf = scratch, .size = buf_sz };
 

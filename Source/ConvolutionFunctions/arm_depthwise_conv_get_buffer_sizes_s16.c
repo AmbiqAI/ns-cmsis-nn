@@ -43,17 +43,39 @@ __STATIC_INLINE int32_t arm_depthwise_conv_fast_s16_get_buffer_size_mve(const cm
                                                                         const cmsis_nn_dims *filter_dims)
 {
     /* The + 8 accounts for a worst case out of bounds read of the lhs buffers in the *_nt_t_* function.  */
-    return 4 * input_dims->c * filter_dims->w * filter_dims->h * sizeof(int16_t) + 8;
+    // Folded one factor at a time so the accumulator stays bounded: a chained (int64_t) product of four int32_t
+    // dims can itself wrap back to a small non-negative value.
+    int64_t required_bytes = arm_nn_size_mul(4, input_dims->c);
+    required_bytes = arm_nn_size_mul(required_bytes, filter_dims->w);
+    required_bytes = arm_nn_size_mul(required_bytes, filter_dims->h);
+    required_bytes = arm_nn_size_mul(required_bytes, (int32_t)sizeof(int16_t));
+    required_bytes = arm_nn_size_add(required_bytes, 8);
+
+    return (int32_t)required_bytes;
 }
 
 __STATIC_INLINE int32_t arm_depthwise_conv_fast_s16_get_buffer_size_dsp(const cmsis_nn_dims *input_dims,
                                                                         const cmsis_nn_dims *filter_dims)
 {
-    return input_dims->c * filter_dims->w * filter_dims->h * sizeof(int16_t);
+    // See the MVE leg for why this folds rather than chaining casts.
+    int64_t required_bytes = arm_nn_size_mul(1, input_dims->c);
+    required_bytes = arm_nn_size_mul(required_bytes, filter_dims->w);
+    required_bytes = arm_nn_size_mul(required_bytes, filter_dims->h);
+    required_bytes = arm_nn_size_mul(required_bytes, (int32_t)sizeof(int16_t));
+
+    return (int32_t)required_bytes;
 }
 
 int32_t arm_depthwise_conv_fast_s16_get_buffer_size(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims)
 {
+    // Dim sanity is validated once here so an invalid dim returns -1 on every build target, including the plain-C
+    // leg below that otherwise returns 0 unconditionally. The byte count itself is checked per leg, since the two
+    // legs use different formulas.
+    if ((input_dims->c < 0) || (filter_dims->w < 0) || (filter_dims->h < 0))
+    {
+        return -1;
+    }
+
 #if defined(ARM_MATH_DSP)
     #if defined(ARM_MATH_MVEI)
     return arm_depthwise_conv_fast_s16_get_buffer_size_mve(input_dims, filter_dims);
@@ -61,8 +83,6 @@ int32_t arm_depthwise_conv_fast_s16_get_buffer_size(const cmsis_nn_dims *input_d
     return arm_depthwise_conv_fast_s16_get_buffer_size_dsp(input_dims, filter_dims);
     #endif
 #else
-    (void)input_dims;
-    (void)filter_dims;
     return 0;
 #endif
 }

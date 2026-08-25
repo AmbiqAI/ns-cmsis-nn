@@ -56,31 +56,60 @@ arm_deptwise_conv_s8_one_in_ch_get_buffer_size_mve(const cmsis_nn_dw_conv_params
 
     int32_t size =
         arm_convolve_wrapper_s8_get_buffer_size_mve(&conv_params, input_dims, &filter_conv_dims, output_dims);
-    size += filter_dims->c * filter_dims->h * filter_dims->w * filter_dims->n;
 
-    return size;
+    // The inner sizer reports out-of-range dims as -1; propagate that before it is summed away into a plausible
+    // positive size.
+    if (size < 0)
+    {
+        return -1;
+    }
+
+    int64_t filter_elements = arm_nn_size_mul(1, filter_dims->c);
+    filter_elements = arm_nn_size_mul(filter_elements, filter_dims->h);
+    filter_elements = arm_nn_size_mul(filter_elements, filter_dims->w);
+    filter_elements = arm_nn_size_mul(filter_elements, filter_dims->n);
+
+    return (int32_t)arm_nn_size_add(filter_elements, size);
 }
 
 int32_t arm_depthwise_conv_s8_opt_get_buffer_size_mve(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims)
 {
     (void)input_dims;
-    return (4 * CH_IN_BLOCK_MVE * filter_dims->w * filter_dims->h) * (int32_t)sizeof(int8_t);
+
+    // Folded one factor at a time so the accumulator stays bounded; see arm_nn_size_mul().
+    int64_t required_bytes = arm_nn_size_mul(4, CH_IN_BLOCK_MVE);
+    required_bytes = arm_nn_size_mul(required_bytes, filter_dims->w);
+    required_bytes = arm_nn_size_mul(required_bytes, filter_dims->h);
+    required_bytes = arm_nn_size_mul(required_bytes, (int32_t)sizeof(int8_t));
+
+    return (int32_t)required_bytes;
 }
 
 int32_t arm_depthwise_conv_s8_opt_get_buffer_size_dsp(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims)
 {
-    return (input_dims->c * filter_dims->w * filter_dims->h) * sizeof(int16_t);
+    // See the MVE leg. This is the leg where a large input_dims->c produced signed-overflow UB before the guard.
+    int64_t required_bytes = arm_nn_size_mul(1, input_dims->c);
+    required_bytes = arm_nn_size_mul(required_bytes, filter_dims->w);
+    required_bytes = arm_nn_size_mul(required_bytes, filter_dims->h);
+    required_bytes = arm_nn_size_mul(required_bytes, (int32_t)sizeof(int16_t));
+
+    return (int32_t)required_bytes;
 }
 
 int32_t arm_depthwise_conv_s8_opt_get_buffer_size(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims)
 {
+    // Dim sanity is validated once here so an invalid dim returns -1 on every build target, including the plain-C
+    // leg below. The byte count is checked per leg, since the two legs use different formulas.
+    if ((input_dims->c < 0) || (filter_dims->w < 0) || (filter_dims->h < 0))
+    {
+        return -1;
+    }
+
 #if defined(ARM_MATH_MVEI)
     return arm_depthwise_conv_s8_opt_get_buffer_size_mve(input_dims, filter_dims);
 #elif defined(ARM_MATH_DSP)
     return arm_depthwise_conv_s8_opt_get_buffer_size_dsp(input_dims, filter_dims);
 #else
-    (void)input_dims;
-    (void)filter_dims;
     return 0;
 #endif
 }
@@ -147,12 +176,24 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(const cmsis_nn_dw_conv
         dw_conv_params->dilation.h == 1)
     {
         size = arm_depthwise_conv_s8_opt_get_buffer_size_mve(input_dims, filter_dims);
+
+        if (size < 0)
+        {
+            return -1;
+        }
     }
 
     if (input_dims->c == 1 && output_dims->c > CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD)
     {
         const int32_t to_conv_size =
             arm_deptwise_conv_s8_one_in_ch_get_buffer_size_mve(dw_conv_params, input_dims, filter_dims, output_dims);
+
+        // Propagate the out-of-range sentinel before the comparison below: MAX(-1, size) would otherwise hand the
+        // caller a plausible positive size for a shape that has no valid size at all.
+        if (to_conv_size < 0)
+        {
+            return -1;
+        }
 
         /* Special case since this is compiler dependent.
            Note it is recommended to use arm_depthwise_conv_wrapper_s8_get_buffer_size() instead. */
