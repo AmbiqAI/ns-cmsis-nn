@@ -20,10 +20,11 @@
 #include <arm_nnfunctions.h>
 #include <unity.h>
 
-/* Angle-bracket form on purpose: this resolves off the Include/ search path,
- * not relative to this directory (check #10 in scripts/check_pdsc.py resolves
- * path-shaped quoted includes against the suite directory). */
-#include <Internal/arm_nn_activation_flt.h>
+/* Quoted relative form on purpose: check #10 in scripts/check_pdsc.py only
+ * resolves path-shaped *quoted* includes, so this spelling is what puts the
+ * suite under that guard and makes a header move surface as a CI failure
+ * rather than as a silently unbuildable suite (see #256). */
+#include "../../../../Include/Internal/arm_nn_activation_flt.h"
 
 /* Sweep of the old table window: [0, 3.99] at 1e-4, both signs. */
 #define TANH_SWEEP_STEP (1.0e-4f)
@@ -120,7 +121,11 @@ void nn_activation_helpers_f32_tanh_non_finite_contract(void)
 {
     const float32_t y_nan = arm_nn_tanh_scalar_ref_f32((float32_t)NAN);
 
-    /* NaN propagates rather than saturating, and never reaches the cast. */
+    /* NaN propagates rather than saturating. Note this pins the contract only:
+     * the pre-#250 helper also returned NaN on every target we can measure, so
+     * this assertion does not observe the removal of the undefined float-to-int
+     * conversion -- that fix is a source-level guarantee, not a behaviour
+     * change. */
     TEST_ASSERT_TRUE(y_nan != y_nan);
 
     TEST_ASSERT_EQUAL_FLOAT(1.0f, arm_nn_tanh_scalar_ref_f32((float32_t)INFINITY));

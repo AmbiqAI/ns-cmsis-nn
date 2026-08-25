@@ -127,7 +127,12 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp_taylor_f32(float32_t x)
     const float32_t log2e = 1.44269504088896341f;
     const float32_t ln2 = 0.69314718055994531f;
 
-    x = CLAMP(x, max_value, min_value);
+    /* Same explicit ordered-compare clamp as arm_nn_softmax_exp_lut_f32(), and
+     * for the same reason: NaN fails the first test and is flushed to
+     * max_value, which is what keeps it out of the float-to-int conversions
+     * below. Writing it out means the guarantee no longer rides on CLAMP()
+     * expanding MIN() first. */
+    x = (x <= max_value) ? ((x >= min_value) ? x : min_value) : max_value;
 
     const float32_t t = x * log2e;
     const int32_t n = (t >= 0.0f) ? (int32_t)(t + 0.5f) : (int32_t)(t - 0.5f);

@@ -73,12 +73,16 @@ __STATIC_INLINE float32_t arm_nn_hardswish_scalar_f32(float32_t x)
  *     !(ax < xmax) so NaN, which compares unordered, takes the cold branch;
  *     that also keeps NaN away from the float->int conversion below, which
  *     would otherwise be undefined behaviour.
- *   - MVE (arm_nn_vtanh_lut_direct_mve_f32) saturates NaN lanes towards
- *     +/-1.0 instead: vminnmq is IEEE minNum, so a NaN lane is replaced by
- *     xmax and then reaches the table. Restoring NaN there would cost an extra
- *     compare and select in the vector loop body, which this helper's callers
- *     (LSTM/GRU step kernels) run per element. NaN is not a supported input to
- *     these kernels, so the divergence is accepted rather than paid for.
+ *   - MVE (arm_nn_vtanh_lut_direct_mve_f32) does not. vminnmq is IEEE minNum,
+ *     which returns the numeric operand when the other is a quiet NaN, so a
+ *     qNaN lane is replaced by xmax and interpolates to tanh(xmax) ~=
+ *     0.9999877 -- and always with a positive sign, because vcmpltq is false
+ *     for NaN. A signalling NaN is quieted and returned by minNum instead, so
+ *     an sNaN lane does propagate as NaN. Restoring NaN in general would cost
+ *     an extra compare and select in the vector loop body, which this helper's
+ *     callers (LSTM/GRU step kernels) run per element. NaN is not a supported
+ *     input to these kernels, so the divergence is accepted rather than paid
+ *     for. Finite inputs, including |x| == xmax, agree exactly across legs.
  */
 __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
 {
@@ -182,21 +186,23 @@ __STATIC_INLINE float32x4_t arm_nn_clamp_propagate_nan_mve_f32(float32x4_t x, fl
  * Vector twin of arm_nn_tanh_scalar_ref_f32, sharing arm_nn_tanh_lut384_f32 and
  * the ARM_NN_TANH_F32_* geometry above so the two legs stay in step.
  *
- * NaN differs from the scalar leg by design: vminnmq is IEEE minNum, so a NaN
- * lane is replaced by xmax and interpolates to tanh(xmax), then takes the
- * positive sign (vcmpltq is false for NaN) -- i.e. NaN saturates towards +1.0.
- * See the scalar helper's comment for why this divergence is accepted.
+ * Finite inputs agree with the scalar leg exactly, including at |x| == xmax:
+ * the predicate below is >=, matching the scalar helper's !(ax < xmax), so
+ * both legs saturate at the boundary rather than one interpolating to
+ * lut[SEGMENTS] there. NaN is the one place the legs differ -- see the scalar
+ * helper's comment for the qNaN/sNaN split and why it is accepted.
  */
 __STATIC_INLINE float32x4_t arm_nn_vtanh_lut_direct_mve_f32(float32x4_t x)
 {
     float32x4_t ax = vabsq(x);
-    /* Splat once and compare vector-to-vector: the scalar form of vcmpgtq()
-     * would force xmax into a GP register every iteration, and 0x40c00000
-     * (6.0f) is not a Thumb-2 modified immediate, so that becomes a
-     * literal-pool load inside the loop. VMOV.F32 does encode 6.0 as a vector
-     * immediate, so this form stays loop-invariant. */
+    /* Splat once and compare vector-to-vector. The scalar-operand form of
+     * vcmpgeq() would force xmax into a GP register on every iteration,
+     * because 0x40c00000 (6.0f) is not a Thumb-2 modified immediate and so
+     * becomes a literal-pool load inside the loop. Against a vector operand
+     * the constant is materialised once (literal-pool load plus vdup) and
+     * hoisted above the `dls`, leaving the loop body free of it. */
     const float32x4_t vmax = vdupq_n_f32(ARM_NN_TANH_F32_XMAX);
-    const mve_pred16_t sat_p = vcmpgtq(ax, vmax);
+    const mve_pred16_t sat_p = vcmpgeq(ax, vmax);
     ax = vminnmq(ax, vmax);
     const float32x4_t t = vmulq(ax, (float32_t)ARM_NN_TANH_F32_LUT_SEGMENTS / ARM_NN_TANH_F32_XMAX);
     uint32x4_t idx = vcvtmq_u32_f32(t);
