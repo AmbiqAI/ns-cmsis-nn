@@ -1323,10 +1323,15 @@ arm_cmsis_nn_status arm_nn_abs_f16(const float16_t *input, float16_t *output, in
  * @ingroup groupElementwise
  * @brief Computes the elementwise reciprocal square root of a float16 tensor.
  *
- * Each value is evaluated in float32 as `1 / sqrt(input)` and rounded once
- * to float16. IEEE floating-point behavior is preserved: positive zero maps
- * to positive infinity, negative zero maps to negative infinity, negative
- * finite values map to NaN, and NaN propagates.
+ * Targets with scalar float16 arithmetic evaluate `VSQRT.F16` followed by
+ * `VDIV.F16`; other targets evaluate in float32 and round once to float16.
+ * The scalar float16 path can differ from the float32 path by one float16 ULP
+ * because its square-root intermediate is rounded before division.
+ *
+ * IEEE special-value behavior is preserved independently of compiler fast-math
+ * settings: positive zero maps to positive infinity, negative zero maps to
+ * negative infinity, negative finite values and negative infinity map to NaN,
+ * positive infinity maps to positive zero, and NaN propagates as a quiet NaN.
  *
  * @param[in]  input       Pointer to the input tensor
  * @param[out] output      Pointer to the output tensor; may alias @p input

@@ -8,21 +8,22 @@
  */
 
 #include <arm_nnfunctions.h>
-#include <math.h>
 #include <stdint.h>
 #include <string.h>
 #include <unity.h>
 
 #include "rsqrt_f16_data.h"
 
+static uint16_t f16_bits(float16_t value)
+{
+    uint16_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
 static void assert_f16_within_one_ulp(float16_t expected, float16_t actual)
 {
-    uint16_t expected_bits;
-    uint16_t actual_bits;
-    memcpy(&expected_bits, &expected, sizeof(expected_bits));
-    memcpy(&actual_bits, &actual, sizeof(actual_bits));
-
-    TEST_ASSERT_INT_WITHIN(1, expected_bits, actual_bits);
+    TEST_ASSERT_INT_WITHIN(1, f16_bits(expected), f16_bits(actual));
 }
 
 void rsqrt_f16_arm_rsqrt_f16(void)
@@ -50,17 +51,17 @@ void rsqrt_f16_in_place_arm_rsqrt_f16(void)
 
 void rsqrt_f16_special_values_arm_rsqrt_f16(void)
 {
-    const float16_t input[] = {
-        (float16_t)0.0f, (float16_t)-0.0f, (float16_t)-1.0f, (float16_t)INFINITY, (float16_t)NAN};
-    float16_t output[5] = {0};
+    const uint16_t input_bits[] = {0x0000, 0x8000, 0xBC00, 0x7C00, 0xFC00, 0x7D55};
+    const uint16_t expected_bits[] = {0x7C00, 0xFC00, 0x7E00, 0x0000, 0x7E00, 0x7F55};
+    float16_t input[6];
+    float16_t output[6] = {0};
+    memcpy(input, input_bits, sizeof(input));
 
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_rsqrt_f16(input, output, 5));
-    TEST_ASSERT_FLOAT_IS_INF((float)output[0]);
-    TEST_ASSERT_FALSE(signbit((float)output[0]));
-    TEST_ASSERT_FLOAT_IS_NEG_INF((float)output[1]);
-    TEST_ASSERT_FLOAT_IS_NAN((float)output[2]);
-    TEST_ASSERT_EQUAL_FLOAT(0.0f, (float)output[3]);
-    TEST_ASSERT_FLOAT_IS_NAN((float)output[4]);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_rsqrt_f16(input, output, 6));
+    for (int32_t i = 0; i < 6; ++i)
+    {
+        TEST_ASSERT_EQUAL_HEX16(expected_bits[i], f16_bits(output[i]));
+    }
 }
 
 void rsqrt_f16_arg_error_arm_rsqrt_f16(void)
