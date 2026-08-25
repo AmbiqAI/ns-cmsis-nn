@@ -127,12 +127,10 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp_taylor_f32(float32_t x)
     const float32_t log2e = 1.44269504088896341f;
     const float32_t ln2 = 0.69314718055994531f;
 
-    /* Same explicit ordered-compare clamp as arm_nn_softmax_exp_lut_f32(), and
-     * for the same reason: NaN fails the first test and is flushed to
-     * max_value, which is what keeps it out of the float-to-int conversions
-     * below. Writing it out means the guarantee no longer rides on CLAMP()
-     * expanding MIN() first. */
-    x = (x <= max_value) ? ((x >= min_value) ? x : min_value) : max_value;
+    /* Same clamp as arm_nn_softmax_exp_lut_f32(); see there for why the
+     * min-then-max order is load-bearing. */
+    x = (x <= max_value) ? x : max_value;
+    x = (x >= min_value) ? x : min_value;
 
     const float32_t t = x * log2e;
     const int32_t n = (t >= 0.0f) ? (int32_t)(t + 0.5f) : (int32_t)(t - 0.5f);
@@ -163,11 +161,24 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp_lut_f32(float32_t x)
      * and returns max_value for NaN), written explicitly because the rest of
      * this function depends on it: it is what keeps NaN out of the two
      * float-to-int conversions below, where it would be undefined behaviour.
-     * Defined consequences: exp(NaN) == exp(80), and hence
+     *
+     * The min-then-max ORDER is load-bearing and must not be "simplified" into
+     * a single nested conditional. Under -ffinite-math-only -- which the
+     * default library build enables, since CMSIS_OPTIMIZATION_LEVEL is -Ofast
+     * -- the compiler is free to contract each statement into VMINNM/VMAXNM,
+     * and those are IEEE minNum/maxNum, which return the *numeric* operand
+     * against a NaN. Applying the max bound first therefore sends NaN to
+     * max_value; applying the min bound first would send it to min_value
+     * instead. CLAMP() expands to MAX(MIN(x, hi), lo), i.e. min-bound-first,
+     * so this order is what reproduces the long-standing behaviour bit for
+     * bit in every optimisation mode.
+     *
+     * Defined consequence: exp(NaN) == exp(80), and hence
      * arm_nn_sigmoid_scalar_f32(NaN) == 1.0f. NaN is not a supported input to
      * the softmax/sigmoid kernels; this only pins down what happens if one
      * arrives. */
-    x = (x <= max_value) ? ((x >= min_value) ? x : min_value) : max_value;
+    x = (x <= max_value) ? x : max_value;
+    x = (x >= min_value) ? x : min_value;
 
     const float32_t t = x * log2e;
     const int32_t n = arm_nn_softmax_floor_to_int_f32(t);
