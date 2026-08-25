@@ -127,10 +127,10 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp_taylor_f32(float32_t x)
     const float32_t log2e = 1.44269504088896341f;
     const float32_t ln2 = 0.69314718055994531f;
 
-    /* Same clamp as arm_nn_softmax_exp_lut_f32(); see there for why the
-     * min-then-max order is load-bearing. */
-    x = (x <= max_value) ? x : max_value;
-    x = (x >= min_value) ? x : min_value;
+    /* Same clamp as arm_nn_softmax_exp_lut_f32(); see there for why both the
+     * order and the strictness of these compares are load-bearing. */
+    x = (x < max_value) ? x : max_value;
+    x = (x > min_value) ? x : min_value;
 
     const float32_t t = x * log2e;
     const int32_t n = (t >= 0.0f) ? (int32_t)(t + 0.5f) : (int32_t)(t - 0.5f);
@@ -173,12 +173,20 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp_lut_f32(float32_t x)
      * so this order is what reproduces the long-standing behaviour bit for
      * bit in every optimisation mode.
      *
+     * The compares are STRICT for the same reason, so the saturating arm owns
+     * the exact boundary exactly as MIN()/MAX() do. With `<=` the pass-through
+     * arm keeps x at x == max_value, and the compiler then propagates a
+     * runtime value where base propagates the literal 80.0f -- enough to
+     * change constant folding downstream and shift the Taylor result by tens
+     * of ULP right at the boundary. NaN routing is unaffected: NaN < max_value
+     * is false either way, so NaN still lands on max_value.
+     *
      * Defined consequence: exp(NaN) == exp(80), and hence
      * arm_nn_sigmoid_scalar_f32(NaN) == 1.0f. NaN is not a supported input to
      * the softmax/sigmoid kernels; this only pins down what happens if one
      * arrives. */
-    x = (x <= max_value) ? x : max_value;
-    x = (x >= min_value) ? x : min_value;
+    x = (x < max_value) ? x : max_value;
+    x = (x > min_value) ? x : min_value;
 
     const float32_t t = x * log2e;
     const int32_t n = arm_nn_softmax_floor_to_int_f32(t);

@@ -79,7 +79,10 @@ __STATIC_INLINE float32_t arm_nn_hardswish_scalar_f32(float32_t x)
  *   - Scalar (this helper) propagates NaN. The saturation test is written as
  *     !(ax < xmax) so NaN, which compares unordered, takes the cold branch;
  *     that also keeps NaN away from the float->int conversion below, which
- *     would otherwise be undefined behaviour.
+ *     would otherwise be undefined behaviour. A quiet NaN passes through with
+ *     its payload and sign intact; a signalling NaN is quieted on return, so
+ *     its invalid-operation exception is raised here rather than being handed
+ *     to the caller.
  *   - MVE (arm_nn_vtanh_lut_direct_mve_f32) does not. vminnmq is IEEE minNum,
  *     which returns the numeric operand when the other is a quiet NaN, so a
  *     qNaN lane is replaced by xmax and interpolates to tanh(xmax) ~=
@@ -103,10 +106,16 @@ __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
 
     if (!(ax < xmax))
     {
-        /* NaN (unordered) lands here too; propagate it rather than saturating. */
+        /* NaN (unordered) lands here too; propagate it rather than saturating.
+         * The + 0.0f is what quiets a signalling NaN, matching what the old
+         * code did incidentally by running the sNaN through the interpolation
+         * arithmetic. Returning x bare would hand an sNaN straight back and
+         * defer its invalid-operation exception to whatever the caller does
+         * next. IEEE addition propagates a quiet NaN operand unchanged, so
+         * qNaN payload and sign still pass through untouched. */
         if (ax != ax)
         {
-            return x;
+            return x + 0.0f;
         }
         return (x < 0.0f) ? -1.0f : 1.0f;
     }
