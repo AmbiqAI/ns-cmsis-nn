@@ -1917,6 +1917,90 @@ void conv_1x1_out_tail_arm_convolve_s8(void)
 #endif
 }
 
+void conv_1x1_out_null_weight_sum_arm_convolve_1x1_out_s8(void)
+{
+    /* arm_convolve_1x1_out_s8() is only compiled on builds with the MVE extension, and always reads
+     * weight_sum_ctx->buf. A NULL buf must be diagnosed rather than silently producing garbage output. */
+#if defined(ARM_MATH_MVEI)
+    enum
+    {
+        output_channels = 9,
+        input_channels = 4,
+        kernel_elements = 4,
+        input_size = input_channels * kernel_elements
+    };
+    const int32_t input_offset = 5;
+    int8_t input[input_size];
+    int8_t kernel[output_channels * input_size];
+    int32_t bias[output_channels];
+    int32_t multiplier[output_channels];
+    int32_t shift[output_channels];
+    int8_t output[output_channels];
+
+    for (int i = 0; i < input_size; i++)
+    {
+        input[i] = (int8_t)((i * 7) % 23 - 11);
+    }
+    for (int i = 0; i < output_channels; i++)
+    {
+        bias[i] = i * 37 - 100;
+        multiplier[i] = (i % 3 == 0) ? (1 << 30) : ((i % 3 == 1) ? (1 << 29) : (3 << 29));
+        shift[i] = (i % 4) - 2;
+        for (int j = 0; j < input_size; j++)
+        {
+            kernel[i * input_size + j] = (int8_t)((i * 5 + j * 3) % 17 - 8);
+        }
+    }
+
+    cmsis_nn_dims input_dims = {1, 2, 2, input_channels};
+    cmsis_nn_dims filter_dims = {output_channels, 2, 2, input_channels};
+    cmsis_nn_dims bias_dims = {1, 1, 1, output_channels};
+    cmsis_nn_dims output_dims = {1, 1, 1, output_channels};
+    cmsis_nn_conv_params conv_params = {
+        .input_offset = input_offset,
+        .output_offset = -3,
+        .stride = {1, 1},
+        .padding = {0, 0},
+        .dilation = {1, 1},
+        .activation = {-11, 9},
+    };
+    cmsis_nn_context ctx;
+    /* weight_sum_ctx is left zeroed (buf == NULL) on purpose: this is the precondition the NULL guard exists to
+     * diagnose, so every other argument must be entirely valid. */
+    cmsis_nn_context weight_sum_ctx = {0};
+    cmsis_nn_per_channel_quant_params quant_params = {
+        .multiplier = multiplier,
+        .shift = shift,
+    };
+
+    /* ctx->buf must be valid: arm_convolve_1x1_out_s8() rejects a NULL one up front, which would mask the
+     * weight-sum guard under test. */
+    const int32_t buffer_size =
+        arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    TEST_ASSERT_TRUE(buffer_size > 0);
+    ctx.buf = malloc(buffer_size);
+    TEST_ASSERT_NOT_NULL(ctx.buf);
+    ctx.size = buffer_size;
+
+    const arm_cmsis_nn_status result = arm_convolve_1x1_out_s8(&ctx,
+                                                               &weight_sum_ctx,
+                                                               &conv_params,
+                                                               &quant_params,
+                                                               &input_dims,
+                                                               input,
+                                                               &filter_dims,
+                                                               kernel,
+                                                               &bias_dims,
+                                                               bias,
+                                                               &output_dims,
+                                                               output);
+
+    memset(ctx.buf, 0, buffer_size);
+    free(ctx.buf);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, result);
+#endif
+}
+
 void buffer_size_arm_convolve_s8(void)
 {
     cmsis_nn_conv_params conv_params;

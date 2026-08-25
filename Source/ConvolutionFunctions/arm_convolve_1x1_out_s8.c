@@ -59,6 +59,15 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+    /* This kernel exists only on MVE builds and always reads the per-channel weight sums through
+       arm_nn_mat_mult_nt_t_1x1_out_s8(). Diagnose a missing buffer here rather than dereferencing
+       NULL and silently returning garbage output. */
+    if (weight_sum_ctx->buf == NULL)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     int16_t *buffer_a = (int16_t *)ctx->buf;
 
     const int32_t input_batches = input_dims->n;

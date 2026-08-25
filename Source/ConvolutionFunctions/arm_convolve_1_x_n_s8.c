@@ -71,6 +71,13 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
 #if defined(ARM_MATH_MVEI)
     (void)bias_dims;
 
+    /* Only this MVE path reads the per-channel weight sums, through arm_nn_mat_mult_nt_t_s8(). Diagnose a
+       missing buffer here rather than dereferencing NULL and silently returning garbage output. */
+    if (weight_sum_ctx->buf == NULL)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     const int32_t input_x = input_dims->w;
     const int32_t kernel_x = filter_dims->w;
     const int32_t output_x = output_dims->w;
