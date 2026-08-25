@@ -196,6 +196,18 @@ int32_t arm_convolve_1_x_n_s8_get_buffer_size(const cmsis_nn_conv_params *conv_p
 #endif
 }
 
+int32_t arm_convolve_1x1_out_s8_get_buffer_size(const cmsis_nn_dims *filter_dims)
+{
+#if !defined(ARM_MATH_MVEI)
+    (void)filter_dims;
+    return 0;
+#else
+    const int32_t rhs_cols = filter_dims->w * filter_dims->h * filter_dims->c;
+    const int32_t remainder = rhs_cols % 4;
+    return remainder != 0 ? rhs_cols + 4 - remainder : rhs_cols;
+#endif
+}
+
 int32_t arm_convolve_1x1_s8_fast_get_buffer_size(const cmsis_nn_dims *input_dims)
 {
     // Dim sanity is validated here so a negative channel count returns -1 on every build target, even though only

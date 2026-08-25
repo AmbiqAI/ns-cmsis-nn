@@ -1314,7 +1314,16 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
 /**
  * @brief Optimised convolution for 1x1 output images (shape of BX1x1xC_OUT) for 8x8 computations
  *
- * @param[in,out] ctx             Function context that may supply an additional buffer for activation rearrangement.
+ * @param[in,out] ctx             Function context that supplies a scratch buffer for activation rearrangement.
+ *                                A NULL buf is diagnosed with ARM_CMSIS_NN_ARG_ERROR. The buffer must hold one
+ *                                4-byte-aligned GEMM row, that is
+ *                                round_up_4(filter_dims->h * filter_dims->w * filter_dims->c) bytes, as returned
+ *                                by arm_convolve_1x1_out_s8_get_buffer_size(). The requirement does not scale
+ *                                with the group count: the kernel rewinds its im2col cursor to the start of the
+ *                                buffer after each group. Setting ctx->size lets this function reject an
+ *                                undersized buffer with ARM_CMSIS_NN_ARG_ERROR; leaving it at zero opts out of
+ *                                that check, which is what TFLite Micro and derivatives do today.
+ *                                The caller is expected to clear the buffer, if applicable, for security reasons.
  *
  * @param[in]     weight_sum_ctx  Per-output-channel weight sums, supplied by the caller. This function only reads
  *                                the buffer and never writes it, so it is filled once and may then be reused for
@@ -1369,6 +1378,23 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
                                             const int32_t *bias_data,
                                             const cmsis_nn_dims *output_dims,
                                             int8_t *output_data);
+
+/**
+ * @brief Get the required scratch buffer size for arm_convolve_1x1_out_s8().
+ *
+ * @param[in]   filter_dims   Filter tensor dimensions. Format: [C_OUT, KH, KW, C_IN]
+ *
+ * @return      The buffer size in bytes: round_up_4(KH * KW * C_IN) on builds with the MVE extension
+ *              (ARM_MATH_MVEI), 0 otherwise, since arm_convolve_1x1_out_s8() only exists on MVE builds.
+ *
+ * @note        The figure is independent of the group count. arm_convolve_1x1_out_s8() rewinds its im2col cursor
+ *              to the start of the buffer after each group's matmul, so groups do not accumulate.
+ * @note        Callers reaching the kernel through arm_convolve_wrapper_s8() must size the buffer with
+ *              arm_convolve_wrapper_s8_get_buffer_size() instead, which covers every kernel the wrapper may
+ *              dispatch to. This function is for callers that invoke arm_convolve_1x1_out_s8() directly.
+ */
+int32_t arm_convolve_1x1_out_s8_get_buffer_size(const cmsis_nn_dims *filter_dims);
+
 /**
  * @brief 1xn convolution for s4 weights
  *

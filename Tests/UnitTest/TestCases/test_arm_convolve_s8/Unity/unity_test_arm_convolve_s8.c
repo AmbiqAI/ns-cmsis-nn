@@ -60,6 +60,10 @@ void test_conv_1x1_out_null_weight_sum_arm_convolve_1x1_out_s8(void)
 {
     conv_1x1_out_null_weight_sum_arm_convolve_1x1_out_s8();
 }
+void test_conv_1x1_out_buffer_size_arm_convolve_1x1_out_s8(void)
+{
+    conv_1x1_out_buffer_size_arm_convolve_1x1_out_s8();
+}
 
 void test_conv_out_activation_arm_convolve_s8(void) { conv_out_activation_arm_convolve_s8(); }
 void test_conv_dilation_golden_arm_convolve_s8(void) { conv_dilation_golden_arm_convolve_s8(); }
