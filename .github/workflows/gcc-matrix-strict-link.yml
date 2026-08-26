@@ -1,0 +1,127 @@
+# SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+#
+# Supported-GCC-range strict link gate.
+#
+# Why this exists (AmbiqAI/ns-cmsis-nn#305):
+#
+#   The functional PR gate (ci.yml -> helia-core-tester.yml) runs
+#   entirely inside the CI container, which pins arm-gnu 14.3.1.
+#   release.yml builds its GCC static-library assets with 13.2.Rel1.
+#   Those ranges do not agree about MVE _Generic intrinsic dispatch: an
+#   untyped literal argument (e.g. `vaddq(idx, 1U)`) resolves cleanly on
+#   14.x/15.x but on 12.x/13.x silently compiles to a call to
+#   `__ARM_undef`, which only surfaces as an `undefined reference` at
+#   LINK time. Nothing on the PR path linked MVE-float objects with an
+#   old-range GCC, so the class reached main.
+#
+# We support GCC 13 through 15, with 13 as the floor. This workflow
+# builds and STRICT-links the archive on one pinned release per major:
+#
+#   13.2.Rel1  floor of the supported range, and exactly what
+#              release.yml ships
+#   14.3.Rel1  matches the CI container (14.3.1)
+#   15.3.Rel1  newest supported
+#
+# GCC 12 was evaluated and deliberately dropped as the floor. Its
+# arm_mve.h mis-dispatches the FLOAT overloads of polymorphic intrinsic
+# names generally -- not just bare untyped literals (the tree contains
+# exactly one of those, #305's). arm_softmax_f32 does not include the
+# activation header at all and still fails, on its own vpselq / vmaxnmq
+# / vsubq / vmulq calls over float32x4_t. Supporting 12 would mean
+# giving ~859 polymorphic call sites across the float sources explicit
+# _f32/_f16 suffixes: a wide mechanical sweep, and its own effort.
+#
+# x two CPUs chosen for coverage per cell, not breadth:
+#
+#   cortex-m55  MVE + DSP + float -- the widest single cell, and the
+#               only one where the #305 class can appear at all
+#   cortex-m4   the DSP-only/no-MVE path, which compiles different code
+#
+# cortex-m0 is deliberately omitted: it shares the no-MVE path with m4
+# and every leg is already covered by staticlib-dryrun.yml. Adding it
+# would be 4 more jobs for a strictly narrower cell.
+#
+# This is a BUILD-and-LINK gate only. The functional codegen-tests legs
+# stay on the container's single 14.3.1 toolchain and are deliberately
+# NOT multiplied across GCC versions -- running the numerics suite four
+# times over would cost ~24 min of PR latency to re-test compiler
+# versions against identical kernel logic. Please do not "helpfully"
+# extend this matrix into helia-core-tester.yml.
+#
+# The broader toolchain x CPU sweep (ATfE, armclang, cortex-m0) stays in
+# staticlib-dryrun.yml (workflow_dispatch).
+
+name: GCC range strict link
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  strict-link:
+    name: gcc ${{ matrix.gcc_release }} / ${{ matrix.target_cpu }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      # Every cell reports independently: when a version-specific defect
+      # appears we want to see its exact range, not just the first failure.
+      fail-fast: false
+      matrix:
+        gcc_release: ['13.2.Rel1', '14.3.Rel1', '15.3.Rel1']
+        target_cpu: [cortex-m55, cortex-m4]
+    env:
+      # Not a published artefact; the version string only names the .a.
+      VERSION: 0.0.0-prgate
+      TARGET_CPU: ${{ matrix.target_cpu }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install GNU Arm Embedded toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          # One pinned release per supported major. 13.2.Rel1 must stay:
+          # it is the supported floor AND the toolchain release.yml ships,
+          # so it is the cell where a defect would actually reach a
+          # customer. Do not raise it to 13.3+ without moving release.yml
+          # in the same change.
+          release: ${{ matrix.gcc_release }}
+
+      - name: Report toolchain version
+        run: arm-none-eabi-gcc --version
+
+      - name: Build static library
+        run: |
+          # F16 only on cortex-m55, matching release.yml and the
+          # ARMV8_1_M_MVEF Zephyr Kconfig restriction.
+          f16_flag=()
+          if [[ "$TARGET_CPU" == "cortex-m55" ]]; then
+            f16_flag=(--enable-f16)
+          fi
+          bash scripts/build_staticlib.sh \
+            --target-cpu "$TARGET_CPU" \
+            --version    "$VERSION" \
+            --toolchain  gcc \
+            --outdir     "./output/gcc/$TARGET_CPU" \
+            --enable-f32 \
+            "${f16_flag[@]}"
+
+      - name: Strict smoke link
+        # smoke_staticlib.sh is strict by default: no --gc-sections and
+        # no --unresolved-symbols=ignore-all, so every object in the
+        # archive must resolve. Archiving alone (`ar`) can never catch
+        # this class -- it does not resolve symbols.
+        run: |
+          bash scripts/smoke/smoke_staticlib.sh \
+            --target-cpu "$TARGET_CPU" \
+            --toolchain  gcc \
+            --library    "./output/gcc/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
+            --outdir     "./output/gcc/${TARGET_CPU}/smoke"

@@ -13,3 +13,11 @@ jobs:
 
   helia-core-tester:
     uses: ./.github/workflows/helia-core-tester.yml
+
+  # helia-core-tester runs the functional suite on the container's single
+  # arm-gnu 14.3.1 and stays that way -- do not multiply it across GCC
+  # versions. This leg instead builds and strict-links the archive across
+  # the whole supported GCC range (13-15), so link-time _Generic dispatch
+  # failures cannot reach a release. See AmbiqAI/ns-cmsis-nn#305.
+  gcc-range-strict-link:
+    uses: ./.github/workflows/gcc-matrix-strict-link.yml

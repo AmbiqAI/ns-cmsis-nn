@@ -17,7 +17,26 @@
 #                      --library <path/to/libns-cmsis-nn-*.a> \
 #                      --outdir <dir> \
 #                      [--toolchain gcc|atfe|armclang] \
-#                      [--toolchain-root <dir>]
+#                      [--toolchain-root <dir>] \
+#                      [--no-strict]
+#
+# The link is STRICT by default: every object in the archive must
+# resolve. Previously this check passed --gc-sections and
+# --unresolved-symbols=ignore-all, which meant kernels the smoke source
+# does not call were discarded, or their undefined symbols ignored,
+# before the linker ever had to resolve them. That made the check green
+# on an archive containing `__ARM_undef` -- the symbol older GCCs emit
+# when an MVE _Generic intrinsic fails to dispatch
+# (AmbiqAI/ns-cmsis-nn#305) -- which no consumer could ever supply.
+#
+# --no-strict restores the old lenient behaviour. It is an escape hatch
+# for local debugging; no CI leg uses it. As of the strict-by-default
+# change every gcc and atfe leg (cortex-m0/m4/m55) links clean, so any
+# new strict failure is a real unresolved symbol, not a known exemption.
+#
+# armclang is unaffected either way: its check_mode is
+# "archive-symbols" and it never links at all (see
+# AmbiqAI/ns-cmsis-nn#291).
 
 set -euo pipefail
 
@@ -26,6 +45,7 @@ LIBRARY=""
 OUTDIR=""
 TOOLCHAIN="gcc"
 TOOLCHAIN_ROOT=""
+STRICT=1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -34,6 +54,8 @@ while [[ $# -gt 0 ]]; do
     --outdir)     OUTDIR="${2:?}";     shift 2 ;;
     --toolchain)  TOOLCHAIN="${2:?}";  shift 2 ;;
     --toolchain-root) TOOLCHAIN_ROOT="${2-}"; shift 2 ;;
+    --strict)     STRICT=1;            shift 1 ;;
+    --no-strict)  STRICT=0;            shift 1 ;;
     *)
       echo "unknown arg: $1" >&2
       exit 2
@@ -67,6 +89,9 @@ OUTDIR="$(cd "${OUTDIR}" && pwd)"
 elf="${OUTDIR}/staticlib_smoke_${TOOLCHAIN}_${TARGET_CPU}.elf"
 obj="${OUTDIR}/staticlib_smoke_${TOOLCHAIN}_${TARGET_CPU}.o"
 check_mode="link"
+# Libraries the archive legitimately depends on, appended AFTER the
+# objects so the linker can resolve backwards into them.
+post_link_libs=()
 
 case "${TOOLCHAIN}" in
   gcc)
@@ -74,6 +99,12 @@ case "${TOOLCHAIN}" in
     nm="arm-none-eabi-nm"
     size="arm-none-eabi-size"
     link_flags=(-nostartfiles --specs=nosys.specs)
+    # GCC links libc but not libm. The archive genuinely calls floorf,
+    # roundf and round (arm_resize_nearest_neighbor_s8/s16,
+    # arm_quantize_f32_s8/s16), so a strict link needs libm on the line.
+    # These are standard libm symbols every consumer already links --
+    # unlike __ARM_undef, which nothing can supply.
+    post_link_libs=(-lm)
     command -v "${compiler}" >/dev/null || { echo "${compiler} not on PATH" >&2; exit 3; }
     command -v "${nm}"       >/dev/null || { echo "${nm} not on PATH"       >&2; exit 3; }
     command -v "${size}"     >/dev/null || { echo "${size} not on PATH"     >&2; exit 3; }
@@ -107,16 +138,26 @@ esac
 [[ -n "${size}" ]] || { echo "llvm-size not found for ${TOOLCHAIN}" >&2; exit 3; }
 
 if [[ "${check_mode}" == "link" ]]; then
-  echo ">>> smoke-linking ${TOOLCHAIN}/${TARGET_CPU} against $(basename "${LIBRARY}")"
+  if (( STRICT )); then
+    # Every object in the archive must resolve. --gc-sections is dropped
+    # too: with it, kernels the smoke source does not call are discarded
+    # before their undefined references are ever checked.
+    resolve_flags=()
+    echo ">>> strict smoke-linking ${TOOLCHAIN}/${TARGET_CPU} against $(basename "${LIBRARY}")"
+  else
+    # shellcheck disable=SC2054  # commas are part of the -Wl, linker flags
+    resolve_flags=(-Wl,--gc-sections -Wl,--unresolved-symbols=ignore-all)
+    echo ">>> lenient smoke-linking ${TOOLCHAIN}/${TARGET_CPU} against $(basename "${LIBRARY}")"
+  fi
   "${compiler}" \
     "${arch_flags[@]}" \
     "${link_flags[@]}" \
-    -Wl,--gc-sections \
+    "${resolve_flags[@]}" \
     -Wl,--entry=ns_cmsis_nn_smoke_refs \
-    -Wl,--unresolved-symbols=ignore-all \
     -Wl,--whole-archive "${LIBRARY}" -Wl,--no-whole-archive \
     -o "${elf}" \
-    "${smoke_src}"
+    "${smoke_src}" \
+    "${post_link_libs[@]+"${post_link_libs[@]}"}"
   nm_input="${elf}"
 else
   echo ">>> smoke-checking ${TOOLCHAIN}/${TARGET_CPU} against $(basename "${LIBRARY}")"
