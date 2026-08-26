@@ -173,11 +173,12 @@ int32_t arm_convolve_wrapper_s4_get_buffer_size_dsp(const cmsis_nn_conv_params *
  *                                arm_convolve_1_x_n_s8() and arm_convolve_1x1_out_s8(). The buffer contents are
  *                                consumed only on builds with the MVE extension (ARM_MATH_MVEI), and on those
  *                                builds every one of those kernels diagnoses a NULL buf with
- *                                ARM_CMSIS_NN_ARG_ERROR; on other builds the parameter is unread and NULL is
- *                                accepted. An allocated-but-unfilled buffer cannot be diagnosed that way: on MVE
- *                                it yields wrong output while still returning ARM_CMSIS_NN_SUCCESS, since an
- *                                all-zero weight-sum vector is a legal result. None of this is a guarantee about
- *                                future versions.
+ *                                ARM_CMSIS_NN_ARG_ERROR; on other builds the buffer contents are unread and a NULL
+ *                                buf is accepted, but the context struct itself is still dereferenced, so
+ *                                weight_sum_ctx must be non-NULL on every build. An allocated-but-unfilled buffer
+ *                                cannot be diagnosed that way: on MVE it yields wrong output while still
+ *                                returning ARM_CMSIS_NN_SUCCESS, since an all-zero weight-sum vector is a legal
+ *                                result. None of this is a guarantee about future versions.
  *                                Sized by arm_convolve_s8_get_weights_sum_size():
  *                                output_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise, and -1
  *                                for an output_dims->c that is negative or too large to size.
@@ -1017,10 +1018,11 @@ arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
  *                                ARM_CMSIS_NN_NO_IMPL_ERROR on non-MVE builds, which is not a failure.
  *                                This function reads the buffer contents only on builds with the MVE extension
  *                                (ARM_MATH_MVEI), where a NULL buf is diagnosed with ARM_CMSIS_NN_ARG_ERROR. On
- *                                other builds the parameter is unread and NULL is accepted, but pass a valid
- *                                context regardless of the target. An allocated-but-unfilled buffer cannot be
- *                                diagnosed the same way: on MVE it yields wrong output while still returning
- *                                ARM_CMSIS_NN_SUCCESS, since an all-zero weight-sum vector is a legal result.
+ *                                other builds the buffer contents are unread and a NULL buf is accepted, but the
+ *                                context struct itself is still dereferenced, so weight_sum_ctx must be non-NULL
+ *                                on every build. An allocated-but-unfilled buffer cannot be diagnosed the same
+ *                                way: on MVE it yields wrong output while still returning ARM_CMSIS_NN_SUCCESS,
+ *                                since an all-zero weight-sum vector is a legal result.
  *                                Note also that on an Arm Compiler build (__ARMCC_VERSION >= 6010050) with
  *                                ARM_MATH_DSP and without ARM_MATH_MVEI, supplying ctx->buf selects a buffered
  *                                path that never reads weight_sum_ctx. None of this is a guarantee about future
@@ -1101,10 +1103,11 @@ int32_t arm_convolve_1x1_s8_fast_get_buffer_size(const cmsis_nn_dims *input_dims
  *                                ARM_CMSIS_NN_NO_IMPL_ERROR on non-MVE builds, which is not a failure.
  *                                This function reads the buffer contents only on builds with the MVE extension
  *                                (ARM_MATH_MVEI), where a NULL buf is diagnosed with ARM_CMSIS_NN_ARG_ERROR. On
- *                                other builds the parameter is unread and NULL is accepted, but pass a valid
- *                                context regardless of the target. An allocated-but-unfilled buffer cannot be
- *                                diagnosed the same way: on MVE it yields wrong output while still returning
- *                                ARM_CMSIS_NN_SUCCESS, since an all-zero weight-sum vector is a legal result.
+ *                                other builds the buffer contents are unread and a NULL buf is accepted, but the
+ *                                context struct itself is still dereferenced, so weight_sum_ctx must be non-NULL
+ *                                on every build. An allocated-but-unfilled buffer cannot be diagnosed the same
+ *                                way: on MVE it yields wrong output while still returning ARM_CMSIS_NN_SUCCESS,
+ *                                since an all-zero weight-sum vector is a legal result.
  *                                None of this is a guarantee about future versions.
  *                                Sized by arm_convolve_s8_get_weights_sum_size():
  *                                output_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise, and -1
@@ -1520,10 +1523,10 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  *                                 parameter is unread and NULL is accepted. On MVE with input_dims->c == 1 and an
  *                                 output channel count above
  *                                 CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD (8 on armclang, 1
- *                                 otherwise), this wrapper instead diverts to arm_convolve_wrapper_s8(), which can
- *                                 select kernels that do not check the buffer. A NULL buf is not diagnosed on
- *                                 every route, so do not rely on getting an error back. None of this is a
- *                                 guarantee about future versions.
+ *                                 otherwise), this wrapper instead diverts to arm_convolve_wrapper_s8(). That
+ *                                 diversion exists only on MVE, and every kernel it can dispatch to diagnoses a
+ *                                 NULL buf with ARM_CMSIS_NN_ARG_ERROR, so that route is covered too. None of this
+ *                                 is a guarantee about future versions.
  *                                 Sized by arm_convolve_s8_get_weights_sum_size():
  *                                 output_dims->c * sizeof(int32_t) where the sums are used, 0 otherwise, and -1
  *                                 for an output_dims->c that is negative or too large to size.
@@ -1547,7 +1550,8 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion, or
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> on the arm_depthwise_conv_s8_opt() route if ctx->buf is NULL
  *                when a scratch buffer is required, or if weight_sum_ctx->buf is NULL on builds where it is read
- *                (ARM_MATH_DSP and ARM_MATH_MVEI both defined).
+ *                (ARM_MATH_DSP and ARM_MATH_MVEI both defined), or on the MVE arm_convolve_wrapper_s8()
+ *                diversion route if weight_sum_ctx->buf is NULL.
  *
  * @details
  *    - Supported framework: TensorFlow Lite

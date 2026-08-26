@@ -2078,19 +2078,19 @@ void conv_1x1_out_buffer_size_arm_convolve_1x1_out_s8(void)
     ctx.buf = malloc(buffer_size);
     TEST_ASSERT_NOT_NULL(ctx.buf);
 
-#define CONV_1X1_OUT_RUN()                                                                                             \
-    arm_convolve_1x1_out_s8(&ctx,                                                                                      \
-                            &weight_sum_ctx,                                                                           \
-                            &conv_params,                                                                              \
-                            &quant_params,                                                                             \
-                            &input_dims,                                                                               \
-                            input,                                                                                     \
-                            &filter_dims,                                                                              \
-                            kernel,                                                                                    \
-                            &bias_dims,                                                                                \
-                            bias,                                                                                      \
-                            &output_dims,                                                                              \
-                            output)
+    #define CONV_1X1_OUT_RUN()                                                                                         \
+        arm_convolve_1x1_out_s8(&ctx,                                                                                  \
+                                &weight_sum_ctx,                                                                       \
+                                &conv_params,                                                                          \
+                                &quant_params,                                                                         \
+                                &input_dims,                                                                           \
+                                input,                                                                                 \
+                                &filter_dims,                                                                          \
+                                kernel,                                                                                \
+                                &bias_dims,                                                                            \
+                                bias,                                                                                  \
+                                &output_dims,                                                                          \
+                                output)
 
     /* A declared buffer one byte short of the requirement is rejected. */
     ctx.size = buffer_size - 1;
@@ -2105,7 +2105,7 @@ void conv_1x1_out_buffer_size_arm_convolve_1x1_out_s8(void)
     ctx.size = 0;
     const arm_cmsis_nn_status unset = CONV_1X1_OUT_RUN();
 
-#undef CONV_1X1_OUT_RUN
+    #undef CONV_1X1_OUT_RUN
 
     memset(ctx.buf, 0, buffer_size);
     free(ctx.buf);
