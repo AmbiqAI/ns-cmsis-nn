@@ -208,6 +208,13 @@ __STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)
  * across three or more int32_t dims does not have that property - 65536 * 65536 * 65536 * 65536 is
  * exactly 2^64 and folds back to 0, which would sail through a trailing "> INT32_MAX" test.
  *
+ * @note  This is the -1 sentinel family, used by the s8/s16 integer buffer-size queries. It is not
+ *        interchangeable with the arm_nn_checked_size_mul() / arm_nn_size_to_i32_or_zero() helpers in
+ *        Source/NNSupportFunctions (shared header for the float sizers), which the f32 and f16 buffer-size
+ *        queries use and which report an out-of-range size as 0. Mixing the two silently flips a sizer's
+ *        out-of-range contract from "must never be used to size a buffer" to "you may pass { NULL, 0 }", so
+ *        pick the one the surrounding family already uses.
+ *
  * @param[in] acc     Running product, or -1 if an earlier fold already overflowed.
  * @param[in] factor  Next factor to fold in.
  * @return    acc * factor, or -1 if acc is already -1, factor is negative or out of int32_t range,
@@ -229,6 +236,10 @@ __STATIC_FORCEINLINE int64_t arm_nn_size_mul(const int64_t acc, const int64_t fa
  * @brief Add to a running buffer-size product, reporting overflow as -1.
  *
  * Companion to arm_nn_size_mul() for the sizers that append a fixed slack term.
+ *
+ * @note  Same sentinel caveat as arm_nn_size_mul(): this is the -1 family used by the s8/s16 integer sizers, not
+ *        the 0-returning arm_nn_checked_size_mul() / arm_nn_size_to_i32_or_zero() family used by the float and
+ *        f16 sizers.
  *
  * @param[in] acc      Running product, or -1 if an earlier step already overflowed.
  * @param[in] addend   Value to add. Must be non-negative.

@@ -58,16 +58,12 @@ static int32_t transpose_conv_s8_rolling_buffer_size(const cmsis_nn_transpose_co
         return -1;
     }
 
-    // (w - 1) * stride_w + MAX(filter_w, stride_w) is bounded by ~2^62 and so cannot wrap an int64_t, but it can be
-    // negative when w == 0, which upstream also treated as a valid (zero-row) geometry. Compute it directly and only
-    // then start the bounded fold, which needs a non-negative accumulator. See arm_nn_size_mul().
+    // (w - 1) * stride_w + MAX(filter_w, stride_w) is bounded by ~2^62 given the validation above and so cannot wrap
+    // an int64_t. It is also non-negative for every input that reaches here - at w == 0 it is
+    // MAX(filter_w, stride_w) - stride_w >= 0 - so it is computed directly and fed to the bounded fold, which needs a
+    // non-negative accumulator and would report a negative one as -1 in any case. See arm_nn_size_mul().
     const int64_t row_span = ((int64_t)input_dims->w - 1) * (int64_t)transpose_conv_params->stride.w +
         MAX(filter_dims->w, transpose_conv_params->stride.w);
-
-    if (row_span < 0)
-    {
-        return -1;
-    }
 
     int64_t buf_x = arm_nn_size_mul(row_span, out_dims->c);
 

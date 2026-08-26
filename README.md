@@ -304,9 +304,22 @@ unless the target or toolchain cannot provide the required floating-point type.
   the [TFLM int8 quantization spec][quant-int8].
 - **Buffer convention.** Every kernel takes a `cmsis_nn_context` whose `buf`
   must be sized via the matching `arm_*_get_buffer_size*` query. If the query
-  returns 0, you may pass `{ NULL, 0 }`. A negative return (`-1`) means the
-  dimensions are out of range — the required size does not fit in an `int32_t`,
-  or a dimension is negative — and must never be used to size a buffer.
+  returns 0, you may pass `{ NULL, 0 }`. For the **s8 and s16 integer** sizers,
+  a negative return (`-1`) means the dimensions are out of range — the required
+  size does not fit in an `int32_t`, or a dimension is negative — and must never
+  be used to size a buffer. Two families do **not** follow that rule and need
+  the caller to range-check the shape itself:
+  - the **f32/f16** sizers (`arm_convolve_f32_get_buffer_size` and siblings)
+    report a size that does not fit in an `int32_t` as **`0`**, which is
+    indistinguishable from "no buffer needed";
+  - the **s4** sizers (`arm_convolve_s4_get_buffer_size` and siblings) are
+    unguarded and return a wrapped value for an out-of-range shape.
+
+  Within the s8/s16 family, `-1` is only produced where a byte count is actually
+  computed. A route that needs no scratch buffer returns 0 without inspecting
+  the dimensions, so 0 is not a statement that the shape is valid — see the
+  wrapper sizers' `@return` docs in `Include/arm_nnfunctions.h`.
+
   Sizing is not always sufficient:
   several kernels read a `cmsis_nn_context` as a *precomputed input* rather
   than as scratch — the int8 fully-connected family
