@@ -129,6 +129,20 @@ static int64_t arm_svdf_output_ctx_bytes(const int32_t rank,
         return -1;
     }
 
+    /* Both integer kernels narrow rank to int16_t before dividing - `const int16_t rank = svdf_params->rank` in
+       arm_svdf_s8.c and arm_svdf_state_s16_s8.c - while cmsis_nn_svdf_params::rank is int32_t. A rank that does
+       not survive that round trip would make this query disagree with the kernel it is supposed to describe:
+       rank 65538 narrows to 2, so for weights_feature_dims->n == 100 the kernel writes 50 units (200 bytes)
+       while this formula would report 100 / 65538 == 0. Reject it instead of publishing a number the kernel will
+       not honour. rank 65536 narrows to 0, which the same test catches before it can reach the division.
+
+       This validates the sizer against the kernel as it is. Widening the kernels' rank to int32_t is the
+       root-cause fix, but it touches perf-sensitive upstream-inherited code and belongs in its own change. */
+    if (rank != (int32_t)(int16_t)rank)
+    {
+        return -1;
+    }
+
     // rank is a divisor here, so it must be validated before use rather than folded through arm_nn_size_mul().
     if ((rank <= 0) || (weights_feature_dims->n < 0))
     {

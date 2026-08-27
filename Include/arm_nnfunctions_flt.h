@@ -971,11 +971,10 @@ arm_cmsis_nn_status arm_svdf_f32(const cmsis_nn_context *ctx,
  *         and size == 0 is the opt-out signal for its scratch-size check: a 0-on-overflow answer fed straight
  *         back as `buf = alloc(0), size = 0` would silently disable the check over a zero-byte allocation,
  *         whereas alloc((size_t)-1) fails and the NULL check catches it.
- * @note   0 is still a valid *return* for a degenerate shape - input_dims->n == 0, or an
- *         svdf_params->rank greater than weights_feature_dims->n, which truncates the unit count to 0. Unlike the
- *         general rule in README.md, a 0 here does NOT mean you may pass { NULL, 0 }: arm_svdf_f32() rejects a
- *         NULL input_ctx->buf with ARM_CMSIS_NN_ARG_ERROR regardless of the size. Allocate a non-NULL pointer,
- *         or do not call the kernel for a shape that produces no output.
+ * @note   0 is still a valid *return* for a degenerate shape (input_dims->n == 0). Unlike the general rule in
+ *         README.md, a 0 here does NOT mean you may pass { NULL, 0 }: arm_svdf_f32() rejects a NULL
+ *         input_ctx->buf with ARM_CMSIS_NN_ARG_ERROR regardless of the size. Allocate a non-NULL pointer, or do
+ *         not call the kernel for a shape that produces no output.
  */
 int32_t arm_svdf_f32_input_ctx_get_buffer_size(const cmsis_nn_dims *input_dims,
                                                const cmsis_nn_dims *weights_feature_dims);
@@ -1708,14 +1707,56 @@ arm_transpose_conv_f16_get_reverse_conv_buffer_size(const cmsis_nn_transpose_con
  */
 
 /**
- * @copydoc arm_svdf_f32
+ * @brief Stateful singular value decomposition filter, float16 variant.
  *
- * @note The staging buffers hold float16_t, not float32_t, so for the same shape they are half the size of the
- *       arm_svdf_f32() ones. Size them with arm_svdf_f16_input_ctx_get_buffer_size() and
- *       arm_svdf_f16_output_ctx_get_buffer_size(), not with the f32 queries named in the inherited text above.
- *       Substituting the f32 queries over-allocates and is safe. Substituting the f16 queries for an f32 layer
- *       under-allocates by half: arm_svdf_f32() returns ARM_CMSIS_NN_ARG_ERROR if ctx->size carries that
- *       undersized figure, but corrupts memory if ctx->size is left at 0, which opts out of the check.
+ * @param[in,out] ctx                  Unused by this function. Reserved for future use; may be NULL.
+ * @param[in,out] input_ctx            Mandatory, not optional: a NULL input_ctx, or a NULL input_ctx->buf, is
+ *                                     diagnosed with ARM_CMSIS_NN_ARG_ERROR on every build. Staging buffer
+ *                                     written by this function, holding one element per (input batch, feature
+ *                                     batch). Written before it is read, so its contents on entry do not matter,
+ *                                     but it is written on EVERY build, not only under MVE.
+ *                                     Sized by arm_svdf_f16_input_ctx_get_buffer_size(input_dims,
+ *                                     weights_feature_dims):
+ *                                     input_dims->n * weights_feature_dims->n * sizeof(float16_t) bytes. Note
+ *                                     this is float16_t, half the arm_svdf_f32() figure for the same shape.
+ *                                     Setting input_ctx->size lets this function reject an undersized buffer
+ *                                     with ARM_CMSIS_NN_ARG_ERROR; leaving it at zero opts out of that check.
+ *                                     The caller is expected to clear the buffer, if applicable, for security
+ *                                     reasons.
+ * @param[in,out] output_ctx           Mandatory, not optional: a NULL output_ctx, or a NULL output_ctx->buf, is
+ *                                     diagnosed with ARM_CMSIS_NN_ARG_ERROR on every build. Staging buffer
+ *                                     written by this function, holding one element per (input batch, output
+ *                                     unit). Written before it is read, so its contents on entry do not matter,
+ *                                     but it is written on EVERY build, not only under MVE.
+ *                                     Sized by arm_svdf_f16_output_ctx_get_buffer_size(svdf_params, input_dims,
+ *                                     weights_feature_dims):
+ *                                     input_dims->n * (weights_feature_dims->n / svdf_params->rank) *
+ *                                     sizeof(float16_t) bytes, truncating division. Note this is float16_t, half
+ *                                     the arm_svdf_f32() figure for the same shape.
+ *                                     Setting output_ctx->size lets this function reject an undersized buffer
+ *                                     with ARM_CMSIS_NN_ARG_ERROR; leaving it at zero opts out of that check.
+ *                                     The caller is expected to clear the buffer, if applicable, for security
+ *                                     reasons.
+ * @param[in]     svdf_params          SVDF operator parameters.
+ * @param[in]     input_dims           Input tensor dimensions.
+ * @param[in]     input_data           Pointer to the input tensor data.
+ * @param[in]     state_dims           State tensor dimensions.
+ * @param[in,out] state_data           Pointer to the mutable state tensor.
+ * @param[in]     weights_feature_dims Feature-weight tensor dimensions.
+ * @param[in]     weights_feature_data Pointer to the feature-weight tensor.
+ * @param[in]     weights_time_dims    Time-weight tensor dimensions.
+ * @param[in]     weights_time_data    Pointer to the time-weight tensor.
+ * @param[in]     bias_dims            Bias tensor dimensions.
+ * @param[in]     bias_data            Optional bias tensor data.
+ * @param[in]     output_dims          Output tensor dimensions.
+ * @param[out]    output_data          Pointer to the output tensor data.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ *
+ * @note Sizing an f16 layer with the arm_svdf_f32() queries over-allocates and is safe. Sizing an f32 layer with
+ *       the arm_svdf_f16() queries under-allocates by half: arm_svdf_f32() returns ARM_CMSIS_NN_ARG_ERROR if
+ *       ctx->size carries that undersized figure, but corrupts memory if ctx->size is left at 0, which opts out
+ *       of the check.
  */
 arm_cmsis_nn_status arm_svdf_f16(const cmsis_nn_context *ctx,
                                  const cmsis_nn_context *input_ctx,

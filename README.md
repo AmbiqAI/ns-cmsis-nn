@@ -304,9 +304,10 @@ unless the target or toolchain cannot provide the required floating-point type.
   the [TFLM int8 quantization spec][quant-int8].
 - **Buffer convention.** Every kernel takes a `cmsis_nn_context` whose `buf`
   must be sized via the matching `arm_*_get_buffer_size*` query. If the query
-  returns 0, you may pass `{ NULL, 0 }` — **except for the eight SVDF staging
-  queries** listed below, where a 0 means a degenerate shape but the kernel
-  still rejects a NULL `buf` with `ARM_CMSIS_NN_ARG_ERROR`. For the **s8 and
+  returns 0, you may pass `{ NULL, 0 }` — **except for any
+  `arm_svdf_*_ctx_get_buffer_size` query** (all eight of them, integer and
+  float alike), where a 0 means a degenerate shape but the kernel still
+  rejects a NULL `buf` with `ARM_CMSIS_NN_ARG_ERROR`. For the **s8 and
   s16 integer** sizers, a negative return (`-1`) means the dimensions are out of
   range — the required size does not fit in an `int32_t`, or a dimension is
   negative — and must never be used to size a buffer. Two groups do **not**

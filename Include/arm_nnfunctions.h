@@ -5766,9 +5766,9 @@ int32_t arm_svdf_s8_input_ctx_get_buffer_size(const cmsis_nn_dims *input_dims,
  * @param[in]   weights_feature_dims   Weights (feature) tensor dimensions, i.e. the same cmsis_nn_dims passed to
  *                                     arm_svdf_s8()
  * @return      The function returns   required buffer size in bytes, or -1 if any pointer is NULL, if
- *                                     svdf_params->rank is zero or negative, if input_dims->n or
- *                                     weights_feature_dims->n is negative, or if the required size would not fit
- *                                     in an int32_t
+ *                                     svdf_params->rank is zero, negative or outside int16_t range, if
+ *                                     input_dims->n or weights_feature_dims->n is negative, or if the required
+ *                                     size would not fit in an int32_t
  *
  * @details    Returns input_dims->n * (weights_feature_dims->n / svdf_params->rank) * sizeof(int32_t). The
  *             division truncates, matching the kernel's own unit count. As with
@@ -5777,6 +5777,10 @@ int32_t arm_svdf_s8_input_ctx_get_buffer_size(const cmsis_nn_dims *input_dims,
  * @note       Same degenerate-0 contract as arm_svdf_s8_input_ctx_get_buffer_size(), including that a 0 does not
  *             license passing { NULL, 0 }. A rank greater than weights_feature_dims->n truncates the unit count
  *             to 0 and so returns 0.
+ * @note       arm_svdf_s8() narrows svdf_params->rank to int16_t before dividing by it, so a rank outside
+ *             int16_t range would make this query and the kernel disagree - 65538 narrows to 2, and the kernel
+ *             would write 32769x what this formula reports. Such a rank returns -1 rather than a number the
+ *             kernel will not honour. Ranks in the documented [1, 8] range are unaffected.
  */
 int32_t arm_svdf_s8_output_ctx_get_buffer_size(const cmsis_nn_svdf_params *svdf_params,
                                                const cmsis_nn_dims *input_dims,
