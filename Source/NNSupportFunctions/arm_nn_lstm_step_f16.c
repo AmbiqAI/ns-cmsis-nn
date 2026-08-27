@@ -135,14 +135,19 @@ arm_cmsis_nn_status arm_nn_lstm_step_f16(const float16_t *data_in,
 
         int32_t h = 0;
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-        for (; h + 8 <= hidden_size; h += 8)
+        /* The final partial vector is tail-predicated rather than handed to a scalar loop, so every
+         * hidden unit takes the same LUT tanh; a scalar tail would apply a different approximation to
+         * the last hidden_size % 8 units of the same tensor (#315). Inactive lanes carry zeros. */
+        for (; h < hidden_size; h += 8)
         {
-            float16_t f_gate[8];
-            float16_t i_gate[8];
-            float16_t g_gate[8];
-            float16_t o_gate[8];
+            const int32_t lanes = MIN(8, hidden_size - h);
+            const mve_pred16_t p = vctp16q((uint32_t)lanes);
+            float16_t f_gate[8] = {0};
+            float16_t i_gate[8] = {0};
+            float16_t g_gate[8] = {0};
+            float16_t o_gate[8] = {0};
 
-            for (int32_t lane = 0; lane < 8; ++lane)
+            for (int32_t lane = 0; lane < lanes; ++lane)
             {
                 const int32_t idx = h + lane;
                 f_gate[lane] =
@@ -159,7 +164,7 @@ arm_cmsis_nn_status arm_nn_lstm_step_f16(const float16_t *data_in,
             const float16x8_t vi = vld1q(i_gate);
             const float16x8_t vg = vld1q(g_gate);
             const float16x8_t vo = vld1q(o_gate);
-            const float16x8_t vc_prev = vld1q(c_prev + h);
+            const float16x8_t vc_prev = vld1q_z(c_prev + h, p);
 
             float16x8_t vc = vfmaq(vmulq(vf, vc_prev), vi, vg);
             if (cell_clip > (_Float16)0.0f)
@@ -168,10 +173,10 @@ arm_cmsis_nn_status arm_nn_lstm_step_f16(const float16_t *data_in,
                 vc = vmaxnmq(vc, vdupq_n_f16((float16_t)-clip));
                 vc = vminnmq(vc, vdupq_n_f16(clip));
             }
-            vst1q(c_prev + h, vc);
-            vst1q(h_out + h, vmulq(vo, arm_nn_vtanh_lut_direct_mve_f16(vc)));
+            vst1q_p(c_prev + h, vc, p);
+            vst1q_p(h_out + h, vmulq(vo, arm_nn_vtanh_lut_direct_mve_f16(vc)), p);
         }
-    #endif
+    #else
         for (; h < hidden_size; h++)
         {
             const float16_t f =
@@ -191,6 +196,7 @@ arm_cmsis_nn_status arm_nn_lstm_step_f16(const float16_t *data_in,
             c_prev[h] = (float16_t)c;
             h_out[h] = (float16_t)((_Float16)o * (_Float16)arm_nn_tanh_scalar_ref_f16((float16_t)c));
         }
+    #endif
     }
 
     return ARM_CMSIS_NN_SUCCESS;
