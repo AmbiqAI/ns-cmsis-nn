@@ -92,6 +92,14 @@ void svdf_arm_svdf_state_s16_s8(void)
     input_ctx.size = scratch_size;
     output_ctx.size = scratch_size_out;
 
+    /* The published queries must agree with the sizes this test computes by hand; otherwise a caller that
+       trusts the library gets a different buffer from one that transcribes the formula. */
+    TEST_ASSERT_EQUAL(scratch_size,
+                      arm_svdf_state_s16_s8_input_ctx_get_buffer_size(&input_dims, &weights_feature_dims));
+    TEST_ASSERT_EQUAL(
+        scratch_size_out,
+        arm_svdf_state_s16_s8_output_ctx_get_buffer_size(&svdf_params, &input_dims, &weights_feature_dims));
+
     int8_t *input_data = malloc(input_round_size);
     int16_t *state_data = malloc(sizeof(svdf_state));
 
@@ -182,6 +190,14 @@ void svdf_1_arm_svdf_state_s16_s8(void)
     input_ctx.size = scratch_size;
     output_ctx.size = scratch_size_out;
 
+    /* The published queries must agree with the sizes this test computes by hand; otherwise a caller that
+       trusts the library gets a different buffer from one that transcribes the formula. */
+    TEST_ASSERT_EQUAL(scratch_size,
+                      arm_svdf_state_s16_s8_input_ctx_get_buffer_size(&input_dims, &weights_feature_dims));
+    TEST_ASSERT_EQUAL(
+        scratch_size_out,
+        arm_svdf_state_s16_s8_output_ctx_get_buffer_size(&svdf_1_params, &input_dims, &weights_feature_dims));
+
     int8_t *input_data = malloc(input_round_size);
     int16_t *state_data = malloc(sizeof(svdf_1_state));
     const bool null_bias = check_null_bias(svdf_1_biases, SVDF_1_DST_SIZE / SVDF_1_INPUT_BATCHES);
@@ -271,6 +287,14 @@ void svdf_2_arm_svdf_state_s16_s8(void)
     input_ctx.size = scratch_size;
     output_ctx.size = scratch_size_out;
 
+    /* The published queries must agree with the sizes this test computes by hand; otherwise a caller that
+       trusts the library gets a different buffer from one that transcribes the formula. */
+    TEST_ASSERT_EQUAL(scratch_size,
+                      arm_svdf_state_s16_s8_input_ctx_get_buffer_size(&input_dims, &weights_feature_dims));
+    TEST_ASSERT_EQUAL(
+        scratch_size_out,
+        arm_svdf_state_s16_s8_output_ctx_get_buffer_size(&svdf_2_params, &input_dims, &weights_feature_dims));
+
     int8_t *input_data = malloc(input_round_size);
     int16_t *state_data = malloc(sizeof(svdf_2_state));
     const bool null_bias = check_null_bias(svdf_2_biases, SVDF_2_DST_SIZE / SVDF_2_INPUT_BATCHES);
@@ -359,6 +383,14 @@ void svdf_3_arm_svdf_state_s16_s8(void)
        Leaving these at their indeterminate automatic-storage value would make the guards nondeterministic. */
     input_ctx.size = scratch_size;
     output_ctx.size = scratch_size_out;
+
+    /* The published queries must agree with the sizes this test computes by hand; otherwise a caller that
+       trusts the library gets a different buffer from one that transcribes the formula. */
+    TEST_ASSERT_EQUAL(scratch_size,
+                      arm_svdf_state_s16_s8_input_ctx_get_buffer_size(&input_dims, &weights_feature_dims));
+    TEST_ASSERT_EQUAL(
+        scratch_size_out,
+        arm_svdf_state_s16_s8_output_ctx_get_buffer_size(&svdf_3_params, &input_dims, &weights_feature_dims));
 
     int8_t *input_data = malloc(input_round_size);
     int16_t *state_data = malloc(sizeof(svdf_3_state));

@@ -254,8 +254,16 @@ arm_cmsis_nn_status arm_svdf_f16(const cmsis_nn_context *ctx,
  *
  * Sentinel note: these follow the SVDF family's -1-on-invalid convention (arm_nn_size_mul(), as used by
  * arm_svdf_s8_get_buffer_size()), NOT the 0-on-out-of-range convention of the float convolution sizers in
- * Source/NNSupportFunctions/arm_get_buffer_size_f16.c. The two staging buffers are mandatory for every valid
- * shape, so 0 is never a legitimate answer here and would be indistinguishable from "you may pass { NULL, 0 }".
+ * Source/NNSupportFunctions/arm_get_buffer_size_f16.c.
+ *
+ * The reason is the guard at the top of arm_svdf_f16(): ctx->size == 0 is the opt-out signal for that guard. A
+ * 0-on-overflow sizer would hand blind codegen doing `ctx.buf = alloc(sz); ctx.size = sz;` a non-NULL zero-byte
+ * allocation paired with size 0, the guard would opt out, and the kernel would write the full overflowing extent
+ * into it. With -1, alloc((size_t)-1) fails, buf comes back NULL, and the existing NULL check catches it. -1
+ * fails safe here; 0 does not.
+ *
+ * Note that 0 is still a legitimate *return* for a degenerate shape - input_dims->n == 0, or a rank larger than
+ * weights_feature_dims->n, which truncates unit_count to 0. It is only never used to report an out-of-range one.
  *
  * Element size note: arm_svdf_f16() stages float16_t, not float32_t, so these byte counts are half the f32 ones
  * for the same shape. A caller that reuses arm_svdf_f32_input_ctx_get_buffer_size() for an f16 layer over-

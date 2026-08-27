@@ -34,11 +34,18 @@
 #include "arm_nn_math_types.h"
 
 /*
- * These two helpers report an out-of-range size as 0, which is what the float and f16 buffer-size queries return
+ * These two helpers report an out-of-range size as 0, which is what most float and f16 buffer-size queries return
  * for a shape they cannot size. They are not interchangeable with arm_nn_size_mul() / arm_nn_size_add() in
  * Include/arm_nnsupportfunctions.h, which the s8/s16 integer sizers use and which report the same condition as -1.
  * A sizer must use one family throughout: swapping in the other silently flips its out-of-range return between
  * "must never be used to size a buffer" (-1) and "you may pass { NULL, 0 }" (0).
+ *
+ * The split is per sizer, not per datatype. The four SVDF staging queries defined beside their kernels -
+ * arm_svdf_f32_input_ctx_get_buffer_size(), arm_svdf_f32_output_ctx_get_buffer_size(),
+ * arm_svdf_f16_input_ctx_get_buffer_size() and arm_svdf_f16_output_ctx_get_buffer_size() - are f32/f16 sizers
+ * that deliberately use the -1 family instead, because arm_svdf_f32() and arm_svdf_f16() read ctx->size and a
+ * size of 0 opts out of their scratch-size check. Do not add them here, and do not assume a float sizer returns
+ * 0 just because of its suffix.
  */
 
 static inline int arm_nn_checked_size_mul(size_t lhs, size_t rhs, size_t *out)

@@ -5740,9 +5740,9 @@ int32_t arm_svdf_s8_get_buffer_size_mve(const cmsis_nn_dims *weights_feature_dim
  * @param[in]   input_dims             Input tensor dimensions, i.e. the same cmsis_nn_dims passed to arm_svdf_s8()
  * @param[in]   weights_feature_dims   Weights (feature) tensor dimensions, i.e. the same cmsis_nn_dims passed to
  *                                     arm_svdf_s8()
- * @return      The function returns   required buffer size in bytes, or -1 if input_dims->n or
- *                                     weights_feature_dims->n is negative or the required size would not fit in
- *                                     an int32_t
+ * @return      The function returns   required buffer size in bytes, or -1 if either pointer is NULL, if
+ *                                     input_dims->n or weights_feature_dims->n is negative, or if the required
+ *                                     size would not fit in an int32_t
  *
  * @details    Returns input_dims->n * weights_feature_dims->n * sizeof(int32_t). Unlike
  *             arm_svdf_s8_get_buffer_size(), this figure does not vary by build target: arm_svdf_s8() stages this
@@ -5750,6 +5750,10 @@ int32_t arm_svdf_s8_get_buffer_size_mve(const cmsis_nn_dims *weights_feature_dim
  *             the validation runs on every target.
  * @note       This is a different buffer from the one arm_svdf_s8_get_buffer_size() describes. That one sizes the
  *             read-only kernel sums passed as ctx; this one sizes the scratch passed as input_ctx.
+ * @note       0 is a valid return for a degenerate shape (input_dims->n == 0). Unlike the general rule in
+ *             README.md, a 0 here does NOT mean you may pass { NULL, 0 }: arm_svdf_s8() rejects a NULL
+ *             input_ctx->buf with ARM_CMSIS_NN_ARG_ERROR regardless of the size. -1 is used only for an
+ *             out-of-range or NULL argument.
  */
 int32_t arm_svdf_s8_input_ctx_get_buffer_size(const cmsis_nn_dims *input_dims,
                                               const cmsis_nn_dims *weights_feature_dims);
@@ -5761,14 +5765,18 @@ int32_t arm_svdf_s8_input_ctx_get_buffer_size(const cmsis_nn_dims *input_dims,
  * @param[in]   input_dims             Input tensor dimensions, i.e. the same cmsis_nn_dims passed to arm_svdf_s8()
  * @param[in]   weights_feature_dims   Weights (feature) tensor dimensions, i.e. the same cmsis_nn_dims passed to
  *                                     arm_svdf_s8()
- * @return      The function returns   required buffer size in bytes, or -1 if svdf_params->rank is zero or
- *                                     negative, if input_dims->n or weights_feature_dims->n is negative, or if the
- *                                     required size would not fit in an int32_t
+ * @return      The function returns   required buffer size in bytes, or -1 if any pointer is NULL, if
+ *                                     svdf_params->rank is zero or negative, if input_dims->n or
+ *                                     weights_feature_dims->n is negative, or if the required size would not fit
+ *                                     in an int32_t
  *
  * @details    Returns input_dims->n * (weights_feature_dims->n / svdf_params->rank) * sizeof(int32_t). The
  *             division truncates, matching the kernel's own unit count. As with
  *             arm_svdf_s8_input_ctx_get_buffer_size(), the figure is the same on every build target and the
  *             validation runs on every target.
+ * @note       Same degenerate-0 contract as arm_svdf_s8_input_ctx_get_buffer_size(), including that a 0 does not
+ *             license passing { NULL, 0 }. A rank greater than weights_feature_dims->n truncates the unit count
+ *             to 0 and so returns 0.
  */
 int32_t arm_svdf_s8_output_ctx_get_buffer_size(const cmsis_nn_svdf_params *svdf_params,
                                                const cmsis_nn_dims *input_dims,
@@ -5776,7 +5784,8 @@ int32_t arm_svdf_s8_output_ctx_get_buffer_size(const cmsis_nn_svdf_params *svdf_
 
 /**
  * @brief Get size of the input_ctx staging buffer required by arm_svdf_state_s16_s8().
- *        Refer to arm_svdf_s8_input_ctx_get_buffer_size() for argument details and the -1 contract.
+ *        Refer to arm_svdf_s8_input_ctx_get_buffer_size() for argument details, the -1-on-invalid contract and
+ *        the degenerate-0 caveat.
  *
  * @details    Returns input_dims->n * weights_feature_dims->n * sizeof(int32_t) - the same figure as
  *             arm_svdf_s8_input_ctx_get_buffer_size() for the same shape. The accumulators are int32_t even though
@@ -5788,7 +5797,8 @@ int32_t arm_svdf_state_s16_s8_input_ctx_get_buffer_size(const cmsis_nn_dims *inp
 
 /**
  * @brief Get size of the output_ctx staging buffer required by arm_svdf_state_s16_s8().
- *        Refer to arm_svdf_s8_output_ctx_get_buffer_size() for argument details and the -1 contract.
+ *        Refer to arm_svdf_s8_output_ctx_get_buffer_size() for argument details, the -1-on-invalid contract and
+ *        the degenerate-0 caveat.
  *
  * @details    Returns input_dims->n * (weights_feature_dims->n / svdf_params->rank) * sizeof(int32_t), truncating
  *             division - the same figure as arm_svdf_s8_output_ctx_get_buffer_size() for the same shape.

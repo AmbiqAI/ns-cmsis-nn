@@ -95,6 +95,11 @@ int32_t arm_svdf_s8_get_buffer_size(const cmsis_nn_dims *weights_feature_dims)
  */
 static int64_t arm_svdf_input_ctx_bytes(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *weights_feature_dims)
 {
+    if ((input_dims == NULL) || (weights_feature_dims == NULL))
+    {
+        return -1;
+    }
+
     // Folded one factor at a time so the accumulator stays bounded; see arm_nn_size_mul().
     int64_t required_bytes = arm_nn_size_mul(1, input_dims->n);
     required_bytes = arm_nn_size_mul(required_bytes, weights_feature_dims->n);
@@ -119,6 +124,11 @@ static int64_t arm_svdf_output_ctx_bytes(const int32_t rank,
                                          const cmsis_nn_dims *input_dims,
                                          const cmsis_nn_dims *weights_feature_dims)
 {
+    if ((input_dims == NULL) || (weights_feature_dims == NULL))
+    {
+        return -1;
+    }
+
     // rank is a divisor here, so it must be validated before use rather than folded through arm_nn_size_mul().
     if ((rank <= 0) || (weights_feature_dims->n < 0))
     {
@@ -144,6 +154,11 @@ int32_t arm_svdf_s8_output_ctx_get_buffer_size(const cmsis_nn_svdf_params *svdf_
                                                const cmsis_nn_dims *input_dims,
                                                const cmsis_nn_dims *weights_feature_dims)
 {
+    if (svdf_params == NULL)
+    {
+        return -1;
+    }
+
     return (int32_t)arm_svdf_output_ctx_bytes(svdf_params->rank, input_dims, weights_feature_dims);
 }
 
@@ -157,6 +172,11 @@ int32_t arm_svdf_state_s16_s8_output_ctx_get_buffer_size(const cmsis_nn_svdf_par
                                                          const cmsis_nn_dims *input_dims,
                                                          const cmsis_nn_dims *weights_feature_dims)
 {
+    if (svdf_params == NULL)
+    {
+        return -1;
+    }
+
     return (int32_t)arm_svdf_output_ctx_bytes(svdf_params->rank, input_dims, weights_feature_dims);
 }
 
