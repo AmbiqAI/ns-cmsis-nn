@@ -6233,7 +6233,9 @@ arm_cmsis_nn_status arm_reduce_min_s16(const int16_t *input_data,
  * @param[in]   zero_point  Zero point (offset) to apply during quantization.
  * @param[in]   scale       Scale factor to apply during quantization.
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</CODE>
+ * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR when @p zero_point lies outside the int8_t range.
+ *             Values round half away from zero and saturate to the int8_t range after the zero point is applied;
+ *             NaN maps to @p zero_point.
  */
 arm_cmsis_nn_status
 arm_quantize_f32_s8(const float *input, int8_t *output, int32_t size, int32_t zero_point, float scale);
@@ -6246,7 +6248,9 @@ arm_quantize_f32_s8(const float *input, int8_t *output, int32_t size, int32_t ze
  * @param[in]   zero_point  Zero point (offset) to apply during quantization.
  * @param[in]   scale       Scale factor to apply during quantization.
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</CODE>
+ * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR when @p zero_point lies outside the int16_t range.
+ *             Values round half away from zero and saturate to the int16_t range after the zero point is applied;
+ *             NaN maps to @p zero_point.
  */
 arm_cmsis_nn_status
 arm_quantize_f32_s16(const float *input, int16_t *output, int32_t size, int32_t zero_point, float scale);
