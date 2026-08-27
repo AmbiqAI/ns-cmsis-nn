@@ -156,6 +156,31 @@ jobs:
       - name: Run header placeholder check tests
         run: python3 scripts/tests/test_check_header_placeholders.py
 
+  toolchain_manifest_sync:
+    # Guards against the armclang/ATfE pins in ci/tools/manifest.json (which
+    # bakes the published dev container) drifting from ci/toolchains/*.json
+    # (which selects the compilers the shipped static libraries are built
+    # with). They had already drifted -- container armclang 6.24.0 / ATfE
+    # 20.1.0 against shipped 6.23.32 / 19.1.5 -- with nothing relating the
+    # two files, so developers and helia-core-tester ran a different compiler
+    # than the product is built with. That is a "reproduces in neither
+    # direction" defect for any codegen or ABI question, and since the two
+    # files are edited by different workflows for different reasons they
+    # will drift again without a gate.
+    name: Toolchain manifest sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run toolchain manifest sync check
+        run: python3 scripts/check_toolchain_manifest_sync.py
+
+      # The check is a merge gate whose own logic is easy to regress in
+      # either direction, so its mutation tests gate it in turn.
+      - name: Run toolchain manifest sync check tests
+        run: python3 scripts/tests/test_check_toolchain_manifest_sync.py
+
   api_group_classification:
     # Guards docs/_ext/api_group_index.py's GROUP_PATTERNS: every public
     # top-level kernel in Include/arm_nnfunctions*.h must match at least

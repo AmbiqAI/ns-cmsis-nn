@@ -78,8 +78,10 @@ RUN bash /opt/ns-cmsis-nn/install_ci_tools.sh \
 
 ENV PATH="/opt/ns-cmsis-nn/tools/cmsis-toolbox/bin:/opt/ns-cmsis-nn/tools/cmake/bin:/opt/ns-cmsis-nn/tools/ninja:/opt/ns-cmsis-nn/tools/arm-gnu/bin:/opt/ns-cmsis-nn/tools/llvm-embedded/bin:/opt/ns-cmsis-nn/tools/armclang/bin:/opt/ns-cmsis-nn/tools/corstone-300-fvp/bin:${PATH}" \
     GCC_TOOLCHAIN_14_3_1="/opt/ns-cmsis-nn/tools/arm-gnu/bin" \
-    CLANG_TOOLCHAIN_20_1_0="/opt/ns-cmsis-nn/tools/llvm-embedded/bin" \
-    AC6_TOOLCHAIN_6_24_0="/opt/ns-cmsis-nn/tools/armclang/bin" \
+    CLANG_TOOLCHAIN_19_1_5="/opt/ns-cmsis-nn/tools/llvm-embedded/bin" \
+    AC6_TOOLCHAIN_6_23_32="/opt/ns-cmsis-nn/tools/armclang/bin" \
+    CLANG_TOOLCHAIN="/opt/ns-cmsis-nn/tools/llvm-embedded/bin" \
+    AC6_TOOLCHAIN="/opt/ns-cmsis-nn/tools/armclang/bin" \
     AVH_FVP_PLUGINS="/opt/ns-cmsis-nn/tools/corstone-300-fvp/plugins"
 
 # Build-time smoke check: prove the baked environment resolves every required
