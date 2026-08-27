@@ -497,7 +497,10 @@ Unit tests live in [`Tests/UnitTest/`](Tests/UnitTest/). See the
 ### Supported toolchains
 
 - Arm Compiler 6
-- Arm GNU Toolchain (`arm-none-eabi-gcc`)
+- Arm GNU Toolchain (`arm-none-eabi-gcc`) — **GCC 13 through 15; 13 is the
+  minimum supported version.** CI builds and strict-links one pinned release
+  per major (13.2.Rel1, 14.3.Rel1, 15.3.Rel1) on every pull request.
+  Versions below 13 are not supported and are not tested.
 - LLVM Embedded Toolchain for Arm (ATfE) — best-effort
 
 IAR is currently untested. Compiling for host is not supported out of the box.
