@@ -310,8 +310,10 @@ unless the target or toolchain cannot provide the required floating-point type.
   rejects a NULL `buf` with `ARM_CMSIS_NN_ARG_ERROR`. For the **s8 and
   s16 integer** sizers, a negative return (`-1`) means the dimensions are out of
   range — the required size does not fit in an `int32_t`, or a dimension is
-  negative — and must never be used to size a buffer. Two groups do **not**
-  follow that rule and need the caller to range-check the shape itself:
+  negative — and must never be used to size a buffer. The **s4** convolution
+  sizers (`arm_convolve_s4_get_buffer_size` and the 1x1, 1xN and wrapper
+  siblings) follow the same `-1` contract. Two groups do **not** follow that
+  rule and need the caller to range-check the shape itself:
   - **most f32/f16** sizers (`arm_convolve_f32_get_buffer_size` and siblings)
     report a size that does not fit in an `int32_t` as **`0`**, which is
     indistinguishable from "no buffer needed". Note this is a property of the
@@ -322,10 +324,11 @@ unless the target or toolchain cannot provide the required floating-point type.
     because their kernels read `ctx->size` and `size == 0` opts out of the
     scratch-size check. A generic float wrapper must branch per sizer, not on
     the datatype;
-  - the **s4** sizers (`arm_convolve_s4_get_buffer_size` and siblings) are
-    unguarded and return a wrapped value for an out-of-range shape.
+  - the **s4 depthwise** sizers (`arm_depthwise_conv_s4_opt_get_buffer_size`
+    and the wrapper siblings) route straight to the s8 `_mve`/`_dsp` legs and
+    return a non-negative size (0 or positive) for an out-of-range shape.
 
-  Within the s8/s16 family, `-1` is only produced where a byte count is actually
+  Within the s4/s8/s16 family, `-1` is only produced where a byte count is actually
   computed. A route that needs no scratch buffer returns 0 without inspecting
   the dimensions, so 0 is not a statement that the shape is valid — see the
   wrapper sizers' `@return` docs in `Include/arm_nnfunctions.h`.
