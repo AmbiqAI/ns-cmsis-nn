@@ -233,7 +233,8 @@ __STATIC_INLINE float32x4_t arm_nn_vtanh_lut_direct_mve_f32(float32x4_t x)
     idx = vminq(idx, vdupq_n_u32((uint32_t)ARM_NN_TANH_F32_LUT_MAX_IDX));
     const float32x4_t frac = vsubq(t, vcvtq_f32_u32(idx));
     const float32x4_t y0 = vldrwq_gather_shifted_offset((const float32_t *)arm_nn_tanh_lut384_f32, idx);
-    const float32x4_t y1 = vldrwq_gather_shifted_offset((const float32_t *)arm_nn_tanh_lut384_f32, vaddq(idx, 1U));
+    const float32x4_t y1 =
+        vldrwq_gather_shifted_offset((const float32_t *)arm_nn_tanh_lut384_f32, vaddq(idx, (uint32_t)1U));
     float32x4_t y = vfmaq(y0, vsubq(y1, y0), frac);
     y = vpselq(vdupq_n_f32(1.0f), y, sat_p);
     return vnegq_m(y, y, vcmpltq(x, 0.0f));
@@ -383,7 +384,8 @@ __STATIC_INLINE float16x8_t arm_nn_vtanh_lut_direct_mve_f16(float16x8_t x)
     idx = vminq(idx, vdupq_n_u16(255U));
     const float16x8_t frac = vsubq(t, vcvtq_f16_u16(idx));
     const float16x8_t y0 = vldrhq_gather_shifted_offset((const float16_t *)arm_nn_tanh_lut256_f16, idx);
-    const float16x8_t y1 = vldrhq_gather_shifted_offset((const float16_t *)arm_nn_tanh_lut256_f16, vaddq(idx, 1U));
+    const float16x8_t y1 =
+        vldrhq_gather_shifted_offset((const float16_t *)arm_nn_tanh_lut256_f16, vaddq(idx, (uint16_t)1U));
     float16x8_t y = vfmaq(y0, vsubq(y1, y0), frac);
     y = vpselq(vdupq_n_f16((float16_t)1.0f), y, sat_p);
     return vnegq_m(y, y, vcmpltq(x, (float16_t)0.0f));
