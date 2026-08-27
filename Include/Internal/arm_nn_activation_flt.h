@@ -112,18 +112,27 @@ __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
          * to ax >= xmax -- false for NaN -- and deletes this `ax != ax` test
          * as dead code, so a NaN input never reaches here at all. Do not read
          * this branch as a NaN guarantee for the shipped library; it is the
-         * documented behaviour of a -fno-finite-math-only build only. (Either
-         * way the helper stays memory-safe: VCVT.S32.F32 saturates NaN to 0,
-         * so the index is in range.)
+         * documented behaviour of a -fno-finite-math-only build only. The
+         * index is likewise only bounded on hard-float targets: there
+         * VCVT.S32.F32 saturates NaN to 0, so a NaN index stays in range. A
+         * soft-float build -- cortex-m0 with F32 is a shipped configuration --
+         * converts through __aeabi_f2iz instead, which returns INT32_MAX for a
+         * quiet NaN, and nothing clamps the index between the conversion and
+         * the table load. As above, that is an observation about today's
+         * codegen, not a guarantee.
          *
          * In such a build, NaN (unordered) lands here and is propagated
          * rather than saturated. The + 0.0f is what quiets a signalling NaN,
          * matching what the old code did incidentally by running the sNaN
-         * through the interpolation arithmetic. Returning x bare would hand
-         * an sNaN straight back and defer its invalid-operation exception to
-         * whatever the caller does next. IEEE addition propagates a quiet NaN
-         * operand unchanged, so qNaN payload and sign still pass through
-         * untouched. */
+         * through the interpolation arithmetic. Quieting also needs signed
+         * zeros kept: -Ofast implies -fno-signed-zeros, which
+         * -fno-finite-math-only does not restore, and under that flag the
+         * compiler folds x + 0.0f to x. The add survives in a non-fast-math
+         * build (-O3), or in -Ofast -fno-finite-math-only -fsigned-zeros.
+         * Returning x bare would hand an sNaN straight back and defer its
+         * invalid-operation exception to whatever the caller does next. IEEE
+         * addition propagates a quiet NaN operand unchanged, so qNaN payload
+         * and sign still pass through untouched. */
         if (ax != ax)
         {
             return x + 0.0f;
