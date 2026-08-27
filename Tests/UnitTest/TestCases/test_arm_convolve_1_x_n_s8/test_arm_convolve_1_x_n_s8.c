@@ -150,6 +150,84 @@ void conv_1_x_n_1_arm_convolve_s8(void)
     TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
 }
 
+void conv_1_x_n_1_null_weight_sum_arm_convolve_1_x_n_s8(void)
+{
+    /* arm_convolve_1_x_n_s8() only reads weight_sum_ctx->buf on builds with the MVE extension - that is exactly
+     * where the NULL guard lives, and exactly where a NULL buf must be diagnosed rather than silently producing
+     * garbage output. On any other build the parameter is unread, NULL is accepted, and the call succeeds - so
+     * the ARG_ERROR assertion below must not even compile there. */
+#if defined(ARM_MATH_MVEI)
+    int8_t output[CONV_1_X_N_1_DST_SIZE] = {0};
+
+    cmsis_nn_context ctx;
+    cmsis_nn_context weights_sum_ctx = {0};
+    cmsis_nn_conv_params conv_params;
+    cmsis_nn_per_channel_quant_params quant_params;
+    cmsis_nn_dims input_dims, filter_dims, bias_dims, output_dims;
+
+    const int32_t *bias_data = conv_1_x_n_1_biases;
+    const int8_t *kernel_data = conv_1_x_n_1_weights;
+    const int8_t *input_data = conv_1_x_n_1_input;
+
+    input_dims.n = CONV_1_X_N_1_INPUT_BATCHES;
+    input_dims.w = CONV_1_X_N_1_INPUT_W;
+    input_dims.h = CONV_1_X_N_1_INPUT_H;
+    input_dims.c = CONV_1_X_N_1_IN_CH;
+    filter_dims.w = CONV_1_X_N_1_FILTER_X;
+    filter_dims.h = CONV_1_X_N_1_FILTER_Y;
+    filter_dims.c = CONV_1_X_N_1_IN_CH;
+    output_dims.w = CONV_1_X_N_1_OUTPUT_W;
+    output_dims.h = CONV_1_X_N_1_OUTPUT_H;
+    output_dims.c = CONV_1_X_N_1_OUT_CH;
+
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
+
+    conv_params.padding.w = CONV_1_X_N_1_PAD_X;
+    conv_params.padding.h = CONV_1_X_N_1_PAD_Y;
+    conv_params.stride.w = CONV_1_X_N_1_STRIDE_X;
+    conv_params.stride.h = CONV_1_X_N_1_STRIDE_Y;
+    conv_params.dilation.w = CONV_1_X_N_1_DILATION_X;
+    conv_params.dilation.h = CONV_1_X_N_1_DILATION_Y;
+    conv_params.input_offset = CONV_1_X_N_1_INPUT_OFFSET;
+    conv_params.output_offset = CONV_1_X_N_1_OUTPUT_OFFSET;
+    conv_params.activation.min = CONV_1_X_N_1_OUT_ACTIVATION_MIN;
+    conv_params.activation.max = CONV_1_X_N_1_OUT_ACTIVATION_MAX;
+    quant_params.multiplier = (int32_t *)conv_1_x_n_1_output_mult;
+    quant_params.shift = (int32_t *)conv_1_x_n_1_output_shift;
+
+    /* ctx->buf must be valid: arm_convolve_1_x_n_s8() rejects a NULL one up front, which would mask the
+     * weight-sum guard under test. */
+    int32_t buf_size = arm_convolve_1_x_n_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    ctx.buf = malloc(buf_size);
+    ctx.size = buf_size;
+    TEST_ASSERT_NOT_NULL(ctx.buf);
+
+    /* weights_sum_ctx is left as {0} (buf == NULL) on purpose: this is the precondition the NULL guard exists to
+     * diagnose, so every other argument must be entirely valid. */
+    arm_cmsis_nn_status result = arm_convolve_1_x_n_s8(&ctx,
+                                                       &weights_sum_ctx,
+                                                       &conv_params,
+                                                       &quant_params,
+                                                       &input_dims,
+                                                       input_data,
+                                                       &filter_dims,
+                                                       kernel_data,
+                                                       &bias_dims,
+                                                       bias_data,
+                                                       &output_dims,
+                                                       output);
+
+    if (ctx.buf)
+    {
+        free(ctx.buf);
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, result);
+#endif
+}
+
 void conv_1_x_n_2_arm_convolve_s8(void)
 {
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;

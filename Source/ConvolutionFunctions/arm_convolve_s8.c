@@ -121,6 +121,15 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
     const int32_t remainder = rhs_cols % 4;
     const int32_t aligned_rhs_cols = remainder != 0 ? rhs_cols + 4 - remainder : rhs_cols;
 
+#if defined(ARM_MATH_MVEI)
+    /* Hoisted out of the batch loop below: the check is loop-invariant, and leaving it inside meant an
+       input_dims->n of zero or less skipped it and returned ARM_CMSIS_NN_SUCCESS with a NULL buffer undiagnosed. */
+    if (weight_sum_ctx->buf == NULL)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+#endif
+
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {
 
@@ -129,10 +138,6 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
 
         /* Generate up to four columns from the input tensor a GEMM computation */
         int8_t *im2col_buf = (int8_t *)buffer_a;
-        if (weight_sum_ctx->buf == NULL)
-        {
-            return ARM_CMSIS_NN_ARG_ERROR;
-        }
         const int32_t *weight_sum_data_ptr = weight_sum_ctx->buf;
 #else
         (void)weight_sum_ctx;
