@@ -14,7 +14,7 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""One-shot generator for ``arm_nn_tanh_lut384_f32`` in
+"""One-shot generator for ``arm_nn_tanh_lut_f32`` in
 ``Source/NNSupportFunctions/arm_nntables_flt.c``.
 
 The table samples ``tanh(x)`` on a uniform grid over ``x in [0, XMAX]`` with
@@ -44,7 +44,7 @@ import sys
 XMAX = 6.0
 SEGMENTS = 384
 PER_LINE = 8
-SYMBOL = "arm_nn_tanh_lut384_f32"
+SYMBOL = "arm_nn_tanh_lut_f32"
 
 
 def values():
