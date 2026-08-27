@@ -93,6 +93,16 @@ void svdf_int8_arm_svdf_s8(void)
 
     input_ctx.buf = malloc(scratch_size);
     output_ctx.buf = malloc(scratch_size_out);
+    /* .size is set for hygiene only: these kernels do not read it. Leaving an automatic-storage field
+       indeterminate is not a pattern worth copying out of a test. */
+    input_ctx.size = scratch_size;
+    output_ctx.size = scratch_size_out;
+
+    /* The published queries must agree with the sizes this test computes by hand; otherwise a caller that
+       trusts the library gets a different buffer from one that transcribes the formula. */
+    TEST_ASSERT_EQUAL(scratch_size, arm_svdf_s8_input_ctx_get_buffer_size(&input_dims, &weights_feature_dims));
+    TEST_ASSERT_EQUAL(scratch_size_out,
+                      arm_svdf_s8_output_ctx_get_buffer_size(&svdf_int8_params, &input_dims, &weights_feature_dims));
 
     int8_t *input_data = malloc(input_round_size);
     int8_t *state_data = malloc(state_data_size);
@@ -214,6 +224,16 @@ void svdf_int8_2_arm_svdf_s8(void)
 
     input_ctx.buf = malloc(scratch_size);
     output_ctx.buf = malloc(scratch_size_out);
+    /* .size is set for hygiene only: these kernels do not read it. Leaving an automatic-storage field
+       indeterminate is not a pattern worth copying out of a test. */
+    input_ctx.size = scratch_size;
+    output_ctx.size = scratch_size_out;
+
+    /* The published queries must agree with the sizes this test computes by hand; otherwise a caller that
+       trusts the library gets a different buffer from one that transcribes the formula. */
+    TEST_ASSERT_EQUAL(scratch_size, arm_svdf_s8_input_ctx_get_buffer_size(&input_dims, &weights_feature_dims));
+    TEST_ASSERT_EQUAL(scratch_size_out,
+                      arm_svdf_s8_output_ctx_get_buffer_size(&svdf_int8_2_params, &input_dims, &weights_feature_dims));
 
     int8_t *input_data = malloc(input_round_size);
     int8_t *state_data = malloc(state_data_size);

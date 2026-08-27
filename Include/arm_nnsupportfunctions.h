@@ -208,12 +208,18 @@ __STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)
  * across three or more int32_t dims does not have that property - 65536 * 65536 * 65536 * 65536 is
  * exactly 2^64 and folds back to 0, which would sail through a trailing "> INT32_MAX" test.
  *
- * @note  This is the -1 sentinel family, used by the s8/s16 integer buffer-size queries. It is not
+ * @note  This is the -1 sentinel family, used by the s8/s16 integer buffer-size queries and by the eight SVDF
+ *        staging queries (arm_svdf_{s8,state_s16_s8,f32,f16}_{input,output}_ctx_get_buffer_size). It is not
  *        interchangeable with the arm_nn_checked_size_mul() / arm_nn_size_to_i32_or_zero() helpers in
- *        Source/NNSupportFunctions (shared header for the float sizers), which the f32 and f16 buffer-size
+ *        Source/NNSupportFunctions (shared header for the float sizers), which most f32 and f16 buffer-size
  *        queries use and which report an out-of-range size as 0. Mixing the two silently flips a sizer's
  *        out-of-range contract from "must never be used to size a buffer" to "you may pass { NULL, 0 }", so
  *        pick the one the surrounding family already uses.
+ * @note  The split is per sizer, not per datatype. The four SVDF f32/f16 staging queries deliberately use this
+ *        -1 family rather than the 0 one their neighbours use, because their kernels read ctx->size and a
+ *        size of 0 opts out of the scratch-size check - so a 0-on-overflow answer fed back as
+ *        { alloc(0), 0 } would disable the very check meant to catch it. Do not infer a sizer's sentinel from
+ *        its datatype suffix.
  *
  * @param[in] acc     Running product, or -1 if an earlier fold already overflowed.
  * @param[in] factor  Next factor to fold in.
@@ -237,9 +243,9 @@ __STATIC_FORCEINLINE int64_t arm_nn_size_mul(const int64_t acc, const int64_t fa
  *
  * Companion to arm_nn_size_mul() for the sizers that append a fixed slack term.
  *
- * @note  Same sentinel caveat as arm_nn_size_mul(): this is the -1 family used by the s8/s16 integer sizers, not
- *        the 0-returning arm_nn_checked_size_mul() / arm_nn_size_to_i32_or_zero() family used by the float and
- *        f16 sizers.
+ * @note  Same sentinel caveat as arm_nn_size_mul() - see its note for the full split, including why the four SVDF
+ *        f32/f16 staging queries use this -1 family rather than the 0-returning
+ *        arm_nn_checked_size_mul() / arm_nn_size_to_i32_or_zero() family that most other float sizers use.
  *
  * @param[in] acc      Running product, or -1 if an earlier step already overflowed.
  * @param[in] addend   Value to add. Must be non-negative.

@@ -107,7 +107,6 @@ arm_cmsis_nn_status arm_svdf_f32(const cmsis_nn_context *ctx,
     const int32_t input_height = input_dims->h;
     const int32_t feature_batches = weights_feature_dims->n;
     const int32_t time_batches = weights_time_dims->h;
-    const int32_t unit_count = feature_batches / rank;
 
     float32_t *buffer_a = (float32_t *)(input_ctx ? input_ctx->buf : NULL);
     float32_t *buffer_b = (float32_t *)(output_ctx ? output_ctx->buf : NULL);
@@ -115,6 +114,40 @@ arm_cmsis_nn_status arm_svdf_f32(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+    /* Opt-in staging size checks, entry only. A caller that populates ctx->size has an undersized buffer
+       diagnosed here instead of overflowed further down; leaving size at 0 opts out. Both float call sites in
+       the Ambiq TFLite Micro fork brace-initialize these contexts and check the returned status, so opting in is
+       the norm here. The size query is only reached when the caller opted in, and nothing below this point
+       inspects ctx->size, so no loop pays for it. Placed ahead of the unit_count division below so that an
+       out-of-range shape is reported rather than divided through. */
+    if (input_ctx->size != 0)
+    {
+        const int32_t required_bytes = arm_svdf_f32_input_ctx_get_buffer_size(input_dims, weights_feature_dims);
+        if ((required_bytes < 0) || (input_ctx->size < required_bytes))
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+    }
+
+    if (output_ctx->size != 0)
+    {
+        const int32_t required_bytes =
+            arm_svdf_f32_output_ctx_get_buffer_size(svdf_params, input_dims, weights_feature_dims);
+        if ((required_bytes < 0) || (output_ctx->size < required_bytes))
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+    }
+
+    /* rank is the divisor for unit_count. Reject a non-positive one unconditionally: 0 is undefined behaviour and
+       a negative one yields a negative unit_count that the loops below would treat as an empty extent. */
+    if (rank <= 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    const int32_t unit_count = feature_batches / rank;
 
     for (int32_t i_batch = 0; i_batch < input_batches; i_batch++)
     {
@@ -229,6 +262,72 @@ arm_cmsis_nn_status arm_svdf_f32(const cmsis_nn_context *ctx,
     #endif
 
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+/*
+ * Staging-buffer queries for arm_svdf_f32(). These live beside the kernel rather than in
+ * arm_get_buffer_size_f32.c so that the numbers and the stores they describe cannot drift apart.
+ *
+ * Sentinel note: these follow the SVDF family's -1-on-invalid convention (arm_nn_size_mul(), as used by
+ * arm_svdf_s8_get_buffer_size()), NOT the 0-on-out-of-range convention of the float convolution sizers in
+ * Source/NNSupportFunctions/arm_get_buffer_size_f32.c.
+ *
+ * The reason is the guard at the top of arm_svdf_f32(): ctx->size == 0 is the opt-out signal for that guard. A
+ * 0-on-overflow sizer would hand blind codegen doing `ctx.buf = alloc(sz); ctx.size = sz;` a non-NULL zero-byte
+ * allocation paired with size 0, the guard would opt out, and the kernel would write the full overflowing extent
+ * into it. With -1, alloc((size_t)-1) fails, buf comes back NULL, and the existing NULL check catches it. -1
+ * fails safe here; 0 does not.
+ *
+ * Note that 0 is still a legitimate *return* for a degenerate shape - input_dims->n == 0, or a rank larger than
+ * weights_feature_dims->n, which truncates unit_count to 0. It is only never used to report an out-of-range one.
+ */
+
+int32_t arm_svdf_f32_input_ctx_get_buffer_size(const cmsis_nn_dims *input_dims,
+                                               const cmsis_nn_dims *weights_feature_dims)
+{
+    if (!input_dims || !weights_feature_dims)
+    {
+        return -1;
+    }
+
+    /* One float32_t per (input batch, feature batch): the time-weight block above stores exactly once per
+       iteration of the i_batch / i_feat loops through `out_a = buffer_a + i_batch * feature_batches`, so the
+       highest element written is input_dims->n * weights_feature_dims->n - 1. Folded one factor at a time so the
+       accumulator stays bounded; see arm_nn_size_mul(). */
+    int64_t required_bytes = arm_nn_size_mul(1, input_dims->n);
+    required_bytes = arm_nn_size_mul(required_bytes, weights_feature_dims->n);
+    required_bytes = arm_nn_size_mul(required_bytes, (int32_t)sizeof(float32_t));
+
+    return (int32_t)required_bytes;
+}
+
+int32_t arm_svdf_f32_output_ctx_get_buffer_size(const cmsis_nn_svdf_params_f32 *svdf_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const cmsis_nn_dims *weights_feature_dims)
+{
+    if (!svdf_params || !input_dims || !weights_feature_dims)
+    {
+        return -1;
+    }
+
+    /* rank is a divisor, so it is validated before use rather than folded through arm_nn_size_mul(). */
+    if ((svdf_params->rank <= 0) || (weights_feature_dims->n < 0))
+    {
+        return -1;
+    }
+
+    /* One float32_t per (input batch, output unit). Every branch of the bias/no-bias block above writes through
+       `out_b = buffer_b + i_batch * unit_count` for indices [0, unit_count); the branch that indexes by
+       feature_batches instead is guarded by `unit_count == feature_batches` and so covers the same extent. The
+       MVE clamp tail loads buffer_b under a vctp32q() predicate and therefore adds no round-up. The division
+       truncates, exactly as the kernel's `feature_batches / rank` does. */
+    const int32_t unit_count = weights_feature_dims->n / svdf_params->rank;
+
+    int64_t required_bytes = arm_nn_size_mul(1, input_dims->n);
+    required_bytes = arm_nn_size_mul(required_bytes, unit_count);
+    required_bytes = arm_nn_size_mul(required_bytes, (int32_t)sizeof(float32_t));
+
+    return (int32_t)required_bytes;
 }
 
 /**

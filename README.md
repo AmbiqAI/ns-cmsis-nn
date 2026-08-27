@@ -304,14 +304,24 @@ unless the target or toolchain cannot provide the required floating-point type.
   the [TFLM int8 quantization spec][quant-int8].
 - **Buffer convention.** Every kernel takes a `cmsis_nn_context` whose `buf`
   must be sized via the matching `arm_*_get_buffer_size*` query. If the query
-  returns 0, you may pass `{ NULL, 0 }`. For the **s8 and s16 integer** sizers,
-  a negative return (`-1`) means the dimensions are out of range — the required
-  size does not fit in an `int32_t`, or a dimension is negative — and must never
-  be used to size a buffer. Two families do **not** follow that rule and need
-  the caller to range-check the shape itself:
-  - the **f32/f16** sizers (`arm_convolve_f32_get_buffer_size` and siblings)
+  returns 0, you may pass `{ NULL, 0 }` — **except for any
+  `arm_svdf_*_ctx_get_buffer_size` query** (all eight of them, integer and
+  float alike), where a 0 means a degenerate shape but the kernel still
+  rejects a NULL `buf` with `ARM_CMSIS_NN_ARG_ERROR`. For the **s8 and
+  s16 integer** sizers, a negative return (`-1`) means the dimensions are out of
+  range — the required size does not fit in an `int32_t`, or a dimension is
+  negative — and must never be used to size a buffer. Two groups do **not**
+  follow that rule and need the caller to range-check the shape itself:
+  - **most f32/f16** sizers (`arm_convolve_f32_get_buffer_size` and siblings)
     report a size that does not fit in an `int32_t` as **`0`**, which is
-    indistinguishable from "no buffer needed";
+    indistinguishable from "no buffer needed". Note this is a property of the
+    individual sizer, not of the datatype: `arm_svdf_f32_input_ctx_get_buffer_size`,
+    `arm_svdf_f32_output_ctx_get_buffer_size`,
+    `arm_svdf_f16_input_ctx_get_buffer_size` and
+    `arm_svdf_f16_output_ctx_get_buffer_size` are f32/f16 sizers that use `-1`,
+    because their kernels read `ctx->size` and `size == 0` opts out of the
+    scratch-size check. A generic float wrapper must branch per sizer, not on
+    the datatype;
   - the **s4** sizers (`arm_convolve_s4_get_buffer_size` and siblings) are
     unguarded and return a wrapped value for an out-of-range shape.
 
