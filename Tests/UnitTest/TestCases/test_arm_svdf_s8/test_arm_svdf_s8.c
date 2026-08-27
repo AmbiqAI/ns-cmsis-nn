@@ -93,6 +93,10 @@ void svdf_int8_arm_svdf_s8(void)
 
     input_ctx.buf = malloc(scratch_size);
     output_ctx.buf = malloc(scratch_size_out);
+    /* .size is set so the opt-in scratch-size guards in the kernel are exercised on their accept path.
+       Leaving these at their indeterminate automatic-storage value would make the guards nondeterministic. */
+    input_ctx.size = scratch_size;
+    output_ctx.size = scratch_size_out;
 
     int8_t *input_data = malloc(input_round_size);
     int8_t *state_data = malloc(state_data_size);
@@ -214,6 +218,10 @@ void svdf_int8_2_arm_svdf_s8(void)
 
     input_ctx.buf = malloc(scratch_size);
     output_ctx.buf = malloc(scratch_size_out);
+    /* .size is set so the opt-in scratch-size guards in the kernel are exercised on their accept path.
+       Leaving these at their indeterminate automatic-storage value would make the guards nondeterministic. */
+    input_ctx.size = scratch_size;
+    output_ctx.size = scratch_size_out;
 
     int8_t *input_data = malloc(input_round_size);
     int8_t *state_data = malloc(state_data_size);

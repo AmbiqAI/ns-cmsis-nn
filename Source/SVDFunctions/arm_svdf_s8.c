@@ -107,6 +107,29 @@ arm_cmsis_nn_status arm_svdf_s8(const cmsis_nn_context *ctx,
     }
     int32_t *buffer_b = (int32_t *)output_ctx->buf;
 
+    /* Opt-in scratch size checks, entry only. A caller that populates ctx->size has an undersized buffer
+       diagnosed here instead of overflowed further down; leaving size at 0 opts out, which is what TFLite Micro
+       and derivatives do (they allocate from the arena but never propagate the figure). The size query is only
+       reached when the caller opted in, and nothing below this point inspects ctx->size, so no loop pays for it. */
+    if (input_ctx->size != 0)
+    {
+        const int32_t required_bytes = arm_svdf_s8_input_ctx_get_buffer_size(input_dims, weights_feature_dims);
+        if ((required_bytes < 0) || (input_ctx->size < required_bytes))
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+    }
+
+    if (output_ctx->size != 0)
+    {
+        const int32_t required_bytes =
+            arm_svdf_s8_output_ctx_get_buffer_size(svdf_params, input_dims, weights_feature_dims);
+        if ((required_bytes < 0) || (output_ctx->size < required_bytes))
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+    }
+
     int32_t *kernel_sum_data = (int32_t *)ctx->buf;
 
     // Left shift state

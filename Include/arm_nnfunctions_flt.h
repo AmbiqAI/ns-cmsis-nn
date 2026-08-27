@@ -894,9 +894,32 @@ arm_transpose_conv_f32_get_reverse_conv_buffer_size(const cmsis_nn_transpose_con
 /**
  * @brief Stateful singular value decomposition filter.
  *
- * @param[in,out] ctx                  Function context that may hold a temporary scratch buffer.
- * @param[in,out] input_ctx            Optional input staging context.
- * @param[in,out] output_ctx           Optional output staging context.
+ * @param[in,out] ctx                  Unused by this function. Reserved for future use; may be NULL.
+ * @param[in,out] input_ctx            Mandatory, not optional: a NULL input_ctx, or a NULL input_ctx->buf, is
+ *                                     diagnosed with ARM_CMSIS_NN_ARG_ERROR on every build. Staging buffer written
+ *                                     by this function, holding one element per (input batch, feature batch).
+ *                                     Written before it is read, so its contents on entry do not matter, but it is
+ *                                     written on EVERY build, not only under MVE.
+ *                                     Sized by arm_svdf_f32_input_ctx_get_buffer_size(input_dims,
+ *                                     weights_feature_dims):
+ *                                     input_dims->n * weights_feature_dims->n * sizeof(float32_t) bytes.
+ *                                     Setting input_ctx->size lets this function reject an undersized buffer with
+ *                                     ARM_CMSIS_NN_ARG_ERROR; leaving it at zero opts out of that check.
+ *                                     The caller is expected to clear the buffer, if applicable, for security
+ *                                     reasons.
+ * @param[in,out] output_ctx           Mandatory, not optional: a NULL output_ctx, or a NULL output_ctx->buf, is
+ *                                     diagnosed with ARM_CMSIS_NN_ARG_ERROR on every build. Staging buffer written
+ *                                     by this function, holding one element per (input batch, output unit).
+ *                                     Written before it is read, so its contents on entry do not matter, but it is
+ *                                     written on EVERY build, not only under MVE.
+ *                                     Sized by arm_svdf_f32_output_ctx_get_buffer_size(svdf_params, input_dims,
+ *                                     weights_feature_dims):
+ *                                     input_dims->n * (weights_feature_dims->n / svdf_params->rank) *
+ *                                     sizeof(float32_t) bytes, truncating division.
+ *                                     Setting output_ctx->size lets this function reject an undersized buffer with
+ *                                     ARM_CMSIS_NN_ARG_ERROR; leaving it at zero opts out of that check.
+ *                                     The caller is expected to clear the buffer, if applicable, for security
+ *                                     reasons.
  * @param[in]     svdf_params          SVDF operator parameters.
  * @param[in]     input_dims           Input tensor dimensions.
  * @param[in]     input_data           Pointer to the input tensor data.
@@ -929,6 +952,46 @@ arm_cmsis_nn_status arm_svdf_f32(const cmsis_nn_context *ctx,
                                  const float32_t *bias_data,
                                  const cmsis_nn_dims *output_dims,
                                  float32_t *output_data);
+
+/**
+ * @brief Get size of the input_ctx staging buffer required by arm_svdf_f32().
+ *
+ * @param[in] input_dims           Input tensor dimensions, i.e. the same cmsis_nn_dims passed to arm_svdf_f32().
+ * @param[in] weights_feature_dims Feature-weight tensor dimensions, i.e. the same cmsis_nn_dims passed to
+ *                                 arm_svdf_f32().
+ *
+ * @return Required buffer size in bytes: input_dims->n * weights_feature_dims->n * sizeof(float32_t). Returns -1
+ *         if either pointer is NULL, if input_dims->n or weights_feature_dims->n is negative, or if the product
+ *         would not fit in an int32_t. The figure and the validation are the same on every build target, since
+ *         arm_svdf_f32() stages this buffer on every build rather than only under MVE.
+ *
+ * @note   This query reports an invalid shape as -1, following the SVDF family (arm_svdf_s8_get_buffer_size()).
+ *         That differs from the float convolution and fully-connected queries in this header, which report an
+ *         out-of-range size as 0. Zero is never a valid answer here: the buffer is mandatory for every shape
+ *         arm_svdf_f32() accepts.
+ */
+int32_t arm_svdf_f32_input_ctx_get_buffer_size(const cmsis_nn_dims *input_dims,
+                                               const cmsis_nn_dims *weights_feature_dims);
+
+/**
+ * @brief Get size of the output_ctx staging buffer required by arm_svdf_f32().
+ *
+ * @param[in] svdf_params          SVDF operator parameters; only svdf_params->rank is read.
+ * @param[in] input_dims           Input tensor dimensions, i.e. the same cmsis_nn_dims passed to arm_svdf_f32().
+ * @param[in] weights_feature_dims Feature-weight tensor dimensions, i.e. the same cmsis_nn_dims passed to
+ *                                 arm_svdf_f32().
+ *
+ * @return Required buffer size in bytes:
+ *         input_dims->n * (weights_feature_dims->n / svdf_params->rank) * sizeof(float32_t), truncating division
+ *         to match the kernel's own unit count. Returns -1 if any pointer is NULL, if svdf_params->rank is zero or
+ *         negative, if input_dims->n or weights_feature_dims->n is negative, or if the product would not fit in an
+ *         int32_t.
+ *
+ * @note   Same -1 contract as arm_svdf_f32_input_ctx_get_buffer_size().
+ */
+int32_t arm_svdf_f32_output_ctx_get_buffer_size(const cmsis_nn_svdf_params_f32 *svdf_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const cmsis_nn_dims *weights_feature_dims);
 
 /** @} */
 
@@ -1638,6 +1701,12 @@ arm_transpose_conv_f16_get_reverse_conv_buffer_size(const cmsis_nn_transpose_con
 
 /**
  * @copydoc arm_svdf_f32
+ *
+ * @note The staging buffers hold float16_t, not float32_t, so for the same shape they are half the size of the
+ *       arm_svdf_f32() ones. Size them with arm_svdf_f16_input_ctx_get_buffer_size() and
+ *       arm_svdf_f16_output_ctx_get_buffer_size(), not with the f32 queries named in the inherited text above.
+ *       Substituting the f32 queries over-allocates and is safe; substituting the f16 queries for an f32 layer
+ *       under-allocates by half and corrupts memory.
  */
 arm_cmsis_nn_status arm_svdf_f16(const cmsis_nn_context *ctx,
                                  const cmsis_nn_context *input_ctx,
@@ -1655,6 +1724,25 @@ arm_cmsis_nn_status arm_svdf_f16(const cmsis_nn_context *ctx,
                                  const float16_t *bias_data,
                                  const cmsis_nn_dims *output_dims,
                                  float16_t *output_data);
+
+/**
+ * @copydoc arm_svdf_f32_input_ctx_get_buffer_size
+ *
+ * @note Returns input_dims->n * weights_feature_dims->n * sizeof(float16_t) - half the f32 figure for the same
+ *       shape.
+ */
+int32_t arm_svdf_f16_input_ctx_get_buffer_size(const cmsis_nn_dims *input_dims,
+                                               const cmsis_nn_dims *weights_feature_dims);
+
+/**
+ * @copydoc arm_svdf_f32_output_ctx_get_buffer_size
+ *
+ * @note Returns input_dims->n * (weights_feature_dims->n / svdf_params->rank) * sizeof(float16_t) - half the f32
+ *       figure for the same shape.
+ */
+int32_t arm_svdf_f16_output_ctx_get_buffer_size(const cmsis_nn_svdf_params_f16 *svdf_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const cmsis_nn_dims *weights_feature_dims);
 
 /** @} */
 

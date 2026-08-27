@@ -87,6 +87,10 @@ void svdf_arm_svdf_state_s16_s8(void)
 
     input_ctx.buf = malloc(scratch_size);
     output_ctx.buf = malloc(scratch_size_out);
+    /* .size is set so the opt-in scratch-size guards in the kernel are exercised on their accept path.
+       Leaving these at their indeterminate automatic-storage value would make the guards nondeterministic. */
+    input_ctx.size = scratch_size;
+    output_ctx.size = scratch_size_out;
 
     int8_t *input_data = malloc(input_round_size);
     int16_t *state_data = malloc(sizeof(svdf_state));
@@ -173,6 +177,10 @@ void svdf_1_arm_svdf_state_s16_s8(void)
 
     input_ctx.buf = malloc(scratch_size);
     output_ctx.buf = malloc(scratch_size_out);
+    /* .size is set so the opt-in scratch-size guards in the kernel are exercised on their accept path.
+       Leaving these at their indeterminate automatic-storage value would make the guards nondeterministic. */
+    input_ctx.size = scratch_size;
+    output_ctx.size = scratch_size_out;
 
     int8_t *input_data = malloc(input_round_size);
     int16_t *state_data = malloc(sizeof(svdf_1_state));
@@ -258,6 +266,10 @@ void svdf_2_arm_svdf_state_s16_s8(void)
 
     input_ctx.buf = malloc(scratch_size);
     output_ctx.buf = malloc(scratch_size_out);
+    /* .size is set so the opt-in scratch-size guards in the kernel are exercised on their accept path.
+       Leaving these at their indeterminate automatic-storage value would make the guards nondeterministic. */
+    input_ctx.size = scratch_size;
+    output_ctx.size = scratch_size_out;
 
     int8_t *input_data = malloc(input_round_size);
     int16_t *state_data = malloc(sizeof(svdf_2_state));
@@ -343,6 +355,10 @@ void svdf_3_arm_svdf_state_s16_s8(void)
 
     input_ctx.buf = malloc(scratch_size);
     output_ctx.buf = malloc(scratch_size_out);
+    /* .size is set so the opt-in scratch-size guards in the kernel are exercised on their accept path.
+       Leaving these at their indeterminate automatic-storage value would make the guards nondeterministic. */
+    input_ctx.size = scratch_size;
+    output_ctx.size = scratch_size_out;
 
     int8_t *input_data = malloc(input_round_size);
     int16_t *state_data = malloc(sizeof(svdf_3_state));

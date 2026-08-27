@@ -5551,20 +5551,32 @@ arm_cmsis_nn_status arm_split_s16(const int16_t *input_data,
  *                                    leaving it unfilled, and produces the silently wrong output described above.
  *                                    If it must be cleared for security reasons, clear it after the last call that
  *                                    uses it, and refill it before any further call.
- * @param[in]   input_ctx             Temporary scratch buffer, used to hold one accumulator per feature batch.
- *                                    Written before it is read, so its contents on entry do not matter, but it is
- *                                    written on EVERY build, not only under MVE. Mandatory: a NULL buf returns
- *                                    ARM_CMSIS_NN_ARG_ERROR. There is no sizing helper for it; the buffer must
- *                                    hold at least input_dims->n * weights_feature_dims->n int32_t elements.
+ * @param[in]   input_ctx             Scratch buffer written by this function, holding one int32_t accumulator per
+ *                                    (input batch, feature batch). Written before it is read, so its contents on
+ *                                    entry do not matter, but it is written on EVERY build, not only under MVE.
+ *                                    Mandatory: a NULL buf is diagnosed with ARM_CMSIS_NN_ARG_ERROR on every
+ *                                    build.
+ *                                    Sized by arm_svdf_s8_input_ctx_get_buffer_size(input_dims,
+ *                                    weights_feature_dims):
+ *                                    input_dims->n * weights_feature_dims->n * sizeof(int32_t) bytes, the same
+ *                                    figure on every build target.
+ *                                    Setting input_ctx->size lets this function reject an undersized buffer with
+ *                                    ARM_CMSIS_NN_ARG_ERROR; leaving it at zero opts out of that check, which is
+ *                                    what TFLite Micro and derivatives do today.
  *                                    The caller is expected to clear the buffer, if applicable, for security
  * reasons.
- * @param[in]   output_ctx            Temporary output scratch buffer, used to hold one accumulator per output
- *                                    unit. Written before it is read, so its contents on entry do not matter, but
- *                                    it is written on EVERY build, not only under MVE. Mandatory: a NULL buf
- *                                    returns ARM_CMSIS_NN_ARG_ERROR. There is no sizing helper for it; the buffer
- *                                    must hold at least
- *                                    input_dims->n * (weights_feature_dims->n / svdf_params->rank) int32_t
- *                                    elements.
+ * @param[in]   output_ctx            Scratch buffer written by this function, holding one int32_t accumulator per
+ *                                    (input batch, output unit). Written before it is read, so its contents on
+ *                                    entry do not matter, but it is written on EVERY build, not only under MVE.
+ *                                    Mandatory: a NULL buf is diagnosed with ARM_CMSIS_NN_ARG_ERROR on every
+ *                                    build.
+ *                                    Sized by arm_svdf_s8_output_ctx_get_buffer_size(svdf_params, input_dims,
+ *                                    weights_feature_dims):
+ *                                    input_dims->n * (weights_feature_dims->n / svdf_params->rank) *
+ *                                    sizeof(int32_t) bytes, truncating division, the same figure on every build
+ *                                    target.
+ *                                    Setting output_ctx->size lets this function reject an undersized buffer with
+ *                                    ARM_CMSIS_NN_ARG_ERROR; leaving it at zero opts out of that check.
  *                                    The caller is expected to clear the buffer, if applicable, for security
  * reasons.
  * @param[in]   svdf_params           SVDF Parameters
@@ -5614,9 +5626,33 @@ arm_cmsis_nn_status arm_svdf_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s8 SVDF function with 16 bit state tensor and 16 bit time weights
  *
- * @param[in]   input_ctx             Temporary scratch buffer
+ * @param[in]   input_ctx             Scratch buffer written by this function, holding one int32_t accumulator per
+ *                                    (input batch, feature batch). Written before it is read, so its contents on
+ *                                    entry do not matter, but it is written on EVERY build, not only under MVE.
+ *                                    Mandatory: a NULL buf is diagnosed with ARM_CMSIS_NN_ARG_ERROR on every
+ *                                    build.
+ *                                    Sized by arm_svdf_state_s16_s8_input_ctx_get_buffer_size(input_dims,
+ *                                    weights_feature_dims):
+ *                                    input_dims->n * weights_feature_dims->n * sizeof(int32_t) bytes, the same
+ *                                    figure on every build target. Note the accumulators are int32_t even though
+ *                                    the state tensor is int16_t - this buffer does not shrink with the state
+ *                                    width.
+ *                                    Setting input_ctx->size lets this function reject an undersized buffer with
+ *                                    ARM_CMSIS_NN_ARG_ERROR; leaving it at zero opts out of that check, which is
+ *                                    what TFLite Micro and derivatives do today.
  *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
- * @param[in]   output_ctx            Temporary output scratch buffer
+ * @param[in]   output_ctx            Scratch buffer written by this function, holding one int32_t accumulator per
+ *                                    (input batch, output unit). Written before it is read, so its contents on
+ *                                    entry do not matter, but it is written on EVERY build, not only under MVE.
+ *                                    Mandatory: a NULL buf is diagnosed with ARM_CMSIS_NN_ARG_ERROR on every
+ *                                    build.
+ *                                    Sized by arm_svdf_state_s16_s8_output_ctx_get_buffer_size(svdf_params,
+ *                                    input_dims, weights_feature_dims):
+ *                                    input_dims->n * (weights_feature_dims->n / svdf_params->rank) *
+ *                                    sizeof(int32_t) bytes, truncating division, the same figure on every build
+ *                                    target.
+ *                                    Setting output_ctx->size lets this function reject an undersized buffer with
+ *                                    ARM_CMSIS_NN_ARG_ERROR; leaving it at zero opts out of that check.
  *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]   svdf_params           SVDF Parameters
  *                                    Range of svdf_params->input_offset  : [-128, 127]
@@ -5697,6 +5733,69 @@ int32_t arm_svdf_s8_get_buffer_size_dsp(const cmsis_nn_dims *weights_feature_dim
  *
  */
 int32_t arm_svdf_s8_get_buffer_size_mve(const cmsis_nn_dims *weights_feature_dims);
+
+/**
+ * @brief Get size of the input_ctx staging buffer required by arm_svdf_s8().
+ *
+ * @param[in]   input_dims             Input tensor dimensions, i.e. the same cmsis_nn_dims passed to arm_svdf_s8()
+ * @param[in]   weights_feature_dims   Weights (feature) tensor dimensions, i.e. the same cmsis_nn_dims passed to
+ *                                     arm_svdf_s8()
+ * @return      The function returns   required buffer size in bytes, or -1 if input_dims->n or
+ *                                     weights_feature_dims->n is negative or the required size would not fit in
+ *                                     an int32_t
+ *
+ * @details    Returns input_dims->n * weights_feature_dims->n * sizeof(int32_t). Unlike
+ *             arm_svdf_s8_get_buffer_size(), this figure does not vary by build target: arm_svdf_s8() stages this
+ *             buffer on every build, not only under MVE, so there is no _dsp / _mve pair to choose between and
+ *             the validation runs on every target.
+ * @note       This is a different buffer from the one arm_svdf_s8_get_buffer_size() describes. That one sizes the
+ *             read-only kernel sums passed as ctx; this one sizes the scratch passed as input_ctx.
+ */
+int32_t arm_svdf_s8_input_ctx_get_buffer_size(const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *weights_feature_dims);
+
+/**
+ * @brief Get size of the output_ctx staging buffer required by arm_svdf_s8().
+ *
+ * @param[in]   svdf_params            SVDF parameters; only svdf_params->rank is read
+ * @param[in]   input_dims             Input tensor dimensions, i.e. the same cmsis_nn_dims passed to arm_svdf_s8()
+ * @param[in]   weights_feature_dims   Weights (feature) tensor dimensions, i.e. the same cmsis_nn_dims passed to
+ *                                     arm_svdf_s8()
+ * @return      The function returns   required buffer size in bytes, or -1 if svdf_params->rank is zero or
+ *                                     negative, if input_dims->n or weights_feature_dims->n is negative, or if the
+ *                                     required size would not fit in an int32_t
+ *
+ * @details    Returns input_dims->n * (weights_feature_dims->n / svdf_params->rank) * sizeof(int32_t). The
+ *             division truncates, matching the kernel's own unit count. As with
+ *             arm_svdf_s8_input_ctx_get_buffer_size(), the figure is the same on every build target and the
+ *             validation runs on every target.
+ */
+int32_t arm_svdf_s8_output_ctx_get_buffer_size(const cmsis_nn_svdf_params *svdf_params,
+                                               const cmsis_nn_dims *input_dims,
+                                               const cmsis_nn_dims *weights_feature_dims);
+
+/**
+ * @brief Get size of the input_ctx staging buffer required by arm_svdf_state_s16_s8().
+ *        Refer to arm_svdf_s8_input_ctx_get_buffer_size() for argument details and the -1 contract.
+ *
+ * @details    Returns input_dims->n * weights_feature_dims->n * sizeof(int32_t) - the same figure as
+ *             arm_svdf_s8_input_ctx_get_buffer_size() for the same shape. The accumulators are int32_t even though
+ *             arm_svdf_state_s16_s8() carries an int16_t state tensor, so this buffer does not shrink with the
+ *             state width.
+ */
+int32_t arm_svdf_state_s16_s8_input_ctx_get_buffer_size(const cmsis_nn_dims *input_dims,
+                                                        const cmsis_nn_dims *weights_feature_dims);
+
+/**
+ * @brief Get size of the output_ctx staging buffer required by arm_svdf_state_s16_s8().
+ *        Refer to arm_svdf_s8_output_ctx_get_buffer_size() for argument details and the -1 contract.
+ *
+ * @details    Returns input_dims->n * (weights_feature_dims->n / svdf_params->rank) * sizeof(int32_t), truncating
+ *             division - the same figure as arm_svdf_s8_output_ctx_get_buffer_size() for the same shape.
+ */
+int32_t arm_svdf_state_s16_s8_output_ctx_get_buffer_size(const cmsis_nn_svdf_params *svdf_params,
+                                                         const cmsis_nn_dims *input_dims,
+                                                         const cmsis_nn_dims *weights_feature_dims);
 
 /**
  * @defgroup LSTM LSTM Layer Functions

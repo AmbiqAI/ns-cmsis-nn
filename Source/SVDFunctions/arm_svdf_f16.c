@@ -112,6 +112,29 @@ arm_cmsis_nn_status arm_svdf_f16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
+    /* Opt-in staging size checks, entry only. A caller that populates ctx->size has an undersized buffer
+       diagnosed here instead of overflowed further down; leaving size at 0 opts out, which is what TFLite Micro
+       and derivatives do (they allocate from the arena but never propagate the figure). The size query is only
+       reached when the caller opted in, and nothing below this point inspects ctx->size, so no loop pays for it. */
+    if (input_ctx->size != 0)
+    {
+        const int32_t required_bytes = arm_svdf_f16_input_ctx_get_buffer_size(input_dims, weights_feature_dims);
+        if ((required_bytes < 0) || (input_ctx->size < required_bytes))
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+    }
+
+    if (output_ctx->size != 0)
+    {
+        const int32_t required_bytes =
+            arm_svdf_f16_output_ctx_get_buffer_size(svdf_params, input_dims, weights_feature_dims);
+        if ((required_bytes < 0) || (output_ctx->size < required_bytes))
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+    }
+
     for (int32_t i_batch = 0; i_batch < input_batches; i_batch++)
     {
         float16_t *state_b = state_data + (i_batch * feature_batches * time_batches);
@@ -223,6 +246,68 @@ arm_cmsis_nn_status arm_svdf_f16(const cmsis_nn_context *ctx,
     #endif
 
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+/*
+ * Staging-buffer queries for arm_svdf_f16(). These live beside the kernel rather than in
+ * arm_get_buffer_size_f16.c so that the numbers and the stores they describe cannot drift apart.
+ *
+ * Sentinel note: these follow the SVDF family's -1-on-invalid convention (arm_nn_size_mul(), as used by
+ * arm_svdf_s8_get_buffer_size()), NOT the 0-on-out-of-range convention of the float convolution sizers in
+ * Source/NNSupportFunctions/arm_get_buffer_size_f16.c. The two staging buffers are mandatory for every valid
+ * shape, so 0 is never a legitimate answer here and would be indistinguishable from "you may pass { NULL, 0 }".
+ *
+ * Element size note: arm_svdf_f16() stages float16_t, not float32_t, so these byte counts are half the f32 ones
+ * for the same shape. A caller that reuses arm_svdf_f32_input_ctx_get_buffer_size() for an f16 layer over-
+ * allocates rather than under-allocating, but the reverse substitution corrupts memory.
+ */
+
+int32_t arm_svdf_f16_input_ctx_get_buffer_size(const cmsis_nn_dims *input_dims,
+                                               const cmsis_nn_dims *weights_feature_dims)
+{
+    if (!input_dims || !weights_feature_dims)
+    {
+        return -1;
+    }
+
+    /* One float16_t per (input batch, feature batch): the time-weight block above stores exactly once per
+       iteration of the i_batch / i_feat loops through `out_a = buffer_a + i_batch * feature_batches`, so the
+       highest element written is input_dims->n * weights_feature_dims->n - 1. Folded one factor at a time so the
+       accumulator stays bounded; see arm_nn_size_mul(). */
+    int64_t required_bytes = arm_nn_size_mul(1, input_dims->n);
+    required_bytes = arm_nn_size_mul(required_bytes, weights_feature_dims->n);
+    required_bytes = arm_nn_size_mul(required_bytes, (int32_t)sizeof(float16_t));
+
+    return (int32_t)required_bytes;
+}
+
+int32_t arm_svdf_f16_output_ctx_get_buffer_size(const cmsis_nn_svdf_params_f16 *svdf_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const cmsis_nn_dims *weights_feature_dims)
+{
+    if (!svdf_params || !input_dims || !weights_feature_dims)
+    {
+        return -1;
+    }
+
+    /* rank is a divisor, so it is validated before use rather than folded through arm_nn_size_mul(). */
+    if ((svdf_params->rank <= 0) || (weights_feature_dims->n < 0))
+    {
+        return -1;
+    }
+
+    /* One float16_t per (input batch, output unit). Every branch of the bias/no-bias block above writes through
+       `out_b = buffer_b + i_batch * unit_count` for indices [0, unit_count); the branch that indexes by
+       feature_batches instead is guarded by `unit_count == feature_batches` and so covers the same extent. The
+       MVE clamp tail loads buffer_b under a vctp16q() predicate and therefore adds no round-up. The division
+       truncates, exactly as the kernel's `feature_batches / rank` does. */
+    const int32_t unit_count = weights_feature_dims->n / svdf_params->rank;
+
+    int64_t required_bytes = arm_nn_size_mul(1, input_dims->n);
+    required_bytes = arm_nn_size_mul(required_bytes, unit_count);
+    required_bytes = arm_nn_size_mul(required_bytes, (int32_t)sizeof(float16_t));
+
+    return (int32_t)required_bytes;
 }
 
 /**
