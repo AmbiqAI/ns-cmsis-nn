@@ -5,9 +5,9 @@
 # Smoke-link verification for a prebuilt cmsis-nn static library.
 #
 # Compiles scripts/smoke/staticlib_smoke.c against the given archive
-# with the matching architecture flags. GCC and ATfE produce an ELF with
-# a minimal bare-metal link; armclang uses a compile-plus-archive-symbol
-# check because Arm's linker option dialect is intentionally different.
+# with the matching architecture flags and links a minimal bare-metal
+# ELF. All three toolchains link for real; armclang goes through armlink,
+# whose option dialect differs from the GNU/LLD one (see link_style).
 #
 # Failure here means the published archive is missing symbols a
 # consumer would expect, or its arch flags are mismatched.
@@ -34,9 +34,23 @@
 # change every gcc and atfe leg (cortex-m0/m4/m55) links clean, so any
 # new strict failure is a real unresolved symbol, not a known exemption.
 #
-# armclang is unaffected either way: its check_mode is
-# "archive-symbols" and it never links at all (see
-# AmbiqAI/ns-cmsis-nn#291).
+# armclang used to be exempt: its check_mode was "archive-symbols", which
+# ran `nm --defined-only` over the .a instead of invoking a linker, so it
+# could not observe a broken archive symbol index or an unresolved
+# reference at all (AmbiqAI/ns-cmsis-nn#291). It now performs a real
+# link. Two dialect differences are handled explicitly:
+#
+#   whole-archive  armlink has no --whole-archive. Every member is
+#                  extracted and placed on the link line instead, which
+#                  is the exact equivalent and keeps the guarantee that
+#                  EVERY object must resolve -- not just the ones the
+#                  smoke source happens to reference.
+#   dead-strip     armlink's unused-section removal is on by default;
+#                  --no_remove is the analogue of omitting --gc-sections.
+#
+# armlink already treats an unresolved reference as an error (L6218E),
+# so strictness needs no extra flag there -- only the two above, which
+# stop the link from quietly discarding the very objects under test.
 
 set -euo pipefail
 
@@ -87,8 +101,11 @@ mkdir -p "${OUTDIR}"
 OUTDIR="$(cd "${OUTDIR}" && pwd)"
 
 elf="${OUTDIR}/staticlib_smoke_${TOOLCHAIN}_${TARGET_CPU}.elf"
-obj="${OUTDIR}/staticlib_smoke_${TOOLCHAIN}_${TARGET_CPU}.o"
-check_mode="link"
+# Linker option dialect: "gnu" for the GNU ld / LLD flag spelling that
+# gcc and ATfE share, "armlink" for Arm Compiler's.
+link_style="gnu"
+# Archive extractor, only needed by the armlink path.
+ar_tool=""
 # Libraries the archive legitimately depends on, appended AFTER the
 # objects so the linker can resolve backwards into them.
 post_link_libs=()
@@ -123,9 +140,17 @@ case "${TOOLCHAIN}" in
     compiler="${TOOLCHAIN_ROOT}/bin/armclang"
     nm="$(command -v llvm-nm || true)"
     size="$(command -v llvm-size || true)"
+    # armar cannot extract to a chosen directory; llvm-ar reads the same
+    # ELF archive and is already installed alongside llvm-nm/llvm-size.
+    ar_tool="$(command -v llvm-ar || true)"
+    [[ -n "${ar_tool}" ]] || { echo "llvm-ar not found for armclang" >&2; exit 3; }
     arch_flags=(--target=arm-arm-none-eabi "${arch_flags[@]}")
-    link_flags=(-nostartfiles -nostdlib)
-    check_mode="archive-symbols"
+    # No -nostdlib: the archive genuinely calls floorf/roundf/round, and
+    # Arm Compiler's C library supplies them. Suppressing the library
+    # scan would turn those into false unresolved-symbol failures, the
+    # armlink equivalent of the -lm the gcc path appends.
+    link_flags=(-nostartfiles)
+    link_style="armlink"
     ;;
   *)
     echo "unsupported toolchain '${TOOLCHAIN}' (expect gcc|atfe|armclang)" >&2
@@ -137,17 +162,21 @@ esac
 [[ -n "${nm}" ]] || { echo "llvm-nm not found for ${TOOLCHAIN}" >&2; exit 3; }
 [[ -n "${size}" ]] || { echo "llvm-size not found for ${TOOLCHAIN}" >&2; exit 3; }
 
-if [[ "${check_mode}" == "link" ]]; then
+if (( STRICT )); then
+  echo ">>> strict smoke-linking ${TOOLCHAIN}/${TARGET_CPU} against $(basename "${LIBRARY}")"
+else
+  echo ">>> lenient smoke-linking ${TOOLCHAIN}/${TARGET_CPU} against $(basename "${LIBRARY}")"
+fi
+
+if [[ "${link_style}" == "gnu" ]]; then
   if (( STRICT )); then
     # Every object in the archive must resolve. --gc-sections is dropped
     # too: with it, kernels the smoke source does not call are discarded
     # before their undefined references are ever checked.
     resolve_flags=()
-    echo ">>> strict smoke-linking ${TOOLCHAIN}/${TARGET_CPU} against $(basename "${LIBRARY}")"
   else
     # shellcheck disable=SC2054  # commas are part of the -Wl, linker flags
     resolve_flags=(-Wl,--gc-sections -Wl,--unresolved-symbols=ignore-all)
-    echo ">>> lenient smoke-linking ${TOOLCHAIN}/${TARGET_CPU} against $(basename "${LIBRARY}")"
   fi
   "${compiler}" \
     "${arch_flags[@]}" \
@@ -158,12 +187,60 @@ if [[ "${check_mode}" == "link" ]]; then
     -o "${elf}" \
     "${smoke_src}" \
     "${post_link_libs[@]+"${post_link_libs[@]}"}"
-  nm_input="${elf}"
 else
-  echo ">>> smoke-checking ${TOOLCHAIN}/${TARGET_CPU} against $(basename "${LIBRARY}")"
-  "${compiler}" "${arch_flags[@]}" -c "${smoke_src}" -o "${obj}"
-  nm_input="${LIBRARY}"
+  # armlink dialect. Two deliberate differences from the GNU path:
+  #
+  #  1. There is no --whole-archive, so every member is extracted and
+  #     named on the link line. Without this armlink would pull in only
+  #     the members the smoke source references and an unresolved symbol
+  #     in any other kernel would go unseen -- which is most of the
+  #     archive, and exactly the gap #291 describes.
+  #  2. --no_remove replaces "omit --gc-sections": armlink removes
+  #     unused sections by default, which would discard those same
+  #     members again after we went to the trouble of extracting them.
+  #
+  # armlink already errors on an unresolved reference (L6218E), so
+  # strictness needs no third flag; --unresolved maps a dangling
+  # reference onto a real symbol and is the lenient escape hatch.
+  members_dir="${OUTDIR}/members_${TOOLCHAIN}_${TARGET_CPU}"
+  rm -rf "${members_dir}"
+  mkdir -p "${members_dir}"
+  ( cd "${members_dir}" && "${ar_tool}" x "${LIBRARY}" )
+
+  members=()
+  while IFS= read -r m; do members+=("$m"); done \
+    < <(find "${members_dir}" -name '*.o' | sort)
+
+  listed="$("${ar_tool}" t "${LIBRARY}" | grep -c '\.o$' || true)"
+  if (( ${#members[@]} == 0 )); then
+    echo "no objects extracted from ${LIBRARY}" >&2
+    exit 3
+  fi
+  if (( ${#members[@]} != listed )); then
+    # Duplicate member basenames would silently overwrite on extract and
+    # quietly shrink the link line, weakening the check without failing.
+    echo "extracted ${#members[@]} objects but archive lists ${listed}" >&2
+    exit 3
+  fi
+  echo ">>> linking ${#members[@]} extracted archive members"
+
+  # shellcheck disable=SC2054  # commas are part of the -Wl, linker flags
+  if (( STRICT )); then
+    resolve_flags=(-Wl,--no_remove)
+  else
+    resolve_flags=(-Wl,--unresolved=ns_cmsis_nn_smoke_refs)
+  fi
+  "${compiler}" \
+    "${arch_flags[@]}" \
+    "${link_flags[@]}" \
+    "${resolve_flags[@]}" \
+    -Wl,--entry=ns_cmsis_nn_smoke_refs \
+    -o "${elf}" \
+    "${smoke_src}" \
+    "${members[@]}" \
+    "${post_link_libs[@]+"${post_link_libs[@]}"}"
 fi
+nm_input="${elf}"
 
 # Sanity: ELF must contain at least one symbol from each referenced group.
 required_syms=(
@@ -189,13 +266,7 @@ if (( ${#missing[@]} > 0 )); then
   exit 4
 fi
 
-if [[ "${check_mode}" == "link" ]]; then
-  size_out="$(${size} "${elf}")"
-  echo ">>> ${elf}"
-  echo "${size_out}"
-else
-  bytes="$(stat -c %s "${LIBRARY}" 2>/dev/null || stat -f %z "${LIBRARY}")"
-  echo ">>> ${obj}"
-  echo ">>> archive bytes: ${bytes}"
-fi
+size_out="$(${size} "${elf}")"
+echo ">>> ${elf}"
+echo "${size_out}"
 echo ">>> smoke OK (${TOOLCHAIN}, ${TARGET_CPU})"

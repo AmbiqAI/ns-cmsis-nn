@@ -1,0 +1,365 @@
+# SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+#
+# Supported-toolchain strict link gate.
+#
+# The README claims three toolchain families. This workflow is what
+# makes each claim testable on every pull request, rather than only at
+# release time or on a manual dispatch:
+#
+#   Arm GNU Toolchain (GCC)   13.2.Rel1 / 14.3.Rel1 / 15.3.Rel1
+#   LLVM Embedded (ATfE)      pinned by ci/toolchains/atfe.json
+#   Arm Compiler 6 (armclang) pinned by ci/toolchains/armclang.json
+#
+# Why the GCC range (AmbiqAI/ns-cmsis-nn#305):
+#
+#   The functional PR gate (ci.yml -> helia-core-tester.yml) runs
+#   entirely inside the CI container, which pins arm-gnu 14.3.1.
+#   release.yml builds its GCC static-library assets with 13.2.Rel1.
+#   Those ranges do not agree about MVE _Generic intrinsic dispatch: an
+#   untyped literal argument (e.g. `vaddq(idx, 1U)`) resolves cleanly on
+#   14.x/15.x but on 12.x/13.x silently compiles to a call to
+#   `__ARM_undef`, which only surfaces as an `undefined reference` at
+#   LINK time. Nothing on the PR path linked MVE-float objects with an
+#   old-range GCC, so the class reached main.
+#
+# We support GCC 13 through 15, with 13 as the floor. This workflow
+# builds and STRICT-links the archive on one pinned release per major:
+#
+#   13.2.Rel1  floor of the supported range, and exactly what
+#              release.yml ships
+#   14.3.Rel1  matches the CI container (14.3.1)
+#   15.3.Rel1  newest supported
+#
+# GCC 12 was evaluated and deliberately dropped as the floor. Its
+# arm_mve.h mis-dispatches the FLOAT overloads of polymorphic intrinsic
+# names generally -- not just bare untyped literals (the tree contains
+# exactly one of those, #305's). arm_softmax_f32 does not include the
+# activation header at all and still fails, on its own vpselq / vmaxnmq
+# / vsubq / vmulq calls over float32x4_t. Supporting 12 would mean
+# giving ~859 polymorphic call sites across the float sources explicit
+# _f32/_f16 suffixes: a wide mechanical sweep, and its own effort.
+#
+# Why ATfE and armclang are here now:
+#
+#   They were previously deferred to staticlib-dryrun.yml, which is
+#   workflow_dispatch-only, so in practice nothing verified them between
+#   releases. A toolchain family we advertise but never build on the PR
+#   path is a claim, not a guarantee. armclang is the sharper case: until
+#   this change its smoke check never invoked a linker at all
+#   (AmbiqAI/ns-cmsis-nn#291), so no armclang asset we have ever shipped
+#   had its symbols resolved by anything.
+#
+# x two CPUs chosen for coverage per cell, not breadth:
+#
+#   cortex-m55  MVE + DSP + float -- the widest single cell, and the
+#               only one where the #305 class can appear at all
+#   cortex-m4   the DSP-only/no-MVE path, which compiles different code
+#
+# cortex-m0 is deliberately omitted: it shares the no-MVE path with m4
+# and every leg is already covered by staticlib-dryrun.yml. Adding it
+# would be more jobs for a strictly narrower cell.
+#
+# This is a BUILD-and-LINK gate only. The functional codegen-tests legs
+# stay on the container's single 14.3.1 toolchain and are deliberately
+# NOT multiplied across toolchains or GCC versions -- running the
+# numerics suite once per toolchain would cost ~8 min of PR latency per
+# added leg to re-test compilers against identical kernel logic. Please
+# do not "helpfully" extend this matrix into helia-core-tester.yml.
+#
+# cortex-m0 and the full three-CPU sweep stay in staticlib-dryrun.yml
+# (workflow_dispatch), which also packages and uploads SDK tarballs.
+
+name: Toolchain matrix strict link
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Not a published artefact; the version string only names the .a.
+  VERSION: 0.0.0-prgate
+
+jobs:
+  gcc:
+    name: gcc ${{ matrix.gcc_release }} / ${{ matrix.target_cpu }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      # Every cell reports independently: when a version-specific defect
+      # appears we want to see its exact range, not just the first failure.
+      fail-fast: false
+      matrix:
+        gcc_release: ['13.2.Rel1', '14.3.Rel1', '15.3.Rel1']
+        target_cpu: [cortex-m55, cortex-m4]
+    env:
+      TARGET_CPU: ${{ matrix.target_cpu }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install GNU Arm Embedded toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          # One pinned release per supported major. 13.2.Rel1 must stay:
+          # it is the supported floor AND the toolchain release.yml ships,
+          # so it is the cell where a defect would actually reach a
+          # customer. Do not raise it to 13.3+ without moving release.yml
+          # in the same change.
+          release: ${{ matrix.gcc_release }}
+
+      - name: Report toolchain version
+        run: arm-none-eabi-gcc --version
+
+      - name: Build static library
+        run: |
+          # F16 only on cortex-m55, matching release.yml and the
+          # ARMV8_1_M_MVEF Zephyr Kconfig restriction.
+          f16_flag=()
+          if [[ "$TARGET_CPU" == "cortex-m55" ]]; then
+            f16_flag=(--enable-f16)
+          fi
+          bash scripts/build_staticlib.sh \
+            --target-cpu "$TARGET_CPU" \
+            --version    "$VERSION" \
+            --toolchain  gcc \
+            --outdir     "./output/gcc/$TARGET_CPU" \
+            --enable-f32 \
+            "${f16_flag[@]}"
+
+      - name: Strict smoke link
+        # smoke_staticlib.sh is strict by default: no --gc-sections and
+        # no --unresolved-symbols=ignore-all, so every object in the
+        # archive must resolve. Archiving alone (`ar`) can never catch
+        # this class -- it does not resolve symbols.
+        run: |
+          bash scripts/smoke/smoke_staticlib.sh \
+            --target-cpu "$TARGET_CPU" \
+            --toolchain  gcc \
+            --library    "./output/gcc/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
+            --outdir     "./output/gcc/${TARGET_CPU}/smoke"
+
+  atfe:
+    # The `env` context is not available in a job-level `name`, so the
+    # version is reported by the assert step rather than the job title.
+    name: atfe / ${{ matrix.target_cpu }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        target_cpu: [cortex-m55, cortex-m4]
+    env:
+      TARGET_CPU: ${{ matrix.target_cpu }}
+      # Declared here so a manifest bump shows up as a diff in this file
+      # too, the same way the GCC releases above are visible. The assert
+      # step below fails if the two ever disagree.
+      ATFE_VERSION: '19.1.5'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Fetch ATfE toolchain
+        id: fetch_toolchain
+        run: |
+          bash scripts/fetch_toolchain.sh \
+            --manifest "ci/toolchains/atfe.json" \
+            --platform linux-x86_64 \
+            --outdir "${RUNNER_TEMP}/toolchains"
+
+      - name: Assert pinned ATfE version
+        env:
+          GOT: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
+        run: |
+          set -euo pipefail
+          if [[ "$GOT" != "$ATFE_VERSION" ]]; then
+            echo "::error title=ATfE pin drift::ci/toolchains/atfe.json is $GOT but this workflow pins $ATFE_VERSION. Update both together." >&2
+            exit 1
+          fi
+          echo "ATfE $GOT (pinned)"
+
+      - name: Build static library
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+        run: |
+          f16_flag=()
+          if [[ "$TARGET_CPU" == "cortex-m55" ]]; then
+            f16_flag=(--enable-f16)
+          fi
+          bash scripts/build_staticlib.sh \
+            --target-cpu "$TARGET_CPU" \
+            --version    "$VERSION" \
+            --toolchain  atfe \
+            --toolchain-root "$TOOLCHAIN_ROOT" \
+            --outdir     "./output/atfe/$TARGET_CPU" \
+            --enable-f32 \
+            "${f16_flag[@]}"
+
+      - name: Strict smoke link
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+        run: |
+          bash scripts/smoke/smoke_staticlib.sh \
+            --target-cpu "$TARGET_CPU" \
+            --toolchain  atfe \
+            --toolchain-root "$TOOLCHAIN_ROOT" \
+            --library    "./output/atfe/${TARGET_CPU}/libns-cmsis-nn-atfe-${TARGET_CPU}-${VERSION}.a" \
+            --outdir     "./output/atfe/${TARGET_CPU}/smoke"
+
+  armclang:
+    name: armclang / cortex-m55 + cortex-m4
+    runs-on: ubuntu-latest
+    # One job looping over the CPUs rather than a matrix, so Arm's
+    # User-Based Licensing is activated EXACTLY ONCE per run and the
+    # ~1 GB Arm Compiler archive is fetched exactly once
+    # (AmbiqAI/ns-cmsis-nn#275). A matrix would multiply both by the
+    # number of CPUs for no added coverage. Activation state stays inside
+    # this job: nothing licence-derived is cached, uploaded, or written
+    # to a step output.
+    #
+    # Runs in the CI container specifically so `armlm` executes as root.
+    # The Arm User-Based Licensing entitlement is bound to CI user "root";
+    # activating as the default hosted-runner user ("runner") is refused with
+    # "The activation code has already been used by another user". The image
+    # has no USER directive, so it runs as root.
+    # Digest-pinned for the same reason as release.yml's armclang job: this
+    # job handles the Arm licensing secret, so the image it runs must be one
+    # that was actually reviewed, not whatever `:latest` points at today.
+    container:
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci@sha256:0d18641d43015eba02d8e05821b59c95ddfcdf0d9ff7a070edd532bad3e09eeb
+    defaults:
+      run:
+        # Inside a container GitHub defaults to `sh -e`, which lacks
+        # `set -o pipefail` and `[[ ]]`. Every run: block in this job is
+        # bash, so pin it rather than degrade the scripts to POSIX sh.
+        shell: bash
+    timeout-minutes: 30
+    env:
+      # See ATFE_VERSION above for why this is duplicated from the manifest.
+      ARMCLANG_VERSION: '6.23.32'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Confirm the runtime user is root
+        # The Arm UBL entitlement is bound to CI user "root". If this prints
+        # anything else, activation will be refused -- fail here with a clear
+        # message rather than at `armlm activate` with a misleading one.
+        run: |
+          set -euo pipefail
+          echo "whoami: $(whoami)  (uid=$(id -u))"
+          if [[ "$(id -u)" -ne 0 ]]; then
+            echo "::error title=Not running as root::armlm must run as root for this entitlement; got $(whoami)." >&2
+            exit 1
+          fi
+
+      - name: Install LLVM archive tools
+        # llvm-nm / llvm-size / llvm-ar. Arm Compiler ships armar, which
+        # cannot extract to a chosen directory, so the smoke script's
+        # whole-archive emulation uses llvm-ar instead.
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends llvm
+
+      - name: Fetch armclang toolchain
+        id: fetch_toolchain
+        run: |
+          bash scripts/fetch_toolchain.sh \
+            --manifest "ci/toolchains/armclang.json" \
+            --platform linux-x86_64 \
+            --outdir "${RUNNER_TEMP}/toolchains"
+
+      - name: Assert pinned armclang version
+        env:
+          GOT: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
+        run: |
+          set -euo pipefail
+          if [[ "$GOT" != "$ARMCLANG_VERSION" ]]; then
+            echo "::error title=armclang pin drift::ci/toolchains/armclang.json is $GOT but this workflow pins $ARMCLANG_VERSION. Update both together." >&2
+            exit 1
+          fi
+          echo "armclang $GOT (pinned)"
+
+      # Only presence is tested; the value is never printed or interpolated
+      # into a shell argument.
+      - name: Validate armclang license
+        env:
+          ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${ARM_UBL_LICENSE_IDENTIFIER:-}" ]]; then
+            echo "::error title=Arm licence not configured::ARM_UBL_LICENSE_IDENTIFIER is required for the armclang strict-link cell." >&2
+            exit 1
+          fi
+          if [[ ! -x "${TOOLCHAIN_ROOT}/bin/armlm" ]]; then
+            echo "::error title=Arm license manager missing::No executable armlm under ${TOOLCHAIN_ROOT}/bin." >&2
+            exit 1
+          fi
+          echo "${TOOLCHAIN_ROOT}/bin" >> "$GITHUB_PATH"
+
+      - name: Activate Arm tool license
+        # SHA-pinned, unlike every other action in this repo, because this is
+        # the only third-party action that receives a repository secret other
+        # than GITHUB_TOKEN -- it interpolates the activation code into a
+        # generated shell command. `v1` is a moving alias (it has tracked
+        # v1.0 -> v1.3), so a retag would silently replace the code handling
+        # that secret. Same reasoning as the sha256 pin on the Arm Compiler
+        # download in ci/toolchains/armclang.json.
+        uses: ARM-software/cmsis-actions/armlm@8a50b77681a484568e08f31fb7c2285c4735f682  # v1.3
+        with:
+          code: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+
+      - name: Build and strict smoke link
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+        run: |
+          set -euo pipefail
+          rc=0
+          for TARGET_CPU in cortex-m55 cortex-m4; do
+            echo "::group::armclang / ${TARGET_CPU}"
+            outdir="./output/armclang/${TARGET_CPU}"
+            f16_flag=()
+            if [[ "${TARGET_CPU}" == "cortex-m55" ]]; then
+              f16_flag=(--enable-f16)
+            fi
+            # Each CPU reports independently, matching the fail-fast:false
+            # behaviour of the gcc and atfe matrices above: a cortex-m55
+            # failure must not hide the state of cortex-m4.
+            if ! (
+              bash scripts/build_staticlib.sh \
+                --target-cpu "$TARGET_CPU" \
+                --version    "$VERSION" \
+                --toolchain  armclang \
+                --toolchain-root "$TOOLCHAIN_ROOT" \
+                --outdir     "$outdir" \
+                --enable-f32 \
+                "${f16_flag[@]}"
+
+              # A real bare-metal armlink link, not the archive-symbol
+              # check this used to do (AmbiqAI/ns-cmsis-nn#291).
+              bash scripts/smoke/smoke_staticlib.sh \
+                --target-cpu "$TARGET_CPU" \
+                --toolchain  armclang \
+                --toolchain-root "$TOOLCHAIN_ROOT" \
+                --library    "${outdir}/libns-cmsis-nn-armclang-${TARGET_CPU}-${VERSION}.a" \
+                --outdir     "${outdir}/smoke"
+            ); then
+              echo "::error title=armclang strict link failed::${TARGET_CPU}" >&2
+              rc=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$rc"
+
+      - name: Deactivate Arm tool license
+        # Always, so a failed link does not leave the activation dangling.
+        if: always()
+        run: armlm deactivate || true
