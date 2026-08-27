@@ -47,3 +47,28 @@ void (* const ns_cmsis_nn_smoke_refs[])(void) = {
     (void (*)(void)) arm_elementwise_add_s8,
     (void (*)(void)) arm_elementwise_mul_s8,
 };
+
+/* The image entry point.
+ *
+ * This has to be a FUNCTION, not the anchor array above. GNU ld and LLD
+ * will happily take a data symbol for --entry, but armlink rejects it:
+ *   L6204E: Entry point (0x...) does not point to an instruction.
+ * All three toolchains therefore enter here, so the smoke link stays one
+ * shape rather than forking per linker.
+ *
+ * It is never executed -- the smoke ELF is linked and inspected, never
+ * run -- which is why calling through deliberately mismatched signatures
+ * is harmless here. Referencing the array keeps it, and the kernels it
+ * points at, live in the final image.
+ */
+void ns_cmsis_nn_smoke_entry(void);
+
+void ns_cmsis_nn_smoke_entry(void)
+{
+    const size_t n = sizeof(ns_cmsis_nn_smoke_refs) / sizeof(ns_cmsis_nn_smoke_refs[0]);
+
+    for (size_t i = 0U; i < n; ++i)
+    {
+        ns_cmsis_nn_smoke_refs[i]();
+    }
+}
