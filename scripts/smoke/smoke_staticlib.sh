@@ -195,7 +195,7 @@ if [[ "${link_style}" == "gnu" ]]; then
     "${arch_flags[@]}" \
     "${link_flags[@]}" \
     "${resolve_flags[@]}" \
-    -Wl,--entry=ns_cmsis_nn_smoke_refs \
+    -Wl,--entry=ns_cmsis_nn_smoke_entry \
     -Wl,--whole-archive "${LIBRARY}" -Wl,--no-whole-archive \
     -o "${elf}" \
     "${smoke_src}" \
@@ -241,13 +241,13 @@ else
   if (( STRICT )); then
     resolve_flags=(-Wl,--no_remove)
   else
-    resolve_flags=(-Wl,--unresolved=ns_cmsis_nn_smoke_refs)
+    resolve_flags=(-Wl,--unresolved=ns_cmsis_nn_smoke_entry)
   fi
   "${compiler}" \
     "${arch_flags[@]}" \
     "${link_flags[@]}" \
     "${resolve_flags[@]}" \
-    -Wl,--entry=ns_cmsis_nn_smoke_refs \
+    -Wl,--entry=ns_cmsis_nn_smoke_entry \
     -o "${elf}" \
     "${smoke_src}" \
     "${members[@]}" \
