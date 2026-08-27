@@ -72,10 +72,12 @@ __STATIC_INLINE float32_t arm_nn_hardswish_scalar_f32(float32_t x)
  * builds WITHOUT -ffinite-math-only. The default library build uses -Ofast
  * (CMSIS_OPTIMIZATION_LEVEL in the top-level CMakeLists.txt), which sets
  * __FINITE_MATH_ONLY__ and lets the compiler delete the NaN test below
- * outright -- there, NaN input is simply outside the language contract. It
- * remains memory-safe: the conversion saturates and NaN propagates through
- * frac, so a NaN still comes out, but that is an observation about today's
- * codegen, not a guarantee.
+ * outright -- there, NaN input is simply outside the language contract. On
+ * hard-float targets it remains memory-safe: the conversion saturates and NaN
+ * propagates through frac, so a NaN still comes out, but that is an
+ * observation about today's codegen, not a guarantee. Soft-float targets are
+ * the exception -- there the index is not bounded; see the conversion note in
+ * the cold branch below.
  *   - Scalar (this helper) propagates NaN. The saturation test is written as
  *     !(ax < xmax) so NaN, which compares unordered, takes the cold branch;
  *     that also keeps NaN away from the float->int conversion below, which
@@ -112,7 +114,7 @@ __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
          * to ax >= xmax -- false for NaN -- and deletes this `ax != ax` test
          * as dead code, so a NaN input never reaches here at all. Do not read
          * this branch as a NaN guarantee for the shipped library; it is the
-         * documented behaviour of a -fno-finite-math-only build only. The
+         * documented behavior of a -fno-finite-math-only build only. The
          * index is likewise only bounded on hard-float targets: there
          * VCVT.S32.F32 saturates NaN to 0, so a NaN index stays in range. A
          * soft-float build -- cortex-m0 with F32 is a shipped configuration --
