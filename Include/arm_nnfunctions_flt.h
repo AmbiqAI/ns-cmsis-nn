@@ -197,9 +197,10 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
  * @param[in]     layout      Tensor layout selector. Current float APIs require `ARM_NN_LAYOUT_NHWC`.
  *
  * @note When `conv_params->weight_format` is set to
- *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, the matmul-backed convolution
- *       paths interpret @p filter_data as an already prepacked `NTxN` RHS
- *       buffer instead of the standard public filter layout.
+ *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every convolution path, including
+ *       the 1xN kernels and the generic fallback that runs without scratch,
+ *       interprets @p filter_data as an already prepacked `NTxN` RHS buffer
+ *       instead of the standard public filter layout.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */

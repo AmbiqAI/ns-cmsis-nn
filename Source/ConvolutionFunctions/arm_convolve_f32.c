@@ -363,6 +363,10 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
         }
     }
 
+    /* NT_N_PACKED filters are stored as [out_c / 4][patch][4 lanes]; index them lane-wise below rather than
+     * as OHWI rows. */
+    const bool weights_packed = conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED;
+
     for (int32_t b = 0; b < batch; ++b)
     {
         const float32_t *input_b = input_data + (size_t)b * input_h * input_w * input_c;
@@ -377,7 +381,9 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
                 for (int32_t oc = 0; oc < output_c; ++oc)
                 {
                     float32_t acc = bias_data ? bias_data[oc] : 0.0f;
-                    const float32_t *w_oc = filter_data + (size_t)oc * kernel_h * kernel_w * input_c;
+                    const float32_t *w_oc = weights_packed
+                        ? filter_data + ((size_t)(oc / 4) * patch_len) * 4 + (size_t)(oc % 4)
+                        : filter_data + (size_t)oc * kernel_h * kernel_w * input_c;
 
                     for (int32_t ky = 0; ky < kernel_h; ++ky)
                     {
@@ -393,9 +399,19 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
                             {
                                 continue;
                             }
-                            const float32_t *w_k = w_oc + ((size_t)ky * kernel_w + (size_t)kx) * input_c;
+                            const size_t k0 = ((size_t)ky * kernel_w + (size_t)kx) * input_c;
                             const float32_t *x = input_b + ((size_t)in_y * input_w + (size_t)in_x) * input_c;
-                            acc += arm_conv_dot_f32(x, w_k, input_c);
+                            if (weights_packed)
+                            {
+                                for (int32_t ic = 0; ic < input_c; ++ic)
+                                {
+                                    acc += x[ic] * w_oc[(k0 + (size_t)ic) * 4];
+                                }
+                            }
+                            else
+                            {
+                                acc += arm_conv_dot_f32(x, w_oc + k0, input_c);
+                            }
                         }
                     }
 
