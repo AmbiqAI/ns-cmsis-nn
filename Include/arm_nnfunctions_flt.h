@@ -756,7 +756,10 @@ void arm_reshape_f32(const float32_t *input, float32_t *output, uint32_t total_s
  * @param[in]     input_lhs_dims Left-hand-side input tensor dimensions.
  * @param[in]     input_lhs      Pointer to the left-hand-side input tensor.
  * @param[in]     input_rhs_dims Right-hand-side input tensor dimensions.
- * @param[in]     input_rhs      Pointer to the right-hand-side input tensor.
+ * @param[in]     input_rhs      Pointer to the right-hand-side input tensor. With
+ *                               `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED` each `[K, N]` matrix occupies
+ *                               `K * ceil(N / block) * block` elements (block is 4 for float32, 8 for float16)
+ *                               and consecutive batch matrices are stored back to back at that stride.
  * @param[in]     output_dims    Output tensor dimensions.
  * @param[out]    output         Pointer to the output tensor.
  *

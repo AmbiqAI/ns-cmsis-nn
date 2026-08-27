@@ -139,14 +139,18 @@ arm_cmsis_nn_status arm_batch_matmul_f16(const cmsis_nn_context *ctx,
     const int32_t rhs_cols = input_rhs_dims->w;
     const bool adj_x = bmm_params->adj_x;
     const bool adj_y = bmm_params->adj_y;
+    /* A packed RHS matrix is padded to whole 8-wide column blocks: K * ceil(N / 8) * 8 elements. */
+    const int32_t rhs_mat_size = (bmm_params->rhs_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
+        ? rhs_cols * ((rhs_rows + 7) / 8) * 8
+        : rhs_rows * rhs_cols;
 
     const int32_t inner_lhs_diff = input_lhs_dims->h >= input_rhs_dims->h ? 0 : lhs_rows * rhs_cols;
-    const int32_t inner_rhs_diff = input_rhs_dims->h >= input_lhs_dims->h ? rhs_rows * rhs_cols : 0;
+    const int32_t inner_rhs_diff = input_rhs_dims->h >= input_lhs_dims->h ? rhs_mat_size : 0;
     const int32_t outer_lhs_diff = input_lhs_dims->n >= input_rhs_dims->n
         ? inner_lhs_diff
         : -((lhs_rows * rhs_cols) - inner_lhs_diff) * input_lhs_dims->h;
-    const int32_t outer_rhs_diff = input_rhs_dims->n >= input_lhs_dims->n ? (rhs_rows * rhs_cols) - inner_rhs_diff
-                                                                          : -inner_rhs_diff * input_rhs_dims->h;
+    const int32_t outer_rhs_diff =
+        input_rhs_dims->n >= input_lhs_dims->n ? rhs_mat_size - inner_rhs_diff : -inner_rhs_diff * input_rhs_dims->h;
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     const bool lhs_stride_mve = lhs_rows <= ARM_BATCH_MATMUL_F16_MVE_MAX_STRIDE;
