@@ -42,3 +42,5 @@ void test_nn_activation_helpers_f32_sigmoid_contract_and_accuracy(void)
 {
     nn_activation_helpers_f32_sigmoid_contract_and_accuracy();
 }
+
+void test_nn_activation_helpers_f32_tanh_nan_index_bounded(void) { nn_activation_helpers_f32_tanh_nan_index_bounded(); }

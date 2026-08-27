@@ -133,6 +133,26 @@ void nn_activation_helpers_f32_tanh_non_finite_contract(void)
     TEST_ASSERT_EQUAL_FLOAT(0.0f, arm_nn_tanh_scalar_ref_f32(0.0f));
 }
 
+/* (d2) NaN must never become an out-of-range table index (#314). Under -Ofast the compiler folds the
+ * `ax != ax` guard, so the index comes from converting NaN: VCVT saturates it on hard-float, while
+ * soft-float and x86 conversions return INT32_MAX or INT32_MIN and read far outside the table. The
+ * result is checked by bit pattern because a finite-math build may also fold `y != y`. On hard-float
+ * the previous code already returned NaN through the interpolation, so this case discriminates only on
+ * soft-float targets and on the x86 host; a signalling input must come back quiet everywhere. */
+void nn_activation_helpers_f32_tanh_nan_index_bounded(void)
+{
+    const uint32_t nan_patterns[3] = {0x7fc00000U, 0xffc00000U, 0x7f800001U};
+    for (int32_t i = 0; i < 3; i++)
+    {
+        float32_t x;
+        memcpy(&x, &nan_patterns[i], sizeof(x));
+        const float32_t y = arm_nn_tanh_scalar_ref_f32(x);
+        const uint32_t y_bits = f32_bits(y);
+        TEST_ASSERT_TRUE((y_bits & 0x7fffffffU) > 0x7f800000U);
+        TEST_ASSERT_TRUE((y_bits & 0x00400000U) != 0U);
+    }
+}
+
 /* (e) Sigmoid: defined (not undefined) on NaN, unchanged accuracy on finites. */
 void nn_activation_helpers_f32_sigmoid_contract_and_accuracy(void)
 {
