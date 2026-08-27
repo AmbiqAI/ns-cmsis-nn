@@ -5560,9 +5560,8 @@ arm_cmsis_nn_status arm_split_s16(const int16_t *input_data,
  *                                    weights_feature_dims):
  *                                    input_dims->n * weights_feature_dims->n * sizeof(int32_t) bytes, the same
  *                                    figure on every build target.
- *                                    Setting input_ctx->size lets this function reject an undersized buffer with
- *                                    ARM_CMSIS_NN_ARG_ERROR; leaving it at zero opts out of that check, which is
- *                                    what TFLite Micro and derivatives do today.
+ *                                    This function does not read input_ctx->size, so an undersized buffer is not
+ *                                    diagnosed: query the sizer above and honour it.
  *                                    The caller is expected to clear the buffer, if applicable, for security
  * reasons.
  * @param[in]   output_ctx            Scratch buffer written by this function, holding one int32_t accumulator per
@@ -5575,8 +5574,8 @@ arm_cmsis_nn_status arm_split_s16(const int16_t *input_data,
  *                                    input_dims->n * (weights_feature_dims->n / svdf_params->rank) *
  *                                    sizeof(int32_t) bytes, truncating division, the same figure on every build
  *                                    target.
- *                                    Setting output_ctx->size lets this function reject an undersized buffer with
- *                                    ARM_CMSIS_NN_ARG_ERROR; leaving it at zero opts out of that check.
+ *                                    This function does not read output_ctx->size, so an undersized buffer is not
+ *                                    diagnosed: query the sizer above and honour it.
  *                                    The caller is expected to clear the buffer, if applicable, for security
  * reasons.
  * @param[in]   svdf_params           SVDF Parameters
@@ -5637,9 +5636,8 @@ arm_cmsis_nn_status arm_svdf_s8(const cmsis_nn_context *ctx,
  *                                    figure on every build target. Note the accumulators are int32_t even though
  *                                    the state tensor is int16_t - this buffer does not shrink with the state
  *                                    width.
- *                                    Setting input_ctx->size lets this function reject an undersized buffer with
- *                                    ARM_CMSIS_NN_ARG_ERROR; leaving it at zero opts out of that check, which is
- *                                    what TFLite Micro and derivatives do today.
+ *                                    This function does not read input_ctx->size, so an undersized buffer is not
+ *                                    diagnosed: query the sizer above and honour it.
  *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]   output_ctx            Scratch buffer written by this function, holding one int32_t accumulator per
  *                                    (input batch, output unit). Written before it is read, so its contents on
@@ -5651,8 +5649,8 @@ arm_cmsis_nn_status arm_svdf_s8(const cmsis_nn_context *ctx,
  *                                    input_dims->n * (weights_feature_dims->n / svdf_params->rank) *
  *                                    sizeof(int32_t) bytes, truncating division, the same figure on every build
  *                                    target.
- *                                    Setting output_ctx->size lets this function reject an undersized buffer with
- *                                    ARM_CMSIS_NN_ARG_ERROR; leaving it at zero opts out of that check.
+ *                                    This function does not read output_ctx->size, so an undersized buffer is not
+ *                                    diagnosed: query the sizer above and honour it.
  *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]   svdf_params           SVDF Parameters
  *                                    Range of svdf_params->input_offset  : [-128, 127]
@@ -5778,9 +5776,12 @@ int32_t arm_svdf_s8_input_ctx_get_buffer_size(const cmsis_nn_dims *input_dims,
  *             license passing { NULL, 0 }. A rank greater than weights_feature_dims->n truncates the unit count
  *             to 0 and so returns 0.
  * @note       arm_svdf_s8() narrows svdf_params->rank to int16_t before dividing by it, so a rank outside
- *             int16_t range would make this query and the kernel disagree - 65538 narrows to 2, and the kernel
- *             would write 32769x what this formula reports. Such a rank returns -1 rather than a number the
- *             kernel will not honour. Ranks in the documented [1, 8] range are unaffected.
+ *             int16_t range would make this query and the kernel disagree - 65538 narrows to 2. The kernel can
+ *             then write unboundedly more than the untruncated formula reports, because that formula truncates to
+ *             0 whenever weights_feature_dims->n < 65538: at weights_feature_dims->n = 100 it would report 0
+ *             bytes while the kernel writes 50 units, i.e. 200 bytes. Such a rank returns -1 rather than a number
+ *             the kernel will not honour. Ranks that survive the int16_t round trip, that is within
+ *             [-32768, 32767], are unaffected; this library does not otherwise constrain svdf_params->rank.
  */
 int32_t arm_svdf_s8_output_ctx_get_buffer_size(const cmsis_nn_svdf_params *svdf_params,
                                                const cmsis_nn_dims *input_dims,

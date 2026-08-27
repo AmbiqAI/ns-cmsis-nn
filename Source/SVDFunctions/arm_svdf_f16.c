@@ -103,7 +103,6 @@ arm_cmsis_nn_status arm_svdf_f16(const cmsis_nn_context *ctx,
     const int32_t input_height = input_dims->h;
     const int32_t feature_batches = weights_feature_dims->n;
     const int32_t time_batches = weights_time_dims->h;
-    const int32_t unit_count = feature_batches / rank;
 
     float16_t *buffer_a = (float16_t *)(input_ctx ? input_ctx->buf : NULL);
     float16_t *buffer_b = (float16_t *)(output_ctx ? output_ctx->buf : NULL);
@@ -113,9 +112,11 @@ arm_cmsis_nn_status arm_svdf_f16(const cmsis_nn_context *ctx,
     }
 
     /* Opt-in staging size checks, entry only. A caller that populates ctx->size has an undersized buffer
-       diagnosed here instead of overflowed further down; leaving size at 0 opts out, which is what TFLite Micro
-       and derivatives do (they allocate from the arena but never propagate the figure). The size query is only
-       reached when the caller opted in, and nothing below this point inspects ctx->size, so no loop pays for it. */
+       diagnosed here instead of overflowed further down; leaving size at 0 opts out. Both float call sites in
+       the Ambiq TFLite Micro fork brace-initialize these contexts and check the returned status, so opting in is
+       the norm here. The size query is only reached when the caller opted in, and nothing below this point
+       inspects ctx->size, so no loop pays for it. Placed ahead of the unit_count division below so that an
+       out-of-range shape is reported rather than divided through. */
     if (input_ctx->size != 0)
     {
         const int32_t required_bytes = arm_svdf_f16_input_ctx_get_buffer_size(input_dims, weights_feature_dims);
@@ -134,6 +135,15 @@ arm_cmsis_nn_status arm_svdf_f16(const cmsis_nn_context *ctx,
             return ARM_CMSIS_NN_ARG_ERROR;
         }
     }
+
+    /* rank is the divisor for unit_count. Reject a non-positive one unconditionally: 0 is undefined behaviour and
+       a negative one yields a negative unit_count that the loops below would treat as an empty extent. */
+    if (rank <= 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    const int32_t unit_count = feature_batches / rank;
 
     for (int32_t i_batch = 0; i_batch < input_batches; i_batch++)
     {
