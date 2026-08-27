@@ -72,19 +72,18 @@ __STATIC_INLINE float32_t arm_nn_hardswish_scalar_f32(float32_t x)
  * builds WITHOUT -ffinite-math-only. The default library build uses -Ofast
  * (CMSIS_OPTIMIZATION_LEVEL in the top-level CMakeLists.txt), which sets
  * __FINITE_MATH_ONLY__ and lets the compiler delete the NaN test below
- * outright -- there, NaN input is simply outside the language contract. On
- * hard-float targets it remains memory-safe: the conversion saturates and NaN
- * propagates through frac, so a NaN still comes out, but that is an
- * observation about today's codegen, not a guarantee. Soft-float targets are
- * the exception -- there the index is not bounded; see the conversion note in
- * the cold branch below.
- *   - Scalar (this helper) propagates NaN. The saturation test is written as
- *     !(ax < xmax) so NaN, which compares unordered, takes the cold branch;
- *     that also keeps NaN away from the float->int conversion below, which
- *     would otherwise be undefined behaviour. A quiet NaN passes through with
- *     its payload and sign intact; a signalling NaN is quieted on return, so
- *     its invalid-operation exception is raised here rather than being handed
- *     to the caller.
+ * outright -- there, NaN input is simply outside the language contract. What a
+ * NaN does then is an observation about today's codegen, not a guarantee, and
+ * it splits by float ABI: hard-float stays memory-safe (the conversion
+ * saturates, NaN propagates through frac), soft-float does not bound the table
+ * index. Stated once in the cold branch below; do not re-derive it here.
+ *   - Scalar (this helper) propagates NaN, subject to that caveat. The
+ *     saturation test is written as !(ax < xmax) so NaN, which compares
+ *     unordered, takes the cold branch; that also keeps NaN away from the
+ *     float->int conversion below, which would otherwise be undefined
+ *     behavior. A quiet NaN passes through with its payload and sign intact;
+ *     a signalling NaN is quieted on return, so its invalid-operation
+ *     exception is raised here rather than being handed to the caller.
  *   - MVE (arm_nn_vtanh_lut_direct_mve_f32) does not. vminnmq is IEEE minNum,
  *     which returns the numeric operand when the other is a quiet NaN, so a
  *     qNaN lane is replaced by xmax and interpolates to tanh(xmax) ~=
@@ -115,13 +114,11 @@ __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
          * as dead code, so a NaN input never reaches here at all. Do not read
          * this branch as a NaN guarantee for the shipped library; it is the
          * documented behavior of a -fno-finite-math-only build only. The
-         * index is likewise only bounded on hard-float targets: there
-         * VCVT.S32.F32 saturates NaN to 0, so a NaN index stays in range. A
-         * soft-float build -- cortex-m0 with F32 is a shipped configuration --
-         * converts through __aeabi_f2iz instead, which returns INT32_MAX for a
-         * quiet NaN, and nothing clamps the index between the conversion and
-         * the table load. As above, that is an observation about today's
-         * codegen, not a guarantee.
+         * index is likewise only bounded on hard-float, where VCVT.S32.F32
+         * saturates NaN to 0. A soft-float build -- cortex-m0 with F32 is a
+         * shipped configuration -- converts through __aeabi_f2iz, which
+         * returns INT32_MAX for a quiet NaN, and nothing clamps the index
+         * before the table load below. Tracked in #314.
          *
          * In such a build, NaN (unordered) lands here and is propagated
          * rather than saturated. The + 0.0f is what quiets a signalling NaN,
@@ -142,11 +139,14 @@ __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
         return (x < 0.0f) ? -1.0f : 1.0f;
     }
 
-    /* No index clamp: the strict test above leaves 0 <= ax < xmax, and the
-     * scale is an exact power of two, so 0 <= t < SEGMENTS and idx is in
-     * [0, SEGMENTS - 1] by construction -- lut[idx + 1] stays in range. The
-     * previous [0, 4] table needed a clamp because its test admitted ax ==
-     * xmax; keeping one here would cost three instructions per call in the hot
+    /* No index clamp. Wherever the guard above survives it is unnecessary: the
+     * strict test leaves 0 <= ax < xmax, and the scale is an exact power of
+     * two, so 0 <= t < SEGMENTS and idx is in [0, SEGMENTS - 1], which keeps
+     * lut[idx + 1] in range. That is NOT unconditional -- the shipped -Ofast
+     * folds the guard away, so a NaN reaches here with an index that only
+     * hard-float bounds (see the cold branch above, and #314). The previous
+     * [0, 4] table needed a clamp because its test admitted ax == xmax;
+     * keeping one here would cost three instructions per call in the hot
      * path, because 383 (unlike 255) is not a `usat` saturation boundary. */
     const float32_t t = ax * ((float32_t)ARM_NN_TANH_F32_LUT_SEGMENTS / xmax);
     const int32_t idx = (int32_t)t;
