@@ -58,6 +58,13 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f16(const float16_t *input,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    // Same contract as arm_gru_unidirectional_*: a non-positive batch, input or hidden size would otherwise
+    // reach the cell-state memset below as a wrapped element count. time_steps == 0 stays legal, as it is
+    // for the GRU: no step runs, though stateless mode still zeroes the cell state as it always has.
+    if (params->batch_size < 1 || params->time_steps < 0 || params->input_size < 1 || params->hidden_size < 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
 
     // Streaming state carry: when hidden_state is supplied it seeds the initial
     // hidden state and the cell_state buffer is treated as in/out (not zeroed);
