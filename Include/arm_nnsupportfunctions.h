@@ -198,6 +198,65 @@ __STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)
     #define OPTIONAL_RESTRICT_KEYWORD
 #endif
 
+/**
+ * @brief Fold one dimension into a running buffer-size product, reporting overflow as -1.
+ *
+ * Buffer-size queries return an int32_t byte count, so the product of the dimensions they multiply
+ * has to be rejected as soon as it cannot fit. Folding one factor at a time keeps the accumulator
+ * bounded: an accumulator already known to be <= INT32_MAX times a factor <= INT32_MAX cannot
+ * exceed about 2^62, so the int64_t accumulator itself never wraps. Chaining raw (int64_t) casts
+ * across three or more int32_t dims does not have that property - 65536 * 65536 * 65536 * 65536 is
+ * exactly 2^64 and folds back to 0, which would sail through a trailing "> INT32_MAX" test.
+ *
+ * @note  This is the -1 sentinel family, used by the s8/s16 integer buffer-size queries. It is not
+ *        interchangeable with the arm_nn_checked_size_mul() / arm_nn_size_to_i32_or_zero() helpers in
+ *        Source/NNSupportFunctions (shared header for the float sizers), which the f32 and f16 buffer-size
+ *        queries use and which report an out-of-range size as 0. Mixing the two silently flips a sizer's
+ *        out-of-range contract from "must never be used to size a buffer" to "you may pass { NULL, 0 }", so
+ *        pick the one the surrounding family already uses.
+ *
+ * @param[in] acc     Running product, or -1 if an earlier fold already overflowed.
+ * @param[in] factor  Next factor to fold in.
+ * @return    acc * factor, or -1 if acc is already -1, factor is negative or out of int32_t range,
+ *            or the product exceeds INT32_MAX.
+ */
+__STATIC_FORCEINLINE int64_t arm_nn_size_mul(const int64_t acc, const int64_t factor)
+{
+    if ((acc < 0) || (factor < 0) || (acc > INT32_MAX) || (factor > INT32_MAX))
+    {
+        return -1;
+    }
+
+    const int64_t product = acc * factor;
+
+    return (product > INT32_MAX) ? -1 : product;
+}
+
+/**
+ * @brief Add to a running buffer-size product, reporting overflow as -1.
+ *
+ * Companion to arm_nn_size_mul() for the sizers that append a fixed slack term.
+ *
+ * @note  Same sentinel caveat as arm_nn_size_mul(): this is the -1 family used by the s8/s16 integer sizers, not
+ *        the 0-returning arm_nn_checked_size_mul() / arm_nn_size_to_i32_or_zero() family used by the float and
+ *        f16 sizers.
+ *
+ * @param[in] acc      Running product, or -1 if an earlier step already overflowed.
+ * @param[in] addend   Value to add. Must be non-negative.
+ * @return    acc + addend, or -1 if acc is already -1 or the sum exceeds INT32_MAX.
+ */
+__STATIC_FORCEINLINE int64_t arm_nn_size_add(const int64_t acc, const int64_t addend)
+{
+    if ((acc < 0) || (addend < 0))
+    {
+        return -1;
+    }
+
+    const int64_t sum = acc + addend;
+
+    return (sum > INT32_MAX) ? -1 : sum;
+}
+
 #if ARM_NN_FLOAT_API_ENABLED
     #include "arm_nnsupportfunctions_flt.h"
 #endif

@@ -62,8 +62,17 @@ static arm_cmsis_nn_status arm_depthwise_conv_to_conv_s8(const cmsis_nn_context 
                                               dw_conv_params->dilation,
                                               dw_conv_params->activation};
     const cmsis_nn_dims filter_output_dims = {filter_dims->c, filter_dims->h, filter_dims->w, filter_dims->n};
-    int8_t *w_buf = (int8_t *)ctx->buf +
+    const int32_t conv_buffer_size =
         arm_convolve_wrapper_s8_get_buffer_size(&conv_params, input_dims, &filter_output_dims, output_dims);
+
+    // The sizer reports out-of-range dims as -1; offsetting ctx->buf by that would walk the transposed weights one
+    // byte before the buffer.
+    if (conv_buffer_size < 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    int8_t *w_buf = (int8_t *)ctx->buf + conv_buffer_size;
     const uint32_t perm[4] = {3, 1, 2, 0};
     const cmsis_nn_transpose_params transpose_params = {4, perm};
 
