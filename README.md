@@ -496,12 +496,34 @@ Unit tests live in [`Tests/UnitTest/`](Tests/UnitTest/). See the
 
 ### Supported toolchains
 
-- Arm Compiler 6
-- Arm GNU Toolchain (`arm-none-eabi-gcc`) — **GCC 13 through 15; 13 is the
-  minimum supported version.** CI builds and strict-links one pinned release
-  per major (13.2.Rel1, 14.3.Rel1, 15.3.Rel1) on every pull request.
-  Versions below 13 are not supported and are not tested.
-- LLVM Embedded Toolchain for Arm (ATfE) — best-effort
+Every family below is built and strict-linked on **every pull request**, on
+cortex-m55 (MVE + DSP + float) and cortex-m4 (DSP, no MVE). A strict link
+resolves every object in the archive — no `--gc-sections`, no ignored
+unresolved symbols — so a kernel that compiles but cannot link fails the gate.
+
+| Toolchain | Version(s) gated per PR | Built | Linked | Functional tests |
+| --- | --- | --- | --- | --- |
+| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.3.Rel1, 15.3.Rel1 | yes | yes | yes, on 14.3.1 |
+| Arm Compiler 6 (`armclang`) | 6.23.32 | yes | yes | no |
+| LLVM Embedded Toolchain for Arm (ATfE) | 19.1.5 | yes | yes | no |
+
+- **Arm GNU Toolchain** — **GCC 13 through 15; 13 is the minimum supported
+  version.** One pinned release per major is built and strict-linked on every
+  pull request. Versions below 13 are not supported and are not tested.
+- **Arm Compiler 6** — built and strict-linked, not functionally tested. Until
+  recently its release-asset check never invoked a linker at all, so armclang
+  archives shipped without their symbols ever being resolved
+  ([#291](https://github.com/AmbiqAI/ns-cmsis-nn/issues/291)); it now gets the
+  same real bare-metal link as the others.
+- **LLVM Embedded Toolchain for Arm (ATfE)** — built and strict-linked, not
+  functionally tested.
+
+The numerics suite (`helia-core-tester`, run under the Corstone-300 FVP) still
+executes only against GCC 14.3.1, the toolchain pinned in the CI container. So
+for armclang and ATfE the guarantee is **built and linked, not executed**: they
+are verified to compile and resolve, not to produce correct results. Kernel
+logic is shared across all three, so the functional suite is not multiplied
+across toolchains.
 
 IAR is currently untested. Compiling for host is not supported out of the box.
 
