@@ -18,11 +18,11 @@
 #     from #236 that reintroduced the bug — its dtype token is an infix,
 #     not a suffix. `test_infix_dtype_name_without_gate` is that exact
 #     shape and must stay red.
-#   - Too broad. Both legacy *_fp16.c kernels self-guard on
-#     ARM_FLOAT16_SUPPORTED instead, and QuantizationFunctions/ takes
-#     float32_t across an integer API by design and is built in
-#     integer-only configurations. A check that flags those gets disabled
-#     by the next person to hit it, so they are pinned green.
+#   - Too broad. QuantizationFunctions/ takes float32_t across an integer
+#     API by design and is built in integer-only configurations. A check
+#     that flags it gets disabled by the next person to hit it, so it is
+#     pinned green. (The legacy *_fp16.c sources that once self-guarded on
+#     ARM_FLOAT16_SUPPORTED are gone or gated now, so no exemption remains.)
 #
 # A gate is not enough on its own: the file must be an *empty translation
 # unit* when the dtype is off, so stray code before the gate or after its
@@ -190,13 +190,9 @@ class FloatGatingCase(unittest.TestCase):
     def test_comments_outside_gate(self):
         self.assertGreen("Source/BasicMathFunctions/arm_thing_f16.c", COMMENTS_OUTSIDE_OK)
 
-    def test_legacy_fp16_allowlist(self):
-        """Both legacy *_fp16.c kernels self-guard on ARM_FLOAT16_SUPPORTED."""
-        for rel in (
-            "Source/BasicMathFunctions/arm_elementwise_add_fp16.c",
-            "Source/FullyConnectedFunctions/arm_fully_connected_fp16.c",
-        ):
-            self.assertGreen(rel, UNGATED)
+    def test_legacy_fp16_name_is_not_exempt(self):
+        """The last legacy *_fp16.c source is gated like any other float file; no exemption remains."""
+        self.assertRed("Source/BasicMathFunctions/arm_elementwise_add_fp16.c", UNGATED)
 
     def test_quantization_dir_exempt(self):
         """float32_t across an integer API; built in integer-only configs."""

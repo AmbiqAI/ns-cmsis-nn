@@ -1371,6 +1371,25 @@ arm_cmsis_nn_status arm_elementwise_add_f16(const float16_t *input_1_vect,
                                             int32_t block_size);
 
 /**
+ * @brief Legacy float16 elementwise add with fused clamp, kept for callers that predate arm_elementwise_add_f16().
+ *        Same contract as arm_elementwise_add_f16(); new code should call that function.
+ * @param[in]  input_1_vect        pointer to input vector 1
+ * @param[in]  input_2_vect        pointer to input vector 2
+ * @param[out] output              pointer to output vector
+ * @param[in]  out_activation_min  minimum value to clamp the output to
+ * @param[in]  out_activation_max  maximum value to clamp the output to
+ * @param[in]  block_size          number of elements in the vectors
+ *
+ * @return ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status arm_elementwise_add_fp16(const float16_t *input_1_vect,
+                                             const float16_t *input_2_vect,
+                                             float16_t *output,
+                                             const float16_t out_activation_min,
+                                             const float16_t out_activation_max,
+                                             const int32_t block_size);
+
+/**
  * @brief float16 elementwise subtract of two vectors with fused clamp.
  * @param[in]  input_1_vect        pointer to input vector 1
  * @param[in]  input_2_vect        pointer to input vector 2

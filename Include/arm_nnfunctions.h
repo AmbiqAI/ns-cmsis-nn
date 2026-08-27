@@ -6823,49 +6823,6 @@ arm_cmsis_nn_status arm_dynamic_update_slice_s16(const int16_t *operand,
                                                  const cmsis_nn_dynamic_update_slice_params *params,
                                                  int16_t *output);
 
-#if defined(ARM_FLOAT16_SUPPORTED)
-
-/**
- * @brief Fully-connected layer function for float16
- *
- * @param[in]  ctx                Function context. This kernel uses no additional buffer and never dereferences ctx, so
- *                                ctx->buf may be NULL and there is deliberately no
- *                                arm_fully_connected_fp16_get_buffer_size(). Do not size this context with
- *                                arm_fully_connected_f16_get_buffer_size(), which belongs to the separate float API and
- *                                describes a different function's buffer.
- * @param[in]  fc_params          Pointer to the fully-connected layer parameters
- * @param[in]  input_dims         Pointer to the input tensor dimensions
- * @param[in]  input              Pointer to the input tensor
- * @param[in]  filter_dims        Pointer to the kernel tensor dimensions
- * @param[in]  kernel             Pointer to the kernel tensor
- * @param[in]  bias_dims          Pointer to the bias tensor dimensions
- * @param[in]  bias               Pointer to the bias tensor
- * @param[in]  output_dims        Pointer to the output tensor dimensions
- * @param[out] output             Pointer to the output tensor
- * @param[in]  out_activation_min Minimum value to clamp the output to
- * @param[in]  out_activation_max Maximum value to clamp the output to
- *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
- *
- * @details
- *    1. Supported framework: TensorFlow Lite Micro
- *
- */
-arm_cmsis_nn_status arm_fully_connected_fp16(const cmsis_nn_context *ctx,
-                                             const cmsis_nn_fc_params *fc_params,
-                                             const cmsis_nn_dims *input_dims,
-                                             const float16_t *input,
-                                             const cmsis_nn_dims *filter_dims,
-                                             const float16_t *kernel,
-                                             const cmsis_nn_dims *bias_dims,
-                                             const float16_t *bias,
-                                             const cmsis_nn_dims *output_dims,
-                                             float16_t *output,
-                                             const float16_t out_activation_min,
-                                             const float16_t out_activation_max);
-
-#endif /*defined(ARM_FLOAT16_SUPPORTED)*/
-
 #ifdef __cplusplus
 }
 #endif
