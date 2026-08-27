@@ -95,7 +95,13 @@ jobs:
       - name: Build & run tests for ${{ matrix.core }}
         run: |
           cd Tests/UnitTest
-          ./build_and_run_tests.sh -q -c ${{ matrix.core }}
+          # The float Unity suites are gated on ARM_NN_ENABLE_F32/F16 in Tests/UnitTest/CMakeLists.txt and
+          # were never built by any job before these flags. Float16 is qualified for cortex-m55 only.
+          if [ "${{ matrix.core }}" = "cortex-m55" ]; then
+            ./build_and_run_tests.sh -q -c ${{ matrix.core }} -D ARM_NN_ENABLE_F32=ON -D ARM_NN_ENABLE_F16=ON
+          else
+            ./build_and_run_tests.sh -q -c ${{ matrix.core }} -D ARM_NN_ENABLE_F32=ON
+          fi
 
       - name: Save tests-downloads cache
         if: steps.cache-downloads.outputs.cache-hit != 'true'
