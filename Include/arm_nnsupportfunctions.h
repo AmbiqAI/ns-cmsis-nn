@@ -159,7 +159,7 @@ __STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)
 }
 #endif /* ARM_NN_ENABLE_F16 */
 
-#define ARM_NN_ROUND_UP(x, multiple) ((((x) + (multiple) - 1) / (multiple)) * (multiple))
+#define ARM_NN_ROUND_UP(x, multiple) ((((x) + (multiple)-1) / (multiple)) * (multiple))
 #define REDUCE_MULTIPLIER(_mult) ((_mult < 0x7FFF0000) ? ((_mult + (1 << 15)) >> 16) : 0x7FFF)
 
 // Number of channels processed in a block for DW Conv with Int8 weights(MVE)
