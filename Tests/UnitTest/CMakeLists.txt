@@ -62,16 +62,20 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../.. cmsis-nn)
 if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 AND CMAKE_C_COMPILER_ID MATCHES "Clang")
     target_compile_options(cmsis-nn PRIVATE -Wno-error=unknown-attributes)
 endif()
+# The library above keeps its own optimisation level. The harness and the suites below are compiled
+# with finite-math assumptions disabled on every compiler: Unity's TEST_ASSERT_FLOAT_IS_NAN/IS_INF
+# reduce to `n != n`, which -ffinite-math-only (implied by -Ofast) folds to false, and Unity's failure
+# printer then loops forever on the non-finite value it is asked to print. On a Cortex-M0 build that
+# hung test_arm_reduce_sum_f32's NaN/Inf case for hours; on the host it reproduces at -Ofast.
 if(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300)
-    add_compile_options(${CMSIS_OPTIMIZATION_LEVEL})
+    add_compile_options(${CMSIS_OPTIMIZATION_LEVEL} -fno-finite-math-only)
 elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
-    # Unity checks NaN/Inf explicitly in host regressions, so keep finite-math
-    # assumptions disabled for Clang instead of inheriting the library's -Ofast.
+    # The host Clang build also swaps the deprecated -Ofast for -O3.
     add_compile_options(-O3
                         -fno-finite-math-only
                         -Wno-error=unknown-attributes)
 else()
-    add_compile_options(${CMSIS_OPTIMIZATION_LEVEL})
+    add_compile_options(${CMSIS_OPTIMIZATION_LEVEL} -fno-finite-math-only)
 endif()
 
 # Target for all unit tests.
