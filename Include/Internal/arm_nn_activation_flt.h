@@ -35,7 +35,7 @@
 #if ARM_NN_ENABLE_F32
 
     /*
-     * Shared geometry of arm_nn_tanh_lut384_f32, used by both the scalar and the
+     * Shared geometry of arm_nn_tanh_lut_f32, used by both the scalar and the
      * MVE tanh helpers so the two legs cannot drift apart.
      *
      * The table samples tanh(x) on a uniform grid over |x| <= ARM_NN_TANH_F32_XMAX
@@ -72,17 +72,18 @@ __STATIC_INLINE float32_t arm_nn_hardswish_scalar_f32(float32_t x)
  * builds WITHOUT -ffinite-math-only. The default library build uses -Ofast
  * (CMSIS_OPTIMIZATION_LEVEL in the top-level CMakeLists.txt), which sets
  * __FINITE_MATH_ONLY__ and lets the compiler delete the NaN test below
- * outright -- there, NaN input is simply outside the language contract. It
- * remains memory-safe: the conversion saturates and NaN propagates through
- * frac, so a NaN still comes out, but that is an observation about today's
- * codegen, not a guarantee.
- *   - Scalar (this helper) propagates NaN. The saturation test is written as
- *     !(ax < xmax) so NaN, which compares unordered, takes the cold branch;
- *     that also keeps NaN away from the float->int conversion below, which
- *     would otherwise be undefined behaviour. A quiet NaN passes through with
- *     its payload and sign intact; a signalling NaN is quieted on return, so
- *     its invalid-operation exception is raised here rather than being handed
- *     to the caller.
+ * outright -- there, NaN input is simply outside the language contract. What a
+ * NaN does then is an observation about today's codegen, not a guarantee, and
+ * it splits by float ABI: hard-float stays memory-safe (the conversion
+ * saturates, NaN propagates through frac), while on cortex-m0 the table index
+ * is not bounded. Stated once in the cold branch below; do not re-derive it.
+ *   - Scalar (this helper) propagates NaN, subject to that caveat. The
+ *     saturation test is written as !(ax < xmax) so NaN, which compares
+ *     unordered, takes the cold branch; that also keeps NaN away from the
+ *     float->int conversion below, which would otherwise be undefined
+ *     behavior. A quiet NaN passes through with its payload and sign intact;
+ *     a signalling NaN is quieted on return, so its invalid-operation
+ *     exception is raised here rather than being handed to the caller.
  *   - MVE (arm_nn_vtanh_lut_direct_mve_f32) does not. vminnmq is IEEE minNum,
  *     which returns the numeric operand when the other is a quiet NaN, so a
  *     qNaN lane is replaced by xmax and interpolates to tanh(xmax) ~=
@@ -106,13 +107,32 @@ __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
 
     if (!(ax < xmax))
     {
-        /* NaN (unordered) lands here too; propagate it rather than saturating.
-         * The + 0.0f is what quiets a signalling NaN, matching what the old
-         * code did incidentally by running the sNaN through the interpolation
-         * arithmetic. Returning x bare would hand an sNaN straight back and
-         * defer its invalid-operation exception to whatever the caller does
-         * next. IEEE addition propagates a quiet NaN operand unchanged, so
-         * qNaN payload and sign still pass through untouched. */
+        /* NaN handling below survives ONLY in builds without
+         * -ffinite-math-only. The shipped default (-Ofast) defines
+         * __FINITE_MATH_ONLY__, under which the compiler folds !(ax < xmax)
+         * to ax >= xmax -- false for NaN -- and deletes this `ax != ax` test
+         * as dead code, so a NaN input never reaches here at all. Do not read
+         * this branch as a NaN guarantee for the shipped library; it is the
+         * documented behavior of a -fno-finite-math-only build only.
+         *
+         * The table index is likewise only bounded on hard-float, where
+         * VCVT.S32.F32 saturates NaN to 0. Soft-float goes through
+         * __aeabi_f2iz, whose result depends on the multilib: v7e-m tests the
+         * mantissa and returns 0, but v6-m has no NaN test and returns
+         * INT32_MAX. So cortex-m0 with F32, a shipped configuration, reaches
+         * the load below with an unbounded index. Tracked in #314.
+         *
+         * In a -fno-finite-math-only build, NaN (unordered) lands here and is
+         * propagated rather than saturated. The + 0.0f quiets a signalling
+         * NaN, matching what the old code did incidentally by running the sNaN
+         * through the interpolation arithmetic; returning x bare would hand an
+         * sNaN back and defer its invalid-operation exception to the caller.
+         * IEEE addition propagates a quiet NaN unchanged, so qNaN payload and
+         * sign still pass through. The add itself also needs signed zeros
+         * kept: -Ofast implies -fno-signed-zeros, which -fno-finite-math-only
+         * does not restore, and under it the compiler folds x + 0.0f to x, so
+         * the quieting survives only at -O3 or with -fsigned-zeros added
+         * back. */
         if (ax != ax)
         {
             return x + 0.0f;
@@ -120,17 +140,20 @@ __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
         return (x < 0.0f) ? -1.0f : 1.0f;
     }
 
-    /* No index clamp: the strict test above leaves 0 <= ax < xmax, and the
-     * scale is an exact power of two, so 0 <= t < SEGMENTS and idx is in
-     * [0, SEGMENTS - 1] by construction -- lut[idx + 1] stays in range. The
-     * previous [0, 4] table needed a clamp because its test admitted ax ==
-     * xmax; keeping one here would cost three instructions per call in the hot
+    /* No index clamp. Wherever the guard above survives it is unnecessary: the
+     * strict test leaves 0 <= ax < xmax, and the scale is an exact power of
+     * two, so 0 <= t < SEGMENTS and idx is in [0, SEGMENTS - 1], which keeps
+     * lut[idx + 1] in range. That is NOT unconditional -- the shipped -Ofast
+     * folds the guard away, so a NaN reaches here and its index is bounded
+     * only on some targets (see the cold branch above, and #314). The previous
+     * [0, 4] table needed a clamp because its test admitted ax == xmax;
+     * keeping one here would cost three instructions per call in the hot
      * path, because 383 (unlike 255) is not a `usat` saturation boundary. */
     const float32_t t = ax * ((float32_t)ARM_NN_TANH_F32_LUT_SEGMENTS / xmax);
     const int32_t idx = (int32_t)t;
     const float32_t frac = t - (float32_t)idx;
-    const float32_t y0 = arm_nn_tanh_lut384_f32[idx];
-    const float32_t y1 = arm_nn_tanh_lut384_f32[idx + 1];
+    const float32_t y0 = arm_nn_tanh_lut_f32[idx];
+    const float32_t y1 = arm_nn_tanh_lut_f32[idx + 1];
     const float32_t y = y0 + (y1 - y0) * frac;
     return (x < 0.0f) ? -y : y;
 }
@@ -204,7 +227,7 @@ __STATIC_INLINE float32x4_t arm_nn_clamp_propagate_nan_mve_f32(float32x4_t x, fl
 }
 
 /*
- * Vector twin of arm_nn_tanh_scalar_ref_f32, sharing arm_nn_tanh_lut384_f32 and
+ * Vector twin of arm_nn_tanh_scalar_ref_f32, sharing arm_nn_tanh_lut_f32 and
  * the ARM_NN_TANH_F32_* geometry above so the two legs stay in step.
  *
  * Finite inputs agree with the scalar leg exactly, including at |x| == xmax:
@@ -232,9 +255,9 @@ __STATIC_INLINE float32x4_t arm_nn_vtanh_lut_direct_mve_f32(float32x4_t x)
     uint32x4_t idx = vcvtmq_u32_f32(t);
     idx = vminq(idx, vdupq_n_u32((uint32_t)ARM_NN_TANH_F32_LUT_MAX_IDX));
     const float32x4_t frac = vsubq(t, vcvtq_f32_u32(idx));
-    const float32x4_t y0 = vldrwq_gather_shifted_offset((const float32_t *)arm_nn_tanh_lut384_f32, idx);
+    const float32x4_t y0 = vldrwq_gather_shifted_offset((const float32_t *)arm_nn_tanh_lut_f32, idx);
     const float32x4_t y1 =
-        vldrwq_gather_shifted_offset((const float32_t *)arm_nn_tanh_lut384_f32, vaddq(idx, (uint32_t)1U));
+        vldrwq_gather_shifted_offset((const float32_t *)arm_nn_tanh_lut_f32, vaddq(idx, (uint32_t)1U));
     float32x4_t y = vfmaq(y0, vsubq(y1, y0), frac);
     y = vpselq(vdupq_n_f32(1.0f), y, sat_p);
     return vnegq_m(y, y, vcmpltq(x, 0.0f));
@@ -383,9 +406,9 @@ __STATIC_INLINE float16x8_t arm_nn_vtanh_lut_direct_mve_f16(float16x8_t x)
     uint16x8_t idx = vcvtmq_u16_f16(t);
     idx = vminq(idx, vdupq_n_u16(255U));
     const float16x8_t frac = vsubq(t, vcvtq_f16_u16(idx));
-    const float16x8_t y0 = vldrhq_gather_shifted_offset((const float16_t *)arm_nn_tanh_lut256_f16, idx);
+    const float16x8_t y0 = vldrhq_gather_shifted_offset((const float16_t *)arm_nn_tanh_lut_f16, idx);
     const float16x8_t y1 =
-        vldrhq_gather_shifted_offset((const float16_t *)arm_nn_tanh_lut256_f16, vaddq(idx, (uint16_t)1U));
+        vldrhq_gather_shifted_offset((const float16_t *)arm_nn_tanh_lut_f16, vaddq(idx, (uint16_t)1U));
     float16x8_t y = vfmaq(y0, vsubq(y1, y0), frac);
     y = vpselq(vdupq_n_f16((float16_t)1.0f), y, sat_p);
     return vnegq_m(y, y, vcmpltq(x, (float16_t)0.0f));

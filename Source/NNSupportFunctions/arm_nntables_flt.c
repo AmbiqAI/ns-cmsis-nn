@@ -66,9 +66,9 @@ const float32_t arm_nn_exp_poly_coeffs_f32[8] = {
 /*
  * LUT for 2^(i/256), i in [0, 256].
  * Generation formula:
- *   arm_nn_exp2_lut256_f32[i] = powf(2.0f, (float)i / 256.0f)
+ *   arm_nn_exp2_lut_f32[i] = powf(2.0f, (float)i / 256.0f)
  */
-const float32_t arm_nn_exp2_lut256_f32[257] = {
+const float32_t arm_nn_exp2_lut_f32[257] = {
     1.000000000f, 1.002711275f, 1.005429901f, 1.008155898f, 1.010889286f, 1.013630085f, 1.016378315f, 1.019133996f,
     1.021897149f, 1.024667793f, 1.027445949f, 1.030231638f, 1.033024879f, 1.035825694f, 1.038634102f, 1.041450125f,
     1.044273782f, 1.047105096f, 1.049944086f, 1.052790773f, 1.055645178f, 1.058507323f, 1.061377227f, 1.064254913f,
@@ -107,10 +107,10 @@ const float32_t arm_nn_exp2_lut256_f32[257] = {
 /*
  * LUT for tanh(x) sampled over x in [0, 6].
  * Generation formula:
- *   arm_nn_tanh_lut384_f32[i] = tanh(6.0 * i / 384.0)
+ *   arm_nn_tanh_lut_f32[i] = tanh(6.0 * i / 384.0)
  * Regenerate with scripts/gen_tanh_lut_f32.py.
  */
-const float32_t arm_nn_tanh_lut384_f32[385] = {
+const float32_t arm_nn_tanh_lut_f32[385] = {
     0.000000000f, 0.015623729f, 0.031239831f, 0.046840698f, 0.062418747f, 0.077966441f, 0.093476304f, 0.108940930f,
     0.124353002f, 0.139705303f, 0.154990730f, 0.170202308f, 0.185333200f, 0.200376719f, 0.215326340f, 0.230175711f,
     0.244918662f, 0.259549215f, 0.274061589f, 0.288450213f, 0.302709729f, 0.316835001f, 0.330821117f, 0.344663398f,
@@ -196,7 +196,7 @@ const float32_t arm_nn_tanh_approx_coeffs_f16[3] = {
 /*
  * Quantized binary16 LUT for 2^(i/256), i in [0, 256].
  */
-const uint16_t arm_nn_exp2_lut256_f16[257] = {
+const uint16_t arm_nn_exp2_lut_f16[257] = {
     0x3C00u, 0x3C03u, 0x3C06u, 0x3C08u, 0x3C0Bu, 0x3C0Eu, 0x3C11u, 0x3C14u, 0x3C16u, 0x3C19u, 0x3C1Cu, 0x3C1Fu, 0x3C22u,
     0x3C25u, 0x3C28u, 0x3C2Au, 0x3C2Du, 0x3C30u, 0x3C33u, 0x3C36u, 0x3C39u, 0x3C3Cu, 0x3C3Fu, 0x3C42u, 0x3C45u, 0x3C48u,
     0x3C4Bu, 0x3C4Eu, 0x3C51u, 0x3C54u, 0x3C57u, 0x3C5Au, 0x3C5Du, 0x3C60u, 0x3C63u, 0x3C66u, 0x3C69u, 0x3C6Cu, 0x3C6Fu,
@@ -222,7 +222,7 @@ const uint16_t arm_nn_exp2_lut256_f16[257] = {
 /*
  * Quantized binary16 LUT for tanh(x) with x in [0, 4].
  */
-const uint16_t arm_nn_tanh_lut256_f16[257] = {
+const uint16_t arm_nn_tanh_lut_f16[257] = {
     0x0000u, 0x2400u, 0x27FFu, 0x29FFu, 0x2BFDu, 0x2CFDu, 0x2DFCu, 0x2EF9u, 0x2FF5u, 0x3078u, 0x30F6u, 0x3172u, 0x31EEu,
     0x3269u, 0x32E4u, 0x335Eu, 0x33D6u, 0x3427u, 0x3463u, 0x349Du, 0x34D8u, 0x3512u, 0x354Bu, 0x3584u, 0x35BCu, 0x35F3u,
     0x362Au, 0x3660u, 0x3696u, 0x36CBu, 0x36FFu, 0x3732u, 0x3765u, 0x3797u, 0x37C8u, 0x37F9u, 0x3814u, 0x382Cu, 0x3843u,
