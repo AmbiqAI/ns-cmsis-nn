@@ -22,8 +22,7 @@ project(cmsis_nn_unit_tests VERSION 0.0.1)
 
 set(CMSIS_PATH "</path/to/CMSIS>" CACHE PATH "Path to CMSIS.")
 
-add_compile_options(-fomit-frame-pointer
-                    -Werror
+add_compile_options(-Werror
                     -Wimplicit-function-declaration
                     -Wunused-variable
                     -Wunused-function
@@ -43,6 +42,10 @@ endif()
 
 if(NOT BUILD_CMSIS_NN_UNIT)
     set(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 ON)
+    # Only target builds omit the frame pointer. Applying it to host builds too would
+    # override a -fno-omit-frame-pointer passed in CMAKE_C_FLAGS, because add_compile_options
+    # lands after CMAKE_C_FLAGS on the command line and the last of the pair wins.
+    add_compile_options(-fomit-frame-pointer)
 else()
     set(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 OFF)
 endif()
@@ -74,6 +77,8 @@ else()
     add_compile_options(${CMSIS_OPTIMIZATION_LEVEL})
 endif()
 
+enable_testing()
+
 # Target for all unit tests.
 add_custom_target(cmsis_nn_unit_tests)
 
@@ -88,6 +93,10 @@ function(add_cmsis_nn_unit_test_executable)
             target_link_options(${target} PRIVATE "--specs=nosys.specs")
         endif()
         add_dependencies(cmsis_nn_unit_tests ${target})
+        if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300)
+            # Host builds run every suite through ctest; the FVP flow runs the .elf images itself.
+            add_test(NAME ${target} COMMAND ${target})
+        endif()
     endforeach()
     set_property(GLOBAL PROPERTY cmsis_nn_unit_test_executables "${tmp}")
 endfunction(add_cmsis_nn_unit_test_executable)

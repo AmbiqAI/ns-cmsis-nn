@@ -1,0 +1,55 @@
+name: Host sanitizer unit tests
+
+# Builds the legacy Unity suites for the x86 host with AddressSanitizer and
+# UndefinedBehaviorSanitizer and runs them through ctest. The FVP runs the same
+# suites on Cortex-M with no memory checking, so this is the only leg that can
+# see an out-of-bounds read or write that leaves the numerics intact, such as
+# a scratch buffer under-sized by a get_buffer_size query. It exercises the
+# scalar (non-MVE) kernel paths only.
+#
+# Float16 is left off until the one unbuildable f16 suite (test_arm_convolve_f16,
+# allowlisted in scripts/check_pdsc.py pending #236) is repaired or removed.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  host-sanitizer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build ruby gcc g++
+          # Tests/UnitTest/unittest_targets.py (Unity download + test-runner generation, run at configure
+          # time) imports these two; the full Tests/UnitTest/requirements.txt is for the FVP/Mbed flows.
+          python3 -m pip install --user termcolor pyserial
+
+      - name: Configure (host, ASan + UBSan, F32 on)
+        run: |
+          cmake -S Tests/UnitTest -B build-host -G Ninja \
+            -DBUILD_CMSIS_NN_UNIT=ON \
+            -DCMSIS_PATH=/nonexistent-host-build-needs-no-cmsis \
+            -DARM_NN_ENABLE_F32=ON \
+            -DARM_NN_ENABLE_F16=OFF \
+            -DCMSIS_OPTIMIZATION_LEVEL=-O1 \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-sanitize=shift -fno-sanitize-recover=all -g -fno-omit-frame-pointer" \
+            "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+
+      - name: Build every suite
+        run: cmake --build build-host --parallel
+
+      - name: Run every suite
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+        run: ctest --test-dir build-host --output-on-failure --parallel 4
