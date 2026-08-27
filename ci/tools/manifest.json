@@ -51,29 +51,29 @@
     },
     {
       "id": "llvm-embedded",
-      "version": "20.1.0",
-      "url": "https://artifacts.tools.arm.com/llvm-embedded/20.1.0/ATfE-20.1.0-Linux-x86_64.tar.xz",
-      "sha256": "c1179396608c07bf68f3014923cfdfcd11c8402a3732f310c23d07c9a726b275",
+      "version": "19.1.5",
+      "url": "https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-19.1.5/LLVM-ET-Arm-19.1.5-Linux-x86_64.tar.xz",
+      "sha256": "34ee877aadc78c5e9f067e603a1bc9745ed93ca7ae5dbfc9b4406508dc153920",
       "archive": "tar.xz",
       "strip_components": 1,
       "probe": "bin/clang",
       "path": "bin",
       "environment": {
-        "CLANG_TOOLCHAIN_20_1_0": "bin"
+        "CLANG_TOOLCHAIN_19_1_5": "bin"
       },
       "license": "Apache-2.0 WITH LLVM-exception"
     },
     {
       "id": "armclang",
-      "version": "6.24.0",
-      "url": "https://artifacts.tools.arm.com/arm-compiler/6.24/19/standalone-linux-x86_64-rel.tar.gz",
-      "sha256": "55cdfa20b2588ea52222d9f836258b0e01c220251ddf46d39605939ce07e9117",
+      "version": "6.23.32",
+      "url": "https://artifacts.tools.arm.com/arm-compiler/6.23/32/standalone-linux-x86_64-rel.tar.gz",
+      "sha256": "48b2f02ac8941dcac97a5a792b5ddbc9cefcde7b95a39b681ee13f9b321fffe8",
       "archive": "tar.gz",
       "strip_components": 0,
       "probe": "bin/armclang",
       "path": "bin",
       "environment": {
-        "AC6_TOOLCHAIN_6_24_0": "bin"
+        "AC6_TOOLCHAIN_6_23_32": "bin"
       },
       "license": "Arm Compiler for Embedded EULA",
       "runtime_license": "ARM_UBL_LICENSE_IDENTIFIER"
