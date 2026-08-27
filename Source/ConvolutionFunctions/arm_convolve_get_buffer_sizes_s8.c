@@ -198,13 +198,30 @@ int32_t arm_convolve_1_x_n_s8_get_buffer_size(const cmsis_nn_conv_params *conv_p
 
 int32_t arm_convolve_1x1_out_s8_get_buffer_size(const cmsis_nn_dims *filter_dims)
 {
+    // Folded one factor at a time so the accumulator stays bounded; see arm_nn_size_mul(). Validated on every
+    // build target rather than only on the MVE leg, so an invalid dim returns -1 uniformly instead of wrapping
+    // to a small positive byte count that a caller would accept and then under-allocate.
+    int64_t rhs_cols = arm_nn_size_mul(1, filter_dims->w);
+    rhs_cols = arm_nn_size_mul(rhs_cols, filter_dims->h);
+    rhs_cols = arm_nn_size_mul(rhs_cols, filter_dims->c);
+
+    if (rhs_cols < 0)
+    {
+        return -1;
+    }
+
+    const int64_t remainder = rhs_cols % 4;
+    const int64_t aligned_rhs_cols = arm_nn_size_add(rhs_cols, remainder != 0 ? 4 - remainder : 0);
+
+    if (aligned_rhs_cols < 0)
+    {
+        return -1;
+    }
+
 #if !defined(ARM_MATH_MVEI)
-    (void)filter_dims;
     return 0;
 #else
-    const int32_t rhs_cols = filter_dims->w * filter_dims->h * filter_dims->c;
-    const int32_t remainder = rhs_cols % 4;
-    return remainder != 0 ? rhs_cols + 4 - remainder : rhs_cols;
+    return (int32_t)aligned_rhs_cols;
 #endif
 }
 

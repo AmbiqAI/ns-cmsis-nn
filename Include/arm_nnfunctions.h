@@ -1387,8 +1387,12 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
  *
  * @param[in]   filter_dims   Filter tensor dimensions. Format: [C_OUT, KH, KW, C_IN]
  *
- * @return      The buffer size in bytes: round_up_4(KH * KW * C_IN) on builds with the MVE extension
- *              (ARM_MATH_MVEI), 0 otherwise, since arm_convolve_1x1_out_s8() only exists on MVE builds.
+ * @return      For valid (non-negative, in-range) filter dimensions, the buffer size in bytes:
+ *              round_up_4(KH * KW * C_IN) on builds with the MVE extension (ARM_MATH_MVEI), 0 otherwise, since
+ *              arm_convolve_1x1_out_s8() only exists on MVE builds. Returns -1 if any of filter_dims->w,
+ *              filter_dims->h or filter_dims->c is negative or out of int32_t range, or if the rounded-up
+ *              product exceeds INT32_MAX. The validation runs on every build target, not just the MVE leg, so
+ *              the contract does not vary by target.
  *
  * @note        The figure is independent of the group count. arm_convolve_1x1_out_s8() rewinds its im2col cursor
  *              to the start of the buffer after each group's matmul, so groups do not accumulate.

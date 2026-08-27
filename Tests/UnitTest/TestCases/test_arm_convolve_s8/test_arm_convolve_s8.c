@@ -2003,6 +2003,13 @@ void conv_1x1_out_null_weight_sum_arm_convolve_1x1_out_s8(void)
 
 void conv_1x1_out_buffer_size_arm_convolve_1x1_out_s8(void)
 {
+    /* Dimension validation is deliberately target-independent, so these hold on every build - including the
+     * non-MVE ones, where the sizer returns 0 for valid dims because the kernel does not exist there. */
+    const cmsis_nn_dims negative_c_dims = {9, 3, 1, -1};
+    const cmsis_nn_dims overflowing_dims = {9, 3, 3, 1 << 28};
+    TEST_ASSERT_EQUAL(-1, arm_convolve_1x1_out_s8_get_buffer_size(&negative_c_dims));
+    TEST_ASSERT_EQUAL(-1, arm_convolve_1x1_out_s8_get_buffer_size(&overflowing_dims));
+
     /* arm_convolve_1x1_out_s8() has no sizer of its own until now, so direct callers hand-copied its im2col
      * requirement. Pin the published figure and the opt-in ctx->size check that goes with it. */
 #if defined(ARM_MATH_MVEI)
