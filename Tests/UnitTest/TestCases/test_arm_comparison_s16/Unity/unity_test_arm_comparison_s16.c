@@ -61,3 +61,10 @@ void test_comparison_less_equal_broadcast_hw_s16_arm_less_equal_s16(void)
 {
     comparison_less_equal_broadcast_hw_s16_arm_less_equal_s16();
 }
+
+void test_comparison_broadcast_row_scalar_s16_arm_comparison_s16(void)
+{
+    comparison_broadcast_row_scalar_s16_arm_comparison_s16();
+}
+
+void test_comparison_arg_error_s16_arm_comparison_s16(void) { comparison_arg_error_s16_arm_comparison_s16(); }

@@ -541,7 +541,12 @@ arm_cmsis_nn_status arm_strided_slice_f32(const float32_t *input_data,
                                           const cmsis_nn_dims *const output_dims);
 
 /**
- * @brief Elementwise minimum.
+ * @brief Elementwise minimum with TensorFlow Lite NHWC broadcasting: each dimension of the two inputs must be
+ *        equal or 1, and @p output_dims must be their broadcast shape.
+ *
+ * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is not
+ *         positive, the shapes are not broadcast-compatible, or the output shape is not their broadcast shape.
+ *         @p ctx is unused and may be NULL.
  */
 arm_cmsis_nn_status arm_minimum_f32(const cmsis_nn_context *ctx,
                                     const float32_t *input_1_data,
@@ -552,7 +557,12 @@ arm_cmsis_nn_status arm_minimum_f32(const cmsis_nn_context *ctx,
                                     const cmsis_nn_dims *output_dims);
 
 /**
- * @brief Elementwise maximum.
+ * @brief Elementwise maximum with TensorFlow Lite NHWC broadcasting: each dimension of the two inputs must be
+ *        equal or 1, and @p output_dims must be their broadcast shape.
+ *
+ * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is not
+ *         positive, the shapes are not broadcast-compatible, or the output shape is not their broadcast shape.
+ *         @p ctx is unused and may be NULL.
  */
 arm_cmsis_nn_status arm_maximum_f32(const cmsis_nn_context *ctx,
                                     const float32_t *input_1_data,

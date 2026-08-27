@@ -16,6 +16,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_broadcast_walk.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -260,6 +261,17 @@ static arm_cmsis_nn_status arm_compare_scalar_broadcast_s16(int16_t scalar_value
 #endif
 }
 
+/* Kernel adapters for ARM_NN_BROADCAST_WALK_NHWC; the quantization parameters, left_shift and
+ * operation are locals of the enclosing function. SCALAR_1 broadcasts one element of input 1 as
+ * the left-hand operand, SCALAR_2 one element of input 2 as the right-hand operand. */
+#define ARM_COMPARE_FULL_S16(a, b, o, n)                                                                               \
+    arm_compare_no_broadcast_s16((a), (b), (o), (n), &input_1_params, &input_2_params, left_shift, operation)
+#define ARM_COMPARE_SCALAR_1_S16(s, v, o, n)                                                                           \
+    arm_compare_scalar_broadcast_s16(*(s), &input_1_params, (v), &input_2_params, (o), (n), left_shift, true, operation)
+#define ARM_COMPARE_SCALAR_2_S16(s, v, o, n)                                                                           \
+    arm_compare_scalar_broadcast_s16(                                                                                  \
+        *(s), &input_2_params, (v), &input_1_params, (o), (n), left_shift, false, operation)
+
 arm_cmsis_nn_status arm_comparison_s16(const cmsis_nn_context *ctx,
                                        const int16_t *input_1_data,
                                        const cmsis_nn_dims *input_1_dims,
@@ -286,247 +298,30 @@ arm_cmsis_nn_status arm_comparison_s16(const cmsis_nn_context *ctx,
     const arm_compare_quant_params input_1_params = {input_1_offset, input_1_mult, input_1_shift};
     const arm_compare_quant_params input_2_params = {input_2_offset, input_2_mult, input_2_shift};
 
-    const int32_t output_batch = output_dims->n;
-    const int32_t output_height = output_dims->h;
-    const int32_t output_width = output_dims->w;
-
-    const int32_t input_1_batch = input_1_dims->n;
-    const int32_t input_1_height = input_1_dims->h;
-    const int32_t input_1_width = input_1_dims->w;
-    const int32_t input_1_channels = input_1_dims->c;
-
-    const int32_t input_2_batch = input_2_dims->n;
-    const int32_t input_2_height = input_2_dims->h;
-    const int32_t input_2_width = input_2_dims->w;
-    const int32_t input_2_channels = input_2_dims->c;
-
-    int32_t flat_size_1 = input_1_batch * input_1_height * input_1_width * input_1_channels;
-    int32_t flat_size_2 = input_2_batch * input_2_height * input_2_width * input_2_channels;
-
-    if (!arm_check_broadcast_required(input_1_dims, input_2_dims))
+    if (!input_1_data || !input_2_data || !output_data || !input_1_dims || !input_2_dims || !output_dims ||
+        !arm_nn_broadcast_dims_valid(input_1_dims, input_2_dims, output_dims))
     {
-        return arm_compare_no_broadcast_s16(input_1_data,
-                                            input_2_data,
-                                            output_data,
-                                            flat_size_1,
-                                            &input_1_params,
-                                            &input_2_params,
-                                            left_shift,
-                                            operation);
+        return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    if (flat_size_1 == 1)
-    {
-        return arm_compare_scalar_broadcast_s16(*input_1_data,
-                                                &input_1_params,
-                                                input_2_data,
-                                                &input_2_params,
-                                                output_data,
-                                                flat_size_2,
-                                                left_shift,
-                                                true,
-                                                operation);
-    }
-
-    if (flat_size_2 == 1)
-    {
-        return arm_compare_scalar_broadcast_s16(*input_2_data,
-                                                &input_2_params,
-                                                input_1_data,
-                                                &input_1_params,
-                                                output_data,
-                                                flat_size_1,
-                                                left_shift,
-                                                false,
-                                                operation);
-    }
-
-    int32_t width_1_diff = (input_1_width >= input_2_width) ? 0 : input_1_channels;
-    int32_t width_2_diff = (input_2_width >= input_1_width) ? 0 : input_2_channels;
-
-    int32_t height_1_diff =
-        (input_1_height >= input_2_height) ? width_1_diff : -input_1_width * (input_1_channels - width_1_diff);
-    int32_t height_2_diff =
-        (input_2_height >= input_1_height) ? width_2_diff : -input_2_width * (input_2_channels - width_2_diff);
-
-    int32_t batch_1_diff = (input_1_batch >= input_2_batch) ? input_1_channels * input_1_width * input_1_height : 0;
-    int32_t batch_2_diff = (input_2_batch >= input_1_batch) ? input_2_channels * input_2_width * input_2_height : 0;
-
-    for (int32_t i_out_batch = 0; i_out_batch < output_batch; i_out_batch++)
-    {
-        const int16_t *input_1_ptr = input_1_data;
-        const int16_t *input_2_ptr = input_2_data;
-
-        flat_size_1 = input_1_height * input_1_width * input_1_channels;
-        flat_size_2 = input_2_height * input_2_width * input_2_channels;
-
-        if ((input_1_height == input_2_height) && (input_1_width == input_2_width) &&
-            (input_1_channels == input_2_channels))
-        {
-            arm_compare_no_broadcast_s16(input_1_ptr,
-                                         input_2_ptr,
-                                         output_data,
-                                         flat_size_1,
-                                         &input_1_params,
-                                         &input_2_params,
-                                         left_shift,
-                                         operation);
-
-            input_1_ptr += flat_size_1;
-            input_2_ptr += flat_size_1;
-            output_data += flat_size_1;
-        }
-        else if (flat_size_1 == 1)
-        {
-            arm_compare_scalar_broadcast_s16(*input_1_ptr,
-                                             &input_1_params,
-                                             input_2_ptr,
-                                             &input_2_params,
-                                             output_data,
-                                             flat_size_2,
-                                             left_shift,
-                                             true,
-                                             operation);
-
-            ++input_1_ptr;
-            input_2_ptr += flat_size_2;
-            output_data += flat_size_2;
-        }
-        else if (flat_size_2 == 1)
-        {
-            arm_compare_scalar_broadcast_s16(*input_2_ptr,
-                                             &input_2_params,
-                                             input_1_ptr,
-                                             &input_1_params,
-                                             output_data,
-                                             flat_size_1,
-                                             left_shift,
-                                             false,
-                                             operation);
-
-            ++input_2_ptr;
-            input_1_ptr += flat_size_1;
-            output_data += flat_size_1;
-        }
-        else
-        {
-            flat_size_1 = input_1_width * input_1_channels;
-            flat_size_2 = input_2_width * input_2_channels;
-            for (int32_t i_out_height = 0; i_out_height < output_height; i_out_height++)
-            {
-                if ((input_1_width == input_2_width) && (input_1_channels == input_2_channels))
-                {
-                    arm_compare_no_broadcast_s16(input_1_ptr,
-                                                 input_2_ptr,
-                                                 output_data,
-                                                 flat_size_1,
-                                                 &input_1_params,
-                                                 &input_2_params,
-                                                 left_shift,
-                                                 operation);
-
-                    input_1_ptr += flat_size_1;
-                    input_2_ptr += flat_size_1;
-                    output_data += flat_size_1;
-                }
-                else if (flat_size_1 == 1)
-                {
-                    arm_compare_scalar_broadcast_s16(*input_1_ptr,
-                                                     &input_1_params,
-                                                     input_2_ptr,
-                                                     &input_2_params,
-                                                     output_data,
-                                                     flat_size_2,
-                                                     left_shift,
-                                                     true,
-                                                     operation);
-
-                    input_2_ptr += flat_size_2;
-                    output_data += flat_size_2;
-                }
-                else if (flat_size_2 == 1)
-                {
-                    arm_compare_scalar_broadcast_s16(*input_2_ptr,
-                                                     &input_2_params,
-                                                     input_1_ptr,
-                                                     &input_1_params,
-                                                     output_data,
-                                                     flat_size_1,
-                                                     left_shift,
-                                                     false,
-                                                     operation);
-
-                    input_1_ptr += flat_size_1;
-                    output_data += flat_size_1;
-                }
-                else
-                {
-                    for (int32_t i_out_width = 0; i_out_width < output_width; i_out_width++)
-                    {
-                        if (input_1_channels == input_2_channels)
-                        {
-                            arm_compare_no_broadcast_s16(input_1_ptr,
-                                                         input_2_ptr,
-                                                         output_data,
-                                                         input_1_channels,
-                                                         &input_1_params,
-                                                         &input_2_params,
-                                                         left_shift,
-                                                         operation);
-
-                            input_1_ptr += input_1_channels;
-                            input_2_ptr += input_1_channels;
-                            output_data += input_1_channels;
-                        }
-                        else if (input_1_channels == 1)
-                        {
-                            arm_compare_scalar_broadcast_s16(*input_1_ptr,
-                                                             &input_1_params,
-                                                             input_2_ptr,
-                                                             &input_2_params,
-                                                             output_data,
-                                                             input_2_channels,
-                                                             left_shift,
-                                                             true,
-                                                             operation);
-
-                            ++input_1_ptr;
-                            input_2_ptr += input_2_channels;
-                            output_data += input_2_channels;
-                        }
-                        else if (input_2_channels == 1)
-                        {
-                            arm_compare_scalar_broadcast_s16(*input_2_ptr,
-                                                             &input_2_params,
-                                                             input_1_ptr,
-                                                             &input_1_params,
-                                                             output_data,
-                                                             input_1_channels,
-                                                             left_shift,
-                                                             false,
-                                                             operation);
-
-                            input_1_ptr += input_1_channels;
-                            ++input_2_ptr;
-                            output_data += input_1_channels;
-                        }
-
-                        input_1_ptr -= width_1_diff;
-                        input_2_ptr -= width_2_diff;
-                    }
-                }
-
-                input_1_ptr += height_1_diff;
-                input_2_ptr += height_2_diff;
-            }
-        }
-
-        input_1_data += batch_1_diff;
-        input_2_data += batch_2_diff;
-    }
+    ARM_NN_BROADCAST_WALK_NHWC(int16_t,
+                               bool,
+                               input_1_data,
+                               input_1_dims,
+                               input_2_data,
+                               input_2_dims,
+                               output_data,
+                               output_dims,
+                               ARM_COMPARE_FULL_S16,
+                               ARM_COMPARE_SCALAR_1_S16,
+                               ARM_COMPARE_SCALAR_2_S16);
 
     return ARM_CMSIS_NN_SUCCESS;
 }
+
+#undef ARM_COMPARE_FULL_S16
+#undef ARM_COMPARE_SCALAR_1_S16
+#undef ARM_COMPARE_SCALAR_2_S16
 
 arm_cmsis_nn_status arm_equal_s16(const cmsis_nn_context *ctx,
                                   const int16_t *input_1_data,
