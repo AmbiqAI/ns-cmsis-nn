@@ -333,7 +333,13 @@ jobs:
             # Each CPU reports independently, matching the fail-fast:false
             # behaviour of the gcc and atfe matrices above: a cortex-m55
             # failure must not hide the state of cortex-m4.
+            # `set -e` is explicitly re-enabled inside the subshell: bash
+            # suppresses errexit for the whole command that forms an `if`
+            # condition, so without it a failed build would fall through
+            # to the smoke step and be reported as a confusing missing
+            # archive rather than as the build failure it is.
             if ! (
+              set -e
               bash scripts/build_staticlib.sh \
                 --target-cpu "$TARGET_CPU" \
                 --version    "$VERSION" \

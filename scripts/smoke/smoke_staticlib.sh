@@ -92,6 +92,10 @@ case "${TARGET_CPU}" in
 esac
 
 [[ -f "${LIBRARY}" ]] || { echo "library not found: ${LIBRARY}" >&2; exit 3; }
+# Absolute from here on. The armlink path extracts archive members from
+# inside a scratch directory, and callers pass --library as a relative
+# path, which would stop resolving the moment we cd.
+LIBRARY="$(cd "$(dirname "${LIBRARY}")" && pwd)/$(basename "${LIBRARY}")"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 smoke_src="${repo_root}/scripts/smoke/staticlib_smoke.c"
@@ -132,7 +136,16 @@ case "${TOOLCHAIN}" in
     compiler="${TOOLCHAIN_ROOT}/bin/clang"
     nm="${TOOLCHAIN_ROOT}/bin/llvm-nm"
     size="${TOOLCHAIN_ROOT}/bin/llvm-size"
-    link_flags=(--target=arm-none-eabi -nostartfiles -nostdlib)
+    # No -nostdlib. The archive genuinely calls AEABI runtime helpers
+    # (__aeabi_memcpy/memset/memclr, __aeabi_ldivmod) that the compiler
+    # emits for struct copies, zero-init and 64-bit division, plus the
+    # usual libm float entry points. Those live in compiler-rt and
+    # picolibc, so suppressing the library scan turned every one of them
+    # into a false unresolved-symbol failure the moment the link went
+    # strict. They are standard symbols every consumer already links --
+    # unlike __ARM_undef, which nothing can supply. -nostartfiles still
+    # skips crt0, since the smoke ELF has no C runtime to start.
+    link_flags=(--target=arm-none-eabi -nostartfiles)
     ;;
   armclang)
     [[ -n "${TOOLCHAIN_ROOT}" ]] || TOOLCHAIN_ROOT="${NS_CMSIS_NN_TOOLCHAIN_ROOT:-${NS_CMSIS_NN_ARMCLANG_ROOT:-}}"
