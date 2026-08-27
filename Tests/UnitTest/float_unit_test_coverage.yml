@@ -20,7 +20,7 @@ aliases:
 families:
   - name: convolve
     generator_script: conv_settings_flt.py
-    cmsis_project: test_arm_convolve_flt
+    cmsis_project: null  # deleted: its only context built test_arm_convolve_f16 (see f16 below)
     coverage_summary: Regular convolution coverage spanning generic 2D shapes and float-specific optimized 1D cases.
     coverage_cases:
       - Generic 3x3: input 1x6x9x11, out_ch=10, stride 1, no padding.
@@ -35,13 +35,13 @@ families:
     dtypes:
       f32:
         host_target: null  # deleted in #256 (unbuildable: no checked-in TestData, never CI-built)
-        cmsis_context: test_arm_convolve_flt.F32+Corstone-300-FVP
+        cmsis_context: null  # deleted with the test_arm_convolve_flt project (it had no F32 setup since #256)
         selectors:
           - conv_f32_family
         notes: generated offline by conv_settings_flt.py
       f16:
-        host_target: test_arm_convolve_f16
-        cmsis_context: test_arm_convolve_flt.F16+Corstone-300-FVP
+        host_target: null  # deleted: unbuildable, never CI-built; f16 convolution is covered by helia-core-tester and test_arm_convolve_packed_f16
+        cmsis_context: null  # deleted: unbuildable, never CI-built; f16 convolution is covered by helia-core-tester and test_arm_convolve_packed_f16
         selectors:
           - conv_f16_family
         notes: generated offline by conv_settings_flt.py

@@ -41,7 +41,7 @@ SCRIPT_REL = "scripts/check_float_cmsis_components.py"
 CMSIS_REL = "Tests/UnitTest/cmsis"
 CSOLUTION_REL = f"{CMSIS_REL}/cmsis_nn_unit_tests_flt.csolution.yml"
 CLAYER_REL = f"{CMSIS_REL}/corstone300_unittest.clayer.yml"
-CPROJECT_REL = f"{CMSIS_REL}/test_arm_convolve_flt/test_arm_convolve_flt.cproject.yml"
+CPROJECT_REL = f"{CMSIS_REL}/test_arm_transpose_conv_flt/test_arm_transpose_conv_flt.cproject.yml"
 
 PACK_PIN = re.compile(r"Ambiq::NS-CMSIS-NN@\S+")
 SSE300_COMPONENTS = (
@@ -207,24 +207,24 @@ class TestComponentSelector(CheckerCase):
             f"    # TODO restore {SELECTOR}\n"
             "    - component: Machine Learning:NN Lib:heliaCORE\n",
         )
-        self.assertRejected(tree, "not the fully-qualified", "test_arm_convolve_flt")
+        self.assertRejected(tree, "not the fully-qualified", "test_arm_transpose_conv_flt")
 
     def test_selector_missing_entirely(self):
         tree = self.build_tree()
         self.edit(tree, CPROJECT_REL, f"    - component: {SELECTOR}\n", "")
-        self.assertRejected(tree, "missing component selector", "test_arm_convolve_flt")
+        self.assertRejected(tree, "missing component selector", "test_arm_transpose_conv_flt")
 
     def test_registered_project_missing_from_disk(self):
         tree = self.build_tree()
         (tree / CPROJECT_REL).unlink()
-        self.assertRejected(tree, "does not exist on disk", "test_arm_convolve_flt")
+        self.assertRejected(tree, "does not exist on disk", "test_arm_transpose_conv_flt")
 
     def test_project_on_disk_but_not_registered(self):
         tree = self.build_tree()
-        src = tree / CMSIS_REL / "test_arm_convolve_flt"
+        src = tree / CMSIS_REL / "test_arm_transpose_conv_flt"
         dst = tree / CMSIS_REL / "test_arm_newop_flt"
         shutil.copytree(src, dst)
-        (dst / "test_arm_convolve_flt.cproject.yml").rename(
+        (dst / "test_arm_transpose_conv_flt.cproject.yml").rename(
             dst / "test_arm_newop_flt.cproject.yml"
         )
         self.assertRejected(tree, "not registered", "test_arm_newop_flt")
