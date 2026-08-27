@@ -24,4 +24,10 @@ jobs:
   # (AmbiqAI/ns-cmsis-nn#291).
   toolchain-strict-link:
     uses: ./.github/workflows/toolchain-matrix-strict-link.yml
-    secrets: inherit
+    # Named explicitly rather than `secrets: inherit`: this workflow needs
+    # exactly one secret, and inherit would hand it every repository secret.
+    # It is declared `required: false` on the callee, because Dependabot and
+    # fork pull requests cannot supply it -- the armclang cell warns and
+    # skips instead of failing.
+    secrets:
+      ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}

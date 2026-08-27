@@ -44,13 +44,18 @@
 #                  extracted and placed on the link line instead, which
 #                  is the exact equivalent and keeps the guarantee that
 #                  EVERY object must resolve -- not just the ones the
-#                  smoke source happens to reference.
+#                  smoke source happens to reference. This one is
+#                  load-bearing: linking the .a directly was measured to
+#                  pass a planted undefined symbol.
 #   dead-strip     armlink's unused-section removal is on by default;
 #                  --no_remove is the analogue of omitting --gc-sections.
+#                  Defensive only -- armlink resolves before it strips.
 #
 # armlink already treats an unresolved reference as an error (L6218E),
-# so strictness needs no extra flag there -- only the two above, which
-# stop the link from quietly discarding the very objects under test.
+# so strictness needs no extra flag there.
+#
+# Neither this path nor the GNU one consults the archive SYMBOL INDEX,
+# so no cell in this gate would notice an index-less archive.
 
 set -euo pipefail
 
@@ -203,18 +208,27 @@ if [[ "${link_style}" == "gnu" ]]; then
 else
   # armlink dialect. Two deliberate differences from the GNU path:
   #
-  #  1. There is no --whole-archive, so every member is extracted and
-  #     named on the link line. Without this armlink would pull in only
-  #     the members the smoke source references and an unresolved symbol
-  #     in any other kernel would go unseen -- which is most of the
-  #     archive, and exactly the gap #291 describes.
-  #  2. --no_remove replaces "omit --gc-sections": armlink removes
-  #     unused sections by default, which would discard those same
-  #     members again after we went to the trouble of extracting them.
+  #  1. Extraction is LOAD-BEARING. armlink has no --whole-archive, and
+  #     linking the .a directly was measured to exit 0 on a planted
+  #     undefined symbol: armlink pulls in only the members the smoke
+  #     source references, so an unresolved reference in any other kernel
+  #     -- which is most of the archive, and exactly the gap #291
+  #     describes -- goes unseen. Naming every member on the link line is
+  #     what makes the check strict. Do not "simplify" this back to
+  #     passing the archive: it silently removes the guarantee.
+  #  2. --no_remove is DEFENSIVE, not load-bearing. It is the analogue of
+  #     omitting --gc-sections, but armlink resolves symbols before it
+  #     dead-strips, so the extracted link was measured to fail on an
+  #     undefined symbol with or without it. Kept so the ELF still
+  #     contains the members we linked, which the nm check below reads.
   #
   # armlink already errors on an unresolved reference (L6218E), so
   # strictness needs no third flag; --unresolved maps a dangling
   # reference onto a real symbol and is the lenient escape hatch.
+  #
+  # Note: no cell in this gate exercises the archive SYMBOL INDEX. Neither
+  # armlink-on-extracted-members nor the GNU --whole-archive path consults
+  # it, so an index-less archive passes both. See #291.
   members_dir="${OUTDIR}/members_${TOOLCHAIN}_${TARGET_CPU}"
   rm -rf "${members_dir}"
   mkdir -p "${members_dir}"

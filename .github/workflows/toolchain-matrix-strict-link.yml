@@ -50,7 +50,7 @@
 #   (AmbiqAI/ns-cmsis-nn#291), so no armclang asset we have ever shipped
 #   had its symbols resolved by anything.
 #
-# x two CPUs chosen for coverage per cell, not breadth:
+# Two CPUs per toolchain, chosen for coverage per cell rather than breadth:
 #
 #   cortex-m55  MVE + DSP + float -- the widest single cell, and the
 #               only one where the #305 class can appear at all
@@ -74,6 +74,14 @@ name: Toolchain matrix strict link
 
 on:
   workflow_call:
+    secrets:
+      ARM_UBL_LICENSE_IDENTIFIER:
+        # Optional on purpose. Dependabot and fork pull requests cannot
+        # supply it; the armclang job warns and skips rather than failing.
+        required: false
+        description: >-
+          Arm User-Based Licensing activation code, used only to activate
+          armclang for the strict-link cell.
   workflow_dispatch:
 
 permissions:
@@ -248,10 +256,44 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # MUST stay the first substantive step, and every step below is gated
+      # on its output.
+      #
+      # This repository is PUBLIC. A `pull_request` raised by Dependabot is
+      # handed only the Dependabot secret store, and a fork PR is handed no
+      # repository secrets at all -- in both cases
+      # ARM_UBL_LICENSE_IDENTIFIER arrives empty however ci.yml passes it.
+      # Failing here would turn every dependency bump and every outside
+      # contribution red for a reason the author cannot act on and did not
+      # cause. So: warn, skip, and let the job pass, exactly as
+      # release.yml's resolve-release-capabilities does for the optional
+      # armclang release assets.
+      #
+      # Same-repo pull requests DO receive the secret, so the cell still
+      # runs -- with full coverage -- on the PRs that change this library.
+      # Gating first also avoids the ~1 GB toolchain fetch and the apt
+      # install on runs that could never use them.
+      #
+      # Presence only. The identifier's value is never echoed, written to a
+      # step output, or interpolated into an annotation.
+      - name: Check armclang license availability
+        id: license
+        env:
+          ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${ARM_UBL_LICENSE_IDENTIFIER:-}" ]]; then
+            echo "armclang_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "armclang_available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=armclang cell skipped::ARM_UBL_LICENSE_IDENTIFIER is not available on this trigger (Dependabot and fork pull requests do not receive repository secrets), so the armclang strict-link cell was skipped. The gcc and atfe cells are unaffected and still gate this PR. armclang coverage runs on same-repo pull requests and in staticlib-dryrun.yml / release.yml."
+          fi
+
       - name: Confirm the runtime user is root
         # The Arm UBL entitlement is bound to CI user "root". If this prints
         # anything else, activation will be refused -- fail here with a clear
         # message rather than at `armlm activate` with a misleading one.
+        if: ${{ steps.license.outputs.armclang_available == 'true' }}
         run: |
           set -euo pipefail
           echo "whoami: $(whoami)  (uid=$(id -u))"
@@ -264,12 +306,14 @@ jobs:
         # llvm-nm / llvm-size / llvm-ar. Arm Compiler ships armar, which
         # cannot extract to a chosen directory, so the smoke script's
         # whole-archive emulation uses llvm-ar instead.
+        if: ${{ steps.license.outputs.armclang_available == 'true' }}
         run: |
           apt-get update
           apt-get install -y --no-install-recommends llvm
 
       - name: Fetch armclang toolchain
         id: fetch_toolchain
+        if: ${{ steps.license.outputs.armclang_available == 'true' }}
         run: |
           bash scripts/fetch_toolchain.sh \
             --manifest "ci/toolchains/armclang.json" \
@@ -277,6 +321,7 @@ jobs:
             --outdir "${RUNNER_TEMP}/toolchains"
 
       - name: Assert pinned armclang version
+        if: ${{ steps.license.outputs.armclang_available == 'true' }}
         env:
           GOT: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
         run: |
@@ -287,18 +332,14 @@ jobs:
           fi
           echo "armclang $GOT (pinned)"
 
-      # Only presence is tested; the value is never printed or interpolated
-      # into a shell argument.
-      - name: Validate armclang license
+      - name: Locate the Arm license manager
+        # Licence PRESENCE was settled in the gating step above; this only
+        # checks the toolchain actually shipped an armlm to activate with.
+        if: ${{ steps.license.outputs.armclang_available == 'true' }}
         env:
-          ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
         run: |
           set -euo pipefail
-          if [[ -z "${ARM_UBL_LICENSE_IDENTIFIER:-}" ]]; then
-            echo "::error title=Arm licence not configured::ARM_UBL_LICENSE_IDENTIFIER is required for the armclang strict-link cell." >&2
-            exit 1
-          fi
           if [[ ! -x "${TOOLCHAIN_ROOT}/bin/armlm" ]]; then
             echo "::error title=Arm license manager missing::No executable armlm under ${TOOLCHAIN_ROOT}/bin." >&2
             exit 1
@@ -313,11 +354,13 @@ jobs:
         # v1.0 -> v1.3), so a retag would silently replace the code handling
         # that secret. Same reasoning as the sha256 pin on the Arm Compiler
         # download in ci/toolchains/armclang.json.
+        if: ${{ steps.license.outputs.armclang_available == 'true' }}
         uses: ARM-software/cmsis-actions/armlm@8a50b77681a484568e08f31fb7c2285c4735f682  # v1.3
         with:
           code: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
 
       - name: Build and strict smoke link
+        if: ${{ steps.license.outputs.armclang_available == 'true' }}
         env:
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
         run: |
@@ -366,6 +409,7 @@ jobs:
           exit "$rc"
 
       - name: Deactivate Arm tool license
-        # Always, so a failed link does not leave the activation dangling.
-        if: always()
+        # Always -- so a failed link does not leave the activation dangling
+        # -- but only if we actually activated one.
+        if: ${{ always() && steps.license.outputs.armclang_available == 'true' }}
         run: armlm deactivate || true
