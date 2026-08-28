@@ -52,8 +52,10 @@ Useful options:
   (see `Current shared projects` above for the full list; `convolve` is
   still accepted but has no buildable suite in either dtype -- its F32
   half went with #256 and its F16 half, `test_arm_convolve_f16`, was
-  deleted as unbuildable too; f16 convolution is covered by the
-  helia-core-tester descriptors and `test_arm_convolve_packed_f16`)
+  deleted as unbuildable too; no Unity suite covers f16 convolution here
+  any more -- it is still exercised by the helia-core-tester FP16 convolve
+  descriptors, and a Unity suite for the packed f16 path
+  (`test_arm_convolve_packed_f16`) is proposed in #325)
 - `--dtypes`: `f32`, `f16`, or `f32,f16`
 - `--toolchains`: comma-separated `cbuild` toolchains such as `GCC@15.2.1,AC6@6.24.0`
 - `--regenerate-input`: refresh pregenerated float samples before rebuilding

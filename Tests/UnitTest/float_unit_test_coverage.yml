@@ -21,8 +21,10 @@ families:
   - name: convolve
     generator_script: conv_settings_flt.py
     cmsis_project: null  # deleted: its only context built test_arm_convolve_f16 (see f16 below)
-    coverage_summary: Regular convolution coverage spanning generic 2D shapes and float-specific optimized 1D cases.
-    coverage_cases:
+    coverage_summary: No Unity coverage in either dtype -- both suites were deleted as unbuildable, so nothing in this repo compiles or runs a float convolution case.
+    coverage_cases: []
+    # Not coverage: the cases conv_settings_flt.py still emits offline. No suite consumes them.
+    generator_cases:
       - Generic 3x3: input 1x6x9x11, out_ch=10, stride 1, no padding.
       - Generic 3x3 wrapper case with the same logical dimensions.
       - 1x1 NHWC stride case: input 1x3x17x11, out_ch=13, stride 1x2, activation clamp [-0.75, 0.75].
@@ -36,15 +38,16 @@ families:
       f32:
         host_target: null  # deleted in #256 (unbuildable: no checked-in TestData, never CI-built)
         cmsis_context: null  # deleted with the test_arm_convolve_flt project (it had no F32 setup since #256)
-        selectors:
-          - conv_f32_family
-        notes: generated offline by conv_settings_flt.py
+        selectors:  # none: run_float_unit_tests.py has selector_by_dtype={} for this family
+        notes: conv_settings_flt.py output is generated offline and consumed by no suite
       f16:
-        host_target: null  # deleted: unbuildable, never CI-built; f16 convolution is covered by helia-core-tester and test_arm_convolve_packed_f16
-        cmsis_context: null  # deleted: unbuildable, never CI-built; f16 convolution is covered by helia-core-tester and test_arm_convolve_packed_f16
-        selectors:
-          - conv_f16_family
-        notes: generated offline by conv_settings_flt.py
+        host_target: null  # deleted: unbuildable, never CI-built
+        cmsis_context: null  # deleted with the test_arm_convolve_flt project
+        selectors:  # none: run_float_unit_tests.py has selector_by_dtype={} for this family
+        notes: >-
+          conv_settings_flt.py output is generated offline and consumed by no suite. f16 convolution is
+          still exercised by the helia-core-tester FP16 convolve descriptors; a Unity suite for the packed
+          f16 path (test_arm_convolve_packed_f16) is proposed in #325 and is not present here.
   - name: reshape
     generator_script: null
     cmsis_project: test_arm_reshape_flt

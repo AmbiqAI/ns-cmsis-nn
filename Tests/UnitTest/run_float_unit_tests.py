@@ -126,9 +126,11 @@ FAMILY_CONFIGS: dict[str, FloatTestFamily] = {
     # run_host_tests() / build_cmsis_tests() / run_fvp_tests() key off of
     # to SKIP each leg instead of erroring. The family stays listed so
     # `--tests convolve` (and the `conv` alias) keeps resolving, and
-    # conv_settings_flt.py remains usable offline. f16 convolution is
-    # covered by the helia-core-tester descriptors and
-    # test_arm_convolve_packed_f16.
+    # conv_settings_flt.py remains usable offline. As a result no Unity
+    # suite covers f16 convolution in this repo: it is still exercised by
+    # the helia-core-tester FP16 convolve descriptors, and a Unity suite
+    # for the packed f16 path (test_arm_convolve_packed_f16) is proposed
+    # in #325, not present here.
     "convolve": FloatTestFamily(
         name="convolve",
         generator_script="conv_settings_flt.py",

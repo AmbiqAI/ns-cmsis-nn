@@ -4,6 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/*
+ * Shared NT_N_PACKED filter-packing helpers for the float convolution unit tests.
+ * Retained with no in-tree includer: the only user, test_arm_convolve_f16, was
+ * deleted as unbuildable, and #325 reintroduces users in
+ * test_arm_convolve_packed_f32 / test_arm_convolve_packed_f16.
+ */
+
 #ifndef FLOAT_PACKED_TEST_UTILS_H
 #define FLOAT_PACKED_TEST_UTILS_H
 
