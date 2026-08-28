@@ -3693,7 +3693,9 @@ arm_cmsis_nn_status arm_elementwise_mul_s16(const int16_t *input_1_vect,
  * @param[out]  output_data           Pointer to the output tensor
  * @param[in]   output_dims           Output tensor dimensions
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
+ *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
+ *             their broadcast shape. @p ctx is unused and may be NULL.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro
@@ -3719,7 +3721,9 @@ arm_cmsis_nn_status arm_minimum_s8(const cmsis_nn_context *ctx,
  * @param[out]  output_data           Pointer to the output tensor
  * @param[in]   output_dims           Output tensor dimensions
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
+ *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
+ *             their broadcast shape. @p ctx is unused and may be NULL.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro
@@ -3745,7 +3749,9 @@ arm_cmsis_nn_status arm_maximum_s8(const cmsis_nn_context *ctx,
  * @param[out]  output_data           Pointer to the output tensor
  * @param[in]   output_dims           Output tensor dimensions
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
+ *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
+ *             their broadcast shape. @p ctx is unused and may be NULL.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro
@@ -3771,7 +3777,9 @@ arm_cmsis_nn_status arm_minimum_s16(const cmsis_nn_context *ctx,
  * @param[out]  output_data           Pointer to the output tensor
  * @param[in]   output_dims           Output tensor dimensions
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
+ *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
+ *             their broadcast shape. @p ctx is unused and may be NULL.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro
@@ -3811,7 +3819,9 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
  * @param[in]   left_shift            Common left shift prior to requantization
  * @param[in]   operation             Comparison operation to perform
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
+ *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
+ *             their broadcast shape. @p ctx is unused and may be NULL.
  */
 arm_cmsis_nn_status arm_comparison_s8(const cmsis_nn_context *ctx,
                                       const int8_t *input_1_data,
@@ -3849,7 +3859,9 @@ arm_cmsis_nn_status arm_comparison_s8(const cmsis_nn_context *ctx,
  * @param[in]   left_shift            Common left shift prior to requantization
  * @param[in]   operation             Comparison operation to perform
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
+ *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
+ *             their broadcast shape. @p ctx is unused and may be NULL.
  */
 arm_cmsis_nn_status arm_comparison_s16(const cmsis_nn_context *ctx,
                                        const int16_t *input_1_data,
@@ -3869,6 +3881,8 @@ arm_cmsis_nn_status arm_comparison_s16(const cmsis_nn_context *ctx,
 
 /**
  * @brief s8 elementwise equality comparison with support for broadcasting.
+ *
+ * @return     As arm_comparison_s8(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_equal_s8(const cmsis_nn_context *ctx,
                                  const int8_t *input_1_data,
@@ -3887,6 +3901,8 @@ arm_cmsis_nn_status arm_equal_s8(const cmsis_nn_context *ctx,
 
 /**
  * @brief s8 elementwise inequality comparison with support for broadcasting.
+ *
+ * @return     As arm_comparison_s8(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_not_equal_s8(const cmsis_nn_context *ctx,
                                      const int8_t *input_1_data,
@@ -3905,6 +3921,8 @@ arm_cmsis_nn_status arm_not_equal_s8(const cmsis_nn_context *ctx,
 
 /**
  * @brief s8 elementwise greater-than comparison with support for broadcasting.
+ *
+ * @return     As arm_comparison_s8(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_greater_s8(const cmsis_nn_context *ctx,
                                    const int8_t *input_1_data,
@@ -3923,6 +3941,8 @@ arm_cmsis_nn_status arm_greater_s8(const cmsis_nn_context *ctx,
 
 /**
  * @brief s8 elementwise greater-or-equal comparison with support for broadcasting.
+ *
+ * @return     As arm_comparison_s8(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_greater_equal_s8(const cmsis_nn_context *ctx,
                                          const int8_t *input_1_data,
@@ -3941,6 +3961,8 @@ arm_cmsis_nn_status arm_greater_equal_s8(const cmsis_nn_context *ctx,
 
 /**
  * @brief s8 elementwise less-than comparison with support for broadcasting.
+ *
+ * @return     As arm_comparison_s8(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_less_s8(const cmsis_nn_context *ctx,
                                 const int8_t *input_1_data,
@@ -3959,6 +3981,8 @@ arm_cmsis_nn_status arm_less_s8(const cmsis_nn_context *ctx,
 
 /**
  * @brief s8 elementwise less-or-equal comparison with support for broadcasting.
+ *
+ * @return     As arm_comparison_s8(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_less_equal_s8(const cmsis_nn_context *ctx,
                                       const int8_t *input_1_data,
@@ -3977,6 +4001,8 @@ arm_cmsis_nn_status arm_less_equal_s8(const cmsis_nn_context *ctx,
 
 /**
  * @brief s16 elementwise equality comparison with support for broadcasting.
+ *
+ * @return     As arm_comparison_s16(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_equal_s16(const cmsis_nn_context *ctx,
                                   const int16_t *input_1_data,
@@ -3995,6 +4021,8 @@ arm_cmsis_nn_status arm_equal_s16(const cmsis_nn_context *ctx,
 
 /**
  * @brief s16 elementwise inequality comparison with support for broadcasting.
+ *
+ * @return     As arm_comparison_s16(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_not_equal_s16(const cmsis_nn_context *ctx,
                                       const int16_t *input_1_data,
@@ -4013,6 +4041,8 @@ arm_cmsis_nn_status arm_not_equal_s16(const cmsis_nn_context *ctx,
 
 /**
  * @brief s16 elementwise greater-than comparison with support for broadcasting.
+ *
+ * @return     As arm_comparison_s16(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_greater_s16(const cmsis_nn_context *ctx,
                                     const int16_t *input_1_data,
@@ -4031,6 +4061,8 @@ arm_cmsis_nn_status arm_greater_s16(const cmsis_nn_context *ctx,
 
 /**
  * @brief s16 elementwise greater-or-equal comparison with support for broadcasting.
+ *
+ * @return     As arm_comparison_s16(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_greater_equal_s16(const cmsis_nn_context *ctx,
                                           const int16_t *input_1_data,
@@ -4049,6 +4081,8 @@ arm_cmsis_nn_status arm_greater_equal_s16(const cmsis_nn_context *ctx,
 
 /**
  * @brief s16 elementwise less-than comparison with support for broadcasting.
+ *
+ * @return     As arm_comparison_s16(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_less_s16(const cmsis_nn_context *ctx,
                                  const int16_t *input_1_data,
@@ -4067,6 +4101,8 @@ arm_cmsis_nn_status arm_less_s16(const cmsis_nn_context *ctx,
 
 /**
  * @brief s16 elementwise less-or-equal comparison with support for broadcasting.
+ *
+ * @return     As arm_comparison_s16(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_less_equal_s16(const cmsis_nn_context *ctx,
                                        const int16_t *input_1_data,

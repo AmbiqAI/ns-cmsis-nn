@@ -19,6 +19,7 @@
 #include "stdio.h"
 #include <arm_nnfunctions.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unity.h>
 
 #include "../TestData/maximum_broadcast_batch_int16/test_data.h"
@@ -362,4 +363,47 @@ void maximum_broadcast_ch_int16(void)
     int dst_size = MAXIMUM_BROADCAST_CH_INT16_DST_SIZE;
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
     TEST_ASSERT_TRUE(validate_s16(output, output_ref_data, dst_size));
+}
+
+// Regression for the NHWC broadcast walk: both operands have width 1, so each row of input 1 is a
+// single element that must advance with the output row. The previous walk left input 1 on row 0
+// and returned SUCCESS with rows 1..h-1 wrong. Checked in both operand orders.
+void maximum_broadcast_row_scalar_s16(void)
+{
+    const int16_t input_1[3] = {10, 20, 30};
+    const int16_t input_2[12] = {1, 2, 3, 4, 11, 12, 13, 14, 21, 22, 23, 24};
+    const int16_t expected[12] = {10, 10, 10, 10, 20, 20, 20, 20, 30, 30, 30, 30};
+    int16_t output[12] = {0};
+    cmsis_nn_context ctx = {NULL, 0};
+    const cmsis_nn_dims input_1_dims = {1, 3, 1, 1};
+    const cmsis_nn_dims input_2_dims = {1, 3, 1, 4};
+    const cmsis_nn_dims output_dims = {1, 3, 1, 4};
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_maximum_s16(&ctx, input_1, &input_1_dims, input_2, &input_2_dims, output, &output_dims));
+    TEST_ASSERT_TRUE(validate_s16(output, expected, 12));
+
+    memset(output, 0, sizeof(output));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_maximum_s16(&ctx, input_2, &input_2_dims, input_1, &input_1_dims, output, &output_dims));
+    TEST_ASSERT_TRUE(validate_s16(output, expected, 12));
+}
+
+void maximum_arg_error_s16(void)
+{
+    int16_t data[12] = {0};
+    int16_t output[12] = {0};
+    cmsis_nn_context ctx = {NULL, 0};
+    const cmsis_nn_dims dims_3x1 = {1, 3, 1, 1};
+    const cmsis_nn_dims dims_2x4 = {1, 2, 1, 4};
+    const cmsis_nn_dims dims_3x4 = {1, 3, 1, 4};
+
+    // h = 3 against h = 2 is not broadcastable
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_maximum_s16(&ctx, data, &dims_3x1, data, &dims_2x4, output, &dims_3x4));
+    // the output shape must be the broadcast shape
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_maximum_s16(&ctx, data, &dims_3x1, data, &dims_3x4, output, &dims_3x1));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_maximum_s16(&ctx, NULL, &dims_3x1, data, &dims_3x4, output, &dims_3x4));
 }
