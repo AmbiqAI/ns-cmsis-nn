@@ -17,6 +17,7 @@
  */
 
 #pragma once
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -83,7 +84,7 @@ static inline int validate_s32(int32_t *act, const int32_t *ref, int size)
         if (act[i] != ref[i])
         {
             count++;
-            printf("ERROR at pos %d: Act: %ld Ref: %ld\r\n", i, act[i], ref[i]);
+            printf("ERROR at pos %d: Act: %" PRId32 " Ref: %" PRId32 "\r\n", i, act[i], ref[i]);
             test_passed = false;
         }
     }

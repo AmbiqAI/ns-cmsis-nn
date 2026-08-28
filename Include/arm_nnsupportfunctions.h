@@ -2497,12 +2497,14 @@ __STATIC_FORCEINLINE int32_t arm_nn_one_over_one_plus_x_for_x_in_0_1(int32_t val
 {
     const int64_t sum = (int64_t)val + (int64_t)NN_Q31_MAX;
     const int32_t half_denominator = (int32_t)((sum + (sum >= 0 ? 1 : -1)) / 2L);
-    int32_t x = 1515870810 + MUL_SAT(half_denominator, -1010580540);
+    /* These sums wrap by design (gemmlowp fixed-point Newton-Raphson semantics); they are done in
+     * unsigned arithmetic so the wrap is defined behaviour rather than signed overflow. */
+    int32_t x = (int32_t)((uint32_t)1515870810 + (uint32_t)MUL_SAT(half_denominator, -1010580540));
 
     const int32_t shift = (1 << 29);
-    x += MUL_POW2(MUL_SAT(x, shift - MUL_SAT(half_denominator, x)), 2);
-    x += MUL_POW2(MUL_SAT(x, shift - MUL_SAT(half_denominator, x)), 2);
-    x += MUL_POW2(MUL_SAT(x, shift - MUL_SAT(half_denominator, x)), 2);
+    x = (int32_t)((uint32_t)x + (uint32_t)MUL_POW2(MUL_SAT(x, shift - MUL_SAT(half_denominator, x)), 2));
+    x = (int32_t)((uint32_t)x + (uint32_t)MUL_POW2(MUL_SAT(x, shift - MUL_SAT(half_denominator, x)), 2));
+    x = (int32_t)((uint32_t)x + (uint32_t)MUL_POW2(MUL_SAT(x, shift - MUL_SAT(half_denominator, x)), 2));
 
     return MUL_POW2(x, 1);
 }

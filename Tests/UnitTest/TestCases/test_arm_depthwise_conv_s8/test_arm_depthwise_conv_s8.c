@@ -452,6 +452,11 @@ void depthwise_dilation_arm_depthwise_conv_s8(void)
         memset(weights_sum_ctx.buf, 0, weights_sum_ctx.size);
         free(weights_sum_ctx.buf);
     }
+    if (ctx.buf)
+    {
+        memset(ctx.buf, 0, ctx.size);
+        free(ctx.buf);
+    }
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, depthwise_dilation_output_ref, output_ref_size));
 }
@@ -640,10 +645,11 @@ void in_ch_one_out_ch_larger_one_arm_depthwise_conv_s8(void)
 /* ------------------------------------------------------------------------ */
 void weight_presum(void)
 {
-    /* 2-out-ch × 3-in-ch, 1 × 1 kernel
-       kernel = {1,2,3 | 4,5,6}
-       bias    = {10,20}
-       lhs_off = 5  → expected sums = {10+5*(1+2+3)=40 , 20+5*(4+5+6)=95} */
+    /* 3 channels, 1 × 2 kernel, ch_mult = 1. The depthwise layout is channel-interleaved,
+       so channel j is kernel[j] and kernel[3+j]:
+       kernel     = {1,2,3 | 4,5,6}
+       bias       = {10,20,11}
+       lhs_offset = 1  → expected sums = {10+1*(1+4)=15, 20+1*(2+5)=27, 11+1*(3+6)=20} */
     const int8_t  kernel[6]   = {1, 2, 3, 4, 5, 6};
     const int32_t bias[3]     = {10, 20, 11};
     const uint32_t lhs_offset = 1;
@@ -664,8 +670,11 @@ void weight_presum(void)
     const int32_t buf_sz = arm_depthwise_conv_wrapper_s8_get_buffer_size(
           &dw_conv_params, &in_dims, &filt_dims, &out_dims);
     const int32_t scratch_size = arm_convolve_s8_get_weights_sum_size(&out_dims);
-    int32_t *sum_buf     = (int32_t *)malloc(buf_sz);
-    int8_t *scratch_buf = (int8_t *)malloc(scratch_size);
+    /* vector_sum_buf is sized by arm_convolve_s8_get_weights_sum_size(), per its documented layout.
+       scratch_buf has no sizer of its own — the header records it as currently unused and accepting
+       NULL — so it takes the wrapper query, as simple_dconv_no_bias() below does. */
+    int32_t *sum_buf     = (int32_t *)malloc(scratch_size);
+    int8_t *scratch_buf = (int8_t *)malloc(buf_sz);
 
 
 
@@ -682,13 +691,14 @@ void weight_presum(void)
 
 #if !defined(ARM_MATH_MVEI)
 
+    free(sum_buf);
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, result);
 #else
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
     const int32_t expected[3] = {15,27,20};
     TEST_ASSERT_EQUAL_INT32_ARRAY(expected, sum_buf, 3);
 
-    memset(sum_buf, 0, buf_sz);
+    memset(sum_buf, 0, scratch_size);
     free(sum_buf);
 #endif
 }
@@ -718,7 +728,7 @@ void simple_dconv_no_bias(void)
         .activation = { .min = -128, .max = 127 },
     };
 
-    int32_t mult[2] = {~(1 << 31), ~(1<<31)};   /* Q31 ≈ 1.0 */
+    int32_t mult[2] = {INT32_MAX, INT32_MAX};   /* Q31 ≈ 1.0 */
     int32_t shift[2]= {0,0};
     cmsis_nn_per_channel_quant_params q = {
         .multiplier = mult,
@@ -897,6 +907,7 @@ void single_in_many_out_ch(void)
         memset(ctx.buf, 0, buf_size);
         free(ctx.buf);
     }
+    free(kernel_data);
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, depthwise_single_in_many_out_ch_output_ref, output_ref_size));
 }

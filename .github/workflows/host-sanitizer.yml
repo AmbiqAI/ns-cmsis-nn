@@ -1,0 +1,94 @@
+name: Host sanitizer unit tests
+
+# Builds the legacy Unity suites for the x86 host with AddressSanitizer and
+# UndefinedBehaviorSanitizer and runs them through ctest. The FVP runs the same
+# suites on Cortex-M with no memory checking, so this is the only leg that can
+# see an out-of-bounds read or write that leaves the numerics intact, such as
+# a scratch buffer under-sized by a get_buffer_size query. It exercises the
+# scalar (non-MVE) kernel paths only.
+#
+# Float16 is left off until the one unbuildable f16 suite (test_arm_convolve_f16,
+# allowlisted in scripts/check_pdsc.py pending #236) is repaired or removed.
+#
+# One UBSan check is masked: -fno-sanitize=shift-base. It silences two
+# diagnostics, not one: "left shift of negative value", and "left shift of X by
+# N places cannot be represented in type 'int'", i.e. signed left-shift
+# overflow of a positive value. Both are well defined on every Arm target but
+# UB in C. Removing the mask fails 20 of the 127 suites, and the sites that
+# report fall into three groups, so fixing any one group would not make the mask
+# droppable:
+#   - Files carrying an Arm copyright line: the s4 and s16 paths (arm_nn_mat_mult_nt_t_s4.c,
+#     arm_nn_vec_mat_mult_t_s4.c, arm_depthwise_conv_s4{,_opt}.c, arm_convolve_s4.c,
+#     arm_nn_mat_mult_kernel_s4_s16.c, arm_elementwise_{add,sub,mul}*_s16.c), plus
+#     Source/SoftmaxFunctions/arm_nn_softmax_common_s8.c:93, the only site of the
+#     overflow kind — every other site is a shift of a negative value.
+#   - Seven files whose only copyright line is Ambiq's:
+#     Source/ComparisonFunctions/arm_comparison_s8.c and arm_comparison_s16.c, and
+#     Source/BasicMathFunctions/arm_{add,sub,mul,squared_difference}_scalar_s16.c
+#     and arm_elementwise_squared_difference_s16.c.
+#   - Two __STATIC_FORCEINLINE helpers in the public Include/arm_nnsupportfunctions.h,
+#     arm_nn_exp_on_negative_values and arm_nn_mult_by_power_of_two, so the mask also
+#     covers header code that downstream callers compile.
+#
+# shift-exponent stays on, so a shift count at or past the operand width is
+# still reported. LeakSanitizer is on (it is part of ASan by default), so a test
+# that mallocs without freeing fails its suite.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# The job compiles and *runs* code from the pull request, so it gets no more
+# than a read token.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-sanitizer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build ruby gcc g++
+          # Tests/UnitTest/unittest_targets.py (Unity download + test-runner generation, run at configure
+          # time) imports these two; the full Tests/UnitTest/requirements.txt is for the FVP/Mbed flows.
+          python3 -m pip install --user termcolor pyserial
+
+      - name: Configure (host, ASan + UBSan, F32 on)
+        run: |
+          cmake -S Tests/UnitTest -B build-host -G Ninja \
+            -DBUILD_CMSIS_NN_UNIT=ON \
+            -DCMSIS_PATH=/nonexistent-host-build-needs-no-cmsis \
+            -DARM_NN_ENABLE_F32=ON \
+            -DARM_NN_ENABLE_F16=OFF \
+            -DCMSIS_OPTIMIZATION_LEVEL=-O1 \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -g -fno-omit-frame-pointer" \
+            "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+
+      - name: Build every suite
+        run: cmake --build build-host --parallel
+
+      # --no-tests=error turns a *fully* empty test set into a failure rather than a
+      # pass. It says nothing about a partial regression, so the count check below
+      # guards that separately: a floor, not the exact number, so adding or retiring
+      # a suite does not need this edited. This config (F32 on, F16 off) registers 127.
+      - name: Run every suite
+        run: |
+          registered=$(ctest --test-dir build-host -N | awk '/Total Tests:/ {print $3}')
+          echo "ctest registered $registered suites"
+          test "$registered" -ge 120
+          ctest --test-dir build-host --output-on-failure --parallel 4 --no-tests=error
