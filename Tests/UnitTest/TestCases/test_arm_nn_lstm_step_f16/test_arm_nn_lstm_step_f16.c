@@ -109,7 +109,9 @@ void lstm_step_uniform_units_f16(void)
 }
 
 // Two batches with batch_offset 2 and a cell clip: the partial predicated store of batch 0 must not
-// touch batch 1's state, and both batches must agree unit for unit; clip 1.0 caps the cell state.
+// touch batch 1's state, and both batches must agree unit for unit. The clip of 2.0 exercises the
+// clamp without pinning the state: a clip at or below 1.5 would snap every unit to the same exact
+// value on any build and hide the vector-body / scalar-tail split this suite exists to catch.
 void lstm_step_two_batches_clipped_f16(void)
 {
     static const float16_t zero_weights[LSTM_STEP_F16_HIDDEN * LSTM_STEP_F16_HIDDEN] = {0};
@@ -143,7 +145,7 @@ void lstm_step_two_batches_clipped_f16(void)
     params.time_steps = 2;
     params.input_size = 1;
     params.hidden_size = LSTM_STEP_F16_HIDDEN;
-    params.cell_clip = (float16_t)1.0f;
+    params.cell_clip = (float16_t)2.0f;
     lstm_step_f16_fill_gate(&params.forget_gate, zero_weights, bias_open, ARM_NN_FLT_ACT_SIGMOID);
     lstm_step_f16_fill_gate(&params.input_gate, zero_weights, bias_closed, ARM_NN_FLT_ACT_SIGMOID);
     lstm_step_f16_fill_gate(&params.cell_gate, zero_weights, bias_open, ARM_NN_FLT_ACT_TANH);
@@ -173,10 +175,10 @@ void lstm_step_two_batches_clipped_f16(void)
             memcpy(&unit_bits, &row[h], sizeof(unit_bits));
             TEST_ASSERT_EQUAL_HEX16(unit_0_bits, unit_bits);
         }
-        TEST_ASSERT_FLOAT_WITHIN(3.0e-2f, tanhf(1.0f), (float32_t)row[0]);
+        TEST_ASSERT_FLOAT_WITHIN(3.0e-2f, tanhf(1.5f), (float32_t)row[0]);
         for (int32_t h = 0; h < LSTM_STEP_F16_HIDDEN; h++)
         {
-            TEST_ASSERT_FLOAT_WITHIN(2.0e-3f, 1.0f, (float32_t)cell_state[b * LSTM_STEP_F16_HIDDEN + h]);
+            TEST_ASSERT_FLOAT_WITHIN(2.0e-3f, 1.5f, (float32_t)cell_state[b * LSTM_STEP_F16_HIDDEN + h]);
             // the second time-step slot of each batch row is untouched by a single step
             TEST_ASSERT_EQUAL_FLOAT(-7.0f, (float32_t)row[LSTM_STEP_F16_HIDDEN + h]);
         }

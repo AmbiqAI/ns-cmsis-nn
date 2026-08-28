@@ -136,8 +136,10 @@ arm_cmsis_nn_status arm_nn_lstm_step_f32(const float32_t *data_in,
         int32_t h = 0;
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
         /* The final partial vector is tail-predicated rather than handed to a scalar loop, so every
-         * hidden unit takes the same tanh leg; kept structurally parallel to the float16 twin (#315).
-         * Inactive lanes carry zeros. */
+         * hidden unit takes the same arithmetic: the vector body rounds f * c_prev and then fuses
+         * i * g into it, whereas a scalar tail lets the compiler place the fma and round the cell
+         * state differently for the last hidden_size % 4 units of the same tensor. The two float32
+         * tanh legs agree; the split shows up in the cell state (#315). Inactive lanes carry zeros. */
         for (; h < hidden_size; h += 4)
         {
             const int32_t lanes = MIN(4, hidden_size - h);

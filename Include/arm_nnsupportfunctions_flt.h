@@ -946,7 +946,9 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT 
  * @param[in]   params                          Struct containing all information about the LSTM operator.
  * @param[in]   buffers                         Struct containing pointers to mutable cell-state storage.
  * @param[in]   batch_offset                    Number of timesteps between consecutive batches.
- * @return                                      The function returns ARM_CMSIS_NN_SUCCESS.
+ * @return                                      ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR on
+ *                                              invalid arguments (NULL data_in/hidden_out/params/buffers or
+ *                                              buffers->cell_state, batch_offset <= 0).
  */
 arm_cmsis_nn_status arm_nn_lstm_step_f16(const float16_t *data_in,
                                          const float16_t *hidden_in,
@@ -1016,7 +1018,9 @@ void arm_nn_softmax_1x2_f16(const float16_t *in, float16_t *out);
  * @param[in]   params                          Struct containing all information about the LSTM operator.
  * @param[in]   buffers                         Struct containing pointers to mutable cell-state storage.
  * @param[in]   batch_offset                    Number of timesteps between consecutive batches.
- * @return                                      The function returns ARM_CMSIS_NN_SUCCESS.
+ * @return                                      ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR on
+ *                                              invalid arguments (NULL data_in/hidden_out/params/buffers or
+ *                                              buffers->cell_state, batch_offset <= 0).
  */
 arm_cmsis_nn_status arm_nn_lstm_step_f32(const float32_t *data_in,
                                          const float32_t *hidden_in,
