@@ -43,3 +43,8 @@ void test_batch_matmul_f32_packed_broadcast_shapes_arm_batch_matmul_f32(void)
 {
     batch_matmul_f32_packed_broadcast_shapes_arm_batch_matmul_f32();
 }
+
+void test_batch_matmul_f32_packed_block_width_batch2_arm_batch_matmul_f32(void)
+{
+    batch_matmul_f32_packed_block_width_batch2_arm_batch_matmul_f32();
+}
