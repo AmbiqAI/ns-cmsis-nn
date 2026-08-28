@@ -79,6 +79,7 @@
         <file category="header" name="Include/Internal/arm_conv_opt_f32.h"/>
         <file category="header" name="Include/Internal/arm_depthwise_conv_opt_f16.h"/>
         <file category="header" name="Include/Internal/arm_depthwise_conv_opt_f32.h"/>
+        <file category="header" name="Include/Internal/arm_nn_broadcast_walk.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f16_common.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f32_common.h"/>
 
