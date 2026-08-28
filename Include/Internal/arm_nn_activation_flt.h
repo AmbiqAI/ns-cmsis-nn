@@ -108,7 +108,8 @@ __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
      * INT32_MAX or INT32_MIN), so a NaN would index far outside the table. The `ax != ax` test below
      * is folded away by -ffinite-math-only; this integer test on the bit pattern is not, and it costs
      * one compare on targets where every float operation is already a call. The NaN is returned
-     * quieted, the same result the hard-float legs produce through the interpolation. See #314. */
+     * quieted, which is what the shipped -Ofast hard-float build produces by running it through the
+     * interpolation; see the cold branch below for why that is not promised on hard-float. See #314. */
     uint32_t x_bits;
     __builtin_memcpy(&x_bits, &x, sizeof(x_bits));
     if ((x_bits & 0x7fffffffU) > 0x7f800000U)
@@ -139,16 +140,18 @@ __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
          * (#314).
          *
          * In a -fno-finite-math-only build, NaN (unordered) lands here and is
-         * propagated rather than saturated. The + 0.0f quiets a signalling
-         * NaN, matching what the old code did incidentally by running the sNaN
-         * through the interpolation arithmetic; returning x bare would hand an
-         * sNaN back and defer its invalid-operation exception to the caller.
-         * IEEE addition propagates a quiet NaN unchanged, so qNaN payload and
-         * sign still pass through. The add itself also needs signed zeros
-         * kept: -Ofast implies -fno-signed-zeros, which -fno-finite-math-only
-         * does not restore, and under it the compiler folds x + 0.0f to x, so
-         * the quieting survives only at -O3 or with -fsigned-zeros added
-         * back. */
+         * propagated rather than saturated. The + 0.0f is meant to quiet a
+         * signalling NaN, as the old code did incidentally by running the sNaN
+         * through the interpolation arithmetic, but it is not a guarantee:
+         * -Ofast implies -fno-signed-zeros, which -fno-finite-math-only does
+         * not restore, and under it the compiler folds x + 0.0f to x and hands
+         * the sNaN back bare, deferring its invalid-operation exception to the
+         * caller. The add quiets only at -O3 or with -fsigned-zeros added
+         * back; IEEE addition propagates a quiet NaN unchanged either way, so
+         * qNaN payload and sign pass through regardless. So on hard-float the
+         * only promise is NaN in, NaN out. The quiet bit is promised on
+         * soft-float alone, by the entry test, and the activation-helper
+         * suite asserts exactly that split. */
         if (ax != ax)
         {
             return x + 0.0f;

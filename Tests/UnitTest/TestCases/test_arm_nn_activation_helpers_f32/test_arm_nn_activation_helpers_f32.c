@@ -135,10 +135,16 @@ void nn_activation_helpers_f32_tanh_non_finite_contract(void)
 
 /* (d2) NaN must never become an out-of-range table index (#314). Under -Ofast the compiler folds the
  * `ax != ax` guard, so the index comes from converting NaN: VCVT saturates it on hard-float, while
- * soft-float and x86 conversions return INT32_MAX or INT32_MIN and read far outside the table. The
- * result is checked by bit pattern because a finite-math build may also fold `y != y`. On hard-float
- * the previous code already returned NaN through the interpolation, so this case discriminates only on
- * soft-float targets and on the x86 host; a signalling input must come back quiet everywhere. */
+ * soft-float and x86 conversions return INT32_MAX or INT32_MIN and read far outside the table. What
+ * every target guarantees is a NaN result, checked by bit pattern because a finite-math build may
+ * also fold `y != y`. The quiet bit is guaranteed only where the entry test in the helper is compiled,
+ * i.e. without __ARM_FP (soft-float targets and the x86 host): on hard-float this suite's
+ * -fno-finite-math-only keeps the `ax != ax` branch alive, and -Ofast's -fno-signed-zeros folds its
+ * `x + 0.0f`, so a signalling input comes back unchanged. The predicate below is the one the helper
+ * uses, so the assertion tracks the guard. The case discriminates only on soft-float targets and on the
+ * host, where the previous code read far outside the table. Note that on cortex-m0 that read does not
+ * trap (the byte address wraps and the arithmetic still yields a NaN), so the quiet-bit assertion is
+ * what pins #314 there: without the entry test a signalling input comes back unquieted. */
 void nn_activation_helpers_f32_tanh_nan_index_bounded(void)
 {
     const uint32_t nan_patterns[3] = {0x7fc00000U, 0xffc00000U, 0x7f800001U};
@@ -148,8 +154,11 @@ void nn_activation_helpers_f32_tanh_nan_index_bounded(void)
         memcpy(&x, &nan_patterns[i], sizeof(x));
         const float32_t y = arm_nn_tanh_scalar_ref_f32(x);
         const uint32_t y_bits = f32_bits(y);
+        /* Exponent all ones and mantissa non-zero: a NaN of either sign. */
         TEST_ASSERT_TRUE((y_bits & 0x7fffffffU) > 0x7f800000U);
+#if !defined(__ARM_FP)
         TEST_ASSERT_TRUE((y_bits & 0x00400000U) != 0U);
+#endif
     }
 }
 
