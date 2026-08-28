@@ -62,11 +62,23 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../.. cmsis-nn)
 if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 AND CMAKE_C_COMPILER_ID MATCHES "Clang")
     target_compile_options(cmsis-nn PRIVATE -Wno-error=unknown-attributes)
 endif()
-# The library above keeps its own optimisation level. The harness and the suites below are compiled
-# with finite-math assumptions disabled on every compiler: Unity's TEST_ASSERT_FLOAT_IS_NAN/IS_INF
-# reduce to `n != n`, which -ffinite-math-only (implied by -Ofast) folds to false, and Unity's failure
-# printer then loops forever on the non-finite value it is asked to print. On a Cortex-M0 build that
-# hung test_arm_reduce_sum_f32's NaN/Inf case for hours; on the host it reproduces at -Ofast.
+# The library above keeps its own optimisation level. Everything configured below inherits these
+# directory-level options -- the Unity harness and the suites, and on the Corstone-300 build the
+# retarget/uart shims and the CMSIS startup/system objects too -- and so is built with finite-math
+# assumptions disabled on every compiler. Unity's TEST_ASSERT_FLOAT_IS_NAN/IS_INF go through
+# UNITY_IS_NAN/UNITY_IS_INF, which with a math.h in scope expand to __builtin_isnan() and
+# __builtin_isinf_sign() (`n != n` is only Unity's fallback when math.h supplies no isnan macro).
+# -ffinite-math-only, implied by -Ofast, folds both to false, and Unity's failure printer -- guarded
+# by the same builtins -- then loops forever on the non-finite value it is asked to print. On a
+# Cortex-M0 build that hangs test_arm_reduce_sum_f32's NaN/Inf case indefinitely; on the host it
+# reproduces at -Ofast. armclang goes further and rejects the INFINITY/NAN literals in those suites
+# outright at -Ofast (-Werror,-Wnan-infinity-disabled). Those four Corstone-300 objects are unchanged
+# in code: only their .ARM.attributes Tag_ABI_FP_number_model tag moves from Finite to IEEE 754.
+#
+# Nothing in CI exercises this yet: legacy-tester.yml is workflow_call/workflow_dispatch only and is
+# invoked solely by release.yml's release-unit-tests, which runs build_and_run_tests.sh without
+# -DARM_NN_ENABLE_F32/-DARM_NN_ENABLE_F16, so no job builds a float suite. Dropping this flag would
+# be silent until those float legs are enabled -- do not remove it on the grounds that CI stays green.
 if(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300)
     add_compile_options(${CMSIS_OPTIMIZATION_LEVEL} -fno-finite-math-only)
 elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
