@@ -14,6 +14,8 @@
 #include "../TestData/conv_1x1_stride2_nhwc_f16/test_data.h"
 #include "../TestData/conv_basic_f16/test_data.h"
 #include "../TestData/conv_basic_nhwc_f16/test_data.h"
+#include "../TestData/conv_grouped_dilation_nhwc_f16/test_data.h"
+#include "../TestData/conv_grouped_nhwc_f16/test_data.h"
 #include "../TestData/conv_k3_opt_f16/test_data.h"
 #include "../TestData/conv_k3_opt_nhwc_tuned_f16/test_data.h"
 #include "../TestData/conv_k5_opt_f16/test_data.h"
@@ -46,6 +48,8 @@
 #include "../TestData/conv_match_dilation_golden_f16/test_data.h"
 #include "../TestData/conv_match_out_activation_f16/test_data.h"
 #include "../TestData/conv_match_stride2pad1_f16/test_data.h"
+#include "../TestData/conv_small_kernel_grouped_nhwc_f16/test_data.h"
+#include "../TestData/conv_small_kernel_nhwc_f16/test_data.h"
 
 #define RUN_CONV_F16_CASE(CASE_PREFIX, case_name, tolerance)                                                           \
     void case_name##_arm_convolve_f16(void)                                                                            \
@@ -177,10 +181,348 @@ RUN_CONV_F16_CASE(CONV_MATCH_3X3_DILATION_5X5_INPUT_F16, conv_match_3x3_dilation
 RUN_CONV_F16_CASE(CONV_MATCH_2X2_DILATION_5X5_INPUT_F16, conv_match_2x2_dilation_5x5_input_f16, 2.0e-2f)
 
 /*
+ * Grouped convolution (filter_dims.c == IN_CH / groups) is not covered by the
+ * standard macro, which assumes the filter spans all input channels.
+ */
+void conv_grouped_nhwc_f16_arm_convolve_f16(void)
+{
+    float16_t output[CONV_GROUPED_NHWC_F16_DST_SIZE] = {0};
+    cmsis_nn_context ctx = {0};
+    const cmsis_nn_conv_params_f16 conv_params = {
+        .padding = {.w = CONV_GROUPED_NHWC_F16_PADDING_W, .h = CONV_GROUPED_NHWC_F16_PADDING_H},
+        .stride = {.w = CONV_GROUPED_NHWC_F16_STRIDE_W, .h = CONV_GROUPED_NHWC_F16_STRIDE_H},
+        .dilation = {.w = CONV_GROUPED_NHWC_F16_DILATION_W, .h = CONV_GROUPED_NHWC_F16_DILATION_H},
+        .activation = {.min = CONV_GROUPED_NHWC_F16_OUT_ACTIVATION_MIN,
+                       .max = CONV_GROUPED_NHWC_F16_OUT_ACTIVATION_MAX}};
+    const cmsis_nn_dims input_dims = {.n = CONV_GROUPED_NHWC_F16_INPUT_BATCHES,
+                                      .w = CONV_GROUPED_NHWC_F16_INPUT_W,
+                                      .h = CONV_GROUPED_NHWC_F16_INPUT_H,
+                                      .c = CONV_GROUPED_NHWC_F16_IN_CH};
+    const cmsis_nn_dims filter_dims = {.n = CONV_GROUPED_NHWC_F16_OUT_CH,
+                                       .w = CONV_GROUPED_NHWC_F16_FILTER_W,
+                                       .h = CONV_GROUPED_NHWC_F16_FILTER_H,
+                                       .c = CONV_GROUPED_NHWC_F16_FILTER_CH};
+    const cmsis_nn_dims bias_dims = {.n = 1, .w = 1, .h = 1, .c = CONV_GROUPED_NHWC_F16_OUT_CH};
+    const cmsis_nn_dims output_dims = {.n = CONV_GROUPED_NHWC_F16_INPUT_BATCHES,
+                                       .w = CONV_GROUPED_NHWC_F16_OUTPUT_W,
+                                       .h = CONV_GROUPED_NHWC_F16_OUTPUT_H,
+                                       .c = CONV_GROUPED_NHWC_F16_OUTPUT_C};
+    const int32_t buf_size = arm_convolve_f16_get_buffer_size(
+        &conv_params, &input_dims, &filter_dims, &output_dims, CONV_GROUPED_NHWC_F16_LAYOUT);
+
+    if (buf_size > 0)
+    {
+        ctx.buf = malloc((size_t)buf_size);
+        ctx.size = buf_size;
+        TEST_ASSERT_NOT_NULL(ctx.buf);
+    }
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16(&ctx,
+                                       &conv_params,
+                                       &input_dims,
+                                       conv_grouped_nhwc_f16_input_data,
+                                       &filter_dims,
+                                       conv_grouped_nhwc_f16_weights_data,
+                                       &bias_dims,
+                                       conv_grouped_nhwc_f16_biases_data,
+                                       &output_dims,
+                                       output,
+                                       CONV_GROUPED_NHWC_F16_LAYOUT));
+
+    for (int i = 0; i < CONV_GROUPED_NHWC_F16_DST_SIZE; ++i)
+    {
+        TEST_ASSERT_FLOAT_WITHIN(2.0e-2f, (float)conv_grouped_nhwc_f16_output_ref_data[i], (float)output[i]);
+    }
+
+    if (ctx.buf != NULL)
+    {
+        memset(ctx.buf, 0, (size_t)buf_size);
+        free(ctx.buf);
+        ctx.buf = NULL;
+        ctx.size = 0;
+    }
+}
+
+void conv_grouped_dilation_nhwc_f16_arm_convolve_f16(void)
+{
+    float16_t output[CONV_GROUPED_DILATION_NHWC_F16_DST_SIZE] = {0};
+    cmsis_nn_context ctx = {0};
+    const cmsis_nn_conv_params_f16 conv_params = {
+        .padding = {.w = CONV_GROUPED_DILATION_NHWC_F16_PADDING_W, .h = CONV_GROUPED_DILATION_NHWC_F16_PADDING_H},
+        .stride = {.w = CONV_GROUPED_DILATION_NHWC_F16_STRIDE_W, .h = CONV_GROUPED_DILATION_NHWC_F16_STRIDE_H},
+        .dilation = {.w = CONV_GROUPED_DILATION_NHWC_F16_DILATION_W, .h = CONV_GROUPED_DILATION_NHWC_F16_DILATION_H},
+        .activation = {.min = CONV_GROUPED_DILATION_NHWC_F16_OUT_ACTIVATION_MIN,
+                       .max = CONV_GROUPED_DILATION_NHWC_F16_OUT_ACTIVATION_MAX}};
+    const cmsis_nn_dims input_dims = {.n = CONV_GROUPED_DILATION_NHWC_F16_INPUT_BATCHES,
+                                      .w = CONV_GROUPED_DILATION_NHWC_F16_INPUT_W,
+                                      .h = CONV_GROUPED_DILATION_NHWC_F16_INPUT_H,
+                                      .c = CONV_GROUPED_DILATION_NHWC_F16_IN_CH};
+    const cmsis_nn_dims filter_dims = {.n = CONV_GROUPED_DILATION_NHWC_F16_OUT_CH,
+                                       .w = CONV_GROUPED_DILATION_NHWC_F16_FILTER_W,
+                                       .h = CONV_GROUPED_DILATION_NHWC_F16_FILTER_H,
+                                       .c = CONV_GROUPED_DILATION_NHWC_F16_FILTER_CH};
+    const cmsis_nn_dims bias_dims = {.n = 1, .w = 1, .h = 1, .c = CONV_GROUPED_DILATION_NHWC_F16_OUT_CH};
+    const cmsis_nn_dims output_dims = {.n = CONV_GROUPED_DILATION_NHWC_F16_INPUT_BATCHES,
+                                       .w = CONV_GROUPED_DILATION_NHWC_F16_OUTPUT_W,
+                                       .h = CONV_GROUPED_DILATION_NHWC_F16_OUTPUT_H,
+                                       .c = CONV_GROUPED_DILATION_NHWC_F16_OUTPUT_C};
+    const int32_t buf_size = arm_convolve_f16_get_buffer_size(
+        &conv_params, &input_dims, &filter_dims, &output_dims, CONV_GROUPED_DILATION_NHWC_F16_LAYOUT);
+
+    if (buf_size > 0)
+    {
+        ctx.buf = malloc((size_t)buf_size);
+        ctx.size = buf_size;
+        TEST_ASSERT_NOT_NULL(ctx.buf);
+    }
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16(&ctx,
+                                       &conv_params,
+                                       &input_dims,
+                                       conv_grouped_dilation_nhwc_f16_input_data,
+                                       &filter_dims,
+                                       conv_grouped_dilation_nhwc_f16_weights_data,
+                                       &bias_dims,
+                                       conv_grouped_dilation_nhwc_f16_biases_data,
+                                       &output_dims,
+                                       output,
+                                       CONV_GROUPED_DILATION_NHWC_F16_LAYOUT));
+
+    for (int i = 0; i < CONV_GROUPED_DILATION_NHWC_F16_DST_SIZE; ++i)
+    {
+        TEST_ASSERT_FLOAT_WITHIN(2.0e-2f, (float)conv_grouped_dilation_nhwc_f16_output_ref_data[i], (float)output[i]);
+    }
+
+    if (ctx.buf != NULL)
+    {
+        memset(ctx.buf, 0, (size_t)buf_size);
+        free(ctx.buf);
+        ctx.buf = NULL;
+        ctx.size = 0;
+    }
+}
+
+/*
+ * Small-kernel grouped case: rhs_cols = FILTER_H * FILTER_W * FILTER_CH <= 8 and
+ * zero padding, which exercises the MVE gather fast path (arm_convolve_f16_fast_small_kernel).
+ */
+void conv_small_kernel_grouped_nhwc_f16_arm_convolve_f16(void)
+{
+    float16_t output[CONV_SMALL_KERNEL_GROUPED_NHWC_F16_DST_SIZE] = {0};
+    cmsis_nn_context ctx = {0};
+    const cmsis_nn_conv_params_f16 conv_params = {
+        .padding = {.w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_PADDING_W,
+                    .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_PADDING_H},
+        .stride = {.w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_STRIDE_W, .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_STRIDE_H},
+        .dilation = {.w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_DILATION_W,
+                     .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_DILATION_H},
+        .activation = {.min = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUT_ACTIVATION_MIN,
+                       .max = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUT_ACTIVATION_MAX}};
+    const cmsis_nn_dims input_dims = {.n = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_INPUT_BATCHES,
+                                      .w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_INPUT_W,
+                                      .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_INPUT_H,
+                                      .c = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_IN_CH};
+    const cmsis_nn_dims filter_dims = {.n = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUT_CH,
+                                       .w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_FILTER_W,
+                                       .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_FILTER_H,
+                                       .c = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_FILTER_CH};
+    const cmsis_nn_dims bias_dims = {.n = 1, .w = 1, .h = 1, .c = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUT_CH};
+    const cmsis_nn_dims output_dims = {.n = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_INPUT_BATCHES,
+                                       .w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUTPUT_W,
+                                       .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUTPUT_H,
+                                       .c = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUTPUT_C};
+    const int32_t buf_size = arm_convolve_f16_get_buffer_size(
+        &conv_params, &input_dims, &filter_dims, &output_dims, CONV_SMALL_KERNEL_GROUPED_NHWC_F16_LAYOUT);
+
+    if (buf_size > 0)
+    {
+        ctx.buf = malloc((size_t)buf_size);
+        ctx.size = buf_size;
+        TEST_ASSERT_NOT_NULL(ctx.buf);
+    }
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16(&ctx,
+                                       &conv_params,
+                                       &input_dims,
+                                       conv_small_kernel_grouped_nhwc_f16_input_data,
+                                       &filter_dims,
+                                       conv_small_kernel_grouped_nhwc_f16_weights_data,
+                                       &bias_dims,
+                                       conv_small_kernel_grouped_nhwc_f16_biases_data,
+                                       &output_dims,
+                                       output,
+                                       CONV_SMALL_KERNEL_GROUPED_NHWC_F16_LAYOUT));
+
+    for (int i = 0; i < CONV_SMALL_KERNEL_GROUPED_NHWC_F16_DST_SIZE; ++i)
+    {
+        TEST_ASSERT_FLOAT_WITHIN(
+            2.0e-2f, (float)conv_small_kernel_grouped_nhwc_f16_output_ref_data[i], (float)output[i]);
+    }
+
+    if (ctx.buf != NULL)
+    {
+        memset(ctx.buf, 0, (size_t)buf_size);
+        free(ctx.buf);
+        ctx.buf = NULL;
+        ctx.size = 0;
+    }
+}
+
+/* Single-group 1x1 with rhs_cols == 8 exercises the optimized 1x1 dispatch. */
+void conv_small_kernel_nhwc_f16_arm_convolve_f16(void)
+{
+    float16_t output[CONV_SMALL_KERNEL_NHWC_F16_DST_SIZE] = {0};
+    cmsis_nn_context ctx = {0};
+    const cmsis_nn_conv_params_f16 conv_params = {
+        .padding = {.w = CONV_SMALL_KERNEL_NHWC_F16_PADDING_W, .h = CONV_SMALL_KERNEL_NHWC_F16_PADDING_H},
+        .stride = {.w = CONV_SMALL_KERNEL_NHWC_F16_STRIDE_W, .h = CONV_SMALL_KERNEL_NHWC_F16_STRIDE_H},
+        .dilation = {.w = CONV_SMALL_KERNEL_NHWC_F16_DILATION_W, .h = CONV_SMALL_KERNEL_NHWC_F16_DILATION_H},
+        .activation = {.min = CONV_SMALL_KERNEL_NHWC_F16_OUT_ACTIVATION_MIN,
+                       .max = CONV_SMALL_KERNEL_NHWC_F16_OUT_ACTIVATION_MAX}};
+    const cmsis_nn_dims input_dims = {.n = CONV_SMALL_KERNEL_NHWC_F16_INPUT_BATCHES,
+                                      .w = CONV_SMALL_KERNEL_NHWC_F16_INPUT_W,
+                                      .h = CONV_SMALL_KERNEL_NHWC_F16_INPUT_H,
+                                      .c = CONV_SMALL_KERNEL_NHWC_F16_IN_CH};
+    const cmsis_nn_dims filter_dims = {.n = CONV_SMALL_KERNEL_NHWC_F16_OUT_CH,
+                                       .w = CONV_SMALL_KERNEL_NHWC_F16_FILTER_W,
+                                       .h = CONV_SMALL_KERNEL_NHWC_F16_FILTER_H,
+                                       .c = CONV_SMALL_KERNEL_NHWC_F16_FILTER_CH};
+    const cmsis_nn_dims bias_dims = {.n = 1, .w = 1, .h = 1, .c = CONV_SMALL_KERNEL_NHWC_F16_OUT_CH};
+    const cmsis_nn_dims output_dims = {.n = CONV_SMALL_KERNEL_NHWC_F16_INPUT_BATCHES,
+                                       .w = CONV_SMALL_KERNEL_NHWC_F16_OUTPUT_W,
+                                       .h = CONV_SMALL_KERNEL_NHWC_F16_OUTPUT_H,
+                                       .c = CONV_SMALL_KERNEL_NHWC_F16_OUTPUT_C};
+    const int32_t buf_size = arm_convolve_f16_get_buffer_size(
+        &conv_params, &input_dims, &filter_dims, &output_dims, CONV_SMALL_KERNEL_NHWC_F16_LAYOUT);
+
+    if (buf_size > 0)
+    {
+        ctx.buf = malloc((size_t)buf_size);
+        ctx.size = buf_size;
+        TEST_ASSERT_NOT_NULL(ctx.buf);
+    }
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16(&ctx,
+                                       &conv_params,
+                                       &input_dims,
+                                       conv_small_kernel_nhwc_f16_input_data,
+                                       &filter_dims,
+                                       conv_small_kernel_nhwc_f16_weights_data,
+                                       &bias_dims,
+                                       conv_small_kernel_nhwc_f16_biases_data,
+                                       &output_dims,
+                                       output,
+                                       CONV_SMALL_KERNEL_NHWC_F16_LAYOUT));
+
+    for (int i = 0; i < CONV_SMALL_KERNEL_NHWC_F16_DST_SIZE; ++i)
+    {
+        TEST_ASSERT_FLOAT_WITHIN(2.0e-2f, (float)conv_small_kernel_nhwc_f16_output_ref_data[i], (float)output[i]);
+    }
+
+    if (ctx.buf != NULL)
+    {
+        memset(ctx.buf, 0, (size_t)buf_size);
+        free(ctx.buf);
+        ctx.buf = NULL;
+        ctx.size = 0;
+    }
+}
+
+/* Invalid output geometry must not enter the gather kernel and read beyond the input tensor. */
+void conv_small_kernel_grouped_nhwc_f16_rejects_oversized_output(void)
+{
+    float16_t output[CONV_SMALL_KERNEL_GROUPED_NHWC_F16_DST_SIZE] = {0};
+    const cmsis_nn_conv_params_f16 conv_params = {
+        .padding = {.w = 0, .h = 0},
+        .stride = {.w = 1, .h = 1},
+        .dilation = {.w = 1, .h = 1},
+        .activation = {.min = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUT_ACTIVATION_MIN,
+                       .max = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUT_ACTIVATION_MAX}};
+    const cmsis_nn_dims input_dims = {.n = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_INPUT_BATCHES,
+                                      .w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_INPUT_W,
+                                      .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_INPUT_H,
+                                      .c = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_IN_CH};
+    const cmsis_nn_dims filter_dims = {.n = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUT_CH,
+                                       .w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_FILTER_W,
+                                       .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_FILTER_H,
+                                       .c = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_FILTER_CH};
+    const cmsis_nn_dims bias_dims = {.n = 1, .w = 1, .h = 1, .c = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUT_CH};
+    const cmsis_nn_dims output_dims = {.n = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_INPUT_BATCHES,
+                                       .w = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_INPUT_W,
+                                       .h = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUTPUT_H,
+                                       .c = CONV_SMALL_KERNEL_GROUPED_NHWC_F16_OUTPUT_C};
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_convolve_f16_fast_small_kernel(NULL,
+                                                         &conv_params,
+                                                         &input_dims,
+                                                         conv_small_kernel_grouped_nhwc_f16_input_data,
+                                                         &filter_dims,
+                                                         conv_small_kernel_grouped_nhwc_f16_weights_data,
+                                                         &bias_dims,
+                                                         conv_small_kernel_grouped_nhwc_f16_biases_data,
+                                                         &output_dims,
+                                                         output));
+}
+
+/*
  * The packed-convolution coverage allocates a temporary repacked filter and,
  * for generic conv, may also allocate scratch, so it needs explicit test
  * bodies instead of the standard RUN_CONV_F16_CASE macro.
  */
+void conv_small_kernel_nhwc_f16_arm_convolve_f16_packed(void)
+{
+    float16_t output[CONV_SMALL_KERNEL_NHWC_F16_DST_SIZE] = {0};
+    cmsis_nn_context ctx = {0};
+    const cmsis_nn_conv_params_f16 conv_params = {
+        .padding = {.w = CONV_SMALL_KERNEL_NHWC_F16_PADDING_W, .h = CONV_SMALL_KERNEL_NHWC_F16_PADDING_H},
+        .stride = {.w = CONV_SMALL_KERNEL_NHWC_F16_STRIDE_W, .h = CONV_SMALL_KERNEL_NHWC_F16_STRIDE_H},
+        .dilation = {.w = CONV_SMALL_KERNEL_NHWC_F16_DILATION_W, .h = CONV_SMALL_KERNEL_NHWC_F16_DILATION_H},
+        .activation = {.min = CONV_SMALL_KERNEL_NHWC_F16_OUT_ACTIVATION_MIN,
+                       .max = CONV_SMALL_KERNEL_NHWC_F16_OUT_ACTIVATION_MAX},
+        .weight_format = ARM_NN_WEIGHT_FORMAT_NT_N_PACKED};
+    const cmsis_nn_dims input_dims = {.n = CONV_SMALL_KERNEL_NHWC_F16_INPUT_BATCHES,
+                                      .w = CONV_SMALL_KERNEL_NHWC_F16_INPUT_W,
+                                      .h = CONV_SMALL_KERNEL_NHWC_F16_INPUT_H,
+                                      .c = CONV_SMALL_KERNEL_NHWC_F16_IN_CH};
+    const cmsis_nn_dims filter_dims = {.n = CONV_SMALL_KERNEL_NHWC_F16_OUT_CH,
+                                       .w = CONV_SMALL_KERNEL_NHWC_F16_FILTER_W,
+                                       .h = CONV_SMALL_KERNEL_NHWC_F16_FILTER_H,
+                                       .c = CONV_SMALL_KERNEL_NHWC_F16_FILTER_CH};
+    const cmsis_nn_dims bias_dims = {.n = 1, .w = 1, .h = 1, .c = CONV_SMALL_KERNEL_NHWC_F16_OUT_CH};
+    const cmsis_nn_dims output_dims = {.n = CONV_SMALL_KERNEL_NHWC_F16_INPUT_BATCHES,
+                                       .w = CONV_SMALL_KERNEL_NHWC_F16_OUTPUT_W,
+                                       .h = CONV_SMALL_KERNEL_NHWC_F16_OUTPUT_H,
+                                       .c = CONV_SMALL_KERNEL_NHWC_F16_OUTPUT_C};
+    float16_t *packed_weights = pack_rhs_nt_n_from_nt_t_f16(conv_small_kernel_nhwc_f16_weights_data,
+                                                            CONV_SMALL_KERNEL_NHWC_F16_OUT_CH,
+                                                            CONV_SMALL_KERNEL_NHWC_F16_FILTER_CH);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16(&ctx,
+                                       &conv_params,
+                                       &input_dims,
+                                       conv_small_kernel_nhwc_f16_input_data,
+                                       &filter_dims,
+                                       packed_weights,
+                                       &bias_dims,
+                                       conv_small_kernel_nhwc_f16_biases_data,
+                                       &output_dims,
+                                       output,
+                                       CONV_SMALL_KERNEL_NHWC_F16_LAYOUT));
+
+    for (int i = 0; i < CONV_SMALL_KERNEL_NHWC_F16_DST_SIZE; ++i)
+    {
+        TEST_ASSERT_FLOAT_WITHIN(2.0e-2f, (float)conv_small_kernel_nhwc_f16_output_ref_data[i], (float)output[i]);
+    }
+
+    free(packed_weights);
+}
+
 void conv_match_1x1_basic_f16_arm_convolve_f16_packed(void)
 {
     float16_t output[CONV_MATCH_1X1_BASIC_F16_DST_SIZE] = {0};

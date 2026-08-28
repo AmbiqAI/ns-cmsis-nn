@@ -296,6 +296,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
     const int32_t output_c = output_dims->c;
     const int32_t kernel_h = filter_dims->h;
     const int32_t kernel_w = filter_dims->w;
+    const int32_t kernel_ch = filter_dims->c;
     const int32_t stride_h = conv_params->stride.h;
     const int32_t stride_w = conv_params->stride.w;
     const int32_t pad_h = conv_params->padding.h;
@@ -305,63 +306,115 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
     const int32_t patch_len = kernel_h * kernel_w * input_c;
     const int32_t output_positions = output_h * output_w;
 
-    if (arm_conv_nhwc_use_1x1_f16(conv_params, filter_dims))
+    /* Grouped convolution: C_IN = groups * kernel_ch and C_OUT = groups * out_ch_per_group. */
+    if (kernel_ch <= 0 || input_c % kernel_ch != 0)
     {
-        return arm_convolve_1x1_nhwc_f16(ctx,
-                                         conv_params,
-                                         input_dims,
-                                         input_data,
-                                         filter_dims,
-                                         filter_data,
-                                         bias_dims,
-                                         bias_data,
-                                         output_dims,
-                                         output_data);
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    const int32_t groups = input_c / kernel_ch;
+    if (groups <= 0 || output_c % groups != 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    const int32_t output_ch_per_group = output_c / groups;
+    if (groups != 1 && conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
 
-    if (arm_conv_nhwc_use_1xn_f16(ctx, conv_params, input_dims, filter_dims, output_dims))
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    /* Small grouped kernels map the whole receptive field onto one MVE gather. */
+    if (groups != 1 && conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_STANDARD && pad_h == 0 && pad_w == 0 &&
+        kernel_h > 0 && kernel_w > 0 && (int64_t)kernel_h * kernel_w * kernel_ch <= 8 && output_h > 0 && output_w > 0 &&
+        stride_h > 0 && stride_w > 0 && dil_h > 0 && dil_w > 0 &&
+        (int64_t)(output_h - 1) * stride_h + (int64_t)(kernel_h - 1) * dil_h < input_h &&
+        (int64_t)(output_w - 1) * stride_w + (int64_t)(kernel_w - 1) * dil_w < input_w)
     {
-        return arm_convolve_1_x_n_nhwc_f16(ctx,
-                                           conv_params,
-                                           input_dims,
-                                           input_data,
-                                           filter_dims,
-                                           filter_data,
-                                           bias_dims,
-                                           bias_data,
-                                           output_dims,
-                                           output_data);
-    }
-
-    #ifndef NN_DISABLE_SPECIALIZATION
-    /*
-     * Let direct specializations claim their shapes first. Packed-patch GEMM
-     * remains the generic fallback for shapes that are not handled by a tuned
-     * direct kernel.
-     */
-    ARM_CONV_DISPATCH(arm_conv_spec_nhwc_f16,
-                      ARM_CONV_ARRAY_SIZE(arm_conv_spec_nhwc_f16),
-                      ctx,
-                      conv_params,
-                      input_dims,
-                      input_data,
-                      filter_dims,
-                      filter_data,
-                      bias_dims,
-                      bias_data,
-                      output_dims,
-                      output_data);
-    #endif
-
-    const bool use_patch_gemm = arm_conv_nhwc_use_patch_gemm_f16(ctx, patch_len, output_c, output_positions);
-
-    if (use_patch_gemm)
-    {
-        arm_cmsis_nn_status st = arm_convolve_nhwc_patch_gemm_f16(
-            ctx, conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data);
+        const arm_cmsis_nn_status st = arm_convolve_f16_fast_small_kernel(ctx,
+                                                                          conv_params,
+                                                                          input_dims,
+                                                                          input_data,
+                                                                          filter_dims,
+                                                                          filter_data,
+                                                                          bias_dims,
+                                                                          bias_data,
+                                                                          output_dims,
+                                                                          output_data);
         if (st == ARM_CMSIS_NN_SUCCESS)
         {
             return st;
+        }
+    }
+    #endif
+
+    /* The fast paths below assume a single group (filter spans all input channels). */
+    if (groups == 1)
+    {
+        if (arm_conv_nhwc_use_1x1_f16(conv_params, filter_dims))
+        {
+            return arm_convolve_1x1_nhwc_f16(ctx,
+                                             conv_params,
+                                             input_dims,
+                                             input_data,
+                                             filter_dims,
+                                             filter_data,
+                                             bias_dims,
+                                             bias_data,
+                                             output_dims,
+                                             output_data);
+        }
+
+        if (arm_conv_nhwc_use_1xn_f16(ctx, conv_params, input_dims, filter_dims, output_dims))
+        {
+            return arm_convolve_1_x_n_nhwc_f16(ctx,
+                                               conv_params,
+                                               input_dims,
+                                               input_data,
+                                               filter_dims,
+                                               filter_data,
+                                               bias_dims,
+                                               bias_data,
+                                               output_dims,
+                                               output_data);
+        }
+
+    #ifndef NN_DISABLE_SPECIALIZATION
+        /*
+         * Let direct specializations claim their shapes first. Packed-patch GEMM
+         * remains the generic fallback for shapes that are not handled by a tuned
+         * direct kernel.
+         */
+        ARM_CONV_DISPATCH(arm_conv_spec_nhwc_f16,
+                          ARM_CONV_ARRAY_SIZE(arm_conv_spec_nhwc_f16),
+                          ctx,
+                          conv_params,
+                          input_dims,
+                          input_data,
+                          filter_dims,
+                          filter_data,
+                          bias_dims,
+                          bias_data,
+                          output_dims,
+                          output_data);
+    #endif
+
+        const bool use_patch_gemm = arm_conv_nhwc_use_patch_gemm_f16(ctx, patch_len, output_c, output_positions);
+
+        if (use_patch_gemm)
+        {
+            arm_cmsis_nn_status st = arm_convolve_nhwc_patch_gemm_f16(ctx,
+                                                                      conv_params,
+                                                                      input_dims,
+                                                                      input_data,
+                                                                      filter_dims,
+                                                                      filter_data,
+                                                                      bias_data,
+                                                                      output_dims,
+                                                                      output_data);
+            if (st == ARM_CMSIS_NN_SUCCESS)
+            {
+                return st;
+            }
         }
     }
 
@@ -378,8 +431,10 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                 const int32_t in_x0 = out_x * stride_w - pad_w;
                 for (int32_t oc = 0; oc < output_c; ++oc)
                 {
+                    const int32_t group = oc / output_ch_per_group;
+                    const int32_t in_ch_start = group * kernel_ch;
                     _Float16 acc = bias_data ? (_Float16)bias_data[oc] : (_Float16)0;
-                    const float16_t *w_oc = filter_data + (size_t)oc * kernel_h * kernel_w * input_c;
+                    const float16_t *w_oc = filter_data + (size_t)oc * kernel_h * kernel_w * kernel_ch;
 
                     for (int32_t ky = 0; ky < kernel_h; ++ky)
                     {
@@ -395,9 +450,10 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                             {
                                 continue;
                             }
-                            const float16_t *w_k = w_oc + ((size_t)ky * kernel_w + (size_t)kx) * input_c;
-                            const float16_t *x = input_b + ((size_t)in_y * input_w + (size_t)in_x) * input_c;
-                            acc += (_Float16)arm_conv_dot_f16(x, w_k, input_c);
+                            const float16_t *w_k = w_oc + ((size_t)ky * kernel_w + (size_t)kx) * kernel_ch;
+                            const float16_t *x =
+                                input_b + ((size_t)in_y * input_w + (size_t)in_x) * input_c + in_ch_start;
+                            acc += (_Float16)arm_conv_dot_f16(x, w_k, kernel_ch);
                         }
                     }
 

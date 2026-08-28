@@ -61,6 +61,7 @@ class ConvCaseFlt:
     activation_min: float
     activation_max: float
     seed: int
+    groups: int = 1
     input_min: float = -1.0
     input_max: float = 1.0
     weight_min: float = -0.75
@@ -93,8 +94,19 @@ class ConvSettingsFlt:
         return load_pregenerated_array(filepath, shape)
 
     def _get_raw_tensors(self, regenerate_input: bool) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        groups = self.case.groups
+        if groups < 1 or self.case.input_channels % groups != 0 or self.case.output_channels % groups != 0:
+            raise RuntimeError(
+                "ERROR: input/output channels must be divisible by groups "
+                f"(in_ch={self.case.input_channels}, out_ch={self.case.output_channels}, groups={groups})"
+            )
         input_shape = (self.case.batches, self.case.input_channels, self.case.input_h, self.case.input_w)
-        weight_shape = (self.case.output_channels, self.case.input_channels, self.case.kernel_h, self.case.kernel_w)
+        weight_shape = (
+            self.case.output_channels,
+            self.case.input_channels // groups,
+            self.case.kernel_h,
+            self.case.kernel_w,
+        )
         bias_shape = (self.case.output_channels,)
 
         if (
@@ -141,6 +153,7 @@ class ConvSettingsFlt:
             stride=(self.case.stride_h, self.case.stride_w),
             padding=(self.case.padding_h, self.case.padding_w),
             dilation=(self.case.dilation_h, self.case.dilation_w),
+            groups=self.case.groups,
         )
         output = torch.clamp(output, min=self.case.activation_min, max=self.case.activation_max)
         return output.cpu().numpy().astype(np.float32)
@@ -159,6 +172,8 @@ class ConvSettingsFlt:
             fh.write(f"#define {prefix}_INPUT_H {self.case.input_h}\n")
             fh.write(f"#define {prefix}_INPUT_W {self.case.input_w}\n")
             fh.write(f"#define {prefix}_IN_CH {self.case.input_channels}\n")
+            fh.write(f"#define {prefix}_FILTER_CH {self.case.input_channels // self.case.groups}\n")
+            fh.write(f"#define {prefix}_GROUPS {self.case.groups}\n")
             fh.write(f"#define {prefix}_FILTER_H {self.case.kernel_h}\n")
             fh.write(f"#define {prefix}_FILTER_W {self.case.kernel_w}\n")
             fh.write(f"#define {prefix}_OUT_CH {self.case.output_channels}\n")
@@ -1000,11 +1015,106 @@ def _build_cases() -> list[ConvCaseFlt]:
         ),
     ]
 
+    grouped_f16_cases = [
+        ConvCaseFlt(
+            dataset="conv_grouped_nhwc_f16",
+            dtype_name="f16",
+            layout="nhwc",
+            use_wrapper=False,
+            batches=1,
+            input_h=6,
+            input_w=7,
+            input_channels=8,
+            output_channels=12,
+            kernel_h=3,
+            kernel_w=3,
+            stride_h=1,
+            stride_w=1,
+            padding_h=1,
+            padding_w=1,
+            dilation_h=1,
+            dilation_w=1,
+            activation_min=-1000.0,
+            activation_max=1000.0,
+            seed=2127,
+            groups=2,
+        ),
+        ConvCaseFlt(
+            dataset="conv_grouped_dilation_nhwc_f16",
+            dtype_name="f16",
+            layout="nhwc",
+            use_wrapper=False,
+            batches=1,
+            input_h=7,
+            input_w=9,
+            input_channels=8,
+            output_channels=12,
+            kernel_h=3,
+            kernel_w=3,
+            stride_h=1,
+            stride_w=1,
+            padding_h=2,
+            padding_w=2,
+            dilation_h=2,
+            dilation_w=2,
+            activation_min=-1000.0,
+            activation_max=1000.0,
+            seed=2128,
+            groups=2,
+        ),
+        ConvCaseFlt(
+            dataset="conv_small_kernel_grouped_nhwc_f16",
+            dtype_name="f16",
+            layout="nhwc",
+            use_wrapper=False,
+            batches=1,
+            input_h=5,
+            input_w=6,
+            input_channels=4,
+            output_channels=8,
+            kernel_h=2,
+            kernel_w=2,
+            stride_h=1,
+            stride_w=1,
+            padding_h=0,
+            padding_w=0,
+            dilation_h=1,
+            dilation_w=1,
+            activation_min=-1000.0,
+            activation_max=1000.0,
+            seed=2129,
+            groups=2,
+        ),
+        ConvCaseFlt(
+            dataset="conv_small_kernel_nhwc_f16",
+            dtype_name="f16",
+            layout="nhwc",
+            use_wrapper=False,
+            batches=1,
+            input_h=5,
+            input_w=6,
+            input_channels=8,
+            output_channels=12,
+            kernel_h=1,
+            kernel_w=1,
+            stride_h=1,
+            stride_w=1,
+            padding_h=0,
+            padding_w=0,
+            dilation_h=1,
+            dilation_w=1,
+            activation_min=-1000.0,
+            activation_max=1000.0,
+            seed=2130,
+            groups=1,
+        ),
+    ]
+
     f16_cases = [
         ConvCaseFlt(**{**case.__dict__, "dataset": case.dataset.replace("_f32", "_f16"), "dtype_name": "f16"})
         for case in base_cases
     ]
-    return base_cases + f16_cases
+    return base_cases + f16_cases + grouped_f16_cases
 
 
 def parse_args() -> argparse.Namespace:
