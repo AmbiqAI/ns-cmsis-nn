@@ -6313,9 +6313,16 @@ arm_cmsis_nn_status arm_reduce_min_s16(const int16_t *input_data,
  * @param[out]  output      Pointer to the output int8_t array.
  * @param[in]   size        Number of elements in the arrays.
  * @param[in]   zero_point  Zero point (offset) to apply during quantization.
- * @param[in]   scale       Scale factor to apply during quantization.
+ * @param[in]   scale       Scale factor to apply during quantization. Must be a positive finite number. A scale
+ *                         that is zero, negative, NaN, Inf, or small enough that its reciprocal overflows is
+ *                         unsupported, and the result is then unspecified: the scalar and Helium legs are not
+ *                         guaranteed to agree for such a scale. Denormal inputs are likewise unspecified: the
+ *                         Helium leg flushes them to zero, so the two legs are not guaranteed to agree for a
+ *                         denormal input at any scale. Screen denormals if you need them to match.
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</CODE>
+ * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR when @p zero_point lies outside the int8_t range.
+ *             Values round half away from zero and saturate to the int8_t range after the zero point is applied;
+ *             NaN maps to @p zero_point.
  */
 arm_cmsis_nn_status
 arm_quantize_f32_s8(const float *input, int8_t *output, int32_t size, int32_t zero_point, float scale);
@@ -6326,9 +6333,16 @@ arm_quantize_f32_s8(const float *input, int8_t *output, int32_t size, int32_t ze
  * @param[out]  output      Pointer to the output int16_t array.
  * @param[in]   size        Number of elements in the arrays.
  * @param[in]   zero_point  Zero point (offset) to apply during quantization.
- * @param[in]   scale       Scale factor to apply during quantization.
+ * @param[in]   scale       Scale factor to apply during quantization. Must be a positive finite number. A scale
+ *                         that is zero, negative, NaN, Inf, or small enough that its reciprocal overflows is
+ *                         unsupported, and the result is then unspecified: the scalar and Helium legs are not
+ *                         guaranteed to agree for such a scale. Denormal inputs are likewise unspecified: the
+ *                         Helium leg flushes them to zero, so the two legs are not guaranteed to agree for a
+ *                         denormal input at any scale. Screen denormals if you need them to match.
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</CODE>
+ * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR when @p zero_point lies outside the int16_t range.
+ *             Values round half away from zero and saturate to the int16_t range after the zero point is applied;
+ *             NaN maps to @p zero_point.
  */
 arm_cmsis_nn_status
 arm_quantize_f32_s16(const float *input, int16_t *output, int32_t size, int32_t zero_point, float scale);
