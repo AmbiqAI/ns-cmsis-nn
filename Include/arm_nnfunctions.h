@@ -2802,7 +2802,9 @@ int32_t arm_fully_connected_per_channel_s16_get_buffer_size_mve(const cmsis_nn_d
  * @param[in]       out_activation_min minimum value to clamp output to. Min: -128
  * @param[in]       out_activation_max maximum value to clamp output to. Max: 127
  *
- * @return     The function returns    ARM_CMSIS_NN_SUCCESS
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
+ *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
+ *             their broadcast shape.
  */
 arm_cmsis_nn_status arm_add_s8(const int8_t *input1_data,
                                const cmsis_nn_dims *input1_dims,
@@ -3050,7 +3052,9 @@ arm_cmsis_nn_status arm_rsqrt_s16_universal(const int16_t *input,
  * @param[in]       out_activation_min minimum value to clamp output to. Min: -128
  * @param[in]       out_activation_max maximum value to clamp output to. Max: 127
  *
- * @return     The function returns    ARM_CMSIS_NN_SUCCESS
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
+ *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
+ *             their broadcast shape.
  */
 arm_cmsis_nn_status arm_sub_s8(const int8_t *input1_data,
                                const cmsis_nn_dims *input1_dims,
@@ -3166,7 +3170,9 @@ arm_cmsis_nn_status arm_elementwise_sub_s8(const int8_t *input_1_vect,
  * @param[in]       out_activation_min minimum value to clamp output to. Min: -128
  * @param[in]       out_activation_max maximum value to clamp output to. Max: 127
  *
- * @return     The function returns    ARM_CMSIS_NN_SUCCESS
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
+ *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
+ *             their broadcast shape.
  */
 arm_cmsis_nn_status arm_add_s16(const int16_t *input1_data,
                                 const cmsis_nn_dims *input1_dims,
@@ -3283,7 +3289,9 @@ arm_cmsis_nn_status arm_elementwise_add_s16(const int16_t *input_1_vect,
  * @param[in]       out_activation_min minimum value to clamp output to. Min: -128
  * @param[in]       out_activation_max maximum value to clamp output to. Max: 127
  *
- * @return     The function returns    ARM_CMSIS_NN_SUCCESS
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
+ *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
+ *             their broadcast shape.
  */
 arm_cmsis_nn_status arm_sub_s16(const int16_t *input1_data,
                                 const cmsis_nn_dims *input1_dims,
@@ -3381,6 +3389,9 @@ arm_cmsis_nn_status arm_elementwise_sub_s16(const int16_t *input_1_vect,
 
 /**
  * @brief s8 elementwise squared difference of two tensors with support for broadcasting.
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
+ *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
+ *             their broadcast shape.
  */
 arm_cmsis_nn_status arm_squared_difference_s8(const int8_t *input1_data,
                                               const cmsis_nn_dims *input1_dims,
@@ -3443,6 +3454,9 @@ arm_cmsis_nn_status arm_elementwise_squared_difference_s8(const int8_t *input_1_
 
 /**
  * @brief s16 elementwise squared difference of two tensors with support for broadcasting.
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
+ *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
+ *             their broadcast shape.
  */
 arm_cmsis_nn_status arm_squared_difference_s16(const int16_t *input1_data,
                                                const cmsis_nn_dims *input1_dims,
@@ -3519,7 +3533,9 @@ arm_cmsis_nn_status arm_elementwise_squared_difference_s16(const int16_t *input_
  * @param[in]       out_activation_min minimum value to clamp output to. Min: -128
  * @param[in]       out_activation_max maximum value to clamp output to. Max: 127
  *
- * @return     The function returns    ARM_CMSIS_NN_SUCCESS
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
+ *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
+ *             their broadcast shape.
  */
 arm_cmsis_nn_status arm_mul_s8(const int8_t *input1_data,
                                const cmsis_nn_dims *input1_dims,
@@ -3608,7 +3624,9 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
  * @param[in]       out_activation_min minimum value to clamp output to. Min: -32768
  * @param[in]       out_activation_max maximum value to clamp output to. Max: 32767
  *
- * @return     The function returns    ARM_CMSIS_NN_SUCCESS
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
+ *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
+ *             their broadcast shape.
  */
 arm_cmsis_nn_status arm_mul_s16(const int16_t *input1_data,
                                 const cmsis_nn_dims *input1_dims,
@@ -4490,7 +4508,9 @@ arm_cmsis_nn_status arm_hard_swish_precise_s16(const int16_t *input,
  * @param[in]      output_shift_alpha              Output shift 2
  * @param[in]      output_dims                 Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output                      Pointer to the output buffer
- * @return         The function returns ARM_MATH_SUCCESS
+ * @return         ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a
+ *                 dimension is not positive, alpha does not broadcast into the input, or the output
+ *                 dimensions do not match the input dimensions.
  */
 arm_cmsis_nn_status arm_prelu_s8(const cmsis_nn_dims *input_dims,
                                  const int8_t *input,
@@ -4580,8 +4600,9 @@ arm_cmsis_nn_status arm_prelu_scalar_s8(const int8_t *scalar_vect,
  * @param[in]      output_shift_alpha          Output shift when input < 0
  * @param[in]      output_dims                 Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output                      Pointer to the output buffer
- * @return         ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR if the output dimensions do not match the
- *                 input dimensions
+ * @return         ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a
+ *                 dimension is not positive, alpha does not broadcast into the input, or the output
+ *                 dimensions do not match the input dimensions.
  */
 arm_cmsis_nn_status arm_prelu_s16(const cmsis_nn_dims *input_dims,
                                   const int16_t *input,

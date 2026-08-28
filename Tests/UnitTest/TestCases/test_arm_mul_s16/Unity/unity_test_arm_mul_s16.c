@@ -41,3 +41,5 @@ void test_mul_broadcast_h_s16_arm_mul_s16(void) { mul_broadcast_h_s16_arm_mul_s1
 void test_mul_broadcast_w_s16_arm_mul_s16(void) { mul_broadcast_w_s16_arm_mul_s16(); }
 void test_mul_broadcast_c_s16_arm_mul_s16(void) { mul_broadcast_c_s16_arm_mul_s16(); }
 void test_mul_broadcast_hc_s16_arm_mul_s16(void) { mul_broadcast_hc_s16_arm_mul_s16(); }
+void test_mul_broadcast_batch_scalar_s16_arm_mul_s16(void) { mul_broadcast_batch_scalar_s16_arm_mul_s16(); }
+void test_mul_dims_arg_error_s16_arm_mul_s16(void) { mul_dims_arg_error_s16_arm_mul_s16(); }
