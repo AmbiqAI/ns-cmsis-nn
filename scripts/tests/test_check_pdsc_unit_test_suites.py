@@ -33,11 +33,13 @@
 #     the check unusable and get it deleted;
 #   - the allowlist is keyed by exact resolved include path, not by
 #     suite name, so it must suppress only its own listed paths -- a new
-#     dangling include in the same allowlisted suite (the shape PR #236
+#     dangling include in the same allowlisted suite (the shape a PR
 #     would add if it shipped a new float dataset without checking the
 #     data in) must still be red -- and must go red once a listed path
-#     stops dangling or its suite is unregistered, so the temporary #236
-#     exemption cannot silently grow or outlive its reason.
+#     stops dangling or its suite is unregistered, so an exemption cannot
+#     silently grow or outlive its reason. The live allowlist is empty
+#     (its one #236-era entry, test_arm_convolve_f16, was deleted with
+#     the suite), so these cases run on synthetic allowlists.
 #
 # Run with: python3 scripts/tests/test_check_pdsc_unit_test_suites.py
 
@@ -155,8 +157,8 @@ class SuiteDataCase(unittest.TestCase):
     # -- the real tree ---------------------------------------------------
 
     def test_repo_is_clean(self):
-        """The live tree passes: every registered suite resolves, modulo
-        the one temporary #236 allowlist entry."""
+        """The live tree passes: every registered suite resolves, with
+        no allowlist entry covering for anything."""
         mod = load_checker()
         mod.failures.clear()
         mod.check_unit_test_suite_data()
@@ -175,38 +177,13 @@ class SuiteDataCase(unittest.TestCase):
         # The library build and Unity must not be mistaken for suites.
         self.assertNotIn("Unity", suites)
 
-    def test_convolve_f16_is_still_the_only_allowlisted_suite(self):
-        """The #236 exemption is a single named directory, not a policy.
-        If this grows, the guard has become a parking spot."""
+    def test_allowlist_is_empty(self):
+        """No suite is exempt. The dict exists so a documented, PR-bound
+        exception is possible, but the last one (test_arm_convolve_f16,
+        parked by #256 while #236 was open) left with its suite; if this
+        grows again, the guard has become a parking spot."""
         mod = load_checker()
-        self.assertEqual(list(mod.UNBUILDABLE_SUITE_ALLOWLIST), ["test_arm_convolve_f16"])
-
-    def test_convolve_f16_allowlist_matches_its_actual_dangling_includes(self):
-        """The allowlist is a snapshot of what was dangling when #256
-        landed, not a suite-wide exemption -- pin it against the real
-        `#include "../TestData/...\"` lines in the suite so the two
-        cannot silently drift apart (a path removed from the .c but left
-        allowlisted would go undetected by every other test here, since
-        they all use a synthetic tree)."""
-        mod = load_checker()
-        entries = mod.UNBUILDABLE_SUITE_ALLOWLIST["test_arm_convolve_f16"]
-        tracked = mod.tracked_repo_files()
-        self.assertIsNotNone(tracked)
-        src = REPO / "Tests/UnitTest/TestCases/test_arm_convolve_f16/test_arm_convolve_f16.c"
-        text = src.read_text(encoding="utf-8")
-        src_dir = "Tests/UnitTest/TestCases/test_arm_convolve_f16"
-        actually_dangling = set()
-        for inc in mod.QUOTED_INCLUDE_RE.findall(text):
-            if "/" not in inc:
-                continue
-            resolved = os.path.normpath(f"{src_dir}/{inc}")
-            if resolved not in tracked:
-                actually_dangling.add(resolved)
-        self.assertEqual(set(entries), actually_dangling)
-        # Every reason string names #236, since that PR is the sole
-        # justification for the whole allowlist existing.
-        for reason in entries.values():
-            self.assertIn("#236", reason)
+        self.assertEqual(mod.UNBUILDABLE_SUITE_ALLOWLIST, {})
 
     # -- must stay green -------------------------------------------------
 
@@ -281,7 +258,7 @@ class SuiteDataCase(unittest.TestCase):
         # must resolve against the shared tree.
         self.assertGreen(files=HEALTHY, suites=["test_arm_add_s8"])
 
-    # -- the temporary #236 allowlist -------------------------------------
+    # -- the allowlist (synthetic entries; the live dict is empty) ---------
 
     def test_allowlist_suppresses_its_own_entry(self):
         self.assertGreen(
@@ -317,10 +294,9 @@ class SuiteDataCase(unittest.TestCase):
         self.assertNotIn("test_arm_softmax_f32", joined)
 
     def test_allowlist_does_not_cover_a_new_dangling_path_in_the_same_suite(self):
-        """The shape PR #236 must not be able to slip past: adding a
-        second dataset to an already-allowlisted suite without checking
-        its data in must still be red, because the allowlist is keyed by
-        the exact path, not by suite name."""
+        """Adding a second dataset to an already-allowlisted suite without
+        checking its data in must still be red, because the allowlist is
+        keyed by the exact path, not by suite name."""
         files = dict(DECOY)
         files[f"{PREFIX}test_arm_softmax_f32/test_arm_softmax_f32.c"] += (
             '#include "../TestData/softmax_new_case_f32/test_data.h"\n'
@@ -359,7 +335,7 @@ class SuiteDataCase(unittest.TestCase):
         )
 
     def test_unregistered_allowlist_entry_is_caught(self):
-        """If #236 lands by deleting the suite, the entry must go too."""
+        """If a suite is deleted, its entry must go too."""
         self.assertRed(
             files=HEALTHY,
             suites=["test_arm_add_s8"],

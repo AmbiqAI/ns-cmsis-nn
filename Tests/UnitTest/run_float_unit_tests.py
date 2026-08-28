@@ -35,16 +35,23 @@ class FloatTestFamily:
     name: str
     generator_script: str | None
     selector_by_dtype: dict[str, list[str]]
-    cmsis_project: str
+    # None for a family with no buildable suite in any dtype (an empty
+    # selector_by_dtype); every stage skips such a family before it
+    # asks for a target or context.
+    cmsis_project: str | None
 
     @property
     def host_target_prefix(self) -> str:
+        if self.cmsis_project is None:
+            raise SystemExit(f"Float test family '{self.name}' has no host or CMSIS suite.")
         return self.cmsis_project.removesuffix("_flt")
 
     def host_target(self, dtype_name: str) -> str:
         return f"{self.host_target_prefix}_{dtype_name}"
 
     def cmsis_context(self, dtype_name: str, target_type: str) -> str:
+        if self.cmsis_project is None:
+            raise SystemExit(f"Float test family '{self.name}' has no host or CMSIS suite.")
         return f"{self.cmsis_project}.{dtype_name.upper()}+{target_type}"
 
 
@@ -107,18 +114,28 @@ CPU_ALIASES = {
 }
 
 FAMILY_CONFIGS: dict[str, FloatTestFamily] = {
-    # F16-only: the F32 half (host suite test_arm_convolve_f32 and the
-    # test_arm_convolve_flt.F32+... CMSIS context) was deleted with #256,
-    # so "f32" is intentionally absent from selector_by_dtype below --
-    # that absence is what the per-family dtype-availability guards in
+    # No buildable suite in either dtype: the F32 half (host suite
+    # test_arm_convolve_f32 and the test_arm_convolve_flt.F32+... CMSIS
+    # context) was deleted with #256, and the F16 half
+    # (test_arm_convolve_f16 and the test_arm_convolve_flt project) was
+    # deleted afterwards for the same reason -- every ../TestData include
+    # dangled, so it never built from a clean checkout. Both dtypes are
+    # therefore absent from selector_by_dtype below; that absence is what
+    # the per-family dtype-availability guards in
     # generate_float_test_data() / configure_and_build_host() /
-    # run_host_tests() / build_cmsis_tests() key off of to skip this
-    # family's f32 leg instead of erroring.
+    # run_host_tests() / build_cmsis_tests() / run_fvp_tests() key off of
+    # to SKIP each leg instead of erroring. The family stays listed so
+    # `--tests convolve` (and the `conv` alias) keeps resolving, and
+    # conv_settings_flt.py remains usable offline. As a result no Unity
+    # suite covers f16 convolution in this repo: it is still exercised by
+    # the helia-core-tester FP16 convolve descriptors, and a Unity suite
+    # for the packed f16 path (test_arm_convolve_packed_f16) is proposed
+    # in #325, not present here.
     "convolve": FloatTestFamily(
         name="convolve",
         generator_script="conv_settings_flt.py",
-        selector_by_dtype={"f16": ["conv_f16_family"]},
-        cmsis_project="test_arm_convolve_flt",
+        selector_by_dtype={},
+        cmsis_project=None,
     ),
     "reshape": FloatTestFamily(
         name="reshape",

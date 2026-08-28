@@ -15,7 +15,6 @@ want fresh sampled inputs.
 
 Current shared projects:
 
-- `test_arm_convolve_flt`
 - `test_arm_reshape_flt`
 - `test_arm_transpose_conv_flt`
 
@@ -49,9 +48,14 @@ python3 run_float_unit_tests.py \
 
 Useful options:
 
-- `--tests`: comma-separated family list such as `convolve,reshape`
-  or `transpose_conv` (see `Current shared projects` above for the full
-  list; `convolve` is F16-only, see the `Build` section below)
+- `--tests`: comma-separated family list such as `reshape,transpose_conv`
+  (see `Current shared projects` above for the full list; `convolve` is
+  still accepted but has no buildable suite in either dtype -- its F32
+  half went with #256 and its F16 half, `test_arm_convolve_f16`, was
+  deleted as unbuildable too; no Unity suite covers f16 convolution here
+  any more -- it is still exercised by the helia-core-tester FP16 convolve
+  descriptors, and a Unity suite for the packed f16 path
+  (`test_arm_convolve_packed_f16`) is proposed in #325)
 - `--dtypes`: `f32`, `f16`, or `f32,f16`
 - `--toolchains`: comma-separated `cbuild` toolchains such as `GCC@15.2.1,AC6@6.24.0`
 - `--regenerate-input`: refresh pregenerated float samples before rebuilding
@@ -87,13 +91,6 @@ contexts:
 - `.F32+Corstone-300-FVP`
 - `.F16+Corstone-300-FVP`
 
-`test_arm_convolve_flt` exposes only `.F16+Corstone-300-FVP` — its F32 half
-(`test_arm_convolve_f32`) was one of the suites #256 deleted, and the
-project is pinned to `for-context: [.F16]` in
-`cmsis_nn_unit_tests_flt.csolution.yml` so the F32 context cannot be
-selected at all (it would otherwise resolve to a context with no `main`
-and fail to link).
-
 ## Prerequisites
 
 1. Register the local NS-CMSIS-NN pack:
@@ -119,12 +116,12 @@ export GCC_TOOLCHAIN_15_2_1=<gcc-toolchain-bin>
 cd <repo-root>/Tests/UnitTest/cmsis
 
 cbuild --update-rte \
-  --context test_arm_convolve_flt.F16+Corstone-300-FVP \
+  --context test_arm_transpose_conv_flt.F16+Corstone-300-FVP \
   cmsis_nn_unit_tests_flt.csolution.yml \
   -j4 \
   --toolchain GCC@15.2.1
 
-cbuild --context test_arm_convolve_flt.F16+Corstone-300-FVP \
+cbuild --context test_arm_transpose_conv_flt.F16+Corstone-300-FVP \
   cmsis_nn_unit_tests_flt.csolution.yml \
   -j4 \
   --toolchain GCC@15.2.1
@@ -138,25 +135,13 @@ cd <repo-root>/Tests/UnitTest
 python3 unittest_targets.py --download-and-generate-test-runners
 ```
 
-You can replace `test_arm_convolve_flt` with `test_arm_reshape_flt` or
-`test_arm_transpose_conv_flt`, and for either of those two, replace `F16`
-with `F32` (or vice versa) — both build-types are valid for them.
-`test_arm_convolve_flt` is F16-only (see `Build` above); do not substitute
-`F32` for it, that context does not resolve.
+You can replace `test_arm_transpose_conv_flt` with `test_arm_reshape_flt`,
+and for either of them, replace `F16` with `F32` (or vice versa) — both
+build-types are valid for both projects.
 
-Examples for the newly added families:
+Example for a single context, one job:
 
 ```bash
-# convolve f16
-cbuild --update-rte \
-  --context test_arm_convolve_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-cbuild \
-  --context test_arm_convolve_flt.F16+Corstone-300-FVP \
-  cmsis_nn_unit_tests_flt.csolution.yml \
-  -j1 --toolchain GCC@15.2.1
-
 # transpose conv f16
 cbuild --update-rte \
   --context test_arm_transpose_conv_flt.F16+Corstone-300-FVP \

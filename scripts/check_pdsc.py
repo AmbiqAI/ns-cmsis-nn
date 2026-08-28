@@ -1130,84 +1130,17 @@ SUITE_SOURCE_SUFFIXES = (".c", ".h", ".cpp", ".hpp")
 # registration is how the #256 suites hid.
 NON_SUITE_SUBDIRS = frozenset({"Unity"})
 
-# TEMPORARY ALLOWLIST — REMOVE WITH #236.
-#
-# ############################################################
-# #  Exactly one suite, and it is not a precedent. Do not add #
-# #  to this dict. A suite that cannot compile gets deleted   #
-# #  (#256's disposition), not allowlisted.                   #
-# ############################################################
-#
-# test_arm_convolve_f16 is broken in precisely the way this check exists
-# to catch: dangling `../TestData/...` includes, exactly like the suites
-# #256 deleted. It was left in place by the #256 sweep only because PR
-# #236 is open against that exact directory, and deleting it underneath
-# an in-flight PR trades one avoidable mess for another. Its fate rides
-# with #236 — whichever way that PR lands, this entry and (if #236 does
-# not fix the suite) the directory itself must go with it. If #236 closes
-# unmerged, delete the suite and this entry.
-#
-# Keyed by the exact resolved include path rather than by suite name, so
-# this stays a snapshot of what was already broken when #256 landed and
-# cannot silently absorb something new: PR #236 is expected to add its
-# own float datasets, and if it adds a `../TestData/...` include without
-# checking the data in, that path is not in this dict and check #10 fires
-# on it — which mechanically enforces what #236's own review already
-# requires. Paths that #236 fixes (checked the data in) stop being
-# dangling and are caught as stale entries below; paths #236 leaves
-# broken stay allowlisted under their existing entry.
-#
-# Enumerated from Tests/UnitTest/TestCases/test_arm_convolve_f16/test_arm_convolve_f16.c
-# as of this PR — see that file for the current list if this ever needs
-# re-deriving.
-_CONVOLVE_F16_ALLOWLIST_REASON = (
-    "dangling ../TestData include, same as the suites #256 deleted; "
-    "excluded from that sweep only because PR #236 has test_arm_convolve_f16 "
-    "open. Delete this entry (and the suite, unless #236 repairs it) when "
-    "#236 lands; if #236 closes unmerged, delete the suite and this entry."
-)
-UNBUILDABLE_SUITE_ALLOWLIST: dict[str, dict[str, str]] = {
-    "test_arm_convolve_f16": {
-        path: _CONVOLVE_F16_ALLOWLIST_REASON
-        for path in (
-            "Tests/UnitTest/TestCases/TestData/conv_1x1_stride2_nhwc_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_basic_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_basic_nhwc_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_k3_opt_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_k3_opt_nhwc_tuned_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_k5_opt_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_k5_opt_nhwc_tuned_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_kernel_2x2_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_kernel_3x3_pad1_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1x1_basic_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1x1_stride_x_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1x1_stride_x_y_1_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1x1_stride_x_y_2_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1x1_stride_x_y_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_1_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_2_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_3_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_4_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_5_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_6_generic_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_7_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_8_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_2x2_dilation_5x5_input_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_2x2_dilation_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_2x3_dilation_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_3x2_dilation_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_3x3_dilation_5x5_input_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_basic_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_conv_2_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_conv_3_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_conv_4_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_conv_5_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_dilation_golden_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_out_activation_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_stride2pad1_f16/test_data.h",
-        )
-    },
-}
+# Registered suites whose relative includes are allowed to dangle, keyed
+# by suite name and then by the exact resolved include path, each with a
+# documented reason. Empty on purpose: the one entry it ever held
+# (test_arm_convolve_f16, parked here by #256 while PR #236 had that
+# directory open) went with the suite's deletion. A suite that cannot
+# compile gets deleted (#256's disposition), not allowlisted -- adding to
+# this dict is the exception, and it must name the PR that removes it
+# again. The stale-entry sweep at the end of check_unit_test_suite_data()
+# fails any entry whose path no longer dangles or whose suite is no
+# longer registered, so an exception cannot outlive its reason.
+UNBUILDABLE_SUITE_ALLOWLIST: dict[str, dict[str, str]] = {}
 
 
 def tracked_repo_files() -> set[str] | None:

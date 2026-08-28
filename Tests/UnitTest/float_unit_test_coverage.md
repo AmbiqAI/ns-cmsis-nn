@@ -14,7 +14,7 @@ Covered dtypes: `f32`, `f16`
 
 | Family | Generator | Host Targets | CMSIS Project |
 | --- | --- | --- | --- |
-| `convolve` | `conv_settings_flt.py` | `test_arm_convolve_f16` | `test_arm_convolve_flt` |
+| `convolve` | `conv_settings_flt.py` | none | none |
 | `reshape` | `none` | `test_arm_reshape_f32`, `test_arm_reshape_f16` | `test_arm_reshape_flt` |
 | `transpose_conv` | `transpose_conv_settings_flt.py` | `test_arm_transpose_conv_f32`, `test_arm_transpose_conv_f16` | `test_arm_transpose_conv_flt` |
 
@@ -22,22 +22,38 @@ Covered dtypes: `f32`, `f16`
 
 ### `convolve`
 
-Regular convolution coverage spanning generic 2D shapes and float-specific optimized 1D cases.
+No Unity coverage in either dtype: both suites were deleted as unbuildable, so
+no Unity suite in this repo compiles or runs a float convolution case. (Float16
+convolution is still exercised outside the Unity suites -- see below.) The
+family is listed only because `--tests convolve` still resolves and its
+generator is still usable offline.
 
-- Generator: `conv_settings_flt.py`
-- Host targets: `test_arm_convolve_f16`
-- CMSIS project: `test_arm_convolve_flt`
-- CMSIS contexts: `test_arm_convolve_flt.F32+Corstone-300-FVP`, `test_arm_convolve_flt.F16+Corstone-300-FVP`
-- Covered cases:
-  - Generic 3x3 case: input 1x6x9x11, out_ch=10, stride 1, no padding.
+- Generator: `conv_settings_flt.py` (still usable offline; its output is
+  not consumed by any Unity suite)
+- Host targets: none (`test_arm_convolve_f32` deleted in #256,
+  `test_arm_convolve_f16` deleted as unbuildable, never CI-built)
+- CMSIS project: none (`test_arm_convolve_flt` deleted with its only suite)
+- CMSIS contexts: none
+- Covered cases: none
+- Convolution coverage elsewhere: both dtypes are still exercised by the
+  helia-core-tester float convolve descriptors, which run on cortex-m55 (f32
+  and f16) and cortex-m4 (f32) on every PR; a Unity suite for the packed f16 path
+  (`test_arm_convolve_packed_f16`) is proposed in #325 and is not present
+  in this repo.
+- Generator cases, not compiled or executed: `conv_settings_flt.py` defines 35
+  f32 shapes and mirrors every one into an f16 twin, so `--dataset all` writes
+  70 datasets. 26 of the 35 are `conv_match_*` shapes that replay geometries
+  from the integer convolution suites (7 basic/stride/activation, 6 dilation,
+  5 1x1, 8 1xN). The remaining nine are (input dimensions N x H x W x C):
+  - Generic 3x3 case: input 1x9x11x6, out_ch=10, stride 1, no padding.
   - Generic 3x3 wrapper case with the same logical dimensions.
   - 1x1 NHWC stride case: input 1x3x17x11, out_ch=13, stride 1x2, activation clamp [-0.75, 0.75].
-  - Optimized 1x3 case: input 1x8x1x21, out_ch=12.
-  - Optimized 1x5 case: input 1x8x1x21, out_ch=12.
+  - Optimized 1x3 case: input 1x1x21x8, out_ch=12.
+  - Optimized 1x5 case: input 1x1x21x8, out_ch=12.
   - Tuned NHWC 1x3 case: input 1x1x21x16, out_ch=16.
   - Tuned NHWC 1x5 case: input 1x1x21x16, out_ch=16.
-  - Common 2x2 case: input 1x4x6x7, out_ch=5.
-  - Common 3x3 pad1 case: input 1x2x3x6, out_ch=4.
+  - Common 2x2 case: input 1x6x7x4, out_ch=5.
+  - Common 3x3 pad1 case: input 1x3x6x2, out_ch=4.
 
 ### `reshape`
 
