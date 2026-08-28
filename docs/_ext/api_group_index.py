@@ -191,7 +191,7 @@ def _matches(name: str, patterns: tuple[str, ...]) -> bool:
 
 def _dtype(name: str) -> str:
     # `fp16` is a legacy spelling of the same half-precision bucket, still
-    # used by arm_fully_connected_fp16. It has to be probed separately --
+    # used by arm_elementwise_add_fp16. It has to be probed separately --
     # `(^|_)f16($|_)` cannot match `_fp16`, because the `f16` there is
     # preceded by `p` rather than `_` -- and then folded into `f16`, since
     # docs/_static/api-filter.js compares dtype for exact equality against

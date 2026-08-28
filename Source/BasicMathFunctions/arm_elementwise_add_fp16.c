@@ -38,7 +38,9 @@
  *
  */
 
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+#if ARM_NN_ENABLE_F16
+
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
 
 arm_cmsis_nn_status arm_elementwise_add_fp16(const float16_t *input_1_vect,
                                              const float16_t *input_2_vect,
@@ -72,8 +74,8 @@ arm_cmsis_nn_status arm_elementwise_add_fp16(const float16_t *input_1_vect,
     return (ARM_CMSIS_NN_SUCCESS);
 }
 
-#else
-    #if defined(ARM_FLOAT16_SUPPORTED)
+    #else
+        #if defined(ARM_FLOAT16_SUPPORTED)
 
 arm_cmsis_nn_status arm_elementwise_add_fp16(const float16_t *input_1_vect,
                                              const float16_t *input_2_vect,
@@ -96,8 +98,10 @@ arm_cmsis_nn_status arm_elementwise_add_fp16(const float16_t *input_1_vect,
     return (ARM_CMSIS_NN_SUCCESS);
 }
 
-    #endif /* defined(ARM_FLOAT16_SUPPORTED */
-#endif     /* defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE) */
+        #endif /* defined(ARM_FLOAT16_SUPPORTED) */
+    #endif     /* defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE) */
+
+#endif /* ARM_NN_ENABLE_F16 */
 
 /**
  * @} end of Doxygen group

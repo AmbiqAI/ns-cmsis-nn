@@ -245,7 +245,6 @@
         <file category="source" name="Source/FullyConnectedFunctions/arm_batch_matmul_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_f16.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_f32.c"/>
-        <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_fp16.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_get_buffer_sizes_s16.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_get_buffer_sizes_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_per_channel_s16.c"/>
@@ -318,7 +317,6 @@
         <file category="source" name="Source/NNSupportFunctions/arm_nn_transpose_conv_row_s8_s32.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_vec_mat_mul_result_acc_s16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_vec_mat_mul_result_acc_s8_s16.c"/>
-        <file category="source" name="Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_fp16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_per_ch_s16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_per_ch_s8.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_vec_mat_mult_t_s16.c"/>

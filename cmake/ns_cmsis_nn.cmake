@@ -164,8 +164,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     endif()
     if(ARM_NN_ENABLE_F16)
       list(APPEND extras "arm_batch_matmul_f16.c"
-                         "arm_fully_connected_f16.c"
-                         "arm_fully_connected_fp16.c")
+                         "arm_fully_connected_f16.c")
     endif()
   elseif(group STREQUAL "gather")
     set(subdir   "GatherFunctions")
@@ -223,8 +222,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_nn_lstm_step_f16.c"
                          "arm_nn_maxpool1d_f16.c"
                          "arm_nn_mat_mult_nt_t_f16.c"
-                         "arm_nn_mat_mult_nt_n_packed_f16.c"
-                         "arm_nn_vec_mat_mult_t_fp16.c")
+                         "arm_nn_mat_mult_nt_n_packed_f16.c")
     endif()
   elseif(group STREQUAL "pad")
     set(subdir   "PadFunctions")

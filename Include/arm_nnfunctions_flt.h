@@ -1371,6 +1371,37 @@ arm_cmsis_nn_status arm_elementwise_add_f16(const float16_t *input_1_vect,
                                             int32_t block_size);
 
 /**
+ * @brief Legacy float16 elementwise add with fused clamp, kept only for source compatibility with callers that
+ *        predate arm_elementwise_add_f16(). New code should call arm_elementwise_add_f16() instead.
+ *
+ * This entry does NOT share the contract of arm_elementwise_add_f16():
+ *
+ * @warning No argument validation is performed. A NULL @p input_1_vect, @p input_2_vect or @p output is
+ *          dereferenced rather than reported. A @p block_size of 0 writes nothing and still returns
+ *          `ARM_CMSIS_NN_SUCCESS`, where arm_elementwise_add_f16() returns `ARM_CMSIS_NN_ARG_ERROR`.
+ *
+ * @note The clamp does not propagate NaN. Both the Helium path (`vminnm`/`vmaxnm`) and the scalar path (the
+ *       non-propagating `MIN`/`MAX` clamp helper) bound against @p out_activation_max first, so a NaN produced
+ *       by the addition comes back as @p out_activation_max. arm_elementwise_add_f16() documents TensorFlow
+ *       Lite NaN propagation; this entry does not implement it.
+ *
+ * @param[in]  input_1_vect        Pointer to the first input vector. Must not be NULL.
+ * @param[in]  input_2_vect        Pointer to the second input vector. Must not be NULL.
+ * @param[out] output              Pointer to the output vector. Must not be NULL.
+ * @param[in]  out_activation_min  Minimum output clamp value.
+ * @param[in]  out_activation_max  Maximum output clamp value.
+ * @param[in]  block_size          Number of elements to process.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` unconditionally.
+ */
+arm_cmsis_nn_status arm_elementwise_add_fp16(const float16_t *input_1_vect,
+                                             const float16_t *input_2_vect,
+                                             float16_t *output,
+                                             const float16_t out_activation_min,
+                                             const float16_t out_activation_max,
+                                             const int32_t block_size);
+
+/**
  * @brief float16 elementwise subtract of two vectors with fused clamp.
  * @param[in]  input_1_vect        pointer to input vector 1
  * @param[in]  input_2_vect        pointer to input vector 2

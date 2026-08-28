@@ -371,15 +371,11 @@ COND_CLOSE_RE = re.compile(r"^\s*#\s*endif\b")
 PP_RE = re.compile(r"^\s*#")
 
 # Frozen legacy allowlist. Do not extend it for new kernels: a new float
-# source must carry its own ARM_NN_ENABLE_F32/F16 gate.
-#   - the two *_fp16.c files predate the gate and self-guard on
-#     ARM_FLOAT16_SUPPORTED / MVE instead;
-#   - QuantizationFunctions/ takes float32_t across an otherwise integer
-#     API by design, so it is built in integer-only configurations.
-GATE_EXEMPT_FILES = {
-    "Source/BasicMathFunctions/arm_elementwise_add_fp16.c",
-    "Source/FullyConnectedFunctions/arm_fully_connected_fp16.c",
-}
+# source must carry its own ARM_NN_ENABLE_F32/F16 gate. It is empty since the
+# legacy *_fp16.c sources were either removed or gated like every other float
+# source; QuantizationFunctions/ takes float32_t across an otherwise integer
+# API by design, so it is built in integer-only configurations.
+GATE_EXEMPT_FILES: set[str] = set()
 GATE_EXEMPT_DIRS = ("Source/QuantizationFunctions/",)
 
 
@@ -648,8 +644,8 @@ def check_extra_files_annotations() -> None:
 #
 #   - in the pdsc, not in the SSoT: pack consumers can call the kernel,
 #     CMake/Zephyr/NSX consumers get an undefined reference at link time
-#     (#268: arm_fully_connected_fp16, arm_nn_vec_mat_mult_t_fp16,
-#     arm_softmax_u8 shipped that way);
+#     (#268: arm_softmax_u8 and two since-removed legacy fp16 sources
+#     shipped that way);
 #   - in the SSoT, not in the pdsc: the CMake build compiles a file the
 #     pack never ships (and, since check_source_coverage() pins the pdsc
 #     to `git ls-files Source/`, usually means the SSoT names a file that

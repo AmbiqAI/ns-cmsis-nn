@@ -112,7 +112,6 @@ KNOWN_ABSENT_SIZERS = {
     "arm_depthwise_conv_s4_get_buffer_size",
     "arm_depthwise_conv_s16_get_buffer_size",
     "arm_fully_connected_s4_get_buffer_size",
-    "arm_fully_connected_fp16_get_buffer_size",
     "arm_max_pool_s8_get_buffer_size",
     "arm_max_pool_s16_get_buffer_size",
     # Pre-existing, from the batch-matmul ctx documentation (#287).

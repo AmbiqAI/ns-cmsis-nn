@@ -2869,32 +2869,6 @@ __STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(con
     return -1;
 }
 
-#if defined(ARM_FLOAT16_SUPPORTED)
-
-/**
- * @brief fp16 elementwise multiplication with fp16 output
- * @param[in]       lhs                 pointer to input vector 1
- * @param[in]       rhs                 pointer to input vector 2
- * @param[in]       bias                pointer to bias
- * @param[in,out]   dst                 pointer to output vector
- * @param[in]       rhs_cols            number of samples per batch
- * @param[in]       rhs_rows            number of samples per batch
- * @param[in]       activation_min      minimum value to clamp output to
- * @param[in]       activation_max      maximum value to clamp output to
- * @return          The function returns ARM_CMSIS_NN_SUCCESS
- * @details         Supported framework: TensorFlow Lite micro
- */
-arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(const float16_t *lhs,
-                                               const float16_t *rhs,
-                                               const float16_t *bias,
-                                               float16_t *dst,
-                                               const int32_t rhs_cols,
-                                               const int32_t rhs_rows,
-                                               const float16_t activation_min,
-                                               const float16_t activation_max);
-
-#endif /*defined(ARM_FLOAT16_SUPPORTED)*/
-
 #ifdef __cplusplus
 }
 #endif
