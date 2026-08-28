@@ -6231,10 +6231,12 @@ arm_cmsis_nn_status arm_reduce_min_s16(const int16_t *input_data,
  * @param[out]  output      Pointer to the output int8_t array.
  * @param[in]   size        Number of elements in the arrays.
  * @param[in]   zero_point  Zero point (offset) to apply during quantization.
- * @param[in]   scale       Scale factor to apply during quantization. Must be a positive finite number: a scale
- *                         of zero, a negative scale, NaN or Inf are unsupported, and the scalar and Helium legs
- *                         differ for them. The Helium leg flushes denormal inputs to zero, so a denormal input
- *                         with a denormal-range scale may differ from the scalar leg by one step.
+ * @param[in]   scale       Scale factor to apply during quantization. Must be a positive finite number. A scale
+ *                         of zero, NaN or Inf is unsupported and the scalar and Helium legs disagree for it; a
+ *                         negative scale is likewise unsupported, though the two legs happen to agree. The Helium
+ *                         leg flushes denormal inputs to zero, so a denormal input can quantize one step lower
+ *                         than on the scalar leg. A scale small enough that 1/scale overflows to Inf diverges
+ *                         further than that: the Helium leg returns @p zero_point where the scalar leg saturates.
  *
  * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR when @p zero_point lies outside the int8_t range.
  *             Values round half away from zero and saturate to the int8_t range after the zero point is applied;
@@ -6249,10 +6251,12 @@ arm_quantize_f32_s8(const float *input, int8_t *output, int32_t size, int32_t ze
  * @param[out]  output      Pointer to the output int16_t array.
  * @param[in]   size        Number of elements in the arrays.
  * @param[in]   zero_point  Zero point (offset) to apply during quantization.
- * @param[in]   scale       Scale factor to apply during quantization. Must be a positive finite number: a scale
- *                         of zero, a negative scale, NaN or Inf are unsupported, and the scalar and Helium legs
- *                         differ for them. The Helium leg flushes denormal inputs to zero, so a denormal input
- *                         with a denormal-range scale may differ from the scalar leg by one step.
+ * @param[in]   scale       Scale factor to apply during quantization. Must be a positive finite number. A scale
+ *                         of zero, NaN or Inf is unsupported and the scalar and Helium legs disagree for it; a
+ *                         negative scale is likewise unsupported, though the two legs happen to agree. The Helium
+ *                         leg flushes denormal inputs to zero, so a denormal input can quantize one step lower
+ *                         than on the scalar leg. A scale small enough that 1/scale overflows to Inf diverges
+ *                         further than that: the Helium leg returns @p zero_point where the scalar leg saturates.
  *
  * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR when @p zero_point lies outside the int16_t range.
  *             Values round half away from zero and saturate to the int16_t range after the zero point is applied;
