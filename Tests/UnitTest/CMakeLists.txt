@@ -72,8 +72,10 @@ endif()
 # by the same builtins -- then loops forever on the non-finite value it is asked to print. On a
 # Cortex-M0 build that hangs test_arm_reduce_sum_f32's NaN/Inf case indefinitely; on the host it
 # reproduces at -Ofast. armclang goes further and rejects the INFINITY/NAN literals in those suites
-# outright at -Ofast (-Werror,-Wnan-infinity-disabled). Those four Corstone-300 objects are unchanged
-# in code: only their .ARM.attributes Tag_ABI_FP_number_model tag moves from Finite to IEEE 754.
+# outright at -Ofast (-Werror,-Wnan-infinity-disabled). The four non-test objects that also take the
+# flag -- Corstone-300's retarget.c and uart.c, and CMSIS_5's startup_ARMCM*.c and system_ARMCM*.c --
+# are unchanged in code: only their .ARM.attributes Tag_ABI_FP_number_model tag moves from Finite to
+# IEEE 754.
 #
 # Nothing in CI exercises this yet: legacy-tester.yml is workflow_call/workflow_dispatch only and is
 # invoked solely by release.yml's release-unit-tests, which runs build_and_run_tests.sh without
