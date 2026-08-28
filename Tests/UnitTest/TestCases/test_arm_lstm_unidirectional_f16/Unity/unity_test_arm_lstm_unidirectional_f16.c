@@ -29,4 +29,6 @@ void setUp(void)
 
 void tearDown(void) {}
 
+void test_lstm_unidirectional_negative_hidden_size_f16(void) { lstm_unidirectional_negative_hidden_size_f16(); }
+void test_lstm_unidirectional_negative_batch_size_f16(void) { lstm_unidirectional_negative_batch_size_f16(); }
 void test_lstm_unidirectional_arg_error_f16(void) { lstm_unidirectional_arg_error_f16(); }

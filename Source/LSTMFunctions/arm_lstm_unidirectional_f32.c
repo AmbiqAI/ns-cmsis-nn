@@ -58,9 +58,13 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f32(const float32_t *input,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
-    // Same contract as arm_gru_unidirectional_*: a non-positive batch, input or hidden size would otherwise
-    // reach the cell-state memset below as a wrapped element count. time_steps == 0 stays legal, as it is
-    // for the GRU: no step runs, though stateless mode still zeroes the cell state as it always has.
+    // Same dimension contract as arm_gru_unidirectional_*. The memory-safety case is a negative batch_size or
+    // hidden_size: the stateless cell-state memset below sizes itself as batch_size * hidden_size, which wrapped
+    // to a ~4G element count and wrote far past the buffer. input_size does not enter that count; a non-positive
+    // input_size and a negative time_steps only reach the per-step gate dot products and the step loops, which
+    // silently ran a degenerate layer (no input term, or no steps at all), and a zero batch or hidden size is
+    // likewise degenerate. All of these are rejected up front. time_steps == 0 stays legal, as it is for the
+    // GRU: no step runs, though stateless mode still zeroes the cell state as it always has.
     if (params->batch_size < 1 || params->time_steps < 0 || params->input_size < 1 || params->hidden_size < 1)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
