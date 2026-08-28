@@ -35,24 +35,25 @@ generator is still usable offline.
 - CMSIS project: none (`test_arm_convolve_flt` deleted with its only suite)
 - CMSIS contexts: none
 - Covered cases: none
-- f16 convolution elsewhere: still exercised by the helia-core-tester FP16
-  convolve descriptors; a Unity suite for the packed f16 path
+- Convolution coverage elsewhere: both dtypes are still exercised by the
+  helia-core-tester float convolve descriptors, which run on cortex-m55 (f32
+  and f16) and cortex-m4 (f32) on every PR; a Unity suite for the packed f16 path
   (`test_arm_convolve_packed_f16`) is proposed in #325 and is not present
   in this repo.
 - Generator cases, not compiled or executed: `conv_settings_flt.py` defines 35
   f32 shapes and mirrors every one into an f16 twin, so `--dataset all` writes
   70 datasets. 26 of the 35 are `conv_match_*` shapes that replay geometries
   from the integer convolution suites (7 basic/stride/activation, 6 dilation,
-  5 1x1, 8 1xN). The remaining nine are:
-  - Generic 3x3 case: input 1x6x9x11, out_ch=10, stride 1, no padding.
+  5 1x1, 8 1xN). The remaining nine are (input dimensions N x H x W x C):
+  - Generic 3x3 case: input 1x9x11x6, out_ch=10, stride 1, no padding.
   - Generic 3x3 wrapper case with the same logical dimensions.
   - 1x1 NHWC stride case: input 1x3x17x11, out_ch=13, stride 1x2, activation clamp [-0.75, 0.75].
-  - Optimized 1x3 case: input 1x8x1x21, out_ch=12.
-  - Optimized 1x5 case: input 1x8x1x21, out_ch=12.
+  - Optimized 1x3 case: input 1x1x21x8, out_ch=12.
+  - Optimized 1x5 case: input 1x1x21x8, out_ch=12.
   - Tuned NHWC 1x3 case: input 1x1x21x16, out_ch=16.
   - Tuned NHWC 1x5 case: input 1x1x21x16, out_ch=16.
-  - Common 2x2 case: input 1x4x6x7, out_ch=5.
-  - Common 3x3 pad1 case: input 1x2x3x6, out_ch=4.
+  - Common 2x2 case: input 1x6x7x4, out_ch=5.
+  - Common 3x3 pad1 case: input 1x3x6x2, out_ch=4.
 
 ### `reshape`
 

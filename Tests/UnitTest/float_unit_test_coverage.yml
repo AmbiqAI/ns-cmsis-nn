@@ -21,32 +21,35 @@ families:
   - name: convolve
     generator_script: conv_settings_flt.py
     cmsis_project: null  # test_arm_convolve_flt, deleted: it declared exactly one context, .F16+Corstone-300-FVP, whose only suite was the unbuildable test_arm_convolve_f16
-    coverage_summary: No Unity coverage in either dtype -- both suites were deleted as unbuildable, so no Unity suite in this repo compiles or runs a float convolution case. See the f16 notes for coverage outside the Unity suites.
+    coverage_summary: No Unity coverage in either dtype -- both suites were deleted as unbuildable, so no Unity suite in this repo compiles or runs a float convolution case. See the per-dtype notes for coverage outside the Unity suites.
     coverage_cases: []
     # Not coverage: what conv_settings_flt.py still emits offline. No suite consumes it.
     generator_cases:
       f32_shapes: 35  # every one is mirrored into an f16 twin, so `--dataset all` writes 70 datasets
       conv_match_shapes: 26  # of the 35: replays of integer-suite geometries -- 7 basic/stride/activation, 6 dilation, 5 1x1, 8 1xN
-      remaining_shapes:  # the other 9 of the 35, spelled out
-        - Generic 3x3: input 1x6x9x11, out_ch=10, stride 1, no padding.
+      remaining_shapes:  # the other 9 of the 35, spelled out; input dimensions are N x H x W x C
+        - Generic 3x3: input 1x9x11x6, out_ch=10, stride 1, no padding.
         - Generic 3x3 wrapper case with the same logical dimensions.
         - 1x1 NHWC stride case: input 1x3x17x11, out_ch=13, stride 1x2, activation clamp [-0.75, 0.75].
-        - Optimized 1x3 case: input 1x8x1x21, out_ch=12.
-        - Optimized 1x5 case: input 1x8x1x21, out_ch=12.
+        - Optimized 1x3 case: input 1x1x21x8, out_ch=12.
+        - Optimized 1x5 case: input 1x1x21x8, out_ch=12.
         - Tuned NHWC 1x3 case: input 1x1x21x16, out_ch=16.
         - Tuned NHWC 1x5 case: input 1x1x21x16, out_ch=16.
-        - Common 2x2 case: input 1x4x6x7, out_ch=5.
-        - Common 3x3 pad1 case: input 1x2x3x6, out_ch=4.
+        - Common 2x2 case: input 1x6x7x4, out_ch=5.
+        - Common 3x3 pad1 case: input 1x3x6x2, out_ch=4.
     dtypes:
       f32:
         host_target: null  # deleted in #256 (unbuildable: no checked-in TestData, never CI-built)
         cmsis_context: null  # never existed after #256: the cproject declared no F32 setup, and the csolution pinned the project to [.F16]
-        selectors:  # none: run_float_unit_tests.py has selector_by_dtype={} for this family
-        notes: conv_settings_flt.py output is generated offline and consumed by no suite
+        selectors: []  # none: run_float_unit_tests.py has selector_by_dtype={} for this family
+        notes: >-
+          conv_settings_flt.py output is generated offline and consumed by no suite. f32 convolution is
+          still exercised by the helia-core-tester float convolve descriptors, which run on cortex-m55
+          and cortex-m4 on every PR.
       f16:
         host_target: null  # deleted: unbuildable, never CI-built
         cmsis_context: null  # was test_arm_convolve_flt.F16+Corstone-300-FVP, deleted along with the test_arm_convolve_f16 suite it built
-        selectors:  # none: run_float_unit_tests.py has selector_by_dtype={} for this family
+        selectors: []  # none: run_float_unit_tests.py has selector_by_dtype={} for this family
         notes: >-
           conv_settings_flt.py output is generated offline and consumed by no suite. f16 convolution is
           still exercised by the helia-core-tester FP16 convolve descriptors; a Unity suite for the packed
@@ -61,12 +64,12 @@ families:
       f32:
         host_target: test_arm_reshape_f32
         cmsis_context: test_arm_reshape_flt.F32+Corstone-300-FVP
-        selectors:
+        selectors: []
         notes: no offline generator required
       f16:
         host_target: test_arm_reshape_f16
         cmsis_context: test_arm_reshape_flt.F16+Corstone-300-FVP
-        selectors:
+        selectors: []
         notes: no offline generator required
   - name: transpose_conv
     generator_script: transpose_conv_settings_flt.py
