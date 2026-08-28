@@ -50,6 +50,12 @@ break the embedded build. When writing SIMD paths:
   `arm_minmax_select_f16`. Doing the select in `float32` is NOT a fix when
   both arms are round-tripped halves: GCC narrows it back to HFmode and
   still ICEs (observed on 14.3 at `-O3`).
+  This rule governs `Tests/UnitTest/TestCases/**` as well as `Source/**`. The
+  suites are compiled at `-Ofast -fno-finite-math-only`, a *higher*
+  optimization level than the library, so a `_Float16` ternary in a test's
+  expected-value computation ICEs where the same construct in a kernel might
+  not — see #344, where `test_arm_maximum_minimum_f16` broke every
+  cortex-m55 release leg while PR CI stayed green.
 
 ## Adding a kernel: three build manifests + header
 
