@@ -38,8 +38,11 @@ usable offline.
   convolve descriptors; a Unity suite for the packed f16 path
   (`test_arm_convolve_packed_f16`) is proposed in #325 and is not present
   in this repo.
-- Generator cases, not compiled or executed (as emitted by
-  `conv_settings_flt.py`):
+- Generator cases, not compiled or executed: `conv_settings_flt.py` defines 35
+  f32 shapes and mirrors every one into an f16 twin, so `--dataset all` writes
+  70 datasets. 26 of the 35 are `conv_match_*` shapes that replay geometries
+  from the integer convolution suites (7 basic/stride/activation, 6 dilation,
+  5 1x1, 8 1xN). The remaining nine are:
   - Generic 3x3 case: input 1x6x9x11, out_ch=10, stride 1, no padding.
   - Generic 3x3 wrapper case with the same logical dimensions.
   - 1x1 NHWC stride case: input 1x3x17x11, out_ch=13, stride 1x2, activation clamp [-0.75, 0.75].
