@@ -8,6 +8,7 @@
  */
 
 #include <math.h>
+#include <string.h>
 
 #include "arm_nnfunctions.h"
 #include "unity.h"
@@ -50,16 +51,23 @@ void test_arm_quantize_f32_s16_ties_away_from_zero(void)
 
 // Values beyond the int32 range, including infinities, must clamp to the int16_t bounds after the zero
 // point is applied; adding the zero point to a saturated int32 conversion used to wrap to the wrong end.
+// NaN maps to the zero point on both legs. It is built from its bit pattern so that a -ffinite-math-only
+// build of this test cannot fold it, and only the integer outputs are compared.
 void test_arm_quantize_f32_s16_saturates_with_zero_point(void)
 {
-    const float input[6] = {1.0e12f, -1.0e12f, (float)INFINITY, -(float)INFINITY, 3.0e9f, -3.0e9f};
-    const int16_t expected[6] = {32767, -32768, 32767, -32768, 32767, -32768};
-    int16_t output[6] = {0};
+    const uint32_t nan_bits = 0x7fc00000U;
+    float nan_value;
+    memcpy(&nan_value, &nan_bits, sizeof(nan_value));
 
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_quantize_f32_s16(input, output, 6, 30000, 1.0f));
-    TEST_ASSERT_EQUAL_INT16_ARRAY(expected, output, 6);
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_quantize_f32_s16(input, output, 6, -30000, 1.0f));
-    TEST_ASSERT_EQUAL_INT16_ARRAY(expected, output, 6);
+    const float input[7] = {1.0e12f, -1.0e12f, (float)INFINITY, -(float)INFINITY, 3.0e9f, -3.0e9f, nan_value};
+    const int16_t expected_positive[7] = {32767, -32768, 32767, -32768, 32767, -32768, 30000};
+    const int16_t expected_negative[7] = {32767, -32768, 32767, -32768, 32767, -32768, -30000};
+    int16_t output[7] = {0};
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_quantize_f32_s16(input, output, 7, 30000, 1.0f));
+    TEST_ASSERT_EQUAL_INT16_ARRAY(expected_positive, output, 7);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_quantize_f32_s16(input, output, 7, -30000, 1.0f));
+    TEST_ASSERT_EQUAL_INT16_ARRAY(expected_negative, output, 7);
 }
 
 // A zero point outside the output type is rejected rather than folded into the clamp bounds.
