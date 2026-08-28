@@ -69,8 +69,35 @@ static void conv_f32_reference(const cmsis_nn_conv_params_f32 *cp,
     }
 }
 
-// Run arm_convolve_wrapper_f32 on a layer with ctx sized exactly by the sizer (or no ctx at all) and
-// compare every output element against the reference.
+// Guard region appended to every buffer the kernel may write: the scratch sized exactly by the sizer and the
+// output. The 1xN pack-rows helper used to zero-fill past the scratch when padding.w exceeded the kernel
+// width while still producing correct values, so checking the values alone would not pin that fix.
+#define CONV_GUARD_BYTES 64
+#define CONV_GUARD_FILL 0xA5
+
+// malloc `size` bytes followed by CONV_GUARD_BYTES of sentinel.
+static void *conv_alloc_guarded(size_t size)
+{
+    uint8_t *p = (uint8_t *)malloc(size + CONV_GUARD_BYTES);
+    if (p != NULL)
+    {
+        memset(p + size, CONV_GUARD_FILL, CONV_GUARD_BYTES);
+    }
+    return p;
+}
+
+// Fail if any byte of the guard region that follows the first `size` bytes of `p` has been overwritten.
+static void conv_assert_guard_intact(const void *p, size_t size, const char *what)
+{
+    const uint8_t *guard = (const uint8_t *)p + size;
+    for (size_t i = 0; i < CONV_GUARD_BYTES; i++)
+    {
+        TEST_ASSERT_EQUAL_HEX8_MESSAGE(CONV_GUARD_FILL, guard[i], what);
+    }
+}
+
+// Run arm_convolve_wrapper_f32 on a layer with ctx sized exactly by the sizer (or no ctx at all), check that
+// neither the scratch nor the output guard was touched, and compare every output element against the reference.
 static void conv_f32_check(const cmsis_nn_conv_params_f32 *cp,
                            const cmsis_nn_dims *in,
                            const float32_t *x,
@@ -82,8 +109,9 @@ static void conv_f32_check(const cmsis_nn_conv_params_f32 *cp,
                            int32_t use_ctx)
 {
     const int32_t out_size = out->n * out->h * out->w * out->c;
+    const size_t out_bytes = (size_t)out_size * sizeof(float32_t);
     float32_t *ref = (float32_t *)malloc((size_t)out_size * sizeof(float32_t));
-    float32_t *y = (float32_t *)malloc((size_t)out_size * sizeof(float32_t));
+    float32_t *y = (float32_t *)conv_alloc_guarded(out_bytes);
     cmsis_nn_context ctx = {NULL, 0};
     TEST_ASSERT_NOT_NULL(ref);
     TEST_ASSERT_NOT_NULL(y);
@@ -92,7 +120,7 @@ static void conv_f32_check(const cmsis_nn_conv_params_f32 *cp,
     {
         const int32_t size = arm_convolve_wrapper_f32_get_buffer_size(cp, in, flt, out);
         TEST_ASSERT_TRUE(size > 0);
-        ctx.buf = malloc((size_t)size);
+        ctx.buf = conv_alloc_guarded((size_t)size);
         ctx.size = size;
         TEST_ASSERT_NOT_NULL(ctx.buf);
     }
@@ -100,6 +128,11 @@ static void conv_f32_check(const cmsis_nn_conv_params_f32 *cp,
     conv_f32_reference(cp, in, x, flt, w_ohwi, bias, out, ref);
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
                       arm_convolve_wrapper_f32(&ctx, cp, in, x, flt, w_kernel, NULL, bias, out, y));
+    if (use_ctx)
+    {
+        conv_assert_guard_intact(ctx.buf, (size_t)ctx.size, "kernel wrote past the sizer-sized scratch buffer");
+    }
+    conv_assert_guard_intact(y, out_bytes, "kernel wrote past the output buffer");
     for (int32_t i = 0; i < out_size; i++)
     {
         TEST_ASSERT_FLOAT_WITHIN(1.0e-4f, ref[i], (float32_t)y[i]);

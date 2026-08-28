@@ -169,6 +169,12 @@ int32_t arm_depthwise_conv_wrapper_f32_get_buffer_size(const cmsis_nn_dw_conv_pa
 
 /**
  * @brief Convolution, NHWC layout.
+ *
+ * @note When `conv_params->weight_format` is set to
+ *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every convolution path, including
+ *       the 1xN kernels and the generic fallback that runs without scratch,
+ *       interprets @p filter_data as an already prepacked `NTxN` RHS buffer
+ *       instead of the standard public filter layout.
  */
 arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
                                           const cmsis_nn_conv_params_f32 *conv_params,
@@ -266,6 +272,15 @@ arm_cmsis_nn_status arm_convolve_1x1_f32(const cmsis_nn_context *ctx,
 
 /**
  * @brief 1xN convolution, NHWC layout.
+ *
+ * @note When `conv_params->weight_format` is set to
+ *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, @p filter_data is interpreted as
+ *       an already prepacked `NTxN` RHS buffer instead of the standard public
+ *       filter layout. Every output position, including the no-pad middle
+ *       region that OHWI filters feed to the strided direct kernel, is then
+ *       packed into scratch and multiplied by the format-aware matmul, so a
+ *       packed 1xN layer with little or no padding runs slower than its OHWI
+ *       equivalent.
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_conv_params_f32 *conv_params,
@@ -280,6 +295,15 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
 
 /**
  * @brief 1xN convolution, dispatch by layout.
+ *
+ * @note When `conv_params->weight_format` is set to
+ *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, @p filter_data is interpreted as
+ *       an already prepacked `NTxN` RHS buffer instead of the standard public
+ *       filter layout. Every output position, including the no-pad middle
+ *       region that OHWI filters feed to the strided direct kernel, is then
+ *       packed into scratch and multiplied by the format-aware matmul, so a
+ *       packed 1xN layer with little or no padding runs slower than its OHWI
+ *       equivalent.
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_f32(const cmsis_nn_context *ctx,
                                            const cmsis_nn_conv_params_f32 *conv_params,
