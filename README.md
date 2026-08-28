@@ -310,8 +310,10 @@ unless the target or toolchain cannot provide the required floating-point type.
   rejects a NULL `buf` with `ARM_CMSIS_NN_ARG_ERROR`. For the **s8 and
   s16 integer** sizers, a negative return (`-1`) means the dimensions are out of
   range — the required size does not fit in an `int32_t`, or a dimension is
-  negative — and must never be used to size a buffer. Two groups do **not**
-  follow that rule and need the caller to range-check the shape itself:
+  negative — and must never be used to size a buffer. The **s4** convolution
+  sizers (`arm_convolve_s4_get_buffer_size` and the 1x1, 1xN and wrapper
+  siblings) follow the same `-1` contract. Two groups do **not** fully follow
+  that rule and need the caller to range-check the shape itself:
   - **most f32/f16** sizers (`arm_convolve_f32_get_buffer_size` and siblings)
     report a size that does not fit in an `int32_t` as **`0`**, which is
     indistinguishable from "no buffer needed". Note this is a property of the
@@ -322,13 +324,24 @@ unless the target or toolchain cannot provide the required floating-point type.
     because their kernels read `ctx->size` and `size == 0` opts out of the
     scratch-size check. A generic float wrapper must branch per sizer, not on
     the datatype;
-  - the **s4** sizers (`arm_convolve_s4_get_buffer_size` and siblings) are
-    unguarded and return a wrapped value for an out-of-range shape.
+  - the **s4 depthwise** sizers (`arm_depthwise_conv_s4_opt_get_buffer_size`
+    and the wrapper siblings) route straight to the s8 `_mve`/`_dsp` legs
+    without the up-front dimension check that
+    `arm_depthwise_conv_s8_opt_get_buffer_size` performs. They still return
+    `-1` when a filter dimension is negative or the byte count does not fit in
+    an `int32_t`, and on builds without the MVE extension also for a negative
+    channel count. On a Helium build, though (and always from
+    `arm_depthwise_conv_wrapper_s4_get_buffer_size_mve`), the `_mve` leg sizes
+    its buffer from a fixed channel block and never inspects `input_dims->c`,
+    so a negative or oversized channel count there yields a positive size.
 
-  Within the s8/s16 family, `-1` is only produced where a byte count is actually
-  computed. A route that needs no scratch buffer returns 0 without inspecting
-  the dimensions, so 0 is not a statement that the shape is valid — see the
-  wrapper sizers' `@return` docs in `Include/arm_nnfunctions.h`.
+  Within the s4/s8/s16 family, a route that needs no scratch buffer returns 0
+  for an in-range shape, but any route — including one that needs no buffer —
+  may return `-1` when a dimension it inspects is negative or a product
+  overflows, and which dimensions a route inspects is build-dependent. Always
+  test for `-1` before using the value, and never read a 0 as a statement that
+  the shape is valid — see the wrapper sizers' `@return` docs in
+  `Include/arm_nnfunctions.h`.
 
   Sizing is not always sufficient:
   several kernels read a `cmsis_nn_context` as a *precomputed input* rather

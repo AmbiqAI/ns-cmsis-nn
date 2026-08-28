@@ -1422,6 +1422,77 @@ void buffer_size_dsp_arm_convolve_s4(void)
 #endif
 }
 
+void buffer_size_out_of_range_arm_convolve_s4(void)
+{
+    /* Dimension validation is deliberately target-independent, so these hold on every build. Before the sizers
+     * were hardened the products below wrapped in int32_t: the issue #317 shape, 1 * 1 * (2^30 + 1) columns, made
+     * arm_convolve_s4_get_buffer_size() report 4 bytes for a buffer the kernel walks for about 4 GiB, and
+     * 2^29 + 1 columns produced a wrapped negative value that is not the -1 sentinel. */
+    const cmsis_nn_conv_params conv_params = {
+        .stride = {1, 1},
+        .padding = {0, 0},
+        .dilation = {1, 1},
+    };
+    const cmsis_nn_dims output_dims = {1, 1, 1, 8};
+
+    /* A small valid shape still yields the published figure, so the range checks do not disturb the formula:
+     * 2 * (1 * 1 * 3) * sizeof(int16_t). */
+    const cmsis_nn_dims valid_input_dims = {1, 1, 1, 3};
+    const cmsis_nn_dims valid_filter_dims = {8, 1, 1, 3};
+    TEST_ASSERT_EQUAL(12, arm_convolve_s4_get_buffer_size(&valid_input_dims, &valid_filter_dims));
+
+    /* c = 2^30 + 1 with a 1x1 filter: 2 * rhs_cols * sizeof(int16_t) exceeds INT32_MAX. */
+    const cmsis_nn_dims c_2_pow_30_input_dims = {1, 1, 1, 1073741825};
+    const cmsis_nn_dims c_2_pow_30_filter_dims = {8, 1, 1, 1073741825};
+    TEST_ASSERT_EQUAL(-1, arm_convolve_s4_get_buffer_size(&c_2_pow_30_input_dims, &c_2_pow_30_filter_dims));
+
+    /* The 1xN sizer must report the same shape. pad_x = 1 with a single output column keeps the Helium leg on the
+     * im2col route, the one that computes a byte count; its pad-aligned route needs no buffer and returns 0. */
+    const cmsis_nn_conv_params padded_conv_params = {
+        .stride = {1, 1},
+        .padding = {1, 0},
+        .dilation = {1, 1},
+    };
+    TEST_ASSERT_EQUAL(-1,
+                      arm_convolve_1_x_n_s4_get_buffer_size(
+                          &padded_conv_params, &c_2_pow_30_input_dims, &c_2_pow_30_filter_dims, &output_dims));
+
+    /* The wrapper sizer must report it too. A 2x2 filter keeps the wrapper off the 1x1 routes, which need no buffer
+     * on any build; c = 2^28 + 1 then wraps the unguarded product to 16. */
+    const cmsis_nn_dims c_2_pow_28_input_dims = {1, 2, 2, 268435457};
+    const cmsis_nn_dims c_2_pow_28_filter_dims = {8, 2, 2, 268435457};
+    TEST_ASSERT_EQUAL(-1,
+                      arm_convolve_wrapper_s4_get_buffer_size(
+                          &conv_params, &c_2_pow_28_input_dims, &c_2_pow_28_filter_dims, &output_dims));
+
+    /* c = 2^29 + 1: rhs_cols itself fits, but the byte count wraps to a negative value that is not -1. */
+    const cmsis_nn_dims c_2_pow_29_input_dims = {1, 1, 1, 536870913};
+    const cmsis_nn_dims c_2_pow_29_filter_dims = {8, 1, 1, 536870913};
+    TEST_ASSERT_EQUAL(-1, arm_convolve_s4_get_buffer_size(&c_2_pow_29_input_dims, &c_2_pow_29_filter_dims));
+
+    /* A negative dimension is rejected by every sizer, on every route that reads it. */
+    const cmsis_nn_dims negative_c_input_dims = {1, 2, 2, -1};
+    const cmsis_nn_dims negative_c_filter_dims = {8, 2, 2, -1};
+    TEST_ASSERT_EQUAL(-1, arm_convolve_s4_get_buffer_size(&negative_c_input_dims, &negative_c_filter_dims));
+    TEST_ASSERT_EQUAL(-1, arm_convolve_1x1_s4_fast_get_buffer_size(&negative_c_input_dims));
+    TEST_ASSERT_EQUAL(-1,
+                      arm_convolve_1_x_n_s4_get_buffer_size(
+                          &conv_params, &negative_c_input_dims, &negative_c_filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(-1,
+                      arm_convolve_wrapper_s4_get_buffer_size(
+                          &conv_params, &negative_c_input_dims, &negative_c_filter_dims, &output_dims));
+
+    /* A non-positive stride is rejected by the 1xN sizer before it can divide by it. */
+    const cmsis_nn_conv_params zero_stride_conv_params = {
+        .stride = {0, 1},
+        .padding = {0, 0},
+        .dilation = {1, 1},
+    };
+    TEST_ASSERT_EQUAL(-1,
+                      arm_convolve_1_x_n_s4_get_buffer_size(
+                          &zero_stride_conv_params, &valid_input_dims, &valid_filter_dims, &output_dims));
+}
+
 void conv_1_x_n_1_arm_convolve_s4(void)
 {
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;

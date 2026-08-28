@@ -117,8 +117,18 @@ arm_cmsis_nn_status arm_convolve_wrapper_s4(const cmsis_nn_context *ctx,
  *                                filter dimensions
  * @param[in]      output_dims    Output tensor dimensions. Format: [N, H, W, C_OUT]
  *
- * @return         The function returns required buffer size(bytes)
+ * @return         The function returns required buffer size in bytes, or -1 if the shape is out of range - a
+ *                 dimension the selected route reads is negative, or the required size would not fit in an
+ *                 int32_t. A route that needs no scratch buffer returns 0 for an in-range shape, but any route,
+ *                 including one that needs no buffer, may return -1 when a dimension it inspects is negative, so
+ *                 always test for -1 before using the value. Which dimensions a route inspects is
+ *                 build-dependent, so a 0 return is not a statement that the shape is valid.
  *
+ * @details    Where a byte count is computed, an out-of-range shape is reported as -1 rather than a wrapped
+ *             size. Which routes compute a byte count is build-dependent - the 1x1 routes need no buffer on any
+ *             build, though the 1x1 fast route still rejects a negative input_dims->c with -1, and on a Helium
+ *             build the 1xN route needs none when its padding lines up with the stride - so a caller that needs
+ *             its dimensions validated must validate them rather than infer validity from a non-negative return.
  */
 int32_t arm_convolve_wrapper_s4_get_buffer_size(const cmsis_nn_conv_params *conv_params,
                                                 const cmsis_nn_dims *input_dims,
@@ -132,6 +142,8 @@ int32_t arm_convolve_wrapper_s4_get_buffer_size(const cmsis_nn_conv_params *conv
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_convolve_wrapper_s4_get_buffer_size(). Currently this operator does not have an
  *             mve implementation, so dsp will be used.
+ * @note       An out-of-range shape is reported as -1, matching the top-level dispatcher, including the same
+ *             caveat that a 0 from a route needing no buffer is not a statement that the shape is valid.
  *
  */
 int32_t arm_convolve_wrapper_s4_get_buffer_size_mve(const cmsis_nn_conv_params *conv_params,
@@ -145,6 +157,8 @@ int32_t arm_convolve_wrapper_s4_get_buffer_size_mve(const cmsis_nn_conv_params *
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_convolve_wrapper_s4_get_buffer_size().
+ * @note       An out-of-range shape is reported as -1, matching the top-level dispatcher, including the same
+ *             caveat that a 0 from a route needing no buffer is not a statement that the shape is valid.
  *
  */
 int32_t arm_convolve_wrapper_s4_get_buffer_size_dsp(const cmsis_nn_conv_params *conv_params,
@@ -562,8 +576,11 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
  * @param[in]       input_dims            Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
  * @param[in]       filter_dims           Filter tensor dimensions. Format: [C_OUT, HK, WK, C_IN] where HK and WK
  * are the spatial filter dimensions
- * @return          The function returns required buffer size(bytes)
+ * @return          The function returns required buffer size in bytes, or -1 if any dimension it reads is negative
+ *                  or the required size would not fit in an int32_t
  *
+ * @details    The dimensions and the byte count are both checked here, so an out-of-range shape returns -1 on
+ *             every build target rather than a wrapped size.
  */
 int32_t arm_convolve_s4_get_buffer_size(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims);
 
@@ -1073,7 +1090,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
  * @brief Get the required buffer size for arm_convolve_1x1_s4_fast
  *
  * @param[in]       input_dims            Input (activation) dimensions
- * @return          The function returns the required buffer size in bytes
+ * @return          The function returns the required buffer size in bytes, or -1 if input_dims->c is negative. No
+ *                  build needs this scratch buffer, so every valid shape returns 0.
  *
  */
 int32_t arm_convolve_1x1_s4_fast_get_buffer_size(const cmsis_nn_dims *input_dims);
@@ -1482,7 +1500,10 @@ int32_t arm_convolve_1_x_n_s8_get_buffer_size(const cmsis_nn_conv_params *conv_p
  *                                        horizontal spatial filter dimension
  * @param[in]       output_dims           Output tensor dimensions. Format: [N, H, W, C_OUT]
  *
- * @return          The function returns required buffer size(bytes)
+ * @return          The function returns required buffer size in bytes, or -1 if any dimension it reads is negative or
+ *                  conv_params->stride.w is not positive. It also returns -1 if the required size would not fit in an
+ *                  int32_t; on a Helium build the route whose padding lines up with the stride needs no buffer and
+ *                  returns 0 without computing one.
  *
  */
 int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_params,
@@ -1698,8 +1719,19 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(const cmsis_nn_dw_conv
  *                                 Batch argument N is not used and assumed to be 1.
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
- * @return                         Size of additional memory required for optimizations in bytes.
+ * @return                         Size of additional memory required for optimizations in bytes, or -1 if the
+ *                                 shape is out of range - a dimension the selected leg reads is negative, or the
+ *                                 required size would not fit in an int32_t. A shape that does not select the
+ *                                 optimized depthwise route needs no buffer and returns 0 without inspecting the
+ *                                 dimensions, so a 0 return is not a statement that the shape is valid.
  *
+ * @details    This sizer routes straight to the s8 _mve/_dsp legs without the up-front dimension check that
+ *             arm_depthwise_conv_s8_opt_get_buffer_size() performs, so which dimensions it inspects is
+ *             build-dependent. Every build returns -1 for a negative filter dimension or an overflowing byte
+ *             count; a build without the MVE extension also returns -1 for a negative input_dims->c, while the
+ *             Helium leg sizes its buffer from a fixed channel block and never inspects input_dims->c, so a
+ *             negative or oversized channel count there yields a positive size. A caller that needs its
+ *             dimensions validated must validate them rather than infer validity from a non-negative return.
  */
 int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size(const cmsis_nn_dw_conv_params *dw_conv_params,
                                                       const cmsis_nn_dims *input_dims,
@@ -1712,6 +1744,10 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size(const cmsis_nn_dw_conv_par
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_depthwise_conv_wrapper_s4_get_buffer_size().
+ * @note       An out-of-range shape is reported as -1, matching the top-level dispatcher, including the same
+ *             caveat that a shape which needs no scratch buffer returns 0 without the dimensions being
+ *             inspected. This variant forwards to the top-level dispatcher, so it follows the build's leg and
+ *             inspects input_dims->c only on builds without the MVE extension.
  *
  */
 int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_dsp(const cmsis_nn_dw_conv_params *dw_conv_params,
@@ -1725,6 +1761,11 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_dsp(const cmsis_nn_dw_conv
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_depthwise_conv_wrapper_s4_get_buffer_size().
+ * @note       An out-of-range shape is reported as -1 when a filter dimension is negative or the required size
+ *             would not fit in an int32_t, matching the top-level dispatcher on a Helium build, including the
+ *             same caveat that a shape which needs no scratch buffer returns 0 without the dimensions being
+ *             inspected. The Helium leg never inspects input_dims->c, so a negative or oversized channel count
+ *             yields a positive size.
  *
  */
 int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv_params *dw_conv_params,
@@ -2145,8 +2186,13 @@ int32_t arm_depthwise_conv_s8_opt_get_buffer_size(const cmsis_nn_dims *input_dim
  * @param[in]       input_dims   Input (activation) tensor dimensions. Format: [1, H, W, C_IN]
  *                               Batch argument N is not used.
  * @param[in]       filter_dims  Filter tensor dimensions. Format: [1, H, W, C_OUT]
- * @return          The function returns required buffer size in bytes
+ * @return          The function returns required buffer size in bytes, or -1 if a filter dimension it reads is
+ *                  negative or the required size would not fit in an int32_t. A build without the MVE extension
+ *                  also returns -1 for a negative input_dims->c; the Helium leg never inspects input_dims->c.
  *
+ * @details    Unlike arm_depthwise_conv_s8_opt_get_buffer_size(), the dimensions are not checked here. The query
+ *             routes straight to the s8 _mve/_dsp leg and relies on the range checks inside that leg, so a caller
+ *             that needs input_dims->c validated on a Helium build must validate it itself.
  */
 int32_t arm_depthwise_conv_s4_opt_get_buffer_size(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims);
 
