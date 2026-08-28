@@ -109,9 +109,10 @@ void lstm_step_uniform_units_f32(void)
 }
 
 // Two batches with batch_offset 2 and a cell clip: the partial predicated store of batch 0 must not
-// touch batch 1's state, and both batches must agree unit for unit. The clip of 2.0 exercises the
-// clamp without pinning the state: a clip at or below 1.5 would snap every unit to the same exact
-// value on any build and hide the vector-body / scalar-tail split this suite exists to catch.
+// touch batch 1's state, and both batches must agree unit for unit. The cell state settles just
+// under 1.5, so a clip of 2.0 runs the clamp branch without limiting anything. The earlier clip of
+// 1.0 pinned every unit to exactly 1.0, which made the vector body and the scalar tail agree
+// bit for bit and hid the split this suite exists to catch.
 void lstm_step_two_batches_clipped_f32(void)
 {
     static const float32_t zero_weights[LSTM_STEP_F32_HIDDEN * LSTM_STEP_F32_HIDDEN] = {0};
