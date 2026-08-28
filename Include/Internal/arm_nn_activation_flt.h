@@ -102,6 +102,23 @@ __STATIC_INLINE float32_t arm_nn_hardswish_scalar_f32(float32_t x)
  */
 __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
 {
+    #if !defined(__ARM_FP)
+    /* Soft-float targets convert the table index through a library call that does not saturate NaN
+     * (libgcc's v6-m __aeabi_f2iz and compiler-rt's __fixsfsi on every soft-float multilib return
+     * INT32_MAX or INT32_MIN), so a NaN would index far outside the table. The `ax != ax` test below
+     * is folded away by -ffinite-math-only; this integer test on the bit pattern is not, and it costs
+     * one compare on targets where every float operation is already a call. The NaN is returned
+     * quieted, which is what the shipped -Ofast hard-float build produces by running it through the
+     * interpolation; see the cold branch below for why that is not promised on hard-float. See #314. */
+    uint32_t x_bits;
+    __builtin_memcpy(&x_bits, &x, sizeof(x_bits));
+    if ((x_bits & 0x7fffffffU) > 0x7f800000U)
+    {
+        x_bits |= 0x00400000U;
+        __builtin_memcpy(&x, &x_bits, sizeof(x));
+        return x;
+    }
+    #endif
     float32_t ax = (x < 0.0f) ? -x : x;
     const float32_t xmax = ARM_NN_TANH_F32_XMAX;
 
@@ -115,24 +132,26 @@ __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
          * this branch as a NaN guarantee for the shipped library; it is the
          * documented behavior of a -fno-finite-math-only build only.
          *
-         * The table index is likewise only bounded on hard-float, where
-         * VCVT.S32.F32 saturates NaN to 0. Soft-float goes through
-         * __aeabi_f2iz, whose result depends on the multilib: v7e-m tests the
-         * mantissa and returns 0, but v6-m has no NaN test and returns
-         * INT32_MAX. So cortex-m0 with F32, a shipped configuration, reaches
-         * the load below with an unbounded index. Tracked in #314.
+         * The table index is bounded on hard-float, where VCVT.S32.F32
+         * saturates NaN to 0. Soft-float goes through a library conversion
+         * whose NaN result is INT32_MAX or INT32_MIN on at least the v6-m
+         * libgcc and every compiler-rt multilib, so soft-float builds reject
+         * NaN with the bit-pattern test at the top of this function instead
+         * (#314).
          *
          * In a -fno-finite-math-only build, NaN (unordered) lands here and is
-         * propagated rather than saturated. The + 0.0f quiets a signalling
-         * NaN, matching what the old code did incidentally by running the sNaN
-         * through the interpolation arithmetic; returning x bare would hand an
-         * sNaN back and defer its invalid-operation exception to the caller.
-         * IEEE addition propagates a quiet NaN unchanged, so qNaN payload and
-         * sign still pass through. The add itself also needs signed zeros
-         * kept: -Ofast implies -fno-signed-zeros, which -fno-finite-math-only
-         * does not restore, and under it the compiler folds x + 0.0f to x, so
-         * the quieting survives only at -O3 or with -fsigned-zeros added
-         * back. */
+         * propagated rather than saturated. The + 0.0f is meant to quiet a
+         * signalling NaN, as the old code did incidentally by running the sNaN
+         * through the interpolation arithmetic, but it is not a guarantee:
+         * -Ofast implies -fno-signed-zeros, which -fno-finite-math-only does
+         * not restore, and under it the compiler folds x + 0.0f to x and hands
+         * the sNaN back bare, deferring its invalid-operation exception to the
+         * caller. The add quiets only at -O3 or with -fsigned-zeros added
+         * back; IEEE addition propagates a quiet NaN unchanged either way, so
+         * qNaN payload and sign pass through regardless. So on hard-float the
+         * only promise is NaN in, NaN out. The quiet bit is promised on
+         * soft-float alone, by the entry test, and the activation-helper
+         * suite asserts exactly that split. */
         if (ax != ax)
         {
             return x + 0.0f;
@@ -144,8 +163,9 @@ __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
      * strict test leaves 0 <= ax < xmax, and the scale is an exact power of
      * two, so 0 <= t < SEGMENTS and idx is in [0, SEGMENTS - 1], which keeps
      * lut[idx + 1] in range. That is NOT unconditional -- the shipped -Ofast
-     * folds the guard away, so a NaN reaches here and its index is bounded
-     * only on some targets (see the cold branch above, and #314). The previous
+     * folds the guard away, so a NaN reaches here; its index is then bounded
+     * by VCVT saturation on hard-float and by the entry test on soft-float
+     * (see the cold branch above, and #314). The previous
      * [0, 4] table needed a clamp because its test admitted ax == xmax;
      * keeping one here would cost three instructions per call in the hot
      * path, because 383 (unlike 255) is not a `usat` saturation boundary. */
