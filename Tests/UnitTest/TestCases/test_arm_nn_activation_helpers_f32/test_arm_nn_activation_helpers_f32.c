@@ -141,10 +141,11 @@ void nn_activation_helpers_f32_tanh_non_finite_contract(void)
  * i.e. without __ARM_FP (soft-float targets and the x86 host): on hard-float this suite's
  * -fno-finite-math-only keeps the `ax != ax` branch alive, and -Ofast's -fno-signed-zeros folds its
  * `x + 0.0f`, so a signalling input comes back unchanged. The predicate below is the one the helper
- * uses, so the assertion tracks the guard. The case discriminates only on soft-float targets and on the
- * host, where the previous code read far outside the table. Note that on cortex-m0 that read does not
- * trap (the byte address wraps and the arithmetic still yields a NaN), so the quiet-bit assertion is
- * what pins #314 there: without the entry test a signalling input comes back unquieted. */
+ * uses, so the assertion tracks the guard, and the case discriminates only where that guard is
+ * compiled. It pins #314 through the quiet bit rather than through a faulting read: this suite's
+ * -fno-finite-math-only keeps the previous code's `ax != ax` alive too, so the out-of-range index
+ * conversion is never reached here, and without the entry test a signalling input simply comes back
+ * unquieted. */
 void nn_activation_helpers_f32_tanh_nan_index_bounded(void)
 {
     const uint32_t nan_patterns[3] = {0x7fc00000U, 0xffc00000U, 0x7f800001U};
