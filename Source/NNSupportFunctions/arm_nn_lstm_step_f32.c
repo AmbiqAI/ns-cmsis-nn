@@ -135,14 +135,21 @@ arm_cmsis_nn_status arm_nn_lstm_step_f32(const float32_t *data_in,
 
         int32_t h = 0;
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-        for (; h + 4 <= hidden_size; h += 4)
+        /* The final partial vector is tail-predicated rather than handed to a scalar loop, so every
+         * hidden unit takes the same arithmetic: the vector body rounds f * c_prev and then fuses
+         * i * g into it, whereas a scalar tail lets the compiler place the fma and round the cell
+         * state differently for the last hidden_size % 4 units of the same tensor. The two float32
+         * tanh legs agree; the split shows up in the cell state (#315). Inactive lanes carry zeros. */
+        for (; h < hidden_size; h += 4)
         {
-            float32_t f_gate[4];
-            float32_t i_gate[4];
-            float32_t g_gate[4];
-            float32_t o_gate[4];
+            const int32_t lanes = MIN(4, hidden_size - h);
+            const mve_pred16_t p = vctp32q((uint32_t)lanes);
+            float32_t f_gate[4] = {0};
+            float32_t i_gate[4] = {0};
+            float32_t g_gate[4] = {0};
+            float32_t o_gate[4] = {0};
 
-            for (int32_t lane = 0; lane < 4; ++lane)
+            for (int32_t lane = 0; lane < lanes; ++lane)
             {
                 const int32_t idx = h + lane;
                 f_gate[lane] =
@@ -159,7 +166,7 @@ arm_cmsis_nn_status arm_nn_lstm_step_f32(const float32_t *data_in,
             const float32x4_t vi = vld1q(i_gate);
             const float32x4_t vg = vld1q(g_gate);
             const float32x4_t vo = vld1q(o_gate);
-            const float32x4_t vc_prev = vld1q(c_prev + h);
+            const float32x4_t vc_prev = vld1q_z(c_prev + h, p);
 
             float32x4_t vc = vfmaq(vmulq(vf, vc_prev), vi, vg);
             if (cell_clip > 0.0f)
@@ -168,10 +175,10 @@ arm_cmsis_nn_status arm_nn_lstm_step_f32(const float32_t *data_in,
                 vc = vmaxnmq(vc, vnegq(v_clip));
                 vc = vminnmq(vc, v_clip);
             }
-            vst1q(c_prev + h, vc);
-            vst1q(h_out + h, vmulq(vo, arm_nn_vtanh_lut_direct_mve_f32(vc)));
+            vst1q_p(c_prev + h, vc, p);
+            vst1q_p(h_out + h, vmulq(vo, arm_nn_vtanh_lut_direct_mve_f32(vc)), p);
         }
-    #endif
+    #else
         for (; h < hidden_size; h++)
         {
             const float32_t f =
@@ -190,6 +197,7 @@ arm_cmsis_nn_status arm_nn_lstm_step_f32(const float32_t *data_in,
             c_prev[h] = c;
             h_out[h] = o * arm_nn_tanh_scalar_ref_f32(c);
         }
+    #endif
     }
 
     return ARM_CMSIS_NN_SUCCESS;
