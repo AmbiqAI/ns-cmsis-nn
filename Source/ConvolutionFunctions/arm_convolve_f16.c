@@ -365,6 +365,10 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
         }
     }
 
+    /* NT_N_PACKED filters are stored as [out_c / 8][patch][8 lanes]; index them lane-wise below rather than
+     * as OHWI rows. */
+    const bool weights_packed = conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED;
+
     for (int32_t b = 0; b < batch; ++b)
     {
         const float16_t *input_b = input_data + (size_t)b * input_h * input_w * input_c;
@@ -379,7 +383,9 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                 for (int32_t oc = 0; oc < output_c; ++oc)
                 {
                     _Float16 acc = bias_data ? (_Float16)bias_data[oc] : (_Float16)0;
-                    const float16_t *w_oc = filter_data + (size_t)oc * kernel_h * kernel_w * input_c;
+                    const float16_t *w_oc = weights_packed
+                        ? filter_data + ((size_t)(oc / 8) * patch_len) * 8 + (size_t)(oc % 8)
+                        : filter_data + (size_t)oc * kernel_h * kernel_w * input_c;
 
                     for (int32_t ky = 0; ky < kernel_h; ++ky)
                     {
@@ -395,9 +401,19 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                             {
                                 continue;
                             }
-                            const float16_t *w_k = w_oc + ((size_t)ky * kernel_w + (size_t)kx) * input_c;
+                            const size_t k0 = ((size_t)ky * kernel_w + (size_t)kx) * input_c;
                             const float16_t *x = input_b + ((size_t)in_y * input_w + (size_t)in_x) * input_c;
-                            acc += (_Float16)arm_conv_dot_f16(x, w_k, input_c);
+                            if (weights_packed)
+                            {
+                                for (int32_t ic = 0; ic < input_c; ++ic)
+                                {
+                                    acc += (_Float16)x[ic] * (_Float16)w_oc[(k0 + (size_t)ic) * 8];
+                                }
+                            }
+                            else
+                            {
+                                acc += (_Float16)arm_conv_dot_f16(x, w_oc + k0, input_c);
+                            }
                         }
                     }
 
