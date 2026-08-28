@@ -20,8 +20,8 @@ aliases:
 families:
   - name: convolve
     generator_script: conv_settings_flt.py
-    cmsis_project: null  # deleted: its only context built test_arm_convolve_f16 (see f16 below)
-    coverage_summary: No Unity coverage in either dtype -- both suites were deleted as unbuildable, so nothing in this repo compiles or runs a float convolution case.
+    cmsis_project: null  # test_arm_convolve_flt, deleted: it declared exactly one context, .F16+Corstone-300-FVP, whose only suite was the unbuildable test_arm_convolve_f16
+    coverage_summary: No Unity coverage in either dtype -- both suites were deleted as unbuildable, so no Unity suite in this repo compiles or runs a float convolution case. See the f16 notes for coverage outside the Unity suites.
     coverage_cases: []
     # Not coverage: what conv_settings_flt.py still emits offline. No suite consumes it.
     generator_cases:
@@ -40,12 +40,12 @@ families:
     dtypes:
       f32:
         host_target: null  # deleted in #256 (unbuildable: no checked-in TestData, never CI-built)
-        cmsis_context: null  # deleted with the test_arm_convolve_flt project (it had no F32 setup since #256)
+        cmsis_context: null  # never existed after #256: the cproject declared no F32 setup, and the csolution pinned the project to [.F16]
         selectors:  # none: run_float_unit_tests.py has selector_by_dtype={} for this family
         notes: conv_settings_flt.py output is generated offline and consumed by no suite
       f16:
         host_target: null  # deleted: unbuildable, never CI-built
-        cmsis_context: null  # deleted with the test_arm_convolve_flt project
+        cmsis_context: null  # was test_arm_convolve_flt.F16+Corstone-300-FVP, deleted along with the test_arm_convolve_f16 suite it built
         selectors:  # none: run_float_unit_tests.py has selector_by_dtype={} for this family
         notes: >-
           conv_settings_flt.py output is generated offline and consumed by no suite. f16 convolution is

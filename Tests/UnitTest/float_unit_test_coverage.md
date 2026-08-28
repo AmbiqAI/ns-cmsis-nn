@@ -23,9 +23,10 @@ Covered dtypes: `f32`, `f16`
 ### `convolve`
 
 No Unity coverage in either dtype: both suites were deleted as unbuildable, so
-nothing in this repo compiles or runs a float convolution case. The family is
-listed only because `--tests convolve` still resolves and its generator is still
-usable offline.
+no Unity suite in this repo compiles or runs a float convolution case. (Float16
+convolution is still exercised outside the Unity suites -- see below.) The
+family is listed only because `--tests convolve` still resolves and its
+generator is still usable offline.
 
 - Generator: `conv_settings_flt.py` (still usable offline; its output is
   not consumed by any Unity suite)
