@@ -8,6 +8,7 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <math.h>
 #include <string.h>
 #include <unity.h>
 
@@ -84,7 +85,16 @@ static void minmax_f16_check_row_scalar(int32_t select_max)
             {
                 const float32_t a = (float32_t)in_1[h];
                 const float32_t b = (float32_t)in_2[h * 4 + c];
-                const float32_t expected = select_max ? (a > b ? a : b) : (a < b ? a : b);
+                // fmaxf/fminf, never a ternary -- GCC PR target/118460 (issue #344), the same bug
+                // the kernel dodges in arm_minmax_common_f16.c. A float32 select whose arms are round-tripped
+                // halves is narrowed back to HFmode, and arm-none-eabi-gcc 14.x then dies with
+                // "error: unrecognizable insn: (set (reg:HF ...) (if_then_else:HF ...))" and
+                // "internal compiler error: in extract_insn, at recog.cc:2812" during RTL pass
+                // vregs. It reproduces at -O3 and at the -Ofast -fno-finite-math-only this harness
+                // compiles with, i.e. on the cortex-m55 legacy-tester leg. Every operand below is
+                // an exact integer and none is a zero of either sign, so fmaxf/fminf and the
+                // ternary agree bit for bit. Do not put the ternary back.
+                const float32_t expected = select_max ? fmaxf(a, b) : fminf(a, b);
                 TEST_ASSERT_EQUAL_FLOAT(expected, (float32_t)output[h * 4 + c]);
             }
         }
@@ -128,7 +138,11 @@ void maximum_broadcast_general_f16(void)
                 {
                     const float32_t a = (float32_t)input_1[(n * 2 + h) * 3 + w];
                     const float32_t b = (float32_t)input_2[h * 4 + c];
-                    const float32_t expected = a > b ? a : b;
+                    // fmaxf, not a ternary, for the reason spelled out in
+                    // minmax_f16_check_row_scalar above. input_1 holds a +0.0 but input_2 never
+                    // does, so no comparison here is between two zeros and the two forms still
+                    // agree bit for bit.
+                    const float32_t expected = fmaxf(a, b);
                     TEST_ASSERT_EQUAL_FLOAT(expected, (float32_t)output[((n * 2 + h) * 3 + w) * 4 + c]);
                 }
             }
