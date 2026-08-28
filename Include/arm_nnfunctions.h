@@ -6234,10 +6234,9 @@ arm_cmsis_nn_status arm_reduce_min_s16(const int16_t *input_data,
  * @param[in]   scale       Scale factor to apply during quantization. Must be a positive finite number. A scale
  *                         that is zero, negative, NaN, Inf, or small enough that its reciprocal overflows is
  *                         unsupported, and the result is then unspecified: the scalar and Helium legs are not
- *                         guaranteed to agree for such a scale. Denormal inputs are likewise unspecified, in
- *                         both magnitude and direction: the Helium leg flushes them to zero, and with a
- *                         denormal-range scale the two legs have been measured several steps apart in either
- *                         direction. Screen denormals if you need the two legs to match.
+ *                         guaranteed to agree for such a scale. Denormal inputs are likewise unspecified: the
+ *                         Helium leg flushes them to zero, so the two legs are not guaranteed to agree for a
+ *                         denormal input at any scale. Screen denormals if you need them to match.
  *
  * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR when @p zero_point lies outside the int8_t range.
  *             Values round half away from zero and saturate to the int8_t range after the zero point is applied;
@@ -6255,10 +6254,9 @@ arm_quantize_f32_s8(const float *input, int8_t *output, int32_t size, int32_t ze
  * @param[in]   scale       Scale factor to apply during quantization. Must be a positive finite number. A scale
  *                         that is zero, negative, NaN, Inf, or small enough that its reciprocal overflows is
  *                         unsupported, and the result is then unspecified: the scalar and Helium legs are not
- *                         guaranteed to agree for such a scale. Denormal inputs are likewise unspecified, in
- *                         both magnitude and direction: the Helium leg flushes them to zero, and with a
- *                         denormal-range scale the two legs have been measured several steps apart in either
- *                         direction. Screen denormals if you need the two legs to match.
+ *                         guaranteed to agree for such a scale. Denormal inputs are likewise unspecified: the
+ *                         Helium leg flushes them to zero, so the two legs are not guaranteed to agree for a
+ *                         denormal input at any scale. Screen denormals if you need them to match.
  *
  * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR when @p zero_point lies outside the int16_t range.
  *             Values round half away from zero and saturate to the int16_t range after the zero point is applied;
