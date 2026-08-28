@@ -108,7 +108,10 @@ __STATIC_FORCEINLINE _Float16 arm_nn_max_f16h(_Float16 a, _Float16 b)
 /*
  * Returns x when x is NaN, otherwise y. The select is performed on the bit
  * patterns so that it neither expands to an HFmode conditional move (PR
- * target/118460) nor quiets/retags the NaN payload.
+ * target/118460) nor quiets/retags the NaN payload. NOTE the NaN test itself is
+ * still the floating-point self-compare `x != x`, which -ffinite-math-only (implied
+ * by the shipped -Ofast) licenses the compiler to fold to false, leaving this helper
+ * returning y unconditionally. Testing the bit pattern instead is tracked in #334.
  */
 __STATIC_FORCEINLINE _Float16 arm_nn_propagate_nan_f16h(_Float16 x, _Float16 y)
 {
@@ -128,7 +131,8 @@ __STATIC_FORCEINLINE _Float16 arm_nn_propagate_nan_f16h(_Float16 x, _Float16 y)
  * Drop-in equivalent of CLAMP(x, h, l) for scalar _Float16 operands,
  * including its NaN behaviour: MIN(NaN, h) is h, so a NaN input resolves to
  * the high bound, exactly as the macro does. Use
- * arm_nn_clamp_propagate_nan_f16h() where TFLite NaN propagation is required.
+ * arm_nn_clamp_propagate_nan_f16h() where TFLite NaN propagation is required
+ * (subject to the -ffinite-math-only caveat documented on that helper).
  */
 __STATIC_FORCEINLINE _Float16 arm_nn_clamp_f16h(_Float16 x, _Float16 h, _Float16 l)
 {
@@ -138,8 +142,12 @@ __STATIC_FORCEINLINE _Float16 arm_nn_clamp_f16h(_Float16 x, _Float16 h, _Float16
 /*
  * Clamp with TFLite NaN semantics: NaN passes through unchanged. Mirrors the
  * MVE idiom in arm_nn_clamp_propagate_nan_mve_f16() (lower bound first, then
- * upper bound, then restore NaN lanes). Bounds are assumed ordered
- * (l <= h); inverted bounds are unspecified.
+ * upper bound, then restore NaN lanes). NOTE the NaN restore holds only in builds
+ * without -ffinite-math-only: the shipped default (-Ofast) implies that flag, which
+ * licenses the compiler to fold the self-compare in arm_nn_propagate_nan_f16h()
+ * away. The result of the float elementwise kernels for a NaN is therefore
+ * documented as unspecified; see #333. Bounds are assumed ordered (l <= h);
+ * inverted bounds are unspecified.
  */
 __STATIC_FORCEINLINE _Float16 arm_nn_clamp_propagate_nan_f16h(_Float16 x, _Float16 l, _Float16 h)
 {

@@ -204,7 +204,12 @@ __STATIC_INLINE float32_t arm_nn_apply_activation_type_f32(float32_t x,
 
 __STATIC_INLINE float32_t arm_nn_clamp_scalar_f32(float32_t x, float32_t min_v, float32_t max_v)
 {
-    // Comparisons are false for NaN, so NaN propagates (TFLite semantics)
+    /* Comparisons are false for NaN, so NaN propagates (TFLite semantics). NOTE this
+     * holds only in builds without -ffinite-math-only. The shipped default (-Ofast,
+     * CMSIS_OPTIMIZATION_LEVEL in the top-level CMakeLists.txt) implies that flag,
+     * which licenses the compiler to assume both comparisons are ordered. The result
+     * of the float elementwise kernels for a NaN is therefore documented as
+     * unspecified; see #333. */
     return (x < min_v) ? min_v : ((x > max_v) ? max_v : x);
 }
 
@@ -218,8 +223,16 @@ __STATIC_INLINE float32x4_t arm_nn_clamp_mve_f32(float32x4_t x, float32x4_t min_
 
 __STATIC_INLINE float32x4_t arm_nn_clamp_propagate_nan_mve_f32(float32x4_t x, float32x4_t min_v, float32x4_t max_v)
 {
-    // vmaxnmq/vminnmq are IEEE maxNum/minNum and suppress NaN, so restore
-    // NaN lanes afterwards to match the scalar path and TFLite
+    /* vmaxnmq/vminnmq are IEEE maxNum/minNum and suppress NaN, so restore NaN lanes
+     * afterwards to match the scalar path and TFLite. Whether the restore survives
+     * optimization is toolchain dependent, so the result of the float elementwise
+     * kernels for a NaN is documented as unspecified; see #333.
+     *
+     * DO NOT delete the vcmpneq/vpselq pair as dead code. Arm GNU Toolchain 15.3.Rel1
+     * -- one of the releases this project builds and strict-links on every pull
+     * request -- keeps the vcmpneq inside the loop at the shipped -Ofast for
+     * cortex-m55, and arm_elementwise_sub_f32 then returns a real NaN, so removing the
+     * pair would change behaviour there. */
     const mve_pred16_t nan_p = vcmpneq(x, x);
     float32x4_t y = vmaxnmq(x, min_v);
     y = vminnmq(y, max_v);
@@ -300,8 +313,12 @@ arm_nn_vector_clamp_f32(float32_t *data, int32_t block_size, float32_t activatio
 __STATIC_INLINE float16_t arm_nn_clamp_scalar_f16(float16_t x, float16_t min_v, float16_t max_v)
 {
     /* NaN propagates (TFLite semantics), matching arm_nn_clamp_scalar_f32 and
-     * the MVE path in arm_nn_clamp_propagate_nan_mve_f16(). Bounds are assumed
-     * ordered; inverted bounds are unspecified. */
+     * the MVE path in arm_nn_clamp_propagate_nan_mve_f16(). NOTE that contract holds
+     * only in builds without -ffinite-math-only; the shipped -Ofast default implies
+     * that flag, which licenses the compiler to fold the NaN restore in
+     * arm_nn_clamp_propagate_nan_f16h() away. The result of the float elementwise
+     * kernels for a NaN is therefore documented as unspecified; see #333. Bounds are
+     * assumed ordered; inverted bounds are unspecified. */
     const _Float16 y = arm_nn_clamp_propagate_nan_f16h((_Float16)x, (_Float16)min_v, (_Float16)max_v);
     return (float16_t)y;
 }
@@ -387,8 +404,17 @@ __STATIC_INLINE float16x8_t arm_nn_clamp_mve_f16(float16x8_t x, float16x8_t min_
 
 __STATIC_INLINE float16x8_t arm_nn_clamp_propagate_nan_mve_f16(float16x8_t x, float16x8_t min_v, float16x8_t max_v)
 {
-    // vmaxnmq/vminnmq are IEEE maxNum/minNum and suppress NaN, so restore
-    // NaN lanes afterwards to match the scalar path and TFLite
+    /* vmaxnmq/vminnmq are IEEE maxNum/minNum and suppress NaN, so restore NaN lanes
+     * afterwards to match the scalar path and TFLite. As in the float32 twin above,
+     * whether the restore survives optimization is toolchain dependent, so the result
+     * of the float elementwise kernels for a NaN is documented as unspecified; see
+     * #333.
+     *
+     * DO NOT delete the vcmpneq/vpselq pair as dead code. Arm GNU Toolchain 15.3.Rel1
+     * -- one of the releases this project builds and strict-links on every pull
+     * request -- keeps the vcmpneq inside the loop at the shipped -Ofast for
+     * cortex-m55, and arm_elementwise_sub_f16 then returns a real NaN, so removing the
+     * pair would change behaviour there. */
     const mve_pred16_t nan_p = vcmpneq(x, x);
     float16x8_t y = vmaxnmq(x, min_v);
     y = vminnmq(y, max_v);

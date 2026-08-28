@@ -451,7 +451,15 @@ arm_cmsis_nn_status arm_prelu_f32(const cmsis_nn_dims *input_dims,
 /**
  * @brief Elementwise add with optional output clamp.
  *
- * NaN results propagate through the clamp (TensorFlow Lite semantics).
+ * Non-finite inputs are not supported. The shipped library is built with -Ofast (CMSIS_OPTIMIZATION_LEVEL
+ * in the top-level CMakeLists.txt), which implies -ffinite-math-only, and that flag licenses the compiler
+ * to assume neither NaNs nor infinities occur. What comes back for a NaN is therefore unspecified: it may
+ * be a NaN, or it may be one of the clamp bounds, and which of the two bounds is likewise unspecified.
+ * Toolchains gated by this project differ on this, and no optimization level or compiler flag is offered
+ * as a guaranteed way to obtain either outcome, so callers must rely on neither. When a bound comes back,
+ * the +/-INFINITY "no clamp" idiom turns the NaN into an infinity and finite-extreme bounds turn it into
+ * an ordinary finite value, so a NaN can become a normal number. Callers needing TensorFlow Lite NaN
+ * semantics must screen their inputs first. See issue #333.
  *
  * @param[in]  input_1_vect        Pointer to the first input vector.
  * @param[in]  input_2_vect        Pointer to the second input vector.
@@ -472,7 +480,15 @@ arm_cmsis_nn_status arm_elementwise_add_f32(const float32_t *input_1_vect,
 /**
  * @brief Elementwise subtract with optional output clamp.
  *
- * NaN results propagate through the clamp (TensorFlow Lite semantics).
+ * Non-finite inputs are not supported. The shipped library is built with -Ofast (CMSIS_OPTIMIZATION_LEVEL
+ * in the top-level CMakeLists.txt), which implies -ffinite-math-only, and that flag licenses the compiler
+ * to assume neither NaNs nor infinities occur. What comes back for a NaN is therefore unspecified: it may
+ * be a NaN, or it may be one of the clamp bounds, and which of the two bounds is likewise unspecified.
+ * Toolchains gated by this project differ on this, and no optimization level or compiler flag is offered
+ * as a guaranteed way to obtain either outcome, so callers must rely on neither. When a bound comes back,
+ * the +/-INFINITY "no clamp" idiom turns the NaN into an infinity and finite-extreme bounds turn it into
+ * an ordinary finite value, so a NaN can become a normal number. Callers needing TensorFlow Lite NaN
+ * semantics must screen their inputs first. See issue #333.
  *
  * @param[in]  input_1_vect        Pointer to the first input vector (minuend).
  * @param[in]  input_2_vect        Pointer to the second input vector (subtrahend).
@@ -504,7 +520,15 @@ arm_cmsis_nn_status arm_nn_abs_f32(const float32_t *input, float32_t *output, in
 /**
  * @brief Elementwise multiply with optional output clamp.
  *
- * NaN results propagate through the clamp (TensorFlow Lite semantics).
+ * Non-finite inputs are not supported. The shipped library is built with -Ofast (CMSIS_OPTIMIZATION_LEVEL
+ * in the top-level CMakeLists.txt), which implies -ffinite-math-only, and that flag licenses the compiler
+ * to assume neither NaNs nor infinities occur. What comes back for a NaN is therefore unspecified: it may
+ * be a NaN, or it may be one of the clamp bounds, and which of the two bounds is likewise unspecified.
+ * Toolchains gated by this project differ on this, and no optimization level or compiler flag is offered
+ * as a guaranteed way to obtain either outcome, so callers must rely on neither. When a bound comes back,
+ * the +/-INFINITY "no clamp" idiom turns the NaN into an infinity and finite-extreme bounds turn it into
+ * an ordinary finite value, so a NaN can become a normal number. Callers needing TensorFlow Lite NaN
+ * semantics must screen their inputs first. See issue #333.
  *
  * @param[in]  input_1_vect        Pointer to the first input vector.
  * @param[in]  input_2_vect        Pointer to the second input vector.
@@ -1402,14 +1426,7 @@ arm_cmsis_nn_status arm_elementwise_add_fp16(const float16_t *input_1_vect,
                                              const int32_t block_size);
 
 /**
- * @brief float16 elementwise subtract of two vectors with fused clamp.
- * @param[in]  input_1_vect        pointer to input vector 1
- * @param[in]  input_2_vect        pointer to input vector 2
- * @param[out] output              pointer to output vector
- * @param[in]  out_activation_min  minimum value to clamp the output to
- * @param[in]  out_activation_max  maximum value to clamp the output to
- * @param[in]  block_size          number of samples
- * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR on invalid arguments.
+ * @copydoc arm_elementwise_sub_f32
  */
 arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
                                             const float16_t *input_2_vect,
