@@ -64,8 +64,9 @@
 #      `../TestData/<name>/test_data.h` paths that their generators do
 #      produce, but only into a gitignored `TestData/` tree — the data was
 #      never checked in, so the suites were unbuildable in every checkout.
-#      No PR-gating job builds the float suites either way
-#      (ARM_NN_ENABLE_F32/F16 default OFF in the legacy build), so they
+#      No PR-gating job built the float suites either way at the time
+#      (ARM_NN_ENABLE_F32/F16 default OFF in the legacy build; the
+#      host-sanitizer job now turns both on), so they
 #      looked like coverage for years while being uncompilable — which is
 #      how a real transpose-conv output-shift bug survived to a release
 #      (#253, #256).
@@ -1083,9 +1084,10 @@ def check_ssot_pdsc_agreement(entries: list[tuple[str, str]]) -> None:
 # suite can actually be compiled:
 #
 #   - the float suites are registered under `if(ARM_NN_ENABLE_F32)` /
-#     `if(ARM_NN_ENABLE_F16)`, and no PR-gating job turns either flag on
-#     (the legacy build defaults both OFF), so a float suite is never
-#     configured, never compiled, and never run in CI;
+#     `if(ARM_NN_ENABLE_F16)`, and at the time no PR-gating job turned
+#     either flag on (the legacy build defaults both OFF), so a float
+#     suite was never configured, never compiled, and never run in CI --
+#     the host-sanitizer job now sets both;
 #   - 36 of them included `../TestData/<name>/test_data.h` paths that
 #     their `*_settings_flt.py` generators do produce, but only into a
 #     gitignored `TestData/` tree — the data was never force-added, so

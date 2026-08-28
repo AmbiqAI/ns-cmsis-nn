@@ -12,8 +12,9 @@
 # `../TestData/<name>/test_data.h` paths that their `*_settings_flt.py`
 # generators do produce, but only into a gitignored `TestData/` tree --
 # the data was never checked in, so the suites were unbuildable in every
-# checkout. Because no PR-gating job builds the float suites at all
-# either way (ARM_NN_ENABLE_F32/F16 default OFF in the legacy build),
+# checkout. Because no PR-gating job built the float suites at all
+# either way (ARM_NN_ENABLE_F32/F16 default OFF in the legacy build; the
+# host-sanitizer job now turns both on),
 # they were never configured, never compiled, and never run -- while
 # still reading as coverage on the tin. That is how the transpose-conv
 # output-shift bug reached a release (#253, #256).

@@ -80,10 +80,11 @@ endif()
 # are unchanged in code: only their .ARM.attributes Tag_ABI_FP_number_model tag moves from Finite to
 # IEEE 754.
 #
-# Nothing in CI exercises this yet: legacy-tester.yml is workflow_call/workflow_dispatch only and is
-# invoked solely by release.yml's release-unit-tests, which runs build_and_run_tests.sh without
-# -DARM_NN_ENABLE_F32/-DARM_NN_ENABLE_F16, so no job builds a float suite. Dropping this flag would
-# be silent until those float legs are enabled -- do not remove it on the grounds that CI stays green.
+# host-sanitizer.yml builds the float suites on every pull request and is where this flag is
+# exercised. The FVP legs are not: legacy-tester.yml is workflow_call/workflow_dispatch only and is
+# invoked solely by release.yml's release-unit-tests, so the Corstone-300 branch above first runs at
+# release time. Removing this flag would pass the host job and surface as a hang on the FVP during a
+# release -- do not remove it on the grounds that CI stays green.
 if(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300)
     add_compile_options(${CMSIS_OPTIMIZATION_LEVEL} -fno-finite-math-only)
 elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
