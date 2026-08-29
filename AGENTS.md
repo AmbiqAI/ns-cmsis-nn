@@ -50,6 +50,15 @@ break the embedded build. When writing SIMD paths:
   `arm_minmax_select_f16`. Doing the select in `float32` is NOT a fix when
   both arms are round-tripped halves: GCC narrows it back to HFmode and
   still ICEs (observed on 14.3 at `-O3`).
+  This rule governs `Tests/UnitTest/TestCases/**` as well as `Source/**`. The
+  suites compile with `-fno-finite-math-only` on top of the library's flags,
+  which removes the escape hatch that hides this ICE elsewhere, so a construct
+  that builds fine in a kernel can still break the suite that tests it. If you
+  hit it, do not respond by dropping `-fno-finite-math-only` —
+  Tests/UnitTest/CMakeLists.txt explains why it has to stay — respond by not
+  writing the select. #344 has the measured flag and toolchain matrices and
+  the full diagnostic; that is where `test_arm_maximum_minimum_f16` broke
+  every cortex-m55 release leg while PR CI stayed green.
 
 ## Adding a kernel: three build manifests + header
 

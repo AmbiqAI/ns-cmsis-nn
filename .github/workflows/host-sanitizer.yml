@@ -7,14 +7,13 @@ name: Host sanitizer unit tests
 # a scratch buffer under-sized by a get_buffer_size query. It exercises the
 # scalar (non-MVE) kernel paths only.
 #
-# Float16 is left off until the one unbuildable f16 suite (test_arm_convolve_f16,
-# allowlisted in scripts/check_pdsc.py pending #236) is repaired or removed.
+# Float16 needs _Float16 on x86, which the ubuntu-24.04 gcc provides.
 #
 # One UBSan check is masked: -fno-sanitize=shift-base. It silences two
 # diagnostics, not one: "left shift of negative value", and "left shift of X by
 # N places cannot be represented in type 'int'", i.e. signed left-shift
 # overflow of a positive value. Both are well defined on every Arm target but
-# UB in C. Removing the mask fails 20 of the 127 suites, and the sites that
+# UB in C. Removing the mask fails 20 of the 144 suites, and the sites that
 # report fall into three groups, so fixing any one group would not make the mask
 # droppable:
 #   - Files carrying an Arm copyright line: the s4 and s16 paths (arm_nn_mat_mult_nt_t_s4.c,
@@ -68,13 +67,13 @@ jobs:
           # time) imports these two; the full Tests/UnitTest/requirements.txt is for the FVP/Mbed flows.
           python3 -m pip install --user termcolor pyserial
 
-      - name: Configure (host, ASan + UBSan, F32 on)
+      - name: Configure (host, ASan + UBSan, F32 and F16 on)
         run: |
           cmake -S Tests/UnitTest -B build-host -G Ninja \
             -DBUILD_CMSIS_NN_UNIT=ON \
             -DCMSIS_PATH=/nonexistent-host-build-needs-no-cmsis \
             -DARM_NN_ENABLE_F32=ON \
-            -DARM_NN_ENABLE_F16=OFF \
+            -DARM_NN_ENABLE_F16=ON \
             -DCMSIS_OPTIMIZATION_LEVEL=-O1 \
             "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -g -fno-omit-frame-pointer" \
             "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
@@ -85,10 +84,12 @@ jobs:
       # --no-tests=error turns a *fully* empty test set into a failure rather than a
       # pass. It says nothing about a partial regression, so the count check below
       # guards that separately: a floor, not the exact number, so adding or retiring
-      # a suite does not need this edited. This config (F32 on, F16 off) registers 127.
+      # a suite does not need this edited. This config (F32 and F16 on) registers 144, of which
+      # 14 come from ARM_NN_ENABLE_F32 and 14 from ARM_NN_ENABLE_F16, so the floor below sits above
+      # 144 minus either block.
       - name: Run every suite
         run: |
           registered=$(ctest --test-dir build-host -N | awk '/Total Tests:/ {print $3}')
           echo "ctest registered $registered suites"
-          test "$registered" -ge 120
+          test "$registered" -ge 140
           ctest --test-dir build-host --output-on-failure --parallel 4 --no-tests=error

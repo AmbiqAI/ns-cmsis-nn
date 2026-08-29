@@ -8,7 +8,7 @@ Tests/UnitTest/TestCases/TestData/*/schema_generated.h
 Tests/UnitTest/PregeneratedData/*
 Tests/UnitTest/Output/*
 Tests/UnitTest/Unity/*
-Tests/UnitTest/downloads/*
+Tests/UnitTest/downloads
 Tests/UnitTest/build-cortex-m*
 Documentation/html/*
 Documentation/xml/*
