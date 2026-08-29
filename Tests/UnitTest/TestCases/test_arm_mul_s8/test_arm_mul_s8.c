@@ -296,3 +296,72 @@ void mul_broadcast_hc_s8_arm_mul_s8(void)
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, mul_broadcast_hc_s8_output_ref, MUL_BROADCAST_HC_S8_DST_SIZE));
 }
+
+/* Regression for the NHWC broadcast walk (issue #336): see the add suite for the mechanism.
+ * Identity output requantization and zero input offsets, so the expected output is the plain
+ * elementwise product. */
+void mul_broadcast_batch_scalar_s8_arm_mul_s8(void)
+{
+    const int8_t input_1[2] = {10, 20};
+    const int8_t input_2[4] = {1, 2, 3, 4};
+    const int8_t expected_1_2[8] = {10, 20, 30, 40, 20, 40, 60, 80};
+    const int8_t expected_2_1[8] = {10, 20, 30, 40, 20, 40, 60, 80};
+    int8_t output[8] = {0};
+    int8_t output_reversed[8] = {0};
+    const cmsis_nn_dims input_1_dims = {2, 1, 1, 1};
+    const cmsis_nn_dims input_2_dims = {1, 2, 1, 2};
+    const cmsis_nn_dims output_dims = {2, 2, 1, 2};
+
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_mul_s8(
+            input_1, &input_1_dims, input_2, &input_2_dims, 0, 0, output, &output_dims, 0, 1073741824, 1, -128, 127));
+    TEST_ASSERT_TRUE(validate(output, expected_1_2, 8));
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_mul_s8(input_2,
+                                 &input_2_dims,
+                                 input_1,
+                                 &input_1_dims,
+                                 0,
+                                 0,
+                                 output_reversed,
+                                 &output_dims,
+                                 0,
+                                 1073741824,
+                                 1,
+                                 -128,
+                                 127));
+    TEST_ASSERT_TRUE(validate(output_reversed, expected_2_1, 8));
+}
+
+/* The walk indexes each operand by its own dims, so shapes that do not broadcast to the output
+ * shape are now rejected instead of silently producing a partial result. */
+void mul_dims_arg_error_s8_arm_mul_s8(void)
+{
+    const int8_t input_a[4] = {1, 2, 3, 4};
+    const int8_t input_b[4] = {5, 6, 7, 8};
+    int8_t output[8] = {0};
+    const cmsis_nn_dims dims_2n = {2, 1, 1, 1};
+    const cmsis_nn_dims dims_3n = {3, 1, 1, 1};
+    const cmsis_nn_dims dims_1h2c = {1, 2, 1, 2};
+    const cmsis_nn_dims dims_out = {2, 2, 1, 2};
+    const cmsis_nn_dims dims_0h = {2, 0, 1, 1};
+
+    /* n = 2 against n = 3 does not broadcast */
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_mul_s8(input_a, &dims_2n, input_b, &dims_3n, 0, 0, output, &dims_3n, 0, 1073741824, 1, -128, 127));
+    /* the output shape must be the broadcast shape of the two inputs */
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_mul_s8(input_a, &dims_2n, input_b, &dims_1h2c, 0, 0, output, &dims_2n, 0, 1073741824, 1, -128, 127));
+    /* a null operand is rejected */
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_mul_s8(NULL, &dims_2n, input_b, &dims_1h2c, 0, 0, output, &dims_out, 0, 1073741824, 1, -128, 127));
+    /* a non-positive dimension is rejected */
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_mul_s8(input_a, &dims_0h, input_b, &dims_0h, 0, 0, output, &dims_0h, 0, 1073741824, 1, -128, 127));
+}

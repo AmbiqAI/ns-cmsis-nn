@@ -11,7 +11,8 @@
  * Project:      CMSIS NN Library
  * Title:        arm_nn_broadcast_walk.h
  * Description:  NHWC broadcast validation and traversal shared by the
- *               elementwise minimum/maximum and comparison kernels.
+ *               elementwise minimum/maximum, comparison, add, sub, mul,
+ *               squared-difference and PReLU kernels.
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */

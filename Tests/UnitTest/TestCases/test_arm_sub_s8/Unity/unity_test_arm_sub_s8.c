@@ -50,3 +50,5 @@ void test_sub_broadcast_h_s8_arm_sub_s8(void) { sub_broadcast_h_s8_arm_sub_s8();
 void test_sub_broadcast_w_s8_arm_sub_s8(void) { sub_broadcast_w_s8_arm_sub_s8(); }
 void test_sub_broadcast_c_s8_arm_sub_s8(void) { sub_broadcast_c_s8_arm_sub_s8(); }
 void test_sub_broadcast_hc_s8_arm_sub_s8(void) { sub_broadcast_hc_s8_arm_sub_s8(); }
+void test_sub_broadcast_batch_scalar_s8_arm_sub_s8(void) { sub_broadcast_batch_scalar_s8_arm_sub_s8(); }
+void test_sub_dims_arg_error_s8_arm_sub_s8(void) { sub_dims_arg_error_s8_arm_sub_s8(); }

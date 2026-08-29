@@ -50,3 +50,5 @@ void test_add_broadcast_h_s16_arm_add_s16(void) { add_broadcast_h_s16_arm_add_s1
 void test_add_broadcast_w_s16_arm_add_s16(void) { add_broadcast_w_s16_arm_add_s16(); }
 void test_add_broadcast_c_s16_arm_add_s16(void) { add_broadcast_c_s16_arm_add_s16(); }
 void test_add_broadcast_hc_s16_arm_add_s16(void) { add_broadcast_hc_s16_arm_add_s16(); }
+void test_add_broadcast_batch_scalar_s16_arm_add_s16(void) { add_broadcast_batch_scalar_s16_arm_add_s16(); }
+void test_add_dims_arg_error_s16_arm_add_s16(void) { add_dims_arg_error_s16_arm_add_s16(); }

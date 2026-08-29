@@ -44,3 +44,9 @@ void test_prelu_alpha_hw_broadcast_s8(void)
 {
     prelu_alpha_hw_broadcast_s8_arm_prelu_s8();
 }
+void test_prelu_broadcast_batch_scalar_alpha_s8_arm_prelu_s8(void)
+{
+    prelu_broadcast_batch_scalar_alpha_s8_arm_prelu_s8();
+}
+void test_prelu_dims_arg_error_s8_arm_prelu_s8(void) { prelu_dims_arg_error_s8_arm_prelu_s8(); }
+void test_prelu_output_shape_mismatch_s8(void) { prelu_output_shape_mismatch_s8_arm_prelu_s8(); }
