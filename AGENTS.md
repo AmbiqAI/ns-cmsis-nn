@@ -50,12 +50,19 @@ break the embedded build. When writing SIMD paths:
   `arm_minmax_select_f16`. Doing the select in `float32` is NOT a fix when
   both arms are round-tripped halves: GCC narrows it back to HFmode and
   still ICEs (observed on 14.3 at `-O3`).
-  This rule governs `Tests/UnitTest/TestCases/**` as well as `Source/**`. The
-  suites are compiled at `-Ofast -fno-finite-math-only`, a *higher*
-  optimization level than the library, so a `_Float16` ternary in a test's
-  expected-value computation ICEs where the same construct in a kernel might
-  not — see #344, where `test_arm_maximum_minimum_f16` broke every
-  cortex-m55 release leg while PR CI stayed green.
+  This rule governs `Tests/UnitTest/TestCases/**` as well as `Source/**`, and
+  the suites are *more* exposed than the library despite compiling at the same
+  `-Ofast`: they add `-fno-finite-math-only`, and that flag is what uncovers
+  the ICE. Measured on the pinned 14.2.Rel1 for cortex-m55, on a `_Float16`
+  ternary: `-O2` clean, `-O3` clean, plain `-Ofast` clean — the library's own
+  flags — but `-Ofast -fno-finite-math-only` and `-O3 -fno-finite-math-only`
+  both ICE. With finite-math in force GCC emits `vmaxnm`; without it, the
+  unrecognizable `if_then_else:HF`. So a construct that compiles fine in a
+  kernel can break the suite that tests it. Do not respond by dropping
+  `-fno-finite-math-only` — Tests/UnitTest/CMakeLists.txt explains why it has
+  to stay — respond by not writing the select. See #344, where
+  `test_arm_maximum_minimum_f16` broke every cortex-m55 release leg while PR
+  CI stayed green.
 
 ## Adding a kernel: three build manifests + header
 
