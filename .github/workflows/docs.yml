@@ -57,7 +57,16 @@ jobs:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-22.04
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Skip release-please merge commits: release.yml deploys the docs for a
+    # release itself, and two workflows deploying Pages for the same push
+    # can collide (one deployment at a time). The github-pages concurrency
+    # group serializes against any other in-flight Pages deploy.
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      !startsWith(github.event.head_commit.message, 'chore(main): release')
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
     permissions:
       contents: read
       pages: write

@@ -21,13 +21,15 @@ on:
   push:
     branches:
       - main
+  # No base-branch filter on pull_request: the folded workflows gated PRs
+  # into ANY branch before the fold-in, and a required check that never
+  # reports would leave a non-main-target PR unmergeable.
   pull_request:
-    branches:
-      - main
 
-# One run per ref. In-progress PR runs are superseded by a new push; main
-# pushes are never cancelled (a cancelled main run would skip docs deploy
-# and release plumbing downstream).
+# One run per ref. In-progress PR runs are superseded by a new push. An
+# in-progress main run is never cancelled, though a rapid series of main
+# pushes can cancel a superseded PENDING run -- the newest queued run
+# survives and its docs deploy converges the site.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -76,10 +78,11 @@ jobs:
   zephyr-integration:
     uses: ./.github/workflows/zephyr-integration.yml
 
-  # The docs build gates every PR (its old paths filter covered Include/,
-  # Source/ and docs/ anyway, i.e. nearly every substantive change); the
-  # deploy job inside stays gated to push-to-main, which is why this caller
-  # needs the Pages permissions the callee's deploy job asks for.
+  # The docs build gates every PR (its old paths filter already covered
+  # Include/, Source/, docs/ and more, i.e. nearly every substantive
+  # change); the deploy job inside stays gated to push-to-main, which is
+  # why this caller needs the Pages permissions the callee's deploy job
+  # asks for.
   docs:
     uses: ./.github/workflows/docs.yml
     permissions:

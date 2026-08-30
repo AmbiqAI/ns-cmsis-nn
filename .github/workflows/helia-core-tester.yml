@@ -131,16 +131,17 @@ jobs:
 
   # Shipped-flags execution legs (AmbiqAI/ns-cmsis-nn#358). The coverage
   # legs above compile the library at -O0 (the tester's --coverage appends
-  # -O0 after CMSIS_OPTIMIZATION_LEVEL, and last -O wins) and, outside the
-  # --coverage-mve-float legs, define ARM_MATH_AUTOVECTORIZE, which swaps
-  # the shipped MVE inline-asm integer paths for C fallbacks. So without
-  # this job, no CI leg executes the code that ships: -Ofast (the tester
-  # default) with the real MVE/DSP paths. The DSP packed-path defects
-  # (#343, #345) and the GCC-version -Ofast divergence (#340) all lived in
-  # exactly that blind spot. Coverage legs keep measuring coverage; these
-  # legs are the functional gate for shipped code. Legs cover the shipping
-  # silicon (m4, m55) plus the m55 float MVE paths; m0 shipped-flags runs
-  # stay release/nightly-tier.
+  # -O0 after CMSIS_OPTIMIZATION_LEVEL, and the last -O wins) and, outside
+  # the --coverage-mve-float legs, define ARM_MATH_AUTOVECTORIZE, which
+  # swaps the shipped MVE inline-asm integer paths for C fallbacks. So
+  # without this job no CI leg executes what ships: -Ofast (the tester
+  # default) with the real MVE paths. These legs still run the container's
+  # single GCC, so cross-toolchain divergence at -Ofast (#340) needs a
+  # second executing toolchain and stays open. Coverage legs keep
+  # measuring coverage; these legs are the functional gate for shipped
+  # code, on the shipping silicon (m4, m55) plus the m55 float MVE paths.
+  # m0 shipped-flags execution stays release-tier (the legacy Unity leg in
+  # release.yml builds m0 at the tester default -Ofast).
   shipped-flags-tests:
     runs-on: ubuntu-latest
     needs: resolve-container-image
@@ -227,7 +228,7 @@ jobs:
           ./scripts/setup_ci.sh
 
       # No --coverage: the tester's default -Ofast stands, and the real
-      # MVE/DSP paths compile. This is the only PR leg executing shipped code.
+      # MVE integer paths compile instead of the AUTOVECTORIZE fallbacks.
       - name: Run helia-core-tester at shipped flags (no coverage)
         run: |
           cd Tests/helia-core-tester
