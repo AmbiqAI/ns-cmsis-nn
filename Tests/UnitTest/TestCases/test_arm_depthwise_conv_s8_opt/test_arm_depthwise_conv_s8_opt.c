@@ -1470,7 +1470,9 @@ void buffer_size_out_of_range_mve_arm_depthwise_conv_s8_opt(void)
     dw_conv_params.dilation.h = 1;
     dw_conv_params.ch_mult = 1;
 
-    // The shape from the issue: only input_dims->c is out of range, and the Helium leg does not read it.
+    // The shape from the issue. c = -1 lands in all three dims structs below, but the gate's other two
+    // conditions (filter_dims->w, filter_dims->h) are positive here, so it is input_dims->c that fires it --
+    // the one dimension the Helium leg never reads, which is why the leg used to answer without it.
     input_dims.n = 1;
     input_dims.h = 65536;
     input_dims.w = 2;
