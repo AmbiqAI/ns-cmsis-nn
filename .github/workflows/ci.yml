@@ -21,9 +21,11 @@ on:
   push:
     branches:
       - main
-  # No base-branch filter on pull_request: the folded workflows gated PRs
-  # into ANY branch before the fold-in, and a required check that never
-  # reports would leave a non-main-target PR unmergeable.
+  # No base-branch filter on pull_request: seven of the eight folded
+  # workflows gated PRs into any base branch before the fold-in
+  # (host-sanitizer was main-only), and a required check that never
+  # reports would leave a non-main-target PR unmergeable -- so everything
+  # here runs on every PR, whatever its base.
   pull_request:
 
 # One run per ref. In-progress PR runs are superseded by a new push. An

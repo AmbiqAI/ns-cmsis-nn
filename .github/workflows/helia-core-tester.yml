@@ -140,8 +140,9 @@ jobs:
   # second executing toolchain and stays open. Coverage legs keep
   # measuring coverage; these legs are the functional gate for shipped
   # code, on the shipping silicon (m4, m55) plus the m55 float MVE paths.
-  # m0 shipped-flags execution stays release-tier (the legacy Unity leg in
-  # release.yml builds m0 at the tester default -Ofast).
+  # m0 shipped-flags execution stays release-tier (the legacy Unity leg
+  # called from release.yml builds m0 at that harness's own default
+  # -Ofast, Tests/UnitTest/build_and_run_tests.sh).
   shipped-flags-tests:
     runs-on: ubuntu-latest
     needs: resolve-container-image

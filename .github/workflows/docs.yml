@@ -59,11 +59,16 @@ jobs:
     runs-on: ubuntu-22.04
     # Skip release-please merge commits: release.yml deploys the docs for a
     # release itself, and two workflows deploying Pages for the same push
-    # can collide (one deployment at a time). The github-pages concurrency
-    # group serializes against any other in-flight Pages deploy.
+    # can collide (GitHub runs one Pages deployment at a time). `contains`
+    # rather than `startsWith` so this matches release.yml's own release
+    # detection exactly -- the two workflows must never disagree on what a
+    # release push is, whichever merge method produced the commit. The
+    # github-pages concurrency group serializes docs deploys with each
+    # other; release.yml's deploy does not share it, which is fine while
+    # this job skips every push release.yml deploys for.
     if: >-
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      !startsWith(github.event.head_commit.message, 'chore(main): release')
+      !contains(github.event.head_commit.message, 'chore(main): release')
     concurrency:
       group: github-pages
       cancel-in-progress: false
