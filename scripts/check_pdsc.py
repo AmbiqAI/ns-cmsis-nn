@@ -115,22 +115,33 @@ RP_BLOCK_END_RE = re.compile(r"x-release-please-end")
 RP_VERSION_TRIPLET_RE = re.compile(r"\d+\.\d+\.\d+")
 RP_BARE_INT_RE = re.compile(r"\d+\b")
 
-# Extra-files entries whose version literal cannot carry an
-# x-release-please annotation, mapped to a regex whose first capture group
-# is the literal to check against the canonical version. Today this is
-# just docs/guides/toolchains.md's manifest.json illustration: JSON has no
-# comment syntax, and wrapping it in an x-release-please-start-version/-end
-# block would also rewrite the unrelated ATfE compiler version a few lines
-# below ("toolchain": {"version": "19.1.5"}), since the block updater
-# rewrites the first semver-shaped string on *every* line it spans. The
-# regex is anchored to exactly two leading spaces so it matches only the
-# top-level manifest.json `"version"` field, not the nested toolchain one
-# (four leading spaces) — if that example's fields are ever reordered or
-# re-indented, the anchor (correctly) stops matching and this check fails
-# loudly instead of silently checking the wrong field.
-LITERAL_ONLY_EXTRA_FILES: dict[str, re.Pattern[str]] = {
-    "docs/guides/toolchains.md": re.compile(r'^ {2}"version": "([^"]+)",?$', re.MULTILINE),
-}
+# Escape hatch for an extra-files entry whose version literal genuinely
+# cannot carry an x-release-please annotation, mapped to a regex whose
+# first capture group is the literal to check against the canonical
+# version. An entry here is NOT bumped by release-please — it only fails
+# this check once it drifts, so someone has to bump it by hand every
+# release. That is strictly worse than an annotation, so the allowlist is
+# a last resort, not a shortcut.
+#
+# It is currently empty. Its only member was docs/guides/toolchains.md,
+# whose version sat on a JSON line inside a fenced manifest.json example:
+# JSON has no comment syntax, so an inline annotation would have made the
+# example invalid for anyone who copied it, and an
+# x-release-please-start-version/-end block around the fence would also
+# have rewritten the unrelated ATfE compiler version a few lines below
+# ("toolchain": {"version": "19.1.5"}), since the block updater rewrites
+# the first semver-shaped string on *every* line it spans. That doc now
+# states the release version in prose above the fence, where an HTML
+# comment carries the annotation and the JSON example stays version-free,
+# so it is covered by the ordinary annotation path below (#347).
+#
+# The mechanism is kept because the constraint that produced it (a value
+# whose file has no usable comment syntax on that line, and whose
+# neighbours make a block unsafe) can recur; scripts/tests/test_check_pdsc.py
+# pins its behaviour against synthetic fixtures so it cannot rot while
+# unused. Before adding an entry, check whether prose-plus-annotation or a
+# start/end block would work instead — both keep the bump automatic.
+LITERAL_ONLY_EXTRA_FILES: dict[str, re.Pattern[str]] = {}
 
 EXPECTED_PACK = {
     "schemaVersion": "1.7.36",

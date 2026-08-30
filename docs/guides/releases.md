@@ -33,6 +33,32 @@ Other conventional types (`docs:`, `chore:`, `refactor:`, `test:`,
 `ci:`, `build:`, `perf:`) do **not** trigger a release on their own,
 but their bodies still appear in `CHANGELOG.md`.
 
+## How the version gets stamped
+
+`release-please` bumps `.release-please-manifest.json` and `CHANGELOG.md`,
+and every other file that hardcodes the release version is listed in
+`release-please-config.json` under `extra-files`. Those all use the `generic`
+updater, which rewrites a line only if that same line carries an
+`x-release-please-version` (or `-major`/`-minor`/`-patch`) comment. There is
+no error when a listed file has no such comment: the updater changes nothing
+and the release proceeds, so the file appears covered and drifts a release
+behind. Two checks close that gap, from opposite directions:
+
+- `scripts/check_pdsc.py` asserts every `extra-files` path exists, carries a
+  working annotation, and agrees with `Include/arm_nn_types.h`. It sees
+  everything on the list.
+- `scripts/check_stale_version_refs.py` reads the previous release out of
+  `CHANGELOG.md` and asserts no tracked file still mentions it, outside an
+  allowlist of files whose job is to discuss release history (this page and
+  the recovery commands below are on it). It sees the files that are *not*
+  on the list.
+
+Adding a new file that hardcodes the version means adding it to
+`extra-files` **and** putting the annotation on the value's own line. Where
+the value sits somewhere a comment cannot go — a JSON line in a fenced
+example, say — state the version in prose next to the block, with the
+annotation on that prose line, and leave the block version-free.
+
 ## What's in a release
 
 Every GitHub Release contains:

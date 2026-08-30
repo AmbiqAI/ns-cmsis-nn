@@ -92,6 +92,20 @@ class CheckExtraFilesAnnotations(unittest.TestCase):
             json.dumps({"packages": {".": {"extra-files": extra_files}}}),
         )
 
+    def allow_literal_only(self, rel: str, pattern: str) -> None:
+        """Put one synthetic entry on the module's LITERAL_ONLY_EXTRA_FILES
+        allowlist. The real allowlist is empty (#347) -- its only member,
+        docs/guides/toolchains.md, now states the version in prose above the
+        JSON fence where an HTML comment can carry the annotation, so it is
+        covered by the ordinary annotation path. The mechanism is kept for
+        the next value whose file has no usable comment syntax on that line,
+        and these tests are what stop it rotting while unused, so they must
+        supply their own fixture rather than lean on a live repo path."""
+        import re as _re
+
+        self.module.LITERAL_ONLY_EXTRA_FILES = dict(self.module.LITERAL_ONLY_EXTRA_FILES)
+        self.module.LITERAL_ONLY_EXTRA_FILES[rel] = _re.compile(pattern, _re.MULTILINE)
+
     def run_check(self) -> list[str]:
         self.module.check_extra_files_annotations()
         return list(self.module.failures)
@@ -136,7 +150,22 @@ class CheckExtraFilesAnnotations(unittest.TestCase):
         self.assertEqual(self.run_check(), [])
 
     def test_literal_only_allowlist_entry_matching_canonical_is_accepted(self):
-        self.write("docs/guides/toolchains.md", '  "version": "7.29.2",\n')
+        self.allow_literal_only("docs/literal.md", r'^ {2}"version": "([^"]+)",?$')
+        self.write("docs/literal.md", '  "version": "7.29.2",\n')
+        self.write_config([{"type": "generic", "path": "docs/literal.md"}])
+        self.assertEqual(self.run_check(), [])
+
+    def test_prose_html_comment_annotation_is_accepted(self):
+        # The form docs/guides/toolchains.md now uses: the version is stated
+        # in prose above a fenced JSON example, so the annotation rides an
+        # HTML comment (invisible when rendered) and the fence itself stays
+        # version-free and valid JSON. Replaces that file's LITERAL_ONLY
+        # entry, which release-please never touched (#347).
+        self.write(
+            "docs/guides/toolchains.md",
+            'tarballs for this release carry `"version": "7.29.2"`. '
+            "<!-- x-release-please-version -->\n",
+        )
         self.write_config([{"type": "generic", "path": "docs/guides/toolchains.md"}])
         self.assertEqual(self.run_check(), [])
 
@@ -205,8 +234,9 @@ class CheckExtraFilesAnnotations(unittest.TestCase):
         )
 
     def test_literal_only_entry_drifted_from_canonical_is_rejected(self):
-        self.write("docs/guides/toolchains.md", '  "version": "7.25.0",\n')
-        self.write_config([{"type": "generic", "path": "docs/guides/toolchains.md"}])
+        self.allow_literal_only("docs/literal.md", r'^ {2}"version": "([^"]+)",?$')
+        self.write("docs/literal.md", '  "version": "7.25.0",\n')
+        self.write_config([{"type": "generic", "path": "docs/literal.md"}])
         failures = self.run_check()
         self.assertTrue(
             any(
@@ -216,17 +246,18 @@ class CheckExtraFilesAnnotations(unittest.TestCase):
             failures,
         )
 
-    def test_literal_only_pattern_does_not_match_nested_toolchain_version(self):
-        # Regression guard for the exact hazard this PR's review caught:
-        # docs/guides/toolchains.md's manifest.json example also shows an
-        # unrelated ATfE compiler version ("toolchain": {"version":
-        # "19.1.5"}) a few lines below the package version. The allowlist
-        # pattern is anchored to exactly two leading spaces (the
-        # top-level field) so it cannot pick up the nested one (four
-        # leading spaces) -- if it did, this test would see a spurious
-        # "does not match canonical" failure comparing 19.1.5 to 7.29.2.
+    def test_literal_only_pattern_does_not_match_a_nested_version_field(self):
+        # Regression guard for the hazard that made the allowlist tricky in
+        # the first place: the file it was written for held a second,
+        # unrelated version ("toolchain": {"version": "19.1.5"}, the ATfE
+        # compiler) a few lines below the package version. A literal-only
+        # pattern must be anchored tightly enough -- here to exactly two
+        # leading spaces, the top-level field -- that it cannot pick up the
+        # nested one (four leading spaces); if it did, this test would see a
+        # spurious "does not match canonical" comparing 19.1.5 to 7.29.2.
+        self.allow_literal_only("docs/literal.md", r'^ {2}"version": "([^"]+)",?$')
         self.write(
-            "docs/guides/toolchains.md",
+            "docs/literal.md",
             "{\n"
             '  "version": "7.29.2",\n'
             '  "toolchain": {\n'
@@ -234,19 +265,20 @@ class CheckExtraFilesAnnotations(unittest.TestCase):
             "  }\n"
             "}\n",
         )
-        self.write_config([{"type": "generic", "path": "docs/guides/toolchains.md"}])
+        self.write_config([{"type": "generic", "path": "docs/literal.md"}])
         self.assertEqual(self.run_check(), [])
 
     def test_literal_only_pattern_missing_is_reported_not_silently_skipped(self):
-        # If toolchains.md is ever reformatted so the anchor no longer
-        # matches anything, that must fail loudly (wrong field could
-        # otherwise be silently compared, or the drift could go
-        # unnoticed) rather than being treated as "nothing to check".
-        self.write("docs/guides/toolchains.md", '   "version": "7.29.2",\n')  # 3 spaces, not 2
-        self.write_config([{"type": "generic", "path": "docs/guides/toolchains.md"}])
+        # If an allowlisted file is ever reformatted so the anchor no longer
+        # matches anything, that must fail loudly (the wrong field could
+        # otherwise be silently compared, or the drift could go unnoticed)
+        # rather than being treated as "nothing to check".
+        self.allow_literal_only("docs/literal.md", r'^ {2}"version": "([^"]+)",?$')
+        self.write("docs/literal.md", '   "version": "7.29.2",\n')  # 3 spaces, not 2
+        self.write_config([{"type": "generic", "path": "docs/literal.md"}])
         failures = self.run_check()
         self.assertTrue(
-            any("found no match" in f and "toolchains.md" in f for f in failures), failures
+            any("found no match" in f and "literal.md" in f for f in failures), failures
         )
 
     # -- block form (x-release-please-start-*/-end) ---------------------

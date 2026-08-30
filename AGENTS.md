@@ -123,6 +123,11 @@ count so the MVE tail-predication path is exercised.
   `Tests/UnitTest/Corstone-300`); `.pre-commit-config.yaml` pins the
   pre-commit hook version separately.
 - `python3 scripts/check_pdsc.py` after any manifest change.
+- `python3 scripts/check_stale_version_refs.py` if you add a file that
+  hardcodes the release version. Anything that stamps the version must be
+  listed in `release-please-config.json`'s `extra-files` with an
+  `x-release-please-*` annotation on the same line as the value, or it will
+  never be bumped.
 - License headers: new source files use the Ambiq SPDX header
   (`LicenseRef-Ambiq-Apollo-SDK`); generated test-data headers use Apache-2.0
   (matching existing precedent).
