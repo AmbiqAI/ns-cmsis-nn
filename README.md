@@ -31,6 +31,113 @@ for HELIA AI workflows.
 
 ---
 
+## Project status
+
+[![CI/CD Pipeline](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/ci.yml?query=branch%3Amain)
+[![Host sanitizer](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/host-sanitizer.yml/badge.svg?branch=main)](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/host-sanitizer.yml?query=branch%3Amain)
+[![Docs](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/docs.yml?query=branch%3Amain)
+[![Release](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/release.yml?query=branch%3Amain)
+[![Latest release](https://img.shields.io/github/v/release/AmbiqAI/ns-cmsis-nn?sort=semver&label=latest%20release)](https://github.com/AmbiqAI/ns-cmsis-nn/releases/latest)
+
+Badges track `main`. Only workflows that run in their own right get one: the FVP
+numerics suite and the toolchain matrix are *called by* `ci.yml`, so they report
+through the **CI/CD Pipeline** badge. `legacy-tester.yml` and
+`helia-core-tester.yml` do serve badge images, but those show the last *manual*
+dispatch of a reusable workflow rather than PR or release status, so they are
+deliberately not used here.
+
+### What runs on every pull request
+
+| Check | What it establishes | Targets |
+| --- | --- | --- |
+| **Numerics** — `helia-core-tester` under the Corstone-300 FVP, via `ci.yml` | kernel results match reference vectors | int4/int8/int16 on cortex-m0, cortex-m4 and cortex-m55; `float32` on m4 (scalar) and m55 (scalar + MVE); `float16` on m55 (scalar + MVE) |
+| **Toolchain build + strict link**, via `ci.yml` | every kernel compiles and every symbol resolves — no `--gc-sections`, no ignored undefined symbols | GCC 13.2.Rel1 / 14.3.Rel1 / 15.3.Rel1, ATfE 19.1.5 and armclang 6.23.32, each on cortex-m55 and cortex-m4 |
+| **Memory safety** — `host-sanitizer.yml` | out-of-bounds access, undefined behaviour and leaks that leave the numerics intact, such as a scratch buffer under-sized by a `get_buffer_size` query | **x86 host only**, scalar (non-MVE) paths; ~144 Unity suites under ASan + UBSan + LSan via `ctest` (the job asserts a floor of 140) |
+| **Packaging & wiring contracts** | PDSC/CMSIS-Pack, the CMake SSoT, Zephyr and NSX wiring, SPDX headers, release-pipeline contract | ubuntu runners; no target hardware involved |
+| **Docs** — `docs.yml` | the Sphinx + Doxygen site still builds | ubuntu runner |
+
+### What runs only at release time, or on demand
+
+`release.yml` additionally runs the **Unity suites on Arm** (`legacy-tester.yml`,
+cortex-m0/m4/m55 under the FVP), then `release-verify`, which re-reads the
+published GitHub Release and fails if a required asset is missing. Neither runs
+on pull requests, so a green PR says nothing about either.
+
+`staticlib-dryrun.yml` (full three-CPU × three-toolchain sweep, packaged
+tarballs) and `pack-dryrun.yml` are `workflow_dispatch` only — they run when
+somebody asks, not on a schedule and not per PR.
+
+### What is *not* covered
+
+- **Nothing runs on silicon.** Every automated test executes on the Corstone-300
+  FVP or an x86 host. No CI job runs on an Apollo part.
+- **No numerics on armclang or ATfE.** Both are built and strict-linked on every
+  PR but never executed. Kernel logic is shared across toolchains, so this is a
+  deliberate trade — but the guarantee is *compiles and links*, not *computes
+  correctly*.
+- **No memory checking of MVE/Helium or DSP paths.** The sanitizers run on the
+  x86 host, which selects the scalar implementations.
+- **UBSan's `shift-base` check is masked** repo-wide, so signed left-shift
+  overflow and left-shifts of negative values are not reported.
+- **Coverage is measured, classified and published — but never enforced.**
+  Nothing fails when it regresses
+  ([helia-core-tester#73](https://github.com/AmbiqAI/helia-core-tester/issues/73)).
+- **No status check is required to merge.** The `main` ruleset requires a pull
+  request and an automatic Copilot review, but registers no required status
+  checks, so a red run does not by itself block a merge.
+- **There is no per-SoC qualification matrix.** `nsx/nsx-module.yaml` declares
+  `socs: "*"`, and coverage here is expressed per *Cortex-M core* (m0/m4/m55),
+  not per Apollo part. The only part-specific data published is the Apollo510
+  EVB benchmark set in
+  [`docs/guides/kernel-benchmarks.md`](docs/guides/kernel-benchmarks.md).
+
+### Coverage
+
+Line coverage is merged across the int, float and MVE-float legs on every
+`ci.yml` run, then classified into *covered*, *zero-hit but reachable*, and
+*expected-zero* (orphan or known-unreachable). Both outputs are attached to a
+workflow run rather than to a permanent URL:
+
+1. The **job summary** of `coverage-merge-summary` — a per-CPU coverage and test
+   table, readable in the browser without downloading anything.
+2. The **`coverage-merged` artifact** on the same run (retained 90 days), holding
+   `index.html` (a browsable LCOV report), `coverage_merged.info` and
+   `coverage_merged_summary.{md,json}`.
+
+To pull the latest from `main`:
+
+```sh
+run=$(gh run list -R AmbiqAI/ns-cmsis-nn --workflow=ci.yml --branch=main \
+        --status=success --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run download -R AmbiqAI/ns-cmsis-nn "$run" -n coverage-merged -D coverage
+# summary: coverage/coverage_merged_summary.md   full report: coverage/index.html
+```
+
+There is deliberately no coverage badge and no percentage quoted here: the
+number exists only inside build artifacts, and any figure written into this file
+would be stale within a week.
+
+### Releases
+
+Each release publishes **17 required assets**, checked after publication by
+`release-verify`:
+
+| Asset | Count |
+| --- | --- |
+| CMSIS-Pack — `Ambiq.NS-CMSIS-NN.<version>.pack` | 1 |
+| CMake SDK tarballs — {gcc, ATfE} × {m0, m4, m55}, each with a `.sha256` | 12 |
+| Static-library bundles — `ns-cmsis-nn-staticlibs-{gcc,atfe}-<version>.zip`, each with a `.sha256` | 4 |
+
+armclang produces eight further assets of the same shape. They are **optional**
+unless the repository variable `ARMCLANG_REQUIRED` is set to `true`, because
+building them needs a commercial Arm Compiler for Embedded licence.
+
+- Latest release — <https://github.com/AmbiqAI/ns-cmsis-nn/releases/latest>
+- API documentation, rebuilt from `main` — <https://ambiqai.github.io/ns-cmsis-nn/>
+- All CI runs — <https://github.com/AmbiqAI/ns-cmsis-nn/actions>
+
+---
+
 ## What heliaCORE is
 
 - Ambiq's foundation neural-network kernel layer for HELIA AI workflows on
