@@ -53,25 +53,6 @@ jobs:
       - name: Run contract test
         run: python3 scripts/check_pdsc.py
 
-      # Check #7 (float dtype gating) guards a bug class that is green
-      # everywhere else in CI, so its own mutation tests gate it in turn.
-      - name: Run float dtype gating tests
-        run: python3 scripts/tests/test_check_pdsc_float_gating.py
-
-      # Check #8 (extra-files annotations) guards a release-time-only bug
-      # class -- a broken annotation is invisible until a release bumps
-      # nothing -- so its own mutation tests gate it in turn.
-      - name: Run extra-files annotation tests
-        run: python3 scripts/tests/test_check_pdsc.py
-
-      # Check #10 (unit-test suite buildability) is the only PR gate that
-      # looks at the float unit suites at all -- no job builds them, which
-      # is how 36 registered-but-uncompilable suites read as coverage for
-      # years and hid a shipped transpose-conv bug (#253, #256). A check
-      # whose failure mode is "silently passes" needs its own gate.
-      - name: Run unit-test suite buildability tests
-        run: python3 scripts/tests/test_check_pdsc_unit_test_suites.py
-
       # The float32 tanh LUT is generated data, and no test can catch a
       # corrupted entry: the unit suite reads the same array it checks, so it
       # pins the interpolation algorithm but not the table contents. Re-derive
@@ -101,11 +82,6 @@ jobs:
       - name: Run float component check
         run: python3 scripts/check_float_cmsis_components.py
 
-      # The check is a merge gate whose own logic is easy to regress in
-      # either direction, so its mutation tests gate it in turn.
-      - name: Run float component check tests
-        run: python3 scripts/tests/test_check_float_cmsis_components.py
-
   dsp_symbol_collisions:
     # Guards against a public ns-cmsis-nn symbol colliding with a CMSIS-DSP
     # symbol -- two libraries Ambiq ships and links together, where a
@@ -125,11 +101,6 @@ jobs:
 
       - name: Run DSP symbol collision check
         run: python3 scripts/check_dsp_symbol_collisions.py
-
-      # The check is a merge gate whose own logic is easy to regress in
-      # either direction, so its mutation tests gate it in turn.
-      - name: Run DSP symbol collision check tests
-        run: python3 scripts/tests/test_check_dsp_symbol_collisions.py
 
   header_placeholders:
     # Guards against an unsubstituted documentation template token -- the
@@ -151,11 +122,6 @@ jobs:
       - name: Run header placeholder check
         run: python3 scripts/check_header_placeholders.py
 
-      # The check is a merge gate whose own logic is easy to regress in
-      # either direction, so its mutation tests gate it in turn.
-      - name: Run header placeholder check tests
-        run: python3 scripts/tests/test_check_header_placeholders.py
-
   toolchain_manifest_sync:
     # Guards against the armclang/ATfE pins in ci/tools/manifest.json (which
     # bakes the published dev container) drifting from ci/toolchains/*.json
@@ -176,11 +142,6 @@ jobs:
       - name: Run toolchain manifest sync check
         run: python3 scripts/check_toolchain_manifest_sync.py
 
-      # The check is a merge gate whose own logic is easy to regress in
-      # either direction, so its mutation tests gate it in turn.
-      - name: Run toolchain manifest sync check tests
-        run: python3 scripts/tests/test_check_toolchain_manifest_sync.py
-
   api_group_classification:
     # Guards docs/_ext/api_group_index.py's GROUP_PATTERNS: every public
     # top-level kernel in Include/arm_nnfunctions*.h must match at least
@@ -198,7 +159,54 @@ jobs:
       - name: Run API group classification check
         run: python3 scripts/check_api_group_classification.py
 
-      # The check is a merge gate whose own logic is easy to regress in
-      # either direction, so its mutation tests gate it in turn.
-      - name: Run API group classification check tests
-        run: python3 scripts/tests/test_check_api_group_classification.py
+  script_check_tests:
+    # Mutation tests for the scripts/check_*.py merge gates.
+    #
+    # Each scripts/check_*.py gate in this workflow has at least one suite
+    # in scripts/tests/ whose job is to prove the gate can still fail: a
+    # check that passes when it should not is worse than no check, and their
+    # logic is easy to regress in either direction. Some of what they cover is visible nowhere else in
+    # CI -- pdsc check #7 (float dtype gating) is green everywhere else;
+    # check #8 (extra-files annotations) fails only at release time, where a
+    # broken annotation is invisible until a release bumps nothing; check
+    # #10 (unit-test suite buildability) is the only PR gate that looks at
+    # the float unit suites at all, no job builds them, and
+    # registered-but-uncompilable suites once read as coverage and hid a
+    # shipped transpose-conv bug (#253, #256).
+    #
+    # These ran as a step inside each check's own job, named one at a time.
+    # scripts/tests/test_check_pdsc_ssot.py -- which gates the check on the
+    # single-source-of-truth source list that check_pdsc.py compares the
+    # pdsc against -- was added in #298 and never added to that list, so it
+    # had never run here: a suite guarding a merge gate, unwatched, with
+    # nothing to say so. Enumerating them is the defect, so this job globs
+    # and the next suite added is covered by having been written. See #339.
+    name: Script check test suites
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # test_check_float_cmsis_components.py runs check_float_cmsis_components.py
+      # in a subprocess and that script imports yaml. Same pin as the
+      # float_cmsis_components job, which runs the checker itself.
+      - name: Install dependencies
+        run: python -m pip install pyyaml==6.0.3
+
+      - name: Run every scripts/tests/test_check_*.py
+        run: |
+          set -eu
+          # An empty glob must fail the job, not pass it vacuously: this
+          # whole job exists because a suite can go unrun without saying so.
+          shopt -s failglob
+          status=0
+          for suite in scripts/tests/test_check_*.py; do
+            echo "== $suite"
+            python3 "$suite" || status=1
+          done
+          exit $status
