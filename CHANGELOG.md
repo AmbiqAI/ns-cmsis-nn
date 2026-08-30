@@ -1,5 +1,62 @@
 # Changelog
 
+## [7.30.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.29.2...v7.30.0) (2026-08-30)
+
+
+### Features
+
+* **activation:** add arm_prelu_f16/f32 kernels with alpha broadcast ([#241](https://github.com/AmbiqAI/ns-cmsis-nn/issues/241)) ([6749953](https://github.com/AmbiqAI/ns-cmsis-nn/commit/67499530ee88a11b8b947061374ae7e5525b19ef))
+* **basicmath:** add arm_elementwise_sub_f32 and arm_abs_f16/f32 kernels ([#240](https://github.com/AmbiqAI/ns-cmsis-nn/issues/240)) ([04cfa38](https://github.com/AmbiqAI/ns-cmsis-nn/commit/04cfa381a3e91da461f969085dd12e28c2b19ddf))
+* **basicmath:** add arm_reduce_sum_f16/f32 kernels ([#244](https://github.com/AmbiqAI/ns-cmsis-nn/issues/244)) ([1e75c94](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1e75c944f307ba61f36febc4104337c803b48400))
+* **lstm:** add arm_gru_unidirectional_f32 kernel ([#249](https://github.com/AmbiqAI/ns-cmsis-nn/issues/249)) ([913cd63](https://github.com/AmbiqAI/ns-cmsis-nn/commit/913cd637701c6fa928c70549e3bf37a943914d9d))
+* **stridedslice:** collapse dtype variants into shared core, add f32 kernel ([#239](https://github.com/AmbiqAI/ns-cmsis-nn/issues/239)) ([acff421](https://github.com/AmbiqAI/ns-cmsis-nn/commit/acff421d3dc959a56ea9d2f003f34078ba49b65c))
+* **svdf:** publish the eight ctx scratch sizers and reject a narrowing rank ([#309](https://github.com/AmbiqAI/ns-cmsis-nn/issues/309)) ([d39dd33](https://github.com/AmbiqAI/ns-cmsis-nn/commit/d39dd332ea7e5f7e4065bbfbecf3a82c719bf0d6))
+
+
+### Bug Fixes
+
+* **activation:** cast the vaddq literal to its lane type to avoid the MVE _Generic undef trap ([#306](https://github.com/AmbiqAI/ns-cmsis-nn/issues/306)) ([6231b0f](https://github.com/AmbiqAI/ns-cmsis-nn/commit/6231b0f05078d21388af44f3b91ed377e142980e)), closes [#305](https://github.com/AmbiqAI/ns-cmsis-nn/issues/305)
+* **activation:** extend f32 tanh LUT window to |x|&lt;6 and define NaN behavior ([#303](https://github.com/AmbiqAI/ns-cmsis-nn/issues/303)) ([9af0179](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9af0179479d07f65f8b4f24defcb223782f915ba)), closes [#250](https://github.com/AmbiqAI/ns-cmsis-nn/issues/250)
+* **activation:** keep NaN out of the f32 tanh table index on soft-float targets ([#327](https://github.com/AmbiqAI/ns-cmsis-nn/issues/327)) ([d510487](https://github.com/AmbiqAI/ns-cmsis-nn/commit/d510487f8cf0feacf2902b02a24c045b8be63ed2)), closes [#314](https://github.com/AmbiqAI/ns-cmsis-nn/issues/314)
+* Add GCC 15/Zephyr compatibility shim for vldrwq_s32() MVE intrinsic ([2d43de7](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2d43de78a67a5e4b7d4c7e890ece733052792752))
+* Add GCC 15/Zephyr compatibility shim for vldrwq_s32() MVE intrinsic ([2d43de7](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2d43de78a67a5e4b7d4c7e890ece733052792752))
+* **basicmath,comparison:** replace the shared NHWC broadcast walk that dropped rows ([#321](https://github.com/AmbiqAI/ns-cmsis-nn/issues/321)) ([60c66e6](https://github.com/AmbiqAI/ns-cmsis-nn/commit/60c66e64724f90153eae5209c70044bba40dec0f))
+* **basicmath:** gate float sources on their ARM_NN_ENABLE_F32/F16 macro ([#264](https://github.com/AmbiqAI/ns-cmsis-nn/issues/264)) ([77d66da](https://github.com/AmbiqAI/ns-cmsis-nn/commit/77d66da33568dbafd809f7c62337ca91e77930f7)), closes [#268](https://github.com/AmbiqAI/ns-cmsis-nn/issues/268)
+* **basicmath:** move the elementwise and prelu kernels onto the shared broadcast walk ([#342](https://github.com/AmbiqAI/ns-cmsis-nn/issues/342)) ([08502d6](https://github.com/AmbiqAI/ns-cmsis-nn/commit/08502d650cb6f8b3681ca6d61a2a00d58862f9ac))
+* **basicmath:** pin arm_rsub_scalar_s8 and stop shifting negative values left ([#355](https://github.com/AmbiqAI/ns-cmsis-nn/issues/355)) ([03c035d](https://github.com/AmbiqAI/ns-cmsis-nn/commit/03c035d204c4487469b640435f7dadf1535847a8))
+* **basicmath:** sign-extend the packed halfwords in the s8 add/sub DSP path ([#345](https://github.com/AmbiqAI/ns-cmsis-nn/issues/345)) ([59fd881](https://github.com/AmbiqAI/ns-cmsis-nn/commit/59fd8813027decdfc171edde17d9692a1b1f1e56)), closes [#343](https://github.com/AmbiqAI/ns-cmsis-nn/issues/343)
+* **ci:** repair float csolution pack pin and harden the check that guards it ([#242](https://github.com/AmbiqAI/ns-cmsis-nn/issues/242)) ([511b184](https://github.com/AmbiqAI/ns-cmsis-nn/commit/511b184c9c7c0442d47f05f0d2ff709c3e889673))
+* **ci:** replace retired vcpkg artifact tooling ([#237](https://github.com/AmbiqAI/ns-cmsis-nn/issues/237)) ([e272422](https://github.com/AmbiqAI/ns-cmsis-nn/commit/e2724229c0257c0f23afc729a99cb01f58dbf88d))
+* **cmake:** wire three pdsc-only sources into the SSoT and guard against manifest drift ([#298](https://github.com/AmbiqAI/ns-cmsis-nn/issues/298)) ([f4069c0](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f4069c0d5896694d6ca07364717362471125a6e6)), closes [#268](https://github.com/AmbiqAI/ns-cmsis-nn/issues/268)
+* **conv:** backport upstream row-misalignment fix for arm_transpose_conv_s8 ([#260](https://github.com/AmbiqAI/ns-cmsis-nn/issues/260)) ([1a90b8f](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1a90b8f97a1089773b41379a8a88f0755a25ac1e))
+* **conv:** diagnose NULL weight-sum buffers and publish the 1x1_out scratch sizer ([#302](https://github.com/AmbiqAI/ns-cmsis-nn/issues/302)) ([b0dff51](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b0dff5194f5ef8576d4c329390463afdf2dd9531))
+* **conv:** harden arm_transpose_conv_s8 row scheduling, buffer sizing, dilation ([#262](https://github.com/AmbiqAI/ns-cmsis-nn/issues/262)) ([4b05f23](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4b05f23033bd6e58ae34b4105b7d2f150ac2977c))
+* **conv:** harden the s4 buffer-size queries against overflow ([#323](https://github.com/AmbiqAI/ns-cmsis-nn/issues/323)) ([b6a52e5](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b6a52e545eda40fbb392ff205ab0a6bb04d9c7c0)), closes [#317](https://github.com/AmbiqAI/ns-cmsis-nn/issues/317)
+* **conv:** honour packed filters on every float path and clip 1xN pad rows ([#325](https://github.com/AmbiqAI/ns-cmsis-nn/issues/325)) ([4afbd18](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4afbd180ed05bf38866450ad6e6ec872b6ee9b30))
+* **conv:** transpose-conv float output shifted by SAME-padding offset ([#253](https://github.com/AmbiqAI/ns-cmsis-nn/issues/253)) ([4fc67f9](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4fc67f9ee7e2bf70afcffe1c74ba11c7d0167668))
+* **dwconv:** diagnose NULL weight-sum buffer instead of computing garbage ([#297](https://github.com/AmbiqAI/ns-cmsis-nn/issues/297)) ([4c274ce](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4c274cea2e485fd3caf96014a11359852369ab0e))
+* **f16:** eliminate scalar _Float16 selects in prelu and minmax ([#246](https://github.com/AmbiqAI/ns-cmsis-nn/issues/246)) ([#248](https://github.com/AmbiqAI/ns-cmsis-nn/issues/248)) ([323e2cc](https://github.com/AmbiqAI/ns-cmsis-nn/commit/323e2cc02d176ad5766f795967c2940f9a0b2303))
+* **fc,svdf:** correct ctx buffer sizing docs and add arm_batch_matmul_s8 sizer ([7f71faa](https://github.com/AmbiqAI/ns-cmsis-nn/commit/7f71faaa09a6ab71dee6ba4847e07d750fa9759a))
+* **fc,svdf:** guard s8 buffer-size queries against out-of-range dims ([#296](https://github.com/AmbiqAI/ns-cmsis-nn/issues/296)) ([7d81634](https://github.com/AmbiqAI/ns-cmsis-nn/commit/7d81634a56453f20543dcc4d6dac778058704bd0))
+* **fc:** advance packed batch-matmul RHS by its padded footprint ([#322](https://github.com/AmbiqAI/ns-cmsis-nn/issues/322)) ([848014a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/848014a90f0b9be790b97564f2db27b7652c3672))
+* **lstm:** reject non-positive float LSTM dimensions before touching state ([#328](https://github.com/AmbiqAI/ns-cmsis-nn/issues/328)) ([2ffe23f](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2ffe23f0182762beecdf79c904f642a4480a9a49)), closes [#315](https://github.com/AmbiqAI/ns-cmsis-nn/issues/315)
+* **lstm:** tail-predicate the float LSTM step so one tensor takes one tanh ([#324](https://github.com/AmbiqAI/ns-cmsis-nn/issues/324)) ([1a07420](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1a0742071a55ea302c79d603b0dc50486462e2de)), closes [#315](https://github.com/AmbiqAI/ns-cmsis-nn/issues/315)
+* **quantize:** clamp before converting and round ties away from zero on MVE ([#326](https://github.com/AmbiqAI/ns-cmsis-nn/issues/326)) ([a1fa1a6](https://github.com/AmbiqAI/ns-cmsis-nn/commit/a1fa1a66a0baf5141a278a5f08d3fe4f2a9f5cd9))
+* **reduce_sum:** make arm_nn_vec_reduce_add_f32 available in F16-only builds ([#245](https://github.com/AmbiqAI/ns-cmsis-nn/issues/245)) ([7d46624](https://github.com/AmbiqAI/ns-cmsis-nn/commit/7d46624a00e6575ffca9d7bf2699b9ede761e45b))
+* **release:** bound tag recovery to customer assets ([#234](https://github.com/AmbiqAI/ns-cmsis-nn/issues/234)) ([feacb68](https://github.com/AmbiqAI/ns-cmsis-nn/commit/feacb68b187e4b3497f31d08f567be9be937808a))
+* **release:** fix three runtime defects found in live recovery run 31333176320 ([#230](https://github.com/AmbiqAI/ns-cmsis-nn/issues/230)) ([d300332](https://github.com/AmbiqAI/ns-cmsis-nn/commit/d300332b449b606dd0d5c0bfbc9e9feb20692fc3))
+* **release:** isolate current tooling from historical source in recovery checkouts ([#231](https://github.com/AmbiqAI/ns-cmsis-nn/issues/231)) ([6768ba2](https://github.com/AmbiqAI/ns-cmsis-nn/commit/6768ba289408f7f695528039a24ebc4d08925001))
+* **release:** recover pack/bundle asset publication ([#228](https://github.com/AmbiqAI/ns-cmsis-nn/issues/228)) ([#229](https://github.com/AmbiqAI/ns-cmsis-nn/issues/229)) ([efebc24](https://github.com/AmbiqAI/ns-cmsis-nn/commit/efebc2477653a36284501cb0dada730625ba2b5a))
+* **sizers:** carry the dispatcher's dimension gate into the Helium leg variants ([#348](https://github.com/AmbiqAI/ns-cmsis-nn/issues/348)) ([530833f](https://github.com/AmbiqAI/ns-cmsis-nn/commit/530833f76360f9a20ac5a9193e9ee51193b81e0a))
+* **zephyr:** make NS_CMSIS_NN_ALL actually enable the float kernels ([#280](https://github.com/AmbiqAI/ns-cmsis-nn/issues/280)) ([07e55b1](https://github.com/AmbiqAI/ns-cmsis-nn/commit/07e55b1c8e8772a1802082c2beeaebfff655e2bc)), closes [#273](https://github.com/AmbiqAI/ns-cmsis-nn/issues/273)
+
+
+### Refactoring
+
+* **basicmath:** rename arm_abs_f16/f32 to arm_nn_abs_f16/f32 ([#281](https://github.com/AmbiqAI/ns-cmsis-nn/issues/281)) ([1b499d9](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1b499d98c8b3a5ca5e304da5b090735e52c2bbd7))
+* **fc:** remove the legacy fp16 fully-connected pair and gate the legacy add ([#329](https://github.com/AmbiqAI/ns-cmsis-nn/issues/329)) ([3040ec8](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3040ec84856c24c5bb74a100039602e346e1b0e2))
+* **nntables:** drop the table size from the float LUT symbol names ([#313](https://github.com/AmbiqAI/ns-cmsis-nn/issues/313)) ([20ceb7a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/20ceb7af8b41ca91134ee6064fa92c96b1d183ac))
+
 ## [7.29.2](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.29.1...v7.29.2) (2026-08-09)
 
 
