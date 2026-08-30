@@ -1,5 +1,21 @@
 name: CI/CD Pipeline
 
+# Single entry point for the PR/push gate. Every check that must hold on a
+# pull request is a job (or reusable-workflow call) here, and `ci-passed`
+# summarises them into the one status context branch protection requires
+# (AmbiqAI/ns-cmsis-nn#353, #356). Matrices and reusable workflows are free
+# to change shape underneath; the required context name stays `CI Passed`.
+#
+# Rules for adding a check:
+#   - add the job here (reusable workflows take `uses:`, see below)
+#   - add its job id to `ci-passed.needs`
+#   - a leg that must not block forks/Dependabot skips itself rather than
+#     failing: `ci-passed` treats `skipped` as passing, `failure` and
+#     `cancelled` as not.
+# Do NOT give a job a `paths:`-style condition that prevents it (and thus
+# `ci-passed`) from reporting at all — a required check that never reports
+# leaves the PR unmergeable. Path-conditional logic belongs inside the job.
+
 on:
   workflow_dispatch:
   push:
@@ -8,6 +24,13 @@ on:
   pull_request:
     branches:
       - main
+
+# One run per ref. In-progress PR runs are superseded by a new push; main
+# pushes are never cancelled (a cancelled main run would skip docs deploy
+# and release plumbing downstream).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
 
@@ -31,3 +54,70 @@ jobs:
     # skips instead of failing.
     secrets:
       ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+
+  host-sanitizer:
+    uses: ./.github/workflows/host-sanitizer.yml
+
+  clang-format:
+    uses: ./.github/workflows/clang-format.yml
+
+  license-headers:
+    uses: ./.github/workflows/license-headers.yml
+
+  pdsc:
+    uses: ./.github/workflows/pdsc.yml
+
+  ssot-contract:
+    uses: ./.github/workflows/ssot-contract.yml
+
+  nsx-integration:
+    uses: ./.github/workflows/nsx-integration.yml
+
+  zephyr-integration:
+    uses: ./.github/workflows/zephyr-integration.yml
+
+  # The docs build gates every PR (its old paths filter covered Include/,
+  # Source/ and docs/ anyway, i.e. nearly every substantive change); the
+  # deploy job inside stays gated to push-to-main, which is why this caller
+  # needs the Pages permissions the callee's deploy job asks for.
+  docs:
+    uses: ./.github/workflows/docs.yml
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+  # The one context branch protection requires (#353). `if: always()` is
+  # load-bearing: without it a failed dependency skips this job, and a
+  # skipped required check counts as PASSING under rulesets -- the gate
+  # would approve exactly when it must block.
+  ci-passed:
+    name: CI Passed
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - helia-core-tester
+      - toolchain-strict-link
+      - host-sanitizer
+      - clang-format
+      - license-headers
+      - pdsc
+      - ssot-contract
+      - nsx-integration
+      - zephyr-integration
+      - docs
+    steps:
+      - name: Verify every gated job succeeded or was skipped
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$NEEDS_JSON" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          bad="$(echo "$NEEDS_JSON" | jq -r 'to_entries[]
+                  | select(.value.result != "success" and .value.result != "skipped")
+                  | .key')"
+          if [ -n "$bad" ]; then
+            printf 'Gated jobs not green:\n%s\n' "$bad" >&2
+            exit 1
+          fi
+          echo "All gated jobs passed."

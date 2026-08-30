@@ -10,31 +10,13 @@
 name: docs
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "docs/**"
-      - "Documentation/Doxygen/**"
-      - "Include/**"
-      - "Source/**"
-      - "scripts/docs/**"
-      - ".github/workflows/docs.yml"
-  pull_request:
-    paths:
-      - "docs/**"
-      - "Documentation/Doxygen/**"
-      - "Include/**"
-      - "Source/**"
-      - "scripts/docs/**"
-      - ".github/workflows/docs.yml"
+  # Invoked from ci.yml so it reports under the single required gate
+  # (AmbiqAI/ns-cmsis-nn#353); keep no push/pull_request trigger of its own.
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: docs-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   build:
