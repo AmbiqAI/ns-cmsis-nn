@@ -165,8 +165,9 @@ jobs:
     # Each scripts/check_*.py gate in this workflow has at least one suite
     # in scripts/tests/ whose job is to prove the gate can still fail: a
     # check that passes when it should not is worse than no check, and their
-    # logic is easy to regress in either direction. Some of what they cover is visible nowhere else in
-    # CI -- pdsc check #7 (float dtype gating) is green everywhere else;
+    # logic is easy to regress in either direction. Some of what they cover
+    # is visible nowhere else in CI -- pdsc check #7 (float dtype gating) is
+    # green everywhere else;
     # check #8 (extra-files annotations) fails only at release time, where a
     # broken annotation is invisible until a release bumps nothing; check
     # #10 (unit-test suite buildability) is the only PR gate that looks at
