@@ -469,6 +469,11 @@ void arm_s8_to_s16_unordered_with_offset(const int8_t *src, int16_t *dst, int32_
  * @note  Intended for compilation on Host. If compiling for an Arm target, use
  *        arm_depthwise_conv_s8_opt_get_buffer_size(). Note also this is a support function,
  *        so not recommended to call directly even on Host.
+ * @note  This leg sizes its buffer from a fixed channel block rather than from input_dims->c, but it applies the
+ *        same dimension check as arm_depthwise_conv_s8_opt_get_buffer_size() anyway, returning -1 for a negative
+ *        input_dims->c or filter dimension, or for a byte count that would not fit in an int32_t. Without that
+ *        check this entry point - and every s4 depthwise sizer, which route here - answered a negative channel
+ *        count with a plausible positive size (issue #318).
  *
  */
 int32_t arm_depthwise_conv_s8_opt_get_buffer_size_mve(const cmsis_nn_dims *input_dims,

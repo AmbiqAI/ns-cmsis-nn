@@ -82,7 +82,17 @@ int32_t arm_avgpool_s8_get_buffer_size_dsp(const int output_x, const int ch_src)
 int32_t arm_avgpool_s8_get_buffer_size_mve(const int output_x, const int ch_src)
 {
     (void)output_x;
-    (void)ch_src;
+
+    // This leg needs no buffer, but it is a public entry point that the Python bindings call directly, so it has
+    // to reject an out-of-range ch_src with the same -1 the dispatcher and the DSP leg return rather than a 0 the
+    // caller would read as "no buffer needed" (issue #318). The bound is the dispatcher's, not this leg's: no
+    // buffer is sized here, so the check exists only to keep the three entry points answering alike.
+    const int64_t required_bytes = (int64_t)ch_src * (int64_t)sizeof(int32_t);
+
+    if ((ch_src < 0) || (required_bytes > INT32_MAX))
+    {
+        return -1;
+    }
 
     return 0;
 }

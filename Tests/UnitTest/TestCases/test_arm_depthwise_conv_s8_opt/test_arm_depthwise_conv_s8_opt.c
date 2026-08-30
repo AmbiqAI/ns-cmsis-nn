@@ -1450,3 +1450,72 @@ void buffer_size_dsp_arm_depthwise_conv_s8_opt(void)
     TEST_ASSERT_EQUAL(wrapper_buf_size, dsp_wrapper_buf_size);
 #endif
 }
+
+// Issue #318: the Helium leg sizes its scratch buffer from a fixed channel block, so it never reads
+// input_dims->c in its own arithmetic. Without the dispatcher's dimension gate it therefore answered a negative
+// channel count with a plausible positive byte count where arm_depthwise_conv_s8_opt_get_buffer_size() returned
+// -1, and arm_depthwise_conv_wrapper_s8_get_buffer_size_mve() inherited that answer. Deliberately not gated on
+// ARM_MATH_MVEI: the leg variants are plain C and are compiled and callable on every build target.
+void buffer_size_out_of_range_mve_arm_depthwise_conv_s8_opt(void)
+{
+    cmsis_nn_dims input_dims;
+    cmsis_nn_dims filter_dims;
+    cmsis_nn_dims output_dims;
+    cmsis_nn_dw_conv_params dw_conv_params;
+
+    memset(&dw_conv_params, 0, sizeof(dw_conv_params));
+    dw_conv_params.stride.w = 1;
+    dw_conv_params.stride.h = 1;
+    dw_conv_params.dilation.w = 1;
+    dw_conv_params.dilation.h = 1;
+    dw_conv_params.ch_mult = 1;
+
+    // The shape from the issue: only input_dims->c is out of range, and the Helium leg does not read it.
+    input_dims.n = 1;
+    input_dims.h = 65536;
+    input_dims.w = 2;
+    input_dims.c = -1;
+    filter_dims = input_dims;
+    output_dims = input_dims;
+
+    TEST_ASSERT_EQUAL(-1, arm_depthwise_conv_s8_opt_get_buffer_size_mve(&input_dims, &filter_dims));
+    TEST_ASSERT_EQUAL(-1, arm_depthwise_conv_s8_opt_get_buffer_size_dsp(&input_dims, &filter_dims));
+    TEST_ASSERT_EQUAL(-1, arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims));
+    TEST_ASSERT_EQUAL(
+        -1,
+        arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        -1, arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+
+    // Zero spatial dims with the same negative channel count: the byte count folds to 0, so the sentinel has to
+    // come from the dimension gate rather than from the overflow check.
+    input_dims.h = 0;
+    input_dims.w = 0;
+    filter_dims = input_dims;
+    output_dims = input_dims;
+
+    TEST_ASSERT_EQUAL(-1, arm_depthwise_conv_s8_opt_get_buffer_size_mve(&input_dims, &filter_dims));
+    TEST_ASSERT_EQUAL(
+        -1,
+        arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+
+    // A negative filter dimension was already rejected by the bounded fold; pin it so the added gate does not
+    // become the only thing catching it.
+    input_dims.c = 4;
+    filter_dims.n = 1;
+    filter_dims.h = -1;
+    filter_dims.w = 3;
+    filter_dims.c = 4;
+    TEST_ASSERT_EQUAL(-1, arm_depthwise_conv_s8_opt_get_buffer_size_mve(&input_dims, &filter_dims));
+
+    // An in-range shape is undisturbed. The Helium leg stages CH_IN_BLOCK_MVE channels of int32 accumulators for
+    // each of the filter_dims->w * filter_dims->h taps, so this figure is fixed by the geometry, not by the data.
+    input_dims.n = 1;
+    input_dims.h = 8;
+    input_dims.w = 8;
+    input_dims.c = 4;
+    filter_dims.h = 3;
+    filter_dims.w = 3;
+    TEST_ASSERT_EQUAL(4 * CH_IN_BLOCK_MVE * 3 * 3,
+                      arm_depthwise_conv_s8_opt_get_buffer_size_mve(&input_dims, &filter_dims));
+}
