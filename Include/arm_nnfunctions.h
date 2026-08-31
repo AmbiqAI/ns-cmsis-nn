@@ -243,9 +243,10 @@ arm_cmsis_nn_status arm_convolve_wrapper_s8(const cmsis_nn_context *ctx,
  *
  * @return         The function returns required buffer size in bytes, or -1 if the shape is out of range - a
  *                 dimension the selected route reads is negative, or the required size would not fit in an
- *                 int32_t. The -1 is only produced on routes that compute a byte count; a route that needs no
- *                 scratch buffer returns 0 without inspecting the dimensions, so a 0 return is not a statement
- *                 that the shape is valid.
+ *                 int32_t. A route that needs no scratch buffer returns 0 for an in-range shape, but any route,
+ *                 including one that needs no buffer, may return -1 when a dimension it inspects is negative, so
+ *                 always test for -1 before using the value. Which dimensions a route inspects is
+ *                 build-dependent, so a 0 return is not a statement that the shape is valid.
  *
  * @details    Where a byte count is computed, an out-of-range shape is reported as -1 rather than a wrapped
  *             size, and where this function composes sub-sizer results the sentinel is propagated before any
@@ -278,7 +279,7 @@ int32_t arm_convolve_s8_get_buffer_size_mve(const cmsis_nn_dims *input_dims, con
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_convolve_wrapper_s8_get_buffer_size().
  * @note       An out-of-range shape is reported as -1, matching the top-level dispatcher, including the same
- *             caveat that routes needing no buffer return 0 without inspecting the dimensions.
+ *             caveat that a 0 from a route needing no buffer is not a statement that the shape is valid.
  *
  */
 int32_t arm_convolve_wrapper_s8_get_buffer_size_mve(const cmsis_nn_conv_params *conv_params,
@@ -293,9 +294,9 @@ int32_t arm_convolve_wrapper_s8_get_buffer_size_mve(const cmsis_nn_conv_params *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_convolve_wrapper_s8_get_buffer_size().
  * @note       An out-of-range shape is reported as -1, matching the top-level dispatcher, including the same
- *             caveat that routes needing no buffer return 0 without inspecting the dimensions. This variant
- *             widens that caveat: its 1x1 fast route only needs a buffer when built with armclang, so on other
- *             compilers it returns 0 for every shape, including ones the other variants reject with -1.
+ *             caveat that a 0 from a route needing no buffer is not a statement that the shape is valid. This
+ *             variant widens that caveat: its 1x1 fast route only needs a buffer when built with armclang, so on
+ *             other compilers it returns 0 for every shape, including ones the other variants reject with -1.
  *
  */
 int32_t arm_convolve_wrapper_s8_get_buffer_size_dsp(const cmsis_nn_conv_params *conv_params,
@@ -1659,10 +1660,12 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s4(const cmsis_nn_context *ctx,
  * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
  * @return                         Size of additional memory required for optimizations in bytes, or -1 if the
  *                                 shape is out of range - a dimension the selected route reads is negative, or
- *                                 the required size would not fit in an int32_t. The -1 is only produced on
- *                                 routes that compute a byte count; a route that needs no scratch buffer
- *                                 returns 0 without inspecting the dimensions, so a 0 return is not a statement
- *                                 that the shape is valid.
+ *                                 the required size would not fit in an int32_t. A route that needs no scratch
+ *                                 buffer returns 0 for an in-range shape, but any route, including one that
+ *                                 needs no buffer, may return -1 when a dimension it inspects is negative, so
+ *                                 always test for -1 before using the value. A shape that does not select an
+ *                                 optimized depthwise route returns 0 without range-checking the dimensions,
+ *                                 so a 0 return is not a statement that the shape is valid.
  *
  * @details    Where a byte count is computed, an out-of-range shape is reported as -1 rather than a wrapped
  *             size, and the sentinel is propagated before any MAX() or sum over sub-sizer results, so it can
@@ -1685,7 +1688,7 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size(const cmsis_nn_dw_conv_par
  *             arm_depthwise_conv_wrapper_s8_get_buffer_size().
  * @note       An out-of-range shape is reported as -1, matching the top-level dispatcher, including the same
  *             caveat that a shape which needs no scratch buffer returns 0 without the dimensions being
- *             inspected.
+ *             range-checked.
  *
  */
 int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp(const cmsis_nn_dw_conv_params *dw_conv_params,
@@ -1701,7 +1704,7 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp(const cmsis_nn_dw_conv
  *             arm_depthwise_conv_wrapper_s8_get_buffer_size().
  * @note       An out-of-range shape is reported as -1, matching the top-level dispatcher, including the same
  *             caveat that a shape which needs no scratch buffer returns 0 without the dimensions being
- *             inspected.
+ *             range-checked.
  *
  */
 int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(const cmsis_nn_dw_conv_params *dw_conv_params,
@@ -1722,14 +1725,14 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(const cmsis_nn_dw_conv
  * @return                         Size of additional memory required for optimizations in bytes, or -1 if the
  *                                 shape is out of range - a dimension the selected leg reads is negative, or the
  *                                 required size would not fit in an int32_t. A shape that does not select the
- *                                 optimized depthwise route needs no buffer and returns 0 without inspecting the
- *                                 dimensions, so a 0 return is not a statement that the shape is valid.
+ *                                 optimized depthwise route needs no buffer and returns 0 without range-checking
+ *                                 the dimensions, so a 0 return is not a statement that the shape is valid.
  *
  * @details    This sizer routes straight to the s8 _mve/_dsp legs, both of which apply the same dimension check
  *             as arm_depthwise_conv_s8_opt_get_buffer_size(), so a negative input_dims->c, a negative filter
  *             dimension or an overflowing byte count is reported as -1 on every build target. A shape that does
  *             not select the optimized depthwise route short-circuits to 0 without the dimensions being
- *             inspected, so a caller that needs its dimensions validated must validate them rather than infer
+ *             range-checked, so a caller that needs its dimensions validated must validate them rather than infer
  *             validity from a non-negative return.
  */
 int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size(const cmsis_nn_dw_conv_params *dw_conv_params,
@@ -1745,7 +1748,7 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size(const cmsis_nn_dw_conv_par
  *             arm_depthwise_conv_wrapper_s4_get_buffer_size().
  * @note       An out-of-range shape is reported as -1, matching the top-level dispatcher, including the same
  *             caveat that a shape which needs no scratch buffer returns 0 without the dimensions being
- *             inspected. This variant forwards to the top-level dispatcher, so it follows the build's leg; both
+ *             range-checked. This variant forwards to the top-level dispatcher, so it follows the build's leg; both
  *             legs inspect input_dims->c.
  *
  */
@@ -1762,7 +1765,7 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_dsp(const cmsis_nn_dw_conv
  *             arm_depthwise_conv_wrapper_s4_get_buffer_size().
  * @note       An out-of-range shape is reported as -1, matching the top-level dispatcher, including the same
  *             caveat that a shape which needs no scratch buffer returns 0 without the dimensions being
- *             inspected. The Helium leg sizes its buffer from a fixed channel block rather than from
+ *             range-checked. The Helium leg sizes its buffer from a fixed channel block rather than from
  *             input_dims->c, but it checks that dimension anyway so that this variant answers a negative channel
  *             count with the same -1 the dispatcher returns (issue #318).
  *
