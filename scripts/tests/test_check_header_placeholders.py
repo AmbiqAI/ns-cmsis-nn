@@ -20,9 +20,15 @@
 #     that covers #269 itself, where the placeholder was resolved to a
 #     real-but-wrong name and left no token behind, and the #288 case where
 #     8 of 11 sites had no same-named sizer to substitute;
-#   - keeps the KNOWN_ABSENT_SIZERS allowlist honest, failing if a name
-#     documented as nonexistent ever becomes declared
-#     (test_known_absent_sizer_that_becomes_real_is_caught);
+#   - keeps the KNOWN_ABSENT_SIZERS allowlist honest in all three
+#     directions: failing if a name documented as nonexistent becomes
+#     declared (test_known_absent_sizer_that_becomes_real_is_caught), if
+#     the kernel it belongs to is gone
+#     (test_mutation_stale_known_absent_sizer_is_caught -- the #339 case,
+#     where an entry for a deleted kernel left check and suite green), and
+#     if no documentation cites it any more
+#     (test_uncited_known_absent_sizer_is_caught). The real list is run
+#     against the real tree, entries and all, by test_repo_is_clean;
 #   - does NOT fire on ordinary C that happens to contain braces, e.g.
 #     `= {NULL};` -- a merge gate that flags valid code is a gate that gets
 #     deleted, which is why scanning is comment-scoped
@@ -111,11 +117,24 @@ class HeaderPlaceholderCase(unittest.TestCase):
             if not path.exists():
                 path.write_text("/* nothing here */\n", encoding="utf-8")
 
-    def run_check(self, include_dir: Path | None = None) -> list[str]:
+    def run_check(
+        self, include_dir: Path | None = None, known_absent: set[str] | None = None
+    ) -> list[str]:
+        """Run the check over a temp tree with an EMPTY allowlist by default.
+
+        The real KNOWN_ABSENT_SIZERS describes the real Include/ tree: every
+        entry has to name a kernel declared there and be cited there. A temp
+        tree declares neither, so handing the real allowlist to a fixture
+        that is testing something else would fail it on all seven entries.
+        Tests that are about the allowlist pass the entries they mean; the
+        real list is checked against the real tree, every entry of it, by
+        test_repo_is_clean.
+        """
         self.mod.failures.clear()
         self.mod._stats.clear()
         self.mod.check_header_placeholders(
-            include_dir=include_dir if include_dir is not None else self.include_dir
+            include_dir=include_dir if include_dir is not None else self.include_dir,
+            known_absent=set() if known_absent is None else known_absent,
         )
         return list(self.mod.failures)
 
@@ -140,13 +159,18 @@ class HeaderPlaceholderCase(unittest.TestCase):
         mod = load_checker()
         mod.failures.clear()
         mod._stats.clear()
-        mod.check_header_placeholders()
+        mod.check_header_placeholders()  # the real KNOWN_ABSENT_SIZERS
         self.assertEqual(mod.failures, [])
         self.assertGreater(mod._stats.get("headers", 0), 0)
         self.assertEqual(mod._stats.get("placeholders"), 0)
         # Rule 2 must actually be looking at something on the real tree --
         # zero citations would mean it passes vacuously.
         self.assertGreater(mod._stats.get("cited_sizers", 0), 0)
+        # Likewise for the allowlist rules: this is where every real
+        # KNOWN_ABSENT_SIZERS entry is checked for staleness, and it must
+        # have had entries to check or the claim is about nothing.
+        self.assertEqual(mod._stats.get("known_absent"), len(mod.KNOWN_ABSENT_SIZERS))
+        self.assertGreater(mod._stats.get("known_absent", 0), 0)
 
     def test_real_header_has_no_api_token_anywhere(self):
         """Belt-and-braces on the specific token from #288, independent of
@@ -343,10 +367,11 @@ class HeaderPlaceholderCase(unittest.TestCase):
             "/**\n"
             " * @param[in] ctx  No buffer needed; there is deliberately no\n"
             " *                 arm_max_pool_s8_get_buffer_size().\n"
-            " */\n",
+            " */\n"
+            "arm_cmsis_nn_status arm_max_pool_s8(const cmsis_nn_context *ctx);\n",
         )
         self.stub_required_headers()
-        self.assertClean()
+        self.assertClean(known_absent={"arm_max_pool_s8_get_buffer_size"})
 
     def test_known_absent_sizer_that_becomes_real_is_caught(self):
         """The allowlist is self-cleaning: if a name claimed to be
@@ -358,10 +383,82 @@ class HeaderPlaceholderCase(unittest.TestCase):
             "/**\n"
             " * @param[in] ctx  There is deliberately no arm_max_pool_s8_get_buffer_size().\n"
             " */\n"
+            "arm_cmsis_nn_status arm_max_pool_s8(const cmsis_nn_context *ctx);\n"
             "int32_t arm_max_pool_s8_get_buffer_size(const cmsis_nn_dims *d);\n",
         )
         self.stub_required_headers()
-        self.assertFails("KNOWN_ABSENT_SIZERS", "now declared")
+        self.assertFails(
+            "KNOWN_ABSENT_SIZERS",
+            "now declared",
+            known_absent={"arm_max_pool_s8_get_buffer_size"},
+        )
+
+    # -- the allowlist must not outlive what it exempts (#339) -------------
+    #
+    # Before these, KNOWN_ABSENT_SIZERS was self-cleaning in one direction
+    # only. An entry whose kernel had been deleted from the tree entirely
+    # left both the check and this suite green, while silently pre-approving
+    # that name for the next document to cite it.
+
+    def test_mutation_stale_known_absent_sizer_is_caught(self):
+        """An entry for a kernel that no longer exists must fail. This is the
+        exact #339 reproduction: re-adding a removed kernel's sizer to the
+        allowlist used to be invisible."""
+        self.write_header(
+            "arm_nnfunctions.h",
+            "/**\n"
+            " * @param[in] ctx  There is deliberately no\n"
+            " *                 arm_fully_connected_fp16_get_buffer_size().\n"
+            " */\n",
+        )
+        self.stub_required_headers()
+        self.assertFails(
+            "arm_fully_connected_fp16_get_buffer_size",
+            "arm_fully_connected_fp16() is not declared",
+            known_absent={"arm_fully_connected_fp16_get_buffer_size"},
+        )
+
+    def test_known_absent_sizer_for_a_live_kernel_passes(self):
+        """The same entry, with the kernel present and the prose citing it:
+        confirms the rule keys on the kernel's existence, not on the entry
+        merely being in the allowlist."""
+        self.write_header(
+            "arm_nnfunctions.h",
+            "/**\n"
+            " * @param[in] ctx  There is deliberately no\n"
+            " *                 arm_fully_connected_fp16_get_buffer_size().\n"
+            " */\n"
+            "arm_cmsis_nn_status arm_fully_connected_fp16(const cmsis_nn_context *ctx);\n",
+        )
+        self.stub_required_headers()
+        self.assertClean(known_absent={"arm_fully_connected_fp16_get_buffer_size"})
+
+    def test_uncited_known_absent_sizer_is_caught(self):
+        """Kernel still there, but no comment names the absent sizer any
+        more: the exemption now covers a claim nothing makes, so it must be
+        deleted rather than left standing."""
+        self.write_header(
+            "arm_nnfunctions.h",
+            "/** @param[in] ctx  No buffer needed. */\n"
+            "arm_cmsis_nn_status arm_max_pool_s8(const cmsis_nn_context *ctx);\n",
+        )
+        self.stub_required_headers()
+        self.assertFails(
+            "arm_max_pool_s8_get_buffer_size",
+            "no public-header comment cites it",
+            known_absent={"arm_max_pool_s8_get_buffer_size"},
+        )
+
+    def test_malformed_known_absent_entry_is_caught(self):
+        """An entry that is not a sizer name can never match a citation, so
+        it exempts nothing and is dead weight -- say so rather than carry
+        it."""
+        self.write_header(
+            "arm_nnfunctions.h",
+            "arm_cmsis_nn_status arm_max_pool_s8(const cmsis_nn_context *ctx);\n",
+        )
+        self.stub_required_headers()
+        self.assertFails("exempts nothing", known_absent={"arm_max_pool_s8"})
 
     def test_sizer_declared_in_a_sibling_public_header_resolves(self):
         """Resolution is across the whole public surface, not per-file: the

@@ -49,10 +49,22 @@
 #
 #   Documentation deliberately names sizers that do NOT exist, to stop the
 #   reader inventing one ("there is deliberately no arm_max_pool_s8_get_buffer_size()").
-#   Those live in KNOWN_ABSENT_SIZERS. That allowlist is self-cleaning: it is
-#   an error for a name in it to become declared, so if someone later adds a
-#   real arm_max_pool_s8_get_buffer_size() the check fails and forces the
-#   prose that says it does not exist to be corrected.
+#   Those live in KNOWN_ABSENT_SIZERS. Three rules keep that allowlist from
+#   rotting into a blanket exemption; an entry has to stay wrong in exactly
+#   the way it was wrong when it was added:
+#     - it must not become declared, so adding a real
+#       arm_max_pool_s8_get_buffer_size() fails the check and forces the
+#       prose saying it does not exist to be corrected;
+#     - the kernel it belongs to must still exist -- the entry with
+#       `_get_buffer_size*` stripped must be declared in a public header --
+#       so deleting a kernel drags its exemption out with it;
+#     - some public-header comment must still cite it, so an entry whose
+#       prose was reworded away is removed rather than left standing as an
+#       exemption for a name nothing claims any more.
+#   Only the first rule existed originally, which made the list self-cleaning
+#   in one direction only: an entry naming a kernel that had been deleted
+#   from the tree entirely left this check and its test suite green, and
+#   pre-exempted that name for whoever cited it next. See #339.
 #
 # Scope is Include/*.h -- the public, customer-facing surface, per #288.
 # Include/Internal/*.h is excluded as non-customer-facing API, though doxygen
@@ -102,10 +114,19 @@ SIZER_CITATION_RE = re.compile(r"\barm_[A-Za-z0-9_]*get_buffer_size[A-Za-z0-9_]*
 # Any `arm_foo(` in code -- what counts as "declared in the public headers".
 DECL_RE = re.compile(r"\b(arm_[A-Za-z0-9_]+)\s*\(")
 
+# A KNOWN_ABSENT_SIZERS entry, split into the kernel it belongs to and the
+# sizer suffix: arm_max_pool_s8_get_buffer_size -> arm_max_pool_s8. Non-greedy
+# so a hypothetical arm_x_get_buffer_size_get_buffer_size splits at the first
+# suffix, and tolerant of a trailing variant (`_mve`) the way
+# SIZER_CITATION_RE is.
+ABSENT_ENTRY_RE = re.compile(r"^(arm_[A-Za-z0-9_]*?)_get_buffer_size[A-Za-z0-9_]*$")
+
 # Sizers the documentation names precisely BECAUSE they do not exist, so the
 # reader does not invent one or reach for a plausible neighbour. Adding a name
-# here asserts "no such function"; the check verifies that claim (see
-# check_cited_sizers_resolve), so this list cannot silently rot.
+# here asserts three things -- no such function, but a real kernel it would
+# have belonged to, and prose that actually says so -- and all three are
+# verified (check_cited_sizers_resolve and check_known_absent_sizers_are_live),
+# so this list cannot silently rot in either direction.
 KNOWN_ABSENT_SIZERS = {
     # No buffer needed; documented as such in #288.
     "arm_depthwise_conv_s8_get_buffer_size",
@@ -204,9 +225,54 @@ def code_outside_comments(text: str, spans: list[tuple[int, int]]) -> str:
     return "".join(parts)
 
 
-def check_cited_sizers_resolve(headers: list[Path]) -> None:
+def check_known_absent_sizers_are_live(
+    known_absent: set[str], declared: set[str], cited: dict[str, str]
+) -> None:
+    """Every KNOWN_ABSENT_SIZERS entry must still describe something real.
+
+    An entry is a claim about the tree -- "kernel X has no sizer, and the
+    docs say so on purpose" -- so it is only meaningful while X exists and
+    while some comment still makes that claim. Once either stops being true
+    the entry exempts nothing; all it is then is a pre-approval, granted by
+    nobody, for whoever cites that name next. See #339.
+    """
+    for name in sorted(known_absent):
+        match = ABSENT_ENTRY_RE.match(name)
+        if match is None:
+            fail(
+                f"KNOWN_ABSENT_SIZERS entry {name!r} is not an "
+                "arm_*_get_buffer_size* name, so no citation can ever match it "
+                "and it exempts nothing. Fix the spelling or drop the entry."
+            )
+            continue
+        kernel = match.group(1)
+        if kernel not in declared:
+            fail(
+                f"{name}() is listed in KNOWN_ABSENT_SIZERS, but its kernel "
+                f"{kernel}() is not declared in any public header. The entry "
+                "asserts that a specific kernel deliberately has no buffer-size "
+                "query; with the kernel gone the assertion is about nothing, and "
+                "all the entry still does is pre-exempt that name for the next "
+                "person who cites it. Delete the entry along with the kernel. If "
+                f"{kernel}() was renamed, rename the entry to match."
+            )
+            continue
+        if name not in cited:
+            fail(
+                f"{name}() is listed in KNOWN_ABSENT_SIZERS, but no public-header "
+                "comment cites it any more. The allowlist exists only to permit "
+                "documentation that deliberately names a nonexistent sizer; with "
+                "no such documentation left, the entry is a standing exemption "
+                "for a name nothing claims. Delete it, or restore the prose that "
+                "names it."
+            )
+
+
+def check_cited_sizers_resolve(headers: list[Path], known_absent: set[str] | None = None) -> None:
     """Every arm_*_get_buffer_size* named in a public-header comment must be
-    declared in the public headers, or be an acknowledged absent sizer."""
+    declared in the public headers, or be an acknowledged absent sizer -- and
+    every acknowledged absent sizer must still be worth acknowledging."""
+    known_absent = KNOWN_ABSENT_SIZERS if known_absent is None else known_absent
     declared: set[str] = set()
     cited: dict[str, str] = {}  # name -> first "file:line" citing it
 
@@ -223,9 +289,10 @@ def check_cited_sizers_resolve(headers: list[Path]) -> None:
                 cited.setdefault(m.group(0), f"{display}:{text.count(chr(10), 0, m.start()) + 1}")
 
     _stats["cited_sizers"] = len(cited)
+    _stats["known_absent"] = len(known_absent)
 
     for name in sorted(cited):
-        if name in declared or name in KNOWN_ABSENT_SIZERS:
+        if name in declared or name in known_absent:
             continue
         fail(
             f"{cited[name]}: public header documentation cites {name}(), which "
@@ -237,7 +304,9 @@ def check_cited_sizers_resolve(headers: list[Path]) -> None:
             "KNOWN_ABSENT_SIZERS in this script. See #288."
         )
 
-    for name in sorted(KNOWN_ABSENT_SIZERS & declared):
+    check_known_absent_sizers_are_live(known_absent, declared, cited)
+
+    for name in sorted(known_absent & declared):
         fail(
             f"{name}() is listed in KNOWN_ABSENT_SIZERS as deliberately "
             "nonexistent, but it is now declared in a public header. The "
@@ -274,7 +343,9 @@ def load_public_headers(include_dir: Path) -> list[Path] | None:
     return paths
 
 
-def check_header_placeholders(include_dir: Path = INCLUDE_DIR) -> None:
+def check_header_placeholders(
+    include_dir: Path = INCLUDE_DIR, known_absent: set[str] | None = None
+) -> None:
     headers = load_public_headers(include_dir)
     if headers is None:
         return
@@ -303,7 +374,7 @@ def check_header_placeholders(include_dir: Path = INCLUDE_DIR) -> None:
             )
     _stats["placeholders"] = total
 
-    check_cited_sizers_resolve(headers)
+    check_cited_sizers_resolve(headers, known_absent)
 
 
 def report() -> None:
@@ -318,7 +389,9 @@ def report() -> None:
             f"(Include/{PUBLIC_HEADER_GLOB}) carry no unsubstituted "
             "documentation template tokens, and all "
             f"{_stats.get('cited_sizers', 0)} cited arm_*_get_buffer_size* "
-            "names resolve."
+            "names resolve; all "
+            f"{_stats.get('known_absent', 0)} KNOWN_ABSENT_SIZERS entries still "
+            "name a live kernel and are still cited."
         )
 
 
