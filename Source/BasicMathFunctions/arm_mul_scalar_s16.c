@@ -87,7 +87,7 @@ arm_cmsis_nn_status arm_mul_scalar_s16(const int16_t *input_1_vect,
     int16_t mul_1, mul_2;
     loop_count = block_size / 2;
 
-    two_halfword_1 = (scalar_val << 16) | (scalar_val & 0xFFFF);
+    two_halfword_1 = (int32_t)(((uint32_t)scalar_val << 16) | ((uint32_t)scalar_val & 0xFFFFu));
 
     while (loop_count > 0)
     {
