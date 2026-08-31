@@ -101,6 +101,33 @@ typedef arm_cmsis_nn_status (*bsi_kernel_t)(const int8_t *input_1_vect,
                                             const int32_t out_activation_max,
                                             const int32_t block_size);
 
+/* arm_rsub_scalar_s8 is a library-internal entry point with no public header declaration; it is
+ * declared here the same way arm_sub_s8.c declares it. */
+arm_cmsis_nn_status arm_rsub_scalar_s8(const int8_t *input_1_vect,
+                                       const int8_t *input_2_vect,
+                                       const int32_t input_1_offset,
+                                       const int32_t input_1_mult,
+                                       const int32_t input_1_shift,
+                                       const int32_t input_2_offset,
+                                       const int32_t input_2_mult,
+                                       const int32_t input_2_shift,
+                                       const int32_t left_shift,
+                                       int8_t *output,
+                                       const int32_t out_offset,
+                                       const int32_t out_mult,
+                                       const int32_t out_shift,
+                                       const int32_t out_activation_min,
+                                       const int32_t out_activation_max,
+                                       const int32_t block_size);
+
+/* Which operand a primitive takes as a single broadcast element rather than a run. */
+typedef enum
+{
+    BSI_NO_SCALAR,
+    BSI_SCALAR_INPUT_1,
+    BSI_SCALAR_INPUT_2
+} bsi_scalar_operand_t;
+
 static const int8_t bsi_input_1[BSI_LEN] = {-100, -1,  5,  60, -128, 127,  0, -55, 33,  -7,
                                             12,   -90, 64, -3, 110,  -120, 8, 41,  -66, 2};
 static const int8_t bsi_input_2[BSI_LEN] = {-7,  3,  -80,  20, 100, -128, 17,  4, -29, 71,
@@ -110,9 +137,10 @@ static const int32_t bsi_input_1_offset = -3;
 static const int32_t bsi_input_2_offset = 5;
 
 /* Runs the whole vector through the kernel in chunks of `chunk` elements. The scalar-vs-vector
- * primitives take a single element as their first operand, which every chunk reuses.
+ * primitives take a single element as one of their two operands, which every chunk reuses.
  */
-static void bsi_run(bsi_kernel_t kernel, bool input_1_is_scalar, int32_t left_shift, int32_t chunk, int8_t *output)
+static void
+bsi_run(bsi_kernel_t kernel, bsi_scalar_operand_t scalar_operand, int32_t left_shift, int32_t chunk, int8_t *output)
 {
     for (int32_t i = 0; i < BSI_LEN; i += chunk)
     {
@@ -120,8 +148,8 @@ static void bsi_run(bsi_kernel_t kernel, bool input_1_is_scalar, int32_t left_sh
         const int32_t block_size = chunk < remaining ? chunk : remaining;
 
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                          kernel(input_1_is_scalar ? bsi_input_1 : bsi_input_1 + i,
-                                 bsi_input_2 + i,
+                          kernel(scalar_operand == BSI_SCALAR_INPUT_1 ? bsi_input_1 : bsi_input_1 + i,
+                                 scalar_operand == BSI_SCALAR_INPUT_2 ? bsi_input_2 : bsi_input_2 + i,
                                  bsi_input_1_offset,
                                  1 << 30,
                                  -1,
@@ -139,7 +167,7 @@ static void bsi_run(bsi_kernel_t kernel, bool input_1_is_scalar, int32_t left_sh
     }
 }
 
-static void bsi_check(bsi_kernel_t kernel, bool input_1_is_scalar)
+static void bsi_check(bsi_kernel_t kernel, bsi_scalar_operand_t scalar_operand)
 {
     /* left_shift 20 is what TFLite Micro emits for int8 sub; the smaller values are in range for
      * the API and are where a lost sign bit actually changes the output.
@@ -151,18 +179,23 @@ static void bsi_check(bsi_kernel_t kernel, bool input_1_is_scalar)
     {
         int8_t reference[BSI_LEN] = {0};
 
-        bsi_run(kernel, input_1_is_scalar, left_shifts[s], 1, reference);
+        bsi_run(kernel, scalar_operand, left_shifts[s], 1, reference);
 
         for (unsigned c = 0; c < sizeof(chunks) / sizeof(chunks[0]); c++)
         {
             int8_t actual[BSI_LEN] = {0};
 
-            bsi_run(kernel, input_1_is_scalar, left_shifts[s], chunks[c], actual);
+            bsi_run(kernel, scalar_operand, left_shifts[s], chunks[c], actual);
             TEST_ASSERT_TRUE(validate(actual, reference, BSI_LEN));
         }
     }
 }
 
-void block_size_invariance_arm_elementwise_sub_s8(void) { bsi_check(arm_elementwise_sub_s8, false); }
+void block_size_invariance_arm_elementwise_sub_s8(void) { bsi_check(arm_elementwise_sub_s8, BSI_NO_SCALAR); }
 
-void block_size_invariance_arm_sub_scalar_s8(void) { bsi_check(arm_sub_scalar_s8, true); }
+void block_size_invariance_arm_sub_scalar_s8(void) { bsi_check(arm_sub_scalar_s8, BSI_SCALAR_INPUT_1); }
+
+/* arm_rsub_scalar_s8 reaches the same core as arm_sub_scalar_s8 with its operands swapped, and the
+ * arm_sub_s8 broadcast walk calls it whenever input 2 is the one-element side. It is pinned in its
+ * own right so that a regression in either entry point is attributed to that entry point. */
+void block_size_invariance_arm_rsub_scalar_s8(void) { bsi_check(arm_rsub_scalar_s8, BSI_SCALAR_INPUT_2); }

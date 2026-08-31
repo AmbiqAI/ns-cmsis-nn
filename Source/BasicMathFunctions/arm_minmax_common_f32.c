@@ -35,7 +35,24 @@
     #include "Internal/arm_nn_broadcast_walk.h"
 
     /* Scalar-path helper: only referenced from the #else branches of the loops
-     * below, so keep it out of MVE builds (-Wunused-function, issue #246). */
+     * below, so keep it out of MVE builds (-Wunused-function, issue #246).
+     *
+     * This does not reproduce the Helium leg's tie-break, and deliberately so.
+     * -0.0 >= +0.0 is true, so a tie between zeros of opposite sign resolves by
+     * operand position here, while vmaxnmq / vminnmq below implement IEEE
+     * maxNum / minNum and resolve it by sign. Issue #316 suggested fmaxf() /
+     * fminf() to close that. It does not: at the shipped -Ofast,
+     * -fno-signed-zeros lets the compiler fold them, and on a target with no
+     * VMAXNM instruction it does - measured on cortex-m4 with Arm GNU Toolchain
+     * 14.2.Rel1, both forms compile to the same vcmpe.f32 plus predicated
+     * vmov.f32, so only which operand wins the tie moves, not whether the sign
+     * decides it. Reproducing maxNum / minNum on every target needs a bitwise
+     * select instead, which adds a data-dependent branch inside the element loop
+     * and takes this file from 1860 to 2648 bytes of .text for cortex-m4 at
+     * -Ofast, to fix a bit pattern that compares equal to zero. The public
+     * contract in arm_nnfunctions_flt.h therefore documents the zero tie and NaN
+     * as unspecified rather than pinning either.
+     * The same reasoning applies to arm_minmax_select_f16(). */
     #if !defined(ARM_MATH_MVEF) || defined(ARM_MATH_AUTOVECTORIZE)
 static float32_t arm_minmax_select_f32(float32_t a, float32_t b, int32_t select_max)
 {

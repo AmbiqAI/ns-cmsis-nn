@@ -74,7 +74,15 @@ arm_deptwise_conv_s8_one_in_ch_get_buffer_size_mve(const cmsis_nn_dw_conv_params
 
 int32_t arm_depthwise_conv_s8_opt_get_buffer_size_mve(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims)
 {
-    (void)input_dims;
+    // Same dim gate as arm_depthwise_conv_s8_opt_get_buffer_size(). This leg sizes its buffer from a fixed channel
+    // block, so it never reads input_dims->c in the fold below; without the gate a negative channel count came back
+    // from this public entry point, and from every s4 depthwise sizer that routes here, as a plausible positive
+    // size where the dispatcher returned -1 (issue #318). The negative filter dimensions are already rejected by
+    // arm_nn_size_mul(); they are named here so the condition reads as the one the dispatcher applies.
+    if ((input_dims->c < 0) || (filter_dims->w < 0) || (filter_dims->h < 0))
+    {
+        return -1;
+    }
 
     // Folded one factor at a time so the accumulator stays bounded; see arm_nn_size_mul().
     int64_t required_bytes = arm_nn_size_mul(4, CH_IN_BLOCK_MVE);

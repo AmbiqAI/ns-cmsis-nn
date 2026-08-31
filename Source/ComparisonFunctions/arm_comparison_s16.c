@@ -46,7 +46,7 @@ static inline int32_t
 arm_prepare_value_s16(int32_t value, const arm_compare_quant_params *params, const int32_t left_shift)
 {
     int32_t res = value + params->offset;
-    res = res << left_shift;
+    res = res * (1 << left_shift);
     return arm_nn_requantize(res, params->multiplier, params->shift);
 }
 

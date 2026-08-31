@@ -52,7 +52,7 @@ static arm_cmsis_nn_status arm_sub_scalar_s8_core(const int8_t *scalar_vect,
                                                   const bool scalar_minus_vector)
 {
     // Compute scalar contribution once
-    int32_t scalar_val = ((int32_t)scalar_vect[0] + scalar_offset) << left_shift;
+    int32_t scalar_val = ((int32_t)scalar_vect[0] + scalar_offset) * (1 << left_shift);
     scalar_val = arm_nn_requantize(scalar_val, scalar_mult, scalar_shift);
 
 #if defined(ARM_MATH_MVEI)
@@ -111,13 +111,13 @@ static arm_cmsis_nn_status arm_sub_scalar_s8_core(const int8_t *scalar_vect,
     a_tmp = SADD16(a_tmp, scalar_offset_packed);
     b_tmp = SADD16(b_tmp, scalar_offset_packed);
 
-    scalar_1 = (int16_t)(b_tmp & 0x0FFFF) << left_shift;
+    scalar_1 = (int16_t)(b_tmp & 0x0FFFF) * (1 << left_shift);
     scalar_1 = arm_nn_requantize(scalar_1, scalar_mult, scalar_shift);
-    scalar_3 = (int16_t)(b_tmp >> 16) << left_shift;
+    scalar_3 = (int16_t)(b_tmp >> 16) * (1 << left_shift);
     scalar_3 = arm_nn_requantize(scalar_3, scalar_mult, scalar_shift);
-    scalar_2 = (int16_t)(a_tmp & 0x0FFFF) << left_shift;
+    scalar_2 = (int16_t)(a_tmp & 0x0FFFF) * (1 << left_shift);
     scalar_2 = arm_nn_requantize(scalar_2, scalar_mult, scalar_shift);
-    scalar_4 = (int16_t)(a_tmp >> 16) << left_shift;
+    scalar_4 = (int16_t)(a_tmp >> 16) * (1 << left_shift);
     scalar_4 = arm_nn_requantize(scalar_4, scalar_mult, scalar_shift);
 
     while (loop_count > 0)
@@ -128,7 +128,7 @@ static arm_cmsis_nn_status arm_sub_scalar_s8_core(const int8_t *scalar_vect,
         b_vec = SADD16(b_vec, vector_offset_packed);
 
         /* Diff 1 */
-        input_2 = (int16_t)(b_vec & 0x0FFFF) << left_shift;
+        input_2 = (int16_t)(b_vec & 0x0FFFF) * (1 << left_shift);
         input_2 = arm_nn_requantize(input_2, vector_mult, vector_shift);
 
         diff = scalar_minus_vector ? (scalar_1 - input_2) : (input_2 - scalar_1);
@@ -139,7 +139,7 @@ static arm_cmsis_nn_status arm_sub_scalar_s8_core(const int8_t *scalar_vect,
         r1 = (int8_t)diff;
 
         /* Diff 3 */
-        input_2 = (int16_t)(b_vec >> 16) << left_shift;
+        input_2 = (int16_t)(b_vec >> 16) * (1 << left_shift);
         input_2 = arm_nn_requantize(input_2, vector_mult, vector_shift);
 
         diff = scalar_minus_vector ? (scalar_3 - input_2) : (input_2 - scalar_3);
@@ -150,7 +150,7 @@ static arm_cmsis_nn_status arm_sub_scalar_s8_core(const int8_t *scalar_vect,
         r3 = (int8_t)diff;
 
         /* Diff 2 */
-        input_2 = (int16_t)(a_vec & 0x0FFFF) << left_shift;
+        input_2 = (int16_t)(a_vec & 0x0FFFF) * (1 << left_shift);
         input_2 = arm_nn_requantize(input_2, vector_mult, vector_shift);
 
         diff = scalar_minus_vector ? (scalar_2 - input_2) : (input_2 - scalar_2);
@@ -161,7 +161,7 @@ static arm_cmsis_nn_status arm_sub_scalar_s8_core(const int8_t *scalar_vect,
         r2 = (int8_t)diff;
 
         /* Diff 4 */
-        input_2 = (int16_t)(a_vec >> 16) << left_shift;
+        input_2 = (int16_t)(a_vec >> 16) * (1 << left_shift);
         input_2 = arm_nn_requantize(input_2, vector_mult, vector_shift);
 
         diff = scalar_minus_vector ? (scalar_4 - input_2) : (input_2 - scalar_4);
@@ -185,7 +185,7 @@ static arm_cmsis_nn_status arm_sub_scalar_s8_core(const int8_t *scalar_vect,
     {
         /* C = scalar +/- vector */
 
-        input_2 = (*vector_vect++ + vector_offset) << left_shift;
+        input_2 = (*vector_vect++ + vector_offset) * (1 << left_shift);
         input_2 = arm_nn_requantize(input_2, vector_mult, vector_shift);
 
         diff = scalar_minus_vector ? (scalar_val - input_2) : (input_2 - scalar_val);

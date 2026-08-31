@@ -10,31 +10,13 @@
 name: docs
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "docs/**"
-      - "Documentation/Doxygen/**"
-      - "Include/**"
-      - "Source/**"
-      - "scripts/docs/**"
-      - ".github/workflows/docs.yml"
-  pull_request:
-    paths:
-      - "docs/**"
-      - "Documentation/Doxygen/**"
-      - "Include/**"
-      - "Source/**"
-      - "scripts/docs/**"
-      - ".github/workflows/docs.yml"
+  # Invoked from ci.yml so it reports under the single required gate
+  # (AmbiqAI/ns-cmsis-nn#353); keep no push/pull_request trigger of its own.
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: docs-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   build:
@@ -88,7 +70,21 @@ jobs:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-22.04
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Skip release-please merge commits: release.yml deploys the docs for a
+    # release itself, and two workflows deploying Pages for the same push
+    # can collide (GitHub runs one Pages deployment at a time). `contains`
+    # rather than `startsWith` so this matches release.yml's own release
+    # detection exactly -- the two workflows must never disagree on what a
+    # release push is, whichever merge method produced the commit. The
+    # github-pages concurrency group serializes docs deploys with each
+    # other; release.yml's deploy does not share it, which is fine while
+    # this job skips every push release.yml deploys for.
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      !contains(github.event.head_commit.message, 'chore(main): release')
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
     permissions:
       contents: read
       pages: write
