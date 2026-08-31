@@ -43,7 +43,10 @@
  */
 __STATIC_INLINE int32_t arm_convolve_1x1_s8_fast_get_buffer_size_dsp(const cmsis_nn_dims *input_dims)
 {
-#if defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
+    // This route needs a buffer only under armclang, but it is reachable through the public _dsp wrapper that the
+    // Python bindings call directly on host builds, so every compiler has to reject an out-of-range channel count
+    // with the same -1 the dispatcher returns rather than a 0 the caller would read as "no buffer needed" (issue
+    // #366). The bound is the armclang formula's, applied uniformly so the entry points answer alike.
     const int64_t required_bytes = (2 * (int64_t)input_dims->c) * (int64_t)sizeof(int16_t);
 
     if ((input_dims->c < 0) || (required_bytes > INT32_MAX))
@@ -51,9 +54,9 @@ __STATIC_INLINE int32_t arm_convolve_1x1_s8_fast_get_buffer_size_dsp(const cmsis
         return -1;
     }
 
+#if defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
     return (int32_t)required_bytes;
 #else
-    (void)input_dims;
     return 0;
 #endif
 }
@@ -227,9 +230,12 @@ int32_t arm_convolve_1x1_out_s8_get_buffer_size(const cmsis_nn_dims *filter_dims
 
 int32_t arm_convolve_1x1_s8_fast_get_buffer_size(const cmsis_nn_dims *input_dims)
 {
-    // Dim sanity is validated here so a negative channel count returns -1 on every build target, even though only
-    // some targets actually need this buffer.
-    if (input_dims->c < 0)
+    // Validated once here, ahead of the dispatch below, so an invalid dim returns -1 on every build target. The
+    // byte-count bound is the DSP leg's formula -- the only route that sizes a buffer -- applied uniformly so a
+    // wrapper leg and its dispatcher answer an out-of-range shape alike (issue #366).
+    const int64_t required_bytes = (2 * (int64_t)input_dims->c) * (int64_t)sizeof(int16_t);
+
+    if ((input_dims->c < 0) || (required_bytes > INT32_MAX))
     {
         return -1;
     }

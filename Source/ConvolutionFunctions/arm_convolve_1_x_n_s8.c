@@ -63,7 +63,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
 
     /* The wrapper API is the ultimate reference for argument check */
     if ((input_dims->h != 1) || conv_params->dilation.w != 1 || ctx->buf == NULL || conv_params->stride.w == 0 ||
-        (conv_params->stride.w * input_dims->c % 4 != 0))
+        (((int64_t)conv_params->stride.w * input_dims->c) % 4 != 0))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

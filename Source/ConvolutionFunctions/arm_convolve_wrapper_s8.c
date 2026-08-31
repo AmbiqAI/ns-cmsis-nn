@@ -95,8 +95,7 @@ arm_cmsis_nn_status arm_convolve_wrapper_s8(const cmsis_nn_context *ctx,
                                        output_data);
         }
     }
-    else if ((input_dims->h == 1) && conv_params->dilation.w == 1 && (filter_dims->h == 1) &&
-             ((conv_params->stride.w * input_dims->c) % 4 == 0) && (input_dims->c == filter_dims->c))
+    else if (arm_nn_is_convolve_1_x_n(conv_params, input_dims, filter_dims))
     {
         return arm_convolve_1_x_n_s8(ctx,
                                      weight_sum_ctx,
@@ -113,8 +112,8 @@ arm_cmsis_nn_status arm_convolve_wrapper_s8(const cmsis_nn_context *ctx,
     }
 #if defined(ARM_MATH_MVEI)
     // mve optimization of Bx1x1xC case
-    else if ((output_dims->h == 1) && (output_dims->w == 1) && ((conv_params->stride.w * input_dims->c) % 4 == 0) &&
-             (input_dims->c == filter_dims->c))
+    else if ((output_dims->h == 1) && (output_dims->w == 1) &&
+             (((int64_t)conv_params->stride.w * input_dims->c) % 4 == 0) && (input_dims->c == filter_dims->c))
     {
 
         return arm_convolve_1x1_out_s8(ctx,

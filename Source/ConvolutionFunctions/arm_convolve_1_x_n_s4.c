@@ -62,7 +62,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
     int32_t buffer_size = arm_convolve_1_x_n_s4_get_buffer_size(conv_params, input_dims, filter_dims, output_dims);
     /* The wrapper API is the ultimate reference for argument check */
     if ((input_dims->h != 1) || conv_params->dilation.w != 1 || (buffer_size != 0 && ctx->buf == NULL) ||
-        conv_params->stride.w == 0 || (conv_params->stride.w * input_dims->c % 4 != 0))
+        conv_params->stride.w == 0 || (((int64_t)conv_params->stride.w * input_dims->c) % 4 != 0))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
