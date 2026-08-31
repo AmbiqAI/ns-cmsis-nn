@@ -42,7 +42,17 @@
 
 int32_t arm_svdf_s8_get_buffer_size_dsp(const cmsis_nn_dims *weights_feature_dims)
 {
-    (void)weights_feature_dims;
+    // This leg needs no buffer, but it is a public entry point that the Python bindings call directly, so it has
+    // to reject an out-of-range weights_feature_dims->n with the same -1 the dispatcher and the MVE leg return
+    // rather than a 0 the caller would read as "no buffer needed" (issue #349). The bound is the dispatcher's, not
+    // this leg's: no buffer is sized here, so the check exists only to keep the three entry points answering alike.
+    const int64_t required_bytes = (int64_t)weights_feature_dims->n * (int64_t)sizeof(int32_t);
+
+    if ((weights_feature_dims->n < 0) || (required_bytes > INT32_MAX))
+    {
+        return -1;
+    }
+
     return 0;
 }
 
@@ -62,8 +72,8 @@ int32_t arm_svdf_s8_get_buffer_size_mve(const cmsis_nn_dims *weights_feature_dim
 
 int32_t arm_svdf_s8_get_buffer_size(const cmsis_nn_dims *weights_feature_dims)
 {
-    // Validated once here, ahead of the dispatch below, so an invalid dim returns -1 on every build target -
-    // not just the MVE leg, which is also called directly by binding glue and re-checks this on its own.
+    // Validated once here, ahead of the dispatch below, so an invalid dim returns -1 on every build target.
+    // Both leg variants are also called directly by binding glue and re-check this on their own.
     const int64_t required_bytes = (int64_t)weights_feature_dims->n * (int64_t)sizeof(int32_t);
 
     if ((weights_feature_dims->n < 0) || (required_bytes > INT32_MAX))
