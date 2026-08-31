@@ -65,9 +65,8 @@ m4-compiled images execute unmodified on that same model — the code they
 ship is exercised instruction by instruction, though m0/m4 core behaviour
 is not itself modelled. Qualification is expressed per Cortex-M core, not
 per Apollo part: the kernels are core-specific and part-agnostic by design
-(`nsx/nsx-module.yaml` declares `socs: "*"`). Regression testing on Apollo
-EVBs is planned regression-tier work on top of this, not a substitute for
-it — part-specific data published today is the Apollo510 EVB benchmark set
+(`nsx/nsx-module.yaml` declares `socs: "*"`). EVB testing on Apollo parts is
+planned regression-tier work on top of this, not a substitute for it — part-specific data published today is the Apollo510 EVB benchmark set
 in [`docs/guides/kernel-benchmarks.md`](docs/guides/kernel-benchmarks.md).
 
 ### What runs only at release time, or on demand
