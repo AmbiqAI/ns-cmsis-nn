@@ -23,13 +23,21 @@ toolchain versions that differ from the release.
 
 ## What gets pinned
 
-Each tarball contains `manifest.json`:
+Each tarball contains a `manifest.json` recording the identity of the archive.
+Its `"version"` field is the heliaCORE release the archive was built from:
+tarballs for this release carry `"version": "7.30.0"`. <!-- x-release-please-version -->
+
+The example below is trimmed. The `"version"` field is left out on purpose, so
+the block stays valid JSON that no release has to edit; the `"features"`,
+`"library"` and `"built_at"` blocks a real manifest also carries are omitted for
+brevity. `scripts/build_sdk_tarball.sh` renders the manifest and is the
+authority on its exact shape, and `Documentation/build.md` describes the
+`"features"` block and how consumers must treat an older `schema_version`.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "package": "ns-cmsis-nn",
-  "version": "7.30.0",
   "target_cpu": "cortex-m4",
   "toolchain": {
     "id": "atfe",

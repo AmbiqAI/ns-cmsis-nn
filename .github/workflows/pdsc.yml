@@ -56,6 +56,31 @@ jobs:
       - name: Check generated f32 tanh LUT is re-derivable
         run: python3 scripts/gen_tanh_lut_f32.py --check Source/NNSupportFunctions/arm_nntables_flt.c
 
+  stale_version_refs:
+    # Complements check_pdsc.py's extra-files audit from the other side.
+    # That one asks "is everything *listed* in release-please-config.json
+    # annotated and in sync"; it is blind to a file that stamps the release
+    # version but was never listed, which drifts a release behind forever
+    # with every gate green. This one reads the previous release out of
+    # CHANGELOG.md and asserts no tracked file still mentions it, outside an
+    # explicit allowlist of files whose job is to discuss release history.
+    # It fires on the release-please PR itself, where a silently-skipped
+    # extra-file is still carrying the old version. See #347.
+    name: No stale previous-version references
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run stale version reference check
+        run: python3 scripts/check_stale_version_refs.py
+
+      # On most days the tree contains no previous-release mentions, so a
+      # green result proves little about the scanner -- its mutation tests
+      # are what keep it honest between releases.
+      - name: Run stale version reference check tests
+        run: python3 scripts/tests/test_check_stale_version_refs.py
+
   float_cmsis_components:
     # Static guard for the float unit-test wiring: the csolution pack pin
     # tracks the pdsc <release version>, component selectors are fully
