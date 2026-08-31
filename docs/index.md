@@ -54,6 +54,7 @@ guides/dsp-mve-coverage
 guides/kernel-benchmarks
 guides/releases
 guides/toolchains
+guides/verification
 reference/api-groups
 contributing
 ```

@@ -30,6 +30,12 @@ contracts.
 <em>Release tags, generated artifacts, release-please, and what ships together.</em>
 </a>
 
+<a class="doc-card" href="verification.html">
+<span>Quality</span>
+<strong>Testing &amp; Verification</strong>
+<em>What every pull request and release verifies, the qualification model, known limits, and coverage reports.</em>
+</a>
+
 <a class="doc-card" href="toolchains.html">
 <span>Build contract</span>
 <strong>Toolchain Pinning</strong>
