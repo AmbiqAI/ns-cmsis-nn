@@ -575,16 +575,17 @@ jobs:
   # pass/fail counts, and the names of failing cases into the run summary.
   # Pure reporting, never a gate: ci.yml gates on this reusable workflow
   # as one unit, so a failure here would redden `CI Passed` -- which a
-  # summary bug must never do. Three layers together guarantee that: the renderer
-  # script exits 0 on every code path (errors are written into the
-  # summary, not raised), and the download/render steps carry
-  # continue-on-error as a backstop against interpreter- or action-level
-  # failures. `if: always()` is load-bearing for the same reason grids
-  # exist: the summary is most needed exactly when test legs fail.
-  # Columns are legs (suite x build flavour), driven by one table in the
-  # script -- a second toolchain later (#340) is one more column, no
-  # restructuring. Plain runner, stdlib-only python: zero new action or
-  # pip dependencies.
+  # summary bug must never do. Three layers together guarantee that: the
+  # renderer catches rendering and write errors into the summary/stdout,
+  # the download/render steps carry continue-on-error against
+  # interpreter- or action-level failures, and the job-level
+  # continue-on-error below covers everything else (checkout, runner).
+  # `if: always()` is load-bearing for the same reason grids exist: the
+  # summary is most needed exactly when test legs fail. Columns are legs
+  # (suite x build flavour), driven by the script's EXPECTED artifact map
+  # plus its COLUMNS order list -- a second toolchain later (#340) is one
+  # COLUMNS entry and one EXPECTED line per CPU, no restructuring. Plain
+  # runner, stdlib-only python: zero new action or pip dependencies.
   matrix-summary:
     runs-on: ubuntu-latest
     # Job-level continue-on-error is the outermost layer of the non-gating
