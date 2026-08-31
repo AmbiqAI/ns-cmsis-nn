@@ -1,0 +1,4 @@
+{
+  "why": "Hard floor for merged line coverage across all CPU/suite legs (see AmbiqAI/ns-cmsis-nn#356, AmbiqAI/helia-core-tester#73). Raising this floor is a deliberate, reviewed diff to this file -- never a workflow edit. Set ~1.5pp below the ~83.7% observed on main so normal churn never trips it; the no-regression check in scripts/ci/check_coverage_gate.py is the tight guard, this floor is the backstop when no previous artifact is available.",
+  "line_floor_pct": 82.0
+}
