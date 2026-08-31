@@ -69,6 +69,111 @@ jobs:
     secrets:
       ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
 
+  # Audit of the PUBLISHED releases customers actually see
+  # (AmbiqAI/ns-cmsis-nn#274, section 2 -- the half release.yml's
+  # release-verify job cannot cover). release-verify only fires inside a
+  # release run that reaches it: v7.26.0-v7.29.1 all shipped empty BEFORE
+  # it existed, a run cancelled outright never executes it, and
+  # `gh release upload --clobber` deletes an asset before re-uploading, so
+  # a release can lose assets after its run went green. This job re-checks
+  # the live, non-draft release objects nightly, so an empty or gutted
+  # release can never again sit unnoticed for 11 days the way v7.29.1 did.
+  #
+  # Deliberately NOT wired into nightly-report below: a broken published
+  # release is customer-facing and prescribes a recovery dispatch, not a
+  # code fix, so it gets its own rolling issue (label `release-audit`)
+  # that must never be closed by "main is green again".
+  release-assets-audit:
+    runs-on: ubuntu-latest
+    # A paginated listing plus one `gh release view` per audited release,
+    # each retried 3x with short sleeps inside the script; pure hang
+    # insurance.
+    timeout-minutes: 10
+    # Job-level permissions REPLACE the workflow-level block, so both
+    # entries are needed: contents:read to check out the audit script,
+    # issues:write for the rolling issue (same pattern as nightly-report).
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Audit published release assets
+        id: audit
+        # continue-on-error so the rolling-issue step below always runs and
+        # leaves the durable signal; the last step re-raises the failure so
+        # the job itself still goes red.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Space/comma-separated tags whose gaps are a recorded decision
+          # not to repair (issue #274 priority 3) -- reported, not failed.
+          RELEASE_AUDIT_WAIVED_TAGS: ${{ vars.RELEASE_AUDIT_WAIVED_TAGS }}
+          AUDIT_REPORT_FILE: ${{ runner.temp }}/release-audit-report.md
+        run: bash scripts/ci/audit_release_assets.sh "${{ github.repository }}"
+
+      - name: Create, update, or close the rolling release-audit issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          AUDIT_OUTCOME: ${{ steps.audit.outcome }}
+          AUDIT_REPORT_FILE: ${{ runner.temp }}/release-audit-report.md
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          title='Published release(s) missing required assets'
+          label='release-audit'
+          today="$(date -u +%Y-%m-%d)"
+
+          # Same label-then-exact-title guard as nightly-report below: the
+          # label must exist before `gh issue create --label`, and
+          # `gh issue list --search` is fuzzy so the title is matched
+          # exactly with jq (inlined -- keep in sync with $title above).
+          if ! gh label list -R "$REPO" --json name --jq '.[].name' | grep -qxF "$label"; then
+            gh label create "$label" -R "$REPO" \
+              --color B60205 --description 'Rolling published-release asset-audit status issue'
+          fi
+
+          issue_number="$(gh issue list -R "$REPO" --state open --label "$label" \
+            --json number,title \
+            --jq '[.[] | select(.title == "Published release(s) missing required assets")][0].number // empty')"
+
+          if [[ "$AUDIT_OUTCOME" != 'success' ]]; then
+            body="Nightly audit of published GitHub Releases failed on ${today}.
+
+          Run: ${RUN_URL}
+
+          $(cat "$AUDIT_REPORT_FILE" 2>/dev/null || echo 'The audit could not produce a report -- see the run log (likely a GitHub API failure rather than a missing asset).')
+
+          This is the rolling release-audit issue: subsequent red audits comment here, and the first clean audit closes it."
+
+            if [[ -n "$issue_number" ]]; then
+              echo "Audit red; commenting on open rolling issue #${issue_number}"
+              gh issue comment "$issue_number" -R "$REPO" --body "$body"
+            else
+              echo 'Audit red; no open rolling issue -- creating one'
+              gh issue create -R "$REPO" --title "$title" --label "$label" --body "$body"
+            fi
+            exit 0
+          fi
+
+          if [[ -n "$issue_number" ]]; then
+            echo "Audit clean; closing rolling issue #${issue_number}"
+            gh issue close "$issue_number" -R "$REPO" \
+              --comment "Nightly release-asset audit is clean again as of ${today}: ${RUN_URL}"
+          else
+            echo 'Audit clean; no rolling issue open -- nothing to do'
+          fi
+
+      - name: Propagate audit failure
+        if: ${{ steps.audit.outcome == 'failure' }}
+        run: |
+          echo "release-assets-audit failed; see the audit step above and the rolling release-audit issue." >&2
+          exit 1
+
   # Rolling-issue reporter. Contract:
   #   - any callee failed  -> create "Nightly run failing on main" (label
   #     `nightly`) if no open issue with that exact title exists, else
