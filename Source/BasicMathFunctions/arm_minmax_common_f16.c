@@ -48,7 +48,19 @@ static float16_t arm_minmax_select_f16(float16_t a, float16_t b, int32_t select_
      * mask form has no FP select at all, and returns the chosen operand's
      * exact bits. Kept self-contained instead of using the arm_nn_*_f16h
      * helpers because this file must also compile with ARM_NN_ENABLE_F16=0,
-     * where those helpers are gated out. */
+     * where those helpers are gated out.
+     *
+     * The a_ge_b comparison gives this the same tie-break as the float32 twin:
+     * a tie between zeros of opposite sign resolves by operand position, where
+     * vmaxnmq / vminnmq below resolve it by sign (issue #316). Left as is for
+     * the reasons set out on arm_minmax_select_f32(). An fmaxf() / fminf() form
+     * would also have to clear the mask-select rule in AGENTS.md: written as a
+     * float32 select narrowed back to _Float16 it compiles with the pinned
+     * 14.2.Rel1 toolchain for cortex-m55 with ARM_MATH_AUTOVECTORIZE at -Ofast
+     * and at -O3 with -fno-finite-math-only, emitting vmaxnm.f32 / vminnm.f32
+     * around vcvtb pairs, but that is the shape AGENTS.md and #344 record GCC
+     * 14.3 ICEing on, and 14.3.Rel1 is gated on every pull request. The zero tie
+     * and NaN are documented as unspecified in arm_nnfunctions_flt.h. */
     uint16_t a_bits, b_bits;
     memcpy(&a_bits, &a, sizeof(a_bits));
     memcpy(&b_bits, &b, sizeof(b_bits));

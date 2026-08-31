@@ -13,7 +13,7 @@ manifest:
   projects:
     - name: ns-cmsis-nn
       remote: ambiqai
-      revision: v7.29.2 # x-release-please-version
+      revision: v7.30.0 # x-release-please-version
       path: modules/lib/ns-cmsis-nn
 ```
 

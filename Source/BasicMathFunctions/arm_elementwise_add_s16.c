@@ -115,9 +115,9 @@ arm_cmsis_nn_status arm_elementwise_add_s16(const int16_t *input_1_vect,
         two_halfword_1 = arm_nn_read_q15x2_ia(&input_1_vect);
         two_halfword_2 = arm_nn_read_q15x2_ia(&input_2_vect);
 
-        input_1 = (int16_t)(two_halfword_1 & 0xFFFF) << left_shift;
+        input_1 = (int16_t)(two_halfword_1 & 0xFFFF) * (1 << left_shift);
         input_1 = arm_nn_requantize(input_1, input_1_mult, input_1_shift);
-        input_2 = (int16_t)(two_halfword_2 & 0xFFFF) << left_shift;
+        input_2 = (int16_t)(two_halfword_2 & 0xFFFF) * (1 << left_shift);
         input_2 = arm_nn_requantize(input_2, input_2_mult, input_2_shift);
         sum = input_1 + input_2;
         sum = arm_nn_requantize(sum, out_mult, out_shift);
@@ -125,9 +125,9 @@ arm_cmsis_nn_status arm_elementwise_add_s16(const int16_t *input_1_vect,
         sum = MIN(sum, out_activation_max);
         sum_1 = (int16_t)sum;
 
-        input_1 = (int16_t)(two_halfword_1 >> 16) << left_shift;
+        input_1 = (int16_t)(two_halfword_1 >> 16) * (1 << left_shift);
         input_1 = arm_nn_requantize(input_1, input_1_mult, input_1_shift);
-        input_2 = (int16_t)(two_halfword_2 >> 16) << left_shift;
+        input_2 = (int16_t)(two_halfword_2 >> 16) * (1 << left_shift);
         input_2 = arm_nn_requantize(input_2, input_2_mult, input_2_shift);
         sum = input_1 + input_2;
         sum = arm_nn_requantize(sum, out_mult, out_shift);
@@ -144,8 +144,8 @@ arm_cmsis_nn_status arm_elementwise_add_s16(const int16_t *input_1_vect,
     while (loop_count > 0)
     {
         /* C = A + B */
-        input_1 = *input_1_vect++ << left_shift;
-        input_2 = *input_2_vect++ << left_shift;
+        input_1 = *input_1_vect++ * (1 << left_shift);
+        input_2 = *input_2_vect++ * (1 << left_shift);
 
         input_1 = arm_nn_requantize(input_1, input_1_mult, input_1_shift);
         input_2 = arm_nn_requantize(input_2, input_2_mult, input_2_shift);

@@ -49,3 +49,5 @@ void test_sub_arm_elementwise_sub_s8(void) { sub_arm_elementwise_sub_s8(); }
 void test_block_size_invariance_arm_elementwise_sub_s8(void) { block_size_invariance_arm_elementwise_sub_s8(); }
 
 void test_block_size_invariance_arm_sub_scalar_s8(void) { block_size_invariance_arm_sub_scalar_s8(); }
+
+void test_block_size_invariance_arm_rsub_scalar_s8(void) { block_size_invariance_arm_rsub_scalar_s8(); }

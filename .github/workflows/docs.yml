@@ -10,36 +10,21 @@
 name: docs
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "docs/**"
-      - "Documentation/Doxygen/**"
-      - "Include/**"
-      - "Source/**"
-      - "scripts/docs/**"
-      - ".github/workflows/docs.yml"
-  pull_request:
-    paths:
-      - "docs/**"
-      - "Documentation/Doxygen/**"
-      - "Include/**"
-      - "Source/**"
-      - "scripts/docs/**"
-      - ".github/workflows/docs.yml"
+  # Invoked from ci.yml so it reports under the single required gate
+  # (AmbiqAI/ns-cmsis-nn#353); keep no push/pull_request trigger of its own.
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: docs-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build:
     name: Build site
     runs-on: ubuntu-22.04
+    env:
+      # Also consumed by build_sphinx_docs.sh as the version to install.
+      DOXYGEN_VERSION: "1.9.6"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,6 +46,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r docs/requirements.txt
 
+      # Keyed on the version, so a hit that verifies skips the network
+      # entirely and a bump misses and re-downloads. The script re-checks the
+      # restored archive against its pinned SHA-256 and re-downloads if it
+      # does not match, so a bad restored entry is discarded rather than used
+      # (though the entry itself stays cached until the key changes).
+      - name: Cache Doxygen tarball
+        uses: actions/cache@v5
+        with:
+          path: /tmp/doxygen-${{ env.DOXYGEN_VERSION }}.linux.bin.tar.gz
+          key: doxygen-tarball-${{ runner.os }}-${{ env.DOXYGEN_VERSION }}
+
       - name: Build Sphinx + Doxygen XML site
         run: bash scripts/docs/build_sphinx_docs.sh --install-doxygen
 
@@ -75,7 +71,21 @@ jobs:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-22.04
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Skip release-please merge commits: release.yml deploys the docs for a
+    # release itself, and two workflows deploying Pages for the same push
+    # can collide (GitHub runs one Pages deployment at a time). `contains`
+    # rather than `startsWith` so this matches release.yml's own release
+    # detection exactly -- the two workflows must never disagree on what a
+    # release push is, whichever merge method produced the commit. The
+    # github-pages concurrency group serializes docs deploys with each
+    # other; release.yml's deploy does not share it, which is fine while
+    # this job skips every push release.yml deploys for.
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      !contains(github.event.head_commit.message, 'chore(main): release')
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
     permissions:
       contents: read
       pages: write

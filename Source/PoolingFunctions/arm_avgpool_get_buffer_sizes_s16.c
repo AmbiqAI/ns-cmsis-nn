@@ -80,7 +80,15 @@ int32_t arm_avgpool_s16_get_buffer_size_dsp(const int output_x, const int ch_src
 int32_t arm_avgpool_s16_get_buffer_size_mve(const int output_x, const int ch_src)
 {
     (void)output_x;
-    (void)ch_src;
+
+    // As in the s8 variant: no buffer is sized here, but this public entry point still has to answer an
+    // out-of-range ch_src with the dispatcher's -1 rather than a 0 (issue #318).
+    const int64_t required_bytes = (int64_t)ch_src * (int64_t)sizeof(int32_t);
+
+    if ((ch_src < 0) || (required_bytes > INT32_MAX))
+    {
+        return -1;
+    }
 
     return 0;
 }
