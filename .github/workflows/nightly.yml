@@ -112,10 +112,9 @@ jobs:
 
           # The label is part of the search guard below, so it must exist
           # before `gh issue create --label` runs (gh does not create
-          # missing labels on issue creation -- it errors). `--force` makes
-          # this idempotent: create if missing, no-op-ish update otherwise.
-          # Create only when missing: --force would re-assert color and
-          # description every night, silently reverting manual edits.
+          # missing labels on issue creation -- it errors). Create only
+          # when missing: --force would re-assert color and description
+          # every night, silently reverting manual edits.
           if ! gh label list -R "$REPO" --json name --jq '.[].name' | grep -qxF "$label"; then
             gh label create "$label" -R "$REPO" \
               --color B60205 --description 'Rolling nightly-run status issue'
