@@ -34,62 +34,67 @@ for HELIA AI workflows.
 ## Project status
 
 [![CI/CD Pipeline](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/ci.yml?query=branch%3Amain)
-[![Host sanitizer](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/host-sanitizer.yml/badge.svg?branch=main)](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/host-sanitizer.yml?query=branch%3Amain)
-[![Docs](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/docs.yml?query=branch%3Amain)
 [![Release](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/release.yml?query=branch%3Amain)
 [![Latest release](https://img.shields.io/github/v/release/AmbiqAI/ns-cmsis-nn?sort=semver&label=latest%20release)](https://github.com/AmbiqAI/ns-cmsis-nn/releases/latest)
 
-Badges track `main`. Only workflows that run in their own right get one: the FVP
-numerics suite and the toolchain matrix are *called by* `ci.yml`, so they report
-through the **CI/CD Pipeline** badge. `legacy-tester.yml` and
-`helia-core-tester.yml` do serve badge images, but those show the last *manual*
-dispatch of a reusable workflow rather than PR or release status, so they are
-deliberately not used here.
+Badges track `main`. Only the two workflows that run in their own right get
+one: everything that gates a pull request — the FVP numerics suite, the
+toolchain matrix, the host sanitizer, the docs build and the packaging
+contracts — is *called by* `ci.yml` and reports through the **CI/CD
+Pipeline** badge.
 
-### What runs on every pull request
+Merging requires the **`CI Passed`** status check: it is the one context the
+`main` ruleset requires, and it fails unless every gated job below is green.
+A red run blocks the merge.
+
+### What every pull request verifies
 
 | Check | What it establishes | Targets |
 | --- | --- | --- |
-| **Numerics** — `helia-core-tester` under the Corstone-300 FVP, via `ci.yml` | kernel results match reference vectors | int4/int8/int16 on cortex-m0, cortex-m4 and cortex-m55; `float32` on m4 (scalar) and m55 (scalar + MVE); `float16` on m55 (scalar + MVE) |
-| **Toolchain build + strict link**, via `ci.yml` | every kernel compiles and every symbol resolves — no `--gc-sections`, no ignored undefined symbols | GCC 13.2.Rel1 / 14.3.Rel1 / 15.3.Rel1, ATfE 19.1.5 and armclang 6.23.32, each on cortex-m55 and cortex-m4 |
-| **Memory safety** — `host-sanitizer.yml` | out-of-bounds access, undefined behaviour and leaks that leave the numerics intact, such as a scratch buffer under-sized by a `get_buffer_size` query | **x86 host only**, scalar (non-MVE) paths; ~144 Unity suites under ASan + UBSan + LSan via `ctest` (the job asserts a floor of 140) |
+| **Numerics** — `helia-core-tester` under the Corstone-300 FVP | kernel results match reference vectors | int4/int8/int16 on cortex-m0, cortex-m4 and cortex-m55; `float32` on m4 (scalar) and m55 (scalar + MVE); `float16` on m55 (scalar + MVE) |
+| **Shipped-flags numerics** — same suite, no coverage instrumentation | the code that ships — `-Ofast`, real MVE inline assembly — computes the same answers as the instrumented legs | int on cortex-m4 and cortex-m55; `float32` on m55 |
+| **Toolchain build + strict link** | every kernel compiles and every symbol resolves — no `--gc-sections`, no ignored undefined symbols | GCC 13.2.Rel1 / 14.3.Rel1 / 15.3.Rel1, ATfE 19.1.5 and armclang 6.23.32, each on cortex-m55 and cortex-m4 |
+| **Memory safety** — host sanitizer | out-of-bounds access, undefined behaviour and leaks that leave the numerics intact, such as a scratch buffer under-sized by a `get_buffer_size` query | **x86 host**, scalar (non-MVE) paths; ~144 Unity suites under ASan + UBSan + LSan via `ctest` (the job asserts a floor of 140) |
 | **Packaging & wiring contracts** | PDSC/CMSIS-Pack, the CMake SSoT, Zephyr and NSX wiring, SPDX headers, release-pipeline contract | ubuntu runners; no target hardware involved |
-| **Docs** — `docs.yml` | the Sphinx + Doxygen site still builds | ubuntu runner |
+| **Docs** | the Sphinx + Doxygen site still builds | ubuntu runner |
+
+The Corstone-300 FVP is the qualification vehicle for functional and
+coverage results: it models cortex-m55 exactly, and runs m0- and m4-compiled
+images instruction-accurately. Regression testing on Apollo EVBs is planned
+as release-tier work on top of this, not as a substitute for it — the only
+part-specific data published today is the Apollo510 EVB benchmark set in
+[`docs/guides/kernel-benchmarks.md`](docs/guides/kernel-benchmarks.md).
 
 ### What runs only at release time, or on demand
 
-`release.yml` additionally runs the **Unity suites on Arm** (`legacy-tester.yml`,
-cortex-m0/m4/m55 under the FVP), then `release-verify`, which re-reads the
-published GitHub Release and fails if a required asset is missing. Neither runs
-on pull requests, so a green PR says nothing about either.
+`release.yml` additionally runs the **Unity suites on Arm**
+(`legacy-tester.yml`, cortex-m0/m4/m55 under the FVP), then
+`release-verify`, which re-reads the published GitHub Release and fails if a
+required asset is missing. Neither runs on pull requests.
 
 `staticlib-dryrun.yml` (full three-CPU × three-toolchain sweep, packaged
 tarballs) and `pack-dryrun.yml` are `workflow_dispatch` only — they run when
 somebody asks, not on a schedule and not per PR.
 
-### What is *not* covered
+### Known limits, and what is planned against them
 
-- **Nothing runs on silicon.** Every automated test executes on the Corstone-300
-  FVP or an x86 host. No CI job runs on an Apollo part.
-- **No numerics on armclang or ATfE.** Both are built and strict-linked on every
-  PR but never executed. Kernel logic is shared across toolchains, so this is a
-  deliberate trade — but the guarantee is *compiles and links*, not *computes
-  correctly*.
-- **No memory checking of MVE/Helium or DSP paths.** The sanitizers run on the
-  x86 host, which selects the scalar implementations.
-- **UBSan's `shift-base` check is masked** repo-wide, so signed left-shift
-  overflow and left-shifts of negative values are not reported.
-- **Coverage is measured, classified and published — but never enforced.**
-  Nothing fails when it regresses
-  ([helia-core-tester#73](https://github.com/AmbiqAI/helia-core-tester/issues/73)).
-- **No status check is required to merge.** The `main` ruleset requires a pull
-  request and an automatic Copilot review, but registers no required status
-  checks, so a red run does not by itself block a merge.
-- **There is no per-SoC qualification matrix.** `nsx/nsx-module.yaml` declares
-  `socs: "*"`, and coverage here is expressed per *Cortex-M core* (m0/m4/m55),
-  not per Apollo part. The only part-specific data published is the Apollo510
-  EVB benchmark set in
-  [`docs/guides/kernel-benchmarks.md`](docs/guides/kernel-benchmarks.md).
+- **armclang and ATfE are built and strict-linked on every PR but never
+  executed.** Kernel logic is shared across toolchains, so this is a
+  deliberate trade — the guarantee is *compiles and links*, not *computes
+  correctly*. Cross-toolchain execution is tracked in
+  [#340](https://github.com/AmbiqAI/ns-cmsis-nn/issues/340).
+- **No memory checking of MVE/Helium or DSP paths.** The sanitizers run on
+  the x86 host, which selects the scalar implementations. Guard-byte
+  checking on target is tracked in
+  [helia-core-tester#68](https://github.com/AmbiqAI/helia-core-tester/issues/68).
+- **UBSan's `shift-base` check is masked** repo-wide; narrowing the mask is
+  tracked in [#357](https://github.com/AmbiqAI/ns-cmsis-nn/issues/357).
+- **Coverage is measured, classified and published — but not yet enforced.**
+  Nothing fails when it regresses; gating is tracked in
+  [helia-core-tester#73](https://github.com/AmbiqAI/helia-core-tester/issues/73)
+  and is the next step in [#356](https://github.com/AmbiqAI/ns-cmsis-nn/issues/356).
+- **Coverage per Cortex-M core, not per Apollo part.** `nsx/nsx-module.yaml`
+  declares `socs: "*"`; qualification is expressed for m0/m4/m55.
 
 ### Coverage
 
