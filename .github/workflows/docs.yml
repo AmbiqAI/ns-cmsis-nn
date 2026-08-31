@@ -46,10 +46,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r docs/requirements.txt
 
-      # Keyed on the version, so a hit skips the network entirely and a bump
-      # misses and re-downloads. The script re-checks the restored archive
-      # against its pinned SHA-256 and re-downloads if it does not match, so a
-      # truncated cache entry cannot become sticky.
+      # Keyed on the version, so a hit that verifies skips the network
+      # entirely and a bump misses and re-downloads. The script re-checks the
+      # restored archive against its pinned SHA-256 and re-downloads if it
+      # does not match, so a bad restored entry is discarded rather than used
+      # (though the entry itself stays cached until the key changes).
       - name: Cache Doxygen tarball
         uses: actions/cache@v5
         with:
