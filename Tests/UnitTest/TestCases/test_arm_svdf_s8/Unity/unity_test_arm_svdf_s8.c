@@ -46,3 +46,5 @@ void tearDown(void) {}
 
 void test_svdf_int8_arm_s8(void) { svdf_int8_arm_svdf_s8(); }
 void test_svdf_int8_2_arm_s8(void) { svdf_int8_2_arm_svdf_s8(); }
+
+void test_buffer_size_out_of_range_dsp_arm_svdf_s8(void) { buffer_size_out_of_range_dsp_arm_svdf_s8(); }

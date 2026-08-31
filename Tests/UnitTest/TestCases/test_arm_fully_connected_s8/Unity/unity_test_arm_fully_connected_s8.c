@@ -63,3 +63,8 @@ void test_fully_connected_out_activation_arm_fully_connected_s8(void)
 }
 
 void test_fc_per_fc_per_ch_arm_fully_connected_s8(void) { fc_per_ch_arm_fully_connected_s8(); }
+
+void test_buffer_size_out_of_range_dsp_arm_fully_connected_s8(void)
+{
+    buffer_size_out_of_range_dsp_arm_fully_connected_s8();
+}

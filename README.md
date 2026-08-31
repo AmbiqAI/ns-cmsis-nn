@@ -442,13 +442,9 @@ unless the target or toolchain cannot provide the required floating-point type.
     scratch-size check. A generic float wrapper must branch per sizer, not on
     the datatype.
 
-  Every public `*_get_buffer_size_mve` variant answers an out-of-range shape
-  with the same `-1` as the dispatcher it belongs to, so a caller that tests
-  only the Helium leg still gets a diagnosis. Three `_dsp` variants do not:
-  `arm_batch_matmul_s8_get_buffer_size_dsp`,
-  `arm_fully_connected_s8_get_buffer_size_dsp` and
-  `arm_svdf_s8_get_buffer_size_dsp` return 0 for every shape, including one
-  their dispatcher rejects with `-1`.
+  Every public `*_get_buffer_size_mve` and `*_get_buffer_size_dsp` variant
+  answers an out-of-range shape with the same `-1` as the dispatcher it
+  belongs to, so a caller that tests only one leg still gets a diagnosis.
 
   Within the s4/s8/s16 family, a route that needs no scratch buffer returns 0
   for an in-range shape, but any route — including one that needs no buffer —
