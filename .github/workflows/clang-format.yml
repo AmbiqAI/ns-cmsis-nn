@@ -4,6 +4,9 @@
 name: clang-format
 
 on:
+  # Invoked from ci.yml so it reports under the single required gate
+  # (AmbiqAI/ns-cmsis-nn#353); keep no push/pull_request trigger of its own.
+  workflow_call:
   workflow_dispatch:
     inputs:
       base_ref:
@@ -14,21 +17,9 @@ on:
         description: Head ref used for changed-file detection.
         required: false
         default: HEAD
-  pull_request:
-    paths:
-      - ".clang-format"
-      - ".pre-commit-config.yaml"
-      - ".github/workflows/clang-format.yml"
-      - "scripts/check_clang_format_changed.sh"
-      - "Include/**"
-      - "Source/**"
 
 permissions:
   contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   changed-files:
@@ -59,9 +50,14 @@ jobs:
           HEAD_REF: HEAD
         run: bash scripts/check_clang_format_changed.sh "${BASE_REF}" "${HEAD_REF}"
 
+      # The || fallbacks are load-bearing: when ci.yml itself is dispatched
+      # manually, this workflow runs via workflow_call with event_name
+      # 'workflow_dispatch' but an EMPTY inputs context (dispatch input
+      # defaults do not propagate to callees), and the script hard-fails on
+      # an empty BASE_REF.
       - name: Check formatting for changed C/H files (manual)
         if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
-          BASE_REF: ${{ inputs.base_ref }}
-          HEAD_REF: ${{ inputs.head_ref }}
+          BASE_REF: ${{ inputs.base_ref || 'origin/main' }}
+          HEAD_REF: ${{ inputs.head_ref || 'HEAD' }}
         run: bash scripts/check_clang_format_changed.sh "${BASE_REF}" "${HEAD_REF}"

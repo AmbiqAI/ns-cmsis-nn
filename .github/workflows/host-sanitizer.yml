@@ -34,22 +34,15 @@ name: Host sanitizer unit tests
 # that mallocs without freeing fails its suite.
 
 on:
+  # Invoked from ci.yml so it reports under the single required gate
+  # (AmbiqAI/ns-cmsis-nn#353); keep no push/pull_request trigger of its own.
+  workflow_call:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
 
 # The job compiles and *runs* code from the pull request, so it gets no more
 # than a read token.
 permissions:
   contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   host-sanitizer:
