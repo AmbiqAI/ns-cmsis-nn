@@ -492,3 +492,38 @@ void depthwise_int4_4_arm_depthwise_conv_s4_opt(void)
     TEST_ASSERT_TRUE(validate(output, depthwise_int4_4_output_ref, DEPTHWISE_INT4_4_DST_SIZE));
     memset(output, 0, DEPTHWISE_INT4_4_DST_SIZE);
 }
+
+// Issue #318: every s4 depthwise sizer routes straight to the s8 _mve/_dsp legs, so before the Helium leg carried
+// the dispatcher's dimension gate a negative input_dims->c came back from this family as a plausible positive
+// size on a Helium build. Not gated on ARM_MATH_MVEI: the leg variants compile on every build target.
+void buffer_size_out_of_range_mve_arm_depthwise_conv_s4_opt(void)
+{
+    cmsis_nn_dims input_dims;
+    cmsis_nn_dims filter_dims;
+    cmsis_nn_dims output_dims;
+    cmsis_nn_dw_conv_params dw_conv_params;
+
+    memset(&dw_conv_params, 0, sizeof(dw_conv_params));
+    dw_conv_params.stride.w = 1;
+    dw_conv_params.stride.h = 1;
+    dw_conv_params.dilation.w = 1;
+    dw_conv_params.dilation.h = 1;
+    dw_conv_params.ch_mult = 1;
+
+    input_dims.n = 1;
+    input_dims.h = 65536;
+    input_dims.w = 2;
+    input_dims.c = -1;
+    filter_dims = input_dims;
+    output_dims = input_dims;
+
+    TEST_ASSERT_EQUAL(-1, arm_depthwise_conv_s4_opt_get_buffer_size(&input_dims, &filter_dims));
+    TEST_ASSERT_EQUAL(
+        -1,
+        arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        -1,
+        arm_depthwise_conv_wrapper_s4_get_buffer_size_dsp(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        -1, arm_depthwise_conv_wrapper_s4_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+}

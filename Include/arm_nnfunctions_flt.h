@@ -593,6 +593,18 @@ arm_cmsis_nn_status arm_strided_slice_f32(const float32_t *input_data,
  * @brief Elementwise minimum with TensorFlow Lite NHWC broadcasting: each dimension of the two inputs must be
  *        equal or 1, and @p output_dims must be their broadcast shape.
  *
+ * The result for a tie between zeros of opposite sign, and for any non-finite input, is unspecified. The Helium
+ * leg is VMAXNM / VMINNM, which implement IEEE maxNum / minNum: they break a zero tie by sign - maximum returns
+ * +0.0, minimum returns -0.0 - and they suppress NaN, returning the non-NaN operand and a default quiet NaN when
+ * both operands are NaN. The scalar leg breaks the tie by operand position instead, and which position wins is
+ * not fixed either: the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL in the top-level CMakeLists.txt) implies
+ * -fno-signed-zeros and -ffinite-math-only, which license the compiler to answer a zero tie or a NaN either way,
+ * and the answer measurably differs between build targets, between optimization levels, and between the
+ * contiguous and the broadcast-scalar loop of the same build. Both zero answers compare equal to zero, so the
+ * difference is invisible to anything that is not bit-exact; a caller that cares about the sign of a zero, or
+ * about NaN, must screen its inputs rather than rely on either leg. See issue #316, and #333 for the same
+ * -ffinite-math-only caveat on the elementwise family.
+ *
  * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is not
  *         positive, the shapes are not broadcast-compatible, or the output shape is not their broadcast shape.
  *         @p ctx is unused and may be NULL.
@@ -608,6 +620,18 @@ arm_cmsis_nn_status arm_minimum_f32(const cmsis_nn_context *ctx,
 /**
  * @brief Elementwise maximum with TensorFlow Lite NHWC broadcasting: each dimension of the two inputs must be
  *        equal or 1, and @p output_dims must be their broadcast shape.
+ *
+ * The result for a tie between zeros of opposite sign, and for any non-finite input, is unspecified. The Helium
+ * leg is VMAXNM / VMINNM, which implement IEEE maxNum / minNum: they break a zero tie by sign - maximum returns
+ * +0.0, minimum returns -0.0 - and they suppress NaN, returning the non-NaN operand and a default quiet NaN when
+ * both operands are NaN. The scalar leg breaks the tie by operand position instead, and which position wins is
+ * not fixed either: the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL in the top-level CMakeLists.txt) implies
+ * -fno-signed-zeros and -ffinite-math-only, which license the compiler to answer a zero tie or a NaN either way,
+ * and the answer measurably differs between build targets, between optimization levels, and between the
+ * contiguous and the broadcast-scalar loop of the same build. Both zero answers compare equal to zero, so the
+ * difference is invisible to anything that is not bit-exact; a caller that cares about the sign of a zero, or
+ * about NaN, must screen its inputs rather than rely on either leg. See issue #316, and #333 for the same
+ * -ffinite-math-only caveat on the elementwise family.
  *
  * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is not
  *         positive, the shapes are not broadcast-compatible, or the output shape is not their broadcast shape.

@@ -418,9 +418,8 @@ unless the target or toolchain cannot provide the required floating-point type.
   s16 integer** sizers, a negative return (`-1`) means the dimensions are out of
   range — the required size does not fit in an `int32_t`, or a dimension is
   negative — and must never be used to size a buffer. The **s4** convolution
-  sizers (`arm_convolve_s4_get_buffer_size` and the 1x1, 1xN and wrapper
-  siblings) follow the same `-1` contract. Two groups do **not** fully follow
-  that rule and need the caller to range-check the shape itself:
+  and depthwise sizers follow the same `-1` contract. One group does **not**
+  fully follow that rule and needs the caller to range-check the shape itself:
   - **most f32/f16** sizers (`arm_convolve_f32_get_buffer_size` and siblings)
     report a size that does not fit in an `int32_t` as **`0`**, which is
     indistinguishable from "no buffer needed". Note this is a property of the
@@ -430,17 +429,15 @@ unless the target or toolchain cannot provide the required floating-point type.
     `arm_svdf_f16_output_ctx_get_buffer_size` are f32/f16 sizers that use `-1`,
     because their kernels read `ctx->size` and `size == 0` opts out of the
     scratch-size check. A generic float wrapper must branch per sizer, not on
-    the datatype;
-  - the **s4 depthwise** sizers (`arm_depthwise_conv_s4_opt_get_buffer_size`
-    and the wrapper siblings) route straight to the s8 `_mve`/`_dsp` legs
-    without the up-front dimension check that
-    `arm_depthwise_conv_s8_opt_get_buffer_size` performs. They still return
-    `-1` when a filter dimension is negative or the byte count does not fit in
-    an `int32_t`, and on builds without the MVE extension also for a negative
-    channel count. On a Helium build, though (and always from
-    `arm_depthwise_conv_wrapper_s4_get_buffer_size_mve`), the `_mve` leg sizes
-    its buffer from a fixed channel block and never inspects `input_dims->c`,
-    so a negative or oversized channel count there yields a positive size.
+    the datatype.
+
+  Every public `*_get_buffer_size_mve` variant answers an out-of-range shape
+  with the same `-1` as the dispatcher it belongs to, so a caller that tests
+  only the Helium leg still gets a diagnosis. Three `_dsp` variants do not:
+  `arm_batch_matmul_s8_get_buffer_size_dsp`,
+  `arm_fully_connected_s8_get_buffer_size_dsp` and
+  `arm_svdf_s8_get_buffer_size_dsp` return 0 for every shape, including one
+  their dispatcher rejects with `-1`.
 
   Within the s4/s8/s16 family, a route that needs no scratch buffer returns 0
   for an in-range shape, but any route — including one that needs no buffer —
