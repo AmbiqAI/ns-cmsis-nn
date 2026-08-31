@@ -569,3 +569,56 @@ jobs:
           name: coverage-merged
           path: Tests/helia-core-tester/artifacts/reports/coverage/merged
           if-no-files-found: error
+
+  # Per-cell status grid for the test matrix (AmbiqAI/ns-cmsis-nn#356).
+  # `CI Passed` is a single tick; this job renders WHICH legs ran, their
+  # pass/fail counts, and the names of failing cases into the run summary.
+  # Pure reporting, never a gate: ci.yml gates on this reusable workflow
+  # as one unit, so a failure here would redden `CI Passed` -- which a
+  # summary bug must never do. Three layers together guarantee that: the
+  # renderer catches rendering and write errors into the summary/stdout,
+  # the download/render steps carry continue-on-error against
+  # interpreter- or action-level failures, and the job-level
+  # continue-on-error below covers everything else (checkout, runner).
+  # `if: always()` is load-bearing for the same reason grids exist: the
+  # summary is most needed exactly when test legs fail. Columns are legs
+  # (suite x build flavour), driven by the script's EXPECTED artifact map
+  # plus its COLUMNS order list -- a second toolchain later (#340) is one
+  # COLUMNS entry and one EXPECTED line per CPU, no restructuring. Plain
+  # runner, stdlib-only python: zero new action or pip dependencies.
+  matrix-summary:
+    runs-on: ubuntu-latest
+    # Job-level continue-on-error is the outermost layer of the non-gating
+    # guarantee: it keeps a failure ANYWHERE in this job (checkout flake,
+    # runner provisioning, a future step) from failing the reusable
+    # workflow, which ci.yml gates as a single unit. The step-level
+    # continue-on-error lines and the renderer's own exit-0 discipline
+    # remain as inner layers for tidier step UI and local runs.
+    continue-on-error: true
+    if: always()
+    needs:
+      - codegen-tests
+      - shipped-flags-tests
+      - codegen-tests-mve-float
+      - codegen-tests-float-fallback
+    steps:
+      # Only scripts/ci/ is needed; no submodules (the tester source is
+      # irrelevant here, and this must not disturb the submodule pin).
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+
+      # Pattern download so a leg whose upload never happened (job died
+      # before `always()` could fire, runner lost) does not fail this
+      # job -- the renderer shows that leg as "missing" instead.
+      - name: Download all test report artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          pattern: reports-*
+          path: matrix-reports
+
+      - name: Render test matrix grid into the run summary
+        continue-on-error: true
+        run: python3 scripts/ci/render_test_matrix_summary.py --reports-root matrix-reports --summary-file "$GITHUB_STEP_SUMMARY"
