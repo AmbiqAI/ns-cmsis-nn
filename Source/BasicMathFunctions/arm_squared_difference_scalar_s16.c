@@ -55,7 +55,9 @@ arm_cmsis_nn_status arm_squared_difference_scalar_s16(const int16_t *input_1_vec
                                                       const int32_t block_size)
 {
     const int32_t scalar_value =
-        arm_nn_requantize(((int32_t)input_1_vect[0] + input_1_offset) * (1 << left_shift), input_1_mult, input_1_shift);
+        arm_nn_requantize(((int32_t)input_1_vect[0] + input_1_offset) * (int32_t)((uint32_t)1 << left_shift),
+                          input_1_mult,
+                          input_1_shift);
 #if defined(ARM_MATH_MVEI)
     int32_t loop_count = block_size;
     const int32x4_t scalar_vec = vdupq_n_s32(scalar_value);
@@ -88,7 +90,7 @@ arm_cmsis_nn_status arm_squared_difference_scalar_s16(const int16_t *input_1_vec
 
     while (loop_count > 0)
     {
-        int32_t input_2 = (*input_2_vect++ + input_2_offset) * (1 << left_shift);
+        int32_t input_2 = (*input_2_vect++ + input_2_offset) * (int32_t)((uint32_t)1 << left_shift);
         input_2 = arm_nn_requantize(input_2, input_2_mult, input_2_shift);
 
         const int32_t raw_diff = scalar_value - input_2;

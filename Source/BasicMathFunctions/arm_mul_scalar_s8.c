@@ -130,8 +130,8 @@ arm_cmsis_nn_status arm_mul_scalar_s8(const int8_t *input_1_vect,
 
     int8_t r1, r2, r3, r4;
 
-    offset_1_packed = (input_1_offset << 16U) | (input_1_offset & 0x0FFFFL);
-    offset_2_packed = (input_2_offset << 16U) | (input_2_offset & 0x0FFFFL);
+    offset_1_packed = (int32_t)(((uint32_t)input_1_offset << 16) | ((uint32_t)input_1_offset & 0xFFFFu));
+    offset_2_packed = (int32_t)(((uint32_t)input_2_offset << 16) | ((uint32_t)input_2_offset & 0xFFFFu));
 
     // Copy the scalar value 4 times
     read_and_pad_reordered_scalar(input_1_vect[0], &b_1, &a_1);
