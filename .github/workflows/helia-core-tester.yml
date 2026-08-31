@@ -430,6 +430,16 @@ jobs:
 
   coverage-merge-summary:
     runs-on: ubuntu-latest
+    # contents: read -- checkout (+ public submodules).
+    # actions: read -- the coverage gate step fetches the previous
+    # successful main run's coverage-merged artifact via the GitHub API.
+    # Declared explicitly so the gate keeps working if the repo's default
+    # token permissions are ever tightened; both scopes are read-scoped and
+    # present even in the read-only fork-PR token (when they are not, the
+    # gate degrades to floor-only, loudly -- see check_coverage_gate.py).
+    permissions:
+      contents: read
+      actions: read
     needs:
       - resolve-container-image
       - codegen-tests
@@ -569,6 +579,31 @@ jobs:
           name: coverage-merged
           path: Tests/helia-core-tester/artifacts/reports/coverage/merged
           if-no-files-found: error
+
+      # Coverage gate (AmbiqAI/ns-cmsis-nn#356, AmbiqAI/helia-core-tester#73).
+      # Deliberately AFTER the upload so the coverage-merged artifact exists
+      # even when the gate fails -- it is both the evidence for debugging the
+      # failure and the baseline for later runs. Unlike matrix-summary below,
+      # which is pure reporting and must never redden `CI Passed`, this step
+      # is a GATE by design: no continue-on-error, a floor breach or a real
+      # regression fails the job. When the previous main baseline cannot be
+      # fetched (retention, first run, API hiccup, a token without
+      # actions: read on a fork) the script degrades to floor-only with a
+      # loud summary warning instead of flaking -- honest degradation.
+      # Stdlib-only python, floor lives in the reviewed ci/coverage-floor.json.
+      - name: Gate merged line coverage (floor + no-regression)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        # The script is stdlib-only; `uv run python` just reuses the venv the
+        # job already synced, because the container is not guaranteed to ship
+        # a bare `python3` on PATH.
+        run: |
+          cd Tests/helia-core-tester
+          uv run python "$GITHUB_WORKSPACE/scripts/ci/check_coverage_gate.py" \
+            --summary-json artifacts/reports/coverage/merged/coverage_merged_summary.json \
+            --floor-file "$GITHUB_WORKSPACE/ci/coverage-floor.json" \
+            --repo "${{ github.repository }}" \
+            --summary-file "$GITHUB_STEP_SUMMARY"
 
   # Per-cell status grid for the test matrix (AmbiqAI/ns-cmsis-nn#356).
   # `CI Passed` is a single tick; this job renders WHICH legs ran, their
