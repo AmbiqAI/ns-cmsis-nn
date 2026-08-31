@@ -1725,13 +1725,12 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(const cmsis_nn_dw_conv
  *                                 optimized depthwise route needs no buffer and returns 0 without inspecting the
  *                                 dimensions, so a 0 return is not a statement that the shape is valid.
  *
- * @details    This sizer routes straight to the s8 _mve/_dsp legs without the up-front dimension check that
- *             arm_depthwise_conv_s8_opt_get_buffer_size() performs, so which dimensions it inspects is
- *             build-dependent. Every build returns -1 for a negative filter dimension or an overflowing byte
- *             count; a build without the MVE extension also returns -1 for a negative input_dims->c, while the
- *             Helium leg sizes its buffer from a fixed channel block and never inspects input_dims->c, so a
- *             negative or oversized channel count there yields a positive size. A caller that needs its
- *             dimensions validated must validate them rather than infer validity from a non-negative return.
+ * @details    This sizer routes straight to the s8 _mve/_dsp legs, both of which apply the same dimension check
+ *             as arm_depthwise_conv_s8_opt_get_buffer_size(), so a negative input_dims->c, a negative filter
+ *             dimension or an overflowing byte count is reported as -1 on every build target. A shape that does
+ *             not select the optimized depthwise route short-circuits to 0 without the dimensions being
+ *             inspected, so a caller that needs its dimensions validated must validate them rather than infer
+ *             validity from a non-negative return.
  */
 int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size(const cmsis_nn_dw_conv_params *dw_conv_params,
                                                       const cmsis_nn_dims *input_dims,
@@ -1746,8 +1745,8 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size(const cmsis_nn_dw_conv_par
  *             arm_depthwise_conv_wrapper_s4_get_buffer_size().
  * @note       An out-of-range shape is reported as -1, matching the top-level dispatcher, including the same
  *             caveat that a shape which needs no scratch buffer returns 0 without the dimensions being
- *             inspected. This variant forwards to the top-level dispatcher, so it follows the build's leg and
- *             inspects input_dims->c only on builds without the MVE extension.
+ *             inspected. This variant forwards to the top-level dispatcher, so it follows the build's leg; both
+ *             legs inspect input_dims->c.
  *
  */
 int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_dsp(const cmsis_nn_dw_conv_params *dw_conv_params,
@@ -1761,11 +1760,11 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_dsp(const cmsis_nn_dw_conv
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_depthwise_conv_wrapper_s4_get_buffer_size().
- * @note       An out-of-range shape is reported as -1 when a filter dimension is negative or the required size
- *             would not fit in an int32_t, matching the top-level dispatcher on a Helium build, including the
- *             same caveat that a shape which needs no scratch buffer returns 0 without the dimensions being
- *             inspected. The Helium leg never inspects input_dims->c, so a negative or oversized channel count
- *             yields a positive size.
+ * @note       An out-of-range shape is reported as -1, matching the top-level dispatcher, including the same
+ *             caveat that a shape which needs no scratch buffer returns 0 without the dimensions being
+ *             inspected. The Helium leg sizes its buffer from a fixed channel block rather than from
+ *             input_dims->c, but it checks that dimension anyway so that this variant answers a negative channel
+ *             count with the same -1 the dispatcher returns (issue #318).
  *
  */
 int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv_params *dw_conv_params,
@@ -2186,13 +2185,13 @@ int32_t arm_depthwise_conv_s8_opt_get_buffer_size(const cmsis_nn_dims *input_dim
  * @param[in]       input_dims   Input (activation) tensor dimensions. Format: [1, H, W, C_IN]
  *                               Batch argument N is not used.
  * @param[in]       filter_dims  Filter tensor dimensions. Format: [1, H, W, C_OUT]
- * @return          The function returns required buffer size in bytes, or -1 if a filter dimension it reads is
- *                  negative or the required size would not fit in an int32_t. A build without the MVE extension
- *                  also returns -1 for a negative input_dims->c; the Helium leg never inspects input_dims->c.
+ * @return          The function returns required buffer size in bytes, or -1 if input_dims->c or a filter
+ *                  dimension it reads is negative, or the required size would not fit in an int32_t.
  *
- * @details    Unlike arm_depthwise_conv_s8_opt_get_buffer_size(), the dimensions are not checked here. The query
- *             routes straight to the s8 _mve/_dsp leg and relies on the range checks inside that leg, so a caller
- *             that needs input_dims->c validated on a Helium build must validate it itself.
+ * @details    The dimensions are not checked here: the query routes straight to the s8 _mve/_dsp leg and relies
+ *             on the range checks inside that leg. Both legs apply the same check as
+ *             arm_depthwise_conv_s8_opt_get_buffer_size(), so the answer for an out-of-range shape is the same on
+ *             every build target.
  */
 int32_t arm_depthwise_conv_s4_opt_get_buffer_size(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims);
 
@@ -4751,8 +4750,9 @@ int32_t arm_avgpool_s8_get_buffer_size_dsp(const int dim_dst_width, const int ch
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_avgpool_s8_get_buffer_size().
- * @note       This variant needs no buffer and always returns 0; it does not validate dims, since validation lives
- *             in the top-level dispatcher.
+ * @note       This variant needs no buffer, so it returns 0 for every in-range shape. It still validates ch_src
+ *             like the top-level dispatcher and the DSP leg, returning -1 for a negative ch_src or one whose byte
+ *             count would not fit in an int32_t, so all three entry points answer an out-of-range shape alike.
  *
  */
 int32_t arm_avgpool_s8_get_buffer_size_mve(const int dim_dst_width, const int ch_src);
@@ -4824,8 +4824,9 @@ int32_t arm_avgpool_s16_get_buffer_size_dsp(const int dim_dst_width, const int c
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_avgpool_s16_get_buffer_size().
- * @note       This variant needs no buffer and always returns 0; it does not validate dims, since validation lives
- *             in the top-level dispatcher.
+ * @note       This variant needs no buffer, so it returns 0 for every in-range shape. It still validates ch_src
+ *             like the top-level dispatcher and the DSP leg, returning -1 for a negative ch_src or one whose byte
+ *             count would not fit in an int32_t, so all three entry points answer an out-of-range shape alike.
  *
  */
 int32_t arm_avgpool_s16_get_buffer_size_mve(const int dim_dst_width, const int ch_src);

@@ -48,3 +48,8 @@ void test_depthwise_int4_1_arm_depthwise_conv_s4_opt(void) { depthwise_int4_1_ar
 void test_depthwise_int4_2_arm_depthwise_conv_s4_opt(void) { depthwise_int4_2_arm_depthwise_conv_s4_opt(); }
 void test_depthwise_int4_3_arm_depthwise_conv_s4_opt(void) { depthwise_int4_3_arm_depthwise_conv_s4_opt(); }
 void test_depthwise_int4_4_arm_depthwise_conv_s4_opt(void) { depthwise_int4_4_arm_depthwise_conv_s4_opt(); }
+
+void test_buffer_size_out_of_range_mve_arm_depthwise_conv_s4_opt(void)
+{
+    buffer_size_out_of_range_mve_arm_depthwise_conv_s4_opt();
+}
