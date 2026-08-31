@@ -1958,8 +1958,9 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s16(const cmsis_nn_context *ctx,
  * @return                         Size of additional memory required for optimizations in bytes, or -1 if the
  *                                 shape is out of range - a dimension the selected route reads is negative, or
  *                                 the required size would not fit in an int32_t. Only the fast depthwise route
- *                                 produces the -1, and it rejects a negative dimension on every build target, including the plain-C
- *                                 build where it needs no buffer - a route that needs no buffer may return -1,
+ *                                 produces the -1, and it rejects a negative dimension on every build
+ *                                 target, including the plain-C build where it needs no buffer - a route
+ *                                 that needs no buffer may return -1,
  *                                 so always test for -1 before using the value. A shape that does not select
  *                                 the fast depthwise route returns 0 without range-checking the dimensions, so
  *                                 a 0 return is not a statement that the shape is valid.
