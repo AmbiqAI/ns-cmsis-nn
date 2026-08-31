@@ -100,12 +100,13 @@ fi
 
 waived="${RELEASE_AUDIT_WAIVED_TAGS:-}"
 waived="${waived//,/ }"
+read -ra waived_arr <<< "$waived"  # glob-safe: never let a ? or * entry expand against cwd files
 # Waiver entries that match no audited tag are reported so an operator can
 # see why a waiver is not taking effect (typo, recovered release, stale).
 
 is_waived() {
   local tag="$1" w
-  for w in $waived; do
+  for w in "${waived_arr[@]:-}"; do
     [[ "$w" == "$tag" ]] && return 0
   done
   return 1
@@ -216,7 +217,7 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   write_report "${GITHUB_STEP_SUMMARY}"
 fi
 
-for w in $waived; do
+for w in "${waived_arr[@]:-}"; do
   hit=0
   for t in "${waived_tags_hit[@]:-}"; do [[ "$t" == "$w" ]] && hit=1; done
   if (( hit == 0 )) && [[ -n "$w" ]]; then
