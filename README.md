@@ -444,7 +444,11 @@ unless the target or toolchain cannot provide the required floating-point type.
 
   Every public `*_get_buffer_size_mve` and `*_get_buffer_size_dsp` variant
   answers an out-of-range shape with the same `-1` as the dispatcher it
-  belongs to, so a caller that tests only one leg still gets a diagnosis.
+  belongs to, so a caller that tests only one leg still gets a diagnosis —
+  with one exception: `arm_convolve_wrapper_s8_get_buffer_size_dsp`'s 1x1
+  fast route needs a buffer only under armclang, so on other compilers it
+  returns 0 for 1x1 shapes the dispatcher rejects with `-1` (its header
+  note documents this).
 
   Within the s4/s8/s16 family, a route that needs no scratch buffer returns 0
   for an in-range shape, but any route — including one that needs no buffer —
