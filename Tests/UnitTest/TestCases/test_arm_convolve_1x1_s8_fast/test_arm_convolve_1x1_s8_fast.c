@@ -776,3 +776,57 @@ void buffer_size_dsp_arm_convolve_1x1_s8_fast(void)
     TEST_ASSERT_EQUAL(wrapper_buf_size, dsp_wrapper_buf_size);
 #endif
 }
+
+// Issue #366: the _dsp wrapper's 1x1 fast route is a public entry point the Python bindings call directly, so an
+// out-of-range channel count has to come back as the same -1 the dispatcher and the _mve wrapper return, not as a
+// 0 that a caller reads as "no buffer needed". Deliberately not gated on ARM_MATH_DSP: the wrapper legs are plain
+// C and are compiled and callable on every build target, which is the whole reason a caller can be misled by one.
+void buffer_size_out_of_range_dsp_arm_convolve_1x1_s8_fast(void)
+{
+    cmsis_nn_conv_params conv_params;
+    cmsis_nn_dims input_dims = {1, 1, 4, -1};
+    cmsis_nn_dims filter_dims = {1, 1, 1, -1};
+    cmsis_nn_dims output_dims = {1, 1, 4, 1};
+
+    conv_params.padding.w = 0;
+    conv_params.padding.h = 0;
+    conv_params.stride.w = 1;
+    conv_params.stride.h = 1;
+    conv_params.dilation.w = 1;
+    conv_params.dilation.h = 1;
+    conv_params.input_offset = 0;
+    conv_params.output_offset = 0;
+    conv_params.activation.min = -128;
+    conv_params.activation.max = 127;
+
+    // Negative channel count on a shape that routes to the 1x1 fast sizer.
+    TEST_ASSERT_EQUAL(-1, arm_convolve_1x1_s8_fast_get_buffer_size(&input_dims));
+    TEST_ASSERT_EQUAL(-1,
+                      arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        -1, arm_convolve_wrapper_s8_get_buffer_size_mve(&conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        -1, arm_convolve_wrapper_s8_get_buffer_size_dsp(&conv_params, &input_dims, &filter_dims, &output_dims));
+
+    // Channel count whose DSP-leg byte count does not fit in an int32_t.
+    input_dims.c = 1073741823;
+    filter_dims.c = 1073741823;
+    TEST_ASSERT_EQUAL(-1, arm_convolve_1x1_s8_fast_get_buffer_size(&input_dims));
+    TEST_ASSERT_EQUAL(-1,
+                      arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        -1, arm_convolve_wrapper_s8_get_buffer_size_mve(&conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        -1, arm_convolve_wrapper_s8_get_buffer_size_dsp(&conv_params, &input_dims, &filter_dims, &output_dims));
+
+    // An in-range 1x1 fast shape is undisturbed and all three entry points agree on it.
+    input_dims.c = KERNEL1X1_IN_CH;
+    filter_dims.c = KERNEL1X1_IN_CH;
+    const int32_t valid_size =
+        arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    TEST_ASSERT_TRUE(valid_size >= 0);
+    TEST_ASSERT_EQUAL(
+        valid_size, arm_convolve_wrapper_s8_get_buffer_size_dsp(&conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        valid_size, arm_convolve_wrapper_s8_get_buffer_size_mve(&conv_params, &input_dims, &filter_dims, &output_dims));
+}

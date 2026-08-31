@@ -364,8 +364,11 @@ __STATIC_INLINE bool arm_nn_is_convolve_1_x_n(const cmsis_nn_conv_params *conv_p
                                               const cmsis_nn_dims *input_dims,
                                               const cmsis_nn_dims *filter_dims)
 {
+    // stride.w and c are each in range on their own, so their product can exceed INT32_MAX; the multiply is
+    // folded to 64 bits because a wrapped int32 product is signed-overflow UB, reachable from the public conv
+    // sizers (issue #367). The remainder test is unchanged for any product that fits in an int32_t.
     return (input_dims->h == 1) && (conv_params->dilation.w == 1) && (filter_dims->h == 1) &&
-        ((conv_params->stride.w * input_dims->c) % 4 == 0) && (input_dims->c == filter_dims->c);
+        (((int64_t)conv_params->stride.w * (int64_t)input_dims->c) % 4 == 0) && (input_dims->c == filter_dims->c);
 }
 
 /**

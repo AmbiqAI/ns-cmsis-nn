@@ -294,9 +294,7 @@ int32_t arm_convolve_wrapper_s8_get_buffer_size_mve(const cmsis_nn_conv_params *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_convolve_wrapper_s8_get_buffer_size().
  * @note       An out-of-range shape is reported as -1, matching the top-level dispatcher, including the same
- *             caveat that a 0 from a route needing no buffer is not a statement that the shape is valid. This
- *             variant widens that caveat: its 1x1 fast route only needs a buffer when built with armclang, so on
- *             other compilers it returns 0 for every shape, including ones the other variants reject with -1.
+ *             caveat that a 0 from a route needing no buffer is not a statement that the shape is valid.
  *
  */
 int32_t arm_convolve_wrapper_s8_get_buffer_size_dsp(const cmsis_nn_conv_params *conv_params,
