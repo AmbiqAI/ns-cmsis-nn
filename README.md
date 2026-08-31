@@ -443,8 +443,9 @@ unless the target or toolchain cannot provide the required floating-point type.
     the datatype.
 
   Every public `*_get_buffer_size_mve` and `*_get_buffer_size_dsp` variant
-  answers an out-of-range shape with the same `-1` as the dispatcher it
-  belongs to, so a caller that tests only one leg still gets a diagnosis.
+  answers an out-of-range shape the same way as the dispatcher it belongs
+  to — `-1` wherever that dispatcher diagnoses one — so a caller that
+  tests only one leg is never told less than the dispatcher would say.
 
   Within the s4/s8/s16 family, a route that needs no scratch buffer returns 0
   for an in-range shape, but any route — including one that needs no buffer —
