@@ -11,48 +11,14 @@
 name: Release Pipeline Contract
 
 on:
+  # Invoked from ci.yml so it reports under the single required gate
+  # (AmbiqAI/ns-cmsis-nn#353); keep no push/pull_request trigger of its own.
+  # The old paths filter is gone with them: a paths-filtered dependency of a
+  # required check leaves the check permanently pending on PRs that miss the
+  # filter, and these jobs are pure-bash seconds-cheap, so they simply run
+  # on every PR now.
+  workflow_call:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - 'scripts/ci/**'
-      - 'scripts/check_release_image_tags.sh'
-      - 'scripts/check_release_commit_resolution.sh'
-      - 'scripts/check_ensure_local_tag_annotation.sh'
-      - 'scripts/check_docker_checkout_order.sh'
-      - 'scripts/check_publish_pack_tooling_checkout.sh'
-      - 'scripts/check_gh_repo_flags.sh'
-      - 'scripts/check_ci_tool_manifest.sh'
-      - 'scripts/install_ci_tools.sh'
-      - 'ci/tools/manifest.json'
-      - '.devcontainer/Dockerfile'
-      - '.github/workflows/release.yml'
-      - '.github/workflows/build_publish_docker.yml'
-      - '.github/workflows/legacy-tester.yml'
-      - '.github/workflows/helia-core-tester.yml'
-      - '.github/workflows/release-contract.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/ci/**'
-      - 'scripts/check_release_image_tags.sh'
-      - 'scripts/check_release_commit_resolution.sh'
-      - 'scripts/check_ensure_local_tag_annotation.sh'
-      - 'scripts/check_docker_checkout_order.sh'
-      - 'scripts/check_publish_pack_tooling_checkout.sh'
-      - 'scripts/check_gh_repo_flags.sh'
-      - 'scripts/check_ci_tool_manifest.sh'
-      - 'scripts/install_ci_tools.sh'
-      - 'ci/tools/manifest.json'
-      - '.devcontainer/Dockerfile'
-      - '.github/workflows/release.yml'
-      - '.github/workflows/build_publish_docker.yml'
-      - '.github/workflows/legacy-tester.yml'
-      - '.github/workflows/helia-core-tester.yml'
-      - '.github/workflows/release-contract.yml'
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   ci-tool-manifest:
