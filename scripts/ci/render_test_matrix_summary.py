@@ -6,8 +6,11 @@ writes a CPU x leg status grid, plus the names of any failing cases, to
 GITHUB_STEP_SUMMARY. Pure reporting: this script must NEVER fail the
 matrix-summary job, because ci.yml gates on the helia-core-tester
 reusable workflow as a single unit and a summary bug must not redden
-`CI Passed` (AmbiqAI/ns-cmsis-nn#356). Every code path therefore exits 0;
-problems are rendered INTO the summary instead of raised out of it.
+`CI Passed` (AmbiqAI/ns-cmsis-nn#356). Rendering problems are written
+INTO the summary instead of raised out of it, and the whole invocation is
+wrapped so an unwritable summary file degrades to stdout rather than a
+nonzero exit; the workflow's continue-on-error layers backstop what a
+script cannot (argparse misuse, interpreter failure).
 
 Stdlib only -- the job runs on a bare ubuntu runner with no container
 and must not grow action or pip dependencies.
@@ -28,9 +31,10 @@ from pathlib import Path
 
 # One entry per artifact the tester workflow uploads: artifact name ->
 # (row, column). Rows are CPUs; columns are legs (suite x build flavour).
-# A toolchain variant added later (#340) becomes one more column here --
-# the grid renderer below is driven entirely by this table, so no
-# restructuring is needed.
+# A toolchain variant added later (#340) is one COLUMNS entry plus one
+# EXPECTED line per CPU running it -- keep the two in sync (an EXPECTED
+# column absent from COLUMNS would drop out of the grid; the unreported-
+# artifact line below catches the reverse direction). No restructuring.
 EXPECTED = {
     "reports-cortex-m0": ("m0", "int"),
     "reports-cortex-m4": ("m4", "int"),
@@ -115,7 +119,14 @@ def render(reports_root: Path):
                 continue
             p, f, s, t, _ = res
             note = f" ({s} skipped)" if s else ""
-            cells.append(f"❌ {f}/{t}{note}" if f else f"✅ {p}{note}")
+            if t == 0:
+                # A parseable junit with zero testcases means the leg ran
+                # nothing -- that must not read as a pass.
+                cells.append("⚠️ 0 ran")
+            elif f:
+                cells.append(f"❌ {f}/{t}{note}")
+            else:
+                cells.append(f"✅ {p}{note}")
         lines.append(f"| {row} | " + " | ".join(cells) + " |")
 
     failures_section = []
@@ -132,6 +143,19 @@ def render(reports_root: Path):
     if missing:
         failures_section.append(
             "\n**Missing report artifacts:** " + ", ".join(missing)
+        )
+    # A reports-* artifact not in EXPECTED means a leg was added to the
+    # workflow without a grid mapping: surface it rather than silently
+    # omitting the new leg exactly when the matrix grows.
+    unknown = sorted(
+        d.name
+        for d in reports_root.glob("reports-*")
+        if d.is_dir() and d.name not in EXPECTED
+    ) if reports_root.is_dir() else []
+    if unknown:
+        failures_section.append(
+            "\n**Unreported artifacts (add to EXPECTED in "
+            "scripts/ci/render_test_matrix_summary.py):** " + ", ".join(unknown)
         )
     return "\n".join(lines + failures_section) + "\n"
 
@@ -150,10 +174,13 @@ def main():
         text = render(args.reports_root)
     except Exception as exc:  # noqa: BLE001 -- reporting must not fail the job
         text = f"## Test matrix\n\nSummary renderer error (non-gating): `{exc!r}`\n"
-    if args.summary_file:
-        with open(args.summary_file, "a", encoding="utf-8") as fh:
-            fh.write(text)
-    else:
+    try:
+        if args.summary_file:
+            with open(args.summary_file, "a", encoding="utf-8") as fh:
+                fh.write(text)
+        else:
+            sys.stdout.write(text)
+    except OSError:  # unwritable summary file: degrade to stdout, never fail
         sys.stdout.write(text)
     return 0
 

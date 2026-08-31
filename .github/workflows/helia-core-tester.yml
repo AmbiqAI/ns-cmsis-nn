@@ -575,7 +575,7 @@ jobs:
   # pass/fail counts, and the names of failing cases into the run summary.
   # Pure reporting, never a gate: ci.yml gates on this reusable workflow
   # as one unit, so a failure here would redden `CI Passed` -- which a
-  # summary bug must never do. Two layers guarantee that: the renderer
+  # summary bug must never do. Three layers together guarantee that: the renderer
   # script exits 0 on every code path (errors are written into the
   # summary, not raised), and the download/render steps carry
   # continue-on-error as a backstop against interpreter- or action-level
@@ -587,6 +587,13 @@ jobs:
   # pip dependencies.
   matrix-summary:
     runs-on: ubuntu-latest
+    # Job-level continue-on-error is the outermost layer of the non-gating
+    # guarantee: it keeps a failure ANYWHERE in this job (checkout flake,
+    # runner provisioning, a future step) from failing the reusable
+    # workflow, which ci.yml gates as a single unit. The step-level
+    # continue-on-error lines and the renderer's own exit-0 discipline
+    # remain as inner layers for tidier step UI and local runs.
+    continue-on-error: true
     if: always()
     needs:
       - codegen-tests
