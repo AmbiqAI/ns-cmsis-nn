@@ -166,10 +166,11 @@ jobs:
     # green everywhere else;
     # check #8 (extra-files annotations) fails only at release time, where a
     # broken annotation is invisible until a release bumps nothing; check
-    # #10 (unit-test suite buildability) is the only PR gate that looks at
-    # the float unit suites at all, no job builds them, and
-    # registered-but-uncompilable suites once read as coverage and hid a
-    # shipped transpose-conv bug (#253, #256).
+    # #10 (unit-test suite buildability) was for years the only gate that
+    # looked at the float unit suites at all -- no job built them, which is
+    # how registered-but-uncompilable suites read as coverage and hid a
+    # shipped transpose-conv bug (#253, #256) -- until #330/#341 built and
+    # ran them on the host-sanitizer and legacy-tester legs.
     #
     # These ran as a step inside each check's own job, named one at a time.
     # scripts/tests/test_check_pdsc_ssot.py -- which gates the check on the
