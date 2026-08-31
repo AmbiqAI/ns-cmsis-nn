@@ -37,9 +37,9 @@ for HELIA AI workflows.
 [![Release](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/release.yml?query=branch%3Amain)
 [![Latest release](https://img.shields.io/github/v/release/AmbiqAI/ns-cmsis-nn?sort=semver&label=latest%20release)](https://github.com/AmbiqAI/ns-cmsis-nn/releases/latest)
 
-Actively developed and released. Every change merges only through the
+Badges track `main`. Actively developed and released. Every change merges only through the
 required **CI Passed** check: kernel numerics verified on the Corstone-300
-FVP across cortex-m0/m4/m55 (including the shipped `-Ofast` build), a
+FVP across cortex-m0/m4/m55 (the m4/m55 legs also at the shipped `-Ofast` build), a
 five-toolchain build-and-link matrix, host sanitizers, and the packaging
 contracts. Each release ships a CMSIS-Pack, per-core SDK tarballs and
 static-library bundles, all verified after publication. See
@@ -570,12 +570,12 @@ IAR is currently untested. Compiling for host is not supported out of the box.
 ## Testing & verification
 
 Every pull request must pass the FVP numerics suite (int4/int8/int16 on
-cortex-m0/m4/m55, float32/float16 where hardware support exists — both
-instrumented and at the shipped `-Ofast` flags), a strict build-and-link
+cortex-m0/m4/m55, float32/float16 where hardware support exists — the
+m4/m55 legs also at the shipped `-Ofast` flags), a strict build-and-link
 matrix across GCC 13/14/15, ATfE and armclang, the x86 host suites under
-ASan/UBSan/LSan, and the packaging contracts. A nightly run adds the legacy
-Unity suites on Arm, and every release re-runs the full set and verifies
-its published assets.
+ASan/UBSan/LSan, and the packaging contracts. A nightly run adds the
+legacy Unity suites on Arm, and every release re-runs the FVP numerics
+and Unity suites and verifies its published assets.
 
 cortex-m4 and cortex-m55 are the shipping targets; cortex-m0 is held to
 the same functional bar as a scalar baseline. The Corstone-300 FVP is the
@@ -586,7 +586,8 @@ built and linked but not yet executed
 ([#340](https://github.com/AmbiqAI/ns-cmsis-nn/issues/340)), sanitizers
 cover the scalar paths only
 ([helia-core-tester#68](https://github.com/AmbiqAI/helia-core-tester/issues/68)),
-and coverage is published per run but not yet gated
+and coverage is gated on a floor and no-regression per merged run, with
+per-kernel set-membership gates still open
 ([helia-core-tester#73](https://github.com/AmbiqAI/helia-core-tester/issues/73)).
 
 The full contract — per-leg matrices, the qualification model, coverage
@@ -613,8 +614,9 @@ retrieval, release-asset inventory — is in the
 
 ## Documentation
 
-API reference is generated with Doxygen and published as a GitHub Pages site
-on each release. To build it locally:
+The documentation site — guides plus the Doxygen-generated API reference —
+is published at <https://ambiqai.github.io/ns-cmsis-nn/> on every push to
+`main`. To build it locally:
 
 ```sh
 ./Documentation/Doxygen/gen_doc.sh

@@ -46,6 +46,10 @@ suites on Arm (`legacy-tester.yml`, cortex-m0/m4/m55 under the FVP), and
 runs `release-verify`, which re-reads the published GitHub Release and
 fails if a required asset is missing. None of these runs on pull requests.
 
+A nightly scheduled run (`nightly.yml`) re-runs the FVP numerics suite,
+the legacy Unity suites, and the toolchain strict-link matrix on `main`,
+maintaining a rolling issue while red.
+
 `staticlib-dryrun.yml` (full three-CPU × three-toolchain sweep, packaged
 tarballs) and `pack-dryrun.yml` are `workflow_dispatch` only — they run
 when somebody asks, not on a schedule and not per PR.
@@ -80,11 +84,10 @@ licence.
   residual shift-base UB on the M4 DSP path — invisible to the x86
   sanitizer, which cannot compile those sites — is tracked in
   [#357](https://github.com/AmbiqAI/ns-cmsis-nn/issues/357).
-- **Coverage is measured, classified and published — but not yet enforced.**
-  Nothing fails when it regresses; gating is tracked in
-  [helia-core-tester#73](https://github.com/AmbiqAI/helia-core-tester/issues/73)
-  and is the next step in
-  [#356](https://github.com/AmbiqAI/ns-cmsis-nn/issues/356).
+- **Coverage is gated on a floor and no-regression** per merged run
+  (`ci/coverage-floor.json` holds the floor; raising it is a reviewed
+  diff). The per-kernel set-membership gates remain open in
+  [helia-core-tester#73](https://github.com/AmbiqAI/helia-core-tester/issues/73).
 
 ## Coverage reports
 
