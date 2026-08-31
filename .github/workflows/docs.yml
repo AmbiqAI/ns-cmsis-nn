@@ -22,6 +22,9 @@ jobs:
   build:
     name: Build site
     runs-on: ubuntu-22.04
+    env:
+      # Also consumed by build_sphinx_docs.sh as the version to install.
+      DOXYGEN_VERSION: "1.9.6"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,6 +45,17 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r docs/requirements.txt
+
+      # Keyed on the version, so a hit that verifies skips the network
+      # entirely and a bump misses and re-downloads. The script re-checks the
+      # restored archive against its pinned SHA-256 and re-downloads if it
+      # does not match, so a bad restored entry is discarded rather than used
+      # (though the entry itself stays cached until the key changes).
+      - name: Cache Doxygen tarball
+        uses: actions/cache@v5
+        with:
+          path: /tmp/doxygen-${{ env.DOXYGEN_VERSION }}.linux.bin.tar.gz
+          key: doxygen-tarball-${{ runner.os }}-${{ env.DOXYGEN_VERSION }}
 
       - name: Build Sphinx + Doxygen XML site
         run: bash scripts/docs/build_sphinx_docs.sh --install-doxygen
