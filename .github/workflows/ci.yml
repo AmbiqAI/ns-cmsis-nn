@@ -92,6 +92,9 @@ jobs:
       pages: write
       id-token: write
 
+  release-contract:
+    uses: ./.github/workflows/release-contract.yml
+
   # The one context branch protection requires (#353). `if: always()` is
   # load-bearing: without it a failed dependency skips this job, and a
   # skipped required check counts as PASSING under rulesets -- the gate
@@ -111,6 +114,7 @@ jobs:
       - nsx-integration
       - zephyr-integration
       - docs
+      - release-contract
     steps:
       - name: Verify every gated job succeeded or was skipped
         env:
