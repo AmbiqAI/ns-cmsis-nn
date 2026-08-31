@@ -124,6 +124,12 @@ def fetch_baseline(api_url: str, repo: str, token: str, current_run_id: str) -> 
         run = _api(f"{api_url}/repos/{repo}/actions/runs/{run_id}", token)
         if run.get("conclusion") != "success":
             continue
+        # head_branch == "main" also matches pull_request runs whose FORK head
+        # branch is named main, letting an external PR's artifact become the
+        # baseline (phantom regressions, or a vacuous gate). Only runs of the
+        # branch itself may anchor the comparison.
+        if run.get("event") not in ("push", "workflow_dispatch", "schedule"):
+            continue
         blob = _download_artifact_zip(art["archive_download_url"], token)
         with zipfile.ZipFile(io.BytesIO(blob)) as zf:
             name = next((n for n in zf.namelist() if os.path.basename(n) == SUMMARY_BASENAME), None)
@@ -219,19 +225,29 @@ def main() -> int:
         if baseline is None:
             warnings.append(note)
         else:
-            previous_pct = float(baseline["overall_line_rate"])
-            details.append(note)
-            if current_pct < previous_pct - REGRESSION_TOLERANCE_PP:
-                msg = (
-                    f"regression: merged line coverage {current_pct:.2f}% dropped "
-                    f"{previous_pct - current_pct:.2f}pp below the previous successful "
-                    f"{BASELINE_BRANCH} run's {previous_pct:.2f}% "
-                    f"(tolerance {REGRESSION_TOLERANCE_PP:.2f}pp)"
+            # Baseline CONSUMPTION degrades like baseline fetch: a malformed
+            # baseline (bad key, garbage rate) is the other side's defect and
+            # must warn, not fail -- only the CURRENT summary is this gate's
+            # own input and stays fail-loud.
+            try:
+                previous_pct = float(baseline["overall_line_rate"])
+                details.append(note)
+                if current_pct < previous_pct - REGRESSION_TOLERANCE_PP:
+                    msg = (
+                        f"regression: merged line coverage {current_pct:.2f}% dropped "
+                        f"{previous_pct - current_pct:.2f}pp below the previous successful "
+                        f"{BASELINE_BRANCH} run's {previous_pct:.2f}% "
+                        f"(tolerance {REGRESSION_TOLERANCE_PP:.2f}pp)"
+                    )
+                    droppers = biggest_droppers(current, baseline)
+                    if droppers:
+                        msg += "; biggest file-level drops: " + "; ".join(droppers)
+                    failures.append(msg)
+            except Exception as err:  # noqa: BLE001 -- degrade, never flake
+                previous_pct = None
+                warnings.append(
+                    f"baseline unusable ({err.__class__.__name__}: {err}); floor-only"
                 )
-                droppers = biggest_droppers(current, baseline)
-                if droppers:
-                    msg += "; biggest file-level drops: " + "; ".join(droppers)
-                failures.append(msg)
 
     # --- Verdict, rendered right under the existing coverage table ---
     prev_str = f"{previous_pct:.2f}%" if previous_pct is not None else "unavailable"

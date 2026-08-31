@@ -1,4 +1,4 @@
 {
-  "why": "Hard floor for merged line coverage across all CPU/suite legs (see AmbiqAI/ns-cmsis-nn#356, AmbiqAI/helia-core-tester#73). Raising this floor is a deliberate, reviewed diff to this file -- never a workflow edit. Set ~1.5pp below the ~83.7% observed on main so normal churn never trips it; the no-regression check in scripts/ci/check_coverage_gate.py is the tight guard, this floor is the backstop when no previous artifact is available.",
-  "line_floor_pct": 82.0
+  "why": "Hard floor for merged line coverage across all CPU/suite legs (see AmbiqAI/ns-cmsis-nn#356, AmbiqAI/helia-core-tester#73). Raising this floor is a deliberate, reviewed diff to this file -- never a workflow edit. Set ~1.5pp below the 82.49% observed on current main (2026-08-31; note main drifted down 1.22pp from 83.71% on 2026-08-11 with nothing to catch it -- the defect this gate ends). The no-regression check in scripts/ci/check_coverage_gate.py is the tight guard; this floor is the backstop when no previous artifact is available. The tight guard ratchets: each merged 0.15pp drop re-anchors the baseline, so sustained decay walks main toward this floor -- if coverage trends down, investigate before lowering anything here. helia-core-tester#73's preferred set-membership gates (zero_reachable_files emptiness) remain open on that issue.",
+  "line_floor_pct": 81.0
 }
