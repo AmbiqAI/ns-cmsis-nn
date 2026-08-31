@@ -132,7 +132,7 @@ jobs:
           # label must exist before `gh issue create --label`, and
           # `gh issue list --search` is fuzzy so the title is matched
           # exactly with jq (inlined -- keep in sync with $title above).
-          if ! gh label list -R "$REPO" --json name --jq '.[].name' | grep -qxF "$label"; then
+          if ! gh label list -R "$REPO" --limit 200 --json name --jq '.[].name' | grep -qxF "$label"; then
             gh label create "$label" -R "$REPO" \
               --color B60205 --description 'Rolling published-release asset-audit status issue'
           fi
@@ -220,7 +220,7 @@ jobs:
           # missing labels on issue creation -- it errors). Create only
           # when missing: --force would re-assert color and description
           # every night, silently reverting manual edits.
-          if ! gh label list -R "$REPO" --json name --jq '.[].name' | grep -qxF "$label"; then
+          if ! gh label list -R "$REPO" --limit 200 --json name --jq '.[].name' | grep -qxF "$label"; then
             gh label create "$label" -R "$REPO" \
               --color B60205 --description 'Rolling nightly-run status issue'
           fi

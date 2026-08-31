@@ -100,6 +100,9 @@ fi
 
 waived="${RELEASE_AUDIT_WAIVED_TAGS:-}"
 waived="${waived//,/ }"
+# Waiver entries that match no audited tag are reported so an operator can
+# see why a waiver is not taking effect (typo, recovered release, stale).
+
 is_waived() {
   local tag="$1" w
   for w in $waived; do
@@ -132,8 +135,12 @@ else
 fi
 
 if (( ${#tags[@]} == 0 )); then
-  echo "no releases at or above ${CONTRACT_FLOOR} to audit" >&2
-  exit 0
+  # An empty sweep is never legitimate while eligible releases exist: a
+  # listing that succeeds but yields nothing (API shape drift, a jq filter
+  # gone stale) would silently disarm this audit -- the failure class it
+  # exists to end. Fail loud instead.
+  echo "no releases at or above ${CONTRACT_FLOOR} to audit -- refusing to report green on an empty sweep" >&2
+  exit 2
 fi
 
 report_lines=()
@@ -208,6 +215,14 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   } >> "${GITHUB_STEP_SUMMARY}"
   write_report "${GITHUB_STEP_SUMMARY}"
 fi
+
+for w in $waived; do
+  hit=0
+  for t in "${waived_tags_hit[@]:-}"; do [[ "$t" == "$w" ]] && hit=1; done
+  if (( hit == 0 )) && [[ -n "$w" ]]; then
+    echo "WARNING: waiver entry '${w}' matched no audited release with missing assets (typo, recovered, or stale -- consider removing it)" >&2
+  fi
+done
 
 if (( ${#failed_tags[@]} > 0 )); then
   echo "::error title=${#failed_tags[@]} published release(s) missing required assets::${failed_tags[*]} -- each is public and non-draft. Recover with 'gh workflow run release.yml --ref main -f recover_tag=<tag>' or waive via the RELEASE_AUDIT_WAIVED_TAGS repository variable (docs/guides/releases.md)." >&2

@@ -146,9 +146,7 @@ The `release-assets-audit` job in `nightly.yml` therefore re-checks the
 
 - Every non-draft, non-prerelease release from `v7.26.0` (the first cut
   under the current asset contract) onward must carry the 17 required
-  assets for its version. armclang assets are never audited retroactively:
-  `ARMCLANG_REQUIRED` is a point-in-time switch, and a release that shipped
-  complete under the contract of its day stays green.
+  assets for its version. armclang assets are never audited by the nightly sweep at all -- even for releases cut with `ARMCLANG_REQUIRED=true` -- because the variable is point-in-time and the audit keeps no per-tag record of which contract was in force; post-publication loss of armclang assets is covered only by `release-verify` in the release run itself.
 - Failures land in one rolling issue (`Published release(s) missing
   required assets`, label `release-audit`), which comments on subsequent
   red nights and closes on the first clean audit — separate from the
