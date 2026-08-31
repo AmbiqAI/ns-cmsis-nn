@@ -1957,10 +1957,12 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s16(const cmsis_nn_context *ctx,
  * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
  * @return                         Size of additional memory required for optimizations in bytes, or -1 if the
  *                                 shape is out of range - a dimension the selected route reads is negative, or
- *                                 the required size would not fit in an int32_t. The -1 is only produced when
- *                                 the fast depthwise route is selected; a shape that does not select it needs
- *                                 no scratch buffer and returns 0 without the dimensions being inspected, so a
- *                                 0 return is not a statement that the shape is valid.
+ *                                 the required size would not fit in an int32_t. Only the fast depthwise route
+ *                                 produces the -1, but it does so on every build target, including the plain-C
+ *                                 build where it needs no buffer - a route that needs no buffer may return -1,
+ *                                 so always test for -1 before using the value. A shape that does not select
+ *                                 the fast depthwise route returns 0 without range-checking the dimensions, so
+ *                                 a 0 return is not a statement that the shape is valid.
  *
  * @details    Where a byte count is computed, an out-of-range shape is reported as -1 rather than a wrapped
  *             size, and the sentinel is propagated before any MAX() or sum over sub-sizer results, so it can
@@ -1980,7 +1982,7 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size(const cmsis_nn_dw_conv_pa
  *             arm_depthwise_conv_wrapper_s16_get_buffer_size().
  * @note       An out-of-range shape is reported as -1, matching the top-level dispatcher, including the same
  *             caveat that a shape which needs no scratch buffer returns 0 without the dimensions being
- *             inspected.
+ *             range-checked.
  *
  */
 int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_dsp(const cmsis_nn_dw_conv_params *dw_conv_params,
@@ -1996,7 +1998,7 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_dsp(const cmsis_nn_dw_con
  *             arm_depthwise_conv_wrapper_s16_get_buffer_size().
  * @note       An out-of-range shape is reported as -1, matching the top-level dispatcher, including the same
  *             caveat that a shape which needs no scratch buffer returns 0 without the dimensions being
- *             inspected.
+ *             range-checked.
  *
  */
 int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_conv_params *dw_conv_params,
