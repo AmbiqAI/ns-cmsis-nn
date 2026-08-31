@@ -12,7 +12,7 @@ name: Nightly
 #   - helia-core-tester        also per-PR; included so the nightly is a
 #                              self-contained "is main green" answer
 #   - legacy-tester (Unity)    otherwise RELEASE-ONLY; sunset criterion is
-#                              tester #68/#72/#69/#74+75, per the repo plan
+#                              tester #68/#72/#69/#74+75; criterion recorded on #356
 #   - toolchain strict link    also per-PR; same reasoning as the tester
 #
 # Failures land in ONE rolling issue ("Nightly run failing on main",
@@ -34,8 +34,14 @@ concurrency:
   group: nightly
   cancel-in-progress: false
 
+# packages: read is required transitively: both testers call
+# resolve-ci-image.yml, which declares contents:read + packages:read, and a
+# called workflow whose declared permissions exceed the caller's grant fails
+# at startup. ci.yml never hits this because it declares no permissions
+# block at all (repo-default token).
 permissions:
   contents: read
+  packages: read
 
 jobs:
   # Same functional suite the PR gate runs; inputs unset means the
@@ -48,7 +54,7 @@ jobs:
   # The legacy Unity suites on the FVP. These are otherwise release-only
   # (release.yml -> release-unit-tests), so without this job a Unity-visible
   # regression is invisible until the next release cut. Kept until the
-  # sunset criterion lands (tester #68/#72/#69/#74+75, per the repo plan).
+  # sunset criterion lands (tester #68/#72/#69/#74+75; criterion recorded on #356).
   # Inputs unset for the same reason as above: container resolved by
   # resolve-ci-image, source_ref defaults to the triggering ref (main).
   legacy-unit-tests:
@@ -72,8 +78,9 @@ jobs:
   #
   # `if: always()` + needs on all three: the reporter must run precisely
   # when something failed. Deliberately NO continue-on-error here: this
-  # job never fails spuriously (the script only fails if a gh call
-  # fails), and a broken reporter on a broken nightly must be visible --
+  # job's only realistic failure mode is a failing gh call (which CAN be
+  # a transient API error), and a broken reporter on a broken nightly
+  # must be visibly red --
   # swallowing gh errors would recreate the exact silence this workflow
   # exists to end.
   nightly-report:
@@ -107,8 +114,12 @@ jobs:
           # before `gh issue create --label` runs (gh does not create
           # missing labels on issue creation -- it errors). `--force` makes
           # this idempotent: create if missing, no-op-ish update otherwise.
-          gh label create "$label" -R "$REPO" --force \
-            --color B60205 --description 'Rolling nightly-run status issue'
+          # Create only when missing: --force would re-assert color and
+          # description every night, silently reverting manual edits.
+          if ! gh label list -R "$REPO" --json name --jq '.[].name' | grep -qxF "$label"; then
+            gh label create "$label" -R "$REPO" \
+              --color B60205 --description 'Rolling nightly-run status issue'
+          fi
 
           # Guard: exact-title match AND the label, open issues only.
           # `gh issue list --search` is fuzzy, so filter exactly with jq
