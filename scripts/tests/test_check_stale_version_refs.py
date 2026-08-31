@@ -169,6 +169,23 @@ class StaleVersionRefs(unittest.TestCase):
             any("newest heading is '7.30.0'" in f and "7.31.0" in f for f in failures), failures
         )
 
+    def test_prerelease_heading_is_parsed_not_skipped(self):
+        # A `## [7.31.0-rc.1]` heading must be PARSED so the
+        # newest-heading-vs-canonical guard fires loudly; if the regex
+        # skipped it, the check would quietly measure against a stale
+        # baseline the day an rc release lands.
+        self.write(
+            "CHANGELOG.md",
+            "# Changelog\n\n"
+            "## [7.31.0-rc.1](x) (2026-09-01)\n\n"
+            "## [7.30.0](x) (2026-08-30)\n\n"
+            "## [7.29.2](x) (2026-08-21)\n",
+        )
+        failures = self.run_check()
+        self.assertTrue(
+            any("newest heading is '7.31.0-rc.1'" in f for f in failures), failures
+        )
+
     def test_changelog_with_one_release_is_rejected(self):
         self.write("CHANGELOG.md", "# Changelog\n\n## [7.30.0](x) (2026-08-28)\n")
         failures = self.run_check()
