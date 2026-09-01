@@ -18,9 +18,10 @@
 # target_compile_options below land after the directory-level
 # `${CMSIS_OPTIMIZATION_LEVEL} -fno-finite-math-only` on the command line, so
 # the last-wins rule gives this target the hostile pair. cmsis-nn is still
-# linked, but only for its PUBLIC include directories and the
-# ARM_NN_ENABLE_F32/F16 definitions; the probe's own kernel objects resolve the
-# two symbols first, so no conflicting archive member is pulled in.
+# linked for its PUBLIC include directories, the ARM_NN_ENABLE_F32/F16
+# definitions, and the LUT tables the kernels reference from
+# arm_nntables_flt.c; the probe's own kernel objects resolve the two activation
+# symbols first, so no conflicting archive member is pulled in.
 #
 # On an x86 host neither ARM_MATH_MVEF nor ARM_MATH_MVE_FLOAT16 is defined, so
 # this probe exercises the SCALAR activation legs only. The MVE RELU/RELU6 legs
