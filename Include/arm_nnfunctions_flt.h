@@ -477,7 +477,7 @@ arm_cmsis_nn_status arm_prelu_f32(const cmsis_nn_dims *input_dims,
  * @brief Elementwise add with optional output clamp.
  *
  * NaN propagates through the clamp (TensorFlow Lite semantics): a quiet NaN in either input operand, or a
- * NaN produced by the arithmetic itself (such as Inf - Inf for subtract), yields a NaN at that output
+ * NaN produced by the arithmetic itself (such as Inf + (-Inf) for add), yields a NaN at that output
  * element. This holds at every optimization level, including the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL
  * in the top-level CMakeLists.txt): the clamp classifies NaN on the integer bit pattern of the value
  * rather than with a floating-point compare, and the -ffinite-math-only that -Ofast implies grants no
@@ -550,7 +550,7 @@ arm_cmsis_nn_status arm_nn_abs_f32(const float32_t *input, float32_t *output, in
  * @brief Elementwise multiply with optional output clamp.
  *
  * NaN propagates through the clamp (TensorFlow Lite semantics): a quiet NaN in either input operand, or a
- * NaN produced by the arithmetic itself (such as Inf - Inf for subtract), yields a NaN at that output
+ * NaN produced by the arithmetic itself (such as 0 * Inf for multiply), yields a NaN at that output
  * element. This holds at every optimization level, including the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL
  * in the top-level CMakeLists.txt): the clamp classifies NaN on the integer bit pattern of the value
  * rather than with a floating-point compare, and the -ffinite-math-only that -Ofast implies grants no
