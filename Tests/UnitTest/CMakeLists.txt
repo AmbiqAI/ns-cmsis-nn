@@ -291,6 +291,19 @@ if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
     add_subdirectory(TestCases/elementwise_nan_ofast_probe)
 endif()
 
+# Host-only -Ofast NaN probe for the activation legs (#382). Same guard shape and
+# same rationale as the elementwise probe above; it rebuilds arm_nn_activation_f32
+# and arm_nn_activation_f16 under the hostile flag pair and fails if a NaN input
+# comes back as 0.0 (RELU) or a clamp bound (RELU6). The directory name carries no
+# test_arm prefix for the same unittest_targets.py reason given above. Only the
+# scalar legs run on the host; the MVE RELU/RELU6 legs are covered on target.
+if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
+   AND CMAKE_C_COMPILER_ID STREQUAL "GNU"
+   AND ARM_NN_ENABLE_F32
+   AND ARM_NN_ENABLE_F16)
+    add_subdirectory(TestCases/activation_nan_ofast_probe)
+endif()
+
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 set(MAKE_CMD "${Python3_EXECUTABLE}")
 set(MAKE_CMD_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/unittest_targets.py")

@@ -436,6 +436,12 @@ arm_cmsis_nn_status arm_avg_pool_f32(const cmsis_nn_context *ctx,
  * @param[in]  act_param Extra activation parameter. Used for parameterized activations such as leaky ReLU.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ *
+ * @note The RELU, RELU6 and LEAKY_RELU legs classify NaN on the integer bit pattern (#380 / #382), so a
+ *       NaN input comes back as NaN at every optimization level on the gated toolchains, including the
+ *       shipped -Ofast. This holds on both the scalar and the MVE (cortex-m55) build paths; the MVE
+ *       RELU/RELU6 legs restore the NaN lanes that vmaxnmq/vminnmq suppress. SIGMOID, TANH and HARDSWISH
+ *       are outside this contract; see the per-helper notes in Include/Internal/arm_nn_activation_flt.h.
  */
 arm_cmsis_nn_status arm_nn_activation_f32(const float32_t *input,
                                           float32_t *output,
@@ -1493,12 +1499,13 @@ arm_cmsis_nn_status arm_avg_pool_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_nn_activation_f32
  *
- * @note On the scalar build path the RELU, RELU6 and LEAKY_RELU legs classify NaN on the integer bit
- *       pattern (#380), so a NaN input comes back as NaN at every optimization level on the gated
- *       toolchains, including the
- *       shipped -Ofast. That path serves every build without MVE float16, and LEAKY_RELU on MVE builds
- *       too. The MVE RELU/RELU6 legs (cortex-m55) do NOT propagate -- vmaxnmq/vminnmq suppress NaN, so a
- *       NaN comes back as 0.0 (RELU) or a clamp bound (RELU6); tracked in #382.
+ * @note The RELU, RELU6 and LEAKY_RELU legs classify NaN on the integer bit pattern (#380 / #382), so a
+ *       NaN input comes back as NaN at every optimization level on the gated toolchains, including the
+ *       shipped -Ofast. This holds uniformly across build paths: the scalar path serves every build
+ *       without MVE float16 (and LEAKY_RELU on MVE builds too), while the MVE RELU/RELU6 legs
+ *       (cortex-m55) restore the NaN lanes that vmaxnmq/vminnmq suppress, using the same integer-domain
+ *       lane classification as the elementwise clamps. SIGMOID, TANH and HARDSWISH are outside this
+ *       contract; see the per-helper notes in Include/Internal/arm_nn_activation_flt.h.
  */
 arm_cmsis_nn_status arm_nn_activation_f16(const float16_t *input,
                                           float16_t *output,

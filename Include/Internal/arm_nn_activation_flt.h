@@ -195,6 +195,31 @@ __STATIC_INLINE float32_t arm_nn_sigmoid_scalar_f32(float32_t x)
     return e / (1.0f + e);
 }
 
+/*
+ * Returns x when x is NaN, otherwise y. Float32 twin of
+ * arm_nn_propagate_nan_f16h(): both the test and the select run on the bit
+ * patterns. The test is (bits & 0x7FFFFFFF) > 0x7F800000 (all-ones exponent,
+ * non-zero mantissa), which is integer arithmetic that -ffinite-math-only --
+ * implied by the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL in the top-level
+ * CMakeLists.txt) -- has no license to fold, unlike a floating-point
+ * self-compare `x != x`, which it folds to false. The masked select passes the
+ * NaN through with its payload and sign intact: no quieting, no retagging.
+ * See #333 / #334 / #382.
+ */
+__STATIC_INLINE float32_t arm_nn_propagate_nan_f32(float32_t x, float32_t y)
+{
+    uint32_t x_bits, y_bits;
+    memcpy(&x_bits, &x, sizeof(x_bits));
+    memcpy(&y_bits, &y, sizeof(y_bits));
+
+    const uint32_t nan_mask = (uint32_t)(0U - (uint32_t)((x_bits & 0x7FFFFFFFu) > 0x7F800000u));
+    const uint32_t r_bits = (x_bits & nan_mask) | (y_bits & ~nan_mask);
+
+    float32_t r;
+    memcpy(&r, &r_bits, sizeof(r));
+    return r;
+}
+
 __STATIC_INLINE float32_t arm_nn_apply_activation_type_f32(float32_t x,
                                                            arm_nn_activation_type_flt type,
                                                            float32_t act_param)
@@ -206,17 +231,22 @@ __STATIC_INLINE float32_t arm_nn_apply_activation_type_f32(float32_t x,
     case ARM_NN_FLT_ACT_SIGMOID:
         return arm_nn_sigmoid_scalar_f32(x);
     case ARM_NN_FLT_ACT_RELU:
-        return (x < 0.0f) ? 0.0f : x;
+        /* NaN propagates (TFLite semantics), matching the f16 scalar leg and the
+         * MVE legs in arm_nn_activation_f32.c. The plain ternary below decides
+         * NaN by floating-point compare, which -ffinite-math-only is free to
+         * reassociate, so the result is restored in the integer domain; see
+         * #382. */
+        return arm_nn_propagate_nan_f32(x, (x < 0.0f) ? 0.0f : x);
     case ARM_NN_FLT_ACT_RELU6: {
         const float32_t y = (x < 0.0f) ? 0.0f : x;
-        return (y > 6.0f) ? 6.0f : y;
+        return arm_nn_propagate_nan_f32(x, (y > 6.0f) ? 6.0f : y);
     }
     case ARM_NN_FLT_ACT_TANH:
         return arm_nn_tanh_scalar_ref_f32(x);
     case ARM_NN_FLT_ACT_HARDSWISH:
         return arm_nn_hardswish_scalar_f32(x);
     case ARM_NN_FLT_ACT_LEAKY_RELU:
-        return (x >= 0.0f) ? x : (act_param * x);
+        return arm_nn_propagate_nan_f32(x, (x >= 0.0f) ? x : (act_param * x));
     default:
         return x;
     }
@@ -264,6 +294,19 @@ __STATIC_INLINE float32x4_t arm_nn_clamp_propagate_nan_mve_f32(float32x4_t x, fl
     float32x4_t y = vmaxnmq(x, min_v);
     y = vminnmq(y, max_v);
     return vpselq(x, y, nan_p);
+}
+
+__STATIC_INLINE float32x4_t arm_nn_max_propagate_nan_mve_f32(float32x4_t x, float32x4_t min_v)
+{
+    /* One-sided (RELU) twin of arm_nn_clamp_propagate_nan_mve_f32, sharing its
+     * lane classification exactly: vmaxnmq is IEEE maxNum and returns the numeric
+     * operand when the other is a quiet NaN, so the NaN lanes are restored
+     * afterwards. With the sign bit shifted out, a lane is NaN exactly when
+     * (bits << 1) compares unsigned-higher than 0xFF000000. The compare is in the
+     * integer domain and so outside the license of the -ffinite-math-only implied
+     * by the shipped -Ofast; see #333 / #334 / #340 / #382. */
+    const mve_pred16_t nan_p = vcmphiq_n_u32(vshlq_n_u32(vreinterpretq_u32_f32(x), 1), 0xFF000000u);
+    return vpselq(x, vmaxnmq(x, min_v), nan_p);
 }
 
 /*
@@ -399,8 +442,8 @@ __STATIC_INLINE float16_t arm_nn_apply_activation_type_f16(float16_t x,
     case ARM_NN_FLT_ACT_SIGMOID:
         return arm_nn_sigmoid_scalar_f16(x);
     case ARM_NN_FLT_ACT_RELU:
-        /* NaN propagates (bit-classified). Note the f32 legs are plain FP ternaries
-         * relying on FP compare semantics, with no -Ofast guarantee; see #382. */
+        /* NaN propagates (bit-classified), the same contract the f32 scalar legs
+         * and both dtypes' MVE legs now carry; see #382. */
         return (float16_t)arm_nn_propagate_nan_f16h((_Float16)x, arm_nn_max_f16h((_Float16)x, (_Float16)0.0f));
     case ARM_NN_FLT_ACT_RELU6:
         return (float16_t)arm_nn_clamp_propagate_nan_f16h((_Float16)x, (_Float16)0.0f, (_Float16)6.0f);
@@ -444,6 +487,20 @@ __STATIC_INLINE float16x8_t arm_nn_clamp_propagate_nan_mve_f16(float16x8_t x, fl
     float16x8_t y = vmaxnmq(x, min_v);
     y = vminnmq(y, max_v);
     return vpselq(x, y, nan_p);
+}
+
+__STATIC_INLINE float16x8_t arm_nn_max_propagate_nan_mve_f16(float16x8_t x, float16x8_t min_v)
+{
+    /* One-sided (RELU) twin of arm_nn_clamp_propagate_nan_mve_f16, sharing its
+     * lane classification exactly: vmaxnmq is IEEE maxNum and returns the numeric
+     * operand when the other is a quiet NaN, so the NaN lanes are restored
+     * afterwards. Per 16-bit lane, with the sign bit shifted out, a value is NaN
+     * exactly when (bits << 1) compares unsigned-higher than 0xF800. The compare
+     * is in the integer domain and so outside the license of the
+     * -ffinite-math-only implied by the shipped -Ofast; see #333 / #334 / #340 /
+     * #382. */
+    const mve_pred16_t nan_p = vcmphiq_n_u16(vshlq_n_u16(vreinterpretq_u16_f16(x), 1), 0xF800);
+    return vpselq(x, vmaxnmq(x, min_v), nan_p);
 }
 
 __STATIC_INLINE float16x8_t arm_nn_vtanh_lut_direct_mve_f16(float16x8_t x)

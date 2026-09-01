@@ -88,7 +88,7 @@ arm_cmsis_nn_status arm_nn_activation_f16(const float16_t *input,
         {
             const mve_pred16_t p = vctp16q((uint32_t)(n - i));
             float16x8_t v = vld1q_z(&input[i], p);
-            v = vmaxnmq(v, v_zero);
+            v = arm_nn_max_propagate_nan_mve_f16(v, v_zero);
             vst1q_p(&output[i], v, p);
         }
         return ARM_CMSIS_NN_SUCCESS;
@@ -102,7 +102,7 @@ arm_cmsis_nn_status arm_nn_activation_f16(const float16_t *input,
         {
             const mve_pred16_t p = vctp16q((uint32_t)(n - i));
             float16x8_t v = vld1q_z(&input[i], p);
-            v = arm_nn_clamp_mve_f16(v, v_zero, v_six);
+            v = arm_nn_clamp_propagate_nan_mve_f16(v, v_zero, v_six);
             vst1q_p(&output[i], v, p);
         }
         return ARM_CMSIS_NN_SUCCESS;
