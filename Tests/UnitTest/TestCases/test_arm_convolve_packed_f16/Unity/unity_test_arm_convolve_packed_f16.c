@@ -34,3 +34,5 @@ void test_convolve_packed_3x3_f16(void) { convolve_packed_3x3_f16(); }
 void test_convolve_packed_1xn_f16(void) { convolve_packed_1xn_f16(); }
 
 void test_convolve_1xn_pad_wider_than_kernel_f16(void) { convolve_1xn_pad_wider_than_kernel_f16(); }
+
+void test_convolve_packed_matmul_nan_f16(void) { convolve_packed_matmul_nan_f16(); }

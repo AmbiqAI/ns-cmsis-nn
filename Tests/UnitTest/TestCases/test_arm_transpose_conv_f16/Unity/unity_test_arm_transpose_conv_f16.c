@@ -30,3 +30,4 @@ void test_transpose_conv_basic_nhwc_f16_arm_transpose_conv_f16(void)
 {
     transpose_conv_basic_nhwc_f16_arm_transpose_conv_f16();
 }
+void test_transpose_conv_nan_f16_arm_transpose_conv_f16(void) { transpose_conv_nan_f16_arm_transpose_conv_f16(); }

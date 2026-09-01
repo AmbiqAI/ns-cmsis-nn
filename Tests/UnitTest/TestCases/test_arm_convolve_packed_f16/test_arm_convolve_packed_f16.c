@@ -8,6 +8,7 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -262,4 +263,55 @@ void convolve_1xn_pad_wider_than_kernel_f16(void)
     conv_f16_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 1);
 
     free(w_packed);
+}
+
+// Rebuild a float16 from bits held in a volatile so the NaN input is created at run time. The harness
+// builds this TU with -fno-finite-math-only (Tests/UnitTest/CMakeLists.txt); the staging is
+// defense-in-depth for a standalone -Ofast build, where the implied -ffinite-math-only licenses
+// constant-folding arithmetic on a compile-time NaN so the kernel is never handed one at all.
+static float16_t conv_f16_from_bits(volatile const uint16_t *bits)
+{
+    const uint16_t b = *bits;
+    float16_t x;
+    memcpy(&x, &b, sizeof(x));
+    return x;
+}
+
+// Bit-pattern NaN test: all-ones exponent, non-zero mantissa. isnan() would also work under the
+// harness flags; the bit-pattern check survives a standalone -Ofast build of this TU.
+static bool conv_f16_bits_are_nan(float16_t x)
+{
+    uint16_t bits;
+    memcpy(&bits, &x, sizeof(bits));
+    return (uint16_t)(bits & 0x7FFFu) > 0x7C00u;
+}
+
+// NaN through arm_nn_mat_mult_nt_n_packed_f16's output clamp, the packed f16 matmul entry the packed
+// conv paths land on. On the scalar (non-MVE) build path the clamp is the bit-classified clamp of #380,
+// so the NaN row must come back NaN at every optimization level; the MVE path clamps with
+// vmaxnmq/vminnmq and no NaN restore, so there the NaN resolves to the lower clamp bound instead
+// (documented on the declaration). The finite row must clamp normally on both paths.
+void convolve_packed_matmul_nan_f16(void)
+{
+    volatile uint16_t nan_bits = 0x7E00u;
+    const float16_t nan = conv_f16_from_bits(&nan_bits);
+    // lhs: 2 rows, K = 1. Row 0 is NaN, row 1 is finite and overflows the upper bound.
+    const float16_t lhs[2] = {nan, (float16_t)8.0f};
+    // rhs_packed: one block of 8 packed lanes for K = 1; lanes 0 and 1 are live (rhs_rows = 2).
+    float16_t rhs_packed[8] = {(float16_t)1.0f, (float16_t)1.0f};
+    float16_t dst[4] = {0};
+
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_nn_mat_mult_nt_n_packed_f16(lhs, rhs_packed, NULL, dst, 2, 2, 1, 2, (float16_t)-6.0f, (float16_t)6.0f));
+
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    TEST_ASSERT_EQUAL_FLOAT(-6.0f, (float32_t)dst[0]);
+    TEST_ASSERT_EQUAL_FLOAT(-6.0f, (float32_t)dst[1]);
+#else
+    TEST_ASSERT_TRUE_MESSAGE(conv_f16_bits_are_nan(dst[0]), "Expected NaN through the scalar clamp");
+    TEST_ASSERT_TRUE_MESSAGE(conv_f16_bits_are_nan(dst[1]), "Expected NaN through the scalar clamp");
+#endif
+    TEST_ASSERT_EQUAL_FLOAT(6.0f, (float32_t)dst[2]);
+    TEST_ASSERT_EQUAL_FLOAT(6.0f, (float32_t)dst[3]);
 }

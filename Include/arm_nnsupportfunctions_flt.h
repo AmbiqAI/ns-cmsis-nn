@@ -925,6 +925,11 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
  * @param[in]  activation_min     Lower clamp bound.
  * @param[in]  activation_max     Upper clamp bound.
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ *
+ * @note On non-MVE builds the output clamp is the bit-classified scalar clamp of #380, so a NaN accumulator
+ *       (a NaN in @p lhs, @p rhs_packed or @p bias) propagates to @p dst at every optimization level,
+ *       including the shipped -Ofast. On MVE builds the clamp is vmaxnmq/vminnmq with no NaN restore, so a
+ *       NaN resolves to a clamp bound there instead.
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT lhs,
                                                     const float16_t *__RESTRICT rhs_packed,
