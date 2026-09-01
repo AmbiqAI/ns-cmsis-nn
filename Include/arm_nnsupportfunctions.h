@@ -125,8 +125,10 @@ __STATIC_FORCEINLINE _Float16 arm_nn_max_f16h(_Float16 a, _Float16 b)
  * scalar clamp, and whether a NaN survives the rest of the kernel to reach
  * it, is per kernel -- several of these callers clamp with vmaxnmq/vminnmq
  * on MVE builds (a NaN resolves to a bound there), and arm_max_pool_f16's
- * max reduction drops a NaN before the clamp -- so each kernel's public doc
- * block states its exact scope. The cortex-m55 MVE RELU/RELU6 f16 legs do
+ * max reduction drops a NaN before the clamp. The kernels with a NaN @note
+ * (svdf, max/avg pool, packed matmul, activation) state their exact scope
+ * there; the arm_nn_vector_clamp_f16 family is covered by a test assertion
+ * in the transpose-conv f16 suite rather than per-kernel notes. The cortex-m55 MVE RELU/RELU6 f16 legs do
  * NOT share this guarantee (tracked in #382). The same idiom (bit-classified
  * select) appears in arm_prelu_f16, which does not call this helper.
  */
