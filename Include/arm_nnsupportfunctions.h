@@ -128,8 +128,10 @@ __STATIC_FORCEINLINE _Float16 arm_nn_max_f16h(_Float16 a, _Float16 b)
  * max reduction drops a NaN before the clamp. The kernels with a NaN @note
  * (svdf, max/avg pool, packed matmul, activation) state their exact scope
  * there; the arm_nn_vector_clamp_f16 family is covered by a test assertion
- * in the transpose-conv f16 suite rather than per-kernel notes. The cortex-m55 MVE RELU/RELU6 f16 legs do
- * NOT share this guarantee (tracked in #382). The same idiom (bit-classified
+ * in the transpose-conv f16 suite rather than per-kernel notes. The cortex-m55 MVE RELU/RELU6 f16 legs
+ * reach the same guarantee by the vector form of this idiom rather than by calling this helper: they
+ * restore NaN lanes with arm_nn_max_propagate_nan_mve_f16 /
+ * arm_nn_clamp_propagate_nan_mve_f16 (#382). The same idiom (bit-classified
  * select) appears in arm_prelu_f16, which does not call this helper.
  */
 __STATIC_FORCEINLINE _Float16 arm_nn_propagate_nan_f16h(_Float16 x, _Float16 y)
