@@ -300,16 +300,19 @@ __STATIC_FORCEINLINE int64_t arm_nn_size_add(const int64_t acc, const int64_t ad
  * Byte lanes are masked and shifted in uint32_t so a negative value never
  * feeds a signed left shift (UB); masking before the shift keeps the same
  * bits the old shift-then-mask form kept. Bit-identical for every input.
+ * Deliberate divergence from upstream ARM-software/CMSIS-NN, which still
+ * carries the signed-shift form -- do not paste the upstream text back on a
+ * sync (issue #357).
  */
 #define PACK_S8x4_32x1(v0, v1, v2, v3)                                                                                 \
-    ((int32_t)((((uint32_t)(v0)) & 0xFFu) | ((((uint32_t)(v1)) & 0xFFu) << 8) |                                        \
-               ((((uint32_t)(v2)) & 0xFFu) << 16) | ((((uint32_t)(v3)) & 0xFFu) << 24)))
+    ((int32_t)((((uint32_t)(v0)) & 0xFFu) | ((((uint32_t)(v1)) & 0xFFu) << 8) | ((((uint32_t)(v2)) & 0xFFu) << 16) |   \
+               ((((uint32_t)(v3)) & 0xFFu) << 24)))
 
 /**
  * @brief definition to pack two 16 bit values.
  * Same treatment: the high half is shifted in uint32_t, not int32_t, so a
  * negative v1 is defined; the low half keeps its mask. Bit-identical for
- * every input.
+ * every input. Same deliberate upstream divergence as PACK_S8x4_32x1 above.
  */
 #define PACK_Q15x2_32x1(v0, v1) ((int32_t)((((uint32_t)(v0)) & 0xFFFFu) | (((uint32_t)(v1)) << 16)))
 
