@@ -341,8 +341,12 @@ unless the target or toolchain cannot provide the required floating-point type.
     because their kernels read `ctx->size` and `size == 0` opts out of the
     scratch-size check. The LSTM/GRU temp-buffer queries
     (`arm_lstm_unidirectional_*_temp1/temp2_get_buffer_size`,
-    `arm_gru_unidirectional_f32/f16_temp1_get_buffer_size`) also use `-1` in
-    every datatype, so the s8/s16/f32/f16 variants of one layer answer alike.
+    `arm_gru_unidirectional_f32/f16_temp1_get_buffer_size`) all treat a
+    negative return as an error, but what each range-checks follows its
+    kernel: the s8/s16 and GRU queries fold dimensions and answer `-1` for
+    negatives or overflow, while the f32/f16 LSTM queries have no
+    dimensions to check (the buffers are unused) and answer `-1` only for
+    NULL params, `0` otherwise.
     A generic float wrapper must branch per sizer, not on the datatype.
 
   Every public `*_get_buffer_size_mve` and `*_get_buffer_size_dsp` variant
