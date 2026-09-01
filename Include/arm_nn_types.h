@@ -412,13 +412,21 @@ typedef struct
     cmsis_nn_lstm_gate output_gate;
 } cmsis_nn_lstm_params;
 
-/** CMSIS-NN object for LSTM scratch buffers*/
+/** CMSIS-NN object for LSTM scratch buffers.
+ *
+ * There is no size field and no runtime enforcement: an undersized temp1 or temp2 is written past on every
+ * build target, so size them from the queries below, not by transcribing a formula.
+ */
 typedef struct
 {
-    void *temp1;
-    void *temp2;
-    void *cell_state;
-    void *hidden_state;
+    void *temp1;        /**< Gate-vector scratch (int16_t elements for both the s8 and s16 layers). Sized by
+                         * arm_lstm_unidirectional_s8_temp1_get_buffer_size() /
+                         * arm_lstm_unidirectional_s16_temp1_get_buffer_size(). */
+    void *temp2;        /**< Cell-gate and tanh(cell_state) scratch (int16_t elements for both layers). Sized by
+                         * arm_lstm_unidirectional_s8_temp2_get_buffer_size() /
+                         * arm_lstm_unidirectional_s16_temp2_get_buffer_size(). */
+    void *cell_state;   /**< Cell-state buffer, batch_size * hidden_size int16_t elements for both layers. */
+    void *hidden_state; /**< Optional in/out hidden state for streaming; NULL selects stateless. */
 } cmsis_nn_lstm_context;
 
 /**

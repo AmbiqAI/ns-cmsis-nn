@@ -267,8 +267,11 @@ typedef struct
  */
 typedef struct
 {
-    float32_t *temp1;        /**< Temporary buffer used by matrix and gate computations. */
-    float32_t *temp2;        /**< Temporary buffer used by matrix and gate computations. */
+    float32_t *temp1;        /**< Unused by the current implementation and may be NULL. Sized by
+                              * arm_lstm_unidirectional_f32_temp1_get_buffer_size(), which reports 0; size from
+                              * the query rather than hard-coding NULL if the buffer is arena-allocated. */
+    float32_t *temp2;        /**< Unused by the current implementation and may be NULL. Sized by
+                              * arm_lstm_unidirectional_f32_temp2_get_buffer_size(). */
     float32_t *cell_state;   /**< Mutable cell-state buffer (in/out when streaming). */
     float32_t *hidden_state; /**< Optional in/out hidden state for streaming; NULL selects stateless.
                               * Streaming is NULL-gated, so zero-initialise the context (e.g. designated
@@ -316,9 +319,11 @@ typedef struct
 /**
  * @brief Scratch buffers for a float32 GRU invocation.
  *
- * @note ``temp1`` must point to at least ``hidden_size`` elements when
- *       ``reset_after == 0`` (it holds the reset-gate vector). It is unused
- *       for the reset-after formulation and may be NULL there.
+ * @note ``temp1`` is sized by arm_gru_unidirectional_f32_temp1_get_buffer_size():
+ *       ``hidden_size`` elements when ``reset_after == 0`` (it holds the
+ *       reset-gate vector). It is unused for the reset-after formulation and
+ *       may be NULL there. There is no size field and no runtime enforcement:
+ *       an undersized temp1 is written past on every build target.
  * @note ``hidden_state`` enables streaming state carry (``batch_size == 1``):
  *       when non-NULL it is read as the initial hidden state (seed to zero for
  *       a fresh sequence) and overwritten with the final hidden state on
@@ -326,7 +331,8 @@ typedef struct
  */
 typedef struct
 {
-    float32_t *temp1; /**< Scratch buffer (>= hidden_size) required when reset_after == 0. */
+    float32_t *temp1; /**< Scratch required when reset_after == 0; sized by
+                       * arm_gru_unidirectional_f32_temp1_get_buffer_size(). */
     float32_t
         *hidden_state; /**< Optional in/out persistent hidden state [hidden_size] for streaming (batch_size == 1). */
 } cmsis_nn_gru_context_f32;
@@ -477,8 +483,11 @@ typedef struct
  */
 typedef struct
 {
-    float16_t *temp1;        /**< Temporary buffer used by matrix and gate computations. */
-    float16_t *temp2;        /**< Temporary buffer used by matrix and gate computations. */
+    float16_t *temp1;        /**< Unused by the current implementation and may be NULL. Sized by
+                              * arm_lstm_unidirectional_f16_temp1_get_buffer_size(), which reports 0; size from
+                              * the query rather than hard-coding NULL if the buffer is arena-allocated. */
+    float16_t *temp2;        /**< Unused by the current implementation and may be NULL. Sized by
+                              * arm_lstm_unidirectional_f16_temp2_get_buffer_size(). */
     float16_t *cell_state;   /**< Mutable cell-state buffer (in/out when streaming). */
     float16_t *hidden_state; /**< Optional in/out hidden state for streaming; NULL selects stateless.
                               * Streaming is NULL-gated, so zero-initialise the context (e.g. designated
@@ -526,9 +535,11 @@ typedef struct
 /**
  * @brief Scratch buffers for a float16 GRU invocation.
  *
- * @note ``temp1`` must point to at least ``hidden_size`` elements when
- *       ``reset_after == 0`` (it holds the reset-gate vector). It is unused
- *       for the reset-after formulation and may be NULL there.
+ * @note ``temp1`` is sized by arm_gru_unidirectional_f16_temp1_get_buffer_size():
+ *       ``hidden_size`` elements when ``reset_after == 0`` (it holds the
+ *       reset-gate vector). It is unused for the reset-after formulation and
+ *       may be NULL there. There is no size field and no runtime enforcement:
+ *       an undersized temp1 is written past on every build target.
  * @note ``hidden_state`` enables streaming state carry (``batch_size == 1``):
  *       when non-NULL it is read as the initial hidden state (seed to zero for
  *       a fresh sequence) and overwritten with the final hidden state on
@@ -536,7 +547,8 @@ typedef struct
  */
 typedef struct
 {
-    float16_t *temp1; /**< Scratch buffer (>= hidden_size) required when reset_after == 0. */
+    float16_t *temp1; /**< Scratch required when reset_after == 0; sized by
+                       * arm_gru_unidirectional_f16_temp1_get_buffer_size(). */
     float16_t
         *hidden_state; /**< Optional in/out persistent hidden state [hidden_size] for streaming (batch_size == 1). */
 } cmsis_nn_gru_context_f16;

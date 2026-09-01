@@ -160,6 +160,24 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f32(const float32_t *input,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+/*
+ * Bytes required behind buffers->temp1 / buffers->temp2 by arm_lstm_unidirectional_f32(): zero. Derived from
+ * the kernel, not from the struct comment: arm_nn_lstm_step_f32() computes all four gates per hidden unit in
+ * automatics (the MVE leg stages them in four stack arrays of 4 lanes, the scalar leg in single locals) and
+ * writes only cell_state and hidden_out. Neither this wrapper nor the step ever dereferences temp1 or temp2 on
+ * any build path, so both pointers may be NULL. The queries exist so arena-sizing code can treat every LSTM
+ * variant alike and so the figure has an owner if a future implementation starts staging gate vectors.
+ */
+int32_t arm_lstm_unidirectional_f32_temp1_get_buffer_size(const cmsis_nn_lstm_params_f32 *lstm_params)
+{
+    return (lstm_params == NULL) ? -1 : 0;
+}
+
+int32_t arm_lstm_unidirectional_f32_temp2_get_buffer_size(const cmsis_nn_lstm_params_f32 *lstm_params)
+{
+    return (lstm_params == NULL) ? -1 : 0;
+}
+
 /** @} */
 
 #endif /* ARM_NN_ENABLE_F32 */

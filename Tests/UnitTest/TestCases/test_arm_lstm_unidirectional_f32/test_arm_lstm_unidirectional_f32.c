@@ -46,6 +46,11 @@ static arm_cmsis_nn_status lstm_unidirectional_run_f32(lstm_dims_f32 dims)
         gates[g]->activation_type = (gates[g] == &params.cell_gate) ? ARM_NN_FLT_ACT_TANH : ARM_NN_FLT_ACT_SIGMOID;
     }
 
+    /* The published temp queries must agree that the float implementation needs no temp scratch: the
+       context above deliberately leaves temp1/temp2 NULL. */
+    TEST_ASSERT_EQUAL(0, arm_lstm_unidirectional_f32_temp1_get_buffer_size(&params));
+    TEST_ASSERT_EQUAL(0, arm_lstm_unidirectional_f32_temp2_get_buffer_size(&params));
+
     return arm_lstm_unidirectional_f32(input, output, &params, &buffers);
 }
 
