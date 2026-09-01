@@ -1525,7 +1525,7 @@ void buffer_size_even_arm_convolve_s4(void)
     for (size_t i = 0; i < sizeof(shapes) / sizeof(shapes[0]); i++)
     {
         const cmsis_nn_dims input_dims = {1, 8, 8, shapes[i].in_ch};
-        const cmsis_nn_dims filter_dims = {8, shapes[i].filter_w, shapes[i].filter_h, shapes[i].in_ch};
+        const cmsis_nn_dims filter_dims = {8, shapes[i].filter_h, shapes[i].filter_w, shapes[i].in_ch};
 
         TEST_ASSERT_EQUAL(arm_convolve_s4_get_buffer_size(&input_dims, &filter_dims),
                           arm_convolve_even_s4_get_buffer_size(&input_dims, &filter_dims));
