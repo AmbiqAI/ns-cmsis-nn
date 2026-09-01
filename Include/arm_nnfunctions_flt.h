@@ -481,10 +481,12 @@ arm_cmsis_nn_status arm_prelu_f32(const cmsis_nn_dims *input_dims,
  * element. This holds at every optimization level, including the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL
  * in the top-level CMakeLists.txt): the clamp classifies NaN on the integer bit pattern of the value
  * rather than with a floating-point compare, and the -ffinite-math-only that -Ofast implies grants no
- * license to fold integer arithmetic, so the check cannot be optimized away. Verified by execution on the
- * gated Arm GNU Toolchain and by disassembly on armclang; see issues #333 and #334. Only the NaN-ness of
- * the element is guaranteed, not a particular NaN payload. Infinities that are not NaN still clamp to the
- * activation bounds (and pass through unchanged under the +/-INFINITY "no clamp" idiom).
+ * license to fold integer arithmetic. Verified by host execution and by disassembly on gated Arm GNU
+ * Toolchain 14.3.Rel1 (where the unguarded form demonstrably folds) and 13.x/15.x and armclang 6.23;
+ * ATfE unexamined -- cross-toolchain on-target execution is #340's scope. See issues #333 and #334. Only
+ * the NaN-ness of the element is guaranteed, not a particular NaN payload. Infinities that are not NaN
+ * still clamp to the activation bounds (and pass through unchanged under the +/-INFINITY "no clamp"
+ * idiom).
  *
  * @param[in]  input_1_vect        Pointer to the first input vector.
  * @param[in]  input_2_vect        Pointer to the second input vector.
@@ -510,10 +512,12 @@ arm_cmsis_nn_status arm_elementwise_add_f32(const float32_t *input_1_vect,
  * element. This holds at every optimization level, including the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL
  * in the top-level CMakeLists.txt): the clamp classifies NaN on the integer bit pattern of the value
  * rather than with a floating-point compare, and the -ffinite-math-only that -Ofast implies grants no
- * license to fold integer arithmetic, so the check cannot be optimized away. Verified by execution on the
- * gated Arm GNU Toolchain and by disassembly on armclang; see issues #333 and #334. Only the NaN-ness of
- * the element is guaranteed, not a particular NaN payload. Infinities that are not NaN still clamp to the
- * activation bounds (and pass through unchanged under the +/-INFINITY "no clamp" idiom).
+ * license to fold integer arithmetic. Verified by host execution and by disassembly on gated Arm GNU
+ * Toolchain 14.3.Rel1 (where the unguarded form demonstrably folds) and 13.x/15.x and armclang 6.23;
+ * ATfE unexamined -- cross-toolchain on-target execution is #340's scope. See issues #333 and #334. Only
+ * the NaN-ness of the element is guaranteed, not a particular NaN payload. Infinities that are not NaN
+ * still clamp to the activation bounds (and pass through unchanged under the +/-INFINITY "no clamp"
+ * idiom).
  *
  * @param[in]  input_1_vect        Pointer to the first input vector (minuend).
  * @param[in]  input_2_vect        Pointer to the second input vector (subtrahend).
@@ -550,10 +554,12 @@ arm_cmsis_nn_status arm_nn_abs_f32(const float32_t *input, float32_t *output, in
  * element. This holds at every optimization level, including the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL
  * in the top-level CMakeLists.txt): the clamp classifies NaN on the integer bit pattern of the value
  * rather than with a floating-point compare, and the -ffinite-math-only that -Ofast implies grants no
- * license to fold integer arithmetic, so the check cannot be optimized away. Verified by execution on the
- * gated Arm GNU Toolchain and by disassembly on armclang; see issues #333 and #334. Only the NaN-ness of
- * the element is guaranteed, not a particular NaN payload. Infinities that are not NaN still clamp to the
- * activation bounds (and pass through unchanged under the +/-INFINITY "no clamp" idiom).
+ * license to fold integer arithmetic. Verified by host execution and by disassembly on gated Arm GNU
+ * Toolchain 14.3.Rel1 (where the unguarded form demonstrably folds) and 13.x/15.x and armclang 6.23;
+ * ATfE unexamined -- cross-toolchain on-target execution is #340's scope. See issues #333 and #334. Only
+ * the NaN-ness of the element is guaranteed, not a particular NaN payload. Infinities that are not NaN
+ * still clamp to the activation bounds (and pass through unchanged under the +/-INFINITY "no clamp"
+ * idiom).
  *
  * @param[in]  input_1_vect        Pointer to the first input vector.
  * @param[in]  input_2_vect        Pointer to the second input vector.

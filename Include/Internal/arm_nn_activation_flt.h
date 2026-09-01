@@ -256,9 +256,10 @@ __STATIC_INLINE float32x4_t arm_nn_clamp_propagate_nan_mve_f32(float32x4_t x, fl
      * (bits << 1) compares unsigned-higher than 0xFF000000 (all-ones exponent,
      * non-zero mantissa). A float-domain vcmpneq(x, x) is folded away under the
      * -ffinite-math-only implied by the shipped -Ofast; the unsigned compare is
-     * outside that flag's license, so the restore survives every optimization level
-     * on every toolchain; see #333 / #334. 0xFF000000 is a Thumb modified immediate,
-     * so no literal-pool load is needed to materialize it. */
+     * outside that flag's license, and no toolchain this project gates has been
+     * observed to fold it (disassembly-verified); see #333 / #334 / #340.
+     * 0xFF000000 is a Thumb modified immediate, so no literal-pool load is needed
+     * to materialize it. */
     const mve_pred16_t nan_p = vcmphiq_n_u32(vshlq_n_u32(vreinterpretq_u32_f32(x), 1), 0xFF000000u);
     float32x4_t y = vmaxnmq(x, min_v);
     y = vminnmq(y, max_v);
@@ -398,7 +399,8 @@ __STATIC_INLINE float16_t arm_nn_apply_activation_type_f16(float16_t x,
     case ARM_NN_FLT_ACT_SIGMOID:
         return arm_nn_sigmoid_scalar_f16(x);
     case ARM_NN_FLT_ACT_RELU:
-        /* NaN propagates, matching the f32 path and the TFLite reference. */
+        /* NaN propagates (bit-classified). Note the f32 legs are plain FP ternaries
+         * relying on FP compare semantics, with no -Ofast guarantee; see #382. */
         return (float16_t)arm_nn_propagate_nan_f16h((_Float16)x, arm_nn_max_f16h((_Float16)x, (_Float16)0.0f));
     case ARM_NN_FLT_ACT_RELU6:
         return (float16_t)arm_nn_clamp_propagate_nan_f16h((_Float16)x, (_Float16)0.0f, (_Float16)6.0f);
@@ -434,9 +436,10 @@ __STATIC_INLINE float16x8_t arm_nn_clamp_propagate_nan_mve_f16(float16x8_t x, fl
      * exactly when (bits << 1) compares unsigned-higher than 0xF800 (all-ones
      * exponent, non-zero mantissa, sign shifted out). A float-domain vcmpneq(x, x) is
      * folded away under the -ffinite-math-only implied by the shipped -Ofast; the
-     * unsigned compare is outside that flag's license, so the restore survives every
-     * optimization level on every toolchain; see #333 / #334. 0xF800 fits a single
-     * movw, so no literal-pool load is needed to materialize it. */
+     * unsigned compare is outside that flag's license, and no toolchain this project
+     * gates has been observed to fold it (disassembly-verified); see #333 / #334 /
+     * #340. 0xF800 fits a single movw, so no literal-pool load is needed to
+     * materialize it. */
     const mve_pred16_t nan_p = vcmphiq_n_u16(vshlq_n_u16(vreinterpretq_u16_f16(x), 1), 0xF800);
     float16x8_t y = vmaxnmq(x, min_v);
     y = vminnmq(y, max_v);

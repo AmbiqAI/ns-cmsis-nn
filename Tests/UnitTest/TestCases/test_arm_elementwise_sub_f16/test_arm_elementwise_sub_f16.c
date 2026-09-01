@@ -17,10 +17,10 @@
 #include "sub_f16_data.h"
 
 /*
- * Bit-pattern NaN test. isnan() is not usable here: -ffinite-math-only, which the
- * -Ofast this suite is built with by default implies, licenses the compiler to fold
- * isnan() to a constant false, so it cannot observe a NaN result even on toolchains
- * where the kernel returns one.
+ * Bit-pattern NaN test. Harness test TUs are built with -fno-finite-math-only
+ * (Tests/UnitTest/CMakeLists.txt), so isnan() would also work here; the bit-pattern
+ * check is defense-in-depth for a standalone -Ofast build of this TU, where the
+ * implied -ffinite-math-only licenses folding isnan() to a constant false.
  */
 static bool sub_f16_bits_are_nan(float16_t x)
 {
@@ -49,9 +49,11 @@ void sub_f16_arm_elementwise_sub_f16(void)
 
 /*
  * Rebuild a float16 from bits held in a volatile so the non-finite inputs are created
- * at run time. Without the volatile staging, -Ofast constant-folds arithmetic on the
- * compile-time Inf/NaN under -ffinite-math-only and the kernel is never handed a
- * non-finite value at all.
+ * at run time. Harness test TUs are built with -fno-finite-math-only
+ * (Tests/UnitTest/CMakeLists.txt), so the staging is not required there; it is
+ * defense-in-depth for a standalone -Ofast build of this TU, where the implied
+ * -ffinite-math-only licenses constant-folding arithmetic on the compile-time
+ * Inf/NaN so the kernel is never handed a non-finite value at all.
  */
 static float16_t sub_f16_from_bits(volatile const uint16_t *bits)
 {
