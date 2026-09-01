@@ -2,6 +2,13 @@
 
 ## [7.31.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.30.0...v7.31.0) (2026-09-01)
 
+### Notes for integrators
+
+* **New public API (the reason this is a minor release).** Seven LSTM/GRU temp scratch sizers — `arm_lstm_unidirectional_{s8,s16,f32,f16}_temp{1,2}_get_buffer_size` and `arm_gru_unidirectional_{f32,f16}_temp1_get_buffer_size` ([#381](https://github.com/AmbiqAI/ns-cmsis-nn/issues/381)) — and `arm_convolve_even_s4_get_buffer_size` ([#379](https://github.com/AmbiqAI/ns-cmsis-nn/issues/379)). Arena code should call these instead of transcribing buffer formulas; the f32/f16 LSTM queries return 0 (those buffers are unused) and range-check nothing.
+* **Float NaN semantics.** The float elementwise add/sub/mul kernels and the RELU/RELU6/LEAKY_RELU activations now propagate NaN (TensorFlow Lite semantics) on every gated toolchain and optimization level, including the cortex-m55 MVE legs, where a NaN previously resolved to 0.0 or a clamp bound ([#380](https://github.com/AmbiqAI/ns-cmsis-nn/issues/380), [#388](https://github.com/AmbiqAI/ns-cmsis-nn/issues/388)). Only NaN-ness is guaranteed, not the payload. Finite results are unchanged, with one exception: f32 LEAKY_RELU at exactly size 4 on MVE builds now takes the vector leg, so negative inputs below about 1e-36 in magnitude follow its denormal flushing, consistent with sizes 5 and above.
+* **Undefined-behavior removal, no numeric change.** Every offset/value-packing and scale-shift site, including the shared `PACK_S8x4_32x1` / `PACK_Q15x2_32x1` macros, now uses the defined unsigned-shift idiom ([#365](https://github.com/AmbiqAI/ns-cmsis-nn/issues/365), [#387](https://github.com/AmbiqAI/ns-cmsis-nn/issues/387)); outputs are bit-identical.
+* **Sizer contracts.** Every `get_buffer_size` query documents which routes return -1 (negative dimensions or int32 overflow) and that a 0 return does not mean the shape was validated; callers must test for -1 before use.
+
 
 ### Bug Fixes
 
