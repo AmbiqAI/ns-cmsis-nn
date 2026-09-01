@@ -1493,6 +1493,57 @@ void buffer_size_out_of_range_arm_convolve_s4(void)
                           &zero_stride_conv_params, &valid_input_dims, &valid_filter_dims, &output_dims));
 }
 
+// Issue #378: the arm_convolve_even_s4 ctx documentation used to cite arm_convolve_s4_get_buffer_size() in prose --
+// an exact fit with zero slack (up to four im2col rows of rhs_cols int8 vs 2 * rhs_cols * sizeof(int16_t)) that
+// nothing enforced, so a drift on either side would have shipped an out-of-bounds write with no test to catch it.
+// arm_convolve_even_s4_get_buffer_size() now makes the citation a checkable name, and this sweep pins the forward:
+// the two sizers must answer identically for every shape, boundary and out-of-range shapes included.
+void buffer_size_even_arm_convolve_s4(void)
+{
+    const struct
+    {
+        int32_t filter_w;
+        int32_t filter_h;
+        int32_t in_ch;
+    } shapes[] = {
+        {1, 1, 2},          // smallest legal even_s4 shape: rhs_cols = 2
+        {1, 1, 1},          // rhs_cols odd: even_s4 rejects it at run time, but the sizers must still agree
+        {2, 2, 16},         // rhs_cols = 64: whole 32-byte interleave blocks, no matmul tail
+        {3, 3, 5},          // rhs_cols = 45, exercising both the 16-element spill and the predicated remainder
+        {1, 1, 16},         // rhs_cols = 16: the 16-element spill alone
+        {5, 5, 2},          // rhs_cols = 50: spill plus a 2-byte remainder
+        {7, 7, 6},          // rhs_cols = 294
+        {1, 1, 536870911},  // rhs_cols = 2^29 - 1: the largest byte count that still fits an int32_t
+        {1, 1, 536870912},  // rhs_cols = 2^29: 4 * rhs_cols is 2^31, one past INT32_MAX, both must answer -1
+        {1, 1, 1073741825}, // the issue #317 shape: both must answer -1, not a wrapped 4
+        {2, 2, 268435457},  // the byte count (4 * rhs_cols) overflows int32: both must answer -1
+        {-1, 1, 2},         // negative dims must agree too: both -1, on every field either sizer reads
+        {1, -1, 2},
+        {1, 1, -1},
+    };
+
+    for (size_t i = 0; i < sizeof(shapes) / sizeof(shapes[0]); i++)
+    {
+        const cmsis_nn_dims input_dims = {1, 8, 8, shapes[i].in_ch};
+        const cmsis_nn_dims filter_dims = {8, shapes[i].filter_h, shapes[i].filter_w, shapes[i].in_ch};
+
+        TEST_ASSERT_EQUAL(arm_convolve_s4_get_buffer_size(&input_dims, &filter_dims),
+                          arm_convolve_even_s4_get_buffer_size(&input_dims, &filter_dims));
+    }
+
+    /* The forward is only safe while the s4 figure covers the even_s4 kernel's writes: four im2col rows of
+     * rhs_cols int8 elements. Pin the published formula on one shape so a resize of either side is caught here
+     * and not by a heap overflow: 2 * (2 * 2 * 16) * sizeof(int16_t) = 4 * 64. */
+    const cmsis_nn_dims pinned_input_dims = {1, 8, 8, 16};
+    const cmsis_nn_dims pinned_filter_dims = {8, 2, 2, 16};
+    TEST_ASSERT_EQUAL(256, arm_convolve_even_s4_get_buffer_size(&pinned_input_dims, &pinned_filter_dims));
+
+    /* Negative dims answer with the -1 sentinel itself, not merely any two equal values. */
+    const cmsis_nn_dims negative_input_dims = {1, 8, 8, -1};
+    const cmsis_nn_dims negative_filter_dims = {8, 1, 1, -1};
+    TEST_ASSERT_EQUAL(-1, arm_convolve_even_s4_get_buffer_size(&negative_input_dims, &negative_filter_dims));
+}
+
 void conv_1_x_n_1_arm_convolve_s4(void)
 {
     const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
