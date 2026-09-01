@@ -21,7 +21,7 @@ Examples:
 
 Behavior:
   - Mirrors the CI clang-format workflow file selection.
-  - Uses clang-format-18 when available, otherwise clang-format.
+  - Uses CLANG_FORMAT_BIN when set, else clang-format-18 when available, else clang-format.
   - In check mode, runs --dry-run --Werror.
   - In fix mode, rewrites the changed files in place.
 EOF
@@ -78,12 +78,19 @@ command -v git >/dev/null || { echo "git not found" >&2; exit 3; }
 git rev-parse --verify "${BASE_REF}^{commit}" >/dev/null
 git rev-parse --verify "${HEAD_REF}^{commit}" >/dev/null
 
-if command -v clang-format-18 >/dev/null 2>&1; then
+# CLANG_FORMAT_BIN pins the formatter explicitly (CI sets it to the pip-installed
+# clang-format matching .pre-commit-config.yaml). Without it the probe below picks
+# whatever the runner image ships, and formatter major versions disagree on
+# existing files -- ubuntu-24.04 puts clang-format-18 on PATH and 18 rejects four
+# committed files that 13 through 16 accept.
+if [[ -n "${CLANG_FORMAT_BIN:-}" ]]; then
+  command -v "${CLANG_FORMAT_BIN}" >/dev/null 2>&1 || { echo "CLANG_FORMAT_BIN=${CLANG_FORMAT_BIN} not found on PATH." >&2; exit 3; }
+elif command -v clang-format-18 >/dev/null 2>&1; then
   CLANG_FORMAT_BIN="clang-format-18"
 elif command -v clang-format >/dev/null 2>&1; then
   CLANG_FORMAT_BIN="clang-format"
 else
-  echo "clang-format-18 not found. Install LLVM 18 and ensure clang-format-18 is on PATH." >&2
+  echo "no clang-format found. Set CLANG_FORMAT_BIN or put clang-format on PATH." >&2
   exit 3
 fi
 

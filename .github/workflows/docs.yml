@@ -22,7 +22,7 @@ jobs:
   build:
     name: Build site
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 60
     env:
       # Also consumed by build_sphinx_docs.sh as the version to install.
       DOXYGEN_VERSION: "1.9.6"
@@ -72,7 +72,7 @@ jobs:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     # Skip release-please merge commits: release.yml deploys the docs for a
     # release itself, and two workflows deploying Pages for the same push
     # can collide (GitHub runs one Pages deployment at a time). `contains`

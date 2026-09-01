@@ -38,8 +38,11 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install pre-commit
-        run: python -m pip install pre-commit==3.8.0
+      # Pin the formatter to the pre-commit version: the check script otherwise
+      # prefers whatever clang-format-N the runner image ships, and ubuntu-24.04
+      # carries 18, which disagrees with 13-16 on four committed files.
+      - name: Install pre-commit and the pinned clang-format
+        run: python -m pip install pre-commit==3.8.0 clang-format==16.0.6
 
       - name: Validate pre-commit config
         run: pre-commit validate-config
@@ -47,6 +50,7 @@ jobs:
       - name: Check formatting for changed C/H files (PR)
         if: ${{ github.event_name == 'pull_request' }}
         env:
+          CLANG_FORMAT_BIN: clang-format
           BASE_REF: ${{ github.event.pull_request.base.sha }}
           HEAD_REF: HEAD
         run: bash scripts/check_clang_format_changed.sh "${BASE_REF}" "${HEAD_REF}"
@@ -59,6 +63,7 @@ jobs:
       - name: Check formatting for changed C/H files (manual)
         if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
+          CLANG_FORMAT_BIN: clang-format
           BASE_REF: ${{ inputs.base_ref || 'origin/main' }}
           HEAD_REF: ${{ inputs.head_ref || 'HEAD' }}
         run: bash scripts/check_clang_format_changed.sh "${BASE_REF}" "${HEAD_REF}"

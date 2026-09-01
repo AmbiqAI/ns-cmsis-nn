@@ -87,6 +87,8 @@ concurrency:
 jobs:
   release-please:
     runs-on: ubuntu-24.04
+    # Owns the shared release concurrency group; unbounded, a wedged run holds it for the 6-hour default.
+    timeout-minutes: 30
     outputs:
       release_created: ${{ steps.rp.outputs.release_created }}
       recovery_mode: ${{ steps.recover.outputs.tag != '' }}
