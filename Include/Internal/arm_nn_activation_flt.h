@@ -202,9 +202,11 @@ __STATIC_INLINE float32_t arm_nn_sigmoid_scalar_f32(float32_t x)
  * non-zero mantissa), which is integer arithmetic that -ffinite-math-only --
  * implied by the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL in the top-level
  * CMakeLists.txt) -- has no license to fold, unlike a floating-point
- * self-compare `x != x`, which it folds to false. The masked select passes the
- * NaN through with its payload and sign intact: no quieting, no retagging.
- * See #333 / #334 / #382.
+ * self-compare `x != x`, which it folds to false. Only the NaN-ness of the
+ * result is guaranteed, not its payload: GCC keeps the integer-domain select
+ * as written, but armclang/ATfE at -Ofast may re-fold the LEAKY_RELU select
+ * into an FP multiply, which quiets a signalling NaN (still NaN). Payload
+ * fidelity across toolchains is #340's scope. See #333 / #334 / #382.
  */
 __STATIC_INLINE float32_t arm_nn_propagate_nan_f32(float32_t x, float32_t y)
 {
