@@ -34,14 +34,22 @@ concurrency:
   group: nightly
   cancel-in-progress: false
 
-# packages: read is required transitively: both testers call
-# resolve-ci-image.yml, which declares contents:read + packages:read, and a
-# called workflow whose declared permissions exceed the caller's grant fails
-# at startup. ci.yml never hits this because it declares no permissions
-# block at all (repo-default token).
+# The grant must be the UNION of every permission any callee declares, at
+# workflow or job level, because a called workflow requesting more than the
+# caller grants fails the run at STARTUP (zero jobs): resolve-ci-image.yml
+# declares contents:read + packages:read; helia-core-tester.yml's
+# coverage-merge-summary job declares contents:read + actions:read (the
+# coverage-gate baseline fetch, #370). ci.yml never hits this because it
+# declares no workflow-level permissions block (repo-default token; that
+# immunity holds only while the repository's default workflow permissions
+# stay permissive). Adding a permission to any callee means adding it
+# HERE and to release.yml's block -- the first scheduled nightly
+# startup-failed on exactly this after #369 and #370 merged
+# independently green.
 permissions:
   contents: read
   packages: read
+  actions: read
 
 jobs:
   # Same functional suite the PR gate runs; inputs unset means the
