@@ -123,6 +123,43 @@ arm_cmsis_nn_status arm_lstm_unidirectional_s16(const int16_t *input,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+/*
+ * Bytes written through buffers->temp1 / buffers->temp2 by arm_lstm_unidirectional_s16(). Same derivation as
+ * the s8 sizers in arm_lstm_unidirectional_s8.c: arm_nn_lstm_step_s16() aliases temp1 as the
+ * forget/input/output gate vector and temp2 as the cell-gate vector and the tanh(cell_state) staging vector,
+ * and every writer - arm_nn_lstm_calculate_gate_s16()'s memset, arm_nn_vec_mat_mul_result_acc_s16()'s
+ * one-store-per-(batch, row) walk on every build path, the tail-predicated elementwise/activation helpers -
+ * covers exactly hidden_size * batch_size int16_t elements of the step's params. The batch factor is the
+ * step's, not the layer's: the batch-major branch always re-invokes the step with batch_size == 1, so only
+ * time_major multiplies the batch in.
+ */
+static int64_t arm_lstm_temp_bytes_s16(const cmsis_nn_lstm_params *lstm_params)
+{
+    if (lstm_params == NULL || lstm_params->batch_size < 0 || lstm_params->hidden_size < 0)
+    {
+        return -1;
+    }
+
+    const int32_t gate_batch = (lstm_params->time_major != 0) ? lstm_params->batch_size : 1;
+
+    // Folded one factor at a time so the accumulator stays bounded; see arm_nn_size_mul().
+    int64_t required_bytes = arm_nn_size_mul(1, gate_batch);
+    required_bytes = arm_nn_size_mul(required_bytes, lstm_params->hidden_size);
+    required_bytes = arm_nn_size_mul(required_bytes, (int32_t)sizeof(int16_t));
+
+    return required_bytes;
+}
+
+int32_t arm_lstm_unidirectional_s16_temp1_get_buffer_size(const cmsis_nn_lstm_params *lstm_params)
+{
+    return (int32_t)arm_lstm_temp_bytes_s16(lstm_params);
+}
+
+int32_t arm_lstm_unidirectional_s16_temp2_get_buffer_size(const cmsis_nn_lstm_params *lstm_params)
+{
+    return (int32_t)arm_lstm_temp_bytes_s16(lstm_params);
+}
+
 /**
  * @} end of LSTM group
  */

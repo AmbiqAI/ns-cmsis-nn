@@ -5,6 +5,7 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <stdlib.h>
 #include <unity.h>
 
 #include "gru_prereset_f16_data.h"
@@ -91,9 +92,11 @@ void gru_stream_f16_arm_gru_unidirectional_f16(void)
     pf.time_steps = ts;
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_gru_unidirectional_f16(gru_stream_f16_input, out_full, &pf, NULL));
 
-    /* Chunked run carrying state across two calls. */
+    /* Chunked run carrying state across two calls. reset_after != 0 needs no scratch: the published query
+       must agree that temp1 may stay NULL. */
     cmsis_nn_gru_context_f16 buf = {.temp1 = NULL, .hidden_state = hstate};
     cmsis_nn_gru_params_f16 ph = GRU_STREAM_GATES(gru_stream_f16);
+    TEST_ASSERT_EQUAL(0, arm_gru_unidirectional_f16_temp1_get_buffer_size(&ph));
     ph.time_steps = half;
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_gru_unidirectional_f16(gru_stream_f16_input, out_split, &ph, &buf));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
@@ -119,7 +122,6 @@ void gru_stream_f16_arm_gru_unidirectional_f16(void)
 void gru_prereset_f16_arm_gru_unidirectional_f16(void)
 {
     float16_t output[GRU_PRERESET_F16_DST_SIZE] = {0};
-    float16_t temp1[GRU_PRERESET_F16_HIDDEN_SIZE] = {0};
 
     const cmsis_nn_gru_params_f16 params = {
         .time_major = GRU_PRERESET_F16_TIME_MAJOR,
@@ -151,6 +153,11 @@ void gru_prereset_f16_arm_gru_unidirectional_f16(void)
     /* Non-positive dimensions must be rejected, not silently produce output.
      * Mirrors the f32 suite: each case mutates exactly one field so only the
      * dimension check can reject it. */
+    /* The published query must agree with the size this test derives by hand: the pre-reset path stages one
+       reset-gate vector of hidden_size elements, reused across batches and time steps. */
+    const int32_t temp1_size = arm_gru_unidirectional_f16_temp1_get_buffer_size(&params);
+    TEST_ASSERT_EQUAL(GRU_PRERESET_F16_HIDDEN_SIZE * (int32_t)sizeof(float16_t), temp1_size);
+    float16_t *temp1 = malloc((size_t)temp1_size);
     cmsis_nn_gru_context_f16 scratch_ok = {.temp1 = temp1, .hidden_state = NULL};
     cmsis_nn_gru_params_f16 bad = params;
     bad.input_size = -5;
@@ -173,6 +180,7 @@ void gru_prereset_f16_arm_gru_unidirectional_f16(void)
     cmsis_nn_gru_context_f16 buffers = {.temp1 = temp1, .hidden_state = NULL};
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
                       arm_gru_unidirectional_f16(gru_prereset_f16_input, output, &params, &buffers));
+    free(temp1);
     for (int i = 0; i < GRU_PRERESET_F16_DST_SIZE; ++i)
     {
         TEST_ASSERT_FLOAT_WITHIN(8.0e-2f, (float)gru_prereset_f16_output_ref[i], (float)output[i]);

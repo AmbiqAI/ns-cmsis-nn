@@ -161,6 +161,23 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f16(const float16_t *input,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+/*
+ * Bytes required behind buffers->temp1 / buffers->temp2 by arm_lstm_unidirectional_f16(): zero. Same
+ * derivation as the f32 queries in arm_lstm_unidirectional_f32.c: arm_nn_lstm_step_f16() computes all four
+ * gates per hidden unit in automatics (the MVE leg stages them in four stack arrays of 8 lanes, the scalar leg
+ * in single locals) and writes only cell_state and hidden_out. Neither this wrapper nor the step ever
+ * dereferences temp1 or temp2 on any build path, so both pointers may be NULL.
+ */
+int32_t arm_lstm_unidirectional_f16_temp1_get_buffer_size(const cmsis_nn_lstm_params_f16 *lstm_params)
+{
+    return (lstm_params == NULL) ? -1 : 0;
+}
+
+int32_t arm_lstm_unidirectional_f16_temp2_get_buffer_size(const cmsis_nn_lstm_params_f16 *lstm_params)
+{
+    return (lstm_params == NULL) ? -1 : 0;
+}
+
 /** @} */
 
 #endif /* ARM_NN_ENABLE_F16 */

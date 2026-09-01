@@ -5932,7 +5932,9 @@ int32_t arm_svdf_state_s16_s8_output_ctx_get_buffer_size(const cmsis_nn_svdf_par
  * @param[out]  output                     Pointer to output data
  * @param[in]   params                     Struct containing all information about the lstm operator, see arm_nn_types.
  * @param[in]   buffers                    Struct containing pointers to all temporary scratch buffers needed for the
- * lstm operator, see arm_nn_types.
+ * lstm operator, see arm_nn_types. Size temp1 with arm_lstm_unidirectional_s8_temp1_get_buffer_size() and
+ * temp2 with arm_lstm_unidirectional_s8_temp2_get_buffer_size() - both hold int16_t gate vectors even though
+ * the layer datatype is s8, so sizing them in s8 elements under-allocates by half.
  *
  *
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
@@ -5953,7 +5955,8 @@ arm_cmsis_nn_status arm_lstm_unidirectional_s8(const int8_t *input,
  * @param[out]  output                     Pointer to output data
  * @param[in]   params                     Struct containing all information about the lstm operator, see arm_nn_types.
  * @param[in]   buffers                    Struct containing pointers to all temporary scratch buffers needed for the
- * lstm operator, see arm_nn_types.
+ * lstm operator, see arm_nn_types. Size temp1 with arm_lstm_unidirectional_s16_temp1_get_buffer_size() and
+ * temp2 with arm_lstm_unidirectional_s16_temp2_get_buffer_size().
  *
  *
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
@@ -5966,6 +5969,62 @@ arm_cmsis_nn_status arm_lstm_unidirectional_s16(const int16_t *input,
                                                 int16_t *output,
                                                 const cmsis_nn_lstm_params *params,
                                                 cmsis_nn_lstm_context *buffers);
+
+/**
+ * @brief Get size of the temp1 scratch buffer required by arm_lstm_unidirectional_s8().
+ *
+ * @param[in] lstm_params LSTM operator parameters, i.e. the same cmsis_nn_lstm_params passed to
+ *                        arm_lstm_unidirectional_s8(). Only time_major, batch_size and hidden_size are read.
+ *
+ * @return Required buffer size in bytes:
+ *         (time_major != 0 ? batch_size : 1) * hidden_size * sizeof(int16_t). The elements are int16_t gate
+ *         outputs even though the layer datatype is s8. batch_size enters only for a time-major layer because
+ *         the batch-major wrapper always re-invokes the step kernel one batch at a time. Returns -1 if
+ *         lstm_params is NULL, if batch_size or hidden_size is negative, or if the product would not fit in an
+ *         int32_t. The figure and the range checks are the same on every build target.
+ *
+ * @note   time_steps does not enter the requirement: the buffer is reused by every step. A layer with
+ *         time_steps == 0 runs no step and never dereferences the buffer, but the query still reports the
+ *         per-step figure rather than 0.
+ * @note   0 is only returned for a degenerate shape (batch_size or hidden_size of 0), for which
+ *         arm_lstm_unidirectional_s8() makes no scratch access, so { NULL } is acceptable there per the
+ *         README.md buffer convention. There is no runtime enforcement: the kernel does not range-check the
+ *         buffers, and an undersized allocation is written past on every build target.
+ */
+int32_t arm_lstm_unidirectional_s8_temp1_get_buffer_size(const cmsis_nn_lstm_params *lstm_params);
+
+/**
+ * @brief Get size of the temp2 scratch buffer required by arm_lstm_unidirectional_s8().
+ *        Refer to arm_lstm_unidirectional_s8_temp1_get_buffer_size() for argument details and the -1-on-invalid
+ *        contract.
+ *
+ * @return Required buffer size in bytes: the same figure as arm_lstm_unidirectional_s8_temp1_get_buffer_size()
+ *         for the same params. temp2 stages the cell-gate vector and the tanh(cell_state) vector, both of the
+ *         same extent as the gate vectors staged in temp1.
+ */
+int32_t arm_lstm_unidirectional_s8_temp2_get_buffer_size(const cmsis_nn_lstm_params *lstm_params);
+
+/**
+ * @brief Get size of the temp1 scratch buffer required by arm_lstm_unidirectional_s16().
+ *        Refer to arm_lstm_unidirectional_s8_temp1_get_buffer_size() for argument details, the -1-on-invalid
+ *        contract and the time_steps / degenerate-0 notes.
+ *
+ * @return Required buffer size in bytes:
+ *         (time_major != 0 ? batch_size : 1) * hidden_size * sizeof(int16_t) - the same figure as
+ *         arm_lstm_unidirectional_s8_temp1_get_buffer_size() for the same params, since both layer datatypes
+ *         stage int16_t gate vectors.
+ */
+int32_t arm_lstm_unidirectional_s16_temp1_get_buffer_size(const cmsis_nn_lstm_params *lstm_params);
+
+/**
+ * @brief Get size of the temp2 scratch buffer required by arm_lstm_unidirectional_s16().
+ *        Refer to arm_lstm_unidirectional_s8_temp1_get_buffer_size() for argument details, the -1-on-invalid
+ *        contract and the time_steps / degenerate-0 notes.
+ *
+ * @return Required buffer size in bytes: the same figure as arm_lstm_unidirectional_s16_temp1_get_buffer_size()
+ *         for the same params.
+ */
+int32_t arm_lstm_unidirectional_s16_temp2_get_buffer_size(const cmsis_nn_lstm_params *lstm_params);
 
 /**
  * @brief Batch matmul function with 8 bit input and output.

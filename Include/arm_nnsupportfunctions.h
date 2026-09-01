@@ -167,7 +167,7 @@ __STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)
 }
 #endif /* ARM_NN_ENABLE_F16 */
 
-#define ARM_NN_ROUND_UP(x, multiple) ((((x) + (multiple)-1) / (multiple)) * (multiple))
+#define ARM_NN_ROUND_UP(x, multiple) ((((x) + (multiple) - 1) / (multiple)) * (multiple))
 #define REDUCE_MULTIPLIER(_mult) ((_mult < 0x7FFF0000) ? ((_mult + (1 << 15)) >> 16) : 0x7FFF)
 
 // Number of channels processed in a block for DW Conv with Int8 weights(MVE)
@@ -216,8 +216,10 @@ __STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)
  * across three or more int32_t dims does not have that property - 65536 * 65536 * 65536 * 65536 is
  * exactly 2^64 and folds back to 0, which would sail through a trailing "> INT32_MAX" test.
  *
- * @note  This is the -1 sentinel family, used by the s8/s16 integer buffer-size queries and by the eight SVDF
- *        staging queries (arm_svdf_{s8,state_s16_s8,f32,f16}_{input,output}_ctx_get_buffer_size). It is not
+ * @note  This is the -1 sentinel family, used by the s8/s16 integer buffer-size queries, by the eight SVDF
+ *        staging queries (arm_svdf_{s8,state_s16_s8,f32,f16}_{input,output}_ctx_get_buffer_size) and by the
+ *        LSTM/GRU temp-buffer queries of every datatype (arm_lstm_unidirectional_*_temp{1,2}_get_buffer_size,
+ *        arm_gru_unidirectional_{f32,f16}_temp1_get_buffer_size). It is not
  *        interchangeable with the arm_nn_checked_size_mul() / arm_nn_size_to_i32_or_zero() helpers in
  *        Source/NNSupportFunctions (shared header for the float sizers), which most f32 and f16 buffer-size
  *        queries use and which report an out-of-range size as 0. Mixing the two silently flips a sizer's

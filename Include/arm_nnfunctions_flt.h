@@ -1099,7 +1099,10 @@ int32_t arm_svdf_f32_output_ctx_get_buffer_size(const cmsis_nn_svdf_params_f32 *
  * @param[in]     input   Pointer to the input sequence tensor.
  * @param[out]    output  Pointer to the output sequence tensor.
  * @param[in]     params  LSTM parameters and weights.
- * @param[in,out] buffers Mutable LSTM scratch and state buffers.
+ * @param[in,out] buffers Mutable LSTM scratch and state buffers. temp1 and temp2 are sized by
+ *                        arm_lstm_unidirectional_f32_temp1_get_buffer_size() /
+ *                        arm_lstm_unidirectional_f32_temp2_get_buffer_size(), which report 0: the float
+ *                        implementation never dereferences them and both may be NULL.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -1123,13 +1126,60 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f32(const float32_t *input,
  *                       for later time steps, so aliasing corrupts silently.
  * @param[out]  output   Output (hidden-state) sequence tensor.
  * @param[in]   params   Struct describing the GRU operator.
- * @param[in,out] buffers  Scratch buffers. May be NULL when ``reset_after`` != 0.
+ * @param[in,out] buffers  Scratch buffers. May be NULL when ``reset_after`` != 0. temp1 is sized by
+ *                       arm_gru_unidirectional_f32_temp1_get_buffer_size().
  * @return               ARM_CMSIS_NN_SUCCESS on success, ARM_CMSIS_NN_ARG_ERROR otherwise.
  */
 arm_cmsis_nn_status arm_gru_unidirectional_f32(const float32_t *input,
                                                float32_t *output,
                                                const cmsis_nn_gru_params_f32 *params,
                                                cmsis_nn_gru_context_f32 *buffers);
+
+/**
+ * @brief Get size of the temp1 scratch buffer required by arm_lstm_unidirectional_f32().
+ *
+ * @param[in] lstm_params LSTM operator parameters, i.e. the same cmsis_nn_lstm_params_f32 passed to
+ *                        arm_lstm_unidirectional_f32(). No field is read.
+ *
+ * @return 0 for any non-NULL lstm_params, on every build target: the float32 implementation computes its gate
+ *         values per hidden unit in automatics and never dereferences temp1 or temp2, so both context pointers
+ *         may be NULL. Returns -1 only for a NULL lstm_params. The query exists so arena-sizing code can treat
+ *         every LSTM variant alike; a future implementation that starts staging gate vectors would change this
+ *         figure, so size from the query rather than hard-coding 0.
+ *
+ * @note   This query reports its invalid input as -1, following the integer LSTM temp sizers
+ *         (arm_lstm_unidirectional_s8_temp1_get_buffer_size()), not the 0 used by the float convolution and
+ *         fully-connected queries in this header.
+ */
+int32_t arm_lstm_unidirectional_f32_temp1_get_buffer_size(const cmsis_nn_lstm_params_f32 *lstm_params);
+
+/**
+ * @brief Get size of the temp2 scratch buffer required by arm_lstm_unidirectional_f32().
+ *        Refer to arm_lstm_unidirectional_f32_temp1_get_buffer_size(): the contract is identical, and the
+ *        answer is the same 0 (temp2 is likewise never dereferenced).
+ */
+int32_t arm_lstm_unidirectional_f32_temp2_get_buffer_size(const cmsis_nn_lstm_params_f32 *lstm_params);
+
+/**
+ * @brief Get size of the temp1 scratch buffer required by arm_gru_unidirectional_f32().
+ *
+ * @param[in] gru_params GRU operator parameters, i.e. the same cmsis_nn_gru_params_f32 passed to
+ *                       arm_gru_unidirectional_f32(). Only reset_after and hidden_size are read.
+ *
+ * @return Required buffer size in bytes: hidden_size * sizeof(float32_t) when reset_after == 0 (the pre-reset
+ *         formulation stages the reset-gate vector in temp1; the vector is reused across batches and time
+ *         steps, so neither batch_size nor time_steps enters), and 0 when reset_after != 0 (temp1 is never
+ *         dereferenced and may be NULL). Returns -1 if gru_params is NULL, if hidden_size is negative, or if
+ *         the byte count would not fit in an int32_t. The figure and the range checks are the same on every
+ *         build target.
+ *
+ * @note   On the pre-reset path a 0 is only returned for the degenerate hidden_size == 0, which
+ *         arm_gru_unidirectional_f32() rejects with ARM_CMSIS_NN_ARG_ERROR before any buffer access - so a 0
+ *         there never corresponds to a runnable call.
+ * @note   This query reports an out-of-range shape as -1, following the integer LSTM temp sizers, not the 0
+ *         used by the float convolution and fully-connected queries in this header.
+ */
+int32_t arm_gru_unidirectional_f32_temp1_get_buffer_size(const cmsis_nn_gru_params_f32 *gru_params);
 
 /** @} */
 
@@ -1967,13 +2017,41 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f16(const float16_t *input,
  *                       for later time steps, so aliasing corrupts silently.
  * @param[out]  output   Output (hidden-state) sequence tensor.
  * @param[in]   params   Struct describing the GRU operator.
- * @param[in,out] buffers  Scratch buffers. May be NULL when ``reset_after`` != 0.
+ * @param[in,out] buffers  Scratch buffers. May be NULL when ``reset_after`` != 0. temp1 is sized by
+ *                       arm_gru_unidirectional_f16_temp1_get_buffer_size().
  * @return               ARM_CMSIS_NN_SUCCESS on success, ARM_CMSIS_NN_ARG_ERROR otherwise.
  */
 arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
                                                float16_t *output,
                                                const cmsis_nn_gru_params_f16 *params,
                                                cmsis_nn_gru_context_f16 *buffers);
+
+/**
+ * @brief Get size of the temp1 scratch buffer required by arm_lstm_unidirectional_f16().
+ *        Refer to arm_lstm_unidirectional_f32_temp1_get_buffer_size(): the contract is identical, and the
+ *        answer is the same 0 on every build target (the float16 implementation likewise never dereferences
+ *        temp1 or temp2, which may both be NULL).
+ */
+int32_t arm_lstm_unidirectional_f16_temp1_get_buffer_size(const cmsis_nn_lstm_params_f16 *lstm_params);
+
+/**
+ * @brief Get size of the temp2 scratch buffer required by arm_lstm_unidirectional_f16().
+ *        Refer to arm_lstm_unidirectional_f32_temp1_get_buffer_size(): the contract is identical, and the
+ *        answer is the same 0.
+ */
+int32_t arm_lstm_unidirectional_f16_temp2_get_buffer_size(const cmsis_nn_lstm_params_f16 *lstm_params);
+
+/**
+ * @brief Get size of the temp1 scratch buffer required by arm_gru_unidirectional_f16().
+ *        Refer to arm_gru_unidirectional_f32_temp1_get_buffer_size() for argument details, the -1-on-invalid
+ *        contract and the pre-reset degenerate-0 note.
+ *
+ * @return Required buffer size in bytes: hidden_size * sizeof(float16_t) when reset_after == 0, 0 when
+ *         reset_after != 0 (temp1 is never dereferenced and may be NULL). Half the figure
+ *         arm_gru_unidirectional_f32_temp1_get_buffer_size() returns for the same shape - sizing an f16 layer
+ *         with the f32 query over-allocates, and the reverse under-allocates.
+ */
+int32_t arm_gru_unidirectional_f16_temp1_get_buffer_size(const cmsis_nn_gru_params_f16 *gru_params);
 
 /** @} */
 

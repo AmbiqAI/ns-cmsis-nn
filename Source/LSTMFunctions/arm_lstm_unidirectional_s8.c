@@ -123,6 +123,44 @@ arm_cmsis_nn_status arm_lstm_unidirectional_s8(const int8_t *input,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+/*
+ * Bytes written through buffers->temp1 / buffers->temp2 by arm_lstm_unidirectional_s8(). Derived from the
+ * kernel, not from a shape table: arm_nn_lstm_step_s8() aliases temp1 as the forget/input/output gate vector
+ * and temp2 as the cell-gate vector and the tanh(cell_state) staging vector. Every writer covers exactly
+ * hidden_size * batch_size int16_t elements of the step's params: arm_nn_lstm_calculate_gate_s8_s16() memsets
+ * that extent and arm_nn_vec_mat_mul_result_acc_s8_s16() then stores once per (batch, row) pair on every build
+ * path (the MVE leg's vstrhq_s32() stores land only inside the rhs_rows/4 and remainder row loops, and the
+ * elementwise/activation helpers are tail-predicated), so no path rounds the extent up. The batch factor is the
+ * step's, not the layer's: the time-major loop passes params->batch_size through, while the batch-major branch
+ * always re-invokes the step with batch_size == 1, so only time_major multiplies the batch in.
+ */
+static int64_t arm_lstm_temp_bytes(const cmsis_nn_lstm_params *lstm_params)
+{
+    if (lstm_params == NULL || lstm_params->batch_size < 0 || lstm_params->hidden_size < 0)
+    {
+        return -1;
+    }
+
+    const int32_t gate_batch = (lstm_params->time_major != 0) ? lstm_params->batch_size : 1;
+
+    // Folded one factor at a time so the accumulator stays bounded; see arm_nn_size_mul().
+    int64_t required_bytes = arm_nn_size_mul(1, gate_batch);
+    required_bytes = arm_nn_size_mul(required_bytes, lstm_params->hidden_size);
+    required_bytes = arm_nn_size_mul(required_bytes, (int32_t)sizeof(int16_t));
+
+    return required_bytes;
+}
+
+int32_t arm_lstm_unidirectional_s8_temp1_get_buffer_size(const cmsis_nn_lstm_params *lstm_params)
+{
+    return (int32_t)arm_lstm_temp_bytes(lstm_params);
+}
+
+int32_t arm_lstm_unidirectional_s8_temp2_get_buffer_size(const cmsis_nn_lstm_params *lstm_params)
+{
+    return (int32_t)arm_lstm_temp_bytes(lstm_params);
+}
+
 /**
  * @} end of LSTM group
  */

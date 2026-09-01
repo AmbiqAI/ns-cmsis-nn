@@ -129,6 +129,34 @@ arm_cmsis_nn_status arm_gru_unidirectional_f32(const float32_t *input,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+/*
+ * Bytes written through buffers->temp1 by arm_gru_unidirectional_f32(). Derived from the kernel: temp1 is
+ * dereferenced only on the pre-reset (reset_after == 0) path of arm_nn_gru_step_f32(), where the reset-gate
+ * loop stores reset_buf[h] for h in [0, hidden_size) and the candidate matmul reads the same extent back; the
+ * vector is reused across batches and time steps, so neither batch_size nor time_steps enters. On the
+ * reset-after path (reset_after != 0) the reset gate is folded per hidden unit in automatics, temp1 is never
+ * dereferenced on any build path, and both the wrapper and the step accept it as NULL - so the requirement is
+ * zero there.
+ */
+int32_t arm_gru_unidirectional_f32_temp1_get_buffer_size(const cmsis_nn_gru_params_f32 *gru_params)
+{
+    if (gru_params == NULL || gru_params->hidden_size < 0)
+    {
+        return -1;
+    }
+
+    if (gru_params->reset_after != 0)
+    {
+        return 0;
+    }
+
+    // Folded one factor at a time so the accumulator stays bounded; see arm_nn_size_mul().
+    int64_t required_bytes = arm_nn_size_mul(1, gru_params->hidden_size);
+    required_bytes = arm_nn_size_mul(required_bytes, (int32_t)sizeof(float32_t));
+
+    return (int32_t)required_bytes;
+}
+
 #endif /* ARM_NN_ENABLE_F32 */
 
 /** @} */

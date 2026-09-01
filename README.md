@@ -339,8 +339,11 @@ unless the target or toolchain cannot provide the required floating-point type.
     `arm_svdf_f16_input_ctx_get_buffer_size` and
     `arm_svdf_f16_output_ctx_get_buffer_size` are f32/f16 sizers that use `-1`,
     because their kernels read `ctx->size` and `size == 0` opts out of the
-    scratch-size check. A generic float wrapper must branch per sizer, not on
-    the datatype.
+    scratch-size check. The LSTM/GRU temp-buffer queries
+    (`arm_lstm_unidirectional_*_temp1/temp2_get_buffer_size`,
+    `arm_gru_unidirectional_f32/f16_temp1_get_buffer_size`) also use `-1` in
+    every datatype, so the s8/s16/f32/f16 variants of one layer answer alike.
+    A generic float wrapper must branch per sizer, not on the datatype.
 
   Every public `*_get_buffer_size_mve` and `*_get_buffer_size_dsp` variant
   answers an out-of-range shape the same way as the dispatcher it belongs
