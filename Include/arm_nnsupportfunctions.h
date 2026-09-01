@@ -117,8 +117,10 @@ __STATIC_FORCEINLINE _Float16 arm_nn_max_f16h(_Float16 a, _Float16 b)
  * arm_nn_clamp_propagate_nan_f16h, the other f16 scalar clamp users --
  * arm_svdf_f16's activation clamps, arm_max_pool_f16 / arm_avg_pool_f16, the
  * packed f16 matmul scalar clamp (arm_nn_mat_mult_nt_n_packed_f16), and the
- * scalar f16 RELU/RELU6/LEAKY_RELU activation legs -- so those propagate NaN
- * at every optimization level too. The cortex-m55 MVE RELU/RELU6 f16 legs do
+ * scalar f16 RELU/RELU6/LEAKY_RELU activation legs, and (on non-MVE builds)
+ * arm_nn_vector_clamp_f16's scalar leg -- conv/depthwise/transpose-conv f16,
+ * the 3x3 depthwise, and arm_nn_maxpool1d_f16 -- so those propagate NaN at
+ * every optimization level too. The cortex-m55 MVE RELU/RELU6 f16 legs do
  * NOT share this guarantee (tracked in #382). The same idiom (bit-classified
  * select) appears in arm_prelu_f16, which does not call this helper.
  */
