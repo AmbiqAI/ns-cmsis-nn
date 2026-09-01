@@ -115,12 +115,20 @@ __STATIC_FORCEINLINE _Float16 arm_nn_max_f16h(_Float16 a, _Float16 b)
  * target/118460) nor quiets/retags the NaN payload. This helper backs the f16
  * elementwise clamp and, via arm_nn_clamp_scalar_f16 /
  * arm_nn_clamp_propagate_nan_f16h, the other f16 scalar clamp users --
- * arm_svdf_f16's activation clamps, arm_max_pool_f16 / arm_avg_pool_f16, the
- * packed f16 matmul scalar clamp (arm_nn_mat_mult_nt_n_packed_f16), and the
- * scalar f16 RELU/RELU6/LEAKY_RELU activation legs, and (on non-MVE builds)
- * arm_nn_vector_clamp_f16's scalar leg -- conv/depthwise/transpose-conv f16,
- * the 3x3 depthwise, and arm_nn_maxpool1d_f16 -- so those propagate NaN at
- * every optimization level too. The cortex-m55 MVE RELU/RELU6 f16 legs do
+ * arm_svdf_f16, arm_max_pool_f16 / arm_avg_pool_f16, the packed f16 matmul
+ * (arm_nn_mat_mult_nt_n_packed_f16), the scalar f16 RELU/RELU6/LEAKY_RELU
+ * activation legs, and arm_nn_vector_clamp_f16's scalar leg
+ * (conv/depthwise/transpose-conv f16, the 3x3 depthwise, and
+ * arm_nn_maxpool1d_f16) -- so wherever that scalar clamp runs, a NaN passes
+ * through it at every optimization level on the gated toolchains. That is a
+ * guarantee about the clamp, not the whole kernel: which builds run the
+ * scalar clamp, and whether a NaN survives the rest of the kernel to reach
+ * it, is per kernel -- several of these callers clamp with vmaxnmq/vminnmq
+ * on MVE builds (a NaN resolves to a bound there), and arm_max_pool_f16's
+ * max reduction drops a NaN before the clamp. The kernels with a NaN @note
+ * (svdf, max/avg pool, packed matmul, activation) state their exact scope
+ * there; the arm_nn_vector_clamp_f16 family is covered by a test assertion
+ * in the transpose-conv f16 suite rather than per-kernel notes. The cortex-m55 MVE RELU/RELU6 f16 legs do
  * NOT share this guarantee (tracked in #382). The same idiom (bit-classified
  * select) appears in arm_prelu_f16, which does not call this helper.
  */

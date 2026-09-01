@@ -275,6 +275,22 @@ if(ARM_NN_ENABLE_F16)
     add_subdirectory(TestCases/test_arm_transpose_conv_f16)
 endif()
 
+# Host-only -Ofast NaN probe (#334 item d): rebuilds the six float elementwise
+# kernels at -Ofast -ffinite-math-only -- the flag pair the harness suites
+# deliberately never see (the directory-level -fno-finite-math-only above) --
+# and fails on any clamp-to-bound of a NaN element. GNU-only because the host
+# Clang leg swaps -Ofast out as deprecated (see the Clang branches above), and
+# host-only because the FVP flow runs Unity .elf images, which this is not. The
+# directory name carries no test_arm prefix on purpose: unittest_targets.py
+# treats every TestCases/*test_arm* directory as a Unity suite and requires a
+# Unity/ subdirectory, which this standalone probe does not have.
+if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
+   AND CMAKE_C_COMPILER_ID STREQUAL "GNU"
+   AND ARM_NN_ENABLE_F32
+   AND ARM_NN_ENABLE_F16)
+    add_subdirectory(TestCases/elementwise_nan_ofast_probe)
+endif()
+
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 set(MAKE_CMD "${Python3_EXECUTABLE}")
 set(MAKE_CMD_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/unittest_targets.py")

@@ -478,11 +478,12 @@ arm_cmsis_nn_status arm_prelu_f32(const cmsis_nn_dims *input_dims,
  *
  * NaN propagates through the clamp (TensorFlow Lite semantics): a quiet NaN in either input operand, or a
  * NaN produced by the arithmetic itself (such as Inf + (-Inf) for add), yields a NaN at that output
- * element. This holds at every optimization level, including the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL
- * in the top-level CMakeLists.txt): the clamp classifies NaN on the integer bit pattern of the value
- * rather than with a floating-point compare, and the -ffinite-math-only that -Ofast implies grants no
- * license to fold integer arithmetic. Verified by host execution and by disassembly on gated Arm GNU
- * Toolchain 14.3.Rel1 (where the unguarded form demonstrably folds) and 13.x/15.x and armclang 6.23;
+ * element. This holds at every optimization level, on the toolchains this project gates (see the Testing &
+ * Verification guide, docs/guides/verification.md), including the shipped -Ofast
+ * (CMSIS_OPTIMIZATION_LEVEL in the top-level CMakeLists.txt): the clamp classifies NaN on the integer bit
+ * pattern of the value rather than with a floating-point compare, and the -ffinite-math-only that -Ofast
+ * implies grants no license to fold integer arithmetic. Verified by host execution and by disassembly on
+ * gated Arm GNU Toolchain 14.3.Rel1 (where the unguarded form demonstrably folds) and 13.x/15.x and armclang 6.23;
  * ATfE unexamined -- cross-toolchain on-target execution is #340's scope. See issues #333 and #334. Only
  * the NaN-ness of the element is guaranteed, not a particular NaN payload. Infinities that are not NaN
  * still clamp to the activation bounds (and pass through unchanged under the +/-INFINITY "no clamp"
@@ -509,11 +510,12 @@ arm_cmsis_nn_status arm_elementwise_add_f32(const float32_t *input_1_vect,
  *
  * NaN propagates through the clamp (TensorFlow Lite semantics): a quiet NaN in either input operand, or a
  * NaN produced by the arithmetic itself (such as Inf - Inf for subtract), yields a NaN at that output
- * element. This holds at every optimization level, including the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL
- * in the top-level CMakeLists.txt): the clamp classifies NaN on the integer bit pattern of the value
- * rather than with a floating-point compare, and the -ffinite-math-only that -Ofast implies grants no
- * license to fold integer arithmetic. Verified by host execution and by disassembly on gated Arm GNU
- * Toolchain 14.3.Rel1 (where the unguarded form demonstrably folds) and 13.x/15.x and armclang 6.23;
+ * element. This holds at every optimization level, on the toolchains this project gates (see the Testing &
+ * Verification guide, docs/guides/verification.md), including the shipped -Ofast
+ * (CMSIS_OPTIMIZATION_LEVEL in the top-level CMakeLists.txt): the clamp classifies NaN on the integer bit
+ * pattern of the value rather than with a floating-point compare, and the -ffinite-math-only that -Ofast
+ * implies grants no license to fold integer arithmetic. Verified by host execution and by disassembly on
+ * gated Arm GNU Toolchain 14.3.Rel1 (where the unguarded form demonstrably folds) and 13.x/15.x and armclang 6.23;
  * ATfE unexamined -- cross-toolchain on-target execution is #340's scope. See issues #333 and #334. Only
  * the NaN-ness of the element is guaranteed, not a particular NaN payload. Infinities that are not NaN
  * still clamp to the activation bounds (and pass through unchanged under the +/-INFINITY "no clamp"
@@ -551,11 +553,12 @@ arm_cmsis_nn_status arm_nn_abs_f32(const float32_t *input, float32_t *output, in
  *
  * NaN propagates through the clamp (TensorFlow Lite semantics): a quiet NaN in either input operand, or a
  * NaN produced by the arithmetic itself (such as 0 * Inf for multiply), yields a NaN at that output
- * element. This holds at every optimization level, including the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL
- * in the top-level CMakeLists.txt): the clamp classifies NaN on the integer bit pattern of the value
- * rather than with a floating-point compare, and the -ffinite-math-only that -Ofast implies grants no
- * license to fold integer arithmetic. Verified by host execution and by disassembly on gated Arm GNU
- * Toolchain 14.3.Rel1 (where the unguarded form demonstrably folds) and 13.x/15.x and armclang 6.23;
+ * element. This holds at every optimization level, on the toolchains this project gates (see the Testing &
+ * Verification guide, docs/guides/verification.md), including the shipped -Ofast
+ * (CMSIS_OPTIMIZATION_LEVEL in the top-level CMakeLists.txt): the clamp classifies NaN on the integer bit
+ * pattern of the value rather than with a floating-point compare, and the -ffinite-math-only that -Ofast
+ * implies grants no license to fold integer arithmetic. Verified by host execution and by disassembly on
+ * gated Arm GNU Toolchain 14.3.Rel1 (where the unguarded form demonstrably folds) and 13.x/15.x and armclang 6.23;
  * ATfE unexamined -- cross-toolchain on-target execution is #340's scope. See issues #333 and #334. Only
  * the NaN-ness of the element is guaranteed, not a particular NaN payload. Infinities that are not NaN
  * still clamp to the activation bounds (and pass through unchanged under the +/-INFINITY "no clamp"
@@ -1446,6 +1449,14 @@ int32_t arm_convolve_1_x_n_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *c
 
 /**
  * @copydoc arm_max_pool_f32
+ *
+ * @note The output activation clamp on the scalar (non-MVE) build path is the bit-classified clamp of #380,
+ *       so a NaN that reaches the clamp comes back as NaN at every optimization level on the gated
+ *       toolchains rather than as a
+ *       bound. A NaN rarely reaches it, though: the scalar max reduction uses an ordered compare that drops
+ *       a NaN window element (and its NaN behaviour at the shipped -Ofast is unspecified), and the MVE
+ *       path's vmaxnmq reduction and vmaxnmq/vminnmq clamp suppress NaN, so this kernel does not promise
+ *       NaN propagation end to end.
  */
 arm_cmsis_nn_status arm_max_pool_f16(const cmsis_nn_context *ctx,
                                      const cmsis_nn_pool_params_f16 *pool_params,
@@ -1457,6 +1468,12 @@ arm_cmsis_nn_status arm_max_pool_f16(const cmsis_nn_context *ctx,
 
 /**
  * @copydoc arm_avg_pool_f32
+ *
+ * @note On non-MVE builds every output element goes through the bit-classified scalar clamp of #380, so a
+ *       NaN in the pooling window propagates through the window sum and the output activation clamp to the
+ *       output element at every optimization level on the gated toolchains, including the shipped
+ *       -Ofast. On MVE builds the clamp
+ *       is vmaxnmq/vminnmq with no NaN restore, so a NaN resolves to a clamp bound there instead.
  */
 arm_cmsis_nn_status arm_avg_pool_f16(const cmsis_nn_context *ctx,
                                      const cmsis_nn_pool_params_f16 *pool_params,
@@ -1475,6 +1492,13 @@ arm_cmsis_nn_status arm_avg_pool_f16(const cmsis_nn_context *ctx,
 
 /**
  * @copydoc arm_nn_activation_f32
+ *
+ * @note On the scalar build path the RELU, RELU6 and LEAKY_RELU legs classify NaN on the integer bit
+ *       pattern (#380), so a NaN input comes back as NaN at every optimization level on the gated
+ *       toolchains, including the
+ *       shipped -Ofast. That path serves every build without MVE float16, and LEAKY_RELU on MVE builds
+ *       too. The MVE RELU/RELU6 legs (cortex-m55) do NOT propagate -- vmaxnmq/vminnmq suppress NaN, so a
+ *       NaN comes back as 0.0 (RELU) or a clamp bound (RELU6); tracked in #382.
  */
 arm_cmsis_nn_status arm_nn_activation_f16(const float16_t *input,
                                           float16_t *output,
@@ -1923,6 +1947,12 @@ arm_transpose_conv_f16_get_reverse_conv_buffer_size(const cmsis_nn_transpose_con
  *       the arm_svdf_f16() queries under-allocates by half: arm_svdf_f32() returns ARM_CMSIS_NN_ARG_ERROR if
  *       ctx->size carries that undersized figure, but corrupts memory if ctx->size is left at 0, which opts out
  *       of the check.
+ *
+ * @note NaN propagates through the activation clamps that take the bit-classified scalar clamp of #380, at every
+ *       optimization level on the gated toolchains, including the shipped -Ofast: the input-activation
+ *       clamp is that scalar clamp on
+ *       EVERY build, and the output-activation clamp is on non-MVE builds. On MVE builds the output-activation
+ *       clamp is vmaxnmq/vminnmq with no NaN restore, so a NaN resolves to a clamp bound there instead.
  */
 arm_cmsis_nn_status arm_svdf_f16(const cmsis_nn_context *ctx,
                                  const cmsis_nn_context *input_ctx,

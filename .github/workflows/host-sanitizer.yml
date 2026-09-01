@@ -77,9 +77,10 @@ jobs:
       # --no-tests=error turns a *fully* empty test set into a failure rather than a
       # pass. It says nothing about a partial regression, so the count check below
       # guards that separately: a floor, not the exact number, so adding or retiring
-      # a suite does not need this edited. This config (F32 and F16 on) registers 146, of which
-      # 16 come from ARM_NN_ENABLE_F32 and 14 from ARM_NN_ENABLE_F16, so the floor below sits above
-      # 146 minus either block.
+      # a suite does not need this edited. This config (F32 and F16 on) registers 147, of which
+      # 16 come from ARM_NN_ENABLE_F32, 14 from ARM_NN_ENABLE_F16, and 1 -- the -Ofast NaN probe,
+      # which runs the six elementwise kernels under the hostile flag pair the harness suites never
+      # see -- needs both, so the floor below sits above 147 minus either block.
       - name: Run every suite
         run: |
           registered=$(ctest --test-dir build-host -N | awk '/Total Tests:/ {print $3}')
