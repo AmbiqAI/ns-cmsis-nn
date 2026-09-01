@@ -23,6 +23,9 @@ permissions:
   packages: write        # publish versioned CI images
   pages: write           # publish Pages
   id-token: write        # OIDC for Pages deploy
+  actions: read          # coverage-gate baseline fetch inside the called
+                         # tester workflow (#370); absent, the whole release
+                         # run startup-fails the way the first nightly did
 
 # A release run publishes the tag and the non-draft GitHub Release FIRST and
 # then spends 15-20 min producing assets, so being cancelled halfway leaves a
