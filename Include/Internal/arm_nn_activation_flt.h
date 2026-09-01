@@ -224,12 +224,19 @@ __STATIC_INLINE float32_t arm_nn_apply_activation_type_f32(float32_t x,
 
 __STATIC_INLINE float32_t arm_nn_clamp_scalar_f32(float32_t x, float32_t min_v, float32_t max_v)
 {
-    /* Comparisons are false for NaN, so NaN propagates (TFLite semantics). NOTE this
-     * holds only in builds without -ffinite-math-only. The shipped default (-Ofast,
-     * CMSIS_OPTIMIZATION_LEVEL in the top-level CMakeLists.txt) implies that flag,
-     * which licenses the compiler to assume both comparisons are ordered. The result
-     * of the float elementwise kernels for a NaN is therefore documented as
-     * unspecified; see #333. */
+    /* NaN propagates (TFLite semantics). The NaN test is performed on the integer
+     * bit pattern -- exponent all-ones and a non-zero mantissa, i.e.
+     * (bits & 0x7FFFFFFF) > 0x7F800000 -- because a floating-point self-compare
+     * (x != x) is folded to false under -ffinite-math-only, which the shipped
+     * -Ofast (CMSIS_OPTIMIZATION_LEVEL in the top-level CMakeLists.txt) implies.
+     * The integer-domain classification is outside that flag's license, so the
+     * early-out survives every optimization level; see #333 / #334. */
+    uint32_t bits;
+    memcpy(&bits, &x, sizeof(bits));
+    if ((bits & 0x7FFFFFFFu) > 0x7F800000u)
+    {
+        return x;
+    }
     return (x < min_v) ? min_v : ((x > max_v) ? max_v : x);
 }
 
@@ -244,16 +251,16 @@ __STATIC_INLINE float32x4_t arm_nn_clamp_mve_f32(float32x4_t x, float32x4_t min_
 __STATIC_INLINE float32x4_t arm_nn_clamp_propagate_nan_mve_f32(float32x4_t x, float32x4_t min_v, float32x4_t max_v)
 {
     /* vmaxnmq/vminnmq are IEEE maxNum/minNum and suppress NaN, so restore NaN lanes
-     * afterwards to match the scalar path and TFLite. Whether the restore survives
-     * optimization is toolchain dependent, so the result of the float elementwise
-     * kernels for a NaN is documented as unspecified; see #333.
-     *
-     * DO NOT delete the vcmpneq/vpselq pair as dead code. Arm GNU Toolchain 15.3.Rel1
-     * -- one of the releases this project builds and strict-links on every pull
-     * request -- keeps the vcmpneq inside the loop at the shipped -Ofast for
-     * cortex-m55, and arm_elementwise_sub_f32 then returns a real NaN, so removing the
-     * pair would change behaviour there. */
-    const mve_pred16_t nan_p = vcmpneq(x, x);
+     * afterwards to match the scalar path and TFLite. The NaN lanes are classified in
+     * the integer domain: shifting the sign bit out, a lane is NaN exactly when
+     * (bits << 1) compares unsigned-higher than 0xFF000000 (all-ones exponent,
+     * non-zero mantissa). A float-domain vcmpneq(x, x) is folded away under the
+     * -ffinite-math-only implied by the shipped -Ofast; the unsigned compare is
+     * outside that flag's license, and no toolchain this project gates has been
+     * observed to fold it (disassembly-verified); see #333 / #334 / #340.
+     * 0xFF000000 is a Thumb modified immediate, so no literal-pool load is needed
+     * to materialize it. */
+    const mve_pred16_t nan_p = vcmphiq_n_u32(vshlq_n_u32(vreinterpretq_u32_f32(x), 1), 0xFF000000u);
     float32x4_t y = vmaxnmq(x, min_v);
     y = vminnmq(y, max_v);
     return vpselq(x, y, nan_p);
@@ -333,12 +340,10 @@ arm_nn_vector_clamp_f32(float32_t *data, int32_t block_size, float32_t activatio
 __STATIC_INLINE float16_t arm_nn_clamp_scalar_f16(float16_t x, float16_t min_v, float16_t max_v)
 {
     /* NaN propagates (TFLite semantics), matching arm_nn_clamp_scalar_f32 and
-     * the MVE path in arm_nn_clamp_propagate_nan_mve_f16(). NOTE that contract holds
-     * only in builds without -ffinite-math-only; the shipped -Ofast default implies
-     * that flag, which licenses the compiler to fold the NaN restore in
-     * arm_nn_clamp_propagate_nan_f16h() away. The result of the float elementwise
-     * kernels for a NaN is therefore documented as unspecified; see #333. Bounds are
-     * assumed ordered; inverted bounds are unspecified. */
+     * the MVE path in arm_nn_clamp_propagate_nan_mve_f16(). The NaN restore in
+     * arm_nn_propagate_nan_f16h() tests the integer bit pattern, so it holds at
+     * every optimization level including the shipped -Ofast; see #333 / #334.
+     * Bounds are assumed ordered; inverted bounds are unspecified. */
     const _Float16 y = arm_nn_clamp_propagate_nan_f16h((_Float16)x, (_Float16)min_v, (_Float16)max_v);
     return (float16_t)y;
 }
@@ -394,7 +399,8 @@ __STATIC_INLINE float16_t arm_nn_apply_activation_type_f16(float16_t x,
     case ARM_NN_FLT_ACT_SIGMOID:
         return arm_nn_sigmoid_scalar_f16(x);
     case ARM_NN_FLT_ACT_RELU:
-        /* NaN propagates, matching the f32 path and the TFLite reference. */
+        /* NaN propagates (bit-classified). Note the f32 legs are plain FP ternaries
+         * relying on FP compare semantics, with no -Ofast guarantee; see #382. */
         return (float16_t)arm_nn_propagate_nan_f16h((_Float16)x, arm_nn_max_f16h((_Float16)x, (_Float16)0.0f));
     case ARM_NN_FLT_ACT_RELU6:
         return (float16_t)arm_nn_clamp_propagate_nan_f16h((_Float16)x, (_Float16)0.0f, (_Float16)6.0f);
@@ -425,17 +431,16 @@ __STATIC_INLINE float16x8_t arm_nn_clamp_mve_f16(float16x8_t x, float16x8_t min_
 __STATIC_INLINE float16x8_t arm_nn_clamp_propagate_nan_mve_f16(float16x8_t x, float16x8_t min_v, float16x8_t max_v)
 {
     /* vmaxnmq/vminnmq are IEEE maxNum/minNum and suppress NaN, so restore NaN lanes
-     * afterwards to match the scalar path and TFLite. As in the float32 twin above,
-     * whether the restore survives optimization is toolchain dependent, so the result
-     * of the float elementwise kernels for a NaN is documented as unspecified; see
-     * #333.
-     *
-     * DO NOT delete the vcmpneq/vpselq pair as dead code. Arm GNU Toolchain 15.3.Rel1
-     * -- one of the releases this project builds and strict-links on every pull
-     * request -- keeps the vcmpneq inside the loop at the shipped -Ofast for
-     * cortex-m55, and arm_elementwise_sub_f16 then returns a real NaN, so removing the
-     * pair would change behaviour there. */
-    const mve_pred16_t nan_p = vcmpneq(x, x);
+     * afterwards to match the scalar path and TFLite. As in the float32 twin above the
+     * NaN lanes are classified in the integer domain: per 16-bit lane, a value is NaN
+     * exactly when (bits << 1) compares unsigned-higher than 0xF800 (all-ones
+     * exponent, non-zero mantissa, sign shifted out). A float-domain vcmpneq(x, x) is
+     * folded away under the -ffinite-math-only implied by the shipped -Ofast; the
+     * unsigned compare is outside that flag's license, and no toolchain this project
+     * gates has been observed to fold it (disassembly-verified); see #333 / #334 /
+     * #340. 0xF800 fits a single movw, so no literal-pool load is needed to
+     * materialize it. */
+    const mve_pred16_t nan_p = vcmphiq_n_u16(vshlq_n_u16(vreinterpretq_u16_f16(x), 1), 0xF800);
     float16x8_t y = vmaxnmq(x, min_v);
     y = vminnmq(y, max_v);
     return vpselq(x, y, nan_p);

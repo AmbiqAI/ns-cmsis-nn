@@ -17,10 +17,10 @@
 #include "sub_f16_data.h"
 
 /*
- * Bit-pattern NaN test. isnan() is not usable here: -ffinite-math-only, which the
- * -Ofast this suite is built with by default implies, licenses the compiler to fold
- * isnan() to a constant false, so it cannot observe a NaN result even on toolchains
- * where the kernel returns one.
+ * Bit-pattern NaN test. Harness test TUs are built with -fno-finite-math-only
+ * (Tests/UnitTest/CMakeLists.txt), so isnan() would also work here; the bit-pattern
+ * check is defense-in-depth for a standalone -Ofast build of this TU, where the
+ * implied -ffinite-math-only licenses folding isnan() to a constant false.
  */
 static bool sub_f16_bits_are_nan(float16_t x)
 {
@@ -47,31 +47,44 @@ void sub_f16_arm_elementwise_sub_f16(void)
     }
 }
 
+/*
+ * Rebuild a float16 from bits held in a volatile so the non-finite inputs are created
+ * at run time. Harness test TUs are built with -fno-finite-math-only
+ * (Tests/UnitTest/CMakeLists.txt), so the staging is not required there; it is
+ * defense-in-depth for a standalone -Ofast build of this TU, where the implied
+ * -ffinite-math-only licenses constant-folding arithmetic on the compile-time
+ * Inf/NaN so the kernel is never handed a non-finite value at all.
+ */
+static float16_t sub_f16_from_bits(volatile const uint16_t *bits)
+{
+    const uint16_t b = *bits;
+    float16_t x;
+    memcpy(&x, &b, sizeof(x));
+    return x;
+}
+
 void sub_f16_nan_inf_arm_elementwise_sub_f16(void)
 {
-    // Non-finite inputs are not supported (#333), so this case is a regression pin, not a contract. What
-    // comes back for the two NaN-producing lanes is toolchain dependent: some toolchains fold the clamp's
-    // NaN check away and return a clamp bound, others keep it and return a real NaN. Those lanes are
-    // therefore required only to be a NaN or exactly one of the two bounds - anything else, such as a stray
-    // 0.0f or an unclamped Inf, is still a failure. The Inf-overflow lanes are pinned to the bounds.
-    const float16_t inf = (float16_t)(_Float16)INFINITY;
-    const float16_t in1[4] = {inf, (float16_t)(_Float16)NAN, inf, (float16_t)(_Float16)(-(_Float16)INFINITY)};
+    // NaN propagates through the clamp (TFLite semantics) at every optimization level, including the
+    // shipped -Ofast: the clamp classifies NaN on the integer bit pattern, which -ffinite-math-only has
+    // no license to fold (#333, #334). Inf - Inf and NaN - 0 must therefore come back as NaN, and the
+    // Inf-overflow lanes must clamp to the activation bounds.
+    volatile uint16_t inf_bits = 0x7C00u;
+    volatile uint16_t nan_bits = 0x7E00u;
+    volatile uint16_t ninf_bits = 0xFC00u;
+    const float16_t inf = sub_f16_from_bits(&inf_bits);
+    const float16_t nan = sub_f16_from_bits(&nan_bits);
+    const float16_t ninf = sub_f16_from_bits(&ninf_bits);
+    const float16_t in1[4] = {inf, nan, inf, ninf};
     const float16_t in2[4] = {inf, (float16_t)(_Float16)0.0f, (float16_t)(_Float16)1.0f, (float16_t)(_Float16)1.0f};
     float16_t output[4] = {0};
 
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                      arm_elementwise_sub_f16(in1,
-                                              in2,
-                                              output,
-                                              (float16_t)(_Float16)-6.0f,
-                                              (float16_t)(_Float16)6.0f,
-                                              4));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_elementwise_sub_f16(in1, in2, output, (float16_t)(_Float16)-6.0f, (float16_t)(_Float16)6.0f, 4));
 
-    for (int32_t i = 0; i < 2; i++)
-    {
-        const float32_t y = (float32_t)output[i];
-        TEST_ASSERT_TRUE(sub_f16_bits_are_nan(output[i]) || y == -6.0f || y == 6.0f);
-    }
+    TEST_ASSERT_TRUE_MESSAGE(sub_f16_bits_are_nan(output[0]), "Expected NaN from Inf - Inf");
+    TEST_ASSERT_TRUE_MESSAGE(sub_f16_bits_are_nan(output[1]), "Expected NaN from NaN - 0");
     TEST_ASSERT_EQUAL_FLOAT(6.0f, (float)output[2]);
     TEST_ASSERT_EQUAL_FLOAT(-6.0f, (float)output[3]);
 }

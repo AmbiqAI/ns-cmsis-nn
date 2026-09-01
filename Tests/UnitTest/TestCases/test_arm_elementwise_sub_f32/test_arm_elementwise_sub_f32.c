@@ -17,10 +17,10 @@
 #include "sub_f32_data.h"
 
 /*
- * Bit-pattern NaN test. isnan() is not usable here: -ffinite-math-only, which the
- * -Ofast this suite is built with by default implies, licenses the compiler to fold
- * isnan() to a constant false, so it cannot observe a NaN result even on toolchains
- * where the kernel returns one.
+ * Bit-pattern NaN test. Harness test TUs are built with -fno-finite-math-only
+ * (Tests/UnitTest/CMakeLists.txt), so isnan() would also work here; the bit-pattern
+ * check is defense-in-depth for a standalone -Ofast build of this TU, where the
+ * implied -ffinite-math-only licenses folding isnan() to a constant false.
  */
 static bool sub_f32_bits_are_nan(float32_t x)
 {
@@ -47,25 +47,40 @@ void sub_f32_arm_elementwise_sub_f32(void)
     }
 }
 
+/*
+ * Rebuild a float from bits held in a volatile so the non-finite inputs are created
+ * at run time. Harness test TUs are built with -fno-finite-math-only
+ * (Tests/UnitTest/CMakeLists.txt), so the staging is not required there; it is
+ * defense-in-depth for a standalone -Ofast build of this TU, where the implied
+ * -ffinite-math-only licenses constant-folding arithmetic on the compile-time
+ * Inf/NaN so the kernel is never handed a non-finite value at all.
+ */
+static float32_t sub_f32_from_bits(volatile const uint32_t *bits)
+{
+    const uint32_t b = *bits;
+    float32_t x;
+    memcpy(&x, &b, sizeof(x));
+    return x;
+}
+
 void sub_f32_nan_inf_arm_elementwise_sub_f32(void)
 {
-    // Non-finite inputs are not supported (#333), so this case is a regression pin, not a contract. What
-    // comes back for the two NaN-producing lanes is toolchain dependent: some toolchains fold the clamp's
-    // NaN check away and return a clamp bound, others keep it and return a real NaN. Those lanes are
-    // therefore required only to be a NaN or exactly one of the two bounds - anything else, such as a stray
-    // 0.0f or an unclamped Inf, is still a failure. The Inf-overflow lanes are pinned to the bounds.
-    const float32_t inf = (float32_t)INFINITY;
-    const float32_t in1[4] = {inf, (float32_t)NAN, inf, -inf};
+    // NaN propagates through the clamp (TFLite semantics) at every optimization level, including the
+    // shipped -Ofast: the clamp classifies NaN on the integer bit pattern, which -ffinite-math-only has
+    // no license to fold (#333, #334). Inf - Inf and NaN - 0 must therefore come back as NaN, and the
+    // Inf-overflow lanes must clamp to the activation bounds.
+    volatile uint32_t inf_bits = 0x7F800000u;
+    volatile uint32_t nan_bits = 0x7FC00000u;
+    const float32_t inf = sub_f32_from_bits(&inf_bits);
+    const float32_t nan = sub_f32_from_bits(&nan_bits);
+    const float32_t in1[4] = {inf, nan, inf, -inf};
     const float32_t in2[4] = {inf, 0.0f, 1.0f, 1.0f};
     float32_t output[4] = {0};
 
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_elementwise_sub_f32(in1, in2, output, -6.0f, 6.0f, 4));
 
-    for (int32_t i = 0; i < 2; i++)
-    {
-        const float32_t y = output[i];
-        TEST_ASSERT_TRUE(sub_f32_bits_are_nan(y) || y == -6.0f || y == 6.0f);
-    }
+    TEST_ASSERT_TRUE_MESSAGE(sub_f32_bits_are_nan(output[0]), "Expected NaN from Inf - Inf");
+    TEST_ASSERT_TRUE_MESSAGE(sub_f32_bits_are_nan(output[1]), "Expected NaN from NaN - 0");
     TEST_ASSERT_EQUAL_FLOAT(6.0f, output[2]);
     TEST_ASSERT_EQUAL_FLOAT(-6.0f, output[3]);
 }

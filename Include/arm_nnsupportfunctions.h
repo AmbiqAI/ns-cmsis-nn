@@ -106,12 +106,23 @@ __STATIC_FORCEINLINE _Float16 arm_nn_max_f16h(_Float16 a, _Float16 b)
 }
 
 /*
- * Returns x when x is NaN, otherwise y. The select is performed on the bit
- * patterns so that it neither expands to an HFmode conditional move (PR
- * target/118460) nor quiets/retags the NaN payload. NOTE the NaN test itself is
- * still the floating-point self-compare `x != x`, which -ffinite-math-only (implied
- * by the shipped -Ofast) licenses the compiler to fold to false, leaving this helper
- * returning y unconditionally. Testing the bit pattern instead is tracked in #334.
+ * Returns x when x is NaN, otherwise y. Both the NaN test and the select are
+ * performed on the bit patterns: the test is (bits & 0x7FFF) > 0x7C00 (all-ones
+ * exponent, non-zero mantissa), which is integer arithmetic that
+ * -ffinite-math-only (implied by the shipped -Ofast) has no license to fold,
+ * unlike the former floating-point self-compare `x != x` (#333 / #334); the
+ * bit-pattern select neither expands to an HFmode conditional move (PR
+ * target/118460) nor quiets/retags the NaN payload. This helper backs the f16
+ * elementwise clamp and, via arm_nn_clamp_scalar_f16 /
+ * arm_nn_clamp_propagate_nan_f16h, the other f16 scalar clamp users --
+ * arm_svdf_f16's activation clamps, arm_max_pool_f16 / arm_avg_pool_f16, the
+ * packed f16 matmul scalar clamp (arm_nn_mat_mult_nt_n_packed_f16), and the
+ * scalar f16 RELU/RELU6/LEAKY_RELU activation legs, and (on non-MVE builds)
+ * arm_nn_vector_clamp_f16's scalar leg -- conv/depthwise/transpose-conv f16,
+ * the 3x3 depthwise, and arm_nn_maxpool1d_f16 -- so those propagate NaN at
+ * every optimization level too. The cortex-m55 MVE RELU/RELU6 f16 legs do
+ * NOT share this guarantee (tracked in #382). The same idiom (bit-classified
+ * select) appears in arm_prelu_f16, which does not call this helper.
  */
 __STATIC_FORCEINLINE _Float16 arm_nn_propagate_nan_f16h(_Float16 x, _Float16 y)
 {
@@ -119,7 +130,7 @@ __STATIC_FORCEINLINE _Float16 arm_nn_propagate_nan_f16h(_Float16 x, _Float16 y)
     memcpy(&x_bits, &x, sizeof(x_bits));
     memcpy(&y_bits, &y, sizeof(y_bits));
 
-    const uint16_t nan_mask = (uint16_t)(0U - (uint32_t)(x != x));
+    const uint16_t nan_mask = (uint16_t)(0U - (uint32_t)((x_bits & 0x7FFFu) > 0x7C00u));
     r_bits = (uint16_t)((x_bits & nan_mask) | (y_bits & (uint16_t)~nan_mask));
 
     _Float16 r;
@@ -131,8 +142,7 @@ __STATIC_FORCEINLINE _Float16 arm_nn_propagate_nan_f16h(_Float16 x, _Float16 y)
  * Drop-in equivalent of CLAMP(x, h, l) for scalar _Float16 operands,
  * including its NaN behaviour: MIN(NaN, h) is h, so a NaN input resolves to
  * the high bound, exactly as the macro does. Use
- * arm_nn_clamp_propagate_nan_f16h() where TFLite NaN propagation is required
- * (subject to the -ffinite-math-only caveat documented on that helper).
+ * arm_nn_clamp_propagate_nan_f16h() where TFLite NaN propagation is required.
  */
 __STATIC_FORCEINLINE _Float16 arm_nn_clamp_f16h(_Float16 x, _Float16 h, _Float16 l)
 {
@@ -142,12 +152,10 @@ __STATIC_FORCEINLINE _Float16 arm_nn_clamp_f16h(_Float16 x, _Float16 h, _Float16
 /*
  * Clamp with TFLite NaN semantics: NaN passes through unchanged. Mirrors the
  * MVE idiom in arm_nn_clamp_propagate_nan_mve_f16() (lower bound first, then
- * upper bound, then restore NaN lanes). NOTE the NaN restore holds only in builds
- * without -ffinite-math-only: the shipped default (-Ofast) implies that flag, which
- * licenses the compiler to fold the self-compare in arm_nn_propagate_nan_f16h()
- * away. The result of the float elementwise kernels for a NaN is therefore
- * documented as unspecified; see #333. Bounds are assumed ordered (l <= h);
- * inverted bounds are unspecified.
+ * upper bound, then restore NaN lanes). The NaN restore in
+ * arm_nn_propagate_nan_f16h() tests the integer bit pattern, so it holds at every
+ * optimization level including the shipped -Ofast; see #333 / #334. Bounds are
+ * assumed ordered (l <= h); inverted bounds are unspecified.
  */
 __STATIC_FORCEINLINE _Float16 arm_nn_clamp_propagate_nan_f16h(_Float16 x, _Float16 l, _Float16 h)
 {
