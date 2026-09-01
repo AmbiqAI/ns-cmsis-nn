@@ -23,12 +23,16 @@ name: Host sanitizer unit tests
 #   - Two __STATIC_FORCEINLINE helpers in the public Include/arm_nnsupportfunctions.h,
 #     arm_nn_exp_on_negative_values and arm_nn_mult_by_power_of_two, so the mask also
 #     covers header code that downstream callers compile.
-# Earlier inventories also listed the s16 elementwise/scalar files and the
-# comparison files. The former reported only through the shared pack macros,
-# which now use the defined unsigned-shift idiom (#357) and can no longer
-# fire; the latter measured zero shift-base sites when re-checked and were
-# stale entries. Narrowing the mask per-file so the clean files regain
-# protection is the open half of #357.
+# Earlier inventories also listed arm_elementwise_{add,sub,mul}*_s16.c and
+# arm_{add,sub,mul}_scalar_s16.c -- those reported only through the shared
+# pack macros, which now use the defined unsigned-shift idiom (#357) and can
+# no longer fire -- plus the comparison and squared-difference files, which
+# re-measured as zero shift-base REPORTS on the suite corpus and were stale
+# entries all along. Zero reports is not zero sites: those TUs still inline
+# shift-base-instrumentable code from arm_nn_requantize and
+# arm_nn_divide_by_power_of_two, silent only because no test reaches the
+# offending shift counts. Narrowing the mask per-file so the clean files
+# regain protection is the open half of #357.
 #
 # shift-exponent stays on, so a shift count at or past the operand width is
 # still reported. LeakSanitizer is on (it is part of ASan by default), so a test

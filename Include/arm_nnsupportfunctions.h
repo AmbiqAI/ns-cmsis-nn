@@ -297,6 +297,7 @@ __STATIC_FORCEINLINE int64_t arm_nn_size_add(const int64_t acc, const int64_t ad
 
 /**
  * @brief definition to pack four 8 bit values.
+ *
  * Byte lanes are masked and shifted in uint32_t so a negative value never
  * feeds a signed left shift (UB); masking before the shift keeps the same
  * bits the old shift-then-mask form kept. Bit-identical for every input.
@@ -310,6 +311,7 @@ __STATIC_FORCEINLINE int64_t arm_nn_size_add(const int64_t acc, const int64_t ad
 
 /**
  * @brief definition to pack two 16 bit values.
+ *
  * Same treatment: the high half is shifted in uint32_t, not int32_t, so a
  * negative v1 is defined; the low half keeps its mask. Bit-identical for
  * every input. Same deliberate upstream divergence as PACK_S8x4_32x1 above.
