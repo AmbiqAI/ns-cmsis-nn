@@ -54,7 +54,7 @@ arm_cmsis_nn_status arm_lstm_unidirectional_s16(const int16_t *input,
 
     int16_t *hidden_in = (int16_t *)buffers->hidden_state;
 
-    if (buffers->hidden_state == NULL)
+    if (buffers->hidden_state == NULL && params->batch_size * params->hidden_size != 0)
     {
         memset(buffers->cell_state, 0, params->batch_size * params->hidden_size * sizeof(int16_t));
     }
