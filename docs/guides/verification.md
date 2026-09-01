@@ -16,7 +16,7 @@ passes; a red run blocks the merge.
 | **Numerics** — `helia-core-tester` under the Corstone-300 FVP | kernel results match reference vectors | int4/int8/int16 on cortex-m0, cortex-m4 and cortex-m55; `float32` on m4 (scalar) and m55 (scalar + MVE); `float16` on m55 (scalar + MVE) |
 | **Shipped-flags numerics** — same suite, no coverage instrumentation | the code that ships — `-Ofast`, real MVE inline assembly — computes the same answers as the instrumented legs | int on cortex-m4 and cortex-m55; `float32` on m55 |
 | **Toolchain build + strict link** | every kernel compiles and every symbol resolves — no `--gc-sections`, no ignored undefined symbols | GCC 13.2.Rel1 / 14.3.Rel1 / 15.3.Rel1, ATfE 19.1.5 and armclang 6.23.32, each on cortex-m55 and cortex-m4 (the armclang cell needs a licence secret, so it skips on fork PRs) |
-| **Memory safety** — host sanitizer | out-of-bounds access, undefined behaviour and leaks that leave the numerics intact, such as a scratch buffer under-sized by a `get_buffer_size` query | **x86 host**, scalar (non-MVE) paths; ~144 Unity suites under ASan + UBSan + LSan via `ctest` (the job asserts a floor of 140) |
+| **Memory safety** — host sanitizer | out-of-bounds access, undefined behaviour and leaks that leave the numerics intact, such as a scratch buffer under-sized by a `get_buffer_size` query | **x86 host**, scalar (non-MVE) paths; ~147 Unity suites under ASan + UBSan + LSan via `ctest` (the job asserts a floor of 140) |
 | **Packaging & wiring contracts** | PDSC/CMSIS-Pack, the CMake single-source-of-truth config, Zephyr and NSX wiring, SPDX headers, the release-pipeline contract checks | ubuntu runners; no target hardware involved |
 | **Docs** | the Sphinx + Doxygen site still builds | ubuntu runner |
 
