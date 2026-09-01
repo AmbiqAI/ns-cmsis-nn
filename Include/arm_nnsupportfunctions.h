@@ -218,8 +218,10 @@ __STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)
  *
  * @note  This is the -1 sentinel family, used by the s8/s16 integer buffer-size queries, by the eight SVDF
  *        staging queries (arm_svdf_{s8,state_s16_s8,f32,f16}_{input,output}_ctx_get_buffer_size) and by the
- *        LSTM/GRU temp-buffer queries of every datatype (arm_lstm_unidirectional_*_temp{1,2}_get_buffer_size,
- *        arm_gru_unidirectional_{f32,f16}_temp1_get_buffer_size). It is not
+ *        s8/s16 LSTM temp-buffer queries and the GRU temp queries
+ *        (arm_lstm_unidirectional_{s8,s16}_temp{1,2}_get_buffer_size,
+ *        arm_gru_unidirectional_{f32,f16}_temp1_get_buffer_size). The four f32/f16 LSTM temp queries have no
+ *        dimensions to fold (the buffers are unused) and answer -1 only for NULL params, 0 otherwise. It is not
  *        interchangeable with the arm_nn_checked_size_mul() / arm_nn_size_to_i32_or_zero() helpers in
  *        Source/NNSupportFunctions (shared header for the float sizers), which most f32 and f16 buffer-size
  *        queries use and which report an out-of-range size as 0. Mixing the two silently flips a sizer's
