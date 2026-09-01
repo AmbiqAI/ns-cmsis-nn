@@ -54,7 +54,7 @@ arm_cmsis_nn_status arm_lstm_unidirectional_s8(const int8_t *input,
 
     int8_t *hidden_in = (int8_t *)buffers->hidden_state;
 
-    if (buffers->hidden_state == NULL && params->batch_size * params->hidden_size != 0)
+    if (buffers->hidden_state == NULL && params->batch_size != 0 && params->hidden_size != 0)
     {
         memset(buffers->cell_state, 0, params->batch_size * params->hidden_size * sizeof(int16_t));
     }

@@ -52,7 +52,7 @@ arm_cmsis_nn_status arm_nn_lstm_calculate_gate_s16(const int16_t *data_in,
                                                    const int32_t batch_offset)
 {
 
-    if (params->hidden_size * params->batch_size != 0)
+    if (params->hidden_size != 0 && params->batch_size != 0)
     {
         memset(output, 0, params->hidden_size * params->batch_size * sizeof(int16_t));
     }
