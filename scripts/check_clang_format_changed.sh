@@ -95,16 +95,19 @@ else
   echo "no clang-format found. Install clang-format ${REQUIRED_CLANG_FORMAT_MAJOR} (pip install clang-format==16.0.6) or set CLANG_FORMAT_BIN." >&2
   exit 3
 fi
-raw_version="$("${CLANG_FORMAT_BIN}" --version 2>/dev/null || true)"
+raw_version="$("${CLANG_FORMAT_BIN}" --version 2>/dev/null | head -n 1 || true)"
 found_major=""
 if [[ "${raw_version}" =~ version\ ([0-9]+)\. ]]; then
   found_major="${BASH_REMATCH[1]}"
 fi
 if [[ "${found_major}" != "${REQUIRED_CLANG_FORMAT_MAJOR}" ]]; then
   echo "clang-format major ${found_major:-unknown} found at $(command -v "${CLANG_FORMAT_BIN}"); this repo enforces ${REQUIRED_CLANG_FORMAT_MAJOR}.x." >&2
-  echo "Install it with: pip install clang-format==16.0.6   (then: CLANG_FORMAT_BIN=clang-format $0 ...)" >&2
+  echo "Install it with: python -m pip install clang-format==16.0.6, then point the script at that copy explicitly:" >&2
+  echo "  CLANG_FORMAT_BIN=\"\$(python -c \"import sys,os;print(os.path.dirname(sys.executable))\")/clang-format\" $0 ..." >&2
   exit 3
 fi
+
+echo "Using formatter: $(command -v "${CLANG_FORMAT_BIN}") (${raw_version})"
 
 changed_files=()
 while IFS= read -r file; do
@@ -123,7 +126,6 @@ if [[ ${#changed_files[@]} -eq 0 ]]; then
   exit 0
 fi
 
-echo "Using formatter: $(command -v "${CLANG_FORMAT_BIN}") ($("${CLANG_FORMAT_BIN}" --version | tr -d "\n"))"
 echo "Checking files changed between ${BASE_REF} and ${HEAD_REF}:"
 printf '  %s\n' "${changed_files[@]}"
 

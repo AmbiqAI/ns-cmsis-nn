@@ -96,6 +96,9 @@ RUN set -eux; \
       command -v armclang; \
       arm-none-eabi-gcc --version; \
       clang --version; \
+      # After the tool dirs are prepended, the pip 16.0.6 must still win: a future
+      # llvm-embedded that ships clang-format would otherwise shadow it silently.
+      clang-format --version | head -n 1 | grep -q "version 16\."; \
       cmake --version; \
       ninja --version; \
       command -v FVP_Corstone_SSE-300
