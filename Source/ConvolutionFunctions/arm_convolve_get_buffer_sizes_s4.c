@@ -123,6 +123,19 @@ int32_t arm_convolve_s4_get_buffer_size(const cmsis_nn_dims *input_dims, const c
     return (int32_t)required_bytes;
 }
 
+/*
+ * Get the required buffer size for arm_convolve_even_s4. A forward, not a copy: the even_s4 kernel stages up to
+ * four im2col rows of filter_dims->w * filter_dims->h * input_dims->c int8 elements, which is byte-for-byte the
+ * 2 * rhs_cols * sizeof(int16_t) that arm_convolve_s4_get_buffer_size() computes -- an exact fit with zero slack,
+ * so the two must move together. The equality is pinned by buffer_size_even_arm_convolve_s4() in the Unity suite.
+ *
+ * Refer to header file for details.
+ */
+int32_t arm_convolve_even_s4_get_buffer_size(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims)
+{
+    return arm_convolve_s4_get_buffer_size(input_dims, filter_dims);
+}
+
 int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_params,
                                               const cmsis_nn_dims *input_dims,
                                               const cmsis_nn_dims *filter_dims,

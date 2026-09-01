@@ -465,7 +465,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
 /**
  * @brief Basic s4 convolution function with a requirement of even number of kernels.
  * @param[in, out] ctx            Function context that contains the additional buffer if required by the function.
- *                                arm_convolve_s4_get_buffer_size will return the buffer_size if required.
+ *                                arm_convolve_even_s4_get_buffer_size will return the buffer_size if required.
  *                                The caller is expected to clear the buffer ,if applicable, for security reasons.
  * @param[in]      conv_params    Convolution parameters (e.g. strides, dilations, pads,...).
  *                                Range of conv_params->input_offset  : [-127, 128]
@@ -582,6 +582,21 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
  *             every build target rather than a wrapped size.
  */
 int32_t arm_convolve_s4_get_buffer_size(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims);
+
+/**
+ * @brief Get the required buffer size for arm_convolve_even_s4
+ *
+ * @param[in]       input_dims            Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]       filter_dims           Filter tensor dimensions. Format: [C_OUT, HK, WK, C_IN] where HK and WK
+ * are the spatial filter dimensions
+ * @return          The function returns required buffer size in bytes, or -1 if any dimension it reads is negative
+ *                  or the required size would not fit in an int32_t
+ *
+ * @details    Forwards to arm_convolve_s4_get_buffer_size(): the even_s4 kernel stages up to four im2col rows of
+ *             filter_dims->w * filter_dims->h * input_dims->c int8 elements, byte-for-byte the size that sizer
+ *             returns. The equality, including the -1 answers for out-of-range shapes, is pinned by a Unity test.
+ */
+int32_t arm_convolve_even_s4_get_buffer_size(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims);
 
 /**
  * @brief Get the required buffer size for s8 convolution function
