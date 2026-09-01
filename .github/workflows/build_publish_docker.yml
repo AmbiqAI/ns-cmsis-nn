@@ -54,6 +54,7 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       # Bootstrap/tooling checkout: gets scripts/ci/resolve_image_tags.sh AND

@@ -28,6 +28,7 @@ jobs:
   check_pdsc:
     name: Check PDSC file
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -42,6 +43,7 @@ jobs:
     # plumbing, and every <file> path resolves on disk. See M3 #170.
     name: PDSC contract (identity, versions, files)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -68,6 +70,7 @@ jobs:
     # extra-file is still carrying the old version. See #347.
     name: No stale previous-version references
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -88,6 +91,7 @@ jobs:
     # +Corstone-300-FVP. Cheap stand-in for a cbuild run.
     name: Float CMSIS component wiring
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -116,6 +120,7 @@ jobs:
     # prevent. See #282.
     name: CMSIS-DSP symbol collisions
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -136,6 +141,7 @@ jobs:
     # gated. See #288.
     name: Public header placeholders
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -156,6 +162,7 @@ jobs:
     # will drift again without a gate.
     name: Toolchain manifest sync
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -173,6 +180,7 @@ jobs:
     # being caught by hand in review. See #283.
     name: Docs API group classification
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -206,6 +214,7 @@ jobs:
     # and the next suite added is covered by having been written. See #339.
     name: Script check test suites
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
