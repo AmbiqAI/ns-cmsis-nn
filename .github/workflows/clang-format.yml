@@ -40,7 +40,7 @@ jobs:
 
       # Pin the formatter to the pre-commit version: the check script otherwise
       # prefers whatever clang-format-N the runner image ships, and ubuntu-24.04
-      # carries 18, which disagrees with 13-16 on seven committed files.
+      # carries 18.1.3, which disagrees with 13-16 on four committed files.
       - name: Install pre-commit and the pinned clang-format
         run: python -m pip install pre-commit==3.8.0 clang-format==16.0.6
 

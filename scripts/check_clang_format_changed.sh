@@ -79,8 +79,9 @@ git rev-parse --verify "${BASE_REF}^{commit}" >/dev/null
 git rev-parse --verify "${HEAD_REF}^{commit}" >/dev/null
 
 # The enforced formatter is clang-format 16 (the .pre-commit-config.yaml pin);
-# formatter major versions disagree on committed files (18 rejects seven that
-# 13 through 16 accept), so the version is checked, not assumed. Resolution
+# formatter major versions disagree on committed files (the 18.1.3 that
+# ubuntu-24.04 ships rejects four that 13 through 16 accept; newer 18.x point
+# releases flag more), so the version is checked, not assumed. Resolution
 # order: CLANG_FORMAT_BIN if set (CI points it at the pip-installed 16.0.6),
 # else clang-format-16, else a bare clang-format that reports major 16.
 REQUIRED_CLANG_FORMAT_MAJOR=16
@@ -94,7 +95,11 @@ else
   echo "no clang-format found. Install clang-format ${REQUIRED_CLANG_FORMAT_MAJOR} (pip install clang-format==16.0.6) or set CLANG_FORMAT_BIN." >&2
   exit 3
 fi
-found_major="$("${CLANG_FORMAT_BIN}" --version 2>/dev/null | sed -E "s/.*version ([0-9]+)\\..*/\\1/")"
+raw_version="$("${CLANG_FORMAT_BIN}" --version 2>/dev/null || true)"
+found_major=""
+if [[ "${raw_version}" =~ version\ ([0-9]+)\. ]]; then
+  found_major="${BASH_REMATCH[1]}"
+fi
 if [[ "${found_major}" != "${REQUIRED_CLANG_FORMAT_MAJOR}" ]]; then
   echo "clang-format major ${found_major:-unknown} found at $(command -v "${CLANG_FORMAT_BIN}"); this repo enforces ${REQUIRED_CLANG_FORMAT_MAJOR}.x." >&2
   echo "Install it with: pip install clang-format==16.0.6   (then: CLANG_FORMAT_BIN=clang-format $0 ...)" >&2
