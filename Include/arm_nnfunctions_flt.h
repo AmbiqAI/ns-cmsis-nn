@@ -476,15 +476,15 @@ arm_cmsis_nn_status arm_prelu_f32(const cmsis_nn_dims *input_dims,
 /**
  * @brief Elementwise add with optional output clamp.
  *
- * Non-finite inputs are not supported. The shipped library is built with -Ofast (CMSIS_OPTIMIZATION_LEVEL
- * in the top-level CMakeLists.txt), which implies -ffinite-math-only, and that flag licenses the compiler
- * to assume neither NaNs nor infinities occur. What comes back for a NaN is therefore unspecified: it may
- * be a NaN, or it may be one of the clamp bounds, and which of the two bounds is likewise unspecified.
- * Toolchains gated by this project differ on this, and no optimization level or compiler flag is offered
- * as a guaranteed way to obtain either outcome, so callers must rely on neither. When a bound comes back,
- * the +/-INFINITY "no clamp" idiom turns the NaN into an infinity and finite-extreme bounds turn it into
- * an ordinary finite value, so a NaN can become a normal number. Callers needing TensorFlow Lite NaN
- * semantics must screen their inputs first. See issue #333.
+ * NaN propagates through the clamp (TensorFlow Lite semantics): a quiet NaN in either input operand, or a
+ * NaN produced by the arithmetic itself (such as Inf - Inf for subtract), yields a NaN at that output
+ * element. This holds at every optimization level, including the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL
+ * in the top-level CMakeLists.txt): the clamp classifies NaN on the integer bit pattern of the value
+ * rather than with a floating-point compare, and the -ffinite-math-only that -Ofast implies grants no
+ * license to fold integer arithmetic, so the check cannot be optimized away. Verified by execution on the
+ * gated Arm GNU Toolchain and by disassembly on armclang; see issues #333 and #334. Only the NaN-ness of
+ * the element is guaranteed, not a particular NaN payload. Infinities that are not NaN still clamp to the
+ * activation bounds (and pass through unchanged under the +/-INFINITY "no clamp" idiom).
  *
  * @param[in]  input_1_vect        Pointer to the first input vector.
  * @param[in]  input_2_vect        Pointer to the second input vector.
@@ -505,15 +505,15 @@ arm_cmsis_nn_status arm_elementwise_add_f32(const float32_t *input_1_vect,
 /**
  * @brief Elementwise subtract with optional output clamp.
  *
- * Non-finite inputs are not supported. The shipped library is built with -Ofast (CMSIS_OPTIMIZATION_LEVEL
- * in the top-level CMakeLists.txt), which implies -ffinite-math-only, and that flag licenses the compiler
- * to assume neither NaNs nor infinities occur. What comes back for a NaN is therefore unspecified: it may
- * be a NaN, or it may be one of the clamp bounds, and which of the two bounds is likewise unspecified.
- * Toolchains gated by this project differ on this, and no optimization level or compiler flag is offered
- * as a guaranteed way to obtain either outcome, so callers must rely on neither. When a bound comes back,
- * the +/-INFINITY "no clamp" idiom turns the NaN into an infinity and finite-extreme bounds turn it into
- * an ordinary finite value, so a NaN can become a normal number. Callers needing TensorFlow Lite NaN
- * semantics must screen their inputs first. See issue #333.
+ * NaN propagates through the clamp (TensorFlow Lite semantics): a quiet NaN in either input operand, or a
+ * NaN produced by the arithmetic itself (such as Inf - Inf for subtract), yields a NaN at that output
+ * element. This holds at every optimization level, including the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL
+ * in the top-level CMakeLists.txt): the clamp classifies NaN on the integer bit pattern of the value
+ * rather than with a floating-point compare, and the -ffinite-math-only that -Ofast implies grants no
+ * license to fold integer arithmetic, so the check cannot be optimized away. Verified by execution on the
+ * gated Arm GNU Toolchain and by disassembly on armclang; see issues #333 and #334. Only the NaN-ness of
+ * the element is guaranteed, not a particular NaN payload. Infinities that are not NaN still clamp to the
+ * activation bounds (and pass through unchanged under the +/-INFINITY "no clamp" idiom).
  *
  * @param[in]  input_1_vect        Pointer to the first input vector (minuend).
  * @param[in]  input_2_vect        Pointer to the second input vector (subtrahend).
@@ -545,15 +545,15 @@ arm_cmsis_nn_status arm_nn_abs_f32(const float32_t *input, float32_t *output, in
 /**
  * @brief Elementwise multiply with optional output clamp.
  *
- * Non-finite inputs are not supported. The shipped library is built with -Ofast (CMSIS_OPTIMIZATION_LEVEL
- * in the top-level CMakeLists.txt), which implies -ffinite-math-only, and that flag licenses the compiler
- * to assume neither NaNs nor infinities occur. What comes back for a NaN is therefore unspecified: it may
- * be a NaN, or it may be one of the clamp bounds, and which of the two bounds is likewise unspecified.
- * Toolchains gated by this project differ on this, and no optimization level or compiler flag is offered
- * as a guaranteed way to obtain either outcome, so callers must rely on neither. When a bound comes back,
- * the +/-INFINITY "no clamp" idiom turns the NaN into an infinity and finite-extreme bounds turn it into
- * an ordinary finite value, so a NaN can become a normal number. Callers needing TensorFlow Lite NaN
- * semantics must screen their inputs first. See issue #333.
+ * NaN propagates through the clamp (TensorFlow Lite semantics): a quiet NaN in either input operand, or a
+ * NaN produced by the arithmetic itself (such as Inf - Inf for subtract), yields a NaN at that output
+ * element. This holds at every optimization level, including the shipped -Ofast (CMSIS_OPTIMIZATION_LEVEL
+ * in the top-level CMakeLists.txt): the clamp classifies NaN on the integer bit pattern of the value
+ * rather than with a floating-point compare, and the -ffinite-math-only that -Ofast implies grants no
+ * license to fold integer arithmetic, so the check cannot be optimized away. Verified by execution on the
+ * gated Arm GNU Toolchain and by disassembly on armclang; see issues #333 and #334. Only the NaN-ness of
+ * the element is guaranteed, not a particular NaN payload. Infinities that are not NaN still clamp to the
+ * activation bounds (and pass through unchanged under the +/-INFINITY "no clamp" idiom).
  *
  * @param[in]  input_1_vect        Pointer to the first input vector.
  * @param[in]  input_2_vect        Pointer to the second input vector.
