@@ -20,7 +20,7 @@ via the NSX manifest or a CMake cache variable. Refer to your NSX
 project's docs for the exact knob — typically:
 
 ```cmake
-set(NSX_CMSIS_NN_VERSION "7.30.0" CACHE STRING "heliaCORE release to use") # x-release-please-version
+set(NSX_CMSIS_NN_VERSION "7.31.0" CACHE STRING "heliaCORE release to use") # x-release-please-version
 ```
 
 ## Verifying the link
