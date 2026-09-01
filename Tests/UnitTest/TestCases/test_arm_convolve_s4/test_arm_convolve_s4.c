@@ -1516,7 +1516,7 @@ void buffer_size_even_arm_convolve_s4(void)
         {1, 1, 536870911},  // rhs_cols = 2^29 - 1: the largest byte count that still fits an int32_t
         {1, 1, 536870912},  // rhs_cols = 2^29: 4 * rhs_cols is 2^31, one past INT32_MAX, both must answer -1
         {1, 1, 1073741825}, // the issue #317 shape: both must answer -1, not a wrapped 4
-        {2, 2, 268435457},  // rhs_cols itself overflows int32: both must answer -1
+        {2, 2, 268435457},  // the byte count (4 * rhs_cols) overflows int32: both must answer -1
         {-1, 1, 2},         // negative dims must agree too: both -1, on every field either sizer reads
         {1, -1, 2},
         {1, 1, -1},
