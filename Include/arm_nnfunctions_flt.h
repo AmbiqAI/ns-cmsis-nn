@@ -1587,6 +1587,31 @@ arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
 arm_cmsis_nn_status arm_nn_abs_f16(const float16_t *input, float16_t *output, int32_t block_size);
 
 /**
+ * @ingroup groupElementwise
+ * @brief Computes the elementwise reciprocal square root of a float16 tensor.
+ *
+ * Targets with scalar float16 arithmetic evaluate `VSQRT.F16` followed by
+ * `VDIV.F16`; other targets evaluate in float32 and round once to float16.
+ * The scalar float16 path can differ from the float32 path by one float16 ULP
+ * because its square-root intermediate is rounded before division.
+ *
+ * On IEEE binary16 targets, special-value behavior is preserved independently
+ * of compiler fast-math settings: positive zero maps to positive infinity,
+ * negative zero maps to negative infinity, negative finite values and negative
+ * infinity map to NaN, positive infinity maps to positive zero, and NaN
+ * propagates as a quiet NaN. Targets configured for Arm alternative half
+ * precision, which has no infinity or NaN encodings, use native arithmetic
+ * without IEEE bit-pattern classification.
+ *
+ * @param[in]  input       Pointer to the input tensor
+ * @param[out] output      Pointer to the output tensor; may alias @p input
+ * @param[in]  block_size  Number of tensor elements
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_rsqrt_f16(const float16_t *input, float16_t *output, int32_t block_size);
+
+/**
  * @ingroup Concatenation
  * @brief float16 split of a tensor into multiple tensors along the target axis.
  *
