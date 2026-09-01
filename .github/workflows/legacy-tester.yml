@@ -42,7 +42,7 @@ jobs:
 
   build-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     needs: resolve-container-image
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}

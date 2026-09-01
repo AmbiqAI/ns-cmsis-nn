@@ -119,9 +119,10 @@ count so the MVE tail-predication path is exercised.
 
 - clang-format via `scripts/check_clang_format_changed.sh` — that script is
   the authority on the required clang-format version and covered paths
-  (currently LLVM 18 over `Include`, `Source`, and
-  `Tests/UnitTest/Corstone-300`); `.pre-commit-config.yaml` pins the
-  pre-commit hook version separately.
+  (clang-format 16.x, matching the `.pre-commit-config.yaml` pin of 16.0.6,
+  over `Include`, `Source`, and `Tests/UnitTest/Corstone-300`); install it
+  with `pip install clang-format==16.0.6` and, if another version is first
+  on PATH, point `CLANG_FORMAT_BIN` at it.
 - `python3 scripts/check_pdsc.py` after any manifest change.
 - `python3 scripts/check_stale_version_refs.py` if you add a file that
   hardcodes the release version. Anything that stamps the version must be
