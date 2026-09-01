@@ -1,5 +1,25 @@
 # Changelog
 
+## [7.31.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.30.0...v7.31.0) (2026-09-01)
+
+
+### Bug Fixes
+
+* **activation:** propagate NaN through the f16 MVE and f32 activation legs ([#388](https://github.com/AmbiqAI/ns-cmsis-nn/issues/388)) ([9af2827](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9af28276101b24acd82f0b64f228127fe9f28bde)), closes [#382](https://github.com/AmbiqAI/ns-cmsis-nn/issues/382)
+* **basicmath:** propagate NaN through the float elementwise clamps at every optimization level ([#380](https://github.com/AmbiqAI/ns-cmsis-nn/issues/380)) ([3ea1238](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3ea12385cd3c78e63e04465491dee304342d8905))
+* **conv:** gate the 1x1-fast dsp leg and fold the 1xN routing arithmetic to 64 bits ([#371](https://github.com/AmbiqAI/ns-cmsis-nn/issues/371)) ([79fd939](https://github.com/AmbiqAI/ns-cmsis-nn/commit/79fd939d1be0d83059d53faadb1970f01b93e067))
+* **docs:** verify and retry the Doxygen download before extracting ([#352](https://github.com/AmbiqAI/ns-cmsis-nn/issues/352)) ([b7b7498](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b7b74984a856ee6ebc1ead1013ce667fc26f3a3b))
+* **dsp:** convert the shared pack macros to the defined unsigned-shift idiom ([#387](https://github.com/AmbiqAI/ns-cmsis-nn/issues/387)) ([609db42](https://github.com/AmbiqAI/ns-cmsis-nn/commit/609db425d5c55116569cc9f0c78dc2b45a74ddd3))
+* **dsp:** stop shifting negative values in offset packing and scale expressions ([#365](https://github.com/AmbiqAI/ns-cmsis-nn/issues/365)) ([6c1d3c6](https://github.com/AmbiqAI/ns-cmsis-nn/commit/6c1d3c6cc15cb8fc5fb65742923029c006da22da))
+* **lstm:** public temp-buffer sizers for the LSTM/GRU scratch class ([#381](https://github.com/AmbiqAI/ns-cmsis-nn/issues/381)) ([b0574c7](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b0574c79b9511f56441917ec414112baba3d73e2))
+* **sizers:** apply the generic gates to the *_get_buffer_size_dsp variants ([#364](https://github.com/AmbiqAI/ns-cmsis-nn/issues/364)) ([5260f6f](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5260f6ff983b49e449ed5185d965e3c5f5547ab2))
+* **sizers:** pin arm_convolve_even_s4's buffer contract with a forwarding sizer ([#379](https://github.com/AmbiqAI/ns-cmsis-nn/issues/379)) ([8a56f0f](https://github.com/AmbiqAI/ns-cmsis-nn/commit/8a56f0fba4448a7fc91405b28a74de333a6f1e69))
+
+
+### Chores
+
+* **release:** retype the pending release as 7.31.0 ([#389](https://github.com/AmbiqAI/ns-cmsis-nn/issues/389)) ([036106a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/036106ae44bcb99eb3916efbfebbf1846cf1e370))
+
 ## [7.30.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.29.2...v7.30.0) (2026-08-30)
 
 
