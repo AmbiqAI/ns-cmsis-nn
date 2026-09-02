@@ -266,6 +266,19 @@ jobs:
       # per-CPU build trees (build-<cpu>-gcc) are not cached at all, by this
       # job or by legacy-tester.
       #
+      # The clone pins (#402) get no key term of their own, and they do not
+      # need one. The CMSIS_5 and ethos-u-core-platform working trees are
+      # inside the cached directory -- build_and_run_tests.sh clones them into
+      # Tests/UnitTest/downloads -- so a stale entry could indeed hand a later
+      # run a clone at the wrong commit. But CMSIS_5_COMMIT and
+      # ETHOS_U_CORE_PLATFORM_COMMIT are recorded in build_and_run_tests.sh,
+      # and the hashFiles() term below already covers that file byte for byte,
+      # exactly as it covers GCC_URL: bump a pin and the key changes and the
+      # entry misses. A second, hand-spelled copy of the SHAs in this key
+      # would be a second source of truth free to disagree with the first.
+      # The assertion step below is the backstop for an entry that arrives at
+      # the wrong commit by some other route.
+      #
       # Restore and save are split on purpose (`cache/restore` here,
       # `cache/save` at the end) rather than using the combined `cache`
       # action. The combined action's post-job save carries
@@ -313,7 +326,7 @@ jobs:
       # nothing here has to be updated when the pin moves; a mismatch fails
       # the job loudly instead of silently gating a release on a compiler
       # nobody chose.
-      - name: Assert the pinned Arm GNU toolchain
+      - name: Assert the pinned Arm GNU toolchain and clone commits
         id: toolchain
         shell: bash
         run: |
@@ -372,6 +385,45 @@ jobs:
             exit 1
           fi
           echo "Arm GNU toolchain ${actual} matches the harness pin -- ok."
+
+          # Same argument, same step, for the two third-party clones (#402).
+          # The harness verifies its own pins as it clones, but that check is
+          # skipped for a tree that already exists -- which, in this job, is
+          # every warm-cache run. Re-assert here against the restored tree, so
+          # a cache entry holding CMSIS_5 or ethos-u-core-platform at some
+          # other commit cannot silently supply the CMake toolchain file and
+          # headers this gate compiles with. This is also why the assertion
+          # lives in the step whose outcome the save condition below requires.
+          for pin in \
+            CMSIS_5_COMMIT:CMSIS_5 \
+            ETHOS_U_CORE_PLATFORM_COMMIT:ethos-u-core-platform; do
+            var="${pin%%:*}"
+            dir="Tests/UnitTest/downloads/${pin##*:}"
+
+            pinned="$(sed -n "s|^${var}=\"\([0-9a-f]\{40\}\)\"$|\1|p" "${script}")"
+            if [ -z "${pinned}" ] || [ "$(printf '%s\n' "${pinned}" | wc -l)" -ne 1 ]; then
+              echo "Cannot read a single 40-character ${var} from ${script}." >&2
+              printf 'read: %s\n' "${pinned}" >&2
+              exit 1
+            fi
+
+            # `-c safe.directory` keeps this working whatever user the
+            # container runs as; the tree was written by the harness, not
+            # checked out by actions/checkout.
+            head_sha="$(git -c safe.directory='*' -C "${dir}" rev-parse HEAD 2>/dev/null || true)"
+            if [ "${head_sha}" != "${pinned}" ]; then
+              echo "Clone pin mismatch in ${dir}." >&2
+              echo "  ${script} pins ${var}=${pinned}," >&2
+              echo "  but the checked-out HEAD is ${head_sha:-(not a git checkout)}." >&2
+              echo "The restored Tests/UnitTest/downloads cache entry is stale:" >&2
+              echo "the harness skips the clone whenever the directory already" >&2
+              echo "exists, so it never corrects this by itself. Evict the" >&2
+              echo "cache entry (its key is shared with legacy-tester.yml) and" >&2
+              echo "re-run." >&2
+              exit 1
+            fi
+            echo "${dir} at ${head_sha} matches ${var} -- ok."
+          done
 
       - name: Compile every Unity test TU for ${{ matrix.cpu }}
         # `shell: bash` is explicit for `-o pipefail` and for predictability.

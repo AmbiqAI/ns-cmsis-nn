@@ -35,6 +35,26 @@ ETHOS_U_CORE_PLATFORM_PATH=""
 CMSIS_5_PATH=""
 CMAKE_EXTRA_DEFS=""
 
+# Third-party clone pins (AmbiqAI/ns-cmsis-nn#402). Both clones below used to
+# track their upstream default branch, so an upstream push could change -- or
+# break -- this repo's PR-required compile gate with no change in this repo,
+# and a transient network failure failed that gate outright. The pins are
+# recorded here, in one place, alongside the toolchain pin that GCC_URL
+# carries in Setup_Environment below; CI asserts the checked-out HEADs against
+# these same variables.
+#
+# To bump: put the new full 40-character commit here (the HEAD check compares
+# the whole string, so an abbreviation will not do) and update the trailing
+# branch/date comment. Nothing else needs touching -- the CI downloads cache
+# keys on a hash of this file, so a bump misses the cache and re-clones
+# instead of reusing the previously pinned tree.
+CMSIS_5_URL="https://github.com/ARM-software/CMSIS_5.git"
+# develop @ 2024-09-03; the upstream repository is archived.
+CMSIS_5_COMMIT="55b19837f5703e418ca37894d5745b1dc05e4c91"
+ETHOS_U_CORE_PLATFORM_URL="https://gitlab.arm.com/artificial-intelligence/ethos-u/ethos-u-core-platform"
+# main @ 2026-08-19.
+ETHOS_U_CORE_PLATFORM_COMMIT="cec1a0ae3f05b2cf9a1518c7087cda96aed322a0"
+
 usage="
 Helper script to setup, build and run CMSIS-NN unit tests
 
@@ -79,6 +99,89 @@ do
 done
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd -P)
+
+# Bounded retry around one network step (#402): three attempts with a widening
+# backoff and a log line per attempt, so a transient GitHub or GitLab failure
+# does not fail a required check on its own. The command is run as given, so
+# both plain commands and the shell functions below can be passed to it.
+Retry() {
+    local what="$1"
+    shift
+    local attempt=1
+    local max_attempts=3
+    local delay=5
+
+    while true; do
+        echo "   ${what}: attempt ${attempt} of ${max_attempts}"
+        local status=0
+        "$@" || status=$?
+        if [[ ${status} -eq 0 ]]; then
+            return 0
+        fi
+        # 125 is this script's "do not retry" signal: the step failed for a
+        # reason another attempt cannot fix, such as a pinned commit the
+        # remote does not have. Retrying that would only re-download the
+        # repository twice more.
+        if [[ ${status} -eq 125 ]]; then
+            echo "   ${what}: giving up after attempt ${attempt}, retrying cannot fix this." >&2
+            return 1
+        fi
+        if [[ ${attempt} -ge ${max_attempts} ]]; then
+            echo "   ${what}: failed after ${max_attempts} attempts." >&2
+            return 1
+        fi
+        echo "   ${what}: attempt ${attempt} failed, retrying in ${delay}s." >&2
+        sleep "${delay}"
+        attempt=$((attempt + 1))
+        delay=$((delay * 2))
+    done
+}
+
+# Clone <url> into <dir> at exactly <commit>. The commit is fetched directly
+# at depth 1, which both remotes pinned above serve today; a full fetch is the
+# fallback for a server that will not serve a bare commit that way, and it is
+# also what turns a wrong pin into a clear "no such commit". Any tree
+# left behind by an earlier attempt is removed first, so a retry never resumes
+# into a half-written clone; that is the same hazard the "already installed"
+# checks in Setup_Environment cannot see, and the Assert_Pinned call after
+# each clone is what catches it if it ever survives this far.
+Clone_At_Commit() {
+    local name="$1" url="$2" dir="$3" commit="$4"
+
+    rm -rf "${dir}"
+    git -c init.defaultBranch=main init --quiet "${dir}" || return 1
+    git -C "${dir}" remote add origin "${url}" || return 1
+    if ! git -C "${dir}" fetch --quiet --depth=1 origin "${commit}"; then
+        echo "   ${name}: shallow fetch of that commit failed, trying a full fetch"
+        git -C "${dir}" fetch --quiet origin || return 1
+    fi
+    if ! git -C "${dir}" checkout --quiet "${commit}"; then
+        echo "   ${name}: fetched ${url}, but it has no commit ${commit}." >&2
+        echo "   Check the pin at the top of this script." >&2
+        return 125
+    fi
+}
+
+# Fail loud unless <dir> sits exactly on <commit>. Runs on every path, not
+# only after a fresh clone: a directory restored from a CI cache, or left
+# behind by an older unpinned checkout, is skipped by the "already installed"
+# branches above and would otherwise be used at whatever commit it happens to
+# hold.
+Assert_Pinned() {
+    local name="$1" url="$2" dir="$3" commit="$4"
+    local head
+
+    head="$(git -C "${dir}" rev-parse HEAD 2>/dev/null || true)"
+    if [[ "${head}" != "${commit}" ]]; then
+        echo "${name}: clone is not at its pin." >&2
+        echo "  repository:  ${url}" >&2
+        echo "  pinned at:   ${commit}" >&2
+        echo "  HEAD is:     ${head:-(none - ${dir} is not a git checkout)}" >&2
+        echo "  Delete ${dir} and re-run to re-clone at the pinned commit." >&2
+        exit 1
+    fi
+    echo "   ${name} pinned at ${commit} -- ok."
+}
 
 Setup_Environment() {
     set -e
@@ -128,15 +231,21 @@ Setup_Environment() {
     if [[ -d ${WORKING_DIR}/CMSIS_5 ]]; then
         echo "CMSIS-5 already installed. If you wish to install a new version, please delete the old folder."
     else
-        git clone --quiet --depth=1 https://github.com/ARM-software/CMSIS_5.git
+        Retry "clone CMSIS_5" Clone_At_Commit \
+            "CMSIS_5" "${CMSIS_5_URL}" "${WORKING_DIR}/CMSIS_5" "${CMSIS_5_COMMIT}"
     fi
+    Assert_Pinned "CMSIS_5" "${CMSIS_5_URL}" "${WORKING_DIR}/CMSIS_5" "${CMSIS_5_COMMIT}"
 
     echo "++ Cloning Ethos-U core platform"
     if [[ -d ${WORKING_DIR}/ethos-u-core-platform ]]; then
         echo "Ethos-U core platform already installed. If you wish to install a new version, please delete the old folder."
     else
-        git clone --quiet --depth=1 https://gitlab.arm.com/artificial-intelligence/ethos-u/ethos-u-core-platform
+        Retry "clone ethos-u-core-platform" Clone_At_Commit \
+            "ethos-u-core-platform" "${ETHOS_U_CORE_PLATFORM_URL}" \
+            "${WORKING_DIR}/ethos-u-core-platform" "${ETHOS_U_CORE_PLATFORM_COMMIT}"
     fi
+    Assert_Pinned "ethos-u-core-platform" "${ETHOS_U_CORE_PLATFORM_URL}" \
+        "${WORKING_DIR}/ethos-u-core-platform" "${ETHOS_U_CORE_PLATFORM_COMMIT}"
 
     echo "++ Setting up python environment"
     if [[ -d ${WORKING_DIR}/cmsis_nn_venv ]]; then
