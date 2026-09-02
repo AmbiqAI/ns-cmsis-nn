@@ -23,13 +23,20 @@ name: Unity m55 Compile
 # (test_arm_convolve_s8.c, test_arm_convolve_s16.c,
 # test_arm_depthwise_conv_s8.c, ...) that an m55 build never reaches, because
 # m55 defines ARM_MATH_MVEI. Those blocks compile on cortex-m4 and nowhere
-# else in this repo's PR gates; cortex-m0 covers the third shape, where
-# neither macro is defined.
+# else in this repo's PR gates.
+#
+# cortex-m0 is not there for a preprocessor shape: host-sanitizer already
+# compiles the neither-DSP-nor-MVEI shape of these files, on x86, with F32
+# and F16 on and under the same -Werror set. What m0 adds is the target and
+# the toolchain -- arm-none-eabi 14.2.rel1 at -Ofast on a soft-float, no-FPU
+# core (-mfloat-abi=soft, -includeARMCM0.h) -- which the host leg's x86
+# codegen, ABI and float model say nothing about.
 #
 # Names: this file, the ci.yml job id that calls it and the m55 cell's job
-# name are all still spelled "m55" on purpose. The cell name is a check-run
-# context, and renaming a context silently drops it from the ruleset that
-# requires it. The m55 spelling is historical, not a statement of scope.
+# name are all still spelled "m55". They are kept to avoid churn; the only
+# required context is `CI Passed`, which keys on the ci.yml job id, not on
+# this display name. The m55 spelling is historical, not a statement of
+# scope.
 #
 # Drift policy: the build command below is legacy-tester.yml's build step
 # verbatim -- including its cortex-m55 vs. everything-else float-flag branch
@@ -86,8 +93,8 @@ jobs:
     #   run 33665856582 -- genuinely cold, the shared downloads cache entry
     #   was evicted first and all three cells logged "Cache not found":
     #     cortex-m55 6 min 05 s   cortex-m4 3 min 20 s   cortex-m0 3 min 18 s
-    #   run 33663873661 -- warm:
-    #     cortex-m55 2 min 47 s   cortex-m4 2 min 28 s   cortex-m0 2 min 25 s
+    #   run 33667148805 -- warm, and the run that is green on this head:
+    #     cortex-m55 2 min 38 s   cortex-m4 2 min 28 s   cortex-m0 2 min 31 s
     # The m55 cell is the slow one only because it is the cell that *saves*
     # the 1.07 GiB cache entry: its build and coverage check finished at
     # 3 min 17 s and the remaining 2 min 48 s was the upload. m4 and m0 are
@@ -482,6 +489,35 @@ jobs:
             echo "  gated off: $(tr '\n' ' ' < "${work}/gated_off")"
           fi
 
+          # The m55 cell turns on every option the legacy leg turns on, so
+          # nothing may be gated off *there*. Without this, the option-aware
+          # subtraction above would quietly retire the property #396 exists
+          # for: a new `if(ARM_NN_ENABLE_X) add_subdirectory(...)` whose
+          # option defaults OFF, or an option added to legacy-tester.yml's
+          # command and not to this one, resolves to gated-off in every cell,
+          # is subtracted from every set, and the gate goes green over
+          # translation units no PR job compiles -- which is exactly the
+          # nightly/release escape this workflow was built to close. The
+          # m4/m0 cells are allowed to gate suites off precisely because this
+          # cell is not.
+          if [ "${cpu}" = "cortex-m55" ] && [ "${gated_n}" != "0" ]; then
+            echo "Unity ${cpu} coverage: ${gated_n} suite(s) gated off on the cell that enables everything." >&2
+            sed 's|^|  |' "${work}/gated_off" >&2
+            echo "" >&2
+            echo "Tests/UnitTest/CMakeLists.txt declares those suites under a" >&2
+            echo "CMake option this cell did not turn on. This is the cell" >&2
+            echo "that stands in for the legacy leg's full-option build, so a" >&2
+            echo "suite gated off here is compiled by no cell of this gate at" >&2
+            echo "all, and first meets a cross-compiler at nightly/release." >&2
+            echo "" >&2
+            echo "Fix: add the option to this workflow's cortex-m55 command," >&2
+            echo "next to -D ARM_NN_ENABLE_F32=ON -D ARM_NN_ENABLE_F16=ON, and" >&2
+            echo "to legacy-tester.yml's cortex-m55 line if it is not already" >&2
+            echo "there. Do not silence this by adding the name to an" >&2
+            echo "exclusion list." >&2
+            exit 1
+          fi
+
           report_diff() {
             local left_name="$1" left_file="$2" right_name="$3" right_file="$4"
             local only_left only_right
@@ -581,8 +617,12 @@ jobs:
       # three cells finishing a cold fetch within seconds of each other would
       # race one key, and the two losers log an "already exists" warning that
       # reads like a cache fault. If the m55 cell is the one that fails early,
-      # the next run simply pays the cold fetch again -- the same position
-      # this job was in before the cache existed.
+      # the next run pays the cold fetch again -- and it is now three cells
+      # paying it, not one: the cold run 33665856582 cost 6 min 05 s +
+      # 3 min 20 s + 3 min 18 s = 12 min 43 s of runner time, against the
+      # 5 min 46 s a single cold m55 cell cost under #396. That is the price
+      # of electing one writer, and it is why the m55 cell's save condition
+      # is the one that must not be tightened further.
       - name: Save tests-downloads cache
         if: >-
           !cancelled()

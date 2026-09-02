@@ -73,8 +73,9 @@ jobs:
   # The callee fans out over cortex-m55, cortex-m4 and cortex-m0 (#398) in
   # its own matrix, so the cores are added without a new entry here: a failing
   # cell fails this job, which `ci-passed` already requires. The job id and
-  # the callee's m55 cell name stay spelled "m55" because they are check-run
-  # contexts the ruleset names.
+  # the callee's m55 cell name stay spelled "m55" to avoid churn; the only
+  # required context is `CI Passed`, which keys on this job id through
+  # `needs:`, not on either display name.
   unity-m55-compile:
     uses: ./.github/workflows/unity-m55-compile.yml
 
