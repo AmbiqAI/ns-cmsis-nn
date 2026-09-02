@@ -93,6 +93,18 @@ PACKCHK_DEPS="
 # unescaped in the pdsc <release> body in "release"/"full" modes and break the
 # packchk schema validation against PACK.xsd. With "tag" mode only the version
 # and date are emitted; full release notes still live on the GitHub Release page.
+#
+# DECISION (#395): "tag" mode is the contract for pdsc generation -- do not
+# switch this to "full". In "full" mode the changelog text falls back to raw
+# commit bodies, and upstream gen-pack's git_changelog_pdsc embeds them in
+# the <release> element WITHOUT XML-escaping, so a single '<' in a commit
+# body (a "Co-authored-by: ... <...>" trailer, for instance) breaks the pdsc
+# schema check. This repo deliberately does NOT add a local escape for that
+# text: the escaping belongs upstream in gen-pack, and ns-cmsis-nn escapes
+# only what it owns (scripts/ci/ensure_local_tag_annotation.sh escapes the
+# tag annotation it writes). CI must therefore leave PACK_CHANGELOG_MODE
+# unset for this script; .github/workflows/pack-dryrun.yml rehearses that
+# same tag-mode path against a synthetic local-only annotated tag.
 : "${PACK_CHANGELOG_MODE:=tag}"
 # custom pre-processing steps
 #
