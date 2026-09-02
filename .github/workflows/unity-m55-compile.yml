@@ -27,7 +27,10 @@ name: Unity m55 Compile
 #
 # cortex-m0 is not there for a preprocessor shape: host-sanitizer already
 # compiles the neither-DSP-nor-MVEI shape of these files, on x86, with F32
-# and F16 on and under the same -Werror set. What m0 adds is the target and
+# and F16 on, under -Werror -- but with a smaller warning set than the target
+# cells, which additionally take the ethos-u toolchain file's own set (-Wall
+# -Wextra -Wshadow -Wswitch-default and the rest, via
+# build_and_run_tests.sh:256). What m0 adds is the target and
 # the toolchain -- arm-none-eabi 14.2.rel1 at -Ofast on a soft-float, no-FPU
 # core (-mfloat-abi=soft, -includeARMCM0.h) -- which the host leg's x86
 # codegen, ABI and float model say nothing about.
@@ -93,8 +96,11 @@ jobs:
     #   run 33665856582 -- genuinely cold, the shared downloads cache entry
     #   was evicted first and all three cells logged "Cache not found":
     #     cortex-m55 6 min 05 s   cortex-m4 3 min 20 s   cortex-m0 3 min 18 s
-    #   run 33667148805 -- warm, and the run that is green on this head:
+    #   run 33667148805 -- warm baseline for these figures, measured on this
+    #   branch:
     #     cortex-m55 2 min 38 s   cortex-m4 2 min 28 s   cortex-m0 2 min 31 s
+    #   (The run that is green on the merged head is cited in the PR
+    #   description: a comment cannot name the run its own commit triggers.)
     # The m55 cell is the slow one only because it is the cell that *saves*
     # the 1.07 GiB cache entry: its build and coverage check finished at
     # 3 min 17 s and the remaining 2 min 48 s was the upload. m4 and m0 are
@@ -133,6 +139,125 @@ jobs:
             echo "- selected image: \`${{ needs.resolve-container-image.outputs.container_image }}\`"
             echo "- source: \`${{ needs.resolve-container-image.outputs.resolved_from }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # The header above says this job replays legacy-tester.yml's build
+      # command. Assert that mechanically instead of claiming it -- same
+      # idiom as the "Toolchain manifest sync" step: derive both sides from
+      # the two files, diff, and name both files on a mismatch.
+      #
+      # Two drifts are invisible to everything else in this job. (1) An
+      # option added only to legacy-tester.yml that flips a compile *define*
+      # consumed by an #if inside translation units this gate already
+      # compiles: no new suite appears, so the gated-off rule in the coverage
+      # step stays at 0 and the gate stays green over code no PR job builds.
+      # (2) A fourth core added to legacy-tester.yml's matrix, which this
+      # gate would simply never build. Neither shows up as a suite count.
+      - name: Assert this gate replays legacy-tester.yml's matrix and flags
+        shell: bash
+        run: |
+          set -euo pipefail
+          legacy=.github/workflows/legacy-tester.yml
+          gate=.github/workflows/unity-m55-compile.yml
+          work="$(mktemp -d)"
+
+          # (1) the cores each file builds. legacy-tester.yml spells the
+          # matrix key `core` and this file spells it `cpu`; the list is what
+          # has to agree, not the key.
+          cores() {
+            awk -v key="$2" '
+              $0 ~ "^[ \t]*" key ":[ \t]*$" { inlist = 1; next }
+              inlist && /^[ \t]*-[ \t]*cortex-/ { sub(/^[ \t]*-[ \t]*/, ""); print; next }
+              inlist { exit }
+            ' "$1" | sort
+          }
+          cores "${legacy}" core > "${work}/cores_legacy"
+          cores "${gate}" cpu > "${work}/cores_gate"
+
+          # (2) the harness invocations that build something. The
+          # dependency-only `-rb` call is not one of them, hence the `-D`
+          # filter. Normalise away exactly what this gate is entitled to
+          # differ in -- `-r` (build, never run), `-q`, and the matrix
+          # expression naming the cpu -- and sort the -D flags so ordering is
+          # not a false positive. Anything else that differs is drift.
+          # The matrix expression is matched through character classes so
+          # this run: block does not contain the literal expression opener,
+          # which GitHub would expand before bash ever saw it.
+          invocations() {
+            grep -oE '\./build_and_run_tests\.sh .*' "$1" \
+              | grep -E ' -D ' \
+              | sed -E -e 's/[$][{][{] *matrix\.(core|cpu) *[}][}]/<cpu>/g' \
+                       -e 's/ -q / /g' -e 's/ -r / /g' \
+              | awk '
+                  {
+                    split("", defs); ndefs = 0; cpu = ""
+                    for (i = 1; i <= NF; i++) {
+                      if ($i == "-c") { cpu = $(i + 1); i++ }
+                      else if ($i == "-D") { defs[++ndefs] = $(i + 1); i++ }
+                    }
+                    for (a = 2; a <= ndefs; a++) {
+                      v = defs[a]; b = a - 1
+                      while (b >= 1 && defs[b] > v) { defs[b + 1] = defs[b]; b-- }
+                      defs[b + 1] = v
+                    }
+                    out = "cpu=" cpu
+                    for (a = 1; a <= ndefs; a++) out = out " -D " defs[a]
+                    print out
+                  }
+                '
+          }
+          invocations "${legacy}" > "${work}/cmd_legacy"
+          invocations "${gate}" > "${work}/cmd_gate"
+
+          echo "cores in ${legacy}: $(tr '\n' ' ' < "${work}/cores_legacy")"
+          echo "cores in ${gate}:   $(tr '\n' ' ' < "${work}/cores_gate")"
+          echo "build invocations (legacy | gate), normalised:"
+          paste -d '|' "${work}/cmd_legacy" "${work}/cmd_gate" | sed 's|^|  |'
+
+          fail=0
+
+          # Both files carry one invocation per float branch (the cortex-m55
+          # branch and the everything-else branch). A count other than two on
+          # either side means the branch shape changed and the pairing below
+          # would be comparing the wrong lines.
+          for f in cmd_legacy cmd_gate; do
+            n="$(wc -l < "${work}/${f}" | tr -d ' ')"
+            if [ "${n}" != "2" ]; then
+              echo "Expected 2 build invocations in the ${f#cmd_} workflow, found ${n}." >&2
+              fail=1
+            fi
+          done
+
+          if [ "${fail}" = "0" ] && ! cmp -s "${work}/cores_legacy" "${work}/cores_gate"; then
+            echo "Core matrix drift between ${legacy} and ${gate}:" >&2
+            diff -u "${work}/cores_legacy" "${work}/cores_gate" \
+              | sed -e '1,2d' -e 's|^|  |' >&2 || true
+            fail=1
+          fi
+
+          if [ "${fail}" = "0" ] && ! cmp -s "${work}/cmd_legacy" "${work}/cmd_gate"; then
+            echo "Build-flag drift between ${legacy} and ${gate}:" >&2
+            diff -u "${work}/cmd_legacy" "${work}/cmd_gate" \
+              | sed -e '1,2d' -e 's|^|  |' >&2 || true
+            fail=1
+          fi
+
+          if [ "${fail}" != "0" ]; then
+            echo "" >&2
+            echo "This gate stands in for legacy-tester.yml's build. When the" >&2
+            echo "two drift apart it stops standing in for anything: a core" >&2
+            echo "only legacy-tester builds is never built on a PR, and a -D" >&2
+            echo "option only legacy-tester passes can flip an #if inside" >&2
+            echo "translation units this gate compiles without adding a suite," >&2
+            echo "so no count in the coverage step moves." >&2
+            echo "" >&2
+            echo "Fix: make the same change in both files --" >&2
+            echo "  ${legacy}  (matrix .core, and the build step's -D lines)" >&2
+            echo "  ${gate}    (matrix .cpu, and the compile step's -D lines)" >&2
+            echo "The gate is allowed to differ only by -r/-q; everything else" >&2
+            echo "must match." >&2
+            exit 1
+          fi
+          echo "Matrix and build flags agree with ${legacy} -- ok."
 
       # Same path and key as legacy-tester.yml so both legs share one cache
       # entry (Corstone-300 FVP, Arm GNU 14.2.rel1, CMSIS_5, ethos-u core
@@ -500,6 +625,13 @@ jobs:
           # nightly/release escape this workflow was built to close. The
           # m4/m0 cells are allowed to gate suites off precisely because this
           # cell is not.
+          #
+          # This covers an option that adds *suites*. An option that only
+          # flips a compile define inside translation units already compiled
+          # here adds no suite and moves no count, so it is out of this
+          # rule's reach; the "Assert this gate replays legacy-tester.yml's
+          # matrix and flags" step above is what catches that, by diffing the
+          # two workflows' -D lists directly.
           if [ "${cpu}" = "cortex-m55" ] && [ "${gated_n}" != "0" ]; then
             echo "Unity ${cpu} coverage: ${gated_n} suite(s) gated off on the cell that enables everything." >&2
             sed 's|^|  |' "${work}/gated_off" >&2
