@@ -48,6 +48,25 @@ CMAKE_EXTRA_DEFS=""
 # branch/date comment. Nothing else needs touching -- the CI downloads cache
 # keys on a hash of this file, so a bump misses the cache and re-clones
 # instead of reusing the previously pinned tree.
+#
+# Keep each *_COMMIT line spelled exactly NAME="<40 hex>", with no trailing
+# comment and no trailing whitespace: unity-m55-compile.yml's assertion step
+# reads these lines with an anchored sed and fails the job outright if it
+# cannot read exactly one match. Put the branch/date note on its own line
+# above, as below.
+#
+# Three flags bypass these pins, all of them deliberately: -e skips
+# Setup_Environment altogether (so nothing is cloned, fetched or checked),
+# while -C and -u point the build at a CMSIS_5 or ethos-u-core-platform tree
+# you supply, which this script neither clones nor verifies. CI passes none
+# of the three.
+#
+# Bump ownership: CMSIS_5's upstream is archived, so its pin is effectively
+# permanent and only moves if this harness moves off CMSIS_5 entirely.
+# ethos-u-core-platform lives on gitlab.arm.com, which no bot in this repo
+# watches, so its pin is bumped by hand; validate a bump with the PR compile
+# gate plus a manual legacy-tester dispatch, which is the only leg that runs
+# the built ELFs under the FVP.
 CMSIS_5_URL="https://github.com/ARM-software/CMSIS_5.git"
 # develop @ 2024-09-03; the upstream repository is archived.
 CMSIS_5_COMMIT="55b19837f5703e418ca37894d5745b1dc05e4c91"
@@ -137,50 +156,143 @@ Retry() {
     done
 }
 
-# Clone <url> into <dir> at exactly <commit>. The commit is fetched directly
-# at depth 1, which both remotes pinned above serve today; a full fetch is the
-# fallback for a server that will not serve a bare commit that way, and it is
-# also what turns a wrong pin into a clear "no such commit". Any tree
-# left behind by an earlier attempt is removed first, so a retry never resumes
-# into a half-written clone; that is the same hazard the "already installed"
-# checks in Setup_Environment cannot see, and the Assert_Pinned call after
-# each clone is what catches it if it ever survives this far.
+# git in <dir>, tolerating a checkout git considers to be owned by someone
+# else: CI restores this tree from a cache rather than checking it out, and a
+# dev container can run as a different uid than the one that first cloned --
+# either trips git's dubious-ownership guard. Same `-c safe.directory` the
+# assertion step in unity-m55-compile.yml uses, for the same reason.
+Git_At() {
+    local dir="$1"
+    shift
+    git -c safe.directory='*' -C "${dir}" "$@"
+}
+
+# Print the HEAD commit of <dir>, or nothing if it is not a git checkout.
+Head_Of() {
+    Git_At "$1" rev-parse HEAD 2>/dev/null || true
+}
+
+# Fetch <commit> into the existing git repository at <dir> from its origin.
+# The commit is fetched directly at depth 1, which both remotes pinned above
+# serve today; the full fetch is the fallback for a server that will not serve
+# a bare commit that way, and it carries --tags so that a pin expressed as a
+# tag object in future is fetched rather than silently missing.
+Fetch_Commit() {
+    local name="$1" dir="$2" commit="$3"
+
+    if Git_At "${dir}" fetch --quiet --depth=1 origin "${commit}"; then
+        return 0
+    fi
+    echo "   ${name}: shallow fetch of that commit failed, trying a full fetch"
+    Git_At "${dir}" fetch --quiet --tags origin || return 1
+}
+
+# Check <dir> out at <commit>, separating the two failure classes Retry treats
+# differently. If the object is not there after a successful fetch, the remote
+# does not have that commit: a wrong pin, which no number of retries fixes
+# (125). If the object *is* there and the checkout still fails, the fault is
+# local -- a full disk, a corrupt pack, an index lock left by a killed git --
+# and another attempt may well clear it, so it keeps its retry budget (1).
+Checkout_Commit() {
+    local name="$1" url="$2" dir="$3" commit="$4"
+
+    if ! Git_At "${dir}" cat-file -e "${commit}^{commit}" 2>/dev/null; then
+        echo "   ${name}: fetched ${url}, but it has no commit ${commit}." >&2
+        echo "   Check the pin at the top of this script." >&2
+        return 125
+    fi
+    if ! Git_At "${dir}" checkout --quiet "${commit}"; then
+        echo "   ${name}: ${commit} is present in ${dir} but will not check out." >&2
+        echo "   That is a local fault, not a bad pin -- retrying may clear it." >&2
+        return 1
+    fi
+}
+
+# Clone <url> into <dir> at exactly <commit>. Any tree left behind by an
+# earlier attempt is removed first, so a retry never resumes into a
+# half-written clone; that is the same hazard the "already installed" checks
+# in Setup_Environment cannot see, and the Assert_Pinned call after each clone
+# is what catches it if it ever survives this far.
 Clone_At_Commit() {
     local name="$1" url="$2" dir="$3" commit="$4"
 
     rm -rf "${dir}"
     git -c init.defaultBranch=main init --quiet "${dir}" || return 1
-    git -C "${dir}" remote add origin "${url}" || return 1
-    if ! git -C "${dir}" fetch --quiet --depth=1 origin "${commit}"; then
-        echo "   ${name}: shallow fetch of that commit failed, trying a full fetch"
-        git -C "${dir}" fetch --quiet origin || return 1
-    fi
-    if ! git -C "${dir}" checkout --quiet "${commit}"; then
-        echo "   ${name}: fetched ${url}, but it has no commit ${commit}." >&2
-        echo "   Check the pin at the top of this script." >&2
-        return 125
-    fi
+    Git_At "${dir}" remote add origin "${url}" || return 1
+    Fetch_Commit "${name}" "${dir}" "${commit}" || return 1
+    Checkout_Commit "${name}" "${url}" "${dir}" "${commit}"
 }
 
-# Fail loud unless <dir> sits exactly on <commit>. Runs on every path, not
+# Move an existing checkout to <commit> without re-cloning it: point origin at
+# the pinned URL if it is not already, then fetch and check out. Retried by
+# the caller, so network faults get the same budget a fresh clone gets.
+Move_To_Commit() {
+    local name="$1" url="$2" dir="$3" commit="$4"
+    local origin_url
+
+    origin_url="$(Git_At "${dir}" remote get-url origin 2>/dev/null || true)"
+    if [[ "${origin_url}" != "${url}" ]]; then
+        Git_At "${dir}" remote remove origin >/dev/null 2>&1 || true
+        # A repository this script cannot even give a remote to is not
+        # something another attempt will fix.
+        Git_At "${dir}" remote add origin "${url}" || return 125
+    fi
+    Fetch_Commit "${name}" "${dir}" "${commit}" || return 1
+    Checkout_Commit "${name}" "${url}" "${dir}" "${commit}"
+}
+
+# Leave <dir> sitting exactly on <commit>, or exit. Runs on every path, not
 # only after a fresh clone: a directory restored from a CI cache, or left
 # behind by an older unpinned checkout, is skipped by the "already installed"
-# branches above and would otherwise be used at whatever commit it happens to
-# hold.
+# branches in Setup_Environment and would otherwise be used at whatever commit
+# it happens to hold.
+#
+# An existing checkout at the wrong commit is moved to the pin rather than
+# rejected. "Delete it and re-run" is not a remedy on either path that reaches
+# this: a CI cache entry is restored identically on the next run, so the same
+# failure repeats until somebody evicts the entry by hand, and every dev
+# container whose clone predates a pin bump (.devcontainer/install.sh runs
+# this script) would fail every build until its owner read the message. A
+# checkout that is not a git repository at all is still a hard failure --
+# something the harness did not create is sitting where the clone belongs, and
+# guessing is worse than stopping.
 Assert_Pinned() {
     local name="$1" url="$2" dir="$3" commit="$4"
-    local head
+    local head was
 
-    head="$(git -C "${dir}" rev-parse HEAD 2>/dev/null || true)"
-    if [[ "${head}" != "${commit}" ]]; then
-        echo "${name}: clone is not at its pin." >&2
+    head="$(Head_Of "${dir}")"
+    if [[ "${head}" == "${commit}" ]]; then
+        echo "   ${name} pinned at ${commit} -- ok."
+        return 0
+    fi
+
+    if [[ -z "${head}" ]]; then
+        echo "${name}: ${dir} exists but is not a git checkout." >&2
         echo "  repository:  ${url}" >&2
         echo "  pinned at:   ${commit}" >&2
-        echo "  HEAD is:     ${head:-(none - ${dir} is not a git checkout)}" >&2
         echo "  Delete ${dir} and re-run to re-clone at the pinned commit." >&2
         exit 1
     fi
-    echo "   ${name} pinned at ${commit} -- ok."
+
+    was="${head}"
+    echo "   ${name}: HEAD is ${was}, pinned at ${commit} -- moving it to the pin."
+    if Retry "move ${name} to its pin" \
+        Move_To_Commit "${name}" "${url}" "${dir}" "${commit}"; then
+        head="$(Head_Of "${dir}")"
+    fi
+
+    if [[ "${head}" != "${commit}" ]]; then
+        echo "${name}: clone is not at its pin and could not be moved to it." >&2
+        echo "  repository:  ${url}" >&2
+        echo "  pinned at:   ${commit}" >&2
+        echo "  HEAD is:     ${head}" >&2
+        echo "  Delete ${dir} and re-run to re-clone at the pinned commit. In" >&2
+        echo "  CI, evict the Tests/UnitTest/downloads cache entry -- its key" >&2
+        echo "  is shared by unity-m55-compile.yml and legacy-tester.yml --" >&2
+        echo "  and re-run." >&2
+        exit 1
+    fi
+    echo "   ${name} pinned at ${commit} -- ok (moved from ${was})."
 }
 
 Setup_Environment() {

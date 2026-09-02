@@ -387,13 +387,15 @@ jobs:
           echo "Arm GNU toolchain ${actual} matches the harness pin -- ok."
 
           # Same argument, same step, for the two third-party clones (#402).
-          # The harness verifies its own pins as it clones, but that check is
-          # skipped for a tree that already exists -- which, in this job, is
-          # every warm-cache run. Re-assert here against the restored tree, so
-          # a cache entry holding CMSIS_5 or ethos-u-core-platform at some
-          # other commit cannot silently supply the CMake toolchain file and
-          # headers this gate compiles with. This is also why the assertion
-          # lives in the step whose outcome the save condition below requires.
+          # The harness checks its own pins, and moves a restored tree that is
+          # at some other commit back onto the pin rather than failing -- a
+          # cache entry comes back identical every run, so "delete it and
+          # re-run" is not a remedy there. That makes this an independent
+          # backstop rather than the only check: it re-reads the pins from the
+          # harness and the HEADs from disk, so if the heal silently did not
+          # happen, the compile does not go ahead over a CMake toolchain file
+          # and headers nobody chose. It is in the step whose outcome the save
+          # condition below requires, so such a tree is never published either.
           for pin in \
             CMSIS_5_COMMIT:CMSIS_5 \
             ETHOS_U_CORE_PLATFORM_COMMIT:ethos-u-core-platform; do
