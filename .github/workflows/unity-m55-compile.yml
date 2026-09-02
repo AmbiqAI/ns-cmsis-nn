@@ -92,15 +92,21 @@ jobs:
       #
       # Restore and save are split on purpose (`cache/restore` here,
       # `cache/save` at the end) rather than using the combined `cache`
-      # action. The combined action's post-job save also runs when the job is
-      # cancelled, and build_and_run_tests.sh creates each skip-marker
-      # directory (downloads/corstone300_download, downloads/arm_gcc_download,
-      # ...) *before* the payload lands inside it. A run cancelled or failed
-      # mid-download therefore leaves a tree that every later run reads as
-      # "already installed" and skips -- and this key is shared with
-      # legacy-tester.yml, so that half-written tree would be handed to the
-      # nightly/release leg too. With an explicit save step we can refuse to
-      # publish it.
+      # action. The combined action's post-job save carries
+      # `post-if: success()` (v3, v4 and v5 alike), so it never saves after a
+      # cancellation or a prior step's failure -- which is too strict here: a
+      # cold run that fetched the toolchain and then failed to *compile* would
+      # discard the download and make the next run pay for it again. The split
+      # is what lets the save condition below say "keep the bytes on a compile
+      # failure, but never publish a download that did not finish".
+      #
+      # The five terms on that condition are belt-and-braces around the same
+      # hazard: build_and_run_tests.sh creates each skip-marker directory
+      # (downloads/corstone300_download, downloads/arm_gcc_download, ...)
+      # *before* the payload lands inside it, so a tree left half-written by
+      # an interrupted download reads as "already installed" to every later
+      # run -- and this key is shared with legacy-tester.yml, so it would be
+      # handed to the nightly/release leg too.
       - name: Restore tests-downloads cache
         id: cache
         uses: actions/cache/restore@v5
@@ -137,15 +143,17 @@ jobs:
           gcc_bin=Tests/UnitTest/downloads/arm_gcc_download/bin/arm-none-eabi-gcc
 
           # GCC_URL is .../gnu/<version>/binrel/arm-gnu-toolchain-<version>-...
-          # and is spelled once per host architecture; both must agree.
-          expected="$(grep -oE 'gnu/[0-9]+\.[0-9]+(\.[0-9]+)?' "${script}" \
-            | sed 's|^gnu/||' | sort -u || true)"
+          # where <version> is the full Arm release token (14.2.rel1), not just
+          # major.minor, and is spelled once per host architecture; both must
+          # agree. Deriving nothing, or two different tokens, fails the job
+          # rather than silently weakening the assertion.
+          expected="$(grep -oE 'gnu/[0-9]+\.[0-9]+\.[A-Za-z0-9]+' "${script}" \
+            | sed 's|^gnu/||' | tr '[:upper:]' '[:lower:]' | sort -u || true)"
           if [ -z "${expected}" ] || [ "$(printf '%s\n' "${expected}" | wc -l)" -ne 1 ]; then
-            echo "Cannot derive a single pinned Arm GNU version from ${script}." >&2
+            echo "Cannot derive a single pinned Arm GNU release token from ${script}." >&2
             printf 'derived: %s\n' "${expected}" >&2
             exit 1
           fi
-          expected_mm="$(printf '%s' "${expected}" | cut -d. -f1,2)"
 
           if [ ! -x "${gcc_bin}" ]; then
             echo "Expected the harness-downloaded compiler at ${gcc_bin}." >&2
@@ -154,19 +162,29 @@ jobs:
           fi
 
           version_line="$("${gcc_bin}" --version | head -n 1)"
-          echo "pinned by ${script}: ${expected_mm}.x (from GCC_URL)"
+          echo "pinned by ${script}: ${expected} (from GCC_URL)"
           echo "reported by compiler: ${version_line}"
 
-          actual_mm="$(printf '%s\n' "${version_line}" \
-            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | tail -n 1 | cut -d. -f1,2 || true)"
-          if [ -z "${actual_mm}" ]; then
-            echo "Could not parse a version out of: ${version_line}" >&2
+          # The banner carries the same release token as the URL:
+          # `arm-none-eabi-gcc (Arm GNU Toolchain 14.2.Rel1 (Build arm-14.52))
+          # 14.2.1 ...`. Arm spells the `rel` segment inconsistently across
+          # releases (14.2.Rel1 but 13.2.rel1), so compare case-insensitively
+          # -- and compare the whole token, not major.minor, so a rebuild of
+          # the same minor cannot pass as the pin.
+          actual="$(printf '%s\n' "${version_line}" \
+            | tr '[:upper:]' '[:lower:]' \
+            | grep -oE 'arm gnu toolchain [0-9]+\.[0-9]+\.[a-z0-9]+' \
+            | tail -n 1 | sed 's|^arm gnu toolchain ||' || true)"
+          if [ -z "${actual}" ]; then
+            echo "Could not parse an Arm GNU Toolchain release token out of:" >&2
+            echo "  ${version_line}" >&2
+            echo "Refusing to compile with a compiler this job cannot identify." >&2
             exit 1
           fi
 
-          if [ "${actual_mm}" != "${expected_mm}" ]; then
-            echo "Arm GNU toolchain mismatch: ${script} pins ${expected_mm}.x," >&2
-            echo "but ${gcc_bin} reports ${actual_mm}.x." >&2
+          if [ "${actual}" != "${expected}" ]; then
+            echo "Arm GNU toolchain mismatch: ${script} pins ${expected}," >&2
+            echo "but ${gcc_bin} reports ${actual}." >&2
             echo "The restored Tests/UnitTest/downloads cache entry is stale:" >&2
             echo "the harness skips its download whenever arm_gcc_download" >&2
             echo "already exists, so it never corrects this by itself. Evict" >&2
@@ -174,11 +192,15 @@ jobs:
             echo "and re-run." >&2
             exit 1
           fi
-          echo "Arm GNU toolchain ${actual_mm}.x matches the harness pin -- ok."
+          echo "Arm GNU toolchain ${actual} matches the harness pin -- ok."
 
       - name: Compile every Unity test TU for cortex-m55
-        # The container's default shell is dash; be explicit rather than
-        # writing to the lowest common denominator.
+        # `shell: bash` is explicit for `-o pipefail` and for predictability.
+        # GitHub's default for a bare `run:` is `bash -e {0}`, with `sh -e {0}`
+        # only as a fallback -- but `-e` alone is not `-euo pipefail`, and the
+        # first push on this branch did land on the fallback and died with
+        # dash's `Illegal option -o pipefail`. Naming the shell removes both
+        # variables.
         shell: bash
         run: |
           cd Tests/UnitTest
@@ -219,24 +241,38 @@ jobs:
           # unwired.
           drop_probes() { grep -v -E '_probe$' || true; }
 
-          # (a) suites declared in Tests/UnitTest/CMakeLists.txt
-          grep -o '^ *add_subdirectory(TestCases/test_arm_[A-Za-z0-9_]*' CMakeLists.txt \
+          # (a) suites declared in Tests/UnitTest/CMakeLists.txt. Matched on
+          # the TestCases/ path rather than on a test_arm_ prefix, so all three
+          # sets are built from the same rule and a suite spelled without the
+          # conventional prefix is compared rather than skipped.
+          grep -o '^ *add_subdirectory(TestCases/[A-Za-z0-9_]*' CMakeLists.txt \
             | sed 's|.*TestCases/||' \
             | drop_probes \
             | sort -u > "${work}/declared"
 
           # (b) suites the build actually produced a test object for. The
           # ethos-u toolchain file sets the object suffix to .obj; match both
-          # so a toolchain-file change cannot silently zero this set.
+          # so a toolchain-file change cannot silently zero this set. Prefix
+          # here is `unity_` only -- CMakeLists.txt names every suite target
+          # unity_<dir> -- for the same reason as (a).
           find "${build_dir}" \
-              \( -name 'unity_test_arm_*.c.obj' -o -name 'unity_test_arm_*.c.o' \) \
+              \( -name 'unity_*.c.obj' -o -name 'unity_*.c.o' \) \
               ! -name '*_runner.c.obj' ! -name '*_runner.c.o' \
             | sed -e 's|.*/unity_||' -e 's|\.c\.obj$||' -e 's|\.c\.o$||' \
             | drop_probes \
             | sort -u > "${work}/compiled"
 
-          # (c) suite directories present in the checkout
-          find TestCases -mindepth 1 -maxdepth 1 -type d -name 'test_arm_*' \
+          # (c) suite directories present in the checkout. Every directory
+          # under TestCases/ is a suite except three shared-infrastructure
+          # ones (Common: templates and helper headers; TestData: generated
+          # vectors; Utils: shared test utilities), which are subtracted by
+          # name. Matching '*' rather than 'test_arm_*' is the point: a suite
+          # directory added without the conventional prefix and never wired
+          # into CMakeLists.txt is exactly the unwired case this set exists to
+          # catch, and a prefix match would drop it from the comparison and
+          # let it pass silently.
+          find TestCases -mindepth 1 -maxdepth 1 -type d \
+              ! -name 'Common' ! -name 'TestData' ! -name 'Utils' \
             | sed 's|.*/||' \
             | drop_probes \
             | sort -u > "${work}/ondisk"
@@ -287,6 +323,12 @@ jobs:
             echo "leg at all -- it has no add_subdirectory() line, or the line" >&2
             echo "it has is spelled in a way the grep above does not match." >&2
             echo "Add it to Tests/UnitTest/CMakeLists.txt." >&2
+            echo "" >&2
+            echo "The on-disk set is every directory under TestCases/ except" >&2
+            echo "Common, TestData, Utils and *_probe -- no test_arm_ prefix" >&2
+            echo "is assumed. So if the name above is not a suite at all but a" >&2
+            echo "new shared-helper directory, the fix is to add it to that" >&2
+            echo "exclusion list in this step, not to CMakeLists.txt." >&2
             exit 1
           fi
           {
