@@ -3,7 +3,8 @@
 
 name: Unity m55 Compile
 
-# PR-time compile gate for the legacy Unity suites (AmbiqAI/ns-cmsis-nn#393).
+# PR-time compile gate for the legacy Unity suites (AmbiqAI/ns-cmsis-nn#393,
+# #398).
 #
 # The full legacy leg (legacy-tester.yml) only runs nightly and at release, so
 # until now a Unity test translation unit could first see a cross-compiler at
@@ -11,18 +12,43 @@ name: Unity m55 Compile
 # diagnostic in test_arm_convolve_packed_f16.c reached the release build
 # because no PR job had ever compiled that file for cortex-m55.
 #
-# This job closes that window by replaying the m55 leg's *build* on every PR:
-# same script, same pinned toolchain, same flags, same -Werror set. It stops
-# short of the FVP run, which is what makes it cheap enough for the PR gate --
-# execution stays with legacy-tester at nightly/release.
+# This job closes that window by replaying the legacy leg's *build* on every
+# PR: same script, same pinned toolchain, same flags, same -Werror set. It
+# stops short of the FVP run, which is what makes it cheap enough for the PR
+# gate -- execution stays with legacy-tester at nightly/release.
 #
-# Drift policy: the build command below is the m55 line from
-# legacy-tester.yml with `-r` (do not run) added. It deliberately does NOT
-# re-specify compiler flags, defines, optimization level, or include paths --
-# they all come from Tests/UnitTest/build_and_run_tests.sh and
+# Cores (#398): cortex-m55, cortex-m4 and cortex-m0, i.e. every cell of
+# legacy-tester.yml's own matrix. m55 alone was not enough: twelve Unity test
+# files carry `#if defined(ARM_MATH_DSP) && !defined(ARM_MATH_MVEI)` blocks
+# (test_arm_convolve_s8.c, test_arm_convolve_s16.c,
+# test_arm_depthwise_conv_s8.c, ...) that an m55 build never reaches, because
+# m55 defines ARM_MATH_MVEI. Those blocks compile on cortex-m4 and nowhere
+# else in this repo's PR gates.
+#
+# cortex-m0 is not there for a preprocessor shape: host-sanitizer already
+# compiles the neither-DSP-nor-MVEI shape of these files, on x86, with F32
+# and F16 on, under -Werror -- but with a smaller warning set than the target
+# cells, which additionally take the ethos-u toolchain file's own set (-Wall
+# -Wextra -Wshadow -Wswitch-default and the rest, via
+# build_and_run_tests.sh:256). What m0 adds is the target and
+# the toolchain -- arm-none-eabi 14.2.rel1 at -Ofast on a soft-float, no-FPU
+# core (-mfloat-abi=soft, -includeARMCM0.h) -- which the host leg's x86
+# codegen, ABI and float model say nothing about.
+#
+# Names: this file, the ci.yml job id that calls it and the m55 cell's job
+# name are all still spelled "m55". They are kept to avoid churn; the only
+# required context is `CI Passed`, which keys on the ci.yml job id, not on
+# this display name. The m55 spelling is historical, not a statement of
+# scope.
+#
+# Drift policy: the build command below is legacy-tester.yml's build step
+# verbatim -- including its cortex-m55 vs. everything-else float-flag branch
+# -- with `-r` (do not run) added. It deliberately does NOT re-specify
+# compiler flags, defines, optimization level, or include paths -- they all
+# come from Tests/UnitTest/build_and_run_tests.sh and
 # Tests/UnitTest/CMakeLists.txt, so this gate cannot drift away from the leg
-# it is standing in for. If you change the legacy leg's m55 invocation, change
-# it here too.
+# it is standing in for. If you change the legacy leg's invocation, change it
+# here too.
 #
 # Toolchain provenance: build_and_run_tests.sh pins Arm GNU Toolchain
 # 14.2.rel1 (Setup_Environment, GCC_URL) and downloads it into
@@ -57,18 +83,49 @@ jobs:
       container_image: ${{ inputs.container_image }}
 
   compile:
-    name: Compile Unity test TUs (cortex-m55)
+    # Explicit `name:`, so GitHub does NOT append the matrix context itself.
+    # The cortex-m55 cell therefore keeps the exact check-run name it had
+    # before the matrix existed ("Compile Unity test TUs (cortex-m55)"), and
+    # the new cells slot in beside it. No new ci.yml job is introduced, so
+    # the `needs:` list of `ci-passed` is unchanged: a matrix cell failing
+    # fails this called workflow, which fails the `unity-m55-compile` job
+    # that is already in that list.
+    name: Compile Unity test TUs (${{ matrix.cpu }})
     runs-on: ubuntu-latest
-    # Measured on runners (AmbiqAI/ns-cmsis-nn#396): 2 min 27 s to 2 min 49 s
-    # for the whole job on a warm cache, of which ~45 s is the compile; and
-    # 5 min 46 s on a genuine cold cache (run 33594464284: 77 s to fetch
-    # Corstone-300, Arm GNU 14.2.rel1, CMSIS_5 and the pip requirements, then
-    # the compile, then 144 s to save the downloads cache). 15 minutes is
-    # ~2.6x the measured cold case.
+    # Measured, not guessed. Job wall time per cell:
+    #   run 33665856582 -- genuinely cold, the shared downloads cache entry
+    #   was evicted first and all three cells logged "Cache not found":
+    #     cortex-m55 6 min 05 s   cortex-m4 3 min 20 s   cortex-m0 3 min 18 s
+    #   run 33667148805 -- warm baseline for these figures, measured on this
+    #   branch:
+    #     cortex-m55 2 min 38 s   cortex-m4 2 min 28 s   cortex-m0 2 min 31 s
+    #   (The run that is green on the merged head is cited in the PR
+    #   description: a comment cannot name the run its own commit triggers.)
+    # The m55 cell is the slow one only because it is the cell that *saves*
+    # the 1.07 GiB cache entry: its build and coverage check finished at
+    # 3 min 17 s and the remaining 2 min 48 s was the upload. m4 and m0 are
+    # otherwise the cheaper cells -- 132 suites rather than 146, no
+    # ARM_NN_ENABLE_F16, no MVE. 15 minutes is ~2.5x the slowest measured
+    # cold cell, and the #396 cold measurement (5 min 46 s, run 33594464284)
+    # sits inside the same envelope.
     timeout-minutes: 15
     needs: resolve-container-image
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}
+
+    strategy:
+      # Every cell reports independently: one core's -Werror break must not
+      # hide another's, which is the whole point of adding the second and
+      # third core.
+      fail-fast: false
+      matrix:
+        # legacy-tester.yml's `core` matrix, verbatim. Order puts m55 first
+        # so the historically required cell starts first on a busy runner
+        # pool.
+        cpu:
+          - cortex-m55
+          - cortex-m4
+          - cortex-m0
 
     steps:
       - name: Checkout repository
@@ -78,14 +135,136 @@ jobs:
         shell: bash
         run: |
           {
-            echo "### Job container image"
+            echo "### Job container image (${{ matrix.cpu }})"
             echo "- selected image: \`${{ needs.resolve-container-image.outputs.container_image }}\`"
             echo "- source: \`${{ needs.resolve-container-image.outputs.resolved_from }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # The header above says this job replays legacy-tester.yml's build
+      # command. Assert that mechanically instead of claiming it -- same
+      # idiom as the "Toolchain manifest sync" step: derive both sides from
+      # the two files, diff, and name both files on a mismatch.
+      #
+      # Two drifts are invisible to everything else in this job. (1) An
+      # option added only to legacy-tester.yml that flips a compile *define*
+      # consumed by an #if inside translation units this gate already
+      # compiles: no new suite appears, so the gated-off rule in the coverage
+      # step stays at 0 and the gate stays green over code no PR job builds.
+      # (2) A fourth core added to legacy-tester.yml's matrix, which this
+      # gate would simply never build. Neither shows up as a suite count.
+      - name: Assert this gate replays legacy-tester.yml's matrix and flags
+        shell: bash
+        run: |
+          set -euo pipefail
+          legacy=.github/workflows/legacy-tester.yml
+          gate=.github/workflows/unity-m55-compile.yml
+          work="$(mktemp -d)"
+
+          # (1) the cores each file builds. legacy-tester.yml spells the
+          # matrix key `core` and this file spells it `cpu`; the list is what
+          # has to agree, not the key.
+          cores() {
+            awk -v key="$2" '
+              $0 ~ "^[ \t]*" key ":[ \t]*$" { inlist = 1; next }
+              inlist && /^[ \t]*-[ \t]*cortex-/ { sub(/^[ \t]*-[ \t]*/, ""); print; next }
+              inlist { exit }
+            ' "$1" | sort
+          }
+          cores "${legacy}" core > "${work}/cores_legacy"
+          cores "${gate}" cpu > "${work}/cores_gate"
+
+          # (2) the harness invocations that build something. The
+          # dependency-only `-rb` call is not one of them, hence the `-D`
+          # filter. Normalise away exactly what this gate is entitled to
+          # differ in -- `-r` (build, never run), `-q`, and the matrix
+          # expression naming the cpu -- and sort the -D flags so ordering is
+          # not a false positive. Anything else that differs is drift.
+          # The matrix expression is matched through character classes so
+          # this run: block does not contain the literal expression opener,
+          # which GitHub would expand before bash ever saw it.
+          invocations() {
+            grep -oE '\./build_and_run_tests\.sh .*' "$1" \
+              | grep -E ' -D ' \
+              | sed -E -e 's/[$][{][{] *matrix\.(core|cpu) *[}][}]/<cpu>/g' \
+                       -e 's/ -q / /g' -e 's/ -r / /g' \
+              | awk '
+                  {
+                    split("", defs); ndefs = 0; cpu = ""
+                    for (i = 1; i <= NF; i++) {
+                      if ($i == "-c") { cpu = $(i + 1); i++ }
+                      else if ($i == "-D") { defs[++ndefs] = $(i + 1); i++ }
+                    }
+                    for (a = 2; a <= ndefs; a++) {
+                      v = defs[a]; b = a - 1
+                      while (b >= 1 && defs[b] > v) { defs[b + 1] = defs[b]; b-- }
+                      defs[b + 1] = v
+                    }
+                    out = "cpu=" cpu
+                    for (a = 1; a <= ndefs; a++) out = out " -D " defs[a]
+                    print out
+                  }
+                '
+          }
+          invocations "${legacy}" > "${work}/cmd_legacy"
+          invocations "${gate}" > "${work}/cmd_gate"
+
+          echo "cores in ${legacy}: $(tr '\n' ' ' < "${work}/cores_legacy")"
+          echo "cores in ${gate}:   $(tr '\n' ' ' < "${work}/cores_gate")"
+          echo "build invocations (legacy | gate), normalised:"
+          paste -d '|' "${work}/cmd_legacy" "${work}/cmd_gate" | sed 's|^|  |'
+
+          fail=0
+
+          # Both files carry one invocation per float branch (the cortex-m55
+          # branch and the everything-else branch). A count other than two on
+          # either side means the branch shape changed and the pairing below
+          # would be comparing the wrong lines.
+          for f in cmd_legacy cmd_gate; do
+            n="$(wc -l < "${work}/${f}" | tr -d ' ')"
+            if [ "${n}" != "2" ]; then
+              echo "Expected 2 build invocations in the ${f#cmd_} workflow, found ${n}." >&2
+              fail=1
+            fi
+          done
+
+          if [ "${fail}" = "0" ] && ! cmp -s "${work}/cores_legacy" "${work}/cores_gate"; then
+            echo "Core matrix drift between ${legacy} and ${gate}:" >&2
+            diff -u "${work}/cores_legacy" "${work}/cores_gate" \
+              | sed -e '1,2d' -e 's|^|  |' >&2 || true
+            fail=1
+          fi
+
+          if [ "${fail}" = "0" ] && ! cmp -s "${work}/cmd_legacy" "${work}/cmd_gate"; then
+            echo "Build-flag drift between ${legacy} and ${gate}:" >&2
+            diff -u "${work}/cmd_legacy" "${work}/cmd_gate" \
+              | sed -e '1,2d' -e 's|^|  |' >&2 || true
+            fail=1
+          fi
+
+          if [ "${fail}" != "0" ]; then
+            echo "" >&2
+            echo "This gate stands in for legacy-tester.yml's build. When the" >&2
+            echo "two drift apart it stops standing in for anything: a core" >&2
+            echo "only legacy-tester builds is never built on a PR, and a -D" >&2
+            echo "option only legacy-tester passes can flip an #if inside" >&2
+            echo "translation units this gate compiles without adding a suite," >&2
+            echo "so no count in the coverage step moves." >&2
+            echo "" >&2
+            echo "Fix: make the same change in both files --" >&2
+            echo "  ${legacy}  (matrix .core, and the build step's -D lines)" >&2
+            echo "  ${gate}    (matrix .cpu, and the compile step's -D lines)" >&2
+            echo "The gate is allowed to differ only by -r/-q; everything else" >&2
+            echo "must match." >&2
+            exit 1
+          fi
+          echo "Matrix and build flags agree with ${legacy} -- ok."
+
       # Same path and key as legacy-tester.yml so both legs share one cache
       # entry (Corstone-300 FVP, Arm GNU 14.2.rel1, CMSIS_5, ethos-u core
-      # platform, the python venv).
+      # platform, the python venv). The entry is CPU-independent -- it holds
+      # downloads, not build output -- so all three cells share one key. The
+      # per-CPU build trees (build-<cpu>-gcc) are not cached at all, by this
+      # job or by legacy-tester.
       #
       # Restore and save are split on purpose (`cache/restore` here,
       # `cache/save` at the end) rather than using the combined `cache`
@@ -103,7 +282,10 @@ jobs:
       # *before* the payload lands inside it, so a tree left half-written by
       # an interrupted download reads as "already installed" to every later
       # run -- and this key is shared with legacy-tester.yml, so it would be
-      # handed to the nightly/release leg too.
+      # handed to the nightly/release leg too. A sixth term (#398) keeps the
+      # save on the m55 cell alone: three cells racing one key means two of
+      # them lose the upload anyway, and a losing racer's warning is noise
+      # that looks like a cache fault.
       - name: Restore tests-downloads cache
         id: cache
         uses: actions/cache/restore@v5
@@ -191,7 +373,7 @@ jobs:
           fi
           echo "Arm GNU toolchain ${actual} matches the harness pin -- ok."
 
-      - name: Compile every Unity test TU for cortex-m55
+      - name: Compile every Unity test TU for ${{ matrix.cpu }}
         # `shell: bash` is explicit for `-o pipefail` and for predictability.
         # GitHub's default for a bare `run:` is `bash -e {0}`, with `sh -e {0}`
         # only as a fallback -- but `-e` alone is not `-euo pipefail`, and the
@@ -206,27 +388,52 @@ jobs:
           # job turns, and it changes scheduling only, never a compile flag.
           CMAKE_BUILD_PARALLEL_LEVEL="$(nproc)"
           export CMAKE_BUILD_PARALLEL_LEVEL
-          # legacy-tester.yml's cortex-m55 line, plus -r: build, never run.
-          # Float16 is qualified for cortex-m55 only, so both float knobs are
-          # on here exactly as they are for the m55 cell of the legacy leg.
-          ./build_and_run_tests.sh -q -r -c cortex-m55 -D ARM_NN_ENABLE_F32=ON -D ARM_NN_ENABLE_F16=ON
+          # legacy-tester.yml's "Build & run tests" step, plus -r: build,
+          # never run. The float-flag branch below is that step's own branch,
+          # copied rather than reworded: Float16 is qualified for cortex-m55
+          # only (ARM_NN_ENABLE_F16 gates 14 suites in
+          # Tests/UnitTest/CMakeLists.txt), ARM_NN_ENABLE_F32 is on for every
+          # core (16 suites). Everything else -- -Ofast, the -Werror set, the
+          # -mcpu/-mfpu/-mfloat-abi triple, ARM_MATH_DSP on m4 -- comes from
+          # the harness and its toolchain file.
+          if [ "${{ matrix.cpu }}" = "cortex-m55" ]; then
+            ./build_and_run_tests.sh -q -r -c ${{ matrix.cpu }} -D ARM_NN_ENABLE_F32=ON -D ARM_NN_ENABLE_F16=ON
+          else
+            ./build_and_run_tests.sh -q -r -c ${{ matrix.cpu }} -D ARM_NN_ENABLE_F32=ON
+          fi
 
       # A green build is not by itself proof that the file you touched was
       # compiled: a test directory that never made it into CMakeLists.txt
       # compiles nothing and fails nothing. Assert coverage mechanically over
-      # three independently derived sets -- what CMakeLists.txt declares, what
-      # the build actually compiled, and what exists under TestCases/ on disk
-      # -- and require all three to agree by name, not merely by count. A
-      # suite directory nobody wired into CMakeLists.txt therefore fails here
-      # loudly instead of passing silently, which is the failure mode a
-      # count-only check would miss.
-      - name: Verify every m55 test suite was compiled
+      # three independently derived sets -- what CMakeLists.txt declares for
+      # *this cell's options*, what the build actually compiled, and what
+      # exists under TestCases/ on disk -- and require all three to agree by
+      # name, not merely by count. A suite directory nobody wired into
+      # CMakeLists.txt therefore fails here loudly instead of passing
+      # silently, which is the failure mode a count-only check would miss.
+      #
+      # Per-CPU (#398): the compiled set legitimately differs between cells,
+      # because the m4 and m0 cells do not set ARM_NN_ENABLE_F16 and so never
+      # configure the 14 suites inside `if(ARM_NN_ENABLE_F16)`. That
+      # difference is derived, not listed: the step walks CMakeLists.txt's own
+      # if()/endif() nesting and resolves each guard against the values CMake
+      # recorded in this build's CMakeCache.txt. Add a suite under a new
+      # option and both sides move together; no list in this workflow needs
+      # touching.
+      - name: Verify every ${{ matrix.cpu }} test suite was compiled
         shell: bash
         run: |
           set -euo pipefail
           cd Tests/UnitTest
-          build_dir=build-cortex-m55-gcc
+          cpu='${{ matrix.cpu }}'
+          build_dir="build-${cpu}-gcc"
+          cache="${build_dir}/CMakeCache.txt"
           work="$(mktemp -d)"
+
+          if [ ! -f "${cache}" ]; then
+            echo "Expected ${cache} from the build above." >&2
+            exit 1
+          fi
 
           # Probe suites (TestCases/*_probe) are one-off diagnostic harnesses,
           # not part of the shipped suite set, and are not expected to be
@@ -238,14 +445,127 @@ jobs:
           # unwired.
           drop_probes() { grep -v -E '_probe$' || true; }
 
-          # (a) suites declared in Tests/UnitTest/CMakeLists.txt. Matched on
-          # the TestCases/ path rather than on a test_arm_ prefix, so all three
-          # sets are built from the same rule and a suite spelled without the
-          # conventional prefix is compared rather than skipped.
-          grep -o '^ *add_subdirectory(TestCases/[A-Za-z0-9_]*' CMakeLists.txt \
-            | sed 's|.*TestCases/||' \
-            | drop_probes \
-            | sort -u > "${work}/declared"
+          # CMake truthiness for one cache entry. Absent -> "unknown", which
+          # the caller escalates rather than guesses at.
+          cmake_bool() {
+            local var="$1" val
+            val="$(grep -E "^${var}:[A-Za-z_]+=" "${cache}" | head -n 1 | sed 's/^[^=]*=//' || true)"
+            if [ -z "${val}" ]; then
+              echo unknown
+              return 0
+            fi
+            case "$(printf '%s' "${val}" | tr '[:lower:]' '[:upper:]')" in
+              ON|1|TRUE|YES|Y) echo on ;;
+              OFF|0|FALSE|NO|N|IGNORE|NOTFOUND|*-NOTFOUND) echo off ;;
+              *) echo on ;;
+            esac
+          }
+
+          # (a) suites declared in Tests/UnitTest/CMakeLists.txt, each with
+          # the if() guards it sits inside. Matched on the TestCases/ path
+          # rather than on a test_arm_ prefix, so all three sets are built
+          # from the same rule and a suite spelled without the conventional
+          # prefix is compared rather than skipped. The awk below is a
+          # statement scanner, not a line matcher: it accumulates until the
+          # parentheses balance, so a multi-line if() condition (the probe
+          # guards are four lines) is read as one condition.
+          awk '
+            function nopen(s,   i, ch, o) {
+              o = 0
+              for (i = 1; i <= length(s); i++) {
+                ch = substr(s, i, 1)
+                if (ch == "(") o++
+                else if (ch == ")") o--
+              }
+              return o
+            }
+            {
+              line = $0
+              sub(/#.*/, "", line)
+              buf = buf " " line
+              if (index(buf, "(") == 0) { buf = ""; next }
+              if (nopen(buf) > 0) next
+              stmt = buf
+              buf = ""
+              gsub(/[ \t]+/, " ", stmt)
+              sub(/^ +/, "", stmt)
+              sub(/ +$/, "", stmt)
+              if (stmt ~ /^if *\(/) {
+                cond = stmt
+                sub(/^if *\( */, "", cond)
+                sub(/ *\) *$/, "", cond)
+                depth++
+                guard[depth] = cond
+                next
+              }
+              # else/elseif inverts or replaces the guard in ways this
+              # scanner does not model; mark the branch unresolved so the
+              # caller fails loudly instead of assuming.
+              if (stmt ~ /^else *\(/ || stmt ~ /^elseif *\(/) {
+                if (depth > 0) guard[depth] = "UNRESOLVED"
+                next
+              }
+              if (stmt ~ /^endif *\(/) {
+                if (depth > 0) { delete guard[depth]; depth-- }
+                next
+              }
+              if (stmt ~ /^add_subdirectory *\( *TestCases\//) {
+                name = stmt
+                sub(/.*TestCases\//, "", name)
+                sub(/[^A-Za-z0-9_].*$/, "", name)
+                g = ""
+                for (i = 1; i <= depth; i++) g = (g == "" ? guard[i] : g " AND " guard[i])
+                if (g == "") g = "-"
+                print name "\t" g
+              }
+            }
+          ' CMakeLists.txt > "${work}/guarded_all"
+          grep -v -E '_probe[[:space:]]' "${work}/guarded_all" > "${work}/guarded" || true
+
+          : > "${work}/declared"
+          : > "${work}/gated_off"
+          : > "${work}/unresolved"
+          while IFS="$(printf '\t')" read -r name guard; do
+            [ -n "${name}" ] || continue
+            state=enabled
+            if [ "${guard}" != "-" ]; then
+              while IFS= read -r term; do
+                [ -n "${term}" ] || continue
+                if printf '%s' "${term}" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$'; then
+                  case "$(cmake_bool "${term}")" in
+                    on) ;;
+                    off) state=disabled ;;
+                    *) if [ "${state}" = enabled ]; then state=unresolved; fi ;;
+                  esac
+                else
+                  if [ "${state}" = enabled ]; then state=unresolved; fi
+                fi
+                if [ "${state}" = disabled ]; then break; fi
+              done < <(printf '%s\n' "${guard}" | awk -F' AND ' '{ for (i = 1; i <= NF; i++) print $i }')
+            fi
+            case "${state}" in
+              enabled) echo "${name}" >> "${work}/declared" ;;
+              disabled) echo "${name}" >> "${work}/gated_off" ;;
+              *) printf '%s\t%s\n' "${name}" "${guard}" >> "${work}/unresolved" ;;
+            esac
+          done < "${work}/guarded"
+
+          if [ -s "${work}/unresolved" ]; then
+            echo "Unity ${cpu} coverage check: unresolved add_subdirectory() guard(s)." >&2
+            cat "${work}/unresolved" >&2
+            echo "" >&2
+            echo "This step resolves each if() guard around an" >&2
+            echo "add_subdirectory(TestCases/...) line against the values in" >&2
+            echo "${cache}. A guard it cannot resolve is a guard whose effect" >&2
+            echo "on this cell is unknown, so the suite can be neither" >&2
+            echo "required nor excused. Either make the guard a plain cache" >&2
+            echo "option (as ARM_NN_ENABLE_F32/F16 are), or teach this step" >&2
+            echo "how to evaluate it." >&2
+            exit 1
+          fi
+
+          sort -u -o "${work}/declared" "${work}/declared"
+          sort -u -o "${work}/gated_off" "${work}/gated_off"
 
           # (b) suites the build actually produced a test object for. The
           # ethos-u toolchain file sets the object suffix to .obj; match both
@@ -260,28 +580,75 @@ jobs:
             | drop_probes \
             | sort -u > "${work}/compiled"
 
-          # (c) suite directories present in the checkout. Every directory
-          # under TestCases/ is a suite except three shared-infrastructure
-          # ones (Common: templates and helper headers; TestData: generated
-          # vectors; Utils: shared test utilities), which are subtracted by
-          # name. Matching '*' rather than 'test_arm_*' is the point: a suite
-          # directory added without the conventional prefix and never wired
-          # into CMakeLists.txt is exactly the unwired case this set exists to
-          # catch, and a prefix match would drop it from the comparison and
-          # let it pass silently.
+          # (c) suite directories present in the checkout, minus the ones this
+          # cell's options gate off. Every directory under TestCases/ is a
+          # suite except three shared-infrastructure ones (Common: templates
+          # and helper headers; TestData: generated vectors; Utils: shared
+          # test utilities), which are subtracted by name. Matching '*' rather
+          # than 'test_arm_*' is the point: a suite directory added without
+          # the conventional prefix and never wired into CMakeLists.txt is
+          # exactly the unwired case this set exists to catch, and a prefix
+          # match would drop it from the comparison and let it pass silently.
+          # The gated-off subtraction keeps that property on the m4/m0 cells:
+          # it removes only names this CMakeLists.txt declares under an option
+          # this cell left off, so an undeclared directory still has nothing
+          # to hide behind.
           find TestCases -mindepth 1 -maxdepth 1 -type d \
               ! -name 'Common' ! -name 'TestData' ! -name 'Utils' \
             | sed 's|.*/||' \
             | drop_probes \
-            | sort -u > "${work}/ondisk"
+            | sort -u > "${work}/ondisk_all"
+          comm -23 "${work}/ondisk_all" "${work}/gated_off" > "${work}/ondisk"
 
           declared_n="$(wc -l < "${work}/declared" | tr -d ' ')"
           compiled_n="$(wc -l < "${work}/compiled" | tr -d ' ')"
           ondisk_n="$(wc -l < "${work}/ondisk" | tr -d ' ')"
+          gated_n="$(wc -l < "${work}/gated_off" | tr -d ' ')"
 
-          echo "test suites declared in CMakeLists.txt: ${declared_n}"
-          echo "test TUs compiled for cortex-m55:       ${compiled_n}"
-          echo "test suite directories on disk:         ${ondisk_n}"
+          echo "cpu: ${cpu}"
+          echo "test suites declared in CMakeLists.txt and enabled here: ${declared_n}"
+          echo "test TUs compiled for ${cpu}: ${compiled_n}"
+          echo "test suite directories on disk (minus option-gated): ${ondisk_n}"
+          echo "suites gated off by this cell's CMake options: ${gated_n}"
+          if [ "${gated_n}" != "0" ]; then
+            echo "  gated off: $(tr '\n' ' ' < "${work}/gated_off")"
+          fi
+
+          # The m55 cell turns on every option the legacy leg turns on, so
+          # nothing may be gated off *there*. Without this, the option-aware
+          # subtraction above would quietly retire the property #396 exists
+          # for: a new `if(ARM_NN_ENABLE_X) add_subdirectory(...)` whose
+          # option defaults OFF, or an option added to legacy-tester.yml's
+          # command and not to this one, resolves to gated-off in every cell,
+          # is subtracted from every set, and the gate goes green over
+          # translation units no PR job compiles -- which is exactly the
+          # nightly/release escape this workflow was built to close. The
+          # m4/m0 cells are allowed to gate suites off precisely because this
+          # cell is not.
+          #
+          # This covers an option that adds *suites*. An option that only
+          # flips a compile define inside translation units already compiled
+          # here adds no suite and moves no count, so it is out of this
+          # rule's reach; the "Assert this gate replays legacy-tester.yml's
+          # matrix and flags" step above is what catches that, by diffing the
+          # two workflows' -D lists directly.
+          if [ "${cpu}" = "cortex-m55" ] && [ "${gated_n}" != "0" ]; then
+            echo "Unity ${cpu} coverage: ${gated_n} suite(s) gated off on the cell that enables everything." >&2
+            sed 's|^|  |' "${work}/gated_off" >&2
+            echo "" >&2
+            echo "Tests/UnitTest/CMakeLists.txt declares those suites under a" >&2
+            echo "CMake option this cell did not turn on. This is the cell" >&2
+            echo "that stands in for the legacy leg's full-option build, so a" >&2
+            echo "suite gated off here is compiled by no cell of this gate at" >&2
+            echo "all, and first meets a cross-compiler at nightly/release." >&2
+            echo "" >&2
+            echo "Fix: add the option to this workflow's cortex-m55 command," >&2
+            echo "next to -D ARM_NN_ENABLE_F32=ON -D ARM_NN_ENABLE_F16=ON, and" >&2
+            echo "to legacy-tester.yml's cortex-m55 line if it is not already" >&2
+            echo "there. Do not silence this by adding the name to an" >&2
+            echo "exclusion list." >&2
+            exit 1
+          fi
 
           report_diff() {
             local left_name="$1" left_file="$2" right_name="$3" right_file="$4"
@@ -299,7 +666,7 @@ jobs:
 
           if ! cmp -s "${work}/declared" "${work}/compiled" \
              || ! cmp -s "${work}/declared" "${work}/ondisk"; then
-            echo "Unity m55 coverage mismatch: the three suite sets disagree." >&2
+            echo "Unity ${cpu} coverage mismatch: the three suite sets disagree." >&2
             report_diff "CMakeLists.txt" "${work}/declared" \
                         "compiled objects" "${work}/compiled"
             report_diff "CMakeLists.txt" "${work}/declared" \
@@ -309,31 +676,30 @@ jobs:
             echo "" >&2
             echo "A declared suite with no compiled object most likely has its" >&2
             echo "add_subdirectory() inside an option-gated if() block in" >&2
-            echo "Tests/UnitTest/CMakeLists.txt that this cell does not turn" >&2
-            echo "on -- the declared set above is read from the text of the" >&2
-            echo "file, so it sees that line whatever if() encloses it. This" >&2
-            echo "cell enables ARM_NN_ENABLE_F32 and ARM_NN_ENABLE_F16, so a" >&2
-            echo "float gate is not the explanation; look for a newer option." >&2
-            echo "Failing that, the object-file layout changed and this check" >&2
-            echo "needs updating." >&2
+            echo "Tests/UnitTest/CMakeLists.txt whose guard this step resolved" >&2
+            echo "as ON against ${cache} while CMake did not configure it --" >&2
+            echo "for instance a guard on a variable that is not a cache" >&2
+            echo "entry. Failing that, the object-file layout changed and this" >&2
+            echo "check needs updating." >&2
             echo "" >&2
             echo "A suite on disk but not in CMakeLists.txt is compiled by no" >&2
             echo "leg at all -- it has no add_subdirectory() line, or the line" >&2
-            echo "it has is spelled in a way the grep above does not match." >&2
-            echo "Add it to Tests/UnitTest/CMakeLists.txt." >&2
+            echo "it has is spelled in a way the awk scanner above does not" >&2
+            echo "match. Add it to Tests/UnitTest/CMakeLists.txt." >&2
             echo "" >&2
             echo "The on-disk set is every directory under TestCases/ except" >&2
-            echo "Common, TestData, Utils and *_probe -- no test_arm_ prefix" >&2
-            echo "is assumed. So if the name above is not a suite at all but a" >&2
-            echo "new shared-helper directory, the fix is to add it to that" >&2
-            echo "exclusion list in this step, not to CMakeLists.txt." >&2
+            echo "Common, TestData, Utils, *_probe and the option-gated names" >&2
+            echo "listed above -- no test_arm_ prefix is assumed. So if the" >&2
+            echo "name above is not a suite at all but a new shared-helper" >&2
+            echo "directory, the fix is to add it to that exclusion list in" >&2
+            echo "this step, not to CMakeLists.txt." >&2
             exit 1
           fi
           {
-            echo "### Unity m55 compile gate"
-            echo "- compiled ${compiled_n} Unity test translation units for cortex-m55 with -Werror"
-            echo "- agrees with ${declared_n} suites declared in CMakeLists.txt and"
-            echo "  ${ondisk_n} suite directories on disk"
+            echo "### Unity compile gate (${cpu})"
+            echo "- compiled ${compiled_n} Unity test translation units for ${cpu} with -Werror"
+            echo "- agrees with the ${declared_n} suites CMakeLists.txt declares under this cell's options and"
+            echo "  ${ondisk_n} suite directories on disk (${gated_n} option-gated)"
             echo "- FVP execution stays with the nightly/release legacy-tester leg"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -341,15 +707,17 @@ jobs:
       # compiler diagnostics go to stderr and land in the job log. Keep the
       # logs anyway, so a broken TU's diagnostic survives even if the
       # generator ever routes it to stdout, and so a failed build stays
-      # inspectable without re-running the job.
+      # inspectable without re-running the job. The artifact name carries the
+      # CPU: upload-artifact@v4 rejects a second upload under a name another
+      # matrix cell already used.
       - name: Upload build logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: unity-m55-compile-logs
+          name: unity-${{ matrix.cpu }}-compile-logs
           path: |
-            Tests/UnitTest/build-cortex-m55-gcc/make_stdout.log
-            Tests/UnitTest/build-cortex-m55-gcc/cmake_stdout.log
+            Tests/UnitTest/build-${{ matrix.cpu }}-gcc/make_stdout.log
+            Tests/UnitTest/build-${{ matrix.cpu }}-gcc/cmake_stdout.log
           if-no-files-found: warn
           retention-days: 7
 
@@ -375,9 +743,22 @@ jobs:
       # creating its directory before the payload arrives, so a cancelled or
       # failed download leaves a tree that later runs skip re-fetching. That
       # must never reach the key, which legacy-tester.yml reads too.
+      #
+      # `matrix.cpu == 'cortex-m55'` (#398) elects one writer. The cache entry
+      # is CPU-independent, so the other cells restore it and never save:
+      # three cells finishing a cold fetch within seconds of each other would
+      # race one key, and the two losers log an "already exists" warning that
+      # reads like a cache fault. If the m55 cell is the one that fails early,
+      # the next run pays the cold fetch again -- and it is now three cells
+      # paying it, not one: the cold run 33665856582 cost 6 min 05 s +
+      # 3 min 20 s + 3 min 18 s = 12 min 43 s of runner time, against the
+      # 5 min 46 s a single cold m55 cell cost under #396. That is the price
+      # of electing one writer, and it is why the m55 cell's save condition
+      # is the one that must not be tightened further.
       - name: Save tests-downloads cache
         if: >-
           !cancelled()
+          && matrix.cpu == 'cortex-m55'
           && steps.deps.outcome == 'success'
           && steps.toolchain.outcome == 'success'
           && steps.cache.outputs.cache-hit != 'true'
