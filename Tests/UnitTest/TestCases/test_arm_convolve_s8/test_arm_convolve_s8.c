@@ -2200,6 +2200,16 @@ void buffer_size_mve_arm_convolve_s8(void)
 #endif
 }
 
+/* THROWAWAY (#398 red evidence): unused static helper inside a DSP-only block.
+   Compiles on cortex-m4 only; cortex-m55 defines ARM_MATH_MVEI and cortex-m0
+   defines neither macro, so both skip it. Dropped before the PR head. */
+#if defined(ARM_MATH_DSP) && !defined(ARM_MATH_MVEI)
+static int conv_s8_dsp_only_plant_398(void)
+{
+    return 0;
+}
+#endif
+
 void buffer_size_dsp_arm_convolve_s8(void)
 {
 #if defined(ARM_MATH_DSP) && !defined(ARM_MATH_MVEI)
