@@ -154,13 +154,14 @@ PYEOF
 
 # Set GEN_PACK_LIB_PATH to use a specific gen-pack library root
 # ... instead of bootstrap based on REQUIRED_GEN_PACK_LIB
+# A set-but-invalid GEN_PACK_LIB_PATH is a hard error, not a bootstrap fallback.
 if [[ -n "${GEN_PACK_LIB_PATH}" ]] && [[ -f "${GEN_PACK_LIB_PATH}/gen-pack" ]]; then
   . "${GEN_PACK_LIB_PATH}/gen-pack" || {
     echo "failed to source gen-pack library from '${GEN_PACK_LIB_PATH}/gen-pack'" >&2
     exit 1
   }
 elif [[ -n "${GEN_PACK_LIB_PATH}" ]]; then
-  echo "GEN_PACK_LIB_PATH is set to '${GEN_PACK_LIB_PATH}' but '${GEN_PACK_LIB_PATH}/gen-pack' does not exist" >&2
+  echo "GEN_PACK_LIB_PATH is set to '${GEN_PACK_LIB_PATH}' but '${GEN_PACK_LIB_PATH}/gen-pack' is not a readable regular file" >&2
   exit 1
 else
   . <(curl -sL "https://raw.githubusercontent.com/Open-CMSIS-Pack/gen-pack/main/bootstrap")
