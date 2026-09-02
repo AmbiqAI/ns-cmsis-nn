@@ -62,6 +62,16 @@ jobs:
   host-sanitizer:
     uses: ./.github/workflows/host-sanitizer.yml
 
+  # The legacy Unity suites only *run* nightly and at release (FVP time), so
+  # before this leg a test translation unit could first meet a cross-compiler
+  # at release time -- which is how the -Werror=unused-function break in
+  # test_arm_convolve_packed_f16.c escaped to the release build
+  # (AmbiqAI/ns-cmsis-nn#390, #393). This job replays the m55 cell's build
+  # with the same script, pinned toolchain and -Werror set, and stops before
+  # the FVP run. It is a compile gate, not a substitute for legacy-tester.
+  unity-m55-compile:
+    uses: ./.github/workflows/unity-m55-compile.yml
+
   clang-format:
     uses: ./.github/workflows/clang-format.yml
 
@@ -107,6 +117,7 @@ jobs:
       - helia-core-tester
       - toolchain-strict-link
       - host-sanitizer
+      - unity-m55-compile
       - clang-format
       - license-headers
       - pdsc

@@ -85,8 +85,14 @@ jobs:
         with:
           path: Tests/UnitTest/downloads
           key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
-          restore-keys: |
-            ${{ runner.os }}-tests-downloads-
+          # Deliberately no restore-keys, matching unity-m55-compile.yml,
+          # which shares this key. build_and_run_tests.sh skips the toolchain
+          # download whenever downloads/arm_gcc_download already exists, so a
+          # prefix restore hands this job the *previous* compiler across a
+          # GCC_URL change and then re-saves it under the new exact key --
+          # which the PR gate exact-matches, and would then compile with. An
+          # exact-key miss and a cold fetch is the correct behaviour on both
+          # sides of the shared key.
 
       - name: Download deps (internal cache-checks)
         run: |

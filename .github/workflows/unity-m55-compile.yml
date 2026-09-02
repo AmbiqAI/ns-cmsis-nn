@@ -1,0 +1,388 @@
+# SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+
+name: Unity m55 Compile
+
+# PR-time compile gate for the legacy Unity suites (AmbiqAI/ns-cmsis-nn#393).
+#
+# The full legacy leg (legacy-tester.yml) only runs nightly and at release, so
+# until now a Unity test translation unit could first see a cross-compiler at
+# release time. That is exactly how #390 escaped: a -Werror=unused-function
+# diagnostic in test_arm_convolve_packed_f16.c reached the release build
+# because no PR job had ever compiled that file for cortex-m55.
+#
+# This job closes that window by replaying the m55 leg's *build* on every PR:
+# same script, same pinned toolchain, same flags, same -Werror set. It stops
+# short of the FVP run, which is what makes it cheap enough for the PR gate --
+# execution stays with legacy-tester at nightly/release.
+#
+# Drift policy: the build command below is the m55 line from
+# legacy-tester.yml with `-r` (do not run) added. It deliberately does NOT
+# re-specify compiler flags, defines, optimization level, or include paths --
+# they all come from Tests/UnitTest/build_and_run_tests.sh and
+# Tests/UnitTest/CMakeLists.txt, so this gate cannot drift away from the leg
+# it is standing in for. If you change the legacy leg's m55 invocation, change
+# it here too.
+#
+# Toolchain provenance: build_and_run_tests.sh pins Arm GNU Toolchain
+# 14.2.rel1 (Setup_Environment, GCC_URL) and downloads it into
+# Tests/UnitTest/downloads. Nothing here fetches an unpinned compiler.
+on:
+  # Invoked from ci.yml so it reports under the single required gate
+  # (AmbiqAI/ns-cmsis-nn#353); keep no push/pull_request trigger of its own.
+  workflow_call:
+    inputs:
+      container_image:
+        description: Optional container image override for the compile job. When unset, the workflow tries the latest release-tagged image and falls back to :latest.
+        required: false
+        default: ''
+        type: string
+  workflow_dispatch:
+    inputs:
+      container_image:
+        description: Optional container image override for the compile job. When unset, the workflow tries the latest release-tagged image and falls back to :latest.
+        required: false
+        default: ''
+        type: string
+
+# No workflow-level `permissions:` block on purpose: this workflow calls
+# resolve-ci-image.yml, which needs `packages: read` to query the release-
+# tagged CI image, and a caller-level `contents: read` would cap it below
+# that. legacy-tester.yml (the leg this stands in for) is shaped the same way.
+
+jobs:
+  resolve-container-image:
+    uses: ./.github/workflows/resolve-ci-image.yml
+    with:
+      container_image: ${{ inputs.container_image }}
+
+  compile:
+    name: Compile Unity test TUs (cortex-m55)
+    runs-on: ubuntu-latest
+    # Measured on runners (AmbiqAI/ns-cmsis-nn#396): 2 min 27 s to 2 min 49 s
+    # for the whole job on a warm cache, of which ~45 s is the compile; and
+    # 5 min 46 s on a genuine cold cache (run 33594464284: 77 s to fetch
+    # Corstone-300, Arm GNU 14.2.rel1, CMSIS_5 and the pip requirements, then
+    # the compile, then 144 s to save the downloads cache). 15 minutes is
+    # ~2.6x the measured cold case.
+    timeout-minutes: 15
+    needs: resolve-container-image
+    container:
+      image: ${{ needs.resolve-container-image.outputs.container_image }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Log selected container image
+        shell: bash
+        run: |
+          {
+            echo "### Job container image"
+            echo "- selected image: \`${{ needs.resolve-container-image.outputs.container_image }}\`"
+            echo "- source: \`${{ needs.resolve-container-image.outputs.resolved_from }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Same path and key as legacy-tester.yml so both legs share one cache
+      # entry (Corstone-300 FVP, Arm GNU 14.2.rel1, CMSIS_5, ethos-u core
+      # platform, the python venv).
+      #
+      # Restore and save are split on purpose (`cache/restore` here,
+      # `cache/save` at the end) rather than using the combined `cache`
+      # action. The combined action's post-job save carries
+      # `post-if: success()` (v3, v4 and v5 alike), so it never saves after a
+      # cancellation or a prior step's failure -- which is too strict here: a
+      # cold run that fetched the toolchain and then failed to *compile* would
+      # discard the download and make the next run pay for it again. The split
+      # is what lets the save condition below say "keep the bytes on a compile
+      # failure, but never publish a download that did not finish".
+      #
+      # The five terms on that condition are belt-and-braces around the same
+      # hazard: build_and_run_tests.sh creates each skip-marker directory
+      # (downloads/corstone300_download, downloads/arm_gcc_download, ...)
+      # *before* the payload lands inside it, so a tree left half-written by
+      # an interrupted download reads as "already installed" to every later
+      # run -- and this key is shared with legacy-tester.yml, so it would be
+      # handed to the nightly/release leg too.
+      - name: Restore tests-downloads cache
+        id: cache
+        uses: actions/cache/restore@v5
+        with:
+          path: Tests/UnitTest/downloads
+          key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
+          # Deliberately no restore-keys: build_and_run_tests.sh skips the
+          # download when downloads/arm_gcc_download already exists, so a
+          # prefix-matched older entry would pin the *previous* toolchain even
+          # after GCC_URL changes -- and then save it under the new key. An
+          # exact-key miss and a cold fetch is the correct behaviour here.
+
+      - name: Download deps (internal cache-checks)
+        id: deps
+        run: |
+          cd Tests/UnitTest
+          ./build_and_run_tests.sh -rb
+
+      # Assert the compiler *before* anything is built with it and before the
+      # save step can publish it. build_and_run_tests.sh only checks that
+      # downloads/arm_gcc_download exists, so any entry under this key -- one
+      # this job wrote, one legacy-tester.yml wrote, or one a cancelled run
+      # left behind -- is reused verbatim, however old it is. The expected
+      # version is read out of the harness's own GCC_URL at runtime, so
+      # nothing here has to be updated when the pin moves; a mismatch fails
+      # the job loudly instead of silently gating a release on a compiler
+      # nobody chose.
+      - name: Assert the pinned Arm GNU toolchain
+        id: toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          script=Tests/UnitTest/build_and_run_tests.sh
+          gcc_bin=Tests/UnitTest/downloads/arm_gcc_download/bin/arm-none-eabi-gcc
+
+          # GCC_URL is .../gnu/<version>/binrel/arm-gnu-toolchain-<version>-...
+          # where <version> is the full Arm release token (14.2.rel1), not just
+          # major.minor, and is spelled once per host architecture; both must
+          # agree. Deriving nothing, or two different tokens, fails the job
+          # rather than silently weakening the assertion.
+          expected="$(grep -oE 'gnu/[0-9]+\.[0-9]+\.[A-Za-z0-9]+' "${script}" \
+            | sed 's|^gnu/||' | tr '[:upper:]' '[:lower:]' | sort -u || true)"
+          if [ -z "${expected}" ] || [ "$(printf '%s\n' "${expected}" | wc -l)" -ne 1 ]; then
+            echo "Cannot derive a single pinned Arm GNU release token from ${script}." >&2
+            printf 'derived: %s\n' "${expected}" >&2
+            exit 1
+          fi
+
+          if [ ! -x "${gcc_bin}" ]; then
+            echo "Expected the harness-downloaded compiler at ${gcc_bin}." >&2
+            echo "The downloads cache entry is incomplete -- delete it and re-run." >&2
+            exit 1
+          fi
+
+          version_line="$("${gcc_bin}" --version | head -n 1)"
+          echo "pinned by ${script}: ${expected} (from GCC_URL)"
+          echo "reported by compiler: ${version_line}"
+
+          # The banner carries the same release token as the URL:
+          # `arm-none-eabi-gcc (Arm GNU Toolchain 14.2.Rel1 (Build arm-14.52))
+          # 14.2.1 ...`. Arm spells the `rel` segment inconsistently across
+          # releases (14.2.Rel1 but 13.2.rel1), so compare case-insensitively
+          # -- and compare the whole token, not major.minor, so a rebuild of
+          # the same minor cannot pass as the pin.
+          actual="$(printf '%s\n' "${version_line}" \
+            | tr '[:upper:]' '[:lower:]' \
+            | grep -oE 'arm gnu toolchain [0-9]+\.[0-9]+\.[a-z0-9]+' \
+            | tail -n 1 | sed 's|^arm gnu toolchain ||' || true)"
+          if [ -z "${actual}" ]; then
+            echo "Could not parse an Arm GNU Toolchain release token out of:" >&2
+            echo "  ${version_line}" >&2
+            echo "Refusing to compile with a compiler this job cannot identify." >&2
+            exit 1
+          fi
+
+          if [ "${actual}" != "${expected}" ]; then
+            echo "Arm GNU toolchain mismatch: ${script} pins ${expected}," >&2
+            echo "but ${gcc_bin} reports ${actual}." >&2
+            echo "The restored Tests/UnitTest/downloads cache entry is stale:" >&2
+            echo "the harness skips its download whenever arm_gcc_download" >&2
+            echo "already exists, so it never corrects this by itself. Evict" >&2
+            echo "the cache entry (its key is shared with legacy-tester.yml)" >&2
+            echo "and re-run." >&2
+            exit 1
+          fi
+          echo "Arm GNU toolchain ${actual} matches the harness pin -- ok."
+
+      - name: Compile every Unity test TU for cortex-m55
+        # `shell: bash` is explicit for `-o pipefail` and for predictability.
+        # GitHub's default for a bare `run:` is `bash -e {0}`, with `sh -e {0}`
+        # only as a fallback -- but `-e` alone is not `-euo pipefail`, and the
+        # first push on this branch did land on the fallback and died with
+        # dash's `Illegal option -o pipefail`. Naming the shell removes both
+        # variables.
+        shell: bash
+        run: |
+          cd Tests/UnitTest
+          # The harness calls `cmake --build` without -j; the legacy leg can
+          # afford that overnight, a PR gate cannot. This is the one knob this
+          # job turns, and it changes scheduling only, never a compile flag.
+          CMAKE_BUILD_PARALLEL_LEVEL="$(nproc)"
+          export CMAKE_BUILD_PARALLEL_LEVEL
+          # legacy-tester.yml's cortex-m55 line, plus -r: build, never run.
+          # Float16 is qualified for cortex-m55 only, so both float knobs are
+          # on here exactly as they are for the m55 cell of the legacy leg.
+          ./build_and_run_tests.sh -q -r -c cortex-m55 -D ARM_NN_ENABLE_F32=ON -D ARM_NN_ENABLE_F16=ON
+
+      # A green build is not by itself proof that the file you touched was
+      # compiled: a test directory that never made it into CMakeLists.txt
+      # compiles nothing and fails nothing. Assert coverage mechanically over
+      # three independently derived sets -- what CMakeLists.txt declares, what
+      # the build actually compiled, and what exists under TestCases/ on disk
+      # -- and require all three to agree by name, not merely by count. A
+      # suite directory nobody wired into CMakeLists.txt therefore fails here
+      # loudly instead of passing silently, which is the failure mode a
+      # count-only check would miss.
+      - name: Verify every m55 test suite was compiled
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd Tests/UnitTest
+          build_dir=build-cortex-m55-gcc
+          work="$(mktemp -d)"
+
+          # Probe suites (TestCases/*_probe) are one-off diagnostic harnesses,
+          # not part of the shipped suite set, and are not expected to be
+          # declared, compiled, or present in all three places at once. Drop
+          # them from every set by explicit `*_probe` pattern rather than
+          # leaning on the `test_arm_` prefix to keep them out: a probe named
+          # test_arm_<something>_probe carries the prefix too, and would
+          # otherwise fail this step for existing rather than for being
+          # unwired.
+          drop_probes() { grep -v -E '_probe$' || true; }
+
+          # (a) suites declared in Tests/UnitTest/CMakeLists.txt. Matched on
+          # the TestCases/ path rather than on a test_arm_ prefix, so all three
+          # sets are built from the same rule and a suite spelled without the
+          # conventional prefix is compared rather than skipped.
+          grep -o '^ *add_subdirectory(TestCases/[A-Za-z0-9_]*' CMakeLists.txt \
+            | sed 's|.*TestCases/||' \
+            | drop_probes \
+            | sort -u > "${work}/declared"
+
+          # (b) suites the build actually produced a test object for. The
+          # ethos-u toolchain file sets the object suffix to .obj; match both
+          # so a toolchain-file change cannot silently zero this set. Matched
+          # on `unity_` alone, not `unity_test_arm_`: every suite carries
+          # Unity/unity_<dir>.c, so the object is unity_<dir>.c.o{,bj}
+          # whatever the directory is called -- same reason as (a).
+          find "${build_dir}" \
+              \( -name 'unity_*.c.obj' -o -name 'unity_*.c.o' \) \
+              ! -name '*_runner.c.obj' ! -name '*_runner.c.o' \
+            | sed -e 's|.*/unity_||' -e 's|\.c\.obj$||' -e 's|\.c\.o$||' \
+            | drop_probes \
+            | sort -u > "${work}/compiled"
+
+          # (c) suite directories present in the checkout. Every directory
+          # under TestCases/ is a suite except three shared-infrastructure
+          # ones (Common: templates and helper headers; TestData: generated
+          # vectors; Utils: shared test utilities), which are subtracted by
+          # name. Matching '*' rather than 'test_arm_*' is the point: a suite
+          # directory added without the conventional prefix and never wired
+          # into CMakeLists.txt is exactly the unwired case this set exists to
+          # catch, and a prefix match would drop it from the comparison and
+          # let it pass silently.
+          find TestCases -mindepth 1 -maxdepth 1 -type d \
+              ! -name 'Common' ! -name 'TestData' ! -name 'Utils' \
+            | sed 's|.*/||' \
+            | drop_probes \
+            | sort -u > "${work}/ondisk"
+
+          declared_n="$(wc -l < "${work}/declared" | tr -d ' ')"
+          compiled_n="$(wc -l < "${work}/compiled" | tr -d ' ')"
+          ondisk_n="$(wc -l < "${work}/ondisk" | tr -d ' ')"
+
+          echo "test suites declared in CMakeLists.txt: ${declared_n}"
+          echo "test TUs compiled for cortex-m55:       ${compiled_n}"
+          echo "test suite directories on disk:         ${ondisk_n}"
+
+          report_diff() {
+            local left_name="$1" left_file="$2" right_name="$3" right_file="$4"
+            local only_left only_right
+            only_left="$(comm -23 "${left_file}" "${right_file}" | tr '\n' ' ')"
+            only_right="$(comm -13 "${left_file}" "${right_file}" | tr '\n' ' ')"
+            if [ -n "${only_left// /}" ]; then
+              echo "  in ${left_name} but not ${right_name}: ${only_left}" >&2
+            fi
+            if [ -n "${only_right// /}" ]; then
+              echo "  in ${right_name} but not ${left_name}: ${only_right}" >&2
+            fi
+            return 0
+          }
+
+          if ! cmp -s "${work}/declared" "${work}/compiled" \
+             || ! cmp -s "${work}/declared" "${work}/ondisk"; then
+            echo "Unity m55 coverage mismatch: the three suite sets disagree." >&2
+            report_diff "CMakeLists.txt" "${work}/declared" \
+                        "compiled objects" "${work}/compiled"
+            report_diff "CMakeLists.txt" "${work}/declared" \
+                        "TestCases/ on disk" "${work}/ondisk"
+            report_diff "compiled objects" "${work}/compiled" \
+                        "TestCases/ on disk" "${work}/ondisk"
+            echo "" >&2
+            echo "A declared suite with no compiled object most likely has its" >&2
+            echo "add_subdirectory() inside an option-gated if() block in" >&2
+            echo "Tests/UnitTest/CMakeLists.txt that this cell does not turn" >&2
+            echo "on -- the declared set above is read from the text of the" >&2
+            echo "file, so it sees that line whatever if() encloses it. This" >&2
+            echo "cell enables ARM_NN_ENABLE_F32 and ARM_NN_ENABLE_F16, so a" >&2
+            echo "float gate is not the explanation; look for a newer option." >&2
+            echo "Failing that, the object-file layout changed and this check" >&2
+            echo "needs updating." >&2
+            echo "" >&2
+            echo "A suite on disk but not in CMakeLists.txt is compiled by no" >&2
+            echo "leg at all -- it has no add_subdirectory() line, or the line" >&2
+            echo "it has is spelled in a way the grep above does not match." >&2
+            echo "Add it to Tests/UnitTest/CMakeLists.txt." >&2
+            echo "" >&2
+            echo "The on-disk set is every directory under TestCases/ except" >&2
+            echo "Common, TestData, Utils and *_probe -- no test_arm_ prefix" >&2
+            echo "is assumed. So if the name above is not a suite at all but a" >&2
+            echo "new shared-helper directory, the fix is to add it to that" >&2
+            echo "exclusion list in this step, not to CMakeLists.txt." >&2
+            exit 1
+          fi
+          {
+            echo "### Unity m55 compile gate"
+            echo "- compiled ${compiled_n} Unity test translation units for cortex-m55 with -Werror"
+            echo "- agrees with ${declared_n} suites declared in CMakeLists.txt and"
+            echo "  ${ondisk_n} suite directories on disk"
+            echo "- FVP execution stays with the nightly/release legacy-tester leg"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The harness redirects only stdout into build-*/make_stdout.log;
+      # compiler diagnostics go to stderr and land in the job log. Keep the
+      # logs anyway, so a broken TU's diagnostic survives even if the
+      # generator ever routes it to stdout, and so a failed build stays
+      # inspectable without re-running the job.
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-m55-compile-logs
+          path: |
+            Tests/UnitTest/build-cortex-m55-gcc/make_stdout.log
+            Tests/UnitTest/build-cortex-m55-gcc/cmake_stdout.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      # A cold-cache run that fetched the toolchain and then failed to compile
+      # has still paid for the download; let the save step below keep it.
+      - name: Check for downloads to cache
+        id: downloads-present
+        if: always()
+        shell: bash
+        run: |
+          if [ -d Tests/UnitTest/downloads ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Publish the entry only when this run actually completed the download.
+      # `!cancelled()` rather than `success()` so a cold fetch that a later
+      # *compile* failure follows is still kept -- the bytes were paid for and
+      # the compiler was asserted above and that assertion passed (a cold run that
+      # fetched the wrong compiler must not be saved either). `steps.deps.outcome == 'success'` is
+      # the load-bearing term: the harness marks each dependency installed by
+      # creating its directory before the payload arrives, so a cancelled or
+      # failed download leaves a tree that later runs skip re-fetching. That
+      # must never reach the key, which legacy-tester.yml reads too.
+      - name: Save tests-downloads cache
+        if: >-
+          !cancelled()
+          && steps.deps.outcome == 'success'
+          && steps.toolchain.outcome == 'success'
+          && steps.cache.outputs.cache-hit != 'true'
+          && steps.downloads-present.outputs.present == 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: Tests/UnitTest/downloads
+          key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
