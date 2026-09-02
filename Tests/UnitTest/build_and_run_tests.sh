@@ -174,17 +174,40 @@ Head_Of() {
 
 # Fetch <commit> into the existing git repository at <dir> from its origin.
 # The commit is fetched directly at depth 1, which both remotes pinned above
-# serve today; the full fetch is the fallback for a server that will not serve
-# a bare commit that way, and it carries --tags so that a pin expressed as a
-# tag object in future is fetched rather than silently missing.
+# serve today; the fallback is for a server that will not serve a bare commit
+# that way.
+#
+# The fallback has to *deepen*, not just fetch. Every tree on this path is
+# shallow: Clone_At_Commit fetches at depth 1, so the repository carries a
+# shallow boundary. A plain `git fetch origin` there does pick up commits
+# *newer* than that boundary, but it can never reach anything older -- so a
+# pin that is not a descendant of the boundary (a downgrade after a bad bump,
+# or a force-push upstream) comes back "fetched successfully" with the pinned
+# object still absent, and the caller then reports a perfectly good pin as
+# "the remote has no such commit". Measured both ways in the container before
+# this line was written. --unshallow is what removes the boundary; it errors
+# on a repository that is already complete, hence the second form. --tags on
+# both, so a pin expressed as a tag object in future is fetched rather than
+# silently missing.
 Fetch_Commit() {
     local name="$1" dir="$2" commit="$3"
 
     if Git_At "${dir}" fetch --quiet --depth=1 origin "${commit}"; then
         return 0
     fi
-    echo "   ${name}: shallow fetch of that commit failed, trying a full fetch"
-    Git_At "${dir}" fetch --quiet --tags origin || return 1
+    echo "   ${name}: shallow fetch of that commit failed, fetching in full"
+    Git_At "${dir}" fetch --quiet --tags --unshallow origin \
+        || Git_At "${dir}" fetch --quiet --tags origin \
+        || return 1
+}
+
+# Print the paths that make <dir> differ from its own HEAD: modified tracked
+# files and untracked files, but not files the upstream repository's own
+# .gitignore covers. Empty output means the working tree is exactly the
+# checked-out commit, which is the half of "this tree is the pinned tree" that
+# comparing HEADs cannot see.
+Dirty_Paths() {
+    Git_At "$1" status --porcelain --ignored=no 2>/dev/null || true
 }
 
 # Check <dir> out at <commit>, separating the two failure classes Retry treats
@@ -232,40 +255,52 @@ Move_To_Commit() {
 
     origin_url="$(Git_At "${dir}" remote get-url origin 2>/dev/null || true)"
     if [[ "${origin_url}" != "${url}" ]]; then
-        Git_At "${dir}" remote remove origin >/dev/null 2>&1 || true
-        # A repository this script cannot even give a remote to is not
-        # something another attempt will fix.
-        Git_At "${dir}" remote add origin "${url}" || return 125
+        echo "   ${name}: origin is ${origin_url:-unset}, repointing it at ${url}"
+        # Both of these are retryable (1), not fatal (125): the usual reason
+        # either fails is a .git/config.lock left by a killed git, which the
+        # next attempt often finds gone. Nothing here is swallowed, so git's
+        # own diagnosis of the failure reaches the log -- swallowing the
+        # remove is what used to turn a stale lock into a confusing "remote
+        # origin already exists" one line later.
+        if [[ -n "${origin_url}" ]]; then
+            Git_At "${dir}" remote remove origin || return 1
+        fi
+        Git_At "${dir}" remote add origin "${url}" || return 1
     fi
     Fetch_Commit "${name}" "${dir}" "${commit}" || return 1
     Checkout_Commit "${name}" "${url}" "${dir}" "${commit}"
 }
 
-# Leave <dir> sitting exactly on <commit>, or exit. Runs on every path, not
-# only after a fresh clone: a directory restored from a CI cache, or left
-# behind by an older unpinned checkout, is skipped by the "already installed"
-# branches in Setup_Environment and would otherwise be used at whatever commit
-# it happens to hold.
+# Leave <dir> sitting exactly on <commit>, with a working tree that is that
+# commit, or exit. Runs on every path, not only after a fresh clone: a
+# directory restored from a CI cache, or left behind by an older unpinned
+# checkout, is skipped by the "already installed" branches in
+# Setup_Environment and would otherwise be used at whatever commit -- and
+# whatever local edits -- it happens to hold.
 #
-# An existing checkout at the wrong commit is moved to the pin rather than
-# rejected. "Delete it and re-run" is not a remedy on either path that reaches
-# this: a CI cache entry is restored identically on the next run, so the same
-# failure repeats until somebody evicts the entry by hand, and every dev
-# container whose clone predates a pin bump (.devcontainer/install.sh runs
-# this script) would fail every build until its owner read the message. A
-# checkout that is not a git repository at all is still a hard failure --
-# something the harness did not create is sitting where the clone belongs, and
-# guessing is worse than stopping.
+# Two conditions, not one. HEAD must equal the pin, and the working tree must
+# be clean, because `git checkout` carries divergence forward: a local edit to
+# a file that happens not to differ between the old commit and the pin
+# survives a move to the pin untouched, and HEAD alone reports that tree as
+# pinned. A dirty tree is refused with exit 125 -- this script's do-not-retry
+# status -- and never repaired: `reset --hard` or `clean -fd` here would
+# silently destroy work whose only copy is that directory.
+#
+# An existing *clean* checkout at the wrong commit is moved to the pin rather
+# than rejected. This is a developer-machine and dev-container path, not a CI
+# one: CI has no restore-keys, the cache key hashes this file, so a pin bump
+# misses the cache and takes the fresh-clone path instead. What it fixes is
+# .devcontainer/install.sh, which runs this harness, and any local checkout
+# made before a pin moved -- "delete the directory and re-run" is a poor
+# remedy for a clone the developer did not know was there. A checkout that is
+# not a git repository at all is still a hard failure: something the harness
+# did not create is sitting where the clone belongs, and guessing is worse
+# than stopping.
 Assert_Pinned() {
     local name="$1" url="$2" dir="$3" commit="$4"
-    local head was
+    local head was branch dirty
 
     head="$(Head_Of "${dir}")"
-    if [[ "${head}" == "${commit}" ]]; then
-        echo "   ${name} pinned at ${commit} -- ok."
-        return 0
-    fi
-
     if [[ -z "${head}" ]]; then
         echo "${name}: ${dir} exists but is not a git checkout." >&2
         echo "  repository:  ${url}" >&2
@@ -274,8 +309,30 @@ Assert_Pinned() {
         exit 1
     fi
 
+    dirty="$(Dirty_Paths "${dir}")"
+    if [[ -n "${dirty}" ]]; then
+        echo "${name}: working tree has local changes, so it is not the" >&2
+        echo "pinned tree whatever HEAD says." >&2
+        echo "  repository:  ${url}" >&2
+        echo "  pinned at:   ${commit}" >&2
+        echo "  HEAD is:     ${head}" >&2
+        echo "  changed paths (git status --porcelain):" >&2
+        printf '%s\n' "${dirty}" | sed 's|^|    |' >&2
+        echo "  This script will not discard them: commit, stash or delete" >&2
+        echo "  them yourself, or leave them where they are and point the" >&2
+        echo "  build at another tree with -C (CMSIS_5) or -u" >&2
+        echo "  (ethos-u-core-platform). Re-running as-is will not help." >&2
+        exit 125
+    fi
+
+    if [[ "${head}" == "${commit}" ]]; then
+        echo "   ${name} pinned at ${commit} -- ok."
+        return 0
+    fi
+
     was="${head}"
-    echo "   ${name}: HEAD is ${was}, pinned at ${commit} -- moving it to the pin."
+    branch="$(Git_At "${dir}" symbolic-ref -q --short HEAD 2>/dev/null || true)"
+    echo "   ${name}: HEAD is ${was}${branch:+ (branch ${branch})}, pinned at ${commit} -- moving it to the pin."
     if Retry "move ${name} to its pin" \
         Move_To_Commit "${name}" "${url}" "${dir}" "${commit}"; then
         head="$(Head_Of "${dir}")"
@@ -286,13 +343,10 @@ Assert_Pinned() {
         echo "  repository:  ${url}" >&2
         echo "  pinned at:   ${commit}" >&2
         echo "  HEAD is:     ${head}" >&2
-        echo "  Delete ${dir} and re-run to re-clone at the pinned commit. In" >&2
-        echo "  CI, evict the Tests/UnitTest/downloads cache entry -- its key" >&2
-        echo "  is shared by unity-m55-compile.yml and legacy-tester.yml --" >&2
-        echo "  and re-run." >&2
+        echo "  Delete ${dir} and re-run to re-clone at the pinned commit." >&2
         exit 1
     fi
-    echo "   ${name} pinned at ${commit} -- ok (moved from ${was})."
+    echo "   ${name} pinned at ${commit} -- ok (moved from ${was}${branch:+, which was branch ${branch}})."
 }
 
 Setup_Environment() {

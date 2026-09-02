@@ -387,15 +387,24 @@ jobs:
           echo "Arm GNU toolchain ${actual} matches the harness pin -- ok."
 
           # Same argument, same step, for the two third-party clones (#402).
-          # The harness checks its own pins, and moves a restored tree that is
-          # at some other commit back onto the pin rather than failing -- a
-          # cache entry comes back identical every run, so "delete it and
-          # re-run" is not a remedy there. That makes this an independent
-          # backstop rather than the only check: it re-reads the pins from the
-          # harness and the HEADs from disk, so if the heal silently did not
-          # happen, the compile does not go ahead over a CMake toolchain file
-          # and headers nobody chose. It is in the step whose outcome the save
-          # condition below requires, so such a tree is never published either.
+          # The harness checks its own pins as it sets up; this is the
+          # independent backstop, re-reading the pins from the harness file
+          # and the state from disk after the setup step has run.
+          #
+          # Two conditions, because HEAD alone does not say what is in the
+          # tree: `git checkout` carries local modifications forward, so a
+          # tree can sit on the pinned commit and still not be that commit's
+          # content. Requiring `git status --porcelain` to be empty as well is
+          # what makes the pair mean "this is the pinned tree" -- and that is
+          # what the compile below actually consumes, since CMSIS_5 supplies
+          # headers and ethos-u-core-platform supplies the CMake toolchain
+          # file. Neither condition can be met by accident, and this step's
+          # outcome gates the cache save below, so a tree that fails either
+          # one is not published to the shared entry.
+          #
+          # (`--ignored=no` keeps files the upstream repositories' own
+          # .gitignore covers out of it, so build residue in a restored cache
+          # entry is not read as tampering.)
           for pin in \
             CMSIS_5_COMMIT:CMSIS_5 \
             ETHOS_U_CORE_PLATFORM_COMMIT:ethos-u-core-platform; do
@@ -424,7 +433,22 @@ jobs:
               echo "re-run." >&2
               exit 1
             fi
-            echo "${dir} at ${head_sha} matches ${var} -- ok."
+            dirty="$(git -c safe.directory='*' -C "${dir}" \
+              status --porcelain --ignored=no 2>/dev/null || true)"
+            if [ -n "${dirty}" ]; then
+              echo "Clone at ${dir} is at its pin but has local changes." >&2
+              echo "  ${script} pins ${var}=${pinned}, and HEAD matches," >&2
+              echo "  but the working tree does not match that commit:" >&2
+              printf '%s\n' "${dirty}" | sed 's|^|    |' >&2
+              echo "This gate compiles against these trees -- CMSIS_5 headers" >&2
+              echo "and the ethos-u-core-platform CMake toolchain file -- so a" >&2
+              echo "modified one means the build is not the pinned build." >&2
+              echo "Nothing in CI writes here, so treat this as a corrupted or" >&2
+              echo "tampered cache entry: evict it (its key is shared with" >&2
+              echo "legacy-tester.yml) and re-run." >&2
+              exit 1
+            fi
+            echo "${dir} at ${head_sha}, clean, matches ${var} -- ok."
           done
 
       - name: Compile every Unity test TU for ${{ matrix.cpu }}
