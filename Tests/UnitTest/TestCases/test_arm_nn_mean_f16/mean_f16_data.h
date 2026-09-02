@@ -1,10 +1,6 @@
 /*
  * SPDX-FileCopyrightText: Copyright 2026 Ambiq
- *
- * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
- *
- * Licensed under the Ambiq Apollo SDK License.
- * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Generated golden data (numpy reference, float32 accumulation).
  */
