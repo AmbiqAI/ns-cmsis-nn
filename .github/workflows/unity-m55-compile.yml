@@ -59,15 +59,12 @@ jobs:
   compile:
     name: Compile Unity test TUs (cortex-m55)
     runs-on: ubuntu-latest
-    # Measured on a runner (AmbiqAI/ns-cmsis-nn#396): 2 min 27 s to 2 min 42 s
-    # across the PR runs (warm cache) for the whole job, of which 41 s is the
-    # compile. The rest of this budget is for a cold cache -- Corstone-300,
-    # Arm GNU 14.2.rel1, CMSIS_5 and the pip requirements. That path is
-    # bounded by legacy-tester's own cold run 31445128930 (cache miss: 65 s
-    # for the whole Setup_Environment download, 2 min for the post-run cache
-    # save), which puts this job's cold case near 7 minutes -- inside this
-    # bound, and consistent with legacy-tester.yml fitting 20 minutes
-    # *including* the FVP run this job skips.
+    # Measured on runners (AmbiqAI/ns-cmsis-nn#396): 2 min 27 s to 2 min 49 s
+    # for the whole job on a warm cache, of which ~45 s is the compile; and
+    # 5 min 46 s on a genuine cold cache (run 33594464284: 77 s to fetch
+    # Corstone-300, Arm GNU 14.2.rel1, CMSIS_5 and the pip requirements, then
+    # the compile, then 144 s to save the downloads cache). 15 minutes is
+    # ~2.6x the measured cold case.
     timeout-minutes: 15
     needs: resolve-container-image
     container:
@@ -335,7 +332,8 @@ jobs:
           {
             echo "### Unity m55 compile gate"
             echo "- compiled ${compiled_n} Unity test translation units for cortex-m55 with -Werror"
-            echo "- agrees with ${declared_n} suites declared in CMakeLists.txt and ${ondisk_n} suite directories on disk"
+            echo "- agrees with ${declared_n} suites declared in CMakeLists.txt and"
+            echo "  ${ondisk_n} suite directories on disk"
             echo "- FVP execution stays with the nightly/release legacy-tester leg"
           } >> "$GITHUB_STEP_SUMMARY"
 
