@@ -92,8 +92,11 @@ jobs:
         with:
           path: Tests/UnitTest/downloads
           key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
-          restore-keys: |
-            ${{ runner.os }}-tests-downloads-
+          # Deliberately no restore-keys: build_and_run_tests.sh skips the
+          # download when downloads/arm_gcc_download already exists, so a
+          # prefix-matched older entry would pin the *previous* toolchain even
+          # after GCC_URL changes -- and then save it under the new key. An
+          # exact-key miss and a cold fetch is the correct behaviour here.
 
       - name: Download deps (internal cache-checks)
         run: |
@@ -118,39 +121,121 @@ jobs:
 
       # A green build is not by itself proof that the file you touched was
       # compiled: a test directory that never made it into CMakeLists.txt
-      # compiles nothing and fails nothing. Assert coverage mechanically
-      # instead, deriving the expected set from CMakeLists.txt rather than
-      # from a number pasted into this file.
+      # compiles nothing and fails nothing. Assert coverage mechanically over
+      # three independently derived sets -- what CMakeLists.txt declares, what
+      # the build actually compiled, and what exists under TestCases/ on disk
+      # -- and require all three to agree by name, not merely by count. A
+      # suite directory nobody wired into CMakeLists.txt therefore fails here
+      # loudly instead of passing silently, which is the failure mode a
+      # count-only check would miss.
       - name: Verify every m55 test suite was compiled
         shell: bash
         run: |
           set -euo pipefail
           cd Tests/UnitTest
           build_dir=build-cortex-m55-gcc
-          expected="$(grep -c '^ *add_subdirectory(TestCases/test_arm_' CMakeLists.txt)"
-          # The ethos-u toolchain file sets the object suffix to .obj; match
-          # both so a toolchain-file change cannot silently zero this count.
-          built="$(find "${build_dir}" \
-                     \( -name 'unity_test_arm_*.c.obj' -o -name 'unity_test_arm_*.c.o' \) \
-                     ! -name '*_runner.c.obj' ! -name '*_runner.c.o' \
-                   | wc -l | tr -d ' ')"
-          echo "test suites declared in CMakeLists.txt: ${expected}"
-          echo "test TUs compiled for cortex-m55:       ${built}"
-          if [ "${built}" -ne "${expected}" ]; then
-            echo "Compiled TU count does not match the declared suites." >&2
-            echo "Either a suite is gated off for cortex-m55 (it should not be:" >&2
-            echo "the m55 cell enables both ARM_NN_ENABLE_F32 and _F16), or the" >&2
-            echo "object-file layout changed and this check needs updating." >&2
+          work="$(mktemp -d)"
+
+          # (a) suites declared in Tests/UnitTest/CMakeLists.txt
+          grep -o '^ *add_subdirectory(TestCases/test_arm_[A-Za-z0-9_]*' CMakeLists.txt \
+            | sed 's|.*TestCases/||' \
+            | sort -u > "${work}/declared"
+
+          # (b) suites the build actually produced a test object for. The
+          # ethos-u toolchain file sets the object suffix to .obj; match both
+          # so a toolchain-file change cannot silently zero this set.
+          find "${build_dir}" \
+              \( -name 'unity_test_arm_*.c.obj' -o -name 'unity_test_arm_*.c.o' \) \
+              ! -name '*_runner.c.obj' ! -name '*_runner.c.o' \
+            | sed -e 's|.*/unity_||' -e 's|\.c\.obj$||' -e 's|\.c\.o$||' \
+            | sort -u > "${work}/compiled"
+
+          # (c) suite directories present in the checkout
+          find TestCases -mindepth 1 -maxdepth 1 -type d -name 'test_arm_*' \
+            | sed 's|.*/||' \
+            | sort -u > "${work}/ondisk"
+
+          declared_n="$(wc -l < "${work}/declared" | tr -d ' ')"
+          compiled_n="$(wc -l < "${work}/compiled" | tr -d ' ')"
+          ondisk_n="$(wc -l < "${work}/ondisk" | tr -d ' ')"
+
+          echo "test suites declared in CMakeLists.txt: ${declared_n}"
+          echo "test TUs compiled for cortex-m55:       ${compiled_n}"
+          echo "test suite directories on disk:         ${ondisk_n}"
+
+          report_diff() {
+            local left_name="$1" left_file="$2" right_name="$3" right_file="$4"
+            local only_left only_right
+            only_left="$(comm -23 "${left_file}" "${right_file}" | tr '\n' ' ')"
+            only_right="$(comm -13 "${left_file}" "${right_file}" | tr '\n' ' ')"
+            if [ -n "${only_left// /}" ]; then
+              echo "  in ${left_name} but not ${right_name}: ${only_left}" >&2
+            fi
+            if [ -n "${only_right// /}" ]; then
+              echo "  in ${right_name} but not ${left_name}: ${only_right}" >&2
+            fi
+            return 0
+          }
+
+          if ! cmp -s "${work}/declared" "${work}/compiled" \
+             || ! cmp -s "${work}/declared" "${work}/ondisk"; then
+            echo "Unity m55 coverage mismatch: the three suite sets disagree." >&2
+            report_diff "CMakeLists.txt" "${work}/declared" \
+                        "compiled objects" "${work}/compiled"
+            report_diff "CMakeLists.txt" "${work}/declared" \
+                        "TestCases/ on disk" "${work}/ondisk"
+            report_diff "compiled objects" "${work}/compiled" \
+                        "TestCases/ on disk" "${work}/ondisk"
+            echo "" >&2
+            echo "A suite on disk but not in CMakeLists.txt is compiled by no" >&2
+            echo "leg at all -- add it to Tests/UnitTest/CMakeLists.txt. A" >&2
+            echo "declared suite with no object is either gated off for" >&2
+            echo "cortex-m55 (it should not be: the m55 cell enables both" >&2
+            echo "ARM_NN_ENABLE_F32 and _F16), or the object-file layout" >&2
+            echo "changed and this check needs updating." >&2
             exit 1
           fi
           {
             echo "### Unity m55 compile gate"
-            echo "- compiled ${built} Unity test translation units for cortex-m55 with -Werror"
+            echo "- compiled ${compiled_n} Unity test translation units for cortex-m55 with -Werror"
+            echo "- agrees with ${declared_n} suites declared in CMakeLists.txt and ${ondisk_n} suite directories on disk"
             echo "- FVP execution stays with the nightly/release legacy-tester leg"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # The harness redirects only stdout into build-*/make_stdout.log;
+      # compiler diagnostics go to stderr and land in the job log. Keep the
+      # logs anyway, so a broken TU's diagnostic survives even if the
+      # generator ever routes it to stdout, and so a failed build stays
+      # inspectable without re-running the job.
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-m55-compile-logs
+          path: |
+            Tests/UnitTest/build-cortex-m55-gcc/make_stdout.log
+            Tests/UnitTest/build-cortex-m55-gcc/cmake_stdout.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      # A cold-cache run that fetched the toolchain and then failed to compile
+      # has still paid for the download; let the save step below keep it.
+      - name: Check for downloads to cache
+        id: downloads-present
+        if: always()
+        shell: bash
+        run: |
+          if [ -d Tests/UnitTest/downloads ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Save tests-downloads cache
-        if: steps.cache-downloads.outputs.cache-hit != 'true'
+        if: >-
+          always()
+          && steps.downloads-present.outputs.present == 'true'
+          && steps.cache-downloads.outputs.cache-hit != 'true'
         uses: actions/cache@v5
         with:
           path: Tests/UnitTest/downloads
