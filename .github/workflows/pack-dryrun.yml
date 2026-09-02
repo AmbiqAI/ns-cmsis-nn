@@ -18,8 +18,9 @@
 # Changelog mode mirrors release.yml (#395). release.yml sets no
 # PACK_CHANGELOG_MODE at all, which is load-bearing: gen_pack.sh defaults
 # itself to 'tag' (schema-safe pdsc <release> bodies) while
-# Documentation/Doxygen/gen_doc.sh defaults itself to 'full' (rich Doxygen
-# history page). So this workflow must not set the variable either. It runs
+# Documentation/Doxygen/gen_doc.sh defaults itself to 'full' (the Doxygen
+# history page, which is HTML and is never schema-checked). So this
+# workflow must not set the variable either. It runs
 # gen-pack against a LOCAL-ONLY annotated tag created by
 # scripts/ci/ensure_local_tag_annotation.sh, the same helper release.yml
 # uses; that tag is never pushed. Before #395 this workflow forced
@@ -29,6 +30,17 @@
 # "Co-authored-by: ... <...>" trailer) every dry-run died in the pdsc
 # schema check on the unescaped '<', while the release path stayed green.
 # A dry-run that fails where the release cannot is not a rehearsal.
+#
+# Honest bound on the rehearsal: the synthetic tag has no GitHub Release,
+# so ensure_local_tag_annotation.sh always takes its FALLBACK branch and
+# writes the one-line 'Release <tag>' annotation. The other branch -- an
+# XML-escaped real Release body -- is unit-covered by
+# scripts/check_ensure_local_tag_annotation.sh, but its composition with
+# gen-pack's own re-interpretation of the annotation text (`echo -e` in
+# git_changelog_pdsc) is NOT exercised end to end here. Seeding the
+# synthetic annotation from a real Release body would require changing the
+# helper's tag-to-release lookup, so it is a stated follow-up, not part of
+# this path.
 #
 # Outputs are uploaded as workflow artefacts (NOT to a GitHub Release).
 # Triggered manually only — this is a verification path, not a publish path.
@@ -147,7 +159,8 @@ jobs:
             git tag -d "${tag}" >/dev/null
           fi
           git tag "${tag}" "${head_sha}"
-          bash scripts/ci/ensure_local_tag_annotation.sh "${tag}" "${GITHUB_REPOSITORY}"
+          bash scripts/ci/ensure_local_tag_annotation.sh \
+            "${tag}" "${GITHUB_REPOSITORY}" "${GITHUB_WORKSPACE}"
           objecttype="$(git for-each-ref --format '%(objecttype)' "refs/tags/${tag}")"
           if [[ "${objecttype}" != "tag" ]]; then
             echo "'${tag}' is not an annotated tag object (type='${objecttype}')" >&2
@@ -159,6 +172,38 @@ jobs:
           fi
           git tag -l -n99 "${tag}"
           git describe --tags --long --match 'v*' --abbrev=7
+
+          # Ordering guard. gen-pack does not take the tag from us: its
+          # git_changelog walks the tags itself (gen-pack 0.11.3
+          # lib/gittools:241-249) and the FIRST surviving entry becomes the
+          # newest pdsc <release>. Reproduce that walk exactly -- prefix 'v'
+          # (gen_pack.sh's DEFAULT_ARGS=(-c "v")), for-each-ref over
+          # refs/tags/v* sorted '-v:refname' under versionsort.suffix=-,
+          # --merged HEAD, and prerelease-shaped tags (matching 'v.*-.*')
+          # dropped unless they point at HEAD -- and assert our synthetic tag
+          # wins. A stray prerelease-shaped tag sitting at HEAD (say a
+          # leftover vX.Y.Z-something) sorts above the synthetic tag and is
+          # kept by that filter, so gen-pack would use it instead; the symptom
+          # downstream is a changelog abort or an unexpected/empty <releases>
+          # element that names nothing. Fail here, naming the offending tag.
+          mapfile -t walk < <(git -c 'versionsort.suffix=-' for-each-ref \
+            --format '%(refname)' --sort='-v:refname' 'refs/tags/v*' --merged)
+          selected=""
+          for ref in "${walk[@]}"; do
+            if [[ "${ref}" =~ v.*-.*$ ]] \
+               && [[ "$(git rev-list -n1 "${ref}")" != "${head_sha}" ]]; then
+              continue
+            fi
+            selected="${ref#refs/tags/}"
+            break
+          done
+          echo "gen-pack tag walk selects: ${selected:-<none>}"
+          if [[ "${selected}" != "${tag}" ]]; then
+            echo "gen-pack's tag walk would select '${selected:-<none>}', not the synthetic dry-run tag '${tag}'." >&2
+            echo "'${selected:-<none>}' sorts above '${tag}' and survives gen-pack's HEAD filter, so it would take over the newest pdsc <release>." >&2
+            echo "Delete or rename '${selected:-<none>}' (or fix the synthetic version derivation) and re-run this dry-run." >&2
+            exit 1
+          fi
 
       - name: Download per-arch staticlib artefacts
         uses: actions/download-artifact@v4
