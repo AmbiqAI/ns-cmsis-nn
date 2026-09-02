@@ -252,9 +252,10 @@ jobs:
 
           # (b) suites the build actually produced a test object for. The
           # ethos-u toolchain file sets the object suffix to .obj; match both
-          # so a toolchain-file change cannot silently zero this set. Prefix
-          # here is `unity_` only -- CMakeLists.txt names every suite target
-          # unity_<dir> -- for the same reason as (a).
+          # so a toolchain-file change cannot silently zero this set. Matched
+          # on `unity_` alone, not `unity_test_arm_`: every suite carries
+          # Unity/unity_<dir>.c, so the object is unity_<dir>.c.o{,bj}
+          # whatever the directory is called -- same reason as (a).
           find "${build_dir}" \
               \( -name 'unity_*.c.obj' -o -name 'unity_*.c.o' \) \
               ! -name '*_runner.c.obj' ! -name '*_runner.c.o' \
