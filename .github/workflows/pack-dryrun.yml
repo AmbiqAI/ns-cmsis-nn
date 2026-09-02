@@ -15,16 +15,20 @@
 #   - The Cvariant="Prebuilt" component's per-arch libns-cmsis-nn.a
 #     files exist (#181) — they're staged from the build-staticlibs job.
 #
-# Changelog mode mirrors release.yml (#395). gen_pack.sh runs in
-# PACK_CHANGELOG_MODE=tag against a LOCAL-ONLY annotated tag created by
+# Changelog mode mirrors release.yml (#395). release.yml sets no
+# PACK_CHANGELOG_MODE at all, which is load-bearing: gen_pack.sh defaults
+# itself to 'tag' (schema-safe pdsc <release> bodies) while
+# Documentation/Doxygen/gen_doc.sh defaults itself to 'full' (rich Doxygen
+# history page). So this workflow must not set the variable either. It runs
+# gen-pack against a LOCAL-ONLY annotated tag created by
 # scripts/ci/ensure_local_tag_annotation.sh, the same helper release.yml
-# uses; that tag is never pushed. Before #395 this workflow ran
-# PACK_CHANGELOG_MODE=full, a mode the release path never uses: it embeds
-# raw commit messages in the pdsc <release> body, so since dd58c8b8 (a
-# squash whose body carries a "Co-authored-by: ... <...>" trailer) every
-# dry-run died in the pdsc schema check on the unescaped '<', while the
-# release path stayed green. A dry-run that fails where the release cannot
-# is not a rehearsal.
+# uses; that tag is never pushed. Before #395 this workflow forced
+# PACK_CHANGELOG_MODE=full on both scripts, a combination the release path
+# never uses: full mode embeds raw commit messages in the pdsc <release>
+# body, so since dd58c8b8 (a squash whose body carries a
+# "Co-authored-by: ... <...>" trailer) every dry-run died in the pdsc
+# schema check on the unescaped '<', while the release path stayed green.
+# A dry-run that fails where the release cannot is not a rehearsal.
 #
 # Outputs are uploaded as workflow artefacts (NOT to a GitHub Release).
 # Triggered manually only — this is a verification path, not a publish path.
@@ -99,7 +103,7 @@ jobs:
         run: git fetch --tags --force
 
       # Rehearse release.yml's changelog path (#395). gen_pack.sh defaults to
-      # PACK_CHANGELOG_MODE=tag, which needs the tag that git-describes HEAD to
+      # PACK_CHANGELOG_MODE=tag, which needs the newest tag merged into HEAD to
       # be an ANNOTATED tag object with a non-empty message; release-please
       # creates LIGHTWEIGHT tags, so release.yml repairs that locally with
       # scripts/ci/ensure_local_tag_annotation.sh. A dry-run HEAD has no tag at
@@ -190,7 +194,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACK_CHANGELOG_MODE: tag
+          # Deliberately NOT setting PACK_CHANGELOG_MODE, exactly like
+          # release.yml: gen_pack.sh defaults to 'tag' and gen_doc.sh to
+          # 'full', and forcing either value on both breaks one of them (#395).
           NS_CMSIS_NN_PREBUILT_LIBS_STAGED: "1"
         with:
           doxygen-version: 1.9.6
