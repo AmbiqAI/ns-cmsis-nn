@@ -962,7 +962,8 @@ jobs:
         # since neither this workflow nor pack-dryrun.yml sets
         # GEN_PACK_LIB_PATH. Re-verify the bootstrapped version when this
         # pin is next bumped; keep this line identical to pack-dryrun.yml's
-        # (guarded by the sync check in pack-dryrun.yml).
+        # (guarded on every PR by scripts/check_gen_pack_action_pin.sh, run
+        # from release-contract.yml).
         uses: Open-CMSIS-Pack/gen-pack-action@9cab2ab138e909e93a3f051ab9a4675b52843a25  # main @ 2026-07-28T08:33:48Z; bootstraps gen-pack 0.11.3
         # The observed hang (issue #271) is inside this action's own `apt-get
         # update`, which stalls when the runner's package mirrors misbehave.

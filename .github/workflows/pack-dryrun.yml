@@ -111,14 +111,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: gen-pack-action pin sync
-        # Mechanical guard, same idiom as pdsc.yml's toolchain_manifest_sync
-        # job (#405): this repo pins Open-CMSIS-Pack/gen-pack-action in two
-        # workflow files edited independently for different reasons, so
-        # nothing stops them drifting to different SHAs -- and a dry-run
-        # rehearsing release.yml's own pin is not a rehearsal at all.
-        run: grep -qF "$(grep 'gen-pack-action@' .github/workflows/pack-dryrun.yml)" .github/workflows/release.yml || { echo "::error::Open-CMSIS-Pack/gen-pack-action pin differs between .github/workflows/pack-dryrun.yml and .github/workflows/release.yml -- align the two 'uses:' lines" >&2; exit 1; }
-
       - name: Fetch tags
         run: git fetch --tags --force
 
