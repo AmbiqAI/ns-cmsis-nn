@@ -67,7 +67,9 @@ void hard_swish_f16_zero_region_arm_hard_swish_f16(void)
 
     for (int i = 0; i < HARD_SWISH_F16_IDENT_SIZE; ++i)
     {
-        TEST_ASSERT_TRUE((float)output[i] == 0.0f);
+        // Exactly the documented negative zero (negative * +0.0), not just
+        // any zero: pin the sign bit.
+        TEST_ASSERT_EQUAL_HEX16(0x8000u, hard_swish_f16_bits(output[i]));
     }
 }
 
@@ -80,7 +82,7 @@ void hard_swish_f16_knots_arm_hard_swish_f16(void)
 
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_hard_swish_f16(knots, output, 4));
 
-    TEST_ASSERT_TRUE((float)output[0] == 0.0f);
+    TEST_ASSERT_EQUAL_HEX16(0x8000u, hard_swish_f16_bits(output[0]));
     TEST_ASSERT_EQUAL_HEX16(hard_swish_f16_bits((float16_t)0.0f), hard_swish_f16_bits(output[1]));
     TEST_ASSERT_EQUAL_HEX16(hard_swish_f16_bits((float16_t)3.0f), hard_swish_f16_bits(output[2]));
     TEST_ASSERT_EQUAL_HEX16(hard_swish_f16_bits((float16_t)6.0f), hard_swish_f16_bits(output[3]));

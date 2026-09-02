@@ -442,6 +442,11 @@ arm_cmsis_nn_status arm_avg_pool_f32(const cmsis_nn_context *ctx,
  *       shipped -Ofast. This holds on both the scalar and the MVE (cortex-m55) build paths; the MVE
  *       RELU/RELU6 legs restore the NaN lanes that vmaxnmq/vminnmq suppress. SIGMOID, TANH and HARDSWISH
  *       are outside this contract; see the per-helper notes in Include/Internal/arm_nn_activation_flt.h.
+ *
+ * @note The HARDSWISH leg keeps the legacy helper's separately rounded multiply-and-add gate, which can
+ *       differ by an ulp in the curved region from the standalone @ref arm_hard_swish_f32 (whose gate is
+ *       a correctly rounded fma on both build paths). Callers that need bit-exact, leg-agreeing hard
+ *       swish -- or the documented NaN/Inf contract -- should call @ref arm_hard_swish_f32 directly.
  */
 arm_cmsis_nn_status arm_nn_activation_f32(const float32_t *input,
                                           float32_t *output,
@@ -1534,6 +1539,11 @@ arm_cmsis_nn_status arm_avg_pool_f16(const cmsis_nn_context *ctx,
  *       (cortex-m55) restore the NaN lanes that vmaxnmq/vminnmq suppress, using the same integer-domain
  *       lane classification as the elementwise clamps. SIGMOID, TANH and HARDSWISH are outside this
  *       contract; see the per-helper notes in Include/Internal/arm_nn_activation_flt.h.
+ *
+ * @note The HARDSWISH leg evaluates natively in float16 with the legacy helper's separately rounded
+ *       gate, which can differ by an ulp from the standalone @ref arm_hard_swish_f16 (float32 compute,
+ *       single rounding, fma gate). Callers that need the once-rounded, leg-agreeing hard swish -- or
+ *       the documented NaN/Inf contract -- should call @ref arm_hard_swish_f16 directly.
  */
 arm_cmsis_nn_status arm_nn_activation_f16(const float16_t *input,
                                           float16_t *output,

@@ -32,6 +32,33 @@
  * @{
  */
 
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+// One 8-lane block: widen the even (bottom) and odd (top) half-lanes to
+// float32, compute the gate and product there, and narrow each product
+// exactly once. All lanes are computed unpredicated; the caller decides
+// which results reach memory.
+static inline float16x8_t arm_hard_swish_block_f16(float16x8_t vx)
+{
+    const float32x4_t vhalf = vdupq_n_f32(0.5f);
+    const float32x4_t vzero = vdupq_n_f32(0.0f);
+    const float32x4_t vone = vdupq_n_f32(1.0f);
+
+    const float32x4_t xb = vcvtbq_f32_f16(vx);
+    const float32x4_t xt = vcvttq_f32_f16(vx);
+
+    float32x4_t tb = vfmaq(vhalf, xb, vdupq_n_f32(1.0f / 6.0f));
+    tb = vmaxnmq(tb, vzero);
+    tb = vminnmq(tb, vone);
+
+    float32x4_t tt = vfmaq(vhalf, xt, vdupq_n_f32(1.0f / 6.0f));
+    tt = vmaxnmq(tt, vzero);
+    tt = vminnmq(tt, vone);
+
+    float16x8_t vy = vcvtbq_f16_f32(vdupq_n_f16((float16_t)0.0f), vmulq(xb, tb));
+    return vcvttq_f16_f32(vy, vmulq(xt, tt));
+}
+    #endif
+
 /*
  * float16 hard swish: out[i] = x * relu6(x + 3) / 6, computed in float32 and
  * rounded to float16 once. Each element is widened exactly to float32, the
@@ -58,30 +85,29 @@ arm_cmsis_nn_status arm_hard_swish_f16(const float16_t *input, float16_t *output
     }
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-    const float32x4_t vhalf = vdupq_n_f32(0.5f);
-    const float32x4_t vzero = vdupq_n_f32(0.0f);
-    const float32x4_t vone = vdupq_n_f32(1.0f);
-    for (int32_t i = 0; i < size; i += 8)
+    // Full 8-lane blocks run unpredicated; at most one predicated block
+    // handles the tail, OUTSIDE any loop (the arm_memset_f16 shape). This is
+    // deliberate and load-bearing, not a style choice: a vctp16q loop around
+    // this widening body miscompiles under GCC's implicit-tail-predication
+    // conversion (observed with Arm GNU Toolchain 14.2.Rel1 at -Ofast, which
+    // turned it into dlstp.16/letp). In an architecturally tail-predicated
+    // loop, predication is byte-granular across EVERY vector instruction in
+    // the body regardless of its element size, so on a partial tail the
+    // .f32-width widen/fma/mul/narrow ops here get the upper bytes of their
+    // 32-bit lanes masked and produce garbage for any size not a multiple of
+    // 8 (caught on FVP Corstone-300). With no vctp in a loop there is
+    // nothing for the dlstp conversion to convert.
+    int32_t i = 0;
+    for (; i <= size - 8; i += 8)
+    {
+        const float16x8_t vx = vld1q(&input[i]);
+        vst1q(&output[i], arm_hard_swish_block_f16(vx));
+    }
+    if (i < size)
     {
         const mve_pred16_t p = vctp16q((uint32_t)(size - i));
         const float16x8_t vx = vld1q_z(&input[i], p);
-
-        // Widen the even (bottom) and odd (top) half-lanes to float32,
-        // compute there, and narrow each product exactly once.
-        const float32x4_t xb = vcvtbq_f32_f16(vx);
-        const float32x4_t xt = vcvttq_f32_f16(vx);
-
-        float32x4_t tb = vfmaq(vhalf, xb, vdupq_n_f32(1.0f / 6.0f));
-        tb = vmaxnmq(tb, vzero);
-        tb = vminnmq(tb, vone);
-
-        float32x4_t tt = vfmaq(vhalf, xt, vdupq_n_f32(1.0f / 6.0f));
-        tt = vmaxnmq(tt, vzero);
-        tt = vminnmq(tt, vone);
-
-        float16x8_t vy = vcvtbq_f16_f32(vdupq_n_f16((float16_t)0.0f), vmulq(xb, tb));
-        vy = vcvttq_f16_f32(vy, vmulq(xt, tt));
-        vst1q_p(&output[i], vy, p);
+        vst1q_p(&output[i], arm_hard_swish_block_f16(vx), p);
     }
     #else
     for (int32_t i = 0; i < size; ++i)
