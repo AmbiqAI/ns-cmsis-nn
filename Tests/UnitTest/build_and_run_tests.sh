@@ -55,10 +55,10 @@ CMAKE_EXTRA_DEFS=""
 # cannot read exactly one match. Put the branch/date note on its own line
 # above, as below.
 #
-# Three flags bypass these pins, all of them deliberately: -e skips
-# Setup_Environment altogether (so nothing is cloned, fetched or checked),
-# while -C and -u point the build at a CMSIS_5 or ethos-u-core-platform tree
-# you supply, which this script neither clones nor verifies. CI passes none
+# One flag bypasses these pins: -e, which skips Setup_Environment altogether,
+# so nothing is cloned, fetched or checked. -C and -u do not bypass anything
+# -- they redirect what the *build* consumes afterwards, while the clones in
+# the downloads directory are still made and still verified. CI passes none
 # of the three.
 #
 # Bump ownership: CMSIS_5's upstream is archived, so its pin is effectively
@@ -179,13 +179,14 @@ Head_Of() {
 #
 # The fallback has to *deepen*, not just fetch. Every tree on this path is
 # shallow: Clone_At_Commit fetches at depth 1, so the repository carries a
-# shallow boundary. A plain `git fetch origin` there does pick up commits
-# *newer* than that boundary, but it can never reach anything older -- so a
-# pin that is not a descendant of the boundary (a downgrade after a bad bump,
-# or a force-push upstream) comes back "fetched successfully" with the pinned
-# object still absent, and the caller then reports a perfectly good pin as
-# "the remote has no such commit". Measured both ways in the container before
-# this line was written. --unshallow is what removes the boundary; it errors
+# shallow boundary. A plain `git fetch origin` there picks up commits newer
+# than that boundary, which covers an ordinary forward bump, but it is not
+# guaranteed to bring in a commit outside that history -- and measurably does
+# not for the case that matters here: a pin that is not a descendant of the
+# boundary (a downgrade after a bad bump, or a force-push upstream) comes back
+# "fetched successfully" with the pinned object still absent, and the caller
+# then reports a perfectly good pin as "the remote has no such commit".
+# Measured both ways in a container before this line was written. --unshallow is what removes the boundary; it errors
 # on a repository that is already complete, hence the second form. --tags on
 # both, so a pin expressed as a tag object in future is fetched rather than
 # silently missing.
@@ -202,12 +203,17 @@ Fetch_Commit() {
 }
 
 # Print the paths that make <dir> differ from its own HEAD: modified tracked
-# files and untracked files, but not files the upstream repository's own
-# .gitignore covers. Empty output means the working tree is exactly the
-# checked-out commit, which is the half of "this tree is the pinned tree" that
-# comparing HEADs cannot see.
+# files and untracked files. Empty output means the working tree is exactly
+# the checked-out commit, which is the half of "this tree is the pinned tree"
+# that comparing HEADs cannot see.
+#
+# Errors are *not* swallowed. `git status` can fail with the checkout still
+# looking healthy from outside -- a truncated .git/index exits 128 while
+# `rev-parse HEAD` still answers with the pinned commit -- and a swallowed
+# failure there reads exactly like a clean tree, which is the one answer this
+# check must never invent. The caller separates the two.
 Dirty_Paths() {
-    Git_At "$1" status --porcelain --ignored=no 2>/dev/null || true
+    Git_At "$1" status --porcelain --ignored=no
 }
 
 # Check <dir> out at <commit>, separating the two failure classes Retry treats
@@ -309,7 +315,27 @@ Assert_Pinned() {
         exit 1
     fi
 
-    dirty="$(Dirty_Paths "${dir}")"
+    local status=0 stderr_file
+    stderr_file="$(mktemp)"
+    dirty="$(Dirty_Paths "${dir}" 2>"${stderr_file}")" || status=$?
+    if [[ ${status} -ne 0 ]]; then
+        echo "${name}: git could not report the state of ${dir}" >&2
+        echo "(git status exited ${status}), so this tree cannot be compared" >&2
+        echo "with the pin at all -- which is not the same as clean." >&2
+        echo "  repository:  ${url}" >&2
+        echo "  pinned at:   ${commit}" >&2
+        echo "  HEAD is:     ${head}" >&2
+        echo "  git said:" >&2
+        sed 's|^|    |' "${stderr_file}" >&2
+        rm -f "${stderr_file}"
+        echo "  The checkout is damaged, not merely out of date. Delete" >&2
+        echo "  ${dir} and re-run to re-clone it. In CI, evict the" >&2
+        echo "  Tests/UnitTest/downloads cache entry -- its key is shared by" >&2
+        echo "  unity-m55-compile.yml and legacy-tester.yml -- and re-run." >&2
+        exit 125
+    fi
+    rm -f "${stderr_file}"
+
     if [[ -n "${dirty}" ]]; then
         echo "${name}: working tree has local changes, so it is not the" >&2
         echo "pinned tree whatever HEAD says." >&2
@@ -318,10 +344,14 @@ Assert_Pinned() {
         echo "  HEAD is:     ${head}" >&2
         echo "  changed paths (git status --porcelain):" >&2
         printf '%s\n' "${dirty}" | sed 's|^|    |' >&2
-        echo "  This script will not discard them: commit, stash or delete" >&2
-        echo "  them yourself, or leave them where they are and point the" >&2
-        echo "  build at another tree with -C (CMSIS_5) or -u" >&2
-        echo "  (ethos-u-core-platform). Re-running as-is will not help." >&2
+        echo "  This script will not discard them. Commit, stash or delete" >&2
+        echo "  the listed paths, or run with -e to skip dependency setup" >&2
+        echo "  entirely -- the build then uses whatever is on disk, pins" >&2
+        echo "  included or not. (-C and -u do not help here: they redirect" >&2
+        echo "  what the build consumes, while this clone is still made and" >&2
+        echo "  still checked.) In CI, this tree came from the shared" >&2
+        echo "  Tests/UnitTest/downloads cache entry, which nothing in CI" >&2
+        echo "  writes to: evict that entry and re-run." >&2
         exit 125
     fi
 

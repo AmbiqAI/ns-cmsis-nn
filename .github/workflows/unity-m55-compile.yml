@@ -402,9 +402,13 @@ jobs:
           # outcome gates the cache save below, so a tree that fails either
           # one is not published to the shared entry.
           #
-          # (`--ignored=no` keeps files the upstream repositories' own
-          # .gitignore covers out of it, so build residue in a restored cache
-          # entry is not read as tampering.)
+          # (`--ignored=no` is `git status`'s own default, written out. It
+          # excludes nothing worth mentioning here: nothing writes into these
+          # trees -- the build directories are siblings, under
+          # Tests/UnitTest/build-<cpu>-gcc -- and at these pins CMSIS_5
+          # ignores no build directory at all and ethos-u-core-platform
+          # ignores only /build. It is spelled out so the predicate is
+          # readable without knowing git's defaults.)
           for pin in \
             CMSIS_5_COMMIT:CMSIS_5 \
             ETHOS_U_CORE_PLATFORM_COMMIT:ethos-u-core-platform; do
@@ -433,8 +437,25 @@ jobs:
               echo "re-run." >&2
               exit 1
             fi
-            dirty="$(git -c safe.directory='*' -C "${dir}" \
-              status --porcelain --ignored=no 2>/dev/null || true)"
+            # Separate "git says clean" from "git could not say", which a
+            # swallowed exit status renders identical: a truncated .git/index
+            # exits 128 with the message on stderr while rev-parse above still
+            # answers with the pinned commit, so the tree would pass both
+            # halves of this check without ever being compared with the pin --
+            # and this step's success is what allows the cache save below.
+            status_err="$(mktemp)"
+            if ! dirty="$(git -c safe.directory='*' -C "${dir}" \
+                status --porcelain --ignored=no 2>"${status_err}")"; then
+              echo "git could not report the state of ${dir}." >&2
+              echo "  git said:" >&2
+              sed 's|^|    |' "${status_err}" >&2
+              echo "This tree was never compared with ${var}, which is not the" >&2
+              echo "same as matching it. Treat the restored cache entry as" >&2
+              echo "damaged: evict it (its key is shared with" >&2
+              echo "legacy-tester.yml) and re-run." >&2
+              exit 1
+            fi
+            rm -f "${status_err}"
             if [ -n "${dirty}" ]; then
               echo "Clone at ${dir} is at its pin but has local changes." >&2
               echo "  ${script} pins ${var}=${pinned}, and HEAD matches," >&2
