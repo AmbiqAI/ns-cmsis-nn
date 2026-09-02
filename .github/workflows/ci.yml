@@ -66,9 +66,15 @@ jobs:
   # before this leg a test translation unit could first meet a cross-compiler
   # at release time -- which is how the -Werror=unused-function break in
   # test_arm_convolve_packed_f16.c escaped to the release build
-  # (AmbiqAI/ns-cmsis-nn#390, #393). This job replays the m55 cell's build
+  # (AmbiqAI/ns-cmsis-nn#390, #393). This job replays legacy-tester's build
   # with the same script, pinned toolchain and -Werror set, and stops before
   # the FVP run. It is a compile gate, not a substitute for legacy-tester.
+  #
+  # The callee fans out over cortex-m55, cortex-m4 and cortex-m0 (#398) in
+  # its own matrix, so the cores are added without a new entry here: a failing
+  # cell fails this job, which `ci-passed` already requires. The job id and
+  # the callee's m55 cell name stay spelled "m55" because they are check-run
+  # contexts the ruleset names.
   unity-m55-compile:
     uses: ./.github/workflows/unity-m55-compile.yml
 
