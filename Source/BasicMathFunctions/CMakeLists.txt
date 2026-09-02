@@ -25,6 +25,7 @@ if (ARM_NN_ENABLE_F32)
                       arm_elementwise_mul_f32.c
                       arm_minimum_f32.c
                       arm_maximum_f32.c
+                      arm_nn_mean_f32.c
                       arm_reduce_sum_f32.c)
 endif()
 if (ARM_NN_ENABLE_F16)

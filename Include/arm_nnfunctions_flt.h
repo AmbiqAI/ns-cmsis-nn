@@ -1239,6 +1239,39 @@ arm_cmsis_nn_status arm_reduce_sum_f32(const float32_t *input_data,
                                        float32_t *output_data,
                                        const cmsis_nn_dims *output_dims);
 
+/**
+ * @ingroup Reduction
+ * @brief Computes the mean of a float32 tensor along the specified axes.
+ *
+ * Values are accumulated and divided once in float32; unlike the float16
+ * variant there is no wider accumulator, so rounding error can grow with
+ * the reduction length, matching arm_reduce_sum_f32. NaN and Inf
+ * propagate. Vector and scalar builds may differ in final ulps because
+ * float accumulation order differs.
+ *
+ * Unlike arm_reduce_sum_f32 (identical signature, null checks only), this
+ * kernel validates shapes and returns `ARM_CMSIS_NN_ARG_ERROR` when any
+ * input dimension is less than 1, when any @p output_dims entry differs
+ * from the input shape with the reduced axes collapsed to 1, or when the
+ * input element count or the reduction count does not fit in int32_t.
+ * @p output_data must not overlap @p input_data: each output element is
+ * written after reading its whole reduction set, so an aliased write can
+ * corrupt inputs still to be read.
+ *
+ * @param[in]   input_data   Pointer to input tensor
+ * @param[in]   input_dims   Input tensor dimensions (4D NHWC)
+ * @param[in]   axis_dims    4D binary axis mask (non-zero = reduce that axis)
+ * @param[out]  output_data  Pointer to output tensor
+ * @param[in]   output_dims  Output tensor dimensions (reduced axes have size 1)
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_nn_mean_f32(const float32_t *input_data,
+                                    const cmsis_nn_dims *input_dims,
+                                    const cmsis_nn_dims *axis_dims,
+                                    float32_t *output_data,
+                                    const cmsis_nn_dims *output_dims);
+
     /** @} */
 
 #endif /* ARM_NN_ENABLE_F32 */
