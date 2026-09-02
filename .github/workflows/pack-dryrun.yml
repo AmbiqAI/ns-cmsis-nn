@@ -111,6 +111,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: gen-pack-action pin sync
+        # Mechanical guard, same idiom as pdsc.yml's toolchain_manifest_sync
+        # job (#405): this repo pins Open-CMSIS-Pack/gen-pack-action in two
+        # workflow files edited independently for different reasons, so
+        # nothing stops them drifting to different SHAs -- and a dry-run
+        # rehearsing release.yml's own pin is not a rehearsal at all.
+        run: grep -qF "$(grep 'gen-pack-action@' .github/workflows/pack-dryrun.yml)" .github/workflows/release.yml || { echo "::error::Open-CMSIS-Pack/gen-pack-action pin differs between .github/workflows/pack-dryrun.yml and .github/workflows/release.yml -- align the two 'uses:' lines" >&2; exit 1; }
+
       - name: Fetch tags
         run: git fetch --tags --force
 
@@ -232,7 +240,15 @@ jobs:
         run: python3 scripts/check_pdsc.py
 
       - name: Generate pack and docs
-        uses: Open-CMSIS-Pack/gen-pack-action@main
+        # Pinned (#405) so an upstream push to gen-pack-action's default
+        # branch can no longer change the release path with no change in
+        # this repo. This SHA's own action.yml pins no gen-pack library
+        # version itself -- it just runs our gen-pack-script (gen_pack.sh),
+        # which bootstraps gen-pack library 0.11.3 (REQUIRED_GEN_PACK_LIB,
+        # gen_pack.sh:12) via its GEN_PACK_LIB_PATH curl fallback (#404),
+        # since neither this workflow nor release.yml sets GEN_PACK_LIB_PATH.
+        # Re-verify the bootstrapped version when this pin is next bumped.
+        uses: Open-CMSIS-Pack/gen-pack-action@9cab2ab138e909e93a3f051ab9a4675b52843a25  # main @ 2026-07-28T08:33:48Z; bootstraps gen-pack 0.11.3
         # Bounds the observed hang in the action's own apt-get update (issue #271).
         # Green gen-pack is 28-43 s, so this has ~14-21x headroom.
         timeout-minutes: 10
