@@ -59,13 +59,12 @@ jobs:
   compile:
     name: Compile Unity test TUs (cortex-m55)
     runs-on: ubuntu-latest
-    # Measured before merge: the build step took 105 s in this CI image under
-    # QEMU amd64 emulation (12 cores, warm downloads cache) and 9 s natively
-    # at -j18, so the compile itself has >4x headroom here. The rest of the
-    # budget is for a cold downloads cache -- Corstone-300, Arm GNU 14.2.rel1,
-    # CMSIS_5 and the pip requirements -- which legacy-tester.yml fits inside
-    # 20 minutes together with the FVP run this job skips. Tighten against the
-    # first real runner timings if they come in well under.
+    # Measured on a runner (AmbiqAI/ns-cmsis-nn#396): 2 min 36 s for the whole
+    # job, of which 41 s is the compile, against a warm downloads cache. The
+    # rest of this budget exists for a cold cache -- Corstone-300, Arm GNU
+    # 14.2.rel1, CMSIS_5 and the pip requirements -- which is the unmeasured
+    # part and which legacy-tester.yml fits inside 20 minutes together with
+    # the FVP run this job skips.
     timeout-minutes: 15
     needs: resolve-container-image
     container:
@@ -102,6 +101,9 @@ jobs:
           ./build_and_run_tests.sh -rb
 
       - name: Compile every Unity test TU for cortex-m55
+        # The container's default shell is dash; be explicit rather than
+        # writing to the lowest common denominator.
+        shell: bash
         run: |
           cd Tests/UnitTest
           # The harness calls `cmake --build` without -j; the legacy leg can
@@ -120,6 +122,7 @@ jobs:
       # instead, deriving the expected set from CMakeLists.txt rather than
       # from a number pasted into this file.
       - name: Verify every m55 test suite was compiled
+        shell: bash
         run: |
           set -euo pipefail
           cd Tests/UnitTest
