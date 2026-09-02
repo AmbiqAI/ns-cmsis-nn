@@ -92,7 +92,7 @@ static float16_t tc_f16_from_bits(volatile const uint16_t *bits)
     return x;
 }
 
-static bool tc_f16_bits_are_nan(float16_t x)
+static inline bool tc_f16_bits_are_nan(float16_t x)
 {
     uint16_t bits;
     memcpy(&bits, &x, sizeof(bits));

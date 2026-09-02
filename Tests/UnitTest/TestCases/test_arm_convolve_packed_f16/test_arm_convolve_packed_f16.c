@@ -279,7 +279,7 @@ static float16_t conv_f16_from_bits(volatile const uint16_t *bits)
 
 // Bit-pattern NaN test: all-ones exponent, non-zero mantissa. isnan() would also work under the
 // harness flags; the bit-pattern check survives a standalone -Ofast build of this TU.
-static bool conv_f16_bits_are_nan(float16_t x)
+static inline bool conv_f16_bits_are_nan(float16_t x)
 {
     uint16_t bits;
     memcpy(&bits, &x, sizeof(bits));
