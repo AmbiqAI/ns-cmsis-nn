@@ -279,7 +279,3 @@ echo "++ Tests for ${CPU} ran successfully"
 if [[ ${USE_PYTHON_VENV} -eq 1 ]]; then
     deactivate
 fi
-
-# Cache-key touch for AmbiqAI/ns-cmsis-nn#396: forces a cold
-# Tests/UnitTest/downloads cache on the next CI run so the cold path can be
-# measured. Reverted in the following commit; net-zero on this file.
