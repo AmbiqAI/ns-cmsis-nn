@@ -77,10 +77,16 @@ static arm_cmsis_nn_status arm_mean_generic_f16(const float16_t *input_data,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+// The divisor is the caller-computed reduction count rather than inner_size:
+// the two are equal only through arm_reduce_get_flatten_suffix_start_from_arrays's
+// current guarantee that every suffix dim is reduced or size 1, and this kernel
+// is the only user of that helper with a divisor to get wrong (PR #294 review,
+// item 3).
 static arm_cmsis_nn_status arm_mean_flatten_last_dims_f16(const float16_t *input_data,
                                                           float16_t *output_data,
                                                           int32_t outer_size,
-                                                          int32_t inner_size)
+                                                          int32_t inner_size,
+                                                          int32_t reduction_count)
 {
     for (int32_t i = 0; i < outer_size; ++i)
     {
@@ -105,7 +111,7 @@ static arm_cmsis_nn_status arm_mean_flatten_last_dims_f16(const float16_t *input
         }
     #endif
 
-        output_data[i] = (float16_t)(sum / (float32_t)inner_size);
+        output_data[i] = (float16_t)(sum / (float32_t)reduction_count);
     }
 
     return ARM_CMSIS_NN_SUCCESS;
@@ -168,7 +174,8 @@ arm_cmsis_nn_status arm_nn_mean_f16(const float16_t *input_data,
             inner_size *= input_shape[dimension];
         }
 
-        return arm_mean_flatten_last_dims_f16(input_data, output_data, outer_size, inner_size);
+        return arm_mean_flatten_last_dims_f16(
+            input_data, output_data, outer_size, inner_size, (int32_t)reduction_count);
     }
 
     return arm_mean_generic_f16(input_data, input_dims, axis_dims, output_data, output_dims, (int32_t)reduction_count);
