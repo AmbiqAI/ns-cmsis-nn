@@ -82,14 +82,19 @@ jobs:
     # that is already in that list.
     name: Compile Unity test TUs (${{ matrix.cpu }})
     runs-on: ubuntu-latest
-    # Measured on runners, all three cells:
-    #   cold cache (run 33594464284, m55 only, #396):  5 min 46 s
-    #   warm cache (#396):                             2 min 27 s - 2 min 49 s
-    #   #398 measured runs, per cell, job wall time:
-    #     COLD_RUN_PLACEHOLDER
-    #     WARM_RUN_PLACEHOLDER
-    # The m4 and m0 cells are cheaper than m55: they build 132 suites rather
-    # than 146 (no ARM_NN_ENABLE_F16) and emit no MVE.
+    # Measured, not guessed. Job wall time per cell:
+    #   run 33665856582 -- genuinely cold, the shared downloads cache entry
+    #   was evicted first and all three cells logged "Cache not found":
+    #     cortex-m55 6 min 05 s   cortex-m4 3 min 20 s   cortex-m0 3 min 18 s
+    #   run 33663873661 -- warm:
+    #     cortex-m55 2 min 47 s   cortex-m4 2 min 28 s   cortex-m0 2 min 25 s
+    # The m55 cell is the slow one only because it is the cell that *saves*
+    # the 1.07 GiB cache entry: its build and coverage check finished at
+    # 3 min 17 s and the remaining 2 min 48 s was the upload. m4 and m0 are
+    # otherwise the cheaper cells -- 132 suites rather than 146, no
+    # ARM_NN_ENABLE_F16, no MVE. 15 minutes is ~2.5x the slowest measured
+    # cold cell, and the #396 cold measurement (5 min 46 s, run 33594464284)
+    # sits inside the same envelope.
     timeout-minutes: 15
     needs: resolve-container-image
     container:
