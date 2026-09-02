@@ -59,12 +59,15 @@ jobs:
   compile:
     name: Compile Unity test TUs (cortex-m55)
     runs-on: ubuntu-latest
-    # Measured on a runner (AmbiqAI/ns-cmsis-nn#396): 2 min 27 s to 2 min 42 s across the PR runs (warm cache) for the whole
-    # job, of which 41 s is the compile, against a warm downloads cache. The
-    # rest of this budget exists for a cold cache -- Corstone-300, Arm GNU
-    # 14.2.rel1, CMSIS_5 and the pip requirements -- which is the unmeasured
-    # part and which legacy-tester.yml fits inside 20 minutes together with
-    # the FVP run this job skips.
+    # Measured on a runner (AmbiqAI/ns-cmsis-nn#396): 2 min 27 s to 2 min 42 s
+    # across the PR runs (warm cache) for the whole job, of which 41 s is the
+    # compile. The rest of this budget is for a cold cache -- Corstone-300,
+    # Arm GNU 14.2.rel1, CMSIS_5 and the pip requirements. That path is
+    # bounded by legacy-tester's own cold run 31445128930 (cache miss: 65 s
+    # for the whole Setup_Environment download, 2 min for the post-run cache
+    # save), which puts this job's cold case near 7 minutes -- inside this
+    # bound, and consistent with legacy-tester.yml fitting 20 minutes
+    # *including* the FVP run this job skips.
     timeout-minutes: 15
     needs: resolve-container-image
     container:
@@ -86,9 +89,21 @@ jobs:
       # Same path and key as legacy-tester.yml so both legs share one cache
       # entry (Corstone-300 FVP, Arm GNU 14.2.rel1, CMSIS_5, ethos-u core
       # platform, the python venv).
+      #
+      # Restore and save are split on purpose (`cache/restore` here,
+      # `cache/save` at the end) rather than using the combined `cache`
+      # action. The combined action's post-job save also runs when the job is
+      # cancelled, and build_and_run_tests.sh creates each skip-marker
+      # directory (downloads/corstone300_download, downloads/arm_gcc_download,
+      # ...) *before* the payload lands inside it. A run cancelled or failed
+      # mid-download therefore leaves a tree that every later run reads as
+      # "already installed" and skips -- and this key is shared with
+      # legacy-tester.yml, so that half-written tree would be handed to the
+      # nightly/release leg too. With an explicit save step we can refuse to
+      # publish it.
       - name: Restore tests-downloads cache
-        id: cache-downloads
-        uses: actions/cache@v5
+        id: cache
+        uses: actions/cache/restore@v5
         with:
           path: Tests/UnitTest/downloads
           key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
@@ -99,9 +114,66 @@ jobs:
           # exact-key miss and a cold fetch is the correct behaviour here.
 
       - name: Download deps (internal cache-checks)
+        id: deps
         run: |
           cd Tests/UnitTest
           ./build_and_run_tests.sh -rb
+
+      # Assert the compiler *before* anything is built with it and before the
+      # save step can publish it. build_and_run_tests.sh only checks that
+      # downloads/arm_gcc_download exists, so any entry under this key -- one
+      # this job wrote, one legacy-tester.yml wrote, or one a cancelled run
+      # left behind -- is reused verbatim, however old it is. The expected
+      # version is read out of the harness's own GCC_URL at runtime, so
+      # nothing here has to be updated when the pin moves; a mismatch fails
+      # the job loudly instead of silently gating a release on a compiler
+      # nobody chose.
+      - name: Assert the pinned Arm GNU toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          script=Tests/UnitTest/build_and_run_tests.sh
+          gcc_bin=Tests/UnitTest/downloads/arm_gcc_download/bin/arm-none-eabi-gcc
+
+          # GCC_URL is .../gnu/<version>/binrel/arm-gnu-toolchain-<version>-...
+          # and is spelled once per host architecture; both must agree.
+          expected="$(grep -oE 'gnu/[0-9]+\.[0-9]+(\.[0-9]+)?' "${script}" \
+            | sed 's|^gnu/||' | sort -u || true)"
+          if [ -z "${expected}" ] || [ "$(printf '%s\n' "${expected}" | wc -l)" -ne 1 ]; then
+            echo "Cannot derive a single pinned Arm GNU version from ${script}." >&2
+            printf 'derived: %s\n' "${expected}" >&2
+            exit 1
+          fi
+          expected_mm="$(printf '%s' "${expected}" | cut -d. -f1,2)"
+
+          if [ ! -x "${gcc_bin}" ]; then
+            echo "Expected the harness-downloaded compiler at ${gcc_bin}." >&2
+            echo "The downloads cache entry is incomplete -- delete it and re-run." >&2
+            exit 1
+          fi
+
+          version_line="$("${gcc_bin}" --version | head -n 1)"
+          echo "pinned by ${script}: ${expected_mm}.x (from GCC_URL)"
+          echo "reported by compiler: ${version_line}"
+
+          actual_mm="$(printf '%s\n' "${version_line}" \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | tail -n 1 | cut -d. -f1,2 || true)"
+          if [ -z "${actual_mm}" ]; then
+            echo "Could not parse a version out of: ${version_line}" >&2
+            exit 1
+          fi
+
+          if [ "${actual_mm}" != "${expected_mm}" ]; then
+            echo "Arm GNU toolchain mismatch: ${script} pins ${expected_mm}.x," >&2
+            echo "but ${gcc_bin} reports ${actual_mm}.x." >&2
+            echo "The restored Tests/UnitTest/downloads cache entry is stale:" >&2
+            echo "the harness skips its download whenever arm_gcc_download" >&2
+            echo "already exists, so it never corrects this by itself. Evict" >&2
+            echo "the cache entry (its key is shared with legacy-tester.yml)" >&2
+            echo "and re-run." >&2
+            exit 1
+          fi
+          echo "Arm GNU toolchain ${actual_mm}.x matches the harness pin -- ok."
 
       - name: Compile every Unity test TU for cortex-m55
         # The container's default shell is dash; be explicit rather than
@@ -136,9 +208,20 @@ jobs:
           build_dir=build-cortex-m55-gcc
           work="$(mktemp -d)"
 
+          # Probe suites (TestCases/*_probe) are one-off diagnostic harnesses,
+          # not part of the shipped suite set, and are not expected to be
+          # declared, compiled, or present in all three places at once. Drop
+          # them from every set by explicit `*_probe` pattern rather than
+          # leaning on the `test_arm_` prefix to keep them out: a probe named
+          # test_arm_<something>_probe carries the prefix too, and would
+          # otherwise fail this step for existing rather than for being
+          # unwired.
+          drop_probes() { grep -v -E '_probe$' || true; }
+
           # (a) suites declared in Tests/UnitTest/CMakeLists.txt
           grep -o '^ *add_subdirectory(TestCases/test_arm_[A-Za-z0-9_]*' CMakeLists.txt \
             | sed 's|.*TestCases/||' \
+            | drop_probes \
             | sort -u > "${work}/declared"
 
           # (b) suites the build actually produced a test object for. The
@@ -148,11 +231,13 @@ jobs:
               \( -name 'unity_test_arm_*.c.obj' -o -name 'unity_test_arm_*.c.o' \) \
               ! -name '*_runner.c.obj' ! -name '*_runner.c.o' \
             | sed -e 's|.*/unity_||' -e 's|\.c\.obj$||' -e 's|\.c\.o$||' \
+            | drop_probes \
             | sort -u > "${work}/compiled"
 
           # (c) suite directories present in the checkout
           find TestCases -mindepth 1 -maxdepth 1 -type d -name 'test_arm_*' \
             | sed 's|.*/||' \
+            | drop_probes \
             | sort -u > "${work}/ondisk"
 
           declared_n="$(wc -l < "${work}/declared" | tr -d ' ')"
@@ -187,12 +272,20 @@ jobs:
             report_diff "compiled objects" "${work}/compiled" \
                         "TestCases/ on disk" "${work}/ondisk"
             echo "" >&2
+            echo "A declared suite with no compiled object most likely has its" >&2
+            echo "add_subdirectory() inside an option-gated if() block in" >&2
+            echo "Tests/UnitTest/CMakeLists.txt that this cell does not turn" >&2
+            echo "on -- the declared set above is read from the text of the" >&2
+            echo "file, so it sees that line whatever if() encloses it. This" >&2
+            echo "cell enables ARM_NN_ENABLE_F32 and ARM_NN_ENABLE_F16, so a" >&2
+            echo "float gate is not the explanation; look for a newer option." >&2
+            echo "Failing that, the object-file layout changed and this check" >&2
+            echo "needs updating." >&2
+            echo "" >&2
             echo "A suite on disk but not in CMakeLists.txt is compiled by no" >&2
-            echo "leg at all -- add it to Tests/UnitTest/CMakeLists.txt. A" >&2
-            echo "declared suite with no object is either gated off for" >&2
-            echo "cortex-m55 (it should not be: the m55 cell enables both" >&2
-            echo "ARM_NN_ENABLE_F32 and _F16), or the object-file layout" >&2
-            echo "changed and this check needs updating." >&2
+            echo "leg at all -- it has no add_subdirectory() line, or the line" >&2
+            echo "it has is spelled in a way the grep above does not match." >&2
+            echo "Add it to Tests/UnitTest/CMakeLists.txt." >&2
             exit 1
           fi
           {
@@ -231,12 +324,21 @@ jobs:
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Publish the entry only when this run actually completed the download.
+      # `!cancelled()` rather than `success()` so a cold fetch that a later
+      # *compile* failure follows is still kept -- the bytes were paid for and
+      # the compiler was asserted above. `steps.deps.outcome == 'success'` is
+      # the load-bearing term: the harness marks each dependency installed by
+      # creating its directory before the payload arrives, so a cancelled or
+      # failed download leaves a tree that later runs skip re-fetching. That
+      # must never reach the key, which legacy-tester.yml reads too.
       - name: Save tests-downloads cache
         if: >-
-          always()
+          !cancelled()
+          && steps.deps.outcome == 'success'
+          && steps.cache.outputs.cache-hit != 'true'
           && steps.downloads-present.outputs.present == 'true'
-          && steps.cache-downloads.outputs.cache-hit != 'true'
-        uses: actions/cache@v5
+        uses: actions/cache/save@v5
         with:
           path: Tests/UnitTest/downloads
           key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
