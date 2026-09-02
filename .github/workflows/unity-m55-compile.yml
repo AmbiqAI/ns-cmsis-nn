@@ -59,7 +59,7 @@ jobs:
   compile:
     name: Compile Unity test TUs (cortex-m55)
     runs-on: ubuntu-latest
-    # Measured on a runner (AmbiqAI/ns-cmsis-nn#396): 2 min 36 s for the whole
+    # Measured on a runner (AmbiqAI/ns-cmsis-nn#396): 2 min 27 s to 2 min 42 s across the PR runs (warm cache) for the whole
     # job, of which 41 s is the compile, against a warm downloads cache. The
     # rest of this budget exists for a cold cache -- Corstone-300, Arm GNU
     # 14.2.rel1, CMSIS_5 and the pip requirements -- which is the unmeasured
