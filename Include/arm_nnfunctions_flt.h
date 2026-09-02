@@ -472,6 +472,34 @@ arm_cmsis_nn_status arm_prelu_f32(const cmsis_nn_dims *input_dims,
                                   const cmsis_nn_dims *output_dims,
                                   float32_t *output);
 
+/**
+ * @brief Hard swish activation for float32 data.
+ *
+ * Computes output[i] = input[i] * min(max(input[i] + 3, 0), 6) / 6 elementwise, evaluated as
+ * x * clamp(fma(x, 1/6, 0.5), 0, 1) so the saturated regions are exact: x >= 3 returns x
+ * bit-exactly and x <= -3 returns zero exactly (a negative zero, as IEEE negative * +0.0).
+ * In the curved region -3 < x < 3 the gate is a correctly rounded fused multiply-add on both
+ * build paths, so the scalar and MVE (cortex-m55) legs agree bit-exactly on every input.
+ *
+ * @param[in]  input   Pointer to the input samples.
+ * @param[out] output  Pointer to the output samples.
+ * @param[in]  size    Number of elements to process. Must be at least 1.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ *
+ * @note NaN propagates (TensorFlow Lite semantics): a NaN input element yields NaN at that output
+ *       element at every optimization level, on the toolchains this project gates (see the Testing &
+ *       Verification guide, docs/guides/verification.md), including the shipped -Ofast: propagation
+ *       rides the final multiply x * gate -- a NaN x makes the product NaN whatever the gate resolved
+ *       to -- rather than a compare-and-select that -ffinite-math-only could fold. Only the NaN-ness
+ *       of the element is guaranteed, not a particular NaN payload. +Inf returns +Inf (the gate is 1).
+ *       -Inf returns NaN, not the mathematical limit 0: the gate is 0 there and (-Inf) * 0 is NaN by
+ *       IEEE 754, the same result TFLite's float hard-swish reference produces; special-casing -Inf
+ *       would put a per-element select in the hot loop for an input no finite model produces. The
+ *       scalar and MVE legs agree on all of these, NaN and +/-Inf included.
+ */
+arm_cmsis_nn_status arm_hard_swish_f32(const float32_t *input, float32_t *output, int32_t size);
+
 /** @} */
 
 /**
@@ -1522,6 +1550,31 @@ arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
                                   const float16_t *alpha,
                                   const cmsis_nn_dims *output_dims,
                                   float16_t *output);
+
+/**
+ * @brief Hard swish activation for float16 data.
+ *
+ * Computes output[i] = input[i] * min(max(input[i] + 3, 0), 6) / 6 elementwise, in float32 with a
+ * single rounding to float16: each element is widened exactly, the gate and the product are
+ * evaluated in float32 exactly as in @ref arm_hard_swish_f32, and only the final product is
+ * narrowed. A native-f16 evaluation would round the gate and the product separately and land an
+ * ulp off in the curved region for some inputs. The saturated regions are exact (x >= 3 returns x
+ * bit-exactly, x <= -3 returns zero), and the scalar and MVE (cortex-m55) legs agree bit-exactly
+ * on every input.
+ *
+ * @param[in]  input   Pointer to the input samples.
+ * @param[out] output  Pointer to the output samples.
+ * @param[in]  size    Number of elements to process. Must be at least 1.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ *
+ * @note NaN and Inf behave as in @ref arm_hard_swish_f32, at every optimization level on the gated
+ *       toolchains (see docs/guides/verification.md): NaN propagates through the final multiply
+ *       (NaN-ness only, not a particular payload -- narrowing retags it), +Inf returns +Inf, and
+ *       -Inf returns NaN because the gate is 0 there and (-Inf) * 0 is NaN by IEEE 754, matching
+ *       TFLite's float hard-swish reference rather than the mathematical limit 0.
+ */
+arm_cmsis_nn_status arm_hard_swish_f16(const float16_t *input, float16_t *output, int32_t size);
 
 /** @} */
 
