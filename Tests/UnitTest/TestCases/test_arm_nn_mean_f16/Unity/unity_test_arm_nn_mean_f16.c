@@ -36,4 +36,13 @@ void test_mean_f16_axis_all_arm_nn_mean_f16(void) { mean_f16_axis_all_arm_nn_mea
 void test_mean_f16_identity_arm_nn_mean_f16(void) { mean_f16_identity_arm_nn_mean_f16(); }
 void test_mean_f16_large_sum_arm_nn_mean_f16(void) { mean_f16_large_sum_arm_nn_mean_f16(); }
 void test_mean_f16_nan_inf_arm_nn_mean_f16(void) { mean_f16_nan_inf_arm_nn_mean_f16(); }
+void test_mean_f16_axis_n_arm_nn_mean_f16(void) { mean_f16_axis_n_arm_nn_mean_f16(); }
+void test_mean_f16_axis_w_arm_nn_mean_f16(void) { mean_f16_axis_w_arm_nn_mean_f16(); }
+void test_mean_f16_axis_nw_arm_nn_mean_f16(void) { mean_f16_axis_nw_arm_nn_mean_f16(); }
+void test_mean_f16_axis_hw_arm_nn_mean_f16(void) { mean_f16_axis_hw_arm_nn_mean_f16(); }
+void test_mean_f16_axis_wc_arm_nn_mean_f16(void) { mean_f16_axis_wc_arm_nn_mean_f16(); }
+void test_mean_f16_dim1_axis_arm_nn_mean_f16(void) { mean_f16_dim1_axis_arm_nn_mean_f16(); }
+void test_mean_f16_generic_large_sum_arm_nn_mean_f16(void) { mean_f16_generic_large_sum_arm_nn_mean_f16(); }
+void test_mean_f16_long_accumulation_arm_nn_mean_f16(void) { mean_f16_long_accumulation_arm_nn_mean_f16(); }
+void test_mean_f16_generic_nan_inf_arm_nn_mean_f16(void) { mean_f16_generic_nan_inf_arm_nn_mean_f16(); }
 void test_mean_f16_arg_error_arm_nn_mean_f16(void) { mean_f16_arg_error_arm_nn_mean_f16(); }
