@@ -154,8 +154,11 @@ PYEOF
 
 # Set GEN_PACK_LIB_PATH to use a specific gen-pack library root
 # ... instead of bootstrap based on REQUIRED_GEN_PACK_LIB
-if [[ -f "${GEN_PACK_LIB_PATH}/gen-pack" ]]; then
-  . "${GEN_PACK_LIB}/gen-pack"
+if [[ -n "${GEN_PACK_LIB_PATH}" ]]; then
+  . "${GEN_PACK_LIB_PATH}/gen-pack" || {
+    echo "failed to source gen-pack library from '${GEN_PACK_LIB_PATH}/gen-pack'" >&2
+    exit 1
+  }
 else
   . <(curl -sL "https://raw.githubusercontent.com/Open-CMSIS-Pack/gen-pack/main/bootstrap")
 fi
