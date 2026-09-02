@@ -1245,9 +1245,12 @@ arm_cmsis_nn_status arm_reduce_sum_f32(const float32_t *input_data,
  *
  * Values are accumulated and divided once in float32; unlike the float16
  * variant there is no wider accumulator, so rounding error can grow with
- * the reduction length, matching arm_reduce_sum_f32. NaN and Inf
- * propagate. Vector and scalar builds may differ in final ulps because
- * float accumulation order differs.
+ * the reduction length, matching arm_reduce_sum_f32. Because the
+ * intermediate sum is itself float32, it overflows to +/-Inf whenever the
+ * running sum exceeds FLT_MAX in magnitude, even when the mean itself is
+ * representable (matching arm_reduce_sum_f32 and TFLite reference
+ * behaviour). NaN and Inf propagate. Vector and scalar builds may differ
+ * in final ulps because float accumulation order differs.
  *
  * Unlike arm_reduce_sum_f32 (identical signature, null checks only), this
  * kernel validates shapes and returns `ARM_CMSIS_NN_ARG_ERROR` when any

@@ -311,6 +311,25 @@ void mean_f32_generic_long_accumulation_arm_nn_mean_f32(void)
     mean_f32_check_vs_f64(input, &input_dims, &axis_dims, &output_dims);
 }
 
+void mean_f32_finite_overflow_arm_nn_mean_f32(void)
+{
+    // Contract pin (not an accident of implementation): the intermediate
+    // sum is float32, so four copies of 3e38 overflow to +Inf during
+    // accumulation even though the true mean, 3e38, is representable.
+    // With no wider accumulator this is neither rounding-error growth nor
+    // Inf *propagation* -- the inputs are finite -- and it matches
+    // arm_reduce_sum_f32 and TFLite reference behaviour, so pin it.
+    const float32_t input[4] = {3e38f, 3e38f, 3e38f, 3e38f};
+    float32_t output = 0.0f;
+    const cmsis_nn_dims input_dims = {1, 1, 1, 4};
+    const cmsis_nn_dims axis_dims = {0, 0, 0, 1};
+    const cmsis_nn_dims output_dims = {1, 1, 1, 1};
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_nn_mean_f32(input, &input_dims, &axis_dims, &output, &output_dims));
+    TEST_ASSERT_FLOAT_IS_INF(output);
+    TEST_ASSERT_TRUE(output > 0.0f);
+}
+
 void mean_f32_generic_nan_inf_arm_nn_mean_f32(void)
 {
     // NaN and Inf propagation on the GENERIC path (the nan_inf case above

@@ -43,5 +43,6 @@ void test_mean_f32_axis_wc_arm_nn_mean_f32(void) { mean_f32_axis_wc_arm_nn_mean_
 void test_mean_f32_dim1_axis_arm_nn_mean_f32(void) { mean_f32_dim1_axis_arm_nn_mean_f32(); }
 void test_mean_f32_flatten_long_accumulation_arm_nn_mean_f32(void) { mean_f32_flatten_long_accumulation_arm_nn_mean_f32(); }
 void test_mean_f32_generic_long_accumulation_arm_nn_mean_f32(void) { mean_f32_generic_long_accumulation_arm_nn_mean_f32(); }
+void test_mean_f32_finite_overflow_arm_nn_mean_f32(void) { mean_f32_finite_overflow_arm_nn_mean_f32(); }
 void test_mean_f32_generic_nan_inf_arm_nn_mean_f32(void) { mean_f32_generic_nan_inf_arm_nn_mean_f32(); }
 void test_mean_f32_arg_error_arm_nn_mean_f32(void) { mean_f32_arg_error_arm_nn_mean_f32(); }
