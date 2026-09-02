@@ -15,7 +15,6 @@ RUN apt-get update \
             bzip2 \
             ca-certificates \
             clang \
-            clang-format \
             cmake \
             curl \
             g++ \
@@ -41,6 +40,10 @@ RUN python -m pip install --no-cache-dir "uv==${UV_VERSION}"
 # Python dependencies the unit-test drivers import at runtime. Baking them keeps
 # the FVP/host/lib-variant CI jobs free of per-run pip installs.
 RUN python -m pip install --no-cache-dir numpy termcolor pyserial
+
+# clang-format is pip-installed so the dev container matches the CI gate and the
+# pre-commit pin (16.0.6); the apt package on this base image is 14.0.6.
+RUN python -m pip install --no-cache-dir clang-format==16.0.6
 
 RUN set -eux; \
       clang --version; \
@@ -93,6 +96,9 @@ RUN set -eux; \
       command -v armclang; \
       arm-none-eabi-gcc --version; \
       clang --version; \
+      # After the tool dirs are prepended, the pip 16.0.6 must still win: a future
+      # llvm-embedded that ships clang-format would otherwise shadow it silently.
+      clang-format --version | head -n 1 | grep -q "version 16\."; \
       cmake --version; \
       ninja --version; \
       command -v FVP_Corstone_SSE-300

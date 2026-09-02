@@ -42,6 +42,7 @@ jobs:
 
   codegen-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: resolve-container-image
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}
@@ -145,6 +146,7 @@ jobs:
   # -Ofast, Tests/UnitTest/build_and_run_tests.sh).
   shipped-flags-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: resolve-container-image
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}
@@ -245,6 +247,7 @@ jobs:
 
   codegen-tests-mve-float:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: resolve-container-image
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}
@@ -335,6 +338,7 @@ jobs:
 
   codegen-tests-float-fallback:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: resolve-container-image
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}
@@ -430,6 +434,7 @@ jobs:
 
   coverage-merge-summary:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # contents: read -- checkout (+ public submodules).
     # actions: read -- the coverage gate step fetches the previous
     # successful main run's coverage-merged artifact via the GitHub API.
@@ -623,6 +628,7 @@ jobs:
   # runner, stdlib-only python: zero new action or pip dependencies.
   matrix-summary:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # Job-level continue-on-error is the outermost layer of the non-gating
     # guarantee: it keeps a failure ANYWHERE in this job (checkout flake,
     # runner provisioning, a future step) from failing the reusable

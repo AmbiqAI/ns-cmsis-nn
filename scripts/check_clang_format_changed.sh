@@ -21,7 +21,7 @@ Examples:
 
 Behavior:
   - Mirrors the CI clang-format workflow file selection.
-  - Uses clang-format-18 when available, otherwise clang-format.
+  - Uses CLANG_FORMAT_BIN when set, else clang-format-16, else clang-format; requires major 16.
   - In check mode, runs --dry-run --Werror.
   - In fix mode, rewrites the changed files in place.
 EOF
@@ -78,14 +78,36 @@ command -v git >/dev/null || { echo "git not found" >&2; exit 3; }
 git rev-parse --verify "${BASE_REF}^{commit}" >/dev/null
 git rev-parse --verify "${HEAD_REF}^{commit}" >/dev/null
 
-if command -v clang-format-18 >/dev/null 2>&1; then
-  CLANG_FORMAT_BIN="clang-format-18"
+# The enforced formatter is clang-format 16 (the .pre-commit-config.yaml pin);
+# formatter major versions disagree on committed files (the 18.1.3 that
+# ubuntu-24.04 ships rejects four that 13 through 16 accept; newer 18.x point
+# releases flag more), so the version is checked, not assumed. Resolution
+# order: CLANG_FORMAT_BIN if set (CI points it at the pip-installed 16.0.6),
+# else clang-format-16, else a bare clang-format that reports major 16.
+REQUIRED_CLANG_FORMAT_MAJOR=16
+if [[ -n "${CLANG_FORMAT_BIN:-}" ]]; then
+  command -v "${CLANG_FORMAT_BIN}" >/dev/null 2>&1 || { echo "CLANG_FORMAT_BIN=${CLANG_FORMAT_BIN} not found on PATH." >&2; exit 3; }
+elif command -v "clang-format-${REQUIRED_CLANG_FORMAT_MAJOR}" >/dev/null 2>&1; then
+  CLANG_FORMAT_BIN="clang-format-${REQUIRED_CLANG_FORMAT_MAJOR}"
 elif command -v clang-format >/dev/null 2>&1; then
   CLANG_FORMAT_BIN="clang-format"
 else
-  echo "clang-format-18 not found. Install LLVM 18 and ensure clang-format-18 is on PATH." >&2
+  echo "no clang-format found. Install clang-format ${REQUIRED_CLANG_FORMAT_MAJOR} (pip install clang-format==16.0.6) or set CLANG_FORMAT_BIN." >&2
   exit 3
 fi
+raw_version="$("${CLANG_FORMAT_BIN}" --version 2>/dev/null | head -n 1 || true)"
+found_major=""
+if [[ "${raw_version}" =~ version\ ([0-9]+)\. ]]; then
+  found_major="${BASH_REMATCH[1]}"
+fi
+if [[ "${found_major}" != "${REQUIRED_CLANG_FORMAT_MAJOR}" ]]; then
+  echo "clang-format major ${found_major:-unknown} found at $(command -v "${CLANG_FORMAT_BIN}"); this repo enforces ${REQUIRED_CLANG_FORMAT_MAJOR}.x." >&2
+  echo "Install it with: python -m pip install clang-format==16.0.6, then point the script at that copy explicitly:" >&2
+  echo "  CLANG_FORMAT_BIN=\"\$(python -c \"import sys,os;print(os.path.dirname(sys.executable))\")/clang-format\" $0 ..." >&2
+  exit 3
+fi
+
+echo "Using formatter: $(command -v "${CLANG_FORMAT_BIN}") (${raw_version})"
 
 changed_files=()
 while IFS= read -r file; do
@@ -104,7 +126,6 @@ if [[ ${#changed_files[@]} -eq 0 ]]; then
   exit 0
 fi
 
-echo "Using formatter: ${CLANG_FORMAT_BIN}"
 echo "Checking files changed between ${BASE_REF} and ${HEAD_REF}:"
 printf '  %s\n' "${changed_files[@]}"
 

@@ -86,7 +86,9 @@ concurrency:
 
 jobs:
   release-please:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
+    # Owns the shared release concurrency group; unbounded, a wedged run holds it for the 6-hour default.
+    timeout-minutes: 30
     outputs:
       release_created: ${{ steps.rp.outputs.release_created }}
       recovery_mode: ${{ steps.recover.outputs.tag != '' }}
@@ -260,7 +262,7 @@ jobs:
     # emit a spurious "no license configured" warning.
     if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
     needs: release-please
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     # One `[[ -n ... ]]` test; green in ~2 s. Bounded because the concurrency
     # change above removes the accidental watchdog whereby a later merge
     # killed a wedged run -- without a bound, detection latency on a wedged
@@ -741,7 +743,7 @@ jobs:
     # running during a cancellation (AmbiqAI/ns-cmsis-nn#274).
     if: ${{ !cancelled() && needs.release-please.outputs.assets_enabled == 'true' && needs.publish-staticlibs.result == 'success' }}
     needs: [release-please, publish-staticlibs, publish-staticlibs-armclang]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     # Green in ~9 s (download, zip, upload). Bounded for the same reason as
     # resolve-release-capabilities above.
     timeout-minutes: 10
@@ -835,7 +837,7 @@ jobs:
     # optional armclang license gap (AmbiqAI/ns-cmsis-nn#228).
     if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
     needs: [release-please, publish-staticlibs]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     # Generous job bound only. The precise bound lives on the gen-pack step below,
     # because this job ALSO runs the full Sphinx/Breathe/Exhale docs build, whose
     # healthy duration is 13-15 min and has been observed as high as 30.6 min. A
@@ -1120,10 +1122,11 @@ jobs:
       - publish-staticlibs-armclang
       - publish-staticlib-bundles
       - publish-pack
-    # ubuntu-latest, not ubuntu-22.04: that image starts brownouts on
-    # 2026-09-17 (runner-images#14254) and five jobs here already pin it
+    # ubuntu-latest, not a pinned image: ubuntu-22.04 starts brownouts on
+    # 2026-09-17 (runner-images#14254), so the ubuntu-22.04 pins that used to
+    # sit alongside this job moved to ubuntu-24.04
     # (AmbiqAI/ns-cmsis-nn#274, section 6). This job runs only `gh` and bash,
-    # so it has no reason to join them.
+    # so it has no reason to pin at all.
     runs-on: ubuntu-latest
     # Job-level `permissions:` REPLACES the workflow-level set, so both
     # entries are required: contents:read for `gh release view`, issues:write

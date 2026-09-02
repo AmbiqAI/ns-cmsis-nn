@@ -24,6 +24,7 @@ jobs:
   wiring:
     name: Zephyr wiring (CMake mock)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -34,6 +35,7 @@ jobs:
   kconfig:
     name: Zephyr Kconfig contract
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v6

@@ -188,9 +188,15 @@ The dev container installs and enables this hook during setup.
 To check the same changed-file range CI checks:
 
 ```bash
-python -m pip install pre-commit
+python -m pip install pre-commit clang-format==16.0.6
 bash scripts/check_clang_format_changed.sh origin/main HEAD
 ```
+
+CI enforces clang-format 16 (the pre-commit pin); the script refuses other
+majors because they disagree on committed files. If a different clang-format
+is first on your `PATH`, run the script from the environment where you
+installed the pinned one, or point it there explicitly:
+`CLANG_FORMAT_BIN=/path/to/venv/bin/clang-format bash scripts/check_clang_format_changed.sh origin/main HEAD`.
 
 ## Reporting bugs
 

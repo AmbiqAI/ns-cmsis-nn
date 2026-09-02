@@ -38,7 +38,8 @@ concurrency:
 jobs:
   build-staticlibs:
     name: Build staticlib (${{ matrix.target_cpu }})
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -73,7 +74,7 @@ jobs:
   build-pack:
     name: Build pack (no upload)
     needs: build-staticlibs
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     # Generous job bound; the precise one is on the gen-pack step below, matching
     # release.yml so both paths fail at the same point for the same reason.
     timeout-minutes: 30
