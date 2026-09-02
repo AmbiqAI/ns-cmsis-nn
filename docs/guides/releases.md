@@ -256,7 +256,11 @@ overwrite the other:
   succeeds. It never runs `git push`; the remote/immutable tag is
   untouched, already-annotated tags are left completely unaltered, and
   `_tooling/` is never read by `gen-pack-action` or packaged into the
-  `.pack` output — it exists solely to supply the helper script.
+  `.pack` output — it exists solely to supply the helper script. The
+  `Pack dry-run` workflow rehearses this same `tag`-mode path on demand:
+  it creates a synthetic, local-only annotated tag at `HEAD` via the same
+  helper, so the changelog path is exercised without cutting a release
+  (AmbiqAI/ns-cmsis-nn#395).
 
 ## See also
 
