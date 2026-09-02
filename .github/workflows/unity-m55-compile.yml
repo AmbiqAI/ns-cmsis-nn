@@ -129,6 +129,7 @@ jobs:
       # the job loudly instead of silently gating a release on a compiler
       # nobody chose.
       - name: Assert the pinned Arm GNU toolchain
+        id: toolchain
         shell: bash
         run: |
           set -euo pipefail
@@ -327,7 +328,8 @@ jobs:
       # Publish the entry only when this run actually completed the download.
       # `!cancelled()` rather than `success()` so a cold fetch that a later
       # *compile* failure follows is still kept -- the bytes were paid for and
-      # the compiler was asserted above. `steps.deps.outcome == 'success'` is
+      # the compiler was asserted above and that assertion passed (a cold run that
+      # fetched the wrong compiler must not be saved either). `steps.deps.outcome == 'success'` is
       # the load-bearing term: the harness marks each dependency installed by
       # creating its directory before the payload arrives, so a cancelled or
       # failed download leaves a tree that later runs skip re-fetching. That
@@ -336,6 +338,7 @@ jobs:
         if: >-
           !cancelled()
           && steps.deps.outcome == 'success'
+          && steps.toolchain.outcome == 'success'
           && steps.cache.outputs.cache-hit != 'true'
           && steps.downloads-present.outputs.present == 'true'
         uses: actions/cache/save@v5
