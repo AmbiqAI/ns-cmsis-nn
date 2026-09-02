@@ -265,21 +265,6 @@ jobs:
             ./build_and_run_tests.sh -q -r -c ${{ matrix.cpu }} -D ARM_NN_ENABLE_F32=ON
           fi
 
-      # THROWAWAY (#398 evidence): print the flags CMake actually generated
-      # for a Unity suite in this cell, so the PR can quote them per CPU
-      # rather than assert them. Dropped before the PR head.
-      - name: Dump generated compile flags (${{ matrix.cpu }})
-        if: always()
-        shell: bash
-        run: |
-          set -uo pipefail
-          cd Tests/UnitTest
-          f="$(find build-${{ matrix.cpu }}-gcc/TestCases/test_arm_convolve_s8 -name flags.make | head -n 1)"
-          echo "== ${{ matrix.cpu }}: ${f} =="
-          grep -E '^(C_FLAGS|C_DEFINES|C_INCLUDES) *=' "${f}" | cut -c1-2000
-          echo "== CMakeCache float options =="
-          grep -E '^ARM_NN_ENABLE_(F16|F32):' build-${{ matrix.cpu }}-gcc/CMakeCache.txt
-
       # A green build is not by itself proof that the file you touched was
       # compiled: a test directory that never made it into CMakeLists.txt
       # compiles nothing and fails nothing. Assert coverage mechanically over
