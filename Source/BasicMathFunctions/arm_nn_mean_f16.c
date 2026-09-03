@@ -99,8 +99,8 @@ static arm_cmsis_nn_status arm_mean_flatten_last_dims_f16(const float16_t *input
         {
             const mve_pred16_t p = vctp16q((uint32_t)(inner_size - j));
             const float16x8_t value = vld1q_z(&row[j], p);
-            sum_lo = vaddq(sum_lo, vcvtbq_f32_f16(value));
-            sum_hi = vaddq(sum_hi, vcvttq_f32_f16(value));
+            sum_lo = vaddq(sum_lo, arm_nn_vcvtbq_f32_f16(value));
+            sum_hi = vaddq(sum_hi, arm_nn_vcvttq_f32_f16(value));
         }
         const float32_t sum = arm_nn_vec_reduce_add_f32(vaddq(sum_lo, sum_hi));
     #else
