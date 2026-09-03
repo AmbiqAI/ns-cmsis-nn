@@ -237,9 +237,9 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
 
                 /* Out of bounds is only considered for the y axis as it provides a contiguous zero'ing opportunity than
                    along the x axis */
-                const int ker_y_start = MAX(0, -base_idx_y);
+                const int ker_y_start = ARM_NN_MAX(0, -base_idx_y);
                 /* Condition for kernel end dimension: (base_idx_y + ker_y_end) < input_y */
-                const int ker_y_end = MIN(kernel_y, input_y - base_idx_y);
+                const int ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
 
                 int32_t index = 0;
                 if (ker_y_start != 0)
@@ -370,23 +370,23 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
                     }
 
                     result = arm_nn_requantize_s64(acc_1, output_mult_1, *output_shift++);
-                    result = MAX(result, output_activation_min);
-                    result = MIN(result, output_activation_max);
+                    result = ARM_NN_MAX(result, output_activation_min);
+                    result = ARM_NN_MIN(result, output_activation_max);
                     *output++ = (int16_t)result;
 
                     result = arm_nn_requantize_s64(acc_2, output_mult_2, *output_shift++);
-                    result = MAX(result, output_activation_min);
-                    result = MIN(result, output_activation_max);
+                    result = ARM_NN_MAX(result, output_activation_min);
+                    result = ARM_NN_MIN(result, output_activation_max);
                     *output++ = (int16_t)result;
 
                     result = arm_nn_requantize_s64(acc_3, output_mult_3, *output_shift++);
-                    result = MAX(result, output_activation_min);
-                    result = MIN(result, output_activation_max);
+                    result = ARM_NN_MAX(result, output_activation_min);
+                    result = ARM_NN_MIN(result, output_activation_max);
                     *output++ = (int16_t)result;
 
                     result = arm_nn_requantize_s64(acc_4, output_mult_4, *output_shift++);
-                    result = MAX(result, output_activation_min);
-                    result = MIN(result, output_activation_max);
+                    result = ARM_NN_MAX(result, output_activation_min);
+                    result = ARM_NN_MIN(result, output_activation_max);
                     *output++ = (int16_t)result;
 
                     row_count--;
@@ -412,8 +412,8 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
                     }
                     result = arm_nn_requantize_s64(acc, REDUCE_MULTIPLIER(*output_mult), *output_shift++);
                     output_mult++;
-                    result = MAX(result, output_activation_min);
-                    result = MIN(result, output_activation_max);
+                    result = ARM_NN_MAX(result, output_activation_min);
+                    result = ARM_NN_MIN(result, output_activation_max);
                     *output++ = (int16_t)result;
 
                     row_count--;

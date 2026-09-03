@@ -98,8 +98,8 @@ void arm_nn_depthwise_conv2x5_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                         acc += (float32_t)row0[(size_t)kx * (size_t)in_c + (size_t)c] * (float32_t)kernel[base0];
                         acc += (float32_t)row1[(size_t)kx * (size_t)in_c + (size_t)c] * (float32_t)kernel[base1];
                     }
-                    acc = MAX(acc, (float32_t)act_min);
-                    acc = MIN(acc, (float32_t)act_max);
+                    acc = ARM_NN_MAX(acc, (float32_t)act_min);
+                    acc = ARM_NN_MIN(acc, (float32_t)act_max);
                     out_batch[(size_t)ow * (size_t)out_c + (size_t)oc] = (float16_t)acc;
                 }
     #endif

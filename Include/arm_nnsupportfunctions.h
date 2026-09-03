@@ -52,9 +52,10 @@ extern "C" {
 #define MASK_IF_NON_ZERO(x) (x) != 0 ? ~0 : 0
 #define SELECT_USING_MASK(mask, a, b) ((mask) & (a)) ^ (~(mask) & (b))
 
-#define MAX(A, B) ((A) > (B) ? (A) : (B))
-#define MIN(A, B) ((A) < (B) ? (A) : (B))
-#define CLAMP(x, h, l) MAX(MIN((x), (h)), (l))
+/* Namespaced: bare MAX/MIN/CLAMP collided with consumer macros, e.g. Zephyr's (helia-aot#305). */
+#define ARM_NN_MAX(A, B) ((A) > (B) ? (A) : (B))
+#define ARM_NN_MIN(A, B) ((A) < (B) ? (A) : (B))
+#define ARM_NN_CLAMP(x, h, l) ARM_NN_MAX(ARM_NN_MIN((x), (h)), (l))
 
 /*
  * Work around GCC PR target/118460: arm-none-eabi-gcc 14.x (and FSF 15.x
@@ -90,7 +91,7 @@ __STATIC_FORCEINLINE _Float16 arm_nn_min_f16h(_Float16 a, _Float16 b)
     __asm__("vminnm.f16 %0, %1, %2" : "=t"(r) : "t"(a), "t"(b));
     return r;
     #else
-    return MIN(a, b);
+    return ARM_NN_MIN(a, b);
     #endif
 }
 
@@ -101,7 +102,7 @@ __STATIC_FORCEINLINE _Float16 arm_nn_max_f16h(_Float16 a, _Float16 b)
     __asm__("vmaxnm.f16 %0, %1, %2" : "=t"(r) : "t"(a), "t"(b));
     return r;
     #else
-    return MAX(a, b);
+    return ARM_NN_MAX(a, b);
     #endif
 }
 
@@ -149,8 +150,8 @@ __STATIC_FORCEINLINE _Float16 arm_nn_propagate_nan_f16h(_Float16 x, _Float16 y)
 }
 
 /*
- * Drop-in equivalent of CLAMP(x, h, l) for scalar _Float16 operands,
- * including its NaN behaviour: MIN(NaN, h) is h, so a NaN input resolves to
+ * Drop-in equivalent of ARM_NN_CLAMP(x, h, l) for scalar _Float16 operands,
+ * including its NaN behaviour: ARM_NN_MIN(NaN, h) is h, so a NaN input resolves to
  * the high bound, exactly as the macro does. Use
  * arm_nn_clamp_propagate_nan_f16h() where TFLite NaN propagation is required.
  */
@@ -350,10 +351,10 @@ __STATIC_FORCEINLINE int32_t GetNearestNeighbor(const int input_value,
     const float scaled = ((float)input_value + offset) * scale;
     int32_t output_value = align_corners ? (int32_t)roundf(scaled) : (int32_t)floorf(scaled);
 
-    output_value = MIN(output_value, input_size - 1);
+    output_value = ARM_NN_MIN(output_value, input_size - 1);
     if (half_pixel_centers)
     {
-        output_value = MAX(0, output_value);
+        output_value = ARM_NN_MAX(0, output_value);
     }
     return output_value;
 }
@@ -2144,7 +2145,7 @@ __STATIC_FORCEINLINE int16_t arm_nn_sat_lshift_s16(int16_t x, int shift)
     if (shift <= 0)
         return x; // only used for positive shifts here
     int32_t v = ((int32_t)x) << shift;
-    v = CLAMP(v, INT16_MAX, INT16_MIN);
+    v = ARM_NN_CLAMP(v, INT16_MAX, INT16_MIN);
     return (int16_t)v;
 }
 
@@ -2163,7 +2164,7 @@ __STATIC_FORCEINLINE int16_t arm_nn_sqrdmulh_s16(int16_t a, int16_t b)
     int32_t ab = (int32_t)a * (int32_t)b; /* Q0.15 * Q0.15 -> Q0.30 */
     int32_t r = (ab << 1) + (1 << 15);    /* doubling + rounding */
     r >>= 16;                             /* back to Q0.15 */
-    r = CLAMP(r, INT16_MAX, INT16_MIN);
+    r = ARM_NN_CLAMP(r, INT16_MAX, INT16_MIN);
     return (int16_t)r;
 }
 
@@ -2181,7 +2182,7 @@ __STATIC_FORCEINLINE int16_t arm_nn_sqdmulh_s16(int16_t a, int16_t b)
     int32_t q15 = (ab / (1 << 15));       // trunc toward zero (not >>)
     if (overflow)
         q15 = INT16_MAX;
-    q15 = CLAMP(q15, INT16_MAX, INT16_MIN);
+    q15 = ARM_NN_CLAMP(q15, INT16_MAX, INT16_MIN);
     return (int16_t)q15;
 }
 
@@ -2198,7 +2199,7 @@ __STATIC_FORCEINLINE int16_t arm_nn_divide_by_power_of_two_s16(int16_t x, int ex
 {
     int32_t v = x;
     int32_t r32 = arm_nn_divide_by_power_of_two(v, exponent);
-    r32 = CLAMP(r32, INT16_MAX, INT16_MIN);
+    r32 = ARM_NN_CLAMP(r32, INT16_MAX, INT16_MIN);
     return (int16_t)r32;
 }
 
@@ -2335,7 +2336,7 @@ __STATIC_FORCEINLINE int16x8_t arm_divide_by_power_of_two_mve_s16(const int16x8_
 __STATIC_FORCEINLINE int32x4_t arm_requantize_mve(const int32x4_t val, const int32_t multiplier, const int32_t shift)
 {
     #ifdef CMSIS_NN_USE_SINGLE_ROUNDING
-    const int right_shift = MIN(-1, shift);
+    const int right_shift = ARM_NN_MIN(-1, shift);
     const int left_shift = shift - right_shift;
 
     const int32x4_t left_shift_dup = vdupq_n_s32(left_shift);
@@ -2405,7 +2406,7 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve_pred(const int32x4_t val,
                                                        const mve_pred16_t p)
 {
     #ifdef CMSIS_NN_USE_SINGLE_ROUNDING
-    const int right_shift = MIN(-1, shift);
+    const int right_shift = ARM_NN_MIN(-1, shift);
     const int left_shift = shift - right_shift;
     const int32x4_t v_zero = vcreateq_s32(0, 0);
 

@@ -153,29 +153,29 @@ arm_cmsis_nn_status arm_mul_scalar_s8(const int8_t *input_1_vect,
         mul_res = SMULBB(b_1, b_2);
         mul_res = arm_nn_requantize(mul_res, out_mult, out_shift) + out_offset;
 
-        mul_res = MAX(mul_res, out_activation_min);
-        mul_res = MIN(mul_res, out_activation_max);
+        mul_res = ARM_NN_MAX(mul_res, out_activation_min);
+        mul_res = ARM_NN_MIN(mul_res, out_activation_max);
         r1 = (int8_t)mul_res;
 
         /* Mul 3 */
         mul_res = SMULTT(b_1, b_2);
         mul_res = arm_nn_requantize(mul_res, out_mult, out_shift) + out_offset;
-        mul_res = MAX(mul_res, out_activation_min);
-        mul_res = MIN(mul_res, out_activation_max);
+        mul_res = ARM_NN_MAX(mul_res, out_activation_min);
+        mul_res = ARM_NN_MIN(mul_res, out_activation_max);
         r3 = (int8_t)mul_res;
 
         /* Mul 2 */
         mul_res = SMULBB(a_1, a_2);
         mul_res = arm_nn_requantize(mul_res, out_mult, out_shift) + out_offset;
-        mul_res = MAX(mul_res, out_activation_min);
-        mul_res = MIN(mul_res, out_activation_max);
+        mul_res = ARM_NN_MAX(mul_res, out_activation_min);
+        mul_res = ARM_NN_MIN(mul_res, out_activation_max);
         r2 = (int8_t)mul_res;
 
         /* Mul 4 */
         mul_res = SMULTT(a_1, a_2);
         mul_res = arm_nn_requantize(mul_res, out_mult, out_shift) + out_offset;
-        mul_res = MAX(mul_res, out_activation_min);
-        mul_res = MIN(mul_res, out_activation_max);
+        mul_res = ARM_NN_MAX(mul_res, out_activation_min);
+        mul_res = ARM_NN_MIN(mul_res, out_activation_max);
         r4 = (int8_t)mul_res;
 
         arm_nn_write_s8x4_ia(&output, PACK_S8x4_32x1(r1, r2, r3, r4));
@@ -197,8 +197,8 @@ arm_cmsis_nn_status arm_mul_scalar_s8(const int8_t *input_1_vect,
         mul_res = input_1 * input_2;
         mul_res = arm_nn_requantize(mul_res, out_mult, out_shift) + out_offset;
 
-        mul_res = MAX(mul_res, out_activation_min);
-        mul_res = MIN(mul_res, out_activation_max);
+        mul_res = ARM_NN_MAX(mul_res, out_activation_min);
+        mul_res = ARM_NN_MIN(mul_res, out_activation_max);
 
         *output++ = (int8_t)mul_res;
 

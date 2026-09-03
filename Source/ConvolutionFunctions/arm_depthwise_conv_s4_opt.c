@@ -103,7 +103,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
 
     const int32_t ch_loop = (input_ch + (S4_CH_IN_BLOCK_MVE - 1)) / S4_CH_IN_BLOCK_MVE;
     int32_t remaining_ch = output_ch;
-    int32_t active_ch = MIN(S4_CH_IN_BLOCK_MVE, remaining_ch);
+    int32_t active_ch = ARM_NN_MIN(S4_CH_IN_BLOCK_MVE, remaining_ch);
     remaining_ch -= S4_CH_IN_BLOCK_MVE;
 
     for (int i_ch = 0; i_ch < ch_loop; i_ch++)
@@ -245,7 +245,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
         }
         buffer_count = 0;
 
-        active_ch = MIN(S4_CH_IN_BLOCK_MVE, remaining_ch);
+        active_ch = ARM_NN_MIN(S4_CH_IN_BLOCK_MVE, remaining_ch);
         remaining_ch -= S4_CH_IN_BLOCK_MVE;
     }
 #else
@@ -268,9 +268,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
 
             /* Out of bounds is only considered for the y axis as it provides a contiguous zero'ing opportunity than
                along the x axis */
-            const int ker_y_start = MAX(0, -base_idx_y);
+            const int ker_y_start = ARM_NN_MAX(0, -base_idx_y);
             /* Condition for kernel end dimension: (base_idx_y + ker_y_end) < input_y */
-            const int ker_y_end = MIN(kernel_y, input_y - base_idx_y);
+            const int ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
 
             int32_t index = 0;
             if (ker_y_start != 0)
@@ -435,25 +435,25 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
 
                     sum = arm_nn_requantize(sum, *output_mult++, *output_shift++);
                     sum += output_offset;
-                    sum = MAX(sum, output_activation_min);
-                    sum = MIN(sum, output_activation_max);
+                    sum = ARM_NN_MAX(sum, output_activation_min);
+                    sum = ARM_NN_MIN(sum, output_activation_max);
                     *output++ = (int8_t)sum;
 
                     sum_2 = arm_nn_requantize(sum_2, *output_mult++, *output_shift++);
                     sum_2 += output_offset;
-                    sum_2 = MAX(sum_2, output_activation_min);
-                    sum_2 = MIN(sum_2, output_activation_max);
+                    sum_2 = ARM_NN_MAX(sum_2, output_activation_min);
+                    sum_2 = ARM_NN_MIN(sum_2, output_activation_max);
                     *output++ = (int8_t)sum_2;
                     sum_3 = arm_nn_requantize(sum_3, *output_mult++, *output_shift++);
                     sum_3 += output_offset;
-                    sum_3 = MAX(sum_3, output_activation_min);
-                    sum_3 = MIN(sum_3, output_activation_max);
+                    sum_3 = ARM_NN_MAX(sum_3, output_activation_min);
+                    sum_3 = ARM_NN_MIN(sum_3, output_activation_max);
                     *output++ = (int8_t)sum_3;
 
                     sum_4 = arm_nn_requantize(sum_4, *output_mult++, *output_shift++);
                     sum_4 += output_offset;
-                    sum_4 = MAX(sum_4, output_activation_min);
-                    sum_4 = MIN(sum_4, output_activation_max);
+                    sum_4 = ARM_NN_MAX(sum_4, output_activation_min);
+                    sum_4 = ARM_NN_MIN(sum_4, output_activation_max);
                     *output++ = (int8_t)sum_4;
 
                     row_count--;
@@ -503,8 +503,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
 
                     sum = arm_nn_requantize(sum, *output_mult++, *output_shift++);
                     sum += output_offset;
-                    sum = MAX(sum, output_activation_min);
-                    sum = MIN(sum, output_activation_max);
+                    sum = ARM_NN_MAX(sum, output_activation_min);
+                    sum = ARM_NN_MIN(sum, output_activation_max);
                     *output++ = (int8_t)sum;
 
                     row_count--;
@@ -610,25 +610,25 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
 
                     sum = arm_nn_requantize(sum, *output_mult++, *output_shift++);
                     sum += output_offset;
-                    sum = MAX(sum, output_activation_min);
-                    sum = MIN(sum, output_activation_max);
+                    sum = ARM_NN_MAX(sum, output_activation_min);
+                    sum = ARM_NN_MIN(sum, output_activation_max);
                     *output++ = (int8_t)sum;
 
                     sum_2 = arm_nn_requantize(sum_2, *output_mult++, *output_shift++);
                     sum_2 += output_offset;
-                    sum_2 = MAX(sum_2, output_activation_min);
-                    sum_2 = MIN(sum_2, output_activation_max);
+                    sum_2 = ARM_NN_MAX(sum_2, output_activation_min);
+                    sum_2 = ARM_NN_MIN(sum_2, output_activation_max);
                     *output++ = (int8_t)sum_2;
                     sum_3 = arm_nn_requantize(sum_3, *output_mult++, *output_shift++);
                     sum_3 += output_offset;
-                    sum_3 = MAX(sum_3, output_activation_min);
-                    sum_3 = MIN(sum_3, output_activation_max);
+                    sum_3 = ARM_NN_MAX(sum_3, output_activation_min);
+                    sum_3 = ARM_NN_MIN(sum_3, output_activation_max);
                     *output++ = (int8_t)sum_3;
 
                     sum_4 = arm_nn_requantize(sum_4, *output_mult++, *output_shift++);
                     sum_4 += output_offset;
-                    sum_4 = MAX(sum_4, output_activation_min);
-                    sum_4 = MIN(sum_4, output_activation_max);
+                    sum_4 = ARM_NN_MAX(sum_4, output_activation_min);
+                    sum_4 = ARM_NN_MIN(sum_4, output_activation_max);
                     *output++ = (int8_t)sum_4;
 
                     row_count--;
@@ -664,13 +664,13 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
 
                     sum = arm_nn_requantize(sum, *output_mult++, *output_shift++);
                     sum += output_offset;
-                    sum = MAX(sum, output_activation_min);
-                    sum = MIN(sum, output_activation_max);
+                    sum = ARM_NN_MAX(sum, output_activation_min);
+                    sum = ARM_NN_MIN(sum, output_activation_max);
                     *output++ = (int8_t)sum;
                     sum2 = arm_nn_requantize(sum2, *output_mult++, *output_shift++);
                     sum2 += output_offset;
-                    sum2 = MAX(sum2, output_activation_min);
-                    sum2 = MIN(sum2, output_activation_max);
+                    sum2 = ARM_NN_MAX(sum2, output_activation_min);
+                    sum2 = ARM_NN_MIN(sum2, output_activation_max);
                     *output++ = (int8_t)sum2;
                 }
             }

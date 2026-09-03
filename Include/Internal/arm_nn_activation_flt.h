@@ -52,7 +52,7 @@
 __STATIC_INLINE float32_t arm_nn_hardswish_scalar_f32(float32_t x)
 {
     float32_t t = x * (1.0f / 6.0f) + 0.5f;
-    t = CLAMP(t, 1.0f, 0.0f);
+    t = ARM_NN_CLAMP(t, 1.0f, 0.0f);
     return x * t;
 }
 
@@ -371,7 +371,7 @@ arm_nn_vector_clamp_f32(float32_t *data, int32_t block_size, float32_t activatio
     #else
     for (int32_t i = 0; i < block_size; ++i)
     {
-        data[i] = CLAMP(data[i], activation_max, activation_min);
+        data[i] = ARM_NN_CLAMP(data[i], activation_max, activation_min);
     }
     #endif
 }

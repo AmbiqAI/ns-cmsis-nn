@@ -61,9 +61,9 @@ arm_cmsis_nn_status arm_leaky_relu_s16(const int16_t *input,
     uint32_t blkCnt = (flat_size + 3) / 4;
 
     #ifdef CMSIS_NN_USE_SINGLE_ROUNDING
-    const int32_t right_shift_alpha = MIN(-1, output_shift_alpha);
+    const int32_t right_shift_alpha = ARM_NN_MIN(-1, output_shift_alpha);
     const int32_t left_shift_alpha = output_shift_alpha - right_shift_alpha;
-    const int32_t right_shift_identity = MIN(-1, output_shift_identity);
+    const int32_t right_shift_identity = ARM_NN_MIN(-1, output_shift_identity);
     const int32_t left_shift_identity = output_shift_identity - right_shift_identity;
     #else
     const int32_t left_shift_alpha = LEFT_SHIFT(output_shift_alpha);
@@ -125,7 +125,7 @@ arm_cmsis_nn_status arm_leaky_relu_s16(const int16_t *input,
             val = arm_nn_requantize(input_i32, output_multiplier_alpha, output_shift_alpha);
         }
         val += output_offset;
-        val = CLAMP(val, quantized_max, quantized_min);
+        val = ARM_NN_CLAMP(val, quantized_max, quantized_min);
         output_data[i] = (int16_t)val;
     }
 

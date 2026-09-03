@@ -1900,8 +1900,8 @@ void conv_1x1_out_tail_arm_convolve_s8(void)
                 acc += (input[j] + input_offset) * kernel[i * input_size + j];
             }
             int32_t expected = arm_nn_requantize(acc, multiplier[i], shift[i]) + output_offset;
-            expected = MAX(expected, activation_min);
-            expected = MIN(expected, activation_max);
+            expected = ARM_NN_MAX(expected, activation_min);
+            expected = ARM_NN_MIN(expected, activation_max);
             saw_clip |= expected == activation_min || expected == activation_max;
             TEST_ASSERT_EQUAL_INT8((int8_t)expected, output_storage[i + 2]);
         }

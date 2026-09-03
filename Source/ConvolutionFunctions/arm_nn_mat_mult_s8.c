@@ -151,8 +151,8 @@ int8_t *arm_nn_mat_mult_s8(const int8_t *input_row,
                 }
                 acc_0 = arm_nn_requantize(acc_0, output_mult[i_out_ch], output_shift[i_out_ch]);
                 acc_0 += out_offset;
-                acc_0 = MAX(acc_0, activation_min);
-                acc_0 = MIN(acc_0, activation_max);
+                acc_0 = ARM_NN_MAX(acc_0, activation_min);
+                acc_0 = ARM_NN_MIN(acc_0, activation_max);
                 out[i_out_ch] = (int8_t)acc_0;
             }
             out += output_ch;

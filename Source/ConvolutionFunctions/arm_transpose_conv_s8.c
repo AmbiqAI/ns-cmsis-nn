@@ -97,9 +97,9 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
     const int32_t out_offset = transpose_conv_params->output_offset;
     const int32_t input_offset = transpose_conv_params->input_offset;
 
-    const int32_t buf_x_elements = ((input_x - 1) * stride_x + MAX(filter_x, stride_x));
+    const int32_t buf_x_elements = ((input_x - 1) * stride_x + ARM_NN_MAX(filter_x, stride_x));
     const int32_t buf_x = buf_x_elements * output_ch;
-    const int32_t buf_y = MAX(filter_y, stride_y);
+    const int32_t buf_y = ARM_NN_MAX(filter_y, stride_y);
     const int32_t buf_size = buf_y * buf_x;
     int32_t *buf = ctx->buf;
     int32_t batch_cnt = input_dims->n;
@@ -129,14 +129,14 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
         // order. That makes output_row the one correct emit gate: it bounds the flush against
         // output_data (issue #261 defect 1) and it range-checks the leftover rows (issue #261
         // defect 2). The old leftover gate instead assumed buf_row had advanced once per unpadded
-        // row, which the MAX(0, ...) clamp on the flush count breaks when pad_y > input_y *
+        // row, which the ARM_NN_MAX(0, ...) clamp on the flush count breaks when pad_y > input_y *
         // stride_y: the first emitted row then came out of the wrong buffer slot.
         int32_t output_row = 0;
         int32_t buf_row = 0;
         for (int j = 0; j < input_y; j++)
         {
-            int skip_rows_top = MAX(0, pad_y - j * stride_y);
-            int skip_rows_bottom = MAX(0, (j * stride_y + filter_y) - (pad_y + output_y) - 1);
+            int skip_rows_top = ARM_NN_MAX(0, pad_y - j * stride_y);
+            int skip_rows_bottom = ARM_NN_MAX(0, (j * stride_y + filter_y) - (pad_y + output_y) - 1);
 
             // Compute output for one row of input
             arm_nn_transpose_conv_row_s8_s32(input,
@@ -158,20 +158,20 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
 
             // Number of output rows that became final (no later input row can still add to
             // them) after processing input row j, i.e. the increase in
-            // MAX(0, row * stride_y - pad_y) between row j and row j + 1. This is stride_y in
+            // ARM_NN_MAX(0, row * stride_y - pad_y) between row j and row j + 1. This is stride_y in
             // steady state, but must be a *partial* count during the initial ramp-up when
             // pad_y is not a multiple of stride_y, otherwise the flush under-counts on the
             // transition row and every following row is written to the wrong place in the
             // circular buffer (see issue #230).
-            int32_t rows_to_flush = MAX(0, (j + 1) * stride_y - pad_y) - MAX(0, j * stride_y - pad_y);
+            int32_t rows_to_flush = ARM_NN_MAX(0, (j + 1) * stride_y - pad_y) - ARM_NN_MAX(0, j * stride_y - pad_y);
 
             // Never flush past the end of output_data. The unbounded total,
-            // MAX(0, input_y * stride_y - pad_y), exceeds output_y whenever filter_y < stride_y
+            // ARM_NN_MAX(0, input_y * stride_y - pad_y), exceeds output_y whenever filter_y < stride_y
             // (e.g. plain TFLite VALID padding), and the leftover loop below cannot make up for
             // it because it runs zero times in exactly that case (issue #261 defect 1). Rows are
             // emitted in increasing order, so once output_row reaches output_y nothing further is
             // emitted and the rolling buffer no longer has to advance.
-            rows_to_flush = MIN(rows_to_flush, output_y - output_row);
+            rows_to_flush = ARM_NN_MIN(rows_to_flush, output_y - output_row);
 
             if (rows_to_flush > 0)
             {
@@ -219,8 +219,8 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
                             int32_t result = *buf_out++;
                             result = arm_nn_requantize(result, *output_multiplier_ptr++, *output_shift_ptr++);
                             result += out_offset;
-                            result = MAX(result, activation_min);
-                            result = MIN(result, activation_max);
+                            result = ARM_NN_MAX(result, activation_min);
+                            result = ARM_NN_MIN(result, activation_max);
                             *output++ = result;
                         }
                     }
@@ -294,8 +294,8 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
 
                         result = arm_nn_requantize(result, *output_multiplier_ptr++, *output_shift_ptr++);
                         result += out_offset;
-                        result = MAX(result, activation_min);
-                        result = MIN(result, activation_max);
+                        result = ARM_NN_MAX(result, activation_min);
+                        result = ARM_NN_MIN(result, activation_max);
                         *output++ = result;
                     }
                 }

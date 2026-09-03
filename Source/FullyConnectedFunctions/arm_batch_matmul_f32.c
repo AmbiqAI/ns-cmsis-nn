@@ -219,7 +219,7 @@ arm_cmsis_nn_status arm_batch_matmul_f32(const cmsis_nn_context *ctx,
     #else
                         acc = dot_contig_strided_f32_scalar(lhs_ptr, rhs_mat + i_rhs_rows, rhs_cols, rhs_rows);
     #endif
-                        output[i_rhs_rows] = CLAMP(acc, bmm_params->activation.max, bmm_params->activation.min);
+                        output[i_rhs_rows] = ARM_NN_CLAMP(acc, bmm_params->activation.max, bmm_params->activation.min);
                     }
                     output += rhs_rows;
                 }
@@ -238,7 +238,7 @@ arm_cmsis_nn_status arm_batch_matmul_f32(const cmsis_nn_context *ctx,
     #else
                         acc = dot_contig_strided_f32_scalar(rhs_ptr, lhs_mat + i_lhs_rows, rhs_cols, lhs_rows);
     #endif
-                        output[i_rhs_rows] = CLAMP(acc, bmm_params->activation.max, bmm_params->activation.min);
+                        output[i_rhs_rows] = ARM_NN_CLAMP(acc, bmm_params->activation.max, bmm_params->activation.min);
                     }
                     output += rhs_rows;
                 }
@@ -262,7 +262,7 @@ arm_cmsis_nn_status arm_batch_matmul_f32(const cmsis_nn_context *ctx,
                         acc = dot_strided_strided_f32_scalar(
                             lhs_mat + i_lhs_rows, lhs_rows, rhs_mat + i_rhs_rows, rhs_rows, rhs_cols);
     #endif
-                        output[i_rhs_rows] = CLAMP(acc, bmm_params->activation.max, bmm_params->activation.min);
+                        output[i_rhs_rows] = ARM_NN_CLAMP(acc, bmm_params->activation.max, bmm_params->activation.min);
                     }
                     output += rhs_rows;
                 }

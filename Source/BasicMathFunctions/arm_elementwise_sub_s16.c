@@ -121,8 +121,8 @@ arm_cmsis_nn_status arm_elementwise_sub_s16(const int16_t *input_1_vect,
         input_2 = arm_nn_requantize(input_2, input_2_mult, input_2_shift);
         diff = input_1 - input_2;
         diff = arm_nn_requantize(diff, out_mult, out_shift);
-        diff = MAX(diff, out_activation_min);
-        diff = MIN(diff, out_activation_max);
+        diff = ARM_NN_MAX(diff, out_activation_min);
+        diff = ARM_NN_MIN(diff, out_activation_max);
         diff_1 = (int16_t)diff;
 
         input_1 = (int16_t)(two_halfword_1 >> 16) * (int32_t)((uint32_t)1 << left_shift);
@@ -131,8 +131,8 @@ arm_cmsis_nn_status arm_elementwise_sub_s16(const int16_t *input_1_vect,
         input_2 = arm_nn_requantize(input_2, input_2_mult, input_2_shift);
         diff = input_1 - input_2;
         diff = arm_nn_requantize(diff, out_mult, out_shift);
-        diff = MAX(diff, out_activation_min);
-        diff = MIN(diff, out_activation_max);
+        diff = ARM_NN_MAX(diff, out_activation_min);
+        diff = ARM_NN_MIN(diff, out_activation_max);
         diff_2 = (int16_t)diff;
 
         arm_nn_write_q15x2_ia(&output, PACK_Q15x2_32x1(diff_1, diff_2));
@@ -153,8 +153,8 @@ arm_cmsis_nn_status arm_elementwise_sub_s16(const int16_t *input_1_vect,
         diff = input_1 - input_2;
         diff = arm_nn_requantize(diff, out_mult, out_shift);
 
-        diff = MAX(diff, out_activation_min);
-        diff = MIN(diff, out_activation_max);
+        diff = ARM_NN_MAX(diff, out_activation_min);
+        diff = ARM_NN_MIN(diff, out_activation_max);
 
         *output++ = (int16_t)diff;
 

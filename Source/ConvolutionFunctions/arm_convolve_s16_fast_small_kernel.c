@@ -202,8 +202,8 @@ arm_convolve_s16_fast_small_kernel(const cmsis_nn_context *ctx,
                             }
                             result = arm_nn_requantize_s64(acc_s64, reduced_multiplier, shift);
                         }
-                        result = MAX(result, out_activation_min);
-                        result = MIN(result, out_activation_max);
+                        result = ARM_NN_MAX(result, out_activation_min);
+                        result = ARM_NN_MIN(result, out_activation_max);
                         *out_c = (int16_t)result;
                         out_c += output_ch;
                     }
@@ -233,8 +233,8 @@ arm_convolve_s16_fast_small_kernel(const cmsis_nn_context *ctx,
 
                             result = arm_nn_requantize_s64(acc_s64, reduced_multiplier, shift);
                         }
-                        result = MAX(result, out_activation_min);
-                        result = MIN(result, out_activation_max);
+                        result = ARM_NN_MAX(result, out_activation_min);
+                        result = ARM_NN_MIN(result, out_activation_max);
                         *out_c = (int16_t)result;
                         out_c += output_ch;
                     }

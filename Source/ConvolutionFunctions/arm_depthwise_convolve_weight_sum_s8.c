@@ -86,7 +86,7 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
             }
             ker_sum = vmulq_n_s32(ker_sum, lhs_offset);
             // vstrwq_p_s32(sum_buf_runner, ker_sum, p);
-            for (int j = 0; j < MIN(4, ch_left); ++j)
+            for (int j = 0; j < ARM_NN_MIN(4, ch_left); ++j)
             {
                 vector_sum_buf[j] += ker_sum[j];
             }

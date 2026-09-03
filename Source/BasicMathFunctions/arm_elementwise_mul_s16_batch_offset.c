@@ -118,8 +118,8 @@ arm_cmsis_nn_status arm_elementwise_mul_s16_batch_offset(const int16_t *input_1_
             mul_res = input_1 * input_2;
     #endif
             mul_res = arm_nn_requantize(mul_res, out_mult, out_shift) + out_offset;
-            mul_res = MAX(mul_res, NN_Q15_MIN);
-            mul_res = MIN(mul_res, NN_Q15_MAX);
+            mul_res = ARM_NN_MAX(mul_res, NN_Q15_MIN);
+            mul_res = ARM_NN_MIN(mul_res, NN_Q15_MAX);
             mul_1 = (int16_t)mul_res;
 
     #if defined(ARM_MATH_DSP)
@@ -130,8 +130,8 @@ arm_cmsis_nn_status arm_elementwise_mul_s16_batch_offset(const int16_t *input_1_
             mul_res = input_1 * input_2;
     #endif
             mul_res = arm_nn_requantize(mul_res, out_mult, out_shift) + out_offset;
-            mul_res = MAX(mul_res, NN_Q15_MIN);
-            mul_res = MIN(mul_res, NN_Q15_MAX);
+            mul_res = ARM_NN_MAX(mul_res, NN_Q15_MIN);
+            mul_res = ARM_NN_MIN(mul_res, NN_Q15_MAX);
             mul_2 = (int16_t)mul_res;
 
             arm_nn_write_q15x2_ia(&output, PACK_Q15x2_32x1(mul_1, mul_2));
@@ -149,8 +149,8 @@ arm_cmsis_nn_status arm_elementwise_mul_s16_batch_offset(const int16_t *input_1_
             mul_res = input_1 * input_2;
             mul_res = arm_nn_requantize(mul_res, out_mult, out_shift) + out_offset;
 
-            mul_res = MAX(mul_res, NN_Q15_MIN);
-            mul_res = MIN(mul_res, NN_Q15_MAX);
+            mul_res = ARM_NN_MAX(mul_res, NN_Q15_MIN);
+            mul_res = ARM_NN_MIN(mul_res, NN_Q15_MAX);
 
             *output++ = (int16_t)mul_res;
         }

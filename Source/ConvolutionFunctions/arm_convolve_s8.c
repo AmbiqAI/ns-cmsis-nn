@@ -386,8 +386,8 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
 
                     sum = arm_nn_requantize(sum, output_mult_ptr[i], output_shift_ptr[i]);
                     sum += out_offset;
-                    sum = MAX(sum, out_activation_min);
-                    sum = MIN(sum, out_activation_max);
+                    sum = ARM_NN_MAX(sum, out_activation_min);
+                    sum = ARM_NN_MIN(sum, out_activation_max);
                     *out++ = (int8_t)sum;
                 }
 

@@ -1086,8 +1086,8 @@ void depthwise_nt_t_tail_arm_depthwise_conv_s8_opt(void)
             {
                 int32_t acc = bias[i_ch] + (input[i_patch * channels + i_ch] + input_offset) * kernel[i_ch];
                 int32_t expected = arm_nn_requantize(acc, multiplier[i_ch], shift[i_ch]) + output_offset;
-                expected = MAX(expected, activation_min);
-                expected = MIN(expected, activation_max);
+                expected = ARM_NN_MAX(expected, activation_min);
+                expected = ARM_NN_MIN(expected, activation_max);
                 saw_clip |= expected == activation_min || expected == activation_max;
                 TEST_ASSERT_EQUAL_INT8((int8_t)expected, output_storage[4 + i_patch * channels + i_ch]);
             }
@@ -1307,8 +1307,8 @@ void depthwise_boundary_matrix_arm_depthwise_conv_s8_opt(void)
                             }
                         }
                         int32_t value = arm_nn_requantize(acc, multiplier[ch], shift[ch]) + output_offset;
-                        value = MAX(value, activation_min);
-                        value = MIN(value, activation_max);
+                        value = ARM_NN_MAX(value, activation_min);
+                        value = ARM_NN_MIN(value, activation_max);
                         reference[(out_y * output_w + out_x) * channels + ch] = (int8_t)value;
                     }
                 }

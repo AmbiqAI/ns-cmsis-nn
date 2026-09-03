@@ -134,7 +134,7 @@ arm_cmsis_nn_status arm_reduce_max_flatten_last_dims_s8(const int8_t *input_data
         // Tail
         for (; j < inner_size; ++j)
         {
-            max_val = MAX(max_val, p[j]);
+            max_val = ARM_NN_MAX(max_val, p[j]);
         }
 
         output_data[i] = max_val;
@@ -313,8 +313,8 @@ arm_cmsis_nn_status arm_reduce_max_spatial_s8(const int8_t *input_data,
                     int16_t a1 = (int16_t)(op0 >> 16);
                     int16_t m0 = (int16_t)(max_pair0 & 0xFFFF);
                     int16_t m1 = (int16_t)(max_pair0 >> 16);
-                    m0 = MAX(m0, a0);
-                    m1 = MAX(m1, a1);
+                    m0 = ARM_NN_MAX(m0, a0);
+                    m1 = ARM_NN_MAX(m1, a1);
                     max_pair0 = PKHBT(m0, m1, 16);
                 }
                 // lane‐wise max on op1 → max_pair1
@@ -323,8 +323,8 @@ arm_cmsis_nn_status arm_reduce_max_spatial_s8(const int8_t *input_data,
                     int16_t a1 = (int16_t)(op1 >> 16);
                     int16_t m0 = (int16_t)(max_pair1 & 0xFFFF);
                     int16_t m1 = (int16_t)(max_pair1 >> 16);
-                    m0 = MAX(m0, a0);
-                    m1 = MAX(m1, a1);
+                    m0 = ARM_NN_MAX(m0, a0);
+                    m1 = ARM_NN_MAX(m1, a1);
                     max_pair1 = PKHBT(m0, m1, 16);
                 }
             }
@@ -332,17 +332,17 @@ arm_cmsis_nn_status arm_reduce_max_spatial_s8(const int8_t *input_data,
             // Collapse our two pairs into one scalar max
             int8_t m = (int8_t)((int16_t)(max_pair0 & 0xFFFF));
             int8_t t = (int8_t)((int16_t)((max_pair0 >> 16) & 0xFFFF));
-            m = MAX(m, t);
+            m = ARM_NN_MAX(m, t);
             t = (int8_t)((int16_t)(max_pair1 & 0xFFFF));
-            m = MAX(m, t);
+            m = ARM_NN_MAX(m, t);
             t = (int8_t)((int16_t)((max_pair1 >> 16) & 0xFFFF));
-            m = MAX(m, t);
+            m = ARM_NN_MAX(m, t);
 
             // Handle any leftover “tail” elements
             for (; s < spatial; ++s)
             {
                 int8_t v = base[s * C + c];
-                m = MAX(m, v);
+                m = ARM_NN_MAX(m, v);
             }
             out[c] = m;
         }

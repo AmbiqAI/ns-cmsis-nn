@@ -139,29 +139,29 @@ arm_cmsis_nn_status arm_nn_vec_mat_mul_result_acc_s16(const int16_t *lhs,
             int32_t tmp;
             tmp = arm_nn_requantize_s64(result_64_0, reduced_multiplier, dst_shift);
             tmp += (int64_t)*dst;
-            tmp = MAX(tmp, NN_Q15_MIN);
-            tmp = MIN(tmp, NN_Q15_MAX);
+            tmp = ARM_NN_MAX(tmp, NN_Q15_MIN);
+            tmp = ARM_NN_MIN(tmp, NN_Q15_MAX);
             *dst++ = (int16_t)tmp;
 
             tmp = 0;
             tmp = arm_nn_requantize_s64(result_64_1, reduced_multiplier, dst_shift);
             tmp += (int64_t)*dst;
-            tmp = MAX(tmp, NN_Q15_MIN);
-            tmp = MIN(tmp, NN_Q15_MAX);
+            tmp = ARM_NN_MAX(tmp, NN_Q15_MIN);
+            tmp = ARM_NN_MIN(tmp, NN_Q15_MAX);
             *dst++ = (int16_t)tmp;
 
             tmp = 0;
             tmp = arm_nn_requantize_s64(result_64_2, reduced_multiplier, dst_shift);
             tmp += (int64_t)*dst;
-            tmp = MAX(tmp, NN_Q15_MIN);
-            tmp = MIN(tmp, NN_Q15_MAX);
+            tmp = ARM_NN_MAX(tmp, NN_Q15_MIN);
+            tmp = ARM_NN_MIN(tmp, NN_Q15_MAX);
             *dst++ = (int16_t)tmp;
 
             tmp = 0;
             tmp = arm_nn_requantize_s64(result_64_3, reduced_multiplier, dst_shift);
             tmp += (int64_t)*dst;
-            tmp = MAX(tmp, NN_Q15_MIN);
-            tmp = MIN(tmp, NN_Q15_MAX);
+            tmp = ARM_NN_MAX(tmp, NN_Q15_MIN);
+            tmp = ARM_NN_MIN(tmp, NN_Q15_MAX);
             *dst++ = (int16_t)tmp;
 
             rhs_ptr += 4 * rhs_cols;
@@ -205,8 +205,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mul_result_acc_s16(const int16_t *lhs,
             int32_t tmp = 0;
             tmp = arm_nn_requantize_s64(result_64, reduced_multiplier, dst_shift);
             tmp += (int64_t)*dst;
-            tmp = MAX(tmp, NN_Q15_MIN);
-            tmp = MIN(tmp, NN_Q15_MAX);
+            tmp = ARM_NN_MAX(tmp, NN_Q15_MIN);
+            tmp = ARM_NN_MIN(tmp, NN_Q15_MAX);
             *dst++ = (int16_t)tmp;
 
             rhs_ptr += rhs_cols;
@@ -269,14 +269,14 @@ arm_cmsis_nn_status arm_nn_vec_mat_mul_result_acc_s16(const int16_t *lhs,
 
             tmp = arm_nn_requantize_s64(acc_64_0, reduced_multiplier, dst_shift);
             tmp += (int64_t)*dst;
-            tmp = MAX(tmp, NN_Q15_MIN);
-            tmp = MIN(tmp, NN_Q15_MAX);
+            tmp = ARM_NN_MAX(tmp, NN_Q15_MIN);
+            tmp = ARM_NN_MIN(tmp, NN_Q15_MAX);
             *dst++ = (int16_t)tmp;
 
             tmp = arm_nn_requantize_s64(acc_64_1, reduced_multiplier, dst_shift);
             tmp += (int64_t)*dst;
-            tmp = MAX(tmp, NN_Q15_MIN);
-            tmp = MIN(tmp, NN_Q15_MAX);
+            tmp = ARM_NN_MAX(tmp, NN_Q15_MIN);
+            tmp = ARM_NN_MIN(tmp, NN_Q15_MAX);
             *dst++ = (int16_t)tmp;
         }
 
@@ -316,8 +316,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mul_result_acc_s16(const int16_t *lhs,
             int32_t tmp;
             tmp = arm_nn_requantize_s64(acc_64_0, reduced_multiplier, dst_shift);
             tmp += (int64_t)*dst;
-            tmp = MAX(tmp, NN_Q15_MIN);
-            tmp = MIN(tmp, NN_Q15_MAX);
+            tmp = ARM_NN_MAX(tmp, NN_Q15_MIN);
+            tmp = ARM_NN_MIN(tmp, NN_Q15_MAX);
             *dst++ = (int16_t)tmp;
         }
 

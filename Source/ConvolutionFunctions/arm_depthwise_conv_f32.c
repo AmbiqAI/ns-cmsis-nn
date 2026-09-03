@@ -140,10 +140,10 @@ __STATIC_INLINE void arm_depthwise_accumulate_pixel_nhwc_kc_f32(const float32_t 
         return;
     }
 
-    const int32_t ker_y_start = MAX(0, -base_idx_y);
-    const int32_t ker_y_end = MIN(kernel_y, input_y - base_idx_y);
-    const int32_t ker_x_start = MAX(0, -base_idx_x);
-    const int32_t ker_x_end = MIN(kernel_x, input_x - base_idx_x);
+    const int32_t ker_y_start = ARM_NN_MAX(0, -base_idx_y);
+    const int32_t ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
+    const int32_t ker_x_start = ARM_NN_MAX(0, -base_idx_x);
+    const int32_t ker_x_end = ARM_NN_MIN(kernel_x, input_x - base_idx_x);
 
     for (int32_t i_ker_y = ker_y_start; i_ker_y < ker_y_end; ++i_ker_y)
     {
@@ -671,27 +671,27 @@ static void arm_depthwise_conv_f32_generic(const float32_t *input,
                         if (dilation_x > 1)
                         {
                             const int32_t start_x_max = (-base_idx_x + dilation_x - 1) / dilation_x;
-                            ker_x_start = MAX(0, start_x_max);
+                            ker_x_start = ARM_NN_MAX(0, start_x_max);
                             const int32_t end_min_x = (input_x - base_idx_x + dilation_x - 1) / dilation_x;
-                            ker_x_end = MIN(kernel_x, end_min_x);
+                            ker_x_end = ARM_NN_MIN(kernel_x, end_min_x);
                         }
                         else
                         {
-                            ker_x_start = MAX(0, -base_idx_x);
-                            ker_x_end = MIN(kernel_x, input_x - base_idx_x);
+                            ker_x_start = ARM_NN_MAX(0, -base_idx_x);
+                            ker_x_end = ARM_NN_MIN(kernel_x, input_x - base_idx_x);
                         }
 
                         if (dilation_y > 1)
                         {
                             const int32_t start_y_max = (-base_idx_y + dilation_y - 1) / dilation_y;
-                            ker_y_start = MAX(0, start_y_max);
+                            ker_y_start = ARM_NN_MAX(0, start_y_max);
                             const int32_t end_min_y = (input_y - base_idx_y + dilation_y - 1) / dilation_y;
-                            ker_y_end = MIN(kernel_y, end_min_y);
+                            ker_y_end = ARM_NN_MIN(kernel_y, end_min_y);
                         }
                         else
                         {
-                            ker_y_start = MAX(0, -base_idx_y);
-                            ker_y_end = MIN(kernel_y, input_y - base_idx_y);
+                            ker_y_start = ARM_NN_MAX(0, -base_idx_y);
+                            ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
                         }
 
                         if (bias)
@@ -713,7 +713,7 @@ static void arm_depthwise_conv_f32_generic(const float32_t *input,
                             }
                         }
 
-                        acc_0 = CLAMP(acc_0, output_activation_max, output_activation_min);
+                        acc_0 = ARM_NN_CLAMP(acc_0, output_activation_max, output_activation_min);
                         const int32_t out_idx =
                             arm_depthwise_conv_output_index_nhwc(i_out_x, i_out_y, idx_out_ch, output_x, output_ch);
                         output_b[out_idx] = acc_0;

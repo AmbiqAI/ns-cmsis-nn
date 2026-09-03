@@ -45,7 +45,7 @@
 
 __STATIC_INLINE float32_t clamp_and_activate(float32_t x, const cmsis_nn_activation_f32 *act)
 {
-    return CLAMP(x, act->max, act->min);
+    return ARM_NN_CLAMP(x, act->max, act->min);
 }
 
 __STATIC_INLINE float32_t arm_nn_svdf_dot_f32(const float32_t *lhs, const float32_t *rhs, int32_t count)

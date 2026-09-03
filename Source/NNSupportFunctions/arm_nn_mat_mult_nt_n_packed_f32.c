@@ -175,7 +175,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f32(const float32_t *__RESTRICT 
                 {
                     acc += lhs_row[k] * rhs_block[(size_t)k * block_cols + lane];
                 }
-                dst_row[c + lane] = CLAMP(acc, activation_max, activation_min);
+                dst_row[c + lane] = ARM_NN_CLAMP(acc, activation_max, activation_min);
             }
     #endif
         }

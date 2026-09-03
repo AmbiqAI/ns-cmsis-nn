@@ -44,7 +44,7 @@
 
 /*
  * Scratch size indexed by arm_transpose_conv_s8() itself: the rolling row buffer,
- * MAX(filter_y, stride_y) rows of ((input_x - 1) * stride_x + MAX(filter_x, stride_x)) * out_ch
+ * ARM_NN_MAX(filter_y, stride_y) rows of ((input_x - 1) * stride_x + ARM_NN_MAX(filter_x, stride_x)) * out_ch
  * int32 accumulators.
  */
 static int32_t transpose_conv_s8_rolling_buffer_size(const cmsis_nn_transpose_conv_params *transpose_conv_params,
@@ -58,16 +58,16 @@ static int32_t transpose_conv_s8_rolling_buffer_size(const cmsis_nn_transpose_co
         return -1;
     }
 
-    // (w - 1) * stride_w + MAX(filter_w, stride_w) is bounded by ~2^62 given the validation above and so cannot wrap
-    // an int64_t. It is also non-negative for every input that reaches here - at w == 0 it is
-    // MAX(filter_w, stride_w) - stride_w >= 0 - so it is computed directly and fed to the bounded fold, which needs a
-    // non-negative accumulator and would report a negative one as -1 in any case. See arm_nn_size_mul().
+    // (w - 1) * stride_w + ARM_NN_MAX(filter_w, stride_w) is bounded by ~2^62 given the validation above and so cannot
+    // wrap an int64_t. It is also non-negative for every input that reaches here - at w == 0 it is ARM_NN_MAX(filter_w,
+    // stride_w) - stride_w >= 0 - so it is computed directly and fed to the bounded fold, which needs a non-negative
+    // accumulator and would report a negative one as -1 in any case. See arm_nn_size_mul().
     const int64_t row_span = ((int64_t)input_dims->w - 1) * (int64_t)transpose_conv_params->stride.w +
-        MAX(filter_dims->w, transpose_conv_params->stride.w);
+        ARM_NN_MAX(filter_dims->w, transpose_conv_params->stride.w);
 
     int64_t buf_x = arm_nn_size_mul(row_span, out_dims->c);
 
-    const int32_t buf_y = MAX(filter_dims->h, transpose_conv_params->stride.h);
+    const int32_t buf_y = ARM_NN_MAX(filter_dims->h, transpose_conv_params->stride.h);
 
     int64_t required_bytes = arm_nn_size_mul(buf_x, buf_y);
     required_bytes = arm_nn_size_mul(required_bytes, (int32_t)sizeof(int32_t));
@@ -144,14 +144,14 @@ int32_t arm_transpose_conv_s8_get_buffer_size(const cmsis_nn_transpose_conv_para
         // indexes in ctx->buf.
         const int32_t reverse_conv_size = arm_convolve_s8_get_buffer_size(&reverse_conv_input_dims, filter_dims);
 
-        // Propagate the out-of-range sentinel before the MAX(): MAX(-1, rolling_size) would otherwise collapse to a
-        // plausible positive size and the caller would under-allocate.
+        // Propagate the out-of-range sentinel before the ARM_NN_MAX(): ARM_NN_MAX(-1, rolling_size) would otherwise
+        // collapse to a plausible positive size and the caller would under-allocate.
         if (reverse_conv_size < 0)
         {
             return -1;
         }
 
-        return MAX(reverse_conv_size, rolling_size);
+        return ARM_NN_MAX(reverse_conv_size, rolling_size);
     }
     else
     {
@@ -190,13 +190,13 @@ int32_t arm_transpose_conv_s8_get_buffer_size_mve(const cmsis_nn_transpose_conv_
         // caller as well as the wrapper's reverse-conv route (issue #261 defect 3).
         const int32_t reverse_conv_size = arm_convolve_s8_get_buffer_size_mve(&reverse_conv_input_dims, filter_dims);
 
-        // Propagate the out-of-range sentinel before the MAX(), or it collapses into a plausible positive size.
+        // Propagate the out-of-range sentinel before the ARM_NN_MAX(), or it collapses into a plausible positive size.
         if (reverse_conv_size < 0)
         {
             return -1;
         }
 
-        return MAX(reverse_conv_size, rolling_size);
+        return ARM_NN_MAX(reverse_conv_size, rolling_size);
     }
     else
     {

@@ -64,7 +64,7 @@ arm_cmsis_nn_status arm_elementwise_prelu_s16(const int16_t *input,
             output_value = arm_nn_requantize(input_value * alpha_value, output_multiplier_alpha, output_shift_alpha);
         }
         output_value += out_offset;
-        const int32_t clamped_output = MIN(INT16_MAX, MAX(INT16_MIN, output_value));
+        const int32_t clamped_output = ARM_NN_MIN(INT16_MAX, ARM_NN_MAX(INT16_MIN, output_value));
         output[i] = (int16_t)clamped_output;
     }
 

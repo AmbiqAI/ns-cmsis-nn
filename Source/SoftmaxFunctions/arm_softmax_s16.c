@@ -58,7 +58,7 @@ arm_cmsis_nn_status arm_softmax_s16(const int16_t *input,
         int16_t max = *input;
         for (col = 1; col < row_size; ++col)
         {
-            max = MAX(max, input[col]);
+            max = ARM_NN_MAX(max, input[col]);
         }
 
         int32_t diff = 0;
@@ -70,7 +70,8 @@ arm_cmsis_nn_status arm_softmax_s16(const int16_t *input,
             diff = input[col] - max;
             const int32_t scaled_diff = arm_nn_requantize(diff, mult, shift);
             const int32_t symmetric_scaled_diff = scaled_diff + NN_Q15_MAX;
-            const int16_t saturated_symmetric_scaled_diff = MIN(MAX(symmetric_scaled_diff, NN_Q15_MIN), NN_Q15_MAX);
+            const int16_t saturated_symmetric_scaled_diff =
+                ARM_NN_MIN(ARM_NN_MAX(symmetric_scaled_diff, NN_Q15_MIN), NN_Q15_MAX);
 
             // Lookup from exp table and cache result for next step
             const int16_t index = (256 + (saturated_symmetric_scaled_diff >> 7));

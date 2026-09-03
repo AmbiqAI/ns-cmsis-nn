@@ -106,7 +106,7 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp2i_f32(int32_t n)
     const int32_t float32_exponent_bias = 127;
     const int32_t float32_mantissa_bits = 23;
 
-    n = CLAMP(n, float32_max_finite_exponent, float32_min_normal_exponent);
+    n = ARM_NN_CLAMP(n, float32_max_finite_exponent, float32_min_normal_exponent);
     return arm_nn_softmax_fp32_from_bits((uint32_t)(n + float32_exponent_bias) << float32_mantissa_bits);
 }
 
@@ -157,7 +157,7 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp_lut_f32(float32_t x)
     const int32_t exp2_lut_max_index = 255;
 
     /* Ordered compares, so NaN fails the first test and is flushed to
-     * max_value. This is the same result CLAMP() produces (MIN() runs first
+     * max_value. This is the same result ARM_NN_CLAMP() produces (ARM_NN_MIN() runs first
      * and returns max_value for NaN), written explicitly because the rest of
      * this function depends on it: it is what keeps NaN out of the two
      * float-to-int conversions below, where it would be undefined behaviour.
@@ -169,12 +169,12 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp_lut_f32(float32_t x)
      * and those are IEEE minNum/maxNum, which return the *numeric* operand
      * against a NaN. Applying the max bound first therefore sends NaN to
      * max_value; applying the min bound first would send it to min_value
-     * instead. CLAMP() expands to MAX(MIN(x, hi), lo), i.e. min-bound-first,
+     * instead. ARM_NN_CLAMP() expands to ARM_NN_MAX(ARM_NN_MIN(x, hi), lo), i.e. min-bound-first,
      * so this order is what reproduces the long-standing behaviour bit for
      * bit in every optimisation mode.
      *
      * The compares are STRICT for the same reason, so the saturating arm owns
-     * the exact boundary exactly as MIN()/MAX() do. With `<=` the pass-through
+     * the exact boundary exactly as ARM_NN_MIN()/ARM_NN_MAX() do. With `<=` the pass-through
      * arm keeps x at x == max_value, and the compiler then propagates a
      * runtime value where base propagates the literal 80.0f -- enough to
      * change constant folding downstream and shift the Taylor result by tens
@@ -573,7 +573,7 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp2i_f16(int32_t n)
     const int32_t float16_exponent_bias = 15;
     const int32_t float16_mantissa_bits = 10;
 
-    n = CLAMP(n, float16_max_finite_exponent, float16_min_normal_exponent);
+    n = ARM_NN_CLAMP(n, float16_max_finite_exponent, float16_min_normal_exponent);
     return arm_nn_softmax_fp16_from_bits((uint16_t)((n + float16_exponent_bias) << float16_mantissa_bits));
 }
 
@@ -590,7 +590,7 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_taylor_f16(float16_t x)
     const float32_t ln2 = 0.69314718055994531f;
 
     float32_t x_f32 = (float32_t)x;
-    x_f32 = CLAMP(x_f32, max_value, min_value);
+    x_f32 = ARM_NN_CLAMP(x_f32, max_value, min_value);
 
     const float32_t t = x_f32 * log2e;
     const int32_t n = (t >= 0.0f) ? (int32_t)(t + 0.5f) : (int32_t)(t - 0.5f);
@@ -618,7 +618,7 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_lut_f16(float16_t x)
     const int32_t exp2_lut_max_index = 255;
 
     float32_t x_f32 = (float32_t)x;
-    x_f32 = CLAMP(x_f32, max_value, min_value);
+    x_f32 = ARM_NN_CLAMP(x_f32, max_value, min_value);
 
     const float32_t t = x_f32 * log2e;
     const int32_t n = arm_nn_softmax_floor_to_int_f16((float16_t)t);

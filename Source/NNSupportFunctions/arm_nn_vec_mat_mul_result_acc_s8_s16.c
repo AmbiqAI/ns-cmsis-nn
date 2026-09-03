@@ -145,8 +145,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mul_result_acc_s8_s16(const int8_t *lhs,
             acc_0 += *dst;
 
             // Clamp the result
-            acc_0 = MAX(acc_0, NN_Q15_MIN);
-            acc_0 = MIN(acc_0, NN_Q15_MAX);
+            acc_0 = ARM_NN_MAX(acc_0, NN_Q15_MIN);
+            acc_0 = ARM_NN_MIN(acc_0, NN_Q15_MAX);
             *dst++ = (int16_t)acc_0;
         }
 
@@ -202,13 +202,13 @@ arm_cmsis_nn_status arm_nn_vec_mat_mul_result_acc_s8_s16(const int8_t *lhs,
             // Add offset
             acc_0 += *dst;
             // Clamp the result
-            acc_0 = MAX(acc_0, NN_Q15_MIN);
-            acc_0 = MIN(acc_0, NN_Q15_MAX);
+            acc_0 = ARM_NN_MAX(acc_0, NN_Q15_MIN);
+            acc_0 = ARM_NN_MIN(acc_0, NN_Q15_MAX);
             *dst++ = (int16_t)acc_0;
 
             acc_1 += *dst;
-            acc_1 = MAX(acc_1, NN_Q15_MIN);
-            acc_1 = MIN(acc_1, NN_Q15_MAX);
+            acc_1 = ARM_NN_MAX(acc_1, NN_Q15_MIN);
+            acc_1 = ARM_NN_MIN(acc_1, NN_Q15_MAX);
 
             *dst++ = (int16_t)acc_1;
         }
@@ -248,8 +248,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mul_result_acc_s8_s16(const int8_t *lhs,
             // Accumulate
             acc_0 += dst[0];
             // Clamp the result
-            acc_0 = MAX(acc_0, NN_Q15_MIN);
-            acc_0 = MIN(acc_0, NN_Q15_MAX);
+            acc_0 = ARM_NN_MAX(acc_0, NN_Q15_MIN);
+            acc_0 = ARM_NN_MIN(acc_0, NN_Q15_MAX);
             *dst++ = (int16_t)acc_0;
         }
 
@@ -294,15 +294,15 @@ arm_cmsis_nn_status arm_nn_vec_mat_mul_result_acc_s8_s16(const int8_t *lhs,
 
             // Add offset
             res00 += (int32_t)*dst;
-            res00 = CLAMP(res00, NN_Q15_MAX, NN_Q15_MIN);
+            res00 = ARM_NN_CLAMP(res00, NN_Q15_MAX, NN_Q15_MIN);
             *dst++ = (int16_t)res00;
 
             res01 += (int32_t)*dst;
-            res01 = CLAMP(res01, NN_Q15_MAX, NN_Q15_MIN);
+            res01 = ARM_NN_CLAMP(res01, NN_Q15_MAX, NN_Q15_MIN);
             *dst++ = (int16_t)res01;
 
             res02 += (int32_t)*dst;
-            res02 = CLAMP(res02, NN_Q15_MAX, NN_Q15_MIN);
+            res02 = ARM_NN_CLAMP(res02, NN_Q15_MAX, NN_Q15_MIN);
             *dst++ = (int16_t)res02;
         }
 
@@ -333,7 +333,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mul_result_acc_s8_s16(const int8_t *lhs,
             res00 += (int32_t)dst[0];
 
             // Clamp the result
-            res00 = CLAMP(res00, NN_Q15_MAX, NN_Q15_MIN);
+            res00 = ARM_NN_CLAMP(res00, NN_Q15_MAX, NN_Q15_MIN);
 
             *dst++ = (int16_t)res00;
             rhs_ptr += rhs_cols;

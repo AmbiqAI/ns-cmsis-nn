@@ -134,7 +134,7 @@ arm_cmsis_nn_status arm_reduce_min_flatten_last_dims_s16(const int16_t *input_da
         // Tail
         for (; j < inner_size; ++j)
         {
-            min_val = MIN(min_val, p[j]);
+            min_val = ARM_NN_MIN(min_val, p[j]);
         }
 
         output_data[i] = min_val;
@@ -162,16 +162,16 @@ arm_cmsis_nn_status arm_reduce_min_flatten_last_dims_s16(const int16_t *input_da
             int16_t l2 = (int16_t)(packed1 & 0xFFFF);
             int16_t l3 = (int16_t)(packed1 >> 16);
             // do two pairwise minima
-            int16_t m01 = MIN(l0, l1);
-            int16_t m23 = MIN(l2, l3);
+            int16_t m01 = ARM_NN_MIN(l0, l1);
+            int16_t m23 = ARM_NN_MIN(l2, l3);
             // combine them, then compare once more against our running min
-            min_val = MIN(min_val, MIN(m01, m23));
+            min_val = ARM_NN_MIN(min_val, ARM_NN_MIN(m01, m23));
         }
 
         // Handle any remaining “tail” elements
         for (; j < inner_size; ++j)
         {
-            min_val = MIN(min_val, *in_ptr++);
+            min_val = ARM_NN_MIN(min_val, *in_ptr++);
         }
 
         // Store result
@@ -299,21 +299,21 @@ arm_cmsis_nn_status arm_reduce_min_spatial_s16(const int16_t *input_data,
                 int16_t a1 = (int16_t)((op >> 16) & 0xFFFF);
                 int16_t m0 = (int16_t)(min_pair & 0xFFFF);
                 int16_t m1 = (int16_t)((min_pair >> 16) & 0xFFFF);
-                m0 = MIN(m0, a0);
-                m1 = MIN(m1, a1);
+                m0 = ARM_NN_MIN(m0, a0);
+                m1 = ARM_NN_MIN(m1, a1);
                 min_pair = PKHBT(m0, m1, 16);
             }
 
             // collapse the two lanes into one int16
             int16_t m = (int16_t)(min_pair & 0xFFFF);
             int16_t t = (int16_t)((min_pair >> 16) & 0xFFFF);
-            m = MIN(m, t);
+            m = ARM_NN_MIN(m, t);
 
             // process any tail
             for (; s < spatial; ++s)
             {
                 int16_t v = base[s * C + c];
-                m = MIN(m, v);
+                m = ARM_NN_MIN(m, v);
             }
 
             out[c] = m;

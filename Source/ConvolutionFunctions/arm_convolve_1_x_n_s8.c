@@ -94,9 +94,10 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_FAILURE;
     }
 
-    const int32_t right_pad_num = pad_x + asym_pad != 0 ? MAX(1, (pad_x + asym_pad + stride_x - 1) / stride_x) : 0;
-    const int32_t left_pad_num = pad_x != 0 ? MAX(1, (pad_x + stride_x - 1) / stride_x) : 0;
-    const int32_t no_pad_num = MAX(output_x - (right_pad_num + left_pad_num), 0);
+    const int32_t right_pad_num =
+        pad_x + asym_pad != 0 ? ARM_NN_MAX(1, (pad_x + asym_pad + stride_x - 1) / stride_x) : 0;
+    const int32_t left_pad_num = pad_x != 0 ? ARM_NN_MAX(1, (pad_x + stride_x - 1) / stride_x) : 0;
+    const int32_t no_pad_num = ARM_NN_MAX(output_x - (right_pad_num + left_pad_num), 0);
 
     const int32_t pad_size_left = pad_x * input_ch;
     const int32_t pad_size_right = asym_pad ? right_pad_num * input_ch : pad_size_left;

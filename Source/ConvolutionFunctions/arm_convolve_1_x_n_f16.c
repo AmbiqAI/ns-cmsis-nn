@@ -216,7 +216,7 @@ __STATIC_INLINE void arm_convolve_1_x_n_find_regions(const cmsis_nn_conv_params_
     }
 
     *left_pad_num = first_valid;
-    *no_pad_num = MAX(last_valid - first_valid + 1, 0);
+    *no_pad_num = ARM_NN_MAX(last_valid - first_valid + 1, 0);
     *right_pad_num = output_dims->w - *left_pad_num - *no_pad_num;
 }
 
@@ -278,10 +278,10 @@ __STATIC_INLINE void arm_convolve_1_x_n_pack_rows_f16(float16_t *scratch,
         const int32_t base_x = out_x * conv_params->stride.w - conv_params->padding.w;
         /* Clipped to the kernel width: with padding.w > kernel_w a fully padded position would otherwise
          * zero-fill more than one patch row and run past the scratch buffer. */
-        const int32_t left_pad_cols = MIN(kernel_w, MAX(0, -base_x));
-        const int32_t valid_x0 = MAX(base_x, 0);
-        const int32_t valid_x1 = MIN(base_x + kernel_w, input_w);
-        const int32_t valid_cols = MAX(valid_x1 - valid_x0, 0);
+        const int32_t left_pad_cols = ARM_NN_MIN(kernel_w, ARM_NN_MAX(0, -base_x));
+        const int32_t valid_x0 = ARM_NN_MAX(base_x, 0);
+        const int32_t valid_x1 = ARM_NN_MIN(base_x + kernel_w, input_w);
+        const int32_t valid_cols = ARM_NN_MAX(valid_x1 - valid_x0, 0);
         const int32_t right_pad_cols = kernel_w - left_pad_cols - valid_cols;
         float16_t *patch_row = scratch + (size_t)r * rhs_cols;
 
@@ -366,7 +366,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16(const cmsis_nn_context *ctx,
 
         for (int32_t row = 0; row < left_pad_num; row += tile_rows)
         {
-            const int32_t rows = MIN(tile_rows, left_pad_num - row);
+            const int32_t rows = ARM_NN_MIN(tile_rows, left_pad_num - row);
             arm_convolve_1_x_n_pack_rows_f16(scratch, input_b, conv_params, input_dims, filter_dims, row, rows);
 
             arm_cmsis_nn_status st = arm_convolve_1_x_n_mat_mul_f16(
@@ -384,7 +384,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16(const cmsis_nn_context *ctx,
              * same pack-rows tile loop as the padded regions so the format-aware matmul can consume them. */
             for (int32_t row = 0; row < no_pad_num; row += tile_rows)
             {
-                const int32_t rows = MIN(tile_rows, no_pad_num - row);
+                const int32_t rows = ARM_NN_MIN(tile_rows, no_pad_num - row);
                 arm_convolve_1_x_n_pack_rows_f16(
                     scratch, input_b, conv_params, input_dims, filter_dims, left_pad_num + row, rows);
 
@@ -420,7 +420,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16(const cmsis_nn_context *ctx,
 
         for (int32_t row = 0; row < right_pad_num; row += tile_rows)
         {
-            const int32_t rows = MIN(tile_rows, right_pad_num - row);
+            const int32_t rows = ARM_NN_MIN(tile_rows, right_pad_num - row);
             const int32_t start_out_x = left_pad_num + no_pad_num + row;
             arm_convolve_1_x_n_pack_rows_f16(scratch, input_b, conv_params, input_dims, filter_dims, start_out_x, rows);
 

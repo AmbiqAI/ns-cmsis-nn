@@ -244,7 +244,7 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_f32(const float32_t *__RESTRICT l
                 const float32_t *rhs_val = rhs + (size_t)k * total_ch + cc;
                 acc += (*lhs_val) * (*rhs_val);
             }
-            out_row[cc] = CLAMP(acc, activation_max, activation_min);
+            out_row[cc] = ARM_NN_CLAMP(acc, activation_max, activation_min);
         }
     }
 
