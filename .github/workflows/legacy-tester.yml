@@ -93,6 +93,16 @@ jobs:
           # which the PR gate exact-matches, and would then compile with. An
           # exact-key miss and a cold fetch is the correct behaviour on both
           # sides of the shared key.
+          #
+          # The CMSIS_5 and ethos-u-core-platform clone pins (#402) need no
+          # key term of their own either. Those trees do live inside the
+          # cached directory, but the harness records CMSIS_5_COMMIT and
+          # ETHOS_U_CORE_PLATFORM_COMMIT in build_and_run_tests.sh, which the
+          # hashFiles() term above already covers byte for byte -- so a pin
+          # bump misses this key exactly as a GCC_URL change does, without a
+          # second copy of the SHAs here to drift out of step. The harness
+          # moves a restored clone to its pin, and fails loudly if the tree is
+          # dirty, cannot be diagnosed, or the move fails.
 
       - name: Download deps (internal cache-checks)
         run: |

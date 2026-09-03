@@ -232,7 +232,17 @@ jobs:
         run: python3 scripts/check_pdsc.py
 
       - name: Generate pack and docs
-        uses: Open-CMSIS-Pack/gen-pack-action@main
+        # Pinned (#405) so an upstream push to gen-pack-action's default
+        # branch can no longer change the release path with no change in
+        # this repo. This SHA's own action.yml pins no gen-pack library
+        # version itself -- it just runs our gen-pack-script (gen_pack.sh),
+        # which bootstraps gen-pack library 0.11.3 (REQUIRED_GEN_PACK_LIB,
+        # gen_pack.sh:12) via its GEN_PACK_LIB_PATH curl fallback (#404),
+        # since neither this workflow nor release.yml sets GEN_PACK_LIB_PATH.
+        # Re-verify the bootstrapped version when this pin is next bumped;
+        # keep this line identical to release.yml's (guarded on every PR by
+        # scripts/check_gen_pack_action_pin.sh, run from release-contract.yml).
+        uses: Open-CMSIS-Pack/gen-pack-action@9cab2ab138e909e93a3f051ab9a4675b52843a25  # main @ 2026-07-28T08:33:48Z; bootstraps gen-pack 0.11.3
         # Bounds the observed hang in the action's own apt-get update (issue #271).
         # Green gen-pack is 28-43 s, so this has ~14-21x headroom.
         timeout-minutes: 10

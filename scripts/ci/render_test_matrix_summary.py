@@ -45,6 +45,7 @@ EXPECTED = {
     "reports-m55-f32-fallback": ("m55", "f32-fallback"),
     "reports-m55-f32-mvef": ("m55", "f32-mvef"),
     "reports-m55-f32-shipped": ("m55", "f32-shipped"),
+    "reports-m55-f16-shipped": ("m55", "f16-shipped"),
     "reports-m55-f16-fallback": ("m55", "f16-fallback"),
     "reports-m55-f16-mvef": ("m55", "f16-mvef"),
 }
@@ -57,6 +58,7 @@ COLUMNS = [
     "f32-shipped",
     "f16-fallback",
     "f16-mvef",
+    "f16-shipped",
 ]
 MAX_NAMED_FAILURES_PER_LEG = 50
 
