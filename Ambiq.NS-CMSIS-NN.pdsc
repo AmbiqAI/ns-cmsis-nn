@@ -88,6 +88,8 @@
         <file category="source" name="Source/ActivationFunctions/arm_elementwise_prelu_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_elementwise_prelu_s8.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_hard_swish_compat_s8.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_hard_swish_f16.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_hard_swish_f32.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_hard_swish_precise_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_hard_swish_precise_s8.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_leaky_relu_s16.c"/>

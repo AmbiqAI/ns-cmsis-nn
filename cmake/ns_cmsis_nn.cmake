@@ -94,11 +94,13 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     set(patterns "*_s8*.c" "*_s16*.c")
     set(extras   "arm_relu_q7.c" "arm_relu6_q7.c" "arm_relu_q15.c")
     if(ARM_NN_ENABLE_F32)
-      list(APPEND extras "arm_nn_activation_f32.c"
+      list(APPEND extras "arm_hard_swish_f32.c"
+                         "arm_nn_activation_f32.c"
                          "arm_prelu_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
-      list(APPEND extras "arm_nn_activation_f16.c"
+      list(APPEND extras "arm_hard_swish_f16.c"
+                         "arm_nn_activation_f16.c"
                          "arm_prelu_f16.c")
     endif()
   elseif(group STREQUAL "basicmath")
