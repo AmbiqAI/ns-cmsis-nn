@@ -1251,12 +1251,16 @@ arm_cmsis_nn_status arm_reduce_sum_f32(const float32_t *input_data,
  * on accumulation order: the scalar build keeps one sequential running
  * sum while the vector build folds per-lane partial sums, so on inputs
  * whose partial sums exceed FLT_MAX in magnitude either build may return
- * +/-Inf and the two may disagree (one finite, one Inf). Only when every
- * accumulation order overflows -- e.g. same-signed values summing past
- * FLT_MAX -- is +/-Inf guaranteed on all builds. This is the
- * accumulation-order divergence described below taken to the extreme.
- * NaN and Inf propagate. Vector and scalar builds may differ in final
- * ulps because float accumulation order differs.
+ * +/-Inf and the two may disagree (one finite, one Inf); when partial
+ * sums of opposite sign both saturate, the vector fold can even yield
+ * NaN (Inf + -Inf) from all-finite inputs. Only when every accumulation
+ * order overflows -- e.g. same-signed values summing past FLT_MAX -- is
+ * +/-Inf guaranteed on all builds. This is the accumulation-order
+ * divergence described below taken to the extreme. NaN and Inf
+ * propagate. A mean over all -0.0f inputs returns +0.0f on every build:
+ * the accumulator starts at +0.0f and (+0.0f) + (-0.0f) is +0.0f under
+ * round-to-nearest. Vector and scalar builds may differ in final ulps
+ * because float accumulation order differs.
  *
  * Unlike arm_reduce_sum_f32 (identical signature, null checks only), this
  * kernel validates shapes and returns `ARM_CMSIS_NN_ARG_ERROR` when any

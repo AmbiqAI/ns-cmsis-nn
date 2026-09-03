@@ -347,16 +347,25 @@ void mean_f32_finite_overflow_divergence_arm_nn_mean_f32(void)
     //    sequential sum never leaves [-3e38, 3e38] and returns exactly 0;
     //    the MVE per-lane sums are {3e38, 3e38, -3e38, -3e38} and the
     //    fold saturates at 3e38 + 3e38 -> +Inf.
+    //  - alternating_input {3e38, -3e38, ...} (x4): the sequential sum
+    //    oscillates between 3e38 and 0 and returns exactly 0; the MVE
+    //    per-lane sums are {+Inf, -Inf, +Inf, -Inf} (each lane adds two
+    //    same-signed 3e38-magnitude values) and the fold's Inf + -Inf
+    //    yields NaN (0x7FC00000) from all-finite inputs (final-gate
+    //    review finding, reproduced here on the FVP).
     // ARM_MATH_AUTOVECTORIZE builds compile the scalar source under the
     // vector leg's -Ofast, which hands the accumulation order to the
     // compiler -- gcc 14.2.1 autovectorizes it into the same 4-lane split
-    // as MVE -- so only the call contract is asserted there (the test TU's
-    // own -fno-finite-math-only strips __FAST_MATH__, so that macro cannot
-    // probe how the kernel library was compiled).
+    // as MVE (a genuinely sequential target build needs
+    // -fno-tree-vectorize) -- so only the call contract is asserted there
+    // (the test TU's own -fno-finite-math-only strips __FAST_MATH__, so
+    // that macro cannot probe how the kernel library was compiled).
     const float32_t scalar_inf_input[8] = {3e38f, 3e38f, 0.0f, 0.0f, -3e38f, -3e38f, 0.0f, 0.0f};
     const float32_t vector_inf_input[8] = {3e38f, 0.0f, -3e38f, 0.0f, 0.0f, 3e38f, 0.0f, -3e38f};
+    const float32_t alternating_input[8] = {3e38f, -3e38f, 3e38f, -3e38f, 3e38f, -3e38f, 3e38f, -3e38f};
     float32_t scalar_inf_output = 42.0f;
     float32_t vector_inf_output = 42.0f;
+    float32_t alternating_output = 42.0f;
     const cmsis_nn_dims input_dims = {1, 1, 1, 8};
     const cmsis_nn_dims axis_dims = {0, 0, 0, 1};
     const cmsis_nn_dims output_dims = {1, 1, 1, 1};
@@ -367,15 +376,20 @@ void mean_f32_finite_overflow_divergence_arm_nn_mean_f32(void)
     TEST_ASSERT_EQUAL(
         ARM_CMSIS_NN_SUCCESS,
         arm_nn_mean_f32(vector_inf_input, &input_dims, &axis_dims, &vector_inf_output, &output_dims));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_nn_mean_f32(alternating_input, &input_dims, &axis_dims, &alternating_output, &output_dims));
 
 #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     TEST_ASSERT_EQUAL_FLOAT(0.0f, scalar_inf_output);
     TEST_ASSERT_FLOAT_IS_INF(vector_inf_output);
     TEST_ASSERT_TRUE(vector_inf_output > 0.0f);
+    TEST_ASSERT_FLOAT_IS_NAN(alternating_output);
 #elif !defined(ARM_MATH_AUTOVECTORIZE) && !defined(__FAST_MATH__)
     TEST_ASSERT_FLOAT_IS_INF(scalar_inf_output);
     TEST_ASSERT_TRUE(scalar_inf_output > 0.0f);
     TEST_ASSERT_EQUAL_FLOAT(0.0f, vector_inf_output);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, alternating_output);
 #endif
 }
 
