@@ -1,9 +1,79 @@
 # SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
 # SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
 
+# Every remote rev is an exact tag; bumps go through `pre-commit autoupdate`
+# in a reviewed PR (AmbiqAI/ns-cmsis-nn#421), never ad hoc.
+
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # The two fixers rewrite files, so CI skips them and they only ever
+      # touch what a commit already stages; the workflow says why. The
+      # exclude is content we must not rewrite even when it is staged:
+      # generated output, and bytes we carry unchanged from Arm, where an
+      # edit would conflict on every upstream sync
+      # (see AmbiqAI/ns-cmsis-nn#421).
+      - id: trailing-whitespace
+        exclude: &unowned |
+          (?x)^(
+              Documentation/
+            | Examples/
+            | Tests/UnitTest/Mbed/
+            # Generated vectors plus a harness whose Ambiq and inherited
+            # files interleave file by file; separating them needs a list
+            # that would rot on the next sync.
+            | Tests/UnitTest/TestCases/
+            # Inherited unchanged, outside the trees above.
+            | check_version_and_date\.sh$
+            | Tests/Bindings/README\.md$
+            | Tests/UnitTest/RefactoredTestGen/Lib/op_(batch_matmul|maximum_minimum|pad)\.py$
+            | Source/NNSupportFunctions/arm_nn_vec_mat_mul_result_acc_s8_s16\.c$
+            | Source/PoolingFunctions/CMakeLists\.txt$
+            | Source/SoftmaxFunctions/arm_softmax_u8\.c$
+          )
+      - id: end-of-file-fixer
+        exclude: *unowned
+      # Without --assume-in-merge the hook is a no-op outside a merge, so a
+      # committed marker survives `--all-files`.
+      - id: check-merge-conflict
+        args: [--assume-in-merge]
+      # Defaults only, so this blocks a large new addition. --enforce-all
+      # would make it a ceiling on every tracked file instead, and the
+      # generated test vectors already sit just under the 500 kB default.
+      - id: check-added-large-files
+      - id: check-yaml
+      - id: check-json
+        # TFLite flatbuffer fixtures carrying substitution placeholders, so
+        # they are not JSON and never parse.
+        exclude: (?i)template.*\.json$
+      - id: check-toml
+
+  # Version and scope are owned by AmbiqAI/ns-cmsis-nn#394; do not widen here.
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v16.0.6
     hooks:
       - id: clang-format
         files: ^(Source|Include)/.*\.(c|h)$
+
+  - repo: local
+    hooks:
+      - id: todo-needs-issue
+        name: deferred-work markers reference an issue
+        entry: scripts/check_todo_markers.sh
+        language: script
+        types: [text]
+        exclude: |
+          (?x)^(
+            # release-please writes the changelog through the API and no
+            # local hook can fix a finding there, so a marker word in a
+            # commit subject would deadlock the release PR.
+              CHANGELOG\.md$
+            # Inherited unchanged from Arm. Retiring these markers is
+            # AmbiqAI/ns-cmsis-nn#422; annotating them in place would
+            # conflict on every upstream sync.
+            | Source/ConvolutionFunctions/arm_depthwise_conv_s16\.c$
+            | Tests/UnitTest/conv_settings\.py$
+            | Tests/UnitTest/svdf_settings\.py$
+            | Tests/UnitTest/unittest_targets\.py$
+          )

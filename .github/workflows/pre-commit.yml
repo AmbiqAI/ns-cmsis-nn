@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+
+name: pre-commit
+
+on:
+  # Invoked from ci.yml so it reports under the single required gate
+  # (AmbiqAI/ns-cmsis-nn#353); keep no push/pull_request trigger of its own.
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  all-files:
+    name: pre-commit --all-files
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pre-commit
+        run: python -m pip install pre-commit==3.8.0
+
+      # Three of the skipped hooks are the ones that rewrite files. They run
+      # at commit time over staged files only, the same policy clang-format
+      # follows (docs/contributing.md), so running them over the whole tree
+      # here would fail a PR on files it never touched. check-added-large-files
+      # is skipped because it only inspects files added to the index: over a
+      # checkout it sees nothing, and an unskipped no-op reports as a pass.
+      # What is left does gate the whole tree: YAML/JSON/TOML parse,
+      # merge-conflict markers, and deferred-work markers.
+      # See AmbiqAI/ns-cmsis-nn#421.
+      - name: Run the checking hooks over the whole tree
+        env:
+          SKIP: clang-format,trailing-whitespace,end-of-file-fixer,check-added-large-files
+        run: pre-commit run --all-files --show-diff-on-failure

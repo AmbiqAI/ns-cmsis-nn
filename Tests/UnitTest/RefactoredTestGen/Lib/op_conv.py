@@ -36,7 +36,7 @@ def generate_data(tflite_fname, params):
 
     if params["tflite_generator"] == "json":
         import tflite_micro # Only tflite_micro interpreter supports int4 convolution
-        
+
         interpreter = tflite_micro.runtime.Interpreter.from_file(
             model_path=str(tflite_fname), arena_size=params["arena_size"],
             intrepreter_config=tflite_micro.runtime.InterpreterConfig.kPreserveAllTensors)
@@ -303,7 +303,7 @@ class Op_conv(Lib.op_utils.Op_type):
         params["output_scale"] = np.random.uniform(0.02, 0.06)
 
         if params["padding"] == "SAME":
-            # TODO dilation with padding
+            # TODO(#422): dilation with padding
             output_x = math.ceil(float(params["input_w"]) / float(params["stride_x"]))
             output_y = math.ceil(float(params["input_h"]) / float(params["stride_y"]))
         else:
