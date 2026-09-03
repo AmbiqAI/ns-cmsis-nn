@@ -40,7 +40,7 @@ def compute_multiplier_shift(scale):
 
     # If rounding pushed q31 to 2^31, reduce it by factor of 2 and increase exponent
     if q31 == (1 << 31):
-        q31 >>= 1 
+        q31 >>= 1
         exponent += 1
 
     # The net 'shift' is exponent - 31
@@ -89,7 +89,7 @@ class Op_quantize(Lib.op_utils.Op_type):
 
 
         return model
-        
+
 
 
     def generate_data_tflite(tflite_fname, params):
@@ -167,4 +167,3 @@ class Op_quantize(Lib.op_utils.Op_type):
             effective_scales,
             aliases
         )
-

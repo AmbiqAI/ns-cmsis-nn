@@ -43,7 +43,7 @@ architecture-specific instructions where profitable. REF therefore reflects
 the practical baseline performance achievable from portable source code on
 M55, rather than a strictly scalar instruction stream.
 :::
- 
+
 
 ## Convolution & matrix-multiply kernels
 

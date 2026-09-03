@@ -121,11 +121,11 @@ class Op_dequantize(Lib.op_utils.Op_type):
         scales["output_zero_point_" + output_dtype_str] = output_zero_point
         generated_params["quant_output_scale_" + output_dtype_str] = output_scale
         generated_params["quant_output_zero_point_" + output_dtype_str] = output_zero_point
-        
+
 
         out_shape = output_details[0]["shape"]
         generated_params["output_len"] = int(np.prod(out_shape))
-        
+
         return Lib.op_utils.Generated_data(
             generated_params,
             tensors,
@@ -133,4 +133,3 @@ class Op_dequantize(Lib.op_utils.Op_type):
             effective_scales,
             aliases
         )
-

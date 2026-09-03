@@ -74,11 +74,11 @@ jobs:
               echo "- latest release tag: _(unavailable)_"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-      
+
       - name: Mark workspace as a safe git directory
         shell: bash
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-      
+
       - name: Verify pinned helia-core-tester release tag
         id: helia-core-meta
         shell: bash
@@ -477,7 +477,7 @@ jobs:
       - name: Mark workspace as a safe git directory
         shell: bash
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-        
+
       - name: Verify pinned helia-core-tester release tag
         id: helia-core-meta
         shell: bash
