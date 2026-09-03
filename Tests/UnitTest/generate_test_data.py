@@ -630,8 +630,8 @@ def load_testdata_sets(regenerate_input, regenerate_weights, regenerate_biases, 
                                           out_activation_max=TestSettings.INT16_MAX,
                                           int16xint8=True,
                                           interpreter=interpreter)
-    
-    
+
+
     dataset = 'int16xint8_kernel_less_than_9'
     testdata_sets[dataset] = ConvSettings(dataset,
                                           type_of_test,
@@ -656,8 +656,8 @@ def load_testdata_sets(regenerate_input, regenerate_weights, regenerate_biases, 
                                           out_activation_max=TestSettings.INT16_MAX,
                                           int16xint8=True,
                                           interpreter=interpreter)
-    
-    
+
+
     dataset = 'int16xint8_group2'
     testdata_sets[dataset] = ConvSettings(dataset,
                                           type_of_test,
@@ -2613,7 +2613,7 @@ def load_testdata_sets(regenerate_input, regenerate_weights, regenerate_biases, 
                                           interpreter=interpreter,
                                           int4_weights=True)
 
-    # TODO: Remove legacy fully_connected datasets from this generator.
+    # TODO(#422): Remove legacy fully_connected datasets from this generator.
     # The legacy FC path is brittle with newer TensorFlow versions (>=2.16) due
     # to tensor index changes; RefactoredTestGen handles FC more robustly.
     # type_of_test = 'fully_connected'

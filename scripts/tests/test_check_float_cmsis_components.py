@@ -204,7 +204,7 @@ class TestComponentSelector(CheckerCase):
             tree,
             CPROJECT_REL,
             f"    - component: {SELECTOR}\n",
-            f"    # TODO restore {SELECTOR}\n"
+            f"    # NOTE restore {SELECTOR}\n"
             "    - component: Machine Learning:NN Lib:heliaCORE\n",
         )
         self.assertRejected(tree, "not the fully-qualified", "test_arm_transpose_conv_flt")

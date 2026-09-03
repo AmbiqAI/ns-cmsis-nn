@@ -77,7 +77,7 @@ static arm_cmsis_nn_status arm_depthwise_conv_to_conv_s8(const cmsis_nn_context 
     const cmsis_nn_transpose_params transpose_params = {4, perm};
 
     arm_cmsis_nn_status status = arm_transpose_s8(filter, w_buf, filter_dims, &filter_output_dims, &transpose_params);
-    // TODO - this code path is untested
+    // TODO(#423): this code path is untested
     if (status == ARM_CMSIS_NN_SUCCESS)
     {
         status = arm_convolve_wrapper_s8(ctx,

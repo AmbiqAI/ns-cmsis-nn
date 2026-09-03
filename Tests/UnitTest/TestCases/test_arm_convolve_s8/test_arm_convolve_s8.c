@@ -1764,7 +1764,7 @@ void conv_refactored_fc_conv_int8_1x1_kernel(void)
     arm_cmsis_nn_status result;
     int32_t buf_size;
     memset(output, 0, sizeof(output));
-    //TODO need to skip the wrapper here because this case is not handled by the 1x1 image, because it has 1x1 kernel
+    // TODO(#422): need to skip the wrapper here because this case is not handled by the 1x1 image, because it has 1x1 kernel
     buf_size = arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = 0;

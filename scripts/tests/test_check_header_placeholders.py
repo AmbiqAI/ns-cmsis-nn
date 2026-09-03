@@ -220,7 +220,7 @@ class HeaderPlaceholderCase(unittest.TestCase):
         self.assertFails("{TYPE}")
 
     def test_placeholder_in_line_comment_is_caught(self):
-        self.write_header("arm_nnfunctions.h", "// TODO: call {API}_get_buffer_size()\n")
+        self.write_header("arm_nnfunctions.h", "// NOTE: call {API}_get_buffer_size()\n")
         self.stub_required_headers()
         self.assertFails("{API}")
 
