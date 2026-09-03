@@ -101,7 +101,8 @@ jobs:
           # hashFiles() term above already covers byte for byte -- so a pin
           # bump misses this key exactly as a GCC_URL change does, without a
           # second copy of the SHAs here to drift out of step. The harness
-          # itself fails loudly if a restored clone is not at its pin.
+          # moves a restored clone to its pin, and fails loudly if the tree is
+          # dirty, cannot be diagnosed, or the move fails.
 
       - name: Download deps (internal cache-checks)
         run: |

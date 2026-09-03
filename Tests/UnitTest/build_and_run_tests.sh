@@ -44,10 +44,10 @@ CMAKE_EXTRA_DEFS=""
 # these same variables.
 #
 # To bump: put the new full 40-character commit here (the HEAD check compares
-# the whole string, so an abbreviation will not do) and update the trailing
-# branch/date comment. Nothing else needs touching -- the CI downloads cache
-# keys on a hash of this file, so a bump misses the cache and re-clones
-# instead of reusing the previously pinned tree.
+# the whole string, so an abbreviation will not do) and update the
+# branch/date comment on the line above it. Nothing else needs touching --
+# the CI downloads cache keys on a hash of this file, so a bump misses the
+# cache and re-clones instead of reusing the previously pinned tree.
 #
 # Keep each *_COMMIT line spelled exactly NAME="<40 hex>", with no trailing
 # comment and no trailing whitespace: unity-m55-compile.yml's assertion step
@@ -177,19 +177,21 @@ Head_Of() {
 # serve today; the fallback is for a server that will not serve a bare commit
 # that way.
 #
-# The fallback has to *deepen*, not just fetch. Every tree on this path is
+# The fallback has to *deepen*, not just fetch. Trees this script cloned are
 # shallow: Clone_At_Commit fetches at depth 1, so the repository carries a
-# shallow boundary. A plain `git fetch origin` there picks up commits newer
-# than that boundary, which covers an ordinary forward bump, but it is not
-# guaranteed to bring in a commit outside that history -- and measurably does
-# not for the case that matters here: a pin that is not a descendant of the
-# boundary (a downgrade after a bad bump, or a force-push upstream) comes back
-# "fetched successfully" with the pinned object still absent, and the caller
-# then reports a perfectly good pin as "the remote has no such commit".
-# Measured both ways in a container before this line was written. --unshallow is what removes the boundary; it errors
-# on a repository that is already complete, hence the second form. --tags on
-# both, so a pin expressed as a tag object in future is fetched rather than
-# silently missing.
+# shallow boundary. (A developer's own full clone also reaches Move_To_Commit;
+# that case simply has no boundary to remove.) A plain `git fetch origin` in a
+# shallow repository picks up commits newer than that boundary, which covers
+# an ordinary forward bump, but it is not guaranteed to bring in a commit
+# outside that history -- and measurably does not for the case that matters
+# here: a pin that is not a descendant of the boundary (a downgrade after a
+# bad bump, or a force-push upstream) comes back "fetched successfully" with
+# the pinned object still absent, and the caller then reports a perfectly good
+# pin as "the remote has no such commit". Measured both ways in a container
+# before this line was written. --unshallow is what removes the boundary; it
+# errors on a repository that is already complete, hence the second form.
+# --tags on both, so a pin expressed as a tag object in future is fetched
+# rather than silently missing.
 Fetch_Commit() {
     local name="$1" dir="$2" commit="$3"
 
@@ -344,14 +346,15 @@ Assert_Pinned() {
         echo "  HEAD is:     ${head}" >&2
         echo "  changed paths (git status --porcelain):" >&2
         printf '%s\n' "${dirty}" | sed 's|^|    |' >&2
-        echo "  This script will not discard them. Commit, stash or delete" >&2
-        echo "  the listed paths, or run with -e to skip dependency setup" >&2
-        echo "  entirely -- the build then uses whatever is on disk, pins" >&2
-        echo "  included or not. (-C and -u do not help here: they redirect" >&2
-        echo "  what the build consumes, while this clone is still made and" >&2
-        echo "  still checked.) In CI, this tree came from the shared" >&2
-        echo "  Tests/UnitTest/downloads cache entry, which nothing in CI" >&2
-        echo "  writes to: evict that entry and re-run." >&2
+        echo "  This script will not discard them. Commit, stash or revert" >&2
+        echo "  the listed paths (untracked ones can be deleted), or run" >&2
+        echo "  with -e to skip dependency setup entirely -- the build then" >&2
+        echo "  uses whatever is on disk, pinned or not. (-C and -u do not" >&2
+        echo "  help here: they redirect what the build consumes, while" >&2
+        echo "  this clone is still made and still checked.) In CI, this" >&2
+        echo "  tree came from the shared Tests/UnitTest/downloads cache" >&2
+        echo "  entry, which nothing in CI writes to: evict that entry and" >&2
+        echo "  re-run." >&2
         exit 125
     fi
 

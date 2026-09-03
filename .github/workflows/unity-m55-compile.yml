@@ -405,9 +405,11 @@ jobs:
           # (`--ignored=no` is `git status`'s own default, written out. It
           # excludes nothing worth mentioning here: nothing writes into these
           # trees -- the build directories are siblings, under
-          # Tests/UnitTest/build-<cpu>-gcc -- and at these pins CMSIS_5
-          # ignores no build directory at all and ethos-u-core-platform
-          # ignores only /build. It is spelled out so the predicate is
+          # Tests/UnitTest/build-<cpu>-gcc -- and neither upstream
+          # .gitignore at these pins covers anything this harness or this
+          # gate creates (ethos-u-core-platform's is two lines, /build and
+          # __pycache__; CMSIS_5's is its own release and IDE output, none of
+          # which is produced here). It is spelled out so the predicate is
           # readable without knowing git's defaults.)
           for pin in \
             CMSIS_5_COMMIT:CMSIS_5 \
@@ -453,6 +455,7 @@ jobs:
               echo "same as matching it. Treat the restored cache entry as" >&2
               echo "damaged: evict it (its key is shared with" >&2
               echo "legacy-tester.yml) and re-run." >&2
+              rm -f "${status_err}"
               exit 1
             fi
             rm -f "${status_err}"
