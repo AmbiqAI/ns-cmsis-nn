@@ -117,6 +117,17 @@ count so the MVE tail-predication path is exercised.
 
 ## Formatting and checks
 
+- `pre-commit` is the commit-time hygiene gate; install it once with
+  `uv tool install pre-commit==3.8.0 && pre-commit install`. The hooks cover
+  clang-format, whitespace and final newlines, YAML/JSON/TOML syntax,
+  merge-conflict markers, oversized new files, and deferred-work markers,
+  which must reference an issue (`TODO(#421)`, or `TODO(verify)` for an
+  unverified claim). No hook scans for secrets; GitHub secret scanning with
+  push protection does that server side. clang-format and the two whitespace
+  fixers rewrite files, so they run over staged files only and CI skips them,
+  and they leave generated test vectors and the files carried byte-identical
+  from Arm alone; do not "fix" those. CI runs the reporting hooks over every
+  tracked file. See `docs/contributing.md`.
 - clang-format via `scripts/check_clang_format_changed.sh` — that script is
   the authority on the required clang-format version and covered paths
   (clang-format 16.x, matching the `.pre-commit-config.yaml` pin of 16.0.6,

@@ -168,6 +168,56 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+## Pre-commit hooks
+
+`.pre-commit-config.yaml` is the commit-time hygiene gate, and CI runs part of
+the same config over the whole tree. From a fresh clone:
+
+```bash
+uv tool install pre-commit==3.8.0
+pre-commit install
+```
+
+`python -m pip install pre-commit==3.8.0` works as well if you would rather not
+use `uv`. The dev container does this during setup.
+
+The hooks check:
+
+- whitespace hygiene: trailing whitespace and a single final newline;
+- no leftover merge conflict markers, and no newly added file over 500 kB;
+- syntax of YAML, JSON and TOML files;
+- `clang-format` over `Source/` and `Include/` C and headers (see below);
+- deferred-work markers. Write `TODO(#421): drop the workaround once the pack
+  ships`, or the same shape with `FIXME(#421)` or `HACK(#421)`; the bare words
+  are rejected. `TODO(verify)` is the only other accepted form, and it means
+  the claim next to it has not been checked against a source of record yet, so
+  it must not survive review.
+
+Nothing here scans for secrets. Credentials are caught server side by GitHub
+secret scanning with push protection, which rejects the push itself and cannot
+be bypassed by a local flag.
+
+### Two scopes
+
+`clang-format`, `trailing-whitespace` and `end-of-file-fixer` rewrite files, so
+they run at commit time over the staged files only, and the CI job skips them
+with `SKIP`. That is the same policy `clang-format` already follows: the tree
+converges as PRs touch files, rather than through one large reformat that would
+collide with every upstream sync. Those three hooks additionally skip content
+we must not rewrite at all: generated test vectors under
+`Tests/UnitTest/TestCases/`, and the files we still carry byte-identical from
+Arm, which the config lists.
+
+The remaining hooks only report, so CI runs them over every tracked file,
+including the roughly half of `Tests/` that is Ambiq-owned. The size check is
+the exception: it looks only at files being added to the index, so it gates the
+commit, not the CI run. Because the hooks see only staged files at commit time,
+a CI run over the wider scope can fail on files you never touched; when that
+happens, fix the reported file rather than widening an exclude.
+
+Bump a hook `rev` with `pre-commit autoupdate` in its own reviewed PR. Every
+remote rev is an exact tag; do not point a hook at a branch.
+
 ## Formatting
 
 Source and public header files under `Source/` and `Include/` use the checked-in
@@ -176,19 +226,13 @@ baseline across all inherited CMSIS-NN sources; instead, formatting is enforced
 only on files touched by a PR so the tree converges gradually without creating a
 large upstream-sync diff.
 
-Install the optional pre-commit hook to format staged C/H files before commit:
+The pre-commit `clang-format` hook formats staged C/H files under `Source/` and
+`Include/` when you commit, so the files a PR touches arrive formatted. CI
+checks formatting only over the changed-file range, never the whole tree. To
+run the same check locally:
 
 ```bash
-python -m pip install pre-commit
-pre-commit install
-```
-
-The dev container installs and enables this hook during setup.
-
-To check the same changed-file range CI checks:
-
-```bash
-python -m pip install pre-commit clang-format==16.0.6
+python -m pip install pre-commit==3.8.0 clang-format==16.0.6
 bash scripts/check_clang_format_changed.sh origin/main HEAD
 ```
 

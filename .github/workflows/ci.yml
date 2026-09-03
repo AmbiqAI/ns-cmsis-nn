@@ -82,6 +82,9 @@ jobs:
   clang-format:
     uses: ./.github/workflows/clang-format.yml
 
+  pre-commit:
+    uses: ./.github/workflows/pre-commit.yml
+
   license-headers:
     uses: ./.github/workflows/license-headers.yml
 
@@ -126,6 +129,7 @@ jobs:
       - host-sanitizer
       - unity-m55-compile
       - clang-format
+      - pre-commit
       - license-headers
       - pdsc
       - ssot-contract
