@@ -42,15 +42,16 @@ static inline float16x8_t arm_hard_swish_block_f16(float16x8_t vx)
     const float32x4_t vhalf = vdupq_n_f32(0.5f);
     const float32x4_t vzero = vdupq_n_f32(0.0f);
     const float32x4_t vone = vdupq_n_f32(1.0f);
+    const float32x4_t vsixth = vdupq_n_f32(1.0f / 6.0f);
 
     const float32x4_t xb = vcvtbq_f32_f16(vx);
     const float32x4_t xt = vcvttq_f32_f16(vx);
 
-    float32x4_t tb = vfmaq(vhalf, xb, vdupq_n_f32(1.0f / 6.0f));
+    float32x4_t tb = vfmaq(vhalf, xb, vsixth);
     tb = vmaxnmq(tb, vzero);
     tb = vminnmq(tb, vone);
 
-    float32x4_t tt = vfmaq(vhalf, xt, vdupq_n_f32(1.0f / 6.0f));
+    float32x4_t tt = vfmaq(vhalf, xt, vsixth);
     tt = vmaxnmq(tt, vzero);
     tt = vminnmq(tt, vone);
 
