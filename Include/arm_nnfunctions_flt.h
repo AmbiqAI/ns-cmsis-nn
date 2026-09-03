@@ -2124,7 +2124,11 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
  *
  * Values are accumulated and divided in float32, then rounded once to
  * float16. NaN and Inf propagate. Vector and scalar builds may differ in
- * final ulps because float accumulation order differs.
+ * final ulps because float accumulation order differs. Builds at -Ofast
+ * (the shipped CMSIS_OPTIMIZATION_LEVEL) may additionally differ from
+ * lower optimization levels by 1 ulp for non-power-of-two reduction
+ * counts: -freciprocal-math turns the divide-by-count into a
+ * multiply-by-reciprocal, which rounds differently.
  *
  * Unlike arm_reduce_sum_f16 (identical signature, null checks only), this
  * kernel validates shapes and returns `ARM_CMSIS_NN_ARG_ERROR` when any
