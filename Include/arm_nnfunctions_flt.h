@@ -484,7 +484,16 @@ arm_cmsis_nn_status arm_prelu_f32(const cmsis_nn_dims *input_dims,
  * x * clamp(fma(x, 1/6, 0.5), 0, 1) so the saturated regions are exact: x >= 3 returns x
  * bit-exactly and x <= -3 returns zero exactly (a negative zero, as IEEE negative * +0.0).
  * In the curved region -3 < x < 3 the gate is a correctly rounded fused multiply-add on both
- * build paths, so the scalar and MVE (cortex-m55) legs agree bit-exactly on every input.
+ * build paths, so the scalar and MVE (cortex-m55) legs agree bit-exactly on every numeric normal
+ * input. Two carve-outs: NaN lanes agree in NaN-ness but not necessarily in payload (the MVE
+ * path can canonicalize a payload the scalar path preserves), and on the FVP Corstone-300 model
+ * the MVE pipeline flushes f32 subnormal operands and results to a signed zero even with
+ * FPSCR.FZ clear, where the scalar leg keeps them (real silicon with FZ clear is expected to
+ * agree with the scalar leg, but is unverified). Near the lower knot the absolute contract is
+ * the meaningful one: for x just above -3 the true value is a tiny negative number that rounds
+ * to the gate's exact zero, so relative error is unbounded there while absolute error stays
+ * below an ulp of the gate product. In-place operation (output == input) is supported on both
+ * legs; each element is read before it is written.
  *
  * @param[in]  input   Pointer to the input samples.
  * @param[out] output  Pointer to the output samples.
@@ -501,7 +510,8 @@ arm_cmsis_nn_status arm_prelu_f32(const cmsis_nn_dims *input_dims,
  *       -Inf returns NaN, not the mathematical limit 0: the gate is 0 there and (-Inf) * 0 is NaN by
  *       IEEE 754, the same result TFLite's float hard-swish reference produces; special-casing -Inf
  *       would put a per-element select in the hot loop for an input no finite model produces. The
- *       scalar and MVE legs agree on all of these, NaN and +/-Inf included.
+ *       scalar and MVE legs agree on the NaN-ness and on +/-Inf; NaN payload bits may differ
+ *       between legs.
  */
 arm_cmsis_nn_status arm_hard_swish_f32(const float32_t *input, float32_t *output, int32_t size);
 
@@ -1570,7 +1580,9 @@ arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
  * narrowed. A native-f16 evaluation would round the gate and the product separately and land an
  * ulp off in the curved region for some inputs. The saturated regions are exact (x >= 3 returns x
  * bit-exactly, x <= -3 returns zero), and the scalar and MVE (cortex-m55) legs agree bit-exactly
- * on every input.
+ * on every numeric input; NaN lanes agree in NaN-ness but not necessarily in payload (the MVE
+ * convert path can canonicalize a payload the scalar path preserves). In-place operation
+ * (output == input) is supported on both legs.
  *
  * @param[in]  input   Pointer to the input samples.
  * @param[out] output  Pointer to the output samples.

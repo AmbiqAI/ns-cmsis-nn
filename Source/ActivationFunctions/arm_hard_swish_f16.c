@@ -70,7 +70,8 @@ static inline float16x8_t arm_hard_swish_block_f16(float16x8_t vx)
  *
  * Both legs share that shape -- the scalar leg widens with a conversion and
  * uses __builtin_fmaf, the MVE leg widens with vcvtbq/vcvttq_f32_f16 and uses
- * vfmaq -- so they narrow identical float32 products and agree bit-exactly.
+ * vfmaq -- so they narrow identical float32 products and agree bit-exactly
+ * on every numeric input (NaN payloads may differ between legs; header).
  * No scalar _Float16 arithmetic or selects are involved, so GCC PR
  * target/118460 (HFmode conditional moves) has nothing to bite on.
  *

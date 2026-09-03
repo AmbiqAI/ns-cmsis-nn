@@ -45,4 +45,6 @@ void test_hard_swish_f16_round_once_arm_hard_swish_f16(void) { hard_swish_f16_ro
 
 void test_hard_swish_f16_tail_sizes_arm_hard_swish_f16(void) { hard_swish_f16_tail_sizes_arm_hard_swish_f16(); }
 
+void test_hard_swish_f16_fma_witness_arm_hard_swish_f16(void) { hard_swish_f16_fma_witness_arm_hard_swish_f16(); }
+
 void test_hard_swish_f16_arg_error_arm_hard_swish_f16(void) { hard_swish_f16_arg_error_arm_hard_swish_f16(); }

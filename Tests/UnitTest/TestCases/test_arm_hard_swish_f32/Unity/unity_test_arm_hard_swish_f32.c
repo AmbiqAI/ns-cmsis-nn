@@ -43,4 +43,6 @@ void test_hard_swish_f32_denormal_arm_hard_swish_f32(void) { hard_swish_f32_deno
 
 void test_hard_swish_f32_tail_sizes_arm_hard_swish_f32(void) { hard_swish_f32_tail_sizes_arm_hard_swish_f32(); }
 
+void test_hard_swish_f32_fma_witness_arm_hard_swish_f32(void) { hard_swish_f32_fma_witness_arm_hard_swish_f32(); }
+
 void test_hard_swish_f32_arg_error_arm_hard_swish_f32(void) { hard_swish_f32_arg_error_arm_hard_swish_f32(); }

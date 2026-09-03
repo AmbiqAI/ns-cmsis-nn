@@ -109,15 +109,22 @@ void hard_swish_f32_denormal_arm_hard_swish_f32(void)
     for (int i = 0; i < HARD_SWISH_F32_DENORMAL_SIZE; ++i)
     {
         const uint32_t got = hard_swish_f32_bits(output[i]);
-        // A target running with FPSCR.FZ set flushes the subnormal input
-        // (and result) to a signed zero -- Arm GCC's -Ofast links
-        // crtfastmath.o, which sets FZ at startup on the FVP -- so accept
-        // the exact once-rounded result or the input's sign of zero.
+#if defined(USING_FVP_CORSTONE_300)
+        // The FVP Corstone-300 model's MVE pipeline flushes f32 subnormal
+        // operands and results to a signed zero regardless of FPSCR.FZ
+        // (FPSCR reads FZ=0 there while scalar VFP arithmetic on the same
+        // run keeps subnormals; real silicon with FZ clear is expected to
+        // keep them, but is unverified). Arm GCC's -Ofast additionally
+        // links crtfastmath.o, which really does set FZ at startup. So on
+        // the FVP accept the flushed signed zero from either cause; exact
+        // once-rounded bits are required everywhere else.
         const uint32_t flushed = hard_swish_f32_bits(hard_swish_f32_denormal_in[i]) & 0x80000000u;
-        if (got != flushed)
+        if (got == flushed)
         {
-            TEST_ASSERT_EQUAL_HEX32(hard_swish_f32_denormal_ref_bits[i], got);
+            continue;
         }
+#endif
+        TEST_ASSERT_EQUAL_HEX32(hard_swish_f32_denormal_ref_bits[i], got);
     }
 }
 
@@ -144,6 +151,23 @@ void hard_swish_f32_tail_sizes_arm_hard_swish_f32(void)
             TEST_ASSERT_EQUAL_FLOAT(77.0f, output[i]);
         }
     }
+}
+
+// The gate must be a correctly rounded fused multiply-add: at this input a
+// separately rounded x * (1/6f) + 0.5f gate yields a product one ulp away.
+// Bit-exact so an unfused-gate regression fails here.
+void hard_swish_f32_fma_witness_arm_hard_swish_f32(void)
+{
+    float32_t input[1];
+    float32_t output[1] = {0};
+    const uint32_t in_bits = HARD_SWISH_F32_FMA_WITNESS_IN_BITS;
+    memcpy(&input[0], &in_bits, sizeof(input[0]));
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_hard_swish_f32(input, output, 1));
+
+    TEST_ASSERT_EQUAL_HEX32(HARD_SWISH_F32_FMA_WITNESS_FUSED_BITS, hard_swish_f32_bits(output[0]));
+    // Belt and braces: the unfused value really is different.
+    TEST_ASSERT_TRUE(HARD_SWISH_F32_FMA_WITNESS_FUSED_BITS != HARD_SWISH_F32_FMA_WITNESS_UNFUSED_BITS);
 }
 
 void hard_swish_f32_arg_error_arm_hard_swish_f32(void)

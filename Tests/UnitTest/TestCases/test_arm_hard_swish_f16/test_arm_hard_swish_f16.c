@@ -175,6 +175,21 @@ void hard_swish_f16_tail_sizes_arm_hard_swish_f16(void)
     }
 }
 
+// The float32 gate must be a correctly rounded fused multiply-add: input
+// 0x3bff is the single float16 value (exhaustive sweep) where a separately
+// rounded x * (1/6f) + 0.5f gate lands the narrowed product one ulp away.
+void hard_swish_f16_fma_witness_arm_hard_swish_f16(void)
+{
+    const float16_t input[1] = {hard_swish_f16_from_bits(HARD_SWISH_F16_FMA_WITNESS_IN_BITS)};
+    float16_t output[1] = {0};
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_hard_swish_f16(input, output, 1));
+
+    TEST_ASSERT_EQUAL_HEX16(HARD_SWISH_F16_FMA_WITNESS_FUSED_BITS, hard_swish_f16_bits(output[0]));
+    // Belt and braces: the unfused value really is different.
+    TEST_ASSERT_TRUE(HARD_SWISH_F16_FMA_WITNESS_FUSED_BITS != HARD_SWISH_F16_FMA_WITNESS_UNFUSED_BITS);
+}
+
 void hard_swish_f16_arg_error_arm_hard_swish_f16(void)
 {
     float16_t output[HARD_SWISH_F16_DST_SIZE] = {0};

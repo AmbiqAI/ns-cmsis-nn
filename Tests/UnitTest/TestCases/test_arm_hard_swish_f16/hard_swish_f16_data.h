@@ -39,3 +39,11 @@ static const uint16_t hard_swish_f16_denormal_ref_bits[] = {
 #define HARD_SWISH_F16_WITNESS_IN_BITS ((uint16_t)0x340e)
 #define HARD_SWISH_F16_WITNESS_ONCE_BITS ((uint16_t)0x3066)
 #define HARD_SWISH_F16_WITNESS_TWICE_BITS ((uint16_t)0x3065)
+
+/* Fused-gate witness: the single float16 input (exhaustive sweep) where the
+ * correctly rounded fma gate differs observably from a separately rounded
+ * x * (1/6f) + 0.5f gate after the final narrowing. Pinned bit-exactly so
+ * an unfused-gate regression fails. */
+#define HARD_SWISH_F16_FMA_WITNESS_IN_BITS ((uint16_t)0x3bff) /* 0.99951171875 */
+#define HARD_SWISH_F16_FMA_WITNESS_FUSED_BITS ((uint16_t)0x3954)
+#define HARD_SWISH_F16_FMA_WITNESS_UNFUSED_BITS ((uint16_t)0x3955)

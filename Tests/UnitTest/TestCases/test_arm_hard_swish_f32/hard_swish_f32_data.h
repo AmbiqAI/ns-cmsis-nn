@@ -33,3 +33,12 @@ static const float32_t hard_swish_f32_denormal_in[] = {
     9.80908925e-45f, -9.80908925e-45f, 1.40129846e-45f, -1.40129846e-45f, 1.17549421e-38f};
 static const uint32_t hard_swish_f32_denormal_ref_bits[] = {
     0x00000004, 0x80000004, 0x00000000, 0x80000000, 0x00400000};
+
+/* Fused-gate witness: at this input the correctly rounded fma gate the
+ * kernel promises differs observably from a separately rounded
+ * x * (1/6f) + 0.5f gate -- the products land one ulp apart. Pinned
+ * bit-exactly so an unfused-gate regression fails. Generator model:
+ * fused RN32(fma(x, 1/6f, 0.5f)); unfused RN32(RN32(x * 1/6f) + 0.5f). */
+#define HARD_SWISH_F32_FMA_WITNESS_IN_BITS ((uint32_t)0xc02d17ccu) /* -2.70457745f */
+#define HARD_SWISH_F32_FMA_WITNESS_FUSED_BITS ((uint32_t)0xbe085c89u) /* -0.133165494f */
+#define HARD_SWISH_F32_FMA_WITNESS_UNFUSED_BITS ((uint32_t)0xbe085c88u) /* -0.133165479f */
