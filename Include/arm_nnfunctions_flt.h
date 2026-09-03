@@ -1239,6 +1239,54 @@ arm_cmsis_nn_status arm_reduce_sum_f32(const float32_t *input_data,
                                        float32_t *output_data,
                                        const cmsis_nn_dims *output_dims);
 
+/**
+ * @ingroup Reduction
+ * @brief Computes the mean of a float32 tensor along the specified axes.
+ *
+ * Values are accumulated and divided once in float32; unlike the float16
+ * variant there is no wider accumulator, so rounding error can grow with
+ * the reduction length, matching arm_reduce_sum_f32. Because the
+ * intermediate accumulation is itself float32, it can saturate to +/-Inf
+ * even when the mean itself is representable, but whether it does depends
+ * on accumulation order: a strictly sequential build keeps one running
+ * sum, while vector builds -- MVE intrinsics, or compiler
+ * auto-vectorization of the scalar path at -Ofast -- fold per-lane
+ * partial sums, so on inputs whose partial sums exceed FLT_MAX in
+ * magnitude either build may return
+ * +/-Inf and the two may disagree (one finite, one Inf); when partial
+ * sums of opposite sign both saturate, the vector fold can even yield
+ * NaN (Inf + -Inf) from all-finite inputs. Only when every accumulation
+ * order overflows -- e.g. same-signed values summing past FLT_MAX -- is
+ * +/-Inf guaranteed on all builds. This is the accumulation-order
+ * divergence described below taken to the extreme. NaN and Inf
+ * propagate. A mean over all -0.0f inputs returns +0.0f on every build:
+ * the accumulator starts at +0.0f and (+0.0f) + (-0.0f) is +0.0f under
+ * round-to-nearest. Vector and scalar builds may differ in final ulps
+ * because float accumulation order differs.
+ *
+ * Unlike arm_reduce_sum_f32 (identical signature, null checks only), this
+ * kernel validates shapes and returns `ARM_CMSIS_NN_ARG_ERROR` when any
+ * input dimension is less than 1, when any @p output_dims entry differs
+ * from the input shape with the reduced axes collapsed to 1, or when the
+ * input element count or the reduction count does not fit in int32_t.
+ * @p output_data must not overlap @p input_data: each output element is
+ * written after reading its whole reduction set, so an aliased write can
+ * corrupt inputs still to be read.
+ *
+ * @param[in]   input_data   Pointer to input tensor
+ * @param[in]   input_dims   Input tensor dimensions (4D NHWC)
+ * @param[in]   axis_dims    4D binary axis mask (non-zero = reduce that axis)
+ * @param[out]  output_data  Pointer to output tensor
+ * @param[in]   output_dims  Output tensor dimensions (reduced axes have size 1)
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_nn_mean_f32(const float32_t *input_data,
+                                    const cmsis_nn_dims *input_dims,
+                                    const cmsis_nn_dims *axis_dims,
+                                    float32_t *output_data,
+                                    const cmsis_nn_dims *output_dims);
+
     /** @} */
 
 #endif /* ARM_NN_ENABLE_F32 */
