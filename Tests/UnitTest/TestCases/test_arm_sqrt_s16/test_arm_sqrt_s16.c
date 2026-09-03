@@ -26,6 +26,7 @@
 #include "../TestData/sqrt_multi_batch_s16/test_data.h"
 #include "../TestData/sqrt_tail_odd_s16/test_data.h"
 #include "../TestData/sqrt_tail_mod7_s16/test_data.h"
+#include "../TestData/sqrt_tail_mod5_s16/test_data.h"
 
 #include "../Utils/validate.h"
 
@@ -103,4 +104,20 @@ void sqrt_tail_mod7_s16_arm_sqrt_s16(void)
 
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate_s16(output_data, sqrt_tail_mod7_s16_output, SQRT_TAIL_MOD7_S16_OUTPUT_LEN));
+}
+
+// Same regression family at residue 5 (13 % 8): every odd residue was
+// corrupted by the dlstp miscompile, so one case each at residues 3, 5 and 7
+// protects against a future width-special-cased tail.
+void sqrt_tail_mod5_s16_arm_sqrt_s16(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    const cmsis_nn_dims input_dims = SQRT_TAIL_MOD5_S16_IN_DIM;
+    const int16_t *input_data = sqrt_tail_mod5_s16_input_tensor;
+    int16_t output_data[SQRT_TAIL_MOD5_S16_OUTPUT_LEN];
+
+    arm_cmsis_nn_status result = arm_sqrt_s16(input_data, &input_dims, output_data, sqrt_tail_mod5_s16_sqrt_lut);
+
+    TEST_ASSERT_EQUAL(expected, result);
+    TEST_ASSERT_TRUE(validate_s16(output_data, sqrt_tail_mod5_s16_output, SQRT_TAIL_MOD5_S16_OUTPUT_LEN));
 }

@@ -43,3 +43,4 @@ void test_sqrt_long_row_s16_arm_sqrt_s16(void) { sqrt_long_row_s16_arm_sqrt_s16(
 void test_sqrt_multi_batch_s16_arm_sqrt_s16(void) { sqrt_multi_batch_s16_arm_sqrt_s16(); }
 void test_sqrt_tail_odd_s16_arm_sqrt_s16(void) { sqrt_tail_odd_s16_arm_sqrt_s16(); }
 void test_sqrt_tail_mod7_s16_arm_sqrt_s16(void) { sqrt_tail_mod7_s16_arm_sqrt_s16(); }
+void test_sqrt_tail_mod5_s16_arm_sqrt_s16(void) { sqrt_tail_mod5_s16_arm_sqrt_s16(); }

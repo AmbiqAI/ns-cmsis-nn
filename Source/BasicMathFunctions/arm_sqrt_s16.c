@@ -35,8 +35,10 @@
 // One 8-lane block: gather LUT base/next, widen the slope*offset products to
 // int32 for the rounded interpolation, and narrow back once. All lanes are
 // computed unpredicated; the caller decides which results reach memory.
-// Inactive tail lanes load as zero, which indexes lut[256]/lut[257] - always
-// in range for the 513-entry table.
+// The gathers are in range for ANY lane content, active or inactive:
+// 256 + (int16 >> 7) is in [0, 511] for the whole int16 domain, so idx and
+// idx + 1 both stay inside the 513-entry table. (Inactive tail lanes load as
+// zero and index lut[256]/lut[257].)
 static inline int16x8_t arm_sqrt_block_s16(const int16x8_t val, const int16_t *sqrt_lut)
 {
     /* index = 256 + (value >> 7) */
