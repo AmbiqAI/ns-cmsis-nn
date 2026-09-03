@@ -39,8 +39,9 @@
  * The gate t = fma(x, 1/6, 0.5) is a correctly rounded fused multiply-add on
  * both legs -- __builtin_fmaf on the scalar leg, vfmaq on the MVE leg -- so
  * the two legs round identically on every numeric normal input, not just
- * where the clamp saturates (NaN payloads and FVP-model f32 subnormal
- * flushing are the carve-outs; see the header). The clamp-to-[0, 1] evaluation (rather than the relu6 form's
+ * where the clamp saturates (NaN payloads and the MVE leg's architectural
+ * f32 subnormal flushing -- Standard FPSCR value, FZ=1/DN=1, DDI 0553B.l --
+ * are the carve-outs; see the header). The clamp-to-[0, 1] evaluation (rather than the relu6 form's
  * clamp-to-[0, 6] with a final * (1/6)) is what makes the saturated regions
  * exact: for x >= 3 the gate is exactly 1 (fma(x, 1/6f, 0.5) >= 1 there
  * because 1/6f rounds up), so x * 1 returns x bit-exactly, and for x <= -3

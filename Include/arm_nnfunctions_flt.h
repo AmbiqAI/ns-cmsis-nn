@@ -488,14 +488,20 @@ arm_cmsis_nn_status arm_prelu_f32(const cmsis_nn_dims *input_dims,
  * bit-exactly and x <= -3 returns zero exactly (a negative zero, as IEEE negative * +0.0).
  * In the curved region -3 < x < 3 the gate is a correctly rounded fused multiply-add on both
  * build paths, so the scalar and MVE (cortex-m55) legs agree bit-exactly on every numeric normal
- * input. Two carve-outs: NaN lanes agree in NaN-ness but not necessarily in payload (the MVE
- * path can canonicalize a payload the scalar path preserves), and on the FVP Corstone-300 model
- * the MVE pipeline flushes f32 subnormal operands and results to a signed zero even with
- * FPSCR.FZ clear, where the scalar leg keeps them (real silicon with FZ clear is expected to
- * agree with the scalar leg, but is unverified). Near the lower knot the absolute contract is
- * the meaningful one: for x just above -3 the true value is a tiny negative number that rounds
- * to the gate's exact zero, so relative error is unbounded there while absolute error stays
- * below an ulp of the gate product. In-place operation (output == input) is supported on both
+ * input. Two carve-outs, both rooted in Armv8.1-M MVE floating-point arithmetic using the
+ * architecture's Standard FPSCR value -- DN=1 and FZ=1 hard-wired, FZ16 passed through (Arm v8-M
+ * ARM, DDI 0553B.l, StandardFPSCRValue(), selected by the MVE FP pseudocode's
+ * fpscr_controlled=FALSE): NaN lanes agree in NaN-ness but not necessarily in payload (forced DN
+ * makes the MVE leg canonicalize payloads the scalar leg preserves), and the MVE leg flushes f32
+ * subnormal operands and results to a signed zero regardless of FPSCR.FZ, where the scalar leg
+ * with FZ clear keeps them. Both reference models (FVP Corstone-300 and QEMU mps3-an547) exhibit
+ * the flush identically; it has not been executed on silicon, where the same architectural
+ * behavior is required. Near the lower knot the absolute contract is the meaningful one: for x
+ * just above -3 the output error is dominated by the gate constant's representation error,
+ * bounded by |x^2 * (1/6f - 1/6)| ~ 4.5e-08 near x = -3 (e.g. nextafterf(-3, 0) returns
+ * -7.45e-08 against a float64 -1.19e-07 -- millions of ulps of the tiny result, well inside the
+ * 1e-6 absolute contract), and where the gate underflows to exactly zero the kernel returns -0.0
+ * with unbounded relative error. In-place operation (output == input) is supported on both
  * legs; each element is read before it is written.
  *
  * @param[in]  input   Pointer to the input samples.

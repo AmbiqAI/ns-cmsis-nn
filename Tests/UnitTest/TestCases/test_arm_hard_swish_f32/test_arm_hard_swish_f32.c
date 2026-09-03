@@ -109,14 +109,19 @@ void hard_swish_f32_denormal_arm_hard_swish_f32(void)
     for (int i = 0; i < HARD_SWISH_F32_DENORMAL_SIZE; ++i)
     {
         const uint32_t got = hard_swish_f32_bits(output[i]);
-#if defined(USING_FVP_CORSTONE_300)
-        // The FVP Corstone-300 model's MVE pipeline flushes f32 subnormal
-        // operands and results to a signed zero regardless of FPSCR.FZ
-        // (FPSCR reads FZ=0 there while scalar VFP arithmetic on the same
-        // run keeps subnormals; real silicon with FZ clear is expected to
-        // keep them, but is unverified). Arm GCC's -Ofast additionally
-        // links crtfastmath.o, which really does set FZ at startup. So on
-        // the FVP accept the flushed signed zero from either cause; exact
+#if defined(USING_FVP_CORSTONE_300) || (defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE))
+        // Armv8.1-M MVE f32 arithmetic architecturally flushes subnormal
+        // operands and results to a signed zero regardless of FPSCR.FZ:
+        // the MVE FP pseudocode passes fpscr_controlled=FALSE, selecting
+        // StandardFPSCRValue() with DN=1 and FZ=1 hard-wired (Arm v8-M ARM
+        // DDI 0553B.l, E2.1.364 and e.g. the VFMA/VMUL vector pseudocode).
+        // Both reference models (FVP Corstone-300, QEMU mps3-an547) match,
+        // so the carve-out is gated on the MVE leg, not on one model; any
+        // conforming silicon must flush too (not executed on silicon).
+        // The scalar VFP leg honors FZ, but Arm GCC's -Ofast links
+        // crtfastmath.o, which sets FZ at startup -- the FVP macro keeps
+        // the carve-out for scalar-on-target builds for that cause.
+        // Accept the flushed signed zero on those builds; exact
         // once-rounded bits are required everywhere else.
         const uint32_t flushed = hard_swish_f32_bits(hard_swish_f32_denormal_in[i]) & 0x80000000u;
         if (got == flushed)
