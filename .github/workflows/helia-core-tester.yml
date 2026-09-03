@@ -166,6 +166,10 @@ jobs:
             suite: float
             extra_args: '--float-precision f32'
             profile_name: m55-f32-shipped
+          - cpu: cortex-m55
+            suite: float
+            extra_args: '--float-precision f16'
+            profile_name: m55-f16-shipped
 
     steps:
       - name: Checkout repository
