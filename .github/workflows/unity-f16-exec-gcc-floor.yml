@@ -137,12 +137,41 @@ jobs:
             "https://gitlab.arm.com/artificial-intelligence/ethos-u/ethos-u-core-platform" \
             "$(read_pin ETHOS_U_CORE_PLATFORM_COMMIT)"
 
+      - name: Install the harness's generator dependencies
+        id: harness_python
+        # Tests/UnitTest's configure runs unittest_targets.py, which fetches
+        # Unity and generates the Unity test runners, so its imports have to
+        # be present before cmake (AmbiqAI/ns-cmsis-nn#427). Only the two the
+        # generator needs, read from the harness's own requirements.txt so a
+        # pin added there applies here; the rest of that file serves the mbed
+        # run path this cell never takes. Not cached: two pure-python wheels
+        # restore no faster than they install.
+        run: |
+          set -euo pipefail
+          req=Tests/UnitTest/requirements.txt
+          specs="$(grep -E '^(pyserial|termcolor)([[:space:]<>=!]|$)' "${req}" | tr -d '[:blank:]')"
+          if [[ "$(wc -l <<<"${specs}")" -ne 2 ]]; then
+            echo "::error title=Cannot read the generator requirements::Expected one pyserial and one termcolor line in ${req}, got: ${specs}" >&2
+            exit 1
+          fi
+          python3 -m venv "${RUNNER_TEMP}/harness-venv"
+          # shellcheck disable=SC2086  # specs is a deliberate word list.
+          "${RUNNER_TEMP}/harness-venv/bin/pip" install --disable-pip-version-check -q ${specs}
+          echo "python=${RUNNER_TEMP}/harness-venv/bin/python3" >> "$GITHUB_OUTPUT"
+          # The runner generator shells out to ruby; the image ships it.
+          ruby --version
+
       - name: Build the f16 conversion suites
         # -Ofast and the F32/F16 pair are legacy-tester.yml's cortex-m55 leg,
         # so the objects that run below are the ones the library ships.
+        env:
+          HARNESS_PYTHON: ${{ steps.harness_python.outputs.python }}
         run: |
           set -euo pipefail
+          # Named rather than found: CMake's own search can prefer an
+          # interpreter that is not the one the step above installed into.
           cmake -S Tests/UnitTest -B "${RUNNER_TEMP}/build" \
+            -DPython3_EXECUTABLE="${HARNESS_PYTHON}" \
             -DCMAKE_TOOLCHAIN_FILE="${RUNNER_TEMP}/ethos-u-core-platform/cmake/toolchain/arm-none-eabi-gcc.cmake" \
             -DTARGET_CPU="${TARGET_CPU}" \
             -DCMSIS_PATH="${RUNNER_TEMP}/CMSIS_5" \
