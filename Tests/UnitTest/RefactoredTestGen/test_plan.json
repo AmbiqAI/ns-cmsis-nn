@@ -2713,6 +2713,40 @@
         "rhs_w": 3,
         "rhs_c": 4,
         "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_scalar_neg_offset_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 1,
+        "rhs_w": 1,
+        "rhs_c": 1,
+        "representational_dataset_min": -1.0,
+        "representational_dataset_max": 0.0,
+        "representational_dataset_min2": -0.5215686,
+        "representational_dataset_max2": 0.4784314,
+        "random_inputs": 1,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "add_ident_neg_offset_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 3,
+        "rhs_c": 4,
+        "representational_dataset_min": -1.0,
+        "representational_dataset_max": 0.0,
+        "representational_dataset_min2": -0.5215686,
+        "representational_dataset_max2": 0.4784314,
+        "random_inputs": 1,
+        "asymmetric_quantize_inputs": 0
       }
     ]
   },
@@ -2796,6 +2830,40 @@
         "rhs_h": 2,
         "rhs_w": 3,
         "rhs_c": 4,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "sub_scalar_neg_offset_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 1,
+        "rhs_w": 1,
+        "rhs_c": 1,
+        "representational_dataset_min": -1.0,
+        "representational_dataset_max": 0.0,
+        "representational_dataset_min2": -0.5215686,
+        "representational_dataset_max2": 0.4784314,
+        "random_inputs": 1,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
+        "name": "sub_ident_neg_offset_s8",
+        "lhs_n": 1,
+        "lhs_h": 2,
+        "lhs_w": 3,
+        "lhs_c": 4,
+        "rhs_n": 1,
+        "rhs_h": 2,
+        "rhs_w": 3,
+        "rhs_c": 4,
+        "representational_dataset_min": -1.0,
+        "representational_dataset_max": 0.0,
+        "representational_dataset_min2": -0.5215686,
+        "representational_dataset_max2": 0.4784314,
+        "random_inputs": 1,
         "asymmetric_quantize_inputs": 0
       }
     ]

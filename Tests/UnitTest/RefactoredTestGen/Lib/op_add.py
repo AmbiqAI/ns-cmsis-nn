@@ -29,6 +29,13 @@ class Op_add(Lib.op_utils.Op_type):
         shapes["rhs_input_tensor"] = (params["rhs_n"], params["rhs_h"], params["rhs_w"], params["rhs_c"])
         shapes["representational_dataset"] = (params["lhs_n"], params["lhs_h"], params["lhs_w"], params["lhs_c"])
         shapes["representational_dataset2"] = (params["rhs_n"], params["rhs_h"], params["rhs_w"], params["rhs_c"])
+        for key in ("representational_dataset_min",
+                    "representational_dataset_max",
+                    "representational_dataset_min2",
+                    "representational_dataset_max2"):
+            if key in params:
+                shapes[key] = params[key]
+
         shapes["different_in_shapes"]=True
 
         return shapes
@@ -95,8 +102,9 @@ class Op_add(Lib.op_utils.Op_type):
         (scales["rhs_scale"], scales["rhs_zero_point"]) = in_det[1]['quantization']
         (scales["output_scale"], scales["output_zero_point"]) = out_det[0]['quantization']
 
-        tensors["lhs_input_tensor"] = interpreter.get_tensor(lhs['index'])
-        tensors["rhs_input_tensor"] = interpreter.get_tensor(rhs['index'])
+        if not params.get("random_inputs"):
+            tensors["lhs_input_tensor"] = interpreter.get_tensor(lhs['index'])
+            tensors["rhs_input_tensor"] = interpreter.get_tensor(rhs['index'])
 
         minval = Lib.op_utils.get_dtype_min(params["input_data_type"])
         maxval = Lib.op_utils.get_dtype_max(params["input_data_type"])

@@ -46,6 +46,8 @@ void tearDown(void) {}
 
 void test_sub_scalar_s8_arm_sub_s8(void) { sub_scalar_s8_arm_sub_s8(); }
 void test_sub_ident_s8_arm_sub_s8(void) { sub_ident_s8_arm_sub_s8(); }
+void test_sub_scalar_neg_offset_s8_arm_sub_s8(void) { sub_scalar_neg_offset_s8_arm_sub_s8(); }
+void test_sub_ident_neg_offset_s8_arm_sub_s8(void) { sub_ident_neg_offset_s8_arm_sub_s8(); }
 void test_sub_broadcast_h_s8_arm_sub_s8(void) { sub_broadcast_h_s8_arm_sub_s8(); }
 void test_sub_broadcast_w_s8_arm_sub_s8(void) { sub_broadcast_w_s8_arm_sub_s8(); }
 void test_sub_broadcast_c_s8_arm_sub_s8(void) { sub_broadcast_c_s8_arm_sub_s8(); }
