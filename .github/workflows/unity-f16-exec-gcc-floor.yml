@@ -1,0 +1,197 @@
+# SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+
+name: Unity f16 exec (GCC floor)
+
+# Execution gate on the oldest gated Arm GNU release
+# (see AmbiqAI/ns-cmsis-nn#427).
+#
+# toolchain-matrix-strict-link.yml builds and strict-links the whole supported
+# GCC range, but only the CI container's own toolchain ever runs a binary
+# (#340). An encoding defect the assembler introduces after the compiler is
+# done survives both a build and a strict link untouched -- the object is well
+# formed and its symbols all resolve -- and appears only when the instruction
+# retires. So this cell executes, on the floor of the range, the suites whose
+# kernels widen or narrow between half and single precision. Delete
+# Include/Internal/arm_nn_vcvt_f16_fixup.h and this is the only PR leg that
+# goes red.
+#
+# QEMU rather than the FVP: the legacy Unity harness
+# (Tests/UnitTest/build_and_run_tests.sh) fetches the Corstone-300 FVP in its
+# environment setup and hard-codes a single toolchain URL, so a second
+# compiler needs both a large download and a parameter the harness does not
+# have. QEMU's mps3-an547 models the same AN547 board and boots the same
+# unmodified ELF. The FVP stays the qualification vehicle; this is a targeted
+# regression gate on top of it.
+#
+# Three suites rather than the whole f16 set: these are the only kernels that
+# reach the conversion sites, and a wider net would import QEMU's own
+# modelling quirks into a PR gate for no added coverage of this class.
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  f16-exec:
+    name: f16 exec / gcc floor / cortex-m55
+    runs-on: ubuntu-latest
+    # The toolchain archive dominates; the build and the runs are the small
+    # part of the budget.
+    timeout-minutes: 15
+    env:
+      TARGET_CPU: cortex-m55
+      # The three suites whose kernels widen or narrow through
+      # arm_nn_vcvt{b,t}q_f{16_f32,32_f16}. arm_softmax_f16 reaches the same
+      # sites through arm_nn_vexpq_poly_mve_f16 but has no Unity suite.
+      SUITES: >-
+        test_arm_hard_swish_f16
+        test_arm_nn_mean_f16
+        test_arm_reduce_sum_f16
+      TOOLCHAIN_MANIFEST: ci/toolchains/arm-gnu-floor.json
+      HARNESS: Tests/UnitTest/build_and_run_tests.sh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install QEMU
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-arm
+          qemu-system-arm --version | head -1
+
+      - name: Fetch the pinned Arm GNU toolchain
+        id: fetch_toolchain
+        run: |
+          bash scripts/fetch_toolchain.sh \
+            --manifest "${TOOLCHAIN_MANIFEST}" \
+            --platform linux-x86_64 \
+            --outdir "${RUNNER_TEMP}/toolchains"
+
+      - name: Assert the pin is the oldest gated release, and is what ran
+        # Two separate claims. First, that this cell is still pointed at the
+        # FLOOR of the strict-link matrix: raise gcc_release there without
+        # moving the manifest here and the oldest gated compiler goes back to
+        # being built but never executed, silently. Second, that the archive
+        # the manifest names really is that release -- a pinned URL and
+        # sha256 fix the bytes, not what the bytes claim to be.
+        env:
+          GOT: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+          MATRIX: .github/workflows/toolchain-matrix-strict-link.yml
+        run: |
+          set -euo pipefail
+          gated="$(sed -n "s/^ *gcc_release: *\[\(.*\)\] *$/\1/p" "${MATRIX}" \
+                   | tr -d "' " | tr ',' '\n' | grep -v '^$' | sort -V)"
+          if [[ -z "${gated}" ]]; then
+            echo "::error title=Cannot read the gated GCC list::No gcc_release matrix line in ${MATRIX}." >&2
+            exit 1
+          fi
+          oldest="$(echo "${gated}" | head -1)"
+          if [[ "${GOT}" != "${oldest}" ]]; then
+            echo "::error title=Execution cell is not on the floor::${TOOLCHAIN_MANIFEST} pins ${GOT}, but the oldest release gated by ${MATRIX} is ${oldest}. Move them together." >&2
+            exit 1
+          fi
+          banner="$("${TOOLCHAIN_ROOT}/bin/arm-none-eabi-gcc" --version | head -1)"
+          echo "${banner}"
+          # Arm's own spelling of a release differs in case between the
+          # download name and the compiler banner, so match without it.
+          if ! grep -qiF -- "${GOT}" <<<"${banner}"; then
+            echo "::error title=Toolchain banner mismatch::Expected ${GOT}, got: ${banner}" >&2
+            exit 1
+          fi
+          echo "${TOOLCHAIN_ROOT}/bin" >> "$GITHUB_PATH"
+
+      - name: Clone the pinned harness dependencies
+        # Read from the harness rather than repeated here, the same way
+        # unity-m55-compile.yml reads them: build_and_run_tests.sh is the one
+        # place these pins live (AmbiqAI/ns-cmsis-nn#402). Its own
+        # Setup_Environment is not reused because it also fetches the
+        # Corstone-300 FVP, which this cell has no use for.
+        run: |
+          set -euo pipefail
+          read_pin() {
+            local name="$1" value
+            value="$(sed -n "s/^${name}=\"\([0-9a-f]\{40\}\)\"$/\1/p" "${HARNESS}")"
+            if [[ "$(wc -l <<<"${value}")" -ne 1 || -z "${value}" ]]; then
+              echo "::error title=Cannot read ${name}::Expected exactly one ${name}=\"<40 hex>\" line in ${HARNESS}." >&2
+              exit 1
+            fi
+            echo "${value}"
+          }
+          clone_at() {
+            local dir="$1" url="$2" commit="$3"
+            git -c init.defaultBranch=main init --quiet "${dir}"
+            git -C "${dir}" remote add origin "${url}"
+            git -C "${dir}" fetch --quiet --depth 1 origin "${commit}"
+            git -C "${dir}" checkout --quiet FETCH_HEAD
+            echo "${dir} at $(git -C "${dir}" rev-parse HEAD)"
+          }
+          clone_at "${RUNNER_TEMP}/CMSIS_5" \
+            "https://github.com/ARM-software/CMSIS_5.git" "$(read_pin CMSIS_5_COMMIT)"
+          clone_at "${RUNNER_TEMP}/ethos-u-core-platform" \
+            "https://gitlab.arm.com/artificial-intelligence/ethos-u/ethos-u-core-platform" \
+            "$(read_pin ETHOS_U_CORE_PLATFORM_COMMIT)"
+
+      - name: Build the f16 conversion suites
+        # -Ofast and the F32/F16 pair are legacy-tester.yml's cortex-m55 leg,
+        # so the objects that run below are the ones the library ships.
+        run: |
+          set -euo pipefail
+          cmake -S Tests/UnitTest -B "${RUNNER_TEMP}/build" \
+            -DCMAKE_TOOLCHAIN_FILE="${RUNNER_TEMP}/ethos-u-core-platform/cmake/toolchain/arm-none-eabi-gcc.cmake" \
+            -DTARGET_CPU="${TARGET_CPU}" \
+            -DCMSIS_PATH="${RUNNER_TEMP}/CMSIS_5" \
+            -DCMSIS_OPTIMIZATION_LEVEL=-Ofast \
+            -DARM_NN_ENABLE_F32=ON \
+            -DARM_NN_ENABLE_F16=ON
+          # shellcheck disable=SC2086  # SUITES is a deliberate word list.
+          cmake --build "${RUNNER_TEMP}/build" --target ${SUITES}
+
+      - name: Run the f16 conversion suites under QEMU
+        run: |
+          set -euo pipefail
+          log_dir="${RUNNER_TEMP}/qemu-logs"
+          mkdir -p "${log_dir}"
+          suite_timeout_s=120
+          rc=0
+          for suite in ${SUITES}; do
+            elf="${RUNNER_TEMP}/build/TestCases/${suite}/${suite}.elf"
+            uart="${log_dir}/${suite}.uart.log"
+            diag="${log_dir}/${suite}.qemu-stderr.log"
+            echo "::group::${suite}"
+            : > "${uart}"
+            # The image ends by writing the FVP's end-of-simulation byte and
+            # then spinning forever, and QEMU has no shutdown_on_eot, so wait
+            # for Unity's own verdict line and stop the model. -d int is what
+            # names a fault: an UNDEFINED encoding takes an exception rather
+            # than failing an assertion, and the image prints nothing then.
+            qemu-system-arm -M mps3-an547 -cpu "${TARGET_CPU}" -nographic \
+              -monitor none -serial stdio -d int \
+              -kernel "${elf}" > "${uart}" 2> "${diag}" &
+            qemu_pid=$!
+            waited=0
+            while (( waited < suite_timeout_s )); do
+              grep -qE '^(OK|FAIL)' "${uart}" && break
+              kill -0 "${qemu_pid}" 2>/dev/null || break
+              sleep 1
+              waited=$(( waited + 1 ))
+            done
+            kill "${qemu_pid}" 2>/dev/null || true
+            wait "${qemu_pid}" 2>/dev/null || true
+            tr -d '\r' < "${uart}"
+            if grep -qE '^OK' "${uart}" && grep -q ' 0 Failures ' "${uart}"; then
+              echo "${suite}: pass"
+            else
+              rc=1
+              echo "::error title=f16 execution failed::${suite} did not report a clean Unity pass on the oldest gated GCC. See AmbiqAI/ns-cmsis-nn#427."
+              grep -E 'Taking exception' "${diag}" | sort -u \
+                || echo "(no exception taken -- the failures are in the UART log above)"
+            fi
+            echo "::endgroup::"
+          done
+          exit "${rc}"
