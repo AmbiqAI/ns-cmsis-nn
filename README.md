@@ -545,13 +545,16 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
 
 | Toolchain | Version(s) gated per PR | Built | Linked | Functional tests |
 | --- | --- | --- | --- | --- |
-| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.3.Rel1, 15.3.Rel1 | yes | yes | yes, on 14.3.1 |
+| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.3.Rel1, 15.3.Rel1 | yes | yes | yes, on 14.3.1; the `float16` conversion suites also on the oldest gated release |
 | Arm Compiler 6 (`armclang`) | 6.23.32 | yes | yes | no |
 | LLVM Embedded Toolchain for Arm (ATfE) | 19.1.5 | yes | yes | no |
 
 - **Arm GNU Toolchain** — **GCC 13 through 15; 13 is the minimum supported
   version.** One pinned release per major is built and strict-linked on every
-  pull request. Versions below 13 are not supported and are not tested.
+  pull request. Versions below 13 are not supported and are not tested. GCC 13
+  is supported because the library hand-encodes the MVE half↔single
+  conversions, which the assembler those releases ship encodes incorrectly
+  ([#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)).
 - **Arm Compiler 6** — built and strict-linked, not functionally tested. Until
   recently its release-asset check never invoked a linker at all, so armclang
   archives shipped without their symbols ever being resolved
@@ -560,9 +563,12 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
 - **LLVM Embedded Toolchain for Arm (ATfE)** — built and strict-linked, not
   functionally tested.
 
-The numerics suite (`helia-core-tester`, run under the Corstone-300 FVP) still
-executes only against GCC 14.3.1, the toolchain pinned in the CI container. So
-for armclang and ATfE the guarantee is **built and linked, not executed**: they
+The numerics suite (`helia-core-tester`, run under the Corstone-300 FVP)
+executes only against GCC 14.3.1, the toolchain pinned in the CI container;
+the one exception is the `float16` half↔single conversion suites, which also
+run on the oldest gated GCC release under QEMU, because that is the class of
+defect a build-and-link gate cannot see. So for armclang and ATfE the
+guarantee is **built and linked, not executed**: they
 are verified to compile and resolve, not to produce correct results. Kernel
 logic is shared across all three, so the functional suite is not multiplied
 across toolchains.
@@ -576,7 +582,8 @@ IAR is currently untested. Compiling for host is not supported out of the box.
 Every pull request must pass the FVP numerics suite (int4/int8/int16 on
 cortex-m0/m4/m55, float32/float16 where hardware support exists — the
 m4/m55 legs also at the shipped `-Ofast` flags), a strict build-and-link
-matrix across GCC 13/14/15, ATfE and armclang, the x86 host suites under
+matrix across GCC 13/14/15, ATfE and armclang, the `float16` conversion
+suites executed on the oldest gated GCC release, the x86 host suites under
 ASan/UBSan/LSan, and the packaging contracts. A nightly run adds the
 legacy Unity suites on Arm, and every release re-runs the FVP numerics
 and Unity suites and verifies its published assets.
