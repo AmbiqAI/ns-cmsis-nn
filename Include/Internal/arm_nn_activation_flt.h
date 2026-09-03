@@ -57,9 +57,9 @@ __STATIC_INLINE float32_t arm_nn_hardswish_scalar_f32(float32_t x)
 }
 
 /*
- * Both dtypes' scalar tanh use LUT + linear interpolation, each sharing its
- * table and geometry with its own MVE leg (float16's is [0, 4] with 256
- * segments; the rational float16 approximation was replaced in #407).
+ * Float32 scalar tanh: LUT + linear interpolation, sharing arm_nn_tanh_lut_f32
+ * and the ARM_NN_TANH_F32_* geometry above with the MVE leg. (The float16
+ * scalar helper below mirrors this design on its own [0, 4] table; see #407.)
  *
  * Accuracy: max interpolation error is 2.35e-5 inside the table window
  * (|x| < ARM_NN_TANH_F32_XMAX); at or outside the boundary the helper

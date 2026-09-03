@@ -25,7 +25,7 @@
 #include "../../../../Include/Internal/arm_nn_activation_flt.h"
 
 /* Exhaustive bound, measured over all 2^16 patterns: 4.57e-4 inside |x| <= 4
- * and 6.66e-4 overall (the ax > 4 saturation step, shared with the MVE leg). */
+ * and 6.65e-4 overall (the ax > 4 saturation step, shared with the MVE leg). */
 #define TANH_F16_IN_RANGE_TOL (5.0e-4f)
 #define TANH_F16_GLOBAL_TOL (7.0e-4f)
 
