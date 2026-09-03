@@ -266,6 +266,19 @@ jobs:
       # per-CPU build trees (build-<cpu>-gcc) are not cached at all, by this
       # job or by legacy-tester.
       #
+      # The clone pins (#402) get no key term of their own, and they do not
+      # need one. The CMSIS_5 and ethos-u-core-platform working trees are
+      # inside the cached directory -- build_and_run_tests.sh clones them into
+      # Tests/UnitTest/downloads -- so a stale entry could indeed hand a later
+      # run a clone at the wrong commit. But CMSIS_5_COMMIT and
+      # ETHOS_U_CORE_PLATFORM_COMMIT are recorded in build_and_run_tests.sh,
+      # and the hashFiles() term below already covers that file byte for byte,
+      # exactly as it covers GCC_URL: bump a pin and the key changes and the
+      # entry misses. A second, hand-spelled copy of the SHAs in this key
+      # would be a second source of truth free to disagree with the first.
+      # The assertion step below is the backstop for an entry that arrives at
+      # the wrong commit by some other route.
+      #
       # Restore and save are split on purpose (`cache/restore` here,
       # `cache/save` at the end) rather than using the combined `cache`
       # action. The combined action's post-job save carries
@@ -313,7 +326,7 @@ jobs:
       # nothing here has to be updated when the pin moves; a mismatch fails
       # the job loudly instead of silently gating a release on a compiler
       # nobody chose.
-      - name: Assert the pinned Arm GNU toolchain
+      - name: Assert the pinned Arm GNU toolchain and clone commits
         id: toolchain
         shell: bash
         run: |
@@ -372,6 +385,95 @@ jobs:
             exit 1
           fi
           echo "Arm GNU toolchain ${actual} matches the harness pin -- ok."
+
+          # Same argument, same step, for the two third-party clones (#402).
+          # The harness checks its own pins as it sets up; this is the
+          # independent backstop, re-reading the pins from the harness file
+          # and the state from disk after the setup step has run.
+          #
+          # Two conditions, because HEAD alone does not say what is in the
+          # tree: `git checkout` carries local modifications forward, so a
+          # tree can sit on the pinned commit and still not be that commit's
+          # content. Requiring `git status --porcelain` to be empty as well is
+          # what makes the pair mean "this is the pinned tree" -- and that is
+          # what the compile below actually consumes, since CMSIS_5 supplies
+          # headers and ethos-u-core-platform supplies the CMake toolchain
+          # file. Neither condition can be met by accident, and this step's
+          # outcome gates the cache save below, so a tree that fails either
+          # one is not published to the shared entry.
+          #
+          # (`--ignored=no` is `git status`'s own default, written out. It
+          # excludes nothing worth mentioning here: nothing writes into these
+          # trees -- the build directories are siblings, under
+          # Tests/UnitTest/build-<cpu>-gcc -- and neither upstream
+          # .gitignore at these pins covers anything this harness or this
+          # gate creates (ethos-u-core-platform's is two lines, /build and
+          # __pycache__; CMSIS_5's is its own release and IDE output, none of
+          # which is produced here). It is spelled out so the predicate is
+          # readable without knowing git's defaults.)
+          for pin in \
+            CMSIS_5_COMMIT:CMSIS_5 \
+            ETHOS_U_CORE_PLATFORM_COMMIT:ethos-u-core-platform; do
+            var="${pin%%:*}"
+            dir="Tests/UnitTest/downloads/${pin##*:}"
+
+            pinned="$(sed -n "s|^${var}=\"\([0-9a-f]\{40\}\)\"$|\1|p" "${script}")"
+            if [ -z "${pinned}" ] || [ "$(printf '%s\n' "${pinned}" | wc -l)" -ne 1 ]; then
+              echo "Cannot read a single 40-character ${var} from ${script}." >&2
+              printf 'read: %s\n' "${pinned}" >&2
+              exit 1
+            fi
+
+            # `-c safe.directory` keeps this working whatever user the
+            # container runs as; the tree was written by the harness, not
+            # checked out by actions/checkout.
+            head_sha="$(git -c safe.directory='*' -C "${dir}" rev-parse HEAD 2>/dev/null || true)"
+            if [ "${head_sha}" != "${pinned}" ]; then
+              echo "Clone pin mismatch in ${dir}." >&2
+              echo "  ${script} pins ${var}=${pinned}," >&2
+              echo "  but the checked-out HEAD is ${head_sha:-(not a git checkout)}." >&2
+              echo "The restored Tests/UnitTest/downloads cache entry is stale:" >&2
+              echo "the harness skips the clone whenever the directory already" >&2
+              echo "exists, so it never corrects this by itself. Evict the" >&2
+              echo "cache entry (its key is shared with legacy-tester.yml) and" >&2
+              echo "re-run." >&2
+              exit 1
+            fi
+            # Separate "git says clean" from "git could not say", which a
+            # swallowed exit status renders identical: a truncated .git/index
+            # exits 128 with the message on stderr while rev-parse above still
+            # answers with the pinned commit, so the tree would pass both
+            # halves of this check without ever being compared with the pin --
+            # and this step's success is what allows the cache save below.
+            status_err="$(mktemp)"
+            if ! dirty="$(git -c safe.directory='*' -C "${dir}" \
+                status --porcelain --ignored=no 2>"${status_err}")"; then
+              echo "git could not report the state of ${dir}." >&2
+              echo "  git said:" >&2
+              sed 's|^|    |' "${status_err}" >&2
+              echo "This tree was never compared with ${var}, which is not the" >&2
+              echo "same as matching it. Treat the restored cache entry as" >&2
+              echo "damaged: evict it (its key is shared with" >&2
+              echo "legacy-tester.yml) and re-run." >&2
+              rm -f "${status_err}"
+              exit 1
+            fi
+            rm -f "${status_err}"
+            if [ -n "${dirty}" ]; then
+              echo "Clone at ${dir} is at its pin but has local changes." >&2
+              echo "  ${script} pins ${var}=${pinned}, and HEAD matches," >&2
+              echo "  but the working tree does not match that commit:" >&2
+              printf '%s\n' "${dirty}" | sed 's|^|    |' >&2
+              echo "This gate compiles against these trees -- CMSIS_5 headers" >&2
+              echo "and the ethos-u-core-platform CMake toolchain file -- so a" >&2
+              echo "modified one means the build is not the pinned build." >&2
+              echo "Nothing in CI writes here, so treat this as a corrupted or" >&2
+              echo "tampered cache entry: evict it (its key is shared with" >&2
+              echo "legacy-tester.yml) and re-run." >&2
+              exit 1
+            fi
+            echo "${dir} at ${head_sha}, clean, matches ${var} -- ok."
+          done
 
       - name: Compile every Unity test TU for ${{ matrix.cpu }}
         # `shell: bash` is explicit for `-o pipefail` and for predictability.
