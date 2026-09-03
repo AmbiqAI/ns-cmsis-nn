@@ -213,7 +213,8 @@ def generate(params, args, fpaths):
             "bias_data_type", "shift_and_mult_data_type", "interpreter", "tflite_generator", "json_template",
             "groups", "generate_bias", "bias_min", "bias_max", "weights_min", "weights_max", "bias_zp", "w_zp",
             "input_zp", "output_zp", "w_scale", "bias_scale", "input_scale", "output_scale", "arena_size",
-            "output_data_type"
+            "output_data_type", "random_inputs", "representational_dataset_min", "representational_dataset_max",
+            "representational_dataset_min2", "representational_dataset_max2"
         ]
 
     config_params = {key: val for key, val in params.items() if include_in_config(key)}
@@ -388,10 +389,16 @@ def convert_keras_to_tflite(
         # Create a representative dataset for post-training quantization
         num_samples = int(shape.get("representative_dataset_samples", 100))
         if shape.get("different_in_shapes") is True:
+            # Per-input calibration ranges so input zero points (offsets) can be steered, e.g. negative (issue #357)
+            rep_min2 = float(shape.get("representational_dataset_min2", rep_min))
+            rep_max2 = float(shape.get("representational_dataset_max2", rep_max))
+            if rep_max2 <= rep_min2:
+                rep_min2, rep_max2 = 0.0, 1.0
+
             def representative_dataset():
                 for _ in range(num_samples):
-                    data1 = np.random.rand(*shape["representational_dataset"])
-                    data2 = np.random.rand(*shape["representational_dataset2"])
+                    data1 = np.random.uniform(rep_min, rep_max, size=shape["representational_dataset"])
+                    data2 = np.random.uniform(rep_min2, rep_max2, size=shape["representational_dataset2"])
                     yield [data1.astype(np.float32), data2.astype(np.float32)]
         else:
             def representative_dataset():

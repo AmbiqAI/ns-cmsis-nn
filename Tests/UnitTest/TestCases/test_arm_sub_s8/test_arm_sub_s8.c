@@ -21,6 +21,8 @@
 
 #include "../TestData/sub_scalar_s8/test_data.h"
 #include "../TestData/sub_ident_s8/test_data.h"
+#include "../TestData/sub_scalar_neg_offset_s8/test_data.h"
+#include "../TestData/sub_ident_neg_offset_s8/test_data.h"
 #include "../TestData/sub_broadcast_h_s8/test_data.h"
 #include "../TestData/sub_broadcast_w_s8/test_data.h"
 #include "../TestData/sub_broadcast_c_s8/test_data.h"
@@ -129,6 +131,109 @@ void sub_ident_s8_arm_sub_s8(void)
 
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, sub_ident_s8_output_ref, SUB_IDENT_S8_DST_SIZE));
+}
+
+void sub_scalar_neg_offset_s8_arm_sub_s8(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    cmsis_nn_dims lhs_dims;
+    cmsis_nn_dims rhs_dims;
+    cmsis_nn_dims out_dims;
+
+    lhs_dims.n = SUB_SCALAR_NEG_OFFSET_S8_LHS_N;
+    lhs_dims.h = SUB_SCALAR_NEG_OFFSET_S8_LHS_H;
+    lhs_dims.w = SUB_SCALAR_NEG_OFFSET_S8_LHS_W;
+    lhs_dims.c = SUB_SCALAR_NEG_OFFSET_S8_LHS_C;
+
+    rhs_dims.n = SUB_SCALAR_NEG_OFFSET_S8_RHS_N;
+    rhs_dims.h = SUB_SCALAR_NEG_OFFSET_S8_RHS_H;
+    rhs_dims.w = SUB_SCALAR_NEG_OFFSET_S8_RHS_W;
+    rhs_dims.c = SUB_SCALAR_NEG_OFFSET_S8_RHS_C;
+
+    out_dims.n = SUB_SCALAR_NEG_OFFSET_S8_OUTPUT_N;
+    out_dims.h = SUB_SCALAR_NEG_OFFSET_S8_OUTPUT_H;
+    out_dims.w = SUB_SCALAR_NEG_OFFSET_S8_OUTPUT_W;
+    out_dims.c = SUB_SCALAR_NEG_OFFSET_S8_OUTPUT_C;
+
+    const int8_t *lhs = sub_scalar_neg_offset_s8_lhs_input_tensor;
+    const int8_t *rhs = sub_scalar_neg_offset_s8_rhs_input_tensor;
+    int8_t output[SUB_SCALAR_NEG_OFFSET_S8_DST_SIZE] = {0};
+
+    arm_cmsis_nn_status result = arm_sub_s8(
+        lhs,
+        &lhs_dims,
+        rhs,
+        &rhs_dims,
+        SUB_SCALAR_NEG_OFFSET_S8_LHS_OFFSET,
+        SUB_SCALAR_NEG_OFFSET_S8_LHS_MULT,
+        SUB_SCALAR_NEG_OFFSET_S8_LHS_SHIFT,
+        SUB_SCALAR_NEG_OFFSET_S8_RHS_OFFSET,
+        SUB_SCALAR_NEG_OFFSET_S8_RHS_MULT,
+        SUB_SCALAR_NEG_OFFSET_S8_RHS_SHIFT,
+        SUB_SCALAR_NEG_OFFSET_S8_LEFT_SHIFT,
+        output,
+        &out_dims,
+        SUB_SCALAR_NEG_OFFSET_S8_OUTPUT_OFFSET,
+        SUB_SCALAR_NEG_OFFSET_S8_OUTPUT_MULT,
+        SUB_SCALAR_NEG_OFFSET_S8_OUTPUT_SHIFT,
+        SUB_SCALAR_NEG_OFFSET_S8_ACTIVATION_MIN,
+        SUB_SCALAR_NEG_OFFSET_S8_ACTIVATION_MAX
+    );
+
+    TEST_ASSERT_EQUAL(expected, result);
+    TEST_ASSERT_TRUE(validate(output, sub_scalar_neg_offset_s8_output_ref, SUB_SCALAR_NEG_OFFSET_S8_DST_SIZE));
+}
+
+
+void sub_ident_neg_offset_s8_arm_sub_s8(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    cmsis_nn_dims lhs_dims;
+    cmsis_nn_dims rhs_dims;
+    cmsis_nn_dims out_dims;
+
+    lhs_dims.n = SUB_IDENT_NEG_OFFSET_S8_LHS_N;
+    lhs_dims.h = SUB_IDENT_NEG_OFFSET_S8_LHS_H;
+    lhs_dims.w = SUB_IDENT_NEG_OFFSET_S8_LHS_W;
+    lhs_dims.c = SUB_IDENT_NEG_OFFSET_S8_LHS_C;
+
+    rhs_dims.n = SUB_IDENT_NEG_OFFSET_S8_RHS_N;
+    rhs_dims.h = SUB_IDENT_NEG_OFFSET_S8_RHS_H;
+    rhs_dims.w = SUB_IDENT_NEG_OFFSET_S8_RHS_W;
+    rhs_dims.c = SUB_IDENT_NEG_OFFSET_S8_RHS_C;
+
+    out_dims.n = SUB_IDENT_NEG_OFFSET_S8_OUTPUT_N;
+    out_dims.h = SUB_IDENT_NEG_OFFSET_S8_OUTPUT_H;
+    out_dims.w = SUB_IDENT_NEG_OFFSET_S8_OUTPUT_W;
+    out_dims.c = SUB_IDENT_NEG_OFFSET_S8_OUTPUT_C;
+
+    const int8_t *lhs = sub_ident_neg_offset_s8_lhs_input_tensor;
+    const int8_t *rhs = sub_ident_neg_offset_s8_rhs_input_tensor;
+    int8_t output[SUB_IDENT_NEG_OFFSET_S8_DST_SIZE] = {0};
+
+    arm_cmsis_nn_status result = arm_sub_s8(
+        lhs,
+        &lhs_dims,
+        rhs,
+        &rhs_dims,
+        SUB_IDENT_NEG_OFFSET_S8_LHS_OFFSET,
+        SUB_IDENT_NEG_OFFSET_S8_LHS_MULT,
+        SUB_IDENT_NEG_OFFSET_S8_LHS_SHIFT,
+        SUB_IDENT_NEG_OFFSET_S8_RHS_OFFSET,
+        SUB_IDENT_NEG_OFFSET_S8_RHS_MULT,
+        SUB_IDENT_NEG_OFFSET_S8_RHS_SHIFT,
+        SUB_IDENT_NEG_OFFSET_S8_LEFT_SHIFT,
+        output,
+        &out_dims,
+        SUB_IDENT_NEG_OFFSET_S8_OUTPUT_OFFSET,
+        SUB_IDENT_NEG_OFFSET_S8_OUTPUT_MULT,
+        SUB_IDENT_NEG_OFFSET_S8_OUTPUT_SHIFT,
+        SUB_IDENT_NEG_OFFSET_S8_ACTIVATION_MIN,
+        SUB_IDENT_NEG_OFFSET_S8_ACTIVATION_MAX
+    );
+
+    TEST_ASSERT_EQUAL(expected, result);
+    TEST_ASSERT_TRUE(validate(output, sub_ident_neg_offset_s8_output_ref, SUB_IDENT_NEG_OFFSET_S8_DST_SIZE));
 }
 
 
