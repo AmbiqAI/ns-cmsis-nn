@@ -185,15 +185,6 @@ const float32_t arm_nn_exp_poly_coeffs_f16[8] = {
 };
 
 /*
- * Rational tanh approximation used by float16 helpers.
- */
-const float32_t arm_nn_tanh_approx_coeffs_f16[3] = {
-    3.0f,
-    27.0f,
-    9.0f,
-};
-
-/*
  * Quantized binary16 LUT for 2^(i/256), i in [0, 256].
  */
 const uint16_t arm_nn_exp2_lut_f16[257] = {

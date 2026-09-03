@@ -36,6 +36,7 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -190,9 +191,26 @@ int main(void)
                                    expect);
     }
 
+    {
+        /* Tanh f16 (#407): the scalar LUT helper classifies NaN in the integer
+         * domain, so it must propagate under this flag pair too. The finite
+         * probes sit on exact grid points, where interpolation degenerates to a
+         * table read, so the expectation is the exact LUT entry. */
+        float32_t expect[3];
+        _Float16 t2, t3;
+        memcpy(&t2, &arm_nn_tanh_lut_f16[128], sizeof(t2)); /* tanh(2) sample */
+        memcpy(&t3, &arm_nn_tanh_lut_f16[192], sizeof(t3)); /* tanh(3) sample */
+        expect[0] = -(float32_t)t2;
+        expect[1] = (float32_t)t3;
+        expect[2] = 1.0f; /* 8 > 4 saturates exactly */
+        float16_t out[4] = {(float16_t)0.0f};
+        failures += check_f16_lane(
+            "tanh_f16", arm_nn_activation_f16(in16, out, 4, ARM_NN_FLT_ACT_TANH, (float16_t)0.0f), out, expect);
+    }
+
     if (failures == 0)
     {
-        printf("activation -Ofast NaN probe: 6/6 scalar legs propagate\n");
+        printf("activation -Ofast NaN probe: 7/7 scalar legs propagate\n");
     }
     return failures;
 }

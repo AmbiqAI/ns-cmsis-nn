@@ -262,6 +262,7 @@ endif()
 
 if(ARM_NN_ENABLE_F16)
     add_subdirectory(TestCases/test_arm_nn_abs_f16)
+    add_subdirectory(TestCases/test_arm_nn_activation_helpers_f16)
     add_subdirectory(TestCases/test_arm_batch_matmul_f16)
     add_subdirectory(TestCases/test_arm_convolve_packed_f16)
     add_subdirectory(TestCases/test_arm_elementwise_sub_f16)
