@@ -57,11 +57,9 @@ __STATIC_INLINE float32_t arm_nn_hardswish_scalar_f32(float32_t x)
 }
 
 /*
- * Tanh deliberately uses different scalar approximations by dtype.
- * Float32 keeps a LUT + linear interpolation path to preserve tighter
- * accuracy over a wider input range, while float16 uses a compact rational
- * approximation because half precision does not benefit as much from a
- * larger table and the lower-order form is sufficient for its target error.
+ * Float32 scalar tanh: LUT + linear interpolation, sharing arm_nn_tanh_lut_f32
+ * and the ARM_NN_TANH_F32_* geometry above with the MVE leg. (The float16
+ * scalar helper below mirrors this design on its own [0, 4] table; see #407.)
  *
  * Accuracy: max interpolation error is 2.35e-5 inside the table window
  * (|x| < ARM_NN_TANH_F32_XMAX); at or outside the boundary the helper
@@ -400,21 +398,52 @@ __STATIC_INLINE float16_t arm_nn_hardswish_scalar_f16(float16_t x)
     return (float16_t)((_Float16)x * t);
 }
 
+/*
+ * Scalar twin of arm_nn_vtanh_lut_direct_mve_f16: same arm_nn_tanh_lut_f16
+ * geometry ([0, 4], 256 segments), replacing the rational approximation whose
+ * ~2.4e-2 max error broke scalar-only builds' tolerances; see #407.
+ *
+ * NaN is classified and the sign applied in the bit domain, so NaN-in/NaN-out
+ * survives the shipped -Ofast (-ffinite-math-only, see #333 / #334) and no
+ * HFmode conditional move is emitted (GCC PR target/118460). Saturation
+ * matches the MVE leg: ax > 4 (Inf included) returns +/-1 exactly; ax == 4
+ * interpolates to lut[256].
+ */
 __STATIC_INLINE float16_t arm_nn_tanh_scalar_ref_f16(float16_t x)
 {
-    const _Float16 ax = arm_nn_abs_f16h((_Float16)x);
-    if (ax > (_Float16)arm_nn_tanh_approx_coeffs_f16[0])
+    const _Float16 xh = (_Float16)x;
+    uint16_t x_bits;
+    memcpy(&x_bits, &xh, sizeof(x_bits));
+    if ((uint16_t)(x_bits & 0x7FFFu) > 0x7C00u)
     {
-        /* Select the saturation sign in float32: SFmode conditional moves are
-         * unaffected by GCC PR target/118460 (HFmode only). */
-        const float32_t sign = ((float32_t)(_Float16)x < 0.0f) ? -1.0f : 1.0f;
-        return (float16_t)(_Float16)sign;
+        return x; /* NaN propagates, payload and sign intact. */
     }
 
-    const _Float16 x2 = (_Float16)x * (_Float16)x;
-    const _Float16 num = (_Float16)x * ((_Float16)arm_nn_tanh_approx_coeffs_f16[1] + x2);
-    const _Float16 den = (_Float16)arm_nn_tanh_approx_coeffs_f16[1] + (_Float16)arm_nn_tanh_approx_coeffs_f16[2] * x2;
-    return (float16_t)(num / den);
+    _Float16 y;
+    const _Float16 ax = arm_nn_abs_f16h(xh);
+    if (ax > (_Float16)4.0f)
+    {
+        y = (_Float16)1.0f;
+    }
+    else
+    {
+        const _Float16 t = ax * (_Float16)64.0f; /* Exact: 256 segments / xmax 4. */
+        int32_t idx = (int32_t)t;
+        idx = (idx > 255) ? 255 : idx; /* ax == 4.0 gives t == 256; interpolate to lut[256] as MVE does. */
+        const _Float16 frac = t - (_Float16)idx;
+        _Float16 y0, y1;
+        memcpy(&y0, &arm_nn_tanh_lut_f16[idx], sizeof(y0));
+        memcpy(&y1, &arm_nn_tanh_lut_f16[idx + 1], sizeof(y1));
+        y = y0 + (y1 - y0) * frac;
+    }
+
+    /* tanh is odd and y >= 0: copying x's sign bit avoids an HFmode select and preserves -0. */
+    uint16_t y_bits;
+    memcpy(&y_bits, &y, sizeof(y_bits));
+    y_bits = (uint16_t)(y_bits | (x_bits & 0x8000u));
+    float16_t r;
+    memcpy(&r, &y_bits, sizeof(r));
+    return r;
 }
 
 /*

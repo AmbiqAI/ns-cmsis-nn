@@ -533,11 +533,6 @@ void arm_nn_softmax_1x2_f32(const float32_t *in, float32_t *out);
 extern const float32_t arm_nn_exp_poly_coeffs_f16[8];
 
 /**
- * @brief Coefficients used by the float16 tanh rational approximation.
- */
-extern const float32_t arm_nn_tanh_approx_coeffs_f16[3];
-
-/**
  * @brief Quantized binary16 LUT for `2^(i/256)` used by float16 helpers.
  *
  * Stores 257 samples for `i = 0..256` so interpolation can safely read
