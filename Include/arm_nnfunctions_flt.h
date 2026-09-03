@@ -1248,9 +1248,11 @@ arm_cmsis_nn_status arm_reduce_sum_f32(const float32_t *input_data,
  * the reduction length, matching arm_reduce_sum_f32. Because the
  * intermediate accumulation is itself float32, it can saturate to +/-Inf
  * even when the mean itself is representable, but whether it does depends
- * on accumulation order: the scalar build keeps one sequential running
- * sum while the vector build folds per-lane partial sums, so on inputs
- * whose partial sums exceed FLT_MAX in magnitude either build may return
+ * on accumulation order: a strictly sequential build keeps one running
+ * sum, while vector builds -- MVE intrinsics, or compiler
+ * auto-vectorization of the scalar path at -Ofast -- fold per-lane
+ * partial sums, so on inputs whose partial sums exceed FLT_MAX in
+ * magnitude either build may return
  * +/-Inf and the two may disagree (one finite, one Inf); when partial
  * sums of opposite sign both saturate, the vector fold can even yield
  * NaN (Inf + -Inf) from all-finite inputs. Only when every accumulation
