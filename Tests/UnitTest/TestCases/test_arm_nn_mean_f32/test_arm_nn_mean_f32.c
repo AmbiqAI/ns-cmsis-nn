@@ -313,12 +313,15 @@ void mean_f32_generic_long_accumulation_arm_nn_mean_f32(void)
 
 void mean_f32_finite_overflow_arm_nn_mean_f32(void)
 {
-    // Contract pin (not an accident of implementation): the intermediate
-    // sum is float32, so four copies of 3e38 overflow to +Inf during
-    // accumulation even though the true mean, 3e38, is representable.
-    // With no wider accumulator this is neither rounding-error growth nor
-    // Inf *propagation* -- the inputs are finite -- and it matches
-    // arm_reduce_sum_f32 and TFLite reference behaviour, so pin it.
+    // Contract pin (not an accident of implementation): four copies of
+    // 3e38 overflow the float32 intermediate sum to +Inf even though the
+    // true mean, 3e38, is representable. With all values same-signed,
+    // EVERY accumulation order overflows -- any two partial sums of two
+    // 3e38 terms already exceed FLT_MAX -- so unlike the mixed-sign
+    // divergence case below this expectation is leg-agnostic: sequential
+    // scalar goes Inf at element 2, and the MVE flatten path goes Inf in
+    // the lane fold (3e38 + 3e38). Verified on host gcc-12 (-O0/-Ofast)
+    // and FVP Corstone-300 MVE and forced-scalar (-Ofast).
     const float32_t input[4] = {3e38f, 3e38f, 3e38f, 3e38f};
     float32_t output = 0.0f;
     const cmsis_nn_dims input_dims = {1, 1, 1, 4};
@@ -328,6 +331,52 @@ void mean_f32_finite_overflow_arm_nn_mean_f32(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_nn_mean_f32(input, &input_dims, &axis_dims, &output, &output_dims));
     TEST_ASSERT_FLOAT_IS_INF(output);
     TEST_ASSERT_TRUE(output > 0.0f);
+}
+
+void mean_f32_finite_overflow_divergence_arm_nn_mean_f32(void)
+{
+    // On mixed-sign inputs whose PARTIAL sums exceed FLT_MAX the legs
+    // genuinely disagree (finite vs Inf), so pin each leg's own behaviour
+    // rather than a false universal Inf contract. Measured (bit-exact) on
+    // FVP Corstone-300 at -Ofast and host gcc-12 at -O0/-Ofast:
+    //  - scalar_inf_input {3e38, 3e38, 0, 0, -3e38, -3e38, 0, 0}: the
+    //    sequential scalar sum saturates to +Inf at element 2 and Inf is
+    //    sticky (0x7F800000); the MVE flatten path's four per-lane sums
+    //    each cancel to 0 and the fold returns exactly 0 (0x00000000).
+    //  - vector_inf_input {3e38, 0, -3e38, 0, 0, 3e38, 0, -3e38}: the
+    //    sequential sum never leaves [-3e38, 3e38] and returns exactly 0;
+    //    the MVE per-lane sums are {3e38, 3e38, -3e38, -3e38} and the
+    //    fold saturates at 3e38 + 3e38 -> +Inf.
+    // ARM_MATH_AUTOVECTORIZE builds compile the scalar source under the
+    // vector leg's -Ofast, which hands the accumulation order to the
+    // compiler -- gcc 14.2.1 autovectorizes it into the same 4-lane split
+    // as MVE -- so only the call contract is asserted there (the test TU's
+    // own -fno-finite-math-only strips __FAST_MATH__, so that macro cannot
+    // probe how the kernel library was compiled).
+    const float32_t scalar_inf_input[8] = {3e38f, 3e38f, 0.0f, 0.0f, -3e38f, -3e38f, 0.0f, 0.0f};
+    const float32_t vector_inf_input[8] = {3e38f, 0.0f, -3e38f, 0.0f, 0.0f, 3e38f, 0.0f, -3e38f};
+    float32_t scalar_inf_output = 42.0f;
+    float32_t vector_inf_output = 42.0f;
+    const cmsis_nn_dims input_dims = {1, 1, 1, 8};
+    const cmsis_nn_dims axis_dims = {0, 0, 0, 1};
+    const cmsis_nn_dims output_dims = {1, 1, 1, 1};
+
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_nn_mean_f32(scalar_inf_input, &input_dims, &axis_dims, &scalar_inf_output, &output_dims));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_nn_mean_f32(vector_inf_input, &input_dims, &axis_dims, &vector_inf_output, &output_dims));
+
+#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, scalar_inf_output);
+    TEST_ASSERT_FLOAT_IS_INF(vector_inf_output);
+    TEST_ASSERT_TRUE(vector_inf_output > 0.0f);
+#elif !defined(ARM_MATH_AUTOVECTORIZE) && !defined(__FAST_MATH__)
+    TEST_ASSERT_FLOAT_IS_INF(scalar_inf_output);
+    TEST_ASSERT_TRUE(scalar_inf_output > 0.0f);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, vector_inf_output);
+#endif
 }
 
 void mean_f32_generic_nan_inf_arm_nn_mean_f32(void)
