@@ -32,7 +32,30 @@
  * @{
  */
 
-    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+/*
+ * The MVE leg is additionally gated on the toolchain: GNU binutils 2.39-2.42
+ * (the gas bundled with Arm GNU Toolchain releases up to 13.3.Rel1)
+ * mis-assembles the MVE Q-register form of VCVTB/VCVTT.F16<->F32, encoding
+ * every Q operand with its D-register alias number (Qn emitted as Q2n): the
+ * widen/narrow steps land in the wrong registers, and any doubled operand
+ * past q7 overflows the field into an UNDEFINED encoding (this kernel's
+ * vcvtb.f16.f32 q3, q4 assembles to 0xee3fce11 with those assemblers, which
+ * faults before any output on FVP Corstone-300). Fixed in binutils 2.43.1,
+ * bundled from Arm GNU Toolchain 14.2.Rel1. The preprocessor cannot see the
+ * assembler version, so this keys on the compiler major each Arm GNU release
+ * pairs with it: a GCC < 14 build takes the scalar leg below, which returns
+ * the same bits for every input (both legs narrow identical float32
+ * products), just without the vector speedup. Clang encodes MVE itself and
+ * is unaffected.
+ */
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE) &&                                           \
+        (defined(__clang__) || !defined(__GNUC__) || __GNUC__ >= 14)
+        #define ARM_NN_HARD_SWISH_F16_MVE 1
+    #else
+        #define ARM_NN_HARD_SWISH_F16_MVE 0
+    #endif
+
+    #if ARM_NN_HARD_SWISH_F16_MVE
 // One 8-lane block: widen the even (bottom) and odd (top) half-lanes to
 // float32, compute the gate and product there, and narrow each product
 // exactly once. All lanes are computed unpredicated; the caller decides
@@ -86,7 +109,7 @@ arm_cmsis_nn_status arm_hard_swish_f16(const float16_t *input, float16_t *output
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if ARM_NN_HARD_SWISH_F16_MVE
     // Full 8-lane blocks run unpredicated; at most one predicated block
     // handles the tail, OUTSIDE any loop (the arm_memset_f16 shape). This is
     // deliberate and load-bearing, not a style choice: a vctp16q loop around

@@ -68,11 +68,12 @@ arm_cmsis_nn_status arm_hard_swish_f32(const float32_t *input, float32_t *output
     const float32x4_t vhalf = vdupq_n_f32(0.5f);
     const float32x4_t vzero = vdupq_n_f32(0.0f);
     const float32x4_t vone = vdupq_n_f32(1.0f);
+    const float32x4_t vsixth = vdupq_n_f32(1.0f / 6.0f);
     for (int32_t i = 0; i < size; i += 4)
     {
         const mve_pred16_t p = vctp32q((uint32_t)(size - i));
         const float32x4_t vx = vld1q_z(&input[i], p);
-        float32x4_t vt = vfmaq(vhalf, vx, vdupq_n_f32(1.0f / 6.0f));
+        float32x4_t vt = vfmaq(vhalf, vx, vsixth);
         vt = vmaxnmq(vt, vzero);
         vt = vminnmq(vt, vone);
         vst1q_p(&output[i], vmulq(vx, vt), p);

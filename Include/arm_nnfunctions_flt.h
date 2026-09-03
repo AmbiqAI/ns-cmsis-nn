@@ -443,12 +443,13 @@ arm_cmsis_nn_status arm_avg_pool_f32(const cmsis_nn_context *ctx,
  *       RELU/RELU6 legs restore the NaN lanes that vmaxnmq/vminnmq suppress. SIGMOID, TANH and HARDSWISH
  *       are outside this contract; see the per-helper notes in Include/Internal/arm_nn_activation_flt.h.
  *
- * @note The HARDSWISH leg's scalar helper (arm_nn_hardswish_scalar_f32, serving every build without MVE
- *       float) keeps the legacy separately rounded multiply-and-add gate and can differ by an ulp in the
- *       curved region from the standalone @ref arm_hard_swish_f32, whose gate is a correctly rounded
- *       fma; the mux's MVE helper (arm_nn_vhardswish_mve_f32) uses vfmaq and agrees with that kernel.
- *       Callers that need bit-exact, leg-agreeing hard swish -- or the documented NaN/Inf contract --
- *       should call @ref arm_hard_swish_f32 directly.
+ * @note The HARDSWISH leg's scalar helper (arm_nn_hardswish_scalar_f32, serving every build that does
+ *       not take the MVE float path -- no MVE float support, or MVE present but not used, e.g. under
+ *       ARM_MATH_AUTOVECTORIZE) keeps the legacy separately rounded multiply-and-add gate and can
+ *       differ by an ulp in the curved region from the standalone @ref arm_hard_swish_f32, whose gate
+ *       is a correctly rounded fma; the mux's MVE helper (arm_nn_vhardswish_mve_f32) uses vfmaq and
+ *       agrees with that kernel. Callers that need bit-exact, leg-agreeing hard swish -- or the
+ *       documented NaN/Inf contract -- should call @ref arm_hard_swish_f32 directly.
  */
 arm_cmsis_nn_status arm_nn_activation_f32(const float32_t *input,
                                           float32_t *output,
@@ -1599,6 +1600,12 @@ arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
  *       (NaN-ness only, not a particular payload -- narrowing retags it), +Inf returns +Inf, and
  *       -Inf returns NaN because the gate is 0 there and (-Inf) * 0 is NaN by IEEE 754, matching
  *       TFLite's float hard-swish reference rather than the mathematical limit 0.
+ *
+ * @note On GNU toolchains the MVE leg is compiled only with GCC 14 or newer: the assembler bundled
+ *       with older Arm GNU releases (binutils 2.39-2.42, through 13.3.Rel1) mis-encodes the MVE
+ *       Q-register form of the VCVTB/VCVTT widen/narrow this leg is built from (fixed in binutils
+ *       2.43.1, bundled from 14.2.Rel1). Older GNU toolchains compile the scalar leg instead;
+ *       results are bit-identical for every input, only throughput differs.
  */
 arm_cmsis_nn_status arm_hard_swish_f16(const float16_t *input, float16_t *output, int32_t size);
 
