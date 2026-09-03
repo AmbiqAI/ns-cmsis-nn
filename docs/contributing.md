@@ -194,8 +194,8 @@ The hooks check:
   it must not survive review.
 
 Nothing here scans for secrets. Credentials are caught server side by GitHub
-secret scanning with push protection, which rejects the push itself and cannot
-be bypassed by a local flag.
+secret scanning with push protection, a repository setting that is enabled
+today, which rejects the push itself and cannot be bypassed by a local flag.
 
 ### Two scopes
 
@@ -205,15 +205,24 @@ with `SKIP`. That is the same policy `clang-format` already follows: the tree
 converges as PRs touch files, rather than through one large reformat that would
 collide with every upstream sync. Those three hooks additionally skip content
 we must not rewrite at all: generated test vectors under
-`Tests/UnitTest/TestCases/`, and the files we still carry byte-identical from
-Arm, which the config lists.
+`Tests/UnitTest/TestCases/`, and files inherited from Arm. The exclude is not an
+inventory of everything that still matches upstream; it names the inherited
+files these hooks would otherwise touch.
+
+When you adopt a file from ARM-software/CMSIS-NN, commit it with
+`SKIP=trailing-whitespace,end-of-file-fixer` so the fixers do not diverge it
+from upstream. If the file carries a bare deferred-work marker, that marker is
+Arm's: add the file to the `todo-needs-issue` exclude and note it in
+AmbiqAI/ns-cmsis-nn#422, rather than annotating Arm's text.
 
 The remaining hooks only report, so CI runs them over every tracked file,
 including the roughly half of `Tests/` that is Ambiq-owned. The size check is
 the exception: it looks only at files being added to the index, so it gates the
 commit, not the CI run. Because the hooks see only staged files at commit time,
 a CI run over the wider scope can fail on files you never touched; when that
-happens, fix the reported file rather than widening an exclude.
+happens, fix the reported file rather than widening an exclude. The one
+exception is a file inherited unchanged from Arm, which takes the exclude route
+above.
 
 Bump a hook `rev` with `pre-commit autoupdate` in its own reviewed PR. Every
 remote rev is an exact tag; do not point a hook at a branch.

@@ -15,6 +15,17 @@ markers="$(printf 'TO%s|FIX%s|HA%s' 'DO' 'ME' 'CK')"
 
 (($# > 0)) || exit 0
 
+# awk reads a `name=value` operand as a variable assignment, so a relative
+# path containing `=` would be skipped silently. `./` in front makes every
+# relative operand a file; awk strips the one prefix back off when reporting.
+operands=()
+for path in "$@"; do
+  case "${path}" in
+    /*) operands+=("${path}") ;;
+    *) operands+=("./${path}") ;;
+  esac
+done
+
 hits=$(
   awk -v markers="${markers}" '
     BEGIN {
@@ -24,13 +35,19 @@ hits=$(
     {
       line = " " $0 " "
       gsub(allowed, "", line)
-      if (match(line, bare)) {
-        word = substr(line, RSTART + 1, RLENGTH - 2)
+      name = FILENAME
+      sub(/^\.\//, "", name)
+      pos = 1
+      while (match(substr(line, pos), bare)) {
+        start = pos + RSTART - 1
+        word = substr(line, start + 1, RLENGTH - 2)
         printf "%s:%d: bare %s marker; use %s(#<issue>) or %s(verify)\n", \
-          FILENAME, FNR, word, word, word
+          name, FNR, word, word, word
+        # Back up one so a shared delimiter can open the next match.
+        pos = start + RLENGTH - 1
       }
     }
-  ' "$@"
+  ' "${operands[@]}"
 )
 
 if [[ -n "${hits}" ]]; then
