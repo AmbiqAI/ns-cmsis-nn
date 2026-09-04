@@ -9,12 +9,7 @@
 #
 # Runs on the host compiler; there is no arm-none-eabi toolchain in this job,
 # so it cannot assemble the witness instruction and does not try to. What it
-# pins down is the part that regressed: which flags the probe measures. The
-# probe read only CMAKE_C_FLAGS and the directory options, so a consumer that
-# carries -mcpu on an INTERFACE target -- NSX's NSX_BOARD_FLAGS_TARGET,
-# Zephyr's zephyr_interface -- looked to it like a target with no MVE at all,
-# and the float16 kernels were built with a mis-encoding assembler in silence.
-# See AmbiqAI/ns-cmsis-nn#427.
+# pins down is which flags the probe measures. See AmbiqAI/ns-cmsis-nn#427.
 #
 # The arch flags sit on a target that is never attached, so the host compiler
 # is never asked to accept a Cortex-M flag it has no idea about.

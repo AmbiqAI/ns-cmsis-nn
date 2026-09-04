@@ -242,30 +242,39 @@ function(_ns_cmsis_nn_gas_f16_run target)
     ERROR_VARIABLE  _log)
 
   if(NOT _rc EQUAL 0 OR NOT EXISTS "${_obj}")
+    # The flags are a list; joined so the reader sees the command line rather
+    # than semicolon-separated elements.
+    list(JOIN _opts " " _opts_text)
+    # One string, expanded quoted: message() splits an unquoted list on the
+    # semicolons this text needs.
+    set(_unmeasured "\
+The MVE half<->single assembler check could not assemble its witness for \
+target '${target}' with this target's flags, so the assembler was not \
+measured.
+Compiler: ${CMAKE_C_COMPILER}
+Flags: ${CMAKE_C_FLAGS} ${_opts_text}
+Fix the flags so the witness assembles -- most often an include directory, or \
+an `-include' header the probe cannot see, such as one carried inside a \
+generator expression -- or set ARM_NN_SKIP_GAS_F16_PROBE=ON to proceed \
+unmeasured.
+See AmbiqAI/ns-cmsis-nn#427.
+${_log}")
+
+    if(NOT ARM_NN_SKIP_GAS_F16_PROBE)
+      message(FATAL_ERROR "${_unmeasured}")
+    endif()
+
     # The option is the documented last resort, so it has to work from here
     # too: a build whose flags the probe cannot even assemble is exactly the
     # one that would otherwise stop at the header guard with no way past it.
-    if(ARM_NN_SKIP_GAS_F16_PROBE)
-      _ns_cmsis_nn_gas_f16_mark(${target})
-    endif()
+    _ns_cmsis_nn_gas_f16_mark(${target})
     if(_report)
-      set(_hatch "the compile-time guard in arm_nnsupportfunctions_flt.h stands "
-                 "and a float16 MVE build on GCC 13 or older will refuse to "
-                 "compile")
-      if(ARM_NN_SKIP_GAS_F16_PROBE)
-        set(_hatch "ARM_NN_SKIP_GAS_F16_PROBE=ON was set, so "
-                   "ARM_NN_GAS_F16_VERIFIED=1 is defined on the target and the "
-                   "compile-time guard in arm_nnsupportfunctions_flt.h is "
-                   "lifted as well. Nothing measured this assembler; if it is "
-                   "one of the mis-encoding ones, the float16 kernels in this "
-                   "build are wrong")
-      endif()
-      string(JOIN "" _hatch ${_hatch})
-      message(WARNING
-        "Could not assemble the MVE half<->single conversion probe for target "
-        "'${target}' with ${CMAKE_C_COMPILER} ${CMAKE_C_FLAGS} ${_opts}; "
-        "the assembler was not checked, so ${_hatch}. "
-        "See AmbiqAI/ns-cmsis-nn#427.\n${_log}")
+      message(WARNING "${_unmeasured}
+ARM_NN_SKIP_GAS_F16_PROBE=ON was set, so this is a warning and \
+ARM_NN_GAS_F16_VERIFIED=1 is defined on target '${target}', which lifts the \
+compile-time guard in arm_nnsupportfunctions_flt.h as well. Nothing measured \
+this assembler; if it is one of the mis-encoding ones, the float16 kernels in \
+this build are wrong.")
     endif()
     return()
   endif()
