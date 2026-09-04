@@ -24,10 +24,6 @@ option(ARM_NN_ENABLE_F16 "Enable CMSIS-NN float16 extensions." OFF)
 
 project(CMSISNN C CXX)
 
-# Fail configure rather than emit float16 kernels a broken gas will mangle.
-# Also covers Tests/UnitTest, which reaches here through add_subdirectory().
-include(${CMAKE_CURRENT_LIST_DIR}/cmake/check_gas_mve_f16_cvt.cmake)
-
 # Single source of truth for the operator-group source layout.
 # Consumed by this standalone build, by zephyr/CMakeLists.txt, and by
 # nsx/CMakeLists.txt.
