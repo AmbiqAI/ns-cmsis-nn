@@ -1,5 +1,22 @@
 # Changelog
 
+## [7.32.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.31.0...v7.32.0) (2026-09-04)
+
+
+### Features
+
+* **activation:** add arm_hard_swish_f16/f32 ([#413](https://github.com/AmbiqAI/ns-cmsis-nn/issues/413)) ([a82949c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/a82949c31fe5866fbf0a54b6d12c32956859eb84))
+* **basicmath:** add arm_nn_mean_f16 reduction ([#412](https://github.com/AmbiqAI/ns-cmsis-nn/issues/412)) ([628578b](https://github.com/AmbiqAI/ns-cmsis-nn/commit/628578b91d73f72e4fe4d568529f78e5e5f8af3d))
+* **basicmath:** add arm_nn_mean_f32 reduction ([#414](https://github.com/AmbiqAI/ns-cmsis-nn/issues/414)) ([9deca03](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9deca03c3879228c5e585248dc24f4d4b6f24a66))
+
+
+### Bug Fixes
+
+* **activation:** scalar f16 tanh via LUT interpolation ([#426](https://github.com/AmbiqAI/ns-cmsis-nn/issues/426)) ([4fe041b](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4fe041bc69fddada1ae09c0ecbe7f926f672b281))
+* **api:** namespace the MAX/MIN/CLAMP helper macros ([#431](https://github.com/AmbiqAI/ns-cmsis-nn/issues/431)) ([18a89ff](https://github.com/AmbiqAI/ns-cmsis-nn/commit/18a89fffcaa127c83afd56e7dac1aa7ffacc3e03))
+* **basicmath:** make the arm_sqrt_s16 MVE tail dlstp-safe ([#416](https://github.com/AmbiqAI/ns-cmsis-nn/issues/416)) ([b09fa9c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b09fa9ca69f44d233d0afe9c0d50fd4fc2ee3ff6))
+* **pack:** source gen-pack from GEN_PACK_LIB_PATH and fail loud when it is missing ([#404](https://github.com/AmbiqAI/ns-cmsis-nn/issues/404)) ([249305f](https://github.com/AmbiqAI/ns-cmsis-nn/commit/249305f13da5d8d2f4419d93ff727a55562bb905)), closes [#401](https://github.com/AmbiqAI/ns-cmsis-nn/issues/401)
+
 ## [7.31.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.30.0...v7.31.0) (2026-09-01)
 
 ### Notes for integrators

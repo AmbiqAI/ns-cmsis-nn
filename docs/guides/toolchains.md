@@ -25,7 +25,7 @@ toolchain versions that differ from the release.
 
 Each tarball contains a `manifest.json` recording the identity of the archive.
 Its `"version"` field is the heliaCORE release the archive was built from:
-tarballs for this release carry `"version": "7.31.0"`. <!-- x-release-please-version -->
+tarballs for this release carry `"version": "7.32.0"`. <!-- x-release-please-version -->
 
 The example below is trimmed. The `"version"` field is left out on purpose, so
 the block stays valid JSON that no release has to edit; the `"features"`,
