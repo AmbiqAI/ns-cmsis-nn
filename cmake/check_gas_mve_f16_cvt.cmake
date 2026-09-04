@@ -12,12 +12,19 @@
 #
 #   ns_cmsis_nn_check_gas_mve_f16_cvt(<target>)
 #       Assembles a witness instruction with the flags <target> will really
-#       compile with -- CMAKE_C_FLAGS, the directory options, the target's own
-#       options and definitions, and the usage requirements of everything it
-#       links -- and compares the encoded word. A no-op unless ARM_NN_ENABLE_F16
-#       is set and the compiler is GNU. Call it where the float16 sources are
-#       selected, so every consumer of cmake/ns_cmsis_nn.cmake is covered and
-#       not just the standalone build.
+#       compile with -- CMAKE_C_FLAGS, the target's own options and
+#       definitions, and the usage requirements of everything it links -- and
+#       compares the encoded word. A no-op unless ARM_NN_ENABLE_F16 is set and
+#       the compiler is GNU. Call it where the float16 sources are selected, so
+#       every consumer of cmake/ns_cmsis_nn.cmake is covered and not just the
+#       standalone build.
+#
+# On a good assembler the probe defines ARM_NN_GAS_F16_VERIFIED=1 on <target>.
+# Include/arm_nnsupportfunctions_flt.h refuses a GCC 13 or older float16 MVE
+# build without that definition, so the shapes this probe cannot see -- flags
+# wired after the directory finishes, flags carried only inside a generator
+# expression, and consumers that never run CMake at all -- fail closed at
+# compile time instead of silently building the mis-encoded conversions.
 #
 # try_compile() was the obvious mechanism and does not work here. Its
 # LINK_LIBRARIES only carries imported targets into the generated project;
@@ -29,7 +36,8 @@
 # usage requirements instead.
 
 option(ARM_NN_SKIP_GAS_F16_PROBE
-       "Downgrade the MVE half<->single assembler check to a warning." OFF)
+       "Downgrade the MVE half<->single assembler check to a warning and lift the matching compile-time guard."
+       OFF)
 
 # Drop the generator expressions from an option list. They have no value at
 # configure time and a single one can span several list elements, so track the
@@ -157,6 +165,17 @@ function(_ns_cmsis_nn_gas_f16_flags target out_var out_skipped)
   set(${out_skipped} "${_skipped_any}" PARENT_SCOPE)
 endfunction()
 
+# Assert to the header check that this target's assembler was measured. An
+# INTERFACE library has no private scope to put it in.
+function(_ns_cmsis_nn_gas_f16_mark target)
+  get_target_property(_type ${target} TYPE)
+  if(_type STREQUAL "INTERFACE_LIBRARY")
+    target_compile_definitions(${target} INTERFACE ARM_NN_GAS_F16_VERIFIED=1)
+  else()
+    target_compile_definitions(${target} PRIVATE ARM_NN_GAS_F16_VERIFIED=1)
+  endif()
+endfunction()
+
 function(_ns_cmsis_nn_gas_f16_run target)
   if(NOT TARGET ${target})
     return()
@@ -171,11 +190,15 @@ function(_ns_cmsis_nn_gas_f16_run target)
 
   # Several targets can attach float16 sources in one configure; report on each
   # distinct compiler and flag combination once rather than once per target.
+  # Only the message is deduplicated -- every target still has to be measured
+  # and marked, or the header check would reject the ones that were skipped.
+  set(_report TRUE)
   get_property(_seen GLOBAL PROPERTY NS_GAS_MVE_F16_CVT_REPORTED)
   if("${_signature}" IN_LIST _seen)
-    return()
+    set(_report FALSE)
+  else()
+    set_property(GLOBAL APPEND PROPERTY NS_GAS_MVE_F16_CVT_REPORTED "${_signature}")
   endif()
-  set_property(GLOBAL APPEND PROPERTY NS_GAS_MVE_F16_CVT_REPORTED "${_signature}")
 
   set(_dir "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ns_gas_mve_f16_cvt")
   set(_src "${_dir}/probe.S")
@@ -214,34 +237,54 @@ function(_ns_cmsis_nn_gas_f16_run target)
     ERROR_VARIABLE  _log)
 
   if(NOT _rc EQUAL 0 OR NOT EXISTS "${_obj}")
-    message(WARNING
-      "Could not assemble the MVE half<->single conversion probe for target "
-      "'${target}' with ${CMAKE_C_COMPILER} ${CMAKE_C_FLAGS} ${_opts}; "
-      "skipping the assembler check. "
-      "See AmbiqAI/ns-cmsis-nn#427.\n${_log}")
+    if(_report)
+      message(WARNING
+        "Could not assemble the MVE half<->single conversion probe for target "
+        "'${target}' with ${CMAKE_C_COMPILER} ${CMAKE_C_FLAGS} ${_opts}; "
+        "the assembler was not checked, so the compile-time guard in "
+        "arm_nnsupportfunctions_flt.h stands and a float16 MVE build on GCC 13 "
+        "or older will refuse to compile. "
+        "See AmbiqAI/ns-cmsis-nn#427.\n${_log}")
+    endif()
     return()
   endif()
 
   file(READ "${_obj}" _hex HEX)
   if(NOT _hex MATCHES "e1beadde(........)e2beadde")
-    # The witness took its #else arm: these flags select no MVE float16, so no
-    # kernel this target compiles can reach the affected encoding.
-    set(_why "")
-    if(_genex_skipped)
-      set(_why " Generator expressions in the options were skipped, so an "
-               "architecture flag carried only inside one is invisible here.")
-      string(JOIN "" _why ${_why})
+    # The witness took its #else arm: the flags visible here select no MVE
+    # float16. That is a statement about what the probe could see, not a
+    # verdict on the build, so nothing is marked as verified unless the user
+    # has explicitly taken the check off.
+    if(ARM_NN_SKIP_GAS_F16_PROBE)
+      _ns_cmsis_nn_gas_f16_mark(${target})
     endif()
-    message(STATUS
-      "MVE half<->single assembler check does not apply to target '${target}': "
-      "its flags select no MVE float16 (__ARM_FEATURE_MVE & 2 is 0).${_why}")
+    if(_report)
+      set(_why "")
+      if(_genex_skipped)
+        set(_why " Generator expressions in the options were skipped, so an "
+                 "architecture flag carried only inside one is invisible here.")
+        string(JOIN "" _why ${_why})
+      endif()
+      message(STATUS
+        "MVE half<->single assembler check does not apply to target '${target}': "
+        "its flags select no MVE float16 (__ARM_FEATURE_MVE & 2 is 0).${_why} "
+        "Flags added to this target after the current directory finishes, or "
+        "carried only inside a generator expression, are not visible here "
+        "either; for those the compile-time guard in "
+        "arm_nnsupportfunctions_flt.h stands in, and a float16 MVE build on "
+        "GCC 13 or older will refuse to compile. ARM_NN_SKIP_GAS_F16_PROBE=ON "
+        "lifts that guard too.")
+    endif()
     return()
   endif()
   set(_word "${CMAKE_MATCH_1}")
 
   if(_word STREQUAL _expected)
-    message(STATUS
-      "MVE half<->single conversions encode correctly (0x${_word})")
+    _ns_cmsis_nn_gas_f16_mark(${target})
+    if(_report)
+      message(STATUS
+        "MVE half<->single conversions encode correctly (0x${_word})")
+    endif()
     return()
   endif()
 
@@ -267,7 +310,17 @@ warning and builds the broken encoding anyway.
 See AmbiqAI/ns-cmsis-nn#427.")
 
   if(ARM_NN_SKIP_GAS_F16_PROBE)
-    message(WARNING "${_diag}")
+    # The option would be dead without this: the compile-time guard in
+    # arm_nnsupportfunctions_flt.h would stop the build the probe was told to
+    # let through.
+    _ns_cmsis_nn_gas_f16_mark(${target})
+    if(_report)
+      message(WARNING "${_diag}\nARM_NN_SKIP_GAS_F16_PROBE=ON was set, so this "
+                      "is a warning and ARM_NN_GAS_F16_VERIFIED=1 is defined on "
+                      "target '${target}' to let the compile-time guard through "
+                      "as well. The float16 kernels in this build are "
+                      "mis-encoded by choice.")
+    endif()
   else()
     message(FATAL_ERROR "${_diag}")
   endif()

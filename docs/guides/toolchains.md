@@ -46,10 +46,42 @@ same as one that sets `CMAKE_C_FLAGS`. On a broken assembler it fails the
 configure with the remediation below. `ARM_NN_ENABLE_F16=OFF` skips the check
 entirely.
 
-One shape stays out of reach: an architecture flag that exists only inside a
-CMake generator expression has no value at configure time, so the check cannot
-see it. It then reports that it did not apply, and why, rather than passing
-quietly.
+### The check that cannot be bypassed
+
+The configure-time probe cannot see everything. An architecture flag that
+exists only inside a CMake generator expression has no value at configure time;
+a flag added to the library target after the directory that attached the
+sources has finished is not there yet when the probe reads the target; and a
+build that never runs CMake at all gets no probe.
+
+So the probe is not the only guard. When it measures a good assembler it
+defines `ARM_NN_GAS_F16_VERIFIED=1` on the target it checked, and
+`Include/arm_nnsupportfunctions_flt.h` refuses to compile a `float16` MVE
+translation unit on GCC 13 or older without that definition. The shapes the
+probe cannot see therefore fail at compile time with a message naming the fix,
+rather than building the mis-encoded conversions in silence. Where the probe
+does apply it stays authoritative: it fails the configure on any GCC, including
+14.2 and newer with a `-B` that points at a broken assembler.
+
+### Building without CMake
+
+The CMSIS-Pack `Source` Cvariant and `module.mk` compile the sources directly,
+so nothing probes the assembler for them.
+
+- On **Arm GNU 14.2.Rel1 or newer**, nothing to do.
+- On **GCC 13.x or older**, pass both `-B<dir>/` for a binutils 2.43 or newer
+  `arm-none-eabi` assembler and `-DARM_NN_GAS_F16_VERIFIED=1`. The `-B` is what
+  fixes the encoding; the define is how you tell the library you did it.
+
+```sh
+arm-none-eabi-gcc -mcpu=cortex-m55 -mfloat-abi=hard -DARM_NN_ENABLE_F16=1 \
+  -B/opt/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/arm-none-eabi/bin/ \
+  -DARM_NN_GAS_F16_VERIFIED=1 \
+  -c Source/ActivationFunctions/arm_hard_swish_f16.c
+```
+
+Defining `ARM_NN_GAS_F16_VERIFIED` without the `-B` builds the mis-encoded
+conversions. The define asserts that you checked; it does not check anything.
 
 ### Keeping a GCC 13.x compiler
 
@@ -71,10 +103,12 @@ Set it through `CFLAGS` on a fresh build directory, or append it to
 `CMAKE_C_FLAGS` alongside the architecture flags. A bare
 `-DCMAKE_C_FLAGS="-B..."` replaces the flags the toolchain file supplies.
 
-`ARM_NN_SKIP_GAS_F16_PROBE=ON` downgrades the configure failure to a warning. It
-is a last resort for a build that cannot be changed any other way: the library it
-produces contains the mis-encoded conversions, and the `float16` kernels that use
-them return wrong results or fault.
+`ARM_NN_SKIP_GAS_F16_PROBE=ON` downgrades the configure failure to a warning and
+defines `ARM_NN_GAS_F16_VERIFIED=1` on the target, which lifts the compile-time
+guard as well; otherwise the build would still stop. It is a last resort for a
+build that cannot be changed any other way: the library it produces contains the
+mis-encoded conversions, and the `float16` kernels that use them return wrong
+results or fault.
 
 See [#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427).
 

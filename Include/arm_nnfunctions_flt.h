@@ -1657,7 +1657,12 @@ arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
  *
  * @note The MVE leg is built from the Q-register form of VCVTB/VCVTT, which binutils below 2.43
  *       mis-encodes. A float16 MVE build needs an assembler from binutils 2.43 or newer, bundled
- *       from Arm GNU Toolchain 14.2.Rel1; the CMake build rejects older ones at configure time.
+ *       from Arm GNU Toolchain 14.2.Rel1; the CMake build probes the assembler in use and rejects
+ *       older ones at configure time. Builds that never run that probe -- the CMSIS-Pack `Source`
+ *       Cvariant, `module.mk`, or a CMake project that wires its architecture flags where the
+ *       probe cannot read them -- are refused at compile time instead: on GCC 13 and older they
+ *       must point the driver at a binutils 2.43 or newer assembler with `-B<dir>/` and define
+ *       `ARM_NN_GAS_F16_VERIFIED`. On Arm GNU 14.2.Rel1 and newer there is nothing to do.
  *       See docs/guides/toolchains.md.
  */
 arm_cmsis_nn_status arm_hard_swish_f16(const float16_t *input, float16_t *output, int32_t size);
