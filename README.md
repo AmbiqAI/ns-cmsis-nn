@@ -545,7 +545,7 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
 
 | Toolchain | Version(s) gated per PR | Built | Linked | Functional tests |
 | --- | --- | --- | --- | --- |
-| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.2.Rel1, 15.3.Rel1 | yes | yes | not on the three gated releases. The numerics suite runs on 14.3.1, the CI container's toolchain, which this matrix does not gate; the `float16` conversion suites also run on the `float16` floor |
+| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.2.Rel1, 15.3.Rel1 | yes | yes | partly. The numerics suite runs on 14.3.1, the CI container's toolchain, which this matrix does not gate; the `float16` conversion suites run on 14.2.Rel1, the `float16` floor, which it does gate. Nothing executes on 13.2.Rel1 or 15.3.Rel1 |
 | Arm Compiler 6 (`armclang`) | 6.23.32 | yes | yes | no |
 | LLVM Embedded Toolchain for Arm (ATfE) | 19.1.5 | yes | yes | no |
 
