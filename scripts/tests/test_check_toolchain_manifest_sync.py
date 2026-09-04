@@ -156,6 +156,13 @@ class ToolchainManifestSyncCase(unittest.TestCase):
             json.dumps(toolchain_json("atfe", atfe_version, atfe_sha), indent=2),
             encoding="utf-8",
         )
+        # Every deliberately-unpaired manifest, read from the checker itself so
+        # the fixture cannot fall behind the list it is standing in for.
+        for filename in self.mod.UNPAIRED:
+            (self.toolchain_dir / filename).write_text(
+                json.dumps(toolchain_json(Path(filename).stem, "0.0.0", "0" * 64), indent=2),
+                encoding="utf-8",
+            )
 
     def write_aligned(self) -> None:
         self.write_manifest(tools_manifest())
@@ -180,6 +187,27 @@ class ToolchainManifestSyncCase(unittest.TestCase):
         for fragment in fragments:
             self.assertIn(fragment, joined, f"{fragment!r} missing from failure message: {got}")
         return got
+
+    # -- coverage of ci/toolchains -----------------------------------------
+
+    def test_unregistered_toolchain_manifest_is_caught(self):
+        """A new ci/toolchains/*.json that nobody registered. Skipping it
+        silently is how the drift this guard exists for comes back: the file
+        would select a shipped compiler with nothing holding it to anything."""
+        self.write_aligned()
+        (self.toolchain_dir / "newcompiler.json").write_text(
+            json.dumps(toolchain_json("newcompiler", "1.2.3", "0" * 64), indent=2),
+            encoding="utf-8",
+        )
+        self.assertFails("newcompiler.json", "not covered by this check")
+
+    def test_dead_registration_is_caught(self):
+        """A registered manifest that no longer exists, so the list cannot rot
+        into naming files nobody has."""
+        self.write_aligned()
+        name = next(iter(self.mod.UNPAIRED))
+        (self.toolchain_dir / name).unlink()
+        self.assertFails(name, "does not exist")
 
     # -- the real tree -----------------------------------------------------
 

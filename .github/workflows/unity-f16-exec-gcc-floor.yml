@@ -8,25 +8,21 @@ name: Unity f16 exec (GCC floor)
 #
 # toolchain-matrix-strict-link.yml builds and strict-links the whole supported
 # GCC range, but only the CI container's own toolchain ever runs a binary
-# (#340). An encoding defect the assembler introduces after the compiler is
-# done survives both a build and a strict link untouched -- the object is well
-# formed and its symbols all resolve -- and appears only when the instruction
-# retires. So this cell executes, on the floor of the range, the suites whose
-# kernels widen or narrow between half and single precision. Delete
+# (#340). The defect this guards against is introduced by the assembler, after
+# the compiler is done, so the object is well formed and every symbol resolves
+# and it still faults when the instruction retires: nothing short of executing
+# on a second compiler can see it. Revert the shim in
 # Include/Internal/arm_nn_vcvt_f16_fixup.h and this is the only PR leg that
 # goes red.
 #
-# QEMU rather than the FVP: the legacy Unity harness
-# (Tests/UnitTest/build_and_run_tests.sh) fetches the Corstone-300 FVP in its
-# environment setup and hard-codes a single toolchain URL, so a second
-# compiler needs both a large download and a parameter the harness does not
-# have. QEMU's mps3-an547 models the same AN547 board and boots the same
-# unmodified ELF. The FVP stays the qualification vehicle; this is a targeted
-# regression gate on top of it.
+# QEMU rather than the FVP because the legacy Unity harness fetches the FVP in
+# its own environment setup and hard-codes one toolchain URL, while QEMU's
+# mps3-an547 boots the same unmodified ELF; the FVP stays the qualification
+# vehicle.
 #
-# Three suites rather than the whole f16 set: these are the only kernels that
-# reach the conversion sites, and a wider net would import QEMU's own
-# modelling quirks into a PR gate for no added coverage of this class.
+# The suite list is scoped to the kernels that reach the conversion sites: a
+# wider net would import QEMU's own modelling quirks into a PR gate for no
+# added coverage of this class.
 
 on:
   workflow_call:
@@ -44,13 +40,14 @@ jobs:
     timeout-minutes: 15
     env:
       TARGET_CPU: cortex-m55
-      # The three suites whose kernels widen or narrow through
-      # arm_nn_vcvt{b,t}q_f{16_f32,32_f16}. arm_softmax_f16 reaches the same
-      # sites through arm_nn_vexpq_poly_mve_f16 but has no Unity suite.
+      # The suites whose kernels widen or narrow through
+      # arm_nn_vcvt{b,t}q_f{16_f32,32_f16}, directly or through
+      # arm_nn_vexpq_poly_mve_f16.
       SUITES: >-
         test_arm_hard_swish_f16
         test_arm_nn_mean_f16
         test_arm_reduce_sum_f16
+        test_arm_softmax_f16
       TOOLCHAIN_MANIFEST: ci/toolchains/arm-gnu-floor.json
       HARNESS: Tests/UnitTest/build_and_run_tests.sh
     steps:
@@ -58,11 +55,27 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install QEMU
+        # The apt version moves with the runner image. Assert a floor rather
+        # than pin: mps3-an547 and the cortex-m55 model both arrived in the
+        # release named below, and an older QEMU would fail to start in a way
+        # that reads like a test failure.
+        env:
+          QEMU_MIN: '6.0.0'
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends qemu-system-arm
-          qemu-system-arm --version | head -1
+          banner="$(qemu-system-arm --version | head -1)"
+          echo "${banner}"
+          got="$(sed -n 's/.*version \([0-9][0-9.]*\).*/\1/p' <<<"${banner}")"
+          if [[ -z "${got}" ]]; then
+            echo "::error title=Cannot read the QEMU version::Unparsable banner: ${banner}" >&2
+            exit 1
+          fi
+          if [[ "$(printf '%s\n%s\n' "${QEMU_MIN}" "${got}" | sort -V | head -1)" != "${QEMU_MIN}" ]]; then
+            echo "::error title=QEMU is too old::mps3-an547 with cortex-m55 needs QEMU ${QEMU_MIN} or newer; this runner has ${got}." >&2
+            exit 1
+          fi
 
       - name: Fetch the pinned Arm GNU toolchain
         id: fetch_toolchain
@@ -85,13 +98,30 @@ jobs:
           MATRIX: .github/workflows/toolchain-matrix-strict-link.yml
         run: |
           set -euo pipefail
-          gated="$(sed -n "s/^ *gcc_release: *\[\(.*\)\] *$/\1/p" "${MATRIX}" \
-                   | tr -d "' " | tr ',' '\n' | grep -v '^$' | sort -V)"
+          # Parsed as YAML, not matched as text: a reflow of that matrix line
+          # into a block sequence would defeat a pattern and fail this cell
+          # with a message about the wrong thing.
+          python3 -m venv "${RUNNER_TEMP}/yaml-venv"
+          "${RUNNER_TEMP}/yaml-venv/bin/pip" install -q --disable-pip-version-check pyyaml==6.0.3
+          gated="$("${RUNNER_TEMP}/yaml-venv/bin/python3" - "${MATRIX}" <<'PY'
+          import sys
+          import yaml
+
+          matrix = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+          try:
+              releases = matrix["jobs"]["gcc"]["strategy"]["matrix"]["gcc_release"]
+          except (KeyError, TypeError):
+              sys.exit(f"no jobs.gcc.strategy.matrix.gcc_release in {sys.argv[1]}")
+          if not isinstance(releases, list) or not all(isinstance(r, str) for r in releases):
+              sys.exit(f"jobs.gcc.strategy.matrix.gcc_release in {sys.argv[1]} is not a list of strings")
+          print("\n".join(releases))
+          PY
+          )"
           if [[ -z "${gated}" ]]; then
-            echo "::error title=Cannot read the gated GCC list::No gcc_release matrix line in ${MATRIX}." >&2
+            echo "::error title=Cannot read the gated GCC list::No usable gcc_release matrix in ${MATRIX}." >&2
             exit 1
           fi
-          oldest="$(echo "${gated}" | head -1)"
+          oldest="$(sort -V <<<"${gated}" | head -1)"
           if [[ "${GOT}" != "${oldest}" ]]; then
             echo "::error title=Execution cell is not on the floor::${TOOLCHAIN_MANIFEST} pins ${GOT}, but the oldest release gated by ${MATRIX} is ${oldest}. Move them together." >&2
             exit 1
@@ -162,8 +192,9 @@ jobs:
           ruby --version
 
       - name: Build the f16 conversion suites
-        # -Ofast and the F32/F16 pair are legacy-tester.yml's cortex-m55 leg,
-        # so the objects that run below are the ones the library ships.
+        # -Ofast and the F32/F16 pair are legacy-tester.yml's cortex-m55 leg.
+        # Tests/UnitTest puts -fno-finite-math-only on everything it configures
+        # below the library, which the release build does not.
         env:
           HARNESS_PYTHON: ${{ steps.harness_python.outputs.python }}
         run: |
@@ -219,7 +250,11 @@ jobs:
               rc=1
               echo "::error title=f16 execution failed::${suite} did not report a clean Unity pass on the oldest gated GCC. See AmbiqAI/ns-cmsis-nn#427."
               grep -E 'Taking exception' "${diag}" | sort -u \
-                || echo "(no exception taken -- the failures are in the UART log above)"
+                || echo "(no exception taken)"
+              # Unconditionally, because a model that never started prints
+              # nothing on the UART and takes no exception either.
+              echo "--- qemu stderr, last 40 lines ---"
+              tail -n 40 "${diag}"
             fi
             echo "::endgroup::"
           done
