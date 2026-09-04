@@ -61,9 +61,10 @@ target_compile_options(_probe_deep INTERFACE -DNS_PROBE_DEEP_OPT)
 add_library(_probe_flags INTERFACE)
 target_compile_options(_probe_flags INTERFACE -DNS_PROBE_IFACE_OPT)
 target_compile_definitions(_probe_flags INTERFACE NS_PROBE_IFACE_DEF=1)
-# A board target that carries -include board_cfg.h keeps the header's directory
-# here; without it the witness does not preprocess and the probe measures
-# nothing.
+# A board target that injects a C header into every translation unit. The
+# assembler witness has no use for it, so the probe drops it and keeps the
+# directory it came with.
+target_compile_options(_probe_flags INTERFACE -include foo.h)
 target_include_directories(_probe_flags INTERFACE "${CMAKE_CURRENT_LIST_DIR}/iface_inc")
 target_link_libraries(_probe_flags INTERFACE _probe_deep)
 
@@ -71,6 +72,7 @@ add_library(_probe_lib STATIC)
 ns_cmsis_nn_attach(_probe_lib GROUPS softmax)
 target_compile_options(_probe_lib PRIVATE -DNS_PROBE_OWN_OPT)
 target_compile_definitions(_probe_lib PRIVATE NS_PROBE_OWN_DEF=1)
+target_compile_options(_probe_lib PRIVATE -imacrosbar.h)
 target_include_directories(_probe_lib PRIVATE "${CMAKE_CURRENT_LIST_DIR}/own_inc")
 # Linked after the attach on purpose: that is the order nsx/CMakeLists.txt
 # uses, and reading the link closure during attach would see nothing.
@@ -96,6 +98,12 @@ _expect_opt("${_opts}" "-I${CMAKE_CURRENT_LIST_DIR}/iface_inc"
             "INTERFACE_INCLUDE_DIRECTORIES are not measured")
 _expect_opt("${_opts}" "-I${CMAKE_CURRENT_LIST_DIR}/own_inc"
             "the target's own INCLUDE_DIRECTORIES are not measured")
+_expect_no_opt("${_opts}" "-include"
+               "a split -include reaches the assembler witness")
+_expect_no_opt("${_opts}" "foo.h"
+               "the header of a split -include reaches the assembler witness")
+_expect_no_opt("${_opts}" "-imacrosbar.h"
+               "a joined -imacros reaches the assembler witness")
 
 foreach(_opt IN LISTS _opts)
   if(_opt MATCHES "\\$<")
@@ -112,7 +120,8 @@ endif()
 # test.
 add_library(_probe_cpu INTERFACE)
 target_compile_options(_probe_cpu INTERFACE
-                       -mcpu=cortex-m55 -mfloat-abi=hard -mfpu=auto)
+                       -mcpu=cortex-m55 -mfloat-abi=hard -mfpu=auto
+                       -include foo.h)
 add_library(_probe_arch STATIC)
 target_sources(_probe_arch PRIVATE "${_repo_root}/Source/SoftmaxFunctions/arm_softmax_f16.c")
 target_link_libraries(_probe_arch PRIVATE _probe_cpu)
@@ -122,6 +131,8 @@ foreach(_flag -mcpu=cortex-m55 -mfloat-abi=hard -mfpu=auto)
   _expect_opt("${_arch_opts}" "${_flag}"
               "arch flags on a linked INTERFACE target are invisible to the probe")
 endforeach()
+_expect_no_opt("${_arch_opts}" "-include"
+               "an injected header is kept alongside the arch flags")
 
 # A directory option lands in a target's COMPILE_OPTIONS only if the target
 # already existed when it was added. The probe runs at the end of the

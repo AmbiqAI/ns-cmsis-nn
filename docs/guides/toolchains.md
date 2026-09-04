@@ -46,8 +46,10 @@ trusting a version number. It assembles with the flags the library target will
 really compile with: the target's own compile options, definitions and include
 directories, plus the ones it picks up from the interface targets it links. So a
 project that carries `-mcpu` on a board flags target is checked the same as one
-that sets `CMAKE_C_FLAGS`, and a board target that carries an `-include` header
-brings the directory that header lives in. On a broken assembler it fails the
+that sets `CMAKE_C_FLAGS`. Options that inject a header into every translation
+unit, `-include` and `-imacros`, are dropped before the witness is assembled and
+named in a configure message: they feed C declarations to an assembly file and
+cannot change how an instruction encodes. On a broken assembler it fails the
 configure with the remediation below. `ARM_NN_ENABLE_F16=OFF` skips the check
 entirely.
 
@@ -60,9 +62,11 @@ after the directory that attached the sources has finished is not there yet when
 the probe reads the target; and a build that never runs CMake at all gets no
 probe.
 
-When what the probe cannot see is what stops its witness from assembling, it
-refuses the configure and prints the flags it used and the assembler's own
-error, so an unmeasured assembler is never taken for a good one. Setting
+Only a flag the probe cannot read at all can stop the witness from assembling,
+such as an include directory hidden inside a generator expression that a flag on
+the witness command line depends on. When that happens the probe refuses the
+configure and prints the flags it used and the assembler's own error, so an
+unmeasured assembler is never taken for a good one. Setting
 `ARM_NN_SKIP_GAS_F16_PROBE=ON` is the only way past that refusal.
 
 So the probe is not the only guard. When it measures a good assembler it

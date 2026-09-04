@@ -66,15 +66,42 @@ function(_ns_cmsis_nn_gas_f16_plain out_var out_skipped)
   set(${out_skipped} "${_skipped}" PARENT_SCOPE)
 endfunction()
 
+# Drop the options that inject a header into the translation unit. They feed C
+# declarations to a .S witness that has no use for them and cannot change how
+# an instruction encodes, so carrying them only gives the assembler a way to
+# fail on something the probe is not asking about. Both spellings, split and
+# joined. See AmbiqAI/ns-cmsis-nn#427.
+function(_ns_cmsis_nn_gas_f16_drop_injected out_var out_dropped)
+  set(_kept "")
+  set(_dropped "")
+  set(_pending "")
+  foreach(_opt IN LISTS ARGN)
+    if(_pending)
+      list(APPEND _dropped "${_pending} ${_opt}")
+      set(_pending "")
+    elseif(_opt MATCHES "^-(include|imacros)$")
+      set(_pending "${_opt}")
+    elseif(_opt MATCHES "^-(include|imacros).")
+      list(APPEND _dropped "${_opt}")
+    else()
+      list(APPEND _kept "${_opt}")
+    endif()
+  endforeach()
+  if(_pending)
+    list(APPEND _dropped "${_pending}")
+  endif()
+  set(${out_var} "${_kept}" PARENT_SCOPE)
+  set(${out_dropped} "${_dropped}" PARENT_SCOPE)
+endfunction()
+
 # Compile options, definitions and include directories <target> will carry, in
 # the order CMake lays them down: the target's own, then the usage requirements
 # of everything it links, transitively. Consumers routinely put -mcpu on an
 # INTERFACE target rather than in CMAKE_C_FLAGS, and reading only the latter
 # makes the probe decide there is no MVE and skip itself. Include directories
-# come along as -I because an option can depend on them: a board target that
-# carries `-include board_cfg.h` puts the header's directory in
-# INTERFACE_INCLUDE_DIRECTORIES, and without it the witness does not assemble
-# at all.
+# come along as -I so the witness is assembled with the search path the kernels
+# get. Header-injecting options are dropped; <out_dropped>, when the caller
+# passes a fourth argument, names what went.
 #
 # The directory property is not read. CMake seeds a target's COMPILE_OPTIONS
 # from it when the target is created, so the target property already carries
@@ -166,8 +193,13 @@ function(_ns_cmsis_nn_gas_f16_flags target out_var out_skipped)
     endif()
   endwhile()
 
+  _ns_cmsis_nn_gas_f16_drop_injected(_opts _dropped ${_opts})
+
   set(${out_var} "${_opts}" PARENT_SCOPE)
   set(${out_skipped} "${_skipped_any}" PARENT_SCOPE)
+  if(ARGC GREATER 3)
+    set(${ARGV3} "${_dropped}" PARENT_SCOPE)
+  endif()
 endfunction()
 
 # Assert to the header check that this target's assembler was measured. An
@@ -190,7 +222,7 @@ function(_ns_cmsis_nn_gas_f16_run target)
   # little-endian. Measured across the installed toolchains, not derived.
   set(_expected "3fee052e")
 
-  _ns_cmsis_nn_gas_f16_flags(${target} _opts _genex_skipped)
+  _ns_cmsis_nn_gas_f16_flags(${target} _opts _genex_skipped _dropped)
   set(_signature "${CMAKE_C_COMPILER}|${CMAKE_C_FLAGS}|${_opts}")
 
   # Several targets can attach float16 sources in one configure; report on each
@@ -203,6 +235,14 @@ function(_ns_cmsis_nn_gas_f16_run target)
     set(_report FALSE)
   else()
     set_property(GLOBAL APPEND PROPERTY NS_GAS_MVE_F16_CVT_REPORTED "${_signature}")
+  endif()
+
+  if(_dropped AND _report)
+    list(JOIN _dropped " " _dropped_text)
+    message(STATUS
+      "MVE half<->single assembler check ignored ${_dropped_text} for target "
+      "'${target}': a header injected into C cannot change how an instruction "
+      "encodes.")
   endif()
 
   set(_dir "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ns_gas_mve_f16_cvt")
@@ -253,9 +293,9 @@ target '${target}' with this target's flags, so the assembler was not \
 measured.
 Compiler: ${CMAKE_C_COMPILER}
 Flags: ${CMAKE_C_FLAGS} ${_opts_text}
-Fix the flags so the witness assembles -- most often an include directory, or \
-an `-include' header the probe cannot see, such as one carried inside a \
-generator expression -- or set ARM_NN_SKIP_GAS_F16_PROBE=ON to proceed \
+Fix the flags so the witness assembles -- most often a flag the probe cannot \
+read, such as an include directory carried inside a generator expression that \
+an option here depends on -- or set ARM_NN_SKIP_GAS_F16_PROBE=ON to proceed \
 unmeasured.
 See AmbiqAI/ns-cmsis-nn#427.
 ${_log}")
