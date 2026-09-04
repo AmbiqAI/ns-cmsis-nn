@@ -31,23 +31,8 @@
 #define ARM_NNSUPPORTFUNCTIONS_FLT_H
 
 #include "Internal/arm_nn_compiler.h"
+#include "Internal/arm_nn_vcvt_f16.h"
 #include "arm_nn_types_flt.h"
-
-/*
- * Every float16 leg that converts between half and single precision reaches
- * this header, so the assembler contract is asserted here once. The CMake
- * probe measures the assembler in use and defines ARM_NN_GAS_F16_VERIFIED on
- * the target it checked; a build that never runs the probe, or wires its
- * architecture flags where the probe cannot see them, has to make the same
- * assertion itself.
- * See AmbiqAI/ns-cmsis-nn#427.
- */
-#if ARM_NN_ENABLE_F16 && defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-    #if defined(__GNUC__) && !defined(__clang__) && (__GNUC__ < 14) && !defined(ARM_NN_GAS_F16_VERIFIED)
-        #error                                                                                                         \
-            "GCC 13 and older ship an assembler that mis-encodes the MVE f16 conversions; build with Arm GNU 14.2.Rel1 or newer, or supply a binutils 2.43+ assembler with -B and define ARM_NN_GAS_F16_VERIFIED; see AmbiqAI/ns-cmsis-nn#427"
-    #endif
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -684,8 +669,8 @@ __STATIC_INLINE float16_t arm_nn_vec_reduce_add_f16(float16x8_t in)
  */
 __STATIC_INLINE float16x8_t arm_nn_vexpq_poly_mve_f16(float16x8_t x)
 {
-    const float32x4_t x_lo = vcvtbq_f32_f16(x);
-    const float32x4_t x_hi = vcvttq_f32_f16(x);
+    const float32x4_t x_lo = arm_nn_vcvtbq_f32_f16(x);
+    const float32x4_t x_hi = arm_nn_vcvttq_f32_f16(x);
     const int32x4_t m_lo = vcvtq_s32_f32(vmulq(x_lo, 1.4426950408f));
     const int32x4_t m_hi = vcvtq_s32_f32(vmulq(x_hi, 1.4426950408f));
     const float32x4_t val_lo = vfmsq(x_lo, vcvtq_f32_s32(m_lo), vdupq_n_f32(0.6931471805f));
@@ -712,8 +697,8 @@ __STATIC_INLINE float16x8_t arm_nn_vexpq_poly_mve_f16(float16x8_t x)
     y_hi = vdupq_m(y_hi, 0.0f, vcmpltq(m_hi, -126));
 
     float16x8_t y = vdupq_n_f16((float16_t)0.0f);
-    y = vcvtbq_f16_f32(y, y_lo);
-    y = vcvttq_f16_f32(y, y_hi);
+    y = arm_nn_vcvtbq_f16_f32(y, y_lo);
+    y = arm_nn_vcvttq_f16_f32(y, y_hi);
     return y;
 }
     #endif
