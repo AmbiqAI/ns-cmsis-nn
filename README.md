@@ -545,15 +545,23 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
 
 | Toolchain | Version(s) gated per PR | Built | Linked | Functional tests |
 | --- | --- | --- | --- | --- |
-| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.3.Rel1, 15.3.Rel1 | yes | yes | yes, on 14.3.1; the `float16` conversion suites also on the oldest gated release |
+| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.2.Rel1, 15.3.Rel1 | yes | yes | yes, on 14.3.1; the `float16` conversion suites also on the `float16` floor |
 | Arm Compiler 6 (`armclang`) | 6.23.32 | yes | yes | no |
 | LLVM Embedded Toolchain for Arm (ATfE) | 19.1.5 | yes | yes | no |
 
-- **Arm GNU Toolchain** — **GCC 13 through 15; 13 is the minimum supported
-  version.** One pinned release per major is built and strict-linked on every
-  pull request. Versions below 13 are not supported and are not tested. GCC 13
-  stays supported only because the library works around its assembler
-  ([#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)).
+- **Arm GNU Toolchain** — **GCC 13 through 15**, with two different floors.
+  One pinned release per major is built and strict-linked on every pull request.
+  Versions below 13 are not supported and are not tested.
+  - **Integer and `float32`: 13.2.Rel1.** Nothing in those kernels touches the
+    affected instructions.
+  - **`float16`: 14.2.Rel1.** The `float16` kernels use MVE half/single
+    conversions that assemblers before binutils 2.43 encode incorrectly, and
+    Arm ships 2.43 from 14.2.Rel1. The CMake build asks the assembler at
+    configure time and fails rather than emitting kernels it will mangle. A
+    GCC 13.x compiler can still build `float16` by borrowing a newer assembler
+    with `-B`; see [Toolchain pinning](docs/guides/toolchains.md) for the recipe
+    and for the `ARM_NN_SKIP_GAS_F16_PROBE` escape hatch
+    ([#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)).
 - **Arm Compiler 6** — built and strict-linked, not functionally tested. Until
   recently its release-asset check never invoked a linker at all, so armclang
   archives shipped without their symbols ever being resolved
@@ -564,8 +572,8 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
 
 The numerics suite (`helia-core-tester`, run under the Corstone-300 FVP)
 executes only against GCC 14.3.1, the toolchain pinned in the CI container. A
-separate leg runs the legacy Unity `float16` conversion suites on the oldest
-gated GCC release under QEMU, because that is a class of defect a
+separate leg runs the legacy Unity `float16` conversion suites on the
+`float16` floor under QEMU, because that is a class of defect a
 build-and-link gate cannot see
 ([#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)). So for armclang
 and ATfE the guarantee is **built and linked, not executed**: they are

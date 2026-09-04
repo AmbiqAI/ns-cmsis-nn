@@ -21,6 +21,54 @@ toolchain versions that differ from the release.
 | Released prebuilt tarballs | Match your project compiler: `atfe`, `armclang`, or `gcc` | The CMake package validates compiler ID and CPU flags against the selected archive. |
 | Existing GCC-based firmware | GNU Arm Embedded | Keep using GCC when that is the qualified project compiler, but treat ATfE as the performance-forward migration path. |
 
+## `float16` needs a binutils 2.43 assembler
+
+The `float16` kernels are built from the Q-register form of the MVE
+`VCVTB`/`VCVTT.F16<->F32` conversions. Assemblers from binutils releases before
+2.43 encode that form with the wrong register numbers: low operands read and
+write the wrong registers and return silently wrong results, and higher operands
+overflow the register field into a word that is architecturally UNDEFINED and
+faults the first time it executes. The compiler is not at fault, the assembler
+is, so nothing the compiler emits and nothing the linker resolves can reveal it.
+
+A `float16` MVE build therefore requires an assembler from binutils 2.43 or
+newer. Arm ships one from **Arm GNU Toolchain 14.2.Rel1**. This applies to
+`float16` only: the integer kernels and the `float32` kernels never touch those
+conversions, so **GCC 13.x remains fully supported for `s4`/`s8`/`s16` and
+`float32` builds.**
+
+The CMake build assembles one witness instruction at configure time and compares
+the bytes, so it validates the assembler that is actually in use rather than
+trusting a version number. On a broken one it fails the configure with the
+remediation below. `ARM_NN_ENABLE_F16=OFF` skips the check entirely.
+
+### Keeping a GCC 13.x compiler
+
+If GCC 13.x is your qualified compiler, you do not have to move it. The compiler
+and the assembler are separate binaries, and `-B` points the driver at a
+different one. Give it the directory that holds the **unprefixed** `as`, which in
+an Arm GNU install is `<install root>/arm-none-eabi/bin/`, and keep the trailing
+slash:
+
+```sh
+CFLAGS="-B/opt/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/arm-none-eabi/bin/" \
+  cmake -S . -B build \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
+  -DNS_CMSIS_NN_TARGET_CPU=cortex-m55 \
+  -DARM_NN_ENABLE_F16=ON
+```
+
+Set it through `CFLAGS` on a fresh build directory, or append it to
+`CMAKE_C_FLAGS` alongside the architecture flags. A bare
+`-DCMAKE_C_FLAGS="-B..."` replaces the flags the toolchain file supplies.
+
+`ARM_NN_SKIP_GAS_F16_PROBE=ON` downgrades the configure failure to a warning. It
+is a last resort for a build that cannot be changed any other way: the library it
+produces contains the mis-encoded conversions, and the `float16` kernels that use
+them return wrong results or fault.
+
+See [#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427).
+
 ## What gets pinned
 
 Each tarball contains a `manifest.json` recording the identity of the archive.
