@@ -2,31 +2,46 @@
 #
 # SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
 # SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
-#
-# Mechanical proof for Include/Internal/arm_nn_vcvt_f16_fixup.h.
-#
-# The gas bundled with Arm GNU Toolchain releases before 14.2.Rel1 mis-encodes
-# the Q-register form of VCVTB/VCVTT.F16<->F32, so the header emits those four
-# conversions as raw instruction words instead. This script is the evidence
-# that the substitute encoder is exact rather than merely plausible; see
-# AmbiqAI/ns-cmsis-nn#427.
-#
-# Stage 1 assembles every q0..q7 x q0..q7 pair of all four forms twice, once
-# as native mnemonics and once through the header's own gas macro (lifted out
-# of the header by the preprocessor, so the two cannot drift), with each
-# toolchain, and compares raw .text bytes.
-#
-# Stage 2 compiles the header's C wrappers with register allocation pinned to
-# each pair, which is the part stage 1 cannot cover: that the compiler
-# substitutes a plain `q<n>` name for the %q operand modifier for every
-# register the allocator can pick.
-#
-# 14.2.Rel1's objdump is the only decoder used. Earlier objdumps mis-render
-# MVE and cannot judge their own assembler's output.
-#
-# Usage:
-#   scripts/verify_vcvt_f16_fixup.py [--keep]
-#   ARM_TOOLCHAIN_ROOT=/path scripts/verify_vcvt_f16_fixup.py
+
+"""Mechanical proof for Include/Internal/arm_nn_vcvt_f16_fixup.h.
+
+The gas bundled with Arm GNU Toolchain releases before 14.2.Rel1 mis-encodes
+the Q-register form of VCVTB/VCVTT.F16<->F32, so the header emits those four
+conversions as raw instruction words instead. This script is the evidence that
+the substitute encoder is exact rather than merely plausible; see
+AmbiqAI/ns-cmsis-nn#427.
+
+Stage 1 assembles every q0..q7 x q0..q7 pair of all four forms twice, once as
+native mnemonics and once through the header's own gas macro (lifted out of the
+header by the preprocessor, so the two cannot drift), with each toolchain, and
+compares raw .text bytes.
+
+Stage 2 compiles the header's C wrappers with register allocation pinned to
+each pair, which is the part stage 1 cannot cover: that the compiler
+substitutes a plain `q<n>` name for the %q operand modifier for every register
+the allocator can pick.
+
+14.2.Rel1's objdump is the only decoder used, and that release must be
+installed: earlier objdumps mis-render MVE and cannot judge their own
+assembler's output.
+
+This is developer-side proof, not a CI gate: it wants every Arm GNU release in
+RELEASES side by side, which no runner image has.
+
+How to run it:
+
+    # Unpack the releases you have under one root, each in a directory named
+    # for its release, so that
+    #   <root>/13.2.rel1/arm-none-eabi/bin/arm-none-eabi-gcc
+    # exists. The default root is /Applications/ArmGNUToolchain.
+    scripts/verify_vcvt_f16_fixup.py
+    ARM_TOOLCHAIN_ROOT=/opt/arm scripts/verify_vcvt_f16_fixup.py
+    scripts/verify_vcvt_f16_fixup.py --keep   # leave the sources and objects
+
+Releases that are not installed are skipped with a notice. A PASS needs the
+judge plus at least one release on each side of the defect, because a run over
+only-defective or only-fixed toolchains proves nothing about the difference.
+"""
 
 import argparse
 import ast
@@ -42,13 +57,22 @@ REPO = Path(__file__).resolve().parent.parent
 
 TOOLCHAIN_ROOT = Path(os.environ.get("ARM_TOOLCHAIN_ROOT", "/Applications/ArmGNUToolchain"))
 
-# Releases whose gas is exercised. JUDGE is both the reference encoder and the
-# only decoder.
-RELEASES = ["12.2.rel1", "13.2.rel1", "13.3.rel1", "14.2.rel1"]
+# Releases whose gas is exercised, oldest first. JUDGE is both the reference
+# encoder and the only decoder, so it is the one release that cannot be
+# skipped.
+RELEASES = [
+    "12.2.rel1",
+    "13.2.rel1",
+    "13.3.rel1",
+    "14.2.rel1",
+    "14.3.rel1",
+    "15.2.rel1",
+    "15.3.rel1",
+]
 JUDGE = "14.2.rel1"
 
 # Releases expected to mis-encode the native mnemonics.
-DEFECTIVE = ["12.2.rel1", "13.2.rel1", "13.3.rel1"]
+DEFECTIVE = {"12.2.rel1", "13.2.rel1", "13.3.rel1"}
 
 CFLAGS = [
     "-mcpu=cortex-m55",
@@ -82,11 +106,20 @@ WRAPPERS = [
 REGS = range(8)
 
 
+def tool_path(release, name):
+    return TOOLCHAIN_ROOT / release / "arm-none-eabi" / "bin" / f"arm-none-eabi-{name}"
+
+
 def tool(release, name):
-    path = TOOLCHAIN_ROOT / release / "arm-none-eabi" / "bin" / f"arm-none-eabi-{name}"
+    path = tool_path(release, name)
     if not path.exists():
         sys.exit(f"missing tool: {path}")
     return str(path)
+
+
+def installed(release):
+    """A release counts as present only if every tool this script drives is."""
+    return all(tool_path(release, name).exists() for name in ("gcc", "objcopy", "objdump"))
 
 
 def run(cmd, **kwargs):
@@ -107,7 +140,7 @@ def includes():
     return args
 
 
-def extract_macro_text(work):
+def extract_macro_text(work, release):
     """Lift each form's asm template out of the header with the preprocessor.
 
     Preprocessed by a defective release so the fixup branch is the live one.
@@ -119,7 +152,7 @@ def extract_macro_text(work):
         body.append(f"NSVCVT_BEGIN {mnemonic} NSVCVT_MID ARM_NN_VCVT_FIXUP_ASM({word_macro}) NSVCVT_END")
     src.write_text("\n".join(body) + "\n")
 
-    out = run([tool(DEFECTIVE[1], "gcc"), "-E"] + CFLAGS + includes() + [str(src)]).stdout
+    out = run([tool(release, "gcc"), "-E"] + CFLAGS + includes() + [str(src)]).stdout
 
     texts = {}
     for chunk in re.findall(r"NSVCVT_BEGIN(.*?)NSVCVT_END", out, re.DOTALL):
@@ -180,8 +213,8 @@ def disassemble(obj):
     return rows
 
 
-def stage1(work, failures, summary):
-    macro_texts = extract_macro_text(work)
+def stage1(work, releases, failures, summary):
+    macro_texts = extract_macro_text(work, next(r for r in releases if r in DEFECTIVE))
     write_sources(work, macro_texts)
 
     expected = bytearray()
@@ -195,7 +228,7 @@ def stage1(work, failures, summary):
     native = {}
     shim = {}
     objects = {}
-    for release in RELEASES:
+    for release in releases:
         objects[release], native[release] = text_bytes(release, work / "native.S", work, f"native_{release}")
         _obj, shim[release] = text_bytes(release, work / "shim.S", work, f"shim_{release}")
 
@@ -207,7 +240,7 @@ def stage1(work, failures, summary):
     print("stage 1: 4 forms x 64 register pairs, assembled natively and through the shim")
     print(f"  reference: {JUDGE} native, {len(reference)} bytes, layout check "
           f"{'ok' if reference == bytes(expected) else 'FAILED'}")
-    for release in RELEASES:
+    for release in releases:
         shim_ok = shim[release] == reference
         native_ok = native[release] == reference
         bad = sum(1 for _s, _a, m, _o in disassemble(objects[release]) if m == "<UNDEFINED>")
@@ -222,10 +255,10 @@ def stage1(work, failures, summary):
             failures.append(f"stage 1: {JUDGE} native is not self-consistent")
 
     summary.append(f"stage 1: shim byte-identical to {JUDGE} native under "
-                   f"{sum(1 for r in RELEASES if shim[r] == reference)}/{len(RELEASES)} toolchains")
+                   f"{sum(1 for r in releases if shim[r] == reference)}/{len(releases)} toolchains")
 
 
-def stage2(work, failures, summary):
+def stage2(work, releases, failures, summary):
     """Compile the header's C wrappers with the allocation pinned to each pair.
 
     Stage 1 proves the encoder. This proves the operand path: that %q0 / %q1
@@ -271,7 +304,7 @@ def stage2(work, failures, summary):
     by_word = {base: mnemonic for mnemonic, base, _macro in FORMS}
 
     print("stage 2: the same 256 conversions through the C wrappers, allocation pinned per pair")
-    for release in RELEASES:
+    for release in releases:
         obj = work / f"pinned_{release}.o"
         listing = work / f"pinned_{release}.s"
         run([tool(release, "gcc"), "-c", "-O2"] + CFLAGS + includes() + [str(src), "-o", str(obj)])
@@ -324,18 +357,55 @@ def stage2(work, failures, summary):
     summary.append(f"stage 2: {len(cases)} wrapper sites per toolchain decode to the registers the compiler asked for")
 
 
+def select_releases():
+    """The installed subset of RELEASES, or None after explaining what is short.
+
+    Skipping is deliberate: nobody has all seven unpacked, and refusing to run
+    would make this proof unrunnable rather than partial. What cannot be
+    skipped is the judge, and having a release on each side of the defect --
+    an all-defective or all-fixed run compares the shim only against itself.
+    """
+    available = [r for r in RELEASES if installed(r)]
+    for release in RELEASES:
+        if release not in available:
+            print(f"notice: {release} is not installed under {TOOLCHAIN_ROOT}, skipping it")
+
+    if JUDGE not in available:
+        print(f"cannot run: {JUDGE} is the reference encoder and the only decoder, "
+              f"and it is not installed under {TOOLCHAIN_ROOT}.", file=sys.stderr)
+        return None
+    if not any(r in DEFECTIVE for r in available):
+        print("cannot run: no release with the defective assembler is installed, so "
+              f"nothing here would exercise the shim. Install one of {sorted(DEFECTIVE)}.",
+              file=sys.stderr)
+        return None
+    if not any(r not in DEFECTIVE for r in available):
+        print("cannot run: no release with a correct assembler is installed, so there "
+              "is nothing to judge the shim against.", file=sys.stderr)
+        return None
+
+    print(f"toolchain root: {TOOLCHAIN_ROOT}")
+    print(f"exercising: {', '.join(available)}   judge: {JUDGE}")
+    print()
+    return available
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--keep", action="store_true", help="keep the generated sources and objects")
     args = parser.parse_args()
 
+    releases = select_releases()
+    if releases is None:
+        return 1
+
     work = Path(tempfile.mkdtemp(prefix="nsvcvt-"))
     failures = []
     summary = []
     try:
-        stage1(work, failures, summary)
+        stage1(work, releases, failures, summary)
         print()
-        stage2(work, failures, summary)
+        stage2(work, releases, failures, summary)
     finally:
         if args.keep:
             print(f"\nartifacts: {work}")
