@@ -62,9 +62,10 @@ after the directory that attached the sources has finished is not there yet when
 the probe reads the target; and a build that never runs CMake at all gets no
 probe.
 
-Only a flag the probe cannot read at all can stop the witness from assembling,
-such as an include directory hidden inside a generator expression that a flag on
-the witness command line depends on. When that happens the probe refuses the
+The witness can still fail to assemble, most often because a flag the probe
+cannot read is missing, such as an include directory hidden inside a generator
+expression that another flag depends on, or because a flag on the target is
+itself invalid for this compiler. When that happens the probe refuses the
 configure and prints the flags it used and the assembler's own error, so an
 unmeasured assembler is never taken for a good one. Setting
 `ARM_NN_SKIP_GAS_F16_PROBE=ON` is the only way past that refusal.
