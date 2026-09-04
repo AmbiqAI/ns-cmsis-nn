@@ -22,7 +22,9 @@ name: Unity f16 exec (GCC floor)
 #
 # The suite list is scoped to the kernels that reach the conversion sites: a
 # wider net would import QEMU's own modelling quirks into a PR gate for no
-# added coverage of this class.
+# added coverage of this class. That scoping is derived from the tree and
+# checked against SUITES below, so a new kernel reaching a conversion cannot
+# quietly land outside this gate.
 
 on:
   workflow_call:
@@ -53,6 +55,92 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Assert SUITES covers every kernel reaching a conversion
+        # SUITES is hand-written, so on its own it decays into a stale list:
+        # a kernel added later that widens or narrows through the wrappers
+        # would be built by the rest of CI and executed by nothing. Derive the
+        # set from the tree instead and fail if SUITES is short of it.
+        #
+        # The reach is a fixed point over Include/, so a kernel that only ever
+        # calls a helper such as arm_nn_vexpq_poly_mve_f16 counts the same as
+        # one naming a wrapper itself. Attribution is by enclosing definition;
+        # definition heads sit at column 0 throughout this tree.
+        # See AmbiqAI/ns-cmsis-nn#427.
+        run: |
+          set -euo pipefail
+          python3 - "${SUITES}" <<'PY'
+          import os
+          import re
+          import sys
+
+          FIXUP = "Include/Internal/arm_nn_vcvt_f16_fixup.h"
+          DEF = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*(?:[\s*]+[A-Za-z_][A-Za-z0-9_]*)*)\s*\(")
+
+
+          def walk(root, ext):
+              for base, _, names in os.walk(root):
+                  for name in sorted(names):
+                      if name.endswith(ext):
+                          yield os.path.join(base, name)
+
+
+          def word(names):
+              return re.compile(r"(?<![A-Za-z0-9_])(?:%s)(?![A-Za-z0-9_])" % "|".join(sorted(names)))
+
+
+          # Functions defined in `path` whose body names one of `names`.
+          def enclosing(path, names):
+              hit, found, current = word(names), set(), None
+              with open(path, encoding="utf-8", errors="replace") as handle:
+                  for line in handle:
+                      head = DEF.match(line)
+                      if head:
+                          current = head.group(1).split()[-1].lstrip("*")
+                      if current and hit.search(line):
+                          found.add(current)
+              return found
+
+
+          def mentions(path, names):
+              with open(path, encoding="utf-8", errors="replace") as handle:
+                  return bool(word(names).search(handle.read()))
+
+
+          reaching = {"arm_nn_vcvtbq_f16_f32", "arm_nn_vcvttq_f16_f32",
+                      "arm_nn_vcvtbq_f32_f16", "arm_nn_vcvttq_f32_f16"}
+          while True:
+              # The fixup header defines the wrappers, so attributing there
+              # would only rediscover their own names.
+              grown = set(reaching)
+              for header in walk("Include", ".h"):
+                  if os.path.normpath(header) != os.path.normpath(FIXUP):
+                      grown |= enclosing(header, reaching)
+              if grown == reaching:
+                  break
+              reaching = grown
+
+          kernels = sorted(os.path.basename(c)[:-2] for c in walk("Source", ".c")
+                           if mentions(c, reaching))
+          declared = set(sys.argv[1].split())
+          print("conversion-reaching helpers: " + " ".join(sorted(reaching)))
+          print("kernels reaching a conversion: " + " ".join(kernels))
+          print("suites declared by SUITES: " + " ".join(sorted(declared)))
+
+          missing = [k for k in kernels if "test_" + k not in declared]
+          for kernel in missing:
+              suite = "test_" + kernel
+              why = ("has no suite directory at all"
+                     if not os.path.isdir(os.path.join("Tests/UnitTest/TestCases", suite))
+                     else "has a suite that SUITES omits")
+              print("::error title=f16 execution coverage gap::%s reaches the half<->single "
+                    "conversions and %s (%s). Add it to SUITES in this workflow, or write "
+                    "the suite first. See AmbiqAI/ns-cmsis-nn#427." % (kernel, why, suite),
+                    file=sys.stderr)
+          if missing:
+              sys.exit(1)
+          print("every conversion-reaching kernel has a suite in SUITES")
+          PY
 
       - name: Install QEMU
         # The apt version moves with the runner image. Assert a floor rather
@@ -244,11 +332,19 @@ jobs:
             kill "${qemu_pid}" 2>/dev/null || true
             wait "${qemu_pid}" 2>/dev/null || true
             tr -d '\r' < "${uart}"
-            if grep -qE '^OK' "${uart}" && grep -q ' 0 Failures ' "${uart}"; then
-              echo "${suite}: pass"
+            # Unity prints OK and " 0 Failures " for an empty run too, so
+            # take the verdict only alongside a test count above zero: a suite
+            # whose cases stopped being generated would otherwise pass here.
+            # NULs as well as CRs: the UART log carries both, and command
+            # substitution drops a NUL with a warning on stderr.
+            clean="$(tr -d '\r\000' < "${uart}")"
+            ran="$(sed -n 's/^\([0-9][0-9]*\) Tests .*/\1/p' <<<"${clean}" | tail -1)"
+            if grep -qE '^OK' <<<"${clean}" && grep -q ' 0 Failures ' <<<"${clean}" \
+              && [[ -n "${ran}" && "${ran}" -gt 0 ]]; then
+              echo "${suite}: pass (${ran} tests)"
             else
               rc=1
-              echo "::error title=f16 execution failed::${suite} did not report a clean Unity pass on the oldest gated GCC. See AmbiqAI/ns-cmsis-nn#427."
+              echo "::error title=f16 execution failed::${suite} did not report a clean Unity pass of at least one test on the oldest gated GCC (tests reported: ${ran:-none}). See AmbiqAI/ns-cmsis-nn#427."
               grep -E 'Taking exception' "${diag}" | sort -u \
                 || echo "(no exception taken)"
               # Unconditionally, because a model that never started prints
