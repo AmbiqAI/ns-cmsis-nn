@@ -32,24 +32,7 @@
  * @{
  */
 
-/*
- * The MVE leg is additionally gated on the toolchain: GNU binutils 2.39-2.42
- * (the gas bundled with Arm GNU Toolchain releases up to 13.3.Rel1)
- * mis-assembles the MVE Q-register form of VCVTB/VCVTT.F16<->F32, encoding
- * every Q operand with its D-register alias number (Qn emitted as Q2n): the
- * widen/narrow steps land in the wrong registers, and any doubled operand
- * past q7 overflows the field into an UNDEFINED encoding (this kernel's
- * vcvtb.f16.f32 q3, q4 assembles to 0xee3fce11 with those assemblers, which
- * faults before any output on FVP Corstone-300). Fixed in binutils 2.43.1,
- * bundled from Arm GNU Toolchain 14.2.Rel1. The preprocessor cannot see the
- * assembler version, so this keys on the compiler major each Arm GNU release
- * pairs with it: a GCC < 14 build takes the scalar leg below, which returns
- * the same bits for every input (both legs narrow identical float32
- * products), just without the vector speedup. Clang encodes MVE itself and
- * is unaffected.
- */
-    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE) &&                                           \
-        (defined(__clang__) || !defined(__GNUC__) || __GNUC__ >= 14)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
         #define ARM_NN_HARD_SWISH_F16_MVE 1
     #else
         #define ARM_NN_HARD_SWISH_F16_MVE 0
