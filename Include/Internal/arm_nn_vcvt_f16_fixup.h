@@ -44,9 +44,11 @@
      * to what a correct assembler produces. See AmbiqAI/ns-cmsis-nn#427.
      *
      * The preprocessor cannot see the assembler version, so this keys on the
-     * compiler major that each Arm GNU release pairs with its binutils. Clang
-     * encodes MVE itself and is never affected; there the names below expand
-     * straight to the intrinsics.
+     * compiler major that each Arm GNU release pairs with its binutils. That
+     * proxy holds for the Arm GNU releases; a GCC 14 or newer built by hand
+     * against an older binutils is outside what this covers. Clang encodes MVE
+     * itself and is never affected; there the names below expand straight to
+     * the intrinsics.
      */
     #if defined(__GNUC__) && !defined(__clang__) && (__GNUC__ < 14)
         #define ARM_NN_VCVT_F16_FIXUP 1
@@ -70,9 +72,16 @@
          * Defined and purged inside the asm block so that every expansion, including
          * any copy the compiler makes, is self-contained. The .set names are .L-local
          * so they never reach the symbol table.
+         *
+         * They do outlive .purgem, though, so a name the .irp fails to match would
+         * silently inherit the previous expansion's register number and encode a
+         * conversion between the wrong registers. Seeding them out of range makes
+         * that a build failure instead.
          */
         #define ARM_NN_VCVT_FIXUP_ASM(word)                                                                            \
             ".macro ns_vcvt_fixup enc, qd, qm\n"                                                                       \
+            ".set .Lns_vcvt_qd, -1\n"                                                                                  \
+            ".set .Lns_vcvt_qm, -1\n"                                                                                  \
             ".irp num,0,1,2,3,4,5,6,7\n"                                                                               \
             ".ifc \\qd, q\\num\n"                                                                                      \
             ".set .Lns_vcvt_qd, \\num\n"                                                                               \
@@ -81,6 +90,9 @@
             ".set .Lns_vcvt_qm, \\num\n"                                                                               \
             ".endif\n"                                                                                                 \
             ".endr\n"                                                                                                  \
+            ".if (.Lns_vcvt_qd < 0) || (.Lns_vcvt_qm < 0)\n"                                                           \
+            ".error \"ns_vcvt_fixup: operand is not one of q0-q7\"\n"                                                  \
+            ".endif\n"                                                                                                 \
             ".inst.w \\enc + (.Lns_vcvt_qd << 13) + (.Lns_vcvt_qm << 1)\n"                                             \
             ".endm\n"                                                                                                  \
             "ns_vcvt_fixup " word ", %q0, %q1\n"                                                                       \
