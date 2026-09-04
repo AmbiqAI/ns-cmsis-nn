@@ -45,8 +45,8 @@ void arm_nn_maxpool1d_k3s3_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
     #else
         for (int32_t c = 0; c < in_c; ++c)
         {
-            float32_t max_val = MAX(x0[c], x1[c]);
-            out[(size_t)ow * (size_t)in_c + (size_t)c] = MAX(max_val, x2[c]);
+            float32_t max_val = ARM_NN_MAX(x0[c], x1[c]);
+            out[(size_t)ow * (size_t)in_c + (size_t)c] = ARM_NN_MAX(max_val, x2[c]);
         }
     #endif
     }
@@ -74,7 +74,7 @@ void arm_nn_maxpool1d_k2s2_nhwc_noclip_f32(const float32_t *__RESTRICT x_nhwc,
     #else
         for (int32_t c = 0; c < in_c; ++c)
         {
-            out[(size_t)ow * (size_t)in_c + (size_t)c] = MAX(x0[c], x1[c]);
+            out[(size_t)ow * (size_t)in_c + (size_t)c] = ARM_NN_MAX(x0[c], x1[c]);
         }
     #endif
     }

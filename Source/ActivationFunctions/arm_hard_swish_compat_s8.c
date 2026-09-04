@@ -163,7 +163,7 @@ arm_cmsis_nn_status arm_hard_swish_compat_s8(const int8_t *input,
 
         // Add output offset and clamp the result
         int32_t y8 = (int32_t)y + output_offset;
-        y8 = CLAMP(y8, INT8_MAX, INT8_MIN);
+        y8 = ARM_NN_CLAMP(y8, INT8_MAX, INT8_MIN);
 
         output[i] = (int8_t)y8;
     }

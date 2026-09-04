@@ -117,8 +117,8 @@ arm_cmsis_nn_status arm_elementwise_mul_acc_s16(const int16_t *input_1_vect,
         mul_res = arm_nn_requantize(mul_res, out_mult, out_shift);
         mul_res += output[0];
 
-        mul_res = MAX(mul_res, activation_min);
-        mul_res = MIN(mul_res, activation_max);
+        mul_res = ARM_NN_MAX(mul_res, activation_min);
+        mul_res = ARM_NN_MIN(mul_res, activation_max);
         mul_1 = (int16_t)mul_res;
 
     #if defined(ARM_MATH_DSP)
@@ -130,8 +130,8 @@ arm_cmsis_nn_status arm_elementwise_mul_acc_s16(const int16_t *input_1_vect,
     #endif
         mul_res = arm_nn_requantize(mul_res, out_mult, out_shift);
         mul_res += output[1];
-        mul_res = MAX(mul_res, activation_min);
-        mul_res = MIN(mul_res, activation_max);
+        mul_res = ARM_NN_MAX(mul_res, activation_min);
+        mul_res = ARM_NN_MIN(mul_res, activation_max);
         mul_2 = (int16_t)mul_res;
 
         arm_nn_write_q15x2_ia(&output, PACK_Q15x2_32x1(mul_1, mul_2));
@@ -151,8 +151,8 @@ arm_cmsis_nn_status arm_elementwise_mul_acc_s16(const int16_t *input_1_vect,
         mul_res = arm_nn_requantize(mul_res, out_mult, out_shift);
         mul_res += output[0];
 
-        mul_res = MAX(mul_res, activation_min);
-        mul_res = MIN(mul_res, activation_max);
+        mul_res = ARM_NN_MAX(mul_res, activation_min);
+        mul_res = ARM_NN_MIN(mul_res, activation_max);
 
         *output++ = (int16_t)mul_res;
 

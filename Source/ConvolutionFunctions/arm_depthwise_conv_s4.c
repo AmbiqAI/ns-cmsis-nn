@@ -102,27 +102,27 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                             if (dilation_x > 1)
                             {
                                 const int32_t start_x_max = (-base_idx_x + dilation_x - 1) / dilation_x;
-                                ker_x_start = MAX(0, start_x_max);
+                                ker_x_start = ARM_NN_MAX(0, start_x_max);
                                 const int32_t end_min_x = (input_x - base_idx_x + dilation_x - 1) / dilation_x;
-                                ker_x_end = MIN(kernel_x, end_min_x);
+                                ker_x_end = ARM_NN_MIN(kernel_x, end_min_x);
                             }
                             else
                             {
-                                ker_x_start = MAX(0, -base_idx_x);
-                                ker_x_end = MIN(kernel_x, input_x - base_idx_x);
+                                ker_x_start = ARM_NN_MAX(0, -base_idx_x);
+                                ker_x_end = ARM_NN_MIN(kernel_x, input_x - base_idx_x);
                             }
 
                             if (dilation_y > 1)
                             {
                                 const int32_t start_y_max = (-base_idx_y + dilation_y - 1) / dilation_y;
-                                ker_y_start = MAX(0, start_y_max);
+                                ker_y_start = ARM_NN_MAX(0, start_y_max);
                                 const int32_t end_min_y = (input_y - base_idx_y + dilation_y - 1) / dilation_y;
-                                ker_y_end = MIN(kernel_y, end_min_y);
+                                ker_y_end = ARM_NN_MIN(kernel_y, end_min_y);
                             }
                             else
                             {
-                                ker_y_start = MAX(0, -base_idx_y);
-                                ker_y_end = MIN(kernel_y, input_y - base_idx_y);
+                                ker_y_start = ARM_NN_MAX(0, -base_idx_y);
+                                ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
                             }
 
                             if (bias)
@@ -160,14 +160,14 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                             /* Requantize and clamp output to provided range */
                             acc_0 = arm_nn_requantize(acc_0, output_mult[i_input_ch], output_shift[i_input_ch]);
                             acc_0 += output_offset;
-                            acc_0 = MAX(acc_0, output_activation_min);
-                            acc_0 = MIN(acc_0, output_activation_max);
+                            acc_0 = ARM_NN_MAX(acc_0, output_activation_min);
+                            acc_0 = ARM_NN_MIN(acc_0, output_activation_max);
                             output[i_out++] = acc_0;
 
                             acc_1 = arm_nn_requantize(acc_1, output_mult[i_input_ch + 1], output_shift[i_input_ch + 1]);
                             acc_1 += output_offset;
-                            acc_1 = MAX(acc_1, output_activation_min);
-                            acc_1 = MIN(acc_1, output_activation_max);
+                            acc_1 = ARM_NN_MAX(acc_1, output_activation_min);
+                            acc_1 = ARM_NN_MIN(acc_1, output_activation_max);
                             output[i_out++] = acc_1;
                         }
                     }
@@ -194,27 +194,27 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                                 if (dilation_x > 1)
                                 {
                                     const int32_t start_x_max = (-base_idx_x + dilation_x - 1) / dilation_x;
-                                    ker_x_start = MAX(0, start_x_max);
+                                    ker_x_start = ARM_NN_MAX(0, start_x_max);
                                     const int32_t end_min_x = (input_x - base_idx_x + dilation_x - 1) / dilation_x;
-                                    ker_x_end = MIN(kernel_x, end_min_x);
+                                    ker_x_end = ARM_NN_MIN(kernel_x, end_min_x);
                                 }
                                 else
                                 {
-                                    ker_x_start = MAX(0, -base_idx_x);
-                                    ker_x_end = MIN(kernel_x, input_x - base_idx_x);
+                                    ker_x_start = ARM_NN_MAX(0, -base_idx_x);
+                                    ker_x_end = ARM_NN_MIN(kernel_x, input_x - base_idx_x);
                                 }
 
                                 if (dilation_y > 1)
                                 {
                                     const int32_t start_y_max = (-base_idx_y + dilation_y - 1) / dilation_y;
-                                    ker_y_start = MAX(0, start_y_max);
+                                    ker_y_start = ARM_NN_MAX(0, start_y_max);
                                     const int32_t end_min_y = (input_y - base_idx_y + dilation_y - 1) / dilation_y;
-                                    ker_y_end = MIN(kernel_y, end_min_y);
+                                    ker_y_end = ARM_NN_MIN(kernel_y, end_min_y);
                                 }
                                 else
                                 {
-                                    ker_y_start = MAX(0, -base_idx_y);
-                                    ker_y_end = MIN(kernel_y, input_y - base_idx_y);
+                                    ker_y_start = ARM_NN_MAX(0, -base_idx_y);
+                                    ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
                                 }
 
                                 if (bias)
@@ -258,8 +258,8 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                                 /* Requantize and clamp output to provided range */
                                 acc_0 = arm_nn_requantize(acc_0, output_mult[idx_out_ch], output_shift[idx_out_ch]);
                                 acc_0 += output_offset;
-                                acc_0 = MAX(acc_0, output_activation_min);
-                                acc_0 = MIN(acc_0, output_activation_max);
+                                acc_0 = ARM_NN_MAX(acc_0, output_activation_min);
+                                acc_0 = ARM_NN_MIN(acc_0, output_activation_max);
                                 output[i_out++] = acc_0;
                             }
                         }
@@ -286,27 +286,27 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                                 if (dilation_x > 1)
                                 {
                                     const int32_t start_x_max = (-base_idx_x + dilation_x - 1) / dilation_x;
-                                    ker_x_start = MAX(0, start_x_max);
+                                    ker_x_start = ARM_NN_MAX(0, start_x_max);
                                     const int32_t end_min_x = (input_x - base_idx_x + dilation_x - 1) / dilation_x;
-                                    ker_x_end = MIN(kernel_x, end_min_x);
+                                    ker_x_end = ARM_NN_MIN(kernel_x, end_min_x);
                                 }
                                 else
                                 {
-                                    ker_x_start = MAX(0, -base_idx_x);
-                                    ker_x_end = MIN(kernel_x, input_x - base_idx_x);
+                                    ker_x_start = ARM_NN_MAX(0, -base_idx_x);
+                                    ker_x_end = ARM_NN_MIN(kernel_x, input_x - base_idx_x);
                                 }
 
                                 if (dilation_y > 1)
                                 {
                                     const int32_t start_y_max = (-base_idx_y + dilation_y - 1) / dilation_y;
-                                    ker_y_start = MAX(0, start_y_max);
+                                    ker_y_start = ARM_NN_MAX(0, start_y_max);
                                     const int32_t end_min_y = (input_y - base_idx_y + dilation_y - 1) / dilation_y;
-                                    ker_y_end = MIN(kernel_y, end_min_y);
+                                    ker_y_end = ARM_NN_MIN(kernel_y, end_min_y);
                                 }
                                 else
                                 {
-                                    ker_y_start = MAX(0, -base_idx_y);
-                                    ker_y_end = MIN(kernel_y, input_y - base_idx_y);
+                                    ker_y_start = ARM_NN_MAX(0, -base_idx_y);
+                                    ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
                                 }
 
                                 if (bias)
@@ -345,15 +345,15 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                                 /* Requantize and clamp output to provided range */
                                 acc_0 = arm_nn_requantize(acc_0, output_mult[idx_out_ch], output_shift[idx_out_ch]);
                                 acc_0 += output_offset;
-                                acc_0 = MAX(acc_0, output_activation_min);
-                                acc_0 = MIN(acc_0, output_activation_max);
+                                acc_0 = ARM_NN_MAX(acc_0, output_activation_min);
+                                acc_0 = ARM_NN_MIN(acc_0, output_activation_max);
                                 output[i_out++] = acc_0;
 
                                 acc_1 =
                                     arm_nn_requantize(acc_1, output_mult[idx_out_ch + 1], output_shift[idx_out_ch + 1]);
                                 acc_1 += output_offset;
-                                acc_1 = MAX(acc_1, output_activation_min);
-                                acc_1 = MIN(acc_1, output_activation_max);
+                                acc_1 = ARM_NN_MAX(acc_1, output_activation_min);
+                                acc_1 = ARM_NN_MIN(acc_1, output_activation_max);
                                 output[i_out++] = acc_1;
                             }
                         }
@@ -398,27 +398,27 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                             if (dilation_x > 1)
                             {
                                 const int32_t start_x_max = (-base_idx_x + dilation_x - 1) / dilation_x;
-                                ker_x_start = MAX(0, start_x_max);
+                                ker_x_start = ARM_NN_MAX(0, start_x_max);
                                 const int32_t end_min_x = (input_x - base_idx_x + dilation_x - 1) / dilation_x;
-                                ker_x_end = MIN(kernel_x, end_min_x);
+                                ker_x_end = ARM_NN_MIN(kernel_x, end_min_x);
                             }
                             else
                             {
-                                ker_x_start = MAX(0, -base_idx_x);
-                                ker_x_end = MIN(kernel_x, input_x - base_idx_x);
+                                ker_x_start = ARM_NN_MAX(0, -base_idx_x);
+                                ker_x_end = ARM_NN_MIN(kernel_x, input_x - base_idx_x);
                             }
 
                             if (dilation_y > 1)
                             {
                                 const int32_t start_y_max = (-base_idx_y + dilation_y - 1) / dilation_y;
-                                ker_y_start = MAX(0, start_y_max);
+                                ker_y_start = ARM_NN_MAX(0, start_y_max);
                                 const int32_t end_min_y = (input_y - base_idx_y + dilation_y - 1) / dilation_y;
-                                ker_y_end = MIN(kernel_y, end_min_y);
+                                ker_y_end = ARM_NN_MIN(kernel_y, end_min_y);
                             }
                             else
                             {
-                                ker_y_start = MAX(0, -base_idx_y);
-                                ker_y_end = MIN(kernel_y, input_y - base_idx_y);
+                                ker_y_start = ARM_NN_MAX(0, -base_idx_y);
+                                ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
                             }
 
                             if (bias)
@@ -467,8 +467,8 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                             /* Requantize and clamp output to provided range */
                             acc_0 = arm_nn_requantize(acc_0, output_mult[idx_out_ch], output_shift[idx_out_ch]);
                             acc_0 += output_offset;
-                            acc_0 = MAX(acc_0, output_activation_min);
-                            acc_0 = MIN(acc_0, output_activation_max);
+                            acc_0 = ARM_NN_MAX(acc_0, output_activation_min);
+                            acc_0 = ARM_NN_MIN(acc_0, output_activation_max);
 
                             output[i_out++] = acc_0;
                         }

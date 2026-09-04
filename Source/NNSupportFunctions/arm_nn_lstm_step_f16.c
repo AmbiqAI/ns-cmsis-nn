@@ -140,7 +140,7 @@ arm_cmsis_nn_status arm_nn_lstm_step_f16(const float16_t *data_in,
          * the last hidden_size % 8 units of the same tensor (#315). Inactive lanes carry zeros. */
         for (; h < hidden_size; h += 8)
         {
-            const int32_t lanes = MIN(8, hidden_size - h);
+            const int32_t lanes = ARM_NN_MIN(8, hidden_size - h);
             const mve_pred16_t p = vctp16q((uint32_t)lanes);
             float16_t f_gate[8] = {0};
             float16_t i_gate[8] = {0};

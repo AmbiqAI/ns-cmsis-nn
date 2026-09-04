@@ -60,7 +60,7 @@ static float32_t tanh_pre_250_ref_f32(float32_t x)
 
     const float32_t t = ax * (256.0f / xmax);
     int32_t idx = (int32_t)t;
-    idx = CLAMP(idx, 255, 0);
+    idx = ARM_NN_CLAMP(idx, 255, 0);
     const float32_t frac = t - (float32_t)idx;
     const float32_t y0 = arm_nn_tanh_lut_f32[idx];
     const float32_t y1 = arm_nn_tanh_lut_f32[idx + 1];

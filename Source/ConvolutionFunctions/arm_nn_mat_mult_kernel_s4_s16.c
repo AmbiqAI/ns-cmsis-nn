@@ -168,15 +168,15 @@ int8_t *arm_nn_mat_mult_kernel_s4_s16(const int8_t *packed_input_a,
 
         ch_0_out_0 = arm_nn_requantize(ch_0_out_0, *out_mult, *out_shift);
         ch_0_out_0 += out_offset;
-        ch_0_out_0 = MAX(ch_0_out_0, activation_min);
-        ch_0_out_0 = MIN(ch_0_out_0, activation_max);
+        ch_0_out_0 = ARM_NN_MAX(ch_0_out_0, activation_min);
+        ch_0_out_0 = ARM_NN_MIN(ch_0_out_0, activation_max);
         *out_0 = (int8_t)ch_0_out_0;
         out_0 += 2;
 
         ch_0_out_1 = arm_nn_requantize(ch_0_out_1, *out_mult, *out_shift);
         ch_0_out_1 += out_offset;
-        ch_0_out_1 = MAX(ch_0_out_1, activation_min);
-        ch_0_out_1 = MIN(ch_0_out_1, activation_max);
+        ch_0_out_1 = ARM_NN_MAX(ch_0_out_1, activation_min);
+        ch_0_out_1 = ARM_NN_MIN(ch_0_out_1, activation_max);
         *out_1 = (int8_t)ch_0_out_1;
         out_1 += 2;
         out_mult += 2;
@@ -184,14 +184,14 @@ int8_t *arm_nn_mat_mult_kernel_s4_s16(const int8_t *packed_input_a,
 
         ch_1_out_0 = arm_nn_requantize(ch_1_out_0, *out_mult, *out_shift);
         ch_1_out_0 += out_offset;
-        ch_1_out_0 = MAX(ch_1_out_0, activation_min);
-        ch_1_out_0 = MIN(ch_1_out_0, activation_max);
+        ch_1_out_0 = ARM_NN_MAX(ch_1_out_0, activation_min);
+        ch_1_out_0 = ARM_NN_MIN(ch_1_out_0, activation_max);
         *out_0-- = (int8_t)ch_1_out_0;
 
         ch_1_out_1 = arm_nn_requantize(ch_1_out_1, *out_mult, *out_shift);
         ch_1_out_1 += out_offset;
-        ch_1_out_1 = MAX(ch_1_out_1, activation_min);
-        ch_1_out_1 = MIN(ch_1_out_1, activation_max);
+        ch_1_out_1 = ARM_NN_MAX(ch_1_out_1, activation_min);
+        ch_1_out_1 = ARM_NN_MIN(ch_1_out_1, activation_max);
         *out_1-- = (int8_t)ch_1_out_1;
         out_mult--;
         out_shift--;
@@ -295,15 +295,15 @@ int8_t *arm_nn_mat_mult_kernel_s4_s16(const int8_t *packed_input_a,
 
         ch_0_out_0 = arm_nn_requantize(ch_0_out_0, *out_mult, *out_shift);
         ch_0_out_0 += out_offset;
-        ch_0_out_0 = MAX(ch_0_out_0, activation_min);
-        ch_0_out_0 = MIN(ch_0_out_0, activation_max);
+        ch_0_out_0 = ARM_NN_MAX(ch_0_out_0, activation_min);
+        ch_0_out_0 = ARM_NN_MIN(ch_0_out_0, activation_max);
         *out_0 = (int8_t)ch_0_out_0;
         out_0 += 2;
 
         ch_0_out_1 = arm_nn_requantize(ch_0_out_1, *out_mult, *out_shift);
         ch_0_out_1 += out_offset;
-        ch_0_out_1 = MAX(ch_0_out_1, activation_min);
-        ch_0_out_1 = MIN(ch_0_out_1, activation_max);
+        ch_0_out_1 = ARM_NN_MAX(ch_0_out_1, activation_min);
+        ch_0_out_1 = ARM_NN_MIN(ch_0_out_1, activation_max);
         *out_1 = (int8_t)ch_0_out_1;
         out_1 += 2;
         out_mult += 2;
@@ -311,14 +311,14 @@ int8_t *arm_nn_mat_mult_kernel_s4_s16(const int8_t *packed_input_a,
 
         ch_1_out_0 = arm_nn_requantize(ch_1_out_0, *out_mult, *out_shift);
         ch_1_out_0 += out_offset;
-        ch_1_out_0 = MAX(ch_1_out_0, activation_min);
-        ch_1_out_0 = MIN(ch_1_out_0, activation_max);
+        ch_1_out_0 = ARM_NN_MAX(ch_1_out_0, activation_min);
+        ch_1_out_0 = ARM_NN_MIN(ch_1_out_0, activation_max);
         *out_0++ = (int8_t)ch_1_out_0;
 
         ch_1_out_1 = arm_nn_requantize(ch_1_out_1, *out_mult, *out_shift);
         ch_1_out_1 += out_offset;
-        ch_1_out_1 = MAX(ch_1_out_1, activation_min);
-        ch_1_out_1 = MIN(ch_1_out_1, activation_max);
+        ch_1_out_1 = ARM_NN_MAX(ch_1_out_1, activation_min);
+        ch_1_out_1 = ARM_NN_MIN(ch_1_out_1, activation_max);
         *out_1++ = (int8_t)ch_1_out_1;
         out_mult++;
         out_shift++;
@@ -417,14 +417,14 @@ int8_t *arm_nn_mat_mult_kernel_s4_s16(const int8_t *packed_input_a,
         }
         ch_0_out_0 = arm_nn_requantize(ch_0_out_0, *out_mult, *out_shift);
         ch_0_out_0 += out_offset;
-        ch_0_out_0 = MAX(ch_0_out_0, activation_min);
-        ch_0_out_0 = MIN(ch_0_out_0, activation_max);
+        ch_0_out_0 = ARM_NN_MAX(ch_0_out_0, activation_min);
+        ch_0_out_0 = ARM_NN_MIN(ch_0_out_0, activation_max);
         *out_0++ = (int8_t)ch_0_out_0;
 
         ch_0_out_1 = arm_nn_requantize(ch_0_out_1, *out_mult, *out_shift);
         ch_0_out_1 += out_offset;
-        ch_0_out_1 = MAX(ch_0_out_1, activation_min);
-        ch_0_out_1 = MIN(ch_0_out_1, activation_max);
+        ch_0_out_1 = ARM_NN_MAX(ch_0_out_1, activation_min);
+        ch_0_out_1 = ARM_NN_MIN(ch_0_out_1, activation_max);
         *out_1++ = (int8_t)ch_0_out_1;
         out_mult++;
         out_shift++;

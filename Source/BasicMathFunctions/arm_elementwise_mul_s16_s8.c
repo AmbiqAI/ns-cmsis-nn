@@ -102,12 +102,12 @@ arm_cmsis_nn_status arm_elementwise_mul_s16_s8(const int16_t *input_1_vect,
 
             int32_t mul_res = SMULBB(input_1, input_2);
             mul_res = arm_nn_requantize(mul_res, out_mult, out_shift) + out_offset;
-            mul_res = CLAMP(mul_res, NN_Q7_MAX, NN_Q7_MIN);
+            mul_res = ARM_NN_CLAMP(mul_res, NN_Q7_MAX, NN_Q7_MIN);
             int32_t mul = (int16_t)(mul_res & 0xFF);
 
             mul_res = SMULTT(input_1, input_2);
             mul_res = arm_nn_requantize(mul_res, out_mult, out_shift) + out_offset;
-            mul_res = CLAMP(mul_res, NN_Q7_MAX, NN_Q7_MIN);
+            mul_res = ARM_NN_CLAMP(mul_res, NN_Q7_MAX, NN_Q7_MIN);
             mul |= (int16_t)mul_res << 8;
 
             arm_nn_write_s8x2_ia(&output, mul);
@@ -120,7 +120,7 @@ arm_cmsis_nn_status arm_elementwise_mul_s16_s8(const int16_t *input_1_vect,
             int32_t mul_res = (*input_1_vect) * (*input_2_vect);
             mul_res = arm_nn_requantize(mul_res, out_mult, out_shift) + out_offset;
 
-            mul_res = CLAMP(mul_res, NN_Q7_MAX, NN_Q7_MIN);
+            mul_res = ARM_NN_CLAMP(mul_res, NN_Q7_MAX, NN_Q7_MIN);
 
             *output = (int8_t)mul_res;
         }

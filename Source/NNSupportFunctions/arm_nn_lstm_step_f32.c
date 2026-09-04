@@ -142,7 +142,7 @@ arm_cmsis_nn_status arm_nn_lstm_step_f32(const float32_t *data_in,
          * tanh legs agree; the split shows up in the cell state (#315). Inactive lanes carry zeros. */
         for (; h < hidden_size; h += 4)
         {
-            const int32_t lanes = MIN(4, hidden_size - h);
+            const int32_t lanes = ARM_NN_MIN(4, hidden_size - h);
             const mve_pred16_t p = vctp32q((uint32_t)lanes);
             float32_t f_gate[4] = {0};
             float32_t i_gate[4] = {0};
@@ -192,7 +192,7 @@ arm_cmsis_nn_status arm_nn_lstm_step_f32(const float32_t *data_in,
             float32_t c = f * c_prev[h] + i * g;
             if (cell_clip > 0.0f)
             {
-                c = CLAMP(c, cell_clip, -cell_clip);
+                c = ARM_NN_CLAMP(c, cell_clip, -cell_clip);
             }
             c_prev[h] = c;
             h_out[h] = o * arm_nn_tanh_scalar_ref_f32(c);

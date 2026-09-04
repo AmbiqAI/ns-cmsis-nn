@@ -157,7 +157,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f32(const float32_t *__RESTRICT lhs,
     #else
             acc += dot_nt_t_f32_scalar(lhs_row, rhs_row, rhs_cols);
     #endif
-            dst_row[c] = CLAMP(acc, activation_max, activation_min);
+            dst_row[c] = ARM_NN_CLAMP(acc, activation_max, activation_min);
         }
     }
 

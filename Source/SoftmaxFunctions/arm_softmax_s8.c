@@ -194,7 +194,7 @@ void arm_softmax_s8(const int8_t *input,
                 const int32_t res =
                     DIV_POW2(MUL_SAT(shifted_scale, EXP_ON_NEG(MUL_SAT(diff * mask, mult))), bits_over_unit) +
                     NN_Q7_MIN;
-                output[tail_idx + i] = (int8_t)CLAMP(res, (int32_t)ACT_MAX, (int32_t)ACT_MIN);
+                output[tail_idx + i] = (int8_t)ARM_NN_CLAMP(res, (int32_t)ACT_MAX, (int32_t)ACT_MIN);
             }
             else
             {

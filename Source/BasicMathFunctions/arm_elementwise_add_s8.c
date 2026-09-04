@@ -146,8 +146,8 @@ arm_cmsis_nn_status arm_elementwise_add_s8(const int8_t *input_1_vect,
         sum = input_1 + input_2;
         sum = arm_nn_requantize(sum, out_mult, out_shift);
         sum += out_offset;
-        sum = MAX(sum, out_activation_min);
-        sum = MIN(sum, out_activation_max);
+        sum = ARM_NN_MAX(sum, out_activation_min);
+        sum = ARM_NN_MIN(sum, out_activation_max);
         r1 = (int8_t)sum;
 
         /* Sum 3 */
@@ -160,8 +160,8 @@ arm_cmsis_nn_status arm_elementwise_add_s8(const int8_t *input_1_vect,
         sum = input_1 + input_2;
         sum = arm_nn_requantize(sum, out_mult, out_shift);
         sum += out_offset;
-        sum = MAX(sum, out_activation_min);
-        sum = MIN(sum, out_activation_max);
+        sum = ARM_NN_MAX(sum, out_activation_min);
+        sum = ARM_NN_MIN(sum, out_activation_max);
         r3 = (int8_t)sum;
 
         /* Sum 2 */
@@ -174,8 +174,8 @@ arm_cmsis_nn_status arm_elementwise_add_s8(const int8_t *input_1_vect,
         sum = input_1 + input_2;
         sum = arm_nn_requantize(sum, out_mult, out_shift);
         sum += out_offset;
-        sum = MAX(sum, out_activation_min);
-        sum = MIN(sum, out_activation_max);
+        sum = ARM_NN_MAX(sum, out_activation_min);
+        sum = ARM_NN_MIN(sum, out_activation_max);
         r2 = (int8_t)sum;
 
         /* Sum 4 */
@@ -188,8 +188,8 @@ arm_cmsis_nn_status arm_elementwise_add_s8(const int8_t *input_1_vect,
         sum = input_1 + input_2;
         sum = arm_nn_requantize(sum, out_mult, out_shift);
         sum += out_offset;
-        sum = MAX(sum, out_activation_min);
-        sum = MIN(sum, out_activation_max);
+        sum = ARM_NN_MAX(sum, out_activation_min);
+        sum = ARM_NN_MIN(sum, out_activation_max);
         r4 = (int8_t)sum;
 
         arm_nn_write_s8x4_ia(&output, PACK_S8x4_32x1(r1, r2, r3, r4));
@@ -216,8 +216,8 @@ arm_cmsis_nn_status arm_elementwise_add_s8(const int8_t *input_1_vect,
         sum = arm_nn_requantize(sum, out_mult, out_shift);
         sum += out_offset;
 
-        sum = MAX(sum, out_activation_min);
-        sum = MIN(sum, out_activation_max);
+        sum = ARM_NN_MAX(sum, out_activation_min);
+        sum = ARM_NN_MIN(sum, out_activation_max);
 
         *output++ = (int8_t)sum;
 

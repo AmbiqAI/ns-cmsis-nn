@@ -276,7 +276,7 @@ arm_cmsis_nn_status arm_svdf_s8(const cmsis_nn_context *ctx,
 #else
     for (int i = 0; i < input_batches * unit_count; i++)
     {
-        output_data[i] = (int8_t)CLAMP(
+        output_data[i] = (int8_t)ARM_NN_CLAMP(
             arm_nn_requantize(buffer_b[i], multiplier_out, shift_2) + zp_out, out_activation_max, out_activation_min);
     }
 #endif

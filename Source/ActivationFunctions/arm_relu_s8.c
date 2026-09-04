@@ -61,8 +61,8 @@ arm_cmsis_nn_status arm_relu_generic_s8(const int8_t *input,
 
     int32_t flat_size = output_size;
 
-    const int32_t quantized_min = MAX(INT8_MIN, act_min);
-    const int32_t quantized_max = MIN(INT8_MAX, act_max);
+    const int32_t quantized_min = ARM_NN_MAX(INT8_MIN, act_min);
+    const int32_t quantized_max = ARM_NN_MIN(INT8_MAX, act_max);
 
 #if defined(ARM_MATH_MVEI)
     // Perform 4 operations in parallel
@@ -99,7 +99,7 @@ arm_cmsis_nn_status arm_relu_generic_s8(const int8_t *input,
         res = arm_nn_requantize(res, output_multiplier, output_shift);
         res += output_offset;
         // Clamp the result
-        res = CLAMP(res, quantized_max, quantized_min);
+        res = ARM_NN_CLAMP(res, quantized_max, quantized_min);
         // Store the result
         output[i] = (int8_t)res;
     }

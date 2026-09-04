@@ -64,9 +64,10 @@ static void UNUSED_ATTR depthwise_conv_s16_mult_4_s16(const int16_t *input,
 {
     for (int32_t in_h = -pad_y, out_h = 0, out_idx = 0; out_h < output_y; in_h += stride_y, ++out_h)
     {
-        for (int32_t in_w = -pad_x, out_w = 0, ker_h_start = MAX(0, -in_h); out_w < output_x; in_w += stride_x, ++out_w)
+        for (int32_t in_w = -pad_x, out_w = 0, ker_h_start = ARM_NN_MAX(0, -in_h); out_w < output_x;
+             in_w += stride_x, ++out_w)
         {
-            for (int32_t in_ch = 0, out_ch = 0, ker_w_start = MAX(0, -in_w); out_ch < output_ch;
+            for (int32_t in_ch = 0, out_ch = 0, ker_w_start = ARM_NN_MAX(0, -in_w); out_ch < output_ch;
                  ++in_ch, out_ch += ch_mult)
             {
                 for (int mult_tile = 0; mult_tile < ch_mult; mult_tile += 4)
@@ -86,14 +87,14 @@ static void UNUSED_ATTR depthwise_conv_s16_mult_4_s16(const int16_t *input,
                         out_buff[3] = bias[out_ch + 3 + mult_tile];
                     }
 
-                    for (int32_t ker_h = ker_h_start; ker_h < MIN(kernel_y, input_y - in_h); ++ker_h)
+                    for (int32_t ker_h = ker_h_start; ker_h < ARM_NN_MIN(kernel_y, input_y - in_h); ++ker_h)
                     {
                         int32_t ker_idx = ker_h * (output_ch * kernel_x) + ker_w_start * output_ch + out_ch;
                         int32_t in_idx = (in_h + ker_h) * (input_ch * input_x) + in_w * input_ch + in_ch;
 #if defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
     #pragma clang loop unroll(disable)
 #endif
-                        for (int32_t ker_w = ker_w_start; ker_w < MIN(kernel_x, input_x - in_w);
+                        for (int32_t ker_w = ker_w_start; ker_w < ARM_NN_MIN(kernel_x, input_x - in_w);
                              ++ker_w, ker_idx += output_ch)
                         {
                             // TODO: Unroll of 4 with 64 bit accumulator will probably result in too much register
@@ -115,10 +116,10 @@ static void UNUSED_ATTR depthwise_conv_s16_mult_4_s16(const int16_t *input,
                     out_buff32[3] =
                         arm_nn_requantize_s64(out_buff[3], out_buff32[3], output_shift[out_ch + 3 + mult_tile]);
 
-                    out_buff32[0] = MIN(MAX(out_buff32[0], output_activation_min), output_activation_max);
-                    out_buff32[1] = MIN(MAX(out_buff32[1], output_activation_min), output_activation_max);
-                    out_buff32[2] = MIN(MAX(out_buff32[2], output_activation_min), output_activation_max);
-                    out_buff32[3] = MIN(MAX(out_buff32[3], output_activation_min), output_activation_max);
+                    out_buff32[0] = ARM_NN_MIN(ARM_NN_MAX(out_buff32[0], output_activation_min), output_activation_max);
+                    out_buff32[1] = ARM_NN_MIN(ARM_NN_MAX(out_buff32[1], output_activation_min), output_activation_max);
+                    out_buff32[2] = ARM_NN_MIN(ARM_NN_MAX(out_buff32[2], output_activation_min), output_activation_max);
+                    out_buff32[3] = ARM_NN_MIN(ARM_NN_MAX(out_buff32[3], output_activation_min), output_activation_max);
 
                     output[out_idx++] = (int16_t)out_buff32[0];
                     output[out_idx++] = (int16_t)out_buff32[1];
@@ -180,27 +181,27 @@ static void depthwise_conv_s16_generic_s16(const int16_t *input,
                         if (dilation_x > 1)
                         {
                             const int32_t start_x_max = (-base_idx_x + dilation_x - 1) / dilation_x;
-                            ker_x_start = MAX(0, start_x_max);
+                            ker_x_start = ARM_NN_MAX(0, start_x_max);
                             const int32_t end_min_x = (input_x - base_idx_x + dilation_x - 1) / dilation_x;
-                            ker_x_end = MIN(kernel_x, end_min_x);
+                            ker_x_end = ARM_NN_MIN(kernel_x, end_min_x);
                         }
                         else
                         {
-                            ker_x_start = MAX(0, -base_idx_x);
-                            ker_x_end = MIN(kernel_x, input_x - base_idx_x);
+                            ker_x_start = ARM_NN_MAX(0, -base_idx_x);
+                            ker_x_end = ARM_NN_MIN(kernel_x, input_x - base_idx_x);
                         }
 
                         if (dilation_y > 1)
                         {
                             const int32_t start_y_max = (-base_idx_y + dilation_y - 1) / dilation_y;
-                            ker_y_start = MAX(0, start_y_max);
+                            ker_y_start = ARM_NN_MAX(0, start_y_max);
                             const int32_t end_min_y = (input_y - base_idx_y + dilation_y - 1) / dilation_y;
-                            ker_y_end = MIN(kernel_y, end_min_y);
+                            ker_y_end = ARM_NN_MIN(kernel_y, end_min_y);
                         }
                         else
                         {
-                            ker_y_start = MAX(0, -base_idx_y);
-                            ker_y_end = MIN(kernel_y, input_y - base_idx_y);
+                            ker_y_start = ARM_NN_MAX(0, -base_idx_y);
+                            ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
                         }
 
                         if (bias)
@@ -223,8 +224,8 @@ static void depthwise_conv_s16_generic_s16(const int16_t *input,
 
                         /* Requantize and clamp output to provided range */
                         int32_t result = arm_nn_requantize_s64(acc_0, reduced_multiplier, output_shift[idx_out_ch]);
-                        result = MAX(result, output_activation_min);
-                        result = MIN(result, output_activation_max);
+                        result = ARM_NN_MAX(result, output_activation_min);
+                        result = ARM_NN_MIN(result, output_activation_max);
                         *output++ = (int16_t)result;
                     }
                 }

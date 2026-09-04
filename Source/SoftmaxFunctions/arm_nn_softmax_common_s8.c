@@ -74,7 +74,7 @@ void arm_nn_softmax_common_s8(const int8_t *input,
 
         for (col = 1; col < row_size; ++col)
         {
-            max = MAX(max, input[col]);
+            max = ARM_NN_MAX(max, input[col]);
         }
 
         int32_t diff = 0;
@@ -108,7 +108,7 @@ void arm_nn_softmax_common_s8(const int8_t *input,
                     const int32_t res =
                         DIV_POW2(MUL_SAT(shifted_scale, EXP_ON_NEG(MUL_SAT(diff * mask, mult))), bits_over_unit) +
                         NN_Q15_MIN;
-                    output_s16[col] = (int16_t)CLAMP(res, (int32_t)NN_Q15_MAX, (int32_t)NN_Q15_MIN);
+                    output_s16[col] = (int16_t)ARM_NN_CLAMP(res, (int32_t)NN_Q15_MAX, (int32_t)NN_Q15_MIN);
                 }
                 else
                 {
@@ -130,7 +130,7 @@ void arm_nn_softmax_common_s8(const int8_t *input,
                     const int32_t res =
                         DIV_POW2(MUL_SAT(shifted_scale, EXP_ON_NEG(MUL_SAT(diff * mask, mult))), bits_over_unit) +
                         NN_Q7_MIN;
-                    output_s8[col] = (int8_t)CLAMP(res, (int32_t)NN_Q7_MAX, (int32_t)NN_Q7_MIN);
+                    output_s8[col] = (int8_t)ARM_NN_CLAMP(res, (int32_t)NN_Q7_MAX, (int32_t)NN_Q7_MIN);
                 }
                 else
                 {

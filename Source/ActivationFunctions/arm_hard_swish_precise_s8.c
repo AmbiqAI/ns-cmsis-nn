@@ -107,7 +107,7 @@ arm_cmsis_nn_status arm_hard_swish_precise_s8(const int8_t *input,
         int32_t x = (int32_t)input[i] - input_offset;
 
         // Compute xr = clamp(x + relu_q3, 0, relu_q6)
-        int32_t xr = CLAMP(x + relu_q3, relu_q6, 0);
+        int32_t xr = ARM_NN_CLAMP(x + relu_q3, relu_q6, 0);
 
         // Prescale to prevent overflow in multiplication
         xr = arm_nn_nonneg_divide_by_pot_s32(xr, prescale);
@@ -120,7 +120,7 @@ arm_cmsis_nn_status arm_hard_swish_precise_s8(const int8_t *input,
         y += output_offset;
 
         // Clamp and store
-        y = CLAMP(y, qmax, qmin);
+        y = ARM_NN_CLAMP(y, qmax, qmin);
         output[i] = (int8_t)y;
     }
 

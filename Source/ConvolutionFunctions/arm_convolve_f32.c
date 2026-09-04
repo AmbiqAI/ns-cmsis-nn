@@ -415,7 +415,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
                         }
                     }
 
-                    acc = CLAMP(acc, conv_params->activation.max, conv_params->activation.min);
+                    acc = ARM_NN_CLAMP(acc, conv_params->activation.max, conv_params->activation.min);
                     output_b[((size_t)out_y * output_w + (size_t)out_x) * output_c + (size_t)oc] = acc;
                 }
             }

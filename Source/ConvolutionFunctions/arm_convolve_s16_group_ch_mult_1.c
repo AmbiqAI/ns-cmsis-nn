@@ -199,8 +199,8 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
                             acc_s64 += bias_s64_val;
                             result = arm_nn_requantize_s64(acc_s64, reduced_multiplier, shift);
                         }
-                        result = MAX(result, activation_min);
-                        result = MIN(result, activation_max);
+                        result = ARM_NN_MAX(result, activation_min);
+                        result = ARM_NN_MIN(result, activation_max);
                         *out_c = (int16_t)result;
                         out_c += output_ch;
                     }
@@ -226,8 +226,8 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
                             acc_s64 += bias_s64_val;
                             result = arm_nn_requantize_s64(acc_s64, reduced_multiplier, shift);
                         }
-                        result = MAX(result, activation_min);
-                        result = MIN(result, activation_max);
+                        result = ARM_NN_MAX(result, activation_min);
+                        result = ARM_NN_MIN(result, activation_max);
                         *out_c = (int16_t)result;
                         out_c += output_ch;
                     }
@@ -253,25 +253,25 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
                 int32_t ker_y_start, ker_y_end;
                 if (dilation_y > 1)
                 {
-                    ker_y_start = MAX(0, (-base_y + dilation_y - 1) / dilation_y);
-                    ker_y_end = MIN(kernel_y, (input_y - base_y + dilation_y - 1) / dilation_y);
+                    ker_y_start = ARM_NN_MAX(0, (-base_y + dilation_y - 1) / dilation_y);
+                    ker_y_end = ARM_NN_MIN(kernel_y, (input_y - base_y + dilation_y - 1) / dilation_y);
                 }
                 else
                 {
-                    ker_y_start = MAX(0, -base_y);
-                    ker_y_end = MIN(kernel_y, input_y - base_y);
+                    ker_y_start = ARM_NN_MAX(0, -base_y);
+                    ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_y);
                 }
 
                 int32_t ker_x_start, ker_x_end;
                 if (dilation_x > 1)
                 {
-                    ker_x_start = MAX(0, (-base_x + dilation_x - 1) / dilation_x);
-                    ker_x_end = MIN(kernel_x, (input_x - base_x + dilation_x - 1) / dilation_x);
+                    ker_x_start = ARM_NN_MAX(0, (-base_x + dilation_x - 1) / dilation_x);
+                    ker_x_end = ARM_NN_MIN(kernel_x, (input_x - base_x + dilation_x - 1) / dilation_x);
                 }
                 else
                 {
-                    ker_x_start = MAX(0, -base_x);
-                    ker_x_end = MIN(kernel_x, input_x - base_x);
+                    ker_x_start = ARM_NN_MAX(0, -base_x);
+                    ker_x_end = ARM_NN_MIN(kernel_x, input_x - base_x);
                 }
 
                 for (int32_t c = 0; c < output_ch; c++)
@@ -311,8 +311,8 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
                         int32_t reduced_mult = REDUCE_MULTIPLIER(mult_val);
                         result = arm_nn_requantize_s64(acc, reduced_mult, output_shift[c]);
                     }
-                    result = MAX(result, activation_min);
-                    result = MIN(result, activation_max);
+                    result = ARM_NN_MAX(result, activation_min);
+                    result = ARM_NN_MIN(result, activation_max);
                     *output_data++ = (int16_t)result;
                 }
             }

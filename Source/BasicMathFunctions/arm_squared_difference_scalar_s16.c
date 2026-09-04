@@ -99,8 +99,8 @@ arm_cmsis_nn_status arm_squared_difference_scalar_s16(const int16_t *input_1_vec
         int32_t output_value = arm_nn_requantize(squared_raw_diff, out_mult, out_shift);
         output_value += out_offset;
 
-        output_value = MAX(output_value, out_activation_min);
-        output_value = MIN(output_value, out_activation_max);
+        output_value = ARM_NN_MAX(output_value, out_activation_min);
+        output_value = ARM_NN_MIN(output_value, out_activation_max);
 
         *output++ = (int16_t)output_value;
         loop_count--;

@@ -86,7 +86,7 @@ arm_cmsis_nn_status arm_hard_swish_f32(const float32_t *input, float32_t *output
         // Correctly rounded fma keeps this leg bit-identical to the MVE
         // vfmaq leg at every optimization level; see the note above.
         float32_t t = __builtin_fmaf(x, 1.0f / 6.0f, 0.5f);
-        t = CLAMP(t, 1.0f, 0.0f);
+        t = ARM_NN_CLAMP(t, 1.0f, 0.0f);
         output[i] = x * t;
     }
     #endif

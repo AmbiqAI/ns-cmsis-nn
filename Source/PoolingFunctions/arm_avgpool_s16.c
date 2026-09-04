@@ -46,8 +46,8 @@ static void scale_q31_to_q15_and_clamp(const int32_t *buffer,
     {
         int32_t sum = buffer[i] > 0 ? (buffer[i] + half_count) : (buffer[i] - half_count);
         sum = sum / count;
-        sum = MAX(sum, act_min);
-        sum = MIN(sum, act_max);
+        sum = ARM_NN_MAX(sum, act_min);
+        sum = ARM_NN_MIN(sum, act_max);
 
         target[i] = (int16_t)sum;
     }
@@ -110,11 +110,11 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
         {
             for (int i_x = 0; i_x < output_x; i_x++)
             {
-                const int32_t k_y_start = MAX(0, i_y * stride_y - pad_y);
-                const int32_t k_y_end = MIN(i_y * stride_y - pad_y + kernel_y, input_y);
+                const int32_t k_y_start = ARM_NN_MAX(0, i_y * stride_y - pad_y);
+                const int32_t k_y_end = ARM_NN_MIN(i_y * stride_y - pad_y + kernel_y, input_y);
 
-                const int32_t k_x_start = MAX(0, i_x * stride_x - pad_x);
-                const int32_t k_x_end = MIN(i_x * stride_x - pad_x + kernel_x, input_x);
+                const int32_t k_x_start = ARM_NN_MAX(0, i_x * stride_x - pad_x);
+                const int32_t k_x_end = ARM_NN_MIN(i_x * stride_x - pad_x + kernel_x, input_x);
 
                 const int16_t *src_base = src;
                 int16_t *out = &dst[ch_src * (i_x + i_y * output_x)];
@@ -216,13 +216,13 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
             {
                 /* Condition for kernel start dimension:
                    (base_idx_<x,y> + kernel_<x,y>_start) >= 0 */
-                const int32_t kernel_y_start = MAX(0, -idx_y);
-                const int32_t kernel_x_start = MAX(0, -idx_x);
+                const int32_t kernel_y_start = ARM_NN_MAX(0, -idx_y);
+                const int32_t kernel_x_start = ARM_NN_MAX(0, -idx_x);
 
                 /* Condition for kernel end dimension:
                    (base_idx_<x,y> + kernel_<x,y>_end) < dim_src_<width,height> */
-                const int32_t kernel_y_end = MIN(kernel_y, input_y - idx_y);
-                const int32_t kernel_x_end = MIN(kernel_x, input_x - idx_x);
+                const int32_t kernel_y_end = ARM_NN_MIN(kernel_y, input_y - idx_y);
+                const int32_t kernel_x_end = ARM_NN_MIN(kernel_x, input_x - idx_x);
 
                 int count = 0;
 
@@ -278,12 +278,12 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
             for (int i_x = 0, base_idx_x = -pad_x; i_x < output_x; base_idx_x += stride_x, i_x++)
             {
                 /* Condition for kernel start dimension: (base_idx_<x,y> + kernel_<x,y>_start) >= 0 */
-                const int32_t ker_y_start = MAX(0, -base_idx_y);
-                const int32_t ker_x_start = MAX(0, -base_idx_x);
+                const int32_t ker_y_start = ARM_NN_MAX(0, -base_idx_y);
+                const int32_t ker_x_start = ARM_NN_MAX(0, -base_idx_x);
 
                 /* Condition for kernel end dimension: (base_idx_<x,y> + kernel_<x,y>_end) < dim_src_<width,height> */
-                const int32_t kernel_y_end = MIN(kernel_y, input_y - base_idx_y);
-                const int32_t kernel_x_end = MIN(kernel_x, input_x - base_idx_x);
+                const int32_t kernel_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
+                const int32_t kernel_x_end = ARM_NN_MIN(kernel_x, input_x - base_idx_x);
 
                 for (int i_ch_in = 0; i_ch_in < ch_src; i_ch_in++)
                 {
@@ -306,8 +306,8 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
                     }
 
                     sum = sum > 0 ? (sum + count / 2) / count : (sum - count / 2) / count;
-                    sum = MAX(sum, act_min);
-                    sum = MIN(sum, act_max);
+                    sum = ARM_NN_MAX(sum, act_min);
+                    sum = ARM_NN_MIN(sum, act_max);
 
                     dst[i_ch_in + ch_src * (i_x + i_y * output_x)] = sum;
                 }

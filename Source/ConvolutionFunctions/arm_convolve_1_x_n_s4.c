@@ -86,9 +86,10 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_FAILURE;
     }
 
-    const int32_t right_pad_num = pad_x + asym_pad != 0 ? MAX(1, (pad_x + asym_pad + stride_x - 1) / stride_x) : 0;
-    const int32_t left_pad_num = pad_x != 0 ? MAX(1, (pad_x + stride_x - 1) / stride_x) : 0;
-    const int32_t no_pad_num = MAX(output_x - (right_pad_num + left_pad_num), 0);
+    const int32_t right_pad_num =
+        pad_x + asym_pad != 0 ? ARM_NN_MAX(1, (pad_x + asym_pad + stride_x - 1) / stride_x) : 0;
+    const int32_t left_pad_num = pad_x != 0 ? ARM_NN_MAX(1, (pad_x + stride_x - 1) / stride_x) : 0;
+    const int32_t no_pad_num = ARM_NN_MAX(output_x - (right_pad_num + left_pad_num), 0);
 
     if (right_pad_num + no_pad_num + left_pad_num != output_x)
     {
@@ -160,7 +161,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
         for (int i = out_idx; i < output_x; i++)
         {
             const int32_t est_input_x_idx = stride_x * i - pad_x;
-            const int32_t ker_end_idx = MIN(kernel_x, input_x - est_input_x_idx);
+            const int32_t ker_end_idx = ARM_NN_MIN(kernel_x, input_x - est_input_x_idx);
             status = arm_nn_mat_mul_core_1x_s4(ker_end_idx * input_ch,
                                                (kernel_x - ker_end_idx) * input_ch,
                                                input_data + est_input_x_idx * input_ch,

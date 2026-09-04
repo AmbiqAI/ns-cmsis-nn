@@ -138,10 +138,10 @@ arm_cmsis_nn_status arm_max_pool_f16(const cmsis_nn_context *ctx,
         {
             for (int32_t i_x = 0, base_idx_x = -pad_x; i_x < output_x; base_idx_x += stride_x, i_x++)
             {
-                const int32_t ker_y_start = MAX(0, -base_idx_y);
-                const int32_t ker_x_start = MAX(0, -base_idx_x);
-                const int32_t kernel_y_end = MIN(kernel_y, input_y - base_idx_y);
-                const int32_t kernel_x_end = MIN(kernel_x, input_x - base_idx_x);
+                const int32_t ker_y_start = ARM_NN_MAX(0, -base_idx_y);
+                const int32_t ker_x_start = ARM_NN_MAX(0, -base_idx_x);
+                const int32_t kernel_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
+                const int32_t kernel_x_end = ARM_NN_MIN(kernel_x, input_x - base_idx_x);
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
                 const float16x8_t v_act_min = vdupq_n_f16(act_min);

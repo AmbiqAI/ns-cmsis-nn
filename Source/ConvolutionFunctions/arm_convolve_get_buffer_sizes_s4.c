@@ -87,9 +87,10 @@ __STATIC_INLINE int32_t arm_convolve_1_x_n_s4_get_buffer_size_mve(const cmsis_nn
     const int64_t total_pad = ((int64_t)output_x - 1) * (int64_t)stride_x + (int64_t)kernel_x - (int64_t)input_x;
     const int64_t asym_pad = total_pad % 2;
 
-    const int64_t right_pad_num = pad_x + asym_pad != 0 ? MAX(1, (pad_x + asym_pad + stride_x - 1) / stride_x) : 0;
-    const int64_t left_pad_num = pad_x != 0 ? MAX(1, ((int64_t)pad_x + stride_x - 1) / stride_x) : 0;
-    const int64_t no_pad_num = MAX(output_x - (right_pad_num + left_pad_num), 0);
+    const int64_t right_pad_num =
+        pad_x + asym_pad != 0 ? ARM_NN_MAX(1, (pad_x + asym_pad + stride_x - 1) / stride_x) : 0;
+    const int64_t left_pad_num = pad_x != 0 ? ARM_NN_MAX(1, ((int64_t)pad_x + stride_x - 1) / stride_x) : 0;
+    const int64_t no_pad_num = ARM_NN_MAX(output_x - (right_pad_num + left_pad_num), 0);
 
     if (right_pad_num + no_pad_num + left_pad_num != output_x)
     {

@@ -134,8 +134,8 @@ static arm_cmsis_nn_status arm_sub_scalar_s8_core(const int8_t *scalar_vect,
         diff = scalar_minus_vector ? (scalar_1 - input_2) : (input_2 - scalar_1);
         diff = arm_nn_requantize(diff, out_mult, out_shift);
         diff += out_offset;
-        diff = MAX(diff, out_activation_min);
-        diff = MIN(diff, out_activation_max);
+        diff = ARM_NN_MAX(diff, out_activation_min);
+        diff = ARM_NN_MIN(diff, out_activation_max);
         r1 = (int8_t)diff;
 
         /* Diff 3 */
@@ -145,8 +145,8 @@ static arm_cmsis_nn_status arm_sub_scalar_s8_core(const int8_t *scalar_vect,
         diff = scalar_minus_vector ? (scalar_3 - input_2) : (input_2 - scalar_3);
         diff = arm_nn_requantize(diff, out_mult, out_shift);
         diff += out_offset;
-        diff = MAX(diff, out_activation_min);
-        diff = MIN(diff, out_activation_max);
+        diff = ARM_NN_MAX(diff, out_activation_min);
+        diff = ARM_NN_MIN(diff, out_activation_max);
         r3 = (int8_t)diff;
 
         /* Diff 2 */
@@ -156,8 +156,8 @@ static arm_cmsis_nn_status arm_sub_scalar_s8_core(const int8_t *scalar_vect,
         diff = scalar_minus_vector ? (scalar_2 - input_2) : (input_2 - scalar_2);
         diff = arm_nn_requantize(diff, out_mult, out_shift);
         diff += out_offset;
-        diff = MAX(diff, out_activation_min);
-        diff = MIN(diff, out_activation_max);
+        diff = ARM_NN_MAX(diff, out_activation_min);
+        diff = ARM_NN_MIN(diff, out_activation_max);
         r2 = (int8_t)diff;
 
         /* Diff 4 */
@@ -167,8 +167,8 @@ static arm_cmsis_nn_status arm_sub_scalar_s8_core(const int8_t *scalar_vect,
         diff = scalar_minus_vector ? (scalar_4 - input_2) : (input_2 - scalar_4);
         diff = arm_nn_requantize(diff, out_mult, out_shift);
         diff += out_offset;
-        diff = MAX(diff, out_activation_min);
-        diff = MIN(diff, out_activation_max);
+        diff = ARM_NN_MAX(diff, out_activation_min);
+        diff = ARM_NN_MIN(diff, out_activation_max);
         r4 = (int8_t)diff;
 
         arm_nn_write_s8x4_ia(&output, PACK_S8x4_32x1(r1, r2, r3, r4));
@@ -192,8 +192,8 @@ static arm_cmsis_nn_status arm_sub_scalar_s8_core(const int8_t *scalar_vect,
         diff = arm_nn_requantize(diff, out_mult, out_shift);
         diff += out_offset;
 
-        diff = MAX(diff, out_activation_min);
-        diff = MIN(diff, out_activation_max);
+        diff = ARM_NN_MAX(diff, out_activation_min);
+        diff = ARM_NN_MIN(diff, out_activation_max);
 
         *output++ = (int8_t)diff;
 

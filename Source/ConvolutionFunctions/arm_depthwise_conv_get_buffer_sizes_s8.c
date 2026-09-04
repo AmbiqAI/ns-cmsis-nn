@@ -196,8 +196,8 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(const cmsis_nn_dw_conv
         const int32_t to_conv_size =
             arm_deptwise_conv_s8_one_in_ch_get_buffer_size_mve(dw_conv_params, input_dims, filter_dims, output_dims);
 
-        // Propagate the out-of-range sentinel before the comparison below: MAX(-1, size) would otherwise hand the
-        // caller a plausible positive size for a shape that has no valid size at all.
+        // Propagate the out-of-range sentinel before the comparison below: ARM_NN_MAX(-1, size) would otherwise hand
+        // the caller a plausible positive size for a shape that has no valid size at all.
         if (to_conv_size < 0)
         {
             return -1;

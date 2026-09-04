@@ -250,7 +250,7 @@ arm_cmsis_nn_status arm_convolve_wrapper_s8(const cmsis_nn_context *ctx,
  *
  * @details    Where a byte count is computed, an out-of-range shape is reported as -1 rather than a wrapped
  *             size, and where this function composes sub-sizer results the sentinel is propagated before any
- *             MAX() or sum, so it can never collapse into a plausible positive size. Which routes compute a
+ *             ARM_NN_MAX() or sum, so it can never collapse into a plausible positive size. Which routes compute a
  *             byte count is build-dependent, and on a DSP build also compiler-dependent - the 1x1 route that is
  *             not the fast variant needs no buffer on any build, and the 1x1 fast route needs none on a DSP
  *             build outside armclang - so a caller that needs its dimensions validated must validate them
@@ -387,7 +387,7 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
  *                 negative or the required size would not fit in an int32_t
  *
  * @details    An out-of-range shape is reported as -1 rather than a wrapped size. Where this function
- *             composes sub-sizer results, the sentinel is propagated before any MAX() or sum, so it can
+ *             composes sub-sizer results, the sentinel is propagated before any ARM_NN_MAX() or sum, so it can
  *             never collapse into a plausible positive size.
  */
 int32_t arm_convolve_wrapper_s16_get_buffer_size(const cmsis_nn_conv_params *conv_params,
@@ -1681,7 +1681,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s4(const cmsis_nn_context *ctx,
  *                                 so a 0 return is not a statement that the shape is valid.
  *
  * @details    Where a byte count is computed, an out-of-range shape is reported as -1 rather than a wrapped
- *             size, and the sentinel is propagated before any MAX() or sum over sub-sizer results, so it can
+ *             size, and the sentinel is propagated before any ARM_NN_MAX() or sum over sub-sizer results, so it can
  *             never collapse into a plausible positive size. Which routes compute a byte count is
  *             build-dependent - a shape that does not select an optimized depthwise route, and the 3x3 route on
  *             builds without the MVE extension, need no buffer and short-circuit to 0 for any dimensions - so a
@@ -1981,7 +1981,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s16(const cmsis_nn_context *ctx,
  *                                 a 0 return is not a statement that the shape is valid.
  *
  * @details    Where a byte count is computed, an out-of-range shape is reported as -1 rather than a wrapped
- *             size, and the sentinel is propagated before any MAX() or sum over sub-sizer results, so it can
+ *             size, and the sentinel is propagated before any ARM_NN_MAX() or sum over sub-sizer results, so it can
  *             never collapse into a plausible positive size. A caller that needs its dimensions validated must
  *             validate them rather than infer validity from a non-negative return.
  */
