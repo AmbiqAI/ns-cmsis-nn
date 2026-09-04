@@ -152,8 +152,8 @@ __STATIC_FORCEINLINE float32x4_t arm_nn_vcvttq_f32_f16(float16x8_t a)
 
         #define arm_nn_vcvtbq_f16_f32(inactive, a) vcvtbq_f16_f32((inactive), (a))
         #define arm_nn_vcvttq_f16_f32(inactive, a) vcvttq_f16_f32((inactive), (a))
-        #define arm_nn_vcvtbq_f32_f16(a) vcvtbq_f32_f16(a)
-        #define arm_nn_vcvttq_f32_f16(a) vcvttq_f32_f16(a)
+        #define arm_nn_vcvtbq_f32_f16(a) vcvtbq_f32_f16((a))
+        #define arm_nn_vcvttq_f32_f16(a) vcvttq_f32_f16((a))
 
     #endif
 
