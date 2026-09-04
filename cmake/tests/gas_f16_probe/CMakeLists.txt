@@ -43,6 +43,13 @@ function(_expect_opt opts wanted why)
   endif()
 endfunction()
 
+function(_expect_no_opt opts unwanted why)
+  if("${unwanted}" IN_LIST opts)
+    _fail("${why}: '${unwanted}' present in the measured flags (${opts})")
+    set(_failures "${_failures}" PARENT_SCOPE)
+  endif()
+endfunction()
+
 # Directory options, including the generator-expression shapes the ethos-u
 # toolchain file uses: one self-contained, one spanning two list elements.
 add_compile_options(
@@ -95,9 +102,10 @@ if(NOT _genex_skipped)
   _fail("skipped generator expressions were not reported, so the probe cannot say its view of the flags is partial")
 endif()
 
-# The reviewer's consumer shape, with the real architecture flags. Not
-# attached: this asserts what the probe would measure, without handing a
-# Cortex-M flag to whatever host compiler is running the test.
+# Architecture flags carried on a linked INTERFACE target rather than in
+# CMAKE_C_FLAGS. Not attached: this asserts what the probe would measure,
+# without handing a Cortex-M flag to whatever host compiler is running the
+# test.
 add_library(_probe_cpu INTERFACE)
 target_compile_options(_probe_cpu INTERFACE
                        -mcpu=cortex-m55 -mfloat-abi=hard -mfpu=auto)
@@ -110,6 +118,26 @@ foreach(_flag -mcpu=cortex-m55 -mfloat-abi=hard -mfpu=auto)
   _expect_opt("${_arch_opts}" "${_flag}"
               "arch flags on a linked INTERFACE target are invisible to the probe")
 endforeach()
+
+# A directory option lands in a target's COMPILE_OPTIONS only if the target
+# already existed when it was added. The probe runs at the end of the
+# directory, by which time the directory property carries flags that the
+# earlier target will never compile with -- including, here, a Cortex-M flag
+# the host compiler running this test cannot accept.
+add_library(_probe_before STATIC)
+target_sources(_probe_before PRIVATE "${_repo_root}/Source/SoftmaxFunctions/arm_softmax_f16.c")
+
+add_compile_options(-mcpu=cortex-m55)
+
+add_library(_probe_after STATIC)
+target_sources(_probe_after PRIVATE "${_repo_root}/Source/SoftmaxFunctions/arm_softmax_f16.c")
+
+_ns_cmsis_nn_gas_f16_flags(_probe_before _before_opts _before_genex_skipped)
+_ns_cmsis_nn_gas_f16_flags(_probe_after _after_opts _after_genex_skipped)
+_expect_no_opt("${_before_opts}" "-mcpu=cortex-m55"
+               "a directory option added after the target was created is measured against it")
+_expect_opt("${_after_opts}" "-mcpu=cortex-m55"
+            "a directory option added before the target was created is not measured")
 
 # Scheduling is gated on a GNU compiler, so this half only asserts where the
 # host compiler is one. Everything above is compiler-independent.

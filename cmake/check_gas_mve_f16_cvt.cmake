@@ -67,24 +67,20 @@ function(_ns_cmsis_nn_gas_f16_plain out_var out_skipped)
 endfunction()
 
 # Compile options and definitions <target> will carry, in the order CMake lays
-# them down: directory, then the target's own, then the usage requirements of
-# everything it links, transitively. Consumers routinely put -mcpu on an
-# INTERFACE target rather than in CMAKE_C_FLAGS, and reading only the latter
-# makes the probe decide there is no MVE and skip itself.
+# them down: the target's own, then the usage requirements of everything it
+# links, transitively. Consumers routinely put -mcpu on an INTERFACE target
+# rather than in CMAKE_C_FLAGS, and reading only the latter makes the probe
+# decide there is no MVE and skip itself.
 #
-# CMake seeds a target's COMPILE_OPTIONS from the directory property, so a
-# directory option added before the target was created is collected twice.
-# Deliberately not deduplicated: options added to the directory afterwards are
-# not in the target property, and a repeated flag costs the probe nothing
-# while a dropped one would change what it measures.
+# The directory property is not read. CMake seeds a target's COMPILE_OPTIONS
+# from it when the target is created, so the target property already carries
+# the directory options that apply and only those. This runs at the end of the
+# directory, by which time a later add_compile_options() has landed in the
+# directory property but reaches no target created before it -- reading it here
+# would judge an early target with flags it never compiles with.
 function(_ns_cmsis_nn_gas_f16_flags target out_var out_skipped)
   set(_skipped_any FALSE)
-
-  get_directory_property(_dir_opts COMPILE_OPTIONS)
-  _ns_cmsis_nn_gas_f16_plain(_opts _skipped ${_dir_opts})
-  if(_skipped)
-    set(_skipped_any TRUE)
-  endif()
+  set(_opts "")
 
   foreach(_prop COMPILE_OPTIONS COMPILE_DEFINITIONS)
     get_target_property(_own ${target} ${_prop})
