@@ -552,8 +552,7 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
 - **Arm GNU Toolchain** — **GCC 13 through 15; 13 is the minimum supported
   version.** One pinned release per major is built and strict-linked on every
   pull request. Versions below 13 are not supported and are not tested. GCC 13
-  is supported because the library hand-encodes the MVE half↔single
-  conversions, which the assembler those releases ship encodes incorrectly
+  stays supported only because the library works around its assembler
   ([#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)).
 - **Arm Compiler 6** — built and strict-linked, not functionally tested. Until
   recently its release-asset check never invoked a linker at all, so armclang
@@ -564,12 +563,13 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
   functionally tested.
 
 The numerics suite (`helia-core-tester`, run under the Corstone-300 FVP)
-executes only against GCC 14.3.1, the toolchain pinned in the CI container;
-the one exception is the `float16` half↔single conversion suites, which also
-run on the oldest gated GCC release under QEMU, because that is the class of
-defect a build-and-link gate cannot see. So for armclang and ATfE the
-guarantee is **built and linked, not executed**: they
-are verified to compile and resolve, not to produce correct results. Kernel
+executes only against GCC 14.3.1, the toolchain pinned in the CI container. A
+separate leg runs the legacy Unity `float16` conversion suites on the oldest
+gated GCC release under QEMU, because that is a class of defect a
+build-and-link gate cannot see
+([#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)). So for armclang
+and ATfE the guarantee is **built and linked, not executed**: they are
+verified to compile and resolve, not to produce correct results. Kernel
 logic is shared across all three, so the functional suite is not multiplied
 across toolchains.
 
