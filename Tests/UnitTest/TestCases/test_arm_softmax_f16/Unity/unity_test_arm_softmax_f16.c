@@ -33,4 +33,13 @@ void test_softmax_f16_arm_softmax_f16(void) { softmax_f16_arm_softmax_f16(); }
 
 void test_softmax_f16_rows_sum_to_one_arm_softmax_f16(void) { softmax_f16_rows_sum_to_one_arm_softmax_f16(); }
 
+void test_softmax_f16_full_vector_arm_softmax_f16(void) { softmax_f16_full_vector_arm_softmax_f16(); }
+
+void test_softmax_f16_wide_arm_softmax_f16(void) { softmax_f16_wide_arm_softmax_f16(); }
+
+void test_softmax_f16_full_vector_rows_sum_to_one_arm_softmax_f16(void)
+{
+    softmax_f16_full_vector_rows_sum_to_one_arm_softmax_f16();
+}
+
 void test_softmax_f16_arg_error_arm_softmax_f16(void) { softmax_f16_arg_error_arm_softmax_f16(); }
