@@ -57,12 +57,15 @@ jobs:
       #
       # The step below re-derives that mapping from the tree and fails if
       # this list is short of it, so the comment is a reader's aid and the
-      # assertion is the contract.
+      # assertion is the contract. It derives one suite per kernel, so
+      # arm_softmax_f16's second suite is listed here by hand: the shapes
+      # around the 8-lane boundary are worth running on this toolchain too.
       SUITES: >-
         test_arm_hard_swish_f16
         test_arm_nn_mean_f16
         test_arm_reduce_sum_f16
         test_arm_softmax_f16
+        test_arm_softmax_f16_shapes
       TOOLCHAIN_MANIFEST: ci/toolchains/arm-gnu-floor.json
       HARNESS: Tests/UnitTest/build_and_run_tests.sh
     steps:

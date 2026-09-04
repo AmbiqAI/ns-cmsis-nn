@@ -2,9 +2,9 @@
  * SPDX-FileCopyrightText: Copyright 2026 Ambiq
  * SPDX-License-Identifier: Apache-2.0
  *
- * Golden data for arm_softmax_f16, written by hand rather than emitted by a
- * generator: softmax_settings_flt.py's softmax_f16 dataset writes the
- * TestCases/TestData layout, which this suite does not use.
+ * Golden data for arm_softmax_f16 at three row widths, written by hand rather
+ * than emitted by a generator: softmax_settings_flt.py's softmax_f16 dataset
+ * is a single 5-column shape, and test_arm_softmax_f16 already carries it.
  *
  * The reference is softmax evaluated in float32 over the float16 inputs and
  * rounded once to float16 -- the same definition softmax_settings_flt.py
@@ -18,8 +18,9 @@
  * Three row widths, because the MVE leg is an 8-lane loop and the row width
  * decides which arms of it run: 5 is predicated on the only pass, 16 is two
  * full unpredicated passes and no tail, 20 is two full passes and a 4-lane
- * tail. Only the full-vector passes exercise the half<->single conversions
- * with every lane live (AmbiqAI/ns-cmsis-nn#427).
+ * tail. This is loop and tail-boundary coverage, not encoding coverage: a
+ * mis-encoded conversion is a static property of the object and shows up on
+ * the first trip through the loop whatever the trip count.
  */
 #pragma once
 

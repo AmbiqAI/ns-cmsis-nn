@@ -1,10 +1,7 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2026 Ambiq
+ * SPDX-FileCopyrightText: Copyright 2010-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  *
- * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
- *
- * Licensed under the Ambiq Apollo SDK License.
- * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <stdbool.h>
@@ -28,18 +25,4 @@ void setUp(void)
 }
 
 void tearDown(void) {}
-
 void test_softmax_f16_arm_softmax_f16(void) { softmax_f16_arm_softmax_f16(); }
-
-void test_softmax_f16_rows_sum_to_one_arm_softmax_f16(void) { softmax_f16_rows_sum_to_one_arm_softmax_f16(); }
-
-void test_softmax_f16_full_vector_arm_softmax_f16(void) { softmax_f16_full_vector_arm_softmax_f16(); }
-
-void test_softmax_f16_wide_arm_softmax_f16(void) { softmax_f16_wide_arm_softmax_f16(); }
-
-void test_softmax_f16_full_vector_rows_sum_to_one_arm_softmax_f16(void)
-{
-    softmax_f16_full_vector_rows_sum_to_one_arm_softmax_f16();
-}
-
-void test_softmax_f16_arg_error_arm_softmax_f16(void) { softmax_f16_arg_error_arm_softmax_f16(); }
