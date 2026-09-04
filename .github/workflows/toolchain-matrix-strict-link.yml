@@ -60,12 +60,19 @@
 # and every leg is already covered by staticlib-dryrun.yml. Adding it
 # would be more jobs for a strictly narrower cell.
 #
-# This is a BUILD-and-LINK gate only. The functional codegen-tests legs
-# stay on the container's single 14.3.1 toolchain and are deliberately
-# NOT multiplied across toolchains or GCC versions -- running the
-# numerics suite once per toolchain would cost ~8 min of PR latency per
-# added leg to re-test compilers against identical kernel logic. Please
-# do not "helpfully" extend this matrix into helia-core-tester.yml.
+# This is a BUILD-and-LINK gate only. The numerics suite stays on the
+# container's single 14.3.1 toolchain and is deliberately NOT multiplied
+# across toolchains or GCC versions -- running it once per toolchain
+# would cost ~8 min of PR latency per added leg to re-test compilers
+# against identical kernel logic. Please do not "helpfully" extend this
+# matrix into helia-core-tester.yml.
+#
+# One narrow execution leg is the exception:
+# unity-f16-exec-gcc-floor.yml runs the f16 conversion suites on the
+# floor of this matrix, because that defect class is introduced by the
+# assembler and so cannot be seen without executing on a second
+# compiler (AmbiqAI/ns-cmsis-nn#427). It reads the floor from the
+# gcc_release list below, so moving that list moves the leg.
 #
 # cortex-m0 and the full three-CPU sweep stay in staticlib-dryrun.yml
 # (workflow_dispatch), which also packages and uploads SDK tarballs.
