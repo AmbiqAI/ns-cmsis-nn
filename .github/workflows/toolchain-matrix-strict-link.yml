@@ -199,6 +199,9 @@ jobs:
       # it cannot split rather than on a sentence.
       REMEDIATION_MARKER: ARM_NN_SKIP_GAS_F16_PROBE=ON
       ISSUE_MARKER: AmbiqAI/ns-cmsis-nn#427
+      # Same pin unity-f16-exec-gcc-floor.yml runs on, so the assembler this
+      # cell borrows is the one the execution gate proves.
+      FLOOR_MANIFEST: ci/toolchains/arm-gnu-floor.json
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -253,6 +256,104 @@ jobs:
             exit 1
           fi
           echo "escape hatch configures, and warns"
+
+      - name: Fetch the float16 floor toolchain, for its assembler
+        id: fetch_floor
+        # Deliberately not put on PATH: the driver for the steps below stays
+        # the sub-floor one the action installed. Only the assembler is
+        # borrowed.
+        run: |
+          bash scripts/fetch_toolchain.sh \
+            --manifest "${FLOOR_MANIFEST}" \
+            --platform linux-x86_64 \
+            --outdir "${RUNNER_TEMP}/toolchains"
+
+      - name: Build float16 with the sub-floor driver and the floor assembler
+        # docs/guides/toolchains.md tells a project pinned to a GCC 13.x
+        # compiler to keep the driver and point -B at a binutils 2.43
+        # assembler. A recipe that is documented and never executed rots, and
+        # this one is the only path a customer in that position has, so build
+        # it here rather than asserting it in prose.
+        env:
+          FLOOR_ROOT: ${{ steps.fetch_floor.outputs.toolchain_root }}
+          FLOOR_VERSION: ${{ steps.fetch_floor.outputs.toolchain_version }}
+        run: |
+          set -euo pipefail
+          if [[ "${FLOOR_VERSION}" != "${GCC_F16_FLOOR}" ]]; then
+            echo "::error title=Floor manifest is not the floor::${FLOOR_MANIFEST} pins ${FLOOR_VERSION}, but this workflow declares the float16 floor as ${GCC_F16_FLOOR}. Move them together. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          # The directory holding the UNPREFIXED `as', which is what -B looks
+          # for. In an Arm GNU install that is <root>/arm-none-eabi/bin/, with
+          # the trailing slash; the guide quotes the same form.
+          as_dir="${FLOOR_ROOT}/arm-none-eabi/bin/"
+          if [[ ! -x "${as_dir}as" ]]; then
+            echo "::error title=No unprefixed assembler::Expected ${as_dir}as in the ${FLOOR_VERSION} tarball; the layout the -B recipe documents has moved. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          echo "driver:      $(arm-none-eabi-gcc --version | head -1)"
+          echo "borrowed as: $("${as_dir}as" --version | head -1)"
+          log="${RUNNER_TEMP}/brecipe.log"
+          # CFLAGS on a fresh build directory, exactly as the guide says: a
+          # bare -DCMAKE_C_FLAGS would replace what the toolchain file sets.
+          CFLAGS="-B${as_dir}" bash scripts/build_staticlib.sh \
+            --target-cpu "${TARGET_CPU}" \
+            --version    "${VERSION}" \
+            --toolchain  gcc \
+            --outdir     "./output/brecipe" \
+            --enable-f32 --enable-f16 2>&1 | tee "${log}"
+          if ! grep -qF 'MVE half<->single conversions encode correctly' "${log}"; then
+            echo "::error title=Borrowed assembler was not accepted::The -B recipe configured without the probe reporting a correct encoding, so this cell no longer proves the documented escape route works. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+
+      - name: Disassemble the float16 objects with a 2.43 objdump
+        # Only an objdump from 2.43 or newer renders these words as they were
+        # encoded; the matching-era one mis-renders them the same way its
+        # assembler mis-encoded them, so a stale objdump would show a clean
+        # archive either way.
+        env:
+          FLOOR_ROOT: ${{ steps.fetch_floor.outputs.toolchain_root }}
+        run: |
+          set -euo pipefail
+          objdump="${FLOOR_ROOT}/bin/arm-none-eabi-objdump"
+          work="${RUNNER_TEMP}/f16-objs"
+          rm -rf "${work}" && mkdir -p "${work}"
+          ( cd "${work}" && "${FLOOR_ROOT}/bin/arm-none-eabi-ar" x \
+              "${GITHUB_WORKSPACE}/output/brecipe/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" )
+          scanned=0
+          bad=0
+          for obj in "${work}"/*f16*; do
+            [[ -e "${obj}" ]] || continue
+            scanned=$(( scanned + 1 ))
+            if "${objdump}" -d "${obj}" | grep -q UNDEFINED; then
+              bad=$(( bad + 1 ))
+              echo "::error title=UNDEFINED instruction word::$(basename "${obj}") contains an architecturally UNDEFINED word, which faults on first execution. See ${ISSUE_MARKER}."
+              "${objdump}" -d "${obj}" | grep -B2 UNDEFINED | head -20
+            fi
+          done
+          if (( scanned == 0 )); then
+            echo "::error title=No float16 objects to scan::The archive has no *f16* members, so this check asserted nothing. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          echo "float16 objects scanned: ${scanned}"
+          (( bad == 0 )) || exit 1
+          # arm_softmax_f16 reaches the conversions only through the inlined
+          # arm_nn_vexpq_poly_mve_f16 helper, so it is also the check that the
+          # Q-register form is still being generated at all: a build that
+          # stopped emitting it would pass the UNDEFINED scan vacuously.
+          softmax="${work}/arm_softmax_f16.c.obj"
+          if [[ ! -e "${softmax}" ]]; then
+            echo "::error title=No arm_softmax_f16 object::Expected ${softmax} in the archive. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          qforms="$("${objdump}" -d "${softmax}" \
+            | grep -ciE 'vcvt[bt]\.(f16\.f32|f32\.f16)[[:space:]]+q' || true)"
+          if (( qforms < 1 )); then
+            echo "::error title=No Q-form conversion to check::arm_softmax_f16 contains no Q-register vcvt f16<->f32, so a mis-encoding assembler would have nothing to get wrong here and this cell proves nothing. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          echo "Q-form vcvt f16<->f32 in arm_softmax_f16: ${qforms}"
 
   atfe:
     # The `env` context is not available in a job-level `name`, so the
