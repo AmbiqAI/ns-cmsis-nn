@@ -32,7 +32,24 @@
  * @{
  */
 
-    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+/*
+ * The MVE leg is additionally gated on the toolchain: GNU binutils 2.39-2.42
+ * (the gas bundled with Arm GNU Toolchain releases up to 13.3.Rel1)
+ * mis-assembles the MVE Q-register form of VCVTB/VCVTT.F16<->F32, encoding
+ * every Q operand with its D-register alias number (Qn emitted as Q2n): the
+ * widen/narrow steps land in the wrong registers, and any doubled operand
+ * past q7 overflows the field into an UNDEFINED encoding (this kernel's
+ * vcvtb.f16.f32 q3, q4 assembles to 0xee3fce11 with those assemblers, which
+ * faults before any output on FVP Corstone-300). Fixed in binutils 2.43.1,
+ * bundled from Arm GNU Toolchain 14.2.Rel1. The preprocessor cannot see the
+ * assembler version, so this keys on the compiler major each Arm GNU release
+ * pairs with it: a GCC < 14 build takes the scalar leg below, which returns
+ * the same bits for every input (both legs narrow identical float32
+ * products), just without the vector speedup. Clang encodes MVE itself and
+ * is unaffected.
+ */
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE) &&                                           \
+        (defined(__clang__) || !defined(__GNUC__) || __GNUC__ >= 14)
         #define ARM_NN_HARD_SWISH_F16_MVE 1
     #else
         #define ARM_NN_HARD_SWISH_F16_MVE 0
@@ -50,8 +67,8 @@ static inline float16x8_t arm_hard_swish_block_f16(float16x8_t vx)
     const float32x4_t vone = vdupq_n_f32(1.0f);
     const float32x4_t vsixth = vdupq_n_f32(1.0f / 6.0f);
 
-    const float32x4_t xb = arm_nn_vcvtbq_f32_f16(vx);
-    const float32x4_t xt = arm_nn_vcvttq_f32_f16(vx);
+    const float32x4_t xb = vcvtbq_f32_f16(vx);
+    const float32x4_t xt = vcvttq_f32_f16(vx);
 
     float32x4_t tb = vfmaq(vhalf, xb, vsixth);
     tb = vmaxnmq(tb, vzero);
@@ -61,8 +78,8 @@ static inline float16x8_t arm_hard_swish_block_f16(float16x8_t vx)
     tt = vmaxnmq(tt, vzero);
     tt = vminnmq(tt, vone);
 
-    float16x8_t vy = arm_nn_vcvtbq_f16_f32(vdupq_n_f16((float16_t)0.0f), vmulq(xb, tb));
-    return arm_nn_vcvttq_f16_f32(vy, vmulq(xt, tt));
+    float16x8_t vy = vcvtbq_f16_f32(vdupq_n_f16((float16_t)0.0f), vmulq(xb, tb));
+    return vcvttq_f16_f32(vy, vmulq(xt, tt));
 }
     #endif
 
@@ -76,10 +93,9 @@ static inline float16x8_t arm_hard_swish_block_f16(float16x8_t vx)
  * separately and lands an ulp off in the curved region for some inputs.
  *
  * Both legs share that shape -- the scalar leg widens with a conversion and
- * uses __builtin_fmaf, the MVE leg widens with arm_nn_vcvtbq_f32_f16 /
- * arm_nn_vcvttq_f32_f16 and uses vfmaq -- so they narrow identical float32
- * products and agree bit-exactly on every numeric input (NaN payloads may
- * differ between legs; header).
+ * uses __builtin_fmaf, the MVE leg widens with vcvtbq/vcvttq_f32_f16 and uses
+ * vfmaq -- so they narrow identical float32 products and agree bit-exactly
+ * on every numeric input (NaN payloads may differ between legs; header).
  * No scalar _Float16 arithmetic or selects are involved, so GCC PR
  * target/118460 (HFmode conditional moves) has nothing to bite on.
  *

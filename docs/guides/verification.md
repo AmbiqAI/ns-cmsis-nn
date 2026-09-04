@@ -47,12 +47,6 @@ compiler* executed, which the FVP legs — all on the container's single
 toolchain — cannot provide. Where QEMU and the FVP disagree, the FVP is the
 judge, and silicon is the judge of both.
 
-The developer-side proof that the workaround behind that leg encodes every
-form and register pair exactly as a correct assembler does is
-`scripts/verify_vcvt_f16_fixup.py`. It is not in CI: it wants seven Arm GNU
-releases installed side by side, which no runner image has. Its own docstring
-says how to run it.
-
 ## What runs at release time, or on demand
 
 `release.yml` additionally re-runs the FVP numerics suite, runs the Unity

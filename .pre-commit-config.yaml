@@ -58,17 +58,6 @@ repos:
 
   - repo: local
     hooks:
-      - id: no-raw-vcvt-f16
-        name: MVE half<->single conversions go through the wrappers
-        entry: scripts/check_raw_vcvt_f16.sh
-        language: script
-        # identify tags a .h as `c` as well, so this covers both.
-        types: [c]
-        files: ^(Source|Include)/
-        # Where the wrappers are defined, so it is the one place the
-        # intrinsics are named.
-        exclude: ^Include/Internal/arm_nn_vcvt_f16_fixup\.h$
-
       - id: todo-needs-issue
         name: deferred-work markers reference an issue
         entry: scripts/check_todo_markers.sh

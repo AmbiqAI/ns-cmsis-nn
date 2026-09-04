@@ -1655,11 +1655,11 @@ arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
  *       -Inf returns NaN because the gate is 0 there and (-Inf) * 0 is NaN by IEEE 754, matching
  *       TFLite's float hard-swish reference rather than the mathematical limit 0.
  *
- * @note The MVE leg is compiled on every gated toolchain. On the older Arm GNU releases its
- *       half<->single conversions are emitted through Include/Internal/arm_nn_vcvt_f16_fixup.h,
- *       which works around their assembler and produces the same instruction words
- *       (AmbiqAI/ns-cmsis-nn#427). The scalar leg, taken where MVE is unavailable, returns the
- *       same bits for every numeric input; only throughput differs.
+ * @note On GNU toolchains the MVE leg is compiled only with GCC 14 or newer: the assembler bundled
+ *       with older Arm GNU releases (binutils 2.39-2.42, through 13.3.Rel1) mis-encodes the MVE
+ *       Q-register form of the VCVTB/VCVTT widen/narrow this leg is built from (fixed in binutils
+ *       2.43.1, bundled from 14.2.Rel1). Older GNU toolchains compile the scalar leg instead;
+ *       results are bit-identical for every input, only throughput differs.
  */
 arm_cmsis_nn_status arm_hard_swish_f16(const float16_t *input, float16_t *output, int32_t size);
 

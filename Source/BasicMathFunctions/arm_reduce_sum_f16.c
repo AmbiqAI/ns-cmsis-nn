@@ -103,8 +103,8 @@ static arm_cmsis_nn_status arm_reduce_sum_flatten_last_dims_f16(const float16_t 
         {
             const mve_pred16_t p = vctp16q((uint32_t)(inner_size - j));
             const float16x8_t v = vld1q_z(&row[j], p);
-            vacc_lo = vaddq(vacc_lo, arm_nn_vcvtbq_f32_f16(v));
-            vacc_hi = vaddq(vacc_hi, arm_nn_vcvttq_f32_f16(v));
+            vacc_lo = vaddq(vacc_lo, vcvtbq_f32_f16(v));
+            vacc_hi = vaddq(vacc_hi, vcvttq_f32_f16(v));
         }
         const float32_t acc = arm_nn_vec_reduce_add_f32(vaddq(vacc_lo, vacc_hi));
         output_data[i] = (float16_t)acc;
