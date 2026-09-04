@@ -75,10 +75,12 @@ jobs:
         # would be built by the rest of CI and executed by nothing. Derive the
         # set from the tree instead and fail if SUITES is short of it.
         #
-        # The reach is a fixed point over Include/, so a kernel that only ever
-        # calls an inline helper such as arm_nn_vexpq_poly_mve_f16 counts the
-        # same as one naming an intrinsic itself. Attribution is by enclosing
-        # definition; definition heads sit at column 0 throughout this tree.
+        # The reach is a fixed point over Include/ and Source/, so a kernel
+        # that only ever calls a helper such as arm_nn_vexpq_poly_mve_f16
+        # counts the same as one naming an intrinsic itself -- whether that
+        # helper is inline in a header or a function in another source file.
+        # Attribution is by enclosing definition; definition heads sit at
+        # column 0 throughout this tree.
         # See AmbiqAI/ns-cmsis-nn#427.
         run: |
           set -euo pipefail
@@ -88,6 +90,7 @@ jobs:
           import sys
 
           DEF = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*(?:[\s*]+[A-Za-z_][A-Za-z0-9_]*)*)\s*\(")
+          NOISE = re.compile(r'"(?:\\.|[^"\\])*"' r"|'(?:\\.|[^'\\])*'" r"|//.*")
 
 
           def walk(root, ext):
@@ -101,32 +104,65 @@ jobs:
               return re.compile(r"(?<![A-Za-z0-9_])(?:%s)(?![A-Za-z0-9_])" % "|".join(sorted(names)))
 
 
+          # `path` with comments and literals blanked out. Once function names
+          # enter the reaching set, prose naming one -- a doxygen @ref, a note
+          # about why a kernel differs from another -- would otherwise read as
+          # a call to it and drag half the tree in behind it.
+          def code_lines(path):
+              in_block = False
+              with open(path, encoding="utf-8", errors="replace") as handle:
+                  for line in handle:
+                      out, i = [], 0
+                      while i < len(line):
+                          if in_block:
+                              end = line.find("*/", i)
+                              if end < 0:
+                                  break
+                              in_block, i = False, end + 2
+                              continue
+                          start = line.find("/*", i)
+                          out.append(NOISE.sub(" ", line[i:] if start < 0 else line[i:start]))
+                          if start < 0:
+                              break
+                          in_block, i = True, start + 2
+                      yield "".join(out)
+
+
           # Functions defined in `path` whose body names one of `names`.
           def enclosing(path, names):
               hit, found, current = word(names), set(), None
-              with open(path, encoding="utf-8", errors="replace") as handle:
-                  for line in handle:
-                      head = DEF.match(line)
-                      if head:
-                          current = head.group(1).split()[-1].lstrip("*")
-                      if current and hit.search(line):
-                          found.add(current)
+              for line in code_lines(path):
+                  head = DEF.match(line)
+                  if head:
+                      # A declaration ends its statement on the same line; a
+                      # definition opens a body and owns the lines that follow.
+                      # Forgetting the previous one is what stops a run of
+                      # prototypes being attributed to whichever came first.
+                      current = (None if line.rstrip().endswith(";")
+                                 else head.group(1).split()[-1].lstrip("*"))
+                  elif current and hit.search(line):
+                      found.add(current)
               return found
 
 
           def mentions(path, names):
-              with open(path, encoding="utf-8", errors="replace") as handle:
-                  return bool(word(names).search(handle.read()))
+              hit = word(names)
+              return any(hit.search(line) for line in code_lines(path))
 
 
           # The four Q-register MVE half<->single intrinsics. These are the
           # only forms binutils below 2.43 mis-encodes.
           reaching = {"vcvtbq_f16_f32", "vcvttq_f16_f32",
                       "vcvtbq_f32_f16", "vcvttq_f32_f16"}
+          # Source/ as well as Include/: a wrapper defined in one .c and called
+          # from another propagates the reach exactly like an inline helper
+          # does, and closing over headers alone would leave its callers
+          # outside this gate.
+          defining = list(walk("Include", ".h")) + list(walk("Source", ".c"))
           while True:
               grown = set(reaching)
-              for header in walk("Include", ".h"):
-                  grown |= enclosing(header, reaching)
+              for path in defining:
+                  grown |= enclosing(path, reaching)
               if grown == reaching:
                   break
               reaching = grown
