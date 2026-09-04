@@ -32,7 +32,7 @@ How to run it:
 
     # Unpack the releases you have under one root, each in a directory named
     # for its release, so that
-    #   <root>/13.2.rel1/arm-none-eabi/bin/arm-none-eabi-gcc
+    #   <root>/13.2.rel1/bin/arm-none-eabi-gcc
     # exists. The default root is /Applications/ArmGNUToolchain.
     scripts/verify_vcvt_f16_fixup.py
     ARM_TOOLCHAIN_ROOT=/opt/arm scripts/verify_vcvt_f16_fixup.py
@@ -107,7 +107,20 @@ REGS = range(8)
 
 
 def tool_path(release, name):
-    return TOOLCHAIN_ROOT / release / "arm-none-eabi" / "bin" / f"arm-none-eabi-{name}"
+    """Locate one tool of `release`.
+
+    An Arm GNU Toolchain unpacks with the driver and the binutils frontends in
+    <root>/bin and a second copy of some binutils, without gcc or objcopy, in
+    <root>/arm-none-eabi/bin. Prefer the former and fall back to the latter, so
+    that a release unpacked as Arm ships it is found.
+    """
+    prefixed = f"arm-none-eabi-{name}"
+    for relative in (Path("bin") / prefixed,
+                     Path("arm-none-eabi") / "bin" / prefixed):
+        candidate = TOOLCHAIN_ROOT / release / relative
+        if candidate.exists():
+            return candidate
+    return TOOLCHAIN_ROOT / release / "bin" / prefixed
 
 
 def tool(release, name):

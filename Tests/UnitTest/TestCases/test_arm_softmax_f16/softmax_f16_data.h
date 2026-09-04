@@ -2,9 +2,18 @@
  * SPDX-FileCopyrightText: Copyright 2026 Ambiq
  * SPDX-License-Identifier: Apache-2.0
  *
- * Generated golden data, from Tests/UnitTest/softmax_settings_flt.py
- * --dataset softmax_f16: PyTorch softmax computed in float32 and rounded once
- * to float16.
+ * Golden data for arm_softmax_f16, written by hand rather than emitted by a
+ * generator: softmax_settings_flt.py's softmax_f16 dataset writes the
+ * TestCases/TestData layout, which this suite does not use.
+ *
+ * The reference is softmax evaluated in float32 over the float16 inputs and
+ * rounded once to float16 -- the same definition softmax_settings_flt.py
+ * applies -- and is bit-exact for every element:
+ *
+ *   import numpy as np
+ *   x = np.array(INPUT, dtype=np.float16).reshape(2, 5).astype(np.float32)
+ *   e = np.exp(x - x.max(1, keepdims=True))
+ *   (e / e.sum(1, keepdims=True)).astype(np.float16)
  */
 #pragma once
 
@@ -12,8 +21,7 @@
 #define SOFTMAX_F16_ROW_SIZE 5
 #define SOFTMAX_F16_DST_SIZE 10
 
-static const float16_t softmax_f16_input[] = {
-    1.0f, 0.25f, -0.5f, 2.0f, -1.25f, -2.0f, -0.125f, 0.75f, 3.0f, 1.5f};
+static const float16_t softmax_f16_input[] = {1.0f, 0.25f, -0.5f, 2.0f, -1.25f, -2.0f, -0.125f, 0.75f, 3.0f, 1.5f};
 
 static const float16_t softmax_f16_output_ref[] = {0.221313477f,
                                                    0.104553223f,
