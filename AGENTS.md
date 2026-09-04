@@ -24,6 +24,10 @@ break the embedded build. When writing SIMD paths:
   `vcmpgeq` return predicates in MVE, vectors in NEON.
 - Guard macros: `ARM_MATH_MVEF` (f32), `ARM_MATH_MVE_FLOAT16` (f16),
   `ARM_MATH_MVEI` (integer) — always with `&& !defined(ARM_MATH_AUTOVECTORIZE)`.
+- **Half↔single conversion**: use the `arm_nn_vcvt{b,t}q_f{16_f32,32_f16}`
+  wrappers in `Include/Internal/arm_nn_vcvt_f16_fixup.h`, not the intrinsics —
+  the gas in the older gated GCC releases mis-encodes those, and a pre-commit
+  hook rejects a direct call (see AmbiqAI/ns-cmsis-nn#427).
 - **Cross-dtype helpers**: an f16 kernel may legitimately use f32 MVE vectors
   (e.g. widening accumulation), but any helper it calls must NOT be declared
   inside an `#if ARM_NN_ENABLE_F32` block — that gate is off in F16-only
