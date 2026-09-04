@@ -39,48 +39,45 @@
     #endif
 
     #if ARM_NN_HARD_SWISH_F16_MVE
-// One 8-lane block: widen the even (bottom) and odd (top) half-lanes to
-// float32, compute the gate and product there, and narrow each product
-// exactly once. All lanes are computed unpredicated; the caller decides
-// which results reach memory.
+// One 8-lane block, evaluated entirely in float16: no half<->single
+// conversion, so nothing here rides on the assembler's Q-register VCVTB/VCVTT
+// encoding (see AmbiqAI/ns-cmsis-nn#427). The gate is scaled before the
+// product, not after: 6 * float16(1/6) rounds to exactly 1.0, so the
+// multiplier stays in [0, 1] and |out| <= |in| for every input, whereas
+// (x * relu6(x + 3)) / 6 overflows float16 for large x. All lanes are
+// computed unpredicated; the caller decides which results reach memory.
 static inline float16x8_t arm_hard_swish_block_f16(float16x8_t vx)
 {
-    const float32x4_t vhalf = vdupq_n_f32(0.5f);
-    const float32x4_t vzero = vdupq_n_f32(0.0f);
-    const float32x4_t vone = vdupq_n_f32(1.0f);
-    const float32x4_t vsixth = vdupq_n_f32(1.0f / 6.0f);
+    const float16x8_t vzero = vdupq_n_f16((float16_t)0.0f);
+    const float16x8_t vthree = vdupq_n_f16((float16_t)3.0f);
+    const float16x8_t vsix = vdupq_n_f16((float16_t)6.0f);
+    const float16x8_t vsixth = vdupq_n_f16((float16_t)(1.0f / 6.0f));
 
-    const float32x4_t xb = vcvtbq_f32_f16(vx);
-    const float32x4_t xt = vcvttq_f32_f16(vx);
+    float16x8_t t = vaddq(vx, vthree);
+    t = vmaxnmq(t, vzero);
+    t = vminnmq(t, vsix);
 
-    float32x4_t tb = vfmaq(vhalf, xb, vsixth);
-    tb = vmaxnmq(tb, vzero);
-    tb = vminnmq(tb, vone);
-
-    float32x4_t tt = vfmaq(vhalf, xt, vsixth);
-    tt = vmaxnmq(tt, vzero);
-    tt = vminnmq(tt, vone);
-
-    float16x8_t vy = vcvtbq_f16_f32(vdupq_n_f16((float16_t)0.0f), vmulq(xb, tb));
-    return vcvttq_f16_f32(vy, vmulq(xt, tt));
+    return vmulq(vx, vmulq(t, vsixth));
 }
     #endif
 
 /*
- * float16 hard swish: out[i] = x * relu6(x + 3) / 6, computed in float32 and
- * rounded to float16 once. Each element is widened exactly to float32, the
- * gate and the product are evaluated in float32 with the same operation
- * sequence as arm_hard_swish_f32 (see the leg-agreement and NaN/Inf notes
- * there), and only the final product is narrowed. The single narrowing is
- * the whole point: a native-f16 evaluation rounds the gate and the product
- * separately and lands an ulp off in the curved region for some inputs.
+ * float16 hard swish: out[i] = x * relu6(x + 3) / 6.
  *
- * Both legs share that shape -- the scalar leg widens with a conversion and
- * uses __builtin_fmaf, the MVE leg widens with vcvtbq/vcvttq_f32_f16 and uses
- * vfmaq -- so they narrow identical float32 products and agree bit-exactly
- * on every numeric input (NaN payloads may differ between legs; header).
- * No scalar _Float16 arithmetic or selects are involved, so GCC PR
- * target/118460 (HFmode conditional moves) has nothing to bite on.
+ * The scalar leg widens each element to float32, evaluates the gate and the
+ * product there with the same operation sequence as arm_hard_swish_f32 (see
+ * the leg-agreement and NaN/Inf notes there) and narrows the product once.
+ * The MVE leg evaluates the same expression in float16 throughout. The
+ * widened form is the more accurate of the two -- it is single-rounded, where
+ * the float16 form rounds the gate and the product separately -- but the
+ * float16 form stays inside the kernel's numeric tolerance of it on every
+ * input, and it drops both the half<->single conversions and the duplicated
+ * half-vector arithmetic they force. See AmbiqAI/ns-cmsis-nn#427. The two
+ * legs are therefore no longer bit-identical to each other; the saturated
+ * regions and the NaN/Inf behaviour still match (header).
+ *
+ * No scalar _Float16 arithmetic or selects are involved on either leg, so GCC
+ * PR target/118460 (HFmode conditional moves) has nothing to bite on.
  *
  * Refer header file for details.
  *

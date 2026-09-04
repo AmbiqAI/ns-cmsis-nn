@@ -32,18 +32,19 @@ static const uint16_t hard_swish_f16_denormal_in_bits[] = {
 static const uint16_t hard_swish_f16_denormal_ref_bits[] = {
     0x0000, 0x8000, 0x01f8, 0x0001};
 
-/* Round-once witness: computing the gate and product natively in float16
- * (gate rounded to f16, product in f16) yields 0x3065 here; the kernel's
- * float32 computation with a single final rounding yields the correctly
- * rounded 0x3066. Input x = 0.25341796875. */
+/* Rounding-shape witness, x = 0.25341796875: the kernel's scalar leg computes
+ * in float32 and rounds once, giving the correctly rounded 0x3066; its MVE leg
+ * rounds the gate and the product separately in float16, giving 0x3065. One
+ * ulp apart, which is what makes this input worth pinning. */
 #define HARD_SWISH_F16_WITNESS_IN_BITS ((uint16_t)0x340e)
 #define HARD_SWISH_F16_WITNESS_ONCE_BITS ((uint16_t)0x3066)
 #define HARD_SWISH_F16_WITNESS_TWICE_BITS ((uint16_t)0x3065)
 
-/* Fused-gate witness: the single float16 input (exhaustive sweep) where the
- * correctly rounded fma gate differs observably from a separately rounded
- * x * (1/6f) + 0.5f gate after the final narrowing. Pinned bit-exactly so
- * an unfused-gate regression fails. */
+/* Fused-gate witness for the scalar leg: the single float16 input (exhaustive
+ * sweep) where the correctly rounded fma gate differs observably from a
+ * separately rounded x * (1/6f) + 0.5f gate after the final narrowing. Pinned
+ * bit-exactly so an unfused-gate regression fails. The MVE leg's float16
+ * evaluation lands on the same bits. */
 #define HARD_SWISH_F16_FMA_WITNESS_IN_BITS ((uint16_t)0x3bff) /* 0.99951171875 */
 #define HARD_SWISH_F16_FMA_WITNESS_FUSED_BITS ((uint16_t)0x3954)
 #define HARD_SWISH_F16_FMA_WITNESS_UNFUSED_BITS ((uint16_t)0x3955)
