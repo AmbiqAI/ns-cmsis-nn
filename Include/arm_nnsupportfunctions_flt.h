@@ -34,11 +34,12 @@
 #include "arm_nn_types_flt.h"
 
 /*
- * Every float16 MVE leg in the library reaches this header, so the assembler
- * contract is asserted here once. The CMake probe measures the assembler in
- * use and defines ARM_NN_GAS_F16_VERIFIED on the target it checked; a build
- * that never runs the probe, or wires its architecture flags where the probe
- * cannot see them, has to make the same assertion itself.
+ * Every float16 leg that converts between half and single precision reaches
+ * this header, so the assembler contract is asserted here once. The CMake
+ * probe measures the assembler in use and defines ARM_NN_GAS_F16_VERIFIED on
+ * the target it checked; a build that never runs the probe, or wires its
+ * architecture flags where the probe cannot see them, has to make the same
+ * assertion itself.
  * See AmbiqAI/ns-cmsis-nn#427.
  */
 #if ARM_NN_ENABLE_F16 && defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)

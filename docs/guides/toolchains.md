@@ -68,13 +68,17 @@ does apply it stays authoritative: it fails the configure on any GCC, including
 The CMSIS-Pack `Source` Cvariant and `module.mk` compile the sources directly,
 so nothing probes the assembler for them.
 
-- On **Arm GNU 14.2.Rel1 or newer**, nothing to do.
+- On **Arm GNU 14.2.Rel1 or newer**, nothing to do. One residual: outside CMake
+  the guard keys on the compiler major, so a GCC 14 or newer driver over a
+  binutils below 2.43 is not caught. That pair only exists if you assembled it
+  yourself; check `as --version` if you did. Under CMake the probe catches it.
 - On **GCC 13.x or older**, pass both `-B<dir>/` for a binutils 2.43 or newer
   `arm-none-eabi` assembler and `-DARM_NN_GAS_F16_VERIFIED=1`. The `-B` is what
   fixes the encoding; the define is how you tell the library you did it.
 
 ```sh
 arm-none-eabi-gcc -mcpu=cortex-m55 -mfloat-abi=hard -DARM_NN_ENABLE_F16=1 \
+  -IInclude -IInclude/Internal \
   -B/opt/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/arm-none-eabi/bin/ \
   -DARM_NN_GAS_F16_VERIFIED=1 \
   -c Source/ActivationFunctions/arm_hard_swish_f16.c
@@ -105,10 +109,12 @@ Set it through `CFLAGS` on a fresh build directory, or append it to
 
 `ARM_NN_SKIP_GAS_F16_PROBE=ON` downgrades the configure failure to a warning and
 defines `ARM_NN_GAS_F16_VERIFIED=1` on the target, which lifts the compile-time
-guard as well; otherwise the build would still stop. It is a last resort for a
-build that cannot be changed any other way: the library it produces contains the
-mis-encoded conversions, and the `float16` kernels that use them return wrong
-results or fault.
+guard as well; otherwise the build would still stop. It does the same when the
+probe cannot assemble its witness at all, so a build whose flags defeat the
+measurement still has a way past. It is a last resort for a build that cannot
+be changed any other way: the library it produces contains the mis-encoded
+conversions, and the `float16` kernels that use them return wrong results or
+fault.
 
 See [#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427).
 

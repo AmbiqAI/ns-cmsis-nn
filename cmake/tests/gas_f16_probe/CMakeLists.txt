@@ -66,12 +66,17 @@ target_compile_options(_probe_deep INTERFACE -DNS_PROBE_DEEP_OPT)
 add_library(_probe_flags INTERFACE)
 target_compile_options(_probe_flags INTERFACE -DNS_PROBE_IFACE_OPT)
 target_compile_definitions(_probe_flags INTERFACE NS_PROBE_IFACE_DEF=1)
+# A board target that carries -include board_cfg.h keeps the header's directory
+# here; without it the witness does not preprocess and the probe measures
+# nothing.
+target_include_directories(_probe_flags INTERFACE "${CMAKE_CURRENT_LIST_DIR}/iface_inc")
 target_link_libraries(_probe_flags INTERFACE _probe_deep)
 
 add_library(_probe_lib STATIC)
 ns_cmsis_nn_attach(_probe_lib GROUPS softmax)
 target_compile_options(_probe_lib PRIVATE -DNS_PROBE_OWN_OPT)
 target_compile_definitions(_probe_lib PRIVATE NS_PROBE_OWN_DEF=1)
+target_include_directories(_probe_lib PRIVATE "${CMAKE_CURRENT_LIST_DIR}/own_inc")
 # Linked after the attach on purpose: that is the order nsx/CMakeLists.txt
 # uses, and reading the link closure during attach would see nothing.
 target_link_libraries(_probe_lib PUBLIC _probe_flags)
@@ -92,6 +97,10 @@ _expect_opt("${_opts}" "-DNS_PROBE_DIR_OPT"
             "directory COMPILE_OPTIONS are not measured")
 _expect_opt("${_opts}" "-DNS_PROBE_DIR_AFTER_GENEX"
             "the generator-expression filter does not recover its bracket depth")
+_expect_opt("${_opts}" "-I${CMAKE_CURRENT_LIST_DIR}/iface_inc"
+            "INTERFACE_INCLUDE_DIRECTORIES are not measured")
+_expect_opt("${_opts}" "-I${CMAKE_CURRENT_LIST_DIR}/own_inc"
+            "the target's own INCLUDE_DIRECTORIES are not measured")
 
 foreach(_opt IN LISTS _opts)
   if(_opt MATCHES "\\$<")

@@ -12,12 +12,12 @@
 #
 #   ns_cmsis_nn_check_gas_mve_f16_cvt(<target>)
 #       Assembles a witness instruction with the flags <target> will really
-#       compile with -- CMAKE_C_FLAGS, the target's own options and
-#       definitions, and the usage requirements of everything it links -- and
-#       compares the encoded word. A no-op unless ARM_NN_ENABLE_F16 is set and
-#       the compiler is GNU. Call it where the float16 sources are selected, so
-#       every consumer of cmake/ns_cmsis_nn.cmake is covered and not just the
-#       standalone build.
+#       compile with -- CMAKE_C_FLAGS, the target's own options, definitions
+#       and include directories, and the usage requirements of everything it
+#       links -- and compares the encoded word. A no-op unless
+#       ARM_NN_ENABLE_F16 is set and the compiler is GNU. Call it where the
+#       float16 sources are selected, so every consumer of
+#       cmake/ns_cmsis_nn.cmake is covered and not just the standalone build.
 #
 # On a good assembler the probe defines ARM_NN_GAS_F16_VERIFIED=1 on <target>.
 # Include/arm_nnsupportfunctions_flt.h refuses a GCC 13 or older float16 MVE
@@ -66,11 +66,15 @@ function(_ns_cmsis_nn_gas_f16_plain out_var out_skipped)
   set(${out_skipped} "${_skipped}" PARENT_SCOPE)
 endfunction()
 
-# Compile options and definitions <target> will carry, in the order CMake lays
-# them down: the target's own, then the usage requirements of everything it
-# links, transitively. Consumers routinely put -mcpu on an INTERFACE target
-# rather than in CMAKE_C_FLAGS, and reading only the latter makes the probe
-# decide there is no MVE and skip itself.
+# Compile options, definitions and include directories <target> will carry, in
+# the order CMake lays them down: the target's own, then the usage requirements
+# of everything it links, transitively. Consumers routinely put -mcpu on an
+# INTERFACE target rather than in CMAKE_C_FLAGS, and reading only the latter
+# makes the probe decide there is no MVE and skip itself. Include directories
+# come along as -I because an option can depend on them: a board target that
+# carries `-include board_cfg.h` puts the header's directory in
+# INTERFACE_INCLUDE_DIRECTORIES, and without it the witness does not assemble
+# at all.
 #
 # The directory property is not read. CMake seeds a target's COMPILE_OPTIONS
 # from it when the target is created, so the target property already carries
@@ -82,7 +86,7 @@ function(_ns_cmsis_nn_gas_f16_flags target out_var out_skipped)
   set(_skipped_any FALSE)
   set(_opts "")
 
-  foreach(_prop COMPILE_OPTIONS COMPILE_DEFINITIONS)
+  foreach(_prop COMPILE_OPTIONS COMPILE_DEFINITIONS INCLUDE_DIRECTORIES)
     get_target_property(_own ${target} ${_prop})
     if(_own)
       _ns_cmsis_nn_gas_f16_plain(_own_plain _skipped ${_own})
@@ -92,6 +96,8 @@ function(_ns_cmsis_nn_gas_f16_flags target out_var out_skipped)
       foreach(_item IN LISTS _own_plain)
         if(_prop STREQUAL "COMPILE_DEFINITIONS")
           list(APPEND _opts "-D${_item}")
+        elseif(_prop STREQUAL "INCLUDE_DIRECTORIES")
+          list(APPEND _opts "-I${_item}")
         else()
           list(APPEND _opts "${_item}")
         endif()
@@ -130,7 +136,8 @@ function(_ns_cmsis_nn_gas_f16_flags target out_var out_skipped)
     endif()
     list(APPEND _seen "${_dep}")
 
-    foreach(_prop INTERFACE_COMPILE_OPTIONS INTERFACE_COMPILE_DEFINITIONS)
+    foreach(_prop INTERFACE_COMPILE_OPTIONS INTERFACE_COMPILE_DEFINITIONS
+                  INTERFACE_INCLUDE_DIRECTORIES)
       get_target_property(_vals ${_dep} ${_prop})
       if(_vals)
         _ns_cmsis_nn_gas_f16_plain(_vals_plain _skipped ${_vals})
@@ -140,6 +147,8 @@ function(_ns_cmsis_nn_gas_f16_flags target out_var out_skipped)
         foreach(_item IN LISTS _vals_plain)
           if(_prop STREQUAL "INTERFACE_COMPILE_DEFINITIONS")
             list(APPEND _opts "-D${_item}")
+          elseif(_prop STREQUAL "INTERFACE_INCLUDE_DIRECTORIES")
+            list(APPEND _opts "-I${_item}")
           else()
             list(APPEND _opts "${_item}")
           endif()
@@ -233,13 +242,29 @@ function(_ns_cmsis_nn_gas_f16_run target)
     ERROR_VARIABLE  _log)
 
   if(NOT _rc EQUAL 0 OR NOT EXISTS "${_obj}")
+    # The option is the documented last resort, so it has to work from here
+    # too: a build whose flags the probe cannot even assemble is exactly the
+    # one that would otherwise stop at the header guard with no way past it.
+    if(ARM_NN_SKIP_GAS_F16_PROBE)
+      _ns_cmsis_nn_gas_f16_mark(${target})
+    endif()
     if(_report)
+      set(_hatch "the compile-time guard in arm_nnsupportfunctions_flt.h stands "
+                 "and a float16 MVE build on GCC 13 or older will refuse to "
+                 "compile")
+      if(ARM_NN_SKIP_GAS_F16_PROBE)
+        set(_hatch "ARM_NN_SKIP_GAS_F16_PROBE=ON was set, so "
+                   "ARM_NN_GAS_F16_VERIFIED=1 is defined on the target and the "
+                   "compile-time guard in arm_nnsupportfunctions_flt.h is "
+                   "lifted as well. Nothing measured this assembler; if it is "
+                   "one of the mis-encoding ones, the float16 kernels in this "
+                   "build are wrong")
+      endif()
+      string(JOIN "" _hatch ${_hatch})
       message(WARNING
         "Could not assemble the MVE half<->single conversion probe for target "
         "'${target}' with ${CMAKE_C_COMPILER} ${CMAKE_C_FLAGS} ${_opts}; "
-        "the assembler was not checked, so the compile-time guard in "
-        "arm_nnsupportfunctions_flt.h stands and a float16 MVE build on GCC 13 "
-        "or older will refuse to compile. "
+        "the assembler was not checked, so ${_hatch}. "
         "See AmbiqAI/ns-cmsis-nn#427.\n${_log}")
     endif()
     return()

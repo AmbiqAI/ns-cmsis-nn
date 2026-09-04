@@ -24,7 +24,7 @@ The pack defines the component **`Ambiq::NN Lib`** with two variants:
 | Cvariant   | What you get                                                  | When to use                            |
 |------------|---------------------------------------------------------------|----------------------------------------|
 | `Source`   | The CMSIS-NN sources compiled by your project's toolchain.    | You want maximum control / portability.|
-| `Prebuilt` | A vendored `libns-cmsis-nn.a` we built with GCC. The release's static-library bundle records which GCC in its `manifest.json`. | You want fewer moving parts.           |
+| `Prebuilt` | A vendored `libns-cmsis-nn.a` we built with GCC. The release's per-arch SDK tarball `ns-cmsis-nn-<cpu>-gcc-<version>.tar.gz` names that GCC in its `manifest.json`, under `toolchain.version`; the pack vendors the same archive bytes. | You want fewer moving parts.           |
 
 In your `.cproject` or IDE, select **one** of:
 

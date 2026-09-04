@@ -1,6 +1,10 @@
 /*
  * SPDX-FileCopyrightText: Copyright 2026 Ambiq
- * SPDX-License-Identifier: Apache-2.0
+ *
+ * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+ *
+ * Licensed under the Ambiq Apollo SDK License.
+ * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  *
  * Golden data for arm_softmax_f16 at three row widths, written by hand rather
  * than emitted by a generator: softmax_settings_flt.py's softmax_f16 dataset

@@ -530,6 +530,7 @@ Additional implementation-selection options:
 | `NN_DISABLE_SPECIALIZATION` | Disables optional shape/layout-specific fast paths and forces the corresponding generic implementations. Useful for debugging or validating specialized kernels against generic paths. |
 | `ARM_NN_USE_EXP_LUT` | Selects the LUT-based scalar float softmax exp approximation. This is the default if no scalar float softmax exp macro is defined. |
 | `ARM_NN_USE_EXP_TAYLOR` | Selects the Taylor/Estrin scalar float softmax exp approximation to avoid the extra lookup-table storage. Do not define this with `ARM_NN_USE_EXP_LUT`. |
+| `ARM_NN_SKIP_GAS_F16_PROBE` | Default `OFF`. Downgrades the MVE half/single assembler check to a warning and lifts the matching compile-time guard, so a build with a mis-encoding assembler proceeds and its `float16` kernels are wrong. Last resort; see [toolchains.md](docs/guides/toolchains.md). |
 
 ### Running unit tests
 
@@ -545,7 +546,7 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
 
 | Toolchain | Version(s) gated per PR | Built | Linked | Functional tests |
 | --- | --- | --- | --- | --- |
-| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.2.Rel1, 15.3.Rel1 | yes | yes | partly. The numerics suite runs on 14.3.1, the CI container's toolchain, which this matrix does not gate; the `float16` conversion suites run on 14.2.Rel1, the `float16` floor, which it does gate. Nothing executes on 13.2.Rel1 or 15.3.Rel1 |
+| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.2.Rel1, 15.3.Rel1 | integer and `float32` on all three; `float16` on cortex-m55 from 14.2.Rel1 up | yes | partly. The numerics suite runs on 14.3.1, the CI container's toolchain, which this matrix does not gate; the `float16` conversion suites run on 14.2.Rel1, the `float16` floor, which it does gate. Nothing executes on 13.2.Rel1 or 15.3.Rel1 |
 | Arm Compiler 6 (`armclang`) | 6.23.32 | yes | yes | no |
 | LLVM Embedded Toolchain for Arm (ATfE) | 19.1.5 | yes | yes | no |
 
