@@ -52,7 +52,10 @@ get_filename_component(NS_CMSIS_NN_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 # Assembler check for the float16 kernels. It lives here rather than in the
 # standalone CMakeLists.txt so the Zephyr and NSX consumers, which bypass that
 # file, are covered too; ns_cmsis_nn_attach() runs it when float16 sources are
-# actually selected. See AmbiqAI/ns-cmsis-nn#427.
+# actually selected, against the flags the attached target really compiles
+# with. It cannot see an architecture flag that only exists inside a generator
+# expression, and says so when it finds none.
+# See AmbiqAI/ns-cmsis-nn#427.
 include("${CMAKE_CURRENT_LIST_DIR}/check_gas_mve_f16_cvt.cmake")
 
 # Canonical, ordered list of operator group ids.
@@ -500,7 +503,7 @@ function(ns_cmsis_nn_attach target)
   foreach(_src IN LISTS all_sources)
     get_filename_component(_base "${_src}" NAME)
     if(_base MATCHES "_fp?16([._]|$)")
-      ns_cmsis_nn_check_gas_mve_f16_cvt()
+      ns_cmsis_nn_check_gas_mve_f16_cvt(${target})
       break()
     endif()
   endforeach()
