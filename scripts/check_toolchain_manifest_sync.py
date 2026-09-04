@@ -80,12 +80,12 @@ PAIRS = (
 # not a silent skip.
 UNPAIRED = {
     "arm-gnu-floor.json": (
-        "the floor of the supported GCC range, which is deliberately older "
-        "than the container's arm-gnu -- holding the two equal would delete "
-        "the second compiler this pin exists to provide. "
-        ".github/workflows/unity-f16-exec-gcc-floor.yml is what keeps it "
-        "honest, by failing unless it names the oldest release in "
-        "toolchain-matrix-strict-link.yml's matrix "
+        "the oldest Arm GNU release the float16 kernels may be built with, "
+        "which is deliberately older than the container's arm-gnu -- holding "
+        "the two equal would delete the second compiler this pin exists to "
+        "provide. .github/workflows/unity-f16-exec-gcc-floor.yml is what "
+        "keeps it honest, by failing unless it names the GCC_F16_FLOOR "
+        "declared in toolchain-matrix-strict-link.yml "
         "(AmbiqAI/ns-cmsis-nn#427)"
     ),
 }

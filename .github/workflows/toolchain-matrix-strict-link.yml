@@ -7,7 +7,7 @@
 # makes each claim testable on every pull request, rather than only at
 # release time or on a manual dispatch:
 #
-#   Arm GNU Toolchain (GCC)   13.2.Rel1 / 14.3.Rel1 / 15.3.Rel1
+#   Arm GNU Toolchain (GCC)   13.2.Rel1 / 14.2.Rel1 / 15.3.Rel1
 #   LLVM Embedded (ATfE)      pinned by ci/toolchains/atfe.json
 #   Arm Compiler 6 (armclang) pinned by ci/toolchains/armclang.json
 #
@@ -15,7 +15,6 @@
 #
 #   The functional PR gate (ci.yml -> helia-core-tester.yml) runs
 #   entirely inside the CI container, which pins arm-gnu 14.3.1.
-#   release.yml builds its GCC static-library assets with 13.2.Rel1.
 #   Those ranges do not agree about MVE _Generic intrinsic dispatch: an
 #   untyped literal argument (e.g. `vaddq(idx, 1U)`) resolves cleanly on
 #   14.x/15.x but on 12.x/13.x silently compiles to a call to
@@ -23,13 +22,26 @@
 #   LINK time. Nothing on the PR path linked MVE-float objects with an
 #   old-range GCC, so the class reached main.
 #
-# We support GCC 13 through 15, with 13 as the floor. This workflow
-# builds and STRICT-links the archive on one pinned release per major:
+# We support GCC 13 through 15. This workflow builds and STRICT-links
+# the archive on one pinned release per major:
 #
-#   13.2.Rel1  floor of the supported range, and exactly what
-#              release.yml ships
-#   14.3.Rel1  matches the CI container (14.3.1)
+#   13.2.Rel1  floor of the supported range for the integer and float32
+#              kernels
+#   14.2.Rel1  floor for the float16 kernels, and what release.yml ships:
+#              the first Arm GNU release whose bundled assembler encodes
+#              the MVE Q-register form of VCVTB/VCVTT.F16<->F32 correctly
+#              (binutils 2.43.1, AmbiqAI/ns-cmsis-nn#427)
 #   15.3.Rel1  newest supported
+#
+# The two floors are not the same number and the matrix has to say so:
+# below GCC_F16_FLOOR the CMake configure refuses to emit the float16
+# kernels at all, so those cells build integer and float32 only. The
+# gcc-f16-probe job asserts that refusal instead of assuming it.
+#
+# 14.3.Rel1 is no longer gated here. The selection rule is one release per
+# major and 14.2.Rel1 has to be in the list because it is the float16
+# floor; the container's own 14.3.1 is exercised by helia-core-tester.yml
+# on every pull request anyway.
 #
 # GCC 12 was evaluated and deliberately dropped as the floor. Its
 # arm_mve.h mis-dispatches the FLOAT overloads of polymorphic intrinsic
@@ -69,10 +81,10 @@
 #
 # One narrow execution leg is the exception:
 # unity-f16-exec-gcc-floor.yml runs the f16 conversion suites on the
-# floor of this matrix, because that defect class is introduced by the
+# float16 floor, because that defect class is introduced by the
 # assembler and so cannot be seen without executing on a second
-# compiler (AmbiqAI/ns-cmsis-nn#427). It reads the floor from the
-# gcc_release list below, so moving that list moves the leg.
+# compiler (AmbiqAI/ns-cmsis-nn#427). It reads GCC_F16_FLOOR below, so
+# moving that value moves the leg.
 #
 # cortex-m0 and the full three-CPU sweep stay in staticlib-dryrun.yml
 # (workflow_dispatch), which also packages and uploads SDK tarballs.
@@ -97,6 +109,13 @@ permissions:
 env:
   # Not a published artefact; the version string only names the .a.
   VERSION: 0.0.0-prgate
+  # Oldest gated release whose assembler encodes the MVE half<->single
+  # conversions correctly. Read by unity-f16-exec-gcc-floor.yml, which
+  # fails unless ci/toolchains/arm-gnu-floor.json names the same release.
+  GCC_F16_FLOOR: '14.2.Rel1'
+  # A gated release below that floor, used by gcc-f16-probe to prove the
+  # configure refuses float16 rather than silently building it.
+  GCC_BELOW_F16_FLOOR: '13.2.Rel1'
 
 jobs:
   gcc:
@@ -108,10 +127,11 @@ jobs:
       # appears we want to see its exact range, not just the first failure.
       fail-fast: false
       matrix:
-        gcc_release: ['13.2.Rel1', '14.3.Rel1', '15.3.Rel1']
+        gcc_release: ['13.2.Rel1', '14.2.Rel1', '15.3.Rel1']
         target_cpu: [cortex-m55, cortex-m4]
     env:
       TARGET_CPU: ${{ matrix.target_cpu }}
+      GCC_RELEASE: ${{ matrix.gcc_release }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -120,10 +140,11 @@ jobs:
         uses: carlosperate/arm-none-eabi-gcc-action@v1
         with:
           # One pinned release per supported major. 13.2.Rel1 must stay:
-          # it is the supported floor AND the toolchain release.yml ships,
-          # so it is the cell where a defect would actually reach a
-          # customer. Do not raise it to 13.3+ without moving release.yml
-          # in the same change.
+          # it is the integer/float32 floor, so it is the cell where a
+          # defect would actually reach a customer on that range.
+          # 14.2.Rel1 must stay: it is GCC_F16_FLOOR and what release.yml
+          # ships. Do not raise either without moving release.yml and
+          # ci/toolchains/arm-gnu-floor.json in the same change.
           release: ${{ matrix.gcc_release }}
 
       - name: Report toolchain version
@@ -131,12 +152,18 @@ jobs:
 
       - name: Build static library
         run: |
+          set -euo pipefail
           # F16 only on cortex-m55, matching release.yml and the
-          # ARMV8_1_M_MVEF Zephyr Kconfig restriction.
+          # ARMV8_1_M_MVEF Zephyr Kconfig restriction, and only from
+          # GCC_F16_FLOOR upward -- older assemblers mis-encode the
+          # half<->single conversions and the configure rejects them.
           f16_flag=()
-          if [[ "$TARGET_CPU" == "cortex-m55" ]]; then
+          if [[ "$TARGET_CPU" == "cortex-m55" ]] \
+            && [[ "$(printf '%s\n%s\n' "$GCC_RELEASE" "$GCC_F16_FLOOR" \
+                     | sort -V | head -1)" == "$GCC_F16_FLOOR" ]]; then
             f16_flag=(--enable-f16)
           fi
+          echo "gcc ${GCC_RELEASE} / ${TARGET_CPU}: f16 ${f16_flag[*]:-off}"
           bash scripts/build_staticlib.sh \
             --target-cpu "$TARGET_CPU" \
             --version    "$VERSION" \
@@ -156,6 +183,76 @@ jobs:
             --toolchain  gcc \
             --library    "./output/gcc/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
             --outdir     "./output/gcc/${TARGET_CPU}/smoke"
+
+  gcc-f16-probe:
+    # The float16 floor is only a floor if something proves the releases
+    # below it are refused. Without this cell, a regression that turned the
+    # configure check back into a no-op would show up as a green matrix and
+    # a static library full of UNDEFINED instruction words
+    # (AmbiqAI/ns-cmsis-nn#427).
+    name: gcc below f16 floor / configure refused
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TARGET_CPU: cortex-m55
+      # CMake hard-wraps the diagnostic, so both greps below key on tokens
+      # it cannot split rather than on a sentence.
+      REMEDIATION_MARKER: ARM_NN_SKIP_GAS_F16_PROBE=ON
+      ISSUE_MARKER: AmbiqAI/ns-cmsis-nn#427
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install GNU Arm Embedded toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: ${{ env.GCC_BELOW_F16_FLOOR }}
+
+      - name: Assert this release really is below the f16 floor
+        run: |
+          set -euo pipefail
+          arm-none-eabi-gcc --version | head -1
+          if [[ "${GCC_BELOW_F16_FLOOR}" == "${GCC_F16_FLOOR}" ]] || \
+             [[ "$(printf '%s\n%s\n' "${GCC_BELOW_F16_FLOOR}" "${GCC_F16_FLOOR}" \
+                    | sort -V | head -1)" != "${GCC_BELOW_F16_FLOOR}" ]]; then
+            echo "::error title=Probe cell is not below the floor::GCC_BELOW_F16_FLOOR is ${GCC_BELOW_F16_FLOOR}, which is not older than GCC_F16_FLOOR ${GCC_F16_FLOOR}. This cell would prove nothing." >&2
+            exit 1
+          fi
+
+      - name: Configure with float16 on, and require it to be refused
+        run: |
+          set -euo pipefail
+          log="${RUNNER_TEMP}/refuse.log"
+          if cmake -S . -B "${RUNNER_TEMP}/build-refuse" \
+              -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
+              -DNS_CMSIS_NN_TARGET_CPU="${TARGET_CPU}" \
+              -DARM_NN_ENABLE_F16=ON > "${log}" 2>&1; then
+            cat "${log}"
+            echo "::error title=f16 configure was not refused::${GCC_BELOW_F16_FLOOR} bundles an assembler that mis-encodes the MVE half<->single conversions, but the configure succeeded. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          cat "${log}"
+          if ! grep -qF -- "${REMEDIATION_MARKER}" "${log}"; then
+            echo "::error title=Refusal carried no remediation::The configure failed but its output does not mention ${REMEDIATION_MARKER}, so whoever hits this gets no way out of it. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          echo "configure refused, with remediation"
+
+      - name: Configure with the escape hatch, and require it to build
+        run: |
+          set -euo pipefail
+          log="${RUNNER_TEMP}/skip.log"
+          cmake -S . -B "${RUNNER_TEMP}/build-skip" \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
+            -DNS_CMSIS_NN_TARGET_CPU="${TARGET_CPU}" \
+            -DARM_NN_ENABLE_F16=ON \
+            -DARM_NN_SKIP_GAS_F16_PROBE=ON > "${log}" 2>&1
+          cat "${log}"
+          if ! grep -q 'CMake Warning' "${log}" || ! grep -qF -- "${ISSUE_MARKER}" "${log}"; then
+            echo "::error title=Escape hatch went quiet::ARM_NN_SKIP_GAS_F16_PROBE=ON configured cleanly but printed no warning, so a build with the broken encoding would look healthy. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          echo "escape hatch configures, and warns"
 
   atfe:
     # The `env` context is not available in a job-level `name`, so the
