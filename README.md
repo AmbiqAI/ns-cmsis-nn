@@ -545,7 +545,7 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
 
 | Toolchain | Version(s) gated per PR | Built | Linked | Functional tests |
 | --- | --- | --- | --- | --- |
-| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.2.Rel1, 15.3.Rel1 | yes | yes | yes, on 14.3.1; the `float16` conversion suites also on the `float16` floor |
+| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.2.Rel1, 15.3.Rel1 | yes | yes | not on the three gated releases. The numerics suite runs on 14.3.1, the CI container's toolchain, which this matrix does not gate; the `float16` conversion suites also run on the `float16` floor |
 | Arm Compiler 6 (`armclang`) | 6.23.32 | yes | yes | no |
 | LLVM Embedded Toolchain for Arm (ATfE) | 19.1.5 | yes | yes | no |
 
@@ -557,7 +557,8 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
   - **`float16`: 14.2.Rel1.** The `float16` kernels use MVE half/single
     conversions that assemblers before binutils 2.43 encode incorrectly, and
     Arm ships 2.43 from 14.2.Rel1. The CMake build asks the assembler at
-    configure time and fails rather than emitting kernels it will mangle. A
+    configure time, with the flags the library target really compiles with,
+    and fails rather than emitting kernels it will mangle. A
     GCC 13.x compiler can still build `float16` by borrowing a newer assembler
     with `-B`; see [Toolchain pinning](docs/guides/toolchains.md) for the recipe
     and for the `ARM_NN_SKIP_GAS_F16_PROBE` escape hatch

@@ -21,7 +21,7 @@ name: Unity f16 exec (float16 toolchain floor)
 # vehicle.
 #
 # The suite list is scoped to the kernels that reach the conversion sites: a
-# wider net would import QEMU's own modelling quirks into a PR gate for no
+# wider net would import QEMU's own modeling quirks into a PR gate for no
 # added coverage of this class. That scoping is derived from the tree and
 # checked against SUITES below, so a new kernel reaching a conversion cannot
 # quietly land outside this gate.

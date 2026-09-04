@@ -39,8 +39,17 @@ conversions, so **GCC 13.x remains fully supported for `s4`/`s8`/`s16` and
 
 The CMake build assembles one witness instruction at configure time and compares
 the bytes, so it validates the assembler that is actually in use rather than
-trusting a version number. On a broken one it fails the configure with the
-remediation below. `ARM_NN_ENABLE_F16=OFF` skips the check entirely.
+trusting a version number. It assembles with the flags the library target will
+really compile with, including the ones it picks up from interface targets it
+links, so a project that carries `-mcpu` on a board flags target is checked the
+same as one that sets `CMAKE_C_FLAGS`. On a broken assembler it fails the
+configure with the remediation below. `ARM_NN_ENABLE_F16=OFF` skips the check
+entirely.
+
+One shape stays out of reach: an architecture flag that exists only inside a
+CMake generator expression has no value at configure time, so the check cannot
+see it. It then reports that it did not apply, and why, rather than passing
+quietly.
 
 ### Keeping a GCC 13.x compiler
 
