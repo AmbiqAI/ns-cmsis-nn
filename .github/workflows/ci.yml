@@ -83,8 +83,8 @@ jobs:
   # and links, but only the container's own toolchain ever executes anything
   # (#340) -- so a defect the assembler introduces after the compiler is done
   # links cleanly and reaches a customer. This leg runs the f16 suites whose
-  # kernels convert between half and single precision on the oldest gated GCC,
-  # under QEMU (AmbiqAI/ns-cmsis-nn#427).
+  # kernels convert between half and single precision on the float16 toolchain
+  # floor, under QEMU (AmbiqAI/ns-cmsis-nn#427).
   unity-f16-exec-gcc-floor:
     uses: ./.github/workflows/unity-f16-exec-gcc-floor.yml
 

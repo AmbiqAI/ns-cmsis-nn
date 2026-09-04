@@ -35,24 +35,35 @@ A `float16` MVE build therefore requires an assembler from binutils 2.43 or
 newer. Arm ships one from **Arm GNU Toolchain 14.2.Rel1**. This applies to
 `float16` only: the integer kernels and the `float32` kernels never touch those
 conversions, so **GCC 13.x remains fully supported for `s4`/`s8`/`s16` and
-`float32` builds.**
+`float32` builds with `ARM_NN_ENABLE_F16` off.** With `ARM_NN_ENABLE_F16` on the
+refusal is per translation unit rather than per kernel, so every translation
+unit that includes the `float16` support header refuses under GCC 13 without a
+verified assembler, the integer ones included.
 
 The CMake build assembles one witness instruction at configure time and compares
 the bytes, so it validates the assembler that is actually in use rather than
 trusting a version number. It assembles with the flags the library target will
-really compile with, including the ones it picks up from interface targets it
-links, so a project that carries `-mcpu` on a board flags target is checked the
-same as one that sets `CMAKE_C_FLAGS`. On a broken assembler it fails the
+really compile with: the target's own compile options, definitions and include
+directories, plus the ones it picks up from the interface targets it links. So a
+project that carries `-mcpu` on a board flags target is checked the same as one
+that sets `CMAKE_C_FLAGS`, and a board target that carries an `-include` header
+brings the directory that header lives in. On a broken assembler it fails the
 configure with the remediation below. `ARM_NN_ENABLE_F16=OFF` skips the check
 entirely.
 
 ### The check that cannot be bypassed
 
-The configure-time probe cannot see everything. An architecture flag that
-exists only inside a CMake generator expression has no value at configure time;
-a flag added to the library target after the directory that attached the
-sources has finished is not there yet when the probe reads the target; and a
-build that never runs CMake at all gets no probe.
+The configure-time probe cannot see everything. An architecture flag, or an
+include directory a flag depends on, that exists only inside a CMake generator
+expression has no value at configure time; a flag added to the library target
+after the directory that attached the sources has finished is not there yet when
+the probe reads the target; and a build that never runs CMake at all gets no
+probe.
+
+When what the probe cannot see is what stops its witness from assembling, it
+refuses the configure and prints the flags it used and the assembler's own
+error, so an unmeasured assembler is never taken for a good one. Setting
+`ARM_NN_SKIP_GAS_F16_PROBE=ON` is the only way past that refusal.
 
 So the probe is not the only guard. When it measures a good assembler it
 defines `ARM_NN_GAS_F16_VERIFIED=1` on the target it checked, and
@@ -71,7 +82,8 @@ so nothing probes the assembler for them.
 - On **Arm GNU 14.2.Rel1 or newer**, nothing to do. One residual: outside CMake
   the guard keys on the compiler major, so a GCC 14 or newer driver over a
   binutils below 2.43 is not caught. That pair only exists if you assembled it
-  yourself; check `as --version` if you did. Under CMake the probe catches it.
+  yourself; check `as --version` if you did. Under CMake the probe catches it,
+  or refuses to configure when your flags keep it from assembling its witness.
 - On **GCC 13.x or older**, pass both `-B<dir>/` for a binutils 2.43 or newer
   `arm-none-eabi` assembler and `-DARM_NN_GAS_F16_VERIFIED=1`. The `-B` is what
   fixes the encoding; the define is how you tell the library you did it.

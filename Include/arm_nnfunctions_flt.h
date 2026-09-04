@@ -1665,7 +1665,8 @@ arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
  *       `ARM_NN_GAS_F16_VERIFIED`. On Arm GNU 14.2.Rel1 and newer there is nothing to do, with one
  *       residual: outside CMake the guard keys on the compiler major, so a GCC 14 or newer driver
  *       over a binutils below 2.43 is not caught. Check `as --version` if you assembled that pair
- *       yourself; under CMake the probe catches it.
+ *       yourself; under CMake the probe catches it, or refuses to configure when your flags
+ *       keep it from assembling its witness.
  *       See docs/guides/toolchains.md.
  */
 arm_cmsis_nn_status arm_hard_swish_f16(const float16_t *input, float16_t *output, int32_t size);

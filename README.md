@@ -530,7 +530,7 @@ Additional implementation-selection options:
 | `NN_DISABLE_SPECIALIZATION` | Disables optional shape/layout-specific fast paths and forces the corresponding generic implementations. Useful for debugging or validating specialized kernels against generic paths. |
 | `ARM_NN_USE_EXP_LUT` | Selects the LUT-based scalar float softmax exp approximation. This is the default if no scalar float softmax exp macro is defined. |
 | `ARM_NN_USE_EXP_TAYLOR` | Selects the Taylor/Estrin scalar float softmax exp approximation to avoid the extra lookup-table storage. Do not define this with `ARM_NN_USE_EXP_LUT`. |
-| `ARM_NN_SKIP_GAS_F16_PROBE` | Default `OFF`. Downgrades the MVE half/single assembler check to a warning and lifts the matching compile-time guard, so a build with a mis-encoding assembler proceeds and its `float16` kernels are wrong. Last resort; see [toolchains.md](docs/guides/toolchains.md). |
+| `ARM_NN_SKIP_GAS_F16_PROBE` | A CMake configure option, not a compile-time macro: pass `-DARM_NN_SKIP_GAS_F16_PROBE=ON` to `cmake`, defining it in your own compile flags does nothing. Default `OFF`. Downgrades the MVE half/single assembler check to a warning and lifts the matching compile-time guard, so a build with a mis-encoding or unmeasured assembler proceeds and its `float16` kernels may be wrong. Last resort; see [toolchains.md](docs/guides/toolchains.md). |
 
 ### Running unit tests
 
@@ -553,8 +553,11 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
 - **Arm GNU Toolchain** — **GCC 13 through 15**, with two different floors.
   One pinned release per major is built and strict-linked on every pull request.
   Versions below 13 are not supported and are not tested.
-  - **Integer and `float32`: 13.2.Rel1.** Nothing in those kernels touches the
-    affected instructions.
+  - **Integer and `float32`: 13.2.Rel1, with `ARM_NN_ENABLE_F16` off.** Nothing
+    in those kernels touches the affected instructions. With
+    `ARM_NN_ENABLE_F16` on, every translation unit that includes the `float16`
+    support header refuses under GCC 13 without a verified assembler, the
+    integer ones included.
   - **`float16`: 14.2.Rel1.** The `float16` kernels use MVE half/single
     conversions that assemblers before binutils 2.43 encode incorrectly, and
     Arm ships 2.43 from 14.2.Rel1. The CMake build asks the assembler at
@@ -593,7 +596,7 @@ Every pull request must pass the FVP numerics suite (int4/int8/int16 on
 cortex-m0/m4/m55, float32/float16 where hardware support exists — the
 m4/m55 legs also at the shipped `-Ofast` flags), a strict build-and-link
 matrix across GCC 13/14/15, ATfE and armclang, the `float16` conversion
-suites executed on the oldest gated GCC release, the x86 host suites under
+suites executed on the float16 toolchain floor, the x86 host suites under
 ASan/UBSan/LSan, and the packaging contracts. A nightly run adds the
 legacy Unity suites on Arm, and every release re-runs the FVP numerics
 and Unity suites and verifies its published assets.
