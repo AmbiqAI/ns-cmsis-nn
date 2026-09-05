@@ -617,6 +617,9 @@ per-kernel set-membership gates still open
 The full contract — per-leg matrices, the qualification model, coverage
 retrieval, release-asset inventory — is in the
 [Testing & Verification guide](https://ambiqai.github.io/ns-cmsis-nn/guides/verification.html).
+For the job-by-job lookup table, including which legs only build and what
+nothing executes at all, see the
+[CI Matrix](https://ambiqai.github.io/ns-cmsis-nn/guides/ci-matrix.html).
 
 ---
 

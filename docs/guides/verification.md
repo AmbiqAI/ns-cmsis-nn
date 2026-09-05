@@ -129,6 +129,13 @@ There is deliberately no coverage badge and no percentage quoted on this
 page: the number exists only inside build artifacts, and any figure written
 here would be stale within a week.
 
+## The job-by-job matrix
+
+This page is the narrative contract. For the lookup table -- one row per CI
+job, with its trigger, cores, precisions, whether it executes or only
+builds, and its toolchain versions, each cell derived from the workflow YAML
+-- see [CI Matrix](ci-matrix.md).
+
 ## Quick links
 
 - Latest release — <https://github.com/AmbiqAI/ns-cmsis-nn/releases/latest>
