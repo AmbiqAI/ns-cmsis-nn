@@ -720,12 +720,15 @@ arm_cmsis_nn_status arm_maximum_f32(const cmsis_nn_context *ctx,
  * maximum of the two input shapes. A dimension of 0 or less is rejected.
  *
  * Numerics are those of arm_elementwise_sub_f32 applied to the materialised broadcast operands: identical
- * arithmetic and clamp on every path, so the output is bit-identical to that kernel (NaN payload aside), and
- * its NaN contract holds here unchanged -- a NaN in either operand, or one produced by the arithmetic,
- * propagates through the clamp at every optimization level, while non-NaN infinities clamp to the bounds.
- * When input 1 is the broadcast scalar the result is computed as `scalar - element`, not as the negation of
- * `element - scalar`, which differs at a zero result; whether the sign of a zero survives is then subject to
- * the same -fno-signed-zeros license the shipped -Ofast grants the compiler on the flat kernels.
+ * arithmetic and clamp on every path, so on the shipped Cortex-M legs (M4, M55) the output is bit-identical to
+ * that kernel, NaN payload aside, and its NaN contract holds here unchanged -- a NaN in either operand, or one
+ * produced by the arithmetic, propagates through the clamp at every optimization level, while non-NaN
+ * infinities clamp to the bounds. On other hosts built with -fno-signed-zeros the sign of a zero that ties
+ * with a zero clamp bound is compiler-licensed and may differ between this walk and the flat loop. The bounds
+ * must be ordered and non-NaN. When input 1 is the broadcast scalar the result is computed as
+ * `scalar - element`, not as the negation of `element - scalar`, which differs at a zero result; whether the
+ * sign of a zero survives is then subject to the same -fno-signed-zeros license the shipped -Ofast grants the
+ * compiler on the flat kernels.
  *
  * @param[in]  input_1_data        Minuend, NHWC, sized by @p input_1_dims.
  * @param[in]  input_1_dims        Dimensions of input 1.
@@ -1884,6 +1887,8 @@ arm_cmsis_nn_status arm_maximum_f16(const cmsis_nn_context *ctx,
 
 /**
  * @copydoc arm_elementwise_sub_broadcast_f32
+ *
+ * Half-precision twin: the numerics are those of arm_elementwise_sub_f16 on the materialised operands.
  */
 arm_cmsis_nn_status arm_elementwise_sub_broadcast_f16(const float16_t *input_1_data,
                                                       const cmsis_nn_dims *input_1_dims,
@@ -1896,6 +1901,8 @@ arm_cmsis_nn_status arm_elementwise_sub_broadcast_f16(const float16_t *input_1_d
 
 /**
  * @copydoc arm_elementwise_add_broadcast_f32
+ *
+ * Half-precision twin: the numerics are those of arm_elementwise_add_f16 on the materialised operands.
  */
 arm_cmsis_nn_status arm_elementwise_add_broadcast_f16(const float16_t *input_1_data,
                                                       const cmsis_nn_dims *input_1_dims,
@@ -1908,6 +1915,8 @@ arm_cmsis_nn_status arm_elementwise_add_broadcast_f16(const float16_t *input_1_d
 
 /**
  * @copydoc arm_elementwise_mul_broadcast_f32
+ *
+ * Half-precision twin: the numerics are those of arm_elementwise_mul_f16 on the materialised operands.
  */
 arm_cmsis_nn_status arm_elementwise_mul_broadcast_f16(const float16_t *input_1_data,
                                                       const cmsis_nn_dims *input_1_dims,

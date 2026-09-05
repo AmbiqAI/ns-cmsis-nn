@@ -112,10 +112,10 @@ static ew_bits_t ew_bits(ew_t x)
     return b;
 }
 
-/* The bits pass through a volatile so that a value built here is never a compile-time
- * constant: under this TU's -fno-signed-zeros (implied by the harness's -Ofast) a folded
- * -0.0 is not guaranteed to keep its sign, and under -ffinite-math-only a folded NaN or Inf
- * is not guaranteed to reach the kernel at all. */
+/* The bits are staged through a volatile so that a value built here is never a compile-time
+ * constant: the harness compiles this TU with -Ofast -fno-finite-math-only, which leaves
+ * -fno-signed-zeros in force, and a constant -0.0 under that flag is not entitled to keep its
+ * sign. Staging is cheap and removes the question. */
 static ew_t ew_from_bits(ew_bits_t b)
 {
     volatile ew_bits_t staged = b;
@@ -133,8 +133,7 @@ static bool ew_bits_is_subnormal(ew_bits_t b) { return ((b & EW_EXP_MASK) == 0u)
 
 static bool ew_double_is_nan(double d)
 {
-    /* Bit test rather than d != d: the harness compiles this TU with -fno-finite-math-only,
-     * but a standalone -Ofast build would fold the self-compare. */
+    /* Bit test rather than d != d, so the answer does not depend on the TU's math flags. */
     uint64_t b;
     memcpy(&b, &d, sizeof(b));
     return ((b & 0x7FF0000000000000ull) == 0x7FF0000000000000ull) && ((b & 0x000FFFFFFFFFFFFFull) != 0ull);
