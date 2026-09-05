@@ -303,7 +303,6 @@ class Op_conv(Lib.op_utils.Op_type):
         params["output_scale"] = np.random.uniform(0.02, 0.06)
 
         if params["padding"] == "SAME":
-            # TODO(#422): dilation with padding
             output_x = math.ceil(float(params["input_w"]) / float(params["stride_x"]))
             output_y = math.ceil(float(params["input_h"]) / float(params["stride_y"]))
         else:
