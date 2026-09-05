@@ -684,15 +684,19 @@ source/module paths publish the effective values back under the
 |---|---|---|
 | Standalone CMake | `ARM_NN_ENABLE_F32` / `ARM_NN_ENABLE_F16` | same names |
 | NSX (`nsx/CMakeLists.txt`) | `NSX_CMSIS_NN_ENABLE_F32` / `_F16`, or `ARM_NN_ENABLE_*` directly | `ARM_NN_ENABLE_F32` / `_F16` |
-| Zephyr | `CONFIG_NS_CMSIS_NN_ENABLE_F32` / `_F16`, or `ARM_NN_ENABLE_*` directly | `ARM_NN_ENABLE_F32` / `_F16` |
+| Zephyr | `CONFIG_NS_CMSIS_NN_ENABLE_F32` / `_F16` only | `ARM_NN_ENABLE_F32` / `_F16` |
 | `find_package(ns-cmsis-nn)` | nothing; the archive's capabilities decide | `ARM_NN_ENABLE_*` on the `ns::cmsis-nn` target only, not in the cache |
 
 On the three publishing paths the values land in the CMake cache and on the
 library target's compile definitions, so a consumer can read either one and get
-the same answer. Setting `ARM_NN_ENABLE_F32`/`F16` yourself on the NSX or
-Zephyr path is a valid request while that path's own switch is at its default;
-if both are set away from their defaults to different values, the configure
-fails and the message names both variables and how to drop either. See
+the same answer. Asking directly with `ARM_NN_ENABLE_F32`/`F16` is a valid
+request on the standalone and NSX paths, while the NSX switch is at its
+default; if both are set away from their defaults to different values, the
+configure fails and the message names both variables and how to drop either.
+On the Zephyr path Kconfig is the authority: `CONFIG_NS_CMSIS_NN_ENABLE_F32`
+/`_F16` decide alone, and an `ARM_NN_ENABLE_*` that disagrees with them fails
+the configure rather than overriding them, so the `ARMV8_1_M_MVEF` dependency
+on FP16 keeps holding. See
 [`Documentation/build.md`](Documentation/build.md#float-switch-names).
 
 **Do floating-point kernels target all IEEE edge cases?**

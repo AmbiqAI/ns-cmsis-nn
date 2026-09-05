@@ -44,13 +44,17 @@
 #                               expect configure success + ARM_NN_ENABLE_F32=1.
 #   prebuilt_manifest_reject  — same, but manifest reports f32=false; expect
 #                               a configure-time FATAL_ERROR (via a child
-#                               cmake probe), not a silent link-time failure.
+#                               cmake probe) naming NSX_CMSIS_NN_ENABLE_F32 as
+#                               the spelling the request came from, not a
+#                               silent link-time failure, and expect the -U it
+#                               names to clear the rejection.
 #   prebuilt_manifest_reject_arm_nn
 #                             - manifest reports f16=false and the request
 #                               arrives only as ARM_NN_ENABLE_F16=ON, with the
 #                               NSX switches at their defaults; validation
 #                               reads the resolved request, so expect the same
-#                               manifest FATAL_ERROR.
+#                               manifest FATAL_ERROR, naming ARM_NN_ENABLE_F16
+#                               and recovering under -UARM_NN_ENABLE_F16.
 #                               See AmbiqAI/ns-cmsis-nn#420.
 #   prebuilt_manifest_legacy  — manifest.json has no "features" block
 #                               (pre-existing schema_version 1 package);
@@ -135,14 +139,23 @@ if(CASE STREQUAL "prebuilt_manifest_reject"
 ")
   endif()
 
+  # The request arrives on the child cmake command line, not as a set() inside
+  # the probe, so the -U recovery the diagnostic names is actually reachable.
   if(CASE STREQUAL "prebuilt_manifest_reject_arm_nn")
     # The NSX switches stay at their defaults, so the ARM_NN spelling is the
-    # whole request and the manifest check has to see it.
-    set(_probe_request "set(ARM_NN_ENABLE_F16 ON CACHE BOOL \"\" FORCE)")
-    set(_probe_needle "NSX_CMSIS_NN_ENABLE_F16 was requested")
+    # whole request: the manifest check must name that spelling, not the NSX
+    # one. See AmbiqAI/ns-cmsis-nn#420.
+    set(_probe_args "-DARM_NN_ENABLE_F16=ON")
+    set(_probe_needles
+        "float16 requested via ARM_NN_ENABLE_F16"
+        "-UARM_NN_ENABLE_F16")
+    set(_probe_recovery "-UARM_NN_ENABLE_F16")
   else()
-    set(_probe_request "set(NSX_CMSIS_NN_ENABLE_F32 ON CACHE BOOL \"\" FORCE)")
-    set(_probe_needle "NSX_CMSIS_NN_ENABLE_F32 was requested")
+    set(_probe_args "-DNSX_CMSIS_NN_ENABLE_F32=ON")
+    set(_probe_needles
+        "float32 requested via NSX_CMSIS_NN_ENABLE_F32"
+        "-UNSX_CMSIS_NN_ENABLE_F32")
+    set(_probe_recovery "-UNSX_CMSIS_NN_ENABLE_F32")
   endif()
 
   set(_probe "${CMAKE_BINARY_DIR}/_manifest_probe")
@@ -154,21 +167,33 @@ project(probe C)
 add_library(_nsx_board_flags INTERFACE)
 set(NSX_BOARD_FLAGS_TARGET _nsx_board_flags)
 set(NSX_CMSIS_NN_LIB \"${_fake_lib}\" CACHE FILEPATH \"\" FORCE)
-${_probe_request}
 add_subdirectory(\"${_repo_root}/nsx\" nsx)
 ")
   execute_process(
-    COMMAND ${CMAKE_COMMAND} -S "${_probe}" -B "${_probe}/_b"
+    COMMAND ${CMAKE_COMMAND} -S "${_probe}" -B "${_probe}/_b" ${_probe_args}
     RESULT_VARIABLE _rc
     OUTPUT_VARIABLE _out
     ERROR_VARIABLE  _err)
   if(_rc EQUAL 0)
     _fail("${CASE}: probe unexpectedly succeeded (expected FATAL_ERROR)\n${_out}\n${_err}")
   else()
-    string(FIND "${_err}" "${_probe_needle}" _msg_idx)
-    if(_msg_idx EQUAL -1)
-      _fail("${CASE}: probe failed but without the expected diagnostic; stderr:\n${_err}")
-    endif()
+    foreach(_needle IN LISTS _probe_needles)
+      string(FIND "${_err}" "${_needle}" _msg_idx)
+      if(_msg_idx EQUAL -1)
+        _fail("${CASE}: diagnostic never mentions ${_needle}; stderr:\n${_err}")
+      endif()
+    endforeach()
+  endif()
+
+  # A rejection the user cannot undo is not a diagnostic. Re-run the same build
+  # directory with the -U the message names and expect a clean configure.
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -S "${_probe}" -B "${_probe}/_b" ${_probe_recovery}
+    RESULT_VARIABLE _rc_recover
+    OUTPUT_VARIABLE _out_recover
+    ERROR_VARIABLE  _err_recover)
+  if(NOT _rc_recover EQUAL 0)
+    _fail("${CASE}: ${_probe_recovery} did not clear the rejection\n${_out_recover}\n${_err_recover}")
   endif()
 
   if(_failures)

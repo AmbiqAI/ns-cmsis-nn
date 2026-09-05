@@ -209,6 +209,10 @@ cross-compiler required:
    that requesting a capability the manifest does not report aborts
    configure with `FATAL_ERROR` (verified via a child `cmake` probe
    process, since a direct failure would abort the whole test script).
+   Child probes also pin the Kconfig-authority rule: an `ARM_NN_ENABLE_F16`
+   that disagrees with `CONFIG_NS_CMSIS_NN_ENABLE_F16` aborts configure
+   before any source list exists, in either direction, while an agreeing
+   value configures clean and still selects the `_f16` sources.
    Run with:
 
    ```sh
@@ -257,8 +261,8 @@ rules incorrectly. Two checks pin that contract:
    | `float_conflict_plain` | Same contradiction with `ARM_NN_ENABLE_F16` as a plain (non-cache) variable in the calling scope, so the check covers both forms. |
    | `prebuilt` | `NSX_CMSIS_NN_LIB=…` builds an INTERFACE wrapper + IMPORTED prebuilt target, alias still works. |
    | `prebuilt_manifest_ok` | Prebuilt lib + sibling `manifest.json` reporting `f32=true`; `NSX_CMSIS_NN_ENABLE_F32=ON` succeeds and forwards `ARM_NN_ENABLE_F32=1`. |
-   | `prebuilt_manifest_reject` | Manifest reports `f32=false`; requesting `NSX_CMSIS_NN_ENABLE_F32=ON` aborts with `FATAL_ERROR` (via child `cmake` probe). |
-   | `prebuilt_manifest_reject_arm_nn` | Manifest reports `f16=false` and the request arrives only as `ARM_NN_ENABLE_F16=ON`; the check reads the resolved request, so it aborts with the same `FATAL_ERROR`. |
+   | `prebuilt_manifest_reject` | Manifest reports `f32=false`; requesting `NSX_CMSIS_NN_ENABLE_F32=ON` aborts with `FATAL_ERROR` naming that spelling (via child `cmake` probe), and the `-U` the message names clears the rejection on the next configure. |
+   | `prebuilt_manifest_reject_arm_nn` | Manifest reports `f16=false` and the request arrives only as `ARM_NN_ENABLE_F16=ON`; the check reads the resolved request, so it aborts with the same `FATAL_ERROR`, this time naming `ARM_NN_ENABLE_F16`, and `-UARM_NN_ENABLE_F16` recovers. |
    | `prebuilt_manifest_legacy` | Manifest has no `features` block (schema v1); requesting F32 is conservatively rejected the same way. |
 
    Run any case locally with:
@@ -461,7 +465,7 @@ no request switch of its own and publishes no cache entries.
 |---|---|---|
 | Standalone `CMakeLists.txt` | `ARM_NN_ENABLE_F32` / `ARM_NN_ENABLE_F16` | same names; the cache entry keeps the text you supplied (`ON` stays `ON`), the `0`/`1` goes to the target's compile definitions |
 | `nsx/CMakeLists.txt` (source **and** prebuilt mode) | `NSX_CMSIS_NN_ENABLE_F32` / `_F16`, or `ARM_NN_ENABLE_F32` / `_F16` directly | `ARM_NN_ENABLE_F32` / `_F16` as `BOOL` `0`/`1` |
-| `zephyr/CMakeLists.txt` (source **and** prebuilt mode) | `CONFIG_NS_CMSIS_NN_ENABLE_F32` / `_F16`, or `ARM_NN_ENABLE_F32` / `_F16` directly | `ARM_NN_ENABLE_F32` / `_F16` as `BOOL` `0`/`1` |
+| `zephyr/CMakeLists.txt` (source **and** prebuilt mode) | `CONFIG_NS_CMSIS_NN_ENABLE_F32` / `_F16` only; `ARM_NN_ENABLE_*` is not a request here | `ARM_NN_ENABLE_F32` / `_F16` as `BOOL` `0`/`1` |
 | `find_package(ns-cmsis-nn)` | none (the archive's own capabilities decide) | nothing in the cache; `ARM_NN_ENABLE_F32`/`F16=1` on the `cmsis-nn` imported target's `INTERFACE_COMPILE_DEFINITIONS` only |
 
 On the NSX and Zephyr paths, "published" means two things at once, from the
@@ -487,10 +491,10 @@ drift.
 
 ### Which spelling wins
 
-Setting `ARM_NN_ENABLE_F32`/`F16` yourself is a valid request on the NSX and
-Zephyr paths too, whether as a cache entry (`-D`) or as a plain variable in the
-scope that calls `add_subdirectory()`. Both forms are inspected, so the
-configure-time error below applies to both:
+Setting `ARM_NN_ENABLE_F32`/`F16` yourself is a valid request on the **NSX**
+path, whether as a cache entry (`-D`) or as a plain variable in the scope that
+calls `add_subdirectory()`. Both forms are inspected, so the configure-time
+error below applies to both:
 
 - the path's own switch at its declared default (both are `OFF`) and
   `ARM_NN_ENABLE_*` set: the `ARM_NN_ENABLE_*` value is the request, and a
@@ -504,12 +508,44 @@ The error names both variables, both values, and how to drop either one: for a
 cache entry, re-run with `-U<name>` (or delete `CMakeCache.txt`); for a plain
 variable or a `CONFIG_*` symbol, remove it where it is set. Passing the `-U`
 the message names clears the wedge in place, without deleting the build
-directory.
+directory. If the project that adds ns-cmsis-nn re-creates the entry itself,
+with `set(<name> ... CACHE ...)` or `option(<name> ...)` above
+`add_subdirectory()`, `-U` cannot reach it and that call has to go instead;
+the message says so.
+
+On the **Zephyr** path Kconfig is the authority and `ARM_NN_ENABLE_*` is not a
+request. `CONFIG_NS_CMSIS_NN_ENABLE_F32`/`_F16` decide, alone, in source and
+prebuilt mode. An `ARM_NN_ENABLE_*` value that agrees with the Kconfig symbol
+is accepted silently; one that disagrees is a `FATAL_ERROR` naming the Kconfig
+symbol as the authority, its current value, and the way out
+(`-UARM_NN_ENABLE_F16`, or dropping the `set()` in the board or module CMake
+that put it there). That is deliberate: `NS_CMSIS_NN_ENABLE_F16` depends on
+`ARMV8_1_M_MVEF`, and a CMake variable that could stand in for the symbol would
+let a board without MVE floating point ask for kernels it cannot build.
 
 Re-running `cmake` after flipping the entry point's own switch is not a
 contradiction: the module recognizes the value it published itself and
 overwrites it. A consumer value that happens to equal the previous configure's
 result cannot be told apart from that stale value and is treated as ours.
+
+One consequence on the NSX path is worth spelling out, because it is not what
+the second command looks like it should do. Once a request has been adopted
+from `ARM_NN_ENABLE_*`, the NSX switch is at its declared default, and CMake
+cannot tell a switch left alone from one you set explicitly to that same
+default value. So:
+
+```sh
+cmake -S . -B b -DARM_NN_ENABLE_F16=ON      # adopted: ARM_NN_ENABLE_F16:BOOL=1
+cmake -S . -B b -DNSX_CMSIS_NN_ENABLE_F16=OFF   # still 1, STATUS line repeats
+cmake -S . -B b -UARM_NN_ENABLE_F16         # now 0
+```
+
+The `-DNSX_CMSIS_NN_ENABLE_F16=OFF` in the middle is read as the default, not
+as a competing request, so it neither overrides the adopted value nor trips the
+contradiction check. Turning an adopted request off means dropping it:
+`-UARM_NN_ENABLE_F16`. Setting the NSX switch **on** in that state does work,
+because `ON` is away from the default.
+
 See AmbiqAI/ns-cmsis-nn#420.
 
 ## Float (F32/F16) capability manifest
@@ -577,7 +613,7 @@ instead of deferring to a confusing link-time error.
 |----------|----------------------|--------------------|--------|
 | `find_package(ns-cmsis-nn)` | `NS_CMSIS_NN_HAS_F32`, `NS_CMSIS_NN_HAS_F16`, `NS_CMSIS_NN_HAS_REQUANTIZE_INLINE_ASM` | *(none — no pre-existing opt-in API)* | Automatic: every capability the manifest reports is unconditionally forwarded onto the `cmsis-nn` imported target's `INTERFACE_COMPILE_DEFINITIONS` as `ARM_NN_ENABLE_F32`/`F16=1`. |
 | NSX (`nsx/CMakeLists.txt`) | discovered via `NSX_CMSIS_NN_MANIFEST` → `<lib_dir>/manifest.json` → `<lib_dir>/../manifest.json` → none | `NSX_CMSIS_NN_ENABLE_F32`/`F16` (default `OFF`), or an adopted `ARM_NN_ENABLE_F32`/`F16` | Opt-in preserved: only forwards what's requested, but `FATAL_ERROR`s if the manifest doesn't report that capability. The check reads the resolved request, so both spellings are caught. If no manifest is discoverable, the request is honored as before but logged as **unverified**. |
-| Zephyr (`zephyr/CMakeLists.txt`) | `${_ns_sdk}/manifest.json` (fixed tarball layout, no discovery needed) | `CONFIG_NS_CMSIS_NN_ENABLE_F32`/`F16`, or an adopted `ARM_NN_ENABLE_F32`/`F16` | Same opt-in + validate + fail-fast policy as NSX, resolved request included; existing FP16 arch/toolchain `Kconfig` restrictions (e.g. requires MVEF) are preserved unchanged. |
+| Zephyr (`zephyr/CMakeLists.txt`) | `${_ns_sdk}/manifest.json` (fixed tarball layout, no discovery needed) | `CONFIG_NS_CMSIS_NN_ENABLE_F32`/`F16` only | Same opt-in + validate + fail-fast policy as NSX; the rejection names the Kconfig symbol the request came from. Existing FP16 arch/toolchain `Kconfig` restrictions (e.g. requires MVEF) are preserved unchanged: `ARM_NN_ENABLE_*` is not a request on this path and cannot route around them. |
 
 The NSX and Zephyr rows also publish the effective request as the
 `ARM_NN_ENABLE_F32`/`F16` cache entries, so a consumer that cannot see the
