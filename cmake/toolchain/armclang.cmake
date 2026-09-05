@@ -3,12 +3,16 @@
 
 set(CMAKE_SYSTEM_NAME Generic)
 
-# CMake's ARMClang module (Modules/Compiler/ARMClang.cmake) hard-errors unless
-# CMAKE_SYSTEM_PROCESSOR names a processor it recognises -- the generic "ARM"
-# that the GCC and ATfE toolchain files use is rejected. It is consumed during
-# project() / compiler identification, so it has to be set before any of the
-# NS_CMSIS_NN_TARGET_CPU validation further down. cortex-m0, cortex-m4 and
-# cortex-m55 are all in the module's supported list.
+# CMAKE_SYSTEM_PROCESSOR names the concrete CPU rather than the generic "ARM"
+# the GCC and ATfE toolchain files use: CMake's ARMClang module
+# (Modules/Compiler/ARMClang.cmake) rejects a name absent from armclang's
+# -mcpu=list. It is consumed during project() / compiler identification, so it
+# has to be set before any of the NS_CMSIS_NN_TARGET_CPU validation further
+# down. cortex-m0, cortex-m4 and cortex-m55 are all in the supported list.
+# Under CMP0123 NEW -- set in the top-level CMakeLists.txt, since a
+# cmake_policy() call in an include()d toolchain file is popped before
+# project() sees it -- the module derives no flag from this variable; the
+# arch flags below are the only source. see AmbiqAI/ns-cmsis-nn#292
 if(NOT NS_CMSIS_NN_TARGET_CPU)
   set(NS_CMSIS_NN_TARGET_CPU "$ENV{NS_CMSIS_NN_TARGET_CPU}")
 endif()
