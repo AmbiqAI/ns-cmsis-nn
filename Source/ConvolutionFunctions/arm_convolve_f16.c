@@ -79,8 +79,8 @@ __STATIC_INLINE bool arm_conv_nhwc_use_patch_gemm_f16(const cmsis_nn_context *ct
         return false;
     }
 
-    if (patch_len < ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_K || output_c < ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC ||
-        output_positions < ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS)
+    /* No patch-length floor: the sizer already covers every patch length (#417). */
+    if (output_c < ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC || output_positions < ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS)
     {
         return false;
     }
