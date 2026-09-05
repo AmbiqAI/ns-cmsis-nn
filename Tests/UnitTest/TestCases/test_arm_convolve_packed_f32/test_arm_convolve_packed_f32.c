@@ -262,3 +262,115 @@ void convolve_1xn_pad_wider_than_kernel_f32(void)
 
     free(w_packed);
 }
+
+// Stride-2 3x3 with a single input channel (patch length 9, below the old patch-GEMM patch-length floor): with
+// scratch the patch-GEMM path claims it, without scratch the fallback carries one accumulator across taps. #417
+void convolve_small_k_3x3_s2_f32(void)
+{
+    const cmsis_nn_dims in = {1, 32, 32, 1};
+    const cmsis_nn_dims flt = {8, 3, 3, 1};
+    const cmsis_nn_dims out = {1, 16, 16, 8};
+    static float32_t x[1024];
+    float32_t w[72];
+    float32_t bias[8];
+    cmsis_nn_conv_params_f32 cp;
+
+    for (int32_t i = 0; i < 1024; i++)
+    {
+        x[i] = conv_f32_value(i, 10);
+    }
+    for (int32_t i = 0; i < 72; i++)
+    {
+        w[i] = conv_f32_value(i, 11);
+    }
+    for (int32_t i = 0; i < 8; i++)
+    {
+        bias[i] = conv_f32_value(i, 12);
+    }
+    float32_t *w_packed = pack_rhs_nt_n_from_nt_t_f32(w, 8, 9);
+
+    conv_f32_params(&cp, 1, 1, 0);
+    cp.stride.h = 2;
+    cp.stride.w = 2;
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 1);
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+    conv_f32_params(&cp, 1, 1, 1);
+    cp.stride.h = 2;
+    cp.stride.w = 2;
+    conv_f32_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 1);
+    conv_f32_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 0);
+
+    free(w_packed);
+}
+
+// Patch length 18 with only 5 filters: below MIN_OC, so this stays on the fallback with or without scratch.
+// The packed block is partial (4-lane blocks, 5 live), which pins the predicated last-block store.
+void convolve_small_k_few_filters_f32(void)
+{
+    const cmsis_nn_dims in = {1, 6, 6, 2};
+    const cmsis_nn_dims flt = {5, 3, 3, 2};
+    const cmsis_nn_dims out = {1, 6, 6, 5};
+    float32_t x[72];
+    float32_t w[90];
+    float32_t bias[5];
+    cmsis_nn_conv_params_f32 cp;
+
+    for (int32_t i = 0; i < 72; i++)
+    {
+        x[i] = conv_f32_value(i, 13);
+    }
+    for (int32_t i = 0; i < 90; i++)
+    {
+        w[i] = conv_f32_value(i, 14);
+    }
+    for (int32_t i = 0; i < 5; i++)
+    {
+        bias[i] = conv_f32_value(i, 15);
+    }
+    float32_t *w_packed = pack_rhs_nt_n_from_nt_t_f32(w, 5, 18);
+
+    conv_f32_params(&cp, 1, 1, 0);
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 1);
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+    conv_f32_params(&cp, 1, 1, 1);
+    conv_f32_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 1);
+    conv_f32_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 0);
+
+    free(w_packed);
+}
+
+// 5x5 single channel (patch length 25): patch-GEMM both before and after the floor was removed, so this pins
+// the route that did not change.
+void convolve_5x5_single_channel_f32(void)
+{
+    const cmsis_nn_dims in = {1, 12, 12, 1};
+    const cmsis_nn_dims flt = {8, 5, 5, 1};
+    const cmsis_nn_dims out = {1, 12, 12, 8};
+    float32_t x[144];
+    float32_t w[200];
+    float32_t bias[8];
+    cmsis_nn_conv_params_f32 cp;
+
+    for (int32_t i = 0; i < 144; i++)
+    {
+        x[i] = conv_f32_value(i, 16);
+    }
+    for (int32_t i = 0; i < 200; i++)
+    {
+        w[i] = conv_f32_value(i, 17);
+    }
+    for (int32_t i = 0; i < 8; i++)
+    {
+        bias[i] = conv_f32_value(i, 18);
+    }
+    float32_t *w_packed = pack_rhs_nt_n_from_nt_t_f32(w, 8, 25);
+
+    conv_f32_params(&cp, 2, 2, 0);
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 1);
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+    conv_f32_params(&cp, 2, 2, 1);
+    conv_f32_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 1);
+    conv_f32_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 0);
+
+    free(w_packed);
+}
