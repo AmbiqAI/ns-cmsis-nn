@@ -468,11 +468,10 @@ if(_prebuilt_f16_idx EQUAL -1)
 endif()
 
 # ----------------------------------------------------------------------------
-# Case 3c: prebuilt mode, manifest reports f32=false. Requesting
-# CONFIG_NS_CMSIS_NN_ENABLE_F32=y must FATAL_ERROR at configure time rather
-# than silently producing an undefined-reference link error later. Driven
-# via a child cmake invocation (the FATAL_ERROR would otherwise abort this
-# whole test script).
+# Case 3c: prebuilt mode, manifest reports neither float width. Requesting
+# a float width must FATAL_ERROR at configure time rather than silently
+# producing an undefined-reference link error later. Driven via a child cmake
+# invocation (the FATAL_ERROR would otherwise abort this whole test script).
 # ----------------------------------------------------------------------------
 file(WRITE "${_fake_sdk}/manifest.json" "{
   \"schema_version\": 2,
@@ -480,10 +479,20 @@ file(WRITE "${_fake_sdk}/manifest.json" "{
 }
 ")
 
-set(_zephyr_probe "${CMAKE_BINARY_DIR}/_zephyr_manifest_probe")
-file(REMOVE_RECURSE "${_zephyr_probe}")
-file(MAKE_DIRECTORY "${_zephyr_probe}")
-file(WRITE "${_zephyr_probe}/CMakeLists.txt"
+# Case 3d repeats the same rejection with the request arriving only as
+# ARM_NN_ENABLE_F16=ON, the Kconfig symbols left at their "default n": the
+# manifest check reads the resolved request, so both spellings are caught.
+# See AmbiqAI/ns-cmsis-nn#420.
+foreach(_reject_case "kconfig_f32;set(CONFIG_NS_CMSIS_NN_ENABLE_F32 1);F32"
+                     "arm_nn_f16;set(ARM_NN_ENABLE_F16 ON CACHE BOOL \"\" FORCE);F16")
+  list(GET _reject_case 0 _reject_name)
+  list(GET _reject_case 1 _reject_request)
+  list(GET _reject_case 2 _reject_width)
+
+  set(_zephyr_probe "${CMAKE_BINARY_DIR}/_zephyr_manifest_probe_${_reject_name}")
+  file(REMOVE_RECURSE "${_zephyr_probe}")
+  file(MAKE_DIRECTORY "${_zephyr_probe}")
+  file(WRITE "${_zephyr_probe}/CMakeLists.txt"
 "cmake_minimum_required(VERSION 3.20)
 project(zephyr_manifest_reject_probe C)
 macro(zephyr_library)
@@ -503,22 +512,23 @@ set(ZEPHYR_CMSIS_MODULE_DIR \"${CMAKE_CURRENT_BINARY_DIR}/__fake_cmsis_module__\
 set(CONFIG_NS_CMSIS_NN 1)
 set(CONFIG_NS_CMSIS_NN_USE_PREBUILT 1)
 set(CONFIG_NS_CMSIS_NN_PREBUILT_PATH \"${_fake_sdk}\")
-set(CONFIG_NS_CMSIS_NN_ENABLE_F32 1)
+${_reject_request}
 include(\"${_repo_root}/zephyr/CMakeLists.txt\")
 ")
-execute_process(
-  COMMAND ${CMAKE_COMMAND} -S "${_zephyr_probe}" -B "${_zephyr_probe}/_b"
-  RESULT_VARIABLE _zephyr_probe_rc
-  OUTPUT_VARIABLE _zephyr_probe_out
-  ERROR_VARIABLE  _zephyr_probe_err)
-if(_zephyr_probe_rc EQUAL 0)
-  _fail("prebuilt manifest-reject case: probe unexpectedly succeeded (expected FATAL_ERROR)\n${_zephyr_probe_out}\n${_zephyr_probe_err}")
-else()
-  string(FIND "${_zephyr_probe_err}" "CONFIG_NS_CMSIS_NN_ENABLE_F32=y but the prebuilt SDK's manifest" _zephyr_probe_msg_idx)
-  if(_zephyr_probe_msg_idx EQUAL -1)
-    _fail("prebuilt manifest-reject case: probe failed but without the expected diagnostic; stderr:\n${_zephyr_probe_err}")
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -S "${_zephyr_probe}" -B "${_zephyr_probe}/_b"
+    RESULT_VARIABLE _zephyr_probe_rc
+    OUTPUT_VARIABLE _zephyr_probe_out
+    ERROR_VARIABLE  _zephyr_probe_err)
+  if(_zephyr_probe_rc EQUAL 0)
+    _fail("prebuilt manifest-reject case (${_reject_name}): probe unexpectedly succeeded (expected FATAL_ERROR)\n${_zephyr_probe_out}\n${_zephyr_probe_err}")
+  else()
+    string(FIND "${_zephyr_probe_err}" "CONFIG_NS_CMSIS_NN_ENABLE_${_reject_width}=y but the prebuilt SDK's manifest" _zephyr_probe_msg_idx)
+    if(_zephyr_probe_msg_idx EQUAL -1)
+      _fail("prebuilt manifest-reject case (${_reject_name}): probe failed but without the expected diagnostic; stderr:\n${_zephyr_probe_err}")
+    endif()
   endif()
-endif()
+endforeach()
 
 # ----------------------------------------------------------------------------
 # Report.
@@ -527,4 +537,4 @@ if(_failures)
   message(FATAL_ERROR "Zephyr wiring test FAILED:${_failures}")
 endif()
 
-message(STATUS "Zephyr wiring OK: 23 knobs translated, baseline source set attached, float source gates validated, inline-asm define propagated, prebuilt mode imports SDK tarball, prebuilt manifest validation accepts/rejects float requests.")
+message(STATUS "Zephyr wiring OK: 23 knobs translated, baseline source set attached, float source gates validated, inline-asm define propagated, prebuilt mode imports SDK tarball, prebuilt manifest validation accepts/rejects float requests under both the Kconfig and the ARM_NN spelling.")

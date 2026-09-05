@@ -45,6 +45,13 @@
 #   prebuilt_manifest_reject  — same, but manifest reports f32=false; expect
 #                               a configure-time FATAL_ERROR (via a child
 #                               cmake probe), not a silent link-time failure.
+#   prebuilt_manifest_reject_arm_nn
+#                             - manifest reports f16=false and the request
+#                               arrives only as ARM_NN_ENABLE_F16=ON, with the
+#                               NSX switches at their defaults; validation
+#                               reads the resolved request, so expect the same
+#                               manifest FATAL_ERROR.
+#                               See AmbiqAI/ns-cmsis-nn#420.
 #   prebuilt_manifest_legacy  — manifest.json has no "features" block
 #                               (pre-existing schema_version 1 package);
 #                               requesting F32 must FATAL_ERROR per the
@@ -62,7 +69,8 @@ set(CASE "source_all" CACHE STRING "Which wiring case to exercise.")
 set_property(CACHE CASE PROPERTY STRINGS
   source_all source_subset inline_asm float_f32 float_f16 float_both
   float_arm_nn_only float_conflict float_conflict_plain prebuilt
-  prebuilt_manifest_ok prebuilt_manifest_reject prebuilt_manifest_legacy)
+  prebuilt_manifest_ok prebuilt_manifest_reject prebuilt_manifest_reject_arm_nn
+  prebuilt_manifest_legacy)
 
 get_filename_component(_repo_root "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
 include("${_repo_root}/cmake/ns_cmsis_nn.cmake")
@@ -106,23 +114,35 @@ endfunction()
 # cmake/tests/find_package's cpu_mismatch case) and assert on the non-zero
 # exit + diagnostic message.
 # ----------------------------------------------------------------------------
-if(CASE STREQUAL "prebuilt_manifest_reject" OR CASE STREQUAL "prebuilt_manifest_legacy")
+if(CASE STREQUAL "prebuilt_manifest_reject"
+   OR CASE STREQUAL "prebuilt_manifest_reject_arm_nn"
+   OR CASE STREQUAL "prebuilt_manifest_legacy")
   set(_fake_lib "${CMAKE_BINARY_DIR}/_fake_prebuilt_reject.a")
   file(TOUCH "${_fake_lib}")
 
-  if(CASE STREQUAL "prebuilt_manifest_reject")
-    # Archive explicitly reports it does NOT have f32.
-    file(WRITE "${CMAKE_BINARY_DIR}/manifest.json" "{
-  \"schema_version\": 2,
-  \"features\": { \"integer\": true, \"f32\": false, \"f16\": false, \"requantize_inline_asm\": false, \"verified\": true }
-}
-")
-  else()
+  if(CASE STREQUAL "prebuilt_manifest_legacy")
     # Pre-existing schema_version 1 package: no "features" block at all.
     file(WRITE "${CMAKE_BINARY_DIR}/manifest.json" "{
   \"schema_version\": 1
 }
 ")
+  else()
+    # Archive explicitly reports it has neither float width.
+    file(WRITE "${CMAKE_BINARY_DIR}/manifest.json" "{
+  \"schema_version\": 2,
+  \"features\": { \"integer\": true, \"f32\": false, \"f16\": false, \"requantize_inline_asm\": false, \"verified\": true }
+}
+")
+  endif()
+
+  if(CASE STREQUAL "prebuilt_manifest_reject_arm_nn")
+    # The NSX switches stay at their defaults, so the ARM_NN spelling is the
+    # whole request and the manifest check has to see it.
+    set(_probe_request "set(ARM_NN_ENABLE_F16 ON CACHE BOOL \"\" FORCE)")
+    set(_probe_needle "NSX_CMSIS_NN_ENABLE_F16 was requested")
+  else()
+    set(_probe_request "set(NSX_CMSIS_NN_ENABLE_F32 ON CACHE BOOL \"\" FORCE)")
+    set(_probe_needle "NSX_CMSIS_NN_ENABLE_F32 was requested")
   endif()
 
   set(_probe "${CMAKE_BINARY_DIR}/_manifest_probe")
@@ -134,7 +154,7 @@ project(probe C)
 add_library(_nsx_board_flags INTERFACE)
 set(NSX_BOARD_FLAGS_TARGET _nsx_board_flags)
 set(NSX_CMSIS_NN_LIB \"${_fake_lib}\" CACHE FILEPATH \"\" FORCE)
-set(NSX_CMSIS_NN_ENABLE_F32 ON CACHE BOOL \"\" FORCE)
+${_probe_request}
 add_subdirectory(\"${_repo_root}/nsx\" nsx)
 ")
   execute_process(
@@ -145,7 +165,7 @@ add_subdirectory(\"${_repo_root}/nsx\" nsx)
   if(_rc EQUAL 0)
     _fail("${CASE}: probe unexpectedly succeeded (expected FATAL_ERROR)\n${_out}\n${_err}")
   else()
-    string(FIND "${_err}" "NSX_CMSIS_NN_ENABLE_F32 was requested" _msg_idx)
+    string(FIND "${_err}" "${_probe_needle}" _msg_idx)
     if(_msg_idx EQUAL -1)
       _fail("${CASE}: probe failed but without the expected diagnostic; stderr:\n${_err}")
     endif()
@@ -309,7 +329,7 @@ elseif(CASE STREQUAL "prebuilt_manifest_ok")
   set(_expect_f16_define 0)
 
 else()
-  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: source_all, source_subset, inline_asm, float_f32, float_f16, float_both, float_arm_nn_only, float_conflict, float_conflict_plain, prebuilt, prebuilt_manifest_ok, prebuilt_manifest_reject, prebuilt_manifest_legacy.")
+  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: source_all, source_subset, inline_asm, float_f32, float_f16, float_both, float_arm_nn_only, float_conflict, float_conflict_plain, prebuilt, prebuilt_manifest_ok, prebuilt_manifest_reject, prebuilt_manifest_reject_arm_nn, prebuilt_manifest_legacy.")
 endif()
 
 # ----------------------------------------------------------------------------
