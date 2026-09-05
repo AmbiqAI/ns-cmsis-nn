@@ -44,3 +44,5 @@ void test_convolve_5x5_single_channel_f32(void) { convolve_5x5_single_channel_f3
 void test_convolve_small_c_dilated_f32(void) { convolve_small_c_dilated_f32(); }
 
 void test_convolve_small_c_batch2_f32(void) { convolve_small_c_batch2_f32(); }
+
+void test_convolve_full_c_partial_block_f32(void) { convolve_full_c_partial_block_f32(); }
