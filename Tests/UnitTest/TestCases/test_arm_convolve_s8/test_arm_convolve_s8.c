@@ -1764,9 +1764,7 @@ void conv_refactored_fc_conv_int8_1x1_kernel(void)
     arm_cmsis_nn_status result;
     int32_t buf_size;
     memset(output, 0, sizeof(output));
-    // The 1x1 sizer does not cover a 1x1 kernel over a larger image, so size with the generic conv
-    // sizer. see AmbiqAI/ns-cmsis-nn#422
-    buf_size = arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
+    buf_size = arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
