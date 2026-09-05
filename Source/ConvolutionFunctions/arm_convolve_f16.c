@@ -260,7 +260,28 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 
         {
             const int32_t x0 = in_x0 + kx * dil_w;
             const float16_t *wt = w0 + (size_t)((ky * kernel_w + kx) * input_c) * (size_t)ws;
-            if (IC1)
+            if (IC1 && MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE)
+            {
+                /* Single-channel edge column: gather unpredicated from offsets clamped into the row, then skip the
+                 * padded lanes in each widened half with a 32-bit compare of the unclamped offsets that feeds the
+                 * VPT block directly (no predicate round trip through a GPR). Lanes past output_w in a tail
+                 * group read in-row data and accumulate into lanes that are never stored. */
+                uint16_t last_col = (uint16_t)(row_limit - 1U);
+                __asm__ volatile("" : "+r"(c), "+r"(last_col)); /* rematerialise the clamp per column, no Q reg */
+                const uint16x8_t off = vaddq(c->lane_x_c, (uint16_t)x0);
+                const float16x8_t vin = vldrhq_gather_shifted_offset(row, vminq(off, vdupq_n_u16(last_col)));
+                const float32_t wv0 = (float32_t)wt[w_off0];
+                const float32_t wv1 = (float32_t)wt[w_off1];
+                const mve_pred16_t p_lo = vcmphiq(vdupq_n_u32((uint32_t)row_limit), vmovlbq(off));
+                const float32x4_t vin_lo = vcvtbq_f32_f16(vin);
+                vacc0_lo = vfmaq_m(vacc0_lo, vin_lo, wv0, p_lo);
+                vacc1_lo = vfmaq_m(vacc1_lo, vin_lo, wv1, p_lo);
+                const mve_pred16_t p_hi = vcmphiq(vdupq_n_u32((uint32_t)row_limit), vmovltq(off));
+                const float32x4_t vin_hi = vcvttq_f32_f16(vin);
+                vacc0_hi = vfmaq_m(vacc0_hi, vin_hi, wv0, p_hi);
+                vacc1_hi = vfmaq_m(vacc1_hi, vin_hi, wv1, p_hi);
+            }
+            else if (IC1)
             {
                 float16x8_t vin;
                 if (MODE == ARM_NN_CONV_SMALL_C_MODE_VLD1)
@@ -401,7 +422,16 @@ __STATIC_FORCEINLINE void arm_conv_small_c_lane_group_f16(const arm_conv_small_c
             c, input_b, in_y0, in_x0, out_pos, false, ARM_NN_CONV_SMALL_C_MODE_GATHER, p_pos);
         break;
     default:
-        arm_conv_small_c_row_group_f16(c, input_b, in_y0, in_x0, out_pos, false, ARM_NN_CONV_SMALL_C_MODE_EDGE, p_pos);
+        if (c->input_c == 1)
+        {
+            arm_conv_small_c_row_group_f16(
+                c, input_b, in_y0, in_x0, out_pos, true, ARM_NN_CONV_SMALL_C_MODE_EDGE, p_pos);
+        }
+        else
+        {
+            arm_conv_small_c_row_group_f16(
+                c, input_b, in_y0, in_x0, out_pos, false, ARM_NN_CONV_SMALL_C_MODE_EDGE, p_pos);
+        }
         break;
     }
 }
