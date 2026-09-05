@@ -1,34 +1,43 @@
 # SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
 # SPDX-License-Identifier: Apache-2.0
 #
-# Tell the float16 kernels which form of the half<->single conversion their
-# assembler can encode. gas before binutils 2.43 mis-encodes the Q-register
-# form of VCVTB/VCVTT.F16<->F32: it writes Qn into the field as Q2n, so the
-# widen/narrow steps land in the wrong registers and the higher Q numbers
-# overflow into an UNDEFINED word that faults at run time. Nothing in the
-# preprocessor can see the assembler, so this asks it directly.
-# See AmbiqAI/ns-cmsis-nn#427.
+# Measure the MVE instruction families whose encoding is not stable across the
+# gas releases this library supports, and tell the kernels which form to emit.
+# A sweep of the MVE space over binutils 2.39 to 2.45 found exactly two.
+#
+#   VCVTB/VCVTT.F16<->F32, Q-register form. gas before 2.43 writes Qn into the
+#   field as Q2n, so the widen/narrow steps land in the wrong registers and the
+#   higher Q numbers overflow into an UNDEFINED word that faults at run time.
+#   The float16 kernels use these. See AmbiqAI/ns-cmsis-nn#427.
+#
+#   VQSHRN/VQSHRUN, the saturating narrowing shifts. gas before 2.43 sets the
+#   rounding bit, so every one of them assembles as its VQRSHRN/VQRSHRUN
+#   variant: no fault, results off by a half ulp. No kernel uses these yet.
+#   See AmbiqAI/ns-cmsis-nn#437.
+#
+# Nothing in the preprocessor can see the assembler, so this asks it directly.
 #
 # Exposes one entry point:
 #
-#   ns_cmsis_nn_check_gas_mve_f16_cvt(<target>)
-#       Assembles a witness instruction with the flags <target> will really
-#       compile with -- CMAKE_C_FLAGS, the target's own options, definitions
-#       and include directories, and the usage requirements of everything it
-#       links -- and compares the encoded word. A no-op unless
-#       ARM_NN_ENABLE_F16 is set and the compiler is GNU. Call it where the
-#       float16 sources are selected, so every consumer of
-#       cmake/ns_cmsis_nn.cmake is covered and not just the standalone build.
+#   ns_cmsis_nn_check_gas_mve_encoding(<target>)
+#       Assembles a witness with the flags <target> will really compile with
+#       -- CMAKE_C_FLAGS, the target's own options, definitions and include
+#       directories, and the usage requirements of everything it links -- and
+#       compares the encoded words. A no-op unless ARM_NN_ENABLE_F16 is set
+#       and the compiler is GNU. Call it where the float16 sources are
+#       selected, so every consumer of cmake/ns_cmsis_nn.cmake is covered and
+#       not just the standalone build.
 #
-# The verdict is a compile definition on <target>, read by
-# Include/Internal/arm_nn_vcvt_f16.h: ARM_NN_GAS_F16_VERIFIED=1 on a correct
-# assembler, ARM_NN_GAS_VCVT_F16_BROKEN=1 on a mis-encoding one, which selects
-# the scalar-form conversions instead. Neither is a refusal -- both build. The
-# shapes this probe cannot see -- flags wired after the directory finishes,
-# flags carried only inside a generator expression, and consumers that never
-# run CMake at all -- get neither definition and fall back to the header's
-# compiler-version guard, which is conservative for GCC 13 and blind to a
-# GCC 14 driver over an older binutils.
+# The verdicts are compile definitions on <target>. ARM_NN_GAS_F16_VERIFIED=1
+# on a correct assembler and ARM_NN_GAS_VCVT_F16_BROKEN=1 on a mis-encoding
+# one are read by Include/Internal/arm_nn_vcvt_f16.h, which switches to the
+# scalar-form conversions. ARM_NN_GAS_VQSHRN_BROKEN=1 has no reader yet; it is
+# there so the helper #437 will add can select on it the same way. None of
+# them is a refusal -- every combination builds. The shapes this probe cannot
+# see -- flags wired after the directory finishes, flags carried only inside a
+# generator expression, and consumers that never run CMake at all -- get no
+# definitions and fall back to the header's compiler-version guard, which is
+# conservative for GCC 13 and blind to a GCC 14 driver over an older binutils.
 #
 # try_compile() was the obvious mechanism and does not work here. Its
 # LINK_LIBRARIES only carries imported targets into the generated project;
@@ -40,14 +49,14 @@
 # usage requirements instead.
 
 option(ARM_NN_SKIP_GAS_F16_PROBE
-       "Downgrade an unassemblable MVE half<->single witness from an error to a warning, leaving the assembler unmeasured."
+       "Downgrade an unassemblable MVE encoding witness from an error to a warning, leaving the assembler unmeasured."
        OFF)
 
 # Drop the generator expressions from an option list. They have no value at
 # configure time and a single one can span several list elements, so track the
 # bracket depth rather than filtering element by element. Sets <out_skipped>
 # TRUE when anything was dropped, so the caller can say the view is partial.
-function(_ns_cmsis_nn_gas_f16_plain out_var out_skipped)
+function(_ns_cmsis_nn_gas_mve_plain out_var out_skipped)
   set(_kept "")
   set(_depth 0)
   set(_skipped FALSE)
@@ -75,7 +84,7 @@ endfunction()
 # an instruction encodes, so carrying them only gives the assembler a way to
 # fail on something the probe is not asking about. Both spellings, split and
 # joined. See AmbiqAI/ns-cmsis-nn#427.
-function(_ns_cmsis_nn_gas_f16_drop_injected out_var out_dropped)
+function(_ns_cmsis_nn_gas_mve_drop_injected out_var out_dropped)
   set(_kept "")
   set(_dropped "")
   set(_pending "")
@@ -113,14 +122,14 @@ endfunction()
 # directory, by which time a later add_compile_options() has landed in the
 # directory property but reaches no target created before it -- reading it here
 # would judge an early target with flags it never compiles with.
-function(_ns_cmsis_nn_gas_f16_flags target out_var out_skipped)
+function(_ns_cmsis_nn_gas_mve_flags target out_var out_skipped)
   set(_skipped_any FALSE)
   set(_opts "")
 
   foreach(_prop COMPILE_OPTIONS COMPILE_DEFINITIONS INCLUDE_DIRECTORIES)
     get_target_property(_own ${target} ${_prop})
     if(_own)
-      _ns_cmsis_nn_gas_f16_plain(_own_plain _skipped ${_own})
+      _ns_cmsis_nn_gas_mve_plain(_own_plain _skipped ${_own})
       if(_skipped)
         set(_skipped_any TRUE)
       endif()
@@ -143,7 +152,7 @@ function(_ns_cmsis_nn_gas_f16_flags target out_var out_skipped)
   foreach(_prop LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
     get_target_property(_libs ${target} ${_prop})
     if(_libs)
-      _ns_cmsis_nn_gas_f16_plain(_libs_plain _skipped ${_libs})
+      _ns_cmsis_nn_gas_mve_plain(_libs_plain _skipped ${_libs})
       if(_skipped)
         set(_skipped_any TRUE)
       endif()
@@ -171,7 +180,7 @@ function(_ns_cmsis_nn_gas_f16_flags target out_var out_skipped)
                   INTERFACE_INCLUDE_DIRECTORIES)
       get_target_property(_vals ${_dep} ${_prop})
       if(_vals)
-        _ns_cmsis_nn_gas_f16_plain(_vals_plain _skipped ${_vals})
+        _ns_cmsis_nn_gas_mve_plain(_vals_plain _skipped ${_vals})
         if(_skipped)
           set(_skipped_any TRUE)
         endif()
@@ -189,7 +198,7 @@ function(_ns_cmsis_nn_gas_f16_flags target out_var out_skipped)
 
     get_target_property(_next ${_dep} INTERFACE_LINK_LIBRARIES)
     if(_next)
-      _ns_cmsis_nn_gas_f16_plain(_next_plain _skipped ${_next})
+      _ns_cmsis_nn_gas_mve_plain(_next_plain _skipped ${_next})
       if(_skipped)
         set(_skipped_any TRUE)
       endif()
@@ -197,7 +206,7 @@ function(_ns_cmsis_nn_gas_f16_flags target out_var out_skipped)
     endif()
   endwhile()
 
-  _ns_cmsis_nn_gas_f16_drop_injected(_opts _dropped ${_opts})
+  _ns_cmsis_nn_gas_mve_drop_injected(_opts _dropped ${_opts})
 
   set(${out_var} "${_opts}" PARENT_SCOPE)
   set(${out_skipped} "${_skipped_any}" PARENT_SCOPE)
@@ -208,7 +217,7 @@ endfunction()
 
 # Carry the verdict to Include/Internal/arm_nn_vcvt_f16.h. An INTERFACE library
 # has no private scope to put it in.
-function(_ns_cmsis_nn_gas_f16_define target definition)
+function(_ns_cmsis_nn_gas_mve_define target definition)
   get_target_property(_type ${target} TYPE)
   if(_type STREQUAL "INTERFACE_LIBRARY")
     target_compile_definitions(${target} INTERFACE ${definition})
@@ -217,16 +226,18 @@ function(_ns_cmsis_nn_gas_f16_define target definition)
   endif()
 endfunction()
 
-function(_ns_cmsis_nn_gas_f16_run target)
+function(_ns_cmsis_nn_gas_mve_run target)
   if(NOT TARGET ${target})
     return()
   endif()
 
-  # `vcvtb.f16.f32 q1, q2` as a correct assembler lays it down in the object,
-  # little-endian. Measured across the installed toolchains, not derived.
+  # The two witness instructions as a correct assembler lays them down in the
+  # object, little-endian. Measured across the installed toolchains, not
+  # derived. A mis-encoding gas gives 3fee094e and 88ee410f respectively.
   set(_expected "3fee052e")
+  set(_expected_vqshrn "88ee400f")
 
-  _ns_cmsis_nn_gas_f16_flags(${target} _opts _genex_skipped _dropped)
+  _ns_cmsis_nn_gas_mve_flags(${target} _opts _genex_skipped _dropped)
   set(_signature "${CMAKE_C_COMPILER}|${CMAKE_C_FLAGS}|${_opts}")
 
   # Several targets can attach float16 sources in one configure; report on each
@@ -234,22 +245,22 @@ function(_ns_cmsis_nn_gas_f16_run target)
   # Only the message is deduplicated -- every target still has to be measured
   # and marked, or the header check would reject the ones that were skipped.
   set(_report TRUE)
-  get_property(_seen GLOBAL PROPERTY NS_GAS_MVE_F16_CVT_REPORTED)
+  get_property(_seen GLOBAL PROPERTY NS_GAS_MVE_ENCODING_REPORTED)
   if("${_signature}" IN_LIST _seen)
     set(_report FALSE)
   else()
-    set_property(GLOBAL APPEND PROPERTY NS_GAS_MVE_F16_CVT_REPORTED "${_signature}")
+    set_property(GLOBAL APPEND PROPERTY NS_GAS_MVE_ENCODING_REPORTED "${_signature}")
   endif()
 
   if(_dropped AND _report)
     list(JOIN _dropped " " _dropped_text)
     message(STATUS
-      "MVE half<->single assembler check ignored ${_dropped_text} for target "
+      "MVE encoding check ignored ${_dropped_text} for target "
       "'${target}': a header injected into C cannot change how an instruction "
       "encodes.")
   endif()
 
-  set(_dir "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ns_gas_mve_f16_cvt")
+  set(_dir "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ns_gas_mve_encoding")
   set(_src "${_dir}/probe.S")
   set(_obj "${_dir}/probe.o")
   file(MAKE_DIRECTORY "${_dir}")
@@ -257,9 +268,10 @@ function(_ns_cmsis_nn_gas_f16_run target)
 
   # A .S is preprocessed, so the feature macro that gates the kernels also
   # decides whether this target has anything worth checking, and one assemble
-  # answers both questions with the flags the kernels will really see. The
-  # sentinels bracket the instruction so its word can be lifted out of the
-  # object without parsing ELF.
+  # answers every question with the flags the kernels will really see. The
+  # sentinels bracket each instruction so its word can be lifted out of the
+  # object without parsing ELF. MVE float16 implies MVE integer, so the
+  # narrowing shift rides along on the same gate rather than needing its own.
   file(WRITE "${_src}"
 "#if defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2)
     .syntax unified
@@ -268,6 +280,8 @@ function(_ns_cmsis_nn_gas_f16_run target)
     .word 0xdeadbee1
     vcvtb.f16.f32 q1, q2
     .word 0xdeadbee2
+    vqshrnb.s16 q0, q0, #8
+    .word 0xdeadbee3
 #else
     .text
     .word 0xdeadbee0
@@ -292,7 +306,7 @@ function(_ns_cmsis_nn_gas_f16_run target)
     # One string, expanded quoted: message() splits an unquoted list on the
     # semicolons this text needs.
     set(_unmeasured "\
-The MVE half<->single assembler check could not assemble its witness for \
+The MVE encoding check could not assemble its witness for \
 target '${target}' with this target's flags, so the assembler was not \
 measured.
 Compiler: ${CMAKE_C_COMPILER}
@@ -322,7 +336,7 @@ binutils below 2.43.")
   endif()
 
   file(READ "${_obj}" _hex HEX)
-  if(NOT _hex MATCHES "e1beadde(........)e2beadde")
+  if(NOT _hex MATCHES "e1beadde(........)e2beadde(........)e3beadde")
     # The witness took its #else arm: the flags visible here select no MVE
     # float16. That is a statement about what the probe could see, not a
     # verdict on the build, so nothing is marked as verified unless the user
@@ -335,7 +349,7 @@ binutils below 2.43.")
         string(JOIN "" _why ${_why})
       endif()
       message(STATUS
-        "MVE half<->single assembler check does not apply to target '${target}': "
+        "MVE encoding check does not apply to target '${target}': "
         "its flags select no MVE float16 (__ARM_FEATURE_MVE & 2 is 0).${_why} "
         "Flags added to this target after the current directory finishes, or "
         "carried only inside a generator expression, are not visible here "
@@ -345,9 +359,30 @@ binutils below 2.43.")
     return()
   endif()
   set(_word "${CMAKE_MATCH_1}")
+  set(_word_vqshrn "${CMAKE_MATCH_2}")
+
+  # Reported separately from the conversions and never gates them: the two
+  # families are fixed by the same binutils release, but the library's f16
+  # correctness rides only on the first, and nothing here should make a
+  # future divergence between them look like one verdict.
+  if(NOT _word_vqshrn STREQUAL _expected_vqshrn)
+    _ns_cmsis_nn_gas_mve_define(${target} ARM_NN_GAS_VQSHRN_BROKEN=1)
+    if(_report)
+      # One string, expanded quoted: message() splits an unquoted list on the
+      # semicolons this text needs.
+      message(STATUS "\
+The assembler behind ${CMAKE_C_COMPILER} also mis-encodes the MVE saturating \
+narrowing shifts: `vqshrnb.s16 q0, q0, #8' assembled to 0x${_word_vqshrn}, \
+expected 0x${_expected_vqshrn}, which is the rounding variant VQRSHRNB. \
+VQSHRUN is affected the same way. No kernel emits either family today, so \
+this is a record, not a defect in this build; target '${target}' is built \
+with ARM_NN_GAS_VQSHRN_BROKEN=1 so that a helper can select on it.
+See AmbiqAI/ns-cmsis-nn#437.")
+    endif()
+  endif()
 
   if(_word STREQUAL _expected)
-    _ns_cmsis_nn_gas_f16_define(${target} ARM_NN_GAS_F16_VERIFIED=1)
+    _ns_cmsis_nn_gas_mve_define(${target} ARM_NN_GAS_F16_VERIFIED=1)
     if(_report)
       message(STATUS
         "MVE half<->single conversions encode correctly (0x${_word})")
@@ -357,7 +392,7 @@ binutils below 2.43.")
 
   # Not a failure: the kernels have a second way to emit these conversions, so
   # the measurement selects it rather than stopping the build.
-  _ns_cmsis_nn_gas_f16_define(${target} ARM_NN_GAS_VCVT_F16_BROKEN=1)
+  _ns_cmsis_nn_gas_mve_define(${target} ARM_NN_GAS_VCVT_F16_BROKEN=1)
   if(_report)
     # One string, expanded quoted: message() splits an unquoted list on the
     # semicolons this text needs.
@@ -380,7 +415,7 @@ See AmbiqAI/ns-cmsis-nn#427.")
   endif()
 endfunction()
 
-function(ns_cmsis_nn_check_gas_mve_f16_cvt target)
+function(ns_cmsis_nn_check_gas_mve_encoding target)
   if(NOT ARM_NN_ENABLE_F16)
     return()
   endif()
@@ -390,11 +425,11 @@ function(ns_cmsis_nn_check_gas_mve_f16_cvt target)
     return()
   endif()
 
-  get_property(_scheduled GLOBAL PROPERTY NS_GAS_MVE_F16_CVT_SCHEDULED)
+  get_property(_scheduled GLOBAL PROPERTY NS_GAS_MVE_ENCODING_SCHEDULED)
   if("${target}" IN_LIST _scheduled)
     return()
   endif()
-  set_property(GLOBAL APPEND PROPERTY NS_GAS_MVE_F16_CVT_SCHEDULED "${target}")
+  set_property(GLOBAL APPEND PROPERTY NS_GAS_MVE_ENCODING_SCHEDULED "${target}")
 
   # Consumers link the target that carries -mcpu after attaching the sources
   # (nsx/CMakeLists.txt does), so reading the link closure now would see an
@@ -404,8 +439,8 @@ function(ns_cmsis_nn_check_gas_mve_f16_cvt target)
     # runs, where this function's `target' no longer exists; EVAL bakes the
     # name in now as a bracket argument that survives that second pass.
     cmake_language(EVAL CODE
-      "cmake_language(DEFER CALL _ns_cmsis_nn_gas_f16_run [[${target}]])")
+      "cmake_language(DEFER CALL _ns_cmsis_nn_gas_mve_run [[${target}]])")
   else()
-    _ns_cmsis_nn_gas_f16_run("${target}")
+    _ns_cmsis_nn_gas_mve_run("${target}")
   endif()
 endfunction()

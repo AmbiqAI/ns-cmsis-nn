@@ -48,7 +48,7 @@
      * kernel that pinned a particular payload would not be portable between them.
      *
      * The preprocessor cannot see the assembler, so which arm applies is decided by
-     * two definitions that the CMake probe in cmake/check_gas_mve_f16_cvt.cmake
+     * two definitions that the CMake probe in cmake/check_gas_mve_encoding.cmake
      * stamps on the target after measuring it: ARM_NN_GAS_VCVT_F16_BROKEN selects
      * the S-form, ARM_NN_GAS_F16_VERIFIED selects the intrinsics. With neither -- a
      * build that never runs the probe -- the compiler major stands in as a proxy

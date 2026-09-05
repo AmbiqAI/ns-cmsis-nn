@@ -56,7 +56,7 @@ get_filename_component(NS_CMSIS_NN_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 # with. It cannot see an architecture flag that only exists inside a generator
 # expression, and says so when it finds none.
 # See AmbiqAI/ns-cmsis-nn#427.
-include("${CMAKE_CURRENT_LIST_DIR}/check_gas_mve_f16_cvt.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/check_gas_mve_encoding.cmake")
 
 # Canonical, ordered list of operator group ids.
 set(_NS_CMSIS_NN_GROUPS
@@ -503,7 +503,7 @@ function(ns_cmsis_nn_attach target)
   foreach(_src IN LISTS all_sources)
     get_filename_component(_base "${_src}" NAME)
     if(_base MATCHES "_fp?16([._]|$)")
-      ns_cmsis_nn_check_gas_mve_f16_cvt(${target})
+      ns_cmsis_nn_check_gas_mve_encoding(${target})
       break()
     endif()
   endforeach()

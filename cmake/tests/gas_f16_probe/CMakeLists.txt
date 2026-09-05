@@ -3,13 +3,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# Flag-view test for cmake/check_gas_mve_f16_cvt.cmake. Invoke as:
+# Flag-view test for cmake/check_gas_mve_encoding.cmake. Invoke as:
 #
 #     cmake -S cmake/tests/gas_f16_probe -B build/gas_f16_probe
 #
 # Runs on the host compiler; there is no arm-none-eabi toolchain in this job,
-# so it cannot assemble the witness instruction and does not try to. What it
-# pins down is which flags the probe measures. See AmbiqAI/ns-cmsis-nn#427.
+# so it cannot assemble the witness and does not try to. What it pins down is
+# which flags the probe measures, and that the witness still names both of the
+# instruction families the probe exists to measure -- the half<->single
+# conversions (AmbiqAI/ns-cmsis-nn#427) and the saturating narrowing shifts
+# (AmbiqAI/ns-cmsis-nn#437).
 #
 # The arch flags sit on a target that is never attached, so the host compiler
 # is never asked to accept a Cortex-M flag it has no idea about.
@@ -78,7 +81,7 @@ target_include_directories(_probe_lib PRIVATE "${CMAKE_CURRENT_LIST_DIR}/own_inc
 # uses, and reading the link closure during attach would see nothing.
 target_link_libraries(_probe_lib PUBLIC _probe_flags)
 
-_ns_cmsis_nn_gas_f16_flags(_probe_lib _opts _genex_skipped)
+_ns_cmsis_nn_gas_mve_flags(_probe_lib _opts _genex_skipped)
 
 _expect_opt("${_opts}" "-DNS_PROBE_IFACE_OPT"
             "options on a linked INTERFACE target are invisible to the probe")
@@ -126,7 +129,7 @@ add_library(_probe_arch STATIC)
 target_sources(_probe_arch PRIVATE "${_repo_root}/Source/SoftmaxFunctions/arm_softmax_f16.c")
 target_link_libraries(_probe_arch PRIVATE _probe_cpu)
 
-_ns_cmsis_nn_gas_f16_flags(_probe_arch _arch_opts _arch_genex_skipped)
+_ns_cmsis_nn_gas_mve_flags(_probe_arch _arch_opts _arch_genex_skipped)
 foreach(_flag -mcpu=cortex-m55 -mfloat-abi=hard -mfpu=auto)
   _expect_opt("${_arch_opts}" "${_flag}"
               "arch flags on a linked INTERFACE target are invisible to the probe")
@@ -147,17 +150,32 @@ add_compile_options(-mcpu=cortex-m55)
 add_library(_probe_after STATIC)
 target_sources(_probe_after PRIVATE "${_repo_root}/Source/SoftmaxFunctions/arm_softmax_f16.c")
 
-_ns_cmsis_nn_gas_f16_flags(_probe_before _before_opts _before_genex_skipped)
-_ns_cmsis_nn_gas_f16_flags(_probe_after _after_opts _after_genex_skipped)
+_ns_cmsis_nn_gas_mve_flags(_probe_before _before_opts _before_genex_skipped)
+_ns_cmsis_nn_gas_mve_flags(_probe_after _after_opts _after_genex_skipped)
 _expect_no_opt("${_before_opts}" "-mcpu=cortex-m55"
                "a directory option added after the target was created is measured against it")
 _expect_opt("${_after_opts}" "-mcpu=cortex-m55"
             "a directory option added before the target was created is not measured")
 
+# The witness is written inside the probe and only exists once the probe runs
+# against a real assembler, so the one thing this job can say about it is that
+# the module still asks for both families in a single assemble. Losing that is
+# how the second family would quietly stop being measured; the bytes
+# themselves are compared by toolchain-matrix-strict-link.yml's gcc-f16-probe.
+file(READ "${_repo_root}/cmake/check_gas_mve_encoding.cmake" _module)
+foreach(_needle "vcvtb.f16.f32 q1, q2" "vqshrnb.s16 q0, q0, #8"
+                "ARM_NN_GAS_F16_VERIFIED=1" "ARM_NN_GAS_VCVT_F16_BROKEN=1"
+                "ARM_NN_GAS_VQSHRN_BROKEN=1")
+  string(FIND "${_module}" "${_needle}" _at)
+  if(_at LESS 0)
+    _fail("cmake/check_gas_mve_encoding.cmake no longer mentions '${_needle}'")
+  endif()
+endforeach()
+
 # Scheduling is gated on a GNU compiler, so this half only asserts where the
 # host compiler is one. Everything above is compiler-independent.
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-  get_property(_scheduled GLOBAL PROPERTY NS_GAS_MVE_F16_CVT_SCHEDULED)
+  get_property(_scheduled GLOBAL PROPERTY NS_GAS_MVE_ENCODING_SCHEDULED)
   if(NOT "_probe_lib" IN_LIST _scheduled)
     _fail("ns_cmsis_nn_attach did not invoke the assembler probe for a target carrying float16 sources")
   endif()
