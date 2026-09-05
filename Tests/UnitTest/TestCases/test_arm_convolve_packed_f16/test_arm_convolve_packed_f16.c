@@ -559,3 +559,48 @@ void convolve_full_c_partial_block_f16(void)
 
     free(w_packed);
 }
+
+// Contiguous interior loads must not read past the input tensor. Single-channel 3x17 input, 3x3, stride 2,
+// no padding, output_w = 8 (one full lane group): the last tap column of the group starts at x = 2 and a vld2q
+// there reads 2 * LANES elements, one past the row -- and this is the last row of the only batch, so past the
+// tensor. The input is an exact-size heap allocation so host ASan reports such a read; on the FVP the values
+// still have to match. #417
+void convolve_small_c_no_overread_f16(void)
+{
+    const cmsis_nn_dims in = {1, 3, 17, 1};
+    const cmsis_nn_dims flt = {8, 3, 3, 1};
+    const cmsis_nn_dims out = {1, 1, 8, 8};
+    float16_t *x = (float16_t *)malloc(51 * sizeof(float16_t));
+    float16_t w[72];
+    float16_t bias[8];
+    cmsis_nn_conv_params_f16 cp;
+
+    TEST_ASSERT_NOT_NULL(x);
+    for (int32_t i = 0; i < 51; i++)
+    {
+        x[i] = conv_f16_value(i, 28);
+    }
+    for (int32_t i = 0; i < 72; i++)
+    {
+        w[i] = conv_f16_value(i, 29);
+    }
+    for (int32_t i = 0; i < 8; i++)
+    {
+        bias[i] = conv_f16_value(i, 30);
+    }
+    float16_t *w_packed = pack_rhs_nt_n_from_nt_t_f16(w, 8, 9);
+
+    conv_f16_params(&cp, 0, 0, 0);
+    cp.stride.h = 2;
+    cp.stride.w = 2;
+    conv_f16_check(&cp, &in, x, &flt, w, w, bias, &out, 1);
+    conv_f16_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+    conv_f16_params(&cp, 0, 0, 1);
+    cp.stride.h = 2;
+    cp.stride.w = 2;
+    conv_f16_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 1);
+    conv_f16_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 0);
+
+    free(w_packed);
+    free(x);
+}
