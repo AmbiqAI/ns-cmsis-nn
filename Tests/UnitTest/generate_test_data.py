@@ -2613,7 +2613,6 @@ def load_testdata_sets(regenerate_input, regenerate_weights, regenerate_biases, 
                                           interpreter=interpreter,
                                           int4_weights=True)
 
-    # TODO(#422): Remove legacy fully_connected datasets from this generator.
     # The legacy FC path is brittle with newer TensorFlow versions (>=2.16) due
     # to tensor index changes; RefactoredTestGen handles FC more robustly.
     # type_of_test = 'fully_connected'
