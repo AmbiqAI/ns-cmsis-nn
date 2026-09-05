@@ -1,0 +1,93 @@
+{
+  "why": "Single source for the required/optional GitHub Release asset contract (see AmbiqAI/ns-cmsis-nn#376, #274, #339). The same list used to be hand-maintained in .github/workflows/release.yml, scripts/ci/audit_release_assets.sh and docs/guides/releases.md, with nothing relating the three: an asset added only to release.yml would pass at release time and never be audited nightly. Adding an asset now means editing this file and the docs table; scripts/check_release_asset_manifest.py fails the merge if the two disagree, and both consumers expand this file through scripts/ci/release_assets.py rather than building names themselves.",
+  "contract_floor": "v7.26.0",
+  "contract_floor_why": "First release cut under this contract. v7.25.0 and older shipped a different, smaller asset shape (loose per-cpu .a files, gcc only) and are not judged by a contract that postdates them.",
+  "cpus": ["cortex-m0", "cortex-m4", "cortex-m55"],
+  "promotion_variable": "ARMCLANG_REQUIRED",
+  "promotion_why": "Repository variable, deliberately an operator switch rather than an inference from whether an Arm licence secret is configured: that secret was configured throughout the period armclang published nothing at all, so keying off it would promote assets the pipeline has never once produced, and a required-but-unproducible asset makes every release unrecoverably red (#279).",
+  "audit_promotable": false,
+  "audit_promotable_why": "scripts/ci/audit_release_assets.sh never promotes the optional assets, even when ARMCLANG_REQUIRED is set: that variable is a point-in-time operator switch, and applying it retroactively would flag historical releases that shipped complete under the contract of their day.",
+  "rows": [
+    {
+      "id": "pack",
+      "template": "Ambiq.NS-CMSIS-NN.{version}.pack",
+      "class": "required",
+      "sha256_sidecar": false,
+      "per_cpu": false,
+      "docs_asset": "`Ambiq.NS-CMSIS-NN.<version>.pack`",
+      "produced_by": "publish-pack"
+    },
+    {
+      "id": "staticlib-bundle-gcc",
+      "template": "ns-cmsis-nn-staticlibs-gcc-{version}.zip",
+      "class": "required",
+      "sha256_sidecar": true,
+      "per_cpu": false,
+      "docs_asset": "`ns-cmsis-nn-staticlibs-gcc-<version>.zip`",
+      "produced_by": "publish-staticlib-bundles"
+    },
+    {
+      "id": "sdk-tarball-gcc",
+      "template": "ns-cmsis-nn-{cpu}-gcc-{version}.tar.gz",
+      "class": "required",
+      "sha256_sidecar": true,
+      "per_cpu": true,
+      "docs_asset": "`ns-cmsis-nn-<cpu>-gcc-<version>.tar.gz`",
+      "produced_by": "publish-staticlibs"
+    },
+    {
+      "id": "staticlib-bundle-atfe",
+      "template": "ns-cmsis-nn-staticlibs-atfe-{version}.zip",
+      "class": "required",
+      "sha256_sidecar": true,
+      "per_cpu": false,
+      "docs_asset": "`ns-cmsis-nn-staticlibs-atfe-<version>.zip`",
+      "produced_by": "publish-staticlib-bundles"
+    },
+    {
+      "id": "sdk-tarball-atfe",
+      "template": "ns-cmsis-nn-{cpu}-atfe-{version}.tar.gz",
+      "class": "required",
+      "sha256_sidecar": true,
+      "per_cpu": true,
+      "docs_asset": "`ns-cmsis-nn-<cpu>-atfe-<version>.tar.gz`",
+      "produced_by": "publish-staticlibs"
+    },
+    {
+      "id": "staticlib-bundle-armclang",
+      "template": "ns-cmsis-nn-staticlibs-armclang-{version}.zip",
+      "class": "optional",
+      "sha256_sidecar": true,
+      "per_cpu": false,
+      "docs_asset": "`ns-cmsis-nn-staticlibs-armclang-<version>.zip`",
+      "produced_by": "publish-staticlibs-armclang"
+    },
+    {
+      "id": "sdk-tarball-armclang",
+      "template": "ns-cmsis-nn-{cpu}-armclang-{version}.tar.gz",
+      "class": "optional",
+      "sha256_sidecar": true,
+      "per_cpu": true,
+      "docs_asset": "`ns-cmsis-nn-<cpu>-armclang-<version>.tar.gz`",
+      "produced_by": "publish-staticlibs-armclang"
+    }
+  ],
+  "non_asset_rows_why": "Rows the docs table carries that are not GitHub Release assets. They are listed here so the docs table can be checked as a whole set: an asset-shaped row nobody registered is the drift this manifest exists to end, and a checker that silently ignored unknown rows would wave it through.",
+  "non_asset_rows": [
+    {
+      "id": "tag-and-release",
+      "class": "required",
+      "docs_asset": "`vX.Y.Z` tag + GitHub Release (source)"
+    },
+    {
+      "id": "ci-image",
+      "class": "required",
+      "docs_asset": "`ghcr.io/ambiqai/ns-cmsis-nn-ci:vX.Y.Z` image"
+    },
+    {
+      "id": "pages-docs",
+      "class": "required",
+      "docs_asset": "GitHub Pages docs update"
+    }
+  ]
+}

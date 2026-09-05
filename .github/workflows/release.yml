@@ -1150,10 +1150,22 @@ jobs:
     # Two `gh` calls; 10 min is pure hang insurance.
     timeout-minutes: 10
     steps:
+      # Deliberately NOT pinned to the resolved release commit. This job
+      # judges a release against the asset contract as it stands now, which
+      # is the same contract scripts/ci/audit_release_assets.sh applies to
+      # every historical tag every night; a recovery run for an old tag must
+      # not be judged by that tag's own copy of the manifest, or the two
+      # signals would disagree on what "complete" means
+      # (AmbiqAI/ns-cmsis-nn#376). Nothing here is built or published, so no
+      # historical source enters an artifact.
+      - name: Checkout the asset manifest and its generator
+        uses: actions/checkout@v6
+
       - name: Verify required release assets are published
-        # No checkout in this job, so `gh release view` has no git remote to
-        # infer the repository from and MUST be given --repo explicitly
-        # (AmbiqAI/ns-cmsis-nn#228; enforced by scripts/check_gh_repo_flags.sh).
+        # `gh release view` is still given --repo explicitly: the checkout
+        # above makes a remote inferable, but relying on inference is what
+        # broke recovery runs (AmbiqAI/ns-cmsis-nn#228), and
+        # scripts/check_gh_repo_flags.sh enforces the flag regardless.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -1207,33 +1219,40 @@ jobs:
             exit 1
           fi
 
-          # REQUIRED set, transcribed from the "Required vs optional assets"
-          # table in docs/guides/releases.md and cross-checked against the 17
-          # assets the #228 recovery actually published for v7.29.2:
-          #   1 pack
-          # + 12 SDK tarballs      (gcc|atfe x m0|m4|m55, each with a .sha256)
-          # + 4  staticlib bundles (gcc|atfe .zip, each with a .sha256)
-          # With ARMCLANG_REQUIRED=true armclang's 8 (6 tarballs+sidecars,
-          # 1 bundle zip + sidecar) join that list, for 25 required.
-          # Names come from scripts/build_sdk_tarball.sh's PKG_NAME
-          # ("ns-cmsis-nn-<cpu>-<toolchain>-<version>") and from the bundle
-          # name built in publish-staticlib-bundles above. armclang's 8 join
-          # either list depending on ARMCLANG_REQUIRED, per the env comment.
-          required=( "Ambiq.NS-CMSIS-NN.${VERSION}.pack" )
+          # Expanded from ci/release-assets.json, the single source the
+          # nightly audit and the "Required vs optional assets" table in
+          # docs/guides/releases.md also read (AmbiqAI/ns-cmsis-nn#376).
+          # This job used to build the names itself, in parallel with two
+          # other hand-maintained copies: an asset added here alone was
+          # verified once at release time and then never audited again,
+          # which is the #339 defect one layer up.
+          gen=( python3 "${GITHUB_WORKSPACE}/scripts/ci/release_assets.py" "${VERSION}" )
+          promote=()
+          if [[ "${ARMCLANG_REQUIRED}" == "true" ]]; then
+            promote=( --armclang-required )
+          fi
+
+          # Assigned before use rather than piped into mapfile from a process
+          # substitution: there, a generator that failed would yield an empty
+          # required set and this job would announce a complete release over
+          # nothing.
+          if ! required_raw="$("${gen[@]}" --class required "${promote[@]}")" \
+             || [[ -z "${required_raw}" ]]; then
+            echo "::error title=Release verification failed::could not expand ci/release-assets.json into the required asset set for ${VERSION}, so this release cannot be judged. Upstream asset jobs: ${upstream}." >&2
+            exit 1
+          fi
+          mapfile -t required <<< "${required_raw}"
+
+          # Empty is legitimate here and only here: --armclang-required
+          # promotes every optional row, leaving nothing optional.
+          if ! optional_raw="$("${gen[@]}" --class optional "${promote[@]}")"; then
+            echo "::error title=Release verification failed::could not expand ci/release-assets.json into the optional asset set for ${VERSION}. Upstream asset jobs: ${upstream}." >&2
+            exit 1
+          fi
           optional=()
-          for tc in gcc atfe armclang; do
-            names=( "ns-cmsis-nn-staticlibs-${tc}-${VERSION}.zip" )
-            names+=( "ns-cmsis-nn-staticlibs-${tc}-${VERSION}.zip.sha256" )
-            for cpu in cortex-m0 cortex-m4 cortex-m55; do
-              names+=( "ns-cmsis-nn-${cpu}-${tc}-${VERSION}.tar.gz" )
-              names+=( "ns-cmsis-nn-${cpu}-${tc}-${VERSION}.tar.gz.sha256" )
-            done
-            if [[ "${tc}" == "armclang" && "${ARMCLANG_REQUIRED}" != "true" ]]; then
-              optional+=( "${names[@]}" )
-            else
-              required+=( "${names[@]}" )
-            fi
-          done
+          if [[ -n "${optional_raw}" ]]; then
+            mapfile -t optional <<< "${optional_raw}"
+          fi
 
           # Retried: without this, a single transient 502 from the releases
           # API turns a perfectly good release red, and one false alarm would
