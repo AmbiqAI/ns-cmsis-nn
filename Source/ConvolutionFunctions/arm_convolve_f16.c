@@ -370,7 +370,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                 if (weights_packed)
                 {
                     /* Lanes are output channels: one weight vector per (tap, ic), no reduction (#417). The
-                     * packed layout pads out_c up to a whole block, so the last block loads in-bounds. */
+                     * last block is loaded under the same predicate as it is stored. */
                     for (int32_t oc0 = 0; oc0 < output_c; oc0 += 8)
                     {
                         const mve_pred16_t p_oc = vctp16q((uint32_t)(output_c - oc0));
@@ -396,7 +396,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                                 const float16_t *w_tap = w_blk + k0 * 8;
                                 for (int32_t ic = 0; ic < input_c; ++ic)
                                 {
-                                    vacc = vfmaq(vacc, vld1q(w_tap + (size_t)ic * 8), x[ic]);
+                                    vacc = vfmaq(vacc, vld1q_z(w_tap + (size_t)ic * 8, p_oc), x[ic]);
                                 }
                             }
                         }
