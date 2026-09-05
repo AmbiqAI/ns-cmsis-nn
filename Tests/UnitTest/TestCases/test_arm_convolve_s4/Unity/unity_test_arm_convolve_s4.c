@@ -63,6 +63,8 @@ void test_buffer_size_mve_arm_convolve_s4(void) { buffer_size_mve_arm_convolve_s
 void test_buffer_size_dsp_arm_convolve_s4(void) { buffer_size_dsp_arm_convolve_s4(); }
 void test_buffer_size_out_of_range_arm_convolve_s4(void) { buffer_size_out_of_range_arm_convolve_s4(); }
 void test_buffer_size_even_arm_convolve_s4(void) { buffer_size_even_arm_convolve_s4(); }
+void test_even_arm_convolve_s4(void) { even_arm_convolve_s4(); }
+void test_even_odd_shape_arm_convolve_s4(void) { even_odd_shape_arm_convolve_s4(); }
 void test_conv_1_x_n_1_arm_convolve_s4(void) { conv_1_x_n_1_arm_convolve_s4(); }
 void test_conv_1_x_n_2_arm_convolve_s4(void) { conv_1_x_n_2_arm_convolve_s4(); }
 void test_conv_1_x_n_3_arm_convolve_s4(void) { conv_1_x_n_3_arm_convolve_s4(); }
