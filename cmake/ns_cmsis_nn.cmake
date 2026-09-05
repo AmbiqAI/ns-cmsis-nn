@@ -10,7 +10,7 @@
 #   - the Zephyr module (zephyr/CMakeLists.txt)
 #   - the NSX module    (nsx/CMakeLists.txt)
 #
-# It exposes three public entry points:
+# It exposes four public entry points:
 #
 #   ns_cmsis_nn_groups(<out_var>)
 #       Returns the list of all known operator group ids.
@@ -25,6 +25,13 @@
 #                      [INCLUDE_DIRS_VISIBILITY  PUBLIC | PRIVATE | INTERFACE])
 #       Adds the resolved source set and the public Include/ directory to
 #       <target>. <target> must already exist (created by the consumer).
+#
+#   ns_cmsis_nn_publish_float_switches(F32 <value> F16 <value>
+#                                      [REQUESTED_BY <text>])
+#       Publishes the caller's float request as the ARM_NN_ENABLE_F32/F16
+#       cache entries and directory variables every consumer reads. Defined in
+#       cmake/ns_cmsis_nn_float_switches.cmake, which prebuilt-mode consumers
+#       may include on its own.
 #
 # Notes on selection:
 #   - Each group has an explicit subdirectory under Source/, an explicit list
@@ -57,6 +64,11 @@ get_filename_component(NS_CMSIS_NN_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 # expression, and says so when it finds none.
 # See AmbiqAI/ns-cmsis-nn#427.
 include("${CMAKE_CURRENT_LIST_DIR}/check_gas_mve_encoding.cmake")
+
+# The float switches the group source lists below select on. Kept in its own
+# module so entry points that compile nothing (prebuilt modes) can publish the
+# same values without pulling in the source layout. See AmbiqAI/ns-cmsis-nn#420.
+include("${CMAKE_CURRENT_LIST_DIR}/ns_cmsis_nn_float_switches.cmake")
 
 # Canonical, ordered list of operator group ids.
 set(_NS_CMSIS_NN_GROUPS

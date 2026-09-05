@@ -127,22 +127,17 @@ add_library(cmsis-nn STATIC)
 add_library(ns-cmsis-nn  ALIAS cmsis-nn)
 add_library(ns::cmsis-nn ALIAS cmsis-nn)
 
-if(ARM_NN_ENABLE_F32)
-    set(ARM_NN_ENABLE_F32_VALUE 1)
-else()
-    set(ARM_NN_ENABLE_F32_VALUE 0)
-endif()
-
-if(ARM_NN_ENABLE_F16)
-    set(ARM_NN_ENABLE_F16_VALUE 1)
-else()
-    set(ARM_NN_ENABLE_F16_VALUE 0)
-endif()
+# Normalize the options above to 0/1 and republish them, so this build and the
+# NSX/Zephyr entry points leave the cache in the same state.
+ns_cmsis_nn_publish_float_switches(
+    F32 "${ARM_NN_ENABLE_F32}"
+    F16 "${ARM_NN_ENABLE_F16}"
+    REQUESTED_BY "ARM_NN_ENABLE_F32/F16")
 
 target_compile_options(cmsis-nn PRIVATE ${CMSIS_OPTIMIZATION_LEVEL})
 target_compile_definitions(cmsis-nn
-                           PUBLIC ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32_VALUE}
-                                  ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16_VALUE})
+                           PUBLIC ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32}
+                                  ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16})
 
 ns_cmsis_nn_attach(cmsis-nn
                    GROUPS ${_NS_ENABLED_GROUPS}

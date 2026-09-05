@@ -102,17 +102,18 @@ if(CONFIG_NS_CMSIS_NN)
         "built with F16 enabled, or disable CONFIG_NS_CMSIS_NN_ENABLE_F16.")
     endif()
 
-    set(_ns_f32 0)
-    set(_ns_f16 0)
-    if(CONFIG_NS_CMSIS_NN_ENABLE_F32)
-      set(_ns_f32 1)
-    endif()
-    if(CONFIG_NS_CMSIS_NN_ENABLE_F16)
-      set(_ns_f16 1)
-    endif()
+    # Publish under the names the headers and the other Ambiq consumers read;
+    # prebuilt mode compiles nothing, so it includes the float-switch module
+    # alone rather than the whole source-layout SSoT.
+    include("${ZEPHYR_CURRENT_MODULE_DIR}/cmake/ns_cmsis_nn_float_switches.cmake")
+    ns_cmsis_nn_publish_float_switches(
+      F32 "${CONFIG_NS_CMSIS_NN_ENABLE_F32}"
+      F16 "${CONFIG_NS_CMSIS_NN_ENABLE_F16}"
+      REQUESTED_BY "CONFIG_NS_CMSIS_NN_ENABLE_F32/F16")
+
     zephyr_compile_definitions(
-      ARM_NN_ENABLE_F32=${_ns_f32}
-      ARM_NN_ENABLE_F16=${_ns_f16}
+      ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32}
+      ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16}
     )
 
   else()
@@ -127,17 +128,14 @@ if(CONFIG_NS_CMSIS_NN)
   zephyr_include_directories(${ZEPHYR_CURRENT_MODULE_DIR}/Include)
   zephyr_library_include_directories(${ZEPHYR_CMSIS_MODULE_DIR}/CMSIS/Core/Include)
 
-  # Bridge Zephyr Kconfig float toggles into the SSoT float gates.
-  # These variables are consumed by ns_cmsis_nn_group_sources() when it resolves
-  # per-group source lists.
-  set(ARM_NN_ENABLE_F32 0)
-  set(ARM_NN_ENABLE_F16 0)
-  if(CONFIG_NS_CMSIS_NN_ENABLE_F32)
-    set(ARM_NN_ENABLE_F32 1)
-  endif()
-  if(CONFIG_NS_CMSIS_NN_ENABLE_F16)
-    set(ARM_NN_ENABLE_F16 1)
-  endif()
+  # Bridge Zephyr Kconfig float toggles into the SSoT float gates, and publish
+  # the same values under the names consumers read. The directory variables
+  # are consumed by ns_cmsis_nn_group_sources() when it resolves per-group
+  # source lists.
+  ns_cmsis_nn_publish_float_switches(
+    F32 "${CONFIG_NS_CMSIS_NN_ENABLE_F32}"
+    F16 "${CONFIG_NS_CMSIS_NN_ENABLE_F16}"
+    REQUESTED_BY "CONFIG_NS_CMSIS_NN_ENABLE_F32/F16")
 
   # Keep float feature guards visible in all translation units that include
   # CMSIS-NN public/internal headers.

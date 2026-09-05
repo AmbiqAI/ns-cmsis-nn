@@ -33,6 +33,13 @@
 #                                              CMake list of group ids — see
 #                                              cmake/ns_cmsis_nn.cmake)
 #
+# Published output (both modes): the effective float switches are written to
+# the cache as ARM_NN_ENABLE_F32/F16, the names the kernels, the public
+# headers, and the other Ambiq consumers read. They are output here, not
+# input: setting them to something the NSX switches contradict is a
+# FATAL_ERROR. See cmake/ns_cmsis_nn_float_switches.cmake and
+# AmbiqAI/ns-cmsis-nn#420.
+#
 # Prebuilt manifest discovery (validates NSX_CMSIS_NN_ENABLE_F32/F16
 # against what the archive actually contains):
 #   1. NSX_CMSIS_NN_MANIFEST, if explicitly set.
@@ -172,33 +179,27 @@ if(DEFINED NSX_CMSIS_NN_LIB)
     endif()
     unset(_nsx_manifest)
 
-    set(_nsx_f32 0)
-    set(_nsx_f16 0)
-    if(NSX_CMSIS_NN_ENABLE_F32)
-        set(_nsx_f32 1)
-    endif()
-    if(NSX_CMSIS_NN_ENABLE_F16)
-        set(_nsx_f16 1)
-    endif()
+    ns_cmsis_nn_publish_float_switches(
+        F32 "${NSX_CMSIS_NN_ENABLE_F32}"
+        F16 "${NSX_CMSIS_NN_ENABLE_F16}"
+        REQUESTED_BY "NSX_CMSIS_NN_ENABLE_F32/F16")
+
     target_compile_definitions(nsx_cmsis_nn
         INTERFACE
-            ARM_NN_ENABLE_F32=${_nsx_f32}
-            ARM_NN_ENABLE_F16=${_nsx_f16}
+            ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32}
+            ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16}
     )
 
 else()
     # ── Source build mode ─────────────────────────────────────────────────
     message(STATUS "nsx-cmsis-nn: building from source (groups=${NSX_CMSIS_NN_GROUPS})")
 
-    # Bridge NSX float options to the SSoT float gates.
-    set(ARM_NN_ENABLE_F32 0)
-    set(ARM_NN_ENABLE_F16 0)
-    if(NSX_CMSIS_NN_ENABLE_F32)
-        set(ARM_NN_ENABLE_F32 1)
-    endif()
-    if(NSX_CMSIS_NN_ENABLE_F16)
-        set(ARM_NN_ENABLE_F16 1)
-    endif()
+    # Bridge NSX float options to the SSoT float gates, and publish the same
+    # values under the names consumers read.
+    ns_cmsis_nn_publish_float_switches(
+        F32 "${NSX_CMSIS_NN_ENABLE_F32}"
+        F16 "${NSX_CMSIS_NN_ENABLE_F16}"
+        REQUESTED_BY "NSX_CMSIS_NN_ENABLE_F32/F16")
 
     add_library(nsx_cmsis_nn STATIC)
 
