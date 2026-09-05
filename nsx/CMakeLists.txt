@@ -176,19 +176,25 @@ if(DEFINED NSX_CMSIS_NN_LIB)
                 "${_nsx_manifest} (f32=${_nsx_has_f32} f16=${_nsx_has_f16})")
         endif()
 
+        # Name the variable the resolved request actually came from, so the
+        # recovery quoted here is one that works for the spelling in play.
         if(ARM_NN_ENABLE_F32 AND NOT _nsx_has_f32)
             message(FATAL_ERROR
-                "nsx-cmsis-nn: NSX_CMSIS_NN_ENABLE_F32 was requested but "
-                "the prebuilt archive's manifest (${_nsx_manifest}) does "
-                "not report f32 support. Use an archive built with "
-                "--enable-f32, or disable NSX_CMSIS_NN_ENABLE_F32.")
+                "nsx-cmsis-nn: float32 requested via "
+                "${NS_CMSIS_NN_FLOAT_REQUEST_F32} (resolved to "
+                "ARM_NN_ENABLE_F32=1), but the prebuilt archive's manifest "
+                "(${_nsx_manifest}) does not report f32 support. Use an "
+                "archive built with --enable-f32, or drop the request: "
+                "${NS_CMSIS_NN_FLOAT_DROP_HINT_F32}.")
         endif()
         if(ARM_NN_ENABLE_F16 AND NOT _nsx_has_f16)
             message(FATAL_ERROR
-                "nsx-cmsis-nn: NSX_CMSIS_NN_ENABLE_F16 was requested but "
-                "the prebuilt archive's manifest (${_nsx_manifest}) does "
-                "not report f16 support. Use an archive built with "
-                "--enable-f16, or disable NSX_CMSIS_NN_ENABLE_F16.")
+                "nsx-cmsis-nn: float16 requested via "
+                "${NS_CMSIS_NN_FLOAT_REQUEST_F16} (resolved to "
+                "ARM_NN_ENABLE_F16=1), but the prebuilt archive's manifest "
+                "(${_nsx_manifest}) does not report f16 support. Use an "
+                "archive built with --enable-f16, or drop the request: "
+                "${NS_CMSIS_NN_FLOAT_DROP_HINT_F16}.")
         endif()
     else()
         message(STATUS

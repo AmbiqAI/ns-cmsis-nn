@@ -21,7 +21,8 @@
 #   ns_cmsis_nn_publish_float_switches(F32 <value> F16 <value>
 #                                      REQUEST_PREFIX <prefix>
 #                                      [REQUEST_DEFAULT <ON|OFF>]
-#                                      [REQUESTED_BY <text>])
+#                                      [REQUESTED_BY <text>]
+#                                      [AUTHORITATIVE [AUTHORITY_NOTE <text>]])
 #
 # REQUEST_PREFIX is the caller's own spelling with F32/F16 stripped off, and
 # REQUEST_DEFAULT is the literal default that switch declares; the caller must
@@ -33,7 +34,7 @@
 #
 #   - the CMake cache, as BOOL 0/1, for consumers that add this repository as
 #     a subdirectory or a module and read the switches before any target of
-#     ours is in scope (heliaRT's nsx module, heliaAOT's generated module);
+#     ours is in scope;
 #   - the calling directory scope, as 0/1, for the caller's own
 #     target_compile_definitions() and for ns_cmsis_nn_group_sources().
 #
@@ -45,7 +46,7 @@
 # cache entry is a configure-time mirror of the same decision, so the two
 # cannot drift.
 #
-# Resolution when both spellings are in play on the NSX or Zephyr path:
+# Resolution when both spellings are in play on the NSX path:
 #
 #   - the caller's own switch at its declared default plus ARM_NN_ENABLE_*
 #     set: the ARM_NN_ENABLE_* value is the request, reported on a STATUS
@@ -55,6 +56,21 @@
 #   - the caller's own switch away from its default and ARM_NN_ENABLE_* set to
 #     a different value: FATAL_ERROR. Two explicit requests disagree and only
 #     the caller knows which one it meant.
+#
+# AUTHORITATIVE says the caller's own switch is the only way to ask on that
+# path, which is what the Zephyr path passes: the request comes from Kconfig,
+# whose arch and toolchain dependencies a CMake variable must not be able to
+# route around. ARM_NN_ENABLE_* is then never adopted; a value that agrees with
+# the caller's switch is accepted silently, and one that disagrees is a
+# FATAL_ERROR pointing at the caller's own switch as the authority.
+# AUTHORITY_NOTE is the caller's explanation of why its switch cannot be
+# overridden, quoted into that message.
+#
+# For each width the function also leaves NS_CMSIS_NN_FLOAT_REQUEST_<width> and
+# NS_CMSIS_NN_FLOAT_DROP_HINT_<width> in the calling scope: the name of the
+# variable the published value actually came from, and how to drop it. The
+# prebuilt manifest checks quote both, so a rejection names the spelling that
+# was really in play rather than the one the caller happens to read.
 #
 # _NS_CMSIS_NN_PUBLISHED_ARM_NN_ENABLE_F32/F16 are INTERNAL cache entries this
 # function keeps for itself: each holds what the entry point's own switch
@@ -77,7 +93,7 @@ set(NS_CMSIS_NN_FLOAT_SWITCHES_INCLUDED TRUE)
 function(_ns_cmsis_nn_float_drop_hint _var _out)
   if(DEFINED CACHE{${_var}})
     set(${_out}
-      "re-run cmake with -U${_var}, or delete CMakeCache.txt in the build directory"
+      "re-run cmake with -U${_var} (or delete CMakeCache.txt in the build directory); if the project that adds ns-cmsis-nn re-creates the entry itself, with set(${_var} ... CACHE ...) or option(${_var} ...) above add_subdirectory(), -U cannot reach it and that call has to go instead"
       PARENT_SCOPE)
   elseif(_var MATCHES "^CONFIG_")
     set(${_out}
@@ -91,8 +107,9 @@ function(_ns_cmsis_nn_float_drop_hint _var _out)
 endfunction()
 
 function(ns_cmsis_nn_publish_float_switches)
-  cmake_parse_arguments(NSF ""
-    "F32;F16;REQUEST_PREFIX;REQUEST_DEFAULT;REQUESTED_BY" "" ${ARGN})
+  cmake_parse_arguments(NSF "AUTHORITATIVE"
+    "F32;F16;REQUEST_PREFIX;REQUEST_DEFAULT;REQUESTED_BY;AUTHORITY_NOTE"
+    "" ${ARGN})
   if(NSF_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR
       "ns_cmsis_nn_publish_float_switches: unexpected arguments: "
@@ -106,6 +123,10 @@ function(ns_cmsis_nn_publish_float_switches)
   endif()
   if(NOT NSF_REQUESTED_BY)
     set(NSF_REQUESTED_BY "${NSF_REQUEST_PREFIX}F32/F16")
+  endif()
+  if(NOT NSF_AUTHORITY_NOTE)
+    set(NSF_AUTHORITY_NOTE
+      "That switch is the only supported way to ask on this path.")
   endif()
   if(NSF_REQUEST_DEFAULT)
     set(_default 1)
@@ -125,6 +146,7 @@ function(ns_cmsis_nn_publish_float_switches)
       set(_own_want 0)
     endif()
     set(_want ${_own_want})
+    set(_source "${_own}")
 
     if(NOT _own STREQUAL _name)
       # A plain variable in the calling scope is as much a request as a cache
@@ -145,9 +167,33 @@ function(ns_cmsis_nn_publish_float_switches)
         endif()
       endif()
 
-      if(_have_request)
+      if(_have_request AND NSF_AUTHORITATIVE)
+        # The caller's switch carries dependencies CMake cannot see, so an
+        # ARM_NN_ENABLE_* value is never adopted here: it either agrees and is
+        # redundant, or it is trying to route around them.
+        if(NOT "${_request}" EQUAL "${_own_want}")
+          set(_own_raw "${${_own}}")
+          if(_own_raw STREQUAL "")
+            set(_own_state "unset (n)")
+          else()
+            set(_own_state "${_own_raw}")
+          endif()
+          string(REGEX REPLACE "^CONFIG_" "" _own_symbol "${_own}")
+          _ns_cmsis_nn_float_drop_hint("${_name}" _drop_published)
+          message(FATAL_ERROR
+            "ns-cmsis-nn: ${_name} cannot change the ${_pretty} setting on "
+            "this path.\n"
+            "  ${_own} is the authority here and is currently ${_own_state}, "
+            "which asks for ${_name}=${_own_want}; ${_name}=${_raw} asks for "
+            "${_name}=${_request}.\n"
+            "  ${NSF_AUTHORITY_NOTE}\n"
+            "  Ask through ${_own_symbol} instead, and drop the CMake "
+            "request: ${_drop_published}.")
+        endif()
+      elseif(_have_request)
         if("${_own_want}" EQUAL "${_default}")
           set(_want ${_request})
+          set(_source "${_name}")
           message(STATUS
             "ns-cmsis-nn: ${_name}=${_request} requested directly and ${_own} "
             "is at its declared default; publishing ${_name}=${_request}.")
@@ -169,6 +215,12 @@ function(ns_cmsis_nn_publish_float_switches)
         endif()
       endif()
     endif()
+
+    # What the published value came from, and how to drop it, for the prebuilt
+    # manifest checks in the entry points.
+    _ns_cmsis_nn_float_drop_hint("${_source}" _source_hint)
+    set(NS_CMSIS_NN_FLOAT_REQUEST_${_width} "${_source}" PARENT_SCOPE)
+    set(NS_CMSIS_NN_FLOAT_DROP_HINT_${_width} "${_source_hint}" PARENT_SCOPE)
 
     if(_own STREQUAL _name)
       # The cache entry is the user's own input on this path; rewriting it

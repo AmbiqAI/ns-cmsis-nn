@@ -8,6 +8,17 @@ if(CONFIG_NS_CMSIS_NN)
   # explicit request. See AmbiqAI/ns-cmsis-nn#420.
   set(_ns_float_default OFF)
 
+  # Kconfig is the authority for the float request on this path, so the publish
+  # calls run AUTHORITATIVE: ARM_NN_ENABLE_F32/F16 is never adopted as a
+  # request here. NS_CMSIS_NN_ENABLE_F16 depends on ARMV8_1_M_MVEF, and a
+  # CMake variable that could stand in for the symbol would let a board without
+  # MVE floating point ask for kernels it cannot build.
+  set(_ns_float_authority_note
+    "The value comes from Kconfig, not from the CMake cache, so a CMake \
+variable cannot stand in for it: a symbol Kconfig resolved to n cannot be set \
+explicitly from CMake, and NS_CMSIS_NN_ENABLE_F16 additionally depends on \
+ARMV8_1_M_MVEF, so a board without MVE floating point cannot enable it at all.")
+
   if(CONFIG_NS_CMSIS_NN_USE_PREBUILT)
 
     # ----------------------------------------------------------------------
@@ -60,17 +71,17 @@ if(CONFIG_NS_CMSIS_NN)
     # Publish under the names the headers and the other Ambiq consumers read;
     # prebuilt mode compiles nothing, so it includes the float-switch module
     # alone rather than the whole source-layout SSoT. Resolution comes before
-    # the manifest check below: ARM_NN_ENABLE_F32/F16 set directly is as much
-    # a request as the Kconfig spelling, so checking the Kconfig symbols alone
-    # would let an adopted ARM_NN_ENABLE_* request reach an archive that never
-    # compiled those kernels. See AmbiqAI/ns-cmsis-nn#420.
+    # the manifest check below, which reads the resolved request and the
+    # variable it came from. See AmbiqAI/ns-cmsis-nn#420.
     include("${ZEPHYR_CURRENT_MODULE_DIR}/cmake/ns_cmsis_nn_float_switches.cmake")
     ns_cmsis_nn_publish_float_switches(
       F32 "${CONFIG_NS_CMSIS_NN_ENABLE_F32}"
       F16 "${CONFIG_NS_CMSIS_NN_ENABLE_F16}"
       REQUEST_PREFIX CONFIG_NS_CMSIS_NN_ENABLE_
       REQUEST_DEFAULT ${_ns_float_default}
-      REQUESTED_BY "CONFIG_NS_CMSIS_NN_ENABLE_F32/F16")
+      REQUESTED_BY "CONFIG_NS_CMSIS_NN_ENABLE_F32/F16"
+      AUTHORITATIVE
+      AUTHORITY_NOTE "${_ns_float_authority_note}")
 
     # When the SDK tarball at CONFIG_NS_CMSIS_NN_PREBUILT_PATH ships a
     # manifest.json (schema_version >= 2 with a "features" block), the
@@ -108,17 +119,23 @@ if(CONFIG_NS_CMSIS_NN)
         "validation purposes (the flags are still forwarded as requested).")
     endif()
 
+    # Name the variable the resolved request actually came from, so the
+    # recovery quoted here is one that works for the spelling in play.
     if(ARM_NN_ENABLE_F32 AND EXISTS "${_ns_manifest}" AND NOT _ns_has_f32)
       message(FATAL_ERROR
-        "CONFIG_NS_CMSIS_NN_ENABLE_F32=y but the prebuilt SDK's manifest "
+        "ns-cmsis-nn: float32 requested via ${NS_CMSIS_NN_FLOAT_REQUEST_F32} "
+        "(resolved to ARM_NN_ENABLE_F32=1), but the prebuilt SDK's manifest "
         "(${_ns_manifest}) does not report f32 support. Use an SDK tarball "
-        "built with F32 enabled, or disable CONFIG_NS_CMSIS_NN_ENABLE_F32.")
+        "built with F32 enabled, or drop the request: "
+        "${NS_CMSIS_NN_FLOAT_DROP_HINT_F32}.")
     endif()
     if(ARM_NN_ENABLE_F16 AND EXISTS "${_ns_manifest}" AND NOT _ns_has_f16)
       message(FATAL_ERROR
-        "CONFIG_NS_CMSIS_NN_ENABLE_F16=y but the prebuilt SDK's manifest "
+        "ns-cmsis-nn: float16 requested via ${NS_CMSIS_NN_FLOAT_REQUEST_F16} "
+        "(resolved to ARM_NN_ENABLE_F16=1), but the prebuilt SDK's manifest "
         "(${_ns_manifest}) does not report f16 support. Use an SDK tarball "
-        "built with F16 enabled, or disable CONFIG_NS_CMSIS_NN_ENABLE_F16.")
+        "built with F16 enabled, or drop the request: "
+        "${NS_CMSIS_NN_FLOAT_DROP_HINT_F16}.")
     endif()
 
     zephyr_compile_definitions(
@@ -147,7 +164,9 @@ if(CONFIG_NS_CMSIS_NN)
     F16 "${CONFIG_NS_CMSIS_NN_ENABLE_F16}"
     REQUEST_PREFIX CONFIG_NS_CMSIS_NN_ENABLE_
     REQUEST_DEFAULT ${_ns_float_default}
-    REQUESTED_BY "CONFIG_NS_CMSIS_NN_ENABLE_F32/F16")
+    REQUESTED_BY "CONFIG_NS_CMSIS_NN_ENABLE_F32/F16"
+    AUTHORITATIVE
+    AUTHORITY_NOTE "${_ns_float_authority_note}")
 
   # Keep float feature guards visible in all translation units that include
   # CMSIS-NN public/internal headers.
