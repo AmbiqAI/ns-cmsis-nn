@@ -38,7 +38,8 @@
 
 set -euo pipefail
 
-readonly REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+readonly REPO_ROOT
 readonly ASSET_MANIFEST="${REPO_ROOT}/ci/release-assets.json"
 readonly ASSET_GENERATOR="${REPO_ROOT}/scripts/ci/release_assets.py"
 

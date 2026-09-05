@@ -1284,15 +1284,41 @@ jobs:
             grep -Fxq -- "${asset}" <<< "${published}" || missing_optional+=( "${asset}" )
           done
 
+          # The set difference in the other direction. An asset the manifest
+          # does not describe breaks the contract as surely as a missing one:
+          # nothing downstream knows it exists, so the nightly audit will
+          # never look at it and the guide will never mention it, and a
+          # misnamed upload reads here as "the real one is missing" plus a
+          # stray nobody names (AmbiqAI/ns-cmsis-nn#274). GitHub's generated
+          # source archives are not release assets and never appear in this
+          # list.
+          unexpected=()
+          while IFS= read -r asset; do
+            [[ -n "${asset}" ]] || continue
+            known=0
+            for candidate in "${required[@]}" "${optional[@]:-}"; do
+              if [[ "${asset}" == "${candidate}" ]]; then
+                known=1
+                break
+              fi
+            done
+            (( known )) || unexpected+=( "${asset}" )
+          done <<< "${published}"
+          published_count="$(grep -c . <<< "${published}" || true)"
+
           {
             echo "### Release asset verification -- ${TAG}"
             echo
             echo "armclang assets required: \`${ARMCLANG_REQUIRED}\` (set repository variable ARMCLANG_REQUIRED=true to promote them; armclang assets are $( [[ "${ARMCLANG_REQUIRED}" == "true" ]] && echo REQUIRED || echo optional ))"
             echo
+            echo "Contract: \`ci/release-assets.json\`"
+            echo
             echo "| class | found | expected |"
             echo "| --- | --- | --- |"
             echo "| required | $(( ${#required[@]} - ${#missing[@]} )) | ${#required[@]} |"
             echo "| optional | $(( ${#optional[@]} - ${#missing_optional[@]} )) | ${#optional[@]} |"
+            echo "| published, not in the manifest | ${#unexpected[@]} | 0 |"
+            echo "| published, total | ${published_count} | |"
           } >> "${GITHUB_STEP_SUMMARY}"
 
           if (( ${#missing_optional[@]} > 0 )); then
@@ -1333,7 +1359,20 @@ jobs:
             exit 1
           fi
 
-          echo "OK: all ${#required[@]} required assets are published on ${TAG}."
+          if (( ${#unexpected[@]} > 0 )); then
+            {
+              echo
+              echo "**FAILED -- published assets absent from \`ci/release-assets.json\`:**"
+              # shellcheck disable=SC2016  # backticks are Markdown code spans
+              printf -- '- `%s`\n' "${unexpected[@]}"
+            } >> "${GITHUB_STEP_SUMMARY}"
+            echo "Published assets the manifest does not describe:" >&2
+            printf '  %s\n' "${unexpected[@]}" >&2
+            echo "::error title=Release ${TAG} published ${#unexpected[@]} asset(s) the manifest does not describe::UNEXPECTED: ${unexpected[*]} -- every required asset is present, but the published set does not match ci/release-assets.json. Either the upload is misnamed, in which case re-publish it under the contracted name, or the contract has genuinely grown, in which case add the asset to ci/release-assets.json and the table in docs/guides/releases.md so the nightly audit judges it too. Upstream asset jobs: ${upstream}." >&2
+            exit 1
+          fi
+
+          echo "OK: the ${published_count} asset(s) published on ${TAG} are exactly the ${#required[@]} required by ci/release-assets.json plus $(( ${#optional[@]} - ${#missing_optional[@]} )) optional one(s)."
 
       - name: Open a tracking issue for the broken release
         # The only alerting this repo has ever had is GitHub's default failure

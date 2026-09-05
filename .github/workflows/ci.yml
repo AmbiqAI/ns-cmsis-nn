@@ -124,6 +124,16 @@ jobs:
   release-contract:
     uses: ./.github/workflows/release-contract.yml
 
+  # Pack generation is on the release path but was rehearsed only when
+  # somebody remembered to dispatch it: four times ever, across four
+  # releases, two of which shipped broken (AmbiqAI/ns-cmsis-nn#274,
+  # section 4). It now rehearses here, so a pdsc, gen_pack.sh, Doxygen or
+  # changelog break fails on the PR that causes it rather than on the
+  # release that needs it. The callee keeps its own weekly schedule for the
+  # breakages that come from outside the repository, which no PR can see.
+  pack-dryrun:
+    uses: ./.github/workflows/pack-dryrun.yml
+
   # The one context branch protection requires (#353). `if: always()` is
   # load-bearing: without it a failed dependency skips this job, and a
   # skipped required check counts as PASSING under rulesets -- the gate
@@ -147,6 +157,7 @@ jobs:
       - zephyr-integration
       - docs
       - release-contract
+      - pack-dryrun
     steps:
       - name: Verify every gated job succeeded or was skipped
         env:

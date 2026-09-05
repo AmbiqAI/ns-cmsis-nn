@@ -61,9 +61,12 @@ A nightly scheduled run (`nightly.yml`) re-runs the FVP numerics suite,
 the legacy Unity suites, and the toolchain strict-link matrix on `main`,
 maintaining a rolling issue while red.
 
-`staticlib-dryrun.yml` (full three-CPU × three-toolchain sweep, packaged
-tarballs) and `pack-dryrun.yml` are `workflow_dispatch` only — they run
-when somebody asks, not on a schedule and not per PR.
+`pack-dryrun.yml` rehearses pack generation on every pull request and every
+push to `main`, through `ci.yml`, and weekly on its own schedule for the
+breakages that originate outside the repository. It also stays dispatchable
+by hand. `staticlib-dryrun.yml` (full three-CPU × three-toolchain sweep,
+packaged tarballs) is `workflow_dispatch` only: it runs when somebody asks,
+not on a schedule and not per PR.
 
 Each release publishes **17 required assets**, checked after publication by
 `release-verify`:

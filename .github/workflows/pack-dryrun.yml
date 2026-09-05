@@ -43,24 +43,64 @@
 # this path.
 #
 # Outputs are uploaded as workflow artefacts (NOT to a GitHub Release).
-# Triggered manually only — this is a verification path, not a publish path.
+# This is a verification path, not a publish path.
+#
+# It used to be workflow_dispatch-only, so it ran when somebody remembered:
+# four times ever, across four releases, two of which shipped broken with no
+# dry run (AmbiqAI/ns-cmsis-nn#274, section 4). The first time it did run it
+# immediately caught a live hazard (#271). Three triggers now cover the three
+# ways this path breaks:
+#
+#   - workflow_call, from ci.yml, so every pull request and every push to
+#     main rehearses pack generation before a release depends on it. It is
+#     folded into ci.yml rather than given its own pull_request+paths trigger
+#     because the required context is `CI Passed`, and a required check that
+#     never reports leaves a PR unmergeable -- so this reports on every PR
+#     whatever it touched, as the rest of ci.yml does.
+#   - schedule, because most of what breaks here comes from outside the
+#     repository and no code change announces it: gen-pack-action's
+#     bootstrapped gen-pack library, the Doxygen and packchk downloads, and
+#     the runner image. A PR gate cannot see any of those move.
+#   - workflow_dispatch, for rehearsing a specific ref by hand.
+#
+# `version` only stamps the staticlib artefact names; the .pack version comes
+# from the synthetic local tag created in build-pack. Under schedule there is
+# no `inputs` object at all, so every use falls back to the same default the
+# other two triggers declare -- without that, staging fails on
+# `libns-cmsis-nn-cortex-m0-.a`.
 
 name: Pack dry-run
 
 on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Synthetic version stamp used when naming the staticlib artefacts."
+        required: false
+        type: string
+        default: "0.0.0-dryrun"
   workflow_dispatch:
     inputs:
       version:
         description: "Synthetic version stamp used when naming the staticlib artefacts (the .pack version comes from the synthetic local tag created in build-pack)."
-        required: true
+        required: false
+        type: string
         default: "0.0.0-dryrun"
+  schedule:
+    # Weekly. Off the nightly hour so a red morning names one workflow.
+    - cron: "41 6 * * 1"
 
 permissions:
   contents: read
 
+# Prefixed and cancel-gated like ci.yml's own group. `github.workflow` is the
+# CALLER's name for a called workflow, so without the prefix a ci.yml-invoked
+# run and a dispatched one could share a group; and an unconditional
+# cancel-in-progress would let a push to main tear down the scheduled or
+# push-triggered rehearsal that is the whole point of the new triggers.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: pack-dryrun-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-staticlibs:
@@ -83,7 +123,7 @@ jobs:
       - name: Build static library
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ inputs.version || '0.0.0-dryrun' }}
         run: |
           bash scripts/build_staticlib.sh \
             --target-cpu "$TARGET_CPU" \
@@ -213,7 +253,7 @@ jobs:
 
       - name: Stage prebuilt archives at lib/<cpu>/libns-cmsis-nn.a
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ inputs.version || '0.0.0-dryrun' }}
         run: |
           set -euo pipefail
           mkdir -p ./lib
