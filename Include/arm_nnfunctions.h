@@ -2811,7 +2811,9 @@ int32_t arm_fully_connected_per_channel_s16_get_buffer_size_mve(const cmsis_nn_d
  * @param[in]       input2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input2_mult        multiplier for input 2
  * @param[in]       input2_shift       shift for input 2
- * @param[in]       left_shift         left shift applied to the result
+ * @param[in]       left_shift         left shift applied to the result.
+ *                                     Range: [0, 30]: the kernel forms the scale as 1 << left_shift in a signed
+ *                                     32-bit value, so a wider or negative shift is out of contract. Not validated.
  * @param[out]      output_data        pointer to output tensor
  * @param[in]       output_dims        pointer to output tensor dimensions
  * @param[in]       out_offset         output offset. Range: -128 to 127
@@ -2853,7 +2855,9 @@ arm_cmsis_nn_status arm_add_s8(const int8_t *input1_data,
  * @param[in]       input_2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          left shift applied to the result
+ * @param[in]       left_shift          left shift applied to the result.
+ *                                      Range: [0, 30]: the kernel forms the scale as 1 << left_shift in a signed
+ *                                      32-bit value, so a wider or negative shift is out of contract. Not validated.
  * @param[out]      output              pointer to output vector
  * @param[in]       out_offset          output offset. Range: -128 to 127
  * @param[in]       out_mult            output multiplier
@@ -2890,7 +2894,9 @@ arm_cmsis_nn_status arm_add_scalar_s8(const int8_t *input_1_vect,
  * @param[in]       input_2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          input left shift
+ * @param[in]       left_shift          input left shift.
+ *                                      Range: [0, 30]: the kernel forms the scale as 1 << left_shift in a signed
+ *                                      32-bit value, so a wider or negative shift is out of contract. Not validated.
  * @param[in,out]   output              pointer to output vector
  * @param[in]       out_offset          output offset.  Range: -128 to 127
  * @param[in]       out_mult            output multiplier
@@ -3061,7 +3067,9 @@ arm_cmsis_nn_status arm_rsqrt_s16_universal(const int16_t *input,
  * @param[in]       input2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input2_mult        multiplier for input 2
  * @param[in]       input2_shift       shift for input 2
- * @param[in]       left_shift         left shift applied to the result
+ * @param[in]       left_shift         left shift applied to the result.
+ *                                     Range: [0, 30]: the kernel forms the scale as 1 << left_shift in a signed
+ *                                     32-bit value, so a wider or negative shift is out of contract. Not validated.
  * @param[out]      output_data        pointer to output tensor
  * @param[in]       output_dims        pointer to output tensor dimensions
  * @param[in]       out_offset         output offset. Range: -128 to 127
@@ -3103,7 +3111,9 @@ arm_cmsis_nn_status arm_sub_s8(const int8_t *input1_data,
  * @param[in]       input_2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          left shift applied to the result
+ * @param[in]       left_shift          left shift applied to the result.
+ *                                      Range: [0, 30]: the kernel forms the scale as 1 << left_shift in a signed
+ *                                      32-bit value, so a wider or negative shift is out of contract. Not validated.
  * @param[out]      output              pointer to output vector
  * @param[in]       out_offset          output offset. Range: -128 to 127
  * @param[in]       out_mult            output multiplier
@@ -3140,7 +3150,9 @@ arm_cmsis_nn_status arm_sub_scalar_s8(const int8_t *input_1_vect,
  * @param[in]       input_2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          input left shift
+ * @param[in]       left_shift          input left shift.
+ *                                      Range: [0, 30]: the kernel forms the scale as 1 << left_shift in a signed
+ *                                      32-bit value, so a wider or negative shift is out of contract. Not validated.
  * @param[in,out]   output              pointer to output vector
  * @param[in]       out_offset          output offset.  Range: -128 to 127
  * @param[in]       out_mult            output multiplier
@@ -3179,7 +3191,9 @@ arm_cmsis_nn_status arm_elementwise_sub_s8(const int8_t *input_1_vect,
  * @param[in]       input2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input2_mult        multiplier for input 2
  * @param[in]       input2_shift       shift for input 2
- * @param[in]       left_shift         left shift applied to the result
+ * @param[in]       left_shift         left shift applied to the result.
+ *                                     Range: [0, 30]: the kernel forms the scale as 1 << left_shift in a signed
+ *                                     32-bit value, so a wider or negative shift is out of contract. Not validated.
  * @param[out]      output_data        pointer to output tensor
  * @param[in]       output_dims        pointer to output tensor dimensions
  * @param[in]       out_offset         output offset. Range: -128 to 127
@@ -3221,7 +3235,9 @@ arm_cmsis_nn_status arm_add_s16(const int16_t *input1_data,
  * @param[in]       input_2_offset      offset for input 2. Not used.
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          left shift applied to the result
+ * @param[in]       left_shift          left shift applied to the result.
+ *                                      Range: [0, 30]: the kernel forms the scale as 1 << left_shift in a signed
+ *                                      32-bit value, so a wider or negative shift is out of contract. Not validated.
  * @param[out]      output              pointer to output vector
  * @param[in]       out_offset          output offset. Not used.
  * @param[in]       out_mult            output multiplier
@@ -3259,7 +3275,9 @@ arm_cmsis_nn_status arm_add_scalar_s16(const int16_t *input_1_vect,
  * @param[in]       input_2_offset      offset for input 2. Not used.
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          input left shift
+ * @param[in]       left_shift          input left shift.
+ *                                      Range: [0, 30]: the kernel forms the scale as 1 << left_shift in a signed
+ *                                      32-bit value, so a wider or negative shift is out of contract. Not validated.
  * @param[in,out]   output              pointer to output vector
  * @param[in]       out_offset          output offset. Not used.
  * @param[in]       out_mult            output multiplier
@@ -3298,7 +3316,9 @@ arm_cmsis_nn_status arm_elementwise_add_s16(const int16_t *input_1_vect,
  * @param[in]       input2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input2_mult        multiplier for input 2
  * @param[in]       input2_shift       shift for input 2
- * @param[in]       left_shift         left shift applied to the result
+ * @param[in]       left_shift         left shift applied to the result.
+ *                                     Range: [0, 30]: the kernel forms the scale as 1 << left_shift in a signed
+ *                                     32-bit value, so a wider or negative shift is out of contract. Not validated.
  * @param[out]      output_data        pointer to output tensor
  * @param[in]       output_dims        pointer to output tensor dimensions
  * @param[in]       out_offset         output offset. Range: -128 to 127
@@ -3340,7 +3360,9 @@ arm_cmsis_nn_status arm_sub_s16(const int16_t *input1_data,
  * @param[in]       input_2_offset      offset for input 2. Not used.
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          left shift applied to the result
+ * @param[in]       left_shift          left shift applied to the result.
+ *                                      Range: [0, 30]: the kernel forms the scale as 1 << left_shift in a signed
+ *                                      32-bit value, so a wider or negative shift is out of contract. Not validated.
  * @param[out]      output              pointer to output vector
  * @param[in]       out_offset          output offset. Not used.
  * @param[in]       out_mult            output multiplier
@@ -3378,7 +3400,9 @@ arm_cmsis_nn_status arm_sub_scalar_s16(const int16_t *input_1_vect,
  * @param[in]       input_2_offset      offset for input 2. Not used.
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          input left shift
+ * @param[in]       left_shift          input left shift.
+ *                                      Range: [0, 30]: the kernel forms the scale as 1 << left_shift in a signed
+ *                                      32-bit value, so a wider or negative shift is out of contract. Not validated.
  * @param[in,out]   output              pointer to output vector
  * @param[in]       out_offset          output offset. Not used.
  * @param[in]       out_mult            output multiplier
@@ -3852,7 +3876,9 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
  * @param[in]   input_2_offset        Zero-point for input2 tensor
  * @param[in]   input_2_mult          Multiplier for input2 tensor
  * @param[in]   input_2_shift         Shift for input2 tensor
- * @param[in]   left_shift            Common left shift prior to requantization
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Range: [0, 30]: the kernel forms the scale as 1 << left_shift in a signed
+ *                                    32-bit value, so a wider or negative shift is out of contract. Not validated.
  * @param[in]   operation             Comparison operation to perform
  *
  * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
@@ -3892,7 +3918,9 @@ arm_cmsis_nn_status arm_comparison_s8(const cmsis_nn_context *ctx,
  * @param[in]   input_2_offset        Zero-point for input2 tensor
  * @param[in]   input_2_mult          Multiplier for input2 tensor
  * @param[in]   input_2_shift         Shift for input2 tensor
- * @param[in]   left_shift            Common left shift prior to requantization
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Range: [0, 30]: the kernel forms the scale as 1 << left_shift in a signed
+ *                                    32-bit value, so a wider or negative shift is out of contract. Not validated.
  * @param[in]   operation             Comparison operation to perform
  *
  * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
