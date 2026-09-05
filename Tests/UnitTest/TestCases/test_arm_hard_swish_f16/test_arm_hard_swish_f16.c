@@ -28,9 +28,20 @@ static float16_t hard_swish_f16_from_bits(uint16_t bits)
     return x;
 }
 
-// Curved region against the float64 reference x * relu6(x + 3) / 6 (rounded
-// through the generator's compute-in-f32, round-once model); size 27
-// exercises the MVE tail-predicated final iteration.
+// The golden data models the single-rounded scalar leg; the MVE leg rounds the
+// gate and the product separately in float16 and sits up to 2 ulp away from it
+// in the curved region. Both legs are held to the combined absolute-plus-
+// relative reading the kernel documents, not to an absolute bound alone.
+#define HARD_SWISH_F16_TOL_ABS 1.0e-3f
+#define HARD_SWISH_F16_TOL_REL 1.0e-3f
+#define HARD_SWISH_F16_ASSERT_CLOSE(ref, out)                                                                          \
+    TEST_ASSERT_FLOAT_WITHIN(HARD_SWISH_F16_TOL_ABS + HARD_SWISH_F16_TOL_REL * fabsf(ref), (ref), (out))
+
+// Curved region against the reference x * relu6(x + 3) / 6 (rounded through the
+// generator's compute-in-f32, round-once model); size 31 exercises the MVE
+// tail-predicated final iteration. The last four inputs are the exhaustive
+// sweep's worst case for the MVE leg, which is outside an absolute-only 1e-3
+// and inside the combined reading asserted here.
 void hard_swish_f16_curved_arm_hard_swish_f16(void)
 {
     float16_t output[HARD_SWISH_F16_DST_SIZE] = {0};
@@ -39,7 +50,7 @@ void hard_swish_f16_curved_arm_hard_swish_f16(void)
 
     for (int i = 0; i < HARD_SWISH_F16_DST_SIZE; ++i)
     {
-        TEST_ASSERT_FLOAT_WITHIN(1.0e-3f, (float)hard_swish_f16_output_ref[i], (float)output[i]);
+        HARD_SWISH_F16_ASSERT_CLOSE((float)hard_swish_f16_output_ref[i], (float)output[i]);
     }
 }
 
@@ -174,7 +185,7 @@ void hard_swish_f16_tail_sizes_arm_hard_swish_f16(void)
 
         for (int32_t i = 0; i < size; ++i)
         {
-            TEST_ASSERT_FLOAT_WITHIN(1.0e-3f, (float)hard_swish_f16_output_ref[i], (float)output[i]);
+            HARD_SWISH_F16_ASSERT_CLOSE((float)hard_swish_f16_output_ref[i], (float)output[i]);
         }
         for (int32_t i = size; i < 24; ++i)
         {
