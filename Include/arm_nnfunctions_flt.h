@@ -712,6 +712,73 @@ arm_cmsis_nn_status arm_maximum_f32(const cmsis_nn_context *ctx,
                                     float32_t *output_data,
                                     const cmsis_nn_dims *output_dims);
 
+/**
+ * @brief Elementwise subtract with TensorFlow Lite NHWC broadcasting and an output clamp.
+ *
+ * Broadcasting follows the NumPy / TensorFlow Lite rule per dimension: each of n, h, w and c of the two inputs
+ * must be equal or 1, a dimension of 1 is repeated along that axis, and @p output_dims must be the elementwise
+ * maximum of the two input shapes. A dimension of 0 or less is rejected.
+ *
+ * Numerics are those of arm_elementwise_sub_f32 applied to the materialised broadcast operands: identical
+ * arithmetic and clamp on every path, so the output is bit-identical to that kernel (NaN payload aside), and
+ * its NaN contract holds here unchanged -- a NaN in either operand, or one produced by the arithmetic,
+ * propagates through the clamp at every optimization level, while non-NaN infinities clamp to the bounds.
+ * When input 1 is the broadcast scalar the result is computed as `scalar - element`, not as the negation of
+ * `element - scalar`, which differs at a zero result; whether the sign of a zero survives is then subject to
+ * the same -fno-signed-zeros license the shipped -Ofast grants the compiler on the flat kernels.
+ *
+ * @param[in]  input_1_data        Minuend, NHWC, sized by @p input_1_dims.
+ * @param[in]  input_1_dims        Dimensions of input 1.
+ * @param[in]  input_2_data        Subtrahend, NHWC, sized by @p input_2_dims.
+ * @param[in]  input_2_dims        Dimensions of input 2.
+ * @param[out] output_data         Output, NHWC, sized by @p output_dims.
+ * @param[in]  output_dims         Broadcast output dimensions.
+ * @param[in]  out_activation_min  Minimum output clamp value.
+ * @param[in]  out_activation_max  Maximum output clamp value.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, or `ARM_CMSIS_NN_ARG_ERROR` when a pointer is NULL, a dimension
+ *         is not positive, the shapes are not broadcast-compatible, or the output shape is not their broadcast
+ *         shape. Nothing is written on error.
+ */
+arm_cmsis_nn_status arm_elementwise_sub_broadcast_f32(const float32_t *input_1_data,
+                                                      const cmsis_nn_dims *input_1_dims,
+                                                      const float32_t *input_2_data,
+                                                      const cmsis_nn_dims *input_2_dims,
+                                                      float32_t *output_data,
+                                                      const cmsis_nn_dims *output_dims,
+                                                      float32_t out_activation_min,
+                                                      float32_t out_activation_max);
+
+/**
+ * @brief Elementwise add with TensorFlow Lite NHWC broadcasting and an output clamp.
+ *
+ * Broadcast rules, argument checking and return values as for arm_elementwise_sub_broadcast_f32; numerics
+ * are those of arm_elementwise_add_f32 on the materialised broadcast operands, including its NaN contract.
+ */
+arm_cmsis_nn_status arm_elementwise_add_broadcast_f32(const float32_t *input_1_data,
+                                                      const cmsis_nn_dims *input_1_dims,
+                                                      const float32_t *input_2_data,
+                                                      const cmsis_nn_dims *input_2_dims,
+                                                      float32_t *output_data,
+                                                      const cmsis_nn_dims *output_dims,
+                                                      float32_t out_activation_min,
+                                                      float32_t out_activation_max);
+
+/**
+ * @brief Elementwise multiply with TensorFlow Lite NHWC broadcasting and an output clamp.
+ *
+ * Broadcast rules, argument checking and return values as for arm_elementwise_sub_broadcast_f32; numerics
+ * are those of arm_elementwise_mul_f32 on the materialised broadcast operands, including its NaN contract.
+ */
+arm_cmsis_nn_status arm_elementwise_mul_broadcast_f32(const float32_t *input_1_data,
+                                                      const cmsis_nn_dims *input_1_dims,
+                                                      const float32_t *input_2_data,
+                                                      const cmsis_nn_dims *input_2_dims,
+                                                      float32_t *output_data,
+                                                      const cmsis_nn_dims *output_dims,
+                                                      float32_t out_activation_min,
+                                                      float32_t out_activation_max);
+
 /** @} */
 
 /**
@@ -1814,6 +1881,42 @@ arm_cmsis_nn_status arm_maximum_f16(const cmsis_nn_context *ctx,
                                     const cmsis_nn_dims *input_2_dims,
                                     float16_t *output_data,
                                     const cmsis_nn_dims *output_dims);
+
+/**
+ * @copydoc arm_elementwise_sub_broadcast_f32
+ */
+arm_cmsis_nn_status arm_elementwise_sub_broadcast_f16(const float16_t *input_1_data,
+                                                      const cmsis_nn_dims *input_1_dims,
+                                                      const float16_t *input_2_data,
+                                                      const cmsis_nn_dims *input_2_dims,
+                                                      float16_t *output_data,
+                                                      const cmsis_nn_dims *output_dims,
+                                                      float16_t out_activation_min,
+                                                      float16_t out_activation_max);
+
+/**
+ * @copydoc arm_elementwise_add_broadcast_f32
+ */
+arm_cmsis_nn_status arm_elementwise_add_broadcast_f16(const float16_t *input_1_data,
+                                                      const cmsis_nn_dims *input_1_dims,
+                                                      const float16_t *input_2_data,
+                                                      const cmsis_nn_dims *input_2_dims,
+                                                      float16_t *output_data,
+                                                      const cmsis_nn_dims *output_dims,
+                                                      float16_t out_activation_min,
+                                                      float16_t out_activation_max);
+
+/**
+ * @copydoc arm_elementwise_mul_broadcast_f32
+ */
+arm_cmsis_nn_status arm_elementwise_mul_broadcast_f16(const float16_t *input_1_data,
+                                                      const cmsis_nn_dims *input_1_dims,
+                                                      const float16_t *input_2_data,
+                                                      const cmsis_nn_dims *input_2_dims,
+                                                      float16_t *output_data,
+                                                      const cmsis_nn_dims *output_dims,
+                                                      float16_t out_activation_min,
+                                                      float16_t out_activation_max);
 
 /** @} */
 

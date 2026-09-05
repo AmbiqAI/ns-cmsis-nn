@@ -120,12 +120,16 @@
         <file category="source" name="Source/BasicMathFunctions/arm_argmax_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_argmin_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_argmin_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_broadcast_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_broadcast_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_fp16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_acc_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_broadcast_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_broadcast_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s16.c"/>
@@ -134,6 +138,8 @@
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_squared_difference_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_squared_difference_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_broadcast_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_broadcast_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_s16.c"/>
