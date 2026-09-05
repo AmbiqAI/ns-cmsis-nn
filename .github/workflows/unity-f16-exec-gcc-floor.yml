@@ -164,12 +164,22 @@ jobs:
               return any(hit.search(line) for line in code_lines(path))
 
 
-          # The four Q-register MVE half<->single intrinsics. These are the
-          # only conversion forms binutils below 2.43 mis-encodes; the
-          # arm_nn_ wrappers around them join the set by the closure below,
-          # and the kernels reach them only through those.
-          reaching = {"vcvtbq_f16_f32", "vcvttq_f16_f32",
-                      "vcvtbq_f32_f16", "vcvttq_f32_f16"}
+          # Every spelling arm_mve.h gives the four Q-register MVE half<->single
+          # conversions -- directional, polymorphic short form, predicated _m
+          # and _x, and the __arm_ namespace. These are the only conversion
+          # forms binutils below 2.43 mis-encodes, but a kernel reaching one
+          # under any of these names is reaching the mis-encoding, so seeding
+          # only the directional four would leave it outside this gate. Kept in
+          # step with the cvt pattern in
+          # scripts/check_mve_encoding_sensitive_intrinsics.sh. The arm_nn_
+          # wrappers join the set by the closure below, and the kernels reach
+          # the conversions only through those.
+          base = {"vcvt%sq%s" % (bt, tail)
+                  for bt in ("b", "t")
+                  for tail in ("_f16_f32", "_f32_f16", "_f16", "_f32", "_m",
+                               "_m_f16_f32", "_m_f32_f16",
+                               "_x_f16_f32", "_x_f32_f16")}
+          reaching = base | {"__arm_" + name for name in base}
           # Source/ as well as Include/: a wrapper defined in one .c and called
           # from another propagates the reach exactly like an inline helper
           # does, and closing over headers alone would leave its callers

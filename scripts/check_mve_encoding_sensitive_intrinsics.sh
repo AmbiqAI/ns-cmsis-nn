@@ -31,14 +31,24 @@ hits=$(
       # The wrappers that are allowed to name the conversions, removed from
       # the line before the raw form is looked for; their names contain it.
       wrapper = "arm_nn_vcvt[bt]q_(f16_f32|f32_f16)"
-      cvt     = "(__arm_)?vcvt[bt]q(_[mx])?_(f16_f32|f32_f16)"
+      # Every spelling arm_mve.h gives the four conversions: the directional
+      # names, the polymorphic short forms it also defines, the predicated
+      # _m and _x variants and the __arm_ namespace. All of them expand to
+      # the same Q-form instruction, so a kernel reaching one by any name is
+      # reaching the mis-encoding. Anchored on the open paren because only a
+      # call emits anything; prose is free to name them.
+      cvt     = "(__arm_)?vcvt[bt]q(_[mx])?(_(f16_f32|f32_f16)|_f(16|32))?[[:space:]]*\\("
+      # The trailing run covers the polymorphic vqshrnbq/vqshrunbq spellings
+      # as well as the _n and _m_n ones.
       shift   = "(__arm_)?vqshr(u)?n[bt]q[A-Za-z0-9_]*"
     }
-    function report(line, pat, advice,   pos, start) {
+    function report(line, pat, advice,   pos, start, hit) {
       pos = 1
       while (match(substr(line, pos), pat)) {
         start = pos + RSTART - 1
-        printf "%s:%d: %s: %s\n", name, FNR, substr(line, start, RLENGTH), advice
+        hit = substr(line, start, RLENGTH)
+        sub(/[[:space:]]*\($/, "", hit)
+        printf "%s:%d: %s: %s\n", name, FNR, hit, advice
         pos = start + RLENGTH
       }
     }
