@@ -550,7 +550,7 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
 | Arm Compiler 6 (`armclang`) | 6.23.32 | yes | yes | no |
 | LLVM Embedded Toolchain for Arm (ATfE) | 19.1.5 | yes | yes | no |
 
-- **Arm GNU Toolchain** — **GCC 13 through 15**, one floor for everything:
+- **Arm GNU Toolchain**: **GCC 13 through 15**, one floor for everything:
   **13.2.Rel1**, for the integer, `float32` and `float16` kernels alike. One
   pinned release per major is built and strict-linked on every pull request.
   Versions below 13 are not supported and are not tested.

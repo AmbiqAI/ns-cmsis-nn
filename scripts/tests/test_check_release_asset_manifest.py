@@ -21,9 +21,12 @@
 #   - fires when the two agree on an asset but disagree on whether it is
 #     required, which is the difference between a release that is broken and
 #     one that is merely incomplete;
-#   - fires when the asset counts quoted in the guide's prose no longer match
-#     what the manifest expands to, since a number in prose goes stale in
-#     silence;
+#   - fires when the asset counts quoted in prose no longer match what the
+#     manifest expands to, in either guide that quotes them, since a number in
+#     prose goes stale in silence;
+#   - fires when a row's docs-table cell and its own template describe
+#     different assets, which would let the guide promise one name while the
+#     pipeline publishes another with both halves of the gate green;
 #   - fires when a consumer stops expanding the manifest, or regrows the
 #     hand-built list it used to carry, because a manifest that is
 #     authoritative for the docs only is not a single source;
@@ -98,6 +101,17 @@ def docs_from_manifest(manifest: dict, base: int, promoted: int) -> str:
     )
 
 
+def verification_from_manifest(base: int) -> str:
+    """A verification.md shaped like the real one: the fourth place the
+    required-asset count is written into prose."""
+    return (
+        "# Testing & Verification\n\n"
+        "## Release verification\n\n"
+        f"Each release publishes **{base} required assets**, checked after "
+        "publication by `release-verify`.\n"
+    )
+
+
 class ReleaseAssetManifestCheckTest(unittest.TestCase):
     def setUp(self):
         self.mod = load_checker()
@@ -107,12 +121,13 @@ class ReleaseAssetManifestCheckTest(unittest.TestCase):
 
         self.manifest_path = self.root / "release-assets.json"
         self.doc_path = self.root / "releases.md"
+        self.verification_path = self.root / "verification.md"
         self.workflow = self.root / "release.yml"
         self.audit = self.root / "audit_release_assets.sh"
 
     # -- fixtures -----------------------------------------------------------
 
-    def write_all(self, manifest=None, doc=None, workflow=None, audit=None):
+    def write_all(self, manifest=None, doc=None, workflow=None, audit=None, verification=None):
         manifest = real_manifest() if manifest is None else manifest
         self.manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
         gen = load_generator()
@@ -120,6 +135,10 @@ class ReleaseAssetManifestCheckTest(unittest.TestCase):
         promoted = len(gen.asset_names("0.0.0", "required", True, manifest))
         self.doc_path.write_text(
             docs_from_manifest(manifest, base, promoted) if doc is None else doc,
+            encoding="utf-8",
+        )
+        self.verification_path.write_text(
+            verification_from_manifest(base) if verification is None else verification,
             encoding="utf-8",
         )
         self.workflow.write_text(
@@ -148,6 +167,7 @@ class ReleaseAssetManifestCheckTest(unittest.TestCase):
             manifest_path=self.manifest_path,
             doc=self.doc_path,
             consumers=self.consumers(),
+            verification_doc=self.verification_path,
         )
         return list(self.mod.failures)
 
@@ -227,6 +247,26 @@ class ReleaseAssetManifestCheckTest(unittest.TestCase):
         self.write_all(manifest=manifest, doc=doc)
         self.assertFails("no longer contains a sentence matching")
 
+    def test_stale_required_count_in_the_verification_guide(self):
+        """The fourth copy of the number, in a guide the table check never
+        reads. Before it was covered, releases.md could be corrected and this
+        one left behind."""
+        self.write_all(verification=verification_from_manifest(16))
+        self.assertFails("expands to (17,)")
+
+    def test_verification_guide_sentence_removed_entirely(self):
+        self.write_all(
+            verification="# Testing & Verification\n\nEach release publishes assets.\n"
+        )
+        self.assertFails("no longer contains a sentence matching")
+
+    def test_missing_verification_guide_is_reported_not_skipped(self):
+        """A guide that moved must fail the gate, not quietly drop a count
+        from it."""
+        self.write_all()
+        self.verification_path.unlink()
+        self.assertFails("cannot be checked")
+
     # -- the consumers ------------------------------------------------------
 
     def test_consumer_that_stops_expanding_the_manifest(self):
@@ -292,6 +332,29 @@ class ReleaseAssetManifestCheckTest(unittest.TestCase):
         manifest["rows"][0]["class"] = "probably"
         self.write_all(manifest=manifest, doc=docs_from_manifest(real_manifest(), 17, 25))
         self.assertFails("expected one of required, optional")
+
+    def test_docs_asset_that_disagrees_with_its_own_template(self):
+        """The stored cell is what the table check compares against. A row
+        whose cell and template describe different assets would let the guide
+        promise one name while the pipeline publishes another, with both
+        halves of this gate green."""
+        manifest = real_manifest()
+        for row in manifest["rows"]:
+            if row["id"] == "sdk-tarball-gcc":
+                row["docs_asset"] = "`ns-cmsis-nn-<cpu>-gnu-<version>.tar.gz`"
+        self.write_all(manifest=manifest, doc=docs_from_manifest(real_manifest(), 17, 25))
+        self.assertFails("reads as '`ns-cmsis-nn-<cpu>-gcc-<version>.tar.gz`'")
+
+    def test_docs_asset_is_derived_from_the_template(self):
+        gen = load_generator()
+        self.assertEqual(
+            gen.docs_asset("ns-cmsis-nn-{cpu}-atfe-{version}.tar.gz"),
+            "`ns-cmsis-nn-<cpu>-atfe-<version>.tar.gz`",
+        )
+        self.assertEqual(
+            gen.docs_asset("Ambiq.NS-CMSIS-NN.{version}.pack"),
+            "`Ambiq.NS-CMSIS-NN.<version>.pack`",
+        )
 
     def test_duplicate_row_id(self):
         manifest = real_manifest()

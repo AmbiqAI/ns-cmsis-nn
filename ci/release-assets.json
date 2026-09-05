@@ -4,7 +4,7 @@
   "contract_floor_why": "First release cut under this contract. v7.25.0 and older shipped a different, smaller asset shape (loose per-cpu .a files, gcc only) and are not judged by a contract that postdates them.",
   "cpus": ["cortex-m0", "cortex-m4", "cortex-m55"],
   "promotion_variable": "ARMCLANG_REQUIRED",
-  "promotion_why": "Repository variable, deliberately an operator switch rather than an inference from whether an Arm licence secret is configured: that secret was configured throughout the period armclang published nothing at all, so keying off it would promote assets the pipeline has never once produced, and a required-but-unproducible asset makes every release unrecoverably red (#279).",
+  "promotion_why": "Repository variable, deliberately an operator switch rather than an inference from whether an Arm license secret is configured: that secret was configured throughout the period armclang published nothing at all, so keying off it would promote assets the pipeline has never once produced, and a required-but-unproducible asset makes every release unrecoverably red (#279).",
   "audit_promotable": false,
   "audit_promotable_why": "scripts/ci/audit_release_assets.sh never promotes the optional assets, even when ARMCLANG_REQUIRED is set: that variable is a point-in-time operator switch, and applying it retroactively would flag historical releases that shipped complete under the contract of their day.",
   "rows": [

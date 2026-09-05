@@ -63,7 +63,7 @@
 #     the runner image. A PR gate cannot see any of those move.
 #   - workflow_dispatch, for rehearsing a specific ref by hand.
 #
-# `version` only stamps the staticlib artefact names; the .pack version comes
+# `version` only stamps the staticlib artifact names; the .pack version comes
 # from the synthetic local tag created in build-pack. Under schedule there is
 # no `inputs` object at all, so every use falls back to the same default the
 # other two triggers declare -- without that, staging fails on
@@ -75,7 +75,7 @@ on:
   workflow_call:
     inputs:
       version:
-        description: "Synthetic version stamp used when naming the staticlib artefacts."
+        description: "Synthetic version stamp used when naming the staticlib artifacts."
         required: false
         type: string
         default: "0.0.0-dryrun"
@@ -245,6 +245,12 @@ jobs:
             exit 1
           fi
 
+          # gen_pack.sh passes -c "v", so gen-pack takes the version from the
+          # tag the walk above just selected, with the prefix stripped. The
+          # name check below expands the asset contract for exactly that
+          # version, so it needs the same string.
+          echo "PACK_VERSION=${tag#v}" >> "${GITHUB_ENV}"
+
       - name: Download per-arch staticlib artefacts
         uses: actions/download-artifact@v4
         with:
@@ -315,15 +321,28 @@ jobs:
             exit 1
           fi
           name="$(basename "${packs[0]}")"
-          case "${name}" in
-            Ambiq.NS-CMSIS-NN.*.pack)
-              echo "OK: ${name}"
-              ;;
-            *)
-              echo "pack name '${name}' does not match Ambiq.NS-CMSIS-NN.*.pack" >&2
-              exit 1
-              ;;
-          esac
+
+          # Checked against the release asset contract rather than a glob. The
+          # pack row of ci/release-assets.json is what release-verify and the
+          # nightly audit demand of a real release, so a rename anywhere in the
+          # producing chain -- gen_pack.sh, the pdsc vendor or name, gen-pack
+          # itself -- has to fail on the pull request instead of surfacing
+          # after the tag and Release are public (#376, #274).
+          mapfile -t expected < <(
+            python3 scripts/ci/release_assets.py "${PACK_VERSION}" --class required \
+              | grep -E '\.pack$'
+          )
+          if (( ${#expected[@]} != 1 )); then
+            printf 'ci/release-assets.json expanded to %d required .pack asset(s) for version %s; expected exactly one.\n' \
+              "${#expected[@]}" "${PACK_VERSION}" >&2
+            exit 1
+          fi
+          if [[ "${name}" != "${expected[0]}" ]]; then
+            echo "gen-pack produced '${name}', but the release asset contract requires '${expected[0]}'." >&2
+            echo "A release publishing '${name}' would fail release-verify and every nightly audit after it." >&2
+            exit 1
+          fi
+          echo "OK: ${name} matches the pack row of ci/release-assets.json"
 
       - name: Upload pack artefact
         uses: actions/upload-artifact@v4

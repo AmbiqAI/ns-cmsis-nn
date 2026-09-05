@@ -48,7 +48,16 @@ readonly ASSET_GENERATOR="${REPO_ROOT}/scripts/ci/release_assets.py"
 # parallel with release.yml's release-verify job and the table in
 # docs/guides/releases.md, with nothing relating the three
 # (AmbiqAI/ns-cmsis-nn#376).
-CONTRACT_FLOOR="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["contract_floor"])' "${ASSET_MANIFEST}")"
+#
+# Guarded rather than left to `set -e`: an unreadable manifest is the same
+# class of event as a generator failure, and must report as "could not run"
+# (exit 2) rather than as a contract verdict (exit 1). Bare `set -e` here
+# would exit 1, which the nightly job reads as "a release is missing assets".
+if ! CONTRACT_FLOOR="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["contract_floor"])' "${ASSET_MANIFEST}")" \
+   || [[ -z "${CONTRACT_FLOOR}" ]]; then
+  echo "::error title=Release audit could not run::reading 'contract_floor' from ${ASSET_MANIFEST} failed. The audit cannot decide which releases the contract governs, so it refuses to report a verdict." >&2
+  exit 2
+fi
 readonly CONTRACT_FLOOR
 
 # The manifest's optional assets are deliberately NEVER promoted here, even

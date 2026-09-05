@@ -51,6 +51,18 @@ class ManifestError(Exception):
     its mutation tests can import this module and see the reason."""
 
 
+def docs_asset(template: str) -> str:
+    """The guide's table cell for a row template.
+
+    The docs table shows the shape rather than one release's names, so the
+    placeholders become the angle-bracket forms the guide uses everywhere and
+    the whole cell is code-spanned. Deriving it keeps the cell that the docs
+    check compares from drifting away from the template that produces the
+    asset it names.
+    """
+    return "`{}`".format(template.replace("{version}", "<version>").replace("{cpu}", "<cpu>"))
+
+
 def load_manifest(path: Path = MANIFEST) -> dict:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -96,6 +108,15 @@ def load_manifest(path: Path = MANIFEST) -> dict:
                 f"{'contains' if '{cpu}' in row['template'] else 'does not contain'} "
                 "{cpu}. A per-cpu row that expands once silently drops two thirds "
                 "of its assets from every check that reads this manifest."
+            )
+        derived = docs_asset(row["template"])
+        if row["docs_asset"] != derived:
+            raise ManifestError(
+                f"{path} row {row['id']!r} stores docs_asset {row['docs_asset']!r} "
+                f"but its template {row['template']!r} reads as {derived!r} in the "
+                "guide's table. The stored cell is the string the docs check "
+                "compares against, so a row whose two halves disagree makes the "
+                "table and the published assets describe different things."
             )
         if row["id"] in seen:
             raise ManifestError(f"{path} declares row id {row['id']!r} more than once")

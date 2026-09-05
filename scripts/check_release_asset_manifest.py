@@ -31,16 +31,17 @@
 #      through.
 #   2. Status agreement. Required/Optional in the table matches `class` in
 #      the manifest.
-#   3. The asset counts quoted in the prose below the table match what the
-#      manifest expands to, with and without the ARMCLANG_REQUIRED promotion.
-#      A number written into prose goes stale silently; this is the only
-#      thing that can notice.
+#   3. The asset counts quoted in prose match what the manifest expands to,
+#      with and without the ARMCLANG_REQUIRED promotion. Both guides are
+#      read: the count appears below the table in releases.md and again in
+#      the release section of verification.md. A number written into prose
+#      goes stale silently; this is the only thing that can notice.
 #   4. Both consumers invoke scripts/ci/release_assets.py, and neither still
 #      enumerates the toolchain set to build names itself. Without this the
 #      manifest could become authoritative for the docs while a consumer
 #      quietly kept its own list.
 #
-# Modelled on check_toolchain_manifest_sync.py: pure Python, stdlib only, no
+# Modeled on check_toolchain_manifest_sync.py: pure Python, stdlib only, no
 # build, sub-second, wired into pdsc.yml beside the other per-PR textual
 # guards. Mutation-tested by scripts/tests/test_check_release_asset_manifest.py.
 
@@ -61,7 +62,19 @@ from release_assets import (  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 RELEASES_DOC = REPO / "docs" / "guides" / "releases.md"
+VERIFICATION_DOC = REPO / "docs" / "guides" / "verification.md"
 GENERATOR = "scripts/ci/release_assets.py"
+
+# Every place a bare asset count is written into prose. Each entry names the
+# expansion it must equal: 'base' is the required set, 'promoted' is that set
+# with the ARMCLANG_REQUIRED promotion applied. The verification guide carries
+# a fourth copy of the number the other three quote, and a copy nothing checks
+# is how the count went stale before.
+RELEASES_PROSE = (
+    (re.compile(r"from (\d+) assets to (\d+)"), ("base", "promoted")),
+    (re.compile(r"the bar stays at (\d+)"), ("base",)),
+)
+VERIFICATION_PROSE = ((re.compile(r"publishes \*\*(\d+) required assets\*\*"), ("base",)),)
 # (path, construct that must NOT come back, what that construct was).
 #
 # The forbidden construct is per-consumer rather than one pattern for both.
@@ -217,22 +230,31 @@ def check_table(manifest: dict, doc_rows: list[tuple[str, str]], doc: Path, mani
         _stats["rows_compared"] = _stats.get("rows_compared", 0) + 1
 
 
-def check_prose_counts(manifest: dict, doc: Path, manifest_path: Path) -> None:
-    """The bare numbers quoted in the guide's prose, against the expansion."""
+def check_prose_counts(
+    manifest: dict,
+    doc: Path,
+    manifest_path: Path,
+    patterns: tuple[tuple["re.Pattern[str]", tuple[str, ...]], ...],
+) -> None:
+    """The bare numbers quoted in a guide's prose, against the expansion."""
     try:
         text = doc.read_text(encoding="utf-8")
     except FileNotFoundError:
+        fail(
+            f"{_display(doc)} does not exist, so the asset counts quoted in it "
+            "cannot be checked. If the guide moved, update the doc constants in "
+            "scripts/check_release_asset_manifest.py rather than dropping the check."
+        )
         return
 
     version = "0.0.0"
-    base = len(asset_names(version, "required", False, manifest))
-    promoted = len(asset_names(version, "required", True, manifest))
+    counts = {
+        "base": len(asset_names(version, "required", False, manifest)),
+        "promoted": len(asset_names(version, "required", True, manifest)),
+    }
 
-    patterns = (
-        (re.compile(r"from (\d+) assets to (\d+)"), (base, promoted)),
-        (re.compile(r"the bar stays at (\d+)"), (base,)),
-    )
-    for pattern, wanted in patterns:
+    for pattern, keys in patterns:
+        wanted = tuple(counts[key] for key in keys)
         match = pattern.search(text)
         if match is None:
             fail(
@@ -246,8 +268,9 @@ def check_prose_counts(manifest: dict, doc: Path, manifest_path: Path) -> None:
         if found != wanted:
             fail(
                 f"{_display(doc)} says {match.group(0)!r}, but "
-                f"{_display(manifest_path)} expands to {wanted} "
-                "(required, then required with ARMCLANG_REQUIRED promotion). "
+                f"{_display(manifest_path)} expands to {wanted} for "
+                f"{', '.join(keys)} ('base' is the required set, 'promoted' is "
+                "the required set with the ARMCLANG_REQUIRED promotion applied). "
                 "Update the prose to match the manifest."
             )
         _stats["counts_compared"] = _stats.get("counts_compared", 0) + 1
@@ -281,6 +304,7 @@ def check_release_asset_manifest(
     manifest_path: Path = MANIFEST,
     doc: Path = RELEASES_DOC,
     consumers: tuple[tuple[Path, "re.Pattern[str]", str], ...] = CONSUMERS,
+    verification_doc: Path = VERIFICATION_DOC,
 ) -> None:
     try:
         manifest = load_manifest(manifest_path)
@@ -291,7 +315,8 @@ def check_release_asset_manifest(
     doc_rows = parse_docs_table(doc)
     if doc_rows is not None:
         check_table(manifest, doc_rows, doc, manifest_path)
-    check_prose_counts(manifest, doc, manifest_path)
+    check_prose_counts(manifest, doc, manifest_path, RELEASES_PROSE)
+    check_prose_counts(manifest, verification_doc, manifest_path, VERIFICATION_PROSE)
     check_consumers(consumers)
 
     # A pass with zero comparisons is a pass over nothing.
