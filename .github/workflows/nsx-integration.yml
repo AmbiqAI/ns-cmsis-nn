@@ -28,9 +28,12 @@ jobs:
       matrix:
         # float_f32 and float_f16 are the only cases that catch a swapped
         # F32/F16 argument pair in the publish call; float_both cannot.
+        # The *_arm_nn cases pin the adopted ARM_NN_ENABLE_* spelling, on the
+        # source path and through the prebuilt manifest check.
         case: [source_all, source_subset, inline_asm, prebuilt,
-               float_f32, float_f16, float_both, float_conflict,
-               prebuilt_manifest_ok]
+               float_f32, float_f16, float_both, float_arm_nn_only,
+               float_conflict, prebuilt_manifest_ok,
+               prebuilt_manifest_reject_arm_nn]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
