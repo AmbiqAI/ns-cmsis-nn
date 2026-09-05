@@ -603,8 +603,6 @@ static arm_cmsis_nn_status arm_convolve_nhwc_patch_gemm_f16(const cmsis_nn_conte
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-    #include <stdio.h>
-
 arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                                           const cmsis_nn_conv_params_f16 *conv_params,
                                           const cmsis_nn_dims *input_dims,
