@@ -22,7 +22,8 @@
 #                          [--require-symbol <name>]...
 #
 # --nm enables the cross-checks against `nm --print-armap`; without it
-# only the on-disk index header is parsed.
+# only the on-disk index header is parsed, so --require-symbol requires
+# --nm rather than being quietly dropped.
 #
 # Exit codes: 2 usage, 3 missing input, 5 index absent, 6 index empty,
 # 7 index contents wrong (an entry names a symbol no member defines, or a
@@ -49,6 +50,13 @@ done
 
 [[ -n "${LIBRARY}" ]] || { echo "--library required" >&2; exit 2; }
 [[ -f "${LIBRARY}" ]] || { echo "library not found: ${LIBRARY}" >&2; exit 3; }
+
+# The symbol checks read the index through nm, so a --require-symbol
+# without --nm would assert nothing at all.
+if (( ${#require_syms[@]} > 0 )) && [[ -z "${NM}" ]]; then
+  echo "--require-symbol requires --nm" >&2
+  exit 2
+fi
 
 # ar(5) layout: an 8-byte global magic, then 60-byte member headers whose
 # name field is at +0 and whose payload starts at +60. The symbol index,

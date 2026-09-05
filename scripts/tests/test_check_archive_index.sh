@@ -81,6 +81,11 @@ expect 0 "indexed archive passes" \
 expect 7 "absent symbol is reported" \
   --library good.a --nm "${NM}" --require-symbol ns_probe_absent
 
+# Without --nm the symbol checks cannot run, so the request has to be a
+# usage error rather than a silent pass.
+expect 2 "--require-symbol without --nm is a usage error" \
+  --library good.a --require-symbol "${probe_a}"
+
 # `S` suppresses the symbol table, so the first member is a plain object.
 # This is the shape a packaging change could plausibly produce.
 "${AR}" rcS nosym.a a.o b.o
