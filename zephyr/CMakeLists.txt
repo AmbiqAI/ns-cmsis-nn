@@ -57,15 +57,29 @@ if(CONFIG_NS_CMSIS_NN)
     # prebuilt mode, or the float API surface stays invisible and any direct
     # use of the float headers fails to compile.
     #
+    # Publish under the names the headers and the other Ambiq consumers read;
+    # prebuilt mode compiles nothing, so it includes the float-switch module
+    # alone rather than the whole source-layout SSoT. Resolution comes before
+    # the manifest check below: ARM_NN_ENABLE_F32/F16 set directly is as much
+    # a request as the Kconfig spelling, so checking the Kconfig symbols alone
+    # would let an adopted ARM_NN_ENABLE_* request reach an archive that never
+    # compiled those kernels. See AmbiqAI/ns-cmsis-nn#420.
+    include("${ZEPHYR_CURRENT_MODULE_DIR}/cmake/ns_cmsis_nn_float_switches.cmake")
+    ns_cmsis_nn_publish_float_switches(
+      F32 "${CONFIG_NS_CMSIS_NN_ENABLE_F32}"
+      F16 "${CONFIG_NS_CMSIS_NN_ENABLE_F16}"
+      REQUEST_PREFIX CONFIG_NS_CMSIS_NN_ENABLE_
+      REQUEST_DEFAULT ${_ns_float_default}
+      REQUESTED_BY "CONFIG_NS_CMSIS_NN_ENABLE_F32/F16")
+
     # When the SDK tarball at CONFIG_NS_CMSIS_NN_PREBUILT_PATH ships a
     # manifest.json (schema_version >= 2 with a "features" block), the
-    # requested CONFIG_NS_CMSIS_NN_ENABLE_F32/F16 toggles are validated
-    # against it and a FATAL_ERROR is raised for any request the archive
-    # doesn't actually implement — this turns a predictable
-    # undefined-reference link error into a clear configure-time
-    # diagnostic. Older manifests without a "features" block (or no
-    # manifest.json at all) are treated conservatively as integer-only,
-    # per this project's documented compatibility fallback.
+    # resolved float request is validated against it and a FATAL_ERROR is
+    # raised for anything the archive doesn't actually implement, which
+    # turns a predictable undefined-reference link error into a clear
+    # configure-time diagnostic. Older manifests without a "features" block
+    # (or no manifest.json at all) are treated conservatively as
+    # integer-only, per this project's documented compatibility fallback.
     set(_ns_manifest "${_ns_sdk}/manifest.json")
     set(_ns_has_f32 FALSE)
     set(_ns_has_f16 FALSE)
@@ -94,29 +108,18 @@ if(CONFIG_NS_CMSIS_NN)
         "validation purposes (the flags are still forwarded as requested).")
     endif()
 
-    if(CONFIG_NS_CMSIS_NN_ENABLE_F32 AND EXISTS "${_ns_manifest}" AND NOT _ns_has_f32)
+    if(ARM_NN_ENABLE_F32 AND EXISTS "${_ns_manifest}" AND NOT _ns_has_f32)
       message(FATAL_ERROR
         "CONFIG_NS_CMSIS_NN_ENABLE_F32=y but the prebuilt SDK's manifest "
         "(${_ns_manifest}) does not report f32 support. Use an SDK tarball "
         "built with F32 enabled, or disable CONFIG_NS_CMSIS_NN_ENABLE_F32.")
     endif()
-    if(CONFIG_NS_CMSIS_NN_ENABLE_F16 AND EXISTS "${_ns_manifest}" AND NOT _ns_has_f16)
+    if(ARM_NN_ENABLE_F16 AND EXISTS "${_ns_manifest}" AND NOT _ns_has_f16)
       message(FATAL_ERROR
         "CONFIG_NS_CMSIS_NN_ENABLE_F16=y but the prebuilt SDK's manifest "
         "(${_ns_manifest}) does not report f16 support. Use an SDK tarball "
         "built with F16 enabled, or disable CONFIG_NS_CMSIS_NN_ENABLE_F16.")
     endif()
-
-    # Publish under the names the headers and the other Ambiq consumers read;
-    # prebuilt mode compiles nothing, so it includes the float-switch module
-    # alone rather than the whole source-layout SSoT.
-    include("${ZEPHYR_CURRENT_MODULE_DIR}/cmake/ns_cmsis_nn_float_switches.cmake")
-    ns_cmsis_nn_publish_float_switches(
-      F32 "${CONFIG_NS_CMSIS_NN_ENABLE_F32}"
-      F16 "${CONFIG_NS_CMSIS_NN_ENABLE_F16}"
-      REQUEST_PREFIX CONFIG_NS_CMSIS_NN_ENABLE_
-      REQUEST_DEFAULT ${_ns_float_default}
-      REQUESTED_BY "CONFIG_NS_CMSIS_NN_ENABLE_F32/F16")
 
     zephyr_compile_definitions(
       ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32}

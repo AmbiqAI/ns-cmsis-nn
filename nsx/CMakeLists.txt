@@ -23,7 +23,9 @@
 #   NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM   — enable inline-asm requantize (OFF)
 #   NSX_CMSIS_NN_ENABLE_F32                  — enable FP32 kernel declarations (OFF).
 #                                              In source mode this also compiles the
-#                                              kernels; in prebuilt mode it is
+#                                              kernels; in prebuilt mode the
+#                                              resolved request (this switch or an
+#                                              adopted ARM_NN_ENABLE_F32) is
 #                                              validated against the archive's
 #                                              manifest when one can be found.
 #   NSX_CMSIS_NN_ENABLE_F16                  — enable FP16 kernel declarations (OFF).
@@ -41,8 +43,9 @@
 # FATAL_ERROR. See cmake/ns_cmsis_nn_float_switches.cmake and
 # AmbiqAI/ns-cmsis-nn#420.
 #
-# Prebuilt manifest discovery (validates NSX_CMSIS_NN_ENABLE_F32/F16
-# against what the archive actually contains):
+# Prebuilt manifest discovery (validates the effective float request, that is
+# ARM_NN_ENABLE_F32/F16 as published above, against what the archive actually
+# contains):
 #   1. NSX_CMSIS_NN_MANIFEST, if explicitly set.
 #   2. "<dir of NSX_CMSIS_NN_LIB>/manifest.json" (archive given as a bare
 #      lib/ path from an extracted tarball).
@@ -116,14 +119,26 @@ if(DEFINED NSX_CMSIS_NN_LIB)
     # implementation choices baked into the archive, so they must be
     # forwarded to consumers here too, mirroring the source-mode bridge below.
     #
+    # Resolve the request first: ARM_NN_ENABLE_F32/F16 set directly is as
+    # much a request as the NSX spelling, so validating the NSX spelling
+    # alone would let an adopted ARM_NN_ENABLE_* request reach an archive
+    # that never compiled those kernels. Everything below reads the
+    # published values. See AmbiqAI/ns-cmsis-nn#420.
+    ns_cmsis_nn_publish_float_switches(
+        F32 "${NSX_CMSIS_NN_ENABLE_F32}"
+        F16 "${NSX_CMSIS_NN_ENABLE_F16}"
+        REQUEST_PREFIX NSX_CMSIS_NN_ENABLE_
+        REQUEST_DEFAULT ${_nsx_float_default}
+        REQUESTED_BY "NSX_CMSIS_NN_ENABLE_F32/F16")
+
     # When a manifest.json for NSX_CMSIS_NN_LIB can be found (or is given
-    # explicitly via NSX_CMSIS_NN_MANIFEST), requested flags are validated
-    # against the archive's recorded capabilities and a FATAL_ERROR is
-    # raised for any request the archive doesn't actually implement —
-    # this turns a predictable undefined-reference link error into a
-    # clear configure-time diagnostic. If no manifest can be found (e.g. a
-    # hand-supplied .a with no accompanying SDK package), validation is
-    # skipped and the requested flags are trusted as-is, same as before.
+    # explicitly via NSX_CMSIS_NN_MANIFEST), the resolved request is
+    # validated against the archive's recorded capabilities and a
+    # FATAL_ERROR is raised for anything the archive doesn't actually
+    # implement, which turns a predictable undefined-reference link error
+    # into a clear configure-time diagnostic. If no manifest can be found
+    # (e.g. a hand-supplied .a with no accompanying SDK package),
+    # validation is skipped and the request is trusted as-is, same as before.
     set(_nsx_manifest "")
     if(NSX_CMSIS_NN_MANIFEST)
         set(_nsx_manifest "${NSX_CMSIS_NN_MANIFEST}")
@@ -161,14 +176,14 @@ if(DEFINED NSX_CMSIS_NN_LIB)
                 "${_nsx_manifest} (f32=${_nsx_has_f32} f16=${_nsx_has_f16})")
         endif()
 
-        if(NSX_CMSIS_NN_ENABLE_F32 AND NOT _nsx_has_f32)
+        if(ARM_NN_ENABLE_F32 AND NOT _nsx_has_f32)
             message(FATAL_ERROR
                 "nsx-cmsis-nn: NSX_CMSIS_NN_ENABLE_F32 was requested but "
                 "the prebuilt archive's manifest (${_nsx_manifest}) does "
                 "not report f32 support. Use an archive built with "
                 "--enable-f32, or disable NSX_CMSIS_NN_ENABLE_F32.")
         endif()
-        if(NSX_CMSIS_NN_ENABLE_F16 AND NOT _nsx_has_f16)
+        if(ARM_NN_ENABLE_F16 AND NOT _nsx_has_f16)
             message(FATAL_ERROR
                 "nsx-cmsis-nn: NSX_CMSIS_NN_ENABLE_F16 was requested but "
                 "the prebuilt archive's manifest (${_nsx_manifest}) does "
@@ -182,13 +197,6 @@ if(DEFINED NSX_CMSIS_NN_LIB)
             "archive contents (set NSX_CMSIS_NN_MANIFEST to enable validation).")
     endif()
     unset(_nsx_manifest)
-
-    ns_cmsis_nn_publish_float_switches(
-        F32 "${NSX_CMSIS_NN_ENABLE_F32}"
-        F16 "${NSX_CMSIS_NN_ENABLE_F16}"
-        REQUEST_PREFIX NSX_CMSIS_NN_ENABLE_
-        REQUEST_DEFAULT ${_nsx_float_default}
-        REQUESTED_BY "NSX_CMSIS_NN_ENABLE_F32/F16")
 
     target_compile_definitions(nsx_cmsis_nn
         INTERFACE
