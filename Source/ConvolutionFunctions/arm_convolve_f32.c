@@ -153,8 +153,8 @@ __STATIC_INLINE bool arm_conv_nhwc_use_1xn_f32(const cmsis_nn_context *ctx,
         #define ARM_NN_CONV_SMALL_C_F32_LANES (4)
         #define ARM_NN_CONV_SMALL_C_F32_OC_GROUP (4)
 
-/* Direct kernel for fewer input channels than one vector: lanes are output x positions, inputs are
- * gathered per (tap, ic), weights are scalars, and OC_GROUP output channels accumulate at once (#417). */
+/* Direct kernel for fewer input channels than one vector. Lanes are output x positions; inputs are gathered per (tap,
+ * ic), weights are scalars, OC_GROUP output channels accumulate at once (#417). */
 __STATIC_INLINE bool arm_conv_nhwc_use_small_c_f32(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *output_dims)
 {
     if (input_dims->c <= 0 || input_dims->c >= ARM_NN_CONV_SMALL_C_F32_LANES || output_dims->c <= 0 ||
@@ -258,6 +258,71 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f32(const float32_t *__RESTRICT
     }
 }
 
+/* One group of LANES output x positions from out_x0: every output channel, OC_GROUP at a time. */
+__STATIC_FORCEINLINE void arm_conv_small_c_row_group_f32(const float32_t *__RESTRICT input_b,
+                                                         int32_t input_h,
+                                                         int32_t input_w,
+                                                         int32_t input_c,
+                                                         const float32_t *__RESTRICT filter,
+                                                         bool packed,
+                                                         int32_t patch_len,
+                                                         int32_t kernel_h,
+                                                         int32_t kernel_w,
+                                                         int32_t in_y0,
+                                                         int32_t dil_h,
+                                                         int32_t dil_w,
+                                                         uint32x4_t in_x_base,
+                                                         const float32_t *__RESTRICT bias,
+                                                         int32_t output_c,
+                                                         float32x4_t vmin,
+                                                         float32x4_t vmax,
+                                                         float32_t *__RESTRICT out_pos,
+                                                         uint32x4_t out_offsets,
+                                                         mve_pred16_t p_pos)
+{
+    for (int32_t oc0 = 0; oc0 < output_c; oc0 += ARM_NN_CONV_SMALL_C_F32_OC_GROUP)
+    {
+        #define ARM_NN_CONV_SMALL_C_CALL(N)                                                                            \
+            arm_conv_small_c_group_f32(input_b,                                                                        \
+                                       input_h,                                                                        \
+                                       input_w,                                                                        \
+                                       input_c,                                                                        \
+                                       filter,                                                                         \
+                                       packed,                                                                         \
+                                       patch_len,                                                                      \
+                                       kernel_h,                                                                       \
+                                       kernel_w,                                                                       \
+                                       in_y0,                                                                          \
+                                       dil_h,                                                                          \
+                                       dil_w,                                                                          \
+                                       in_x_base,                                                                      \
+                                       bias,                                                                           \
+                                       oc0,                                                                            \
+                                       (N),                                                                            \
+                                       vmin,                                                                           \
+                                       vmax,                                                                           \
+                                       out_pos,                                                                        \
+                                       out_offsets,                                                                    \
+                                       p_pos)
+        switch (output_c - oc0)
+        {
+        case 1:
+            ARM_NN_CONV_SMALL_C_CALL(1);
+            break;
+        case 2:
+            ARM_NN_CONV_SMALL_C_CALL(2);
+            break;
+        case 3:
+            ARM_NN_CONV_SMALL_C_CALL(3);
+            break;
+        default:
+            ARM_NN_CONV_SMALL_C_CALL(ARM_NN_CONV_SMALL_C_F32_OC_GROUP);
+            break;
+        }
+        #undef ARM_NN_CONV_SMALL_C_CALL
+    }
+}
+
 static arm_cmsis_nn_status arm_nn_conv_small_c_nhwc_f32(const cmsis_nn_conv_params_f32 *conv_params,
                                                         const cmsis_nn_dims *input_dims,
                                                         const float32_t *input_data,
@@ -289,7 +354,7 @@ static arm_cmsis_nn_status arm_nn_conv_small_c_nhwc_f32(const cmsis_nn_conv_para
     const uint32x4_t lane = vidupq_u32(0u, 1);
     const uint32x4_t lane_x = vmulq(lane, (uint32_t)stride_w);
     const uint32x4_t out_offsets = vmulq(lane, (uint32_t)output_c);
-    /* All lanes on; the only vctp is the one tail predicate per row, outside any counted loop. */
+    /* All lanes on for the full groups; the only vctp is the straight-line tail below. */
     const mve_pred16_t p_all = (mve_pred16_t)0xFFFFU;
 
     for (int32_t b = 0; b < batch; ++b)
@@ -303,64 +368,54 @@ static arm_cmsis_nn_status arm_nn_conv_small_c_nhwc_f32(const cmsis_nn_conv_para
             float32_t *out_row = output_b + (size_t)out_y * output_w * output_c;
             int32_t out_x0 = 0;
 
-            for (;; out_x0 += ARM_NN_CONV_SMALL_C_F32_LANES)
+            for (; out_x0 + ARM_NN_CONV_SMALL_C_F32_LANES <= output_w; out_x0 += ARM_NN_CONV_SMALL_C_F32_LANES)
             {
-                const int32_t remaining = output_w - out_x0;
-                const bool full = remaining >= ARM_NN_CONV_SMALL_C_F32_LANES;
-                if (remaining <= 0)
-                {
-                    break;
-                }
-                const mve_pred16_t p_pos = full ? p_all : vctp32q((uint32_t)remaining);
                 const uint32x4_t in_x_base = vaddq(lane_x, (uint32_t)(out_x0 * stride_w - pad_w));
-                float32_t *out_pos = out_row + (size_t)out_x0 * output_c;
-
-                for (int32_t oc0 = 0; oc0 < output_c; oc0 += ARM_NN_CONV_SMALL_C_F32_OC_GROUP)
-                {
-                    const int32_t n_oc = output_c - oc0;
-        #define ARM_NN_CONV_SMALL_C_CALL(N)                                                                            \
-            arm_conv_small_c_group_f32(input_b,                                                                        \
-                                       input_h,                                                                        \
-                                       input_w,                                                                        \
-                                       input_c,                                                                        \
-                                       filter_data,                                                                    \
-                                       packed,                                                                         \
-                                       patch_len,                                                                      \
-                                       kernel_h,                                                                       \
-                                       kernel_w,                                                                       \
-                                       in_y0,                                                                          \
-                                       dil_h,                                                                          \
-                                       dil_w,                                                                          \
-                                       in_x_base,                                                                      \
-                                       bias_data,                                                                      \
-                                       oc0,                                                                            \
-                                       (N),                                                                            \
-                                       vmin,                                                                           \
-                                       vmax,                                                                           \
-                                       out_pos,                                                                        \
-                                       out_offsets,                                                                    \
-                                       p_pos)
-                    switch (n_oc)
-                    {
-                    case 1:
-                        ARM_NN_CONV_SMALL_C_CALL(1);
-                        break;
-                    case 2:
-                        ARM_NN_CONV_SMALL_C_CALL(2);
-                        break;
-                    case 3:
-                        ARM_NN_CONV_SMALL_C_CALL(3);
-                        break;
-                    default:
-                        ARM_NN_CONV_SMALL_C_CALL(4);
-                        break;
-                    }
-        #undef ARM_NN_CONV_SMALL_C_CALL
-                }
-                if (!full)
-                {
-                    break;
-                }
+                arm_conv_small_c_row_group_f32(input_b,
+                                               input_h,
+                                               input_w,
+                                               input_c,
+                                               filter_data,
+                                               packed,
+                                               patch_len,
+                                               kernel_h,
+                                               kernel_w,
+                                               in_y0,
+                                               dil_h,
+                                               dil_w,
+                                               in_x_base,
+                                               bias_data,
+                                               output_c,
+                                               vmin,
+                                               vmax,
+                                               out_row + (size_t)out_x0 * output_c,
+                                               out_offsets,
+                                               p_all);
+            }
+            if (out_x0 < output_w)
+            {
+                const mve_pred16_t p_tail = vctp32q((uint32_t)(output_w - out_x0));
+                const uint32x4_t in_x_base = vaddq(lane_x, (uint32_t)(out_x0 * stride_w - pad_w));
+                arm_conv_small_c_row_group_f32(input_b,
+                                               input_h,
+                                               input_w,
+                                               input_c,
+                                               filter_data,
+                                               packed,
+                                               patch_len,
+                                               kernel_h,
+                                               kernel_w,
+                                               in_y0,
+                                               dil_h,
+                                               dil_w,
+                                               in_x_base,
+                                               bias_data,
+                                               output_c,
+                                               vmin,
+                                               vmax,
+                                               out_row + (size_t)out_x0 * output_c,
+                                               out_offsets,
+                                               p_tail);
             }
         }
     }
