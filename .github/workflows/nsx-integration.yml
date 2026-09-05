@@ -26,7 +26,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        case: [source_all, source_subset, inline_asm, prebuilt]
+        case: [source_all, source_subset, inline_asm, prebuilt,
+               float_both, float_conflict, prebuilt_manifest_ok]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
