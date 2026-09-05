@@ -54,3 +54,4 @@ void test_transpose_ncwh_arm_transpose_s8(void) { transpose_ncwh_arm_transpose_s
 void test_transpose_nwhc_arm_transpose_s8(void) { transpose_nwhc_arm_transpose_s8(); }
 void test_transpose_3dim_arm_transpose_s8(void) { transpose_3dim_arm_transpose_s8(); }
 void test_transpose_3dim2_arm_transpose_s8(void) { transpose_3dim2_arm_transpose_s8(); }
+void test_transpose_dims_mismatch_arm_transpose_s8(void) { transpose_dims_mismatch_arm_transpose_s8(); }

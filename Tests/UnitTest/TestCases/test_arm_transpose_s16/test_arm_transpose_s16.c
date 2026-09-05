@@ -253,3 +253,36 @@ void transpose_3dim2_arm_transpose_s16(void)
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate_s16(output_data, output_ref, output_ref_size));
 }
+
+// An output_dims that is not input_dims permuted by perm must be rejected before any write.
+// see AmbiqAI/ns-cmsis-nn#443
+void transpose_dims_mismatch_arm_transpose_s16(void)
+{
+    const int32_t buffer_size = 1 * 8 * 10 * 12;
+    const int16_t poison = (int16_t)0x5a5a;
+    static int16_t input_data[1 * 8 * 10 * 12];
+    static int16_t output_data[1 * 8 * 10 * 12];
+
+    const cmsis_nn_dims input_dims = {1, 8, 10, 12};
+    const cmsis_nn_dims output_dims = {12, 8, 10, 1};
+    const uint32_t perm[4] = {3, 2, 1, 0};
+    const cmsis_nn_transpose_params transpose_params = {4, perm};
+
+    for (int32_t i = 0; i < buffer_size; i++)
+    {
+        input_data[i] = (int16_t)i;
+        output_data[i] = poison;
+    }
+
+    arm_cmsis_nn_status result =
+        arm_transpose_s16(input_data, output_data, &input_dims, &output_dims, &transpose_params);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, result);
+
+    bool output_untouched = true;
+    for (int32_t i = 0; i < buffer_size; i++)
+    {
+        output_untouched = output_untouched && (output_data[i] == poison);
+    }
+    TEST_ASSERT_TRUE(output_untouched);
+}

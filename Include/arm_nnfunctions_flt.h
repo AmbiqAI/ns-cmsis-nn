@@ -790,10 +790,13 @@ int32_t arm_fully_connected_f32_get_buffer_size(const cmsis_nn_fc_params_f32 *fc
  * @brief Transpose a floating-point tensor.
  *
  * @param[in,out] ctx         Function context that may hold a temporary scratch buffer.
- * @param[in]     params      Transpose parameters, including permutation and layout information.
+ * @param[in]     params      Transpose parameters, including permutation and layout information. num_dims must be in
+ *                            [1, 4] and perm must be a bijection over [0, num_dims - 1].
  * @param[in]     input_dims  Input tensor dimensions.
  * @param[in]     input       Pointer to the input tensor data.
- * @param[in]     output_dims Output tensor dimensions.
+ * @param[in]     output_dims Output tensor dimensions. The first params->num_dims fields, taken in the order
+ *                            [N, H, W, C], must satisfy output[i] == input[perm[i]]; the function returns
+ *                            `ARM_CMSIS_NN_ARG_ERROR` and writes nothing if they do not.
  * @param[out]    output      Pointer to the output tensor data.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.

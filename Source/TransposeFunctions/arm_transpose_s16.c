@@ -163,6 +163,44 @@ static arm_cmsis_nn_status arm_transpose_s16_default(const int16_t *input,
 }
 
 /*
+ * Loop bounds come from input_dims but the output strides come from output_dims, so an output_dims that is not
+ * input_dims permuted by perm lets to_index run past the end of the output buffer.
+ * see AmbiqAI/ns-cmsis-nn#443
+ */
+static arm_cmsis_nn_status arm_transpose_s16_check_dims(const cmsis_nn_dims *const input_dims,
+                                                        const cmsis_nn_dims *const output_dims,
+                                                        const uint32_t *const perm,
+                                                        const int32_t num_dims)
+{
+    if (num_dims < 1 || num_dims > 4)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    const int32_t in_dims[4] = {input_dims->n, input_dims->h, input_dims->w, input_dims->c};
+    const int32_t out_dims[4] = {output_dims->n, output_dims->h, output_dims->w, output_dims->c};
+    uint32_t axes_seen = 0;
+
+    for (int32_t i = 0; i < num_dims; i++)
+    {
+        const uint32_t axis = perm[i];
+
+        if (axis >= (uint32_t)num_dims || (axes_seen & (1U << axis)) != 0U)
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+        axes_seen |= 1U << axis;
+
+        if (out_dims[i] != in_dims[axis])
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+    }
+
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+/*
  * Basic s16 transpose function.
  *
  * Refer header file for details.
@@ -188,6 +226,11 @@ arm_cmsis_nn_status arm_transpose_s16(const int16_t *input,
     in_strides[1] = w * c;
     in_strides[2] = c;
     in_strides[3] = 1;
+
+    if (arm_transpose_s16_check_dims(input_dims, output_dims, perm, transpose_params->num_dims) != ARM_CMSIS_NN_SUCCESS)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
 
     if (transpose_params->num_dims == 1)
     {

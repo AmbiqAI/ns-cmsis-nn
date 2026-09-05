@@ -134,6 +134,18 @@
             }                                                                                                          \
         }                                                                                                              \
                                                                                                                        \
+        /* The general path derives its output strides from out_dims, so an out_dims that is not in_dims permuted      \
+         * by perm walks past the end of the output buffer. see AmbiqAI/ns-cmsis-nn#443 */                             \
+        int32_t axes_seen = 0;                                                                                         \
+        for (int32_t i = 0; i < num_dims; ++i)                                                                         \
+        {                                                                                                              \
+            if ((axes_seen & (1 << perm[i])) != 0 || out_dims[i] != in_dims[perm[i]])                                  \
+            {                                                                                                          \
+                return ARM_CMSIS_NN_ARG_ERROR;                                                                         \
+            }                                                                                                          \
+            axes_seen |= 1 << perm[i];                                                                                 \
+        }                                                                                                              \
+                                                                                                                       \
         if (num_dims == 1)                                                                                             \
         {                                                                                                              \
             size_t elems = (size_t)in_dims[0];                                                                         \

@@ -5296,8 +5296,13 @@ arm_cmsis_nn_status arm_batch_to_space_nd_s16(const int16_t *input_data,
  * @param[in]       output_dims           Output tensor dimensions. Format may be arbitrary relative to input format.
  *                                        The output dimension will depend on the permutation dimensions.
  *                                        In other words the out dimensions are the result of applying the permutation
- *                                        to the input dimensions.
+ *                                        to the input dimensions. The first transpose_params->num_dims fields, taken
+ *                                        in the order [N, H, W, C], must satisfy output[i] == input[permutations[i]];
+ *                                        the function returns <code>ARM_CMSIS_NN_ARG_ERROR</code> and writes nothing
+ *                                        if they do not.
  * @param[in]       transpose_params      Transpose parameters. Contains permutation dimensions.
+ *                                        num_dims must be in [1, 4] and permutations must be a bijection over
+ *                                        [0, num_dims - 1].
  *
  * @return          The function returns either
  *                      <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
@@ -5319,8 +5324,13 @@ arm_cmsis_nn_status arm_transpose_s8(const int8_t *input_data,
  * @param[in]       output_dims           Output tensor dimensions. Format may be arbitrary relative to input format.
  *                                        The output dimension will depend on the permutation dimensions.
  *                                        In other words the out dimensions are the result of applying the permutation
- *                                        to the input dimensions.
+ *                                        to the input dimensions. The first transpose_params->num_dims fields, taken
+ *                                        in the order [N, H, W, C], must satisfy output[i] == input[permutations[i]];
+ *                                        the function returns <code>ARM_CMSIS_NN_ARG_ERROR</code> and writes nothing
+ *                                        if they do not.
  * @param[in]       transpose_params      Transpose parameters. Contains permutation dimensions.
+ *                                        num_dims must be in [1, 4] and permutations must be a bijection over
+ *                                        [0, num_dims - 1].
  *
  * @return          The function returns either
  *                      <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
