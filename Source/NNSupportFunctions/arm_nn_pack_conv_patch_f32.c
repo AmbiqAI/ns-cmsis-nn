@@ -60,8 +60,6 @@ void arm_nn_pack_conv_patch_f32(const float32_t *__RESTRICT input,
 {
     const int32_t base_y = out_y * stride_h - pad_h;
     const int32_t base_x = out_x * stride_w - pad_w;
-    /* Below one vector the per-tap helper call is pure overhead (#417). */
-    const bool small_c = in_c < 4;
 
     /* This is effectively one im2row-style packed patch. */
     int32_t dst = 0;
@@ -71,26 +69,7 @@ void arm_nn_pack_conv_patch_f32(const float32_t *__RESTRICT input,
         for (int32_t kw = 0; kw < kernel_w; ++kw)
         {
             const int32_t in_x = base_x + kw * dilation_w;
-            const bool in_range = (uint32_t)in_y < (uint32_t)in_h && (uint32_t)in_x < (uint32_t)in_w;
-            if (small_c)
-            {
-                if (in_range)
-                {
-                    const float32_t *src = input + ((in_y * in_w) + in_x) * in_c;
-                    for (int32_t c = 0; c < in_c; ++c)
-                    {
-                        patch_row[dst + c] = src[c];
-                    }
-                }
-                else
-                {
-                    for (int32_t c = 0; c < in_c; ++c)
-                    {
-                        patch_row[dst + c] = pad_value;
-                    }
-                }
-            }
-            else if (in_range)
+            if ((uint32_t)in_y < (uint32_t)in_h && (uint32_t)in_x < (uint32_t)in_w)
             {
                 const int32_t src = ((in_y * in_w) + in_x) * in_c;
                 arm_memcpy_f32(patch_row + dst, input + src, (uint32_t)in_c);
