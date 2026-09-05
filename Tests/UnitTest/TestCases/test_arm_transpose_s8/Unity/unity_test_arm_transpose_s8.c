@@ -55,3 +55,9 @@ void test_transpose_nwhc_arm_transpose_s8(void) { transpose_nwhc_arm_transpose_s
 void test_transpose_3dim_arm_transpose_s8(void) { transpose_3dim_arm_transpose_s8(); }
 void test_transpose_3dim2_arm_transpose_s8(void) { transpose_3dim2_arm_transpose_s8(); }
 void test_transpose_dims_mismatch_arm_transpose_s8(void) { transpose_dims_mismatch_arm_transpose_s8(); }
+void test_transpose_2dim_identity_arm_transpose_s8(void) { transpose_2dim_identity_arm_transpose_s8(); }
+void test_transpose_perm_duplicate_axis_arm_transpose_s8(void) { transpose_perm_duplicate_axis_arm_transpose_s8(); }
+void test_transpose_num_dims_out_of_range_arm_transpose_s8(void)
+{
+    transpose_num_dims_out_of_range_arm_transpose_s8();
+}

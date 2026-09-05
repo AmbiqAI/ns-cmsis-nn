@@ -240,6 +240,15 @@ arm_cmsis_nn_status arm_transpose_s16(const int16_t *input,
     }
     else if (transpose_params->num_dims == 2)
     {
+        /* The 2-D path transposes unconditionally, so the identity permutation has to be split off here.
+         * see AmbiqAI/ns-cmsis-nn#443 */
+        if (perm[0] == 0)
+        {
+            arm_memcpy_s16(output, input, (uint32_t)n * (uint32_t)h);
+
+            return ARM_CMSIS_NN_SUCCESS;
+        }
+
         const cmsis_nn_dims smaller_input_dims = {1, 1, n, h};
 
         return arm_transpose_s16_nhcw(input, output, &smaller_input_dims, in_strides, out_strides);

@@ -1653,7 +1653,7 @@ typedef struct
 static void run_even_s4_fixture(const conv_s4_fixture *fixture, const arm_cmsis_nn_status expected_even)
 {
     cmsis_nn_context ctx;
-    cmsis_nn_dims bias_dims = {0, 0, 0, fixture->output_dims.c};
+    cmsis_nn_dims bias_dims = {1, 1, 1, fixture->output_dims.c};
     cmsis_nn_per_channel_quant_params quant_params = {(int32_t *)fixture->output_mult,
                                                       (int32_t *)fixture->output_shift};
 
