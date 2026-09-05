@@ -74,17 +74,25 @@ their removal is tracked by
 ### How the form is chosen
 
 The preprocessor cannot see the assembler, so the CMake build asks it. At
-configure time it assembles a witness and compares the bytes, so it measures the
+configure time it compiles a witness and compares the bytes, so it measures the
 assembler actually in use rather than trusting a version number.
 
-It assembles with the flags the library target will really compile with: the
+It compiles with the flags the library target will really compile with: the
 target's own compile options, definitions and include directories, plus the ones
 it picks up from the interface targets it links. A project that carries `-mcpu`
 on a board flags target is measured the same as one that sets `CMAKE_C_FLAGS`.
 Options that inject a header into every translation unit, `-include` and
-`-imacros`, are dropped before the witness is assembled, and named in a configure
-message: they feed C declarations to an assembly file and cannot change how an
-instruction encodes.
+`-imacros`, are dropped before the witness is compiled, and named in a configure
+message: no header can change how an instruction encodes, and the directory that
+holds one is often carried in a generator expression the probe cannot read.
+
+The witness is a C file whose body is a single top-level `asm`, not a `.S`. The
+compiler opens every object it writes with `.arch`/`.fpu`/`.arch_extension`
+directives derived from `-mcpu`, and those override what the driver forwards to
+the assembler on the command line. A hand-written `.S` has no such prologue, so
+a project naming both `-mcpu=cortex-m55` and an explicit `-mfpu=` that predates
+MVE would assemble the kernels fine and fail on the witness. Going through the C
+path puts the witness on the same footing as the kernels.
 
 The verdict is a compile definition on the target that was measured:
 
@@ -99,7 +107,7 @@ driver paired by hand with an older binutils. Neither verdict stops a build.
 
 `ARM_NN_ENABLE_F16=OFF` skips the check entirely.
 
-### When the witness will not assemble
+### When the witness will not compile
 
 The probe cannot see everything. An architecture flag, or an include directory a
 flag depends on, that exists only inside a CMake generator expression has no
@@ -109,11 +117,11 @@ target; and a build that never runs CMake at all gets no probe. In those shapes
 the probe reports that it does not apply, and the header falls back to the guard
 described under [Building without CMake](#building-without-cmake).
 
-Separately, the witness can fail to assemble, most often because a flag the
+Separately, the witness can fail to compile, most often because a flag the
 probe cannot read is missing, such as an include directory hidden inside a
 generator expression that another flag depends on, or because a flag on the
 target is invalid for this compiler. That is a hard configure error, printing the
-flags used and the assembler's own message, so an unmeasured assembler is never
+flags used and the toolchain's own message, so an unmeasured assembler is never
 quietly taken for a good one. `ARM_NN_SKIP_GAS_F16_PROBE=ON` downgrades it to a
 warning; the build then defines neither verdict and falls back to the same
 compiler-major guard.

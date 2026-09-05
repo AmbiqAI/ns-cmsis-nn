@@ -20,7 +20,7 @@
 # Exposes one entry point:
 #
 #   ns_cmsis_nn_check_gas_mve_encoding(<target>)
-#       Assembles a witness with the flags <target> will really compile with
+#       Compiles a witness with the flags <target> will really compile with
 #       -- CMAKE_C_FLAGS, the target's own options, definitions and include
 #       directories, and the usage requirements of everything it links -- and
 #       compares the encoded words. A no-op unless ARM_NN_ENABLE_F16 is set
@@ -47,9 +47,20 @@
 # under CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY there is no link step to
 # fail, so the probe would silently measure unflagged code. This walks the
 # usage requirements instead.
+#
+# The witness is a C translation unit whose whole body is a top-level asm, not
+# a .S. Same flags either way, but not the same architecture: cc1 opens every
+# object it writes with .arch/.fpu/.arch_extension directives derived from
+# -mcpu, and those override whatever the driver forwards to gas. A .S has no
+# such prologue, so it is judged on the forwarded flags alone -- and a
+# consumer that names -mcpu=cortex-m55 together with -mfpu=fpv5-sp-d16
+# (helia-core-tester does) gets MVE float16 in cc1, and no MVE at all in gas.
+# The preprocessor runs the same in both, so the witness selected the vector
+# instruction and then could not assemble it. Going through the C path puts
+# the probe on the kernels' own footing. See AmbiqAI/ns-cmsis-nn#427.
 
 option(ARM_NN_SKIP_GAS_F16_PROBE
-       "Downgrade an unassemblable MVE encoding witness from an error to a warning, leaving the assembler unmeasured."
+       "Downgrade an uncompilable MVE encoding witness from an error to a warning, leaving the assembler unmeasured."
        OFF)
 
 # Drop the generator expressions from an option list. They have no value at
@@ -79,11 +90,12 @@ function(_ns_cmsis_nn_gas_mve_plain out_var out_skipped)
   set(${out_skipped} "${_skipped}" PARENT_SCOPE)
 endfunction()
 
-# Drop the options that inject a header into the translation unit. They feed C
-# declarations to a .S witness that has no use for them and cannot change how
-# an instruction encodes, so carrying them only gives the assembler a way to
-# fail on something the probe is not asking about. Both spellings, split and
-# joined. See AmbiqAI/ns-cmsis-nn#427.
+# Drop the options that inject a header into the translation unit. No header
+# can change how an instruction encodes, and the directory that holds one is
+# routinely carried in a generator expression this probe cannot read, so
+# keeping them only gives the witness a way to fail on something the probe is
+# not asking about. Both spellings, split and joined.
+# See AmbiqAI/ns-cmsis-nn#427.
 function(_ns_cmsis_nn_gas_mve_drop_injected out_var out_dropped)
   set(_kept "")
   set(_dropped "")
@@ -261,39 +273,40 @@ function(_ns_cmsis_nn_gas_mve_run target)
   endif()
 
   set(_dir "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/ns_gas_mve_encoding")
-  set(_src "${_dir}/probe.S")
+  set(_src "${_dir}/probe.c")
   set(_obj "${_dir}/probe.o")
   file(MAKE_DIRECTORY "${_dir}")
   file(REMOVE "${_obj}")
 
-  # A .S is preprocessed, so the feature macro that gates the kernels also
-  # decides whether this target has anything worth checking, and one assemble
-  # answers every question with the flags the kernels will really see. The
-  # sentinels bracket each instruction so its word can be lifted out of the
-  # object without parsing ELF. MVE float16 implies MVE integer, so the
-  # narrowing shift rides along on the same gate rather than needing its own.
-  file(WRITE "${_src}"
-"#if defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2)
-    .syntax unified
-    .thumb
-    .text
-    .word 0xdeadbee1
-    vcvtb.f16.f32 q1, q2
-    .word 0xdeadbee2
-    vqshrnb.s16 q0, q0, #8
-    .word 0xdeadbee3
+  # The feature macro that gates the kernels also decides whether this target
+  # has anything worth checking, and one compile answers every question with
+  # the flags the kernels will really see. The sentinels bracket each
+  # instruction so its word can be lifted out of the object without parsing
+  # ELF. MVE float16 implies MVE integer, so the narrowing shift rides along on
+  # the same gate rather than needing its own.
+  file(WRITE "${_src}" [==[
+#if defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2)
+__asm__(".syntax unified\n"
+        ".thumb\n"
+        ".text\n"
+        ".word 0xdeadbee1\n"
+        "vcvtb.f16.f32 q1, q2\n"
+        ".word 0xdeadbee2\n"
+        "vqshrnb.s16 q0, q0, #8\n"
+        ".word 0xdeadbee3\n");
 #else
-    .text
-    .word 0xdeadbee0
+__asm__(".text\n"
+        ".word 0xdeadbee0\n");
 #endif
-")
+]==])
 
   # Through the driver with the project's own flags, in the order the build
   # uses, so a -B or -mcpu the user passed applies here exactly as it will to
-  # the kernels.
+  # the kernels. -fno-lto goes last because under -flto the object holds IR and
+  # no instruction word, which would read here as a target with no MVE.
   separate_arguments(_cflags NATIVE_COMMAND "${CMAKE_C_FLAGS}")
   execute_process(
-    COMMAND "${CMAKE_C_COMPILER}" ${_cflags} ${_opts}
+    COMMAND "${CMAKE_C_COMPILER}" ${_cflags} ${_opts} -fno-lto
             -c "${_src}" -o "${_obj}"
     RESULT_VARIABLE _rc
     OUTPUT_VARIABLE _log
@@ -306,12 +319,12 @@ function(_ns_cmsis_nn_gas_mve_run target)
     # One string, expanded quoted: message() splits an unquoted list on the
     # semicolons this text needs.
     set(_unmeasured "\
-The MVE encoding check could not assemble its witness for \
+The MVE encoding check could not compile its witness for \
 target '${target}' with this target's flags, so the assembler was not \
 measured.
 Compiler: ${CMAKE_C_COMPILER}
 Flags: ${CMAKE_C_FLAGS} ${_opts_text}
-Fix the flags so the witness assembles -- most often a flag the probe cannot \
+Fix the flags so the witness compiles -- most often a flag the probe cannot \
 read, such as an include directory carried inside a generator expression that \
 an option here depends on -- or set ARM_NN_SKIP_GAS_F16_PROBE=ON to proceed \
 unmeasured.

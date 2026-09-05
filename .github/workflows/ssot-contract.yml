@@ -24,7 +24,7 @@ jobs:
   gas_f16_probe:
     # Which flags the MVE encoding probe measures, and that its witness still
     # covers both mis-encoded instruction families. Host compiler only: the
-    # assemble-and-compare itself is gated by
+    # compile-and-compare itself is gated by
     # toolchain-matrix-strict-link.yml's gcc-f16-probe job, which has an
     # arm-none-eabi toolchain (AmbiqAI/ns-cmsis-nn#427,
     # AmbiqAI/ns-cmsis-nn#437).

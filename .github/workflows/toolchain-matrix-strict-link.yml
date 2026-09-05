@@ -199,7 +199,7 @@ jobs:
     # Four combinations, because what is being asserted is that the ASSEMBLER
     # decides and the compiler version does not: the floor driver with its own
     # assembler, the floor driver with a borrowed 2.43 one, a 2.43 driver with
-    # the floor's assembler, and a witness that will not assemble at all.
+    # the floor's assembler, and a witness that will not compile at all.
     name: gcc floor / the assembler decides the conversion form
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -400,32 +400,37 @@ jobs:
             --workdir "${RUNNER_TEMP}/olds-objs" \
             --expect-qform none
 
-      - name: Require an unassemblable witness to stop the build, and the skip to be a warning
+      - name: Require an uncompilable witness to stop the build, and the skip to be a warning
         # ARM_NN_SKIP_GAS_F16_PROBE is the documented way out when the probe
-        # cannot assemble its witness with a project's flags. It is only worth
+        # cannot compile its witness with a project's flags. It is only worth
         # documenting if the default really is a refusal and the option really
-        # does downgrade it, so exercise both. -Wa,-march=armv7-m is a flag the
-        # driver and the C compiler accept and the assembler then uses to
-        # reject every MVE mnemonic, which is the shape of the problem without
-        # needing a broken toolchain to reproduce it.
+        # does downgrade it, so exercise both.
+        #
+        # The bad flag goes on the target through CMSIS_OPTIMIZATION_LEVEL
+        # rather than into CFLAGS: CMake's own compiler check reads CMAKE_C_FLAGS
+        # and would reject the toolchain before the probe ever ran, so the step
+        # would be asserting something else. A flag the probe collects from the
+        # target is also the shape the real complaint takes.
         run: |
           set -euo pipefail
-          log="${RUNNER_TEMP}/unassemblable.log"
-          if CFLAGS="-Wa,-march=armv7-m" cmake -S . -B "${RUNNER_TEMP}/build-noas" \
+          log="${RUNNER_TEMP}/uncompilable.log"
+          if cmake -S . -B "${RUNNER_TEMP}/build-noas" \
+              -DCMSIS_OPTIMIZATION_LEVEL=-mcpu=nonexistent \
               -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
               -DNS_CMSIS_NN_TARGET_CPU="${TARGET_CPU}" \
               -DARM_NN_ENABLE_F16=ON > "${log}" 2>&1; then
             cat "${log}"
-            echo "::error title=Unassemblable witness did not fail the configure::The probe could not have assembled its witness here, and configured anyway, so an unmeasured assembler now passes silently. See ${ISSUE_MARKER}." >&2
+            echo "::error title=Uncompilable witness did not fail the configure::The probe could not have compiled its witness here, and configured anyway, so an unmeasured assembler now passes silently. See ${ISSUE_MARKER}." >&2
             exit 1
           fi
-          grep -F 'could not assemble its witness' "${log}" >/dev/null || {
+          grep -F 'could not compile its witness' "${log}" >/dev/null || {
             cat "${log}"
             echo "::error title=Configure failed for the wrong reason::The configure failed but not on the probe's witness, so this step is asserting something else. See ${ISSUE_MARKER}." >&2
             exit 1
           }
           log="${RUNNER_TEMP}/skipped.log"
-          CFLAGS="-Wa,-march=armv7-m" cmake -S . -B "${RUNNER_TEMP}/build-skip" \
+          cmake -S . -B "${RUNNER_TEMP}/build-skip" \
+            -DCMSIS_OPTIMIZATION_LEVEL=-mcpu=nonexistent \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
             -DNS_CMSIS_NN_TARGET_CPU="${TARGET_CPU}" \
             -DARM_NN_ENABLE_F16=ON \

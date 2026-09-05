@@ -530,7 +530,7 @@ Additional implementation-selection options:
 | `NN_DISABLE_SPECIALIZATION` | Disables optional shape/layout-specific fast paths and forces the corresponding generic implementations. Useful for debugging or validating specialized kernels against generic paths. |
 | `ARM_NN_USE_EXP_LUT` | Selects the LUT-based scalar float softmax exp approximation. This is the default if no scalar float softmax exp macro is defined. |
 | `ARM_NN_USE_EXP_TAYLOR` | Selects the Taylor/Estrin scalar float softmax exp approximation to avoid the extra lookup-table storage. Do not define this with `ARM_NN_USE_EXP_LUT`. |
-| `ARM_NN_SKIP_GAS_F16_PROBE` | A CMake configure option, not a compile-time macro: pass `-DARM_NN_SKIP_GAS_F16_PROBE=ON` to `cmake`, defining it in your own compile flags does nothing. Default `OFF`. The MVE encoding probe is a hard error only when it cannot assemble its witness with your flags at all; this downgrades that to a warning. The build then measures nothing and picks the conversion form from the compiler major instead, which is right for every Arm GNU release as shipped. See [toolchains.md](docs/guides/toolchains.md). |
+| `ARM_NN_SKIP_GAS_F16_PROBE` | A CMake configure option, not a compile-time macro: pass `-DARM_NN_SKIP_GAS_F16_PROBE=ON` to `cmake`, defining it in your own compile flags does nothing. Default `OFF`. The MVE encoding probe is a hard error only when it cannot compile its witness with your flags at all; this downgrades that to a warning. The build then measures nothing and picks the conversion form from the compiler major instead, which is right for every Arm GNU release as shipped. See [toolchains.md](docs/guides/toolchains.md). |
 
 ### Running unit tests
 
@@ -560,7 +560,7 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
     where it would be wrong: the wrappers in
     `Include/Internal/arm_nn_vcvt_f16.h` fall back to scalar-form conversions,
     which every assembler encodes identically, and the CMake build picks
-    between the two by assembling a witness at configure time with the flags
+    between the two by compiling a witness at configure time with the flags
     the library target really compiles with. From 14.2.Rel1 up the vector form
     is used. A GCC 13.x compiler can have it too by borrowing a newer
     assembler with `-B`; see [Toolchain pinning](docs/guides/toolchains.md) for

@@ -8,7 +8,7 @@
 #     cmake -S cmake/tests/gas_f16_probe -B build/gas_f16_probe
 #
 # Runs on the host compiler; there is no arm-none-eabi toolchain in this job,
-# so it cannot assemble the witness and does not try to. What it pins down is
+# so it cannot compile the witness and does not try to. What it pins down is
 # which flags the probe measures, and that the witness still names both of the
 # instruction families the probe exists to measure -- the half<->single
 # conversions (AmbiqAI/ns-cmsis-nn#427) and the saturating narrowing shifts
@@ -17,7 +17,7 @@
 # The arch flags sit on a target that is never attached, so the host compiler
 # is never asked to accept a Cortex-M flag it has no idea about.
 #
-# The end-to-end assemble-and-compare is proved by the toolchain jobs:
+# The end-to-end compile-and-compare is proved by the toolchain jobs:
 # toolchain-matrix-strict-link.yml's gcc-f16-probe (the scalar-form selection
 # and the -B recipe) and unity-f16-exec-gcc-floor.yml (execution).
 
@@ -64,9 +64,9 @@ target_compile_options(_probe_deep INTERFACE -DNS_PROBE_DEEP_OPT)
 add_library(_probe_flags INTERFACE)
 target_compile_options(_probe_flags INTERFACE -DNS_PROBE_IFACE_OPT)
 target_compile_definitions(_probe_flags INTERFACE NS_PROBE_IFACE_DEF=1)
-# A board target that injects a C header into every translation unit. The
-# assembler witness has no use for it, so the probe drops it and keeps the
-# directory it came with.
+# A board target that injects a C header into every translation unit. No
+# header can change how an instruction encodes, so the probe drops it and keeps
+# the directory it came with.
 target_compile_options(_probe_flags INTERFACE -include foo.h)
 target_include_directories(_probe_flags INTERFACE "${CMAKE_CURRENT_LIST_DIR}/iface_inc")
 target_link_libraries(_probe_flags INTERFACE _probe_deep)
@@ -102,11 +102,11 @@ _expect_opt("${_opts}" "-I${CMAKE_CURRENT_LIST_DIR}/iface_inc"
 _expect_opt("${_opts}" "-I${CMAKE_CURRENT_LIST_DIR}/own_inc"
             "the target's own INCLUDE_DIRECTORIES are not measured")
 _expect_no_opt("${_opts}" "-include"
-               "a split -include reaches the assembler witness")
+               "a split -include reaches the witness")
 _expect_no_opt("${_opts}" "foo.h"
-               "the header of a split -include reaches the assembler witness")
+               "the header of a split -include reaches the witness")
 _expect_no_opt("${_opts}" "-imacrosbar.h"
-               "a joined -imacros reaches the assembler witness")
+               "a joined -imacros reaches the witness")
 
 foreach(_opt IN LISTS _opts)
   if(_opt MATCHES "\\$<")
@@ -158,8 +158,8 @@ _expect_opt("${_after_opts}" "-mcpu=cortex-m55"
             "a directory option added before the target was created is not measured")
 
 # The witness is written inside the probe and only exists once the probe runs
-# against a real assembler, so the one thing this job can say about it is that
-# the module still asks for both families in a single assemble. Losing that is
+# against a real toolchain, so the one thing this job can say about it is that
+# the module still asks for both families in a single compile. Losing that is
 # how the second family would quietly stop being measured; the bytes
 # themselves are compared by toolchain-matrix-strict-link.yml's gcc-f16-probe.
 file(READ "${_repo_root}/cmake/check_gas_mve_encoding.cmake" _module)
@@ -177,7 +177,7 @@ endforeach()
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
   get_property(_scheduled GLOBAL PROPERTY NS_GAS_MVE_ENCODING_SCHEDULED)
   if(NOT "_probe_lib" IN_LIST _scheduled)
-    _fail("ns_cmsis_nn_attach did not invoke the assembler probe for a target carrying float16 sources")
+    _fail("ns_cmsis_nn_attach did not invoke the encoding probe for a target carrying float16 sources")
   endif()
 else()
   message(STATUS
