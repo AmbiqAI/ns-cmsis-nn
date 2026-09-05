@@ -69,10 +69,11 @@ static inline float16x8_t arm_hard_swish_block_f16(float16x8_t vx)
  * the leg-agreement and NaN/Inf notes there) and narrows the product once.
  * The MVE leg evaluates the same expression in float16 throughout. The
  * widened form is the more accurate of the two -- it is single-rounded, where
- * the float16 form rounds the gate and the product separately -- but the
- * float16 form stays inside the kernel's numeric tolerance of it on every
- * input, and it drops both the half<->single conversions and the duplicated
- * half-vector arithmetic they force. See AmbiqAI/ns-cmsis-nn#427. The two
+ * the float16 form rounds the gate and the product separately -- but over all
+ * 63488 finite float16 inputs the float16 form stays inside 1e-3 + 1e-3*|ref|
+ * of it, the combined reading the tests apply, with 70.2% of that band the
+ * worst case; and it drops both the half<->single conversions and the
+ * duplicated half-vector arithmetic they force. See AmbiqAI/ns-cmsis-nn#427. The two
  * legs are therefore no longer bit-identical to each other; the saturated
  * regions and the NaN/Inf behaviour still match (header).
  *
