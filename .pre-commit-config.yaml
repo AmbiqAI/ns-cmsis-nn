@@ -68,7 +68,6 @@ repos:
         entry: scripts/check_mve_encoding_sensitive_intrinsics.sh
         language: script
         files: ^(Source|Include)/.*\.(c|h)$
-        exclude: *unowned
 
       - id: todo-needs-issue
         name: deferred-work markers reference an issue

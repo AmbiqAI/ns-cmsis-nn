@@ -93,16 +93,10 @@ arm_cmsis_nn_status arm_hard_swish_f16(const float16_t *input, float16_t *output
     #if ARM_NN_HARD_SWISH_F16_MVE
     // Full 8-lane blocks run unpredicated; at most one predicated block
     // handles the tail, OUTSIDE any loop (the arm_memset_f16 shape). This is
-    // deliberate and load-bearing, not a style choice: a vctp16q loop around
-    // this widening body miscompiles under GCC's implicit-tail-predication
-    // conversion (observed with Arm GNU Toolchain 14.2.Rel1 at -Ofast, which
-    // turned it into dlstp.16/letp). In an architecturally tail-predicated
-    // loop, predication is byte-granular across EVERY vector instruction in
-    // the body regardless of its element size, so on a partial tail the
-    // .f32-width widen/fma/mul/narrow ops here get the upper bytes of their
-    // 32-bit lanes masked and produce garbage for any size not a multiple of
-    // 8 (caught on FVP Corstone-300). With no vctp in a loop there is
-    // nothing for the dlstp conversion to convert.
+    // deliberate and load-bearing, not a style choice: with no vctp in a
+    // loop there is nothing for GCC's implicit tail-predication conversion
+    // (dlstp.16/letp) to convert, and that conversion miscompiled the
+    // earlier widening body of this kernel; see AmbiqAI/ns-cmsis-nn#427.
     int32_t i = 0;
     for (; i <= size - 8; i += 8)
     {
