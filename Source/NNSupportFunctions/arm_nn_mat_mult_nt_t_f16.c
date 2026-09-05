@@ -89,8 +89,9 @@ float16_t dot_nt_t_f16_mve(const float16_t *__RESTRICT lhs_row, const float16_t 
     return arm_nn_vec_reduce_add_f16(vacc);
 }
 
-/* CONTIG_ROWS rhs rows against one lhs row: one contiguous lhs load feeds four accumulators, each reduced once. */
-__STATIC_INLINE void mat_mult_nt_t_f16_contig_rows(const float16_t *__RESTRICT lhs_row,
+/* CONTIG_ROWS rhs rows against one lhs row: one contiguous lhs load feeds four accumulators, each reduced once.
+ * Kept out of line so the small-K gather loops below keep their original register allocation (#417). */
+__attribute__((noinline)) static void mat_mult_nt_t_f16_contig_rows(const float16_t *__RESTRICT lhs_row,
                                                    const float16_t *__RESTRICT rhs_block,
                                                    const float16_t *__RESTRICT bias,
                                                    float16_t *__RESTRICT dst,
