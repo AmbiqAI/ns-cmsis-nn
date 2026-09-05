@@ -27,9 +27,13 @@
 #       <target>. <target> must already exist (created by the consumer).
 #
 #   ns_cmsis_nn_publish_float_switches(F32 <value> F16 <value>
+#                                      REQUEST_PREFIX <prefix>
+#                                      [REQUEST_DEFAULT <ON|OFF>]
 #                                      [REQUESTED_BY <text>])
 #       Publishes the caller's float request as the ARM_NN_ENABLE_F32/F16
-#       cache entries and directory variables every consumer reads. Defined in
+#       cache entries and directory variables. Called by the top-level, NSX and
+#       Zephyr entry points; find_package() consumers of a published tarball
+#       get the same names on the imported target instead. Defined in
 #       cmake/ns_cmsis_nn_float_switches.cmake, which prebuilt-mode consumers
 #       may include on its own.
 #
