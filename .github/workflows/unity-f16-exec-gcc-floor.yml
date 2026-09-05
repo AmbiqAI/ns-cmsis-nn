@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
 # SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
 
-name: Unity f16 exec (float16 toolchain floor)
+name: Unity f16 exec (oldest gated GCC)
 
-# Execution gate on the oldest Arm GNU release the float16 kernels are
-# allowed to be built with (see AmbiqAI/ns-cmsis-nn#427).
+# Execution gate on the oldest Arm GNU release the library is gated on
+# (see AmbiqAI/ns-cmsis-nn#427).
 #
 # toolchain-matrix-strict-link.yml builds and strict-links the whole supported
 # GCC range, but only the CI container's own toolchain ever runs a binary
@@ -12,8 +12,9 @@ name: Unity f16 exec (float16 toolchain floor)
 # encoded by the assembler, after the compiler is done, so a mis-encoded
 # object is still well formed and every symbol still resolves: nothing short
 # of executing catches a wrong register or an UNDEFINED word. The configure
-# check rejects the assemblers known to get it wrong; this cell is what says
-# the release we do allow actually runs.
+# probe measures the assembler and picks the form of the conversion that it
+# encodes correctly; this cell is what says the result actually runs, on the
+# release whose assembler needs it.
 #
 # QEMU rather than the FVP because the legacy Unity harness fetches the FVP in
 # its own environment setup and hard-codes one toolchain URL, while QEMU's
@@ -35,27 +36,30 @@ permissions:
 
 jobs:
   f16-exec:
-    name: f16 exec / float16 floor / cortex-m55
+    name: f16 exec / oldest gated GCC / cortex-m55
     runs-on: ubuntu-latest
     # The toolchain archive dominates; the build and the runs are the small
     # part of the budget.
     timeout-minutes: 15
     env:
       TARGET_CPU: cortex-m55
-      # One suite per kernel source that uses a Q-form vcvt f16<->f32
-      # intrinsic, directly or through an inline helper:
+      # One suite per kernel source that reaches a Q-form vcvt f16<->f32
+      # conversion, directly or through a wrapper or an inline helper:
       #
-      #   Source/ActivationFunctions/arm_hard_swish_f16.c
-      #       -> test_arm_hard_swish_f16   (vcvt{b,t}q_f32_f16 + _f16_f32)
       #   Source/BasicMathFunctions/arm_nn_mean_f16.c
-      #       -> test_arm_nn_mean_f16      (vcvt{b,t}q_f32_f16)
+      #       -> test_arm_nn_mean_f16      (arm_nn_vcvt{b,t}q_f32_f16)
       #   Source/BasicMathFunctions/arm_reduce_sum_f16.c
-      #       -> test_arm_reduce_sum_f16   (vcvt{b,t}q_f32_f16)
+      #       -> test_arm_reduce_sum_f16   (arm_nn_vcvt{b,t}q_f32_f16)
       #   Source/SoftmaxFunctions/arm_softmax_f16.c
       #       -> test_arm_softmax_f16      (via arm_nn_vexpq_poly_mve_f16
       #                                     in arm_nnsupportfunctions_flt.h)
       #
-      # The step below re-derives that mapping from the tree and fails if
+      # test_arm_hard_swish_f16 is listed too and is not derived: that
+      # kernel's MVE leg is pure half precision and reaches no conversion at
+      # all. It stays here as a plain float16 execution suite on the oldest
+      # gated compiler, which is worth having on its own.
+      #
+      # The step below re-derives the mapping from the tree and fails if
       # this list is short of it, so the comment is a reader's aid and the
       # assertion is the contract. It derives one suite per kernel, so
       # arm_softmax_f16's second suite is listed here by hand: the shapes
@@ -143,7 +147,14 @@ jobs:
                       # prototypes being attributed to whichever came first.
                       current = (None if line.rstrip().endswith(";")
                                  else head.group(1).split()[-1].lstrip("*"))
-                  elif current and hit.search(line):
+                  # The head line counts as body too. A one-line wrapper puts
+                  # its whole body there, and half of
+                  # Include/Internal/arm_nn_vcvt_f16.h is written that way --
+                  # skipping it dropped the two widening wrappers, and with
+                  # them arm_nn_mean_f16 and arm_reduce_sum_f16, out of this
+                  # gate. A definition head naming itself only re-adds a name
+                  # already in the set.
+                  if current and hit.search(line):
                       found.add(current)
               return found
 
@@ -154,7 +165,9 @@ jobs:
 
 
           # The four Q-register MVE half<->single intrinsics. These are the
-          # only forms binutils below 2.43 mis-encodes.
+          # only conversion forms binutils below 2.43 mis-encodes; the
+          # arm_nn_ wrappers around them join the set by the closure below,
+          # and the kernels reach them only through those.
           reaching = {"vcvtbq_f16_f32", "vcvttq_f16_f32",
                       "vcvtbq_f32_f16", "vcvttq_f32_f16"}
           # Source/ as well as Include/: a wrapper defined in one .c and called
@@ -228,15 +241,15 @@ jobs:
             --platform linux-x86_64 \
             --outdir "${RUNNER_TEMP}/toolchains"
 
-      - name: Assert the pin is the float16 floor, and is what ran
-        # Three claims. First, that this cell is still pointed at
-        # GCC_F16_FLOOR from the strict-link matrix: move that floor without
-        # moving the manifest here and the oldest compiler allowed to build
-        # float16 goes back to being built but never executed, silently.
-        # Second, that the floor is a release the matrix actually gates, so
-        # it is built and strict-linked as well as run. Third, that the
-        # archive the manifest names really is that release -- a pinned URL
-        # and sha256 fix the bytes, not what the bytes claim to be.
+      - name: Assert the pin is the oldest gated GCC, and is what ran
+        # Three claims. First, that the strict-link matrix and its declared
+        # GCC_FLOOR still agree on which release is the oldest. Second, that
+        # this cell is pointed at that same release: move the floor without
+        # moving the manifest here and the oldest compiler the library
+        # supports goes back to being built but never executed, silently.
+        # Third, that the archive the manifest names really is that release
+        # -- a pinned URL and sha256 fix the bytes, not what the bytes claim
+        # to be.
         env:
           GOT: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
@@ -249,30 +262,34 @@ jobs:
           python3 -m venv "${RUNNER_TEMP}/yaml-venv"
           "${RUNNER_TEMP}/yaml-venv/bin/pip" install -q --disable-pip-version-check pyyaml==6.0.3
           floor="$("${RUNNER_TEMP}/yaml-venv/bin/python3" - "${MATRIX}" <<'PY'
+          import re
           import sys
           import yaml
 
           matrix = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
           try:
-              floor = matrix["env"]["GCC_F16_FLOOR"]
+              floor = matrix["env"]["GCC_FLOOR"]
               releases = matrix["jobs"]["gcc"]["strategy"]["matrix"]["gcc_release"]
           except (KeyError, TypeError):
-              sys.exit(f"no env.GCC_F16_FLOOR or jobs.gcc.strategy.matrix.gcc_release in {sys.argv[1]}")
+              sys.exit(f"no env.GCC_FLOOR or jobs.gcc.strategy.matrix.gcc_release in {sys.argv[1]}")
           if not isinstance(floor, str) or not floor:
-              sys.exit(f"env.GCC_F16_FLOOR in {sys.argv[1]} is not a version string")
+              sys.exit(f"env.GCC_FLOOR in {sys.argv[1]} is not a version string")
           if not isinstance(releases, list) or not all(isinstance(r, str) for r in releases):
               sys.exit(f"jobs.gcc.strategy.matrix.gcc_release in {sys.argv[1]} is not a list of strings")
-          if floor not in releases:
-              sys.exit(f"env.GCC_F16_FLOOR {floor} is not one of the gated releases {releases}")
+          # Oldest by version order rather than by position: the matrix is a
+          # hand-written list and nothing keeps it sorted.
+          oldest = min(releases, key=lambda r: [int(n) for n in re.findall(r"\d+", r)])
+          if floor != oldest:
+              sys.exit(f"env.GCC_FLOOR {floor} is not the oldest gated release {oldest} (matrix: {releases})")
           print(floor)
           PY
           )"
           if [[ -z "${floor}" ]]; then
-            echo "::error title=Cannot read the float16 floor::No usable env.GCC_F16_FLOOR in ${MATRIX}." >&2
+            echo "::error title=Cannot read the toolchain floor::No usable env.GCC_FLOOR in ${MATRIX}." >&2
             exit 1
           fi
           if [[ "${GOT}" != "${floor}" ]]; then
-            echo "::error title=Execution cell is not on the float16 floor::${TOOLCHAIN_MANIFEST} pins ${GOT}, but ${MATRIX} declares the float16 floor as ${floor}. Move them together." >&2
+            echo "::error title=Execution cell is not on the oldest gated GCC::${TOOLCHAIN_MANIFEST} pins ${GOT}, but ${MATRIX} declares the floor as ${floor}. Move them together." >&2
             exit 1
           fi
           banner="$("${TOOLCHAIN_ROOT}/bin/arm-none-eabi-gcc" --version | head -1)"

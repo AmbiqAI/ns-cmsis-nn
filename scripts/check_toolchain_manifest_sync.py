@@ -80,13 +80,20 @@ PAIRS = (
 # not a silent skip.
 UNPAIRED = {
     "arm-gnu-floor.json": (
-        "the oldest Arm GNU release the float16 kernels may be built with, "
-        "which is deliberately older than the container's arm-gnu -- holding "
-        "the two equal would delete the second compiler this pin exists to "
-        "provide. .github/workflows/unity-f16-exec-gcc-floor.yml is what "
-        "keeps it honest, by failing unless it names the GCC_F16_FLOOR "
-        "declared in toolchain-matrix-strict-link.yml "
-        "(AmbiqAI/ns-cmsis-nn#427)"
+        "the oldest Arm GNU release the library is gated on, which is "
+        "deliberately older than the container's arm-gnu -- holding the two "
+        "equal would delete the second compiler this pin exists to provide. "
+        ".github/workflows/unity-f16-exec-gcc-floor.yml is what keeps it "
+        "honest, by failing unless it names the oldest release gated by "
+        "toolchain-matrix-strict-link.yml (AmbiqAI/ns-cmsis-nn#427)"
+    ),
+    "arm-gnu-fixed-gas.json": (
+        "the oldest Arm GNU release whose bundled assembler encodes the MVE "
+        "half<->single conversions correctly. It is not a compiler anything "
+        "ships with; toolchain-matrix-strict-link.yml's gcc-f16-probe borrows "
+        "its assembler and its objdump to prove what the floor compiler does "
+        "and does not emit, and only an objdump of that vintage renders those "
+        "words as they were encoded (AmbiqAI/ns-cmsis-nn#427)"
     ),
 }
 
