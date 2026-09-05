@@ -361,6 +361,23 @@ binutils below 2.43.")
   set(_word "${CMAKE_MATCH_1}")
   set(_word_vqshrn "${CMAKE_MATCH_2}")
 
+  # A -B in the flags moves the assembler out from under the driver, so the
+  # verdict belongs to a binary the compiler path does not name. Ask the driver
+  # which one it just used, with the same flags the measurement ran under.
+  set(_as "")
+  if(_report)
+    execute_process(
+      COMMAND "${CMAKE_C_COMPILER}" ${_cflags} ${_opts} -print-prog-name=as
+      OUTPUT_VARIABLE _as
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_QUIET)
+    if(NOT _as MATCHES "/")
+      # The driver has no `as' of its own to point at, so it will exec whatever
+      # PATH resolves at assemble time.
+      set(_as "${_as}, resolved from PATH")
+    endif()
+  endif()
+
   # Reported separately from the conversions and never gates them: the two
   # families are fixed by the same binutils release, but the library's f16
   # correctness rides only on the first, and nothing here should make a
@@ -371,8 +388,9 @@ binutils below 2.43.")
       # One string, expanded quoted: message() splits an unquoted list on the
       # semicolons this text needs.
       message(STATUS "\
-The assembler behind ${CMAKE_C_COMPILER} also mis-encodes the MVE saturating \
-narrowing shifts: `vqshrnb.s16 q0, q0, #8' assembled to 0x${_word_vqshrn}, \
+The assembler behind ${CMAKE_C_COMPILER} (${_as}) also mis-encodes the MVE \
+saturating narrowing shifts: `vqshrnb.s16 q0, q0, #8' assembled to \
+0x${_word_vqshrn}, \
 expected 0x${_expected_vqshrn}, which is the rounding variant VQRSHRNB. \
 VQSHRUN is affected the same way. No kernel emits either family today, so \
 this is a record, not a defect in this build; target '${target}' is built \
@@ -397,8 +415,9 @@ See AmbiqAI/ns-cmsis-nn#437.")
     # One string, expanded quoted: message() splits an unquoted list on the
     # semicolons this text needs.
     message(STATUS "\
-The assembler behind ${CMAKE_C_COMPILER} mis-encodes the MVE Q-register form of \
-VCVTB/VCVTT.F16<->F32: `vcvtb.f16.f32 q1, q2' assembled to 0x${_word}, \
+The assembler behind ${CMAKE_C_COMPILER} (${_as}) mis-encodes the MVE \
+Q-register form of VCVTB/VCVTT.F16<->F32: `vcvtb.f16.f32 q1, q2' assembled to \
+0x${_word}, \
 expected 0x${_expected}. Target '${target}' is built with \
 ARM_NN_GAS_VCVT_F16_BROKEN=1, so the float16 kernels emit the scalar-form \
 helper in Include/Internal/arm_nn_vcvt_f16.h for the half<->single \
