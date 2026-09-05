@@ -22,6 +22,18 @@ set(CMSIS_OPTIMIZATION_LEVEL "-Ofast" CACHE STRING "Compiler optimization level.
 option(ARM_NN_ENABLE_F32 "Enable CMSIS-NN float32 extensions." OFF)
 option(ARM_NN_ENABLE_F16 "Enable CMSIS-NN float16 extensions." OFF)
 
+# Without this, CMake's ARMClang module appends its own
+# -mcpu=${CMAKE_SYSTEM_PROCESSOR} on top of the flags
+# cmake/toolchain/armclang.cmake sets explicitly, so every compile line
+# carried -mcpu= twice and every configure carried a CMP0123 author warning
+# per language. It has to be set here: the toolchain file is include()d, which
+# pushes a policy scope, so setting it there never reaches project(). Guarded
+# because CMP0123 is CMake 3.21+, above the minimum above.
+# see AmbiqAI/ns-cmsis-nn#292
+if(POLICY CMP0123)
+  cmake_policy(SET CMP0123 NEW)
+endif()
+
 project(CMSISNN C CXX)
 
 # Single source of truth for the operator-group source layout.

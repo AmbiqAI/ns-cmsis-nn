@@ -242,3 +242,16 @@ jobs:
             python3 "$suite" || status=1
           done
           exit $status
+
+      # Invoked rather than run through bash so a suite that lost its
+      # executable bit fails here instead of on a release publish.
+      - name: Run every scripts/tests/test_check_*.sh
+        run: |
+          set -eu
+          shopt -s failglob
+          status=0
+          for suite in scripts/tests/test_check_*.sh; do
+            echo "== $suite"
+            "$suite" || status=1
+          done
+          exit $status

@@ -396,6 +396,20 @@ kernel group against the produced `.a` and checks that all expected
 symbols resolve. Failure of the smoke step blocks the upload for the
 affected target.
 
+Neither link path consults the archive symbol index: the GNU side
+passes `--whole-archive` and the armlink side names every extracted
+member on the link line, so an index-less or stale archive would link
+clean here while being unusable to a consumer that links the archive
+normally. The same step therefore also runs
+[`scripts/smoke/check_archive_index.sh`](../scripts/smoke/check_archive_index.sh)
+over each archive, which asserts that the first member really is a
+symbol index (SysV, SysV64 or BSD), that the index is not empty, that
+no entry names a symbol no member defines, that every non-common global
+a member exports is indexed, and that the smoke TU's kernel-group
+symbols are present. It exits 2 on a usage error, 3 on missing or
+unreadable input, 5 when the index is absent, 6 when it is empty, 7
+when its contents are wrong and 8 when it is incomplete.
+
 Arch flags live in
 [`cmake/toolchain/arm-none-eabi-gcc.cmake`](../cmake/toolchain/arm-none-eabi-gcc.cmake)
 (also mirrored in [`scripts/smoke/smoke_staticlib.sh`](../scripts/smoke/smoke_staticlib.sh)
