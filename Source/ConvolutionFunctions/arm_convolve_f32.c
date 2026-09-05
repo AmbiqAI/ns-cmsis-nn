@@ -280,15 +280,21 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f32(const arm_conv_small_c_f32 
                 const uint32x4_t off = vaddq(c->lane_x_c, (uint32_t)(x0 * input_c));
                 const mve_pred16_t p =
                     (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vcmphiq_m(vdupq_n_u32(row_limit), off, p_pos) : p_pos;
+                /* Edge groups accumulate under p as well: a padded lane gathers 0, and 0 * w must not reach the
+                 * accumulator when w is not finite. Lanes off p_pos are never stored. */
                 for (int32_t ic = 0; ic < input_c; ++ic)
                 {
                     const float32x4_t vin = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE)
                         ? vldrwq_gather_shifted_offset_z(row + ic, off, p)
                         : vldrwq_gather_shifted_offset(row + ic, off);
-                    vacc0 = vfmaq(vacc0, vin, wt[w_off0]);
-                    vacc1 = vfmaq(vacc1, vin, wt[w_off1]);
-                    vacc2 = vfmaq(vacc2, vin, wt[w_off2]);
-                    vacc3 = vfmaq(vacc3, vin, wt[w_off3]);
+                    vacc0 = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc0, vin, wt[w_off0], p)
+                                                                    : vfmaq(vacc0, vin, wt[w_off0]);
+                    vacc1 = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc1, vin, wt[w_off1], p)
+                                                                    : vfmaq(vacc1, vin, wt[w_off1]);
+                    vacc2 = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc2, vin, wt[w_off2], p)
+                                                                    : vfmaq(vacc2, vin, wt[w_off2]);
+                    vacc3 = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc3, vin, wt[w_off3], p)
+                                                                    : vfmaq(vacc3, vin, wt[w_off3]);
                     wt += ws;
                 }
             }

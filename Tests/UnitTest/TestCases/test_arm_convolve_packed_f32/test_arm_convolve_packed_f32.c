@@ -552,3 +552,47 @@ void convolve_small_c_no_overread_f32(void)
     free(w_packed);
     free(x);
 }
+
+// Non-finite weights at taps that land in the horizontal padding. The input is 4 wide (one lane group, pad 1,
+// stride 1), so at kx = 0 lane 0 is padded and at kx = 2 lane 3 is; oc 2 carries +Inf at (ky 1, kx 0) and oc 5
+// -Inf at (ky 1, kx 2). The reference skips padded taps, so the left column of oc 2 and the right column of oc 5
+// must stay finite (0 * Inf must never reach an accumulator), while every other position sees the Inf through a
+// real input and clamps to the activation bound in both. Even and odd padded lanes so both widened halves of the
+// f16 path are covered. Inputs are never zero so no NaN can arise elsewhere. #417
+void convolve_small_c_inf_weight_in_padding_f32(void)
+{
+    const cmsis_nn_dims in = {1, 4, 4, 1};
+    const cmsis_nn_dims flt = {8, 3, 3, 1};
+    const cmsis_nn_dims out = {1, 4, 4, 8};
+    float32_t x[16];
+    float32_t w[72];
+    float32_t bias[8];
+    cmsis_nn_conv_params_f32 cp;
+
+    for (int32_t i = 0; i < 16; i++)
+    {
+        x[i] = (float32_t)((float32_t)((i % 7) + 1) / 8.0f);
+    }
+    for (int32_t i = 0; i < 72; i++)
+    {
+        w[i] = conv_f32_value(i, 31);
+    }
+    for (int32_t i = 0; i < 8; i++)
+    {
+        bias[i] = conv_f32_value(i, 32);
+    }
+    w[(2 * 3 + 1) * 3 + 0] = INFINITY;
+    w[(5 * 3 + 1) * 3 + 2] = -INFINITY;
+    float32_t *w_packed = pack_rhs_nt_n_from_nt_t_f32(w, 8, 9);
+
+    /* No scratch on purpose: on MVE this shape takes the direct small-C kernel either way, but on scalar builds
+     * scratch selects patch-GEMM, whose zero-filled patches multiply padded taps by the weight (0 * Inf = NaN,
+     * folded to the clamp bound) -- long-standing behaviour of that route, not what this case pins. Without
+     * scratch the scalar route is the generic fallback, which skips padded taps like the direct kernel. */
+    conv_f32_params(&cp, 1, 1, 0);
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+    conv_f32_params(&cp, 1, 1, 1);
+    conv_f32_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 0);
+
+    free(w_packed);
+}

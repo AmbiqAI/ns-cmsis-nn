@@ -289,6 +289,15 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 
                 const uint16x8_t off = vaddq(c->lane_x_c, (uint16_t)(x0 * input_c));
                 const mve_pred16_t p =
                     (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vcmphiq_m(vdupq_n_u16(row_limit), off, p_pos) : p_pos;
+                /* Edge groups accumulate under the column predicate as well: a padded lane gathers 0, and 0 * w
+                 * must not reach the accumulators when w is not finite. The accumulators hold the widened even
+                 * (bottom) and odd (top) lanes, so the 16-bit predicate (one bit per byte, two per lane) is split
+                 * into two 32-bit ones: even lanes' bits spread over their nibble, odd lanes' likewise. Lanes off
+                 * p_pos stay off in both halves and are never stored. */
+                const uint16_t p_even = (uint16_t)(p & 0x3333U);
+                const uint16_t p_odd = (uint16_t)(p & 0xCCCCU);
+                const mve_pred16_t p_lo = (mve_pred16_t)(p_even | (uint16_t)(p_even << 2));
+                const mve_pred16_t p_hi = (mve_pred16_t)(p_odd | (uint16_t)(p_odd >> 2));
                 for (int32_t ic = 0; ic < input_c; ++ic)
                 {
                     const float16x8_t vin = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE)
@@ -297,11 +306,15 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 
                     const float32x4_t vin_lo = vcvtbq_f32_f16(vin);
                     const float32x4_t vin_hi = vcvttq_f32_f16(vin);
                     const float32_t wv0 = (float32_t)wt[w_off0];
-                    vacc0_lo = vfmaq(vacc0_lo, vin_lo, wv0);
-                    vacc0_hi = vfmaq(vacc0_hi, vin_hi, wv0);
+                    vacc0_lo = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc0_lo, vin_lo, wv0, p_lo)
+                                                                       : vfmaq(vacc0_lo, vin_lo, wv0);
+                    vacc0_hi = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc0_hi, vin_hi, wv0, p_hi)
+                                                                       : vfmaq(vacc0_hi, vin_hi, wv0);
                     const float32_t wv1 = (float32_t)wt[w_off1];
-                    vacc1_lo = vfmaq(vacc1_lo, vin_lo, wv1);
-                    vacc1_hi = vfmaq(vacc1_hi, vin_hi, wv1);
+                    vacc1_lo = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc1_lo, vin_lo, wv1, p_lo)
+                                                                       : vfmaq(vacc1_lo, vin_lo, wv1);
+                    vacc1_hi = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc1_hi, vin_hi, wv1, p_hi)
+                                                                       : vfmaq(vacc1_hi, vin_hi, wv1);
                     wt += ws;
                 }
             }
