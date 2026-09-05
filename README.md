@@ -676,6 +676,22 @@ off by default to keep integer-only builds small. If the enabled float headers
 are consumed by TFLM or another downstream build, use matching definitions in
 that build too.
 
+Each entry point has its own switch for the request, and every one of them
+publishes the effective values back under the `ARM_NN_ENABLE_F32`/`F16` names:
+
+| Entry point | Set this | Read this |
+|---|---|---|
+| Standalone CMake | `ARM_NN_ENABLE_F32` / `ARM_NN_ENABLE_F16` | same names |
+| NSX (`nsx/CMakeLists.txt`) | `NSX_CMSIS_NN_ENABLE_F32` / `_F16` | `ARM_NN_ENABLE_F32` / `_F16` |
+| Zephyr | `CONFIG_NS_CMSIS_NN_ENABLE_F32` / `_F16` | `ARM_NN_ENABLE_F32` / `_F16` |
+
+The published values land in the CMake cache as `BOOL` `0`/`1` and on the
+library target's compile definitions, so a consumer can read either one and
+get the same answer. On the NSX and Zephyr paths `ARM_NN_ENABLE_F32`/`F16` are
+output, not input: setting them to something the entry point's own switch
+contradicts is a configure-time error. See
+[`Documentation/build.md`](Documentation/build.md#float-switch-names).
+
 **Do floating-point kernels target all IEEE edge cases?**
 No. For performance reasons, the current floating-point kernels do not
 specifically target IEEE edge cases such as `NaN`, `Inf`,
