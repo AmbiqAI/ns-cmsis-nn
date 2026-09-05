@@ -894,6 +894,12 @@ void arm_nn_maxpool1d_k2s2_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
 
 /**
  * @copydoc arm_nn_mat_mult_nt_t_f32
+ *
+ * @note Accumulation is float16 on every leg: per-k on the gather path (rhs_cols below the
+ *       contiguous-K threshold), lane-partial sums then one reduction on the contiguous-K path,
+ *       sequential on the scalar leg. Error grows with rhs_cols; the K=1024 tester cases carry
+ *       measured tolerance overrides for this reason. Widening to float32 is an open decision,
+ *       see AmbiqAI/ns-cmsis-nn#417.
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
                                              const float16_t *__RESTRICT rhs,
