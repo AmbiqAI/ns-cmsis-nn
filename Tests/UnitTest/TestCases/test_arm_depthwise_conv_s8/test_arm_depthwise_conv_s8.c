@@ -17,6 +17,7 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <unity.h>
 
 #include "../TestData/depthwise_2/test_data.h"
@@ -864,6 +865,14 @@ void single_in_many_out_ch(void)
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, depthwise_single_in_many_out_ch_output_ref, output_ref_size));
     memset(output, 0, sizeof(output));
+
+#if defined(ARM_MATH_MVEI)
+    // These dims are what steers the wrapper into its convert-to-conv path; a dataset change
+    // that left the predicate would silently drop that coverage. see AmbiqAI/ns-cmsis-nn#423
+    TEST_ASSERT_EQUAL(1, input_dims.c);
+    TEST_ASSERT_GREATER_THAN_INT32(CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD, output_dims.c);
+#endif
+
     const int32_t buf_size =
         arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims);
     ctx.buf = malloc(buf_size);
