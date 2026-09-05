@@ -530,7 +530,7 @@ Additional implementation-selection options:
 | `NN_DISABLE_SPECIALIZATION` | Disables optional shape/layout-specific fast paths and forces the corresponding generic implementations. Useful for debugging or validating specialized kernels against generic paths. |
 | `ARM_NN_USE_EXP_LUT` | Selects the LUT-based scalar float softmax exp approximation. This is the default if no scalar float softmax exp macro is defined. |
 | `ARM_NN_USE_EXP_TAYLOR` | Selects the Taylor/Estrin scalar float softmax exp approximation to avoid the extra lookup-table storage. Do not define this with `ARM_NN_USE_EXP_LUT`. |
-| `ARM_NN_SKIP_GAS_F16_PROBE` | A CMake configure option, not a compile-time macro: pass `-DARM_NN_SKIP_GAS_F16_PROBE=ON` to `cmake`, defining it in your own compile flags does nothing. Default `OFF`. Downgrades the MVE half/single assembler check to a warning and lifts the matching compile-time guard, so a build with a mis-encoding or unmeasured assembler proceeds and its `float16` kernels may be wrong. Last resort; see [toolchains.md](docs/guides/toolchains.md). |
+| `ARM_NN_SKIP_GAS_F16_PROBE` | A CMake configure option, not a compile-time macro: pass `-DARM_NN_SKIP_GAS_F16_PROBE=ON` to `cmake`, defining it in your own compile flags does nothing. Default `OFF`. The MVE encoding probe is a hard error only when it cannot assemble its witness with your flags at all; this downgrades that to a warning. The build then measures nothing and picks the conversion form from the compiler major instead, which is right for every Arm GNU release as shipped. See [toolchains.md](docs/guides/toolchains.md). |
 
 ### Running unit tests
 
@@ -546,26 +546,26 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
 
 | Toolchain | Version(s) gated per PR | Built | Linked | Functional tests |
 | --- | --- | --- | --- | --- |
-| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.2.Rel1, 15.3.Rel1 | integer and `float32` on all three; `float16` on cortex-m55 from 14.2.Rel1 up | yes | partly. The numerics suite runs on 14.3.1, the CI container's toolchain, which this matrix does not gate; the `float16` conversion suites run on 14.2.Rel1, the `float16` floor, which it does gate. Nothing executes on 13.2.Rel1 or 15.3.Rel1 |
+| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.2.Rel1, 15.3.Rel1 | integer, `float32` and, on cortex-m55, `float16` on all three | yes | partly. The numerics suite runs on 14.3.1, the CI container's toolchain, which this matrix does not gate; the `float16` suites run on 13.2.Rel1, the floor, which it does gate. Nothing executes on 14.2.Rel1 or 15.3.Rel1 |
 | Arm Compiler 6 (`armclang`) | 6.23.32 | yes | yes | no |
 | LLVM Embedded Toolchain for Arm (ATfE) | 19.1.5 | yes | yes | no |
 
-- **Arm GNU Toolchain** — **GCC 13 through 15**, with two different floors.
-  One pinned release per major is built and strict-linked on every pull request.
+- **Arm GNU Toolchain** — **GCC 13 through 15**, one floor for everything:
+  **13.2.Rel1**, for the integer, `float32` and `float16` kernels alike. One
+  pinned release per major is built and strict-linked on every pull request.
   Versions below 13 are not supported and are not tested.
-  - **Integer and `float32`: 13.2.Rel1, with `ARM_NN_ENABLE_F16` off.** Nothing
-    in those kernels touches the affected instructions. With
-    `ARM_NN_ENABLE_F16` on, every translation unit that includes the `float16`
-    support header refuses under GCC 13 without a verified assembler, the
-    integer ones included.
-  - **`float16`: 14.2.Rel1.** The `float16` kernels use MVE half/single
-    conversions that assemblers before binutils 2.43 encode incorrectly, and
-    Arm ships 2.43 from 14.2.Rel1. The CMake build asks the assembler at
-    configure time, with the flags the library target really compiles with,
-    and fails rather than emitting kernels it will mangle. A
-    GCC 13.x compiler can still build `float16` by borrowing a newer assembler
-    with `-B`; see [Toolchain pinning](docs/guides/toolchains.md) for the recipe
-    and for the `ARM_NN_SKIP_GAS_F16_PROBE` escape hatch
+  - The `float16` kernels convert between half and single precision, and
+    assemblers before binutils 2.43 (Arm GNU 13.3.Rel1 and older) mis-encode
+    the vector form of those conversions. The library does not use that form
+    where it would be wrong: the wrappers in
+    `Include/Internal/arm_nn_vcvt_f16.h` fall back to scalar-form conversions,
+    which every assembler encodes identically, and the CMake build picks
+    between the two by assembling a witness at configure time with the flags
+    the library target really compiles with. From 14.2.Rel1 up the vector form
+    is used. A GCC 13.x compiler can have it too by borrowing a newer
+    assembler with `-B`; see [Toolchain pinning](docs/guides/toolchains.md) for
+    that recipe, for what a build outside CMake gets, and for the
+    `ARM_NN_SKIP_GAS_F16_PROBE` option
     ([#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)).
 - **Arm Compiler 6** — built and strict-linked, not functionally tested. Until
   recently its release-asset check never invoked a linker at all, so armclang
@@ -577,8 +577,8 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
 
 The numerics suite (`helia-core-tester`, run under the Corstone-300 FVP)
 executes only against GCC 14.3.1, the toolchain pinned in the CI container. A
-separate leg runs the legacy Unity `float16` conversion suites on the
-`float16` floor under QEMU, because that is a class of defect a
+separate leg runs the legacy Unity `float16` suites on the floor
+release under QEMU, because that is a class of defect a
 build-and-link gate cannot see
 ([#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)). So for armclang
 and ATfE the guarantee is **built and linked, not executed**: they are
