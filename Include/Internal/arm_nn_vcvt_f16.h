@@ -42,8 +42,8 @@
      * below emit; everywhere else they are the intrinsics.
      * See AmbiqAI/ns-cmsis-nn#427.
      *
-     * NaN payloads are the one behavioural difference between the two forms: the
-     * vector form always returns the default NaN, while the scalar form honours
+     * NaN payloads are the one behavioral difference between the two forms: the
+     * vector form always returns the default NaN, while the scalar form honors
      * FPSCR.DN and so can carry a payload through. NaN stays NaN either way, but a
      * kernel that pinned a particular payload would not be portable between them.
      *

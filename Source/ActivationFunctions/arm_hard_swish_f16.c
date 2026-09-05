@@ -75,7 +75,7 @@ static inline float16x8_t arm_hard_swish_block_f16(float16x8_t vx)
  * worst case; and it drops both the half<->single conversions and the
  * duplicated half-vector arithmetic they force. See AmbiqAI/ns-cmsis-nn#427. The two
  * legs are therefore no longer bit-identical to each other; the saturated
- * regions and the NaN/Inf behaviour still match (header).
+ * regions and the NaN/Inf behavior still match (header).
  *
  * No scalar _Float16 arithmetic or selects are involved on either leg, so GCC
  * PR target/118460 (HFmode conditional moves) has nothing to bite on.

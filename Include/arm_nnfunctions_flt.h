@@ -1560,7 +1560,7 @@ int32_t arm_convolve_1_x_n_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *c
  *       so a NaN that reaches the clamp comes back as NaN at every optimization level on the gated
  *       toolchains rather than as a
  *       bound. A NaN rarely reaches it, though: the scalar max reduction uses an ordered compare that drops
- *       a NaN window element (and its NaN behaviour at the shipped -Ofast is unspecified), and the MVE
+ *       a NaN window element (and its NaN behavior at the shipped -Ofast is unspecified), and the MVE
  *       path's vmaxnmq reduction and vmaxnmq/vminnmq clamp suppress NaN, so this kernel does not promise
  *       NaN propagation end to end.
  */
@@ -1640,7 +1640,7 @@ arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
  * before the product so that the multiplier stays in [0, 1]; it rounds the gate and the product
  * separately and so can sit up to 2 float16 ulp away from the scalar leg in the curved region
  * -3 < x < 3. The saturated regions are exact and identical on both legs (x >= 3 returns x
- * bit-exactly, x <= -3 returns zero), as is the NaN/Inf behaviour below; NaN lanes agree in
+ * bit-exactly, x <= -3 returns zero), as is the NaN/Inf behavior below; NaN lanes agree in
  * NaN-ness but not necessarily in payload. In-place operation (output == input) is supported on
  * both legs.
  *
