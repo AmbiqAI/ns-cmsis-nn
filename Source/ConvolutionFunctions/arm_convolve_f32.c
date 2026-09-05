@@ -414,8 +414,12 @@ arm_nn_conv_small_c_nhwc_f32(const arm_conv_small_c_f32 *__RESTRICT c,
     const int32_t output_w = c->output_w;
     const int32_t output_c = c->output_c;
     const int32_t stride_w = c->stride_w;
-    /* Span of input columns one full lane group touches, minus one. */
+    /* Span of input columns one full lane group touches, minus one: the last lane's last tap. */
     const int32_t span = (ARM_NN_CONV_SMALL_C_F32_LANES - 1) * stride_w + (c->kernel_w - 1) * c->dil_w;
+    /* A contiguous load (vld1q/vld2q/vld4q) reads LANES * stride_w elements from the tap column start, not
+     * just the LANES used lanes, so its block bound is stricter; a group inside the lane bound but not the
+     * block bound stays interior with the gather. */
+    const int32_t block_span = ARM_NN_CONV_SMALL_C_F32_LANES * stride_w - 1 + (c->kernel_w - 1) * c->dil_w;
     int32_t interior_mode = ARM_NN_CONV_SMALL_C_MODE_GATHER;
     if (c->input_c == 1)
     {
@@ -452,13 +456,16 @@ arm_nn_conv_small_c_nhwc_f32(const arm_conv_small_c_f32 *__RESTRICT c,
             {
                 const int32_t in_x0 = out_x0 * stride_w - c->pad_w;
                 const bool interior = in_x0 >= 0 && in_x0 + span < input_w;
-                arm_conv_small_c_lane_group_f32(c,
-                                                input_b,
-                                                in_y0,
-                                                in_x0,
-                                                out_row + (size_t)out_x0 * output_c,
-                                                interior ? interior_mode : ARM_NN_CONV_SMALL_C_MODE_EDGE,
-                                                p_all);
+                const bool block_ok = in_x0 + block_span < input_w;
+                int32_t mode = ARM_NN_CONV_SMALL_C_MODE_EDGE;
+                if (interior)
+                {
+                    mode = (interior_mode == ARM_NN_CONV_SMALL_C_MODE_GATHER || block_ok)
+                        ? interior_mode
+                        : ARM_NN_CONV_SMALL_C_MODE_GATHER;
+                }
+                arm_conv_small_c_lane_group_f32(
+                    c, input_b, in_y0, in_x0, out_row + (size_t)out_x0 * output_c, mode, p_all);
             }
             if (out_x0 < output_w)
             {
