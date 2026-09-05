@@ -34,3 +34,9 @@ void test_convolve_packed_3x3_f32(void) { convolve_packed_3x3_f32(); }
 void test_convolve_packed_1xn_f32(void) { convolve_packed_1xn_f32(); }
 
 void test_convolve_1xn_pad_wider_than_kernel_f32(void) { convolve_1xn_pad_wider_than_kernel_f32(); }
+
+void test_convolve_small_k_3x3_s2_f32(void) { convolve_small_k_3x3_s2_f32(); }
+
+void test_convolve_small_k_few_filters_f32(void) { convolve_small_k_few_filters_f32(); }
+
+void test_convolve_5x5_single_channel_f32(void) { convolve_5x5_single_channel_f32(); }
