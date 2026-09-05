@@ -159,13 +159,15 @@ _expect_opt("${_after_opts}" "-mcpu=cortex-m55"
 
 # The witness is written inside the probe and only exists once the probe runs
 # against a real toolchain, so the one thing this job can say about it is that
-# the module still asks for both families in a single compile. Losing that is
-# how the second family would quietly stop being measured; the bytes
+# the module still asks for both families in a single compile and keeps LTO
+# off it, since an IR object holds no instruction word and would read as a
+# target with no MVE. Losing either is how a family would quietly stop being
+# measured; the bytes
 # themselves are compared by toolchain-matrix-strict-link.yml's gcc-f16-probe.
 file(READ "${_repo_root}/cmake/check_gas_mve_encoding.cmake" _module)
 foreach(_needle "vcvtb.f16.f32 q1, q2" "vqshrnb.s16 q0, q0, #8"
                 "ARM_NN_GAS_F16_VERIFIED=1" "ARM_NN_GAS_VCVT_F16_BROKEN=1"
-                "ARM_NN_GAS_VQSHRN_BROKEN=1")
+                "ARM_NN_GAS_VQSHRN_BROKEN=1" "-fno-lto")
   string(FIND "${_module}" "${_needle}" _at)
   if(_at LESS 0)
     _fail("cmake/check_gas_mve_encoding.cmake no longer mentions '${_needle}'")

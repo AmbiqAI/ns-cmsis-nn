@@ -124,7 +124,7 @@ endfunction()
 # of everything it links, transitively. Consumers routinely put -mcpu on an
 # INTERFACE target rather than in CMAKE_C_FLAGS, and reading only the latter
 # makes the probe decide there is no MVE and skip itself. Include directories
-# come along as -I so the witness is assembled with the search path the kernels
+# come along as -I so the witness is compiled with the search path the kernels
 # get. Header-injecting options are dropped; <out_dropped>, when the caller
 # passes a fourth argument, names what went.
 #

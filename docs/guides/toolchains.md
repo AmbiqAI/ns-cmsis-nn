@@ -92,7 +92,7 @@ directives derived from `-mcpu`, and those override what the driver forwards to
 the assembler on the command line. A hand-written `.S` has no such prologue, so
 a project naming both `-mcpu=cortex-m55` and an explicit `-mfpu=` that predates
 MVE would assemble the kernels fine and fail on the witness. Going through the C
-path puts the witness on the same footing as the kernels.
+path puts the witness on the same footing as the kernels. One thing the C path cannot see: an assembler command line that those directives override, such as a stray `-Wa,-march` flag. Nothing in this repository is hand-written assembly, so every conversion the library emits goes through the same compiler prologue as the witness; a consumer that assembles its own MVE `.S` files gets no verdict about them from this probe.
 
 The verdict is a compile definition on the target that was measured:
 
