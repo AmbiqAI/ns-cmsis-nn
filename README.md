@@ -530,6 +530,7 @@ Additional implementation-selection options:
 | `NN_DISABLE_SPECIALIZATION` | Disables optional shape/layout-specific fast paths and forces the corresponding generic implementations. Useful for debugging or validating specialized kernels against generic paths. |
 | `ARM_NN_USE_EXP_LUT` | Selects the LUT-based scalar float softmax exp approximation. This is the default if no scalar float softmax exp macro is defined. |
 | `ARM_NN_USE_EXP_TAYLOR` | Selects the Taylor/Estrin scalar float softmax exp approximation to avoid the extra lookup-table storage. Do not define this with `ARM_NN_USE_EXP_LUT`. |
+| `ARM_NN_SKIP_GAS_F16_PROBE` | A CMake configure option, not a compile-time macro: pass `-DARM_NN_SKIP_GAS_F16_PROBE=ON` to `cmake`, defining it in your own compile flags does nothing. Default `OFF`. The MVE encoding probe is a hard error only when it cannot compile its witness with your flags at all; this downgrades that to a warning. The build then measures nothing and picks the conversion form from the compiler major instead, which is right for every Arm GNU release as shipped. See [toolchains.md](docs/guides/toolchains.md). |
 
 ### Running unit tests
 
@@ -545,13 +546,27 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
 
 | Toolchain | Version(s) gated per PR | Built | Linked | Functional tests |
 | --- | --- | --- | --- | --- |
-| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.3.Rel1, 15.3.Rel1 | yes | yes | yes, on 14.3.1 |
+| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.2.Rel1, 15.3.Rel1 | integer, `float32` and, on cortex-m55, `float16` on all three | yes | partly. The numerics suite runs on 14.3.1, the CI container's toolchain, which this matrix does not gate; the `float16` conversion suites run on 13.2.Rel1, the floor, which it does gate. Nothing executes on 14.2.Rel1 or 15.3.Rel1 |
 | Arm Compiler 6 (`armclang`) | 6.23.32 | yes | yes | no |
 | LLVM Embedded Toolchain for Arm (ATfE) | 19.1.5 | yes | yes | no |
 
-- **Arm GNU Toolchain** — **GCC 13 through 15; 13 is the minimum supported
-  version.** One pinned release per major is built and strict-linked on every
-  pull request. Versions below 13 are not supported and are not tested.
+- **Arm GNU Toolchain** — **GCC 13 through 15**, one floor for everything:
+  **13.2.Rel1**, for the integer, `float32` and `float16` kernels alike. One
+  pinned release per major is built and strict-linked on every pull request.
+  Versions below 13 are not supported and are not tested.
+  - The `float16` kernels convert between half and single precision, and
+    assemblers before binutils 2.43 (Arm GNU 13.3.Rel1 and older) mis-encode
+    the vector form of those conversions. The library does not use that form
+    where it would be wrong: the wrappers in
+    `Include/Internal/arm_nn_vcvt_f16.h` fall back to scalar-form conversions,
+    which every assembler encodes identically, and the CMake build picks
+    between the two by compiling a witness at configure time with the flags
+    the library target really compiles with. From 14.2.Rel1 up the vector form
+    is used. A GCC 13.x compiler can have it too by borrowing a newer
+    assembler with `-B`; see [Toolchain pinning](docs/guides/toolchains.md) for
+    that recipe, for what a build outside CMake gets, and for the
+    `ARM_NN_SKIP_GAS_F16_PROBE` option
+    ([#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)).
 - **Arm Compiler 6** — built and strict-linked, not functionally tested. Until
   recently its release-asset check never invoked a linker at all, so armclang
   archives shipped without their symbols ever being resolved
@@ -560,10 +575,14 @@ unresolved symbols — so a kernel that compiles but cannot link fails the gate.
 - **LLVM Embedded Toolchain for Arm (ATfE)** — built and strict-linked, not
   functionally tested.
 
-The numerics suite (`helia-core-tester`, run under the Corstone-300 FVP) still
-executes only against GCC 14.3.1, the toolchain pinned in the CI container. So
-for armclang and ATfE the guarantee is **built and linked, not executed**: they
-are verified to compile and resolve, not to produce correct results. Kernel
+The numerics suite (`helia-core-tester`, run under the Corstone-300 FVP)
+executes only against GCC 14.3.1, the toolchain pinned in the CI container. A
+separate leg runs the legacy Unity `float16` suites on the floor
+release under QEMU, because that is a class of defect a
+build-and-link gate cannot see
+([#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)). So for armclang
+and ATfE the guarantee is **built and linked, not executed**: they are
+verified to compile and resolve, not to produce correct results. Kernel
 logic is shared across all three, so the functional suite is not multiplied
 across toolchains.
 
@@ -576,7 +595,8 @@ IAR is currently untested. Compiling for host is not supported out of the box.
 Every pull request must pass the FVP numerics suite (int4/int8/int16 on
 cortex-m0/m4/m55, float32/float16 where hardware support exists — the
 m4/m55 legs also at the shipped `-Ofast` flags), a strict build-and-link
-matrix across GCC 13/14/15, ATfE and armclang, the x86 host suites under
+matrix across GCC 13/14/15, ATfE and armclang, the `float16` conversion
+suites executed on the float16 toolchain floor, the x86 host suites under
 ASan/UBSan/LSan, and the packaging contracts. A nightly run adds the
 legacy Unity suites on Arm, and every release re-runs the FVP numerics
 and Unity suites and verifies its published assets.

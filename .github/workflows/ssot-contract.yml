@@ -21,6 +21,23 @@ jobs:
       - name: Run SSoT contract test
         run: cmake -S cmake/tests/ssot_contract -B build/ssot_contract
 
+  gas_f16_probe:
+    # Which flags the MVE encoding probe measures, and that its witness still
+    # covers both mis-encoded instruction families. Host compiler only: the
+    # compile-and-compare itself is gated by
+    # toolchain-matrix-strict-link.yml's gcc-f16-probe job, which has an
+    # arm-none-eabi toolchain (AmbiqAI/ns-cmsis-nn#427,
+    # AmbiqAI/ns-cmsis-nn#437).
+    name: gas f16 probe flag view
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run gas f16 probe flag-view test
+        run: cmake -S cmake/tests/gas_f16_probe -B build/gas_f16_probe
+
   find_package:
     # find_package(ns-cmsis-nn) consumer regression for the per-arch SDK
     # tarball. Builds the tarball with a fake .a, extracts it, and asserts

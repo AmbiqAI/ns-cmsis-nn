@@ -74,6 +74,29 @@ PAIRS = (
     ("llvm-embedded", "atfe.json", "Arm Toolchain for Embedded (ATfE/clang)"),
 )
 
+# ci/toolchains/ entries that must NOT be pinned to the container, with the
+# reason. Every file in ci/toolchains/ has to appear here or in PAIRS, so a
+# manifest added later cannot sit unexamined: an unlisted file is a failure,
+# not a silent skip.
+UNPAIRED = {
+    "arm-gnu-floor.json": (
+        "the oldest Arm GNU release the library is gated on, which is "
+        "deliberately older than the container's arm-gnu -- holding the two "
+        "equal would delete the second compiler this pin exists to provide. "
+        ".github/workflows/unity-f16-exec-gcc-floor.yml is what keeps it "
+        "honest, by failing unless it names the oldest release gated by "
+        "toolchain-matrix-strict-link.yml (AmbiqAI/ns-cmsis-nn#427)"
+    ),
+    "arm-gnu-fixed-gas.json": (
+        "the oldest Arm GNU release whose bundled assembler encodes the MVE "
+        "half<->single conversions correctly. It is not a compiler anything "
+        "ships with; toolchain-matrix-strict-link.yml's gcc-f16-probe borrows "
+        "its assembler and its objdump to prove what the floor compiler does "
+        "and does not emit, and only an objdump of that vintage renders those "
+        "words as they were encoded (AmbiqAI/ns-cmsis-nn#427)"
+    ),
+}
+
 # Where each side is consumed, quoted in failure messages so whoever trips
 # this guard does not have to go trace the wiring to understand the stakes.
 CONTAINER_ROLE = (
@@ -240,10 +263,38 @@ def _shipped_sha256(shipped: dict) -> str | None:
     return entry.get("sha256")
 
 
+def check_coverage(toolchain_dir: Path) -> None:
+    """Every ci/toolchains/*.json is either paired or explicitly excused."""
+    if not toolchain_dir.is_dir():
+        fail(f"{_display(toolchain_dir)} is not a directory.")
+        return
+
+    known = {filename for _id, filename, _label in PAIRS} | set(UNPAIRED)
+    on_disk = {p.name for p in sorted(toolchain_dir.glob("*.json"))}
+
+    for name in sorted(on_disk - known):
+        fail(
+            f"{_display(toolchain_dir / name)} is not covered by this check. "
+            "Add it to PAIRS in scripts/check_toolchain_manifest_sync.py if "
+            "the dev container ships the same compiler, so the two are held "
+            "on one version and one sha256; or add it to UNPAIRED with the "
+            "reason it must differ. A new shipped-compiler pin that nobody "
+            "registers is how the drift this guard exists for gets back in."
+        )
+    for name in sorted(known - on_disk):
+        fail(
+            f"scripts/check_toolchain_manifest_sync.py names "
+            f"ci/toolchains/{name}, which does not exist. Update PAIRS or "
+            "UNPAIRED to match the tree rather than leaving a dead entry."
+        )
+    _stats["manifests_covered"] = len(on_disk & known)
+
+
 def check_toolchain_manifest_sync(
     tools_manifest: Path = TOOLS_MANIFEST,
     toolchain_dir: Path = TOOLCHAIN_DIR,
 ) -> None:
+    check_coverage(toolchain_dir)
     manifest = load_json(tools_manifest)
     if manifest is None:
         return
@@ -271,7 +322,9 @@ def report() -> None:
             "Toolchain manifest sync check OK: "
             f"{_stats.get('pairs_checked', 0)} compiler pin(s) agree between "
             "ci/tools/manifest.json (dev container) and ci/toolchains/*.json "
-            "(shipped artifacts), on both version and sha256."
+            "(shipped artifacts), on both version and sha256; all "
+            f"{_stats.get('manifests_covered', 0)} ci/toolchains manifests are "
+            f"registered here ({len(UNPAIRED)} deliberately unpaired)."
         )
 
 

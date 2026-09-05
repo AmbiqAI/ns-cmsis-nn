@@ -49,6 +49,15 @@ set(NS_CMSIS_NN_CMAKE_INCLUDED TRUE)
 # Absolute path to the repository root (parent of this cmake/ directory).
 get_filename_component(NS_CMSIS_NN_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 
+# Assembler check for the float16 kernels. It lives here rather than in the
+# standalone CMakeLists.txt so the Zephyr and NSX consumers, which bypass that
+# file, are covered too; ns_cmsis_nn_attach() runs it when float16 sources are
+# actually selected, against the flags the attached target really compiles
+# with. It cannot see an architecture flag that only exists inside a generator
+# expression, and says so when it finds none.
+# See AmbiqAI/ns-cmsis-nn#427.
+include("${CMAKE_CURRENT_LIST_DIR}/check_gas_mve_encoding.cmake")
+
 # Canonical, ordered list of operator group ids.
 set(_NS_CMSIS_NN_GROUPS
     activation
@@ -488,6 +497,16 @@ function(ns_cmsis_nn_attach target)
   if(NOT all_sources)
     message(WARNING "ns_cmsis_nn_attach(${target}): no sources matched (groups=${groups}, dtypes=${dtypes})")
   endif()
+
+  # Only worth asking the assembler when a float16 kernel really is being
+  # compiled: DTYPES can drop them even with ARM_NN_ENABLE_F16 on.
+  foreach(_src IN LISTS all_sources)
+    get_filename_component(_base "${_src}" NAME)
+    if(_base MATCHES "_fp?16([._]|$)")
+      ns_cmsis_nn_check_gas_mve_encoding(${target})
+      break()
+    endif()
+  endforeach()
 
   target_sources(${target} PRIVATE ${all_sources})
   # Wrap in $<BUILD_INTERFACE:...> so consumers that re-export <target> via
