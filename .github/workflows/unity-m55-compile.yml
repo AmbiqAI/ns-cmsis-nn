@@ -493,11 +493,12 @@ jobs:
           # legacy-tester.yml's "Build & run tests" step, plus -r: build,
           # never run. The float-flag branch below is that step's own branch,
           # copied rather than reworded: Float16 is qualified for cortex-m55
-          # only (ARM_NN_ENABLE_F16 gates 14 suites in
-          # Tests/UnitTest/CMakeLists.txt), ARM_NN_ENABLE_F32 is on for every
-          # core (16 suites). Everything else -- -Ofast, the -Werror set, the
-          # -mcpu/-mfpu/-mfloat-abi triple, ARM_MATH_DSP on m4 -- comes from
-          # the harness and its toolchain file.
+          # only, so ARM_NN_ENABLE_F16 is set on that leg alone and gates the
+          # f16 suites Tests/UnitTest/CMakeLists.txt puts behind it, while
+          # ARM_NN_ENABLE_F32 is on for every core. Everything else --
+          # -Ofast, the -Werror set, the -mcpu/-mfpu/-mfloat-abi triple,
+          # ARM_MATH_DSP on m4 -- comes from the harness and its toolchain
+          # file.
           if [ "${{ matrix.cpu }}" = "cortex-m55" ]; then
             ./build_and_run_tests.sh -q -r -c ${{ matrix.cpu }} -D ARM_NN_ENABLE_F32=ON -D ARM_NN_ENABLE_F16=ON
           else

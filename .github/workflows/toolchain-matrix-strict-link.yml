@@ -7,7 +7,7 @@
 # makes each claim testable on every pull request, rather than only at
 # release time or on a manual dispatch:
 #
-#   Arm GNU Toolchain (GCC)   13.2.Rel1 / 14.3.Rel1 / 15.3.Rel1
+#   Arm GNU Toolchain (GCC)   13.2.Rel1 / 14.2.Rel1 / 15.3.Rel1
 #   LLVM Embedded (ATfE)      pinned by ci/toolchains/atfe.json
 #   Arm Compiler 6 (armclang) pinned by ci/toolchains/armclang.json
 #
@@ -15,7 +15,6 @@
 #
 #   The functional PR gate (ci.yml -> helia-core-tester.yml) runs
 #   entirely inside the CI container, which pins arm-gnu 14.3.1.
-#   release.yml builds its GCC static-library assets with 13.2.Rel1.
 #   Those ranges do not agree about MVE _Generic intrinsic dispatch: an
 #   untyped literal argument (e.g. `vaddq(idx, 1U)`) resolves cleanly on
 #   14.x/15.x but on 12.x/13.x silently compiles to a call to
@@ -23,13 +22,29 @@
 #   LINK time. Nothing on the PR path linked MVE-float objects with an
 #   old-range GCC, so the class reached main.
 #
-# We support GCC 13 through 15, with 13 as the floor. This workflow
-# builds and STRICT-links the archive on one pinned release per major:
+# We support GCC 13 through 15. This workflow builds and STRICT-links
+# the archive on one pinned release per major:
 #
-#   13.2.Rel1  floor of the supported range, and exactly what
-#              release.yml ships
-#   14.3.Rel1  matches the CI container (14.3.1)
+#   13.2.Rel1  floor of the supported range, for the integer, float32 and
+#              float16 kernels alike
+#   14.2.Rel1  what release.yml ships, and the first Arm GNU release whose
+#              bundled assembler encodes the MVE Q-register form of
+#              VCVTB/VCVTT.F16<->F32 correctly (binutils 2.43.1,
+#              AmbiqAI/ns-cmsis-nn#427)
 #   15.3.Rel1  newest supported
+#
+# There is one floor, not two. Every cortex-m55 cell builds float16,
+# including the floor's: on an assembler that mis-encodes the conversions
+# the kernels reach them through the scalar-form helper in
+# Include/Internal/arm_nn_vcvt_f16.h, which every gas from 2.39 up encodes
+# identically. Which form is used is decided by the configure probe
+# measuring the assembler, not by a compiler version, and the
+# gcc-f16-probe job asserts the selection rather than assuming it.
+#
+# 14.3.Rel1 is no longer gated here. The selection rule is one release per
+# major and 14.2.Rel1 has to be in the list because it is what release.yml
+# ships; the container's own 14.3.1 is exercised by helia-core-tester.yml
+# on every pull request anyway.
 #
 # GCC 12 was evaluated and deliberately dropped as the floor. Its
 # arm_mve.h mis-dispatches the FLOAT overloads of polymorphic intrinsic
@@ -60,12 +75,20 @@
 # and every leg is already covered by staticlib-dryrun.yml. Adding it
 # would be more jobs for a strictly narrower cell.
 #
-# This is a BUILD-and-LINK gate only. The functional codegen-tests legs
-# stay on the container's single 14.3.1 toolchain and are deliberately
-# NOT multiplied across toolchains or GCC versions -- running the
-# numerics suite once per toolchain would cost ~8 min of PR latency per
-# added leg to re-test compilers against identical kernel logic. Please
-# do not "helpfully" extend this matrix into helia-core-tester.yml.
+# This is a BUILD-and-LINK gate only. The numerics suite stays on the
+# container's single 14.3.1 toolchain and is deliberately NOT multiplied
+# across toolchains or GCC versions -- running it once per toolchain
+# would cost ~8 min of PR latency per added leg to re-test compilers
+# against identical kernel logic. Please do not "helpfully" extend this
+# matrix into helia-core-tester.yml.
+#
+# One narrow execution leg is the exception:
+# unity-f16-exec-gcc-floor.yml runs the f16 suites on the oldest gated
+# release, because that defect class is introduced by the assembler and
+# so cannot be seen without executing on a second compiler
+# (AmbiqAI/ns-cmsis-nn#427). It reads the matrix below and fails unless
+# its own pin is the oldest release in it, so moving the floor moves the
+# leg.
 #
 # cortex-m0 and the full three-CPU sweep stay in staticlib-dryrun.yml
 # (workflow_dispatch), which also packages and uploads SDK tarballs.
@@ -90,6 +113,13 @@ permissions:
 env:
   # Not a published artefact; the version string only names the .a.
   VERSION: 0.0.0-prgate
+  # Oldest gated release, and the only floor: integer, float32 and float16
+  # all build here. It is also the release whose assembler mis-encodes the
+  # MVE half<->single conversions, which is what gcc-f16-probe measures.
+  # unity-f16-exec-gcc-floor.yml fails unless
+  # ci/toolchains/arm-gnu-floor.json names this same release, and unless it
+  # is the oldest entry in the matrix below.
+  GCC_FLOOR: '13.2.Rel1'
 
 jobs:
   gcc:
@@ -101,10 +131,11 @@ jobs:
       # appears we want to see its exact range, not just the first failure.
       fail-fast: false
       matrix:
-        gcc_release: ['13.2.Rel1', '14.3.Rel1', '15.3.Rel1']
+        gcc_release: ['13.2.Rel1', '14.2.Rel1', '15.3.Rel1']
         target_cpu: [cortex-m55, cortex-m4]
     env:
       TARGET_CPU: ${{ matrix.target_cpu }}
+      GCC_RELEASE: ${{ matrix.gcc_release }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -113,10 +144,12 @@ jobs:
         uses: carlosperate/arm-none-eabi-gcc-action@v1
         with:
           # One pinned release per supported major. 13.2.Rel1 must stay:
-          # it is the supported floor AND the toolchain release.yml ships,
-          # so it is the cell where a defect would actually reach a
-          # customer. Do not raise it to 13.3+ without moving release.yml
-          # in the same change.
+          # it is the floor, so it is the cell where a defect would
+          # actually reach a customer on that range, and it is what
+          # ci/toolchains/arm-gnu-floor.json pins for the execution leg.
+          # 14.2.Rel1 must stay: it is what release.yml ships. Do not raise
+          # either without moving release.yml and
+          # ci/toolchains/arm-gnu-floor.json in the same change.
           release: ${{ matrix.gcc_release }}
 
       - name: Report toolchain version
@@ -124,12 +157,18 @@ jobs:
 
       - name: Build static library
         run: |
+          set -euo pipefail
           # F16 only on cortex-m55, matching release.yml and the
-          # ARMV8_1_M_MVEF Zephyr Kconfig restriction.
+          # ARMV8_1_M_MVEF Zephyr Kconfig restriction. Every gated release
+          # builds it: where the assembler mis-encodes the vector
+          # half<->single conversions the configure probe selects the
+          # scalar-form ones instead, which every assembler encodes
+          # identically (AmbiqAI/ns-cmsis-nn#427).
           f16_flag=()
           if [[ "$TARGET_CPU" == "cortex-m55" ]]; then
             f16_flag=(--enable-f16)
           fi
+          echo "gcc ${GCC_RELEASE} / ${TARGET_CPU}: f16 ${f16_flag[*]:-off}"
           bash scripts/build_staticlib.sh \
             --target-cpu "$TARGET_CPU" \
             --version    "$VERSION" \
@@ -149,6 +188,266 @@ jobs:
             --toolchain  gcc \
             --library    "./output/gcc/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
             --outdir     "./output/gcc/${TARGET_CPU}/smoke"
+
+  gcc-f16-probe:
+    # On the floor's assembler the float16 build only works because the
+    # configure probe measures that assembler and switches the kernels to the
+    # scalar-form conversions. Without this cell, a regression that turned the
+    # probe back into a no-op would show up as a green matrix and a static
+    # library full of UNDEFINED instruction words (AmbiqAI/ns-cmsis-nn#427).
+    #
+    # Four combinations, because what is being asserted is that the ASSEMBLER
+    # decides and the compiler version does not: the floor driver with its own
+    # assembler, the floor driver with a borrowed 2.43 one, a 2.43 driver with
+    # the floor's assembler, and a witness that will not compile at all.
+    name: gcc floor / the assembler decides the conversion form
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TARGET_CPU: cortex-m55
+      # CMake hard-wraps the diagnostic, so the greps below key on tokens it
+      # cannot split rather than on a sentence.
+      SELECTION_MARKER: ARM_NN_GAS_VCVT_F16_BROKEN=1
+      SHIFT_MARKER: ARM_NN_GAS_VQSHRN_BROKEN=1
+      VERIFIED_MARKER: ARM_NN_GAS_F16_VERIFIED=1
+      ISSUE_MARKER: AmbiqAI/ns-cmsis-nn#427
+      # Borrowed for its assembler and its objdump, never shipped and only
+      # once the driver. Pinned by url and sha256 like every other toolchain
+      # this repository downloads.
+      FIXED_GAS_MANIFEST: ci/toolchains/arm-gnu-fixed-gas.json
+      MATRIX: .github/workflows/toolchain-matrix-strict-link.yml
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install GNU Arm Embedded toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: ${{ env.GCC_FLOOR }}
+
+      - name: Assert the floor is the oldest gated release
+        # This cell only proves anything on the oldest release in the matrix:
+        # that is the one whose assembler is old enough to get the encodings
+        # wrong, and the one ci/toolchains/arm-gnu-floor.json pins for the
+        # execution leg. Parsed as YAML rather than matched as text, so a
+        # reflow of the matrix cannot quietly defeat it.
+        run: |
+          set -euo pipefail
+          arm-none-eabi-gcc --version | head -1
+          python3 -m venv "${RUNNER_TEMP}/yaml-venv"
+          "${RUNNER_TEMP}/yaml-venv/bin/pip" install -q --disable-pip-version-check pyyaml==6.0.3
+          "${RUNNER_TEMP}/yaml-venv/bin/python3" - "${MATRIX}" "${GCC_FLOOR}" <<'PY'
+          import re
+          import sys
+
+          import yaml
+
+          path, declared = sys.argv[1], sys.argv[2]
+          matrix = yaml.safe_load(open(path, encoding="utf-8"))
+          releases = matrix["jobs"]["gcc"]["strategy"]["matrix"]["gcc_release"]
+          oldest = min(releases, key=lambda r: [int(n) for n in re.findall(r"\d+", r)])
+          if declared != oldest:
+              sys.exit(
+                  f"env.GCC_FLOOR is {declared}, but the oldest gated release is "
+                  f"{oldest} (matrix: {releases}). This cell would be measuring an "
+                  "assembler that is not the floor."
+              )
+          print(f"floor {declared} is the oldest of {releases}")
+          PY
+
+      - name: Configure with float16 on, and require the scalar form to be selected
+        run: |
+          set -euo pipefail
+          log="${RUNNER_TEMP}/select.log"
+          if ! cmake -S . -B "${RUNNER_TEMP}/build-select" \
+              -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
+              -DNS_CMSIS_NN_TARGET_CPU="${TARGET_CPU}" \
+              -DARM_NN_ENABLE_F16=ON > "${log}" 2>&1; then
+            cat "${log}"
+            echo "::error title=f16 configure failed::${GCC_FLOOR} should configure with float16 on, selecting the scalar-form conversions. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          cat "${log}"
+          # Both mis-encoded families, because the probe measures both in one
+          # assemble and losing either would be a silent narrowing of it.
+          for marker in "${SELECTION_MARKER}" "${SHIFT_MARKER}"; do
+            if ! grep -qF -- "${marker}" "${log}"; then
+              echo "::error title=Probe did not report ${marker}::The configure succeeded but never reported ${marker}, so this assembler is not being measured for that instruction family. See ${ISSUE_MARKER}." >&2
+              exit 1
+            fi
+            # The message is only a message. What decides the build is the
+            # compile definition on the target, so read it off the generated
+            # command line rather than trusting the log.
+            if ! grep -rqF -- "-D${marker}" \
+                   "${RUNNER_TEMP}/build-select"/CMakeFiles/*/flags.make; then
+              echo "::error title=Verdict did not reach the compile line::${marker} was reported but is not in the target's flags.make, so the kernels compile without it. See ${ISSUE_MARKER}." >&2
+              exit 1
+            fi
+          done
+          if grep -qF -- "${VERIFIED_MARKER}" "${log}"; then
+            echo "::error title=Floor assembler reported as correct::The probe stamped ${VERIFIED_MARKER} on an assembler known to mis-encode the conversions. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          echo "configure selects the scalar-form conversions"
+
+      - name: Build float16 on the floor
+        run: |
+          set -euo pipefail
+          bash scripts/build_staticlib.sh \
+            --target-cpu "${TARGET_CPU}" \
+            --version    "${VERSION}" \
+            --toolchain  gcc \
+            --outdir     "./output/floor" \
+            --enable-f32 --enable-f16
+
+      - name: Fetch the toolchain whose assembler encodes these correctly
+        id: fetch_fixed
+        # Deliberately not put on PATH. Only its `as' and its objdump are
+        # borrowed; the driver stays the floor one except in the step that
+        # says otherwise.
+        run: |
+          bash scripts/fetch_toolchain.sh \
+            --manifest "${FIXED_GAS_MANIFEST}" \
+            --platform linux-x86_64 \
+            --outdir "${RUNNER_TEMP}/toolchains"
+
+      - name: Require the floor's float16 objects to carry no vector conversion
+        # Only an objdump from 2.43 or newer renders these words as they were
+        # encoded; the matching-era one mis-renders them the same way its
+        # assembler mis-encoded them, so a stale objdump would show a clean
+        # archive either way.
+        env:
+          FIXED_ROOT: ${{ steps.fetch_fixed.outputs.toolchain_root }}
+        run: |
+          set -euo pipefail
+          bash scripts/ci/scan_f16_conversion_objects.sh \
+            --root "${FIXED_ROOT}" \
+            --archive "${GITHUB_WORKSPACE}/output/floor/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
+            --workdir "${RUNNER_TEMP}/floor-objs" \
+            --expect-qform none
+
+      - name: Build float16 with the floor driver and a 2.43 assembler
+        # docs/guides/toolchains.md tells a project pinned to a GCC 13.x
+        # compiler to keep the driver and point -B at a binutils 2.43
+        # assembler. A recipe that is documented and never executed rots, and
+        # this one is the only path to the vector conversions on that driver,
+        # so build it here rather than asserting it in prose.
+        env:
+          FIXED_ROOT: ${{ steps.fetch_fixed.outputs.toolchain_root }}
+        run: |
+          set -euo pipefail
+          # The directory holding the UNPREFIXED `as', which is what -B looks
+          # for. In an Arm GNU install that is <root>/arm-none-eabi/bin/, with
+          # the trailing slash; the guide quotes the same form.
+          as_dir="${FIXED_ROOT}/arm-none-eabi/bin/"
+          if [[ ! -x "${as_dir}as" ]]; then
+            echo "::error title=No unprefixed assembler::Expected ${as_dir}as in the borrowed tarball; the layout the -B recipe documents has moved. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          echo "driver:      $(arm-none-eabi-gcc --version | head -1)"
+          echo "borrowed as: $("${as_dir}as" --version | head -1)"
+          log="${RUNNER_TEMP}/brecipe.log"
+          # CFLAGS on a fresh build directory, exactly as the guide says: a
+          # bare -DCMAKE_C_FLAGS would replace what the toolchain file sets.
+          CFLAGS="-B${as_dir}" bash scripts/build_staticlib.sh \
+            --target-cpu "${TARGET_CPU}" \
+            --version    "${VERSION}" \
+            --toolchain  gcc \
+            --outdir     "./output/brecipe" \
+            --enable-f32 --enable-f16 2>&1 | tee "${log}"
+          if ! grep -qF 'MVE half<->single conversions encode correctly' "${log}"; then
+            echo "::error title=Borrowed assembler was not accepted::The -B recipe configured without the probe reporting a correct encoding, so this cell no longer proves the documented escape route works. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          bash scripts/ci/scan_f16_conversion_objects.sh \
+            --root "${FIXED_ROOT}" \
+            --archive "${GITHUB_WORKSPACE}/output/brecipe/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
+            --workdir "${RUNNER_TEMP}/brecipe-objs" \
+            --expect-qform present
+
+      - name: Build float16 with a 2.43 driver and the floor's assembler
+        # The case a compiler-version guard gets wrong. Nothing about the
+        # driver here is old, so a check on __GNUC__ would take the vector
+        # form and mis-encode it; the probe has to reach the same verdict as
+        # the first configure above.
+        env:
+          FIXED_ROOT: ${{ steps.fetch_fixed.outputs.toolchain_root }}
+        run: |
+          set -euo pipefail
+          floor_as="$(arm-none-eabi-gcc -print-prog-name=as)"
+          if [[ "${floor_as}" != /* || ! -x "${floor_as}" ]]; then
+            echo "::error title=Cannot locate the floor assembler::arm-none-eabi-gcc -print-prog-name=as gave '${floor_as}'. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          as_dir="$(dirname "${floor_as}")/"
+          echo "driver:      $("${FIXED_ROOT}/bin/arm-none-eabi-gcc" --version | head -1)"
+          echo "borrowed as: $("${as_dir}as" --version | head -1)"
+          log="${RUNNER_TEMP}/olds.log"
+          PATH="${FIXED_ROOT}/bin:${PATH}" CFLAGS="-B${as_dir}" \
+            bash scripts/build_staticlib.sh \
+              --target-cpu "${TARGET_CPU}" \
+              --version    "${VERSION}" \
+              --toolchain  gcc \
+              --outdir     "./output/olds" \
+              --enable-f32 --enable-f16 2>&1 | tee "${log}"
+          if ! grep -qF -- "${SELECTION_MARKER}" "${log}"; then
+            echo "::error title=New driver over an old assembler was not caught::The probe did not report ${SELECTION_MARKER} for a 2.43-era driver paired with the floor's assembler, which is the case a compiler-version guard gets wrong. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          bash scripts/ci/scan_f16_conversion_objects.sh \
+            --root "${FIXED_ROOT}" \
+            --archive "${GITHUB_WORKSPACE}/output/olds/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
+            --workdir "${RUNNER_TEMP}/olds-objs" \
+            --expect-qform none
+
+      - name: Require an uncompilable witness to stop the build, and the skip to be a warning
+        # ARM_NN_SKIP_GAS_F16_PROBE is the documented way out when the probe
+        # cannot compile its witness with a project's flags. It is only worth
+        # documenting if the default really is a refusal and the option really
+        # does downgrade it, so exercise both.
+        #
+        # The bad flag goes on the target through CMSIS_OPTIMIZATION_LEVEL
+        # rather than into CFLAGS: CMake's own compiler check reads CMAKE_C_FLAGS
+        # and would reject the toolchain before the probe ever ran, so the step
+        # would be asserting something else. A flag the probe collects from the
+        # target is also the shape the real complaint takes.
+        run: |
+          set -euo pipefail
+          log="${RUNNER_TEMP}/uncompilable.log"
+          if cmake -S . -B "${RUNNER_TEMP}/build-noas" \
+              -DCMSIS_OPTIMIZATION_LEVEL=-mcpu=nonexistent \
+              -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
+              -DNS_CMSIS_NN_TARGET_CPU="${TARGET_CPU}" \
+              -DARM_NN_ENABLE_F16=ON > "${log}" 2>&1; then
+            cat "${log}"
+            echo "::error title=Uncompilable witness did not fail the configure::The probe could not have compiled its witness here, and configured anyway, so an unmeasured assembler now passes silently. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          grep -F 'could not compile its witness' "${log}" >/dev/null || {
+            cat "${log}"
+            echo "::error title=Configure failed for the wrong reason::The configure failed but not on the probe's witness, so this step is asserting something else. See ${ISSUE_MARKER}." >&2
+            exit 1
+          }
+          log="${RUNNER_TEMP}/skipped.log"
+          cmake -S . -B "${RUNNER_TEMP}/build-skip" \
+            -DCMSIS_OPTIMIZATION_LEVEL=-mcpu=nonexistent \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
+            -DNS_CMSIS_NN_TARGET_CPU="${TARGET_CPU}" \
+            -DARM_NN_ENABLE_F16=ON \
+            -DARM_NN_SKIP_GAS_F16_PROBE=ON > "${log}" 2>&1
+          cat "${log}"
+          grep -F 'CMake Warning' "${log}" >/dev/null || {
+            echo "::error title=Skip was silent::ARM_NN_SKIP_GAS_F16_PROBE=ON configured without a warning, so an unmeasured assembler leaves no trace in the log. See ${ISSUE_MARKER}." >&2
+            exit 1
+          }
+          for marker in "${SELECTION_MARKER}" "${SHIFT_MARKER}" "${VERIFIED_MARKER}"; do
+            if grep -rqF -- "-D${marker}" \
+                 "${RUNNER_TEMP}/build-skip"/CMakeFiles/*/flags.make; then
+              echo "::error title=Skipped probe still stamped a verdict::${marker} reached the compile line from a configure that never measured the assembler. See ${ISSUE_MARKER}." >&2
+              exit 1
+            fi
+          done
+          echo "the skip leaves the assembler unmeasured and says so"
 
   atfe:
     # The `env` context is not available in a job-level `name`, so the

@@ -32,72 +32,53 @@
  * @{
  */
 
-/*
- * The MVE leg is additionally gated on the toolchain: GNU binutils 2.39-2.42
- * (the gas bundled with Arm GNU Toolchain releases up to 13.3.Rel1)
- * mis-assembles the MVE Q-register form of VCVTB/VCVTT.F16<->F32, encoding
- * every Q operand with its D-register alias number (Qn emitted as Q2n): the
- * widen/narrow steps land in the wrong registers, and any doubled operand
- * past q7 overflows the field into an UNDEFINED encoding (this kernel's
- * vcvtb.f16.f32 q3, q4 assembles to 0xee3fce11 with those assemblers, which
- * faults before any output on FVP Corstone-300). Fixed in binutils 2.43.1,
- * bundled from Arm GNU Toolchain 14.2.Rel1. The preprocessor cannot see the
- * assembler version, so this keys on the compiler major each Arm GNU release
- * pairs with it: a GCC < 14 build takes the scalar leg below, which returns
- * the same bits for every input (both legs narrow identical float32
- * products), just without the vector speedup. Clang encodes MVE itself and
- * is unaffected.
- */
-    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE) &&                                           \
-        (defined(__clang__) || !defined(__GNUC__) || __GNUC__ >= 14)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
         #define ARM_NN_HARD_SWISH_F16_MVE 1
     #else
         #define ARM_NN_HARD_SWISH_F16_MVE 0
     #endif
 
     #if ARM_NN_HARD_SWISH_F16_MVE
-// One 8-lane block: widen the even (bottom) and odd (top) half-lanes to
-// float32, compute the gate and product there, and narrow each product
-// exactly once. All lanes are computed unpredicated; the caller decides
-// which results reach memory.
+// One 8-lane block, evaluated entirely in float16: no half<->single
+// conversion, so nothing here rides on the assembler's Q-register VCVTB/VCVTT
+// encoding (see AmbiqAI/ns-cmsis-nn#427). The gate is scaled before the
+// product, not after: 6 * float16(1/6) rounds to exactly 1.0, so the
+// multiplier stays in [0, 1] and |out| <= |in| for every input, whereas
+// (x * relu6(x + 3)) / 6 overflows float16 for large x. All lanes are
+// computed unpredicated; the caller decides which results reach memory.
 static inline float16x8_t arm_hard_swish_block_f16(float16x8_t vx)
 {
-    const float32x4_t vhalf = vdupq_n_f32(0.5f);
-    const float32x4_t vzero = vdupq_n_f32(0.0f);
-    const float32x4_t vone = vdupq_n_f32(1.0f);
-    const float32x4_t vsixth = vdupq_n_f32(1.0f / 6.0f);
+    const float16x8_t vzero = vdupq_n_f16((float16_t)0.0f);
+    const float16x8_t vthree = vdupq_n_f16((float16_t)3.0f);
+    const float16x8_t vsix = vdupq_n_f16((float16_t)6.0f);
+    const float16x8_t vsixth = vdupq_n_f16((float16_t)(1.0f / 6.0f));
 
-    const float32x4_t xb = vcvtbq_f32_f16(vx);
-    const float32x4_t xt = vcvttq_f32_f16(vx);
+    float16x8_t t = vaddq(vx, vthree);
+    t = vmaxnmq(t, vzero);
+    t = vminnmq(t, vsix);
 
-    float32x4_t tb = vfmaq(vhalf, xb, vsixth);
-    tb = vmaxnmq(tb, vzero);
-    tb = vminnmq(tb, vone);
-
-    float32x4_t tt = vfmaq(vhalf, xt, vsixth);
-    tt = vmaxnmq(tt, vzero);
-    tt = vminnmq(tt, vone);
-
-    float16x8_t vy = vcvtbq_f16_f32(vdupq_n_f16((float16_t)0.0f), vmulq(xb, tb));
-    return vcvttq_f16_f32(vy, vmulq(xt, tt));
+    return vmulq(vx, vmulq(t, vsixth));
 }
     #endif
 
 /*
- * float16 hard swish: out[i] = x * relu6(x + 3) / 6, computed in float32 and
- * rounded to float16 once. Each element is widened exactly to float32, the
- * gate and the product are evaluated in float32 with the same operation
- * sequence as arm_hard_swish_f32 (see the leg-agreement and NaN/Inf notes
- * there), and only the final product is narrowed. The single narrowing is
- * the whole point: a native-f16 evaluation rounds the gate and the product
- * separately and lands an ulp off in the curved region for some inputs.
+ * float16 hard swish: out[i] = x * relu6(x + 3) / 6.
  *
- * Both legs share that shape -- the scalar leg widens with a conversion and
- * uses __builtin_fmaf, the MVE leg widens with vcvtbq/vcvttq_f32_f16 and uses
- * vfmaq -- so they narrow identical float32 products and agree bit-exactly
- * on every numeric input (NaN payloads may differ between legs; header).
- * No scalar _Float16 arithmetic or selects are involved, so GCC PR
- * target/118460 (HFmode conditional moves) has nothing to bite on.
+ * The scalar leg widens each element to float32, evaluates the gate and the
+ * product there with the same operation sequence as arm_hard_swish_f32 (see
+ * the leg-agreement and NaN/Inf notes there) and narrows the product once.
+ * The MVE leg evaluates the same expression in float16 throughout. The
+ * widened form is the more accurate of the two -- it is single-rounded, where
+ * the float16 form rounds the gate and the product separately -- but over all
+ * 63488 finite float16 inputs the float16 form stays inside 1e-3 + 1e-3*|ref|
+ * of it, the combined reading the tests apply, with 70.2% of that band the
+ * worst case; and it drops both the half<->single conversions and the
+ * duplicated half-vector arithmetic they force. See AmbiqAI/ns-cmsis-nn#427. The two
+ * legs are therefore no longer bit-identical to each other; the saturated
+ * regions and the NaN/Inf behavior still match (header).
+ *
+ * No scalar _Float16 arithmetic or selects are involved on either leg, so GCC
+ * PR target/118460 (HFmode conditional moves) has nothing to bite on.
  *
  * Refer header file for details.
  *
@@ -112,16 +93,10 @@ arm_cmsis_nn_status arm_hard_swish_f16(const float16_t *input, float16_t *output
     #if ARM_NN_HARD_SWISH_F16_MVE
     // Full 8-lane blocks run unpredicated; at most one predicated block
     // handles the tail, OUTSIDE any loop (the arm_memset_f16 shape). This is
-    // deliberate and load-bearing, not a style choice: a vctp16q loop around
-    // this widening body miscompiles under GCC's implicit-tail-predication
-    // conversion (observed with Arm GNU Toolchain 14.2.Rel1 at -Ofast, which
-    // turned it into dlstp.16/letp). In an architecturally tail-predicated
-    // loop, predication is byte-granular across EVERY vector instruction in
-    // the body regardless of its element size, so on a partial tail the
-    // .f32-width widen/fma/mul/narrow ops here get the upper bytes of their
-    // 32-bit lanes masked and produce garbage for any size not a multiple of
-    // 8 (caught on FVP Corstone-300). With no vctp in a loop there is
-    // nothing for the dlstp conversion to convert.
+    // deliberate and load-bearing, not a style choice: with no vctp in a
+    // loop there is nothing for GCC's implicit tail-predication conversion
+    // (dlstp.16/letp) to convert, and that conversion miscompiled the
+    // earlier widening body of this kernel; see AmbiqAI/ns-cmsis-nn#427.
     int32_t i = 0;
     for (; i <= size - 8; i += 8)
     {

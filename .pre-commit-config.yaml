@@ -58,6 +58,17 @@ repos:
 
   - repo: local
     hooks:
+      # Only two MVE instruction families encode differently across the gas
+      # releases we support, and both do it silently, so the guard has to sit
+      # in the source rather than downstream of the assembler. The exclude is
+      # the inherited Arm trees, none of which reach either family; the
+      # float16 kernels and the flt support headers are ours and are covered.
+      - id: mve-encoding-sensitive-intrinsics
+        name: no MVE intrinsics that old assemblers mis-encode
+        entry: scripts/check_mve_encoding_sensitive_intrinsics.sh
+        language: script
+        files: ^(Source|Include)/.*\.(c|h)$
+
       - id: todo-needs-issue
         name: deferred-work markers reference an issue
         entry: scripts/check_todo_markers.sh

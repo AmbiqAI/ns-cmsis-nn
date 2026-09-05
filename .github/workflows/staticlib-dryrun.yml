@@ -53,7 +53,7 @@ jobs:
         if: ${{ matrix.toolchain == 'gcc' }}
         uses: carlosperate/arm-none-eabi-gcc-action@v1
         with:
-          release: 13.2.Rel1
+          release: 14.2.Rel1
 
       - name: Fetch external toolchain
         if: ${{ matrix.toolchain != 'gcc' }}
@@ -122,7 +122,7 @@ jobs:
         run: |
           if [[ "$TOOLCHAIN" == "gcc" ]]; then
             lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
-            toolchain_version="13.2.Rel1"
+            toolchain_version="14.2.Rel1"
           else
             lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TOOLCHAIN}-${TARGET_CPU}-${VERSION}.a"
             toolchain_version="$TOOLCHAIN_VERSION"

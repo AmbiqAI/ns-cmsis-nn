@@ -1,0 +1,445 @@
+# SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+
+name: Unity f16 exec (oldest gated GCC)
+
+# Execution gate on the oldest Arm GNU release the library is gated on
+# (see AmbiqAI/ns-cmsis-nn#427).
+#
+# toolchain-matrix-strict-link.yml builds and strict-links the whole supported
+# GCC range, but only the CI container's own toolchain ever runs a binary
+# (#340). The half<->single conversions the float16 kernels are built from are
+# encoded by the assembler, after the compiler is done, so a mis-encoded
+# object is still well formed and every symbol still resolves: nothing short
+# of executing catches a wrong register or an UNDEFINED word. The configure
+# probe measures the assembler and picks the form of the conversion that it
+# encodes correctly; this cell is what says the result actually runs, on the
+# release whose assembler needs it.
+#
+# QEMU rather than the FVP because the legacy Unity harness fetches the FVP in
+# its own environment setup and hard-codes one toolchain URL, while QEMU's
+# mps3-an547 boots the same unmodified ELF; the FVP stays the qualification
+# vehicle.
+#
+# The suite list is scoped to the kernels that reach the conversion sites: a
+# wider net would import QEMU's own modeling quirks into a PR gate for no
+# added coverage of this class. That scoping is derived from the tree and
+# checked against SUITES below, so a new kernel reaching a conversion cannot
+# quietly land outside this gate.
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  f16-exec:
+    name: f16 exec / oldest gated GCC / cortex-m55
+    runs-on: ubuntu-latest
+    # The toolchain archive dominates; the build and the runs are the small
+    # part of the budget.
+    timeout-minutes: 15
+    env:
+      TARGET_CPU: cortex-m55
+      # One suite per kernel source that reaches a Q-form vcvt f16<->f32
+      # conversion, directly or through a wrapper or an inline helper:
+      #
+      #   Source/BasicMathFunctions/arm_nn_mean_f16.c
+      #       -> test_arm_nn_mean_f16      (arm_nn_vcvt{b,t}q_f32_f16)
+      #   Source/BasicMathFunctions/arm_reduce_sum_f16.c
+      #       -> test_arm_reduce_sum_f16   (arm_nn_vcvt{b,t}q_f32_f16)
+      #   Source/SoftmaxFunctions/arm_softmax_f16.c
+      #       -> test_arm_softmax_f16      (via arm_nn_vexpq_poly_mve_f16
+      #                                     in arm_nnsupportfunctions_flt.h)
+      #
+      # test_arm_hard_swish_f16 is listed too and is not derived: that
+      # kernel's MVE leg is pure half precision and reaches no conversion at
+      # all. It stays here as a plain float16 execution suite on the oldest
+      # gated compiler, which is worth having on its own.
+      #
+      # The step below re-derives the mapping from the tree and fails if
+      # this list is short of it, so the comment is a reader's aid and the
+      # assertion is the contract. It derives one suite per kernel, so
+      # arm_softmax_f16's second suite is listed here by hand: the shapes
+      # around the 8-lane boundary are worth running on this toolchain too.
+      SUITES: >-
+        test_arm_hard_swish_f16
+        test_arm_nn_mean_f16
+        test_arm_reduce_sum_f16
+        test_arm_softmax_f16
+        test_arm_softmax_f16_shapes
+      TOOLCHAIN_MANIFEST: ci/toolchains/arm-gnu-floor.json
+      HARNESS: Tests/UnitTest/build_and_run_tests.sh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Assert SUITES covers every kernel reaching a conversion
+        # SUITES is hand-written, so on its own it decays into a stale list:
+        # a kernel added later that widens or narrows through a Q-form vcvt
+        # would be built by the rest of CI and executed by nothing. Derive the
+        # set from the tree instead and fail if SUITES is short of it.
+        #
+        # The reach is a fixed point over Include/ and Source/, so a kernel
+        # that only ever calls a helper such as arm_nn_vexpq_poly_mve_f16
+        # counts the same as one naming an intrinsic itself -- whether that
+        # helper is inline in a header or a function in another source file.
+        # Attribution is by enclosing definition; definition heads sit at
+        # column 0 throughout this tree.
+        # See AmbiqAI/ns-cmsis-nn#427.
+        run: |
+          set -euo pipefail
+          python3 - "${SUITES}" <<'PY'
+          import os
+          import re
+          import sys
+
+          DEF = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*(?:[\s*]+[A-Za-z_][A-Za-z0-9_]*)*)\s*\(")
+          NOISE = re.compile(r'"(?:\\.|[^"\\])*"' r"|'(?:\\.|[^'\\])*'" r"|//.*")
+
+
+          def walk(root, ext):
+              for base, _, names in os.walk(root):
+                  for name in sorted(names):
+                      if name.endswith(ext):
+                          yield os.path.join(base, name)
+
+
+          def word(names):
+              return re.compile(r"(?<![A-Za-z0-9_])(?:%s)(?![A-Za-z0-9_])" % "|".join(sorted(names)))
+
+
+          # `path` with comments and literals blanked out. Once function names
+          # enter the reaching set, prose naming one -- a doxygen @ref, a note
+          # about why a kernel differs from another -- would otherwise read as
+          # a call to it and drag half the tree in behind it.
+          def code_lines(path):
+              in_block = False
+              with open(path, encoding="utf-8", errors="replace") as handle:
+                  for line in handle:
+                      out, i = [], 0
+                      while i < len(line):
+                          if in_block:
+                              end = line.find("*/", i)
+                              if end < 0:
+                                  break
+                              in_block, i = False, end + 2
+                              continue
+                          start = line.find("/*", i)
+                          out.append(NOISE.sub(" ", line[i:] if start < 0 else line[i:start]))
+                          if start < 0:
+                              break
+                          in_block, i = True, start + 2
+                      yield "".join(out)
+
+
+          # Functions defined in `path` whose body names one of `names`.
+          def enclosing(path, names):
+              hit, found, current = word(names), set(), None
+              for line in code_lines(path):
+                  head = DEF.match(line)
+                  if head:
+                      # A declaration ends its statement on the same line; a
+                      # definition opens a body and owns the lines that follow.
+                      # Forgetting the previous one is what stops a run of
+                      # prototypes being attributed to whichever came first.
+                      current = (None if line.rstrip().endswith(";")
+                                 else head.group(1).split()[-1].lstrip("*"))
+                  # The head line counts as body too. A one-line wrapper puts
+                  # its whole body there, and half of
+                  # Include/Internal/arm_nn_vcvt_f16.h is written that way --
+                  # skipping it dropped the two widening wrappers, and with
+                  # them arm_nn_mean_f16 and arm_reduce_sum_f16, out of this
+                  # gate. A definition head naming itself only re-adds a name
+                  # already in the set.
+                  if current and hit.search(line):
+                      found.add(current)
+              return found
+
+
+          def mentions(path, names):
+              hit = word(names)
+              return any(hit.search(line) for line in code_lines(path))
+
+
+          # Every spelling arm_mve.h gives the four Q-register MVE half<->single
+          # conversions -- directional, polymorphic short form, predicated _m
+          # and _x, and the __arm_ namespace. These are the only conversion
+          # forms binutils below 2.43 mis-encodes, but a kernel reaching one
+          # under any of these names is reaching the mis-encoding, so seeding
+          # only the directional four would leave it outside this gate. Kept in
+          # step with the cvt pattern in
+          # scripts/check_mve_encoding_sensitive_intrinsics.sh. The arm_nn_
+          # wrappers join the set by the closure below, and the kernels reach
+          # the conversions only through those.
+          base = {"vcvt%sq%s" % (bt, tail)
+                  for bt in ("b", "t")
+                  for tail in ("_f16_f32", "_f32_f16", "_f16", "_f32", "_m",
+                               "_m_f16_f32", "_m_f32_f16",
+                               "_x_f16_f32", "_x_f32_f16")}
+          reaching = base | {"__arm_" + name for name in base}
+          # Source/ as well as Include/: a wrapper defined in one .c and called
+          # from another propagates the reach exactly like an inline helper
+          # does, and closing over headers alone would leave its callers
+          # outside this gate.
+          defining = list(walk("Include", ".h")) + list(walk("Source", ".c"))
+          while True:
+              grown = set(reaching)
+              for path in defining:
+                  grown |= enclosing(path, reaching)
+              if grown == reaching:
+                  break
+              reaching = grown
+
+          kernels = sorted(os.path.basename(c)[:-2] for c in walk("Source", ".c")
+                           if mentions(c, reaching))
+          declared = set(sys.argv[1].split())
+          print("conversion-reaching names: " + " ".join(sorted(reaching)))
+          print("kernels reaching a conversion: " + " ".join(kernels))
+          print("suites declared by SUITES: " + " ".join(sorted(declared)))
+
+          if not kernels:
+              sys.exit("no kernel source uses a Q-form vcvt f16<->f32 intrinsic; "
+                       "either the intrinsic names moved or this check is now "
+                       "asserting nothing")
+
+          missing = [k for k in kernels if "test_" + k not in declared]
+          for kernel in missing:
+              suite = "test_" + kernel
+              why = ("has no suite directory at all"
+                     if not os.path.isdir(os.path.join("Tests/UnitTest/TestCases", suite))
+                     else "has a suite that SUITES omits")
+              print("::error title=f16 execution coverage gap::%s uses a Q-form vcvt "
+                    "f16<->f32 intrinsic and %s (%s). Add it to SUITES in this workflow, "
+                    "or write the suite first. See AmbiqAI/ns-cmsis-nn#427." % (kernel, why, suite),
+                    file=sys.stderr)
+          if missing:
+              sys.exit(1)
+          print("every conversion-reaching kernel has a suite in SUITES")
+          PY
+
+      - name: Install QEMU
+        # The apt version moves with the runner image. Assert a floor rather
+        # than pin: mps3-an547 and the cortex-m55 model both arrived in the
+        # release named below, and an older QEMU would fail to start in a way
+        # that reads like a test failure.
+        env:
+          QEMU_MIN: '6.0.0'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-arm
+          banner="$(qemu-system-arm --version | head -1)"
+          echo "${banner}"
+          got="$(sed -n 's/.*version \([0-9][0-9.]*\).*/\1/p' <<<"${banner}")"
+          if [[ -z "${got}" ]]; then
+            echo "::error title=Cannot read the QEMU version::Unparsable banner: ${banner}" >&2
+            exit 1
+          fi
+          if [[ "$(printf '%s\n%s\n' "${QEMU_MIN}" "${got}" | sort -V | head -1)" != "${QEMU_MIN}" ]]; then
+            echo "::error title=QEMU is too old::mps3-an547 with cortex-m55 needs QEMU ${QEMU_MIN} or newer; this runner has ${got}." >&2
+            exit 1
+          fi
+
+      - name: Fetch the pinned Arm GNU toolchain
+        id: fetch_toolchain
+        run: |
+          bash scripts/fetch_toolchain.sh \
+            --manifest "${TOOLCHAIN_MANIFEST}" \
+            --platform linux-x86_64 \
+            --outdir "${RUNNER_TEMP}/toolchains"
+
+      - name: Assert the pin is the oldest gated GCC, and is what ran
+        # Three claims. First, that the strict-link matrix and its declared
+        # GCC_FLOOR still agree on which release is the oldest. Second, that
+        # this cell is pointed at that same release: move the floor without
+        # moving the manifest here and the oldest compiler the library
+        # supports goes back to being built but never executed, silently.
+        # Third, that the archive the manifest names really is that release
+        # -- a pinned URL and sha256 fix the bytes, not what the bytes claim
+        # to be.
+        env:
+          GOT: ${{ steps.fetch_toolchain.outputs.toolchain_version }}
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+          MATRIX: .github/workflows/toolchain-matrix-strict-link.yml
+        run: |
+          set -euo pipefail
+          # Parsed as YAML, not matched as text: a reflow of that matrix line
+          # into a block sequence would defeat a pattern and fail this cell
+          # with a message about the wrong thing.
+          python3 -m venv "${RUNNER_TEMP}/yaml-venv"
+          "${RUNNER_TEMP}/yaml-venv/bin/pip" install -q --disable-pip-version-check pyyaml==6.0.3
+          floor="$("${RUNNER_TEMP}/yaml-venv/bin/python3" - "${MATRIX}" <<'PY'
+          import re
+          import sys
+          import yaml
+
+          matrix = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+          try:
+              floor = matrix["env"]["GCC_FLOOR"]
+              releases = matrix["jobs"]["gcc"]["strategy"]["matrix"]["gcc_release"]
+          except (KeyError, TypeError):
+              sys.exit(f"no env.GCC_FLOOR or jobs.gcc.strategy.matrix.gcc_release in {sys.argv[1]}")
+          if not isinstance(floor, str) or not floor:
+              sys.exit(f"env.GCC_FLOOR in {sys.argv[1]} is not a version string")
+          if not isinstance(releases, list) or not all(isinstance(r, str) for r in releases):
+              sys.exit(f"jobs.gcc.strategy.matrix.gcc_release in {sys.argv[1]} is not a list of strings")
+          # Oldest by version order rather than by position: the matrix is a
+          # hand-written list and nothing keeps it sorted.
+          oldest = min(releases, key=lambda r: [int(n) for n in re.findall(r"\d+", r)])
+          if floor != oldest:
+              sys.exit(f"env.GCC_FLOOR {floor} is not the oldest gated release {oldest} (matrix: {releases})")
+          print(floor)
+          PY
+          )"
+          if [[ -z "${floor}" ]]; then
+            echo "::error title=Cannot read the toolchain floor::No usable env.GCC_FLOOR in ${MATRIX}." >&2
+            exit 1
+          fi
+          if [[ "${GOT}" != "${floor}" ]]; then
+            echo "::error title=Execution cell is not on the oldest gated GCC::${TOOLCHAIN_MANIFEST} pins ${GOT}, but ${MATRIX} declares the floor as ${floor}. Move them together." >&2
+            exit 1
+          fi
+          banner="$("${TOOLCHAIN_ROOT}/bin/arm-none-eabi-gcc" --version | head -1)"
+          echo "${banner}"
+          # Arm's own spelling of a release differs in case between the
+          # download name and the compiler banner, so match without it.
+          if ! grep -qiF -- "${GOT}" <<<"${banner}"; then
+            echo "::error title=Toolchain banner mismatch::Expected ${GOT}, got: ${banner}" >&2
+            exit 1
+          fi
+          echo "${TOOLCHAIN_ROOT}/bin" >> "$GITHUB_PATH"
+
+      - name: Clone the pinned harness dependencies
+        # Read from the harness rather than repeated here, the same way
+        # unity-m55-compile.yml reads them: build_and_run_tests.sh is the one
+        # place these pins live (AmbiqAI/ns-cmsis-nn#402). Its own
+        # Setup_Environment is not reused because it also fetches the
+        # Corstone-300 FVP, which this cell has no use for.
+        run: |
+          set -euo pipefail
+          read_pin() {
+            local name="$1" value
+            value="$(sed -n "s/^${name}=\"\([0-9a-f]\{40\}\)\"$/\1/p" "${HARNESS}")"
+            if [[ "$(wc -l <<<"${value}")" -ne 1 || -z "${value}" ]]; then
+              echo "::error title=Cannot read ${name}::Expected exactly one ${name}=\"<40 hex>\" line in ${HARNESS}." >&2
+              exit 1
+            fi
+            echo "${value}"
+          }
+          clone_at() {
+            local dir="$1" url="$2" commit="$3"
+            git -c init.defaultBranch=main init --quiet "${dir}"
+            git -C "${dir}" remote add origin "${url}"
+            git -C "${dir}" fetch --quiet --depth 1 origin "${commit}"
+            git -C "${dir}" checkout --quiet FETCH_HEAD
+            echo "${dir} at $(git -C "${dir}" rev-parse HEAD)"
+          }
+          clone_at "${RUNNER_TEMP}/CMSIS_5" \
+            "https://github.com/ARM-software/CMSIS_5.git" "$(read_pin CMSIS_5_COMMIT)"
+          clone_at "${RUNNER_TEMP}/ethos-u-core-platform" \
+            "https://gitlab.arm.com/artificial-intelligence/ethos-u/ethos-u-core-platform" \
+            "$(read_pin ETHOS_U_CORE_PLATFORM_COMMIT)"
+
+      - name: Install the harness's generator dependencies
+        id: harness_python
+        # Tests/UnitTest's configure runs unittest_targets.py, which fetches
+        # Unity and generates the Unity test runners, so its imports have to
+        # be present before cmake (AmbiqAI/ns-cmsis-nn#427). Only the two the
+        # generator needs, read from the harness's own requirements.txt so a
+        # pin added there applies here; the rest of that file serves the mbed
+        # run path this cell never takes. Not cached: two pure-python wheels
+        # restore no faster than they install.
+        run: |
+          set -euo pipefail
+          req=Tests/UnitTest/requirements.txt
+          specs="$(grep -E '^(pyserial|termcolor)([[:space:]<>=!]|$)' "${req}" | tr -d '[:blank:]')"
+          if [[ "$(wc -l <<<"${specs}")" -ne 2 ]]; then
+            echo "::error title=Cannot read the generator requirements::Expected one pyserial and one termcolor line in ${req}, got: ${specs}" >&2
+            exit 1
+          fi
+          python3 -m venv "${RUNNER_TEMP}/harness-venv"
+          # shellcheck disable=SC2086  # specs is a deliberate word list.
+          "${RUNNER_TEMP}/harness-venv/bin/pip" install --disable-pip-version-check -q ${specs}
+          echo "python=${RUNNER_TEMP}/harness-venv/bin/python3" >> "$GITHUB_OUTPUT"
+          # The runner generator shells out to ruby; the image ships it.
+          ruby --version
+
+      - name: Build the f16 conversion suites
+        # -Ofast and the F32/F16 pair are legacy-tester.yml's cortex-m55 leg.
+        # Tests/UnitTest puts -fno-finite-math-only on everything it configures
+        # below the library, which the release build does not.
+        env:
+          HARNESS_PYTHON: ${{ steps.harness_python.outputs.python }}
+        run: |
+          set -euo pipefail
+          # Named rather than found: CMake's own search can prefer an
+          # interpreter that is not the one the step above installed into.
+          cmake -S Tests/UnitTest -B "${RUNNER_TEMP}/build" \
+            -DPython3_EXECUTABLE="${HARNESS_PYTHON}" \
+            -DCMAKE_TOOLCHAIN_FILE="${RUNNER_TEMP}/ethos-u-core-platform/cmake/toolchain/arm-none-eabi-gcc.cmake" \
+            -DTARGET_CPU="${TARGET_CPU}" \
+            -DCMSIS_PATH="${RUNNER_TEMP}/CMSIS_5" \
+            -DCMSIS_OPTIMIZATION_LEVEL=-Ofast \
+            -DARM_NN_ENABLE_F32=ON \
+            -DARM_NN_ENABLE_F16=ON
+          # shellcheck disable=SC2086  # SUITES is a deliberate word list.
+          cmake --build "${RUNNER_TEMP}/build" --target ${SUITES}
+
+      - name: Run the f16 conversion suites under QEMU
+        run: |
+          set -euo pipefail
+          log_dir="${RUNNER_TEMP}/qemu-logs"
+          mkdir -p "${log_dir}"
+          suite_timeout_s=120
+          rc=0
+          for suite in ${SUITES}; do
+            elf="${RUNNER_TEMP}/build/TestCases/${suite}/${suite}.elf"
+            uart="${log_dir}/${suite}.uart.log"
+            diag="${log_dir}/${suite}.qemu-stderr.log"
+            echo "::group::${suite}"
+            : > "${uart}"
+            # The image ends by writing the FVP's end-of-simulation byte and
+            # then spinning forever, and QEMU has no shutdown_on_eot, so wait
+            # for Unity's own verdict line and stop the model. -d int is what
+            # names a fault: an UNDEFINED encoding takes an exception rather
+            # than failing an assertion, and the image prints nothing then.
+            qemu-system-arm -M mps3-an547 -cpu "${TARGET_CPU}" -nographic \
+              -monitor none -serial stdio -d int \
+              -kernel "${elf}" > "${uart}" 2> "${diag}" &
+            qemu_pid=$!
+            waited=0
+            while (( waited < suite_timeout_s )); do
+              grep -qE '^(OK|FAIL)' "${uart}" && break
+              kill -0 "${qemu_pid}" 2>/dev/null || break
+              sleep 1
+              waited=$(( waited + 1 ))
+            done
+            kill "${qemu_pid}" 2>/dev/null || true
+            wait "${qemu_pid}" 2>/dev/null || true
+            tr -d '\r' < "${uart}"
+            # Unity prints OK and " 0 Failures " for an empty run too, so
+            # take the verdict only alongside a test count above zero: a suite
+            # whose cases stopped being generated would otherwise pass here.
+            # NULs as well as CRs: the UART log carries both, and command
+            # substitution drops a NUL with a warning on stderr.
+            clean="$(tr -d '\r\000' < "${uart}")"
+            ran="$(sed -n 's/^\([0-9][0-9]*\) Tests .*/\1/p' <<<"${clean}" | tail -1)"
+            if grep -qE '^OK' <<<"${clean}" && grep -q ' 0 Failures ' <<<"${clean}" \
+              && [[ -n "${ran}" && "${ran}" -gt 0 ]]; then
+              echo "${suite}: pass (${ran} tests)"
+            else
+              rc=1
+              echo "::error title=f16 execution failed::${suite} did not report a clean Unity pass of at least one test on the oldest gated GCC (tests reported: ${ran:-none}). See AmbiqAI/ns-cmsis-nn#427."
+              grep -E 'Taking exception' "${diag}" | sort -u \
+                || echo "(no exception taken)"
+              # Unconditionally, because a model that never started prints
+              # nothing on the UART and takes no exception either.
+              echo "--- qemu stderr, last 40 lines ---"
+              tail -n 40 "${diag}"
+            fi
+            echo "::endgroup::"
+          done
+          exit "${rc}"

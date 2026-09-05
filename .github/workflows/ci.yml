@@ -79,6 +79,15 @@ jobs:
   unity-m55-compile:
     uses: ./.github/workflows/unity-m55-compile.yml
 
+  # The strict-link matrix above proves the whole supported GCC range compiles
+  # and links, but only the container's own toolchain ever executes anything
+  # (#340) -- so a defect the assembler introduces after the compiler is done
+  # links cleanly and reaches a customer. This leg runs the f16 suites whose
+  # kernels convert between half and single precision on the float16 toolchain
+  # floor, under QEMU (AmbiqAI/ns-cmsis-nn#427).
+  unity-f16-exec-gcc-floor:
+    uses: ./.github/workflows/unity-f16-exec-gcc-floor.yml
+
   clang-format:
     uses: ./.github/workflows/clang-format.yml
 
@@ -128,6 +137,7 @@ jobs:
       - toolchain-strict-link
       - host-sanitizer
       - unity-m55-compile
+      - unity-f16-exec-gcc-floor
       - clang-format
       - pre-commit
       - license-headers

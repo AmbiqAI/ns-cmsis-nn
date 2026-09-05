@@ -1560,7 +1560,7 @@ int32_t arm_convolve_1_x_n_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *c
  *       so a NaN that reaches the clamp comes back as NaN at every optimization level on the gated
  *       toolchains rather than as a
  *       bound. A NaN rarely reaches it, though: the scalar max reduction uses an ordered compare that drops
- *       a NaN window element (and its NaN behaviour at the shipped -Ofast is unspecified), and the MVE
+ *       a NaN window element (and its NaN behavior at the shipped -Ofast is unspecified), and the MVE
  *       path's vmaxnmq reduction and vmaxnmq/vminnmq clamp suppress NaN, so this kernel does not promise
  *       NaN propagation end to end.
  */
@@ -1610,9 +1610,9 @@ arm_cmsis_nn_status arm_avg_pool_f16(const cmsis_nn_context *ctx,
  * @note Both legs of the HARDSWISH mux evaluate natively in float16 -- the scalar helper
  *       (arm_nn_hardswish_scalar_f16) with a separately rounded multiply-and-add gate, the MVE helper
  *       (arm_nn_vhardswish_mve_f16) with a float16 vfmaq -- so either can differ by an ulp from the
- *       standalone @ref arm_hard_swish_f16, which computes in float32 with an fma gate and rounds to
- *       float16 once. Callers that need the once-rounded, leg-agreeing hard swish -- or the documented
- *       NaN/Inf contract -- should call @ref arm_hard_swish_f16 directly.
+ *       scalar leg of the standalone @ref arm_hard_swish_f16, which computes in float32 with an fma
+ *       gate and rounds to float16 once. Callers that need the documented NaN/Inf contract should call
+ *       @ref arm_hard_swish_f16 directly.
  */
 arm_cmsis_nn_status arm_nn_activation_f16(const float16_t *input,
                                           float16_t *output,
@@ -1633,15 +1633,16 @@ arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
 /**
  * @brief Hard swish activation for float16 data.
  *
- * Computes output[i] = input[i] * min(max(input[i] + 3, 0), 6) / 6 elementwise, in float32 with a
- * single rounding to float16: each element is widened exactly, the gate and the product are
- * evaluated in float32 exactly as in @ref arm_hard_swish_f32, and only the final product is
- * narrowed. A native-f16 evaluation would round the gate and the product separately and land an
- * ulp off in the curved region for some inputs. The saturated regions are exact (x >= 3 returns x
- * bit-exactly, x <= -3 returns zero), and the scalar and MVE (cortex-m55) legs agree bit-exactly
- * on every numeric input; NaN lanes agree in NaN-ness but not necessarily in payload (the MVE
- * convert path can canonicalize a payload the scalar path preserves). In-place operation
- * (output == input) is supported on both legs.
+ * Computes output[i] = input[i] * min(max(input[i] + 3, 0), 6) / 6 elementwise. The scalar leg
+ * widens each element to float32, evaluates the gate and the product there exactly as in @ref
+ * arm_hard_swish_f32, and narrows only the final product, so it is single-rounded. The MVE
+ * (cortex-m55) leg evaluates the same expression in float16 throughout, scaling the gate by 1/6
+ * before the product so that the multiplier stays in [0, 1]; it rounds the gate and the product
+ * separately and so can sit up to 2 float16 ulp away from the scalar leg in the curved region
+ * -3 < x < 3. The saturated regions are exact and identical on both legs (x >= 3 returns x
+ * bit-exactly, x <= -3 returns zero), as is the NaN/Inf behavior below; NaN lanes agree in
+ * NaN-ness but not necessarily in payload. In-place operation (output == input) is supported on
+ * both legs.
  *
  * @param[in]  input   Pointer to the input samples.
  * @param[out] output  Pointer to the output samples.
@@ -1651,15 +1652,20 @@ arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
  *
  * @note NaN and Inf behave as in @ref arm_hard_swish_f32, at every optimization level on the gated
  *       toolchains (see docs/guides/verification.md): NaN propagates through the final multiply
- *       (NaN-ness only, not a particular payload -- narrowing retags it), +Inf returns +Inf, and
- *       -Inf returns NaN because the gate is 0 there and (-Inf) * 0 is NaN by IEEE 754, matching
- *       TFLite's float hard-swish reference rather than the mathematical limit 0.
+ *       (NaN-ness only, not a particular payload), +Inf returns +Inf, and -Inf returns NaN because
+ *       the gate is 0 there and (-Inf) * 0 is NaN by IEEE 754, matching TFLite's float hard-swish
+ *       reference rather than the mathematical limit 0.
  *
- * @note On GNU toolchains the MVE leg is compiled only with GCC 14 or newer: the assembler bundled
- *       with older Arm GNU releases (binutils 2.39-2.42, through 13.3.Rel1) mis-encodes the MVE
- *       Q-register form of the VCVTB/VCVTT widen/narrow this leg is built from (fixed in binutils
- *       2.43.1, bundled from 14.2.Rel1). Older GNU toolchains compile the scalar leg instead;
- *       results are bit-identical for every input, only throughput differs.
+ * @note Nothing in this kernel converts between half and single precision any more, and the float16
+ *       kernels that still do are not tied to a particular assembler: they go through
+ *       Include/Internal/arm_nn_vcvt_f16.h, which emits the scalar form of VCVTB/VCVTT wherever the
+ *       vector form would be mis-encoded (binutils below 2.43). Under CMake the probe measures the
+ *       assembler in use and selects the form; a build that never runs it -- the CMSIS-Pack `Source`
+ *       Cvariant, `module.mk`, or a CMake project that wires its architecture flags where the probe
+ *       cannot read them -- falls back to the compiler major, which is right for every Arm GNU
+ *       release and wrong only for a GCC 14 or newer driver paired by hand with an older binutils.
+ *       Check `as --version` if you assembled that pair yourself.
+ *       See docs/guides/toolchains.md.
  */
 arm_cmsis_nn_status arm_hard_swish_f16(const float16_t *input, float16_t *output, int32_t size);
 
