@@ -19,6 +19,7 @@
 #include <stdlib.h>
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <unity.h>
 
 #include "../TestData/basic_2_int4/test_data.h"
@@ -1543,6 +1544,161 @@ void buffer_size_even_arm_convolve_s4(void)
     const cmsis_nn_dims negative_filter_dims = {8, 1, 1, -1};
     TEST_ASSERT_EQUAL(-1, arm_convolve_even_s4_get_buffer_size(&negative_input_dims, &negative_filter_dims));
 }
+
+/* One generated s4 fixture reduced to the arguments arm_convolve_even_s4 and arm_convolve_wrapper_s4 both take,
+ * so the same vectors can be driven through the kernel directly and through the wrapper. */
+typedef struct
+{
+    const int8_t *input;
+    const int8_t *weights;
+    const int32_t *biases;
+    const int8_t *output_ref;
+    const int32_t *output_mult;
+    const int32_t *output_shift;
+    cmsis_nn_dims input_dims;
+    cmsis_nn_dims filter_dims;
+    cmsis_nn_dims output_dims;
+    cmsis_nn_conv_params conv_params;
+    int32_t output_size;
+} conv_s4_fixture;
+
+#define CONV_S4_FIXTURE(name, NAME)                                                                                    \
+    {                                                                                                                  \
+        .input = name##_input, .weights = name##_weights, .biases = name##_biases,                                     \
+        .output_ref = name##_output_ref, .output_mult = name##_output_mult, .output_shift = name##_output_shift,       \
+        .input_dims = {NAME##_INPUT_BATCHES, NAME##_INPUT_H, NAME##_INPUT_W, NAME##_IN_CH},                            \
+        .filter_dims = {NAME##_OUT_CH, NAME##_FILTER_Y, NAME##_FILTER_X, NAME##_IN_CH},                                \
+        .output_dims = {NAME##_INPUT_BATCHES, NAME##_OUTPUT_H, NAME##_OUTPUT_W, NAME##_OUT_CH},                        \
+        .conv_params = {.input_offset = NAME##_INPUT_OFFSET,                                                           \
+                        .output_offset = NAME##_OUTPUT_OFFSET,                                                         \
+                        .stride = {NAME##_STRIDE_X, NAME##_STRIDE_Y},                                                  \
+                        .padding = {NAME##_PAD_X, NAME##_PAD_Y},                                                       \
+                        .dilation = {NAME##_DILATION_X, NAME##_DILATION_Y},                                            \
+                        .activation = {NAME##_OUT_ACTIVATION_MIN, NAME##_OUT_ACTIVATION_MAX}},                         \
+        .output_size = NAME##_DST_SIZE                                                                                 \
+    }
+
+/* Runs one fixture through arm_convolve_even_s4 and then, on the same vectors, through arm_convolve_wrapper_s4.
+ * expected_even is what the kernel must answer for the fixture's rhs_cols parity. see AmbiqAI/ns-cmsis-nn#378 */
+static void run_even_s4_fixture(const conv_s4_fixture *fixture, const arm_cmsis_nn_status expected_even)
+{
+    cmsis_nn_context ctx;
+    cmsis_nn_dims bias_dims = {0, 0, 0, fixture->output_dims.c};
+    cmsis_nn_per_channel_quant_params quant_params = {(int32_t *)fixture->output_mult,
+                                                      (int32_t *)fixture->output_shift};
+
+    int8_t *output = malloc(fixture->output_size);
+    TEST_ASSERT_NOT_NULL(output);
+    memset(output, 0, fixture->output_size);
+
+    int32_t buf_size = arm_convolve_even_s4_get_buffer_size(&fixture->input_dims, &fixture->filter_dims);
+    ctx.buf = malloc(buf_size);
+    ctx.size = 0;
+
+    arm_cmsis_nn_status result = arm_convolve_even_s4(&ctx,
+                                                      &fixture->conv_params,
+                                                      &quant_params,
+                                                      &fixture->input_dims,
+                                                      fixture->input,
+                                                      &fixture->filter_dims,
+                                                      fixture->weights,
+                                                      &bias_dims,
+                                                      fixture->biases,
+                                                      &fixture->output_dims,
+                                                      output);
+    if (ctx.buf)
+    {
+        memset(ctx.buf, 0, buf_size);
+        free(ctx.buf);
+    }
+
+#if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(expected_even, result);
+    if (expected_even == ARM_CMSIS_NN_SUCCESS)
+    {
+        TEST_ASSERT_TRUE(validate(output, fixture->output_ref, fixture->output_size));
+    }
+#else
+    /* Off MVE the kernel is a stub, so the wrapper half below is what carries this fixture on m0/m4 and the host. */
+    (void)expected_even;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, result);
+#endif
+
+    memset(output, 0, fixture->output_size);
+    buf_size = arm_convolve_wrapper_s4_get_buffer_size(&fixture->conv_params,
+                                                       &fixture->input_dims,
+                                                       &fixture->filter_dims,
+                                                       &fixture->output_dims);
+    ctx.buf = malloc(buf_size);
+    ctx.size = 0;
+
+    result = arm_convolve_wrapper_s4(&ctx,
+                                     &fixture->conv_params,
+                                     &quant_params,
+                                     &fixture->input_dims,
+                                     fixture->input,
+                                     &fixture->filter_dims,
+                                     fixture->weights,
+                                     &bias_dims,
+                                     fixture->biases,
+                                     &fixture->output_dims,
+                                     output);
+    if (ctx.buf)
+    {
+        memset(ctx.buf, 0, buf_size);
+        free(ctx.buf);
+    }
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+    TEST_ASSERT_TRUE(validate(output, fixture->output_ref, fixture->output_size));
+
+    free(output);
+}
+
+// Issue #378: arm_convolve_even_s4 is public and MVE-only, and no test called it directly -- it was reached only as a
+// side effect of arm_convolve_wrapper_s4 picking its branch, so nothing pinned the public entry point or the branch
+// predicate that leads to it. These fixtures assert the wrapper's own guards (not 1x1, not 1xN, even rhs_cols) with
+// the same helpers the wrapper uses, then require the kernel and the wrapper to reproduce the generated reference
+// tensor element for element. see AmbiqAI/ns-cmsis-nn#378
+void even_arm_convolve_s4(void)
+{
+    static const conv_s4_fixture fixtures[] = {
+        CONV_S4_FIXTURE(basic_int4, BASIC_INT4),   // rhs_cols = 4 * 2 * 1 = 8, no padding
+        CONV_S4_FIXTURE(conv_2_int4, CONV_2_INT4), // rhs_cols = 3 * 3 * 2 = 18, padded, clamped activation
+        // rhs_cols = 3 * 3 * 128 = 1152, stride 4. The kernel's blk_cnt is rhs_cols >> 5, so this is the only
+        // fixture here that runs the 32-byte vld2q/vstrbq interleave at all; the two above skip it entirely.
+        CONV_S4_FIXTURE(conv_5_int4, CONV_5_INT4),
+    };
+
+    for (size_t i = 0; i < sizeof(fixtures) / sizeof(fixtures[0]); i++)
+    {
+        const conv_s4_fixture *fixture = &fixtures[i];
+        const int32_t rhs_cols = fixture->filter_dims.h * fixture->filter_dims.w * fixture->input_dims.c;
+
+        /* The three conditions arm_convolve_wrapper_s4 tests, in its order, to reach arm_convolve_even_s4. */
+        TEST_ASSERT_FALSE(arm_nn_is_convolve_1x1(&fixture->conv_params, &fixture->input_dims, &fixture->filter_dims));
+        TEST_ASSERT_FALSE(arm_nn_is_convolve_1_x_n(&fixture->conv_params, &fixture->input_dims, &fixture->filter_dims));
+        TEST_ASSERT_EQUAL(0, rhs_cols & 0x1);
+
+        run_even_s4_fixture(fixture, ARM_CMSIS_NN_SUCCESS);
+    }
+}
+
+// Issue #378 companion: the odd side of the same predicate. arm_convolve_even_s4 must refuse an odd rhs_cols rather
+// than read past the interleaved im2col rows, and arm_convolve_wrapper_s4 must still answer correctly for that shape
+// by declining its even branch, so the branch boundary itself is covered and not just the kernel.
+void even_odd_shape_arm_convolve_s4(void)
+{
+    static const conv_s4_fixture fixture = CONV_S4_FIXTURE(basic_2_int4, BASIC_2_INT4);
+    const int32_t rhs_cols = fixture.filter_dims.h * fixture.filter_dims.w * fixture.input_dims.c;
+
+    TEST_ASSERT_FALSE(arm_nn_is_convolve_1x1(&fixture.conv_params, &fixture.input_dims, &fixture.filter_dims));
+    TEST_ASSERT_FALSE(arm_nn_is_convolve_1_x_n(&fixture.conv_params, &fixture.input_dims, &fixture.filter_dims));
+    TEST_ASSERT_EQUAL(1, rhs_cols & 0x1); // 5 * 5 * 5 = 125
+
+    run_even_s4_fixture(&fixture, ARM_CMSIS_NN_ARG_ERROR);
+}
+
 
 void conv_1_x_n_1_arm_convolve_s4(void)
 {
