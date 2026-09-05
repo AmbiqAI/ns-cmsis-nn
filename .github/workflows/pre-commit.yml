@@ -37,7 +37,9 @@ jobs:
       # is skipped because it only inspects files added to the index: over a
       # checkout it sees nothing, and an unskipped no-op reports as a pass.
       # What is left does gate the whole tree: YAML/JSON/TOML parse,
-      # merge-conflict markers, and deferred-work markers.
+      # merge-conflict markers, deferred-work markers, and the MVE intrinsics
+      # that old assemblers mis-encode. Nothing added to SKIP may be a
+      # correctness gate; that last one is (AmbiqAI/ns-cmsis-nn#427).
       # See AmbiqAI/ns-cmsis-nn#421.
       - name: Run the checking hooks over the whole tree
         env:
