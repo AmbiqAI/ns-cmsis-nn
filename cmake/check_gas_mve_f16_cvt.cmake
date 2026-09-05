@@ -1,11 +1,12 @@
 # SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
 # SPDX-License-Identifier: Apache-2.0
 #
-# Refuse to build the float16 kernels with an assembler that mis-encodes the
-# Q-register form of VCVTB/VCVTT.F16<->F32: it writes Qn into the field as
-# Q2n, so the widen/narrow steps land in the wrong registers and the higher Q
-# numbers overflow into an UNDEFINED word that faults at run time. Nothing in
-# the preprocessor can see the assembler, so this asks it directly.
+# Tell the float16 kernels which form of the half<->single conversion their
+# assembler can encode. gas before binutils 2.43 mis-encodes the Q-register
+# form of VCVTB/VCVTT.F16<->F32: it writes Qn into the field as Q2n, so the
+# widen/narrow steps land in the wrong registers and the higher Q numbers
+# overflow into an UNDEFINED word that faults at run time. Nothing in the
+# preprocessor can see the assembler, so this asks it directly.
 # See AmbiqAI/ns-cmsis-nn#427.
 #
 # Exposes one entry point:
@@ -19,12 +20,15 @@
 #       float16 sources are selected, so every consumer of
 #       cmake/ns_cmsis_nn.cmake is covered and not just the standalone build.
 #
-# On a good assembler the probe defines ARM_NN_GAS_F16_VERIFIED=1 on <target>.
-# Include/arm_nnsupportfunctions_flt.h refuses a GCC 13 or older float16 MVE
-# build without that definition, so the shapes this probe cannot see -- flags
-# wired after the directory finishes, flags carried only inside a generator
-# expression, and consumers that never run CMake at all -- fail closed at
-# compile time instead of silently building the mis-encoded conversions.
+# The verdict is a compile definition on <target>, read by
+# Include/Internal/arm_nn_vcvt_f16.h: ARM_NN_GAS_F16_VERIFIED=1 on a correct
+# assembler, ARM_NN_GAS_VCVT_F16_BROKEN=1 on a mis-encoding one, which selects
+# the scalar-form conversions instead. Neither is a refusal -- both build. The
+# shapes this probe cannot see -- flags wired after the directory finishes,
+# flags carried only inside a generator expression, and consumers that never
+# run CMake at all -- get neither definition and fall back to the header's
+# compiler-version guard, which is conservative for GCC 13 and blind to a
+# GCC 14 driver over an older binutils.
 #
 # try_compile() was the obvious mechanism and does not work here. Its
 # LINK_LIBRARIES only carries imported targets into the generated project;
@@ -36,7 +40,7 @@
 # usage requirements instead.
 
 option(ARM_NN_SKIP_GAS_F16_PROBE
-       "Downgrade the MVE half<->single assembler check to a warning and lift the matching compile-time guard."
+       "Downgrade an unassemblable MVE half<->single witness from an error to a warning, leaving the assembler unmeasured."
        OFF)
 
 # Drop the generator expressions from an option list. They have no value at
@@ -202,14 +206,14 @@ function(_ns_cmsis_nn_gas_f16_flags target out_var out_skipped)
   endif()
 endfunction()
 
-# Assert to the header check that this target's assembler was measured. An
-# INTERFACE library has no private scope to put it in.
-function(_ns_cmsis_nn_gas_f16_mark target)
+# Carry the verdict to Include/Internal/arm_nn_vcvt_f16.h. An INTERFACE library
+# has no private scope to put it in.
+function(_ns_cmsis_nn_gas_f16_define target definition)
   get_target_property(_type ${target} TYPE)
   if(_type STREQUAL "INTERFACE_LIBRARY")
-    target_compile_definitions(${target} INTERFACE ARM_NN_GAS_F16_VERIFIED=1)
+    target_compile_definitions(${target} INTERFACE ${definition})
   else()
-    target_compile_definitions(${target} PRIVATE ARM_NN_GAS_F16_VERIFIED=1)
+    target_compile_definitions(${target} PRIVATE ${definition})
   endif()
 endfunction()
 
@@ -304,17 +308,15 @@ ${_log}")
       message(FATAL_ERROR "${_unmeasured}")
     endif()
 
-    # The option is the documented last resort, so it has to work from here
-    # too: a build whose flags the probe cannot even assemble is exactly the
-    # one that would otherwise stop at the header guard with no way past it.
-    _ns_cmsis_nn_gas_f16_mark(${target})
     if(_report)
       message(WARNING "${_unmeasured}
-ARM_NN_SKIP_GAS_F16_PROBE=ON was set, so this is a warning and \
-ARM_NN_GAS_F16_VERIFIED=1 is defined on target '${target}', which lifts the \
-compile-time guard in arm_nnsupportfunctions_flt.h as well. Nothing measured \
-this assembler; if it is one of the mis-encoding ones, the float16 kernels in \
-this build are wrong.")
+ARM_NN_SKIP_GAS_F16_PROBE=ON was set, so this is a warning. Neither \
+ARM_NN_GAS_VCVT_F16_BROKEN nor ARM_NN_GAS_F16_VERIFIED is defined on target \
+'${target}', so Include/Internal/arm_nn_vcvt_f16.h decides on the compiler \
+major instead: GCC 13 and older take the scalar-form conversions, GCC 14 and \
+newer take the vector form. That is the right answer for every Arm GNU \
+release, and the wrong one for a GCC 14 or newer driver paired by hand with a \
+binutils below 2.43.")
     endif()
     return()
   endif()
@@ -325,9 +327,6 @@ this build are wrong.")
     # float16. That is a statement about what the probe could see, not a
     # verdict on the build, so nothing is marked as verified unless the user
     # has explicitly taken the check off.
-    if(ARM_NN_SKIP_GAS_F16_PROBE)
-      _ns_cmsis_nn_gas_f16_mark(${target})
-    endif()
     if(_report)
       set(_why "")
       if(_genex_skipped)
@@ -340,17 +339,15 @@ this build are wrong.")
         "its flags select no MVE float16 (__ARM_FEATURE_MVE & 2 is 0).${_why} "
         "Flags added to this target after the current directory finishes, or "
         "carried only inside a generator expression, are not visible here "
-        "either; for those the compile-time guard in "
-        "arm_nnsupportfunctions_flt.h stands in, and a float16 MVE build on "
-        "GCC 13 or older will refuse to compile. ARM_NN_SKIP_GAS_F16_PROBE=ON "
-        "lifts that guard too.")
+        "either; for those the compiler-version guard in "
+        "Include/Internal/arm_nn_vcvt_f16.h picks the conversion form.")
     endif()
     return()
   endif()
   set(_word "${CMAKE_MATCH_1}")
 
   if(_word STREQUAL _expected)
-    _ns_cmsis_nn_gas_f16_mark(${target})
+    _ns_cmsis_nn_gas_f16_define(${target} ARM_NN_GAS_F16_VERIFIED=1)
     if(_report)
       message(STATUS
         "MVE half<->single conversions encode correctly (0x${_word})")
@@ -358,41 +355,28 @@ this build are wrong.")
     return()
   endif()
 
-  # One string, expanded quoted: message() splits an unquoted list on the
-  # semicolons this text needs.
-  set(_diag "\
+  # Not a failure: the kernels have a second way to emit these conversions, so
+  # the measurement selects it rather than stopping the build.
+  _ns_cmsis_nn_gas_f16_define(${target} ARM_NN_GAS_VCVT_F16_BROKEN=1)
+  if(_report)
+    # One string, expanded quoted: message() splits an unquoted list on the
+    # semicolons this text needs.
+    message(STATUS "\
 The assembler behind ${CMAKE_C_COMPILER} mis-encodes the MVE Q-register form of \
-VCVTB/VCVTT.F16<->F32, which the ARM_NN_ENABLE_F16 kernels are built from. \
-`vcvtb.f16.f32 q1, q2' assembled to 0x${_word}, expected \
-0x${_expected}: it reads and writes the wrong Q registers, and the \
-higher Q numbers become UNDEFINED words that fault at run time.
-Fix it either way:
-* Build with Arm GNU Toolchain 14.2.Rel1 or newer (binutils 2.43 or newer).
-* Keep this compiler and put -B<dir>/ in its C flags, where <dir> holds the \
-unprefixed `as' of a binutils 2.43 or newer arm-none-eabi install (in an Arm \
-GNU install that is <root>/arm-none-eabi/bin/; keep the trailing slash). Set \
-it through the CFLAGS environment variable on a fresh build directory, or \
-through CMAKE_C_FLAGS alongside the arch flags -- a bare -DCMAKE_C_FLAGS \
-replaces the ones the toolchain file supplies.
-ARM_NN_ENABLE_F16=OFF builds without the float16 kernels; integer and float32 \
-builds are unaffected. ARM_NN_SKIP_GAS_F16_PROBE=ON downgrades this to a \
-warning and builds the broken encoding anyway.
+VCVTB/VCVTT.F16<->F32: `vcvtb.f16.f32 q1, q2' assembled to 0x${_word}, \
+expected 0x${_expected}. Target '${target}' is built with \
+ARM_NN_GAS_VCVT_F16_BROKEN=1, so the float16 kernels emit the scalar-form \
+helper in Include/Internal/arm_nn_vcvt_f16.h for the half<->single \
+conversions. Same results, four instructions per conversion instead of one.
+To get the vector form back, assemble with binutils 2.43 or newer: build with \
+Arm GNU Toolchain 14.2.Rel1 or newer, or keep this compiler and put -B<dir>/ \
+in its C flags, where <dir> holds the unprefixed `as' of a binutils 2.43 or \
+newer arm-none-eabi install (in an Arm GNU install that is \
+<root>/arm-none-eabi/bin/; keep the trailing slash). Set it through the CFLAGS \
+environment variable on a fresh build directory, or through CMAKE_C_FLAGS \
+alongside the arch flags -- a bare -DCMAKE_C_FLAGS replaces the ones the \
+toolchain file supplies.
 See AmbiqAI/ns-cmsis-nn#427.")
-
-  if(ARM_NN_SKIP_GAS_F16_PROBE)
-    # The option would be dead without this: the compile-time guard in
-    # arm_nnsupportfunctions_flt.h would stop the build the probe was told to
-    # let through.
-    _ns_cmsis_nn_gas_f16_mark(${target})
-    if(_report)
-      message(WARNING "${_diag}\nARM_NN_SKIP_GAS_F16_PROBE=ON was set, so this "
-                      "is a warning and ARM_NN_GAS_F16_VERIFIED=1 is defined on "
-                      "target '${target}' to let the compile-time guard through "
-                      "as well. The float16 kernels in this build are "
-                      "mis-encoded by choice.")
-    endif()
-  else()
-    message(FATAL_ERROR "${_diag}")
   endif()
 endfunction()
 

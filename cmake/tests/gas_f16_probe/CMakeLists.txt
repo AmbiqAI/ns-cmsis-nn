@@ -15,8 +15,8 @@
 # is never asked to accept a Cortex-M flag it has no idea about.
 #
 # The end-to-end assemble-and-compare is proved by the toolchain jobs:
-# toolchain-matrix-strict-link.yml's gcc-f16-probe (refusal, escape hatch, and
-# the -B recipe) and unity-f16-exec-gcc-floor.yml (execution).
+# toolchain-matrix-strict-link.yml's gcc-f16-probe (the scalar-form selection
+# and the -B recipe) and unity-f16-exec-gcc-floor.yml (execution).
 
 cmake_minimum_required(VERSION 3.19)
 # C is enabled so add_library(STATIC) works; nothing is compiled.

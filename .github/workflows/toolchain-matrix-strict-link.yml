@@ -27,16 +27,17 @@
 #
 #   13.2.Rel1  floor of the supported range for the integer and float32
 #              kernels
-#   14.2.Rel1  floor for the float16 kernels, and what release.yml ships:
-#              the first Arm GNU release whose bundled assembler encodes
-#              the MVE Q-register form of VCVTB/VCVTT.F16<->F32 correctly
-#              (binutils 2.43.1, AmbiqAI/ns-cmsis-nn#427)
+#   14.2.Rel1  what release.yml ships, and the first Arm GNU release whose
+#              bundled assembler encodes the MVE Q-register form of
+#              VCVTB/VCVTT.F16<->F32 correctly (binutils 2.43.1,
+#              AmbiqAI/ns-cmsis-nn#427)
 #   15.3.Rel1  newest supported
 #
-# The two floors are not the same number and the matrix has to say so:
-# below GCC_F16_FLOOR the CMake configure refuses to emit the float16
-# kernels at all, so those cells build integer and float32 only. The
-# gcc-f16-probe job asserts that refusal instead of assuming it.
+# Every cortex-m55 cell builds float16. Below GCC_F16_FLOOR the kernels
+# reach the half<->single conversions through the scalar-form helper in
+# Include/Internal/arm_nn_vcvt_f16.h instead of the vector form the
+# assembler would mis-encode; the gcc-f16-probe job asserts that the
+# configure selects it, rather than assuming it.
 #
 # 14.3.Rel1 is no longer gated here. The selection rule is one release per
 # major and 14.2.Rel1 has to be in the list because it is the float16
@@ -114,7 +115,8 @@ env:
   # fails unless ci/toolchains/arm-gnu-floor.json names the same release.
   GCC_F16_FLOOR: '14.2.Rel1'
   # A gated release below that floor, used by gcc-f16-probe to prove the
-  # configure refuses float16 rather than silently building it.
+  # configure selects the scalar-form conversions rather than emitting the
+  # vector form this assembler gets wrong.
   GCC_BELOW_F16_FLOOR: '13.2.Rel1'
 
 jobs:
@@ -154,13 +156,12 @@ jobs:
         run: |
           set -euo pipefail
           # F16 only on cortex-m55, matching release.yml and the
-          # ARMV8_1_M_MVEF Zephyr Kconfig restriction, and only from
-          # GCC_F16_FLOOR upward -- older assemblers mis-encode the
-          # half<->single conversions and the configure rejects them.
+          # ARMV8_1_M_MVEF Zephyr Kconfig restriction. Every gated release
+          # builds it: below GCC_F16_FLOOR the configure probe selects the
+          # scalar-form half<->single conversions, which every assembler
+          # encodes correctly (AmbiqAI/ns-cmsis-nn#427).
           f16_flag=()
-          if [[ "$TARGET_CPU" == "cortex-m55" ]] \
-            && [[ "$(printf '%s\n%s\n' "$GCC_RELEASE" "$GCC_F16_FLOOR" \
-                     | sort -V | head -1)" == "$GCC_F16_FLOOR" ]]; then
+          if [[ "$TARGET_CPU" == "cortex-m55" ]]; then
             f16_flag=(--enable-f16)
           fi
           echo "gcc ${GCC_RELEASE} / ${TARGET_CPU}: f16 ${f16_flag[*]:-off}"
@@ -185,19 +186,20 @@ jobs:
             --outdir     "./output/gcc/${TARGET_CPU}/smoke"
 
   gcc-f16-probe:
-    # The float16 floor is only a floor if something proves the releases
-    # below it are refused. Without this cell, a regression that turned the
-    # configure check back into a no-op would show up as a green matrix and
+    # Below the float16 floor the build only works because the configure
+    # probe measures the assembler and switches the half<->single
+    # conversions to their scalar form. Without this cell, a regression that
+    # turned the probe back into a no-op would show up as a green matrix and
     # a static library full of UNDEFINED instruction words
     # (AmbiqAI/ns-cmsis-nn#427).
-    name: gcc below f16 floor / configure refused
+    name: gcc below f16 floor / scalar-form conversions selected
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       TARGET_CPU: cortex-m55
-      # CMake hard-wraps the diagnostic, so both greps below key on tokens
-      # it cannot split rather than on a sentence.
-      REMEDIATION_MARKER: ARM_NN_SKIP_GAS_F16_PROBE=ON
+      # CMake hard-wraps the diagnostic, so the greps below key on tokens it
+      # cannot split rather than on a sentence.
+      SELECTION_MARKER: ARM_NN_GAS_VCVT_F16_BROKEN=1
       ISSUE_MARKER: AmbiqAI/ns-cmsis-nn#427
       # Same pin unity-f16-exec-gcc-floor.yml runs on, so the assembler this
       # cell borrows is the one the execution gate proves.
@@ -222,40 +224,69 @@ jobs:
             exit 1
           fi
 
-      - name: Configure with float16 on, and require it to be refused
+      - name: Configure with float16 on, and require the scalar form to be selected
         run: |
           set -euo pipefail
-          log="${RUNNER_TEMP}/refuse.log"
-          if cmake -S . -B "${RUNNER_TEMP}/build-refuse" \
+          log="${RUNNER_TEMP}/select.log"
+          if ! cmake -S . -B "${RUNNER_TEMP}/build-select" \
               -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
               -DNS_CMSIS_NN_TARGET_CPU="${TARGET_CPU}" \
               -DARM_NN_ENABLE_F16=ON > "${log}" 2>&1; then
             cat "${log}"
-            echo "::error title=f16 configure was not refused::${GCC_BELOW_F16_FLOOR} bundles an assembler that mis-encodes the MVE half<->single conversions, but the configure succeeded. See ${ISSUE_MARKER}." >&2
+            echo "::error title=f16 configure failed::${GCC_BELOW_F16_FLOOR} should configure with float16 on, selecting the scalar-form conversions. See ${ISSUE_MARKER}." >&2
             exit 1
           fi
           cat "${log}"
-          if ! grep -qF -- "${REMEDIATION_MARKER}" "${log}"; then
-            echo "::error title=Refusal carried no remediation::The configure failed but its output does not mention ${REMEDIATION_MARKER}, so whoever hits this gets no way out of it. See ${ISSUE_MARKER}." >&2
+          if ! grep -qF -- "${SELECTION_MARKER}" "${log}"; then
+            echo "::error title=Scalar form was not selected::The configure succeeded but never reported ${SELECTION_MARKER}, so the float16 kernels here are being built with the vector conversions this assembler mis-encodes. See ${ISSUE_MARKER}." >&2
             exit 1
           fi
-          echo "configure refused, with remediation"
+          # The message is only a message. What decides the build is the
+          # compile definition on the target, so read it off the generated
+          # command line rather than trusting the log.
+          if ! grep -rqF -- "-D${SELECTION_MARKER}" \
+                 "${RUNNER_TEMP}/build-select"/CMakeFiles/*/flags.make; then
+            echo "::error title=Selection did not reach the compile line::${SELECTION_MARKER} was reported but is not in the target's flags.make, so the kernels compile without it. See ${ISSUE_MARKER}." >&2
+            exit 1
+          fi
+          echo "configure selects the scalar-form conversions"
 
-      - name: Configure with the escape hatch, and require it to build
+      - name: Build float16 below the floor, and require clean objects
+        # The point of the selection is that the archive is executable. An
+        # UNDEFINED word or a surviving Q-form conversion here means the
+        # switch did not reach the kernels.
         run: |
           set -euo pipefail
-          log="${RUNNER_TEMP}/skip.log"
-          cmake -S . -B "${RUNNER_TEMP}/build-skip" \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
-            -DNS_CMSIS_NN_TARGET_CPU="${TARGET_CPU}" \
-            -DARM_NN_ENABLE_F16=ON \
-            -DARM_NN_SKIP_GAS_F16_PROBE=ON > "${log}" 2>&1
-          cat "${log}"
-          if ! grep -q 'CMake Warning' "${log}" || ! grep -qF -- "${ISSUE_MARKER}" "${log}"; then
-            echo "::error title=Escape hatch went quiet::ARM_NN_SKIP_GAS_F16_PROBE=ON configured cleanly but printed no warning, so a build with the broken encoding would look healthy. See ${ISSUE_MARKER}." >&2
+          bash scripts/build_staticlib.sh \
+            --target-cpu "${TARGET_CPU}" \
+            --version    "${VERSION}" \
+            --toolchain  gcc \
+            --outdir     "./output/subfloor" \
+            --enable-f32 --enable-f16
+          work="${RUNNER_TEMP}/subfloor-objs"
+          rm -rf "${work}" && mkdir -p "${work}"
+          ( cd "${work}" && arm-none-eabi-ar x \
+              "${GITHUB_WORKSPACE}/output/subfloor/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" )
+          scanned=0
+          bad=0
+          for obj in "${work}"/*f16*; do
+            [[ -e "${obj}" ]] || continue
+            scanned=$(( scanned + 1 ))
+            # This objdump is the sub-floor one, which renders these words
+            # the same way its assembler encodes them. That is fine here:
+            # the assertion is that no Q-form conversion is present at all.
+            if arm-none-eabi-objdump -d "${obj}" \
+                 | grep -qiE 'UNDEFINED|vcvt[bt]\.(f16\.f32|f32\.f16)[[:space:]]+q'; then
+              bad=$(( bad + 1 ))
+              echo "::error title=Vector conversion survived::$(basename "${obj}") still contains a Q-register vcvt f16<->f32 or an UNDEFINED word. See ${ISSUE_MARKER}."
+            fi
+          done
+          if (( scanned == 0 )); then
+            echo "::error title=No float16 objects to scan::The archive has no *f16* members, so this check asserted nothing. See ${ISSUE_MARKER}." >&2
             exit 1
           fi
-          echo "escape hatch configures, and warns"
+          echo "float16 objects scanned below the floor: ${scanned}"
+          (( bad == 0 )) || exit 1
 
       - name: Fetch the float16 floor toolchain, for its assembler
         id: fetch_floor

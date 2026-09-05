@@ -1656,20 +1656,15 @@ arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
  *       the gate is 0 there and (-Inf) * 0 is NaN by IEEE 754, matching TFLite's float hard-swish
  *       reference rather than the mathematical limit 0.
  *
- * @note This kernel's own MVE leg no longer converts between half and single precision, but the
- *       float16 MVE sources it is built alongside still do, through the Q-register form of
- *       VCVTB/VCVTT that binutils below 2.43 mis-encodes. A float16 MVE build needs an assembler
- *       from binutils 2.43 or newer, bundled from Arm GNU Toolchain 14.2.Rel1; the CMake build
- *       probes the assembler in use and rejects
- *       older ones at configure time. Builds that never run that probe -- the CMSIS-Pack `Source`
- *       Cvariant, `module.mk`, or a CMake project that wires its architecture flags where the
- *       probe cannot read them -- are refused at compile time instead: on GCC 13 and older they
- *       must point the driver at a binutils 2.43 or newer assembler with `-B<dir>/` and define
- *       `ARM_NN_GAS_F16_VERIFIED`. On Arm GNU 14.2.Rel1 and newer there is nothing to do, with one
- *       residual: outside CMake the guard keys on the compiler major, so a GCC 14 or newer driver
- *       over a binutils below 2.43 is not caught. Check `as --version` if you assembled that pair
- *       yourself; under CMake the probe catches it, or refuses to configure when your flags
- *       keep it from assembling its witness.
+ * @note Nothing in this kernel converts between half and single precision any more, and the float16
+ *       kernels that still do are not tied to a particular assembler: they go through
+ *       Include/Internal/arm_nn_vcvt_f16.h, which emits the scalar form of VCVTB/VCVTT wherever the
+ *       vector form would be mis-encoded (binutils below 2.43). Under CMake the probe measures the
+ *       assembler in use and selects the form; a build that never runs it -- the CMSIS-Pack `Source`
+ *       Cvariant, `module.mk`, or a CMake project that wires its architecture flags where the probe
+ *       cannot read them -- falls back to the compiler major, which is right for every Arm GNU
+ *       release and wrong only for a GCC 14 or newer driver paired by hand with an older binutils.
+ *       Check `as --version` if you assembled that pair yourself.
  *       See docs/guides/toolchains.md.
  */
 arm_cmsis_nn_status arm_hard_swish_f16(const float16_t *input, float16_t *output, int32_t size);
