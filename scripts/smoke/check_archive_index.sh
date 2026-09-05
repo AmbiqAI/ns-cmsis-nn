@@ -38,9 +38,16 @@ require_syms=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --library)        LIBRARY="${2:?}"; shift 2 ;;
-    --nm)             NM="${2:?}";      shift 2 ;;
-    --require-symbol) require_syms+=("${2:?}"); shift 2 ;;
+    --library|--nm|--require-symbol)
+      if [[ $# -lt 2 ]]; then
+        echo "$1 needs a value" >&2
+        exit 2
+      fi ;;
+  esac
+  case "$1" in
+    --library)        LIBRARY="$2"; shift 2 ;;
+    --nm)             NM="$2";      shift 2 ;;
+    --require-symbol) require_syms+=("$2"); shift 2 ;;
     *)
       echo "unknown arg: $1" >&2
       exit 2
