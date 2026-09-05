@@ -3,6 +3,11 @@
 
 if(CONFIG_NS_CMSIS_NN)
 
+  # Kconfig declares both float symbols "default n"; the publish calls below
+  # compare against the same literal to tell an untouched symbol from an
+  # explicit request. See AmbiqAI/ns-cmsis-nn#420.
+  set(_ns_float_default OFF)
+
   if(CONFIG_NS_CMSIS_NN_USE_PREBUILT)
 
     # ----------------------------------------------------------------------
@@ -109,6 +114,8 @@ if(CONFIG_NS_CMSIS_NN)
     ns_cmsis_nn_publish_float_switches(
       F32 "${CONFIG_NS_CMSIS_NN_ENABLE_F32}"
       F16 "${CONFIG_NS_CMSIS_NN_ENABLE_F16}"
+      REQUEST_PREFIX CONFIG_NS_CMSIS_NN_ENABLE_
+      REQUEST_DEFAULT ${_ns_float_default}
       REQUESTED_BY "CONFIG_NS_CMSIS_NN_ENABLE_F32/F16")
 
     zephyr_compile_definitions(
@@ -135,6 +142,8 @@ if(CONFIG_NS_CMSIS_NN)
   ns_cmsis_nn_publish_float_switches(
     F32 "${CONFIG_NS_CMSIS_NN_ENABLE_F32}"
     F16 "${CONFIG_NS_CMSIS_NN_ENABLE_F16}"
+    REQUEST_PREFIX CONFIG_NS_CMSIS_NN_ENABLE_
+    REQUEST_DEFAULT ${_ns_float_default}
     REQUESTED_BY "CONFIG_NS_CMSIS_NN_ENABLE_F32/F16")
 
   # Keep float feature guards visible in all translation units that include

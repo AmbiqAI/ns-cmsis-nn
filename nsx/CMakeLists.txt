@@ -35,8 +35,9 @@
 #
 # Published output (both modes): the effective float switches are written to
 # the cache as ARM_NN_ENABLE_F32/F16, the names the kernels, the public
-# headers, and the other Ambiq consumers read. They are output here, not
-# input: setting them to something the NSX switches contradict is a
+# headers, and the other Ambiq consumers read. Setting ARM_NN_ENABLE_F32/F16
+# directly is a valid request too: it wins while the NSX switch above is at
+# its default, and only a disagreement between two explicit requests is a
 # FATAL_ERROR. See cmake/ns_cmsis_nn_float_switches.cmake and
 # AmbiqAI/ns-cmsis-nn#420.
 #
@@ -68,10 +69,13 @@ set(NSX_CMSIS_NN_OPTIMIZATION "-Ofast" CACHE STRING
     "Compiler optimization level for ns-cmsis-nn source builds.")
 option(NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM
     "Enable inline-assembly version of the requantize routine" OFF)
+# One literal, shared with the publish calls below, which compare against it to
+# tell an untouched switch from an explicit request.
+set(_nsx_float_default OFF)
 option(NSX_CMSIS_NN_ENABLE_F32
-    "Enable experimental FP32 kernels in source builds" OFF)
+    "Enable experimental FP32 kernels in source builds" ${_nsx_float_default})
 option(NSX_CMSIS_NN_ENABLE_F16
-    "Enable experimental FP16 kernels in source builds" OFF)
+    "Enable experimental FP16 kernels in source builds" ${_nsx_float_default})
 set(NSX_CMSIS_NN_MANIFEST "" CACHE FILEPATH
     "Explicit path to the manifest.json describing NSX_CMSIS_NN_LIB's \
 contents (optional; auto-discovered next to the library otherwise).")
@@ -182,6 +186,8 @@ if(DEFINED NSX_CMSIS_NN_LIB)
     ns_cmsis_nn_publish_float_switches(
         F32 "${NSX_CMSIS_NN_ENABLE_F32}"
         F16 "${NSX_CMSIS_NN_ENABLE_F16}"
+        REQUEST_PREFIX NSX_CMSIS_NN_ENABLE_
+        REQUEST_DEFAULT ${_nsx_float_default}
         REQUESTED_BY "NSX_CMSIS_NN_ENABLE_F32/F16")
 
     target_compile_definitions(nsx_cmsis_nn
@@ -199,6 +205,8 @@ else()
     ns_cmsis_nn_publish_float_switches(
         F32 "${NSX_CMSIS_NN_ENABLE_F32}"
         F16 "${NSX_CMSIS_NN_ENABLE_F16}"
+        REQUEST_PREFIX NSX_CMSIS_NN_ENABLE_
+        REQUEST_DEFAULT ${_nsx_float_default}
         REQUESTED_BY "NSX_CMSIS_NN_ENABLE_F32/F16")
 
     add_library(nsx_cmsis_nn STATIC)
