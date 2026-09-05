@@ -273,11 +273,11 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 
                 const float32_t wv0 = (float32_t)wt[w_off0];
                 const float32_t wv1 = (float32_t)wt[w_off1];
                 const mve_pred16_t p_lo = vcmphiq(vdupq_n_u32((uint32_t)row_limit), vmovlbq(off));
-                const float32x4_t vin_lo = vcvtbq_f32_f16(vin);
+                const float32x4_t vin_lo = arm_nn_vcvtbq_f32_f16(vin);
                 vacc0_lo = vfmaq_m(vacc0_lo, vin_lo, wv0, p_lo);
                 vacc1_lo = vfmaq_m(vacc1_lo, vin_lo, wv1, p_lo);
                 const mve_pred16_t p_hi = vcmphiq(vdupq_n_u32((uint32_t)row_limit), vmovltq(off));
-                const float32x4_t vin_hi = vcvttq_f32_f16(vin);
+                const float32x4_t vin_hi = arm_nn_vcvttq_f32_f16(vin);
                 vacc0_hi = vfmaq_m(vacc0_hi, vin_hi, wv0, p_hi);
                 vacc1_hi = vfmaq_m(vacc1_hi, vin_hi, wv1, p_hi);
             }
@@ -292,8 +292,8 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 
                 {
                     vin = vld2q(row + x0).val[0];
                 }
-                const float32x4_t vin_lo = vcvtbq_f32_f16(vin);
-                const float32x4_t vin_hi = vcvttq_f32_f16(vin);
+                const float32x4_t vin_lo = arm_nn_vcvtbq_f32_f16(vin);
+                const float32x4_t vin_hi = arm_nn_vcvttq_f32_f16(vin);
                 const float32_t wv0 = (float32_t)wt[w_off0];
                 vacc0_lo = vfmaq(vacc0_lo, vin_lo, wv0);
                 vacc0_hi = vfmaq(vacc0_hi, vin_hi, wv0);
@@ -324,8 +324,8 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 
                     const float16x8_t vin = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE)
                         ? vldrhq_gather_shifted_offset_z(row + ic, off, p)
                         : vldrhq_gather_shifted_offset(row + ic, off);
-                    const float32x4_t vin_lo = vcvtbq_f32_f16(vin);
-                    const float32x4_t vin_hi = vcvttq_f32_f16(vin);
+                    const float32x4_t vin_lo = arm_nn_vcvtbq_f32_f16(vin);
+                    const float32x4_t vin_hi = arm_nn_vcvttq_f32_f16(vin);
                     const float32_t wv0 = (float32_t)wt[w_off0];
                     vacc0_lo = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc0_lo, vin_lo, wv0, p_lo)
                                                                        : vfmaq(vacc0_lo, vin_lo, wv0);
@@ -346,8 +346,8 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 
     const float16x8_t vmax = c->vmax;
     const uint16x8_t out_offsets = c->out_offsets;
     /* Both half-lanes are written by the two narrowing converts, so any seed will do. */
-    float16x8_t r0 = vcvtbq_f16_f32(vreinterpretq_f16_f32(vacc0_lo), vacc0_lo);
-    r0 = vcvttq_f16_f32(r0, vacc0_hi);
+    float16x8_t r0 = arm_nn_vcvtbq_f16_f32(vreinterpretq_f16_f32(vacc0_lo), vacc0_lo);
+    r0 = arm_nn_vcvttq_f16_f32(r0, vacc0_hi);
     if (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE)
     {
         vstrhq_scatter_shifted_offset_p(out_pos + oc0, out_offsets, arm_nn_clamp_mve_f16(r0, vmin, vmax), p_pos);
@@ -359,8 +359,8 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 
     if (n_oc > 1)
     {
         /* Both half-lanes are written by the two narrowing converts, so any seed will do. */
-        float16x8_t r1 = vcvtbq_f16_f32(vreinterpretq_f16_f32(vacc1_lo), vacc1_lo);
-        r1 = vcvttq_f16_f32(r1, vacc1_hi);
+        float16x8_t r1 = arm_nn_vcvtbq_f16_f32(vreinterpretq_f16_f32(vacc1_lo), vacc1_lo);
+        r1 = arm_nn_vcvttq_f16_f32(r1, vacc1_hi);
         if (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE)
         {
             vstrhq_scatter_shifted_offset_p(

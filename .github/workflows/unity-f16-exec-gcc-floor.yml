@@ -65,6 +65,7 @@ jobs:
       # arm_softmax_f16's second suite is listed here by hand: the shapes
       # around the 8-lane boundary are worth running on this toolchain too.
       SUITES: >-
+        test_arm_convolve_packed_f16
         test_arm_hard_swish_f16
         test_arm_nn_mean_f16
         test_arm_reduce_sum_f16
@@ -205,9 +206,14 @@ jobs:
                        "either the intrinsic names moved or this check is now "
                        "asserting nothing")
 
-          missing = [k for k in kernels if "test_" + k not in declared]
+          # A kernel whose suite is not named test_<kernel>: the float conv
+          # suite is test_arm_convolve_packed_f16 (AmbiqAI/ns-cmsis-nn#325),
+          # and arm_convolve_f16 reaches the conversions through its direct
+          # small-C kernel (AmbiqAI/ns-cmsis-nn#417), which that suite runs.
+          SUITE_FOR = {"arm_convolve_f16": "test_arm_convolve_packed_f16"}
+          missing = [k for k in kernels if SUITE_FOR.get(k, "test_" + k) not in declared]
           for kernel in missing:
-              suite = "test_" + kernel
+              suite = SUITE_FOR.get(kernel, "test_" + kernel)
               why = ("has no suite directory at all"
                      if not os.path.isdir(os.path.join("Tests/UnitTest/TestCases", suite))
                      else "has a suite that SUITES omits")
