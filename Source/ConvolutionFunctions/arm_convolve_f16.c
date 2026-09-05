@@ -49,26 +49,6 @@
  * @{
  */
 
-__STATIC_INLINE float16_t arm_conv_dot_f16(const float16_t *lhs, const float16_t *rhs, int32_t len)
-{
-    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-    float16x8_t vacc = vdupq_n_f16((float16_t)0.0f);
-    for (int32_t i = 0; i < len; i += 8)
-    {
-        const mve_pred16_t p = vctp16q((uint32_t)(len - i));
-        vacc = vfmaq_m(vacc, vld1q_z(lhs + i, p), vld1q_z(rhs + i, p), p);
-    }
-    return arm_nn_vec_reduce_add_f16(vacc);
-    #else
-    _Float16 acc = (_Float16)0.0f;
-    for (int32_t i = 0; i < len; ++i)
-    {
-        acc += (_Float16)lhs[i] * (_Float16)rhs[i];
-    }
-    return (float16_t)acc;
-    #endif
-}
-
 __STATIC_INLINE bool arm_conv_nhwc_use_patch_gemm_f16(const cmsis_nn_context *ctx,
                                                       int32_t patch_len,
                                                       int32_t output_c,
@@ -368,6 +348,10 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
     /* NT_N_PACKED filters are stored as [out_c / 8][patch][8 lanes]; index them lane-wise below rather than
      * as OHWI rows. */
     const bool weights_packed = conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED;
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const float16x8_t vmin = vdupq_n_f16(conv_params->activation.min);
+    const float16x8_t vmax = vdupq_n_f16(conv_params->activation.max);
+    #endif
 
     for (int32_t b = 0; b < batch; ++b)
     {
@@ -380,12 +364,63 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
             for (int32_t out_x = 0; out_x < output_w; ++out_x)
             {
                 const int32_t in_x0 = out_x * stride_w - pad_w;
+                float16_t *out_pos = output_b + ((size_t)out_y * output_w + (size_t)out_x) * output_c;
+
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+                if (weights_packed)
+                {
+                    /* Lanes are output channels: one weight vector per (tap, ic), no reduction (#417). The
+                     * packed layout pads out_c up to a whole block, so the last block loads in-bounds. */
+                    for (int32_t oc0 = 0; oc0 < output_c; oc0 += 8)
+                    {
+                        const mve_pred16_t p_oc = vctp16q((uint32_t)(output_c - oc0));
+                        float16x8_t vacc = bias_data ? vld1q_z(bias_data + oc0, p_oc) : vdupq_n_f16((float16_t)0.0f);
+                        const float16_t *w_blk = filter_data + (size_t)oc0 * patch_len;
+
+                        for (int32_t ky = 0; ky < kernel_h; ++ky)
+                        {
+                            const int32_t in_y = in_y0 + ky * dil_h;
+                            if (in_y < 0 || in_y >= input_h)
+                            {
+                                continue;
+                            }
+                            for (int32_t kx = 0; kx < kernel_w; ++kx)
+                            {
+                                const int32_t in_x = in_x0 + kx * dil_w;
+                                if (in_x < 0 || in_x >= input_w)
+                                {
+                                    continue;
+                                }
+                                const size_t k0 = ((size_t)ky * kernel_w + (size_t)kx) * input_c;
+                                const float16_t *x = input_b + ((size_t)in_y * input_w + (size_t)in_x) * input_c;
+                                const float16_t *w_tap = w_blk + k0 * 8;
+                                for (int32_t ic = 0; ic < input_c; ++ic)
+                                {
+                                    vacc = vfmaq(vacc, vld1q(w_tap + (size_t)ic * 8), x[ic]);
+                                }
+                            }
+                        }
+
+                        vacc = arm_nn_clamp_mve_f16(vacc, vmin, vmax);
+                        vst1q_p(out_pos + oc0, vacc, p_oc);
+                    }
+                    continue;
+                }
+    #endif
+
                 for (int32_t oc = 0; oc < output_c; ++oc)
                 {
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+                    /* Packed weights never reach here under MVE; OHWI rows only. One accumulator is carried
+                     * across every tap and reduced once per output (#417). */
+                    const float16_t *w_oc = filter_data + (size_t)oc * kernel_h * kernel_w * input_c;
+                    float16x8_t vacc = vdupq_n_f16((float16_t)0.0f);
+    #else
                     _Float16 acc = bias_data ? (_Float16)bias_data[oc] : (_Float16)0;
                     const float16_t *w_oc = weights_packed
                         ? filter_data + ((size_t)(oc / 8) * patch_len) * 8 + (size_t)(oc % 8)
                         : filter_data + (size_t)oc * kernel_h * kernel_w * input_c;
+    #endif
 
                     for (int32_t ky = 0; ky < kernel_h; ++ky)
                     {
@@ -403,6 +438,20 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                             }
                             const size_t k0 = ((size_t)ky * kernel_w + (size_t)kx) * input_c;
                             const float16_t *x = input_b + ((size_t)in_y * input_w + (size_t)in_x) * input_c;
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+                            /* Full blocks unpredicated, one predicated tail: no vctp inside a loop. */
+                            const float16_t *w_tap = w_oc + k0;
+                            int32_t ic = 0;
+                            for (; ic + 8 <= input_c; ic += 8)
+                            {
+                                vacc = vfmaq(vacc, vld1q(x + ic), vld1q(w_tap + ic));
+                            }
+                            if (ic < input_c)
+                            {
+                                const mve_pred16_t p = vctp16q((uint32_t)(input_c - ic));
+                                vacc = vfmaq_m(vacc, vld1q_z(x + ic, p), vld1q_z(w_tap + ic, p), p);
+                            }
+    #else
                             if (weights_packed)
                             {
                                 for (int32_t ic = 0; ic < input_c; ++ic)
@@ -412,14 +461,22 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                             }
                             else
                             {
-                                acc += (_Float16)arm_conv_dot_f16(x, w_oc + k0, input_c);
+                                for (int32_t ic = 0; ic < input_c; ++ic)
+                                {
+                                    acc += (_Float16)x[ic] * (_Float16)w_oc[k0 + (size_t)ic];
+                                }
                             }
+    #endif
                         }
                     }
 
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+                    _Float16 acc = bias_data ? (_Float16)bias_data[oc] : (_Float16)0;
+                    acc += (_Float16)arm_nn_vec_reduce_add_f16(vacc);
+    #endif
                     acc = arm_nn_clamp_f16h(
                         acc, (_Float16)conv_params->activation.max, (_Float16)conv_params->activation.min);
-                    output_b[((size_t)out_y * output_w + (size_t)out_x) * output_c + (size_t)oc] = (float16_t)acc;
+                    out_pos[oc] = (float16_t)acc;
                 }
             }
         }
