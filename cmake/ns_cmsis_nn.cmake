@@ -29,11 +29,15 @@
 #   ns_cmsis_nn_publish_float_switches(F32 <value> F16 <value>
 #                                      REQUEST_PREFIX <prefix>
 #                                      [REQUEST_DEFAULT <ON|OFF>]
-#                                      [REQUESTED_BY <text>])
+#                                      [REQUESTED_BY <text>]
+#                                      [AUTHORITATIVE [AUTHORITY_NOTE <text>]])
 #       Publishes the caller's float request as the ARM_NN_ENABLE_F32/F16
 #       cache entries and directory variables. Called by the top-level, NSX and
 #       Zephyr entry points; find_package() consumers of a published tarball
-#       get the same names on the imported target instead. Defined in
+#       get the same names on the imported target instead. AUTHORITATIVE says
+#       the caller's own switch is the only way to ask on that path, so an
+#       ARM_NN_ENABLE_* value is never adopted there and a disagreeing one is a
+#       FATAL_ERROR quoting AUTHORITY_NOTE. Defined in
 #       cmake/ns_cmsis_nn_float_switches.cmake, which prebuilt-mode consumers
 #       may include on its own.
 #

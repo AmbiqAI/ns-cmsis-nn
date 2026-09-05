@@ -483,27 +483,11 @@ file(WRITE "${_fake_sdk}/manifest.json" "{
 # an agreeing ARM_NN_ENABLE_F16 alongside it. The second proves an agreeing
 # value clears the Kconfig-authority gate and that the manifest diagnostic
 # still names the Kconfig spelling, which is what carries the request on this
-# path. Requests arrive on the child cmake command line so the recovery the
-# diagnostic names is reachable. See AmbiqAI/ns-cmsis-nn#420.
-foreach(_reject_name kconfig_f32 kconfig_f16_agreeing_arm_nn)
-  if(_reject_name STREQUAL "kconfig_f32")
-    set(_reject_request "set(CONFIG_NS_CMSIS_NN_ENABLE_F32 1)")
-    set(_reject_args "")
-    set(_reject_needles
-        "float32 requested via CONFIG_NS_CMSIS_NN_ENABLE_F32"
-        "prj.conf")
-  else()
-    set(_reject_request "set(CONFIG_NS_CMSIS_NN_ENABLE_F16 1)")
-    set(_reject_args "-DARM_NN_ENABLE_F16=ON")
-    set(_reject_needles
-        "float16 requested via CONFIG_NS_CMSIS_NN_ENABLE_F16"
-        "prj.conf")
-  endif()
-
-  set(_zephyr_probe "${CMAKE_BINARY_DIR}/_zephyr_manifest_probe_${_reject_name}")
-  file(REMOVE_RECURSE "${_zephyr_probe}")
-  file(MAKE_DIRECTORY "${_zephyr_probe}")
-  file(WRITE "${_zephyr_probe}/CMakeLists.txt"
+# path. Each rejection is then recovered from in place, the way the NSX reject
+# cases do: the diagnostic names the Kconfig fragment, so the probe is
+# rewritten without the symbol and the same build directory reconfigured.
+# See AmbiqAI/ns-cmsis-nn#420.
+set(_zephyr_reject_prologue
 "cmake_minimum_required(VERSION 3.20)
 project(zephyr_manifest_reject_probe C)
 macro(zephyr_library)
@@ -523,9 +507,31 @@ set(ZEPHYR_CMSIS_MODULE_DIR \"${CMAKE_CURRENT_BINARY_DIR}/__fake_cmsis_module__\
 set(CONFIG_NS_CMSIS_NN 1)
 set(CONFIG_NS_CMSIS_NN_USE_PREBUILT 1)
 set(CONFIG_NS_CMSIS_NN_PREBUILT_PATH \"${_fake_sdk}\")
-${_reject_request}
-include(\"${_repo_root}/zephyr/CMakeLists.txt\")
 ")
+set(_zephyr_reject_epilogue
+"include(\"${_repo_root}/zephyr/CMakeLists.txt\")
+")
+
+foreach(_reject_name kconfig_f32 kconfig_f16_agreeing_arm_nn)
+  if(_reject_name STREQUAL "kconfig_f32")
+    set(_reject_request "set(CONFIG_NS_CMSIS_NN_ENABLE_F32 1)")
+    set(_reject_args "")
+    set(_reject_needles
+        "float32 requested via CONFIG_NS_CMSIS_NN_ENABLE_F32"
+        "prj.conf")
+  else()
+    set(_reject_request "set(CONFIG_NS_CMSIS_NN_ENABLE_F16 1)")
+    set(_reject_args "-DARM_NN_ENABLE_F16=ON")
+    set(_reject_needles
+        "float16 requested via CONFIG_NS_CMSIS_NN_ENABLE_F16"
+        "prj.conf")
+  endif()
+
+  set(_zephyr_probe "${CMAKE_BINARY_DIR}/_zephyr_manifest_probe_${_reject_name}")
+  file(REMOVE_RECURSE "${_zephyr_probe}")
+  file(MAKE_DIRECTORY "${_zephyr_probe}")
+  file(WRITE "${_zephyr_probe}/CMakeLists.txt"
+    "${_zephyr_reject_prologue}${_reject_request}\n${_zephyr_reject_epilogue}")
   execute_process(
     COMMAND ${CMAKE_COMMAND} -S "${_zephyr_probe}" -B "${_zephyr_probe}/_b" ${_reject_args}
     RESULT_VARIABLE _zephyr_probe_rc
@@ -540,6 +546,20 @@ include(\"${_repo_root}/zephyr/CMakeLists.txt\")
         _fail("prebuilt manifest-reject case (${_reject_name}): diagnostic never mentions '${_needle}'; stderr:\n${_zephyr_probe_err}")
       endif()
     endforeach()
+  endif()
+
+  # A rejection the user cannot undo is not a diagnostic. Apply the recovery
+  # the message names (drop the symbol from the Kconfig fragment) and expect
+  # the same build directory to reconfigure clean.
+  file(WRITE "${_zephyr_probe}/CMakeLists.txt"
+    "${_zephyr_reject_prologue}${_zephyr_reject_epilogue}")
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -S "${_zephyr_probe}" -B "${_zephyr_probe}/_b"
+    RESULT_VARIABLE _zephyr_recover_rc
+    OUTPUT_VARIABLE _zephyr_recover_out
+    ERROR_VARIABLE  _zephyr_recover_err)
+  if(NOT _zephyr_recover_rc EQUAL 0)
+    _fail("prebuilt manifest-reject case (${_reject_name}): dropping the Kconfig symbol did not clear the rejection\n${_zephyr_recover_out}\n${_zephyr_recover_err}")
   endif()
 endforeach()
 
@@ -561,10 +581,13 @@ foreach(_auth_name arm_nn_on_kconfig_unset arm_nn_off_kconfig_y agreeing)
     set(_auth_request "")
     set(_auth_args "-DARM_NN_ENABLE_F16=ON")
     set(_auth_expect_fatal TRUE)
+    # Kconfig unset is the authority, so the recovered configure must publish 0.
+    set(_auth_recover_f16 0)
   elseif(_auth_name STREQUAL "arm_nn_off_kconfig_y")
     set(_auth_request "set(CONFIG_NS_CMSIS_NN_ENABLE_F16 1)")
     set(_auth_args "-DARM_NN_ENABLE_F16=OFF")
     set(_auth_expect_fatal TRUE)
+    set(_auth_recover_f16 1)
   else()
     set(_auth_request "set(CONFIG_NS_CMSIS_NN_ENABLE_F16 1)")
     set(_auth_args "-DARM_NN_ENABLE_F16=ON")
@@ -631,6 +654,33 @@ file(WRITE \"${_auth_probe}/result.txt\" \"defs=\${STUB_DEFS}|f16=\${_probe_f16}
       file(READ "${_auth_probe}/result.txt" _auth_result)
       _fail("float authority case (${_auth_name}): configure reached the source list instead of aborting: ${_auth_result}")
     endif()
+
+    # Same contract as the NSX reject cases: the -U the diagnostic names has to
+    # clear the wedge in the same build directory, and what Kconfig asked for
+    # is then what gets published.
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} -S "${_auth_probe}" -B "${_auth_probe}/_b"
+              -UARM_NN_ENABLE_F16
+      RESULT_VARIABLE _auth_recover_rc
+      OUTPUT_VARIABLE _auth_recover_out
+      ERROR_VARIABLE  _auth_recover_err)
+    if(NOT _auth_recover_rc EQUAL 0)
+      _fail("float authority case (${_auth_name}): -UARM_NN_ENABLE_F16 did not clear the rejection\n${_auth_recover_out}\n${_auth_recover_err}")
+    elseif(NOT EXISTS "${_auth_probe}/result.txt")
+      _fail("float authority case (${_auth_name}): recovered configure wrote no result.txt")
+    else()
+      file(READ "${_auth_probe}/result.txt" _auth_recover_result)
+      string(FIND "${_auth_recover_result}" "ARM_NN_ENABLE_F16=${_auth_recover_f16}" _auth_idx)
+      if(_auth_idx EQUAL -1)
+        _fail("float authority case (${_auth_name}): recovered configure did not publish ARM_NN_ENABLE_F16=${_auth_recover_f16}; got ${_auth_recover_result}")
+      endif()
+      string(FIND "${_auth_recover_result}" "_f16.c" _auth_idx)
+      if(_auth_recover_f16 EQUAL 1 AND _auth_idx EQUAL -1)
+        _fail("float authority case (${_auth_name}): recovered configure selected no _f16.c sources; got ${_auth_recover_result}")
+      elseif(_auth_recover_f16 EQUAL 0 AND NOT _auth_idx EQUAL -1)
+        _fail("float authority case (${_auth_name}): recovered configure still selected _f16.c sources; got ${_auth_recover_result}")
+      endif()
+    endif()
   else()
     if(NOT _auth_rc EQUAL 0)
       _fail("float authority case (${_auth_name}): agreeing values must configure clean\n${_auth_out}\n${_auth_err}")
@@ -657,4 +707,4 @@ if(_failures)
   message(FATAL_ERROR "Zephyr wiring test FAILED:${_failures}")
 endif()
 
-message(STATUS "Zephyr wiring OK: 23 knobs translated, baseline source set attached, float source gates validated, inline-asm define propagated, prebuilt mode imports SDK tarball, prebuilt manifest validation accepts/rejects the resolved Kconfig request, and ARM_NN_ENABLE_* cannot override the Kconfig float symbols.")
+message(STATUS "Zephyr wiring OK: 23 knobs translated, baseline source set attached, float source gates validated, inline-asm define propagated, prebuilt mode imports SDK tarball, prebuilt manifest validation accepts/rejects the resolved Kconfig request, ARM_NN_ENABLE_* cannot override the Kconfig float symbols, and each rejection clears under the recovery its diagnostic names.")

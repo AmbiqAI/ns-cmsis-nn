@@ -93,7 +93,7 @@ set(NS_CMSIS_NN_FLOAT_SWITCHES_INCLUDED TRUE)
 function(_ns_cmsis_nn_float_drop_hint _var _out)
   if(DEFINED CACHE{${_var}})
     set(${_out}
-      "re-run cmake with -U${_var} (or delete CMakeCache.txt in the build directory); if the project that adds ns-cmsis-nn re-creates the entry itself, with set(${_var} ... CACHE ...) or option(${_var} ...) above add_subdirectory(), -U cannot reach it and that call has to go instead"
+      "re-run cmake with -U${_var} (or delete CMakeCache.txt in the build directory); if the project that adds ns-cmsis-nn re-creates the entry itself, with set(${_var} ... CACHE ...) or option(${_var} ...) above add_subdirectory(), -U alone cannot reach it and dropping the call alone leaves the seeded entry in the cache: remove that call and then re-run with -U${_var} (or delete CMakeCache.txt)"
       PARENT_SCOPE)
   elseif(_var MATCHES "^CONFIG_")
     set(${_out}

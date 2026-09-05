@@ -27,7 +27,7 @@ include(<repo>/cmake/ns_cmsis_nn.cmake)
 | `ns_cmsis_nn_groups(<out>)` | Set `<out>` to the list of all known operator group ids. |
 | `ns_cmsis_nn_group_sources(<group> <out>)` | Set `<out>` to the absolute source paths for a single group. |
 | `ns_cmsis_nn_attach(<target> [GROUPS …\|ALL] [DTYPES …\|ALL] [INCLUDE_DIRS_VISIBILITY PUBLIC\|PRIVATE\|INTERFACE])` | Add the resolved source set and the public `Include/` directory to an existing `<target>`. |
-| `ns_cmsis_nn_publish_float_switches(F32 <value> F16 <value> REQUEST_PREFIX <prefix> [REQUEST_DEFAULT <ON\|OFF>] [REQUESTED_BY <text>])` | Publish an entry point's float request as the `ARM_NN_ENABLE_F32`/`F16` cache entries and directory variables. `REQUEST_PREFIX` names the caller's own spelling and `REQUEST_DEFAULT` the default that switch declares. See ["Float switch names"](#float-switch-names). |
+| `ns_cmsis_nn_publish_float_switches(F32 <value> F16 <value> REQUEST_PREFIX <prefix> [REQUEST_DEFAULT <ON\|OFF>] [REQUESTED_BY <text>] [AUTHORITATIVE [AUTHORITY_NOTE <text>]])` | Publish an entry point's float request as the `ARM_NN_ENABLE_F32`/`F16` cache entries and directory variables. `REQUEST_PREFIX` names the caller's own spelling and `REQUEST_DEFAULT` the default that switch declares. `AUTHORITATIVE` makes the caller's spelling the only request and rejects a disagreeing `ARM_NN_ENABLE_*`, which the Zephyr path uses because Kconfig owns the decision. See ["Float switch names"](#float-switch-names). |
 
 `ns_cmsis_nn_attach()` does not create a target — the caller owns it.
 The include directory is wrapped in `$<BUILD_INTERFACE:…>` so consumers can
@@ -199,7 +199,7 @@ cross-compiler required:
    [`cmake/tests/zephyr_wiring/CMakeLists.txt`](../cmake/tests/zephyr_wiring/CMakeLists.txt)
    stubs the `zephyr_library*` and `zephyr_*compile_definitions` macros,
    sets every `CONFIG_NS_CMSIS_NN_*=1`, then `include()`s the real
-   `zephyr/CMakeLists.txt` and asserts the captured wiring: 206 sources
+   `zephyr/CMakeLists.txt` and asserts the captured wiring: 226 sources
    attached, `Include/` exposed globally, `CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY`
    propagated, and every SSoT group covered by the Kconfig translation
    table. It also drives the prebuilt path against a fake extracted SDK
@@ -252,7 +252,7 @@ rules incorrectly. Two checks pin that contract:
 
    | Case | What it pins |
    |------|--------------|
-   | `source_all` | STATIC target, 206 sources, `nsx::cmsis_nn` alias, `EXPORT_NAME=cmsis_nn`, BUILD/INSTALL_INTERFACE split on Include/. |
+   | `source_all` | STATIC target, 226 sources, `nsx::cmsis_nn` alias, `EXPORT_NAME=cmsis_nn`, BUILD/INSTALL_INTERFACE split on Include/. |
    | `source_subset` | `NSX_CMSIS_NN_GROUPS="activation;convolution"` resolves to exactly 62 sources. |
    | `inline_asm` | `NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM=ON` propagates `CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY`. |
    | `float_f32` / `float_f16` / `float_both` | The matching `NSX_CMSIS_NN_ENABLE_*` toggle selects the `_f32`/`_f16` sources, sets `ARM_NN_ENABLE_F32`/`F16` on the target, and publishes the same values to the cache. |
@@ -510,8 +510,9 @@ variable or a `CONFIG_*` symbol, remove it where it is set. Passing the `-U`
 the message names clears the wedge in place, without deleting the build
 directory. If the project that adds ns-cmsis-nn re-creates the entry itself,
 with `set(<name> ... CACHE ...)` or `option(<name> ...)` above
-`add_subdirectory()`, `-U` cannot reach it and that call has to go instead;
-the message says so.
+`add_subdirectory()`, `-U` alone cannot reach it, and dropping the call alone
+leaves the seeded entry in the cache: remove that call and then re-run with
+`-U<name>` (or delete `CMakeCache.txt`). The message says so.
 
 On the **Zephyr** path Kconfig is the authority and `ARM_NN_ENABLE_*` is not a
 request. `CONFIG_NS_CMSIS_NN_ENABLE_F32`/`_F16` decide, alone, in source and
