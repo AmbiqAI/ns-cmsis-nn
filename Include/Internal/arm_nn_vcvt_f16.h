@@ -58,7 +58,7 @@
      * hand against an older binutils is not caught. Clang encodes MVE itself and
      * always takes the intrinsics.
      *
-     * TODO(#427): delete this header and the wrapper names when GCC 13 leaves the
+     * TODO(#435): delete this header and the wrapper names when GCC 13 leaves the
      * support matrix.
      */
     #if defined(__GNUC__) && !defined(__clang__) &&                                                                    \
