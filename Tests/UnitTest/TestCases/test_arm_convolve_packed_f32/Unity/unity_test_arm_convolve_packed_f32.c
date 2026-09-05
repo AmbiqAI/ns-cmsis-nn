@@ -40,3 +40,7 @@ void test_convolve_small_k_3x3_s2_f32(void) { convolve_small_k_3x3_s2_f32(); }
 void test_convolve_small_k_few_filters_f32(void) { convolve_small_k_few_filters_f32(); }
 
 void test_convolve_5x5_single_channel_f32(void) { convolve_5x5_single_channel_f32(); }
+
+void test_convolve_small_c_dilated_f32(void) { convolve_small_c_dilated_f32(); }
+
+void test_convolve_small_c_batch2_f32(void) { convolve_small_c_batch2_f32(); }
