@@ -427,3 +427,83 @@ void convolve_5x5_single_channel_f16(void)
 
     free(w_packed);
 }
+
+// Direct small-C kernel (5 input channels, output_w = 11, not a whole lane group): 3x3 with dilation 2 and padding 2, six filters
+// so the last output-channel group is partial. OHWI and NT_N_PACKED, with a (sizer-sized, untouched) scratch
+// and without one. #417
+void convolve_small_c_dilated_f16(void)
+{
+    const cmsis_nn_dims in = {1, 7, 11, 5};
+    const cmsis_nn_dims flt = {6, 3, 3, 5};
+    const cmsis_nn_dims out = {1, 7, 11, 6};
+    float16_t x[385];
+    float16_t w[270];
+    float16_t bias[6];
+    cmsis_nn_conv_params_f16 cp;
+
+    for (int32_t i = 0; i < 385; i++)
+    {
+        x[i] = conv_f16_value(i, 19);
+    }
+    for (int32_t i = 0; i < 270; i++)
+    {
+        w[i] = conv_f16_value(i, 20);
+    }
+    for (int32_t i = 0; i < 6; i++)
+    {
+        bias[i] = conv_f16_value(i, 21);
+    }
+    float16_t *w_packed = pack_rhs_nt_n_from_nt_t_f16(w, 6, 45);
+
+    conv_f16_params(&cp, 2, 2, 0);
+    cp.dilation.h = 2;
+    cp.dilation.w = 2;
+    conv_f16_check(&cp, &in, x, &flt, w, w, bias, &out, 1);
+    conv_f16_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+    conv_f16_params(&cp, 2, 2, 1);
+    cp.dilation.h = 2;
+    cp.dilation.w = 2;
+    conv_f16_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 1);
+    conv_f16_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 0);
+
+    free(w_packed);
+}
+
+// Batch 2 through the direct small-C kernel: single channel, stride 2, padding 1, output_w = 5.
+void convolve_small_c_batch2_f16(void)
+{
+    const cmsis_nn_dims in = {2, 9, 9, 1};
+    const cmsis_nn_dims flt = {8, 3, 3, 1};
+    const cmsis_nn_dims out = {2, 5, 5, 8};
+    float16_t x[162];
+    float16_t w[72];
+    float16_t bias[8];
+    cmsis_nn_conv_params_f16 cp;
+
+    for (int32_t i = 0; i < 162; i++)
+    {
+        x[i] = conv_f16_value(i, 22);
+    }
+    for (int32_t i = 0; i < 72; i++)
+    {
+        w[i] = conv_f16_value(i, 23);
+    }
+    for (int32_t i = 0; i < 8; i++)
+    {
+        bias[i] = conv_f16_value(i, 24);
+    }
+    float16_t *w_packed = pack_rhs_nt_n_from_nt_t_f16(w, 8, 9);
+
+    conv_f16_params(&cp, 1, 1, 0);
+    cp.stride.h = 2;
+    cp.stride.w = 2;
+    conv_f16_check(&cp, &in, x, &flt, w, w, bias, &out, 1);
+    conv_f16_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+    conv_f16_params(&cp, 1, 1, 1);
+    cp.stride.h = 2;
+    cp.stride.w = 2;
+    conv_f16_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 1);
+    conv_f16_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 0);
+
+    free(w_packed);
+}
