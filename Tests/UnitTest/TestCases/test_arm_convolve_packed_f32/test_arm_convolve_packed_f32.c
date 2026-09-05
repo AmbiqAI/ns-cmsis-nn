@@ -157,8 +157,9 @@ static void conv_f32_params(cmsis_nn_conv_params_f32 *cp, int32_t pad_h, int32_t
     cp->weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
 }
 
-// 3x3, in_c = 4, out_c = 8 on a 4x4 input: with scratch this takes the patch-GEMM path, without it the
-// generic fallback. Both must honour NT_N_PACKED; the fallback used to read packed weights as OHWI.
+// 3x3, in_c = 4, out_c = 8 on a 4x4 input (in_c = 4 is one full vector, so the direct small-C kernel does not
+// claim it on MVE): with scratch this takes the patch-GEMM path, without it the generic fallback. Both must honour
+// NT_N_PACKED; the fallback used to read packed weights as OHWI.
 void convolve_packed_3x3_f32(void)
 {
     const cmsis_nn_dims in = {1, 4, 4, 4};
@@ -263,8 +264,9 @@ void convolve_1xn_pad_wider_than_kernel_f32(void)
     free(w_packed);
 }
 
-// Stride-2 3x3 with a single input channel (patch length 9, below the old patch-GEMM patch-length floor): with
-// scratch the patch-GEMM path claims it, without scratch the fallback carries one accumulator across taps. #417
+// Stride-2 3x3 with a single input channel (patch length 9). Route: on MVE the direct small-C kernel (in_c < 4),
+// with or without scratch; on non-MVE builds patch-GEMM with scratch (no patch-length floor since #417) and the
+// generic fallback without.
 void convolve_small_k_3x3_s2_f32(void)
 {
     const cmsis_nn_dims in = {1, 32, 32, 1};
@@ -303,8 +305,9 @@ void convolve_small_k_3x3_s2_f32(void)
     free(w_packed);
 }
 
-// Patch length 18 with only 5 filters: below MIN_OC, so this stays on the fallback with or without scratch.
-// The packed block is partial (4-lane blocks, 5 live), which pins the predicated last-block store.
+// Patch length 18 with only 5 filters (in_c = 2, below MIN_OC). Route: on MVE the direct small-C kernel, whose
+// last output-channel group is partial (5 = 4 + 1); on non-MVE builds the generic fallback with or without
+// scratch, reading the partial packed block (4-lane blocks, 5 live) lane-wise.
 void convolve_small_k_few_filters_f32(void)
 {
     const cmsis_nn_dims in = {1, 6, 6, 2};
@@ -339,8 +342,8 @@ void convolve_small_k_few_filters_f32(void)
     free(w_packed);
 }
 
-// 5x5 single channel (patch length 25): patch-GEMM both before and after the floor was removed, so this pins
-// the route that did not change.
+// 5x5 single channel (patch length 25). Route: on MVE the direct small-C kernel; on non-MVE builds patch-GEMM
+// with scratch (as before #417, the floor was 16) and the generic fallback without.
 void convolve_5x5_single_channel_f32(void)
 {
     const cmsis_nn_dims in = {1, 12, 12, 1};
@@ -375,9 +378,9 @@ void convolve_5x5_single_channel_f32(void)
     free(w_packed);
 }
 
-// Direct small-C kernel (3 input channels, output_w = 9, not a whole lane group): 3x3 with dilation 2 and padding 2, six filters
-// so the last output-channel group is partial. OHWI and NT_N_PACKED, with a (sizer-sized, untouched) scratch
-// and without one. #417
+// Direct small-C kernel (3 input channels, output_w = 9, not a whole lane group): 3x3 with dilation 2 and padding 2,
+// six filters so the last output-channel group is partial. OHWI and NT_N_PACKED, with a (sizer-sized, untouched)
+// scratch and without one. #417
 void convolve_small_c_dilated_f32(void)
 {
     const cmsis_nn_dims in = {1, 7, 9, 3};
@@ -449,6 +452,56 @@ void convolve_small_c_batch2_f32(void)
     conv_f32_params(&cp, 1, 1, 1);
     cp.stride.h = 2;
     cp.stride.w = 2;
+    conv_f32_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 1);
+    conv_f32_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 0);
+
+    free(w_packed);
+}
+
+// in_c = 5, one full vector or more, so the direct small-C kernel never claims this on MVE. Route on every build:
+// patch-GEMM with scratch (out_c = 13 >= MIN_OC, 36 positions), the generic fallback without. 13 filters make the
+// last packed block partial (13 = 3 * 4 + 1), so the fallback's predicated last-block load and the OHWI accumulator are
+// both pinned here, OHWI and NT_N_PACKED. The patch is 45 long and these paths accumulate in f32, so the data
+// are dyadic (inputs k/8, weights k/8): every product is a multiple of 1/64 and every partial sum is exact,
+// which keeps the comparison independent of summation order.
+static float32_t conv_f32_dyadic_input(int32_t i, int32_t seed)
+{
+    return (float32_t)((float32_t)(((i * 37 + seed * 11) % 16) - 8) / 8.0f);
+}
+
+static float32_t conv_f32_dyadic_weight(int32_t i, int32_t seed)
+{
+    return (float32_t)((float32_t)(((i * 53 + seed * 7) % 8) - 4) / 8.0f);
+}
+
+void convolve_full_c_partial_block_f32(void)
+{
+    const cmsis_nn_dims in = {1, 6, 6, 5};
+    const cmsis_nn_dims flt = {13, 3, 3, 5};
+    const cmsis_nn_dims out = {1, 6, 6, 13};
+    float32_t x[180];
+    static float32_t w[585];
+    float32_t bias[13];
+    cmsis_nn_conv_params_f32 cp;
+
+    for (int32_t i = 0; i < 180; i++)
+    {
+        x[i] = conv_f32_dyadic_input(i, 25);
+    }
+    for (int32_t i = 0; i < 585; i++)
+    {
+        w[i] = conv_f32_dyadic_weight(i, 26);
+    }
+    for (int32_t i = 0; i < 13; i++)
+    {
+        bias[i] = conv_f32_dyadic_input(i, 27);
+    }
+    float32_t *w_packed = pack_rhs_nt_n_from_nt_t_f32(w, 13, 45);
+
+    conv_f32_params(&cp, 1, 1, 0);
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 1);
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+    conv_f32_params(&cp, 1, 1, 1);
     conv_f32_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 1);
     conv_f32_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 0);
 

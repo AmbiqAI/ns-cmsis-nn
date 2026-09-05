@@ -46,3 +46,5 @@ void test_convolve_5x5_single_channel_f16(void) { convolve_5x5_single_channel_f1
 void test_convolve_small_c_dilated_f16(void) { convolve_small_c_dilated_f16(); }
 
 void test_convolve_small_c_batch2_f16(void) { convolve_small_c_batch2_f16(); }
+
+void test_convolve_full_c_partial_block_f16(void) { convolve_full_c_partial_block_f16(); }
