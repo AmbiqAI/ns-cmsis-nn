@@ -1593,6 +1593,7 @@ static void run_even_s4_fixture(const conv_s4_fixture *fixture, const arm_cmsis_
 
     int32_t buf_size = arm_convolve_even_s4_get_buffer_size(&fixture->input_dims, &fixture->filter_dims);
     ctx.buf = malloc(buf_size);
+    TEST_ASSERT_NOT_NULL(ctx.buf);
     ctx.size = 0;
 
     arm_cmsis_nn_status result = arm_convolve_even_s4(&ctx,
@@ -1630,6 +1631,7 @@ static void run_even_s4_fixture(const conv_s4_fixture *fixture, const arm_cmsis_
                                                        &fixture->filter_dims,
                                                        &fixture->output_dims);
     ctx.buf = malloc(buf_size);
+    TEST_ASSERT_NOT_NULL(ctx.buf);
     ctx.size = 0;
 
     result = arm_convolve_wrapper_s4(&ctx,
@@ -1665,9 +1667,13 @@ void even_arm_convolve_s4(void)
     static const conv_s4_fixture fixtures[] = {
         CONV_S4_FIXTURE(basic_int4, BASIC_INT4),   // rhs_cols = 4 * 2 * 1 = 8, no padding
         CONV_S4_FIXTURE(conv_2_int4, CONV_2_INT4), // rhs_cols = 3 * 3 * 2 = 18, padded, clamped activation
-        // rhs_cols = 3 * 3 * 128 = 1152, stride 4. The kernel's blk_cnt is rhs_cols >> 5, so this is the only
-        // fixture here that runs the 32-byte vld2q/vstrbq interleave at all; the two above skip it entirely.
+        // rhs_cols = 3 * 3 * 128 = 1152, stride 4. The kernel's blk_cnt is rhs_cols >> 5, so the two above skip
+        // the 32-byte vld2q/vstrbq interleave entirely; this one runs 36 blocks, but its trailing block is
+        // constant padding for every output pixel, so on its own it cannot see a block-count drift.
         CONV_S4_FIXTURE(conv_5_int4, CONV_5_INT4),
+        // rhs_cols = 10 * 4 * 3 = 120, so three interleave blocks, and they carry live input rather than padding:
+        // dropping one block changes 228 of 250 outputs. see AmbiqAI/ns-cmsis-nn#378
+        CONV_S4_FIXTURE(conv_3_int4, CONV_3_INT4),
     };
 
     for (size_t i = 0; i < sizeof(fixtures) / sizeof(fixtures[0]); i++)
@@ -1675,7 +1681,9 @@ void even_arm_convolve_s4(void)
         const conv_s4_fixture *fixture = &fixtures[i];
         const int32_t rhs_cols = fixture->filter_dims.h * fixture->filter_dims.w * fixture->input_dims.c;
 
-        /* The three conditions arm_convolve_wrapper_s4 tests, in its order, to reach arm_convolve_even_s4. */
+        /* Pins the fixture's shape class against the same helpers the wrapper's predicate uses. Which kernel the
+         * wrapper picks is not observable from the output: the even branch is a performance path that returns the
+         * same numbers as arm_convolve_s4. */
         TEST_ASSERT_FALSE(arm_nn_is_convolve_1x1(&fixture->conv_params, &fixture->input_dims, &fixture->filter_dims));
         TEST_ASSERT_FALSE(arm_nn_is_convolve_1_x_n(&fixture->conv_params, &fixture->input_dims, &fixture->filter_dims));
         TEST_ASSERT_EQUAL(0, rhs_cols & 0x1);
@@ -1698,7 +1706,6 @@ void even_odd_shape_arm_convolve_s4(void)
 
     run_even_s4_fixture(&fixture, ARM_CMSIS_NN_ARG_ERROR);
 }
-
 
 void conv_1_x_n_1_arm_convolve_s4(void)
 {
