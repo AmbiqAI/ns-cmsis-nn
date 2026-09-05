@@ -64,43 +64,52 @@
     #if defined(__GNUC__) && !defined(__clang__) &&                                                                    \
         (defined(ARM_NN_GAS_VCVT_F16_BROKEN) || (__GNUC__ < 14 && !defined(ARM_NN_GAS_F16_VERIFIED)))
 
-/*
- * Assembler-side operand rewrite. It has to be defined once per assembly file
- * rather than inside each template, because .macro is an error on redefinition;
- * the .ifndef guard is what makes that hold under -flto, where every top-level
- * asm in the link lands in one LTRANS file. Keeping it out of the per-call
- * template also keeps the wrappers small enough for the inliner to accept.
- * The .set and label names are .L-local so none of this reaches the symbol
- * table. An operand the .irp fails to match leaves its number at -1 and stops
- * the assemble, rather than silently encoding the wrong register.
- */
-__asm__(".ifndef .L_nn_sform_defined\n"
-        "	.set .L_nn_sform_defined, 1\n"
-        "	.macro _nn_sform_emit op, d, m\n"
-        "	\\op s\\d, s\\m\n"
-        "	.endm\n"
-        "	.macro _nn_sform op, d, m\n"
-        "	.set .L_nn_sform_d, -1\n"
-        "	.set .L_nn_sform_m, -1\n"
-        "	.irp i, 0,1,2,3,4,5,6,7\n"
-        "	.ifc \\d,q\\i\n"
-        "	.set .L_nn_sform_d, \\i\n"
-        "	.endif\n"
-        "	.ifc \\m,q\\i\n"
-        "	.set .L_nn_sform_m, \\i\n"
-        "	.endif\n"
-        "	.endr\n"
-        "	.if (.L_nn_sform_d < 0) || (.L_nn_sform_m < 0)\n"
-        "	.error \"_nn_sform: operand is not one of q0-q7\"\n"
-        "	.endif\n"
-        "	.altmacro\n"
-        "	_nn_sform_emit \\op, %(.L_nn_sform_d*4+0), %(.L_nn_sform_m*4+0)\n"
-        "	_nn_sform_emit \\op, %(.L_nn_sform_d*4+1), %(.L_nn_sform_m*4+1)\n"
-        "	_nn_sform_emit \\op, %(.L_nn_sform_d*4+2), %(.L_nn_sform_m*4+2)\n"
-        "	_nn_sform_emit \\op, %(.L_nn_sform_d*4+3), %(.L_nn_sform_m*4+3)\n"
-        "	.noaltmacro\n"
-        "	.endm\n"
-        "	.endif\n");
+        /*
+         * Assembler-side operand rewrite, carried by every use site rather than
+         * defined once at file scope. A top-level asm does not follow the functions of
+         * its translation unit into whichever LTRANS partition ends up assembling
+         * them, so under -flto a file-scope definition can be absent where the call
+         * lands and the assemble stops on an unknown mnemonic. .macro is an error on
+         * redefinition, so the .ifndef guard is what lets every site carry its own and
+         * still leaves one definition per assembly file. The .set and label names are
+         * .L-local so none of this reaches the symbol table, and `%%' is `%' because
+         * this is an extended-asm template. An operand the .irp fails to match leaves
+         * its number at -1 and stops the assemble, rather than silently encoding the
+         * wrong register.
+         *
+         * The cost is that gcc sizes an asm by counting the lines of its template, so
+         * each conversion now looks far larger than the four instructions it becomes
+         * and nearby branches get their wide encodings. That is a few bytes on this
+         * arm only; the other arm is the intrinsics and is untouched.
+         */
+        #define ARM_NN_SFORM_DEF                                                                                       \
+            ".ifndef .L_nn_sform_defined\n"                                                                            \
+            "	.set .L_nn_sform_defined, 1\n"                                                                           \
+            "	.macro _nn_sform_emit op, d, m\n"                                                                        \
+            "	\\op s\\d, s\\m\n"                                                                                       \
+            "	.endm\n"                                                                                                 \
+            "	.macro _nn_sform op, d, m\n"                                                                             \
+            "	.set .L_nn_sform_d, -1\n"                                                                                \
+            "	.set .L_nn_sform_m, -1\n"                                                                                \
+            "	.irp i, 0,1,2,3,4,5,6,7\n"                                                                               \
+            "	.ifc \\d,q\\i\n"                                                                                         \
+            "	.set .L_nn_sform_d, \\i\n"                                                                               \
+            "	.endif\n"                                                                                                \
+            "	.ifc \\m,q\\i\n"                                                                                         \
+            "	.set .L_nn_sform_m, \\i\n"                                                                               \
+            "	.endif\n"                                                                                                \
+            "	.endr\n"                                                                                                 \
+            "	.if (.L_nn_sform_d < 0) || (.L_nn_sform_m < 0)\n"                                                        \
+            "	.error \"_nn_sform: operand is not one of q0-q7\"\n"                                                     \
+            "	.endif\n"                                                                                                \
+            "	.altmacro\n"                                                                                             \
+            "	_nn_sform_emit \\op, %%(.L_nn_sform_d*4+0), %%(.L_nn_sform_m*4+0)\n"                                     \
+            "	_nn_sform_emit \\op, %%(.L_nn_sform_d*4+1), %%(.L_nn_sform_m*4+1)\n"                                     \
+            "	_nn_sform_emit \\op, %%(.L_nn_sform_d*4+2), %%(.L_nn_sform_m*4+2)\n"                                     \
+            "	_nn_sform_emit \\op, %%(.L_nn_sform_d*4+3), %%(.L_nn_sform_m*4+3)\n"                                     \
+            "	.noaltmacro\n"                                                                                           \
+            "	.endm\n"                                                                                                 \
+            "	.endif\n"
 
 /*
  * Four S-form instructions per call, one per 32-bit lane: the S registers of a
@@ -118,7 +127,7 @@ __asm__(".ifndef .L_nn_sform_defined\n"
 __STATIC_FORCEINLINE float32x4_t arm_nn_vcvtbq_f32_f16(float16x8_t a)
 {
     float32x4_t r;
-    __asm__("_nn_sform vcvtb.f32.f16, %q0, %q1" : "=w"(r) : "w"(a));
+    __asm__(ARM_NN_SFORM_DEF "_nn_sform vcvtb.f32.f16, %q0, %q1" : "=w"(r) : "w"(a));
     return r;
 }
 
@@ -130,7 +139,7 @@ __STATIC_FORCEINLINE float32x4_t arm_nn_vcvtbq_f32_f16(float16x8_t a)
 __STATIC_FORCEINLINE float32x4_t arm_nn_vcvttq_f32_f16(float16x8_t a)
 {
     float32x4_t r;
-    __asm__("_nn_sform vcvtt.f32.f16, %q0, %q1" : "=w"(r) : "w"(a));
+    __asm__(ARM_NN_SFORM_DEF "_nn_sform vcvtt.f32.f16, %q0, %q1" : "=w"(r) : "w"(a));
     return r;
 }
 
@@ -146,7 +155,7 @@ __STATIC_FORCEINLINE float32x4_t arm_nn_vcvttq_f32_f16(float16x8_t a)
 __STATIC_FORCEINLINE float16x8_t arm_nn_vcvtbq_f16_f32(float16x8_t inactive, float32x4_t a)
 {
     float16x8_t r;
-    __asm__("_nn_sform vcvtb.f16.f32, %q0, %q2" : "=w"(r) : "0"(inactive), "w"(a));
+    __asm__(ARM_NN_SFORM_DEF "_nn_sform vcvtb.f16.f32, %q0, %q2" : "=w"(r) : "0"(inactive), "w"(a));
     return r;
 }
 
@@ -159,9 +168,11 @@ __STATIC_FORCEINLINE float16x8_t arm_nn_vcvtbq_f16_f32(float16x8_t inactive, flo
 __STATIC_FORCEINLINE float16x8_t arm_nn_vcvttq_f16_f32(float16x8_t inactive, float32x4_t a)
 {
     float16x8_t r;
-    __asm__("_nn_sform vcvtt.f16.f32, %q0, %q2" : "=w"(r) : "0"(inactive), "w"(a));
+    __asm__(ARM_NN_SFORM_DEF "_nn_sform vcvtt.f16.f32, %q0, %q2" : "=w"(r) : "0"(inactive), "w"(a));
     return r;
 }
+
+        #undef ARM_NN_SFORM_DEF
 
     #else
 
