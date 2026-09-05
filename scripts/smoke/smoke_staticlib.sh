@@ -54,8 +54,10 @@
 # armlink already treats an unresolved reference as an error (L6218E),
 # so strictness needs no extra flag there.
 #
-# Neither this path nor the GNU one consults the archive SYMBOL INDEX,
-# so no cell in this gate would notice an index-less archive.
+# Neither linker path consults the archive SYMBOL INDEX -- the GNU side
+# passes --whole-archive, the armlink side names every extracted member --
+# so that is asserted separately, before the link, by
+# scripts/smoke/check_archive_index.sh.
 
 set -euo pipefail
 
@@ -186,6 +188,28 @@ else
   echo ">>> lenient smoke-linking ${TOOLCHAIN}/${TARGET_CPU} against $(basename "${LIBRARY}")"
 fi
 
+# One symbol from each referenced group. Asserted twice: in the archive's
+# symbol index below -- which is how a consumer finds them -- and in the
+# linked ELF further down.
+required_syms=(
+  arm_relu_q7
+  arm_softmax_s8
+  arm_convolve_s8
+  arm_fully_connected_s8
+  arm_max_pool_s8
+  arm_avgpool_s8
+  arm_elementwise_add_s8
+  arm_elementwise_mul_s8
+)
+
+# Before the link, because the link cannot see this (AmbiqAI/ns-cmsis-nn#291).
+index_args=()
+for s in "${required_syms[@]}"; do index_args+=(--require-symbol "${s}"); done
+"${repo_root}/scripts/smoke/check_archive_index.sh" \
+  --library "${LIBRARY}" \
+  --nm "${nm}" \
+  "${index_args[@]}"
+
 if [[ "${link_style}" == "gnu" ]]; then
   if (( STRICT )); then
     # Every object in the archive must resolve. --gc-sections is dropped
@@ -226,9 +250,8 @@ else
   # strictness needs no third flag; --unresolved maps a dangling
   # reference onto a real symbol and is the lenient escape hatch.
   #
-  # Note: no cell in this gate exercises the archive SYMBOL INDEX. Neither
-  # armlink-on-extracted-members nor the GNU --whole-archive path consults
-  # it, so an index-less archive passes both. See #291.
+  # Extraction is also why the index has to be checked separately: naming
+  # members on the link line means armlink never queries it. See #291.
   members_dir="${OUTDIR}/members_${TOOLCHAIN}_${TARGET_CPU}"
   rm -rf "${members_dir}"
   mkdir -p "${members_dir}"
@@ -270,16 +293,6 @@ fi
 nm_input="${elf}"
 
 # Sanity: ELF must contain at least one symbol from each referenced group.
-required_syms=(
-  arm_relu_q7
-  arm_softmax_s8
-  arm_convolve_s8
-  arm_fully_connected_s8
-  arm_max_pool_s8
-  arm_avgpool_s8
-  arm_elementwise_add_s8
-  arm_elementwise_mul_s8
-)
 missing=()
 nm_out="$(${nm} --defined-only "${nm_input}")"
 for s in "${required_syms[@]}"; do
