@@ -50,13 +50,22 @@ case "${expect_qform}" in
   *) echo "--expect-qform must be 'none' or 'present', got: ${expect_qform}" >&2; exit 2 ;;
 esac
 
+# The extraction runs from inside --workdir, so a relative --archive would be
+# resolved against that directory instead of the caller's. Pin it here, before
+# anything changes directory. See AmbiqAI/ns-cmsis-nn#427.
+if [[ ! -f "${archive}" ]]; then
+  echo "no such archive: ${archive} (from $(pwd))" >&2
+  exit 2
+fi
+archive="$(cd "$(dirname "${archive}")" && pwd)/$(basename "${archive}")"
+
 ar="${root}/bin/arm-none-eabi-ar"
 objdump="${root}/bin/arm-none-eabi-objdump"
 echo "objdump: $("${objdump}" --version | head -1)"
 
 rm -rf "${workdir}"
 mkdir -p "${workdir}"
-( cd "${workdir}" && "${ar}" x "$(cd "$(dirname "${archive}")" && pwd)/$(basename "${archive}")" )
+( cd "${workdir}" && "${ar}" x "${archive}" )
 
 # The Q-register form of the four conversions, as objdump renders them.
 qform='vcvt[bt]\.(f16\.f32|f32\.f16)[[:space:]]+q'

@@ -322,7 +322,7 @@ jobs:
           set -euo pipefail
           bash scripts/ci/scan_f16_conversion_objects.sh \
             --root "${FIXED_ROOT}" \
-            --archive "./output/floor/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
+            --archive "${GITHUB_WORKSPACE}/output/floor/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
             --workdir "${RUNNER_TEMP}/floor-objs" \
             --expect-qform none
 
@@ -361,7 +361,7 @@ jobs:
           fi
           bash scripts/ci/scan_f16_conversion_objects.sh \
             --root "${FIXED_ROOT}" \
-            --archive "./output/brecipe/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
+            --archive "${GITHUB_WORKSPACE}/output/brecipe/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
             --workdir "${RUNNER_TEMP}/brecipe-objs" \
             --expect-qform present
 
@@ -396,7 +396,7 @@ jobs:
           fi
           bash scripts/ci/scan_f16_conversion_objects.sh \
             --root "${FIXED_ROOT}" \
-            --archive "./output/olds/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
+            --archive "${GITHUB_WORKSPACE}/output/olds/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
             --workdir "${RUNNER_TEMP}/olds-objs" \
             --expect-qform none
 
