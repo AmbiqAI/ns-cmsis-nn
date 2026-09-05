@@ -25,7 +25,9 @@
 # only the on-disk index header is parsed.
 #
 # Exit codes: 2 usage, 3 missing input, 5 index absent, 6 index empty,
-# 7 index contents wrong.
+# 7 index contents wrong (an entry names a symbol no member defines, or a
+# --require-symbol is absent), 8 index incomplete (a member exports a
+# symbol the index does not name).
 
 set -euo pipefail
 
@@ -142,19 +144,38 @@ if [[ -z "${armap_syms}" ]]; then
   exit 7
 fi
 
+# --extern-only drops locals, which an index is entitled to omit. Weak
+# definitions stay in the set: every ar dialect indexes them, and nm
+# spells them 'W'/'V' or plain 'T' depending on the object format.
+nm_defined="$("${NM}" --defined-only --extern-only "${LIBRARY}")"
+defined_syms="$(awk 'NF == 3 { print $3 }' <<<"${nm_defined}" | LC_ALL=C sort -u)"
+
+# Common symbols are defined for the purpose of the stale check but must
+# not be demanded of the index: GNU ar records them, the Mach-O
+# __.SYMDEF does not, so requiring one would fail on macOS hosts only.
+indexable_syms="$(awk 'NF == 3 && $2 != "C" { print $3 }' <<<"${nm_defined}" | LC_ALL=C sort -u)"
+
 # A stale index is the failure the header check cannot see: the counts
 # still look healthy while the entries point at symbols no member
-# defines. Only that direction is asserted -- an index legitimately omits
-# symbols nm reports, such as locals.
-defined_syms="$("${NM}" --defined-only --extern-only "${LIBRARY}" \
-  | awk 'NF == 3 { print $3 }' \
-  | LC_ALL=C sort -u)"
-
+# defines.
 phantom="$(LC_ALL=C comm -23 <(printf '%s\n' "${armap_syms}") <(printf '%s\n' "${defined_syms}"))"
 if [[ -n "${phantom}" ]]; then
   echo "archive symbol index names symbols no member defines:" >&2
   while IFS= read -r sym; do echo "  ${sym}"; done <<<"${phantom}" >&2
   exit 7
+fi
+
+# The mirror failure, and the one an undercounting index actually
+# produces: every entry resolves, so the checks above are happy, while a
+# member appended after the index was built is invisible to any consumer
+# that resolves through the armap. Reported separately from the stale
+# case because the two have different causes -- and the stale check runs
+# first, so an entry that is both wrong and missing is named as stale.
+unindexed="$(LC_ALL=C comm -13 <(printf '%s\n' "${armap_syms}") <(printf '%s\n' "${indexable_syms}"))"
+if [[ -n "${unindexed}" ]]; then
+  echo "archive members export symbols the index does not name:" >&2
+  while IFS= read -r sym; do echo "  ${sym}"; done <<<"${unindexed}" >&2
+  exit 8
 fi
 
 missing=()

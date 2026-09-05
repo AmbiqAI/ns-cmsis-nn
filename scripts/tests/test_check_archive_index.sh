@@ -34,7 +34,19 @@ cd "${work}"
 
 printf 'int ns_probe_a(void) { return 1; }\n' > a.c
 printf 'int ns_probe_b(void) { return 2; }\n' > b.c
+
+# Weak and common definitions are where the completeness check is most
+# likely to fire spuriously: a weak one has to be indexed everywhere,
+# while GNU ar records a common one and the Mach-O __.SYMDEF does not.
+# Both belong in the passing fixture so either mistake fails a case.
+cat > c.c <<'EOC'
+int ns_probe_common;
+__attribute__((weak)) int ns_probe_weak(void) { return 3; }
+EOC
 "${CC}" -c a.c b.c
+# Without -fcommon a tentative definition lands in bss instead; compilers
+# that reject the flag still emit a definition, just not a common one.
+"${CC}" -fcommon -c c.c 2>/dev/null || "${CC}" -c c.c
 
 failures=0
 expect() { # <expected-exit> <name> <args...>
@@ -52,7 +64,7 @@ expect() { # <expected-exit> <name> <args...>
   return 0
 }
 
-"${AR}" rc good.a a.o b.o
+"${AR}" rc good.a a.o b.o c.o
 
 # Mach-O hosts prefix C symbols with an underscore, so read the names the
 # index actually carries instead of assuming a spelling.
@@ -108,8 +120,38 @@ PY
 expect 6 "archive with an empty index fails" --library empty.a --nm "${NM}"
 
 # A stale index: counts and offsets stay healthy while an entry names a
-# symbol no member defines. The header check alone would pass this.
+# symbol no member defines. The header check alone would pass this. It is
+# also short an entry now, so this case pins the stale check ahead of the
+# completeness one.
 expect 7 "archive with a stale index fails" --library stale.a --nm "${NM}"
+
+# An undercounting index: every entry it does carry resolves, so only the
+# completeness check sees it. Spliced by hand rather than with `ar qS`,
+# whose treatment of an already-present symbol table differs between GNU
+# ar and llvm-ar.
+"${AR}" rc undercount.a a.o
+"${AR}" rc tail.a b.o
+python3 - <<'SPLICE'
+# (start, end) of the final ar member, header and padding included.
+def last_member(blob):
+    pos, last = 8, None
+    while pos + 60 <= len(blob):
+        size = int(blob[pos + 48:pos + 58].decode().strip())
+        end = pos + 60 + size + (size % 2)
+        last = (pos, end)
+        pos = end
+    return last
+
+
+with open("tail.a", "rb") as f:
+    blob = f.read()
+start, end = last_member(blob)
+with open("undercount.a", "ab") as f:
+    f.write(blob[start:end])
+SPLICE
+
+expect 8 "archive whose index misses a member fails" \
+  --library undercount.a --nm "${NM}"
 
 if (( failures > 0 )); then
   echo "${failures} case(s) failed" >&2
