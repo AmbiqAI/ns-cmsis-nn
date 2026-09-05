@@ -23,11 +23,19 @@
 #                               + ARM_NN_ENABLE_F32=0 and ARM_NN_ENABLE_F16=1.
 #   float_both                — both float toggles ON; expect both _f32/_f16
 #                               sources and both compile definitions =1.
-#   float_conflict            — NSX_CMSIS_NN_ENABLE_F32=OFF while the cache
-#                               already carries ARM_NN_ENABLE_F32=ON; the two
-#                               spellings contradict, so expect a
-#                               configure-time FATAL_ERROR (via a child cmake
-#                               probe). See AmbiqAI/ns-cmsis-nn#420.
+#   float_arm_nn_only         - ARM_NN_ENABLE_F16=ON alone, both NSX float
+#                               switches at their defaults; the ARM_NN
+#                               spelling is the request, so expect _f16
+#                               sources + ARM_NN_ENABLE_F16=1 published.
+#   float_conflict            - NSX_CMSIS_NN_ENABLE_F32=ON (away from its
+#                               default) while the cache carries
+#                               ARM_NN_ENABLE_F32=OFF; two explicit requests
+#                               disagree, so expect a configure-time
+#                               FATAL_ERROR (via a child cmake probe).
+#                               See AmbiqAI/ns-cmsis-nn#420.
+#   float_conflict_plain      - same contradiction, but ARM_NN_ENABLE_F16 is a
+#                               plain (non-cache) variable in the calling
+#                               scope; expect the same FATAL_ERROR.
 #   prebuilt                  — NSX_CMSIS_NN_LIB=<dummy.a>, expect the
 #                               IMPORTED prebuilt target + INTERFACE wrapper
 #                               + alias.
@@ -53,7 +61,7 @@ project(ns_cmsis_nn_nsx_wiring C)
 set(CASE "source_all" CACHE STRING "Which wiring case to exercise.")
 set_property(CACHE CASE PROPERTY STRINGS
   source_all source_subset inline_asm float_f32 float_f16 float_both
-  float_conflict prebuilt
+  float_arm_nn_only float_conflict float_conflict_plain prebuilt
   prebuilt_manifest_ok prebuilt_manifest_reject prebuilt_manifest_legacy)
 
 get_filename_component(_repo_root "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
@@ -151,21 +159,35 @@ add_subdirectory(\"${_repo_root}/nsx\" nsx)
 endif()
 
 # ----------------------------------------------------------------------------
-# float_conflict: the module raises a configure-time FATAL_ERROR when the two
-# spellings of the same switch disagree, which would abort this script if
-# triggered directly. Drive it via a child cmake invocation, as above.
+# float_conflict / float_conflict_plain: two explicit requests that disagree
+# are a configure-time FATAL_ERROR, which would abort this script if triggered
+# directly. Drive it via a child cmake invocation, as above. The NSX switch has
+# to be away from its default for the disagreement to count; at its default the
+# ARM_NN_ENABLE_* value is simply the request (float_arm_nn_only).
 # ----------------------------------------------------------------------------
-if(CASE STREQUAL "float_conflict")
+if(CASE STREQUAL "float_conflict" OR CASE STREQUAL "float_conflict_plain")
   set(_probe "${CMAKE_BINARY_DIR}/_conflict_probe")
   file(REMOVE_RECURSE "${_probe}")
   file(MAKE_DIRECTORY "${_probe}")
+  if(CASE STREQUAL "float_conflict")
+    set(_probe_request
+"set(NSX_CMSIS_NN_ENABLE_F32 ON CACHE BOOL \"\" FORCE)
+set(ARM_NN_ENABLE_F32 OFF CACHE BOOL \"\" FORCE)")
+    set(_probe_names ARM_NN_ENABLE_F32 NSX_CMSIS_NN_ENABLE_F32 -UARM_NN_ENABLE_F32)
+  else()
+    # Plain directory-scope variable: what a consumer gets from a set() above
+    # add_subdirectory() rather than from -D.
+    set(_probe_request
+"set(NSX_CMSIS_NN_ENABLE_F16 ON CACHE BOOL \"\" FORCE)
+set(ARM_NN_ENABLE_F16 OFF)")
+    set(_probe_names ARM_NN_ENABLE_F16 NSX_CMSIS_NN_ENABLE_F16 -UNSX_CMSIS_NN_ENABLE_F16)
+  endif()
   file(WRITE "${_probe}/CMakeLists.txt"
 "cmake_minimum_required(VERSION 3.19)
 project(probe C)
 add_library(_nsx_board_flags INTERFACE)
 set(NSX_BOARD_FLAGS_TARGET _nsx_board_flags)
-set(NSX_CMSIS_NN_ENABLE_F32 OFF CACHE BOOL \"\" FORCE)
-set(ARM_NN_ENABLE_F32 ON CACHE BOOL \"\" FORCE)
+${_probe_request}
 add_subdirectory(\"${_repo_root}/nsx\" nsx)
 ")
   execute_process(
@@ -174,12 +196,19 @@ add_subdirectory(\"${_repo_root}/nsx\" nsx)
     OUTPUT_VARIABLE _out
     ERROR_VARIABLE  _err)
   if(_rc EQUAL 0)
-    _fail("float_conflict: probe unexpectedly succeeded (expected FATAL_ERROR)\n${_out}\n${_err}")
+    _fail("${CASE}: probe unexpectedly succeeded (expected FATAL_ERROR)\n${_out}\n${_err}")
   else()
-    string(FIND "${_err}" "contradictory float switches" _msg_idx)
+    string(FIND "${_err}" "contradictory" _msg_idx)
     if(_msg_idx EQUAL -1)
-      _fail("float_conflict: probe failed but without the expected diagnostic; stderr:\n${_err}")
+      _fail("${CASE}: probe failed but without the expected diagnostic; stderr:\n${_err}")
     endif()
+    # The diagnostic has to name both spellings and the way out of the wedge.
+    foreach(_needle IN LISTS _probe_names)
+      string(FIND "${_err}" "${_needle}" _idx)
+      if(_idx EQUAL -1)
+        _fail("${CASE}: diagnostic never mentions ${_needle}; stderr:\n${_err}")
+      endif()
+    endforeach()
   endif()
 
   if(_failures)
@@ -206,6 +235,12 @@ set(NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM OFF CACHE BOOL "" FORCE)
 set(NSX_CMSIS_NN_ENABLE_F32 OFF CACHE BOOL "" FORCE)
 set(NSX_CMSIS_NN_ENABLE_F16 OFF CACHE BOOL "" FORCE)
 unset(NSX_CMSIS_NN_LIB CACHE)
+# What an earlier CASE published, and the bookkeeping that tells a stale
+# published value from a fresh request, must not leak into this one.
+foreach(_leftover F32 F16)
+  unset(ARM_NN_ENABLE_${_leftover} CACHE)
+  unset(_NS_CMSIS_NN_PUBLISHED_ARM_NN_ENABLE_${_leftover} CACHE)
+endforeach()
 
 if(CASE STREQUAL "source_all")
   _compute_expected_source_count(_expected_sources "ALL" 0 0)
@@ -242,6 +277,15 @@ elseif(CASE STREQUAL "float_both")
   set(_expect_f32_sources TRUE)
   set(_expect_f16_sources TRUE)
 
+elseif(CASE STREQUAL "float_arm_nn_only")
+  # Both NSX switches stay at their defaults, so the ARM_NN spelling is the
+  # whole request. See AmbiqAI/ns-cmsis-nn#420.
+  set(ARM_NN_ENABLE_F16 ON CACHE BOOL "" FORCE)
+  _compute_expected_source_count(_expected_sources "ALL" 0 1)
+  set(_expect_f32_define 0)
+  set(_expect_f16_define 1)
+  set(_expect_f16_sources TRUE)
+
 elseif(CASE STREQUAL "prebuilt")
   set(_fake_lib "${CMAKE_BINARY_DIR}/_fake_prebuilt.a")
   file(TOUCH "${_fake_lib}")
@@ -265,7 +309,7 @@ elseif(CASE STREQUAL "prebuilt_manifest_ok")
   set(_expect_f16_define 0)
 
 else()
-  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: source_all, source_subset, inline_asm, float_f32, float_f16, float_both, float_conflict, prebuilt, prebuilt_manifest_ok, prebuilt_manifest_reject, prebuilt_manifest_legacy.")
+  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: source_all, source_subset, inline_asm, float_f32, float_f16, float_both, float_arm_nn_only, float_conflict, float_conflict_plain, prebuilt, prebuilt_manifest_ok, prebuilt_manifest_reject, prebuilt_manifest_legacy.")
 endif()
 
 # ----------------------------------------------------------------------------

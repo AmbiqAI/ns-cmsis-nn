@@ -26,8 +26,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # float_f32 and float_f16 are the only cases that catch a swapped
+        # F32/F16 argument pair in the publish call; float_both cannot.
         case: [source_all, source_subset, inline_asm, prebuilt,
-               float_both, float_conflict, prebuilt_manifest_ok]
+               float_f32, float_f16, float_both, float_conflict,
+               prebuilt_manifest_ok]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
