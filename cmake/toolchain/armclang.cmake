@@ -9,10 +9,16 @@ set(CMAKE_SYSTEM_NAME Generic)
 # -mcpu=list. It is consumed during project() / compiler identification, so it
 # has to be set before any of the NS_CMSIS_NN_TARGET_CPU validation further
 # down. cortex-m0, cortex-m4 and cortex-m55 are all in the supported list.
-# Under CMP0123 NEW -- set in the top-level CMakeLists.txt, since a
-# cmake_policy() call in an include()d toolchain file is popped before
-# project() sees it -- the module derives no flag from this variable; the
-# arch flags below are the only source. see AmbiqAI/ns-cmsis-nn#292
+# Under CMP0123 NEW the ARMClang module derives no compile flag from this
+# variable, leaving the arch flags below as the only source of -mcpu. That
+# policy is set in the top-level CMakeLists.txt -- a cmake_policy() call in an
+# include()d toolchain file is popped before project() sees it -- so it only
+# covers builds that enter through it. nsx/ and zephyr/ include
+# cmake/ns_cmsis_nn.cmake directly, so on that path the policy is the
+# consuming build's to set before its own project(). Either way the variable
+# must still name a real CPU, since the module validates it during compiler
+# identification.
+# see AmbiqAI/ns-cmsis-nn#292
 if(NOT NS_CMSIS_NN_TARGET_CPU)
   set(NS_CMSIS_NN_TARGET_CPU "$ENV{NS_CMSIS_NN_TARGET_CPU}")
 endif()
