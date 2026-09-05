@@ -109,8 +109,10 @@ Prebuilt mode (set `NSX_CMSIS_NN_LIB` to an `.a`) bypasses the SSoT
 entirely and only exposes headers. When a `manifest.json` sidecar is
 discoverable next to the archive (see
 ["Float (F32/F16) capability manifest"](#float-f32f16-capability-manifest)
-below), requesting `NSX_CMSIS_NN_ENABLE_F32`/`F16` is validated against
-it at configure time. Both modes publish the effective values as
+below), the effective float request is validated against it at configure
+time: the request is resolved first, so an `ARM_NN_ENABLE_F32`/`F16` value
+adopted from the consumer is checked exactly like the `NSX_CMSIS_NN_ENABLE_*`
+spelling. Both modes publish the effective values as
 `ARM_NN_ENABLE_F32`/`F16`; see ["Float switch names"](#float-switch-names)
 for what consumers should read.
 
@@ -256,6 +258,7 @@ rules incorrectly. Two checks pin that contract:
    | `prebuilt` | `NSX_CMSIS_NN_LIB=…` builds an INTERFACE wrapper + IMPORTED prebuilt target, alias still works. |
    | `prebuilt_manifest_ok` | Prebuilt lib + sibling `manifest.json` reporting `f32=true`; `NSX_CMSIS_NN_ENABLE_F32=ON` succeeds and forwards `ARM_NN_ENABLE_F32=1`. |
    | `prebuilt_manifest_reject` | Manifest reports `f32=false`; requesting `NSX_CMSIS_NN_ENABLE_F32=ON` aborts with `FATAL_ERROR` (via child `cmake` probe). |
+   | `prebuilt_manifest_reject_arm_nn` | Manifest reports `f16=false` and the request arrives only as `ARM_NN_ENABLE_F16=ON`; the check reads the resolved request, so it aborts with the same `FATAL_ERROR`. |
    | `prebuilt_manifest_legacy` | Manifest has no `features` block (schema v1); requesting F32 is conservatively rejected the same way. |
 
    Run any case locally with:
@@ -573,8 +576,8 @@ instead of deferring to a confusing link-time error.
 | Consumer | Capability variables | Request variables | Policy |
 |----------|----------------------|--------------------|--------|
 | `find_package(ns-cmsis-nn)` | `NS_CMSIS_NN_HAS_F32`, `NS_CMSIS_NN_HAS_F16`, `NS_CMSIS_NN_HAS_REQUANTIZE_INLINE_ASM` | *(none — no pre-existing opt-in API)* | Automatic: every capability the manifest reports is unconditionally forwarded onto the `cmsis-nn` imported target's `INTERFACE_COMPILE_DEFINITIONS` as `ARM_NN_ENABLE_F32`/`F16=1`. |
-| NSX (`nsx/CMakeLists.txt`) | discovered via `NSX_CMSIS_NN_MANIFEST` → `<lib_dir>/manifest.json` → `<lib_dir>/../manifest.json` → none | `NSX_CMSIS_NN_ENABLE_F32`/`F16` (default `OFF`) | Opt-in preserved: only forwards what's requested, but `FATAL_ERROR`s if the manifest doesn't report that capability. If no manifest is discoverable, the request is honored as before but logged as **unverified**. |
-| Zephyr (`zephyr/CMakeLists.txt`) | `${_ns_sdk}/manifest.json` (fixed tarball layout, no discovery needed) | `CONFIG_NS_CMSIS_NN_ENABLE_F32`/`F16` | Same opt-in + validate + fail-fast policy as NSX; existing FP16 arch/toolchain `Kconfig` restrictions (e.g. requires MVEF) are preserved unchanged. |
+| NSX (`nsx/CMakeLists.txt`) | discovered via `NSX_CMSIS_NN_MANIFEST` → `<lib_dir>/manifest.json` → `<lib_dir>/../manifest.json` → none | `NSX_CMSIS_NN_ENABLE_F32`/`F16` (default `OFF`), or an adopted `ARM_NN_ENABLE_F32`/`F16` | Opt-in preserved: only forwards what's requested, but `FATAL_ERROR`s if the manifest doesn't report that capability. The check reads the resolved request, so both spellings are caught. If no manifest is discoverable, the request is honored as before but logged as **unverified**. |
+| Zephyr (`zephyr/CMakeLists.txt`) | `${_ns_sdk}/manifest.json` (fixed tarball layout, no discovery needed) | `CONFIG_NS_CMSIS_NN_ENABLE_F32`/`F16`, or an adopted `ARM_NN_ENABLE_F32`/`F16` | Same opt-in + validate + fail-fast policy as NSX, resolved request included; existing FP16 arch/toolchain `Kconfig` restrictions (e.g. requires MVEF) are preserved unchanged. |
 
 The NSX and Zephyr rows also publish the effective request as the
 `ARM_NN_ENABLE_F32`/`F16` cache entries, so a consumer that cannot see the
