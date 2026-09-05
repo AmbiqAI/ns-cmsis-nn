@@ -80,13 +80,12 @@ endif()
 # are unchanged in code: only their .ARM.attributes Tag_ABI_FP_number_model tag moves from Finite to
 # IEEE 754.
 #
-# Nothing on a pull request exercises this flag. It only bites where -Ofast (or -ffast-math) is in
-# force, which is the Corstone-300 branch above; the host job builds at -O1, where the flag is a
-# no-op -- __FINITE_MATH_ONLY__ is already 0 with or without it, and stripping it there leaves the
-# host suites byte-for-byte green. And legacy-tester.yml, which does compile at -Ofast, is
-# workflow_call/workflow_dispatch only and is invoked solely by release.yml's release-unit-tests.
-# So removing this flag passes every check on a PR and surfaces as a hang on the FVP during a
-# release -- do not remove it on the grounds that CI stays green.
+# This flag only bites where -Ofast (or -ffast-math) is in force, which is the Corstone-300 branch
+# above; the host job builds at -O1, where the flag is a no-op -- __FINITE_MATH_ONLY__ is already 0
+# with or without it, and stripping it there leaves the host suites byte-for-byte green.
+# legacy-tester.yml, the -Ofast FVP leg, is called from release.yml and nightly.yml and never on a
+# pull request; unity-f16-exec-gcc-floor.yml is what executes -Ofast on the PR path, see
+# AmbiqAI/ns-cmsis-nn#429. Do not remove this flag on the grounds that CI stays green.
 if(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300)
     add_compile_options(${CMSIS_OPTIMIZATION_LEVEL} -fno-finite-math-only)
 elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
@@ -311,6 +310,19 @@ if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
    AND ARM_NN_ENABLE_F32
    AND ARM_NN_ENABLE_F16)
     add_subdirectory(TestCases/activation_nan_ofast_probe)
+endif()
+
+# Host-only -Ofast NaN/Inf probe for the f16 reduction legs (#429). Same guard
+# shape and same rationale as the two probes above; it rebuilds arm_nn_mean_f16
+# and arm_reduce_sum_f16 under the hostile flag pair and fails if a non-finite
+# input does not propagate through either dispatch path. The directory name
+# carries no test_arm prefix for the same unittest_targets.py reason given above.
+# Only the scalar legs run on the host; the MVE legs are covered on target.
+if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
+   AND CMAKE_C_COMPILER_ID STREQUAL "GNU"
+   AND ARM_NN_ENABLE_F32
+   AND ARM_NN_ENABLE_F16)
+    add_subdirectory(TestCases/reduction_nan_ofast_probe)
 endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
