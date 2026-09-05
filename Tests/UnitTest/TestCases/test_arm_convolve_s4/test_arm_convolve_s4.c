@@ -79,6 +79,11 @@ void basic_arm_convolve_s4(void)
     conv_params.dilation.w = BASIC_INT4_DILATION_X;
     conv_params.dilation.h = BASIC_INT4_DILATION_Y;
 
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
+
     conv_params.input_offset = BASIC_INT4_INPUT_OFFSET;
     conv_params.output_offset = BASIC_INT4_OUTPUT_OFFSET;
     conv_params.activation.min = BASIC_INT4_OUT_ACTIVATION_MIN;
@@ -172,6 +177,11 @@ void basic_2_arm_convolve_s4(void)
     conv_params.stride.h = BASIC_2_INT4_STRIDE_Y;
     conv_params.dilation.w = BASIC_2_INT4_DILATION_X;
     conv_params.dilation.h = BASIC_2_INT4_DILATION_Y;
+
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
 
     conv_params.input_offset = BASIC_2_INT4_INPUT_OFFSET;
     conv_params.output_offset = BASIC_2_INT4_OUTPUT_OFFSET;
@@ -267,6 +277,11 @@ void stride2pad1_arm_convolve_s4(void)
     conv_params.dilation.w = STRIDE2PAD1_INT4_DILATION_X;
     conv_params.dilation.h = STRIDE2PAD1_INT4_DILATION_Y;
 
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
+
     conv_params.input_offset = STRIDE2PAD1_INT4_INPUT_OFFSET;
     conv_params.output_offset = STRIDE2PAD1_INT4_OUTPUT_OFFSET;
     conv_params.activation.min = STRIDE2PAD1_INT4_OUT_ACTIVATION_MIN;
@@ -359,6 +374,11 @@ void conv_2_arm_convolve_s4(void)
     conv_params.stride.h = CONV_2_INT4_STRIDE_Y;
     conv_params.dilation.w = CONV_2_INT4_DILATION_X;
     conv_params.dilation.h = CONV_2_INT4_DILATION_Y;
+
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
 
     conv_params.input_offset = CONV_2_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_2_INT4_OUTPUT_OFFSET;
@@ -453,6 +473,11 @@ void conv_3_arm_convolve_s4(void)
     conv_params.dilation.w = CONV_3_INT4_DILATION_X;
     conv_params.dilation.h = CONV_3_INT4_DILATION_Y;
 
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
+
     conv_params.input_offset = CONV_3_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_3_INT4_OUTPUT_OFFSET;
     conv_params.activation.min = CONV_3_INT4_OUT_ACTIVATION_MIN;
@@ -546,6 +571,11 @@ void conv_4_arm_convolve_s4(void)
     conv_params.dilation.w = CONV_4_INT4_DILATION_X;
     conv_params.dilation.h = CONV_4_INT4_DILATION_Y;
 
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
+
     conv_params.input_offset = CONV_4_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_4_INT4_OUTPUT_OFFSET;
     conv_params.activation.min = CONV_4_INT4_OUT_ACTIVATION_MIN;
@@ -638,6 +668,11 @@ void conv_out_activation_arm_convolve_s4(void)
     conv_params.dilation.w = CONV_OUT_ACTIVATION_INT4_DILATION_X;
     conv_params.dilation.h = CONV_OUT_ACTIVATION_INT4_DILATION_Y;
 
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
+
     conv_params.input_offset = CONV_OUT_ACTIVATION_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_OUT_ACTIVATION_INT4_OUTPUT_OFFSET;
     conv_params.activation.min = CONV_OUT_ACTIVATION_INT4_OUT_ACTIVATION_MIN;
@@ -703,6 +738,11 @@ void conv_2x2_dilation_arm_convolve_s4(void)
     conv_params.stride.h = CONV_2X2_DILATION_INT4_STRIDE_Y;
     conv_params.dilation.w = CONV_2X2_DILATION_INT4_DILATION_X;
     conv_params.dilation.h = CONV_2X2_DILATION_INT4_DILATION_Y;
+
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
 
     conv_params.input_offset = CONV_2X2_DILATION_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_2X2_DILATION_INT4_OUTPUT_OFFSET;
@@ -797,6 +837,11 @@ void conv_2x2_dilation_5x5_input_arm_convolve_s4(void)
     conv_params.dilation.w = CONV_2X2_DILATION_5X5_INPUT_INT4_DILATION_X;
     conv_params.dilation.h = CONV_2X2_DILATION_5X5_INPUT_INT4_DILATION_Y;
 
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
+
     conv_params.input_offset = CONV_2X2_DILATION_5X5_INPUT_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_2X2_DILATION_5X5_INPUT_INT4_OUTPUT_OFFSET;
     conv_params.activation.min = CONV_2X2_DILATION_5X5_INPUT_INT4_OUT_ACTIVATION_MIN;
@@ -887,6 +932,11 @@ void conv_3x3_dilation_5x5_input_arm_convolve_s4(void)
     conv_params.stride.h = CONV_3X3_DILATION_5X5_INPUT_INT4_STRIDE_Y;
     conv_params.dilation.w = CONV_3X3_DILATION_5X5_INPUT_INT4_DILATION_X;
     conv_params.dilation.h = CONV_3X3_DILATION_5X5_INPUT_INT4_DILATION_Y;
+
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
 
     conv_params.input_offset = CONV_3X3_DILATION_5X5_INPUT_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_3X3_DILATION_5X5_INPUT_INT4_OUTPUT_OFFSET;
@@ -979,6 +1029,11 @@ void conv_2x3_dilation_arm_convolve_s4(void)
     conv_params.dilation.w = CONV_2X3_DILATION_INT4_DILATION_X;
     conv_params.dilation.h = CONV_2X3_DILATION_INT4_DILATION_Y;
 
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
+
     conv_params.input_offset = CONV_2X3_DILATION_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_2X3_DILATION_INT4_OUTPUT_OFFSET;
     conv_params.activation.min = CONV_2X3_DILATION_INT4_OUT_ACTIVATION_MIN;
@@ -1069,6 +1124,11 @@ void conv_3x2_dilation_arm_convolve_s4(void)
     conv_params.stride.h = CONV_3X2_DILATION_INT4_STRIDE_Y;
     conv_params.dilation.w = CONV_3X2_DILATION_INT4_DILATION_X;
     conv_params.dilation.h = CONV_3X2_DILATION_INT4_DILATION_Y;
+
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
 
     conv_params.input_offset = CONV_3X2_DILATION_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_3X2_DILATION_INT4_OUTPUT_OFFSET;
@@ -1161,6 +1221,11 @@ void conv_dilation_golden_arm_convolve_s4(void)
     conv_params.dilation.w = CONV_DILATION_GOLDEN_INT4_DILATION_X;
     conv_params.dilation.h = CONV_DILATION_GOLDEN_INT4_DILATION_Y;
 
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
+
     conv_params.input_offset = CONV_DILATION_GOLDEN_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_DILATION_GOLDEN_INT4_OUTPUT_OFFSET;
     conv_params.activation.min = CONV_DILATION_GOLDEN_INT4_OUT_ACTIVATION_MIN;
@@ -1251,6 +1316,11 @@ void conv_5_arm_convolve_s4(void)
     conv_params.stride.h = CONV_5_INT4_STRIDE_Y;
     conv_params.dilation.w = CONV_5_INT4_DILATION_X;
     conv_params.dilation.h = CONV_5_INT4_DILATION_Y;
+
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
 
     conv_params.input_offset = CONV_5_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_5_INT4_OUTPUT_OFFSET;
@@ -1743,6 +1813,11 @@ void conv_1_x_n_1_arm_convolve_s4(void)
     conv_params.dilation.w = CONV_1_X_N_1_INT4_DILATION_X;
     conv_params.dilation.h = CONV_1_X_N_1_INT4_DILATION_Y;
 
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
+
     conv_params.input_offset = CONV_1_X_N_1_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_1_X_N_1_INT4_OUTPUT_OFFSET;
     conv_params.activation.min = CONV_1_X_N_1_INT4_OUT_ACTIVATION_MIN;
@@ -1834,6 +1909,11 @@ void conv_1_x_n_2_arm_convolve_s4(void)
     conv_params.dilation.w = CONV_1_X_N_2_INT4_DILATION_X;
     conv_params.dilation.h = CONV_1_X_N_2_INT4_DILATION_Y;
 
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
+
     conv_params.input_offset = CONV_1_X_N_2_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_1_X_N_2_INT4_OUTPUT_OFFSET;
     conv_params.activation.min = CONV_1_X_N_2_INT4_OUT_ACTIVATION_MIN;
@@ -1923,6 +2003,11 @@ void conv_1_x_n_3_arm_convolve_s4(void)
     conv_params.stride.h = CONV_1_X_N_3_INT4_STRIDE_Y;
     conv_params.dilation.w = CONV_1_X_N_3_INT4_DILATION_X;
     conv_params.dilation.h = CONV_1_X_N_3_INT4_DILATION_Y;
+
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
 
     conv_params.input_offset = CONV_1_X_N_3_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_1_X_N_3_INT4_OUTPUT_OFFSET;
@@ -2014,6 +2099,11 @@ void conv_1_x_n_4_arm_convolve_s4(void)
     conv_params.stride.h = CONV_1_X_N_4_INT4_STRIDE_Y;
     conv_params.dilation.w = CONV_1_X_N_4_INT4_DILATION_X;
     conv_params.dilation.h = CONV_1_X_N_4_INT4_DILATION_Y;
+
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
 
     conv_params.input_offset = CONV_1_X_N_4_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_1_X_N_4_INT4_OUTPUT_OFFSET;
@@ -2107,6 +2197,11 @@ void conv_1_x_n_5_arm_convolve_s4(void)
     conv_params.stride.h = CONV_1_X_N_5_INT4_STRIDE_Y;
     conv_params.dilation.w = CONV_1_X_N_5_INT4_DILATION_X;
     conv_params.dilation.h = CONV_1_X_N_5_INT4_DILATION_Y;
+
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
 
     conv_params.input_offset = CONV_1_X_N_5_INT4_INPUT_OFFSET;
     conv_params.output_offset = CONV_1_X_N_5_INT4_OUTPUT_OFFSET;
