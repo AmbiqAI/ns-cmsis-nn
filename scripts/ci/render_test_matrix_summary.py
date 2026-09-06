@@ -41,6 +41,7 @@ EXPECTED = {
     "reports-cortex-m55": ("m55", "int"),
     "reports-m4-int-shipped": ("m4", "int-shipped"),
     "reports-m55-int-shipped": ("m55", "int-shipped"),
+    "reports-m0-f32-fallback": ("m0", "f32-fallback"),
     "reports-m4-f32-fallback": ("m4", "f32-fallback"),
     "reports-m55-f32-fallback": ("m55", "f32-fallback"),
     "reports-m55-f32-mvef": ("m55", "f32-mvef"),
