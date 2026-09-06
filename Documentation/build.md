@@ -27,7 +27,7 @@ include(<repo>/cmake/ns_cmsis_nn.cmake)
 | `ns_cmsis_nn_groups(<out>)` | Set `<out>` to the list of all known operator group ids. |
 | `ns_cmsis_nn_group_sources(<group> <out>)` | Set `<out>` to the absolute source paths for a single group. |
 | `ns_cmsis_nn_attach(<target> [GROUPS …\|ALL] [DTYPES …\|ALL] [INCLUDE_DIRS_VISIBILITY PUBLIC\|PRIVATE\|INTERFACE])` | Add the resolved source set and the public `Include/` directory to an existing `<target>`. |
-| `ns_cmsis_nn_publish_float_switches(F32 <value> F16 <value> REQUEST_PREFIX <prefix> [REQUEST_DEFAULT <ON\|OFF>] [REQUESTED_BY <text>] [AUTHORITATIVE [AUTHORITY_NOTE <text>]])` | Publish an entry point's float request as the `ARM_NN_ENABLE_F32`/`F16` cache entries and directory variables. `F32` and `F16` are required; an empty value means OFF and an omitted keyword is a `FATAL_ERROR`. `REQUEST_PREFIX` names the caller's own spelling and `REQUEST_DEFAULT` the default that switch declares. `AUTHORITATIVE` makes the caller's spelling the only request and rejects a disagreeing `ARM_NN_ENABLE_*`, which the Zephyr path uses because Kconfig owns the decision. See ["Float switch names"](#float-switch-names). |
+| `ns_cmsis_nn_float_support(F32 <out_var> F16 <out_var>)` | Set each out variable to `ON` or `OFF` from the library target's compile definitions: what the library in scope was built with. Both keywords are required. See ["Float switch names"](#float-switch-names). |
 
 `ns_cmsis_nn_attach()` does not create a target — the caller owns it.
 The include directory is wrapped in `$<BUILD_INTERFACE:…>` so consumers can
@@ -109,12 +109,10 @@ Prebuilt mode (set `NSX_CMSIS_NN_LIB` to an `.a`) bypasses the SSoT
 entirely and only exposes headers. When a `manifest.json` sidecar is
 discoverable next to the archive (see
 ["Float (F32/F16) capability manifest"](#float-f32f16-capability-manifest)
-below), the effective float request is validated against it at configure
-time: the request is resolved first, so an `ARM_NN_ENABLE_F32`/`F16` value
-adopted from the consumer is checked exactly like the `NSX_CMSIS_NN_ENABLE_*`
-spelling. Both modes publish the effective values as
-`ARM_NN_ENABLE_F32`/`F16`; see ["Float switch names"](#float-switch-names)
-for what consumers should read.
+below), `ARM_NN_ENABLE_F32`/`F16` is validated against it at configure time.
+Both modes take the request under those same names and answer
+`ns_cmsis_nn_float_support()` from the target; see
+["Float switch names"](#float-switch-names).
 
 ### Prebuilt static library
 
@@ -209,10 +207,10 @@ cross-compiler required:
    that requesting a capability the manifest does not report aborts
    configure with `FATAL_ERROR` (verified via a child `cmake` probe
    process, since a direct failure would abort the whole test script).
-   Child probes also pin the Kconfig-authority rule: an `ARM_NN_ENABLE_F16`
-   that disagrees with `CONFIG_NS_CMSIS_NN_ENABLE_F16` aborts configure
-   before any source list exists, in either direction, while an agreeing
-   value configures clean and still selects the `_f16` sources.
+   One case also pins the Kconfig-only rule: an `ARM_NN_ENABLE_F16` set
+   before the module runs is overwritten from
+   `CONFIG_NS_CMSIS_NN_ENABLE_F16`, so no `_f16` sources are selected when
+   the symbol is off.
    Run with:
 
    ```sh
@@ -255,15 +253,12 @@ rules incorrectly. Two checks pin that contract:
    | `source_all` | STATIC target, 226 sources, `nsx::cmsis_nn` alias, `EXPORT_NAME=cmsis_nn`, BUILD/INSTALL_INTERFACE split on Include/. |
    | `source_subset` | `NSX_CMSIS_NN_GROUPS="activation;convolution"` resolves to exactly 62 sources. |
    | `inline_asm` | `NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM=ON` propagates `CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY`. |
-   | `float_f32` / `float_f16` / `float_both` | The matching `NSX_CMSIS_NN_ENABLE_*` toggle selects the `_f32`/`_f16` sources, sets `ARM_NN_ENABLE_F32`/`F16` on the target, and publishes the same values to the cache. |
-   | `float_arm_nn_only` | `ARM_NN_ENABLE_F16=ON` alone, both `NSX_CMSIS_NN_ENABLE_*` at their defaults: the `ARM_NN` spelling is the request, `_f16` sources are selected and `ARM_NN_ENABLE_F16=1` is published. |
-   | `float_conflict` | `NSX_CMSIS_NN_ENABLE_F32=ON` with `ARM_NN_ENABLE_F32=OFF` in the cache aborts with a `FATAL_ERROR` naming both variables and the `-U` that clears each (via child `cmake` probe). |
-   | `float_conflict_plain` | Same contradiction with `ARM_NN_ENABLE_F16` as a plain (non-cache) variable in the calling scope, so the check covers both forms. |
-   | `float_publish_contract` | `ns_cmsis_nn_publish_float_switches()` aborts when the `F32` or `F16` keyword is omitted, naming the function and the keyword, and still publishes `0` when the keyword carries an empty value (via child `cmake` probes). |
+   | `float_f32` / `float_f16` / `float_both` | The matching `ARM_NN_ENABLE_*` toggle selects the `_f32`/`_f16` sources, sets `ARM_NN_ENABLE_F32`/`F16` on the target, and is what `ns_cmsis_nn_float_support()` reports back. |
+   | `float_renamed_switch` | `NSX_CMSIS_NN_ENABLE_F16=ON`, the removed spelling, aborts with a `FATAL_ERROR` naming the switch and `ARM_NN_ENABLE_F32/F16` as its replacement (via child `cmake` probe). |
+   | `float_query` | `ns_cmsis_nn_float_support()` returns the right `ON`/`OFF` pair in source mode, in prebuilt mode and through the `find_package` config template, and aborts when a width keyword is omitted (four child `cmake` probes). |
    | `prebuilt` | `NSX_CMSIS_NN_LIB=…` builds an INTERFACE wrapper + IMPORTED prebuilt target, alias still works. |
-   | `prebuilt_manifest_ok` | Prebuilt lib + sibling `manifest.json` reporting `f32=true`; `NSX_CMSIS_NN_ENABLE_F32=ON` succeeds and forwards `ARM_NN_ENABLE_F32=1`. |
-   | `prebuilt_manifest_reject` | Manifest reports `f32=false`; requesting `NSX_CMSIS_NN_ENABLE_F32=ON` aborts with `FATAL_ERROR` naming that spelling (via child `cmake` probe), and the `-U` the message names clears the rejection on the next configure. |
-   | `prebuilt_manifest_reject_arm_nn` | Manifest reports `f16=false` and the request arrives only as `ARM_NN_ENABLE_F16=ON`; the check reads the resolved request, so it aborts with the same `FATAL_ERROR`, this time naming `ARM_NN_ENABLE_F16`, and `-UARM_NN_ENABLE_F16` recovers. |
+   | `prebuilt_manifest_ok` | Prebuilt lib + sibling `manifest.json` reporting `f32=true`; `ARM_NN_ENABLE_F32=ON` succeeds and forwards `ARM_NN_ENABLE_F32=1`. |
+   | `prebuilt_manifest_reject` | Manifest reports `f32=false`; requesting `ARM_NN_ENABLE_F32=ON` aborts with `FATAL_ERROR` naming that switch (via child `cmake` probe), and the `-UARM_NN_ENABLE_F32` the message names clears the rejection on the next configure. |
    | `prebuilt_manifest_legacy` | Manifest has no `features` block (schema v1); requesting F32 is conservatively rejected the same way. |
 
    Run any case locally with:
@@ -455,98 +450,64 @@ retention).
 
 ## Float switch names
 
-Three of the four entry points take the float request under their own option
-spelling and resolve it through one function,
-`ns_cmsis_nn_publish_float_switches()` in
-[`cmake/ns_cmsis_nn_float_switches.cmake`](../cmake/ns_cmsis_nn_float_switches.cmake).
-The fourth, `find_package()` against a published SDK tarball, does not: it has
-no request switch of its own and publishes no cache entries.
+`ARM_NN_ENABLE_F32` and `ARM_NN_ENABLE_F16` are the library's own switches and
+they carry the same name on every CMake entry point. Zephyr keeps Kconfig
+symbols, because Kconfig is how a Zephyr build is configured, and the module
+writes them onto the same two names.
 
-| Entry point | Request variable | Published |
+| Entry point | Set this | How consumers read it |
 |---|---|---|
-| Standalone `CMakeLists.txt` | `ARM_NN_ENABLE_F32` / `ARM_NN_ENABLE_F16` | same names; the cache entry keeps the text you supplied (`ON` stays `ON`), the `0`/`1` goes to the target's compile definitions |
-| `nsx/CMakeLists.txt` (source **and** prebuilt mode) | `NSX_CMSIS_NN_ENABLE_F32` / `_F16`, or `ARM_NN_ENABLE_F32` / `_F16` directly | `ARM_NN_ENABLE_F32` / `_F16` as `BOOL` `0`/`1` |
-| `zephyr/CMakeLists.txt` (source **and** prebuilt mode) | `CONFIG_NS_CMSIS_NN_ENABLE_F32` / `_F16` only; `ARM_NN_ENABLE_*` is not a request here | `ARM_NN_ENABLE_F32` / `_F16` as `BOOL` `0`/`1` |
-| `find_package(ns-cmsis-nn)` | none (the archive's own capabilities decide) | nothing in the cache; `ARM_NN_ENABLE_F32`/`F16=1` on the `cmsis-nn` imported target's `INTERFACE_COMPILE_DEFINITIONS` only |
+| Standalone `CMakeLists.txt` | `ARM_NN_ENABLE_F32` / `ARM_NN_ENABLE_F16` | `ns_cmsis_nn_float_support()`, or the `cmsis-nn` target's compile definitions |
+| `nsx/CMakeLists.txt` (source **and** prebuilt mode) | `ARM_NN_ENABLE_F32` / `ARM_NN_ENABLE_F16`, declared there exactly as above | `ns_cmsis_nn_float_support()`, or the `nsx_cmsis_nn` target's compile definitions |
+| `zephyr/CMakeLists.txt` (source **and** prebuilt mode) | `CONFIG_NS_CMSIS_NN_ENABLE_F32` / `_F16` | `ns_cmsis_nn_float_support()`, or the `CONFIG_` symbols themselves |
+| `find_package(ns-cmsis-nn)` | nothing; the archive's own capabilities decide | `ns_cmsis_nn_float_support()`, which the config template defines, or `NS_CMSIS_NN_HAS_F32`/`F16` |
 
-On the NSX and Zephyr paths, "published" means two things at once, from the
-same computed value:
+### Asking the library what it was built with
 
-- a `BOOL` cache entry (`ARM_NN_ENABLE_F32:BOOL=1`), readable by a consumer
-  that adds this repository as a subdirectory or a module and needs the answer
-  before any target of ours is in scope;
-- a directory-scope variable of the same name, which the entry point feeds to
-  `target_compile_definitions()` and which `ns_cmsis_nn_group_sources()` reads
-  when it selects the float sources.
-
-Those two paths also leave `_NS_CMSIS_NN_PUBLISHED_ARM_NN_ENABLE_F32`/`F16` in
-the cache. They are `INTERNAL` bookkeeping, not a knob: each holds what the
-entry point's own switch resolved to on the last successful configure, which
-is how the function tells a value it published itself from a fresh request.
-`cmake -LA` does not list them; a Zephyr build's `CMakeCache.txt` shows them
-verbatim.
-
-The target's compile definitions stay the compile-time truth. The cache entry
-is a mirror of the same decision taken in the same place, so the two cannot
-drift.
-
-### Which spelling wins
-
-Setting `ARM_NN_ENABLE_F32`/`F16` yourself is a valid request on the **NSX**
-path, whether as a cache entry (`-D`) or as a plain variable in the scope that
-calls `add_subdirectory()`. Both forms are inspected, so the configure-time
-error below applies to both:
-
-- the path's own switch at its declared default (both are `OFF`) and
-  `ARM_NN_ENABLE_*` set: the `ARM_NN_ENABLE_*` value is the request, and a
-  `STATUS` line says so;
-- both set away from their defaults and agreeing: honored as asked;
-- the path's own switch away from its default and `ARM_NN_ENABLE_*` set to a
-  different value: `FATAL_ERROR`. Two explicit requests disagree, and only the
-  caller knows which one was meant.
-
-The error names both variables, both values, and how to drop either one: for a
-cache entry, re-run with `-U<name>` (or delete `CMakeCache.txt`); for a plain
-variable or a `CONFIG_*` symbol, remove it where it is set. Passing the `-U`
-the message names clears the wedge in place, without deleting the build
-directory. If the project that adds ns-cmsis-nn re-creates the entry itself,
-with `set(<name> ... CACHE ...)` or `option(<name> ...)` above
-`add_subdirectory()`, `-U` alone cannot reach it, and dropping the call alone
-leaves the seeded entry in the cache: remove that call and then re-run with
-`-U<name>` (or delete `CMakeCache.txt`). The message says so.
-
-On the **Zephyr** path Kconfig is the authority and `ARM_NN_ENABLE_*` is not a
-request. `CONFIG_NS_CMSIS_NN_ENABLE_F32`/`_F16` decide, alone, in source and
-prebuilt mode. An `ARM_NN_ENABLE_*` value that agrees with the Kconfig symbol
-is accepted silently; one that disagrees is a `FATAL_ERROR` naming the Kconfig
-symbol as the authority, its current value, and the way out
-(`-UARM_NN_ENABLE_F16`, or dropping the `set()` in the board or module CMake
-that put it there). That is deliberate: `NS_CMSIS_NN_ENABLE_F16` depends on
-`ARMV8_1_M_MVEF`, and a CMake variable that could stand in for the symbol would
-let a board without MVE floating point ask for kernels it cannot build.
-
-Re-running `cmake` after flipping the entry point's own switch is not a
-contradiction: the module recognizes the value it published itself and
-overwrites it. A consumer value that happens to equal the previous configure's
-result cannot be told apart from that stale value and is treated as ours.
-
-One consequence on the NSX path is worth spelling out, because it is not what
-the second command looks like it should do. Once a request has been adopted
-from `ARM_NN_ENABLE_*`, the NSX switch is at its declared default, and CMake
-cannot tell a switch left alone from one you set explicitly to that same
-default value. So:
-
-```sh
-cmake -S . -B b -DARM_NN_ENABLE_F16=ON      # adopted: ARM_NN_ENABLE_F16:BOOL=1
-cmake -S . -B b -DNSX_CMSIS_NN_ENABLE_F16=OFF   # still 1, STATUS line repeats
-cmake -S . -B b -UARM_NN_ENABLE_F16         # now 0
+```cmake
+ns_cmsis_nn_float_support(F32 have_f32 F16 have_f16)
+if(have_f16)
+  target_sources(my_app PRIVATE fp16_path.c)
+endif()
 ```
 
-The `-DNSX_CMSIS_NN_ENABLE_F16=OFF` in the middle is read as the default, not
-as a competing request, so it neither overrides the adopted value nor trips the
-contradiction check. Turning an adopted request off means dropping it:
-`-UARM_NN_ENABLE_F16`. Setting the NSX switch **on** in that state does work,
-because `ON` is away from the default.
+Both keywords are required and each names a variable set to `ON` or `OFF` in
+the caller's scope. The answer comes from the library target's compile
+definitions, which is where the build wrote the decision, so the same call
+works after `add_subdirectory()`, against a prebuilt archive, and after
+`find_package()`. Reading `ARM_NN_ENABLE_F32`/`F16` out of the cache instead
+only tells you what an entry point was asked for, and only on the paths that
+take it as an input.
+
+The function lives in
+[`cmake/ns_cmsis_nn_float_support.cmake`](../cmake/ns_cmsis_nn_float_support.cmake),
+which `cmake/ns_cmsis_nn.cmake` includes and which prebuilt-mode entry points
+include on its own, and is mirrored in
+[`cmake/templates/ns-cmsis-nn-config.cmake.in`](../cmake/templates/ns-cmsis-nn-config.cmake.in)
+so a package consumer gets it from `find_package()` alone. Calling it before
+any ns-cmsis-nn library target exists is a `FATAL_ERROR`, not a silent
+`OFF`/`OFF`.
+
+### The Zephyr rule
+
+On the Zephyr path the Kconfig symbols are the only writers of
+`ARM_NN_ENABLE_F32`/`F16`: whatever a board or module CMake set beforehand is
+overwritten. That is what keeps `NS_CMSIS_NN_ENABLE_F16`'s `ARMV8_1_M_MVEF`
+dependency in force, since no CMake variable can stand in for the symbol.
+
+### Migrating off `NSX_CMSIS_NN_ENABLE_*`
+
+`NSX_CMSIS_NN_ENABLE_F32` and `NSX_CMSIS_NN_ENABLE_F16` are removed. Setting
+either, as a cache entry or as a plain variable, aborts the configure:
+
+```
+nsx-cmsis-nn: NSX_CMSIS_NN_ENABLE_F16 was renamed to ARM_NN_ENABLE_F32/F16;
+set that instead.
+```
+
+Rename the switch at the call site and, if the request came from a `-D`, drop
+the old cache entry with `-UNSX_CMSIS_NN_ENABLE_F16`. The float surface is
+experimental, so there is no alias period; the error is the migration aid.
 
 See AmbiqAI/ns-cmsis-nn#420.
 
@@ -614,13 +575,11 @@ instead of deferring to a confusing link-time error.
 | Consumer | Capability variables | Request variables | Policy |
 |----------|----------------------|--------------------|--------|
 | `find_package(ns-cmsis-nn)` | `NS_CMSIS_NN_HAS_F32`, `NS_CMSIS_NN_HAS_F16`, `NS_CMSIS_NN_HAS_REQUANTIZE_INLINE_ASM` | *(none — no pre-existing opt-in API)* | Automatic: every capability the manifest reports is unconditionally forwarded onto the `cmsis-nn` imported target's `INTERFACE_COMPILE_DEFINITIONS` as `ARM_NN_ENABLE_F32`/`F16=1`. |
-| NSX (`nsx/CMakeLists.txt`) | discovered via `NSX_CMSIS_NN_MANIFEST` → `<lib_dir>/manifest.json` → `<lib_dir>/../manifest.json` → none | `NSX_CMSIS_NN_ENABLE_F32`/`F16` (default `OFF`), or an adopted `ARM_NN_ENABLE_F32`/`F16` | Opt-in preserved: only forwards what's requested, but `FATAL_ERROR`s if the manifest doesn't report that capability. The check reads the resolved request, so both spellings are caught. If no manifest is discoverable, the request is honored as before but logged as **unverified**. |
-| Zephyr (`zephyr/CMakeLists.txt`) | `${_ns_sdk}/manifest.json` (fixed tarball layout, no discovery needed) | `CONFIG_NS_CMSIS_NN_ENABLE_F32`/`F16` only | Same opt-in + validate + fail-fast policy as NSX; the rejection names the Kconfig symbol the request came from. Existing FP16 arch/toolchain `Kconfig` restrictions (e.g. requires MVEF) are preserved unchanged: `ARM_NN_ENABLE_*` is not a request on this path and cannot route around them. |
+| NSX (`nsx/CMakeLists.txt`) | discovered via `NSX_CMSIS_NN_MANIFEST` → `<lib_dir>/manifest.json` → `<lib_dir>/../manifest.json` → none | `ARM_NN_ENABLE_F32`/`F16` (default `OFF`) | Opt-in preserved: only forwards what's requested, but `FATAL_ERROR`s if the manifest doesn't report that capability, naming `-UARM_NN_ENABLE_F32`/`F16` as the way out. If no manifest is discoverable, the request is honored as before but logged as **unverified**. |
+| Zephyr (`zephyr/CMakeLists.txt`) | `${_ns_sdk}/manifest.json` (fixed tarball layout, no discovery needed) | `CONFIG_NS_CMSIS_NN_ENABLE_F32`/`F16`, which write `ARM_NN_ENABLE_F32`/`F16` | Same opt-in + validate + fail-fast policy as NSX; the rejection names the Kconfig symbol to remove. Existing FP16 arch/toolchain `Kconfig` restrictions (e.g. requires MVEF) are preserved unchanged: Kconfig is the only writer on this path, so a CMake variable cannot route around them. |
 
-The NSX and Zephyr rows also publish the effective request as the
-`ARM_NN_ENABLE_F32`/`F16` cache entries, so a consumer that cannot see the
-target yet reads the same answer the target carries. The `find_package` row
-publishes on the imported target only. See
+Every row answers `ns_cmsis_nn_float_support()`, so a consumer asks the same
+question regardless of how it got the library. See
 ["Float switch names"](#float-switch-names).
 
 **Inspecting a package's capabilities** — no CMake configure required:

@@ -676,27 +676,22 @@ off by default to keep integer-only builds small. If the enabled float headers
 are consumed by TFLM or another downstream build, use matching definitions in
 that build too.
 
-Each entry point has its own switch for the request, and the three CMake
-source/module paths publish the effective values back under the
-`ARM_NN_ENABLE_F32`/`F16` names:
+The switches carry one name per entry path:
 
-| Entry point | Set this | Read this |
-|---|---|---|
-| Standalone CMake | `ARM_NN_ENABLE_F32` / `ARM_NN_ENABLE_F16` | same names |
-| NSX (`nsx/CMakeLists.txt`) | `NSX_CMSIS_NN_ENABLE_F32` / `_F16`, or `ARM_NN_ENABLE_*` directly | `ARM_NN_ENABLE_F32` / `_F16` |
-| Zephyr | `CONFIG_NS_CMSIS_NN_ENABLE_F32` / `_F16` only | `ARM_NN_ENABLE_F32` / `_F16` |
-| `find_package(ns-cmsis-nn)` | nothing; the archive's capabilities decide | `ARM_NN_ENABLE_*` on the `ns::cmsis-nn` target only, not in the cache |
+| Entry point | Set this |
+|---|---|
+| Standalone CMake | `ARM_NN_ENABLE_F32` / `ARM_NN_ENABLE_F16` |
+| NSX (`nsx/CMakeLists.txt`) | `ARM_NN_ENABLE_F32` / `ARM_NN_ENABLE_F16`, the same two options |
+| Zephyr | `CONFIG_NS_CMSIS_NN_ENABLE_F32` / `_F16`, the only writers of `ARM_NN_ENABLE_*` there |
+| `find_package(ns-cmsis-nn)` | nothing; the archive's capabilities decide |
 
-On the three publishing paths the values land in the CMake cache and on the
-library target's compile definitions, so a consumer can read either one and get
-the same answer. Asking directly with `ARM_NN_ENABLE_F32`/`F16` is a valid
-request on the standalone and NSX paths, while the NSX switch is at its
-default; if both are set away from their defaults to different values, the
-configure fails and the message names both variables and how to drop either.
-On the Zephyr path Kconfig is the authority: `CONFIG_NS_CMSIS_NN_ENABLE_F32`
-/`_F16` decide alone, and an `ARM_NN_ENABLE_*` that disagrees with them fails
-the configure rather than overriding them, so the `ARMV8_1_M_MVEF` dependency
-on FP16 keeps holding. See
+To learn what the library in scope was actually built with, call
+`ns_cmsis_nn_float_support(F32 <var> F16 <var>)` rather than reading a cache
+variable. It reads the library target, so the same call works in a source
+build, against a prebuilt archive, and after `find_package()`.
+
+`NSX_CMSIS_NN_ENABLE_F32`/`_F16` are removed; setting either is a configure
+error naming the replacement. See
 [`Documentation/build.md`](Documentation/build.md#float-switch-names).
 
 **Do floating-point kernels target all IEEE edge cases?**
