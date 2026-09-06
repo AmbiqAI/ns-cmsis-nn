@@ -1,5 +1,46 @@
 # Changelog
 
+## [7.32.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.31.0...v7.32.0) (2026-09-06)
+
+
+### Notes for integrators
+
+* **Float build switches, one name (breaking on the experimental float surface, no major version bump).** `NSX_CMSIS_NN_ENABLE_F32`/`_F16` are removed; set `ARM_NN_ENABLE_F32`/`_F16` on the top-level and NSX paths (Zephyr keeps `NS_CMSIS_NN_ENABLE_*` in Kconfig), or call `ns_cmsis_nn_float_support` to query what a build was actually compiled with ([#420](https://github.com/AmbiqAI/ns-cmsis-nn/issues/420), [#454](https://github.com/AmbiqAI/ns-cmsis-nn/pull/454)). A stale name is a configure-time error that lists every stale name it saw.
+* **Depthwise float support symbols removed.** `arm_nn_depthwise_conv3x3_nhwc_f32/f16` and `arm_nn_depthwise_conv_nt_t_f32/f16` are gone with the direct kernel; use `arm_depthwise_conv_wrapper_f32/f16`. `arm_depthwise_conv_f32/f16_get_buffer_size` now return 0 for every route except the MVE one-input-channel to-convolution route ([#448](https://github.com/AmbiqAI/ns-cmsis-nn/issues/448)).
+* **hard_swish s8 compat rounding.** `arm_hard_swish_compat_s8` on MVE now truncates toward zero like the scalar leg and TFLM, so outputs that were one LSB low for inputs below the zero point or with a negative output multiplier change by one LSB ([#461](https://github.com/AmbiqAI/ns-cmsis-nn/pull/461)). The precise kernel is numerically unchanged.
+* **GRU NaN contract.** `arm_gru_unidirectional_f32/f16` state their NaN behavior on the public declarations and the tester asserts it strictly on target ([#467](https://github.com/AmbiqAI/ns-cmsis-nn/pull/467), [#474](https://github.com/AmbiqAI/ns-cmsis-nn/pull/474)).
+* **Transpose validation.** `arm_transpose_s8/s16/f16/f32` return `ARM_CMSIS_NN_ARG_ERROR` and write nothing for invalid dims or perm; the 2-D integer identity permutation now copies ([#443](https://github.com/AmbiqAI/ns-cmsis-nn/issues/443)).
+* **int4.** int4 kernels are inherited from upstream CMSIS-NN; the tester covers fully connected, convolution and depthwise convolution for int4.
+
+### Features
+
+* **cortex-m0 float32** is supported through the soft-float scalar path and executed on every pull request on the Corstone-300 FVP ([#447](https://github.com/AmbiqAI/ns-cmsis-nn/issues/447), [#457](https://github.com/AmbiqAI/ns-cmsis-nn/pull/457)).
+* **activation:** add arm_hard_swish_f16/f32 ([#413](https://github.com/AmbiqAI/ns-cmsis-nn/issues/413)) ([a82949c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/a82949c31fe5866fbf0a54b6d12c32956859eb84))
+* **basicmath:** add arm_nn_mean_f16 reduction ([#412](https://github.com/AmbiqAI/ns-cmsis-nn/issues/412)) ([628578b](https://github.com/AmbiqAI/ns-cmsis-nn/commit/628578b91d73f72e4fe4d568529f78e5e5f8af3d))
+* **basicmath:** add arm_nn_mean_f32 reduction ([#414](https://github.com/AmbiqAI/ns-cmsis-nn/issues/414)) ([9deca03](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9deca03c3879228c5e585248dc24f4d4b6f24a66))
+* **basicmath:** NHWC broadcasting for the float elementwise sub/add/mul kernels ([#451](https://github.com/AmbiqAI/ns-cmsis-nn/issues/451)) ([32ab59b](https://github.com/AmbiqAI/ns-cmsis-nn/commit/32ab59b1963d6e445dbfaa47dbbc4a6a2fe8f790)), closes [#415](https://github.com/AmbiqAI/ns-cmsis-nn/issues/415)
+
+
+### Bug Fixes
+
+* **activation:** scalar f16 tanh via LUT interpolation ([#426](https://github.com/AmbiqAI/ns-cmsis-nn/issues/426)) ([4fe041b](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4fe041bc69fddada1ae09c0ecbe7f926f672b281))
+* **api:** namespace the MAX/MIN/CLAMP helper macros ([#431](https://github.com/AmbiqAI/ns-cmsis-nn/issues/431)) ([18a89ff](https://github.com/AmbiqAI/ns-cmsis-nn/commit/18a89fffcaa127c83afd56e7dac1aa7ffacc3e03))
+* **basicmath:** make the arm_sqrt_s16 MVE tail dlstp-safe ([#416](https://github.com/AmbiqAI/ns-cmsis-nn/issues/416)) ([b09fa9c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b09fa9ca69f44d233d0afe9c0d50fd4fc2ee3ff6))
+* **build:** one name for the float switches on every entry path and a query for consumers ([#454](https://github.com/AmbiqAI/ns-cmsis-nn/issues/454)) ([5d1dcd2](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5d1dcd294c787db5d3b92500ae7c558c9d4db049)), closes [#420](https://github.com/AmbiqAI/ns-cmsis-nn/issues/420)
+* **build:** set CMP0123 for armclang and assert the archive symbol index ([#439](https://github.com/AmbiqAI/ns-cmsis-nn/issues/439)) ([2c7ab62](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2c7ab62d4be8f972f07c4a5ea994c76cb4ec1a71)), closes [#292](https://github.com/AmbiqAI/ns-cmsis-nn/issues/292) [#291](https://github.com/AmbiqAI/ns-cmsis-nn/issues/291)
+* **f16:** accumulate the scalar conv/matmul f16 legs in float32 ([#462](https://github.com/AmbiqAI/ns-cmsis-nn/issues/462)) ([393c4de](https://github.com/AmbiqAI/ns-cmsis-nn/commit/393c4de2dc1ffdffc091d7ed597d800fd02acccb))
+* **f16:** keep float16 correct on the GCC releases whose assembler mis-encodes the MVE conversions ([#434](https://github.com/AmbiqAI/ns-cmsis-nn/issues/434)) ([85dbe33](https://github.com/AmbiqAI/ns-cmsis-nn/commit/85dbe33d607baf3279fb477977951275f1d125f9)), closes [#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)
+* **kernels:** validate transpose dims and the identity permutation, initialize s4 bias_dims, bound the left shift ([#455](https://github.com/AmbiqAI/ns-cmsis-nn/issues/455)) ([11644c6](https://github.com/AmbiqAI/ns-cmsis-nn/commit/11644c6bdd285c4ba27bfdec597aca4dd12fb15a)), closes [#443](https://github.com/AmbiqAI/ns-cmsis-nn/issues/443) [#442](https://github.com/AmbiqAI/ns-cmsis-nn/issues/442) [#357](https://github.com/AmbiqAI/ns-cmsis-nn/issues/357)
+* **pack:** source gen-pack from GEN_PACK_LIB_PATH and fail loud when it is missing ([#404](https://github.com/AmbiqAI/ns-cmsis-nn/issues/404)) ([249305f](https://github.com/AmbiqAI/ns-cmsis-nn/commit/249305f13da5d8d2f4419d93ff727a55562bb905)), closes [#401](https://github.com/AmbiqAI/ns-cmsis-nn/issues/401)
+
+
+### Performance
+
+* **activation:** hard_swish s8 via a per-call table, and fix the MVE compat rounding ([#461](https://github.com/AmbiqAI/ns-cmsis-nn/issues/461)) ([ca6572e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ca6572ef5b96bf16aaffee41a19328847f493392)), closes [#289](https://github.com/AmbiqAI/ns-cmsis-nn/issues/289)
+* **depthwise:** direct channel-vectorized float depthwise kernel for ch_mult == 1 ([#471](https://github.com/AmbiqAI/ns-cmsis-nn/issues/471)) ([b1143c3](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b1143c3c9220ee700170b92324d4354dfef63fd2)), closes [#448](https://github.com/AmbiqAI/ns-cmsis-nn/issues/448)
+* **float:** direct small-input-channel conv kernel and contiguous-K matmul ([#445](https://github.com/AmbiqAI/ns-cmsis-nn/issues/445)) ([b541b6a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b541b6ac5bf565d4cc029b9e921b8b71ae6edd3c))
+* **gru:** hoist the pre-reset product and block the float GRU step by vector width ([#456](https://github.com/AmbiqAI/ns-cmsis-nn/issues/456)) ([11c6d22](https://github.com/AmbiqAI/ns-cmsis-nn/commit/11c6d22eae285067699c2fa2f052f2be0bf98ba6))
+
 ## [7.31.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.30.0...v7.31.0) (2026-09-01)
 
 ### Notes for integrators

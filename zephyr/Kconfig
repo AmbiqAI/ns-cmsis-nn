@@ -47,7 +47,7 @@ config NS_CMSIS_NN_PREBUILT_PATH
 	help
 	  Absolute path to the directory produced by extracting a
 	  per-arch SDK tarball, e.g.
-	      /opt/ns-cmsis-nn-cortex-m4-gcc-7.31.0/
+	      /opt/ns-cmsis-nn-cortex-m4-gcc-7.32.0/
 	  The directory must contain lib/libns-cmsis-nn.a and include/.
 # x-release-please-end
 

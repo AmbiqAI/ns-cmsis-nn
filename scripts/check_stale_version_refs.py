@@ -53,7 +53,7 @@ TYPES_H = REPO / "Include" / "arm_nn_types.h"
 CHANGELOG = REPO / "CHANGELOG.md"
 
 # `## [1.2.3](https://.../compare/v1.2.2...v1.2.3) (2026-01-01)`
-# Full semver including a prerelease tag: a `## [7.31.0-rc.1]` heading must
+# Full semver including a prerelease tag: a `## [1.2.3-rc.1]` heading must
 # be PARSED (so the newest-heading-vs-canonical guard can fire loudly),
 # not silently skipped -- an unparsed newest heading would make the check
 # quietly measure against a stale baseline.
