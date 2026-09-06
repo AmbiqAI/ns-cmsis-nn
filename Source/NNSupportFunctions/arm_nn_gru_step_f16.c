@@ -166,8 +166,8 @@ __STATIC_INLINE _Float16 arm_nn_gru_candidate_pre_f16(const cmsis_nn_gru_params_
 __STATIC_INLINE _Float16 arm_nn_gru_combine_f16(_Float16 z, _Float16 h_prev, _Float16 cand)
 {
         #if defined(__clang__)
-            // Under fast-math clang may rewrite (1 - z) * n as n - z*n (vfms), a different rounding. The pragma holds on
-            // ATfE; armclang ignores it at -Ofast (scalar leg only, no shipped M55 leg takes this path, #251).
+            // Under fast-math clang may rewrite (1 - z) * n as n - z*n (vfms), a different rounding. The pragma holds
+            // on ATfE; armclang ignores it at -Ofast (scalar leg only, no shipped M55 leg takes this path, #251).
             #pragma clang fp contract(off) reassociate(off)
         #endif
     const _Float16 p = ((_Float16)1.0f - z) * cand;
