@@ -95,8 +95,13 @@ arm_cmsis_nn_status arm_hard_swish_compat_s8(const int8_t *input,
         // shift [-1,1] → [0,1]: (rel + 32768) >> 1  (rounded)
         rel = vrhaddq_s16(rel, vdupq_n_s16(32767));
 
-        // y_pre is on preshift output scale. Multiply by relu using **non-rounded** SDHM
+        // y_pre is on preshift output scale. Multiply by relu using **non-rounded** SDHM.
+        // vqdmulh floors; the scalar leg and TFLM truncate toward zero, so add one
+        // where the product is negative and inexact (low 15 bits non-zero). See #289.
         int16x8_t y = vqdmulhq_s16(rel, y_pre);
+        const uint16x8_t lo = vandq_u16(vreinterpretq_u16_s16(vmulq_s16(rel, y_pre)), vdupq_n_u16(0x7fff));
+        const int16x8_t inexact = vreinterpretq_s16_u16(vminq_u16(lo, vdupq_n_u16(1)));
+        y = vaddq_s16(y, vandq_s16(inexact, vshrq_n_s16(y_pre, 15)));
 
         // Finally apply output multiplier exponent
         if (output_multiplier_exp < 0)
