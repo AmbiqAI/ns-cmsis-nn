@@ -38,32 +38,35 @@
 
 set -euo pipefail
 
-# First release cut under the current required-asset contract (pack +
-# gcc/atfe SDK tarballs + gcc/atfe staticlib bundles, each with a .sha256
-# sidecar = 17). v7.25.0 and older shipped a different, smaller asset
-# shape (loose per-cpu .a files, gcc only) and are not judged by a
-# contract that postdates them.
-readonly CONTRACT_FLOOR="v7.26.0"
+REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+readonly REPO_ROOT
+readonly ASSET_MANIFEST="${REPO_ROOT}/ci/release-assets.json"
+readonly ASSET_GENERATOR="${REPO_ROOT}/scripts/ci/release_assets.py"
 
-# The 17 ALWAYS-required assets, kept in sync with the release-verify job
-# in .github/workflows/release.yml and the "Required vs optional assets"
-# table in docs/guides/releases.md. armclang's 8 are deliberately NEVER
-# required here, even when the repository variable ARMCLANG_REQUIRED
-# promotes them for NEW releases: that variable is a point-in-time
-# operator switch, and applying it retroactively would flag historical
-# releases that shipped complete under the contract of their day.
+# Contract floor and the required-asset list both come from
+# ci/release-assets.json. They used to be transcribed here by hand, in
+# parallel with release.yml's release-verify job and the table in
+# docs/guides/releases.md, with nothing relating the three
+# (AmbiqAI/ns-cmsis-nn#376).
+#
+# Guarded rather than left to `set -e`: an unreadable manifest is the same
+# class of event as a generator failure, and must report as "could not run"
+# (exit 2) rather than as a contract verdict (exit 1). Bare `set -e` here
+# would exit 1, which the nightly job reads as "a release is missing assets".
+if ! CONTRACT_FLOOR="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["contract_floor"])' "${ASSET_MANIFEST}")" \
+   || [[ -z "${CONTRACT_FLOOR}" ]]; then
+  echo "::error title=Release audit could not run::reading 'contract_floor' from ${ASSET_MANIFEST} failed. The audit cannot decide which releases the contract governs, so it refuses to report a verdict." >&2
+  exit 2
+fi
+readonly CONTRACT_FLOOR
+
+# The manifest's optional assets are deliberately NEVER promoted here, even
+# when the repository variable ARMCLANG_REQUIRED promotes them for NEW
+# releases: that variable is a point-in-time operator switch, and applying
+# it retroactively would flag historical releases that shipped complete
+# under the contract of their day.
 required_assets() {
-  local version="$1"
-  printf '%s\n' "Ambiq.NS-CMSIS-NN.${version}.pack"
-  local tc cpu
-  for tc in gcc atfe; do
-    printf '%s\n' "ns-cmsis-nn-staticlibs-${tc}-${version}.zip"
-    printf '%s\n' "ns-cmsis-nn-staticlibs-${tc}-${version}.zip.sha256"
-    for cpu in cortex-m0 cortex-m4 cortex-m55; do
-      printf '%s\n' "ns-cmsis-nn-${cpu}-${tc}-${version}.tar.gz"
-      printf '%s\n' "ns-cmsis-nn-${cpu}-${tc}-${version}.tar.gz.sha256"
-    done
-  done
+  python3 "${ASSET_GENERATOR}" "$1" --class required
 }
 
 # Retried because this runs unattended on a nightly schedule: one
@@ -160,11 +163,21 @@ for tag in "${tags[@]}"; do
     exit 2
   fi
 
+  # Assigned before use so a generator failure is fatal. Expanded inside a
+  # process substitution it would be invisible, and an empty required list
+  # makes every release read as complete -- the exact green-over-nothing
+  # this audit exists to end.
+  if ! required_list="$(required_assets "$version")" || [[ -z "$required_list" ]]; then
+    echo "::error title=Release audit could not run::expanding ${ASSET_MANIFEST} for ${version} produced no required assets." >&2
+    exit 2
+  fi
+
   missing=()
   while IFS= read -r asset; do
+    [[ -n "$asset" ]] || continue
     grep -Fxq -- "$asset" <<< "$published" || missing+=( "$asset" )
-  done < <(required_assets "$version")
-  total="$(required_assets "$version" | wc -l)"
+  done <<< "$required_list"
+  total="$(grep -c . <<< "$required_list")"
 
   if (( ${#missing[@]} == 0 )); then
     echo "OK      ${tag}: all ${total} required assets present"

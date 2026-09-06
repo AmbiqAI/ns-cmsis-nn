@@ -55,6 +55,7 @@ guides/kernel-benchmarks
 guides/releases
 guides/toolchains
 guides/verification
+guides/ci-matrix
 reference/api-groups
 contributing
 ```

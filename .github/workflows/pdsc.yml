@@ -170,6 +170,26 @@ jobs:
       - name: Run toolchain manifest sync check
         run: python3 scripts/check_toolchain_manifest_sync.py
 
+  release_asset_manifest:
+    # Same failure shape as toolchain_manifest_sync above, on the release
+    # asset contract. The required-asset list was transcribed by hand into
+    # release.yml's release-verify job, scripts/ci/audit_release_assets.sh
+    # and the table in docs/guides/releases.md, with nothing relating them.
+    # An asset added to release.yml alone was verified once at release time
+    # and never audited again; an asset dropped from the docs table left
+    # customers told to expect something the pipeline no longer promises.
+    # ci/release-assets.json is now the single source, and this holds the
+    # guide and both consumers to it.
+    name: Release asset manifest sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run release asset manifest check
+        run: python3 scripts/check_release_asset_manifest.py
+
   api_group_classification:
     # Guards docs/_ext/api_group_index.py's GROUP_PATTERNS: every public
     # top-level kernel in Include/arm_nnfunctions*.h must match at least
