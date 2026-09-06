@@ -508,13 +508,19 @@ endif()
 
 # The target's compile definitions are the compile-time truth, and
 # ns_cmsis_nn_float_support() is what a consumer asks instead of reading the
-# cache, so both are asserted in both modes. See AmbiqAI/ns-cmsis-nn#420.
-if(TARGET nsx_cmsis_nn AND DEFINED _expect_F32_define)
-  ns_cmsis_nn_float_support(F32 _query_F32 F16 _query_F16)
+# cache, so both are asserted in both modes. CMake variable names are
+# case-sensitive and the per-case expectations are lowercase, so the width is
+# lowered here rather than spelled a second time: a guard whose name no case
+# sets reads as "this case has no float expectation" and asserts nothing.
+# See AmbiqAI/ns-cmsis-nn#420.
+if(TARGET nsx_cmsis_nn
+   AND (DEFINED _expect_f32_define OR DEFINED _expect_f16_define))
+  ns_cmsis_nn_float_support(F32 _query_f32 F16 _query_f16)
 endif()
 foreach(_width F32 F16)
-  if(DEFINED _expect_${_width}_define)
-    set(_want ${_expect_${_width}_define})
+  string(TOLOWER "${_width}" _w)
+  if(DEFINED _expect_${_w}_define)
+    set(_want ${_expect_${_w}_define})
     if(TARGET nsx_cmsis_nn)
       if(_expect_prebuilt)
         get_target_property(_defs nsx_cmsis_nn INTERFACE_COMPILE_DEFINITIONS)
@@ -530,8 +536,8 @@ foreach(_width F32 F16)
       else()
         set(_want_query OFF)
       endif()
-      if(NOT "${_query_${_width}}" STREQUAL "${_want_query}")
-        _fail("${CASE} mode: ns_cmsis_nn_float_support reported ${_width}='${_query_${_width}}', expected ${_want_query}")
+      if(NOT "${_query_${_w}}" STREQUAL "${_want_query}")
+        _fail("${CASE} mode: ns_cmsis_nn_float_support reported ${_width}='${_query_${_w}}', expected ${_want_query}")
       endif()
     endif()
   endif()
