@@ -201,7 +201,14 @@ __STATIC_INLINE void arm_nn_gru_block_f32(const cmsis_nn_gru_params_f32 *params,
     }
 
     const float32x4_t vz = vld1q(z_lane);
-    const float32x4_t vcand = arm_nn_vtanh_lut_direct_mve_f32(vld1q(cand_pre_lane));
+    const float32x4_t vcand_pre = vld1q(cand_pre_lane);
+    // The vector tanh maps a NaN lane to a finite value; the scalar leg propagates it (#251). Classify NaN in the
+    // integer domain (arm_nn_clamp_propagate_nan_mve_f32 style, immune to -ffinite-math-only) before the tanh and
+    // select any NaN afterwards: MVE arithmetic returns the default NaN whatever the source, and an all-ones splat
+    // is one immediate move with no live range across the tanh.
+    const mve_pred16_t nan_p = vcmphiq_n_u32(vshlq_n_u32(vreinterpretq_u32_f32(vcand_pre), 1), 0xFF000000u);
+    const float32x4_t vcand =
+        vpselq(vreinterpretq_f32_u32(vdupq_n_u32(0xFFFFFFFFu)), arm_nn_vtanh_lut_direct_mve_f32(vcand_pre), nan_p);
     const float32x4_t vp = vmulq(vsubq(vdupq_n_f32(1.0f), vz), vcand);
 
     if (lanes == 4)
