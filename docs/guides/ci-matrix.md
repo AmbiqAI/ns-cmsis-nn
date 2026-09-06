@@ -44,11 +44,13 @@ status context is `CI Passed`.
 | `check` | `license-headers.yml` | none | n/a | header check on the host | none pinned |
 | `ci-tool-manifest`, `gen-pack-action-pin`, and the other contract jobs | `release-contract.yml` | none | n/a | shell assertions over the release path's own wiring | none pinned |
 
-The cortex-m0 f32 fallback cell is the only execution of the soft-float f32
-path in this repository. Its coverage is intentionally not merged into the
-coverage gate: the merge stages the three int legs, the m4 f32 and m55 f32
-and f16 fallback legs, and the m55 MVE-float legs, so adding it would move
-`ci/coverage-floor.json` and needs its own change.
+The cortex-m0 f32 fallback cell is the only pull-request-gating execution
+evidence for the soft-float f32 path; `legacy-tester.yml` builds and runs
+cortex-m0 with `float32` nightly and at release. Its coverage is
+intentionally not merged into the coverage gate: the merge stages the three
+int legs, the m4 f32 and m55 f32 and f16 fallback legs, and the m55
+MVE-float legs, so adding it would move `ci/coverage-floor.json` and needs
+its own change.
 
 Sources: `.github/workflows/ci.yml`'s `on:` block for the triggers and its
 `ci-passed` job's `needs:` list for the gated set; each callee's own
