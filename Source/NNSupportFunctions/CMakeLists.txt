@@ -32,8 +32,6 @@ if (ARM_NN_ENABLE_F32)
                       arm_nn_conv1d_k5_f32.c
                       arm_nn_conv1d_k5_packed_f32.c
                       arm_nn_depthwise_conv1d_k3_f32.c
-                      arm_nn_depthwise_conv3x3_f32.c
-                      arm_nn_depthwise_conv_nt_t_f32.c
                       arm_nn_maxpool1d_f32.c
                       arm_nn_pack_conv_patch_f32.c
                       arm_nn_gru_step_f32.c
@@ -48,8 +46,6 @@ if (ARM_NN_ENABLE_F16)
                       arm_nn_conv1d_k5_packed_f16.c
                       arm_nn_depthwise_conv1d_k3_f16.c
                       arm_nn_depthwise_conv2x5_f16.c
-                      arm_nn_depthwise_conv3x3_f16.c
-                      arm_nn_depthwise_conv_nt_t_f16.c
                       arm_nn_pack_conv_patch_f16.c
                       arm_nn_gru_step_f16.c
                       arm_nn_lstm_step_f16.c

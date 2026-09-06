@@ -26,6 +26,8 @@
  * $Revision:    V.1.0.0
  *
  * Target :  Arm(R) M-Profile Architecture
+ *
+ * Ambiq-specific: not in upstream ARM-software/CMSIS-NN, which has no float depthwise convolution (#448).
  * -------------------------------------------------------------------- */
 
 #ifndef ARM_DEPTHWISE_CONV_OPT_F16_H

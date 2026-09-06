@@ -7,6 +7,7 @@
  * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  */
 
+// Ambiq-specific: not in upstream ARM-software/CMSIS-NN, which has no float depthwise convolution (#448).
 // Float32 depthwise convolution: every ch_mult == 1 shape takes the direct channel-vectorized kernel (#448),
 // ch_mult > 1 the generic route. Each case is checked against an in-test float64 reference with guard bytes
 // on the output and on a scratch buffer sized exactly by the sizer.
@@ -231,8 +232,9 @@ void depthwise_conv_kws_layer_f32(void)
     dw_f32_layer(1, 16, 16, 8, 3, 3, &dp, 0, 4);
 }
 
-// The public 3x3 entry now forwards to the same kernel: bit-identical to the wrapper on the KWS layer.
-void depthwise_conv_3x3_entry_forwards_f32(void)
+// arm_depthwise_conv_f32 with ARM_NN_LAYOUT_NHWC is bit-identical to the wrapper; any other layout is rejected
+// before the kernel runs.
+void depthwise_conv_layout_gate_f32(void)
 {
     const cmsis_nn_dims in = {1, 16, 16, 8};
     const cmsis_nn_dims flt = {1, 3, 3, 8};
@@ -264,10 +266,6 @@ void depthwise_conv_3x3_entry_forwards_f32(void)
 
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
                       arm_depthwise_conv_wrapper_f32(&ctx, &dp, &in, x, &flt, w, &bias_dims, bias, &out, y_wrapper));
-    arm_nn_depthwise_conv3x3_nhwc_f32(x, 1, 8, 16, 16, w, bias, y_entry, 2, 2, 0, 0, 8, 8, 0.0f, 6.0f);
-    TEST_ASSERT_EQUAL_MEMORY(y_wrapper, y_entry, sizeof(y_wrapper));
-
-    // Layout dispatch: NHWC is the only layout; anything else is rejected before the kernel runs.
     TEST_ASSERT_EQUAL(
         ARM_CMSIS_NN_SUCCESS,
         arm_depthwise_conv_f32(&ctx, &dp, &in, x, &flt, w, &bias_dims, bias, &out, y_entry, ARM_NN_LAYOUT_NHWC));

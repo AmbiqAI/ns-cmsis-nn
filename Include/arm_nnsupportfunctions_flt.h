@@ -321,40 +321,6 @@ void arm_nn_depthwise_conv1d_k3_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
                                          int32_t out_w);
 
 /**
- * @brief Specialized NHWC depthwise `3x3` kernel (float32, `ch_mult=1`).
- */
-void arm_nn_depthwise_conv3x3_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
-                                       int32_t batches,
-                                       int32_t in_c,
-                                       int32_t in_h,
-                                       int32_t in_w,
-                                       const float32_t *__RESTRICT kernel,
-                                       const float32_t *__RESTRICT b,
-                                       float32_t *__RESTRICT out,
-                                       int32_t stride_x,
-                                       int32_t stride_y,
-                                       int32_t pad_x,
-                                       int32_t pad_y,
-                                       int32_t out_h,
-                                       int32_t out_w,
-                                       float32_t act_min,
-                                       float32_t act_max);
-
-/**
- * @brief Generic depthwise helper with packed lhs tiles and transposed rhs layout (float32).
- */
-arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_f32(const float32_t *__RESTRICT lhs,
-                                                   const float32_t *__RESTRICT rhs,
-                                                   const float32_t *__RESTRICT bias,
-                                                   float32_t *__RESTRICT out,
-                                                   int32_t lhs_rows,
-                                                   int32_t total_ch,
-                                                   int32_t row_x_col,
-                                                   int32_t out_row_stride,
-                                                   float32_t activation_min,
-                                                   float32_t activation_max);
-
-/**
  * @brief Specialized NHWC 1D convolution kernel for `k=5` (float32).
  */
 void arm_nn_conv1d_k5_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
@@ -774,40 +740,6 @@ void arm_nn_depthwise_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                          const float16_t *__RESTRICT b,
                                          float16_t *__RESTRICT out,
                                          int32_t out_w);
-
-/**
- * @copydoc arm_nn_depthwise_conv3x3_nhwc_f32
- */
-void arm_nn_depthwise_conv3x3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
-                                       int32_t batches,
-                                       int32_t in_c,
-                                       int32_t in_h,
-                                       int32_t in_w,
-                                       const float16_t *__RESTRICT kernel,
-                                       const float16_t *__RESTRICT b,
-                                       float16_t *__RESTRICT out,
-                                       int32_t stride_x,
-                                       int32_t stride_y,
-                                       int32_t pad_x,
-                                       int32_t pad_y,
-                                       int32_t out_h,
-                                       int32_t out_w,
-                                       float16_t act_min,
-                                       float16_t act_max);
-
-/**
- * @copydoc arm_nn_depthwise_conv_nt_t_f32
- */
-arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_f16(const float16_t *__RESTRICT lhs,
-                                                   const float16_t *__RESTRICT rhs,
-                                                   const float16_t *__RESTRICT bias,
-                                                   float16_t *__RESTRICT out,
-                                                   int32_t lhs_rows,
-                                                   int32_t total_ch,
-                                                   int32_t row_x_col,
-                                                   int32_t out_row_stride,
-                                                   float16_t activation_min,
-                                                   float16_t activation_max);
 
 /**
  * @copydoc arm_nn_conv1d_k5_nhwc_f32

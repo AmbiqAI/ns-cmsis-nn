@@ -31,7 +31,7 @@ void tearDown(void) {}
 
 void test_depthwise_conv_kws_layer_f16(void) { depthwise_conv_kws_layer_f16(); }
 
-void test_depthwise_conv_3x3_entry_forwards_f16(void) { depthwise_conv_3x3_entry_forwards_f16(); }
+void test_depthwise_conv_layout_gate_f16(void) { depthwise_conv_layout_gate_f16(); }
 
 void test_depthwise_conv_channel_sweep_f16(void) { depthwise_conv_channel_sweep_f16(); }
 
