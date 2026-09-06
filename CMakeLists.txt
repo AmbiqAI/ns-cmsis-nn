@@ -127,20 +127,22 @@ add_library(cmsis-nn STATIC)
 add_library(ns-cmsis-nn  ALIAS cmsis-nn)
 add_library(ns::cmsis-nn ALIAS cmsis-nn)
 
-# Normalize the options above to 0/1 for the compile definitions below. The
-# request already arrives under the published name here, so the cache entries
-# keep the text the user supplied. See AmbiqAI/ns-cmsis-nn#420.
-ns_cmsis_nn_publish_float_switches(
-    F32 "${ARM_NN_ENABLE_F32}"
-    F16 "${ARM_NN_ENABLE_F16}"
-    REQUEST_PREFIX ARM_NN_ENABLE_
-    REQUEST_DEFAULT OFF
-    REQUESTED_BY "ARM_NN_ENABLE_F32/F16")
+if(ARM_NN_ENABLE_F32)
+    set(ARM_NN_ENABLE_F32_VALUE 1)
+else()
+    set(ARM_NN_ENABLE_F32_VALUE 0)
+endif()
+
+if(ARM_NN_ENABLE_F16)
+    set(ARM_NN_ENABLE_F16_VALUE 1)
+else()
+    set(ARM_NN_ENABLE_F16_VALUE 0)
+endif()
 
 target_compile_options(cmsis-nn PRIVATE ${CMSIS_OPTIMIZATION_LEVEL})
 target_compile_definitions(cmsis-nn
-                           PUBLIC ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32}
-                                  ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16})
+                           PUBLIC ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32_VALUE}
+                                  ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16_VALUE})
 
 ns_cmsis_nn_attach(cmsis-nn
                    GROUPS ${_NS_ENABLED_GROUPS}

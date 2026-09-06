@@ -21,9 +21,10 @@ set(NS_CMSIS_NN_TOOLCHAIN_COMPILER  "@NS_CMSIS_NN_TOOLCHAIN_COMPILER@")
 
 # Capability flags: what this specific archive was actually compiled with.
 # These describe archive *contents*, distinct from a consumer's feature
-# *request* (NSX's NSX_CMSIS_NN_ENABLE_F32/F16, Zephyr's
-# CONFIG_NS_CMSIS_NN_ENABLE_F32/F16). Consumers should validate their
-# requests against these before turning ARM_NN_ENABLE_F32/F16 on.
+# *request* (`ARM_NN_ENABLE_F32`/`F16` on the standalone and NSX paths,
+# CONFIG_NS_CMSIS_NN_ENABLE_F32/F16 on Zephyr). Consumers should validate
+# their requests against these before turning ARM_NN_ENABLE_F32/F16 on, or
+# call ns_cmsis_nn_float_support() below.
 set(NS_CMSIS_NN_HAS_F32                   @NS_CMSIS_NN_HAS_F32@)
 set(NS_CMSIS_NN_HAS_F16                   @NS_CMSIS_NN_HAS_F16@)
 set(NS_CMSIS_NN_HAS_REQUANTIZE_INLINE_ASM @NS_CMSIS_NN_HAS_REQUANTIZE_INLINE_ASM@)
@@ -98,5 +99,38 @@ if(NOT TARGET cmsis-nn)
   endif()
   unset(_ns_cmsis_nn_defs)
 endif()
+
+# The same query the source layout exports, so consumer code can ask one
+# question regardless of how it got the library. Mirrored from
+# cmake/ns_cmsis_nn_float_support.cmake, which a package consumer does not
+# have. See AmbiqAI/ns-cmsis-nn#420.
+function(ns_cmsis_nn_float_support)
+  cmake_parse_arguments(PARSE_ARGV 0 NSFS "" "F32;F16" "")
+  if(NSFS_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR
+      "ns_cmsis_nn_float_support: unexpected arguments: "
+      "${NSFS_UNPARSED_ARGUMENTS}")
+  endif()
+  foreach(_width F32 F16)
+    if(NOT NSFS_${_width})
+      message(FATAL_ERROR
+        "ns_cmsis_nn_float_support: ${_width} is required. Pass "
+        "${_width} <out_var>; an omitted width would leave the caller's "
+        "variable at whatever it already held.")
+    endif()
+  endforeach()
+  get_target_property(_defs cmsis-nn INTERFACE_COMPILE_DEFINITIONS)
+  if(NOT _defs)
+    set(_defs "")
+  endif()
+  foreach(_width F32 F16)
+    list(FIND _defs "ARM_NN_ENABLE_${_width}=1" _idx)
+    if(_idx EQUAL -1)
+      set(${NSFS_${_width}} OFF PARENT_SCOPE)
+    else()
+      set(${NSFS_${_width}} ON PARENT_SCOPE)
+    endif()
+  endforeach()
+endfunction()
 
 set(${CMAKE_FIND_PACKAGE_NAME}_FOUND TRUE)

@@ -26,22 +26,13 @@
 #       Adds the resolved source set and the public Include/ directory to
 #       <target>. <target> must already exist (created by the consumer).
 #
-#   ns_cmsis_nn_publish_float_switches(F32 <value> F16 <value>
-#                                      REQUEST_PREFIX <prefix>
-#                                      [REQUEST_DEFAULT <ON|OFF>]
-#                                      [REQUESTED_BY <text>]
-#                                      [AUTHORITATIVE [AUTHORITY_NOTE <text>]])
-#       Publishes the caller's float request as the ARM_NN_ENABLE_F32/F16
-#       cache entries and directory variables. F32 and F16 are required; an
-#       empty value means OFF, an omitted keyword is a FATAL_ERROR.
-#       Called by the top-level, NSX and
-#       Zephyr entry points; find_package() consumers of a published tarball
-#       get the same names on the imported target instead. AUTHORITATIVE says
-#       the caller's own switch is the only way to ask on that path, so an
-#       ARM_NN_ENABLE_* value is never adopted there and a disagreeing one is a
-#       FATAL_ERROR quoting AUTHORITY_NOTE. Defined in
-#       cmake/ns_cmsis_nn_float_switches.cmake, which prebuilt-mode consumers
-#       may include on its own.
+#   ns_cmsis_nn_float_support(F32 <out_var> F16 <out_var>)
+#       Sets each out variable to ON or OFF from the library target's compile
+#       definitions: what the library in scope was built with, as opposed to
+#       what any one entry point was asked for. Defined in
+#       cmake/ns_cmsis_nn_float_support.cmake, which entry points that compile
+#       nothing may include on its own, and mirrored in the find_package()
+#       config template.
 #
 # Notes on selection:
 #   - Each group has an explicit subdirectory under Source/, an explicit list
@@ -75,10 +66,11 @@ get_filename_component(NS_CMSIS_NN_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 # See AmbiqAI/ns-cmsis-nn#427.
 include("${CMAKE_CURRENT_LIST_DIR}/check_gas_mve_encoding.cmake")
 
-# The float switches the group source lists below select on. Kept in its own
-# module so entry points that compile nothing (prebuilt modes) can publish the
-# same values without pulling in the source layout. See AmbiqAI/ns-cmsis-nn#420.
-include("${CMAKE_CURRENT_LIST_DIR}/ns_cmsis_nn_float_switches.cmake")
+# The query that tells a consumer which float widths the library in scope was
+# built with. Kept in its own module so entry points that compile nothing
+# (prebuilt modes) can offer it without pulling in the source layout.
+# See AmbiqAI/ns-cmsis-nn#420.
+include("${CMAKE_CURRENT_LIST_DIR}/ns_cmsis_nn_float_support.cmake")
 
 # Canonical, ordered list of operator group ids.
 set(_NS_CMSIS_NN_GROUPS
