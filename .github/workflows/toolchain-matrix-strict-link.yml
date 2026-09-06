@@ -61,11 +61,17 @@
 # would be more jobs for a strictly narrower cell.
 #
 # This is a BUILD-and-LINK gate only. The functional codegen-tests legs
-# stay on the container's single 14.3.1 toolchain and are deliberately
-# NOT multiplied across toolchains or GCC versions -- running the
-# numerics suite once per toolchain would cost ~8 min of PR latency per
-# added leg to re-test compilers against identical kernel logic. Please
-# do not "helpfully" extend this matrix into helia-core-tester.yml.
+# stay on a single toolchain and are deliberately NOT multiplied across
+# toolchains or GCC versions -- running the numerics suite once per
+# toolchain would cost ~8 min of PR latency per added leg to re-test
+# compilers against identical kernel logic. Please do not "helpfully"
+# extend this matrix into helia-core-tester.yml's *run* legs.
+#
+# helia-core-tester.yml does carry one deliberate GCC-range job,
+# codegen-build-gcc-matrix (helia-core-tester#70): it compiles and links
+# the generated harnesses on the floor and ceiling GCC releases but never
+# boots the FVP, so it covers the test translation units this archive
+# gate cannot see without paying the per-leg execution cost above.
 #
 # cortex-m0 and the full three-CPU sweep stay in staticlib-dryrun.yml
 # (workflow_dispatch), which also packages and uploads SDK tarballs.

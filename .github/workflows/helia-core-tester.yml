@@ -314,6 +314,82 @@ jobs:
           path: Tests/helia-core-tester/artifacts/reports
           if-no-files-found: error
 
+  # Build-only (no FVP execution) compile-and-link of every generated
+  # harness on one pinned release per supported GCC major other than the
+  # one the functional legs already use (helia-core-tester#70). This is
+  # what toolchain-matrix-strict-link.yml explicitly declined to do for
+  # the *numerics* legs, and it still does not: no FVP boots here, so the
+  # cost is one generate + build per cell, not another eight-minute run.
+  # What it adds over the strict-link gate is that the generated test
+  # translation units -- not just the kernel archive -- get compiled and
+  # linked by the floor and ceiling of the supported GCC range.
+  codegen-build-gcc-matrix:
+    name: codegen build-only / gcc ${{ matrix.gcc_release }}
+    runs-on: ubuntu-latest
+    needs: resolve-container-image
+    container:
+      image: ${{ needs.resolve-container-image.outputs.container_image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # 13.2.rel1 is the supported floor and what release.yml ships;
+        # 15.2.rel1 is the newest release with a pinned digest in
+        # setup_dependencies.py. The 14.x middle is the functional legs'
+        # own toolchain and needs no second build.
+        gcc_release: ['13.2.rel1', '15.2.rel1']
+    env:
+      HELIA_GCC_VERSION: ${{ matrix.gcc_release }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          submodules: recursive
+
+      - name: Mark workspace as a safe git directory
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      # Keyed by release with no restore-keys fallback on purpose: a
+      # restored 14.2 download tree would trip the installed-version
+      # marker check in setup_dependencies.py rather than silently build
+      # with the wrong compiler.
+      - name: Cache helia-core-tester downloads (per GCC release)
+        uses: actions/cache@v5
+        with:
+          path: Tests/helia-core-tester/artifacts/downloads
+          key: helia-core-tester-downloads-gcc-${{ matrix.gcc_release }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Tests/helia-core-tester/scripts/setup_ci.sh', 'Tests/helia-core-tester/helia_core_tester/scripts/setup_dependencies.py') }}
+
+      - name: Setup helia-core-tester build dependencies
+        run: |
+          cd Tests/helia-core-tester
+          ./scripts/setup_ci.sh
+
+      # Fails if the pinned helia-core-tester predates the knob: the
+      # default 14.2 install would otherwise make this leg a silent
+      # duplicate of the functional ones.
+      - name: Assert the selected GCC release was installed
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcc=Tests/helia-core-tester/artifacts/downloads/arm_gcc_download/bin/arm-none-eabi-gcc
+          "$gcc" --version | head -1
+          "$gcc" --version | head -1 | grep -Fiq "${HELIA_GCC_VERSION}" || {
+            echo "::error::expected Arm GNU Toolchain ${HELIA_GCC_VERSION}; helia-core-tester pin may predate --gcc-version (helia-core-tester#70)"
+            exit 1
+          }
+
+      - name: Build every generated harness (no FVP run)
+        run: |
+          cd Tests/helia-core-tester
+          uv run helia_core_tester full --cpu cortex-m55 --suite both --skip-run --verbosity 1
+
   coverage-merge-summary:
     runs-on: ubuntu-latest
     needs:
