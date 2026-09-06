@@ -2811,7 +2811,11 @@ int32_t arm_fully_connected_per_channel_s16_get_buffer_size_mve(const cmsis_nn_d
  * @param[in]       input2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input2_mult        multiplier for input 2
  * @param[in]       input2_shift       shift for input 2
- * @param[in]       left_shift         left shift applied to the result
+ * @param[in]       left_shift         left shift applied to the result.
+ *                                     Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                     range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                     most 23. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                     validated by the kernel.
  * @param[out]      output_data        pointer to output tensor
  * @param[in]       output_dims        pointer to output tensor dimensions
  * @param[in]       out_offset         output offset. Range: -128 to 127
@@ -2853,7 +2857,11 @@ arm_cmsis_nn_status arm_add_s8(const int8_t *input1_data,
  * @param[in]       input_2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          left shift applied to the result
+ * @param[in]       left_shift          left shift applied to the result.
+ *                                      Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                      range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                      most 23. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                      validated by the kernel.
  * @param[out]      output              pointer to output vector
  * @param[in]       out_offset          output offset. Range: -128 to 127
  * @param[in]       out_mult            output multiplier
@@ -2890,7 +2898,11 @@ arm_cmsis_nn_status arm_add_scalar_s8(const int8_t *input_1_vect,
  * @param[in]       input_2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          input left shift
+ * @param[in]       left_shift          input left shift.
+ *                                      Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                      range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                      most 23. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                      validated by the kernel.
  * @param[in,out]   output              pointer to output vector
  * @param[in]       out_offset          output offset.  Range: -128 to 127
  * @param[in]       out_mult            output multiplier
@@ -3061,7 +3073,11 @@ arm_cmsis_nn_status arm_rsqrt_s16_universal(const int16_t *input,
  * @param[in]       input2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input2_mult        multiplier for input 2
  * @param[in]       input2_shift       shift for input 2
- * @param[in]       left_shift         left shift applied to the result
+ * @param[in]       left_shift         left shift applied to the result.
+ *                                     Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                     range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                     most 23. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                     validated by the kernel.
  * @param[out]      output_data        pointer to output tensor
  * @param[in]       output_dims        pointer to output tensor dimensions
  * @param[in]       out_offset         output offset. Range: -128 to 127
@@ -3103,7 +3119,11 @@ arm_cmsis_nn_status arm_sub_s8(const int8_t *input1_data,
  * @param[in]       input_2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          left shift applied to the result
+ * @param[in]       left_shift          left shift applied to the result.
+ *                                      Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                      range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                      most 23. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                      validated by the kernel.
  * @param[out]      output              pointer to output vector
  * @param[in]       out_offset          output offset. Range: -128 to 127
  * @param[in]       out_mult            output multiplier
@@ -3140,7 +3160,11 @@ arm_cmsis_nn_status arm_sub_scalar_s8(const int8_t *input_1_vect,
  * @param[in]       input_2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          input left shift
+ * @param[in]       left_shift          input left shift.
+ *                                      Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                      range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                      most 23. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                      validated by the kernel.
  * @param[in,out]   output              pointer to output vector
  * @param[in]       out_offset          output offset.  Range: -128 to 127
  * @param[in]       out_mult            output multiplier
@@ -3179,7 +3203,12 @@ arm_cmsis_nn_status arm_elementwise_sub_s8(const int8_t *input_1_vect,
  * @param[in]       input2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input2_mult        multiplier for input 2
  * @param[in]       input2_shift       shift for input 2
- * @param[in]       left_shift         left shift applied to the result
+ * @param[in]       left_shift         left shift applied to the result.
+ *                                     Bound: the kernel evaluates value << left_shift in int32; the offsets are unused,
+ *                                     so with full-range int16 inputs the extremes are +32767 and -32768, and
+ *                                     -32768 << 16 is exactly INT32_MIN, which makes 16 the last shift that stays
+ *                                     representable. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                     validated by the kernel.
  * @param[out]      output_data        pointer to output tensor
  * @param[in]       output_dims        pointer to output tensor dimensions
  * @param[in]       out_offset         output offset. Range: -128 to 127
@@ -3221,7 +3250,12 @@ arm_cmsis_nn_status arm_add_s16(const int16_t *input1_data,
  * @param[in]       input_2_offset      offset for input 2. Not used.
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          left shift applied to the result
+ * @param[in]       left_shift          left shift applied to the result.
+ *                                      Bound: the kernel evaluates value << left_shift in int32; the offsets are
+ *                                      unused, so with full-range int16 inputs the extremes are +32767 and -32768, and
+ *                                      -32768 << 16 is exactly INT32_MIN, which makes 16 the last shift that stays
+ *                                      representable. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                      validated by the kernel.
  * @param[out]      output              pointer to output vector
  * @param[in]       out_offset          output offset. Not used.
  * @param[in]       out_mult            output multiplier
@@ -3259,7 +3293,12 @@ arm_cmsis_nn_status arm_add_scalar_s16(const int16_t *input_1_vect,
  * @param[in]       input_2_offset      offset for input 2. Not used.
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          input left shift
+ * @param[in]       left_shift          input left shift.
+ *                                      Bound: the kernel evaluates value << left_shift in int32; the offsets are
+ *                                      unused, so with full-range int16 inputs the extremes are +32767 and -32768, and
+ *                                      -32768 << 16 is exactly INT32_MIN, which makes 16 the last shift that stays
+ *                                      representable. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                      validated by the kernel.
  * @param[in,out]   output              pointer to output vector
  * @param[in]       out_offset          output offset. Not used.
  * @param[in]       out_mult            output multiplier
@@ -3298,7 +3337,12 @@ arm_cmsis_nn_status arm_elementwise_add_s16(const int16_t *input_1_vect,
  * @param[in]       input2_offset      offset for input 2. Range: -127 to 128
  * @param[in]       input2_mult        multiplier for input 2
  * @param[in]       input2_shift       shift for input 2
- * @param[in]       left_shift         left shift applied to the result
+ * @param[in]       left_shift         left shift applied to the result.
+ *                                     Bound: the kernel evaluates value << left_shift in int32; the offsets are unused,
+ *                                     so with full-range int16 inputs the extremes are +32767 and -32768, and
+ *                                     -32768 << 16 is exactly INT32_MIN, which makes 16 the last shift that stays
+ *                                     representable. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                     validated by the kernel.
  * @param[out]      output_data        pointer to output tensor
  * @param[in]       output_dims        pointer to output tensor dimensions
  * @param[in]       out_offset         output offset. Range: -128 to 127
@@ -3340,7 +3384,12 @@ arm_cmsis_nn_status arm_sub_s16(const int16_t *input1_data,
  * @param[in]       input_2_offset      offset for input 2. Not used.
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          left shift applied to the result
+ * @param[in]       left_shift          left shift applied to the result.
+ *                                      Bound: the kernel evaluates value << left_shift in int32; the offsets are
+ *                                      unused, so with full-range int16 inputs the extremes are +32767 and -32768, and
+ *                                      -32768 << 16 is exactly INT32_MIN, which makes 16 the last shift that stays
+ *                                      representable. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                      validated by the kernel.
  * @param[out]      output              pointer to output vector
  * @param[in]       out_offset          output offset. Not used.
  * @param[in]       out_mult            output multiplier
@@ -3378,7 +3427,12 @@ arm_cmsis_nn_status arm_sub_scalar_s16(const int16_t *input_1_vect,
  * @param[in]       input_2_offset      offset for input 2. Not used.
  * @param[in]       input_2_mult        multiplier for input 2
  * @param[in]       input_2_shift       shift for input 2
- * @param[in]       left_shift          input left shift
+ * @param[in]       left_shift          input left shift.
+ *                                      Bound: the kernel evaluates value << left_shift in int32; the offsets are
+ *                                      unused, so with full-range int16 inputs the extremes are +32767 and -32768, and
+ *                                      -32768 << 16 is exactly INT32_MIN, which makes 16 the last shift that stays
+ *                                      representable. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                      validated by the kernel.
  * @param[in,out]   output              pointer to output vector
  * @param[in]       out_offset          output offset. Not used.
  * @param[in]       out_mult            output multiplier
@@ -3407,6 +3461,10 @@ arm_cmsis_nn_status arm_elementwise_sub_s16(const int16_t *input_1_vect,
 
 /**
  * @brief s8 elementwise squared difference of two tensors with support for broadcasting.
+ * @param[in] left_shift  Common left shift applied to both inputs before requantization. Bound: the kernel evaluates
+ *                        (value + offset) << left_shift in int32; with full-range int8 inputs and zero-points the
+ *                        widest operand is 255, so left_shift is at most 23. The scale 1 << left_shift is itself
+ *                        representable up to 30. Not validated by the kernel.
  * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
  *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
  *             their broadcast shape.
@@ -3432,6 +3490,10 @@ arm_cmsis_nn_status arm_squared_difference_s8(const int8_t *input1_data,
 
 /**
  * @brief s8 elementwise squared difference of scalar and vector.
+ * @param[in] left_shift  Common left shift applied to both inputs before requantization. Bound: the kernel evaluates
+ *                        (value + offset) << left_shift in int32; with full-range int8 inputs and zero-points the
+ *                        widest operand is 255, so left_shift is at most 23. The scale 1 << left_shift is itself
+ *                        representable up to 30. Not validated by the kernel.
  */
 arm_cmsis_nn_status arm_squared_difference_scalar_s8(const int8_t *input_1_vect,
                                                      const int8_t *input_2_vect,
@@ -3452,6 +3514,10 @@ arm_cmsis_nn_status arm_squared_difference_scalar_s8(const int8_t *input_1_vect,
 
 /**
  * @brief s8 elementwise squared difference of two vectors.
+ * @param[in] left_shift  Common left shift applied to both inputs before requantization. Bound: the kernel evaluates
+ *                        (value + offset) << left_shift in int32; with full-range int8 inputs and zero-points the
+ *                        widest operand is 255, so left_shift is at most 23. The scale 1 << left_shift is itself
+ *                        representable up to 30. Not validated by the kernel.
  */
 arm_cmsis_nn_status arm_elementwise_squared_difference_s8(const int8_t *input_1_vect,
                                                           const int8_t *input_2_vect,
@@ -3472,6 +3538,10 @@ arm_cmsis_nn_status arm_elementwise_squared_difference_s8(const int8_t *input_1_
 
 /**
  * @brief s16 elementwise squared difference of two tensors with support for broadcasting.
+ * @param[in] left_shift  Common left shift applied to both inputs before requantization. Bound: the kernel evaluates
+ *                        (value + offset) << left_shift in int32; with full-range int16 inputs and a zero zero-point
+ *                        the widest operand is 32768, so left_shift is at most 16, and a non-zero zero-point lowers it.
+ *                        The scale 1 << left_shift is itself representable up to 30. Not validated by the kernel.
  * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
  *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
  *             their broadcast shape.
@@ -3497,6 +3567,10 @@ arm_cmsis_nn_status arm_squared_difference_s16(const int16_t *input1_data,
 
 /**
  * @brief s16 elementwise squared difference of scalar and vector.
+ * @param[in] left_shift  Common left shift applied to both inputs before requantization. Bound: the kernel evaluates
+ *                        (value + offset) << left_shift in int32; with full-range int16 inputs and a zero zero-point
+ *                        the widest operand is 32768, so left_shift is at most 16, and a non-zero zero-point lowers it.
+ *                        The scale 1 << left_shift is itself representable up to 30. Not validated by the kernel.
  */
 arm_cmsis_nn_status arm_squared_difference_scalar_s16(const int16_t *input_1_vect,
                                                       const int16_t *input_2_vect,
@@ -3517,6 +3591,10 @@ arm_cmsis_nn_status arm_squared_difference_scalar_s16(const int16_t *input_1_vec
 
 /**
  * @brief s16 elementwise squared difference of two vectors.
+ * @param[in] left_shift  Common left shift applied to both inputs before requantization. Bound: the kernel evaluates
+ *                        (value + offset) << left_shift in int32; with full-range int16 inputs and a zero zero-point
+ *                        the widest operand is 32768, so left_shift is at most 16, and a non-zero zero-point lowers it.
+ *                        The scale 1 << left_shift is itself representable up to 30. Not validated by the kernel.
  */
 arm_cmsis_nn_status arm_elementwise_squared_difference_s16(const int16_t *input_1_vect,
                                                            const int16_t *input_2_vect,
@@ -3852,7 +3930,11 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
  * @param[in]   input_2_offset        Zero-point for input2 tensor
  * @param[in]   input_2_mult          Multiplier for input2 tensor
  * @param[in]   input_2_shift         Shift for input2 tensor
- * @param[in]   left_shift            Common left shift prior to requantization
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                    range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                    most 23. The scale 1 << left_shift is itself representable up to 30. Not validated
+ *                                    by the kernel.
  * @param[in]   operation             Comparison operation to perform
  *
  * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
@@ -3892,7 +3974,11 @@ arm_cmsis_nn_status arm_comparison_s8(const cmsis_nn_context *ctx,
  * @param[in]   input_2_offset        Zero-point for input2 tensor
  * @param[in]   input_2_mult          Multiplier for input2 tensor
  * @param[in]   input_2_shift         Shift for input2 tensor
- * @param[in]   left_shift            Common left shift prior to requantization
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                    range int16 inputs and a zero zero-point the widest operand is 32768, so
+ *                                    left_shift is at most 16, and a non-zero zero-point lowers it. The scale 1 <<
+ *                                    left_shift is itself representable up to 30. Not validated by the kernel.
  * @param[in]   operation             Comparison operation to perform
  *
  * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
@@ -5296,8 +5382,13 @@ arm_cmsis_nn_status arm_batch_to_space_nd_s16(const int16_t *input_data,
  * @param[in]       output_dims           Output tensor dimensions. Format may be arbitrary relative to input format.
  *                                        The output dimension will depend on the permutation dimensions.
  *                                        In other words the out dimensions are the result of applying the permutation
- *                                        to the input dimensions.
+ *                                        to the input dimensions. The first transpose_params->num_dims fields, taken
+ *                                        in the order [N, H, W, C], must satisfy output[i] == input[permutations[i]];
+ *                                        the function returns <code>ARM_CMSIS_NN_ARG_ERROR</code> and writes nothing
+ *                                        if they do not.
  * @param[in]       transpose_params      Transpose parameters. Contains permutation dimensions.
+ *                                        num_dims must be in [1, 4] and permutations must be a bijection over
+ *                                        [0, num_dims - 1].
  *
  * @return          The function returns either
  *                      <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
@@ -5319,8 +5410,13 @@ arm_cmsis_nn_status arm_transpose_s8(const int8_t *input_data,
  * @param[in]       output_dims           Output tensor dimensions. Format may be arbitrary relative to input format.
  *                                        The output dimension will depend on the permutation dimensions.
  *                                        In other words the out dimensions are the result of applying the permutation
- *                                        to the input dimensions.
+ *                                        to the input dimensions. The first transpose_params->num_dims fields, taken
+ *                                        in the order [N, H, W, C], must satisfy output[i] == input[permutations[i]];
+ *                                        the function returns <code>ARM_CMSIS_NN_ARG_ERROR</code> and writes nothing
+ *                                        if they do not.
  * @param[in]       transpose_params      Transpose parameters. Contains permutation dimensions.
+ *                                        num_dims must be in [1, 4] and permutations must be a bijection over
+ *                                        [0, num_dims - 1].
  *
  * @return          The function returns either
  *                      <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,

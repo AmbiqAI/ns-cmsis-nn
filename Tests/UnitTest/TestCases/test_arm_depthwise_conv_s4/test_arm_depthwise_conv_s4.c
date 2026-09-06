@@ -56,6 +56,11 @@ void depthwise_int4_generic_arm_depthwise_conv_s4(void)
     output_dims.h = DEPTHWISE_INT4_GENERIC_OUTPUT_H;
     output_dims.c = DEPTHWISE_INT4_GENERIC_OUT_CH;
 
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
+
     dw_conv_params.padding.w = DEPTHWISE_INT4_GENERIC_PAD_X;
     dw_conv_params.padding.h = DEPTHWISE_INT4_GENERIC_PAD_Y;
     dw_conv_params.stride.w = DEPTHWISE_INT4_GENERIC_STRIDE_X;
@@ -148,6 +153,11 @@ void depthwise_int4_generic_2_arm_depthwise_conv_s4(void)
     output_dims.w = DEPTHWISE_INT4_GENERIC_2_OUTPUT_W;
     output_dims.h = DEPTHWISE_INT4_GENERIC_2_OUTPUT_H;
     output_dims.c = DEPTHWISE_INT4_GENERIC_2_OUT_CH;
+
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
 
     dw_conv_params.padding.w = DEPTHWISE_INT4_GENERIC_2_PAD_X;
     dw_conv_params.padding.h = DEPTHWISE_INT4_GENERIC_2_PAD_Y;
@@ -242,6 +252,11 @@ void depthwise_int4_generic_3_arm_depthwise_conv_s4(void)
     output_dims.h = DEPTHWISE_INT4_GENERIC_3_OUTPUT_H;
     output_dims.c = DEPTHWISE_INT4_GENERIC_3_OUT_CH;
 
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
+
     dw_conv_params.padding.w = DEPTHWISE_INT4_GENERIC_3_PAD_X;
     dw_conv_params.padding.h = DEPTHWISE_INT4_GENERIC_3_PAD_Y;
     dw_conv_params.stride.w = DEPTHWISE_INT4_GENERIC_3_STRIDE_X;
@@ -334,6 +349,11 @@ void depthwise_int4_generic_4_arm_depthwise_conv_s4(void)
     output_dims.w = DEPTHWISE_INT4_GENERIC_4_OUTPUT_W;
     output_dims.h = DEPTHWISE_INT4_GENERIC_4_OUTPUT_H;
     output_dims.c = DEPTHWISE_INT4_GENERIC_4_OUT_CH;
+
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
 
     dw_conv_params.padding.w = DEPTHWISE_INT4_GENERIC_4_PAD_X;
     dw_conv_params.padding.h = DEPTHWISE_INT4_GENERIC_4_PAD_Y;
@@ -428,6 +448,11 @@ void depthwise_int4_generic_5_arm_depthwise_conv_s4(void)
     output_dims.h = DEPTHWISE_INT4_GENERIC_5_OUTPUT_H;
     output_dims.c = DEPTHWISE_INT4_GENERIC_5_OUT_CH;
 
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
+
     dw_conv_params.padding.w = DEPTHWISE_INT4_GENERIC_5_PAD_X;
     dw_conv_params.padding.h = DEPTHWISE_INT4_GENERIC_5_PAD_Y;
     dw_conv_params.stride.w = DEPTHWISE_INT4_GENERIC_5_STRIDE_X;
@@ -520,6 +545,11 @@ void depthwise_int4_generic_6_arm_depthwise_conv_s4(void)
     output_dims.w = DEPTHWISE_INT4_GENERIC_6_OUTPUT_W;
     output_dims.h = DEPTHWISE_INT4_GENERIC_6_OUTPUT_H;
     output_dims.c = DEPTHWISE_INT4_GENERIC_6_OUT_CH;
+
+    bias_dims.n = 1;
+    bias_dims.h = 1;
+    bias_dims.w = 1;
+    bias_dims.c = output_dims.c;
 
     dw_conv_params.padding.w = DEPTHWISE_INT4_GENERIC_6_PAD_X;
     dw_conv_params.padding.h = DEPTHWISE_INT4_GENERIC_6_PAD_Y;

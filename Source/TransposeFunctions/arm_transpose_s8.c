@@ -158,6 +158,54 @@ static arm_cmsis_nn_status arm_transpose_s8_default(const int8_t *input,
 }
 
 /*
+ * Loop bounds come from input_dims but the output strides come from output_dims, so an output_dims that is not
+ * input_dims permuted by perm lets to_index run past the end of the output buffer. An extent below 1 passes
+ * that cross-check when both sides carry it and then wraps the unsigned copy length, so the extents are
+ * rejected before any of them is used in arithmetic.
+ * see AmbiqAI/ns-cmsis-nn#443
+ */
+static arm_cmsis_nn_status arm_transpose_s8_check_dims(const cmsis_nn_dims *const input_dims,
+                                                       const cmsis_nn_dims *const output_dims,
+                                                       const uint32_t *const perm,
+                                                       const int32_t num_dims)
+{
+    if (num_dims < 1 || num_dims > 4)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    const int32_t in_dims[4] = {input_dims->n, input_dims->h, input_dims->w, input_dims->c};
+    const int32_t out_dims[4] = {output_dims->n, output_dims->h, output_dims->w, output_dims->c};
+    uint32_t axes_seen = 0;
+
+    for (int32_t i = 0; i < num_dims; i++)
+    {
+        if (in_dims[i] < 1 || out_dims[i] < 1)
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+    }
+
+    for (int32_t i = 0; i < num_dims; i++)
+    {
+        const uint32_t axis = perm[i];
+
+        if (axis >= (uint32_t)num_dims || (axes_seen & (1U << axis)) != 0U)
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+        axes_seen |= 1U << axis;
+
+        if (out_dims[i] != in_dims[axis])
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+    }
+
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+/*
  * Basic s8 transpose function.
  *
  * Refer header file for details.
@@ -173,6 +221,13 @@ arm_cmsis_nn_status arm_transpose_s8(const int8_t *input,
     int32_t out_strides[4] = {0};
 
     const uint32_t *const perm = transpose_params->permutations;
+
+    /* The in_strides products below are signed, so the extents are validated before any arithmetic
+     * derives from them. see AmbiqAI/ns-cmsis-nn#443 */
+    if (arm_transpose_s8_check_dims(input_dims, output_dims, perm, transpose_params->num_dims) != ARM_CMSIS_NN_SUCCESS)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
 
     const int32_t n = input_dims->n;
     const int32_t h = input_dims->h;
@@ -192,6 +247,15 @@ arm_cmsis_nn_status arm_transpose_s8(const int8_t *input,
     }
     else if (transpose_params->num_dims == 2)
     {
+        /* The 2-D path transposes unconditionally, so the identity permutation has to be split off here.
+         * see AmbiqAI/ns-cmsis-nn#443 */
+        if (perm[0] == 0)
+        {
+            arm_memcpy_s8(output, input, (uint32_t)n * (uint32_t)h);
+
+            return ARM_CMSIS_NN_SUCCESS;
+        }
+
         const cmsis_nn_dims smaller_input_dims = {1, 1, n, h};
 
         return arm_transpose_s8_nhcw(input, output, &smaller_input_dims, in_strides, out_strides);

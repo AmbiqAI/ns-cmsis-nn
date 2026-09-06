@@ -259,6 +259,7 @@ if(ARM_NN_ENABLE_F32)
     add_subdirectory(TestCases/test_arm_reshape_f32)
     add_subdirectory(TestCases/test_arm_strided_slice_f32)
     add_subdirectory(TestCases/test_arm_transpose_conv_f32)
+    add_subdirectory(TestCases/test_arm_transpose_f32)
 endif()
 
 if(ARM_NN_ENABLE_F16)
@@ -282,6 +283,7 @@ if(ARM_NN_ENABLE_F16)
     add_subdirectory(TestCases/test_arm_split_f16)
     add_subdirectory(TestCases/test_arm_strided_slice_f16)
     add_subdirectory(TestCases/test_arm_transpose_conv_f16)
+    add_subdirectory(TestCases/test_arm_transpose_f16)
 endif()
 
 # Host-only -Ofast NaN probe (#334 item d): rebuilds the six float elementwise
