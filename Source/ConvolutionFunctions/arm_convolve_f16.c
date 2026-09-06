@@ -828,7 +828,8 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                     const float16_t *w_oc = filter_data + (size_t)oc * kernel_h * kernel_w * input_c;
                     float16x8_t vacc = vdupq_n_f16((float16_t)0.0f);
     #else
-                    _Float16 acc = bias_data ? (_Float16)bias_data[oc] : (_Float16)0;
+                    /* Scalar leg: float32 accumulation, one f16 rounding at the store (#449, #457). */
+                    float32_t acc32 = bias_data ? (float32_t)bias_data[oc] : 0.0f;
                     const float16_t *w_oc = weights_packed
                         ? filter_data + ((size_t)(oc / 8) * patch_len) * 8 + (size_t)(oc % 8)
                         : filter_data + (size_t)oc * kernel_h * kernel_w * input_c;
@@ -868,14 +869,14 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                             {
                                 for (int32_t ic = 0; ic < input_c; ++ic)
                                 {
-                                    acc += (_Float16)x[ic] * (_Float16)w_oc[(k0 + (size_t)ic) * 8];
+                                    acc32 += (float32_t)x[ic] * (float32_t)w_oc[(k0 + (size_t)ic) * 8];
                                 }
                             }
                             else
                             {
                                 for (int32_t ic = 0; ic < input_c; ++ic)
                                 {
-                                    acc += (_Float16)x[ic] * (_Float16)w_oc[k0 + (size_t)ic];
+                                    acc32 += (float32_t)x[ic] * (float32_t)w_oc[k0 + (size_t)ic];
                                 }
                             }
     #endif
@@ -885,6 +886,9 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
                     _Float16 acc = bias_data ? (_Float16)bias_data[oc] : (_Float16)0;
                     acc += (_Float16)arm_nn_vec_reduce_add_f16(vacc);
+    #else
+                    /* Single rounding; the f16 clamp below keeps the NaN/Inf contract unchanged. */
+                    _Float16 acc = (_Float16)acc32;
     #endif
                     acc = arm_nn_clamp_f16h(
                         acc, (_Float16)conv_params->activation.max, (_Float16)conv_params->activation.min);

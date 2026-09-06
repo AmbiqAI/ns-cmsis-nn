@@ -168,12 +168,13 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT 
                 vst1q_p(dst_row + c, vacc, p);
             }
     #else
+            /* Scalar leg: float32 accumulation, one f16 rounding before the clamp (#449, #457). */
             for (int32_t lane = 0; lane < valid_cols; ++lane)
             {
-                _Float16 acc = bias ? (_Float16)bias[c + lane] : (_Float16)0.0f;
+                float32_t acc = bias ? (float32_t)bias[c + lane] : 0.0f;
                 for (int32_t k = 0; k < rhs_cols; ++k)
                 {
-                    acc += (_Float16)lhs_row[k] * (_Float16)rhs_block[(size_t)k * block_cols + lane];
+                    acc += (float32_t)lhs_row[k] * (float32_t)rhs_block[(size_t)k * block_cols + lane];
                 }
                 dst_row[c + lane] = arm_nn_clamp_scalar_f16((float16_t)acc, activation_min, activation_max);
             }

@@ -1429,6 +1429,14 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
 
 /**
  * @copydoc arm_convolve_f32
+ *
+ * @note Accumulation width per leg. Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): the
+ *       direct OHWI / NT_N_PACKED fallback accumulates bias and every tap in float32 and rounds to
+ *       float16 once at the store (AmbiqAI/ns-cmsis-nn#449, #457); the 1x1, 1xN and patch-GEMM
+ *       paths go through arm_nn_mat_mult_nt_t_f16 / arm_nn_mat_mult_nt_n_packed_f16, whose scalar
+ *       legs do the same. MVE leg: the direct small-C kernel accumulates in float32 (widened
+ *       lanes); the direct OHWI / NT_N_PACKED fallback and every matmul-backed path (1x1, 1xN,
+ *       patch-GEMM) accumulate in float16 lanes, as the two matmul helpers' notes state.
  */
 arm_cmsis_nn_status arm_convolve_f16(const cmsis_nn_context *ctx,
                                      const cmsis_nn_conv_params_f16 *conv_params,
@@ -1823,6 +1831,11 @@ arm_cmsis_nn_status arm_fully_connected_nhwc_f16(const cmsis_nn_context *ctx,
 
 /**
  * @copydoc arm_fully_connected_f32
+ *
+ * @note Accumulation width follows the matmul helper the weight format selects
+ *       (arm_nn_mat_mult_nt_t_f16 / arm_nn_mat_mult_nt_n_packed_f16): the scalar leg (non-MVE
+ *       builds and ARM_MATH_AUTOVECTORIZE) accumulates in float32 and rounds to float16 once
+ *       before the clamp (AmbiqAI/ns-cmsis-nn#449, #457); the MVE legs accumulate in float16 lanes.
  */
 arm_cmsis_nn_status arm_fully_connected_f16(const cmsis_nn_context *ctx,
                                             const cmsis_nn_fc_params_f16 *fc_params,
