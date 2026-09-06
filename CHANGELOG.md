@@ -3,8 +3,18 @@
 ## [7.32.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.31.0...v7.32.0) (2026-09-06)
 
 
+### Notes for integrators
+
+* **Float build switches, one name (breaking on the experimental float surface, no major version bump).** `NSX_CMSIS_NN_ENABLE_F32`/`_F16` are removed; set `ARM_NN_ENABLE_F32`/`_F16` on the top-level and NSX paths (Zephyr keeps `NS_CMSIS_NN_ENABLE_*` in Kconfig), or call `ns_cmsis_nn_float_support` to query what a build was actually compiled with ([#420](https://github.com/AmbiqAI/ns-cmsis-nn/issues/420), [#454](https://github.com/AmbiqAI/ns-cmsis-nn/pull/454)). A stale name is a configure-time error that lists every stale name it saw.
+* **Depthwise float support symbols removed.** `arm_nn_depthwise_conv3x3_nhwc_f32/f16` and `arm_nn_depthwise_conv_nt_t_f32/f16` are gone with the direct kernel; use `arm_depthwise_conv_wrapper_f32/f16`. `arm_depthwise_conv_f32/f16_get_buffer_size` now return 0 for every route except the MVE one-input-channel to-convolution route ([#448](https://github.com/AmbiqAI/ns-cmsis-nn/issues/448)).
+* **hard_swish s8 compat rounding.** `arm_hard_swish_compat_s8` on MVE now truncates toward zero like the scalar leg and TFLM, so outputs that were one LSB low for inputs below the zero point or with a negative output multiplier change by one LSB ([#461](https://github.com/AmbiqAI/ns-cmsis-nn/pull/461)). The precise kernel is numerically unchanged.
+* **GRU NaN contract.** `arm_gru_unidirectional_f32/f16` state their NaN behavior on the public declarations and the tester asserts it strictly on target ([#467](https://github.com/AmbiqAI/ns-cmsis-nn/pull/467), [#474](https://github.com/AmbiqAI/ns-cmsis-nn/pull/474)).
+* **Transpose validation.** `arm_transpose_s8/s16/f16/f32` return `ARM_CMSIS_NN_ARG_ERROR` and write nothing for invalid dims or perm; the 2-D integer identity permutation now copies ([#443](https://github.com/AmbiqAI/ns-cmsis-nn/issues/443)).
+* **int4.** int4 kernels are inherited from upstream CMSIS-NN; the tester covers fully connected, convolution and depthwise convolution for int4.
+
 ### Features
 
+* **cortex-m0 float32** is supported through the soft-float scalar path and executed on every pull request on the Corstone-300 FVP ([#447](https://github.com/AmbiqAI/ns-cmsis-nn/issues/447), [#457](https://github.com/AmbiqAI/ns-cmsis-nn/pull/457)).
 * **activation:** add arm_hard_swish_f16/f32 ([#413](https://github.com/AmbiqAI/ns-cmsis-nn/issues/413)) ([a82949c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/a82949c31fe5866fbf0a54b6d12c32956859eb84))
 * **basicmath:** add arm_nn_mean_f16 reduction ([#412](https://github.com/AmbiqAI/ns-cmsis-nn/issues/412)) ([628578b](https://github.com/AmbiqAI/ns-cmsis-nn/commit/628578b91d73f72e4fe4d568529f78e5e5f8af3d))
 * **basicmath:** add arm_nn_mean_f32 reduction ([#414](https://github.com/AmbiqAI/ns-cmsis-nn/issues/414)) ([9deca03](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9deca03c3879228c5e585248dc24f4d4b6f24a66))
