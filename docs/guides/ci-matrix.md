@@ -155,7 +155,7 @@ job into one `ci-passed` job whose context is named `CI Passed` (the
 operators and quantization types inside each suite is defined by the pinned
 `Tests/helia-core-tester` submodule release, not by anything in this
 repository. Reading that pin is the only way to answer it, and the answer
-moves whenever the pin does. At the pinned commit `4e0e6e59`, the
+moves whenever the pin does. At the pinned commit `af7ac9f0`, the
 descriptors under `Tests/helia-core-tester/assets/descriptors/` carry 39
 int4 cases: 25 in `ConvolutionFunctions/convolve.yaml`, 10 in
 `ConvolutionFunctions/depthwise_conv.yaml` and 4 in
