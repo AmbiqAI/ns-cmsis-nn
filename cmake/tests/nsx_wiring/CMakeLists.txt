@@ -571,7 +571,7 @@ elseif(CASE STREQUAL "prebuilt_manifest_ok")
   set(_expect_f16_define 0)
 
 else()
-  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: source_all, source_subset, inline_asm, float_f32, float_f16, float_both, float_renamed_switch, float_query, prebuilt, prebuilt_manifest_ok, prebuilt_manifest_reject, prebuilt_manifest_legacy.")
+  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: source_all, source_subset, inline_asm, float_f32, float_f16, float_both, float_renamed_switch, float_query, float_query_target, prebuilt, prebuilt_manifest_ok, prebuilt_manifest_reject, prebuilt_manifest_legacy.")
 endif()
 
 # ----------------------------------------------------------------------------

@@ -93,9 +93,12 @@ if(_nsx_stale)
     message(FATAL_ERROR
         "nsx-cmsis-nn: this build sets float switches that no longer exist:"
         "${_nsx_stale}\n"
-        "Re-run cmake with${_nsx_stale_clear}${_nsx_stale_set}, or delete "
-        "CMakeCache.txt in the build directory and configure again. A switch "
-        "a parent CMakeLists set() rather than a -D has to be removed there.")
+        "Remove the setting wherever it is set: a parent CMakeLists.txt that "
+        "writes it with set(... CACHE BOOL FORCE) reruns that call on every "
+        "configure, so neither -U nor deleting CMakeCache.txt clears it. For "
+        "a stale entry left over in this build directory's own cache, "
+        "re-run cmake with${_nsx_stale_clear}${_nsx_stale_set}, or delete "
+        "CMakeCache.txt in the build directory and configure again.")
 endif()
 unset(_nsx_width)
 unset(_nsx_stale_name)
@@ -154,7 +157,8 @@ if(DEFINED NSX_CMSIS_NN_LIB)
     # ARM_NN_ENABLE_F32/F16 gate the float *declarations* in the public
     # headers (Include/Internal/arm_nn_config.h), not just internal
     # implementation choices baked into the archive, so they must be
-    # forwarded to consumers here too, mirroring the source-mode bridge below.
+    # forwarded to consumers here too; both modes share the normalization
+    # above rather than each declaring the switches separately.
 
     # When a manifest.json for NSX_CMSIS_NN_LIB can be found (or is given
     # explicitly via NSX_CMSIS_NN_MANIFEST), the request is validated

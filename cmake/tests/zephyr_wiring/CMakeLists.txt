@@ -276,6 +276,15 @@ if(_f16_still_off_idx EQUAL -1)
   _fail("float32 case: ARM_NN_ENABLE_F16=0 compile definition missing")
 endif()
 
+# ns_cmsis_nn_float_support() must read the same INTERFACE_COMPILE_DEFINITIONS
+# the two checks above assert directly, so a drift between the target's
+# defines and what the query resolves shows up here, not only downstream in a
+# consumer. See AmbiqAI/ns-cmsis-nn#420.
+ns_cmsis_nn_float_support(F32 _sup_f32 F16 _sup_f16 TARGET ${STUB_LIBRARY_NAME})
+if(NOT _sup_f32 OR _sup_f16)
+  _fail("float32 case: ns_cmsis_nn_float_support() reported F32=${_sup_f32} F16=${_sup_f16}, expected ON/OFF")
+endif()
+
 # ----------------------------------------------------------------------------
 # Case 2c: float16 enabled.
 # ----------------------------------------------------------------------------

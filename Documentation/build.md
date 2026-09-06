@@ -27,7 +27,7 @@ include(<repo>/cmake/ns_cmsis_nn.cmake)
 | `ns_cmsis_nn_groups(<out>)` | Set `<out>` to the list of all known operator group ids. |
 | `ns_cmsis_nn_group_sources(<group> <out>)` | Set `<out>` to the absolute source paths for a single group. |
 | `ns_cmsis_nn_attach(<target> [GROUPS …\|ALL] [DTYPES …\|ALL] [INCLUDE_DIRS_VISIBILITY PUBLIC\|PRIVATE\|INTERFACE])` | Add the resolved source set and the public `Include/` directory to an existing `<target>`. |
-| `ns_cmsis_nn_float_support(F32 <out_var> F16 <out_var>)` | Set each out variable to `ON` or `OFF` from the library target's compile definitions: what the library in scope was built with. Both keywords are required. See ["Float switch names"](#float-switch-names). |
+| `ns_cmsis_nn_float_support(F32 <out_var> F16 <out_var> [TARGET <target>])` | Set each out variable to `ON` or `OFF` from the library target's compile definitions: what the library in scope was built with. Both keywords are required. See ["Float switch names"](#float-switch-names). |
 
 `ns_cmsis_nn_attach()` does not create a target — the caller owns it.
 The include directory is wrapped in `$<BUILD_INTERFACE:…>` so consumers can
@@ -536,9 +536,12 @@ nsx-cmsis-nn: this build sets float switches that no longer exist:
   NSX_CMSIS_NN_ENABLE_F32 was renamed to ARM_NN_ENABLE_F32/F16
   NSX_CMSIS_NN_ENABLE_F16 was renamed to ARM_NN_ENABLE_F32/F16
 
-Re-run cmake with -UNSX_CMSIS_NN_ENABLE_F32 -UNSX_CMSIS_NN_ENABLE_F16
--DARM_NN_ENABLE_F16=ON, or delete CMakeCache.txt in the build directory and
-configure again.
+Remove the setting wherever it is set: a parent CMakeLists.txt that writes it
+with set(... CACHE BOOL FORCE) reruns that call on every configure, so
+neither -U nor deleting CMakeCache.txt clears it. For a stale entry left over
+in this build directory's own cache, re-run cmake with
+-UNSX_CMSIS_NN_ENABLE_F32 -UNSX_CMSIS_NN_ENABLE_F16 -DARM_NN_ENABLE_F16=ON, or
+delete CMakeCache.txt in the build directory and configure again.
 ```
 
 Rename the switch at the call site, then run the recovery the message printed
@@ -552,10 +555,13 @@ $ cmake -S . -B build \
 
 The `-D` part names the widths the stale entries had switched on, so the
 request survives the migration; deleting `CMakeCache.txt` works too, at the
-cost of the rest of the cache. `-U` only reaches cache entries, so a switch a
-parent `CMakeLists.txt` set with `set()` has to be removed there. The float
-surface is experimental, so there is no alias period; the error is the
-migration aid.
+cost of the rest of the cache. That recovery only clears a stale entry in
+this build directory's own cache. If a parent `CMakeLists.txt` set the switch
+with `set(... CACHE BOOL "" FORCE)`, that `set()` call reruns on every
+configure and rewrites the cache entry right back, so neither `-U` nor
+deleting `CMakeCache.txt` clears it; the fix has to go in the parent that
+sets it. The float surface is experimental, so there is no alias period; the
+error is the migration aid.
 
 See AmbiqAI/ns-cmsis-nn#420.
 

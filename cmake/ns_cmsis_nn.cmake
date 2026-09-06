@@ -26,7 +26,7 @@
 #       Adds the resolved source set and the public Include/ directory to
 #       <target>. <target> must already exist (created by the consumer).
 #
-#   ns_cmsis_nn_float_support(F32 <out_var> F16 <out_var>)
+#   ns_cmsis_nn_float_support(F32 <out_var> F16 <out_var> [TARGET <target>])
 #       Sets each out variable to ON or OFF from the library target's compile
 #       definitions: what the library in scope was built with, as opposed to
 #       what any one entry point was asked for. Defined in
