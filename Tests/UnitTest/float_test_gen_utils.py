@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 #
 # SPDX-FileCopyrightText: Copyright 2010-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 #

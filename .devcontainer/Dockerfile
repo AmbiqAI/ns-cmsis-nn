@@ -42,12 +42,38 @@ RUN python -m pip install --no-cache-dir "uv==${UV_VERSION}"
 RUN python -m pip install --no-cache-dir numpy termcolor pyserial
 
 # clang-format is pip-installed so the dev container matches the CI gate and the
-# pre-commit pin (16.0.6); the apt package on this base image is 14.0.6.
-RUN python -m pip install --no-cache-dir clang-format==16.0.6
+# pre-commit pin; the apt package on this base image is 14.0.6. The wheel is the
+# one ci/tools/manifest.json records, fetched and checksummed like every other
+# baked tool rather than resolved by pip (see AmbiqAI/ns-cmsis-nn#394).
+#
+# The manifest comes from the build context, which for a release recovery run is
+# the historical source tree of the tag being rebuilt, so it can predate the
+# python_tools entry. The formatter is not needed to build release assets, so a
+# manifest without the entry skips the install instead of failing the image
+# build (see AmbiqAI/ns-cmsis-nn#394 and build_publish_docker.yml).
+COPY ci/tools/manifest.json /opt/ns-cmsis-nn/tool-manifest.json
+RUN set -eux; \
+      entry='try (.python_tools[] | select(.id == "clang-format")) // empty'; \
+      url="$(jq -r "${entry} | .url" /opt/ns-cmsis-nn/tool-manifest.json)"; \
+      sha="$(jq -r "${entry} | .sha256" /opt/ns-cmsis-nn/tool-manifest.json)"; \
+      version="$(jq -r "${entry} | .version" /opt/ns-cmsis-nn/tool-manifest.json)"; \
+      if [ -z "${url}" ]; then \
+            echo "notice: this source tree predates the clang-format manifest entry; skipping the formatter install"; \
+      else \
+            wheel="/tmp/$(basename "${url}")"; \
+            curl --fail --location --silent --show-error --retry 3 --retry-all-errors \
+                  "${url}" --output "${wheel}"; \
+            printf '%s  %s\n' "${sha}" "${wheel}" | sha256sum --check -; \
+            python -m pip install --no-cache-dir "${wheel}"; \
+            rm -f "${wheel}"; \
+            printf '%s\n' "${version}" > /opt/ns-cmsis-nn/clang-format.version; \
+      fi
 
 RUN set -eux; \
       clang --version; \
-      clang-format --version; \
+      if [ -f /opt/ns-cmsis-nn/clang-format.version ]; then \
+            clang-format --version; \
+      fi; \
       arm-none-eabi-gcc --version; \
       uv --version; \
       printf '#include <string.h>\nint main(void) { char d[4]; memset(d, 0, sizeof(d)); return d[0]; }\n' > /tmp/ns-cmsis-nn-smoke.c; \
@@ -71,7 +97,6 @@ RUN \
 # involved; every downloaded byte is SHA-256 verified before extraction.
 ENV NS_CMSIS_NN_TOOLS=/opt/ns-cmsis-nn/tools \
     NS_CMSIS_NN_TOOL_ENV=/opt/ns-cmsis-nn/tool-env.json
-COPY ci/tools/manifest.json /opt/ns-cmsis-nn/tool-manifest.json
 COPY scripts/install_ci_tools.sh /opt/ns-cmsis-nn/install_ci_tools.sh
 COPY scripts/ci/validate_ci_tool_manifest.jq /opt/ns-cmsis-nn/ci/validate_ci_tool_manifest.jq
 RUN bash /opt/ns-cmsis-nn/install_ci_tools.sh \
@@ -96,9 +121,14 @@ RUN set -eux; \
       command -v armclang; \
       arm-none-eabi-gcc --version; \
       clang --version; \
-      # After the tool dirs are prepended, the pip 16.0.6 must still win: a future
+      # After the tool dirs are prepended, the pip wheel must still win: a future
       # llvm-embedded that ships clang-format would otherwise shadow it silently.
-      clang-format --version | head -n 1 | grep -q "version 16\."; \
+      # Point releases inside the major disagree on committed files, so the exact
+      # manifest version is checked (see AmbiqAI/ns-cmsis-nn#394).
+      if [ -f /opt/ns-cmsis-nn/clang-format.version ]; then \
+            clang-format --version | head -n 1 \
+                  | grep -qF "version $(cat /opt/ns-cmsis-nn/clang-format.version)"; \
+      fi; \
       cmake --version; \
       ninja --version; \
       command -v FVP_Corstone_SSE-300

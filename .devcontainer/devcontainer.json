@@ -1,7 +1,10 @@
 {
     "build": {
         "dockerfile": "Dockerfile",
-        "context": ".."
+        "context": "..",
+        "options": [
+            "--platform=linux/amd64"
+        ]
     },
     "customizations": {
         "vscode": {

@@ -21,7 +21,9 @@ Examples:
 
 Behavior:
   - Mirrors the CI clang-format workflow file selection.
-  - Uses CLANG_FORMAT_BIN when set, else clang-format-16, else clang-format; requires major 16.
+  - Uses CLANG_FORMAT_BIN when set, else scans every PATH entry for
+    clang-format and clang-format-18, preferring the first that reports the
+    pinned version, else the first reporting the major, with a warning.
   - In check mode, runs --dry-run --Werror.
   - In fix mode, rewrites the changed files in place.
 EOF
@@ -78,36 +80,93 @@ command -v git >/dev/null || { echo "git not found" >&2; exit 3; }
 git rev-parse --verify "${BASE_REF}^{commit}" >/dev/null
 git rev-parse --verify "${HEAD_REF}^{commit}" >/dev/null
 
-# The enforced formatter is clang-format 16 (the .pre-commit-config.yaml pin);
-# formatter major versions disagree on committed files (the 18.1.3 that
-# ubuntu-24.04 ships rejects four that 13 through 16 accept; newer 18.x point
-# releases flag more), so the version is checked, not assumed. Resolution
-# order: CLANG_FORMAT_BIN if set (CI points it at the pip-installed 16.0.6),
-# else clang-format-16, else a bare clang-format that reports major 16.
-REQUIRED_CLANG_FORMAT_MAJOR=16
-if [[ -n "${CLANG_FORMAT_BIN:-}" ]]; then
-  command -v "${CLANG_FORMAT_BIN}" >/dev/null 2>&1 || { echo "CLANG_FORMAT_BIN=${CLANG_FORMAT_BIN} not found on PATH." >&2; exit 3; }
-elif command -v "clang-format-${REQUIRED_CLANG_FORMAT_MAJOR}" >/dev/null 2>&1; then
-  CLANG_FORMAT_BIN="clang-format-${REQUIRED_CLANG_FORMAT_MAJOR}"
-elif command -v clang-format >/dev/null 2>&1; then
-  CLANG_FORMAT_BIN="clang-format"
+# The enforced formatter is clang-format 18 (the .pre-commit-config.yaml pin);
+# formatter major versions disagree on committed files, so the version is
+# checked, not assumed. Resolution order: CLANG_FORMAT_BIN if set, else every
+# PATH entry is scanned for clang-format and clang-format-18, preferring the
+# first candidate reporting the pinned version, else the first reporting the
+# major.
+REQUIRED_CLANG_FORMAT_MAJOR=18
+# Point releases inside the major disagree too: 18.1.3, which ubuntu-24.04
+# ships, still rejects Include/Internal/arm_conv_opt_common.h after 18.1.8 has
+# formatted it. The gate stays on the major so a close-enough local build is
+# usable, but a mismatch is called out rather than left to look like a real
+# finding (see AmbiqAI/ns-cmsis-nn#394).
+PINNED_CLANG_FORMAT_VERSION=18.1.8
+CLANG_FORMAT_BIN="${CLANG_FORMAT_BIN:-}"
+
+clang_format_version_of() {
+  command -v "$1" >/dev/null 2>&1 || return 1
+  "$1" --version 2>/dev/null | head -n 1
+}
+
+# Repeated after a failure: a 18.1.x that is not the pin produces findings the
+# contributor must not act on, and the first line of output has scrolled away
+# by then (see AmbiqAI/ns-cmsis-nn#394).
+warn_if_not_pinned() {
+  [[ "${raw_version}" == *"${PINNED_CLANG_FORMAT_VERSION}"* ]] && return 0
+  echo "warning: ${CLANG_FORMAT_BIN} is not the pinned ${PINNED_CLANG_FORMAT_VERSION}; point releases disagree on committed files." >&2
+  echo "warning: install it with: python -m pip install clang-format==${PINNED_CLANG_FORMAT_VERSION}" >&2
+}
+
+raw_version=""
+if [[ -n "${CLANG_FORMAT_BIN}" ]]; then
+  raw_version="$(clang_format_version_of "${CLANG_FORMAT_BIN}")" \
+    || { echo "CLANG_FORMAT_BIN=${CLANG_FORMAT_BIN} not found on PATH." >&2; exit 3; }
 else
-  echo "no clang-format found. Install clang-format ${REQUIRED_CLANG_FORMAT_MAJOR} (pip install clang-format==16.0.6) or set CLANG_FORMAT_BIN." >&2
+  # Selection is by reported version, not by the first PATH match: a pinned
+  # 18.1.8 sitting later on PATH still outranks an 18.1.3 that resolves first
+  # under the bare name, so every PATH entry is checked, not just command -v's
+  # first hit.
+  fallback_bin=""
+  fallback_version=""
+  IFS=':' read -r -a path_dirs <<< "${PATH}"
+  for dir in "${path_dirs[@]}"; do
+    [[ -n "${dir}" ]] || continue
+    for name in clang-format "clang-format-${REQUIRED_CLANG_FORMAT_MAJOR}"; do
+      candidate="${dir}/${name}"
+      [[ -x "${candidate}" ]] || continue
+      candidate_version="$(clang_format_version_of "${candidate}")" || continue
+      if [[ "${candidate_version}" == *"${PINNED_CLANG_FORMAT_VERSION}"* ]]; then
+        CLANG_FORMAT_BIN="${candidate}"
+        raw_version="${candidate_version}"
+        break 2
+      fi
+      if [[ -z "${fallback_bin}" && "${candidate_version}" =~ version\ ${REQUIRED_CLANG_FORMAT_MAJOR}\. ]]; then
+        fallback_bin="${candidate}"
+        fallback_version="${candidate_version}"
+      fi
+    done
+  done
+  if [[ -z "${CLANG_FORMAT_BIN}" && -n "${fallback_bin}" ]]; then
+    CLANG_FORMAT_BIN="${fallback_bin}"
+    raw_version="${fallback_version}"
+  fi
+fi
+
+if [[ -z "${CLANG_FORMAT_BIN}" ]]; then
+  echo "no clang-format ${REQUIRED_CLANG_FORMAT_MAJOR}.x found. Install the pinned build (python -m pip install clang-format==${PINNED_CLANG_FORMAT_VERSION}) or set CLANG_FORMAT_BIN." >&2
   exit 3
 fi
-raw_version="$("${CLANG_FORMAT_BIN}" --version 2>/dev/null | head -n 1 || true)"
+
 found_major=""
 if [[ "${raw_version}" =~ version\ ([0-9]+)\. ]]; then
   found_major="${BASH_REMATCH[1]}"
 fi
 if [[ "${found_major}" != "${REQUIRED_CLANG_FORMAT_MAJOR}" ]]; then
   echo "clang-format major ${found_major:-unknown} found at $(command -v "${CLANG_FORMAT_BIN}"); this repo enforces ${REQUIRED_CLANG_FORMAT_MAJOR}.x." >&2
-  echo "Install it with: python -m pip install clang-format==16.0.6, then point the script at that copy explicitly:" >&2
+  echo "Install it with: python -m pip install clang-format==${PINNED_CLANG_FORMAT_VERSION}, then point the script at that copy explicitly:" >&2
   echo "  CLANG_FORMAT_BIN=\"\$(python -c \"import sys,os;print(os.path.dirname(sys.executable))\")/clang-format\" $0 ..." >&2
   exit 3
 fi
 
 echo "Using formatter: $(command -v "${CLANG_FORMAT_BIN}") (${raw_version})"
+warn_if_not_pinned
+
+# Byte-identical to Arm upstream and rejected by the enforced formatter;
+# reformatting them would conflict on every sync, so this gate and the
+# pre-commit exclude skip the same two files (see AmbiqAI/ns-cmsis-nn#394).
+unformatted_upstream='^(Include/Internal/arm_conv1x1_opt_common\.h|Include/Internal/arm_depthwise_conv_opt_common\.h)$'
 
 changed_files=()
 while IFS= read -r file; do
@@ -118,7 +177,8 @@ done < <(
     Include \
     Source \
     Tests/UnitTest/Corstone-300 |
-  grep -E '\.(c|cc|cpp|h|hpp)$' || true
+  grep -E '\.(c|cc|cpp|h|hpp)$' |
+  grep -Ev "${unformatted_upstream}" || true
 )
 
 if [[ ${#changed_files[@]} -eq 0 ]]; then
@@ -136,7 +196,10 @@ if [[ ${FIX} -eq 1 ]]; then
 else
   echo
   echo "Running clang-format dry-run check."
-  "${CLANG_FORMAT_BIN}" --dry-run --Werror "${changed_files[@]}"
+  if ! "${CLANG_FORMAT_BIN}" --dry-run --Werror "${changed_files[@]}"; then
+    warn_if_not_pinned
+    exit 1
+  fi
 fi
 
 echo

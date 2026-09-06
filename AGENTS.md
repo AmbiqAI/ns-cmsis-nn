@@ -132,11 +132,11 @@ count so the MVE tail-predication path is exercised.
   so bites at commit time. See `docs/contributing.md`.
 - clang-format via `scripts/check_clang_format_changed.sh` — that script is
   the authority on the required clang-format version and covered paths
-  (clang-format 16.x, matching the `.pre-commit-config.yaml` pin of 16.0.6,
+  (clang-format 18.x, matching the `.pre-commit-config.yaml` pin of 18.1.8,
   over `Include`, `Source`, and `Tests/UnitTest/Corstone-300` -- the
   pre-commit hook matches the version but only covers `Source` and
   `Include`); install it
-  with `pip install clang-format==16.0.6` and, if another version is first
+  with `pip install clang-format==18.1.8` and, if another version is first
   on PATH, point `CLANG_FORMAT_BIN` at it.
 - `python3 scripts/check_pdsc.py` after any manifest change.
 - `python3 scripts/check_stale_version_refs.py` if you add a file that

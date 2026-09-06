@@ -48,13 +48,25 @@ repos:
         # they are not JSON and never parse.
         exclude: (?i)template.*\.json$
       - id: check-toml
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+        # `#! cpp` is an armlink scatter-file preprocessor directive, not a
+        # Unix shebang; inherited unchanged from Arm (see AmbiqAI/ns-cmsis-nn#421).
+        exclude: Tests/UnitTest/Corstone-300/linker\.scatter$
 
   # Version and scope are owned by AmbiqAI/ns-cmsis-nn#394; do not widen here.
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v16.0.6
+    rev: v18.1.8
     hooks:
       - id: clang-format
         files: ^(Source|Include)/.*\.(c|h)$
+        # Byte-identical to Arm upstream and rejected by 18; reformatting them
+        # would conflict on every sync (see AmbiqAI/ns-cmsis-nn#394).
+        exclude: |
+          (?x)^(
+              Include/Internal/arm_conv1x1_opt_common\.h$
+            | Include/Internal/arm_depthwise_conv_opt_common\.h$
+          )
 
   - repo: local
     hooks:

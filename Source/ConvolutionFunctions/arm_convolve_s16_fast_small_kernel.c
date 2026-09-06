@@ -246,7 +246,7 @@ arm_convolve_s16_fast_small_kernel(const cmsis_nn_context *ctx,
                 }
 
             } // (int c = 0; c < output_ch_per_group; c++)
-        }     // i_group
+        } // i_group
         /* Advance to the next batch */
 
         input_data += (input_x * input_y * input_ch);
