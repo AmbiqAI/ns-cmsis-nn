@@ -235,6 +235,11 @@ baseline across all inherited CMSIS-NN sources; instead, formatting is enforced
 only on files touched by a PR so the tree converges gradually without creating a
 large upstream-sync diff.
 
+Both the pre-commit hook and CI's changed-file gate skip
+`Include/Internal/arm_conv1x1_opt_common.h` and
+`Include/Internal/arm_depthwise_conv_opt_common.h`: they are byte-identical to
+Arm upstream and rejected by clang-format 18 (see AmbiqAI/ns-cmsis-nn#394).
+
 The pre-commit `clang-format` hook formats staged C/H files under `Source/` and
 `Include/` when you commit, so the files a PR touches arrive formatted. CI
 checks formatting only over the changed-file range, never the whole tree. To
@@ -248,10 +253,11 @@ bash scripts/check_clang_format_changed.sh origin/main HEAD
 CI enforces clang-format 18 (the pre-commit pin); the script refuses other
 majors because they disagree on committed files. Point releases inside 18 can
 disagree too, so install the exact pinned version rather than a distro 18. The
-script picks the first `clang-format` on `PATH` that reports the pinned
-version, so a distro `clang-format-18` no longer wins over it; it falls back to
-any 18.x with a warning. If you want a specific copy, point it there
-explicitly:
+script scans every directory on `PATH` for `clang-format` and
+`clang-format-18` and picks the first one that reports the pinned version, so a
+distro `clang-format-18` earlier on `PATH` no longer wins over a pinned copy
+installed later; it falls back to the first 18.x found with a warning. If you
+want a specific copy, point it there explicitly:
 `CLANG_FORMAT_BIN=/path/to/venv/bin/clang-format bash scripts/check_clang_format_changed.sh origin/main HEAD`.
 
 The dev container builds and runs as `linux/amd64`

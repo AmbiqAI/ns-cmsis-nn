@@ -21,8 +21,9 @@ Examples:
 
 Behavior:
   - Mirrors the CI clang-format workflow file selection.
-  - Uses CLANG_FORMAT_BIN when set, else the first clang-format on PATH that
-    reports the pinned version, else any 18.x with a warning.
+  - Uses CLANG_FORMAT_BIN when set, else scans every PATH entry for
+    clang-format and clang-format-18, preferring the first that reports the
+    pinned version, else the first reporting the major, with a warning.
   - In check mode, runs --dry-run --Werror.
   - In fix mode, rewrites the changed files in place.
 EOF
@@ -81,9 +82,10 @@ git rev-parse --verify "${HEAD_REF}^{commit}" >/dev/null
 
 # The enforced formatter is clang-format 18 (the .pre-commit-config.yaml pin);
 # formatter major versions disagree on committed files, so the version is
-# checked, not assumed. Resolution order: CLANG_FORMAT_BIN if set (CI points
-# it at the pip-installed 18.1.8), else the first candidate on PATH reporting
-# the pinned version, else any candidate reporting the major.
+# checked, not assumed. Resolution order: CLANG_FORMAT_BIN if set, else every
+# PATH entry is scanned for clang-format and clang-format-18, preferring the
+# first candidate reporting the pinned version, else the first reporting the
+# major.
 REQUIRED_CLANG_FORMAT_MAJOR=18
 # Point releases inside the major disagree too: 18.1.3, which ubuntu-24.04
 # ships, still rejects Include/Internal/arm_conv_opt_common.h after 18.1.8 has
@@ -112,22 +114,29 @@ if [[ -n "${CLANG_FORMAT_BIN}" ]]; then
   raw_version="$(clang_format_version_of "${CLANG_FORMAT_BIN}")" \
     || { echo "CLANG_FORMAT_BIN=${CLANG_FORMAT_BIN} not found on PATH." >&2; exit 3; }
 else
-  # Selection is by reported version, not by name: ubuntu-24.04 ships 18.1.3 as
-  # clang-format-18, which would otherwise outrank a pinned 18.1.8 sitting
-  # earlier on PATH under the bare name.
+  # Selection is by reported version, not by the first PATH match: a pinned
+  # 18.1.8 sitting later on PATH still outranks an 18.1.3 that resolves first
+  # under the bare name, so every PATH entry is checked, not just command -v's
+  # first hit.
   fallback_bin=""
   fallback_version=""
-  for candidate in clang-format "clang-format-${REQUIRED_CLANG_FORMAT_MAJOR}"; do
-    candidate_version="$(clang_format_version_of "${candidate}")" || continue
-    if [[ "${candidate_version}" == *"${PINNED_CLANG_FORMAT_VERSION}"* ]]; then
-      CLANG_FORMAT_BIN="${candidate}"
-      raw_version="${candidate_version}"
-      break
-    fi
-    if [[ -z "${fallback_bin}" && "${candidate_version}" =~ version\ ${REQUIRED_CLANG_FORMAT_MAJOR}\. ]]; then
-      fallback_bin="${candidate}"
-      fallback_version="${candidate_version}"
-    fi
+  IFS=':' read -r -a path_dirs <<< "${PATH}"
+  for dir in "${path_dirs[@]}"; do
+    [[ -n "${dir}" ]] || continue
+    for name in clang-format "clang-format-${REQUIRED_CLANG_FORMAT_MAJOR}"; do
+      candidate="${dir}/${name}"
+      [[ -x "${candidate}" ]] || continue
+      candidate_version="$(clang_format_version_of "${candidate}")" || continue
+      if [[ "${candidate_version}" == *"${PINNED_CLANG_FORMAT_VERSION}"* ]]; then
+        CLANG_FORMAT_BIN="${candidate}"
+        raw_version="${candidate_version}"
+        break 2
+      fi
+      if [[ -z "${fallback_bin}" && "${candidate_version}" =~ version\ ${REQUIRED_CLANG_FORMAT_MAJOR}\. ]]; then
+        fallback_bin="${candidate}"
+        fallback_version="${candidate_version}"
+      fi
+    done
   done
   if [[ -z "${CLANG_FORMAT_BIN}" && -n "${fallback_bin}" ]]; then
     CLANG_FORMAT_BIN="${fallback_bin}"

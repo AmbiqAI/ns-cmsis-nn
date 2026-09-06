@@ -11,7 +11,10 @@ validator="${repo}/scripts/ci/validate_ci_tool_manifest.jq"
 workflow="${repo}/.github/workflows/clang-format.yml"
 check_script="${repo}/scripts/check_clang_format_changed.sh"
 
-jq -e -f "${validator}" "${manifest}" >/dev/null
+if ! jq -e -f "${validator}" "${manifest}" >/dev/null; then
+  echo "ci/tools/manifest.json failed schema validation against ${validator}" >&2
+  exit 1
+fi
 jq -e '
   ([.tools[].id] | sort) == ([
     "arm-gnu", "armclang", "cmake", "cmsis-toolbox",
@@ -40,6 +43,16 @@ grep -q "clang-format==${clang_format_version}" "${repo}/docs/contributing.md" \
   || { echo "docs/contributing.md does not name manifest ${clang_format_version}" >&2; exit 1; }
 grep -q "clang-format==${clang_format_version}" "${repo}/AGENTS.md" \
   || { echo "AGENTS.md does not name manifest ${clang_format_version}" >&2; exit 1; }
+# A stray pin left over from a prior bump reads as current and would not be
+# caught by the "names the manifest version" checks above, which only require
+# the right pin to appear somewhere, not that it is the only one.
+for doc in "${repo}/docs/contributing.md" "${repo}/AGENTS.md"; do
+  stale="$(grep -oE 'clang-format==[0-9][0-9.]*' "${doc}" | sort -u | grep -vFx "clang-format==${clang_format_version}" || true)"
+  if [[ -n "${stale}" ]]; then
+    echo "${doc} carries a clang-format pin that disagrees with manifest ${clang_format_version}: ${stale}" >&2
+    exit 1
+  fi
+done
 # The image must take the wheel from the manifest, not a literal pip pin.
 grep -q "python_tools" "${dockerfile}" \
   || { echo "Dockerfile does not install clang-format from the manifest" >&2; exit 1; }
