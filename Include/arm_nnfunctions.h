@@ -3205,8 +3205,9 @@ arm_cmsis_nn_status arm_elementwise_sub_s8(const int8_t *input_1_vect,
  * @param[in]       input2_shift       shift for input 2
  * @param[in]       left_shift         left shift applied to the result.
  *                                     Bound: the kernel evaluates value << left_shift in int32; the offsets are unused,
- *                                     so with full-range int16 inputs the widest operand is 32768 and left_shift is at
- *                                     most 16. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                     so with full-range int16 inputs the extremes are +32767 and -32768, and
+ *                                     -32768 << 16 is exactly INT32_MIN, which makes 16 the last shift that stays
+ *                                     representable. The scale 1 << left_shift is itself representable up to 30. Not
  *                                     validated by the kernel.
  * @param[out]      output_data        pointer to output tensor
  * @param[in]       output_dims        pointer to output tensor dimensions
@@ -3251,9 +3252,10 @@ arm_cmsis_nn_status arm_add_s16(const int16_t *input1_data,
  * @param[in]       input_2_shift       shift for input 2
  * @param[in]       left_shift          left shift applied to the result.
  *                                      Bound: the kernel evaluates value << left_shift in int32; the offsets are
- *                                      unused, so with full-range int16 inputs the widest operand is 32768 and
- *                                      left_shift is at most 16. The scale 1 << left_shift is itself representable up
- *                                      to 30. Not validated by the kernel.
+ *                                      unused, so with full-range int16 inputs the extremes are +32767 and -32768, and
+ *                                      -32768 << 16 is exactly INT32_MIN, which makes 16 the last shift that stays
+ *                                      representable. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                      validated by the kernel.
  * @param[out]      output              pointer to output vector
  * @param[in]       out_offset          output offset. Not used.
  * @param[in]       out_mult            output multiplier
@@ -3293,9 +3295,10 @@ arm_cmsis_nn_status arm_add_scalar_s16(const int16_t *input_1_vect,
  * @param[in]       input_2_shift       shift for input 2
  * @param[in]       left_shift          input left shift.
  *                                      Bound: the kernel evaluates value << left_shift in int32; the offsets are
- *                                      unused, so with full-range int16 inputs the widest operand is 32768 and
- *                                      left_shift is at most 16. The scale 1 << left_shift is itself representable up
- *                                      to 30. Not validated by the kernel.
+ *                                      unused, so with full-range int16 inputs the extremes are +32767 and -32768, and
+ *                                      -32768 << 16 is exactly INT32_MIN, which makes 16 the last shift that stays
+ *                                      representable. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                      validated by the kernel.
  * @param[in,out]   output              pointer to output vector
  * @param[in]       out_offset          output offset. Not used.
  * @param[in]       out_mult            output multiplier
@@ -3336,8 +3339,9 @@ arm_cmsis_nn_status arm_elementwise_add_s16(const int16_t *input_1_vect,
  * @param[in]       input2_shift       shift for input 2
  * @param[in]       left_shift         left shift applied to the result.
  *                                     Bound: the kernel evaluates value << left_shift in int32; the offsets are unused,
- *                                     so with full-range int16 inputs the widest operand is 32768 and left_shift is at
- *                                     most 16. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                     so with full-range int16 inputs the extremes are +32767 and -32768, and
+ *                                     -32768 << 16 is exactly INT32_MIN, which makes 16 the last shift that stays
+ *                                     representable. The scale 1 << left_shift is itself representable up to 30. Not
  *                                     validated by the kernel.
  * @param[out]      output_data        pointer to output tensor
  * @param[in]       output_dims        pointer to output tensor dimensions
@@ -3382,9 +3386,10 @@ arm_cmsis_nn_status arm_sub_s16(const int16_t *input1_data,
  * @param[in]       input_2_shift       shift for input 2
  * @param[in]       left_shift          left shift applied to the result.
  *                                      Bound: the kernel evaluates value << left_shift in int32; the offsets are
- *                                      unused, so with full-range int16 inputs the widest operand is 32768 and
- *                                      left_shift is at most 16. The scale 1 << left_shift is itself representable up
- *                                      to 30. Not validated by the kernel.
+ *                                      unused, so with full-range int16 inputs the extremes are +32767 and -32768, and
+ *                                      -32768 << 16 is exactly INT32_MIN, which makes 16 the last shift that stays
+ *                                      representable. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                      validated by the kernel.
  * @param[out]      output              pointer to output vector
  * @param[in]       out_offset          output offset. Not used.
  * @param[in]       out_mult            output multiplier
@@ -3424,9 +3429,10 @@ arm_cmsis_nn_status arm_sub_scalar_s16(const int16_t *input_1_vect,
  * @param[in]       input_2_shift       shift for input 2
  * @param[in]       left_shift          input left shift.
  *                                      Bound: the kernel evaluates value << left_shift in int32; the offsets are
- *                                      unused, so with full-range int16 inputs the widest operand is 32768 and
- *                                      left_shift is at most 16. The scale 1 << left_shift is itself representable up
- *                                      to 30. Not validated by the kernel.
+ *                                      unused, so with full-range int16 inputs the extremes are +32767 and -32768, and
+ *                                      -32768 << 16 is exactly INT32_MIN, which makes 16 the last shift that stays
+ *                                      representable. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                      validated by the kernel.
  * @param[in,out]   output              pointer to output vector
  * @param[in]       out_offset          output offset. Not used.
  * @param[in]       out_mult            output multiplier

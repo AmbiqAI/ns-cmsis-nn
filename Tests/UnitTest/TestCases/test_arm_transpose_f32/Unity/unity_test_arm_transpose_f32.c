@@ -27,3 +27,4 @@ void setUp(void)
 void tearDown(void) {}
 void test_transpose_dims_mismatch_arm_transpose_f32(void) { transpose_dims_mismatch_arm_transpose_f32(); }
 void test_transpose_perm_duplicate_axis_arm_transpose_f32(void) { transpose_perm_duplicate_axis_arm_transpose_f32(); }
+void test_transpose_zero_extent_arm_transpose_f32(void) { transpose_zero_extent_arm_transpose_f32(); }

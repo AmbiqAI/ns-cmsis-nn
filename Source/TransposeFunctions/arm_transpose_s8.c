@@ -159,7 +159,9 @@ static arm_cmsis_nn_status arm_transpose_s8_default(const int8_t *input,
 
 /*
  * Loop bounds come from input_dims but the output strides come from output_dims, so an output_dims that is not
- * input_dims permuted by perm lets to_index run past the end of the output buffer.
+ * input_dims permuted by perm lets to_index run past the end of the output buffer. An extent below 1 passes
+ * that cross-check when both sides carry it and then wraps the unsigned copy length, so the extents are
+ * rejected before any of them is used in arithmetic.
  * see AmbiqAI/ns-cmsis-nn#443
  */
 static arm_cmsis_nn_status arm_transpose_s8_check_dims(const cmsis_nn_dims *const input_dims,
@@ -175,6 +177,14 @@ static arm_cmsis_nn_status arm_transpose_s8_check_dims(const cmsis_nn_dims *cons
     const int32_t in_dims[4] = {input_dims->n, input_dims->h, input_dims->w, input_dims->c};
     const int32_t out_dims[4] = {output_dims->n, output_dims->h, output_dims->w, output_dims->c};
     uint32_t axes_seen = 0;
+
+    for (int32_t i = 0; i < num_dims; i++)
+    {
+        if (in_dims[i] < 1 || out_dims[i] < 1)
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+    }
 
     for (int32_t i = 0; i < num_dims; i++)
     {

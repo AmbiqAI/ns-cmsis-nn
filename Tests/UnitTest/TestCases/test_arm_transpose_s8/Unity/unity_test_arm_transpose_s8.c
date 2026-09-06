@@ -61,3 +61,4 @@ void test_transpose_num_dims_out_of_range_arm_transpose_s8(void)
 {
     transpose_num_dims_out_of_range_arm_transpose_s8();
 }
+void test_transpose_zero_extent_arm_transpose_s8(void) { transpose_zero_extent_arm_transpose_s8(); }

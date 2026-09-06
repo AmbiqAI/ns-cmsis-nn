@@ -128,6 +128,12 @@
             in_dims[i] = in_all[i];                                                                                    \
             out_dims[i] = out_all[i];                                                                                  \
             perm[i] = params->perm[i];                                                                                 \
+            /* An extent below 1 survives the cross-check below when both sides carry it, and then wraps the           \
+             * unsigned element count. see AmbiqAI/ns-cmsis-nn#443 */                                                  \
+            if (in_dims[i] < 1 || out_dims[i] < 1)                                                                     \
+            {                                                                                                          \
+                return ARM_CMSIS_NN_ARG_ERROR;                                                                         \
+            }                                                                                                          \
             if (perm[i] < 0 || perm[i] >= num_dims)                                                                    \
             {                                                                                                          \
                 return ARM_CMSIS_NN_ARG_ERROR;                                                                         \

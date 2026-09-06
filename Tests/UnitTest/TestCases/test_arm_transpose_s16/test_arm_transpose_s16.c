@@ -375,3 +375,34 @@ void transpose_num_dims_out_of_range_arm_transpose_s16(void)
     }
     TEST_ASSERT_TRUE(output_untouched);
 }
+// An extent of 0 agrees across the permutation, so only the extent check can reject it; without it the copy length
+// wraps. see AmbiqAI/ns-cmsis-nn#443
+void transpose_zero_extent_arm_transpose_s16(void)
+{
+    const int32_t buffer_size = 6;
+    const int16_t poison = (int16_t)0x5a5a;
+    int16_t input_data[6] = {1, 2, 3, 4, 5, 6};
+    int16_t output_data[6];
+
+    const cmsis_nn_dims input_dims = {2, 0, 1, 1};
+    const cmsis_nn_dims output_dims = {0, 2, 1, 1};
+    const uint32_t perm[2] = {1, 0};
+    const cmsis_nn_transpose_params transpose_params = {2, perm};
+
+    for (int32_t i = 0; i < buffer_size; i++)
+    {
+        output_data[i] = poison;
+    }
+
+    arm_cmsis_nn_status result =
+        arm_transpose_s16(input_data, output_data, &input_dims, &output_dims, &transpose_params);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, result);
+
+    bool output_untouched = true;
+    for (int32_t i = 0; i < buffer_size; i++)
+    {
+        output_untouched = output_untouched && (output_data[i] == poison);
+    }
+    TEST_ASSERT_TRUE(output_untouched);
+}
