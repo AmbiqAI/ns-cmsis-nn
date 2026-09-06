@@ -23,7 +23,7 @@
 #   release_assets.py <version> [--class required|optional|all]
 #                               [--armclang-required] [--format lines|json]
 #
-#   <version> is the bare version with no leading 'v' (e.g. 7.31.0), matching
+#   <version> is the bare version with no leading 'v' (e.g. 1.2.3), matching
 #   what release-please hands release.yml.
 #
 #   --armclang-required promotes the optional rows into the required set, as
@@ -162,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Expand ci/release-assets.json for one release version."
     )
-    parser.add_argument("version", help="bare version, no leading 'v' (e.g. 7.31.0)")
+    parser.add_argument("version", help="bare version, no leading 'v' (e.g. 1.2.3)")
     parser.add_argument(
         "--class",
         dest="wanted",

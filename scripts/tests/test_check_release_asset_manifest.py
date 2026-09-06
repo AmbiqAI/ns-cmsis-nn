@@ -366,47 +366,51 @@ class ReleaseAssetManifestCheckTest(unittest.TestCase):
 class ReleaseAssetGeneratorTest(unittest.TestCase):
     """Pins the expansion itself. The checker only proves the docs and the
     manifest agree; if the expansion were wrong they would agree on the wrong
-    contract."""
+    contract.
+
+    The fixture version is synthetic on purpose: a real release number would
+    become the previous release one cycle later and trip the stale-version
+    guard (AmbiqAI/ns-cmsis-nn#347)."""
 
     def setUp(self):
         self.gen = load_generator()
 
     def test_required_expansion_is_the_shipped_contract(self):
-        names = self.gen.asset_names("7.31.0", "required")
+        names = self.gen.asset_names("1.2.3", "required")
         self.assertEqual(len(names), 17)
         self.assertEqual(len(set(names)), len(names), "expansion produced a duplicate name")
-        self.assertIn("Ambiq.NS-CMSIS-NN.7.31.0.pack", names)
+        self.assertIn("Ambiq.NS-CMSIS-NN.1.2.3.pack", names)
         for cpu in ("cortex-m0", "cortex-m4", "cortex-m55"):
             for tc in ("gcc", "atfe"):
-                self.assertIn(f"ns-cmsis-nn-{cpu}-{tc}-7.31.0.tar.gz", names)
-                self.assertIn(f"ns-cmsis-nn-{cpu}-{tc}-7.31.0.tar.gz.sha256", names)
+                self.assertIn(f"ns-cmsis-nn-{cpu}-{tc}-1.2.3.tar.gz", names)
+                self.assertIn(f"ns-cmsis-nn-{cpu}-{tc}-1.2.3.tar.gz.sha256", names)
 
     def test_armclang_is_optional_until_promoted(self):
-        optional = self.gen.asset_names("7.31.0", "optional")
+        optional = self.gen.asset_names("1.2.3", "optional")
         self.assertEqual(len(optional), 8)
         self.assertTrue(all("armclang" in name for name in optional))
-        promoted = self.gen.asset_names("7.31.0", "required", armclang_required=True)
+        promoted = self.gen.asset_names("1.2.3", "required", armclang_required=True)
         self.assertEqual(len(promoted), 25)
         self.assertEqual(
-            self.gen.asset_names("7.31.0", "optional", armclang_required=True),
+            self.gen.asset_names("1.2.3", "optional", armclang_required=True),
             [],
             "promotion must leave nothing optional, or a consumer double-counts",
         )
 
     def test_all_is_required_plus_optional(self):
         self.assertEqual(
-            sorted(self.gen.asset_names("7.31.0", "all")),
+            sorted(self.gen.asset_names("1.2.3", "all")),
             sorted(
-                self.gen.asset_names("7.31.0", "required")
-                + self.gen.asset_names("7.31.0", "optional")
+                self.gen.asset_names("1.2.3", "required")
+                + self.gen.asset_names("1.2.3", "optional")
             ),
         )
 
     def test_a_leading_v_is_rejected(self):
-        """The names embed the version verbatim, so 'v7.31.0' would generate
+        """The names embed the version verbatim, so 'v1.2.3' would generate
         a contract no release can ever satisfy."""
         with self.assertRaises(SystemExit) as ctx:
-            self.gen.main(["v7.31.0"])
+            self.gen.main(["v1.2.3"])
         self.assertNotEqual(ctx.exception.code, 0)
 
 
