@@ -210,6 +210,12 @@ correctness, bring-up, and fallback, but they are not the main performance
 target. On cores that only provide the classic DSP extension, float kernels may
 compile through the scalar C path but are not a performance target.
 
+Cortex-M0 has no hardware floating point, so `float32` there runs through the
+pure C scalar path (soft-float). It is supported: the tester's float suite
+runs it on the Corstone-300 FVP on every pull request, and the legacy Unity
+float suites build and run it nightly and at release. `float16` support
+remains Cortex-M55 only.
+
 For float operators that support `arm_nn_weight_format_flt`, MVE performance is
 generally better when constant weights are provided in the packed `NTxN` layout
 instead of the standard `NT x T` layout. This avoids the gather-heavy RHS access
