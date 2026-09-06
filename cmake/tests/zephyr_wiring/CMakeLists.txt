@@ -374,6 +374,38 @@ if(_f16_both_idx EQUAL -1)
 endif()
 
 # ----------------------------------------------------------------------------
+# Case 2e: Kconfig is the only writer of the float switches here, so an
+# ARM_NN_ENABLE_F16 that a board or module CMake set beforehand is overwritten
+# rather than honored. That is what keeps NS_CMSIS_NN_ENABLE_F16's
+# ARMV8_1_M_MVEF dependency in force. See AmbiqAI/ns-cmsis-nn#420.
+# ----------------------------------------------------------------------------
+set(STUB_LIBRARY_NAME "")
+set(STUB_COMPILE_OPTIONS "")
+set(STUB_GLOBAL_INCLUDE_DIRS "")
+set(STUB_LIBRARY_INCLUDE_DIRS "")
+set(STUB_COMPILE_DEFINITIONS "")
+set(STUB_APP_LINK_LIBRARIES "")
+
+unset(CONFIG_NS_CMSIS_NN_ENABLE_F32)
+unset(CONFIG_NS_CMSIS_NN_ENABLE_F16)
+set(ARM_NN_ENABLE_F16 ON)
+
+include("${_repo_root}/zephyr/CMakeLists.txt")
+
+list(FIND STUB_COMPILE_DEFINITIONS "ARM_NN_ENABLE_F16=0" _f16_overwritten_idx)
+if(_f16_overwritten_idx EQUAL -1)
+  _fail("pre-set ARM_NN_ENABLE_F16 case: Kconfig did not overwrite it; got: ${STUB_COMPILE_DEFINITIONS}")
+endif()
+if(STUB_LIBRARY_NAME AND TARGET ${STUB_LIBRARY_NAME})
+  get_target_property(_srcs_overwritten ${STUB_LIBRARY_NAME} SOURCES)
+  list(FILTER _srcs_overwritten INCLUDE REGEX ".*(_f16\\.c)$")
+  if(_srcs_overwritten)
+    _fail("pre-set ARM_NN_ENABLE_F16 case: _f16.c sources were still selected; got: ${_srcs_overwritten}")
+  endif()
+endif()
+unset(ARM_NN_ENABLE_F16)
+
+# ----------------------------------------------------------------------------
 # Case 3: prebuilt mode. CONFIG_NS_CMSIS_NN_USE_PREBUILT=y diverts the
 # module away from the source path entirely: no zephyr_library(), no source
 # attachment, no SSoT-group translation. Instead, an IMPORTED static lib
@@ -480,13 +512,11 @@ file(WRITE "${_fake_sdk}/manifest.json" "{
 ")
 
 # The rejection runs twice: once with the Kconfig symbol alone, and once with
-# an agreeing ARM_NN_ENABLE_F16 alongside it. The second proves an agreeing
-# value clears the Kconfig-authority gate and that the manifest diagnostic
-# still names the Kconfig spelling, which is what carries the request on this
-# path. Each rejection is then recovered from in place, the way the NSX reject
-# cases do: the diagnostic names the Kconfig fragment, so the probe is
-# rewritten without the symbol and the same build directory reconfigured.
-# See AmbiqAI/ns-cmsis-nn#420.
+# a pre-set ARM_NN_ENABLE_F16 alongside it, which Kconfig overwrites, so the
+# rejection follows the Kconfig symbol either way. Each rejection is then
+# recovered from in place, the way the NSX reject case does: the diagnostic
+# names the Kconfig fragment, so the probe is rewritten without the symbol and
+# the same build directory reconfigured. See AmbiqAI/ns-cmsis-nn#420.
 set(_zephyr_reject_prologue
 "cmake_minimum_required(VERSION 3.20)
 project(zephyr_manifest_reject_probe C)
@@ -512,18 +542,20 @@ set(_zephyr_reject_epilogue
 "include(\"${_repo_root}/zephyr/CMakeLists.txt\")
 ")
 
-foreach(_reject_name kconfig_f32 kconfig_f16_agreeing_arm_nn)
+foreach(_reject_name kconfig_f32 kconfig_f16_preset_arm_nn)
   if(_reject_name STREQUAL "kconfig_f32")
     set(_reject_request "set(CONFIG_NS_CMSIS_NN_ENABLE_F32 1)")
     set(_reject_args "")
     set(_reject_needles
-        "float32 requested via CONFIG_NS_CMSIS_NN_ENABLE_F32"
+        "float32 requested via ARM_NN_ENABLE_F32"
+        "CONFIG_NS_CMSIS_NN_ENABLE_F32"
         "prj.conf")
   else()
     set(_reject_request "set(CONFIG_NS_CMSIS_NN_ENABLE_F16 1)")
-    set(_reject_args "-DARM_NN_ENABLE_F16=ON")
+    set(_reject_args "-DARM_NN_ENABLE_F16=OFF")
     set(_reject_needles
-        "float16 requested via CONFIG_NS_CMSIS_NN_ENABLE_F16"
+        "float16 requested via ARM_NN_ENABLE_F16"
+        "CONFIG_NS_CMSIS_NN_ENABLE_F16"
         "prj.conf")
   endif()
 
@@ -564,147 +596,10 @@ foreach(_reject_name kconfig_f32 kconfig_f16_agreeing_arm_nn)
 endforeach()
 
 # ----------------------------------------------------------------------------
-# Case 3e: Kconfig is the authority for the float request on this path.
-#
-# Source mode, driven through child cmake probes so the FATAL_ERROR cases do
-# not abort this script. Each probe stubs the zephyr_* macros for real (the
-# source path attaches sources to ZEPHYR_CURRENT_LIBRARY) and, if it survives
-# configure, writes the captured compile definitions and the _f16 sources it
-# would have compiled to result.txt. A probe that FATALs writes nothing, which
-# is how "no float sources were selected" is asserted.
-#
-# CONFIG_NS_CMSIS_NN_ENABLE_F16 left unset is what Kconfig produces on a board
-# without ARMV8_1_M_MVEF. See AmbiqAI/ns-cmsis-nn#420.
-# ----------------------------------------------------------------------------
-foreach(_auth_name arm_nn_on_kconfig_unset arm_nn_off_kconfig_y agreeing)
-  if(_auth_name STREQUAL "arm_nn_on_kconfig_unset")
-    set(_auth_request "")
-    set(_auth_args "-DARM_NN_ENABLE_F16=ON")
-    set(_auth_expect_fatal TRUE)
-    # Kconfig unset is the authority, so the recovered configure must publish 0.
-    set(_auth_recover_f16 0)
-  elseif(_auth_name STREQUAL "arm_nn_off_kconfig_y")
-    set(_auth_request "set(CONFIG_NS_CMSIS_NN_ENABLE_F16 1)")
-    set(_auth_args "-DARM_NN_ENABLE_F16=OFF")
-    set(_auth_expect_fatal TRUE)
-    set(_auth_recover_f16 1)
-  else()
-    set(_auth_request "set(CONFIG_NS_CMSIS_NN_ENABLE_F16 1)")
-    set(_auth_args "-DARM_NN_ENABLE_F16=ON")
-    set(_auth_expect_fatal FALSE)
-  endif()
-
-  set(_auth_probe "${CMAKE_BINARY_DIR}/_zephyr_authority_probe_${_auth_name}")
-  file(REMOVE_RECURSE "${_auth_probe}")
-  file(MAKE_DIRECTORY "${_auth_probe}")
-  file(WRITE "${_auth_probe}/CMakeLists.txt"
-"cmake_minimum_required(VERSION 3.20)
-project(zephyr_float_authority_probe C)
-set(STUB_DEFS \"\")
-macro(zephyr_library)
-  add_library(zephyr_stub_lib STATIC)
-  set(ZEPHYR_CURRENT_LIBRARY zephyr_stub_lib)
-endmacro()
-macro(zephyr_library_compile_options)
-endmacro()
-macro(zephyr_include_directories)
-endmacro()
-macro(zephyr_library_include_directories)
-endmacro()
-macro(zephyr_compile_definitions)
-  list(APPEND STUB_DEFS \${ARGN})
-endmacro()
-macro(zephyr_link_libraries)
-endmacro()
-set(ZEPHYR_CURRENT_MODULE_DIR \"${_repo_root}\")
-set(ZEPHYR_CMSIS_MODULE_DIR \"${CMAKE_CURRENT_BINARY_DIR}/__fake_cmsis_module__\")
-set(CONFIG_NS_CMSIS_NN 1)
-set(CONFIG_NS_CMSIS_NN_CONVOLUTION 1)
-set(CONFIG_NS_CMSIS_NN_NNSUPPORT 1)
-${_auth_request}
-include(\"${_repo_root}/zephyr/CMakeLists.txt\")
-get_target_property(_probe_srcs zephyr_stub_lib SOURCES)
-set(_probe_f16 \${_probe_srcs})
-list(FILTER _probe_f16 INCLUDE REGEX \"_f16.c$\")
-file(WRITE \"${_auth_probe}/result.txt\" \"defs=\${STUB_DEFS}|f16=\${_probe_f16}\")
-")
-  execute_process(
-    COMMAND ${CMAKE_COMMAND} -S "${_auth_probe}" -B "${_auth_probe}/_b" ${_auth_args}
-    RESULT_VARIABLE _auth_rc
-    OUTPUT_VARIABLE _auth_out
-    ERROR_VARIABLE  _auth_err)
-
-  if(_auth_expect_fatal)
-    if(_auth_rc EQUAL 0)
-      _fail("float authority case (${_auth_name}): probe unexpectedly succeeded (expected FATAL_ERROR)\n${_auth_out}\n${_auth_err}")
-    else()
-      foreach(_needle
-              "ARM_NN_ENABLE_F16 cannot change the float16 setting"
-              "CONFIG_NS_CMSIS_NN_ENABLE_F16 is the authority"
-              "ARMV8_1_M_MVEF"
-              "Ask through NS_CMSIS_NN_ENABLE_F16 instead"
-              "-UARM_NN_ENABLE_F16")
-        string(FIND "${_auth_err}" "${_needle}" _auth_idx)
-        if(_auth_idx EQUAL -1)
-          _fail("float authority case (${_auth_name}): diagnostic never mentions '${_needle}'; stderr:\n${_auth_err}")
-        endif()
-      endforeach()
-    endif()
-    if(EXISTS "${_auth_probe}/result.txt")
-      file(READ "${_auth_probe}/result.txt" _auth_result)
-      _fail("float authority case (${_auth_name}): configure reached the source list instead of aborting: ${_auth_result}")
-    endif()
-
-    # Same contract as the NSX reject cases: the -U the diagnostic names has to
-    # clear the wedge in the same build directory, and what Kconfig asked for
-    # is then what gets published.
-    execute_process(
-      COMMAND ${CMAKE_COMMAND} -S "${_auth_probe}" -B "${_auth_probe}/_b"
-              -UARM_NN_ENABLE_F16
-      RESULT_VARIABLE _auth_recover_rc
-      OUTPUT_VARIABLE _auth_recover_out
-      ERROR_VARIABLE  _auth_recover_err)
-    if(NOT _auth_recover_rc EQUAL 0)
-      _fail("float authority case (${_auth_name}): -UARM_NN_ENABLE_F16 did not clear the rejection\n${_auth_recover_out}\n${_auth_recover_err}")
-    elseif(NOT EXISTS "${_auth_probe}/result.txt")
-      _fail("float authority case (${_auth_name}): recovered configure wrote no result.txt")
-    else()
-      file(READ "${_auth_probe}/result.txt" _auth_recover_result)
-      string(FIND "${_auth_recover_result}" "ARM_NN_ENABLE_F16=${_auth_recover_f16}" _auth_idx)
-      if(_auth_idx EQUAL -1)
-        _fail("float authority case (${_auth_name}): recovered configure did not publish ARM_NN_ENABLE_F16=${_auth_recover_f16}; got ${_auth_recover_result}")
-      endif()
-      string(FIND "${_auth_recover_result}" "_f16.c" _auth_idx)
-      if(_auth_recover_f16 EQUAL 1 AND _auth_idx EQUAL -1)
-        _fail("float authority case (${_auth_name}): recovered configure selected no _f16.c sources; got ${_auth_recover_result}")
-      elseif(_auth_recover_f16 EQUAL 0 AND NOT _auth_idx EQUAL -1)
-        _fail("float authority case (${_auth_name}): recovered configure still selected _f16.c sources; got ${_auth_recover_result}")
-      endif()
-    endif()
-  else()
-    if(NOT _auth_rc EQUAL 0)
-      _fail("float authority case (${_auth_name}): agreeing values must configure clean\n${_auth_out}\n${_auth_err}")
-    elseif(NOT EXISTS "${_auth_probe}/result.txt")
-      _fail("float authority case (${_auth_name}): probe wrote no result.txt")
-    else()
-      file(READ "${_auth_probe}/result.txt" _auth_result)
-      string(FIND "${_auth_result}" "ARM_NN_ENABLE_F16=1" _auth_idx)
-      if(_auth_idx EQUAL -1)
-        _fail("float authority case (${_auth_name}): ARM_NN_ENABLE_F16=1 not published; got ${_auth_result}")
-      endif()
-      string(FIND "${_auth_result}" "_f16.c" _auth_idx)
-      if(_auth_idx EQUAL -1)
-        _fail("float authority case (${_auth_name}): no _f16.c sources selected; got ${_auth_result}")
-      endif()
-    endif()
-  endif()
-endforeach()
-
-# ----------------------------------------------------------------------------
 # Report.
 # ----------------------------------------------------------------------------
 if(_failures)
   message(FATAL_ERROR "Zephyr wiring test FAILED:${_failures}")
 endif()
 
-message(STATUS "Zephyr wiring OK: 23 knobs translated, baseline source set attached, float source gates validated, inline-asm define propagated, prebuilt mode imports SDK tarball, prebuilt manifest validation accepts/rejects the resolved Kconfig request, ARM_NN_ENABLE_* cannot override the Kconfig float symbols, and each rejection clears under the recovery its diagnostic names.")
+message(STATUS "Zephyr wiring OK: 23 knobs translated, baseline source set attached, float source gates validated, inline-asm define propagated, prebuilt mode imports SDK tarball, prebuilt manifest validation accepts/rejects what Kconfig asked for, a pre-set ARM_NN_ENABLE_* is overwritten from Kconfig, and each rejection clears under the recovery its diagnostic names.")

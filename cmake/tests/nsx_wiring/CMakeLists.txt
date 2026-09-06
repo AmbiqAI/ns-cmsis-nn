@@ -17,52 +17,33 @@
 #   inline_asm                — NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM=ON,
 #                               expect CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY
 #                               on the target's COMPILE_DEFINITIONS.
-#   float_f32                 — NSX_CMSIS_NN_ENABLE_F32=ON; expect _f32 sources
+#   float_f32                 — ARM_NN_ENABLE_F32=ON; expect _f32 sources
 #                               + ARM_NN_ENABLE_F32=1 and ARM_NN_ENABLE_F16=0.
-#   float_f16                 — NSX_CMSIS_NN_ENABLE_F16=ON; expect _f16 sources
+#   float_f16                 — ARM_NN_ENABLE_F16=ON; expect _f16 sources
 #                               + ARM_NN_ENABLE_F32=0 and ARM_NN_ENABLE_F16=1.
 #   float_both                — both float toggles ON; expect both _f32/_f16
 #                               sources and both compile definitions =1.
-#   float_arm_nn_only         - ARM_NN_ENABLE_F16=ON alone, both NSX float
-#                               switches at their defaults; the ARM_NN
-#                               spelling is the request, so expect _f16
-#                               sources + ARM_NN_ENABLE_F16=1 published.
-#   float_conflict            - NSX_CMSIS_NN_ENABLE_F32=ON (away from its
-#                               default) while the cache carries
-#                               ARM_NN_ENABLE_F32=OFF; two explicit requests
-#                               disagree, so expect a configure-time
-#                               FATAL_ERROR (via a child cmake probe).
+#   float_renamed_switch      - NSX_CMSIS_NN_ENABLE_F16=ON, the removed
+#                               spelling; expect a configure-time FATAL_ERROR
+#                               naming the switch and ARM_NN_ENABLE_F32/F16 as
+#                               its replacement (via a child cmake probe).
 #                               See AmbiqAI/ns-cmsis-nn#420.
-#   float_conflict_plain      - same contradiction, but ARM_NN_ENABLE_F16 is a
-#                               plain (non-cache) variable in the calling
-#                               scope; expect the same FATAL_ERROR.
-#   float_publish_contract    - the F32/F16 keywords of
-#                               ns_cmsis_nn_publish_float_switches() are
-#                               required: omitting one is a FATAL_ERROR naming
-#                               the function and the keyword, while passing it
-#                               with an empty value still publishes 0 (what an
-#                               unset CONFIG symbol arrives as on the Zephyr
-#                               path). Two child cmake probes.
+#   float_query               - ns_cmsis_nn_float_support() answers from the
+#                               library target in source mode, in prebuilt
+#                               mode and through the find_package config
+#                               template, and refuses a call that omits a
+#                               width. Four child cmake probes.
 #   prebuilt                  — NSX_CMSIS_NN_LIB=<dummy.a>, expect the
 #                               IMPORTED prebuilt target + INTERFACE wrapper
 #                               + alias.
 #   prebuilt_manifest_ok      — NSX_CMSIS_NN_LIB with a sibling manifest.json
-#                               reporting f32=true, NSX_CMSIS_NN_ENABLE_F32=ON;
+#                               reporting f32=true, ARM_NN_ENABLE_F32=ON;
 #                               expect configure success + ARM_NN_ENABLE_F32=1.
 #   prebuilt_manifest_reject  — same, but manifest reports f32=false; expect
 #                               a configure-time FATAL_ERROR (via a child
-#                               cmake probe) naming NSX_CMSIS_NN_ENABLE_F32 as
-#                               the spelling the request came from, not a
+#                               cmake probe) naming ARM_NN_ENABLE_F32, not a
 #                               silent link-time failure, and expect the -U it
 #                               names to clear the rejection.
-#   prebuilt_manifest_reject_arm_nn
-#                             - manifest reports f16=false and the request
-#                               arrives only as ARM_NN_ENABLE_F16=ON, with the
-#                               NSX switches at their defaults; validation
-#                               reads the resolved request, so expect the same
-#                               manifest FATAL_ERROR, naming ARM_NN_ENABLE_F16
-#                               and recovering under -UARM_NN_ENABLE_F16.
-#                               See AmbiqAI/ns-cmsis-nn#420.
 #   prebuilt_manifest_legacy  — manifest.json has no "features" block
 #                               (pre-existing schema_version 1 package);
 #                               requesting F32 must FATAL_ERROR per the
@@ -79,9 +60,8 @@ project(ns_cmsis_nn_nsx_wiring C)
 set(CASE "source_all" CACHE STRING "Which wiring case to exercise.")
 set_property(CACHE CASE PROPERTY STRINGS
   source_all source_subset inline_asm float_f32 float_f16 float_both
-  float_arm_nn_only float_conflict float_conflict_plain
-  float_publish_contract prebuilt
-  prebuilt_manifest_ok prebuilt_manifest_reject prebuilt_manifest_reject_arm_nn
+  float_renamed_switch float_query prebuilt
+  prebuilt_manifest_ok prebuilt_manifest_reject
   prebuilt_manifest_legacy)
 
 get_filename_component(_repo_root "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
@@ -127,7 +107,6 @@ endfunction()
 # exit + diagnostic message.
 # ----------------------------------------------------------------------------
 if(CASE STREQUAL "prebuilt_manifest_reject"
-   OR CASE STREQUAL "prebuilt_manifest_reject_arm_nn"
    OR CASE STREQUAL "prebuilt_manifest_legacy")
   set(_fake_lib "${CMAKE_BINARY_DIR}/_fake_prebuilt_reject.a")
   file(TOUCH "${_fake_lib}")
@@ -149,22 +128,11 @@ if(CASE STREQUAL "prebuilt_manifest_reject"
 
   # The request arrives on the child cmake command line, not as a set() inside
   # the probe, so the -U recovery the diagnostic names is actually reachable.
-  if(CASE STREQUAL "prebuilt_manifest_reject_arm_nn")
-    # The NSX switches stay at their defaults, so the ARM_NN spelling is the
-    # whole request: the manifest check must name that spelling, not the NSX
-    # one. See AmbiqAI/ns-cmsis-nn#420.
-    set(_probe_args "-DARM_NN_ENABLE_F16=ON")
-    set(_probe_needles
-        "float16 requested via ARM_NN_ENABLE_F16"
-        "-UARM_NN_ENABLE_F16")
-    set(_probe_recovery "-UARM_NN_ENABLE_F16")
-  else()
-    set(_probe_args "-DNSX_CMSIS_NN_ENABLE_F32=ON")
-    set(_probe_needles
-        "float32 requested via NSX_CMSIS_NN_ENABLE_F32"
-        "-UNSX_CMSIS_NN_ENABLE_F32")
-    set(_probe_recovery "-UNSX_CMSIS_NN_ENABLE_F32")
-  endif()
+  set(_probe_args "-DARM_NN_ENABLE_F32=ON")
+  set(_probe_needles
+      "float32 requested via ARM_NN_ENABLE_F32"
+      "-UARM_NN_ENABLE_F32")
+  set(_probe_recovery "-UARM_NN_ENABLE_F32")
 
   set(_probe "${CMAKE_BINARY_DIR}/_manifest_probe")
   file(REMOVE_RECURSE "${_probe}")
@@ -212,51 +180,33 @@ add_subdirectory(\"${_repo_root}/nsx\" nsx)
 endif()
 
 # ----------------------------------------------------------------------------
-# float_conflict / float_conflict_plain: two explicit requests that disagree
-# are a configure-time FATAL_ERROR, which would abort this script if triggered
-# directly. Drive it via a child cmake invocation, as above. The NSX switch has
-# to be away from its default for the disagreement to count; at its default the
-# ARM_NN_ENABLE_* value is simply the request (float_arm_nn_only).
+# float_renamed_switch: NSX_CMSIS_NN_ENABLE_F32/F16 are gone, and the configure
+# error is the migration aid. Driven via a child cmake invocation because the
+# FATAL_ERROR would otherwise abort this script.
+# See AmbiqAI/ns-cmsis-nn#420.
 # ----------------------------------------------------------------------------
-if(CASE STREQUAL "float_conflict" OR CASE STREQUAL "float_conflict_plain")
-  set(_probe "${CMAKE_BINARY_DIR}/_conflict_probe")
+if(CASE STREQUAL "float_renamed_switch")
+  set(_probe "${CMAKE_BINARY_DIR}/_renamed_probe")
   file(REMOVE_RECURSE "${_probe}")
   file(MAKE_DIRECTORY "${_probe}")
-  if(CASE STREQUAL "float_conflict")
-    set(_probe_request
-"set(NSX_CMSIS_NN_ENABLE_F32 ON CACHE BOOL \"\" FORCE)
-set(ARM_NN_ENABLE_F32 OFF CACHE BOOL \"\" FORCE)")
-    set(_probe_names ARM_NN_ENABLE_F32 NSX_CMSIS_NN_ENABLE_F32 -UARM_NN_ENABLE_F32)
-  else()
-    # Plain directory-scope variable: what a consumer gets from a set() above
-    # add_subdirectory() rather than from -D.
-    set(_probe_request
-"set(NSX_CMSIS_NN_ENABLE_F16 ON CACHE BOOL \"\" FORCE)
-set(ARM_NN_ENABLE_F16 OFF)")
-    set(_probe_names ARM_NN_ENABLE_F16 NSX_CMSIS_NN_ENABLE_F16 -UNSX_CMSIS_NN_ENABLE_F16)
-  endif()
   file(WRITE "${_probe}/CMakeLists.txt"
 "cmake_minimum_required(VERSION 3.19)
 project(probe C)
 add_library(_nsx_board_flags INTERFACE)
 set(NSX_BOARD_FLAGS_TARGET _nsx_board_flags)
-${_probe_request}
 add_subdirectory(\"${_repo_root}/nsx\" nsx)
 ")
   execute_process(
     COMMAND ${CMAKE_COMMAND} -S "${_probe}" -B "${_probe}/_b"
+            -DNSX_CMSIS_NN_ENABLE_F16=ON
     RESULT_VARIABLE _rc
     OUTPUT_VARIABLE _out
     ERROR_VARIABLE  _err)
   if(_rc EQUAL 0)
     _fail("${CASE}: probe unexpectedly succeeded (expected FATAL_ERROR)\n${_out}\n${_err}")
   else()
-    string(FIND "${_err}" "contradictory" _msg_idx)
-    if(_msg_idx EQUAL -1)
-      _fail("${CASE}: probe failed but without the expected diagnostic; stderr:\n${_err}")
-    endif()
-    # The diagnostic has to name both spellings and the way out of the wedge.
-    foreach(_needle IN LISTS _probe_names)
+    foreach(_needle "NSX_CMSIS_NN_ENABLE_F16 was renamed to"
+                    "ARM_NN_ENABLE_F32/F16")
       string(FIND "${_err}" "${_needle}" _idx)
       if(_idx EQUAL -1)
         _fail("${CASE}: diagnostic never mentions ${_needle}; stderr:\n${_err}")
@@ -272,71 +222,128 @@ add_subdirectory(\"${_repo_root}/nsx\" nsx)
 endif()
 
 # ----------------------------------------------------------------------------
-# float_publish_contract: the publish function's own call contract, exercised
-# without the NSX module in the way. An omitted F32/F16 keyword must abort
-# rather than publish a silent 0, and the empty value the Zephyr path passes
-# for an unset CONFIG symbol must keep meaning OFF.
+# float_query: ns_cmsis_nn_float_support() is what a consumer calls instead of
+# reading the cache, so it has to answer from the library target on each way of
+# getting one, and refuse a call that omits a width. Each probe asserts on the
+# answer itself, so a wrong pair fails the child configure rather than only
+# showing up in this script's output.
 # See AmbiqAI/ns-cmsis-nn#420.
 # ----------------------------------------------------------------------------
-if(CASE STREQUAL "float_publish_contract")
-  set(_probe "${CMAKE_BINARY_DIR}/_publish_probe")
+if(CASE STREQUAL "float_query")
+  set(_probe "${CMAKE_BINARY_DIR}/_query_probe")
   file(REMOVE_RECURSE "${_probe}")
-  file(MAKE_DIRECTORY "${_probe}/omitted")
-  file(MAKE_DIRECTORY "${_probe}/empty")
 
+  # The assertion every probe ends with: the query has to return this exact
+  # pair, and ON/OFF rather than whatever the target's definitions spell.
+  set(_query_assert
+"ns_cmsis_nn_float_support(F32 _got_f32 F16 _got_f16)
+if(NOT \"\${_got_f32}\" STREQUAL \"@WANT_F32@\" OR NOT \"\${_got_f16}\" STREQUAL \"@WANT_F16@\")
+  message(FATAL_ERROR
+    \"ns_cmsis_nn_float_support returned F32='\${_got_f32}' F16='\${_got_f16}', \"
+    \"expected F32='@WANT_F32@' F16='@WANT_F16@'\")
+endif()
+")
+
+  # Source mode: the switch is the input and the static target carries it.
+  string(REPLACE "@WANT_F32@" "OFF" _assert_source "${_query_assert}")
+  string(REPLACE "@WANT_F16@" "ON"  _assert_source "${_assert_source}")
+  file(MAKE_DIRECTORY "${_probe}/source")
+  file(WRITE "${_probe}/source/CMakeLists.txt"
+"cmake_minimum_required(VERSION 3.19)
+project(probe C)
+add_library(_nsx_board_flags INTERFACE)
+set(NSX_BOARD_FLAGS_TARGET _nsx_board_flags)
+add_subdirectory(\"${_repo_root}/nsx\" nsx)
+${_assert_source}")
+
+  # Prebuilt mode: the answer comes from the INTERFACE wrapper, and the
+  # manifest next to the archive says what the archive really has.
+  file(MAKE_DIRECTORY "${_probe}/prebuilt/pkg/lib")
+  file(TOUCH "${_probe}/prebuilt/pkg/lib/libns-cmsis-nn.a")
+  file(WRITE "${_probe}/prebuilt/pkg/manifest.json" "{
+  \"schema_version\": 2,
+  \"features\": { \"integer\": true, \"f32\": true, \"f16\": false, \"requantize_inline_asm\": false, \"verified\": true }
+}
+")
+  string(REPLACE "@WANT_F32@" "ON"  _assert_prebuilt "${_query_assert}")
+  string(REPLACE "@WANT_F16@" "OFF" _assert_prebuilt "${_assert_prebuilt}")
+  file(WRITE "${_probe}/prebuilt/CMakeLists.txt"
+"cmake_minimum_required(VERSION 3.19)
+project(probe C)
+add_library(_nsx_board_flags INTERFACE)
+set(NSX_BOARD_FLAGS_TARGET _nsx_board_flags)
+set(NSX_CMSIS_NN_LIB \"${_probe}/prebuilt/pkg/lib/libns-cmsis-nn.a\" CACHE FILEPATH \"\" FORCE)
+add_subdirectory(\"${_repo_root}/nsx\" nsx)
+${_assert_prebuilt}")
+
+  # find_package mode: the config template defines its own copy of the query,
+  # reading the imported target it just created. The package is synthesized
+  # from the template rather than unpacked from a tarball, so this leg does not
+  # need GNU tar and runs on any host.
+  set(_pkg "${_probe}/find_package/pkg")
+  file(MAKE_DIRECTORY "${_pkg}/lib" "${_pkg}/include" "${_pkg}/cmake")
+  file(TOUCH "${_pkg}/lib/libns-cmsis-nn.a")
+  set(NS_CMSIS_NN_VERSION "0.0.0-wiring")
+  set(NS_CMSIS_NN_TARGET_CPU "")
+  set(NS_CMSIS_NN_ARCH_FLAGS "")
+  set(NS_CMSIS_NN_TOOLCHAIN "")
+  set(NS_CMSIS_NN_TOOLCHAIN_COMPILER "")
+  set(NS_CMSIS_NN_HAS_F32 1)
+  set(NS_CMSIS_NN_HAS_F16 0)
+  set(NS_CMSIS_NN_HAS_REQUANTIZE_INLINE_ASM 0)
+  configure_file("${_repo_root}/cmake/templates/ns-cmsis-nn-config.cmake.in"
+                 "${_pkg}/cmake/ns-cmsis-nn-config.cmake" @ONLY)
+  string(REPLACE "@WANT_F32@" "ON"  _assert_pkg "${_query_assert}")
+  string(REPLACE "@WANT_F16@" "OFF" _assert_pkg "${_assert_pkg}")
+  file(WRITE "${_probe}/find_package/CMakeLists.txt"
+"cmake_minimum_required(VERSION 3.19)
+project(probe C)
+find_package(ns-cmsis-nn REQUIRED PATHS \"${_pkg}\" NO_DEFAULT_PATH)
+${_assert_pkg}")
+
+  foreach(_leg source prebuilt find_package)
+    if(_leg STREQUAL "source")
+      set(_leg_args "-DARM_NN_ENABLE_F16=ON")
+    elseif(_leg STREQUAL "prebuilt")
+      set(_leg_args "-DARM_NN_ENABLE_F32=ON")
+    else()
+      # Nothing to ask for: the archive's own capabilities decide here.
+      set(_leg_args "")
+    endif()
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} -S "${_probe}/${_leg}" -B "${_probe}/${_leg}/_b"
+              ${_leg_args}
+      RESULT_VARIABLE _rc
+      OUTPUT_VARIABLE _out
+      ERROR_VARIABLE  _err)
+    if(NOT _rc EQUAL 0)
+      _fail("${CASE}: ${_leg} leg failed\n${_out}\n${_err}")
+    endif()
+  endforeach()
+
+  # A call that omits a width would leave the caller's variable untouched, so
+  # it aborts instead.
+  file(MAKE_DIRECTORY "${_probe}/omitted")
   file(WRITE "${_probe}/omitted/CMakeLists.txt"
 "cmake_minimum_required(VERSION 3.19)
 project(probe C)
-include(\"${_repo_root}/cmake/ns_cmsis_nn_float_switches.cmake\")
-ns_cmsis_nn_publish_float_switches(
-  F32 \"ON\"
-  REQUEST_PREFIX PROBE_ENABLE_
-  REQUEST_DEFAULT OFF)
+include(\"${_repo_root}/cmake/ns_cmsis_nn_float_support.cmake\")
+ns_cmsis_nn_float_support(F32 _got_f32)
 ")
   execute_process(
     COMMAND ${CMAKE_COMMAND} -S "${_probe}/omitted" -B "${_probe}/omitted/_b"
-    RESULT_VARIABLE _rc
-    OUTPUT_VARIABLE _out
-    ERROR_VARIABLE  _err)
-  if(_rc EQUAL 0)
-    _fail("${CASE}: omitting F16 configured cleanly (expected FATAL_ERROR)\n${_out}")
+    RESULT_VARIABLE _rc_omitted
+    OUTPUT_VARIABLE _out_omitted
+    ERROR_VARIABLE  _err_omitted)
+  if(_rc_omitted EQUAL 0)
+    _fail("${CASE}: omitting F16 configured cleanly (expected FATAL_ERROR)\n${_out_omitted}")
   else()
-    foreach(_needle "ns_cmsis_nn_publish_float_switches" "F16 is required")
-      string(FIND "${_err}" "${_needle}" _idx)
+    foreach(_needle "ns_cmsis_nn_float_support" "F16 is required")
+      string(FIND "${_err_omitted}" "${_needle}" _idx)
       if(_idx EQUAL -1)
-        _fail("${CASE}: diagnostic never mentions ${_needle}; stderr:\n${_err}")
+        _fail("${CASE}: diagnostic never mentions ${_needle}; stderr:\n${_err_omitted}")
       endif()
     endforeach()
-  endif()
-
-  # The probe asserts on the published values itself: a wrong value has to fail
-  # the configure, not just show up in this script's output.
-  file(WRITE "${_probe}/empty/CMakeLists.txt"
-"cmake_minimum_required(VERSION 3.19)
-project(probe C)
-include(\"${_repo_root}/cmake/ns_cmsis_nn_float_switches.cmake\")
-ns_cmsis_nn_publish_float_switches(
-  F32 \"ON\"
-  F16 \"\"
-  REQUEST_PREFIX PROBE_ENABLE_
-  REQUEST_DEFAULT OFF)
-if(NOT \"\${ARM_NN_ENABLE_F16}\" STREQUAL \"0\")
-  message(FATAL_ERROR \"empty F16 published '\${ARM_NN_ENABLE_F16}', expected 0\")
-endif()
-if(NOT \"\$CACHE{ARM_NN_ENABLE_F16}\" STREQUAL \"0\")
-  message(FATAL_ERROR \"empty F16 cached '\$CACHE{ARM_NN_ENABLE_F16}', expected 0\")
-endif()
-if(NOT \"\${ARM_NN_ENABLE_F32}\" STREQUAL \"1\")
-  message(FATAL_ERROR \"F32=ON published '\${ARM_NN_ENABLE_F32}', expected 1\")
-endif()
-")
-  execute_process(
-    COMMAND ${CMAKE_COMMAND} -S "${_probe}/empty" -B "${_probe}/empty/_b"
-    RESULT_VARIABLE _rc_empty
-    OUTPUT_VARIABLE _out_empty
-    ERROR_VARIABLE  _err_empty)
-  if(NOT _rc_empty EQUAL 0)
-    _fail("${CASE}: F16 \"\" did not publish OFF\n${_out_empty}\n${_err_empty}")
   endif()
 
   if(_failures)
@@ -360,15 +367,9 @@ set(NSX_BOARD_FLAGS_TARGET _nsx_board_flags)
 # reconfigured for multiple CASE values.
 set(NSX_CMSIS_NN_GROUPS "ALL" CACHE STRING "" FORCE)
 set(NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM OFF CACHE BOOL "" FORCE)
-set(NSX_CMSIS_NN_ENABLE_F32 OFF CACHE BOOL "" FORCE)
-set(NSX_CMSIS_NN_ENABLE_F16 OFF CACHE BOOL "" FORCE)
+set(ARM_NN_ENABLE_F32 OFF CACHE BOOL "" FORCE)
+set(ARM_NN_ENABLE_F16 OFF CACHE BOOL "" FORCE)
 unset(NSX_CMSIS_NN_LIB CACHE)
-# What an earlier CASE published, and the bookkeeping that tells a stale
-# published value from a fresh request, must not leak into this one.
-foreach(_leftover F32 F16)
-  unset(ARM_NN_ENABLE_${_leftover} CACHE)
-  unset(_NS_CMSIS_NN_PUBLISHED_ARM_NN_ENABLE_${_leftover} CACHE)
-endforeach()
 
 if(CASE STREQUAL "source_all")
   _compute_expected_source_count(_expected_sources "ALL" 0 0)
@@ -383,35 +384,26 @@ elseif(CASE STREQUAL "inline_asm")
   set(_expect_inline_asm_define TRUE)
 
 elseif(CASE STREQUAL "float_f32")
-  set(NSX_CMSIS_NN_ENABLE_F32 ON CACHE BOOL "" FORCE)
+  set(ARM_NN_ENABLE_F32 ON CACHE BOOL "" FORCE)
   _compute_expected_source_count(_expected_sources "ALL" 1 0)
   set(_expect_f32_define 1)
   set(_expect_f16_define 0)
   set(_expect_f32_sources TRUE)
 
 elseif(CASE STREQUAL "float_f16")
-  set(NSX_CMSIS_NN_ENABLE_F16 ON CACHE BOOL "" FORCE)
+  set(ARM_NN_ENABLE_F16 ON CACHE BOOL "" FORCE)
   _compute_expected_source_count(_expected_sources "ALL" 0 1)
   set(_expect_f32_define 0)
   set(_expect_f16_define 1)
   set(_expect_f16_sources TRUE)
 
 elseif(CASE STREQUAL "float_both")
-  set(NSX_CMSIS_NN_ENABLE_F32 ON CACHE BOOL "" FORCE)
-  set(NSX_CMSIS_NN_ENABLE_F16 ON CACHE BOOL "" FORCE)
+  set(ARM_NN_ENABLE_F32 ON CACHE BOOL "" FORCE)
+  set(ARM_NN_ENABLE_F16 ON CACHE BOOL "" FORCE)
   _compute_expected_source_count(_expected_sources "ALL" 1 1)
   set(_expect_f32_define 1)
   set(_expect_f16_define 1)
   set(_expect_f32_sources TRUE)
-  set(_expect_f16_sources TRUE)
-
-elseif(CASE STREQUAL "float_arm_nn_only")
-  # Both NSX switches stay at their defaults, so the ARM_NN spelling is the
-  # whole request. See AmbiqAI/ns-cmsis-nn#420.
-  set(ARM_NN_ENABLE_F16 ON CACHE BOOL "" FORCE)
-  _compute_expected_source_count(_expected_sources "ALL" 0 1)
-  set(_expect_f32_define 0)
-  set(_expect_f16_define 1)
   set(_expect_f16_sources TRUE)
 
 elseif(CASE STREQUAL "prebuilt")
@@ -431,13 +423,13 @@ elseif(CASE STREQUAL "prebuilt_manifest_ok")
 }
 ")
   set(NSX_CMSIS_NN_LIB "${_fake_lib}" CACHE FILEPATH "" FORCE)
-  set(NSX_CMSIS_NN_ENABLE_F32 ON CACHE BOOL "" FORCE)
+  set(ARM_NN_ENABLE_F32 ON CACHE BOOL "" FORCE)
   set(_expect_prebuilt TRUE)
   set(_expect_f32_define 1)
   set(_expect_f16_define 0)
 
 else()
-  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: source_all, source_subset, inline_asm, float_f32, float_f16, float_both, float_arm_nn_only, float_conflict, float_conflict_plain, float_publish_contract, prebuilt, prebuilt_manifest_ok, prebuilt_manifest_reject, prebuilt_manifest_reject_arm_nn, prebuilt_manifest_legacy.")
+  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: source_all, source_subset, inline_asm, float_f32, float_f16, float_both, float_renamed_switch, float_query, prebuilt, prebuilt_manifest_ok, prebuilt_manifest_reject, prebuilt_manifest_legacy.")
 endif()
 
 # ----------------------------------------------------------------------------
@@ -514,9 +506,12 @@ if(_expect_inline_asm_define)
   endif()
 endif()
 
-# The target's compile definitions are the compile-time truth; the cache entry
-# is the configure-time mirror consumers read before any target of ours is in
-# scope. Both are asserted, in both modes. See AmbiqAI/ns-cmsis-nn#420.
+# The target's compile definitions are the compile-time truth, and
+# ns_cmsis_nn_float_support() is what a consumer asks instead of reading the
+# cache, so both are asserted in both modes. See AmbiqAI/ns-cmsis-nn#420.
+if(TARGET nsx_cmsis_nn AND DEFINED _expect_F32_define)
+  ns_cmsis_nn_float_support(F32 _query_F32 F16 _query_F16)
+endif()
 foreach(_width F32 F16)
   if(DEFINED _expect_${_width}_define)
     set(_want ${_expect_${_width}_define})
@@ -530,11 +525,14 @@ foreach(_width F32 F16)
       if(_idx EQUAL -1)
         _fail("${CASE} mode: expected ARM_NN_ENABLE_${_width}=${_want} in COMPILE_DEFINITIONS; got: ${_defs}")
       endif()
-    endif()
-    if(NOT DEFINED CACHE{ARM_NN_ENABLE_${_width}})
-      _fail("${CASE} mode: ARM_NN_ENABLE_${_width} was not published to the cache")
-    elseif(NOT "$CACHE{ARM_NN_ENABLE_${_width}}" EQUAL "${_want}")
-      _fail("${CASE} mode: cache ARM_NN_ENABLE_${_width}='$CACHE{ARM_NN_ENABLE_${_width}}', expected ${_want}")
+      if(_want EQUAL 1)
+        set(_want_query ON)
+      else()
+        set(_want_query OFF)
+      endif()
+      if(NOT "${_query_${_width}}" STREQUAL "${_want_query}")
+        _fail("${CASE} mode: ns_cmsis_nn_float_support reported ${_width}='${_query_${_width}}', expected ${_want_query}")
+      endif()
     endif()
   endif()
 endforeach()

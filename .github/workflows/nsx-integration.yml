@@ -27,20 +27,16 @@ jobs:
       fail-fast: false
       matrix:
         # float_f32 and float_f16 are the only cases that catch a swapped
-        # F32/F16 argument pair in the publish call; float_both cannot.
-        # The *_arm_nn cases pin the adopted ARM_NN_ENABLE_* spelling, on the
-        # source path and through the prebuilt manifest check;
-        # prebuilt_manifest_reject is the NSX-own-spelling half of that check,
-        # including the recovery re-run the diagnostic names. The two
-        # float_conflict cases differ in form: a cache entry and a plain
-        # variable in the scope that adds the module.
-        # float_publish_contract pins the publish function's own call
-        # contract: a missing width aborts, an empty one still means OFF.
+        # F32/F16 pair on the source path; float_both cannot.
+        # float_renamed_switch pins the migration error for the removed
+        # NSX_CMSIS_NN_ENABLE_* spelling, float_query pins the consumer query
+        # on all three ways of getting a library, and
+        # prebuilt_manifest_reject pins the manifest check plus the recovery
+        # re-run its diagnostic names.
         case: [source_all, source_subset, inline_asm, prebuilt,
-               float_f32, float_f16, float_both, float_arm_nn_only,
-               float_conflict, float_conflict_plain, float_publish_contract,
-               prebuilt_manifest_ok, prebuilt_manifest_reject,
-               prebuilt_manifest_reject_arm_nn]
+               float_f32, float_f16, float_both,
+               float_renamed_switch, float_query,
+               prebuilt_manifest_ok, prebuilt_manifest_reject]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
