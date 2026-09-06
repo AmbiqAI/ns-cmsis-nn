@@ -169,6 +169,10 @@ __STATIC_INLINE float32_t arm_nn_gru_candidate_pre_f32(const cmsis_nn_gru_params
  */
 __STATIC_INLINE float32_t arm_nn_gru_combine_f32(float32_t z, float32_t h_prev, float32_t cand)
 {
+        #if defined(__clang__)
+            // Under fast-math clang rewrites (1 - z) * n as n - z*n (vfms), a different rounding; pin it off (#251).
+            #pragma clang fp contract(off) reassociate(off)
+        #endif
     return fmaf(z, h_prev, (1.0f - z) * cand);
 }
 

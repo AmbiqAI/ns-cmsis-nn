@@ -165,11 +165,17 @@ __STATIC_INLINE _Float16 arm_nn_gru_candidate_pre_f16(const cmsis_nn_gru_params_
  */
 __STATIC_INLINE _Float16 arm_nn_gru_combine_f16(_Float16 z, _Float16 h_prev, _Float16 cand)
 {
+        #if defined(__clang__)
+            // Under fast-math clang rewrites (1 - z) * n as n - z*n (vfms), a different rounding; pin it off (#251).
+            #pragma clang fp contract(off) reassociate(off)
+        #endif
     const _Float16 p = ((_Float16)1.0f - z) * cand;
-        #if defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
+        #if defined(__GNUC__) && !defined(__clang__) && defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
     return __builtin_fmaf16(z, h_prev, p);
         #else
-    // No half-precision fma on this target; the double fma rounds once to half (#251).
+    // clang lowers __builtin_fmaf16 to an fmaf16 libcall that no libc defines (#251). The double fma is exact
+    // in the product and rounds the sum once at 53 bits; rounding that to half is innocuous (53 >= 2*22 + 2),
+    // so the result equals vfma.f16.
     return (_Float16)fma((double)z, (double)h_prev, (double)p);
         #endif
 }
