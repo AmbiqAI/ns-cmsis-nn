@@ -34,10 +34,13 @@ jobs:
         # including the recovery re-run the diagnostic names. The two
         # float_conflict cases differ in form: a cache entry and a plain
         # variable in the scope that adds the module.
+        # float_publish_contract pins the publish function's own call
+        # contract: a missing width aborts, an empty one still means OFF.
         case: [source_all, source_subset, inline_asm, prebuilt,
                float_f32, float_f16, float_both, float_arm_nn_only,
-               float_conflict, float_conflict_plain, prebuilt_manifest_ok,
-               prebuilt_manifest_reject, prebuilt_manifest_reject_arm_nn]
+               float_conflict, float_conflict_plain, float_publish_contract,
+               prebuilt_manifest_ok, prebuilt_manifest_reject,
+               prebuilt_manifest_reject_arm_nn]
     steps:
       - name: Checkout
         uses: actions/checkout@v7

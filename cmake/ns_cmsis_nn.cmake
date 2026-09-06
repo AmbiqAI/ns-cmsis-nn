@@ -32,7 +32,9 @@
 #                                      [REQUESTED_BY <text>]
 #                                      [AUTHORITATIVE [AUTHORITY_NOTE <text>]])
 #       Publishes the caller's float request as the ARM_NN_ENABLE_F32/F16
-#       cache entries and directory variables. Called by the top-level, NSX and
+#       cache entries and directory variables. F32 and F16 are required; an
+#       empty value means OFF, an omitted keyword is a FATAL_ERROR.
+#       Called by the top-level, NSX and
 #       Zephyr entry points; find_package() consumers of a published tarball
 #       get the same names on the imported target instead. AUTHORITATIVE says
 #       the caller's own switch is the only way to ask on that path, so an

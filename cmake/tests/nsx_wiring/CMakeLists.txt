@@ -36,6 +36,13 @@
 #   float_conflict_plain      - same contradiction, but ARM_NN_ENABLE_F16 is a
 #                               plain (non-cache) variable in the calling
 #                               scope; expect the same FATAL_ERROR.
+#   float_publish_contract    - the F32/F16 keywords of
+#                               ns_cmsis_nn_publish_float_switches() are
+#                               required: omitting one is a FATAL_ERROR naming
+#                               the function and the keyword, while passing it
+#                               with an empty value still publishes 0 (what an
+#                               unset CONFIG symbol arrives as on the Zephyr
+#                               path). Two child cmake probes.
 #   prebuilt                  — NSX_CMSIS_NN_LIB=<dummy.a>, expect the
 #                               IMPORTED prebuilt target + INTERFACE wrapper
 #                               + alias.
@@ -72,7 +79,8 @@ project(ns_cmsis_nn_nsx_wiring C)
 set(CASE "source_all" CACHE STRING "Which wiring case to exercise.")
 set_property(CACHE CASE PROPERTY STRINGS
   source_all source_subset inline_asm float_f32 float_f16 float_both
-  float_arm_nn_only float_conflict float_conflict_plain prebuilt
+  float_arm_nn_only float_conflict float_conflict_plain
+  float_publish_contract prebuilt
   prebuilt_manifest_ok prebuilt_manifest_reject prebuilt_manifest_reject_arm_nn
   prebuilt_manifest_legacy)
 
@@ -264,6 +272,81 @@ add_subdirectory(\"${_repo_root}/nsx\" nsx)
 endif()
 
 # ----------------------------------------------------------------------------
+# float_publish_contract: the publish function's own call contract, exercised
+# without the NSX module in the way. An omitted F32/F16 keyword must abort
+# rather than publish a silent 0, and the empty value the Zephyr path passes
+# for an unset CONFIG symbol must keep meaning OFF.
+# See AmbiqAI/ns-cmsis-nn#420.
+# ----------------------------------------------------------------------------
+if(CASE STREQUAL "float_publish_contract")
+  set(_probe "${CMAKE_BINARY_DIR}/_publish_probe")
+  file(REMOVE_RECURSE "${_probe}")
+  file(MAKE_DIRECTORY "${_probe}/omitted")
+  file(MAKE_DIRECTORY "${_probe}/empty")
+
+  file(WRITE "${_probe}/omitted/CMakeLists.txt"
+"cmake_minimum_required(VERSION 3.19)
+project(probe C)
+include(\"${_repo_root}/cmake/ns_cmsis_nn_float_switches.cmake\")
+ns_cmsis_nn_publish_float_switches(
+  F32 \"ON\"
+  REQUEST_PREFIX PROBE_ENABLE_
+  REQUEST_DEFAULT OFF)
+")
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -S "${_probe}/omitted" -B "${_probe}/omitted/_b"
+    RESULT_VARIABLE _rc
+    OUTPUT_VARIABLE _out
+    ERROR_VARIABLE  _err)
+  if(_rc EQUAL 0)
+    _fail("${CASE}: omitting F16 configured cleanly (expected FATAL_ERROR)\n${_out}")
+  else()
+    foreach(_needle "ns_cmsis_nn_publish_float_switches" "F16 is required")
+      string(FIND "${_err}" "${_needle}" _idx)
+      if(_idx EQUAL -1)
+        _fail("${CASE}: diagnostic never mentions ${_needle}; stderr:\n${_err}")
+      endif()
+    endforeach()
+  endif()
+
+  # The probe asserts on the published values itself: a wrong value has to fail
+  # the configure, not just show up in this script's output.
+  file(WRITE "${_probe}/empty/CMakeLists.txt"
+"cmake_minimum_required(VERSION 3.19)
+project(probe C)
+include(\"${_repo_root}/cmake/ns_cmsis_nn_float_switches.cmake\")
+ns_cmsis_nn_publish_float_switches(
+  F32 \"ON\"
+  F16 \"\"
+  REQUEST_PREFIX PROBE_ENABLE_
+  REQUEST_DEFAULT OFF)
+if(NOT \"\${ARM_NN_ENABLE_F16}\" STREQUAL \"0\")
+  message(FATAL_ERROR \"empty F16 published '\${ARM_NN_ENABLE_F16}', expected 0\")
+endif()
+if(NOT \"\$CACHE{ARM_NN_ENABLE_F16}\" STREQUAL \"0\")
+  message(FATAL_ERROR \"empty F16 cached '\$CACHE{ARM_NN_ENABLE_F16}', expected 0\")
+endif()
+if(NOT \"\${ARM_NN_ENABLE_F32}\" STREQUAL \"1\")
+  message(FATAL_ERROR \"F32=ON published '\${ARM_NN_ENABLE_F32}', expected 1\")
+endif()
+")
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -S "${_probe}/empty" -B "${_probe}/empty/_b"
+    RESULT_VARIABLE _rc_empty
+    OUTPUT_VARIABLE _out_empty
+    ERROR_VARIABLE  _err_empty)
+  if(NOT _rc_empty EQUAL 0)
+    _fail("${CASE}: F16 \"\" did not publish OFF\n${_out_empty}\n${_err_empty}")
+  endif()
+
+  if(_failures)
+    message(FATAL_ERROR "NSX wiring [${CASE}] FAILED:${_failures}")
+  endif()
+  message(STATUS "NSX wiring [${CASE}] OK.")
+  return()
+endif()
+
+# ----------------------------------------------------------------------------
 # Required host plumbing: the NSX board provides this; we stub it.
 # ----------------------------------------------------------------------------
 add_library(_nsx_board_flags INTERFACE)
@@ -354,7 +437,7 @@ elseif(CASE STREQUAL "prebuilt_manifest_ok")
   set(_expect_f16_define 0)
 
 else()
-  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: source_all, source_subset, inline_asm, float_f32, float_f16, float_both, float_arm_nn_only, float_conflict, float_conflict_plain, prebuilt, prebuilt_manifest_ok, prebuilt_manifest_reject, prebuilt_manifest_reject_arm_nn, prebuilt_manifest_legacy.")
+  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: source_all, source_subset, inline_asm, float_f32, float_f16, float_both, float_arm_nn_only, float_conflict, float_conflict_plain, float_publish_contract, prebuilt, prebuilt_manifest_ok, prebuilt_manifest_reject, prebuilt_manifest_reject_arm_nn, prebuilt_manifest_legacy.")
 endif()
 
 # ----------------------------------------------------------------------------

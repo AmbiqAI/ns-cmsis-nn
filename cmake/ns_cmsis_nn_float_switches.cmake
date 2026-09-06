@@ -24,6 +24,11 @@
 #                                      [REQUESTED_BY <text>]
 #                                      [AUTHORITATIVE [AUTHORITY_NOTE <text>]])
 #
+# F32 and F16 are required; an empty value means OFF. A caller whose switch is
+# undefined passes it through as an empty string (the Zephyr path does this for
+# an unset CONFIG symbol), which is a request for OFF; omitting the keyword
+# altogether is a call-site bug and is a FATAL_ERROR rather than a silent OFF.
+#
 # REQUEST_PREFIX is the caller's own spelling with F32/F16 stripped off, and
 # REQUEST_DEFAULT is the literal default that switch declares; the caller must
 # share one variable between its option()/Kconfig default and this argument so
@@ -107,14 +112,34 @@ function(_ns_cmsis_nn_float_drop_hint _var _out)
 endfunction()
 
 function(ns_cmsis_nn_publish_float_switches)
-  cmake_parse_arguments(NSF "AUTHORITATIVE"
+  # PARSE_ARGV keeps an explicitly empty value ("F16 \"\"", what the Zephyr
+  # path passes for an unset CONFIG symbol) distinct from an omitted keyword;
+  # under CMP0174 NEW the empty value defines the variable, under OLD it lands
+  # in KEYWORDS_MISSING_VALUES instead, and the required-width check below
+  # accepts either.
+  if(POLICY CMP0174)
+    cmake_policy(SET CMP0174 NEW)
+  endif()
+  cmake_parse_arguments(PARSE_ARGV 0 NSF "AUTHORITATIVE"
     "F32;F16;REQUEST_PREFIX;REQUEST_DEFAULT;REQUESTED_BY;AUTHORITY_NOTE"
-    "" ${ARGN})
+    "")
   if(NSF_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR
       "ns_cmsis_nn_publish_float_switches: unexpected arguments: "
       "${NSF_UNPARSED_ARGUMENTS}")
   endif()
+  foreach(_required F32 F16)
+    list(FIND NSF_KEYWORDS_MISSING_VALUES "${_required}" _required_idx)
+    if(NOT DEFINED NSF_${_required} AND _required_idx EQUAL -1)
+      message(FATAL_ERROR
+        "ns_cmsis_nn_publish_float_switches: ${_required} is required and was "
+        "not passed. Every entry point publishes both widths on every "
+        "configure, so an omitted keyword would silently publish "
+        "ARM_NN_ENABLE_${_required}=0 rather than the caller's request. Pass "
+        "${_required} <value> with the entry point's own switch; an empty "
+        "value means OFF.")
+    endif()
+  endforeach()
   if(NOT NSF_REQUEST_PREFIX)
     message(FATAL_ERROR
       "ns_cmsis_nn_publish_float_switches: REQUEST_PREFIX is required; pass "
