@@ -117,12 +117,17 @@ function(ns_cmsis_nn_publish_float_switches)
   # under CMP0174 NEW the empty value defines the variable, under OLD it lands
   # in KEYWORDS_MISSING_VALUES instead, and the required-width check below
   # accepts either.
+  # PUSH/POP scopes CMP0174 to the parse call itself: even without a function
+  # policy scope, the setting could not leak past this block into whatever
+  # runs after ns_cmsis_nn_publish_float_switches() returns.
+  cmake_policy(PUSH)
   if(POLICY CMP0174)
     cmake_policy(SET CMP0174 NEW)
   endif()
   cmake_parse_arguments(PARSE_ARGV 0 NSF "AUTHORITATIVE"
     "F32;F16;REQUEST_PREFIX;REQUEST_DEFAULT;REQUESTED_BY;AUTHORITY_NOTE"
     "")
+  cmake_policy(POP)
   if(NSF_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR
       "ns_cmsis_nn_publish_float_switches: unexpected arguments: "

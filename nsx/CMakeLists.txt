@@ -76,9 +76,11 @@ option(NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM
 # tell an untouched switch from an explicit request.
 set(_nsx_float_default OFF)
 option(NSX_CMSIS_NN_ENABLE_F32
-    "Enable experimental FP32 kernels in source builds" ${_nsx_float_default})
+    "Enable experimental FP32 kernels: compiled in source builds, validated \
+against the archive manifest in prebuilt mode" ${_nsx_float_default})
 option(NSX_CMSIS_NN_ENABLE_F16
-    "Enable experimental FP16 kernels in source builds" ${_nsx_float_default})
+    "Enable experimental FP16 kernels: compiled in source builds, validated \
+against the archive manifest in prebuilt mode" ${_nsx_float_default})
 set(NSX_CMSIS_NN_MANIFEST "" CACHE FILEPATH
     "Explicit path to the manifest.json describing NSX_CMSIS_NN_LIB's \
 contents (optional; auto-discovered next to the library otherwise).")
