@@ -1237,7 +1237,7 @@ int32_t arm_lstm_unidirectional_f32_temp2_get_buffer_size(const cmsis_nn_lstm_pa
  *                       arm_gru_unidirectional_f32(). Only reset_after and hidden_size are read.
  *
  * @return Required buffer size in bytes: hidden_size * sizeof(float32_t) when reset_after == 0 (the pre-reset
- *         formulation stages the reset-gate vector in temp1; the vector is reused across batches and time
+ *         formulation stages the r . h_prev vector in temp1; the vector is reused across batches and time
  *         steps, so neither batch_size nor time_steps enters), and 0 when reset_after != 0 (temp1 is never
  *         dereferenced and may be NULL). Returns -1 if gru_params is NULL, if hidden_size is negative, or if
  *         the byte count would not fit in an int32_t. The figure and the range checks are the same on every

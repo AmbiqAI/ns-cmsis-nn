@@ -5,7 +5,9 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <math.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unity.h>
 
 #include "gru_prereset_f32_data.h"
@@ -171,7 +173,7 @@ void gru_prereset_f32_arm_gru_unidirectional_f32(void)
                       arm_gru_unidirectional_f32(gru_prereset_f32_input, output, &params, NULL));
 
     /* The published query must agree with the size this test derives by hand: the pre-reset path stages one
-       reset-gate vector of hidden_size elements, reused across batches and time steps. */
+       r . h_prev vector of hidden_size elements, reused across batches and time steps. */
     const int32_t temp1_size = arm_gru_unidirectional_f32_temp1_get_buffer_size(&params);
     TEST_ASSERT_EQUAL(GRU_PRERESET_F32_HIDDEN_SIZE * (int32_t)sizeof(float32_t), temp1_size);
     float32_t *temp1 = malloc((size_t)temp1_size);
@@ -203,5 +205,166 @@ void gru_prereset_f32_arm_gru_unidirectional_f32(void)
     for (int i = 0; i < GRU_PRERESET_F32_DST_SIZE; ++i)
     {
         TEST_ASSERT_FLOAT_WITHIN(1.0e-4f, gru_prereset_f32_output_ref[i], output[i]);
+    }
+}
+
+/*
+ * Shape sweep against an in-test float64 reference (#251): hidden sizes that cover one lane, a partial
+ * block, a full block plus tail and several blocks, each with reset_after 0 and 1, with and without biases,
+ * batch-major and time-major. Data is a fixed LCG stream so the golden is reproducible without the kernel;
+ * h_prev is NULL on the first time step of every case. Tolerance as for the generated cases above.
+ */
+#define GRU_SWEEP_F32_MAX_HIDDEN 100
+#define GRU_SWEEP_F32_INPUT 3
+#define GRU_SWEEP_F32_BATCH 2
+#define GRU_SWEEP_F32_STEPS 3
+#define GRU_SWEEP_F32_IO (GRU_SWEEP_F32_BATCH * GRU_SWEEP_F32_STEPS)
+
+static float32_t gru_sweep_f32_w_in[3][GRU_SWEEP_F32_MAX_HIDDEN * GRU_SWEEP_F32_INPUT];
+static float32_t gru_sweep_f32_w_hid[3][GRU_SWEEP_F32_MAX_HIDDEN * GRU_SWEEP_F32_MAX_HIDDEN];
+static float32_t gru_sweep_f32_b_in[3][GRU_SWEEP_F32_MAX_HIDDEN];
+static float32_t gru_sweep_f32_b_hid[3][GRU_SWEEP_F32_MAX_HIDDEN];
+static float32_t gru_sweep_f32_x[GRU_SWEEP_F32_IO * GRU_SWEEP_F32_INPUT];
+static float32_t gru_sweep_f32_out[GRU_SWEEP_F32_IO * GRU_SWEEP_F32_MAX_HIDDEN];
+static double gru_sweep_f32_ref[GRU_SWEEP_F32_IO * GRU_SWEEP_F32_MAX_HIDDEN];
+static float32_t gru_sweep_f32_temp1[GRU_SWEEP_F32_MAX_HIDDEN];
+
+static uint32_t gru_sweep_f32_lcg;
+
+static float32_t gru_sweep_f32_rand(float scale)
+{
+    gru_sweep_f32_lcg = gru_sweep_f32_lcg * 1664525u + 1013904223u;
+    return (float32_t)(scale * ((float)(gru_sweep_f32_lcg >> 8) * (2.0f / 16777216.0f) - 1.0f));
+}
+
+static void gru_sweep_f32_fill(float32_t *dst, int32_t n, float scale)
+{
+    for (int32_t i = 0; i < n; i++)
+    {
+        dst[i] = gru_sweep_f32_rand(scale);
+    }
+}
+
+static double gru_sweep_f32_dot(const float32_t *w, const double *v, int32_t n)
+{
+    double acc = 0.0;
+    for (int32_t k = 0; k < n; k++)
+    {
+        acc += (double)w[k] * v[k];
+    }
+    return acc;
+}
+
+/* Float64 GRU with exact activations; NULL bias pointers contribute zero, as in the kernel. */
+static void gru_sweep_f32_reference(const cmsis_nn_gru_params_f32 *p, const float32_t *x, double *out)
+{
+    const int32_t B = p->batch_size, T = p->time_steps, I = p->input_size, H = p->hidden_size;
+    const cmsis_nn_gru_gate_f32 *g[3] = {&p->update_gate, &p->reset_gate, &p->candidate_gate};
+    double h[GRU_SWEEP_F32_MAX_HIDDEN], h_new[GRU_SWEEP_F32_MAX_HIDDEN];
+    double xd[GRU_SWEEP_F32_INPUT], r[GRU_SWEEP_F32_MAX_HIDDEN], rh[GRU_SWEEP_F32_MAX_HIDDEN];
+
+    for (int32_t b = 0; b < B; b++)
+    {
+        for (int32_t j = 0; j < H; j++)
+        {
+            h[j] = 0.0;
+        }
+        for (int32_t t = 0; t < T; t++)
+        {
+            const int32_t row = p->time_major ? (t * B + b) : (b * T + t);
+            for (int32_t i = 0; i < I; i++)
+            {
+                xd[i] = (double)x[row * I + i];
+            }
+            for (int32_t j = 0; j < H; j++)
+            {
+                const double r_pre = gru_sweep_f32_dot(g[1]->input_weights + j * I, xd, I) +
+                    (g[1]->input_bias ? (double)g[1]->input_bias[j] : 0.0) +
+                    gru_sweep_f32_dot(g[1]->hidden_weights + j * H, h, H) +
+                    (g[1]->hidden_bias ? (double)g[1]->hidden_bias[j] : 0.0);
+                r[j] = 1.0 / (1.0 + exp(-r_pre));
+                rh[j] = r[j] * h[j];
+            }
+            for (int32_t j = 0; j < H; j++)
+            {
+                const double z_pre = gru_sweep_f32_dot(g[0]->input_weights + j * I, xd, I) +
+                    (g[0]->input_bias ? (double)g[0]->input_bias[j] : 0.0) +
+                    gru_sweep_f32_dot(g[0]->hidden_weights + j * H, h, H) +
+                    (g[0]->hidden_bias ? (double)g[0]->hidden_bias[j] : 0.0);
+                const double z = 1.0 / (1.0 + exp(-z_pre));
+                const double xn = gru_sweep_f32_dot(g[2]->input_weights + j * I, xd, I) +
+                    (g[2]->input_bias ? (double)g[2]->input_bias[j] : 0.0);
+                const double bhn = g[2]->hidden_bias ? (double)g[2]->hidden_bias[j] : 0.0;
+                double n_pre;
+                if (p->reset_after)
+                {
+                    n_pre = xn + r[j] * (gru_sweep_f32_dot(g[2]->hidden_weights + j * H, h, H) + bhn);
+                }
+                else
+                {
+                    n_pre = xn + gru_sweep_f32_dot(g[2]->hidden_weights + j * H, rh, H) + bhn;
+                }
+                h_new[j] = z * h[j] + (1.0 - z) * tanh(n_pre);
+            }
+            for (int32_t j = 0; j < H; j++)
+            {
+                h[j] = h_new[j];
+                out[row * H + j] = h[j];
+            }
+        }
+    }
+}
+
+static void gru_sweep_f32_case(int32_t hidden, int32_t reset_after, int32_t use_bias, int32_t time_major)
+{
+    const int32_t input = GRU_SWEEP_F32_INPUT;
+    gru_sweep_f32_lcg = 0x9E3779B9u ^ (uint32_t)(hidden * 8 + reset_after * 4 + use_bias * 2 + time_major);
+    cmsis_nn_gru_params_f32 p;
+    memset(&p, 0, sizeof(p));
+    p.time_major = time_major;
+    p.batch_size = GRU_SWEEP_F32_BATCH;
+    p.time_steps = GRU_SWEEP_F32_STEPS;
+    p.input_size = input;
+    p.hidden_size = hidden;
+    p.reset_after = reset_after;
+    cmsis_nn_gru_gate_f32 *g[3] = {&p.update_gate, &p.reset_gate, &p.candidate_gate};
+    for (int32_t i = 0; i < 3; i++)
+    {
+        gru_sweep_f32_fill(gru_sweep_f32_w_in[i], hidden * input, 0.5f / sqrtf((float)input));
+        gru_sweep_f32_fill(gru_sweep_f32_w_hid[i], hidden * hidden, 0.5f / sqrtf((float)hidden));
+        gru_sweep_f32_fill(gru_sweep_f32_b_in[i], hidden, 0.5f);
+        gru_sweep_f32_fill(gru_sweep_f32_b_hid[i], hidden, 0.5f);
+        g[i]->input_weights = gru_sweep_f32_w_in[i];
+        g[i]->hidden_weights = gru_sweep_f32_w_hid[i];
+        g[i]->input_bias = use_bias ? gru_sweep_f32_b_in[i] : NULL;
+        g[i]->hidden_bias = use_bias ? gru_sweep_f32_b_hid[i] : NULL;
+    }
+    gru_sweep_f32_fill(gru_sweep_f32_x, GRU_SWEEP_F32_IO * input, 1.0f);
+
+    cmsis_nn_gru_context_f32 buffers = {.temp1 = gru_sweep_f32_temp1, .hidden_state = NULL};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_gru_unidirectional_f32(gru_sweep_f32_x, gru_sweep_f32_out, &p, &buffers));
+    gru_sweep_f32_reference(&p, gru_sweep_f32_x, gru_sweep_f32_ref);
+    for (int32_t i = 0; i < GRU_SWEEP_F32_IO * hidden; i++)
+    {
+        TEST_ASSERT_FLOAT_WITHIN(1.0e-4f, (float)gru_sweep_f32_ref[i], (float)gru_sweep_f32_out[i]);
+    }
+}
+
+void gru_sweep_f32_arm_gru_unidirectional_f32(void)
+{
+    static const int32_t hidden_sizes[] = {1, 5, 13, 31, 100};
+    for (size_t i = 0; i < sizeof(hidden_sizes) / sizeof(hidden_sizes[0]); i++)
+    {
+        for (int32_t reset_after = 0; reset_after < 2; reset_after++)
+        {
+            for (int32_t use_bias = 0; use_bias < 2; use_bias++)
+            {
+                for (int32_t time_major = 0; time_major < 2; time_major++)
+                {
+                    gru_sweep_f32_case(hidden_sizes[i], reset_after, use_bias, time_major);
+                }
+            }
+        }
     }
 }

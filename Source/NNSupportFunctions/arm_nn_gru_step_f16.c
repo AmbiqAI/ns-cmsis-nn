@@ -103,6 +103,133 @@ arm_nn_gru_hidden_proj_f16(const cmsis_nn_gru_gate_f16 *gate, const float16_t *h
     return acc;
 }
 
+/*
+ * Update gate z = sigmoid(Wz.x + b_iz + Uz.h_prev + b_hz) for hidden index h.
+ */
+__STATIC_INLINE float16_t arm_nn_gru_update_f16(const cmsis_nn_gru_params_f16 *params,
+                                                const float16_t *x,
+                                                const float16_t *h_prev,
+                                                int32_t h)
+{
+    const cmsis_nn_gru_gate_f16 *zg = &params->update_gate;
+    const _Float16 z_pre = (_Float16)(arm_nn_gru_input_proj_f16(zg, x, params->input_size, h) +
+                                      arm_nn_gru_hidden_proj_f16(zg, h_prev, params->hidden_size, h));
+    return arm_nn_sigmoid_scalar_f16((float16_t)z_pre);
+}
+
+/*
+ * Candidate pre-activation for hidden index h. On the pre-reset path reset_buf holds r . h_prev, or NULL when
+ * that recurrent term is dead (#251).
+ */
+__STATIC_INLINE _Float16 arm_nn_gru_candidate_pre_f16(const cmsis_nn_gru_params_f16 *params,
+                                                      const float16_t *x,
+                                                      const float16_t *h_prev,
+                                                      const float16_t *reset_buf,
+                                                      int32_t h)
+{
+    const cmsis_nn_gru_gate_f16 *rg = &params->reset_gate;
+    const cmsis_nn_gru_gate_f16 *ng = &params->candidate_gate;
+    const int32_t input_size = params->input_size;
+    const int32_t hidden_size = params->hidden_size;
+    const _Float16 xh = arm_nn_gru_input_proj_f16(ng, x, input_size, h);
+
+    if (params->reset_after)
+    {
+        // n = tanh( Wn.x + b_in + r * (Un.h_prev + b_hn) )
+        const _Float16 r_pre = (_Float16)(arm_nn_gru_input_proj_f16(rg, x, input_size, h) +
+                                          arm_nn_gru_hidden_proj_f16(rg, h_prev, hidden_size, h));
+        const _Float16 r = (_Float16)arm_nn_sigmoid_scalar_f16((float16_t)r_pre);
+        const _Float16 hh = arm_nn_gru_hidden_proj_f16(ng, h_prev, hidden_size, h);
+        return (_Float16)(xh + r * hh);
+    }
+
+    // n = tanh( Wn.x + b_in + Un.(r . h_prev) + b_hn )
+    _Float16 hh = ng->hidden_bias ? (_Float16)ng->hidden_bias[h] : (_Float16)0.0f;
+    if (reset_buf)
+    {
+        const float16_t *w = ng->hidden_weights + (size_t)h * (size_t)hidden_size;
+        _Float16 s = (_Float16)0.0f;
+        for (int32_t k = 0; k < hidden_size; k++)
+        {
+            s += (_Float16)w[k] * (_Float16)reset_buf[k];
+        }
+        hh += s;
+    }
+    return (_Float16)(xh + hh);
+}
+
+    #if !defined(ARM_MATH_MVE_FLOAT16) || defined(ARM_MATH_AUTOVECTORIZE)
+/*
+ * h = z * h_prev + (1 - z) * n, fused as fma(z, h_prev, (1 - z) * n). The MVE block below mirrors this with
+ * vfmaq(vmulq(1 - z, n), z, h_prev) so the two legs round identically (#251, #315).
+ */
+__STATIC_INLINE _Float16 arm_nn_gru_combine_f16(_Float16 z, _Float16 h_prev, _Float16 cand)
+{
+        #if defined(__clang__)
+            // Under fast-math clang may rewrite (1 - z) * n as n - z*n (vfms), a different rounding. The pragma holds
+            // on ATfE; armclang ignores it at -Ofast (scalar leg only, no shipped M55 leg takes this path, #251).
+            #pragma clang fp contract(off) reassociate(off)
+        #endif
+    const _Float16 p = ((_Float16)1.0f - z) * cand;
+        #if defined(__GNUC__) && !defined(__clang__) && defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
+    return __builtin_fmaf16(z, h_prev, p);
+        #else
+    // clang lowers __builtin_fmaf16 to an fmaf16 libcall that no libc defines (#251). The double fma is exact
+    // in the product and rounds the sum once at 53 bits; rounding that to half is innocuous (53 >= 2*22 + 2),
+    // so the result equals vfma.f16.
+    return (_Float16)fma((double)z, (double)h_prev, (double)p);
+        #endif
+}
+
+    #endif
+
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+/*
+ * One block of up to 8 hidden units: sigmoid per lane (scalar), candidate tanh and the combine as vector ops.
+ * The last partial block is predicated rather than scalar so every unit takes the same arithmetic (#315).
+ */
+__STATIC_INLINE void arm_nn_gru_block_f16(const cmsis_nn_gru_params_f16 *params,
+                                          const float16_t *x,
+                                          const float16_t *h_prev,
+                                          const float16_t *reset_buf,
+                                          float16_t *h_out,
+                                          int32_t h,
+                                          int32_t lanes)
+{
+    float16_t z_lane[8] = {0};
+    float16_t cand_pre_lane[8] = {0};
+
+    for (int32_t lane = 0; lane < lanes; lane++)
+    {
+        z_lane[lane] = arm_nn_gru_update_f16(params, x, h_prev, h + lane);
+        cand_pre_lane[lane] = (float16_t)arm_nn_gru_candidate_pre_f16(params, x, h_prev, reset_buf, h + lane);
+    }
+
+    const float16x8_t vz = vld1q(z_lane);
+    const float16x8_t vcand_pre = vld1q(cand_pre_lane);
+    // The vector tanh maps a NaN lane to a finite value; the scalar leg propagates it (#251). Classify NaN in the
+    // integer domain (arm_nn_clamp_propagate_nan_mve_f16 style, immune to -ffinite-math-only) before the tanh and
+    // select any NaN afterwards: MVE arithmetic returns the default NaN whatever the source, and an all-ones splat
+    // is one immediate move with no live range across the tanh.
+    const mve_pred16_t nan_p = vcmphiq_n_u16(vshlq_n_u16(vreinterpretq_u16_f16(vcand_pre), 1), 0xF800);
+    const float16x8_t vcand =
+        vpselq(vreinterpretq_f16_u16(vdupq_n_u16(0xFFFF)), arm_nn_vtanh_lut_direct_mve_f16(vcand_pre), nan_p);
+    const float16x8_t vp = vmulq(vsubq(vdupq_n_f16((float16_t)1.0f), vz), vcand);
+
+    if (lanes == 8)
+    {
+        const float16x8_t vh_prev = h_prev ? vld1q(h_prev + h) : vdupq_n_f16((float16_t)0.0f);
+        vst1q(h_out + h, vfmaq(vp, vz, vh_prev));
+    }
+    else
+    {
+        const mve_pred16_t p = vctp16q((uint32_t)lanes);
+        const float16x8_t vh_prev = h_prev ? vld1q_z(h_prev + h, p) : vdupq_n_f16((float16_t)0.0f);
+        vst1q_p(h_out + h, vfmaq(vp, vz, vh_prev), p);
+    }
+}
+    #endif
+
 arm_cmsis_nn_status arm_nn_gru_step_f16(const float16_t *data_in,
                                         const float16_t *hidden_in,
                                         float16_t *hidden_out,
@@ -120,11 +247,10 @@ arm_cmsis_nn_status arm_nn_gru_step_f16(const float16_t *data_in,
     const int32_t hidden_size = params->hidden_size;
     const int32_t reset_after = params->reset_after;
 
-    const cmsis_nn_gru_gate_f16 *zg = &params->update_gate;
     const cmsis_nn_gru_gate_f16 *rg = &params->reset_gate;
     const cmsis_nn_gru_gate_f16 *ng = &params->candidate_gate;
 
-    float16_t *reset_buf = NULL;
+    float16_t *stage = NULL;
     if (!reset_after)
     {
         // The pre-reset formulation needs the reset gate for all hidden units
@@ -133,7 +259,7 @@ arm_cmsis_nn_status arm_nn_gru_step_f16(const float16_t *data_in,
         {
             return ARM_CMSIS_NN_ARG_ERROR;
         }
-        reset_buf = buffers->temp1;
+        stage = buffers->temp1;
     }
 
     for (int32_t b = 0; b < batch; b++)
@@ -143,55 +269,40 @@ arm_cmsis_nn_status arm_nn_gru_step_f16(const float16_t *data_in,
             hidden_in ? (hidden_in + (size_t)b * (size_t)batch_offset * (size_t)hidden_size) : NULL;
         float16_t *h_out = hidden_out + (size_t)b * (size_t)batch_offset * (size_t)hidden_size;
 
-        if (!reset_after)
+        // Pre-reset: the candidate recurrent term is Un.(r . h_prev). Stage r . h_prev once per batch so the
+        // n^2 candidate loop reads a single operand; skipped when that term is dead (#251).
+        const float16_t *reset_buf = NULL;
+        if (!reset_after && h_prev && ng->hidden_weights)
         {
             for (int32_t h = 0; h < hidden_size; h++)
             {
                 const _Float16 r_pre = (_Float16)(arm_nn_gru_input_proj_f16(rg, x, input_size, h) +
                                                   arm_nn_gru_hidden_proj_f16(rg, h_prev, hidden_size, h));
-                reset_buf[h] = arm_nn_sigmoid_scalar_f16((float16_t)r_pre);
+                stage[h] = (float16_t)((_Float16)arm_nn_sigmoid_scalar_f16((float16_t)r_pre) * (_Float16)h_prev[h]);
             }
+            reset_buf = stage;
         }
 
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+        int32_t h = 0;
+        for (; h + 8 <= hidden_size; h += 8)
+        {
+            arm_nn_gru_block_f16(params, x, h_prev, reset_buf, h_out, h, 8);
+        }
+        if (h < hidden_size)
+        {
+            arm_nn_gru_block_f16(params, x, h_prev, reset_buf, h_out, h, hidden_size - h);
+        }
+    #else
         for (int32_t h = 0; h < hidden_size; h++)
         {
-            const _Float16 z_pre = (_Float16)(arm_nn_gru_input_proj_f16(zg, x, input_size, h) +
-                                              arm_nn_gru_hidden_proj_f16(zg, h_prev, hidden_size, h));
-            const _Float16 z = (_Float16)arm_nn_sigmoid_scalar_f16((float16_t)z_pre);
-
-            _Float16 cand_pre;
-            if (reset_after)
-            {
-                // n = tanh( Wn.x + b_in + r * (Un.h_prev + b_hn) )
-                const _Float16 r_pre = (_Float16)(arm_nn_gru_input_proj_f16(rg, x, input_size, h) +
-                                                  arm_nn_gru_hidden_proj_f16(rg, h_prev, hidden_size, h));
-                const _Float16 r = (_Float16)arm_nn_sigmoid_scalar_f16((float16_t)r_pre);
-                const _Float16 xh = arm_nn_gru_input_proj_f16(ng, x, input_size, h);
-                const _Float16 hh = arm_nn_gru_hidden_proj_f16(ng, h_prev, hidden_size, h);
-                cand_pre = (_Float16)(xh + r * hh);
-            }
-            else
-            {
-                // n = tanh( Wn.x + b_in + Un.(r . h_prev) + b_hn )
-                _Float16 hh = ng->hidden_bias ? (_Float16)ng->hidden_bias[h] : (_Float16)0.0f;
-                if (h_prev && ng->hidden_weights)
-                {
-                    const float16_t *w = ng->hidden_weights + (size_t)h * (size_t)hidden_size;
-                    _Float16 s = (_Float16)0.0f;
-                    for (int32_t k = 0; k < hidden_size; k++)
-                    {
-                        s += (_Float16)w[k] * ((_Float16)reset_buf[k] * (_Float16)h_prev[k]);
-                    }
-                    hh += s;
-                }
-                const _Float16 xh = arm_nn_gru_input_proj_f16(ng, x, input_size, h);
-                cand_pre = (_Float16)(xh + hh);
-            }
-
-            const _Float16 cand = (_Float16)arm_nn_tanh_scalar_ref_f16((float16_t)cand_pre);
+            const _Float16 z = (_Float16)arm_nn_gru_update_f16(params, x, h_prev, h);
+            const _Float16 cand = (_Float16)arm_nn_tanh_scalar_ref_f16(
+                (float16_t)arm_nn_gru_candidate_pre_f16(params, x, h_prev, reset_buf, h));
             const _Float16 h_prev_h = h_prev ? (_Float16)h_prev[h] : (_Float16)0.0f;
-            h_out[h] = (float16_t)(z * h_prev_h + ((_Float16)1.0f - z) * cand);
+            h_out[h] = (float16_t)arm_nn_gru_combine_f16(z, h_prev_h, cand);
         }
+    #endif
     }
 
     return ARM_CMSIS_NN_SUCCESS;

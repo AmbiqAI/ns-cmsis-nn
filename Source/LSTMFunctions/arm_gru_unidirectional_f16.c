@@ -132,9 +132,9 @@ arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
 /*
  * Bytes written through buffers->temp1 by arm_gru_unidirectional_f16(). Same derivation as the f32 query in
  * arm_gru_unidirectional_f32.c: temp1 is dereferenced only on the pre-reset (reset_after == 0) path of
- * arm_nn_gru_step_f16(), where the reset-gate loop stores reset_buf[h] for h in [0, hidden_size) and the
- * candidate matmul reads the same extent back; the vector is reused across batches and time steps, so neither
- * batch_size nor time_steps enters. On the reset-after path temp1 is never dereferenced on any build path and
+ * arm_nn_gru_step_f16(), where the reset-gate loop stores r . h_prev as reset_buf[h] for h in [0, hidden_size)
+ * and the candidate matmul reads the same extent back; the vector is reused across batches and time steps, so
+ * neither batch_size nor time_steps enters. On the reset-after path temp1 is never dereferenced on any build path and
  * may be NULL, so the requirement is zero there.
  */
 int32_t arm_gru_unidirectional_f16_temp1_get_buffer_size(const cmsis_nn_gru_params_f16 *gru_params)

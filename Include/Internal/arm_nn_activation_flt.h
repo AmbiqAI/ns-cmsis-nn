@@ -95,8 +95,9 @@ __STATIC_INLINE float32_t arm_nn_hardswish_scalar_f32(float32_t x)
  *     (0xffc00000). Restoring NaN in general would cost an extra compare and
  *     select in the vector loop body, which this helper's callers (LSTM/GRU
  *     step kernels) run per element. NaN is not a supported input to these
- *     kernels, so the divergence is accepted rather than paid for. Finite
- *     inputs, including |x| == xmax, agree exactly across legs.
+ *     kernels, so the divergence is accepted here rather than paid for; the
+ *     GRU step restores it per block with an integer-domain test (#251).
+ *     Finite inputs, including |x| == xmax, agree exactly across legs.
  */
 __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
 {
@@ -313,10 +314,13 @@ __STATIC_INLINE float32x4_t arm_nn_max_propagate_nan_mve_f32(float32x4_t x, floa
  * Vector twin of arm_nn_tanh_scalar_ref_f32, sharing arm_nn_tanh_lut_f32 and
  * the ARM_NN_TANH_F32_* geometry above so the two legs stay in step.
  *
- * Finite inputs agree with the scalar leg exactly, including at |x| == xmax:
- * the predicate below is >=, matching the scalar helper's !(ax < xmax), so
- * both legs saturate at the boundary rather than one interpolating to
- * lut[SEGMENTS] there. NaN is the one place the legs differ: a qNaN lane comes
+ * Normal finite inputs agree with the scalar leg exactly, including at
+ * |x| == xmax: the predicate below is >=, matching the scalar helper's
+ * !(ax < xmax), so both legs saturate at the boundary rather than one
+ * interpolating to lut[SEGMENTS] there. Subnormal inputs flush to zero here
+ * (MVE runs with FZ set) and interpolate on the scalar leg; the float16 twins
+ * differ only at -0.0, whose sign only the scalar leg keeps (measured in the
+ * #251 PR discussion). NaN is the other place the legs differ: a qNaN lane comes
  * out as -tanh(xmax) and an sNaN lane as a negated default qNaN, both NEGATIVE
  * because the vnegq_m predicate below uses VCMP `lt`, which Armv8.1-M defines
  * as !ge and is therefore true for unordered operands. See the scalar helper's

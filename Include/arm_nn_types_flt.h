@@ -321,7 +321,8 @@ typedef struct
  *
  * @note ``temp1`` is sized by arm_gru_unidirectional_f32_temp1_get_buffer_size():
  *       ``hidden_size`` elements when ``reset_after == 0`` (it holds the
- *       reset-gate vector). It is unused for the reset-after formulation and
+ *       reset gate multiplied elementwise by the previous hidden state,
+ *       r . h_prev). It is unused for the reset-after formulation and
  *       may be NULL there. There is no size field and no runtime enforcement:
  *       an undersized temp1 is written past on every build target.
  * @note ``hidden_state`` enables streaming state carry (``batch_size == 1``):
@@ -537,7 +538,8 @@ typedef struct
  *
  * @note ``temp1`` is sized by arm_gru_unidirectional_f16_temp1_get_buffer_size():
  *       ``hidden_size`` elements when ``reset_after == 0`` (it holds the
- *       reset-gate vector). It is unused for the reset-after formulation and
+ *       reset gate multiplied elementwise by the previous hidden state,
+ *       r . h_prev). It is unused for the reset-after formulation and
  *       may be NULL there. There is no size field and no runtime enforcement:
  *       an undersized temp1 is written past on every build target.
  * @note ``hidden_state`` enables streaming state carry (``batch_size == 1``):
