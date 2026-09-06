@@ -47,7 +47,7 @@ jobs:
         toolchain: [gcc, atfe]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install GNU Arm Embedded toolchain
         if: ${{ matrix.toolchain == 'gcc' }}
@@ -179,7 +179,7 @@ jobs:
           echo "manifest OK: f32=$got_f32 f16=$got_f16 verified=$got_verified"
 
       - name: Upload artefact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ns-cmsis-nn-staticlib-${{ matrix.toolchain }}-${{ matrix.target_cpu }}-dryrun
           path: |
@@ -218,7 +218,7 @@ jobs:
       VERSION: ${{ inputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Confirm the runtime user is root
         # The Arm UBL entitlement is bound to CI user "root". If this prints
@@ -359,7 +359,7 @@ jobs:
           done
 
       - name: Upload artefact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ns-cmsis-nn-staticlib-armclang-dryrun
           path: |

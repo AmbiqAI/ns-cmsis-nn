@@ -138,7 +138,7 @@ jobs:
       GCC_RELEASE: ${{ matrix.gcc_release }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install GNU Arm Embedded toolchain
         uses: carlosperate/arm-none-eabi-gcc-action@v1
@@ -218,7 +218,7 @@ jobs:
       MATRIX: .github/workflows/toolchain-matrix-strict-link.yml
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install GNU Arm Embedded toolchain
         uses: carlosperate/arm-none-eabi-gcc-action@v1
@@ -467,7 +467,7 @@ jobs:
       ATFE_VERSION: '19.1.5'
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Fetch ATfE toolchain
         id: fetch_toolchain
@@ -549,7 +549,7 @@ jobs:
       ARMCLANG_VERSION: '6.23.32'
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # MUST stay the first substantive step, and every step below is gated
       # on its output.
