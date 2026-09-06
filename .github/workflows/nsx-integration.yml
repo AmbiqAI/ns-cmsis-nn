@@ -26,7 +26,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        case: [source_all, source_subset, inline_asm, prebuilt]
+        # float_f32 and float_f16 are the only cases that catch a swapped
+        # F32/F16 pair on the source path; float_both cannot.
+        # float_renamed_switch pins the migration error for the removed
+        # NSX_CMSIS_NN_ENABLE_* spelling, float_query pins the consumer query
+        # on all three ways of getting a library, float_query_target pins that
+        # it refuses to guess between two of them, prebuilt_manifest_reject
+        # pins the manifest check plus the recovery its diagnostic names, and
+        # prebuilt_manifest_legacy pins the integer-only fallback for a
+        # manifest with no features block.
+        case: [source_all, source_subset, inline_asm, prebuilt,
+               float_f32, float_f16, float_both,
+               float_renamed_switch, float_query, float_query_target,
+               prebuilt_manifest_ok, prebuilt_manifest_reject,
+               prebuilt_manifest_legacy]
     steps:
       - name: Checkout
         uses: actions/checkout@v7

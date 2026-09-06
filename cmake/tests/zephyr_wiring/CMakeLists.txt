@@ -276,6 +276,15 @@ if(_f16_still_off_idx EQUAL -1)
   _fail("float32 case: ARM_NN_ENABLE_F16=0 compile definition missing")
 endif()
 
+# ns_cmsis_nn_float_support() must read the same INTERFACE_COMPILE_DEFINITIONS
+# the two checks above assert directly, so a drift between the target's
+# defines and what the query resolves shows up here, not only downstream in a
+# consumer. See AmbiqAI/ns-cmsis-nn#420.
+ns_cmsis_nn_float_support(F32 _sup_f32 F16 _sup_f16 TARGET ${STUB_LIBRARY_NAME})
+if(NOT _sup_f32 OR _sup_f16)
+  _fail("float32 case: ns_cmsis_nn_float_support() reported F32=${_sup_f32} F16=${_sup_f16}, expected ON/OFF")
+endif()
+
 # ----------------------------------------------------------------------------
 # Case 2c: float16 enabled.
 # ----------------------------------------------------------------------------
@@ -374,6 +383,66 @@ if(_f16_both_idx EQUAL -1)
 endif()
 
 # ----------------------------------------------------------------------------
+# Case 2e: Kconfig is the only writer of the float switches here, so an
+# ARM_NN_ENABLE_F16 that a board or module CMake set beforehand does not
+# survive anywhere the module or a consumer of the library reads it. That is
+# what keeps NS_CMSIS_NN_ENABLE_F16's ARMV8_1_M_MVEF dependency in force.
+#
+# Driven through add_subdirectory() rather than include(), because that is the
+# shape where CMake scoping bites: the module's set() lands in the child scope,
+# so this scope keeps the plain ON it wrote while the cache entry and the
+# library target carry Kconfig's answer. Those two are the authority, and the
+# plain variable in the parent is not. See AmbiqAI/ns-cmsis-nn#420.
+# ----------------------------------------------------------------------------
+set(STUB_LIBRARY_NAME "")
+set(STUB_COMPILE_OPTIONS "")
+set(STUB_GLOBAL_INCLUDE_DIRS "")
+set(STUB_LIBRARY_INCLUDE_DIRS "")
+set(STUB_COMPILE_DEFINITIONS "")
+set(STUB_APP_LINK_LIBRARIES "")
+
+unset(CONFIG_NS_CMSIS_NN_ENABLE_F32)
+unset(CONFIG_NS_CMSIS_NN_ENABLE_F16)
+set(ARM_NN_ENABLE_F16 ON)
+
+# The stub macros record into plain variables, which do not travel back out of
+# a subdirectory, so the child hands the two the assertions need to the cache.
+set(_sub_2e "${CMAKE_CURRENT_BINARY_DIR}/_case2e")
+file(MAKE_DIRECTORY "${_sub_2e}")
+file(WRITE "${_sub_2e}/CMakeLists.txt"
+"include(\"${_repo_root}/zephyr/CMakeLists.txt\")
+set(SUB_LIBRARY_NAME \"\${STUB_LIBRARY_NAME}\" CACHE INTERNAL \"\")
+set(SUB_COMPILE_DEFINITIONS \"\${STUB_COMPILE_DEFINITIONS}\" CACHE INTERNAL \"\")
+")
+add_subdirectory("${_sub_2e}" _case2e)
+
+if(NOT ARM_NN_ENABLE_F16)
+  _fail("pre-set ARM_NN_ENABLE_F16 case: the parent's own plain variable no longer reads ON; got: '${ARM_NN_ENABLE_F16}'")
+endif()
+if(NOT "$CACHE{ARM_NN_ENABLE_F16}" STREQUAL "0")
+  _fail("pre-set ARM_NN_ENABLE_F16 case: Kconfig did not overwrite the cache entry; got: '$CACHE{ARM_NN_ENABLE_F16}'")
+endif()
+list(FIND SUB_COMPILE_DEFINITIONS "ARM_NN_ENABLE_F16=0" _f16_overwritten_idx)
+if(_f16_overwritten_idx EQUAL -1)
+  _fail("pre-set ARM_NN_ENABLE_F16 case: Kconfig did not overwrite the forwarded define; got: ${SUB_COMPILE_DEFINITIONS}")
+endif()
+if(NOT SUB_LIBRARY_NAME OR NOT TARGET ${SUB_LIBRARY_NAME})
+  _fail("pre-set ARM_NN_ENABLE_F16 case: the module created no library in the subdirectory")
+else()
+  get_target_property(_iface_2e ${SUB_LIBRARY_NAME} INTERFACE_COMPILE_DEFINITIONS)
+  list(FIND _iface_2e "ARM_NN_ENABLE_F16=0" _f16_iface_idx)
+  if(_f16_iface_idx EQUAL -1)
+    _fail("pre-set ARM_NN_ENABLE_F16 case: the library target does not report Kconfig's value; got: ${_iface_2e}")
+  endif()
+  get_target_property(_srcs_overwritten ${SUB_LIBRARY_NAME} SOURCES)
+  list(FILTER _srcs_overwritten INCLUDE REGEX ".*(_f16\\.c)$")
+  if(_srcs_overwritten)
+    _fail("pre-set ARM_NN_ENABLE_F16 case: _f16.c sources were still selected; got: ${_srcs_overwritten}")
+  endif()
+endif()
+unset(ARM_NN_ENABLE_F16)
+
+# ----------------------------------------------------------------------------
 # Case 3: prebuilt mode. CONFIG_NS_CMSIS_NN_USE_PREBUILT=y diverts the
 # module away from the source path entirely: no zephyr_library(), no source
 # attachment, no SSoT-group translation. Instead, an IMPORTED static lib
@@ -468,11 +537,10 @@ if(_prebuilt_f16_idx EQUAL -1)
 endif()
 
 # ----------------------------------------------------------------------------
-# Case 3c: prebuilt mode, manifest reports f32=false. Requesting
-# CONFIG_NS_CMSIS_NN_ENABLE_F32=y must FATAL_ERROR at configure time rather
-# than silently producing an undefined-reference link error later. Driven
-# via a child cmake invocation (the FATAL_ERROR would otherwise abort this
-# whole test script).
+# Case 3c: prebuilt mode, manifest reports neither float width. Requesting
+# a float width must FATAL_ERROR at configure time rather than silently
+# producing an undefined-reference link error later. Driven via a child cmake
+# invocation (the FATAL_ERROR would otherwise abort this whole test script).
 # ----------------------------------------------------------------------------
 file(WRITE "${_fake_sdk}/manifest.json" "{
   \"schema_version\": 2,
@@ -480,10 +548,13 @@ file(WRITE "${_fake_sdk}/manifest.json" "{
 }
 ")
 
-set(_zephyr_probe "${CMAKE_BINARY_DIR}/_zephyr_manifest_probe")
-file(REMOVE_RECURSE "${_zephyr_probe}")
-file(MAKE_DIRECTORY "${_zephyr_probe}")
-file(WRITE "${_zephyr_probe}/CMakeLists.txt"
+# The rejection runs twice: once with the Kconfig symbol alone, and once with
+# a pre-set ARM_NN_ENABLE_F16 alongside it, which Kconfig overwrites, so the
+# rejection follows the Kconfig symbol either way. Each rejection is then
+# recovered from in place, the way the NSX reject case does: the diagnostic
+# names the Kconfig fragment, so the probe is rewritten without the symbol and
+# the same build directory reconfigured. See AmbiqAI/ns-cmsis-nn#420.
+set(_zephyr_reject_prologue
 "cmake_minimum_required(VERSION 3.20)
 project(zephyr_manifest_reject_probe C)
 macro(zephyr_library)
@@ -503,22 +574,63 @@ set(ZEPHYR_CMSIS_MODULE_DIR \"${CMAKE_CURRENT_BINARY_DIR}/__fake_cmsis_module__\
 set(CONFIG_NS_CMSIS_NN 1)
 set(CONFIG_NS_CMSIS_NN_USE_PREBUILT 1)
 set(CONFIG_NS_CMSIS_NN_PREBUILT_PATH \"${_fake_sdk}\")
-set(CONFIG_NS_CMSIS_NN_ENABLE_F32 1)
-include(\"${_repo_root}/zephyr/CMakeLists.txt\")
 ")
-execute_process(
-  COMMAND ${CMAKE_COMMAND} -S "${_zephyr_probe}" -B "${_zephyr_probe}/_b"
-  RESULT_VARIABLE _zephyr_probe_rc
-  OUTPUT_VARIABLE _zephyr_probe_out
-  ERROR_VARIABLE  _zephyr_probe_err)
-if(_zephyr_probe_rc EQUAL 0)
-  _fail("prebuilt manifest-reject case: probe unexpectedly succeeded (expected FATAL_ERROR)\n${_zephyr_probe_out}\n${_zephyr_probe_err}")
-else()
-  string(FIND "${_zephyr_probe_err}" "CONFIG_NS_CMSIS_NN_ENABLE_F32=y but the prebuilt SDK's manifest" _zephyr_probe_msg_idx)
-  if(_zephyr_probe_msg_idx EQUAL -1)
-    _fail("prebuilt manifest-reject case: probe failed but without the expected diagnostic; stderr:\n${_zephyr_probe_err}")
+set(_zephyr_reject_epilogue
+"include(\"${_repo_root}/zephyr/CMakeLists.txt\")
+")
+
+foreach(_reject_name kconfig_f32 kconfig_f16_preset_arm_nn)
+  if(_reject_name STREQUAL "kconfig_f32")
+    set(_reject_request "set(CONFIG_NS_CMSIS_NN_ENABLE_F32 1)")
+    set(_reject_args "")
+    set(_reject_needles
+        "float32 requested via ARM_NN_ENABLE_F32"
+        "CONFIG_NS_CMSIS_NN_ENABLE_F32"
+        "prj.conf")
+  else()
+    set(_reject_request "set(CONFIG_NS_CMSIS_NN_ENABLE_F16 1)")
+    set(_reject_args "-DARM_NN_ENABLE_F16=OFF")
+    set(_reject_needles
+        "float16 requested via ARM_NN_ENABLE_F16"
+        "CONFIG_NS_CMSIS_NN_ENABLE_F16"
+        "prj.conf")
   endif()
-endif()
+
+  set(_zephyr_probe "${CMAKE_BINARY_DIR}/_zephyr_manifest_probe_${_reject_name}")
+  file(REMOVE_RECURSE "${_zephyr_probe}")
+  file(MAKE_DIRECTORY "${_zephyr_probe}")
+  file(WRITE "${_zephyr_probe}/CMakeLists.txt"
+    "${_zephyr_reject_prologue}${_reject_request}\n${_zephyr_reject_epilogue}")
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -S "${_zephyr_probe}" -B "${_zephyr_probe}/_b" ${_reject_args}
+    RESULT_VARIABLE _zephyr_probe_rc
+    OUTPUT_VARIABLE _zephyr_probe_out
+    ERROR_VARIABLE  _zephyr_probe_err)
+  if(_zephyr_probe_rc EQUAL 0)
+    _fail("prebuilt manifest-reject case (${_reject_name}): probe unexpectedly succeeded (expected FATAL_ERROR)\n${_zephyr_probe_out}\n${_zephyr_probe_err}")
+  else()
+    foreach(_needle IN LISTS _reject_needles)
+      string(FIND "${_zephyr_probe_err}" "${_needle}" _zephyr_probe_msg_idx)
+      if(_zephyr_probe_msg_idx EQUAL -1)
+        _fail("prebuilt manifest-reject case (${_reject_name}): diagnostic never mentions '${_needle}'; stderr:\n${_zephyr_probe_err}")
+      endif()
+    endforeach()
+  endif()
+
+  # A rejection the user cannot undo is not a diagnostic. Apply the recovery
+  # the message names (drop the symbol from the Kconfig fragment) and expect
+  # the same build directory to reconfigure clean.
+  file(WRITE "${_zephyr_probe}/CMakeLists.txt"
+    "${_zephyr_reject_prologue}${_zephyr_reject_epilogue}")
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -S "${_zephyr_probe}" -B "${_zephyr_probe}/_b"
+    RESULT_VARIABLE _zephyr_recover_rc
+    OUTPUT_VARIABLE _zephyr_recover_out
+    ERROR_VARIABLE  _zephyr_recover_err)
+  if(NOT _zephyr_recover_rc EQUAL 0)
+    _fail("prebuilt manifest-reject case (${_reject_name}): dropping the Kconfig symbol did not clear the rejection\n${_zephyr_recover_out}\n${_zephyr_recover_err}")
+  endif()
+endforeach()
 
 # ----------------------------------------------------------------------------
 # Report.
@@ -527,4 +639,4 @@ if(_failures)
   message(FATAL_ERROR "Zephyr wiring test FAILED:${_failures}")
 endif()
 
-message(STATUS "Zephyr wiring OK: 23 knobs translated, baseline source set attached, float source gates validated, inline-asm define propagated, prebuilt mode imports SDK tarball, prebuilt manifest validation accepts/rejects float requests.")
+message(STATUS "Zephyr wiring OK: 23 knobs translated, baseline source set attached, float source gates validated, inline-asm define propagated, prebuilt mode imports SDK tarball, prebuilt manifest validation accepts/rejects what Kconfig asked for, a pre-set ARM_NN_ENABLE_* loses to Kconfig in the cache and on the library target under add_subdirectory(), and each rejection clears under the recovery its diagnostic names.")

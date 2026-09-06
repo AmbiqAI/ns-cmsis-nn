@@ -21,20 +21,27 @@
 #                                              rules below).
 #   NSX_CMSIS_NN_OPTIMIZATION                — compiler optimization (default: -Ofast)
 #   NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM   — enable inline-asm requantize (OFF)
-#   NSX_CMSIS_NN_ENABLE_F32                  — enable FP32 kernel declarations (OFF).
+#   ARM_NN_ENABLE_F32                        - enable FP32 kernel declarations (OFF).
 #                                              In source mode this also compiles the
 #                                              kernels; in prebuilt mode it is
 #                                              validated against the archive's
 #                                              manifest when one can be found.
-#   NSX_CMSIS_NN_ENABLE_F16                  — enable FP16 kernel declarations (OFF).
+#   ARM_NN_ENABLE_F16                        - enable FP16 kernel declarations (OFF).
 #                                              Same source/prebuilt caveat as above.
 #   NSX_CMSIS_NN_GROUPS                      — operator groups to compile in
 #                                              source mode (default: ALL; or a
 #                                              CMake list of group ids — see
 #                                              cmake/ns_cmsis_nn.cmake)
 #
-# Prebuilt manifest discovery (validates NSX_CMSIS_NN_ENABLE_F32/F16
-# against what the archive actually contains):
+# The float switches carry the library's own names here, the same ones the
+# standalone build takes and the kernels and public headers compile against.
+# The predecessors NSX_CMSIS_NN_ENABLE_F32/F16 are gone and setting either is
+# a configure error. Consumers that need to know what the library was built
+# with call ns_cmsis_nn_float_support() rather than reading the cache.
+# See AmbiqAI/ns-cmsis-nn#420.
+#
+# Prebuilt manifest discovery (validates ARM_NN_ENABLE_F32/F16 against what
+# the archive actually contains):
 #   1. NSX_CMSIS_NN_MANIFEST, if explicitly set.
 #   2. "<dir of NSX_CMSIS_NN_LIB>/manifest.json" (archive given as a bare
 #      lib/ path from an extracted tarball).
@@ -61,10 +68,57 @@ set(NSX_CMSIS_NN_OPTIMIZATION "-Ofast" CACHE STRING
     "Compiler optimization level for ns-cmsis-nn source builds.")
 option(NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM
     "Enable inline-assembly version of the requantize routine" OFF)
-option(NSX_CMSIS_NN_ENABLE_F32
-    "Enable experimental FP32 kernels in source builds" OFF)
-option(NSX_CMSIS_NN_ENABLE_F16
-    "Enable experimental FP16 kernels in source builds" OFF)
+
+# The float switches keep the library's own names on this path, declared
+# exactly as the standalone build declares them, so one name means one thing
+# everywhere. Every stale name is collected before aborting: a build directory
+# configured against the predecessor holds a cache entry per width, and an
+# error that names one of them sends the user round the configure loop twice.
+# See AmbiqAI/ns-cmsis-nn#420.
+set(_nsx_stale "")
+set(_nsx_stale_clear "")
+set(_nsx_stale_set "")
+foreach(_nsx_width F32 F16)
+    set(_nsx_stale_name "NSX_CMSIS_NN_ENABLE_${_nsx_width}")
+    if(DEFINED ${_nsx_stale_name})
+        string(APPEND _nsx_stale
+            "\n  ${_nsx_stale_name} was renamed to ARM_NN_ENABLE_F32/F16")
+        string(APPEND _nsx_stale_clear " -U${_nsx_stale_name}")
+        if(${_nsx_stale_name})
+            string(APPEND _nsx_stale_set " -DARM_NN_ENABLE_${_nsx_width}=ON")
+        endif()
+    endif()
+endforeach()
+if(_nsx_stale)
+    message(FATAL_ERROR
+        "nsx-cmsis-nn: this build sets float switches that no longer exist:"
+        "${_nsx_stale}\n"
+        "Remove the setting wherever it is set: a parent CMakeLists.txt that "
+        "writes it with set(... CACHE BOOL FORCE) reruns that call on every "
+        "configure, so neither -U nor deleting CMakeCache.txt clears it. For "
+        "a stale entry left over in this build directory's own cache, "
+        "re-run cmake with${_nsx_stale_clear}${_nsx_stale_set}, or delete "
+        "CMakeCache.txt in the build directory and configure again.")
+endif()
+unset(_nsx_width)
+unset(_nsx_stale_name)
+unset(_nsx_stale)
+unset(_nsx_stale_clear)
+unset(_nsx_stale_set)
+
+option(ARM_NN_ENABLE_F32 "Enable CMSIS-NN float32 extensions." OFF)
+option(ARM_NN_ENABLE_F16 "Enable CMSIS-NN float16 extensions." OFF)
+
+# The headers gate on the numeric value, so normalize once for both modes.
+set(_nsx_f32 0)
+set(_nsx_f16 0)
+if(ARM_NN_ENABLE_F32)
+    set(_nsx_f32 1)
+endif()
+if(ARM_NN_ENABLE_F16)
+    set(_nsx_f16 1)
+endif()
+
 set(NSX_CMSIS_NN_MANIFEST "" CACHE FILEPATH
     "Explicit path to the manifest.json describing NSX_CMSIS_NN_LIB's \
 contents (optional; auto-discovered next to the library otherwise).")
@@ -103,16 +157,17 @@ if(DEFINED NSX_CMSIS_NN_LIB)
     # ARM_NN_ENABLE_F32/F16 gate the float *declarations* in the public
     # headers (Include/Internal/arm_nn_config.h), not just internal
     # implementation choices baked into the archive, so they must be
-    # forwarded to consumers here too, mirroring the source-mode bridge below.
-    #
+    # forwarded to consumers here too; both modes share the normalization
+    # above rather than each declaring the switches separately.
+
     # When a manifest.json for NSX_CMSIS_NN_LIB can be found (or is given
-    # explicitly via NSX_CMSIS_NN_MANIFEST), requested flags are validated
+    # explicitly via NSX_CMSIS_NN_MANIFEST), the request is validated
     # against the archive's recorded capabilities and a FATAL_ERROR is
-    # raised for any request the archive doesn't actually implement —
-    # this turns a predictable undefined-reference link error into a
-    # clear configure-time diagnostic. If no manifest can be found (e.g. a
+    # raised for anything the archive doesn't actually implement, which
+    # turns a predictable undefined-reference link error into a clear
+    # configure-time diagnostic. If no manifest can be found (e.g. a
     # hand-supplied .a with no accompanying SDK package), validation is
-    # skipped and the requested flags are trusted as-is, same as before.
+    # skipped and the request is trusted as-is, same as before.
     set(_nsx_manifest "")
     if(NSX_CMSIS_NN_MANIFEST)
         set(_nsx_manifest "${NSX_CMSIS_NN_MANIFEST}")
@@ -150,36 +205,33 @@ if(DEFINED NSX_CMSIS_NN_LIB)
                 "${_nsx_manifest} (f32=${_nsx_has_f32} f16=${_nsx_has_f16})")
         endif()
 
-        if(NSX_CMSIS_NN_ENABLE_F32 AND NOT _nsx_has_f32)
+        # The recovery has to be one that actually clears the rejection: the
+        # switch is a cache entry on this path, so -U reaches it and the
+        # option() default takes over on the next configure.
+        if(ARM_NN_ENABLE_F32 AND NOT _nsx_has_f32)
             message(FATAL_ERROR
-                "nsx-cmsis-nn: NSX_CMSIS_NN_ENABLE_F32 was requested but "
-                "the prebuilt archive's manifest (${_nsx_manifest}) does "
-                "not report f32 support. Use an archive built with "
-                "--enable-f32, or disable NSX_CMSIS_NN_ENABLE_F32.")
+                "nsx-cmsis-nn: float32 requested via ARM_NN_ENABLE_F32, but "
+                "the prebuilt archive's manifest (${_nsx_manifest}) does not "
+                "report f32 support. Use an archive built with --enable-f32, "
+                "or drop the request: re-run cmake with -UARM_NN_ENABLE_F32 "
+                "(or delete CMakeCache.txt in the build directory).")
         endif()
-        if(NSX_CMSIS_NN_ENABLE_F16 AND NOT _nsx_has_f16)
+        if(ARM_NN_ENABLE_F16 AND NOT _nsx_has_f16)
             message(FATAL_ERROR
-                "nsx-cmsis-nn: NSX_CMSIS_NN_ENABLE_F16 was requested but "
-                "the prebuilt archive's manifest (${_nsx_manifest}) does "
-                "not report f16 support. Use an archive built with "
-                "--enable-f16, or disable NSX_CMSIS_NN_ENABLE_F16.")
+                "nsx-cmsis-nn: float16 requested via ARM_NN_ENABLE_F16, but "
+                "the prebuilt archive's manifest (${_nsx_manifest}) does not "
+                "report f16 support. Use an archive built with --enable-f16, "
+                "or drop the request: re-run cmake with -UARM_NN_ENABLE_F16 "
+                "(or delete CMakeCache.txt in the build directory).")
         endif()
     else()
         message(STATUS
             "nsx-cmsis-nn: no manifest.json found for ${NSX_CMSIS_NN_LIB}; "
-            "NSX_CMSIS_NN_ENABLE_F32/F16 requests are UNVERIFIED against "
+            "ARM_NN_ENABLE_F32/F16 requests are UNVERIFIED against "
             "archive contents (set NSX_CMSIS_NN_MANIFEST to enable validation).")
     endif()
     unset(_nsx_manifest)
 
-    set(_nsx_f32 0)
-    set(_nsx_f16 0)
-    if(NSX_CMSIS_NN_ENABLE_F32)
-        set(_nsx_f32 1)
-    endif()
-    if(NSX_CMSIS_NN_ENABLE_F16)
-        set(_nsx_f16 1)
-    endif()
     target_compile_definitions(nsx_cmsis_nn
         INTERFACE
             ARM_NN_ENABLE_F32=${_nsx_f32}
@@ -189,16 +241,6 @@ if(DEFINED NSX_CMSIS_NN_LIB)
 else()
     # ── Source build mode ─────────────────────────────────────────────────
     message(STATUS "nsx-cmsis-nn: building from source (groups=${NSX_CMSIS_NN_GROUPS})")
-
-    # Bridge NSX float options to the SSoT float gates.
-    set(ARM_NN_ENABLE_F32 0)
-    set(ARM_NN_ENABLE_F16 0)
-    if(NSX_CMSIS_NN_ENABLE_F32)
-        set(ARM_NN_ENABLE_F32 1)
-    endif()
-    if(NSX_CMSIS_NN_ENABLE_F16)
-        set(ARM_NN_ENABLE_F16 1)
-    endif()
 
     add_library(nsx_cmsis_nn STATIC)
 
@@ -216,8 +258,8 @@ else()
 
     target_compile_definitions(nsx_cmsis_nn
         PUBLIC
-            ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32}
-            ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16}
+            ARM_NN_ENABLE_F32=${_nsx_f32}
+            ARM_NN_ENABLE_F16=${_nsx_f16}
     )
 
     target_link_libraries(nsx_cmsis_nn

@@ -676,6 +676,32 @@ off by default to keep integer-only builds small. If the enabled float headers
 are consumed by TFLM or another downstream build, use matching definitions in
 that build too.
 
+The switches carry one name per entry path:
+
+| Entry point | Set this |
+|---|---|
+| Standalone CMake | `ARM_NN_ENABLE_F32` / `ARM_NN_ENABLE_F16` |
+| NSX (`nsx/CMakeLists.txt`) | `ARM_NN_ENABLE_F32` / `ARM_NN_ENABLE_F16`, the same two options |
+| Zephyr | `CONFIG_NS_CMSIS_NN_ENABLE_F32` / `_F16`, the only writers of `ARM_NN_ENABLE_*` there |
+| `find_package(ns-cmsis-nn)` | nothing; the archive's capabilities decide |
+
+To learn what the library in scope was actually built with, call
+`ns_cmsis_nn_float_support(F32 <var> F16 <var>)` rather than reading a cache
+variable. It reads the library target, so the same call works in a source
+build, against a prebuilt archive, and after `find_package()`.
+
+`NSX_CMSIS_NN_ENABLE_F32`/`_F16` are removed; setting either is a configure
+error that names every stale switch in the build and the recovery for all of
+them at once:
+
+```console
+$ cmake -S . -B build \
+    -UNSX_CMSIS_NN_ENABLE_F32 -UNSX_CMSIS_NN_ENABLE_F16 \
+    -DARM_NN_ENABLE_F16=ON
+```
+
+See [`Documentation/build.md`](Documentation/build.md#float-switch-names).
+
 **Do floating-point kernels target all IEEE edge cases?**
 No. For performance reasons, the current floating-point kernels do not
 specifically target IEEE edge cases such as `NaN`, `Inf`,

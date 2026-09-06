@@ -10,7 +10,7 @@
 #   - the Zephyr module (zephyr/CMakeLists.txt)
 #   - the NSX module    (nsx/CMakeLists.txt)
 #
-# It exposes three public entry points:
+# It exposes four public entry points:
 #
 #   ns_cmsis_nn_groups(<out_var>)
 #       Returns the list of all known operator group ids.
@@ -25,6 +25,14 @@
 #                      [INCLUDE_DIRS_VISIBILITY  PUBLIC | PRIVATE | INTERFACE])
 #       Adds the resolved source set and the public Include/ directory to
 #       <target>. <target> must already exist (created by the consumer).
+#
+#   ns_cmsis_nn_float_support(F32 <out_var> F16 <out_var> [TARGET <target>])
+#       Sets each out variable to ON or OFF from the library target's compile
+#       definitions: what the library in scope was built with, as opposed to
+#       what any one entry point was asked for. Defined in
+#       cmake/ns_cmsis_nn_float_support.cmake, which entry points that compile
+#       nothing may include on its own, and mirrored in the find_package()
+#       config template.
 #
 # Notes on selection:
 #   - Each group has an explicit subdirectory under Source/, an explicit list
@@ -57,6 +65,12 @@ get_filename_component(NS_CMSIS_NN_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 # expression, and says so when it finds none.
 # See AmbiqAI/ns-cmsis-nn#427.
 include("${CMAKE_CURRENT_LIST_DIR}/check_gas_mve_encoding.cmake")
+
+# The query that tells a consumer which float widths the library in scope was
+# built with. Kept in its own module so entry points that compile nothing
+# (prebuilt modes) can offer it without pulling in the source layout.
+# See AmbiqAI/ns-cmsis-nn#420.
+include("${CMAKE_CURRENT_LIST_DIR}/ns_cmsis_nn_float_support.cmake")
 
 # Canonical, ordered list of operator group ids.
 set(_NS_CMSIS_NN_GROUPS
