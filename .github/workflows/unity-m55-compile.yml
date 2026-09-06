@@ -129,7 +129,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Log selected container image
         shell: bash
@@ -301,7 +301,7 @@ jobs:
       # that looks like a cache fault.
       - name: Restore tests-downloads cache
         id: cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: Tests/UnitTest/downloads
           key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
@@ -815,7 +815,7 @@ jobs:
       # matrix cell already used.
       - name: Upload build logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unity-${{ matrix.cpu }}-compile-logs
           path: |
@@ -866,7 +866,7 @@ jobs:
           && steps.toolchain.outcome == 'success'
           && steps.cache.outputs.cache-hit != 'true'
           && steps.downloads-present.outputs.present == 'true'
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: Tests/UnitTest/downloads
           key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}

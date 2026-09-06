@@ -75,7 +75,7 @@ jobs:
       HARNESS: Tests/UnitTest/build_and_run_tests.sh
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Assert SUITES covers every kernel reaching a conversion
         # SUITES is hand-written, so on its own it decays into a stale list:
