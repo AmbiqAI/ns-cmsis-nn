@@ -154,7 +154,7 @@ void gru_prereset_f16_arm_gru_unidirectional_f16(void)
      * Mirrors the f32 suite: each case mutates exactly one field so only the
      * dimension check can reject it. */
     /* The published query must agree with the size this test derives by hand: the pre-reset path stages one
-       reset-gate vector of hidden_size elements, reused across batches and time steps. */
+       r . h_prev vector of hidden_size elements, reused across batches and time steps. */
     const int32_t temp1_size = arm_gru_unidirectional_f16_temp1_get_buffer_size(&params);
     TEST_ASSERT_EQUAL(GRU_PRERESET_F16_HIDDEN_SIZE * (int32_t)sizeof(float16_t), temp1_size);
     float16_t *temp1 = malloc((size_t)temp1_size);

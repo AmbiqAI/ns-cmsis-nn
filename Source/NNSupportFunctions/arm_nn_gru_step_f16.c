@@ -143,13 +143,16 @@ arm_cmsis_nn_status arm_nn_gru_step_f16(const float16_t *data_in,
             hidden_in ? (hidden_in + (size_t)b * (size_t)batch_offset * (size_t)hidden_size) : NULL;
         float16_t *h_out = hidden_out + (size_t)b * (size_t)batch_offset * (size_t)hidden_size;
 
-        if (!reset_after)
+        // Pre-reset: the candidate recurrent term is Un.(r . h_prev). Stage r . h_prev once per batch so the
+        // n^2 candidate loop reads a single operand; skipped when that term is dead (#251).
+        const int32_t stage_reset = !reset_after && h_prev && ng->hidden_weights;
+        if (stage_reset)
         {
             for (int32_t h = 0; h < hidden_size; h++)
             {
                 const _Float16 r_pre = (_Float16)(arm_nn_gru_input_proj_f16(rg, x, input_size, h) +
                                                   arm_nn_gru_hidden_proj_f16(rg, h_prev, hidden_size, h));
-                reset_buf[h] = arm_nn_sigmoid_scalar_f16((float16_t)r_pre);
+                reset_buf[h] = (float16_t)((_Float16)arm_nn_sigmoid_scalar_f16((float16_t)r_pre) * (_Float16)h_prev[h]);
             }
         }
 
@@ -174,13 +177,13 @@ arm_cmsis_nn_status arm_nn_gru_step_f16(const float16_t *data_in,
             {
                 // n = tanh( Wn.x + b_in + Un.(r . h_prev) + b_hn )
                 _Float16 hh = ng->hidden_bias ? (_Float16)ng->hidden_bias[h] : (_Float16)0.0f;
-                if (h_prev && ng->hidden_weights)
+                if (stage_reset)
                 {
                     const float16_t *w = ng->hidden_weights + (size_t)h * (size_t)hidden_size;
                     _Float16 s = (_Float16)0.0f;
                     for (int32_t k = 0; k < hidden_size; k++)
                     {
-                        s += (_Float16)w[k] * ((_Float16)reset_buf[k] * (_Float16)h_prev[k]);
+                        s += (_Float16)w[k] * (_Float16)reset_buf[k];
                     }
                     hh += s;
                 }

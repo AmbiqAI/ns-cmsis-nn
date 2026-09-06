@@ -171,7 +171,7 @@ void gru_prereset_f32_arm_gru_unidirectional_f32(void)
                       arm_gru_unidirectional_f32(gru_prereset_f32_input, output, &params, NULL));
 
     /* The published query must agree with the size this test derives by hand: the pre-reset path stages one
-       reset-gate vector of hidden_size elements, reused across batches and time steps. */
+       r . h_prev vector of hidden_size elements, reused across batches and time steps. */
     const int32_t temp1_size = arm_gru_unidirectional_f32_temp1_get_buffer_size(&params);
     TEST_ASSERT_EQUAL(GRU_PRERESET_F32_HIDDEN_SIZE * (int32_t)sizeof(float32_t), temp1_size);
     float32_t *temp1 = malloc((size_t)temp1_size);
