@@ -129,75 +129,9 @@ static arm_cmsis_nn_status arm_dw_spec_k3_1d_nhwc_f32_call(const cmsis_nn_contex
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-static bool arm_dw_spec_3x3_nhwc_f32_match(const cmsis_nn_context *ctx,
-                                           const cmsis_nn_dw_conv_params_f32 *params,
-                                           const cmsis_nn_dims *input_dims,
-                                           const float32_t *input,
-                                           const cmsis_nn_dims *filter_dims,
-                                           const float32_t *kernel,
-                                           const cmsis_nn_dims *bias_dims,
-                                           const float32_t *bias,
-                                           const cmsis_nn_dims *output_dims,
-                                           float32_t *output,
-                                           arm_nn_dw_kernel_layout_f32 kernel_layout)
-{
-    (void)ctx;
-    (void)input;
-    (void)kernel;
-    (void)bias_dims;
-    (void)bias;
-    (void)output;
-
-    const int32_t batch = input_dims->n;
-    const int32_t output_batch = output_dims->n;
-
-    return (kernel_layout == ARM_NN_DW_KERNEL_KC && batch > 0 && batch == output_batch && params->ch_mult == 1 &&
-            filter_dims->w == 3 && filter_dims->h == 3 && params->dilation.h == 1 && params->dilation.w == 1);
-}
-
-static arm_cmsis_nn_status arm_dw_spec_3x3_nhwc_f32_call(const cmsis_nn_context *ctx,
-                                                         const cmsis_nn_dw_conv_params_f32 *params,
-                                                         const cmsis_nn_dims *input_dims,
-                                                         const float32_t *input,
-                                                         const cmsis_nn_dims *filter_dims,
-                                                         const float32_t *kernel,
-                                                         const cmsis_nn_dims *bias_dims,
-                                                         const float32_t *bias,
-                                                         const cmsis_nn_dims *output_dims,
-                                                         float32_t *output,
-                                                         arm_nn_dw_kernel_layout_f32 kernel_layout)
-{
-    (void)ctx;
-    (void)filter_dims;
-    (void)bias_dims;
-
-    if (kernel_layout != ARM_NN_DW_KERNEL_KC)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
-    arm_nn_depthwise_conv3x3_nhwc_f32(input,
-                                      input_dims->n,
-                                      input_dims->c,
-                                      input_dims->h,
-                                      input_dims->w,
-                                      kernel,
-                                      bias,
-                                      output,
-                                      params->stride.w,
-                                      params->stride.h,
-                                      params->padding.w,
-                                      params->padding.h,
-                                      output_dims->h,
-                                      output_dims->w,
-                                      params->activation.min,
-                                      params->activation.max);
-    return ARM_CMSIS_NN_SUCCESS;
-}
-
+/* 3x3 is no longer a table entry: the ch_mult == 1 direct kernel in arm_depthwise_conv_f32.c takes it (#448). */
 static const arm_dw_spec_f32 arm_dw_spec_nhwc_f32[] = {
     ARM_DW_SPEC_ENTRY(arm_dw_spec_k3_1d_nhwc_f32_match, arm_dw_spec_k3_1d_nhwc_f32_call),
-    ARM_DW_SPEC_ENTRY(arm_dw_spec_3x3_nhwc_f32_match, arm_dw_spec_3x3_nhwc_f32_call),
 };
 #endif
 

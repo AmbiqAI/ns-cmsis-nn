@@ -43,239 +43,419 @@
     #include "arm_nnfunctions.h"
     #include "arm_nnsupportfunctions.h"
 
-    /**
-     * @ingroup Public
-     */
+/**
+ * @ingroup Public
+ */
 
-    /**
-     * @addtogroup NNConv
-     * @{
-     */
+/**
+ * @addtogroup NNConv
+ * @{
+ */
 
-    /* Number of packed output rows processed per depthwise NT-T tile. */
-    #define ARM_NN_DW_NT_T_F32_TILE_ROWS (4)
-
-__STATIC_INLINE void
-arm_depthwise_accumulate_vec_f32(float32_t *acc, const float32_t *input, const float32_t *kernel, int32_t channels)
+/*
+ * Direct ch_mult == 1 NHWC depthwise kernel (#448). Lanes are channels: every tap is one contiguous vector
+ * load of the input pixel and one of the [kh][kw][C] filter, accumulated in registers from the bias in
+ * (ky, kx) order, one FMA per tap -- the summation order of the routes this replaced, so f32 results are
+ * bit-identical to them. Padding is the tap window (no scratch, nothing read out of range); stride and
+ * dilation are generic. The channel tail is one straight-line predicated vector; the tap loops carry no vctp.
+ */
+typedef struct
 {
+    size_t in_row_step; /* dilation_y * input_x * ch, elements */
+    size_t in_tap_step; /* dilation_x * ch */
+    size_t in_px_step;  /* stride_x * ch */
+    size_t w_row_step;  /* kernel_x * ch */
+    size_t ch;          /* channels (also the weight tap step) */
+    int32_t taps_y;     /* in-range tap rows for this output row */
+    int32_t taps_x;     /* in-range tap columns for every pixel of this run */
+    float32_t act_min;
+    float32_t act_max;
+} arm_depthwise_direct_run_f32;
+
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-    for (int32_t c = 0; c < channels; c += 4)
-    {
-        const mve_pred16_t p = vctp32q((uint32_t)(channels - c));
-        float32x4_t vacc = vld1q_z(acc + c, p);
-        vacc = vfmaq(vacc, vld1q_z(input + c, p), vld1q_z(kernel + c, p));
-        vst1q_p(acc + c, vacc, p);
-    }
-    #else
-    for (int32_t c = 0; c < channels; ++c)
-    {
-        acc[c] += input[c] * kernel[c];
-    }
-    #endif
+/* Bias substitute for a NULL bias: two vectors of zeros (a two-vector block reads bias_c + 4). */
+static const float32_t arm_depthwise_direct_zero_bias_f32[8] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+
+/*
+ * `npx` consecutive output pixels of one channel block. nvec == 2: two vectors per pixel, npx <= 2 (acc0 / acc1 are
+ * pixel 0, acc2 / acc3 pixel 1). nvec == 1: one vector per pixel, npx <= 4 (acc0..acc3 are pixels 0..3). `pred`
+ * predicates the last vector of every pixel with `p`. Every weight load is shared by the pixels; the accumulators
+ * and the tap temporaries are the only live Q registers in the tap loop.
+ */
+__STATIC_FORCEINLINE float32x4_t arm_depthwise_direct_load_f32(const float32_t *src, const int32_t pred, mve_pred16_t p)
+{
+    return pred ? vld1q_z(src, p) : vld1q(src);
 }
 
-__STATIC_INLINE void arm_depthwise_init_vec_f32(float32_t *dst, const float32_t *bias, int32_t channels)
+__STATIC_FORCEINLINE void
+arm_depthwise_direct_store_f32(float32_t *dst, float32x4_t v, const int32_t pred, mve_pred16_t p)
 {
-    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-    if (bias)
+    if (pred)
     {
-        for (int32_t c = 0; c < channels; c += 4)
-        {
-            const mve_pred16_t p = vctp32q((uint32_t)(channels - c));
-            vst1q_p(dst + c, vld1q_z(bias + c, p), p);
-        }
+        vst1q_p(dst, v, p);
     }
     else
     {
-        const float32x4_t vzero = vdupq_n_f32(0.0f);
-        for (int32_t c = 0; c < channels; c += 4)
-        {
-            const mve_pred16_t p = vctp32q((uint32_t)(channels - c));
-            vst1q_p(dst + c, vzero, p);
-        }
+        vst1q(dst, v);
     }
-    #else
-    if (bias)
+}
+
+__STATIC_FORCEINLINE void arm_depthwise_direct_taps_mve_f32(const float32_t *__RESTRICT in_tap,
+                                                            const float32_t *__RESTRICT w_tap,
+                                                            const float32_t *__RESTRICT bias_c,
+                                                            float32_t *__RESTRICT out_c,
+                                                            const arm_depthwise_direct_run_f32 *__RESTRICT run,
+                                                            const int32_t npx,
+                                                            const int32_t nvec,
+                                                            const int32_t pred,
+                                                            mve_pred16_t p)
+{
+    const size_t in_tap_step = run->in_tap_step;
+    const size_t in_px_step = run->in_px_step;
+    const size_t w_tap_step = run->ch;
+    const int32_t taps_x = run->taps_x;
+    float32x4_t acc0;
+    float32x4_t acc1;
+    float32x4_t acc2;
+    float32x4_t acc3;
+
+    if (nvec == 2)
     {
-        for (int32_t c = 0; c < channels; ++c)
-        {
-            dst[c] = bias[c];
-        }
+        acc0 = vld1q(bias_c);
+        acc1 = arm_depthwise_direct_load_f32(bias_c + 4, pred, p);
+        acc2 = acc0;
+        acc3 = acc1;
     }
     else
     {
-        for (int32_t c = 0; c < channels; ++c)
-        {
-            dst[c] = 0.0f;
-        }
+        acc0 = arm_depthwise_direct_load_f32(bias_c, pred, p);
+        acc1 = acc0;
+        acc2 = acc0;
+        acc3 = acc0;
     }
-    #endif
-}
 
-__STATIC_INLINE void arm_depthwise_accumulate_pixel_nhwc_kc_f32(const float32_t *input_b,
-                                                                int32_t input_x,
-                                                                int32_t input_y,
-                                                                int32_t input_ch,
-                                                                const float32_t *kernel,
-                                                                int32_t kernel_x,
-                                                                int32_t kernel_y,
-                                                                int32_t base_idx_x,
-                                                                int32_t base_idx_y,
-                                                                float32_t *out_px,
-                                                                int32_t interior_only)
-{
-    if (interior_only)
+    for (int32_t ky = 0; ky < run->taps_y; ++ky)
     {
-        for (int32_t i_ker_y = 0; i_ker_y < kernel_y; ++i_ker_y)
+        const float32_t *in0 = in_tap + (size_t)ky * run->in_row_step;
+        const float32_t *in1 = in0 + in_px_step;
+        const float32_t *in2 = in1 + in_px_step;
+        const float32_t *in3 = in2 + in_px_step;
+        const float32_t *w = w_tap + (size_t)ky * run->w_row_step;
+        for (int32_t kx = 0; kx < taps_x; ++kx)
         {
-            const int32_t idx_y = base_idx_y + i_ker_y;
-            const float32_t *in_row = input_b + ((size_t)idx_y * input_x + base_idx_x) * input_ch;
-            const float32_t *w_row = kernel + ((size_t)i_ker_y * kernel_x) * input_ch;
-            for (int32_t i_ker_x = 0; i_ker_x < kernel_x; ++i_ker_x)
+            if (nvec == 2)
             {
-                arm_depthwise_accumulate_vec_f32(
-                    out_px, in_row + (size_t)i_ker_x * input_ch, w_row + (size_t)i_ker_x * input_ch, input_ch);
+                const float32x4_t w0 = vld1q(w);
+                const float32x4_t w1 = arm_depthwise_direct_load_f32(w + 4, pred, p);
+                acc0 = vfmaq(acc0, vld1q(in0), w0);
+                acc1 = vfmaq(acc1, arm_depthwise_direct_load_f32(in0 + 4, pred, p), w1);
+                if (npx >= 2)
+                {
+                    acc2 = vfmaq(acc2, vld1q(in1), w0);
+                    acc3 = vfmaq(acc3, arm_depthwise_direct_load_f32(in1 + 4, pred, p), w1);
+                }
             }
+            else
+            {
+                const float32x4_t w0 = arm_depthwise_direct_load_f32(w, pred, p);
+                acc0 = vfmaq(acc0, arm_depthwise_direct_load_f32(in0, pred, p), w0);
+                if (npx >= 2)
+                {
+                    acc1 = vfmaq(acc1, arm_depthwise_direct_load_f32(in1, pred, p), w0);
+                }
+                if (npx >= 3)
+                {
+                    acc2 = vfmaq(acc2, arm_depthwise_direct_load_f32(in2, pred, p), w0);
+                }
+                if (npx >= 4)
+                {
+                    acc3 = vfmaq(acc3, arm_depthwise_direct_load_f32(in3, pred, p), w0);
+                }
+            }
+            in0 += in_tap_step;
+            in1 += in_tap_step;
+            in2 += in_tap_step;
+            in3 += in_tap_step;
+            w += w_tap_step;
         }
-        return;
     }
 
-    const int32_t ker_y_start = ARM_NN_MAX(0, -base_idx_y);
-    const int32_t ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
-    const int32_t ker_x_start = ARM_NN_MAX(0, -base_idx_x);
-    const int32_t ker_x_end = ARM_NN_MIN(kernel_x, input_x - base_idx_x);
-
-    for (int32_t i_ker_y = ker_y_start; i_ker_y < ker_y_end; ++i_ker_y)
+    /* Same clamp as arm_nn_vector_clamp_f32 (NaN resolves to a bound on MVE, as before). */
+    const float32x4_t vmin = vdupq_n_f32(run->act_min);
+    const float32x4_t vmax = vdupq_n_f32(run->act_max);
+    acc0 = arm_nn_clamp_mve_f32(acc0, vmin, vmax);
+    acc1 = arm_nn_clamp_mve_f32(acc1, vmin, vmax);
+    acc2 = arm_nn_clamp_mve_f32(acc2, vmin, vmax);
+    acc3 = arm_nn_clamp_mve_f32(acc3, vmin, vmax);
+    if (nvec == 2)
     {
-        const int32_t idx_y = base_idx_y + i_ker_y;
-        for (int32_t i_ker_x = ker_x_start; i_ker_x < ker_x_end; ++i_ker_x)
+        vst1q(out_c, acc0);
+        arm_depthwise_direct_store_f32(out_c + 4, acc1, pred, p);
+        if (npx >= 2)
         {
-            const int32_t idx_x = base_idx_x + i_ker_x;
-            const float32_t *in_px = input_b + ((size_t)idx_y * input_x + idx_x) * input_ch;
-            const float32_t *w_px = kernel + ((size_t)i_ker_y * kernel_x + i_ker_x) * input_ch;
-            arm_depthwise_accumulate_vec_f32(out_px, in_px, w_px, input_ch);
+            vst1q(out_c + run->ch, acc2);
+            arm_depthwise_direct_store_f32(out_c + run->ch + 4, acc3, pred, p);
+        }
+    }
+    else
+    {
+        arm_depthwise_direct_store_f32(out_c, acc0, pred, p);
+        if (npx >= 2)
+        {
+            arm_depthwise_direct_store_f32(out_c + run->ch, acc1, pred, p);
+        }
+        if (npx >= 3)
+        {
+            arm_depthwise_direct_store_f32(out_c + 2 * run->ch, acc2, pred, p);
+        }
+        if (npx >= 4)
+        {
+            arm_depthwise_direct_store_f32(out_c + 3 * run->ch, acc3, pred, p);
         }
     }
 }
 
-__STATIC_INLINE void arm_depthwise_compute_interior_range_1d(int32_t input_size,
-                                                             int32_t kernel_size,
-                                                             int32_t stride,
-                                                             int32_t pad,
-                                                             int32_t output_size,
-                                                             int32_t *first_valid,
-                                                             int32_t *last_valid)
+/* One channel block over `n_px` consecutive output pixels sharing a tap window: quads (one vector per pixel) or
+ * pairs (two), then the remainder. */
+__STATIC_FORCEINLINE void arm_depthwise_direct_block_mve_f32(const float32_t *in_tap,
+                                                             const float32_t *w_tap,
+                                                             const float32_t *bias_c,
+                                                             float32_t *out_c,
+                                                             int32_t n_px,
+                                                             const arm_depthwise_direct_run_f32 *run,
+                                                             const int32_t nvec,
+                                                             const int32_t pred,
+                                                             mve_pred16_t p)
 {
-    int32_t first = 0;
-    while (first < output_size && ((int64_t)first * stride - pad) < 0)
+    const size_t in_px_step = run->in_px_step;
+    const size_t out_px_step = run->ch;
+    int32_t px = 0;
+    if (nvec == 1)
     {
-        ++first;
+        for (; px + 4 <= n_px; px += 4)
+        {
+            arm_depthwise_direct_taps_mve_f32(in_tap, w_tap, bias_c, out_c, run, 4, 1, pred, p);
+            in_tap += 4U * in_px_step;
+            out_c += 4U * out_px_step;
+        }
     }
-
-    int32_t last = output_size - 1;
-    while (last >= first && ((int64_t)last * stride - pad + kernel_size) > input_size)
+    for (; px + 2 <= n_px; px += 2)
     {
-        --last;
+        arm_depthwise_direct_taps_mve_f32(in_tap, w_tap, bias_c, out_c, run, 2, nvec, pred, p);
+        in_tap += 2U * in_px_step;
+        out_c += 2U * out_px_step;
     }
-
-    *first_valid = first;
-    *last_valid = last;
+    if (px < n_px)
+    {
+        arm_depthwise_direct_taps_mve_f32(in_tap, w_tap, bias_c, out_c, run, 1, nvec, pred, p);
+    }
 }
 
-static void arm_depthwise_conv_nhwc_fast_chmult1_kc_f32(const float32_t *input,
-                                                        int32_t input_batches,
-                                                        int32_t input_x,
-                                                        int32_t input_y,
-                                                        int32_t input_ch,
-                                                        const float32_t *kernel,
-                                                        int32_t kernel_x,
-                                                        int32_t kernel_y,
-                                                        int32_t pad_x,
-                                                        int32_t pad_y,
-                                                        int32_t stride_x,
-                                                        int32_t stride_y,
-                                                        const float32_t *bias,
-                                                        float32_t *output,
-                                                        int32_t output_x,
-                                                        int32_t output_y,
-                                                        float32_t output_activation_min,
-                                                        float32_t output_activation_max)
+/* All channel blocks of `n_px` pixels sharing one tap window: pairs of full vectors, then one tail block. */
+static void __attribute__((noinline))
+arm_depthwise_direct_run_mve_f32(const float32_t *__RESTRICT in_tap,
+                                 const float32_t *__RESTRICT w_tap,
+                                 const float32_t *__RESTRICT bias,
+                                 float32_t *__RESTRICT out_px,
+                                 int32_t n_px,
+                                 const arm_depthwise_direct_run_f32 *__RESTRICT run)
 {
-    const int32_t in_batch_stride = input_x * input_y * input_ch;
-    const int32_t out_batch_stride = output_x * output_y * input_ch;
-    int32_t interior_x_first;
-    int32_t interior_x_last;
-    int32_t interior_y_first;
-    int32_t interior_y_last;
+    const int32_t ch = (int32_t)run->ch;
+    const int32_t ch_pairs = ch & ~7;
+    const int32_t ch_rem = ch - ch_pairs;
+    const mve_pred16_t p_tail = vctp32q((uint32_t)(ch_rem & 3));
+    const float32_t *bias_c = bias;
+    const size_t bias_step = bias ? 8U : 0U;
+    int32_t c = 0;
 
-    arm_depthwise_compute_interior_range_1d(
-        input_x, kernel_x, stride_x, pad_x, output_x, &interior_x_first, &interior_x_last);
-    arm_depthwise_compute_interior_range_1d(
-        input_y, kernel_y, stride_y, pad_y, output_y, &interior_y_first, &interior_y_last);
+    if (!bias)
+    {
+        bias_c = arm_depthwise_direct_zero_bias_f32;
+    }
+
+    for (; c < ch_pairs; c += 8)
+    {
+        arm_depthwise_direct_block_mve_f32(in_tap + c, w_tap + c, bias_c, out_px + c, n_px, run, 2, 0, p_tail);
+        bias_c += bias_step;
+    }
+    if (ch_rem > 4)
+    {
+        arm_depthwise_direct_block_mve_f32(in_tap + c, w_tap + c, bias_c, out_px + c, n_px, run, 2, 1, p_tail);
+    }
+    else if (ch_rem == 4)
+    {
+        arm_depthwise_direct_block_mve_f32(in_tap + c, w_tap + c, bias_c, out_px + c, n_px, run, 1, 0, p_tail);
+    }
+    else if (ch_rem > 0)
+    {
+        arm_depthwise_direct_block_mve_f32(in_tap + c, w_tap + c, bias_c, out_px + c, n_px, run, 1, 1, p_tail);
+    }
+}
+    #else
+/* Scalar twin: same tap order, one FMA-contractible product per tap, clamp as arm_nn_vector_clamp_f32. */
+static void arm_depthwise_direct_run_scalar_f32(const float32_t *in_tap,
+                                                const float32_t *w_tap,
+                                                const float32_t *bias,
+                                                float32_t *out_px,
+                                                int32_t n_px,
+                                                const arm_depthwise_direct_run_f32 *run)
+{
+    const size_t ch = run->ch;
+
+    for (int32_t px = 0; px < n_px; ++px)
+    {
+        for (size_t c = 0; c < ch; ++c)
+        {
+            float32_t acc = bias ? bias[c] : 0.0f;
+            for (int32_t ky = 0; ky < run->taps_y; ++ky)
+            {
+                const float32_t *in = in_tap + c + (size_t)ky * run->in_row_step;
+                const float32_t *w = w_tap + c + (size_t)ky * run->w_row_step;
+                for (int32_t kx = 0; kx < run->taps_x; ++kx)
+                {
+                    acc += in[(size_t)kx * run->in_tap_step] * w[(size_t)kx * ch];
+                }
+            }
+            out_px[c] = ARM_NN_CLAMP(acc, run->act_max, run->act_min);
+        }
+        in_tap += run->in_px_step;
+        out_px += ch;
+    }
+}
+    #endif
+
+/* First / one-past-last in-range tap index of a padded edge (main's generic-route formulas, dilation-aware). */
+__STATIC_FORCEINLINE int32_t arm_depthwise_direct_tap_start(int32_t base_idx, int32_t dilation)
+{
+    if (dilation > 1)
+    {
+        return ARM_NN_MAX(0, (-base_idx + dilation - 1) / dilation);
+    }
+    return ARM_NN_MAX(0, -base_idx);
+}
+
+__STATIC_FORCEINLINE int32_t arm_depthwise_direct_tap_end(int32_t base_idx,
+                                                          int32_t dilation,
+                                                          int32_t kernel_size,
+                                                          int32_t input_size)
+{
+    if (dilation > 1)
+    {
+        return ARM_NN_MIN(kernel_size, (input_size - base_idx + dilation - 1) / dilation);
+    }
+    return ARM_NN_MIN(kernel_size, input_size - base_idx);
+}
+
+static void arm_depthwise_conv_nhwc_direct_chmult1_f32(const float32_t *input,
+                                                       int32_t input_batches,
+                                                       int32_t input_x,
+                                                       int32_t input_y,
+                                                       int32_t input_ch,
+                                                       const float32_t *kernel,
+                                                       int32_t kernel_x,
+                                                       int32_t kernel_y,
+                                                       int32_t pad_x,
+                                                       int32_t pad_y,
+                                                       int32_t stride_x,
+                                                       int32_t stride_y,
+                                                       int32_t dilation_x,
+                                                       int32_t dilation_y,
+                                                       const float32_t *bias,
+                                                       float32_t *output,
+                                                       int32_t output_x,
+                                                       int32_t output_y,
+                                                       float32_t output_activation_min,
+                                                       float32_t output_activation_max)
+{
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+        #define ARM_DW_DIRECT_RUN_F32 arm_depthwise_direct_run_mve_f32
+    #else
+        #define ARM_DW_DIRECT_RUN_F32 arm_depthwise_direct_run_scalar_f32
+    #endif
+    const size_t ch = (size_t)input_ch;
+    const size_t in_row_elems = (size_t)input_x * ch;
+    const size_t in_batch_stride = (size_t)input_y * in_row_elems;
+    const size_t out_batch_stride = (size_t)output_x * (size_t)output_y * ch;
+    arm_depthwise_direct_run_f32 run;
+    run.in_row_step = (size_t)dilation_y * in_row_elems;
+    run.in_tap_step = (size_t)dilation_x * ch;
+    run.in_px_step = (size_t)stride_x * ch;
+    run.w_row_step = (size_t)kernel_x * ch;
+    run.ch = ch;
+    run.act_min = output_activation_min;
+    run.act_max = output_activation_max;
+
+    /* Output columns whose every tap column is in range: [x_lo, x_hi). The rest take the per-pixel window. */
+    int32_t x_lo = output_x;
+    int32_t x_hi = output_x;
+    if (stride_x > 0)
+    {
+        const int32_t hi_num = input_x - 1 + pad_x - (kernel_x - 1) * dilation_x;
+        x_lo = (pad_x > 0) ? (pad_x + stride_x - 1) / stride_x : 0;
+        x_hi = (hi_num >= 0) ? (hi_num / stride_x) + 1 : 0;
+        x_lo = ARM_NN_MIN(x_lo, output_x);
+        x_hi = ARM_NN_MIN(x_hi, output_x);
+        x_hi = ARM_NN_MAX(x_hi, x_lo);
+    }
 
     for (int32_t i_batch = 0; i_batch < input_batches; ++i_batch)
     {
-        const float32_t *input_b = input + i_batch * in_batch_stride;
-        float32_t *output_b = output + i_batch * out_batch_stride;
+        const float32_t *input_b = input + (size_t)i_batch * in_batch_stride;
+        float32_t *output_b = output + (size_t)i_batch * out_batch_stride;
 
         for (int32_t i_out_y = 0; i_out_y < output_y; ++i_out_y)
         {
             const int32_t base_idx_y = (i_out_y * stride_y) - pad_y;
-            const int32_t y_interior = (i_out_y >= interior_y_first && i_out_y <= interior_y_last);
-
-            int32_t i_out_x = 0;
-            if (y_interior && interior_x_first <= interior_x_last)
+            const int32_t ker_y_start = arm_depthwise_direct_tap_start(base_idx_y, dilation_y);
+            const int32_t ker_y_end = arm_depthwise_direct_tap_end(base_idx_y, dilation_y, kernel_y, input_y);
+            /* Row pointers of the first in-range tap row; left at the tensor base (never read) when taps_y == 0. */
+            const float32_t *in_row = input_b;
+            const float32_t *w_row = kernel;
+            run.taps_y = ARM_NN_MAX(0, ker_y_end - ker_y_start);
+            if (run.taps_y > 0)
             {
-                for (; i_out_x < interior_x_first && i_out_x < output_x; ++i_out_x)
-                {
-                    const int32_t base_idx_x = (i_out_x * stride_x) - pad_x;
-                    float32_t *out_px = output_b + ((size_t)i_out_y * output_x + i_out_x) * input_ch;
-                    arm_depthwise_init_vec_f32(out_px, bias, input_ch);
-                    arm_depthwise_accumulate_pixel_nhwc_kc_f32(input_b,
-                                                               input_x,
-                                                               input_y,
-                                                               input_ch,
-                                                               kernel,
-                                                               kernel_x,
-                                                               kernel_y,
-                                                               base_idx_x,
-                                                               base_idx_y,
-                                                               out_px,
-                                                               0);
-                    arm_nn_vector_clamp_f32(out_px, input_ch, output_activation_min, output_activation_max);
-                }
-
-                for (; i_out_x <= interior_x_last && i_out_x < output_x; ++i_out_x)
-                {
-                    const int32_t base_idx_x = (i_out_x * stride_x) - pad_x;
-                    float32_t *out_px = output_b + ((size_t)i_out_y * output_x + i_out_x) * input_ch;
-                    arm_depthwise_init_vec_f32(out_px, bias, input_ch);
-                    arm_depthwise_accumulate_pixel_nhwc_kc_f32(input_b,
-                                                               input_x,
-                                                               input_y,
-                                                               input_ch,
-                                                               kernel,
-                                                               kernel_x,
-                                                               kernel_y,
-                                                               base_idx_x,
-                                                               base_idx_y,
-                                                               out_px,
-                                                               1);
-                    arm_nn_vector_clamp_f32(out_px, input_ch, output_activation_min, output_activation_max);
-                }
+                in_row = input_b + (size_t)(base_idx_y + dilation_y * ker_y_start) * in_row_elems;
+                w_row = kernel + (size_t)ker_y_start * run.w_row_step;
             }
+            float32_t *out_px = output_b + (size_t)i_out_y * (size_t)output_x * ch;
 
-            for (; i_out_x < output_x; ++i_out_x)
+            for (int32_t i_out_x = 0; i_out_x < output_x; ++i_out_x)
             {
                 const int32_t base_idx_x = (i_out_x * stride_x) - pad_x;
-                float32_t *out_px = output_b + ((size_t)i_out_y * output_x + i_out_x) * input_ch;
-                arm_depthwise_init_vec_f32(out_px, bias, input_ch);
-                arm_depthwise_accumulate_pixel_nhwc_kc_f32(
-                    input_b, input_x, input_y, input_ch, kernel, kernel_x, kernel_y, base_idx_x, base_idx_y, out_px, 0);
-                arm_nn_vector_clamp_f32(out_px, input_ch, output_activation_min, output_activation_max);
+                int32_t n_px = 1;
+                const float32_t *in_tap = input_b;
+                const float32_t *w_tap = kernel;
+                if (i_out_x == x_lo && x_hi > x_lo)
+                {
+                    /* Interior run: every tap column in range, one call for the whole run. */
+                    n_px = x_hi - x_lo;
+                    run.taps_x = kernel_x;
+                    in_tap = in_row + (size_t)base_idx_x * ch;
+                    w_tap = w_row;
+                }
+                else
+                {
+                    const int32_t ker_x_start = arm_depthwise_direct_tap_start(base_idx_x, dilation_x);
+                    const int32_t ker_x_end = arm_depthwise_direct_tap_end(base_idx_x, dilation_x, kernel_x, input_x);
+                    run.taps_x = ARM_NN_MAX(0, ker_x_end - ker_x_start);
+                    if (run.taps_x > 0)
+                    {
+                        in_tap = in_row + (size_t)(base_idx_x + dilation_x * ker_x_start) * ch;
+                        w_tap = w_row + (size_t)ker_x_start * ch;
+                    }
+                }
+                if (run.taps_y == 0)
+                {
+                    /* Fully padded row (padding wider than the kernel): bias only, nothing read. */
+                    run.taps_x = 0;
+                }
+                ARM_DW_DIRECT_RUN_F32(in_tap, w_tap, bias, out_px, n_px, &run);
+                out_px += (size_t)n_px * ch;
+                i_out_x += n_px - 1;
             }
         }
     }
+    #undef ARM_DW_DIRECT_RUN_F32
 }
 
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
@@ -500,123 +680,6 @@ static arm_cmsis_nn_status arm_depthwise_conv_nhwc_to_conv_f32(const cmsis_nn_co
 }
     #endif
 
-static arm_cmsis_nn_status arm_depthwise_conv_nhwc_fast_chmult1_kc_nt_t_f32(const cmsis_nn_context *ctx,
-                                                                            const float32_t *input,
-                                                                            int32_t input_batches,
-                                                                            int32_t input_x,
-                                                                            int32_t input_y,
-                                                                            int32_t input_ch,
-                                                                            const float32_t *kernel,
-                                                                            int32_t kernel_x,
-                                                                            int32_t kernel_y,
-                                                                            int32_t pad_x,
-                                                                            int32_t pad_y,
-                                                                            int32_t stride_x,
-                                                                            int32_t stride_y,
-                                                                            const float32_t *bias,
-                                                                            float32_t *output,
-                                                                            int32_t output_x,
-                                                                            int32_t output_y,
-                                                                            float32_t output_activation_min,
-                                                                            float32_t output_activation_max)
-{
-    if (!ctx || !ctx->buf || ctx->size <= 0)
-    {
-        return ARM_CMSIS_NN_NO_IMPL_ERROR;
-    }
-
-    const int32_t kernel_size = kernel_x * kernel_y;
-    if (kernel_size <= 0 || input_ch <= 0)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
-    const size_t lhs_row_elems = (size_t)kernel_size * (size_t)input_ch;
-    const size_t lhs_row_bytes = lhs_row_elems * sizeof(float32_t);
-    if (lhs_row_bytes == 0)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
-    const size_t max_rows_from_buf = (size_t)ctx->size / lhs_row_bytes;
-    int32_t tile_row_limit = (int32_t)max_rows_from_buf;
-    if (tile_row_limit > ARM_NN_DW_NT_T_F32_TILE_ROWS)
-    {
-        tile_row_limit = ARM_NN_DW_NT_T_F32_TILE_ROWS;
-    }
-    if (tile_row_limit < 1)
-    {
-        return ARM_CMSIS_NN_NO_IMPL_ERROR;
-    }
-
-    float32_t *lhs_buffer = (float32_t *)ctx->buf;
-    const int32_t in_batch_stride = input_x * input_y * input_ch;
-    const int32_t out_batch_stride = output_x * output_y * input_ch;
-
-    for (int32_t i_batch = 0; i_batch < input_batches; ++i_batch)
-    {
-        const float32_t *input_b = input + i_batch * in_batch_stride;
-        float32_t *output_b = output + i_batch * out_batch_stride;
-
-        for (int32_t i_out_y = 0; i_out_y < output_y; ++i_out_y)
-        {
-            const int32_t base_idx_y = (i_out_y * stride_y) - pad_y;
-
-            for (int32_t i_out_x = 0; i_out_x < output_x; i_out_x += tile_row_limit)
-            {
-                int32_t tile_rows = output_x - i_out_x;
-                if (tile_rows > tile_row_limit)
-                {
-                    tile_rows = tile_row_limit;
-                }
-
-                float32_t *lhs_ptr = lhs_buffer;
-                for (int32_t row = 0; row < tile_rows; ++row)
-                {
-                    const int32_t base_idx_x = ((i_out_x + row) * stride_x) - pad_x;
-
-                    for (int32_t i_ker_y = 0; i_ker_y < kernel_y; ++i_ker_y)
-                    {
-                        const int32_t idx_y = base_idx_y + i_ker_y;
-                        for (int32_t i_ker_x = 0; i_ker_x < kernel_x; ++i_ker_x)
-                        {
-                            const int32_t idx_x = base_idx_x + i_ker_x;
-                            if ((uint32_t)idx_y >= (uint32_t)input_y || (uint32_t)idx_x >= (uint32_t)input_x)
-                            {
-                                arm_memset_f32(lhs_ptr, 0.0f, (uint32_t)input_ch);
-                            }
-                            else
-                            {
-                                const float32_t *in_px = input_b + ((size_t)idx_y * input_x + idx_x) * input_ch;
-                                arm_memcpy_f32(lhs_ptr, in_px, (uint32_t)input_ch);
-                            }
-                            lhs_ptr += input_ch;
-                        }
-                    }
-                }
-
-                float32_t *out_ptr = output_b + ((size_t)i_out_y * output_x + i_out_x) * input_ch;
-                arm_cmsis_nn_status status = arm_nn_depthwise_conv_nt_t_f32(lhs_buffer,
-                                                                            kernel,
-                                                                            bias,
-                                                                            out_ptr,
-                                                                            tile_rows,
-                                                                            input_ch,
-                                                                            kernel_size,
-                                                                            input_ch,
-                                                                            output_activation_min,
-                                                                            output_activation_max);
-                if (status != ARM_CMSIS_NN_SUCCESS)
-                {
-                    return status;
-                }
-            }
-        }
-    }
-
-    return ARM_CMSIS_NN_SUCCESS;
-}
-
 static void arm_depthwise_conv_f32_generic(const float32_t *input,
                                            const int32_t input_batches,
                                            const int32_t input_x,
@@ -757,7 +820,7 @@ static arm_cmsis_nn_status arm_depthwise_conv_nhwc_dispatch_f32(const cmsis_nn_c
                                                                 arm_nn_dw_kernel_layout_f32 kernel_layout)
 {
     #ifndef NN_DISABLE_SPECIALIZATION
-    /* First try exact-shape NHWC specializations such as 1D-k3 and 3x3 kernels. */
+    /* First try the exact-shape NHWC specializations (1D-k3). */
     ARM_DW_DISPATCH(arm_dw_spec_nhwc_f32,
                     ARM_DW_ARRAY_SIZE(arm_dw_spec_nhwc_f32),
                     ctx,
@@ -773,50 +836,30 @@ static arm_cmsis_nn_status arm_depthwise_conv_nhwc_dispatch_f32(const cmsis_nn_c
                     kernel_layout);
     #endif
 
-    /* Then try the broader ch_mult=1 fast NHWC routes before falling back to the generic kernel. */
-    if (dw_conv_params->ch_mult == 1 && dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1)
+    /* ch_mult == 1: the direct channel-vectorized kernel, any stride/dilation/padding/batch, no scratch (#448).
+     * The ctx the sizer still asks for is not read here. */
+    if (dw_conv_params->ch_mult == 1)
     {
-        if (arm_depthwise_conv_nhwc_fast_chmult1_kc_nt_t_f32(ctx,
-                                                             input,
-                                                             input_dims->n,
-                                                             input_dims->w,
-                                                             input_dims->h,
-                                                             input_dims->c,
-                                                             kernel,
-                                                             filter_dims->w,
-                                                             filter_dims->h,
-                                                             dw_conv_params->padding.w,
-                                                             dw_conv_params->padding.h,
-                                                             dw_conv_params->stride.w,
-                                                             dw_conv_params->stride.h,
-                                                             bias,
-                                                             output,
-                                                             output_dims->w,
-                                                             output_dims->h,
-                                                             dw_conv_params->activation.min,
-                                                             dw_conv_params->activation.max) == ARM_CMSIS_NN_SUCCESS)
-        {
-            return ARM_CMSIS_NN_SUCCESS;
-        }
-
-        arm_depthwise_conv_nhwc_fast_chmult1_kc_f32(input,
-                                                    input_dims->n,
-                                                    input_dims->w,
-                                                    input_dims->h,
-                                                    input_dims->c,
-                                                    kernel,
-                                                    filter_dims->w,
-                                                    filter_dims->h,
-                                                    dw_conv_params->padding.w,
-                                                    dw_conv_params->padding.h,
-                                                    dw_conv_params->stride.w,
-                                                    dw_conv_params->stride.h,
-                                                    bias,
-                                                    output,
-                                                    output_dims->w,
-                                                    output_dims->h,
-                                                    dw_conv_params->activation.min,
-                                                    dw_conv_params->activation.max);
+        arm_depthwise_conv_nhwc_direct_chmult1_f32(input,
+                                                   input_dims->n,
+                                                   input_dims->w,
+                                                   input_dims->h,
+                                                   input_dims->c,
+                                                   kernel,
+                                                   filter_dims->w,
+                                                   filter_dims->h,
+                                                   dw_conv_params->padding.w,
+                                                   dw_conv_params->padding.h,
+                                                   dw_conv_params->stride.w,
+                                                   dw_conv_params->stride.h,
+                                                   dw_conv_params->dilation.w,
+                                                   dw_conv_params->dilation.h,
+                                                   bias,
+                                                   output,
+                                                   output_dims->w,
+                                                   output_dims->h,
+                                                   dw_conv_params->activation.min,
+                                                   dw_conv_params->activation.max);
         return ARM_CMSIS_NN_SUCCESS;
     }
 

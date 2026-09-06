@@ -44,7 +44,8 @@
      * @{
      */
 
-    /* Keep in sync with arm_depthwise_conv_f32.c fast NT_T packing tile. */
+    /* Retired NT_T packing tile of arm_depthwise_conv_f32.c. The ch_mult == 1 route no longer reads ctx (#448); the
+     * size is kept so callers that already allocate it are unchanged until the release cut. */
     #define ARM_NN_DW_NT_T_F32_TILE_ROWS (4)
 
 int32_t arm_depthwise_conv_f32_get_buffer_size(const cmsis_nn_dw_conv_params_f32 *dw_conv_params,
@@ -92,7 +93,7 @@ int32_t arm_depthwise_conv_f32_get_buffer_size(const cmsis_nn_dw_conv_params_f32
     }
     #endif
 
-    /* Scratch is used only by the NHWC ch_mult=1, dilation=1 fast NT_T kernel. */
+    /* NHWC ch_mult=1, dilation=1: the retired NT_T tile size, no longer consumed (#448). */
     if (layout != ARM_NN_LAYOUT_NHWC || dw_conv_params->ch_mult != 1 || dw_conv_params->dilation.w != 1 ||
         dw_conv_params->dilation.h != 1)
     {
