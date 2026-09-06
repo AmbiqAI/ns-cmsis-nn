@@ -17,16 +17,21 @@
 #   inline_asm                — NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM=ON,
 #                               expect CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY
 #                               on the target's COMPILE_DEFINITIONS.
-#   float_f32                 — ARM_NN_ENABLE_F32=ON; expect _f32 sources
+#   float_f32                 - ARM_NN_ENABLE_F32=ON; expect _f32 sources
 #                               + ARM_NN_ENABLE_F32=1 and ARM_NN_ENABLE_F16=0.
-#   float_f16                 — ARM_NN_ENABLE_F16=ON; expect _f16 sources
+#   float_f16                 - ARM_NN_ENABLE_F16=ON; expect _f16 sources
 #                               + ARM_NN_ENABLE_F32=0 and ARM_NN_ENABLE_F16=1.
 #   float_both                — both float toggles ON; expect both _f32/_f16
 #                               sources and both compile definitions =1.
 #   float_renamed_switch      - NSX_CMSIS_NN_ENABLE_F16=ON, the removed
 #                               spelling; expect a configure-time FATAL_ERROR
 #                               naming the switch and ARM_NN_ENABLE_F32/F16 as
-#                               its replacement (via a child cmake probe).
+#                               its replacement. Then both removed names at
+#                               once, as a build directory configured against
+#                               the predecessor carries them: expect one error
+#                               naming both plus a recovery that configures
+#                               cleanly and lands the request it names (child
+#                               cmake probes).
 #                               See AmbiqAI/ns-cmsis-nn#420.
 #   float_query               - ns_cmsis_nn_float_support() answers from the
 #                               library target in source mode, in prebuilt
@@ -189,12 +194,19 @@ if(CASE STREQUAL "float_renamed_switch")
   set(_probe "${CMAKE_BINARY_DIR}/_renamed_probe")
   file(REMOVE_RECURSE "${_probe}")
   file(MAKE_DIRECTORY "${_probe}")
+  # The probe asserts on the request that survives the recovery, so a recovery
+  # that merely configures without carrying the float request over still fails.
   file(WRITE "${_probe}/CMakeLists.txt"
 "cmake_minimum_required(VERSION 3.19)
 project(probe C)
 add_library(_nsx_board_flags INTERFACE)
 set(NSX_BOARD_FLAGS_TARGET _nsx_board_flags)
 add_subdirectory(\"${_repo_root}/nsx\" nsx)
+ns_cmsis_nn_float_support(F32 _got_f32 F16 _got_f16)
+if(NOT \"\${_got_f32}\" STREQUAL \"OFF\" OR NOT \"\${_got_f16}\" STREQUAL \"ON\")
+  message(FATAL_ERROR
+    \"after recovery: F32='\${_got_f32}' F16='\${_got_f16}', expected OFF/ON\")
+endif()
 ")
   execute_process(
     COMMAND ${CMAKE_COMMAND} -S "${_probe}" -B "${_probe}/_b"
@@ -212,6 +224,44 @@ add_subdirectory(\"${_repo_root}/nsx\" nsx)
         _fail("${CASE}: diagnostic never mentions ${_needle}; stderr:\n${_err}")
       endif()
     endforeach()
+  endif()
+
+  # A build directory configured against the predecessor holds a cache entry
+  # for both removed names, since it declared both. One error has to name both,
+  # or the recovery it prints only gets the user as far as the next error.
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -S "${_probe}" -B "${_probe}/_b"
+            -DNSX_CMSIS_NN_ENABLE_F32=OFF -DNSX_CMSIS_NN_ENABLE_F16=ON
+    RESULT_VARIABLE _rc_both
+    OUTPUT_VARIABLE _out_both
+    ERROR_VARIABLE  _err_both)
+  if(_rc_both EQUAL 0)
+    _fail("${CASE}: both-name probe unexpectedly succeeded\n${_out_both}\n${_err_both}")
+  else()
+    # Needles stay short: CMake hard-wraps a diagnostic, so a longer span of
+    # the recovery line would only match by accident of terminal width.
+    foreach(_needle "NSX_CMSIS_NN_ENABLE_F32 was renamed to"
+                    "NSX_CMSIS_NN_ENABLE_F16 was renamed to"
+                    "-UNSX_CMSIS_NN_ENABLE_F32"
+                    "-UNSX_CMSIS_NN_ENABLE_F16"
+                    "-DARM_NN_ENABLE_F16=ON")
+      string(FIND "${_err_both}" "${_needle}" _idx)
+      if(_idx EQUAL -1)
+        _fail("${CASE}: diagnostic never mentions ${_needle}; stderr:\n${_err_both}")
+      endif()
+    endforeach()
+  endif()
+
+  # The recovery the message prints, applied to the same build directory.
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -S "${_probe}" -B "${_probe}/_b"
+            -UNSX_CMSIS_NN_ENABLE_F32 -UNSX_CMSIS_NN_ENABLE_F16
+            -DARM_NN_ENABLE_F16=ON
+    RESULT_VARIABLE _rc_recover
+    OUTPUT_VARIABLE _out_recover
+    ERROR_VARIABLE  _err_recover)
+  if(NOT _rc_recover EQUAL 0)
+    _fail("${CASE}: the printed recovery did not clear the migration error\n${_out_recover}\n${_err_recover}")
   endif()
 
   if(_failures)

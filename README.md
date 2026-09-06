@@ -691,8 +691,16 @@ variable. It reads the library target, so the same call works in a source
 build, against a prebuilt archive, and after `find_package()`.
 
 `NSX_CMSIS_NN_ENABLE_F32`/`_F16` are removed; setting either is a configure
-error naming the replacement. See
-[`Documentation/build.md`](Documentation/build.md#float-switch-names).
+error that names every stale switch in the build and the recovery for all of
+them at once:
+
+```console
+$ cmake -S . -B build \
+    -UNSX_CMSIS_NN_ENABLE_F32 -UNSX_CMSIS_NN_ENABLE_F16 \
+    -DARM_NN_ENABLE_F16=ON
+```
+
+See [`Documentation/build.md`](Documentation/build.md#float-switch-names).
 
 **Do floating-point kernels target all IEEE edge cases?**
 No. For performance reasons, the current floating-point kernels do not

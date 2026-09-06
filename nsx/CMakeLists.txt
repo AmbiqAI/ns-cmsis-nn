@@ -21,12 +21,12 @@
 #                                              rules below).
 #   NSX_CMSIS_NN_OPTIMIZATION                — compiler optimization (default: -Ofast)
 #   NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM   — enable inline-asm requantize (OFF)
-#   ARM_NN_ENABLE_F32                        — enable FP32 kernel declarations (OFF).
+#   ARM_NN_ENABLE_F32                        - enable FP32 kernel declarations (OFF).
 #                                              In source mode this also compiles the
 #                                              kernels; in prebuilt mode it is
 #                                              validated against the archive's
 #                                              manifest when one can be found.
-#   ARM_NN_ENABLE_F16                        — enable FP16 kernel declarations (OFF).
+#   ARM_NN_ENABLE_F16                        - enable FP16 kernel declarations (OFF).
 #                                              Same source/prebuilt caveat as above.
 #   NSX_CMSIS_NN_GROUPS                      — operator groups to compile in
 #                                              source mode (default: ALL; or a
@@ -71,15 +71,38 @@ option(NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM
 
 # The float switches keep the library's own names on this path, declared
 # exactly as the standalone build declares them, so one name means one thing
-# everywhere. See AmbiqAI/ns-cmsis-nn#420.
-foreach(_nsx_renamed_float NSX_CMSIS_NN_ENABLE_F32 NSX_CMSIS_NN_ENABLE_F16)
-    if(DEFINED ${_nsx_renamed_float})
-        message(FATAL_ERROR
-            "nsx-cmsis-nn: ${_nsx_renamed_float} was renamed to "
-            "ARM_NN_ENABLE_F32/F16; set that instead.")
+# everywhere. Every stale name is collected before aborting: a build directory
+# configured against the predecessor holds a cache entry per width, and an
+# error that names one of them sends the user round the configure loop twice.
+# See AmbiqAI/ns-cmsis-nn#420.
+set(_nsx_stale "")
+set(_nsx_stale_clear "")
+set(_nsx_stale_set "")
+foreach(_nsx_width F32 F16)
+    set(_nsx_stale_name "NSX_CMSIS_NN_ENABLE_${_nsx_width}")
+    if(DEFINED ${_nsx_stale_name})
+        string(APPEND _nsx_stale
+            "\n  ${_nsx_stale_name} was renamed to ARM_NN_ENABLE_F32/F16")
+        string(APPEND _nsx_stale_clear " -U${_nsx_stale_name}")
+        if(${_nsx_stale_name})
+            string(APPEND _nsx_stale_set " -DARM_NN_ENABLE_${_nsx_width}=ON")
+        endif()
     endif()
 endforeach()
-unset(_nsx_renamed_float)
+if(_nsx_stale)
+    message(FATAL_ERROR
+        "nsx-cmsis-nn: this build sets float switches that no longer exist:"
+        "${_nsx_stale}\n"
+        "Re-run cmake with${_nsx_stale_clear}${_nsx_stale_set}, or delete "
+        "CMakeCache.txt in the build directory and configure again. A switch "
+        "a parent CMakeLists set() rather than a -D has to be removed there.")
+endif()
+unset(_nsx_width)
+unset(_nsx_stale_name)
+unset(_nsx_stale)
+unset(_nsx_stale_clear)
+unset(_nsx_stale_set)
+
 option(ARM_NN_ENABLE_F32 "Enable CMSIS-NN float32 extensions." OFF)
 option(ARM_NN_ENABLE_F16 "Enable CMSIS-NN float16 extensions." OFF)
 

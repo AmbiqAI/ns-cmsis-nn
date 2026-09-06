@@ -254,7 +254,7 @@ rules incorrectly. Two checks pin that contract:
    | `source_subset` | `NSX_CMSIS_NN_GROUPS="activation;convolution"` resolves to exactly 62 sources. |
    | `inline_asm` | `NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM=ON` propagates `CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY`. |
    | `float_f32` / `float_f16` / `float_both` | The matching `ARM_NN_ENABLE_*` toggle selects the `_f32`/`_f16` sources, sets `ARM_NN_ENABLE_F32`/`F16` on the target, and is what `ns_cmsis_nn_float_support()` reports back. |
-   | `float_renamed_switch` | `NSX_CMSIS_NN_ENABLE_F16=ON`, the removed spelling, aborts with a `FATAL_ERROR` naming the switch and `ARM_NN_ENABLE_F32/F16` as its replacement (via child `cmake` probe). |
+   | `float_renamed_switch` | `NSX_CMSIS_NN_ENABLE_F16=ON`, the removed spelling, aborts with a `FATAL_ERROR` naming the switch and `ARM_NN_ENABLE_F32/F16` as its replacement; with both removed names set, one error names both and the recovery it prints configures cleanly and keeps the F16 request (child `cmake` probes). |
    | `float_query` | `ns_cmsis_nn_float_support()` returns the right `ON`/`OFF` pair in source mode, in prebuilt mode and through the `find_package` config template, and aborts when a width keyword is omitted (four child `cmake` probes). |
    | `prebuilt` | `NSX_CMSIS_NN_LIB=…` builds an INTERFACE wrapper + IMPORTED prebuilt target, alias still works. |
    | `prebuilt_manifest_ok` | Prebuilt lib + sibling `manifest.json` reporting `f32=true`; `ARM_NN_ENABLE_F32=ON` succeeds and forwards `ARM_NN_ENABLE_F32=1`. |
@@ -498,16 +498,37 @@ dependency in force, since no CMake variable can stand in for the symbol.
 ### Migrating off `NSX_CMSIS_NN_ENABLE_*`
 
 `NSX_CMSIS_NN_ENABLE_F32` and `NSX_CMSIS_NN_ENABLE_F16` are removed. Setting
-either, as a cache entry or as a plain variable, aborts the configure:
+either, as a cache entry or as a plain variable, aborts the configure. A build
+directory configured before the rename carries a cache entry for both, since
+the removed pair was declared with `option()`, so the error names every stale
+switch it finds and prints the whole recovery at once:
 
 ```
-nsx-cmsis-nn: NSX_CMSIS_NN_ENABLE_F16 was renamed to ARM_NN_ENABLE_F32/F16;
-set that instead.
+nsx-cmsis-nn: this build sets float switches that no longer exist:
+
+  NSX_CMSIS_NN_ENABLE_F32 was renamed to ARM_NN_ENABLE_F32/F16
+  NSX_CMSIS_NN_ENABLE_F16 was renamed to ARM_NN_ENABLE_F32/F16
+
+Re-run cmake with -UNSX_CMSIS_NN_ENABLE_F32 -UNSX_CMSIS_NN_ENABLE_F16
+-DARM_NN_ENABLE_F16=ON, or delete CMakeCache.txt in the build directory and
+configure again.
 ```
 
-Rename the switch at the call site and, if the request came from a `-D`, drop
-the old cache entry with `-UNSX_CMSIS_NN_ENABLE_F16`. The float surface is
-experimental, so there is no alias period; the error is the migration aid.
+Rename the switch at the call site, then run the recovery the message printed
+against the same build directory:
+
+```console
+$ cmake -S . -B build \
+    -UNSX_CMSIS_NN_ENABLE_F32 -UNSX_CMSIS_NN_ENABLE_F16 \
+    -DARM_NN_ENABLE_F16=ON
+```
+
+The `-D` part names the widths the stale entries had switched on, so the
+request survives the migration; deleting `CMakeCache.txt` works too, at the
+cost of the rest of the cache. `-U` only reaches cache entries, so a switch a
+parent `CMakeLists.txt` set with `set()` has to be removed there. The float
+surface is experimental, so there is no alias period; the error is the
+migration aid.
 
 See AmbiqAI/ns-cmsis-nn#420.
 
