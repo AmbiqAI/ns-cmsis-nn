@@ -222,6 +222,13 @@ arm_cmsis_nn_status arm_transpose_s8(const int8_t *input,
 
     const uint32_t *const perm = transpose_params->permutations;
 
+    /* The in_strides products below are signed, so the extents are validated before any arithmetic
+     * derives from them. see AmbiqAI/ns-cmsis-nn#443 */
+    if (arm_transpose_s8_check_dims(input_dims, output_dims, perm, transpose_params->num_dims) != ARM_CMSIS_NN_SUCCESS)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     const int32_t n = input_dims->n;
     const int32_t h = input_dims->h;
     const int32_t w = input_dims->w;
@@ -231,11 +238,6 @@ arm_cmsis_nn_status arm_transpose_s8(const int8_t *input,
     in_strides[1] = w * c;
     in_strides[2] = c;
     in_strides[3] = 1;
-
-    if (arm_transpose_s8_check_dims(input_dims, output_dims, perm, transpose_params->num_dims) != ARM_CMSIS_NN_SUCCESS)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
 
     if (transpose_params->num_dims == 1)
     {
