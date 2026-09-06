@@ -55,16 +55,17 @@
     #endif
 
     #if !defined(ARM_MATH_MVE_FLOAT16) || defined(ARM_MATH_AUTOVECTORIZE)
-__STATIC_INLINE float16_t dot_nt_t_f16_scalar(const float16_t *__RESTRICT lhs_row,
+/* Scalar leg accumulates in float32; the caller adds the bias and rounds to f16 once (#449, #457). */
+__STATIC_INLINE float32_t dot_nt_t_f16_scalar(const float16_t *__RESTRICT lhs_row,
                                               const float16_t *__RESTRICT rhs_row,
                                               int32_t len)
 {
-    _Float16 acc = (_Float16)0.0f;
+    float32_t acc = 0.0f;
     for (int32_t i = 0; i < len; ++i)
     {
-        acc += (_Float16)lhs_row[i] * (_Float16)rhs_row[i];
+        acc += (float32_t)lhs_row[i] * (float32_t)rhs_row[i];
     }
-    return (float16_t)acc;
+    return acc;
 }
     #endif
 
@@ -262,12 +263,14 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
         for (; c < rhs_rows; ++c)
         {
             const float16_t *rhs_row = rhs + (size_t)c * rhs_cols;
-            _Float16 acc = bias ? (_Float16)bias[c] : (_Float16)0.0f;
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+            _Float16 acc = bias ? (_Float16)bias[c] : (_Float16)0.0f;
             acc += (_Float16)dot_nt_t_f16_mve(lhs_row, rhs_row, rhs_cols);
     #else
-            acc += (_Float16)dot_nt_t_f16_scalar(lhs_row, rhs_row, rhs_cols);
+            const float32_t acc32 =
+                (bias ? (float32_t)bias[c] : 0.0f) + dot_nt_t_f16_scalar(lhs_row, rhs_row, rhs_cols);
+            _Float16 acc = (_Float16)acc32;
     #endif
 
             dst_row[c] = (float16_t)arm_nn_clamp_f16h(acc, (_Float16)activation_max, (_Float16)activation_min);
