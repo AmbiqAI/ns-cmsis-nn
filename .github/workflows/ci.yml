@@ -8,6 +8,7 @@ name: CI/CD Pipeline
 #
 # Rules for adding a check:
 #   - add the job here (reusable workflows take `uses:`, see below)
+#   - give it `needs: gate` so it skips with draft pull requests (#459)
 #   - add its job id to `ci-passed.needs`
 #   - a leg that must not block forks/Dependabot skips itself rather than
 #     failing: `ci-passed` treats `skipped` as passing, `failure` and
@@ -26,7 +27,13 @@ on:
   # (host-sanitizer was main-only), and a required check that never
   # reports would leave a non-main-target PR unmergeable -- so everything
   # here runs on every PR, whatever its base.
+  #
+  # `ready_for_review` is not a default type, and without it promoting a draft
+  # fires no event: the pipeline the `gate` job skipped would never run, and
+  # the `CI Passed` failure a draft reports would never be replaced by a real
+  # result. See AmbiqAI/ns-cmsis-nn#459.
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 # One run per ref. In-progress PR runs are superseded by a new push. An
 # in-progress main run is never cancelled, though a rapid series of main
@@ -38,8 +45,22 @@ concurrency:
 
 jobs:
 
+  # Draft pull requests are work pushed for backup, and this pipeline is the
+  # expensive one (FVP, QEMU, the toolchain matrix). The draft condition lives
+  # here alone: every other job declares `needs: gate`, so skipping the gate
+  # skips the pipeline. `ci-passed` still runs and reports a failure, so no
+  # green check ever covers a pipeline that ran nothing.
+  # See AmbiqAI/ns-cmsis-nn#459.
+  gate:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    steps:
+      - name: Report that the pipeline is enabled for this event
+        run: echo "Running the pipeline for ${{ github.event_name }}."
+
   helia-core-tester:
     uses: ./.github/workflows/helia-core-tester.yml
+    needs: gate
 
   # helia-core-tester runs the functional suite on the container's single
   # arm-gnu 14.3.1 and stays that way -- do not multiply it across GCC
@@ -51,6 +72,7 @@ jobs:
   # (AmbiqAI/ns-cmsis-nn#291).
   toolchain-strict-link:
     uses: ./.github/workflows/toolchain-matrix-strict-link.yml
+    needs: gate
     # Named explicitly rather than `secrets: inherit`: this workflow needs
     # exactly one secret, and inherit would hand it every repository secret.
     # It is declared `required: false` on the callee, because Dependabot and
@@ -61,6 +83,7 @@ jobs:
 
   host-sanitizer:
     uses: ./.github/workflows/host-sanitizer.yml
+    needs: gate
 
   # The legacy Unity suites only *run* nightly and at release (FVP time), so
   # before this leg a test translation unit could first meet a cross-compiler
@@ -78,6 +101,7 @@ jobs:
   # `needs:`, not on either display name.
   unity-m55-compile:
     uses: ./.github/workflows/unity-m55-compile.yml
+    needs: gate
 
   # The strict-link matrix above proves the whole supported GCC range compiles
   # and links, but only the container's own toolchain ever executes anything
@@ -87,27 +111,35 @@ jobs:
   # floor, under QEMU (AmbiqAI/ns-cmsis-nn#427).
   unity-f16-exec-gcc-floor:
     uses: ./.github/workflows/unity-f16-exec-gcc-floor.yml
+    needs: gate
 
   clang-format:
     uses: ./.github/workflows/clang-format.yml
+    needs: gate
 
   pre-commit:
     uses: ./.github/workflows/pre-commit.yml
+    needs: gate
 
   license-headers:
     uses: ./.github/workflows/license-headers.yml
+    needs: gate
 
   pdsc:
     uses: ./.github/workflows/pdsc.yml
+    needs: gate
 
   ssot-contract:
     uses: ./.github/workflows/ssot-contract.yml
+    needs: gate
 
   nsx-integration:
     uses: ./.github/workflows/nsx-integration.yml
+    needs: gate
 
   zephyr-integration:
     uses: ./.github/workflows/zephyr-integration.yml
+    needs: gate
 
   # The docs build gates every PR (its old paths filter already covered
   # Include/, Source/, docs/ and more, i.e. nearly every substantive
@@ -116,6 +148,7 @@ jobs:
   # asks for.
   docs:
     uses: ./.github/workflows/docs.yml
+    needs: gate
     permissions:
       contents: read
       pages: write
@@ -123,6 +156,7 @@ jobs:
 
   release-contract:
     uses: ./.github/workflows/release-contract.yml
+    needs: gate
 
   # Pack generation is on the release path but was rehearsed only when
   # somebody remembered to dispatch it: four times ever, across four
@@ -133,16 +167,23 @@ jobs:
   # breakages that come from outside the repository, which no PR can see.
   pack-dryrun:
     uses: ./.github/workflows/pack-dryrun.yml
+    needs: gate
 
   # The one context branch protection requires (#353). `if: always()` is
   # load-bearing: without it a failed dependency skips this job, and a
   # skipped required check counts as PASSING under rulesets -- the gate
-  # would approve exactly when it must block.
+  # would approve exactly when it must block. The same rule rules out skipping
+  # this job on a draft, so instead it runs and fails on a skipped `gate`: the
+  # required check reports failure and can never read as passing over a
+  # pipeline that ran nothing. Promotion to ready runs the pipeline, and this
+  # same check then reports its real result. GitHub also refuses to merge a
+  # draft, but the gate does not rely on that (AmbiqAI/ns-cmsis-nn#459).
   ci-passed:
     name: CI Passed
     runs-on: ubuntu-latest
     if: always()
     needs:
+      - gate
       - helia-core-tester
       - toolchain-strict-link
       - host-sanitizer
@@ -159,6 +200,13 @@ jobs:
       - release-contract
       - pack-dryrun
     steps:
+      # Must precede the summary step: that step reads a skipped dependency as
+      # passing, so a draft (everything skipped) would otherwise report green.
+      - name: Fail because the pipeline was skipped for a draft
+        if: needs.gate.result == 'skipped'
+        run: |
+          echo "Pipeline not run: this pull request is a draft. It runs when the pull request is marked ready for review." >&2
+          exit 1
       - name: Verify every gated job succeeded or was skipped
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
