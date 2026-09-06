@@ -35,17 +35,14 @@
 
 #if ARM_NN_ENABLE_F16
 
-    /**
-     * @ingroup NNConv
-     */
+/**
+ * @ingroup NNConv
+ */
 
-    /**
-     * @addtogroup GetBufferSizeNNConv
-     * @{
-     */
-
-    /* Keep in sync with arm_depthwise_conv_f16.c fast NT_T packing tile. */
-    #define ARM_NN_DW_NT_T_F16_TILE_ROWS (4)
+/**
+ * @addtogroup GetBufferSizeNNConv
+ * @{
+ */
 
 int32_t arm_depthwise_conv_f16_get_buffer_size(const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
                                                const cmsis_nn_dims *input_dims,
@@ -53,7 +50,7 @@ int32_t arm_depthwise_conv_f16_get_buffer_size(const cmsis_nn_dw_conv_params_f16
                                                const cmsis_nn_dims *output_dims,
                                                arm_nn_tensor_layout layout)
 {
-    if (!dw_conv_params || !input_dims || !filter_dims || !output_dims)
+    if (!dw_conv_params || !input_dims || !filter_dims || !output_dims || layout != ARM_NN_LAYOUT_NHWC)
     {
         return 0;
     }
@@ -92,30 +89,9 @@ int32_t arm_depthwise_conv_f16_get_buffer_size(const cmsis_nn_dw_conv_params_f16
     }
     #endif
 
-    /* Scratch is used only by the NHWC ch_mult=1, dilation=1 fast NT_T kernel. */
-    if (layout != ARM_NN_LAYOUT_NHWC || dw_conv_params->ch_mult != 1 || dw_conv_params->dilation.w != 1 ||
-        dw_conv_params->dilation.h != 1)
-    {
-        return 0;
-    }
-
-    if (input_dims->c <= 0 || filter_dims->w <= 0 || filter_dims->h <= 0)
-    {
-        return 0;
-    }
-
-    const size_t kernel_size = (size_t)filter_dims->w * (size_t)filter_dims->h;
-    const size_t channels = (size_t)input_dims->c;
-    size_t lhs_bytes = (size_t)ARM_NN_DW_NT_T_F16_TILE_ROWS;
-
-    if (!arm_nn_checked_size_mul(lhs_bytes, kernel_size, &lhs_bytes) ||
-        !arm_nn_checked_size_mul(lhs_bytes, channels, &lhs_bytes) ||
-        !arm_nn_checked_size_mul(lhs_bytes, sizeof(float16_t), &lhs_bytes))
-    {
-        return 0;
-    }
-
-    return arm_nn_size_to_i32_or_zero(lhs_bytes);
+    /* Every other route -- the exact-shape specializations, the ch_mult == 1 direct kernel and the generic
+     * kernel -- runs without scratch (#448). */
+    return 0;
 }
 
 int32_t arm_depthwise_conv_wrapper_f16_get_buffer_size(const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
