@@ -342,7 +342,10 @@ jobs:
 
   codegen-tests-float-fallback:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The m0 leg has no FPU, so every f32 case runs through the soft-float
+    # library under --coverage at -O0. The cap is a ceiling, not a budget
+    # (AmbiqAI/ns-cmsis-nn#447).
+    timeout-minutes: 15
     needs: resolve-container-image
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}
@@ -350,6 +353,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # m0 has no FPU, so this leg is the only execution evidence for
+          # the soft-float f32 path (AmbiqAI/ns-cmsis-nn#447).
+          - cpu: cortex-m0
+            float_precision: f32
+            profile_name: m0-f32-fallback
           - cpu: cortex-m4
             float_precision: f32
             profile_name: m4-f32-fallback

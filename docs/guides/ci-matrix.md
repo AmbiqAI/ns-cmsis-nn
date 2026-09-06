@@ -26,7 +26,7 @@ status context is `CI Passed`.
 | `codegen-tests` | `helia-core-tester.yml` | cortex-m0, cortex-m4, cortex-m55 | integer suite (`--suite int`) | yes, Corstone-300 FVP | CI container's Arm GNU 14.3.1 |
 | `shipped-flags-tests` | `helia-core-tester.yml` | cortex-m4 (int), cortex-m55 (int, f32, f16) | integer, `float32`, `float16` | yes, Corstone-300 FVP | CI container's Arm GNU 14.3.1 |
 | `codegen-tests-mve-float` | `helia-core-tester.yml` | cortex-m55 | `float32`, `float16` | yes, Corstone-300 FVP | CI container's Arm GNU 14.3.1 |
-| `codegen-tests-float-fallback` | `helia-core-tester.yml` | cortex-m4 (f32), cortex-m55 (f32, f16) | `float32`, `float16` | yes, Corstone-300 FVP | CI container's Arm GNU 14.3.1 |
+| `codegen-tests-float-fallback` | `helia-core-tester.yml` | cortex-m0 (f32), cortex-m4 (f32), cortex-m55 (f32, f16) | `float32`, `float16` | yes, Corstone-300 FVP | CI container's Arm GNU 14.3.1 |
 | `gcc` | `toolchain-matrix-strict-link.yml` | cortex-m4, cortex-m55 | `float32` on both, `float16` on m55 | no, build and strict link only | GCC 13.2.Rel1, 14.2.Rel1, 15.3.Rel1 |
 | `atfe` | `toolchain-matrix-strict-link.yml` | cortex-m4, cortex-m55 | `float32` on both, `float16` on m55 | no, build and strict link only | ATfE 19.1.5 |
 | `armclang` | `toolchain-matrix-strict-link.yml` | cortex-m4, cortex-m55 | `float32` on both, `float16` on m55 | no, build and strict link only | armclang 6.23.32 |
@@ -43,6 +43,12 @@ status context is `CI Passed`.
 | `all-files` | `pre-commit.yml` | none | n/a | the pre-commit hook set on the whole tree | pre-commit 3.8.0 |
 | `check` | `license-headers.yml` | none | n/a | header check on the host | none pinned |
 | `ci-tool-manifest`, `gen-pack-action-pin`, and the other contract jobs | `release-contract.yml` | none | n/a | shell assertions over the release path's own wiring | none pinned |
+
+The cortex-m0 f32 fallback cell is the only execution of the soft-float f32
+path in this repository. Its coverage is intentionally not merged into the
+coverage gate: the merge stages the three int legs, the m4 f32 and m55 f32
+and f16 fallback legs, and the m55 MVE-float legs, so adding it would move
+`ci/coverage-floor.json` and needs its own change.
 
 Sources: `.github/workflows/ci.yml`'s `on:` block for the triggers and its
 `ci-passed` job's `needs:` list for the gated set; each callee's own
