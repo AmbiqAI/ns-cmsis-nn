@@ -51,9 +51,9 @@
  * Direct ch_mult == 1 NHWC depthwise kernel (#448). Lanes are channels: every tap is one contiguous vector
  * load of the input pixel and one of the [kh][kw][C] filter, accumulated in registers from the bias in
  * (ky, kx) order, one FMA per tap -- the tap order of the routes this replaced. The MVE leg accumulates in
- * float16 lanes like those routes (#446); the scalar leg in float32 with one rounding at the store (#449). Padding is
- * the tap window (no scratch, nothing read out of range); stride and dilation are generic. The channel tail is one
- * straight-line predicated vector; the tap loops carry no vctp.
+ * float16 lanes (#446); the scalar leg in float32 with one rounding at the store (#449). Padding is the tap
+ * window (no scratch, nothing read out of range); stride and dilation are generic. The channel tail is
+ * one straight-line predicated vector; the tap loops carry no vctp.
  */
 typedef struct
 {
@@ -829,6 +829,9 @@ static arm_cmsis_nn_status arm_depthwise_conv_nhwc_dispatch_f16(const cmsis_nn_c
                                                                 float16_t *output,
                                                                 arm_nn_dw_kernel_layout_f16 kernel_layout)
 {
+    /* Read by the table and the to-conv route only; neither is compiled on every leg. */
+    (void)ctx;
+
     #ifndef NN_DISABLE_SPECIALIZATION
     /* First try the exact-shape NHWC specializations (1D-k3, 2x5). */
     ARM_DW_DISPATCH(arm_dw_spec_nhwc_f16,

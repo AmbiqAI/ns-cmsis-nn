@@ -42,9 +42,8 @@
  */
 
 /*
- * Kept for its public signature. The dedicated 3x3 kernel accumulated through memory once per tap and lost
- * to the direct ch_mult == 1 kernel behind arm_depthwise_nhwc_conv_f32 on every shape, so this now forwards
- * there (same summation order, bit-identical f32 results; no scratch). See #448.
+ * Kept for its public signature. Forwards to arm_depthwise_nhwc_conv_f32, whose ch_mult == 1 route is the
+ * direct channel-vectorized kernel (same tap order, no scratch). See #448.
  */
 void arm_nn_depthwise_conv3x3_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
                                        int32_t batches,
