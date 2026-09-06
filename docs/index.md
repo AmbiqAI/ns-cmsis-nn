@@ -14,7 +14,7 @@
     </div>
   </div>
   <div class="hero-panel">
-    <div class="panel-topline"><span>HELIA CORE</span><span class="status-live">V7.31.0</span></div> <!-- x-release-please-version -->
+    <div class="panel-topline"><span>HELIA CORE</span><span class="status-live">V7.32.0</span></div> <!-- x-release-please-version -->
     <div class="metric-grid">
       <div><strong>200+</strong><span>accelerated ops</span></div>
       <div><strong>40+</strong><span>Field models</span></div>
