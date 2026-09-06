@@ -68,9 +68,11 @@ extern "C" {
  *
  * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448). Every route accumulates the bias and every tap in
  *       float32 on every leg. A NaN input tap or weight does not propagate: the `ch_mult == 1` direct kernel's MVE
- *       leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); its scalar leg and the `ch_mult > 1`
- *       generic kernel clamp it to the activation maximum (`ARM_NN_CLAMP`). That is the pre-#448 behavior of these
- *       routes; unifying it with the float16 scalar leg under the #334 promise is a separate issue.
+ *       leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); the MVE to-convolution route (input
+ *       channels 1, output channels 8 or more, ctx supplied) clamps it to the activation minimum
+ *       (`arm_nn_clamp_mve_f32`); its scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation
+ *       maximum (`ARM_NN_CLAMP`). That is the pre-#448 behavior of these routes; unifying it with the float16
+ *       scalar leg under the #334 promise is a separate issue.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -106,9 +108,11 @@ arm_cmsis_nn_status arm_depthwise_nhwc_conv_f32(const cmsis_nn_context *ctx,
  *
  * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448). Every route accumulates the bias and every tap in
  *       float32 on every leg. A NaN input tap or weight does not propagate: the `ch_mult == 1` direct kernel's MVE
- *       leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); its scalar leg and the `ch_mult > 1`
- *       generic kernel clamp it to the activation maximum (`ARM_NN_CLAMP`). That is the pre-#448 behavior of these
- *       routes; unifying it with the float16 scalar leg under the #334 promise is a separate issue.
+ *       leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); the MVE to-convolution route (input
+ *       channels 1, output channels 8 or more, ctx supplied) clamps it to the activation minimum
+ *       (`arm_nn_clamp_mve_f32`); its scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation
+ *       maximum (`ARM_NN_CLAMP`). That is the pre-#448 behavior of these routes; unifying it with the float16
+ *       scalar leg under the #334 promise is a separate issue.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -143,9 +147,11 @@ arm_cmsis_nn_status arm_depthwise_conv_f32(const cmsis_nn_context *ctx,
  *
  * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448). Every route accumulates the bias and every tap in
  *       float32 on every leg. A NaN input tap or weight does not propagate: the `ch_mult == 1` direct kernel's MVE
- *       leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); its scalar leg and the `ch_mult > 1`
- *       generic kernel clamp it to the activation maximum (`ARM_NN_CLAMP`). That is the pre-#448 behavior of these
- *       routes; unifying it with the float16 scalar leg under the #334 promise is a separate issue.
+ *       leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); the MVE to-convolution route (input
+ *       channels 1, output channels 8 or more, ctx supplied) clamps it to the activation minimum
+ *       (`arm_nn_clamp_mve_f32`); its scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation
+ *       maximum (`ARM_NN_CLAMP`). That is the pre-#448 behavior of these routes; unifying it with the float16
+ *       scalar leg under the #334 promise is a separate issue.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -1463,9 +1469,11 @@ arm_cmsis_nn_status arm_nn_mean_f32(const float32_t *input_data,
  *       accumulates the bias and every tap in float16 lanes (#446) and clamps a NaN to the activation minimum
  *       (`vmaxnm` / `vminnm`). Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): the direct kernel
  *       accumulates in float32 and rounds to float16 once at the store (#449), and a NaN propagates through
- *       `arm_nn_clamp_scalar_f16` -- unlike the float32 scalar leg, which clamps it to a bound. The `ch_mult > 1`
- *       generic kernel accumulates in float16 and clamps a NaN to the activation maximum (`arm_nn_clamp_f16h`) on
- *       every leg. Unifying these under the #334 promise is a separate issue.
+ *       `arm_nn_clamp_scalar_f16` -- unlike the float32 scalar leg, which clamps it to a bound. The MVE
+ *       to-convolution route (input channels 1, output channels 8 or more, ctx supplied) clamps a NaN to the
+ *       activation minimum (`arm_nn_clamp_mve_f16`). The `ch_mult > 1` generic kernel accumulates in float16 and
+ *       clamps a NaN to the activation maximum (`arm_nn_clamp_f16h`) on every leg. Unifying these under the #334
+ *       promise is a separate issue.
  */
 arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -1485,9 +1493,11 @@ arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16(const cmsis_nn_context *ctx,
  *       accumulates the bias and every tap in float16 lanes (#446) and clamps a NaN to the activation minimum
  *       (`vmaxnm` / `vminnm`). Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): the direct kernel
  *       accumulates in float32 and rounds to float16 once at the store (#449), and a NaN propagates through
- *       `arm_nn_clamp_scalar_f16` -- unlike the float32 scalar leg, which clamps it to a bound. The `ch_mult > 1`
- *       generic kernel accumulates in float16 and clamps a NaN to the activation maximum (`arm_nn_clamp_f16h`) on
- *       every leg. Unifying these under the #334 promise is a separate issue.
+ *       `arm_nn_clamp_scalar_f16` -- unlike the float32 scalar leg, which clamps it to a bound. The MVE
+ *       to-convolution route (input channels 1, output channels 8 or more, ctx supplied) clamps a NaN to the
+ *       activation minimum (`arm_nn_clamp_mve_f16`). The `ch_mult > 1` generic kernel accumulates in float16 and
+ *       clamps a NaN to the activation maximum (`arm_nn_clamp_f16h`) on every leg. Unifying these under the #334
+ *       promise is a separate issue.
  */
 arm_cmsis_nn_status arm_depthwise_conv_f16(const cmsis_nn_context *ctx,
                                            const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -1508,9 +1518,11 @@ arm_cmsis_nn_status arm_depthwise_conv_f16(const cmsis_nn_context *ctx,
  *       accumulates the bias and every tap in float16 lanes (#446) and clamps a NaN to the activation minimum
  *       (`vmaxnm` / `vminnm`). Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): the direct kernel
  *       accumulates in float32 and rounds to float16 once at the store (#449), and a NaN propagates through
- *       `arm_nn_clamp_scalar_f16` -- unlike the float32 scalar leg, which clamps it to a bound. The `ch_mult > 1`
- *       generic kernel accumulates in float16 and clamps a NaN to the activation maximum (`arm_nn_clamp_f16h`) on
- *       every leg. Unifying these under the #334 promise is a separate issue.
+ *       `arm_nn_clamp_scalar_f16` -- unlike the float32 scalar leg, which clamps it to a bound. The MVE
+ *       to-convolution route (input channels 1, output channels 8 or more, ctx supplied) clamps a NaN to the
+ *       activation minimum (`arm_nn_clamp_mve_f16`). The `ch_mult > 1` generic kernel accumulates in float16 and
+ *       clamps a NaN to the activation maximum (`arm_nn_clamp_f16h`) on every leg. Unifying these under the #334
+ *       promise is a separate issue.
  */
 arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16(const cmsis_nn_context *ctx,
                                                    const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
