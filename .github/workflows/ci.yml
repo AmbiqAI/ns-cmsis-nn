@@ -29,8 +29,9 @@ on:
   # here runs on every PR, whatever its base.
   #
   # `ready_for_review` is not a default type, and without it promoting a draft
-  # fires no event: the pipeline the `gate` job skipped would never run for
-  # that pull request. See AmbiqAI/ns-cmsis-nn#459.
+  # fires no event: the pipeline the `gate` job skipped would never run, and
+  # the `CI Passed` failure a draft reports would never be replaced by a real
+  # result. See AmbiqAI/ns-cmsis-nn#459.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
@@ -47,7 +48,9 @@ jobs:
   # Draft pull requests are work pushed for backup, and this pipeline is the
   # expensive one (FVP, QEMU, the toolchain matrix). The draft condition lives
   # here alone: every other job declares `needs: gate`, so skipping the gate
-  # skips the pipeline. See AmbiqAI/ns-cmsis-nn#459.
+  # skips the pipeline. `ci-passed` still runs and reports a failure, so no
+  # green check ever covers a pipeline that ran nothing.
+  # See AmbiqAI/ns-cmsis-nn#459.
   gate:
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
@@ -169,14 +172,16 @@ jobs:
   # The one context branch protection requires (#353). `if: always()` is
   # load-bearing: without it a failed dependency skips this job, and a
   # skipped required check counts as PASSING under rulesets -- the gate
-  # would approve exactly when it must block. That same rule is why the draft
-  # gate has to reach this job: `always()` alone would report a green summary
-  # over a pipeline that ran nothing, so on a skipped gate this job skips too
-  # and the required check stays expected (AmbiqAI/ns-cmsis-nn#459).
+  # would approve exactly when it must block. The same rule rules out skipping
+  # this job on a draft, so instead it runs and fails on a skipped `gate`: the
+  # required check reports failure and can never read as passing over a
+  # pipeline that ran nothing. Promotion to ready runs the pipeline, and this
+  # same check then reports its real result. GitHub also refuses to merge a
+  # draft, but the gate does not rely on that (AmbiqAI/ns-cmsis-nn#459).
   ci-passed:
     name: CI Passed
     runs-on: ubuntu-latest
-    if: always() && needs.gate.result != 'skipped'
+    if: always()
     needs:
       - gate
       - helia-core-tester
@@ -195,6 +200,13 @@ jobs:
       - release-contract
       - pack-dryrun
     steps:
+      # Must precede the summary step: that step reads a skipped dependency as
+      # passing, so a draft (everything skipped) would otherwise report green.
+      - name: Fail because the pipeline was skipped for a draft
+        if: needs.gate.result == 'skipped'
+        run: |
+          echo "Pipeline not run: this pull request is a draft. It runs when the pull request is marked ready for review." >&2
+          exit 1
       - name: Verify every gated job succeeded or was skipped
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
