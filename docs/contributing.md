@@ -247,10 +247,17 @@ bash scripts/check_clang_format_changed.sh origin/main HEAD
 
 CI enforces clang-format 18 (the pre-commit pin); the script refuses other
 majors because they disagree on committed files. Point releases inside 18 can
-disagree too, so install the exact pinned version rather than a distro 18. If a different clang-format
-is first on your `PATH`, run the script from the environment where you
-installed the pinned one, or point it there explicitly:
+disagree too, so install the exact pinned version rather than a distro 18. The
+script picks the first `clang-format` on `PATH` that reports the pinned
+version, so a distro `clang-format-18` no longer wins over it; it falls back to
+any 18.x with a warning. If you want a specific copy, point it there
+explicitly:
 `CLANG_FORMAT_BIN=/path/to/venv/bin/clang-format bash scripts/check_clang_format_changed.sh origin/main HEAD`.
+
+The dev container builds and runs as `linux/amd64`
+(`--platform=linux/amd64` in `.devcontainer/devcontainer.json`): the pinned
+clang-format wheel and every tool in `ci/tools/manifest.json` are x86_64
+builds, so on an arm64 host the container runs emulated.
 
 ## Reporting bugs
 

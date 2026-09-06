@@ -48,6 +48,32 @@ if grep -q "pip install .*clang-format==" "${dockerfile}"; then
   exit 1
 fi
 
+# The pre-commit hook and the changed-files gate must skip the same upstream
+# files. If they drift, one gate reformats bytes the other refuses to touch, and
+# the resulting PR cannot go green (see AmbiqAI/ns-cmsis-nn#394).
+precommit_skipped="$(awk '
+  /^  - repo: .*mirrors-clang-format/ { hook = 1; next }
+  /^  - repo:/ { hook = 0; block = 0 }
+  hook && /^ *exclude: *\|/ { block = 1; next }
+  block { print }
+' "${repo}/.pre-commit-config.yaml" |
+  sed -e 's/[[:space:]]//g' -e 's/\\//g' -e 's/^|//' -e 's/\$$//' |
+  grep -E '\.(c|h)$' | sort -u)"
+gate_skipped="$(grep -E "^unformatted_upstream=" "${check_script}" |
+  sed -e "s/^unformatted_upstream='\^(//" -e "s/)\\\$'\$//" |
+  tr '|' '\n' |
+  sed -e 's/[[:space:]]//g' -e 's/\\//g' |
+  grep -E '\.(c|h)$' | sort -u)"
+if [[ -z "${precommit_skipped}" || -z "${gate_skipped}" ]]; then
+  echo "could not read the clang-format skip list from .pre-commit-config.yaml or ${check_script}" >&2
+  exit 1
+fi
+if [[ "${precommit_skipped}" != "${gate_skipped}" ]]; then
+  echo "clang-format skip lists disagree between .pre-commit-config.yaml and check_clang_format_changed.sh:" >&2
+  diff <(echo "${precommit_skipped}") <(echo "${gate_skipped}") >&2 || true
+  exit 1
+fi
+
 for forbidden in vcpkg VCPKG vcpkg-configuration.json; do
   if grep -q "${forbidden}" "${dockerfile}"; then
     echo "retired dependency remains in Dockerfile: ${forbidden}" >&2
