@@ -15,12 +15,12 @@
 #include "../Utils/validate.h"
 
 /* Per-test generated data */
-#include "../TestData/hard_swish_basic/test_data.h"
-#include "../TestData/hard_swish_sweep_edges/test_data.h"
-#include "../TestData/hard_swish_plateau_edges/test_data.h"
-#include "../TestData/hard_swish_dense_mixture/test_data.h"
 #include "../TestData/hard_swish_adversarial_step/test_data.h"
+#include "../TestData/hard_swish_basic/test_data.h"
 #include "../TestData/hard_swish_batched_wide/test_data.h"
+#include "../TestData/hard_swish_dense_mixture/test_data.h"
+#include "../TestData/hard_swish_plateau_edges/test_data.h"
+#include "../TestData/hard_swish_sweep_edges/test_data.h"
 
 #define REPEAT_NUM (1)
 
@@ -44,70 +44,65 @@
  *   name_lc_input_tensor
  *   name_lc_output
  */
-#define GEN_HS_TEST(NAME_UP, name_lc)                                                          \
-    void name_lc##_arm_hard_swish_s8(void)                                                     \
-    {                                                                                          \
-        const int32_t output_size = NAME_UP##_OUTPUT_LEN;                                      \
-                                                                                               \
-        const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;                             \
-        const int8_t *input_data = name_lc##_input_tensor;                                     \
-        int8_t output[NAME_UP##_OUTPUT_LEN] = {0};                                             \
-                                                                                               \
-        for (int r = 0; r < REPEAT_NUM; ++r)                                                   \
-        {                                                                                      \
-            const arm_cmsis_nn_status result =                                                 \
-                arm_hard_swish_compat_s8(                                                      \
-                    input_data,                                                                \
-                    NAME_UP##_INPUT_OFFSET,                                                    \
-                    NAME_UP##_OUTPUT_OFFSET,                                                   \
-                    NAME_UP##_OUTPUT_MULTIPLIER_FP,                                            \
-                    NAME_UP##_OUTPUT_MULTIPLIER_EXP,                                           \
-                    NAME_UP##_RELU_MULTIPLIER_FP,                                              \
-                    NAME_UP##_RELU_MULTIPLIER_EXP,                                             \
-                    output,                                                                    \
-                    output_size                                                                \
-                );                                                                             \
-            TEST_ASSERT_EQUAL(expected, result);                                               \
-        }                                                                                      \
-                                                                                               \
-        /* Allow no delta to be compat with TFLM */                                            \
-        TEST_ASSERT_TRUE(validate_tol_s8(output, name_lc##_output, output_size, 0));           \
-                                                                                               \
-        for (int r = 0; r < REPEAT_NUM; ++r)                                                   \
-        {                                                                                      \
-            const arm_cmsis_nn_status result =                                                 \
-                arm_hard_swish_precise_s8(                                                     \
-                    input_data,                                                                \
-                    NAME_UP##_INPUT_OFFSET,                                                    \
-                    NAME_UP##_OUTPUT_OFFSET,                                                   \
-                    NAME_UP##_OUTPUT_MULTIPLIER,                                               \
-                    NAME_UP##_OUTPUT_SHIFT,                                                    \
-                    NAME_UP##_RELU_Q3,                                                         \
-                    NAME_UP##_RELU_Q6,                                                         \
-                    0, /* prescale */                                                          \
-                    output,                                                                    \
-                    output_size                                                                \
-                );                                                                             \
-            TEST_ASSERT_EQUAL(expected, result);                                               \
-        }                                                                                      \
-                                                                                               \
-        /* Allow small off-by-one since TFLM uses different rounding */                        \
-        TEST_ASSERT_TRUE(validate_tol_s8(output, name_lc##_output, output_size, 1));           \
+#define GEN_HS_TEST(NAME_UP, name_lc)                                                                                  \
+    void name_lc##_arm_hard_swish_s8(void)                                                                             \
+    {                                                                                                                  \
+        const int32_t output_size = NAME_UP##_OUTPUT_LEN;                                                              \
+                                                                                                                       \
+        const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;                                                     \
+        const int8_t *input_data = name_lc##_input_tensor;                                                             \
+        int8_t output[NAME_UP##_OUTPUT_LEN] = {0};                                                                     \
+                                                                                                                       \
+        for (int r = 0; r < REPEAT_NUM; ++r)                                                                           \
+        {                                                                                                              \
+            const arm_cmsis_nn_status result = arm_hard_swish_compat_s8(input_data,                                    \
+                                                                        NAME_UP##_INPUT_OFFSET,                        \
+                                                                        NAME_UP##_OUTPUT_OFFSET,                       \
+                                                                        NAME_UP##_OUTPUT_MULTIPLIER_FP,                \
+                                                                        NAME_UP##_OUTPUT_MULTIPLIER_EXP,               \
+                                                                        NAME_UP##_RELU_MULTIPLIER_FP,                  \
+                                                                        NAME_UP##_RELU_MULTIPLIER_EXP,                 \
+                                                                        output,                                        \
+                                                                        output_size);                                  \
+            TEST_ASSERT_EQUAL(expected, result);                                                                       \
+        }                                                                                                              \
+                                                                                                                       \
+        /* Allow no delta to be compat with TFLM */                                                                    \
+        TEST_ASSERT_TRUE(validate_tol_s8(output, name_lc##_output, output_size, 0));                                   \
+                                                                                                                       \
+        for (int r = 0; r < REPEAT_NUM; ++r)                                                                           \
+        {                                                                                                              \
+            const arm_cmsis_nn_status result = arm_hard_swish_precise_s8(input_data,                                   \
+                                                                         NAME_UP##_INPUT_OFFSET,                       \
+                                                                         NAME_UP##_OUTPUT_OFFSET,                      \
+                                                                         NAME_UP##_OUTPUT_MULTIPLIER,                  \
+                                                                         NAME_UP##_OUTPUT_SHIFT,                       \
+                                                                         NAME_UP##_RELU_Q3,                            \
+                                                                         NAME_UP##_RELU_Q6,                            \
+                                                                         0, /* prescale */                             \
+                                                                         output,                                       \
+                                                                         output_size);                                 \
+            TEST_ASSERT_EQUAL(expected, result);                                                                       \
+        }                                                                                                              \
+                                                                                                                       \
+        /* Allow small off-by-one since TFLM uses different rounding */                                                \
+        TEST_ASSERT_TRUE(validate_tol_s8(output, name_lc##_output, output_size, 1));                                   \
     }
 
 /* Instantiate tests */
-GEN_HS_TEST(HARD_SWISH_BASIC,            hard_swish_basic)
-GEN_HS_TEST(HARD_SWISH_SWEEP_EDGES,      hard_swish_sweep_edges)
-GEN_HS_TEST(HARD_SWISH_PLATEAU_EDGES,    hard_swish_plateau_edges)
-GEN_HS_TEST(HARD_SWISH_DENSE_MIXTURE,    hard_swish_dense_mixture)
+GEN_HS_TEST(HARD_SWISH_BASIC, hard_swish_basic)
+GEN_HS_TEST(HARD_SWISH_SWEEP_EDGES, hard_swish_sweep_edges)
+GEN_HS_TEST(HARD_SWISH_PLATEAU_EDGES, hard_swish_plateau_edges)
+GEN_HS_TEST(HARD_SWISH_DENSE_MIXTURE, hard_swish_dense_mixture)
 GEN_HS_TEST(HARD_SWISH_ADVERSARIAL_STEP, hard_swish_adversarial_step)
-GEN_HS_TEST(HARD_SWISH_BATCHED_WIDE,     hard_swish_batched_wide)
+GEN_HS_TEST(HARD_SWISH_BATCHED_WIDE, hard_swish_batched_wide)
 
 /* ---------------------------------------------------------------------------------------------
  * #289: sizes around the 16-lane block and the full 256-value input ramp, goldens from the
  * scalar formula written out here (plain C, no library helpers), compared with zero tolerance.
  * Parameter sets: U = checked-in Unity data above, X = nsx-executorch lowering (prescale 0,
- * s_in = 16/255, s_out = 8.375/255), A = helia-aot precise lowering (s = 1/128, prescale 18),
+ * s_in = 16/255, s_out = 8.375/255), A = the tester's precise derivation for s = 1/128 with a prescale that
+ * keeps xr non-zero (prescale 4; its compute_prescale would give 18, which zeroes xr for every input, see #289),
  * T = helia-core-tester hard_swish_compat descriptors (extras 1/128; TFLite of uniform[-8,8]).
  * ------------------------------------------------------------------------------------------ */
 
@@ -135,14 +130,8 @@ static int32_t hs_ref_div_pot(int32_t x, int32_t e)
     return res;
 }
 
-static int8_t hs_ref_precise(int8_t in,
-                             int32_t zi,
-                             int32_t zo,
-                             int32_t mult,
-                             int32_t shift,
-                             int32_t q3,
-                             int32_t q6,
-                             int32_t prescale)
+static int8_t
+hs_ref_precise(int8_t in, int32_t zi, int32_t zo, int32_t mult, int32_t shift, int32_t q3, int32_t q6, int32_t prescale)
 {
     const int32_t x = (int32_t)in - zi;
     int32_t xr = hs_ref_clamp(x + q3, 0, q6);
@@ -232,7 +221,7 @@ typedef struct
 static const hs289_precise_params hs289_precise_sets[] = {
     {-128, -128, 2041101380, -10, 822, 1645, 0}, // U
     {0, -117, 1372914724, -5, 48, 96, 0},        // X
-    {0, 0, 1431655765, 9, 384, 768, 18},         // A
+    {0, 0, 1431655765, -5, 384, 768, 4},         // A
 };
 static const hs289_compat_params hs289_compat_sets[] = {
     {-128, -128, 25012, -6, 20401, -1}, // U
@@ -249,8 +238,9 @@ static void hs289_run_precise(const hs289_precise_params *p, int32_t n, int ramp
         expected[i] = hs_ref_precise(in[i], p->zi, p->zo, p->mult, p->shift, p->q3, p->q6, p->prescale);
     }
     memset(out, 0x5a, sizeof(out));
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                      arm_hard_swish_precise_s8(in, p->zi, p->zo, p->mult, p->shift, p->q3, p->q6, p->prescale, out, n));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_hard_swish_precise_s8(in, p->zi, p->zo, p->mult, p->shift, p->q3, p->q6, p->prescale, out, n));
     TEST_ASSERT_EQUAL_INT8_ARRAY(expected, out, n);
     for (int32_t i = n; i < n + HS289_GUARD; i++)
     {
