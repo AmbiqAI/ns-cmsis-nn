@@ -256,6 +256,7 @@ rules incorrectly. Two checks pin that contract:
    | `float_f32` / `float_f16` / `float_both` | The matching `ARM_NN_ENABLE_*` toggle selects the `_f32`/`_f16` sources, sets `ARM_NN_ENABLE_F32`/`F16` on the target, and is what `ns_cmsis_nn_float_support()` reports back. |
    | `float_renamed_switch` | `NSX_CMSIS_NN_ENABLE_F16=ON`, the removed spelling, aborts with a `FATAL_ERROR` naming the switch and `ARM_NN_ENABLE_F32/F16` as its replacement; with both removed names set, one error names both and the recovery it prints configures cleanly and keeps the F16 request (child `cmake` probes). |
    | `float_query` | `ns_cmsis_nn_float_support()` returns the right `ON`/`OFF` pair in source mode, in prebuilt mode and through the `find_package` config template, and aborts when a width keyword is omitted (four child `cmake` probes). |
+   | `float_query_target` | A standalone integer-only `cmsis-nn` and an f16 `nsx_cmsis_nn` in one scope: the query aborts naming both rather than guessing, and `TARGET` answers for the library it names (two child `cmake` probes). |
    | `prebuilt` | `NSX_CMSIS_NN_LIB=…` builds an INTERFACE wrapper + IMPORTED prebuilt target, alias still works. |
    | `prebuilt_manifest_ok` | Prebuilt lib + sibling `manifest.json` reporting `f32=true`; `ARM_NN_ENABLE_F32=ON` succeeds and forwards `ARM_NN_ENABLE_F32=1`. |
    | `prebuilt_manifest_reject` | Manifest reports `f32=false`; requesting `ARM_NN_ENABLE_F32=ON` aborts with `FATAL_ERROR` naming that switch (via child `cmake` probe), and the `-UARM_NN_ENABLE_F32` the message names clears the rejection on the next configure. |
@@ -286,8 +287,8 @@ rules incorrectly. Two checks pin that contract:
    scripts/check_nsx_install.sh
    ```
 
-The `NSX Integration` GitHub Actions workflow runs the 4-leg wiring
-matrix and the install contract on every PR / `main` push.
+The `NSX Integration` GitHub Actions workflow runs every case in the
+wiring matrix and the install contract on every PR / `main` push.
 
 ## PDSC contract test
 
@@ -471,29 +472,55 @@ if(have_f16)
 endif()
 ```
 
-Both keywords are required and each names a variable set to `ON` or `OFF` in
-the caller's scope. The answer comes from the library target's compile
+Both width keywords are required and each names a variable set to `ON` or
+`OFF` in the caller's scope. The answer comes from the library target's compile
 definitions, which is where the build wrote the decision, so the same call
 works after `add_subdirectory()`, against a prebuilt archive, and after
 `find_package()`. Reading `ARM_NN_ENABLE_F32`/`F16` out of the cache instead
 only tells you what an entry point was asked for, and only on the paths that
 take it as an input.
 
+With no `TARGET`, the call answers for whichever ns-cmsis-nn library target is
+in scope: the one the Zephyr module published, or `cmsis-nn`, `nsx_cmsis_nn`,
+`ns_cmsis_nn_prebuilt`. A project can hold more than one at once, a standalone
+`cmsis-nn` next to the NSX module's `nsx_cmsis_nn` for instance, and the two
+need not have been built with the same widths, so that is a `FATAL_ERROR`
+naming the candidates rather than an answer from whichever came first. Name the
+library you link against to get the answer for it:
+
+```cmake
+ns_cmsis_nn_float_support(TARGET nsx_cmsis_nn F32 have_f32 F16 have_f16)
+```
+
+Calling it with no ns-cmsis-nn library target in scope at all is a
+`FATAL_ERROR` too, not a silent `OFF`/`OFF`.
+
 The function lives in
-[`cmake/ns_cmsis_nn_float_support.cmake`](../cmake/ns_cmsis_nn_float_support.cmake),
-which `cmake/ns_cmsis_nn.cmake` includes and which prebuilt-mode entry points
-include on its own, and is mirrored in
-[`cmake/templates/ns-cmsis-nn-config.cmake.in`](../cmake/templates/ns-cmsis-nn-config.cmake.in)
-so a package consumer gets it from `find_package()` alone. Calling it before
-any ns-cmsis-nn library target exists is a `FATAL_ERROR`, not a silent
-`OFF`/`OFF`.
+[`cmake/ns_cmsis_nn_float_support.cmake`](../cmake/ns_cmsis_nn_float_support.cmake).
+`cmake/ns_cmsis_nn.cmake` includes it, so the standalone build gets it, and so
+does `nsx/CMakeLists.txt`, which includes the whole SSoT module in source and
+prebuilt mode alike. `zephyr/CMakeLists.txt` includes the SSoT module in source
+mode and this file on its own in prebuilt mode, where it compiles nothing and
+has no use for the source layout. It is also mirrored in
+[`cmake/templates/ns-cmsis-nn-config.cmake.in`](../cmake/templates/ns-cmsis-nn-config.cmake.in),
+so a package consumer gets it from `find_package()` alone; the two copies are
+kept identical.
 
 ### The Zephyr rule
 
 On the Zephyr path the Kconfig symbols are the only writers of
 `ARM_NN_ENABLE_F32`/`F16`: whatever a board or module CMake set beforehand is
-overwritten. That is what keeps `NS_CMSIS_NN_ENABLE_F16`'s `ARMV8_1_M_MVEF`
-dependency in force, since no CMake variable can stand in for the symbol.
+overwritten, in the cache entry and in the module's own scope. That is what
+keeps `NS_CMSIS_NN_ENABLE_F16`'s `ARMV8_1_M_MVEF` dependency in force, since no
+CMake variable can stand in for the symbol.
+
+CMake scoping bounds what "overwritten" can mean. If a parent `CMakeLists.txt`
+sets a plain `ARM_NN_ENABLE_F16` and then pulls the module in with
+`add_subdirectory()`, the module's `set()` lands in the child scope, so back in
+the parent that plain variable still reads whatever the parent wrote. It is not
+the answer, and nothing reads it: the cache entry, the compile definitions the
+module forwards, and the library target all carry Kconfig's value. Ask
+`ns_cmsis_nn_float_support()` in that scope rather than the plain variable.
 
 ### Migrating off `NSX_CMSIS_NN_ENABLE_*`
 

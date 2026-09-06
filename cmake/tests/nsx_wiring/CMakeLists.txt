@@ -38,6 +38,11 @@
 #                               mode and through the find_package config
 #                               template, and refuses a call that omits a
 #                               width. Four child cmake probes.
+#   float_query_target        - a standalone integer-only cmsis-nn and an f16
+#                               nsx_cmsis_nn in one scope: the query must
+#                               refuse to guess between them and must answer
+#                               for the one TARGET names. Two child cmake
+#                               probes. See AmbiqAI/ns-cmsis-nn#420.
 #   prebuilt                  — NSX_CMSIS_NN_LIB=<dummy.a>, expect the
 #                               IMPORTED prebuilt target + INTERFACE wrapper
 #                               + alias.
@@ -65,7 +70,7 @@ project(ns_cmsis_nn_nsx_wiring C)
 set(CASE "source_all" CACHE STRING "Which wiring case to exercise.")
 set_property(CACHE CASE PROPERTY STRINGS
   source_all source_subset inline_asm float_f32 float_f16 float_both
-  float_renamed_switch float_query prebuilt
+  float_renamed_switch float_query float_query_target prebuilt
   prebuilt_manifest_ok prebuilt_manifest_reject
   prebuilt_manifest_legacy)
 
@@ -394,6 +399,93 @@ ns_cmsis_nn_float_support(F32 _got_f32)
         _fail("${CASE}: diagnostic never mentions ${_needle}; stderr:\n${_err_omitted}")
       endif()
     endforeach()
+  endif()
+
+  if(_failures)
+    message(FATAL_ERROR "NSX wiring [${CASE}] FAILED:${_failures}")
+  endif()
+  message(STATUS "NSX wiring [${CASE}] OK.")
+  return()
+endif()
+
+# ----------------------------------------------------------------------------
+# float_query_target: a consumer can hold two ns-cmsis-nn libraries at once,
+# the standalone build's cmsis-nn and the NSX module's nsx_cmsis_nn, built with
+# different float widths. Answering from whichever the resolver reached first
+# would hand back the wrong library's widths, so the query refuses to guess and
+# TARGET is how the caller says which one it links against.
+#
+# Both probes stand up that pair for real: CMP0077 makes each option() defer to
+# the plain variable this scope holds when the add_subdirectory() runs, so the
+# same cache serves an integer-only cmsis-nn and an f16 nsx_cmsis_nn.
+# See AmbiqAI/ns-cmsis-nn#420.
+# ----------------------------------------------------------------------------
+if(CASE STREQUAL "float_query_target")
+  set(_probe "${CMAKE_BINARY_DIR}/_query_target_probe")
+  file(REMOVE_RECURSE "${_probe}")
+
+  set(_two_libraries
+"cmake_minimum_required(VERSION 3.19)
+project(probe C)
+set(ARM_NN_ENABLE_F32 OFF)
+set(ARM_NN_ENABLE_F16 OFF)
+add_subdirectory(\"${_repo_root}\" ssot)
+set(ARM_NN_ENABLE_F16 ON)
+add_library(_nsx_board_flags INTERFACE)
+set(NSX_BOARD_FLAGS_TARGET _nsx_board_flags)
+add_subdirectory(\"${_repo_root}/nsx\" nsx)
+foreach(_want cmsis-nn nsx_cmsis_nn)
+  if(NOT TARGET \${_want})
+    message(FATAL_ERROR \"probe setup: \${_want} was never created\")
+  endif()
+endforeach()
+")
+
+  # Ambiguous leg: no TARGET, two libraries, so no answer.
+  file(MAKE_DIRECTORY "${_probe}/ambiguous")
+  file(WRITE "${_probe}/ambiguous/CMakeLists.txt"
+"${_two_libraries}
+ns_cmsis_nn_float_support(F32 _got_f32 F16 _got_f16)
+")
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -S "${_probe}/ambiguous" -B "${_probe}/ambiguous/_b"
+    RESULT_VARIABLE _rc_ambiguous
+    OUTPUT_VARIABLE _out_ambiguous
+    ERROR_VARIABLE  _err_ambiguous)
+  if(_rc_ambiguous EQUAL 0)
+    _fail("${CASE}: two library targets in scope configured cleanly (expected FATAL_ERROR)\n${_out_ambiguous}")
+  else()
+    foreach(_needle "ns_cmsis_nn_float_support" "cmsis-nn" "nsx_cmsis_nn" "TARGET")
+      string(FIND "${_err_ambiguous}" "${_needle}" _idx)
+      if(_idx EQUAL -1)
+        _fail("${CASE}: diagnostic never mentions ${_needle}; stderr:\n${_err_ambiguous}")
+      endif()
+    endforeach()
+  endif()
+
+  # Named leg: the same two libraries, and each TARGET reports its own widths.
+  file(MAKE_DIRECTORY "${_probe}/named")
+  file(WRITE "${_probe}/named/CMakeLists.txt"
+"${_two_libraries}
+foreach(_pair \"cmsis-nn;OFF;OFF\" \"nsx_cmsis_nn;OFF;ON\")
+  list(GET _pair 0 _t)
+  list(GET _pair 1 _want_f32)
+  list(GET _pair 2 _want_f16)
+  ns_cmsis_nn_float_support(TARGET \${_t} F32 _got_f32 F16 _got_f16)
+  if(NOT \"\${_got_f32}\" STREQUAL \"\${_want_f32}\" OR NOT \"\${_got_f16}\" STREQUAL \"\${_want_f16}\")
+    message(FATAL_ERROR
+      \"ns_cmsis_nn_float_support(TARGET \${_t}) returned F32='\${_got_f32}' F16='\${_got_f16}', \"
+      \"expected F32='\${_want_f32}' F16='\${_want_f16}'\")
+  endif()
+endforeach()
+")
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -S "${_probe}/named" -B "${_probe}/named/_b"
+    RESULT_VARIABLE _rc_named
+    OUTPUT_VARIABLE _out_named
+    ERROR_VARIABLE  _err_named)
+  if(NOT _rc_named EQUAL 0)
+    _fail("${CASE}: TARGET leg failed\n${_out_named}\n${_err_named}")
   endif()
 
   if(_failures)

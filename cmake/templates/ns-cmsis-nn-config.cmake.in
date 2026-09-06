@@ -101,11 +101,12 @@ if(NOT TARGET cmsis-nn)
 endif()
 
 # The same query the source layout exports, so consumer code can ask one
-# question regardless of how it got the library. Mirrored from
+# question regardless of how it got the library. Mirrored verbatim from
 # cmake/ns_cmsis_nn_float_support.cmake, which a package consumer does not
-# have. See AmbiqAI/ns-cmsis-nn#420.
+# have; a change there belongs here too, including the resolution order and
+# the errors. See AmbiqAI/ns-cmsis-nn#420.
 function(ns_cmsis_nn_float_support)
-  cmake_parse_arguments(PARSE_ARGV 0 NSFS "" "F32;F16" "")
+  cmake_parse_arguments(PARSE_ARGV 0 NSFS "" "F32;F16;TARGET" "")
   if(NSFS_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR
       "ns_cmsis_nn_float_support: unexpected arguments: "
@@ -119,10 +120,58 @@ function(ns_cmsis_nn_float_support)
         "variable at whatever it already held.")
     endif()
   endforeach()
-  get_target_property(_defs cmsis-nn INTERFACE_COMPILE_DEFINITIONS)
-  if(NOT _defs)
-    set(_defs "")
+
+  if(NSFS_TARGET)
+    if(NOT TARGET ${NSFS_TARGET})
+      message(FATAL_ERROR
+        "ns_cmsis_nn_float_support: TARGET ${NSFS_TARGET} is not a target in "
+        "this scope.")
+    endif()
+    set(_target ${NSFS_TARGET})
+  else()
+    set(_candidates "")
+    get_property(_declared GLOBAL PROPERTY NS_CMSIS_NN_FLOAT_TARGET)
+    if(_declared AND TARGET ${_declared})
+      list(APPEND _candidates ${_declared})
+    endif()
+    foreach(_candidate cmsis-nn nsx_cmsis_nn ns_cmsis_nn_prebuilt)
+      if(TARGET ${_candidate})
+        list(APPEND _candidates ${_candidate})
+      endif()
+    endforeach()
+    list(REMOVE_DUPLICATES _candidates)
+    list(LENGTH _candidates _candidate_count)
+    if(_candidate_count EQUAL 0)
+      message(FATAL_ERROR
+        "ns_cmsis_nn_float_support: no ns-cmsis-nn library target is in scope. "
+        "Call it after add_subdirectory(), after the Zephyr module has run, or "
+        "after find_package(ns-cmsis-nn).")
+    elseif(_candidate_count GREATER 1)
+      string(REPLACE ";" ", " _named "${_candidates}")
+      message(FATAL_ERROR
+        "ns_cmsis_nn_float_support: ${_candidate_count} ns-cmsis-nn library "
+        "targets are in scope (${_named}) and they can report different float "
+        "widths, so there is no one answer. Pass TARGET <target> to name the "
+        "one this caller links against.")
+    endif()
+    set(_target ${_candidates})
   endif()
+
+  set(_defs "")
+  get_target_property(_iface_defs ${_target} INTERFACE_COMPILE_DEFINITIONS)
+  if(_iface_defs)
+    list(APPEND _defs ${_iface_defs})
+  endif()
+  # An INTERFACE library has no COMPILE_DEFINITIONS to read, and asking for it
+  # is an error on the CMake versions the standalone build still supports.
+  get_target_property(_type ${_target} TYPE)
+  if(NOT _type STREQUAL "INTERFACE_LIBRARY")
+    get_target_property(_own_defs ${_target} COMPILE_DEFINITIONS)
+    if(_own_defs)
+      list(APPEND _defs ${_own_defs})
+    endif()
+  endif()
+
   foreach(_width F32 F16)
     list(FIND _defs "ARM_NN_ENABLE_${_width}=1" _idx)
     if(_idx EQUAL -1)

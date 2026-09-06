@@ -375,9 +375,15 @@ endif()
 
 # ----------------------------------------------------------------------------
 # Case 2e: Kconfig is the only writer of the float switches here, so an
-# ARM_NN_ENABLE_F16 that a board or module CMake set beforehand is overwritten
-# rather than honored. That is what keeps NS_CMSIS_NN_ENABLE_F16's
-# ARMV8_1_M_MVEF dependency in force. See AmbiqAI/ns-cmsis-nn#420.
+# ARM_NN_ENABLE_F16 that a board or module CMake set beforehand does not
+# survive anywhere the module or a consumer of the library reads it. That is
+# what keeps NS_CMSIS_NN_ENABLE_F16's ARMV8_1_M_MVEF dependency in force.
+#
+# Driven through add_subdirectory() rather than include(), because that is the
+# shape where CMake scoping bites: the module's set() lands in the child scope,
+# so this scope keeps the plain ON it wrote while the cache entry and the
+# library target carry Kconfig's answer. Those two are the authority, and the
+# plain variable in the parent is not. See AmbiqAI/ns-cmsis-nn#420.
 # ----------------------------------------------------------------------------
 set(STUB_LIBRARY_NAME "")
 set(STUB_COMPILE_OPTIONS "")
@@ -390,14 +396,36 @@ unset(CONFIG_NS_CMSIS_NN_ENABLE_F32)
 unset(CONFIG_NS_CMSIS_NN_ENABLE_F16)
 set(ARM_NN_ENABLE_F16 ON)
 
-include("${_repo_root}/zephyr/CMakeLists.txt")
+# The stub macros record into plain variables, which do not travel back out of
+# a subdirectory, so the child hands the two the assertions need to the cache.
+set(_sub_2e "${CMAKE_CURRENT_BINARY_DIR}/_case2e")
+file(MAKE_DIRECTORY "${_sub_2e}")
+file(WRITE "${_sub_2e}/CMakeLists.txt"
+"include(\"${_repo_root}/zephyr/CMakeLists.txt\")
+set(SUB_LIBRARY_NAME \"\${STUB_LIBRARY_NAME}\" CACHE INTERNAL \"\")
+set(SUB_COMPILE_DEFINITIONS \"\${STUB_COMPILE_DEFINITIONS}\" CACHE INTERNAL \"\")
+")
+add_subdirectory("${_sub_2e}" _case2e)
 
-list(FIND STUB_COMPILE_DEFINITIONS "ARM_NN_ENABLE_F16=0" _f16_overwritten_idx)
-if(_f16_overwritten_idx EQUAL -1)
-  _fail("pre-set ARM_NN_ENABLE_F16 case: Kconfig did not overwrite it; got: ${STUB_COMPILE_DEFINITIONS}")
+if(NOT ARM_NN_ENABLE_F16)
+  _fail("pre-set ARM_NN_ENABLE_F16 case: the parent's own plain variable no longer reads ON; got: '${ARM_NN_ENABLE_F16}'")
 endif()
-if(STUB_LIBRARY_NAME AND TARGET ${STUB_LIBRARY_NAME})
-  get_target_property(_srcs_overwritten ${STUB_LIBRARY_NAME} SOURCES)
+if(NOT "$CACHE{ARM_NN_ENABLE_F16}" STREQUAL "0")
+  _fail("pre-set ARM_NN_ENABLE_F16 case: Kconfig did not overwrite the cache entry; got: '$CACHE{ARM_NN_ENABLE_F16}'")
+endif()
+list(FIND SUB_COMPILE_DEFINITIONS "ARM_NN_ENABLE_F16=0" _f16_overwritten_idx)
+if(_f16_overwritten_idx EQUAL -1)
+  _fail("pre-set ARM_NN_ENABLE_F16 case: Kconfig did not overwrite the forwarded define; got: ${SUB_COMPILE_DEFINITIONS}")
+endif()
+if(NOT SUB_LIBRARY_NAME OR NOT TARGET ${SUB_LIBRARY_NAME})
+  _fail("pre-set ARM_NN_ENABLE_F16 case: the module created no library in the subdirectory")
+else()
+  get_target_property(_iface_2e ${SUB_LIBRARY_NAME} INTERFACE_COMPILE_DEFINITIONS)
+  list(FIND _iface_2e "ARM_NN_ENABLE_F16=0" _f16_iface_idx)
+  if(_f16_iface_idx EQUAL -1)
+    _fail("pre-set ARM_NN_ENABLE_F16 case: the library target does not report Kconfig's value; got: ${_iface_2e}")
+  endif()
+  get_target_property(_srcs_overwritten ${SUB_LIBRARY_NAME} SOURCES)
   list(FILTER _srcs_overwritten INCLUDE REGEX ".*(_f16\\.c)$")
   if(_srcs_overwritten)
     _fail("pre-set ARM_NN_ENABLE_F16 case: _f16.c sources were still selected; got: ${_srcs_overwritten}")
@@ -602,4 +630,4 @@ if(_failures)
   message(FATAL_ERROR "Zephyr wiring test FAILED:${_failures}")
 endif()
 
-message(STATUS "Zephyr wiring OK: 23 knobs translated, baseline source set attached, float source gates validated, inline-asm define propagated, prebuilt mode imports SDK tarball, prebuilt manifest validation accepts/rejects what Kconfig asked for, a pre-set ARM_NN_ENABLE_* is overwritten from Kconfig, and each rejection clears under the recovery its diagnostic names.")
+message(STATUS "Zephyr wiring OK: 23 knobs translated, baseline source set attached, float source gates validated, inline-asm define propagated, prebuilt mode imports SDK tarball, prebuilt manifest validation accepts/rejects what Kconfig asked for, a pre-set ARM_NN_ENABLE_* loses to Kconfig in the cache and on the library target under add_subdirectory(), and each rejection clears under the recovery its diagnostic names.")
