@@ -1198,12 +1198,13 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f32(const float32_t *input,
  * @param[in]   params   Struct describing the GRU operator.
  * @param[in,out] buffers  Scratch buffers. May be NULL when ``reset_after`` != 0. temp1 is sized by
  *                       arm_gru_unidirectional_f32_temp1_get_buffer_size().
- * @note NaN contract: a NaN in ``input``, the previous hidden state, or any gate weight or bias reaches every
- *       output unit it feeds, on the scalar and MVE legs alike and at the shipped -Ofast: the MVE block
- *       re-establishes NaN after the table tanh with an integer-domain test that fast-math cannot elide
- *       (#251). NaN payloads and signs are not preserved on the MVE leg (default NaN, architectural).
- *       Inf follows the arithmetic. This note is the contract; the internal-header remark describes the
- *       mechanism.
+ * @note NaN contract: a NaN in ``input``, the previous hidden state, or the candidate gate's weight or bias
+ *       reaches every output unit it feeds, on the scalar and MVE legs alike and at the shipped -Ofast:
+ *       the MVE block re-establishes NaN after the table tanh with an integer-domain test that fast-math
+ *       cannot elide (#251). A NaN confined to the update or reset gate's weight or bias does not reach the
+ *       output: the scalar sigmoid maps NaN to 1.0 (see the note on arm_nn_sigmoid_scalar_f32 in
+ *       arm_nnsupportfunctions_flt.h). NaN payloads and signs are not preserved on the MVE leg (default
+ *       NaN, architectural). Inf follows the arithmetic.
  * @return               ARM_CMSIS_NN_SUCCESS on success, ARM_CMSIS_NN_ARG_ERROR otherwise.
  */
 arm_cmsis_nn_status arm_gru_unidirectional_f32(const float32_t *input,
@@ -2230,12 +2231,13 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f16(const float16_t *input,
  * @param[in]   params   Struct describing the GRU operator.
  * @param[in,out] buffers  Scratch buffers. May be NULL when ``reset_after`` != 0. temp1 is sized by
  *                       arm_gru_unidirectional_f16_temp1_get_buffer_size().
- * @note NaN contract: a NaN in ``input``, the previous hidden state, or any gate weight or bias reaches every
- *       output unit it feeds, on the scalar and MVE legs alike and at the shipped -Ofast: the MVE block
- *       re-establishes NaN after the table tanh with an integer-domain test that fast-math cannot elide
- *       (#251). NaN payloads and signs are not preserved on the MVE leg (default NaN, architectural).
- *       Inf follows the arithmetic. This note is the contract; the internal-header remark describes the
- *       mechanism.
+ * @note NaN contract: a NaN in ``input``, the previous hidden state, or the candidate gate's weight or bias
+ *       reaches every output unit it feeds, on the scalar and MVE legs alike and at the shipped -Ofast:
+ *       the MVE block re-establishes NaN after the table tanh with an integer-domain test that fast-math
+ *       cannot elide (#251). A NaN confined to the update or reset gate's weight or bias does not reach the
+ *       output: the scalar sigmoid maps NaN to 1.0 (see the note on arm_nn_sigmoid_scalar_f32 in
+ *       arm_nnsupportfunctions_flt.h). NaN payloads and signs are not preserved on the MVE leg (default
+ *       NaN, architectural). Inf follows the arithmetic.
  * @return               ARM_CMSIS_NN_SUCCESS on success, ARM_CMSIS_NN_ARG_ERROR otherwise.
  */
 arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,

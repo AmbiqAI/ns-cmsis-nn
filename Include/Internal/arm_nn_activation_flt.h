@@ -95,8 +95,10 @@ __STATIC_INLINE float32_t arm_nn_hardswish_scalar_f32(float32_t x)
  *     (0xffc00000). Restoring NaN in general would cost an extra compare and
  *     select in the vector loop body, which this helper's callers (LSTM/GRU
  *     step kernels) run per element. NaN is not a supported input to these
- *     kernels, so the divergence is accepted here rather than paid for; the
- *     GRU step restores it per block with an integer-domain test (#251).
+ *     kernels, so the divergence is accepted here rather than paid for. The
+ *     GRU step restores NaN on its candidate lanes after this helper with an
+ *     integer-domain test that fast-math cannot elide; that is the mechanism
+ *     behind the NaN contract on arm_gru_unidirectional_f32/f16 (#251).
  *     Finite inputs, including |x| == xmax, agree exactly across legs.
  */
 __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
