@@ -31,10 +31,7 @@
 #ifndef ARM_CONV_OPT_COMMON_H
 #define ARM_CONV_OPT_COMMON_H
 
-#define ARM_CONV_SPEC_ENTRY(MATCH_FN, CALL_FN)                                                                         \
-    {                                                                                                                  \
-        (MATCH_FN), (CALL_FN)                                                                                          \
-    }
+#define ARM_CONV_SPEC_ENTRY(MATCH_FN, CALL_FN) {(MATCH_FN), (CALL_FN)}
 
 #define ARM_CONV_ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 

@@ -21,7 +21,7 @@ Examples:
 
 Behavior:
   - Mirrors the CI clang-format workflow file selection.
-  - Uses CLANG_FORMAT_BIN when set, else clang-format-16, else clang-format; requires major 16.
+  - Uses CLANG_FORMAT_BIN when set, else clang-format-18, else clang-format; requires major 18.
   - In check mode, runs --dry-run --Werror.
   - In fix mode, rewrites the changed files in place.
 EOF
@@ -78,13 +78,18 @@ command -v git >/dev/null || { echo "git not found" >&2; exit 3; }
 git rev-parse --verify "${BASE_REF}^{commit}" >/dev/null
 git rev-parse --verify "${HEAD_REF}^{commit}" >/dev/null
 
-# The enforced formatter is clang-format 16 (the .pre-commit-config.yaml pin);
-# formatter major versions disagree on committed files (the 18.1.3 that
-# ubuntu-24.04 ships rejects four that 13 through 16 accept; newer 18.x point
-# releases flag more), so the version is checked, not assumed. Resolution
-# order: CLANG_FORMAT_BIN if set (CI points it at the pip-installed 16.0.6),
-# else clang-format-16, else a bare clang-format that reports major 16.
-REQUIRED_CLANG_FORMAT_MAJOR=16
+# The enforced formatter is clang-format 18 (the .pre-commit-config.yaml pin);
+# formatter major versions disagree on committed files, so the version is
+# checked, not assumed. Resolution order: CLANG_FORMAT_BIN if set (CI points
+# it at the pip-installed 18.1.8), else clang-format-18, else a bare
+# clang-format that reports major 18.
+REQUIRED_CLANG_FORMAT_MAJOR=18
+# Point releases inside the major disagree too: 18.1.3, which ubuntu-24.04
+# ships, still rejects Include/Internal/arm_conv_opt_common.h after 18.1.8 has
+# formatted it. The gate stays on the major so a close-enough local build is
+# usable, but a mismatch is called out rather than left to look like a real
+# finding (see AmbiqAI/ns-cmsis-nn#394).
+PINNED_CLANG_FORMAT_VERSION=18.1.8
 if [[ -n "${CLANG_FORMAT_BIN:-}" ]]; then
   command -v "${CLANG_FORMAT_BIN}" >/dev/null 2>&1 || { echo "CLANG_FORMAT_BIN=${CLANG_FORMAT_BIN} not found on PATH." >&2; exit 3; }
 elif command -v "clang-format-${REQUIRED_CLANG_FORMAT_MAJOR}" >/dev/null 2>&1; then
@@ -92,7 +97,7 @@ elif command -v "clang-format-${REQUIRED_CLANG_FORMAT_MAJOR}" >/dev/null 2>&1; t
 elif command -v clang-format >/dev/null 2>&1; then
   CLANG_FORMAT_BIN="clang-format"
 else
-  echo "no clang-format found. Install clang-format ${REQUIRED_CLANG_FORMAT_MAJOR} (pip install clang-format==16.0.6) or set CLANG_FORMAT_BIN." >&2
+  echo "no clang-format found. Install clang-format ${REQUIRED_CLANG_FORMAT_MAJOR} (pip install clang-format==18.1.8) or set CLANG_FORMAT_BIN." >&2
   exit 3
 fi
 raw_version="$("${CLANG_FORMAT_BIN}" --version 2>/dev/null | head -n 1 || true)"
@@ -102,12 +107,21 @@ if [[ "${raw_version}" =~ version\ ([0-9]+)\. ]]; then
 fi
 if [[ "${found_major}" != "${REQUIRED_CLANG_FORMAT_MAJOR}" ]]; then
   echo "clang-format major ${found_major:-unknown} found at $(command -v "${CLANG_FORMAT_BIN}"); this repo enforces ${REQUIRED_CLANG_FORMAT_MAJOR}.x." >&2
-  echo "Install it with: python -m pip install clang-format==16.0.6, then point the script at that copy explicitly:" >&2
+  echo "Install it with: python -m pip install clang-format==18.1.8, then point the script at that copy explicitly:" >&2
   echo "  CLANG_FORMAT_BIN=\"\$(python -c \"import sys,os;print(os.path.dirname(sys.executable))\")/clang-format\" $0 ..." >&2
   exit 3
 fi
 
 echo "Using formatter: $(command -v "${CLANG_FORMAT_BIN}") (${raw_version})"
+if [[ "${raw_version}" != *"${PINNED_CLANG_FORMAT_VERSION}"* ]]; then
+  echo "warning: this is not the pinned ${PINNED_CLANG_FORMAT_VERSION}; point releases disagree on committed files." >&2
+  echo "warning: install it with: python -m pip install clang-format==${PINNED_CLANG_FORMAT_VERSION}" >&2
+fi
+
+# Byte-identical to Arm upstream and rejected by the enforced formatter;
+# reformatting them would conflict on every sync, so this gate and the
+# pre-commit exclude skip the same two files (see AmbiqAI/ns-cmsis-nn#394).
+unformatted_upstream='^(Include/Internal/arm_conv1x1_opt_common\.h|Include/Internal/arm_depthwise_conv_opt_common\.h)$'
 
 changed_files=()
 while IFS= read -r file; do
@@ -118,7 +132,8 @@ done < <(
     Include \
     Source \
     Tests/UnitTest/Corstone-300 |
-  grep -E '\.(c|cc|cpp|h|hpp)$' || true
+  grep -E '\.(c|cc|cpp|h|hpp)$' |
+  grep -Ev "${unformatted_upstream}" || true
 )
 
 if [[ ${#changed_files[@]} -eq 0 ]]; then

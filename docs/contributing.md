@@ -241,12 +241,13 @@ checks formatting only over the changed-file range, never the whole tree. To
 run the same check locally:
 
 ```bash
-python -m pip install pre-commit==3.8.0 clang-format==16.0.6
+python -m pip install pre-commit==3.8.0 clang-format==18.1.8
 bash scripts/check_clang_format_changed.sh origin/main HEAD
 ```
 
-CI enforces clang-format 16 (the pre-commit pin); the script refuses other
-majors because they disagree on committed files. If a different clang-format
+CI enforces clang-format 18 (the pre-commit pin); the script refuses other
+majors because they disagree on committed files. Point releases inside 18 can
+disagree too, so install the exact pinned version rather than a distro 18. If a different clang-format
 is first on your `PATH`, run the script from the environment where you
 installed the pinned one, or point it there explicitly:
 `CLANG_FORMAT_BIN=/path/to/venv/bin/clang-format bash scripts/check_clang_format_changed.sh origin/main HEAD`.

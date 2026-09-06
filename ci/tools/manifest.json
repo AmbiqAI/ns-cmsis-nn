@@ -92,5 +92,14 @@
       },
       "license": "Arm Virtual Hardware EULA"
     }
+  ],
+  "python_tools": [
+    {
+      "id": "clang-format",
+      "version": "18.1.8",
+      "url": "https://files.pythonhosted.org/packages/05/a8/d94adc8025c6a313bed5da994c421fff7dc4288d20028b309b1d45e15032/clang_format-18.1.8-py2.py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "sha256": "2de122b8aa78ba49e326f974131caab2c79f4ae877c227cd4e3e5d82a98d21e5",
+      "license": "Apache-2.0 WITH LLVM-exception"
+    }
   ]
 }

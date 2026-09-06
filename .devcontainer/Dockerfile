@@ -42,8 +42,18 @@ RUN python -m pip install --no-cache-dir "uv==${UV_VERSION}"
 RUN python -m pip install --no-cache-dir numpy termcolor pyserial
 
 # clang-format is pip-installed so the dev container matches the CI gate and the
-# pre-commit pin (16.0.6); the apt package on this base image is 14.0.6.
-RUN python -m pip install --no-cache-dir clang-format==16.0.6
+# pre-commit pin; the apt package on this base image is 14.0.6. The wheel is the
+# one ci/tools/manifest.json records, fetched and checksummed like every other
+# baked tool rather than resolved by pip (see AmbiqAI/ns-cmsis-nn#394).
+COPY ci/tools/manifest.json /opt/ns-cmsis-nn/tool-manifest.json
+RUN set -eux; \
+      url="$(jq -r '.python_tools[] | select(.id == "clang-format") | .url' /opt/ns-cmsis-nn/tool-manifest.json)"; \
+      sha="$(jq -r '.python_tools[] | select(.id == "clang-format") | .sha256' /opt/ns-cmsis-nn/tool-manifest.json)"; \
+      curl --fail --location --silent --show-error --retry 3 --retry-all-errors \
+            "${url}" --output /tmp/clang-format.whl; \
+      printf '%s  %s\n' "${sha}" /tmp/clang-format.whl | sha256sum --check -; \
+      python -m pip install --no-cache-dir /tmp/clang-format.whl; \
+      rm -f /tmp/clang-format.whl
 
 RUN set -eux; \
       clang --version; \
@@ -71,7 +81,6 @@ RUN \
 # involved; every downloaded byte is SHA-256 verified before extraction.
 ENV NS_CMSIS_NN_TOOLS=/opt/ns-cmsis-nn/tools \
     NS_CMSIS_NN_TOOL_ENV=/opt/ns-cmsis-nn/tool-env.json
-COPY ci/tools/manifest.json /opt/ns-cmsis-nn/tool-manifest.json
 COPY scripts/install_ci_tools.sh /opt/ns-cmsis-nn/install_ci_tools.sh
 COPY scripts/ci/validate_ci_tool_manifest.jq /opt/ns-cmsis-nn/ci/validate_ci_tool_manifest.jq
 RUN bash /opt/ns-cmsis-nn/install_ci_tools.sh \
@@ -96,9 +105,9 @@ RUN set -eux; \
       command -v armclang; \
       arm-none-eabi-gcc --version; \
       clang --version; \
-      # After the tool dirs are prepended, the pip 16.0.6 must still win: a future
+      # After the tool dirs are prepended, the pip wheel must still win: a future
       # llvm-embedded that ships clang-format would otherwise shadow it silently.
-      clang-format --version | head -n 1 | grep -q "version 16\."; \
+      clang-format --version | head -n 1 | grep -q "version 18\."; \
       cmake --version; \
       ninja --version; \
       command -v FVP_Corstone_SSE-300
