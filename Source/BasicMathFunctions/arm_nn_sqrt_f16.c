@@ -39,8 +39,9 @@ arm_cmsis_nn_status arm_nn_sqrt_f16(const float16_t *input, float16_t *output, i
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    // One leg for every build: Helium has no vector square root, so there is
-    // no MVE path to diverge from. float32 evaluate, round once (#295).
+    // Scalar value path on every toolchain: Helium has no vector square root.
+    // armclang and ATfE vectorize the classification below into an MVE loop and
+    // agree bit-for-bit. float32 evaluate, round once (#295).
     for (int32_t i = 0; i < block_size; ++i)
     {
     #if !defined(__ARM_FP16_FORMAT_ALTERNATIVE)

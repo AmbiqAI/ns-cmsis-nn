@@ -39,8 +39,8 @@ arm_cmsis_nn_status arm_rsqrt_f32(const float32_t *input, float32_t *output, int
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    // One leg for every build: Helium has no vector square root, so there is
-    // no MVE path to diverge from (#295).
+    // Scalar value path on every toolchain: Helium has no vector square root.
+    // Subnormal inputs follow FPSCR.FZ; see the header for the contract (#295).
     for (int32_t i = 0; i < block_size; ++i)
     {
         uint32_t special_bits;

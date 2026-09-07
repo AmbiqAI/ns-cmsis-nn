@@ -16,7 +16,7 @@
 
 #include "sqrt_f16_data.h"
 
-#define SQRT_F16_EXHAUSTIVE_BLOCK 1024
+#define SQRT_F16_EXHAUSTIVE_BLOCK 1000
 
 static uint16_t sqrt_f16_bits(float16_t value)
 {
