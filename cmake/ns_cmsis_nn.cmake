@@ -165,7 +165,8 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     set(subdir   "ConcatenationFunctions")
     set(patterns "*_s8*.c" "*_s16*.c" "*_s32*.c")
     if(ARM_NN_ENABLE_F32)
-      list(APPEND extras "arm_concatenation_f32.c")
+      list(APPEND extras "arm_concatenation_f32.c"
+                         "arm_split_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
       list(APPEND extras "arm_concatenation_f16.c"

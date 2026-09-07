@@ -7,11 +7,11 @@
  * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  */
 
-/* arm_split_f16 (#411): rank-agnostic split, cases in the shared axis-copy template. */
+/* arm_split_f32 (#411): rank-agnostic split, cases in the shared axis-copy template. */
 
 #define AC_OP AC_OP_SPLIT
-#define AC_F16 1
-#define AC_PREFIX split_f16
-#define AC_KERNEL arm_split_f16
+#define AC_F16 0
+#define AC_PREFIX split_f32
+#define AC_KERNEL arm_split_f32
 
 #include "../Utils/axis_copy_flt_cases.h"

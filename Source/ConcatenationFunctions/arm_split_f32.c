@@ -9,8 +9,8 @@
 
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
- * Title:        arm_split_f16.c
- * Description:  Split a float16_t tensor along one axis (any rank)
+ * Title:        arm_split_f32.c
+ * Description:  Split a float32_t tensor along one axis (any rank)
  *
  * $Date:        6 September 2026
  * $Revision:    V.1.0.0
@@ -23,7 +23,7 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
-#if ARM_NN_ENABLE_F16
+#if ARM_NN_ENABLE_F32
 
 /**
  *  @ingroup Public
@@ -34,13 +34,13 @@
  * @{
  */
 
-arm_cmsis_nn_status arm_split_f16(const float16_t *input_data,
+arm_cmsis_nn_status arm_split_f32(const float32_t *input_data,
                                   const int32_t input_dims,
                                   const int32_t *input_shape,
                                   const int32_t axis,
                                   const int32_t num_splits,
                                   const int32_t *split_dims,
-                                  float16_t *const *output_data)
+                                  float32_t *const *output_data)
 {
     int32_t outer;
     int32_t inner;
@@ -57,7 +57,7 @@ arm_cmsis_nn_status arm_split_f16(const float16_t *input_data,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
-    arm_nn_axis_scatter_f16(input_data, outer, num_splits, split_dims, inner, output_data);
+    arm_nn_axis_scatter_f32(input_data, outer, num_splits, split_dims, inner, output_data);
     return ARM_CMSIS_NN_SUCCESS;
 }
 
@@ -65,4 +65,4 @@ arm_cmsis_nn_status arm_split_f16(const float16_t *input_data,
  * @} end of Concatenation group
  */
 
-#endif /* ARM_NN_ENABLE_F16 */
+#endif /* ARM_NN_ENABLE_F32 */
