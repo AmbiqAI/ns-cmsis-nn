@@ -1604,6 +1604,7 @@ test_dilated_1d_s8_case(int32_t input_len, int32_t filter_len, int32_t channels,
 
     const int32_t buf_size =
         arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims);
+    TEST_ASSERT_EQUAL(arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims), buf_size);
     ctx.size = buf_size;
     if (buf_size > 0)
     {
@@ -1685,4 +1686,164 @@ void dilated_1d_arm_depthwise_conv_s8_opt(void)
             }
         }
     }
+}
+
+void dilated_scope_gate_arm_depthwise_conv_s8_opt(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    const int32_t channels = 16;
+    const int32_t input_w = 32;
+    const int32_t input_h = 4;
+    const int32_t filter_w = 7;
+    const int32_t filter_h = 1;
+    const int32_t dilation_x = 2;
+    const int32_t pad_x = 6;
+    const int32_t output_w = (input_w + 2 * pad_x - (filter_w - 1) * dilation_x - 1) + 1;
+    const int32_t output_h = 4;
+
+    const int32_t input_size = input_w * input_h * channels;
+    const int32_t filter_size = filter_w * filter_h * channels;
+    const int32_t output_size = output_w * output_h * channels;
+
+    int8_t *input_data = (int8_t *)malloc((size_t)input_size * sizeof(int8_t));
+    int8_t *filter_data = (int8_t *)malloc((size_t)filter_size * sizeof(int8_t));
+    int32_t *bias_data = (int32_t *)malloc((size_t)channels * sizeof(int32_t));
+    int32_t *output_mult = (int32_t *)malloc((size_t)channels * sizeof(int32_t));
+    int32_t *output_shift = (int32_t *)malloc((size_t)channels * sizeof(int32_t));
+    int8_t *output_ref = (int8_t *)malloc((size_t)output_size * sizeof(int8_t));
+    int8_t *output_wrapper = (int8_t *)malloc((size_t)output_size * sizeof(int8_t));
+
+    TEST_ASSERT_NOT_NULL(input_data);
+    TEST_ASSERT_NOT_NULL(filter_data);
+    TEST_ASSERT_NOT_NULL(bias_data);
+    TEST_ASSERT_NOT_NULL(output_mult);
+    TEST_ASSERT_NOT_NULL(output_shift);
+    TEST_ASSERT_NOT_NULL(output_ref);
+    TEST_ASSERT_NOT_NULL(output_wrapper);
+
+    memset(output_ref, 0, (size_t)output_size * sizeof(int8_t));
+    memset(output_wrapper, 0, (size_t)output_size * sizeof(int8_t));
+
+    for (int32_t i = 0; i < input_size; i++)
+    {
+        input_data[i] = (int8_t)(((i * 13 + 7) % 251) - 128);
+    }
+    for (int32_t i = 0; i < filter_size; i++)
+    {
+        filter_data[i] = (int8_t)(((i * 29 + 11) % 251) - 128);
+    }
+    for (int32_t i = 0; i < channels; i++)
+    {
+        bias_data[i] = (int32_t)((i * 50 - 25) * 16);
+        output_mult[i] = (int32_t)(0x40000000 + (i * 0x1000000));
+        output_shift[i] = -7;
+    }
+
+    cmsis_nn_context ctx = {NULL, 0};
+    cmsis_nn_dw_conv_params dw_conv_params;
+    cmsis_nn_per_channel_quant_params quant_params;
+    cmsis_nn_dims input_dims = {1, input_h, input_w, channels};
+    cmsis_nn_dims filter_dims = {1, filter_h, filter_w, channels};
+    cmsis_nn_dims bias_dims = {1, 1, 1, channels};
+    cmsis_nn_dims output_dims = {1, output_h, output_w, channels};
+
+    dw_conv_params.padding.w = pad_x;
+    dw_conv_params.padding.h = 0;
+    dw_conv_params.stride.w = 1;
+    dw_conv_params.stride.h = 1;
+    dw_conv_params.dilation.w = dilation_x;
+    dw_conv_params.dilation.h = 1;
+    dw_conv_params.ch_mult = 1;
+    dw_conv_params.input_offset = 128;
+    dw_conv_params.output_offset = -10;
+    dw_conv_params.activation.min = -128;
+    dw_conv_params.activation.max = 127;
+    quant_params.multiplier = output_mult;
+    quant_params.shift = output_shift;
+
+    // Multi-row input (input_h > 1) with dilation.w > 1 must NOT enter the optimized path;
+    // all wrapper sizers must return 0 (indicating generic reference fallback).
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        0,
+        arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        0,
+        arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+
+    // Reference computation
+    arm_cmsis_nn_status ref_status = arm_depthwise_conv_s8(&ctx,
+                                                           &dw_conv_params,
+                                                           &quant_params,
+                                                           &input_dims,
+                                                           input_data,
+                                                           &filter_dims,
+                                                           filter_data,
+                                                           &bias_dims,
+                                                           bias_data,
+                                                           &output_dims,
+                                                           output_ref);
+    TEST_ASSERT_EQUAL(expected, ref_status);
+
+    // Wrapper computation (routes to generic reference)
+    arm_cmsis_nn_status wrapper_status = arm_depthwise_conv_wrapper_s8(&ctx,
+                                                                       NULL,
+                                                                       &dw_conv_params,
+                                                                       &quant_params,
+                                                                       &input_dims,
+                                                                       input_data,
+                                                                       &filter_dims,
+                                                                       filter_data,
+                                                                       &bias_dims,
+                                                                       bias_data,
+                                                                       &output_dims,
+                                                                       output_wrapper);
+    TEST_ASSERT_EQUAL(expected, wrapper_status);
+    TEST_ASSERT_EQUAL_INT8_ARRAY(output_ref, output_wrapper, output_size);
+
+    // Multi-row case with non-zero vertical padding must also remain outside the optimized path
+    dw_conv_params.padding.h = 1;
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        0,
+        arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        0,
+        arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+
+    // 1D case (input_h = 1, output_h = 1, padding.h = 0) with dilation.w > 1 DOES enter optimized path
+    input_dims.h = 1;
+    output_dims.h = 1;
+    dw_conv_params.padding.h = 0;
+    const int32_t expected_opt_buf_size = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
+    TEST_ASSERT_EQUAL(expected_opt_buf_size,
+                      arm_depthwise_conv_wrapper_s8_get_buffer_size(
+                          &dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(arm_depthwise_conv_s8_opt_get_buffer_size_dsp(&input_dims, &filter_dims),
+                      arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp(
+                          &dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(arm_depthwise_conv_s8_opt_get_buffer_size_mve(&input_dims, &filter_dims),
+                      arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(
+                          &dw_conv_params, &input_dims, &filter_dims, &output_dims));
+
+    // 1D case with non-zero vertical padding must NOT enter optimized path
+    dw_conv_params.padding.h = 1;
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        0,
+        arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        0,
+        arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+
+    free(output_wrapper);
+    free(output_ref);
+    free(output_shift);
+    free(output_mult);
+    free(bias_data);
+    free(filter_data);
+    free(input_data);
 }

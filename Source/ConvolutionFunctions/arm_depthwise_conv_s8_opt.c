@@ -130,9 +130,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
             {
                 for (int i_ker_y = base_idx_y; i_ker_y < base_idx_y + kernel_y; i_ker_y++)
                 {
+                    int32_t idx_x = base_idx_x;
                     for (int i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
                     {
-                        const int32_t idx_x = base_idx_x + i_ker_x * dilation_x;
                         if (i_ker_y < 0 || i_ker_y >= input_y || idx_x < 0 || idx_x >= input_x)
                         {
                             arm_memset_s8(lhs_buffer, (int8_t)-input_offset, (uint32_t)active_ch);
@@ -143,6 +143,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
                                 lhs_buffer, input_slice + (i_ker_y * input_x + idx_x) * input_ch, (uint32_t)active_ch);
                         }
                         lhs_buffer += CH_IN_BLOCK_MVE;
+                        idx_x += dilation_x;
                     }
                 }
                 buffer_count++;
@@ -288,10 +289,10 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
             for (int i_ker_y = ker_y_start; i_ker_y < ker_y_end; i_ker_y++)
             {
                 const int32_t idx_y = base_idx_y + i_ker_y;
+                int32_t idx_x = base_idx_x;
 
                 for (int i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
                 {
-                    const int32_t idx_x = base_idx_x + i_ker_x * dilation_x;
                     if (idx_x < 0 || idx_x >= input_x)
                     {
                         memset(&col_buffer[index], 0, input_ch * sizeof(int16_t));
@@ -304,6 +305,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
                                                   (int16_t)input_offset);
                     }
                     index += input_ch;
+                    idx_x += dilation_x;
                 }
             }
 
