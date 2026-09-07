@@ -55,6 +55,7 @@ GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         r"^arm_minimum",
         r"^arm_mul",
         r"^arm_nn_abs",
+        r"^arm_nn_sqrt",
         r"^arm_rsqrt",
         r"^arm_select_v2",
         r"^arm_sqrt",

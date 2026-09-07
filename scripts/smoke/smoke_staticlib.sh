@@ -129,7 +129,8 @@ case "${TOOLCHAIN}" in
     link_flags=(-nostartfiles --specs=nosys.specs)
     # GCC links libc but not libm. The archive genuinely calls floorf,
     # roundf and round (arm_resize_nearest_neighbor_s8/s16,
-    # arm_quantize_f32_s8/s16), so a strict link needs libm on the line.
+    # arm_quantize_f32_s8/s16) and, below -ffast-math, sqrtf for the errno
+    # path the sqrt kernels never take, so a strict link needs libm.
     # These are standard libm symbols every consumer already links --
     # unlike __ARM_undef, which nothing can supply.
     post_link_libs=(-lm)
@@ -165,7 +166,7 @@ case "${TOOLCHAIN}" in
     ar_tool="$(command -v llvm-ar || true)"
     [[ -n "${ar_tool}" ]] || { echo "llvm-ar not found for armclang" >&2; exit 3; }
     arch_flags=(--target=arm-arm-none-eabi "${arch_flags[@]}")
-    # No -nostdlib: the archive genuinely calls floorf/roundf/round, and
+    # No -nostdlib: the archive genuinely calls floorf/roundf/round/sqrtf, and
     # Arm Compiler's C library supplies them. Suppressing the library
     # scan would turn those into false unresolved-symbol failures, the
     # armlink equivalent of the -lm the gcc path appends.

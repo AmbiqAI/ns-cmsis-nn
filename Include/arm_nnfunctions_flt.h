@@ -830,6 +830,49 @@ arm_cmsis_nn_status arm_elementwise_mul_broadcast_f32(const float32_t *input_1_d
                                                       float32_t out_activation_min,
                                                       float32_t out_activation_max);
 
+/**
+ * @brief Elementwise square root.
+ *
+ * The value path is scalar on every toolchain, because Helium has no vector square
+ * root. armclang and ATfE do vectorize the surrounding special-value classification;
+ * the results are bit-identical to the GCC scalar build, verified by executing both
+ * toolchains' objects (#295). Normal positive inputs evaluate `sqrtf(x)`, which IEEE
+ * 754 makes correctly rounded, so results are bit-exact to a float64 reference.
+ * Subnormal inputs follow FPSCR.FZ: where flush-to-zero is set - the Corstone-300 FVP
+ * default, and any host binary linked at -Ofast, where crtfastmath sets DAZ and FTZ -
+ * a subnormal input reads as zero and the result is +0. The float16 pair is immune,
+ * because it widens to a normal float32 first. Special values are decided on the bit
+ * pattern and returned as literals, independent of -ffinite-math-only and FPSCR.DN:
+ * +0 -> +0, -0 -> -0, +Inf -> +Inf, negative (including -Inf) -> quiet NaN
+ * 0x7FC00000, NaN -> the same NaN with the quiet bit set (sign and payload kept).
+ *
+ * @param[in]  input       Pointer to the input vector.
+ * @param[out] output      Pointer to the output vector; may alias @p input.
+ * @param[in]  block_size  Number of elements to process.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_nn_sqrt_f32(const float32_t *input, float32_t *output, int32_t block_size);
+
+/**
+ * @brief Elementwise reciprocal square root, `1 / sqrt(x)`.
+ *
+ * Same value path as arm_nn_sqrt_f32, including its FPSCR.FZ behaviour on subnormal
+ * inputs, where the result is +Inf. Normal positive inputs evaluate `1.0f / sqrtf(x)`
+ * in float32: two IEEE roundings, so the result is within 1 ulp of the correctly
+ * rounded value (measured against a float64 reference; `x = 4^k` is exact). Special
+ * values are decided on the bit pattern and returned as literals: +0 -> +Inf,
+ * -0 -> -Inf, +Inf -> +0, negative (including -Inf) -> quiet NaN 0x7FC00000,
+ * NaN -> the same NaN with the quiet bit set (sign and payload kept).
+ *
+ * @param[in]  input       Pointer to the input vector.
+ * @param[out] output      Pointer to the output vector; may alias @p input.
+ * @param[in]  block_size  Number of elements to process.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_rsqrt_f32(const float32_t *input, float32_t *output, int32_t block_size);
+
 /** @} */
 
 /**
@@ -2187,6 +2230,48 @@ arm_cmsis_nn_status arm_elementwise_mul_broadcast_f16(const float16_t *input_1_d
                                                       const cmsis_nn_dims *output_dims,
                                                       float16_t out_activation_min,
                                                       float16_t out_activation_max);
+
+/**
+ * @brief Elementwise square root of a float16 tensor.
+ *
+ * The value path is scalar on every toolchain, because Helium has no vector square
+ * root; armclang and ATfE vectorize the surrounding classification into an MVE loop
+ * and produce bit-identical results, verified by executing their objects (#295). Each
+ * element is widened to float32, `sqrtf` is evaluated there and the result is rounded
+ * once to float16. Verified exhaustively: for every positive finite float16 input,
+ * subnormals included, the result is the correctly rounded float16 of the float64
+ * square root (0 ulp, #295). Widening first also makes this pair immune to FPSCR.FZ,
+ * which flushes float32 subnormals in the f32 pair. Special values are decided on the
+ * bit pattern and returned as literals, independent of -ffinite-math-only and
+ * FPSCR.DN: +0 -> +0, -0 -> -0, +Inf -> +Inf, negative (including -Inf) -> quiet NaN
+ * 0x7E00, NaN -> the same NaN with the quiet bit set (sign and payload kept).
+ *
+ * @param[in]  input       Pointer to the input tensor.
+ * @param[out] output      Pointer to the output tensor; may alias @p input.
+ * @param[in]  block_size  Number of tensor elements.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_nn_sqrt_f16(const float16_t *input, float16_t *output, int32_t block_size);
+
+/**
+ * @brief Elementwise reciprocal square root of a float16 tensor, `1 / sqrt(x)`.
+ *
+ * Same value path as arm_nn_sqrt_f16: widen to float32, evaluate `1.0f / sqrtf(x)`
+ * there, round once to float16, and so also immune to FPSCR.FZ. Verified exhaustively:
+ * for every positive finite float16 input, subnormals included, the result is the
+ * correctly rounded float16 of the float64 reciprocal square root (0 ulp, #295).
+ * Special values are decided on the bit pattern and returned as literals: +0 -> +Inf,
+ * -0 -> -Inf, +Inf -> +0, negative (including -Inf) -> quiet NaN 0x7E00, NaN -> the
+ * same NaN with the quiet bit set (sign and payload kept).
+ *
+ * @param[in]  input       Pointer to the input tensor.
+ * @param[out] output      Pointer to the output tensor; may alias @p input.
+ * @param[in]  block_size  Number of tensor elements.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_rsqrt_f16(const float16_t *input, float16_t *output, int32_t block_size);
 
 /** @} */
 
