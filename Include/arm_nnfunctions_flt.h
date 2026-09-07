@@ -1126,7 +1126,7 @@ void arm_reshape_f32(const float32_t *input, float32_t *output, uint32_t total_s
  * (output_dims->h + output_dims->w) * sizeof(int32_t). Returns -1 (never 0) when @p output_dims is NULL, when h
  * or w is less than 1, or when the size does not fit in int32_t; a negative result must not be used to size a
  * buffer, and the kernels reject a { NULL, 0 } context outright (the -1 family of the integer sizers, not the
- * 0-returning family most float sizers use; see arm_get_buffer_size_common.h).
+ * 0-returning family most float sizers use; see the sentinel note on arm_nn_size_mul).
  *
  * @param[in] output_dims  Output tensor dimensions (only h and w are read).
  * @return    Required ctx->size in bytes, or -1.

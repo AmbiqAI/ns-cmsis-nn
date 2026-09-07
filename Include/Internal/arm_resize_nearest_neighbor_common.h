@@ -67,8 +67,19 @@ static inline arm_cmsis_nn_status arm_nn_resize_nearest_neighbor_prepare(const c
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    const int32_t output_size_elements =
-        output_size_shape->n * output_size_shape->h * output_size_shape->w * output_size_shape->c;
+    /* Bounds w*c and h*w*c so the walker's int32_t strides cannot overflow. */
+    if (arm_nn_size_mul(
+            arm_nn_size_mul(arm_nn_size_mul((int64_t)input_shape->n, (int64_t)input_shape->h), (int64_t)input_shape->w),
+            (int64_t)input_shape->c) < 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    /* Folded in int64_t: a raw int32_t product overflows, and negative dims can multiply to 2. */
+    const int64_t output_size_elements =
+        arm_nn_size_mul(arm_nn_size_mul(arm_nn_size_mul((int64_t)output_size_shape->n, (int64_t)output_size_shape->h),
+                                        (int64_t)output_size_shape->w),
+                        (int64_t)output_size_shape->c);
     if (output_size_elements != 2)
     {
         return ARM_CMSIS_NN_ARG_ERROR;

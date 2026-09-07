@@ -174,6 +174,12 @@ void resize_nearest_neighbor_f16_rejects_bad_args(void)
                                      &output_dims,
                                      resize_nn_f16_output));
 
+    /* Re-canary the scratch: a rejected call must not write even where the baseline legitimately did. */
+    for (size_t i = 0; i < RESIZE_NN_FLT_MAX_SCRATCH_ELEMENTS + RESIZE_NN_GUARD; ++i)
+    {
+        resize_nn_f16_scratch[i] = (int32_t)RESIZE_NN_CANARY_WORD;
+    }
+
     RESIZE_NN_EXPECT_ARG_ERROR(NULL,
                                &params,
                                &input_dims,
@@ -295,6 +301,27 @@ void resize_nearest_neighbor_f16_rejects_bad_args(void)
                                &zero_in_out,
                                resize_nn_f16_output);
 
+    /* Dimensions whose product overflows int32_t, and a shape tensor whose negative dims multiply to 2. */
+    const cmsis_nn_dims overflow_in = {1, 65536, 65536, 1};
+    const cmsis_nn_dims overflow_out = {1, 2, 6, 1};
+    RESIZE_NN_EXPECT_ARG_ERROR(&ctx,
+                               &params,
+                               &overflow_in,
+                               resize_nn_f16_input,
+                               &output_size_dims,
+                               output_size,
+                               &overflow_out,
+                               resize_nn_f16_output);
+    const cmsis_nn_dims negative_size_dims = {1, 1, -1, -2};
+    RESIZE_NN_EXPECT_ARG_ERROR(&ctx,
+                               &params,
+                               &input_dims,
+                               resize_nn_f16_input,
+                               &negative_size_dims,
+                               output_size,
+                               &output_dims,
+                               resize_nn_f16_output);
+
 #undef RESIZE_NN_EXPECT_ARG_ERROR
 #undef RESIZE_NN_CALL
 
@@ -305,7 +332,7 @@ void resize_nearest_neighbor_f16_rejects_bad_args(void)
         memcpy(&bits, &resize_nn_f16_output[i], sizeof(bits));
         TEST_ASSERT_EQUAL_HEX16((uint16_t)RESIZE_NN_CANARY_WORD, bits);
     }
-    for (size_t i = 8; i < RESIZE_NN_FLT_MAX_SCRATCH_ELEMENTS + RESIZE_NN_GUARD; ++i)
+    for (size_t i = 0; i < RESIZE_NN_FLT_MAX_SCRATCH_ELEMENTS + RESIZE_NN_GUARD; ++i)
     {
         TEST_ASSERT_EQUAL_HEX32(RESIZE_NN_CANARY_WORD, (uint32_t)resize_nn_f16_scratch[i]);
     }
