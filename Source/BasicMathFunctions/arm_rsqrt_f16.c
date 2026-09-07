@@ -18,36 +18,9 @@
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
 
-#include "arm_nnfunctions.h"
-
-#include <string.h>
+#include "Internal/arm_nn_sqrt_flt.h"
 
 #if ARM_NN_ENABLE_F16
-
-    #if defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
-static inline _Float16 arm_nn_sqrt_f16h(_Float16 value)
-{
-    _Float16 result;
-    __asm__("vsqrt.f16 %0, %1" : "=t"(result) : "t"(value));
-    return result;
-}
-    #endif
-
-    #if !defined(__ARM_FP16_FORMAT_ALTERNATIVE)
-static inline uint16_t arm_nn_f16_to_bits(float16_t value)
-{
-    uint16_t bits;
-    memcpy(&bits, &value, sizeof(bits));
-    return bits;
-}
-
-static inline float16_t arm_nn_f16_from_bits(uint16_t bits)
-{
-    float16_t value;
-    memcpy(&value, &bits, sizeof(value));
-    return value;
-}
-    #endif
 
 /**
  *  @ingroup Public
@@ -58,6 +31,7 @@ static inline float16_t arm_nn_f16_from_bits(uint16_t bits)
  * @{
  */
 
+ARM_NN_SQRT_EXACT_FN
 arm_cmsis_nn_status arm_rsqrt_f16(const float16_t *input, float16_t *output, int32_t block_size)
 {
     if (!input || !output || block_size < 1)
@@ -65,42 +39,19 @@ arm_cmsis_nn_status arm_rsqrt_f16(const float16_t *input, float16_t *output, int
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
+    // One leg for every build: Helium has no vector square root, so there is
+    // no MVE path to diverge from. float32 evaluate, round once (#295).
     for (int32_t i = 0; i < block_size; ++i)
     {
     #if !defined(__ARM_FP16_FORMAT_ALTERNATIVE)
-        const uint16_t input_bits = arm_nn_f16_to_bits(input[i]);
-        const uint16_t magnitude = input_bits & UINT16_C(0x7FFF);
-
-        /* Classify by representation so -Ofast cannot discard IEEE special cases. */
-        if (magnitude == 0)
+        uint16_t special_bits;
+        if (arm_nn_sqrt_special_f16(arm_nn_f16_to_bits(input[i]), true, &special_bits))
         {
-            output[i] = arm_nn_f16_from_bits((input_bits & UINT16_C(0x8000)) | UINT16_C(0x7C00));
-            continue;
-        }
-        if (magnitude > UINT16_C(0x7C00))
-        {
-            output[i] = arm_nn_f16_from_bits(input_bits | UINT16_C(0x0200));
-            continue;
-        }
-        if (input_bits == UINT16_C(0x7C00))
-        {
-            output[i] = arm_nn_f16_from_bits(0);
-            continue;
-        }
-        if (input_bits & UINT16_C(0x8000))
-        {
-            output[i] = arm_nn_f16_from_bits(UINT16_C(0x7E00));
+            output[i] = arm_nn_f16_from_bits(special_bits);
             continue;
         }
     #endif
-
-    #if defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC)
-        const _Float16 root = arm_nn_sqrt_f16h((_Float16)input[i]);
-        output[i] = (float16_t)((_Float16)1.0f / root);
-    #else
-        const float32_t value = (float32_t)input[i];
-        output[i] = (float16_t)(1.0f / __builtin_sqrtf(value));
-    #endif
+        output[i] = (float16_t)(1.0f / __builtin_sqrtf((float32_t)input[i]));
     }
 
     return ARM_CMSIS_NN_SUCCESS;

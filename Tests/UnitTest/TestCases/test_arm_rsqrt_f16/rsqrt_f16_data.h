@@ -2,17 +2,28 @@
  * SPDX-FileCopyrightText: Copyright 2026 Ambiq
  * SPDX-License-Identifier: Apache-2.0
  *
- * Generated golden data (numpy reference, float32 evaluation).
+ * Generated golden data (numpy float64 1/sqrt, rounded once to float16).
+ * Generator: numpy float64 reference, rounded once to the output width; 45 elements
+ * (not a multiple of the vector lane count).
  */
 #pragma once
 
-#define RSQRT_F16_DST_SIZE 18
+#define RSQRT_F16_DST_SIZE 45
 
 static const float16_t rsqrt_f16_input[RSQRT_F16_DST_SIZE] = {
-    0x1.1p-20f, 0.0625f, 0.125f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f,
-    3.0f,       4.0f,    5.0f,   8.0f,  9.0f, 16.0f, 25.0f, 64.0f, 100.0f};
+    0x1.0p-24f, 0x1.0p-23f, 0x1.55p-16f, 0x1.ff8p-15f, 0x1.0p-14f, 0x1.004p-14f, 0x1.1p-20f,
+    0x1.0p-4f, 0x1.0p-3f, 0x1.0p-2f, 0x1.0p-1f, 0x1.8p-1f, 0x1.0p+0f, 0x1.8p+0f, 0x1.0p+1f,
+    0x1.8p+1f, 0x1.0p+2f, 0x1.4p+2f, 0x1.0p+3f, 0x1.2p+3f, 0x1.0p+4f, 0x1.9p+4f, 0x1.0p+6f,
+    0x1.9p+6f, 0x1.0p+10f, 0x1.0p+12f, 0x1.d4cp+14f, 0x1.ffcp+15f, 0x1.ff8p+15f, 0x1.c7cp-10f,
+    0x1.81p-12f, 0x1.af4p+14f, 0x1.1p+13f, 0x1.a58p-8f, 0x1.0bp-4f, 0x1.468p-1f, 0x1.8dcp+9f,
+    0x1.2b8p-7f, 0x1.fe8p+3f, 0x1.d9p-14f, 0x1.524p+11f, 0x1.508p-1f, 0x1.31cp+15f, 0x1.b2p-2f,
+    0x1.454p-6f};
 
 static const float16_t rsqrt_f16_output_ref[RSQRT_F16_DST_SIZE] = {
-    993.5f,        4.0f,          2.828125f,     2.0f,          1.4140625f,   1.154296875f,
-    1.0f,          0.81640625f,   0.70703125f,   0.5771484375f, 0.5f,         0.447265625f,
-    0.353515625f,  0.333251953125f, 0.25f,       0.199951171875f, 0.125f,     0.0999755859375f};
+    0x1.0p+12f, 0x1.6ap+11f, 0x1.bb8p+7f, 0x1.004p+7f, 0x1.0p+7f, 0x1.ffcp+6f, 0x1.f0cp+9f,
+    0x1.0p+2f, 0x1.6ap+1f, 0x1.0p+1f, 0x1.6ap+0f, 0x1.278p+0f, 0x1.0p+0f, 0x1.a2p-1f, 0x1.6ap-1f,
+    0x1.278p-1f, 0x1.0p-1f, 0x1.cap-2f, 0x1.6ap-2f, 0x1.554p-2f, 0x1.0p-2f, 0x1.998p-3f, 0x1.0p-3f,
+    0x1.998p-4f, 0x1.0p-5f, 0x1.0p-6f, 0x1.7a4p-8f, 0x1.0p-8f, 0x1.004p-8f, 0x1.7fcp+4f,
+    0x1.a18p+5f, 0x1.8a8p-8f, 0x1.5f4p-7f, 0x1.8fp+3f, 0x1.f54p+1f, 0x1.408p+0f, 0x1.228p-5f,
+    0x1.4ecp+3f, 0x1.008p-2f, 0x1.78cp+6f, 0x1.3bp-6f, 0x1.3bcp+0f, 0x1.4b4p-8f, 0x1.894p+0f,
+    0x1.c64p+2f};

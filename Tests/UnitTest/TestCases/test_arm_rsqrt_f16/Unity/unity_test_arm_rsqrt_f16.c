@@ -32,4 +32,5 @@ void tearDown(void) {}
 void test_rsqrt_f16_arm_rsqrt_f16(void) { rsqrt_f16_arm_rsqrt_f16(); }
 void test_rsqrt_f16_in_place_arm_rsqrt_f16(void) { rsqrt_f16_in_place_arm_rsqrt_f16(); }
 void test_rsqrt_f16_special_values_arm_rsqrt_f16(void) { rsqrt_f16_special_values_arm_rsqrt_f16(); }
+void test_rsqrt_f16_exhaustive_arm_rsqrt_f16(void) { rsqrt_f16_exhaustive_arm_rsqrt_f16(); }
 void test_rsqrt_f16_arg_error_arm_rsqrt_f16(void) { rsqrt_f16_arg_error_arm_rsqrt_f16(); }

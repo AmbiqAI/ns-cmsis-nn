@@ -1883,31 +1883,6 @@ arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
 arm_cmsis_nn_status arm_nn_abs_f16(const float16_t *input, float16_t *output, int32_t block_size);
 
 /**
- * @ingroup groupElementwise
- * @brief Computes the elementwise reciprocal square root of a float16 tensor.
- *
- * Targets with scalar float16 arithmetic evaluate `VSQRT.F16` followed by
- * `VDIV.F16`; other targets evaluate in float32 and round once to float16.
- * The scalar float16 path can differ from the float32 path by one float16 ULP
- * because its square-root intermediate is rounded before division.
- *
- * On IEEE binary16 targets, special-value behavior is preserved independently
- * of compiler fast-math settings: positive zero maps to positive infinity,
- * negative zero maps to negative infinity, negative finite values and negative
- * infinity map to NaN, positive infinity maps to positive zero, and NaN
- * propagates as a quiet NaN. Targets configured for Arm alternative half
- * precision, which has no infinity or NaN encodings, use native arithmetic
- * without IEEE bit-pattern classification.
- *
- * @param[in]  input       Pointer to the input tensor
- * @param[out] output      Pointer to the output tensor; may alias @p input
- * @param[in]  block_size  Number of tensor elements
- *
- * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
- */
-arm_cmsis_nn_status arm_rsqrt_f16(const float16_t *input, float16_t *output, int32_t block_size);
-
-/**
  * @ingroup Concatenation
  * @brief float16 split of a tensor into multiple tensors along the target axis.
  *
@@ -2013,6 +1988,26 @@ arm_cmsis_nn_status arm_elementwise_mul_broadcast_f16(const float16_t *input_1_d
                                                       const cmsis_nn_dims *output_dims,
                                                       float16_t out_activation_min,
                                                       float16_t out_activation_max);
+
+/**
+ * @brief Elementwise reciprocal square root of a float16 tensor, `1 / sqrt(x)`.
+ *
+ * Same single scalar leg as arm_nn_sqrt_f16: widen to float32, evaluate
+ * `1.0f / sqrtf(x)` there, round once to float16. Verified exhaustively: for
+ * every positive finite float16 input, subnormals included, the result is the
+ * correctly rounded float16 of the float64 reciprocal square root (0 ulp,
+ * #295). Special values, decided on the bit pattern: +0 -> +Inf, -0 -> -Inf,
+ * +Inf -> +0, negative (including -Inf) -> default quiet NaN 0x7E00, NaN ->
+ * the same NaN with the quiet bit set (sign and payload kept). Builds for Arm
+ * alternative half precision skip that classification.
+ *
+ * @param[in]  input       Pointer to the input tensor.
+ * @param[out] output      Pointer to the output tensor; may alias @p input.
+ * @param[in]  block_size  Number of tensor elements.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_rsqrt_f16(const float16_t *input, float16_t *output, int32_t block_size);
 
 /** @} */
 
