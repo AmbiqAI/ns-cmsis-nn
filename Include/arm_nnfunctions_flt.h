@@ -1064,7 +1064,8 @@ arm_cmsis_nn_status arm_pack_f32(const float32_t *const *input_data,
  * @param[out] output_data  Array of @p input_shape[axis] pointers to the flattened outputs.
  *
  * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` (outputs untouched) on an invalid rank,
- *         axis, shape entry, NULL pointer or an element count above INT32_MAX.
+ *         axis, shape entry, a zero-extent unstack axis (no outputs to produce), NULL pointer or an
+ *         element count above INT32_MAX.
  */
 arm_cmsis_nn_status arm_unpack_f32(const float32_t *input_data,
                                    int32_t input_dims,
@@ -2014,11 +2015,13 @@ arm_cmsis_nn_status arm_nn_fill_f16(float16_t value, float16_t *output, int32_t 
  * @brief Widen a float16 vector to float32.
  *
  * Bit-exact widening of every input class: finite values, subnormals (normal in float32), +/-0 and
- * +/-Inf convert exactly. No accumulation, no rounding. NaN behavior: a NaN stays a NaN with its sign,
- * quiet bit and payload preserved (a signaling NaN stays signaling), and no floating-point exception
- * flag is raised; the scalar path widens on integer lanes and the MVE path repairs the NaN lanes that
- * the vector VCVT would have replaced with the default NaN. Input and output must not overlap.
- * Serves the f16-weights DEQUANTIZE op (`kws_float_fp16_weights`).
+ * +/-Inf convert exactly. No accumulation, no rounding. NaN behavior: on every leg a NaN stays a NaN with
+ * its sign, quiet bit and payload preserved bit-exactly (a signaling NaN stays signaling). The scalar leg
+ * widens on integer lanes and raises no floating-point exception flag. The MVE leg converts each 8-element
+ * block with the vector VCVT first and then rebuilds the NaN lanes from the half's bits (per 4-lane
+ * vector, 8 elements per main-loop block), so a signaling-NaN input may leave FPSCR.IOC (invalid
+ * operation, cumulative) set on that leg; no trap, and the result is the same bits. Input and output
+ * must not overlap. Serves the f16-weights DEQUANTIZE op (`kws_float_fp16_weights`).
  *
  * @param[in]  input       Pointer to the float16 input vector.
  * @param[out] output      Pointer to the float32 output vector.
