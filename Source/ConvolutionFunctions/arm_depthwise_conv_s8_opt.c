@@ -95,6 +95,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
     const int32_t pad_y = dw_conv_params->padding.h;
     const int32_t stride_x = dw_conv_params->stride.w;
     const int32_t stride_y = dw_conv_params->stride.h;
+    const int32_t dilation_x = dw_conv_params->dilation.w;
     const int32_t *output_shift = quant_params->shift;
     const int32_t *output_mult = quant_params->multiplier;
     const int32_t output_x = output_dims->w;
@@ -129,17 +130,17 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
             {
                 for (int i_ker_y = base_idx_y; i_ker_y < base_idx_y + kernel_y; i_ker_y++)
                 {
-                    for (int i_ker_x = base_idx_x; i_ker_x < base_idx_x + kernel_x; i_ker_x++)
+                    for (int i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
                     {
-                        if (i_ker_y < 0 || i_ker_y >= input_y || i_ker_x < 0 || i_ker_x >= input_x)
+                        const int32_t idx_x = base_idx_x + i_ker_x * dilation_x;
+                        if (i_ker_y < 0 || i_ker_y >= input_y || idx_x < 0 || idx_x >= input_x)
                         {
                             arm_memset_s8(lhs_buffer, (int8_t)-input_offset, (uint32_t)active_ch);
                         }
                         else
                         {
-                            arm_memcpy_s8(lhs_buffer,
-                                          input_slice + (i_ker_y * input_x + i_ker_x) * input_ch,
-                                          (uint32_t)active_ch);
+                            arm_memcpy_s8(
+                                lhs_buffer, input_slice + (i_ker_y * input_x + idx_x) * input_ch, (uint32_t)active_ch);
                         }
                         lhs_buffer += CH_IN_BLOCK_MVE;
                     }
@@ -290,7 +291,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
 
                 for (int i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
                 {
-                    const int32_t idx_x = base_idx_x + i_ker_x;
+                    const int32_t idx_x = base_idx_x + i_ker_x * dilation_x;
                     if (idx_x < 0 || idx_x >= input_x)
                     {
                         memset(&col_buffer[index], 0, input_ch * sizeof(int16_t));
