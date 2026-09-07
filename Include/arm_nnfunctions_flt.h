@@ -639,6 +639,22 @@ arm_cmsis_nn_status arm_elementwise_sub_f32(const float32_t *input_1_vect,
 arm_cmsis_nn_status arm_nn_abs_f32(const float32_t *input, float32_t *output, int32_t block_size);
 
 /**
+ * @brief Fill a float32 vector with one value.
+ *
+ * Bit copy of @p value into every element (vector splat / plain stores), so a
+ * NaN fill value lands bit-exact, sign and payload included. Not named
+ * arm_fill_f32: CMSIS-DSP exports that symbol.
+ *
+ * @param[in]  value       Fill value.
+ * @param[out] output      Pointer to the output vector.
+ * @param[in]  block_size  Number of elements to write (0 is a no-op).
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` when @p block_size is negative or
+ *         @p output is NULL with a non-zero @p block_size.
+ */
+arm_cmsis_nn_status arm_nn_fill_f32(float32_t value, float32_t *output, int32_t block_size);
+
+/**
  * @brief Elementwise multiply with optional output clamp.
  *
  * NaN propagates through the clamp (TensorFlow Lite semantics): a quiet NaN in either input operand, or a
@@ -1980,6 +1996,11 @@ arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
  * @copydoc arm_nn_abs_f32
  */
 arm_cmsis_nn_status arm_nn_abs_f16(const float16_t *input, float16_t *output, int32_t block_size);
+
+/**
+ * @copydoc arm_nn_fill_f32
+ */
+arm_cmsis_nn_status arm_nn_fill_f16(float16_t value, float16_t *output, int32_t block_size);
 
 /**
  * @ingroup Quantization
