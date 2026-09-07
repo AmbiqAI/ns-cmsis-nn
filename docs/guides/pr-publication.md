@@ -13,21 +13,25 @@ published commit. Do not promote first and then push, and do not toggle draft
 status to manufacture a run. Older handoff instructions claiming promotion
 has no trigger are obsolete.
 
-From a clean worktree, use:
+From a clean worktree, set `REVIEWED_SHA` to the full 40-character commit SHA
+recorded by the completed review, then use:
 
 ```sh
-python3 scripts/publish_pr.py 477 --dry-run
-python3 scripts/publish_pr.py 477
+python3 scripts/publish_pr.py 477 --expect-head "$REVIEWED_SHA" --dry-run
+python3 scripts/publish_pr.py 477 --expect-head "$REVIEWED_SHA"
 ```
 
-The helper checks the open PR, repository and clean worktree, fetches the
+The helper requires HEAD to equal that explicit reviewed SHA, checks the open PR,
+repository, single push URL and clean worktree, fetches the
 remote branch, requires a fast-forward, pushes the captured local commit,
 verifies GitHub reports that exact head, and only then promotes a draft.
 It stops if a push fails or the PR changes. If GitHub has not yet reflected
 the pushed head, inspect the PR before retrying; the retry can push an
 already-published commit. It never merges, force-pushes, stashes or polls CI.
 `--remote` selects a push remote; `--repo` selects the matching GitHub repository.
-Cross-repository PRs are deliberately unsupported.
+Cross-repository PRs and remotes with multiple push URLs are deliberately unsupported.
+A dry run performs the same pre-push checks, including a local fetch and ancestry
+verification, but makes no remote writes.
 
 For an already-ready PR, a push is sufficient: the helper does not promote
 again. Each later commit is another run, so address review findings locally

@@ -8,7 +8,7 @@ are C with optional Helium (MVE / M-Profile Vector Extension) SIMD paths.
 Finish local checks, **push while the PR is still draft, then mark it ready**.
 The workflow in `.github/workflows/ci.yml` handles `ready_for_review` as well
 as `synchronize`; promoting first and pushing afterward starts two runs.
-Use `python3 scripts/publish_pr.py <number>` from a clean worktree to enforce
+Use `python3 scripts/publish_pr.py <number> --expect-head <reviewed-sha>` from a clean worktree to enforce
 push, head verification, then promotion. `--dry-run` previews the operation.
 A push to an already-ready PR starts a new run; finish review fixes locally
 before publishing. Do not toggle draft status to retrigger CI or poll runs.

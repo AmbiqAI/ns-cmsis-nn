@@ -17,17 +17,22 @@ publisher = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(publisher)
 
 
+OLD = "b" * 40
+NEW = "a" * 40
+
+
 class PublicationTests(unittest.TestCase):
     def setUp(self):
         self.calls = []
         self.info = dict(state="OPEN", isDraft=True, headRefName="topic",
-                         headRefOid="old", isCrossRepository=False)
-        self.after = dict(self.info, headRefOid="new")
+                         headRefOid=OLD, isCrossRepository=False)
+        self.after = dict(self.info, headRefOid=NEW)
         self.dirty = ""
         self.remote = "git@github.com:AmbiqAI/ns-cmsis-nn.git"
         self.fail = None
         self.views = 0
-        self.fetch_head = "old"
+        self.fetch_head = OLD
+        self.expected_head = NEW
 
     def command(self, *args):
         self.calls.append(args)
@@ -41,12 +46,12 @@ class PublicationTests(unittest.TestCase):
         if args[:3] == ("git", "remote", "get-url"):
             return self.remote
         if args[:2] == ("git", "rev-parse"):
-            return "new" if args[2] == "HEAD" else self.fetch_head
+            return NEW if args[2] == "HEAD" else self.fetch_head
         return ""
 
     def publish(self, **kwargs):
         with patch.object(publisher, "run", self.command):
-            publisher.publish(477, "AmbiqAI/ns-cmsis-nn", "origin", **kwargs)
+            publisher.publish(477, "AmbiqAI/ns-cmsis-nn", "origin", self.expected_head, **kwargs)
 
     def assert_not_ready(self):
         self.assertFalse(any(c[:3] == ("gh", "pr", "ready") for c in self.calls))
@@ -54,7 +59,7 @@ class PublicationTests(unittest.TestCase):
     def test_draft_pushes_then_verifies_before_ready(self):
         self.publish()
         push = next(i for i, c in enumerate(self.calls) if c[:2] == ("git", "push"))
-        self.assertEqual(self.calls[push], ("git", "push", "--", "origin", "new:refs/heads/topic"))
+        self.assertEqual(self.calls[push], ("git", "push", "--", "origin", NEW + ":refs/heads/topic"))
         self.assertEqual(self.calls[push + 1][:3], ("gh", "pr", "view"))
         self.assertEqual(self.calls[push + 2][:3], ("gh", "pr", "ready"))
 
@@ -73,7 +78,7 @@ class PublicationTests(unittest.TestCase):
                 self.assert_not_ready()
 
     def test_changed_or_stale_pr_never_promotes(self):
-        for key, value in (("headRefOid", "old"), ("headRefName", "other"),
+        for key, value in (("headRefOid", OLD), ("headRefName", "other"),
                            ("state", "CLOSED"), ("isDraft", False),
                            ("isCrossRepository", True)):
             with self.subTest(key=key):
@@ -103,10 +108,39 @@ class PublicationTests(unittest.TestCase):
                 self.assertFalse(any(c[:2] == ("git", "push") for c in self.calls))
                 self.assert_not_ready()
 
-    def test_dry_run_makes_no_writes(self):
+    def test_dry_run_checks_ancestry_without_remote_writes(self):
         self.publish(dry_run=True)
-        self.assertFalse(any(c[:2] in (("git", "fetch"), ("git", "push")) for c in self.calls))
+        self.assertTrue(any(c[:2] == ("git", "fetch") for c in self.calls))
+        self.assertTrue(any(c[:2] == ("git", "merge-base") for c in self.calls))
+        self.assertFalse(any(c[:2] == ("git", "push") for c in self.calls))
         self.assert_not_ready()
+
+    def test_only_explicit_reviewed_sha_can_be_published(self):
+        for reviewed in (OLD, "a" * 7, "HEAD", ""):
+            with self.subTest(reviewed=reviewed):
+                self.setUp()
+                self.expected_head = reviewed
+                with self.assertRaises(ValueError):
+                    self.publish()
+                self.assertFalse(any(c[:2] == ("git", "push") for c in self.calls))
+                self.assert_not_ready()
+
+    def test_multiple_push_urls_are_rejected(self):
+        self.remote += "\nhttps://github.com/unrelated/private-repo.git"
+        with self.assertRaisesRegex(ValueError, "exactly one push URL"):
+            self.publish()
+        self.assertIn(("git", "remote", "get-url", "--push", "--all", "origin"), self.calls)
+        self.assertFalse(any(c[:2] == ("git", "push") for c in self.calls))
+
+    def test_invalid_branch_or_diverged_preview_stops(self):
+        for command in (("git", "check-ref-format"), ("git", "merge-base")):
+            with self.subTest(command=command):
+                self.setUp()
+                self.fail = command
+                with self.assertRaises(subprocess.CalledProcessError):
+                    self.publish(dry_run=True)
+                self.assert_not_ready()
+
 
 
 class GitIntegrationTests(unittest.TestCase):
@@ -130,6 +164,9 @@ class GitIntegrationTests(unittest.TestCase):
             git("push", "origin", "HEAD:topic", cwd=work)
             git("commit", "--allow-empty", "-m", "Change. Refs #459", cwd=work)
             new = git("rev-parse", "HEAD", cwd=work)
+            git("switch", "-c", "unrelated-local-work", cwd=work)
+            git("commit", "--allow-empty", "-m", "Unreviewed. Refs #459", cwd=work)
+            unreviewed = git("rev-parse", "HEAD", cwd=work)
             promoted = []
 
             def command(*args):
@@ -145,8 +182,15 @@ class GitIntegrationTests(unittest.TestCase):
                 return git(*args[1:], cwd=work)
 
             self.assertNotEqual(old, new)
+            self.assertNotEqual(new, unreviewed)
             with patch.object(publisher, "run", command):
-                publisher.publish(477, "AmbiqAI/ns-cmsis-nn", "origin")
+                with self.assertRaisesRegex(ValueError, "completed review"):
+                    publisher.publish(477, "AmbiqAI/ns-cmsis-nn", "origin", new)
+            self.assertEqual(promoted, [])
+            self.assertEqual(git("rev-parse", "refs/heads/topic", cwd=bare), old)
+            git("switch", "topic", cwd=work)
+            with patch.object(publisher, "run", command):
+                publisher.publish(477, "AmbiqAI/ns-cmsis-nn", "origin", new)
             self.assertEqual(promoted, [new])
             self.assertEqual(git("rev-parse", "refs/heads/topic", cwd=bare), new)
 
