@@ -141,7 +141,8 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_minimum_f32.c"
                          "arm_maximum_f32.c"
                          "arm_nn_mean_f32.c"
-                         "arm_reduce_sum_f32.c")
+                         "arm_reduce_sum_f32.c"
+                         "arm_rsqrt_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
       list(APPEND extras "arm_nn_abs_f16.c"

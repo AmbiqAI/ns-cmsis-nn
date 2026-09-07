@@ -814,6 +814,25 @@ arm_cmsis_nn_status arm_elementwise_mul_broadcast_f32(const float32_t *input_1_d
                                                       float32_t out_activation_min,
                                                       float32_t out_activation_max);
 
+/**
+ * @brief Elementwise reciprocal square root, `1 / sqrt(x)`.
+ *
+ * Same single scalar leg as arm_nn_sqrt_f32. Positive finite inputs, subnormals
+ * included, evaluate `1.0f / sqrtf(x)` in float32: two IEEE roundings, so the
+ * result is within 1 ulp of the correctly rounded value (measured against a
+ * float64 reference; `x = 4^k` is exact). Special values, decided on the bit
+ * pattern: +0 -> +Inf, -0 -> -Inf, +Inf -> +0, negative (including -Inf) ->
+ * default quiet NaN 0x7FC00000, NaN -> the same NaN with the quiet bit set
+ * (sign and payload kept).
+ *
+ * @param[in]  input       Pointer to the input vector.
+ * @param[out] output      Pointer to the output vector; may alias @p input.
+ * @param[in]  block_size  Number of elements to process.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_rsqrt_f32(const float32_t *input, float32_t *output, int32_t block_size);
+
 /** @} */
 
 /**
