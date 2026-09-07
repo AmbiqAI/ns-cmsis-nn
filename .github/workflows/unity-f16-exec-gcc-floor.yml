@@ -46,6 +46,8 @@ jobs:
       # One suite per kernel source that reaches a Q-form vcvt f16<->f32
       # conversion, directly or through a wrapper or an inline helper:
       #
+      #   Source/QuantizationFunctions/arm_dequantize_f16_f32.c
+      #       -> test_arm_dequantize_f16_f32 (arm_nn_vcvt{b,t}q_f32_f16)
       #   Source/BasicMathFunctions/arm_nn_mean_f16.c
       #       -> test_arm_nn_mean_f16      (arm_nn_vcvt{b,t}q_f32_f16)
       #   Source/BasicMathFunctions/arm_reduce_sum_f16.c
@@ -66,6 +68,7 @@ jobs:
       # around the 8-lane boundary are worth running on this toolchain too.
       SUITES: >-
         test_arm_convolve_packed_f16
+        test_arm_dequantize_f16_f32
         test_arm_hard_swish_f16
         test_arm_nn_mean_f16
         test_arm_reduce_sum_f16

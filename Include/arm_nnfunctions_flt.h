@@ -1883,6 +1883,26 @@ arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
 arm_cmsis_nn_status arm_nn_abs_f16(const float16_t *input, float16_t *output, int32_t block_size);
 
 /**
+ * @ingroup Quantization
+ * @brief Widen a float16 vector to float32.
+ *
+ * Bit-exact widening of every input class: finite values, subnormals (normal in float32), +/-0 and
+ * +/-Inf convert exactly. No accumulation, no rounding. NaN behavior: a NaN stays a NaN with its sign,
+ * quiet bit and payload preserved (a signaling NaN stays signaling), and no floating-point exception
+ * flag is raised; the scalar path widens on integer lanes and the MVE path repairs the NaN lanes that
+ * the vector VCVT would have replaced with the default NaN. Input and output must not overlap.
+ * Serves the f16-weights DEQUANTIZE op (`kws_float_fp16_weights`).
+ *
+ * @param[in]  input       Pointer to the float16 input vector.
+ * @param[out] output      Pointer to the float32 output vector.
+ * @param[in]  block_size  Number of elements (0 is a no-op).
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` when @p block_size is negative or a
+ *         pointer is NULL with a non-zero @p block_size.
+ */
+arm_cmsis_nn_status arm_dequantize_f16_f32(const float16_t *input, float32_t *output, int32_t block_size);
+
+/**
  * @ingroup Concatenation
  * @brief float16 split of a tensor into multiple tensors along the target axis.
  *
