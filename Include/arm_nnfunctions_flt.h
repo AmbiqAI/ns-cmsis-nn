@@ -1115,6 +1115,67 @@ void arm_reshape_f32(const float32_t *input, float32_t *output, uint32_t total_s
 /** @} */
 
 /**
+ * @addtogroup Reshape
+ * @{
+ */
+
+/**
+ * @brief Scratch size in bytes for arm_resize_nearest_neighbor_f32() / arm_resize_nearest_neighbor_f16().
+ *
+ * The kernels precompute one int32_t input index per output row and per output column, so the requirement is
+ * (output_dims->h + output_dims->w) * sizeof(int32_t). Returns -1 (never 0) when @p output_dims is NULL, when h
+ * or w is less than 1, or when the size does not fit in int32_t; a negative result must not be used to size a
+ * buffer, and the kernels reject a { NULL, 0 } context outright (the -1 family of the integer sizers, not the
+ * 0-returning family most float sizers use; see arm_get_buffer_size_common.h).
+ *
+ * @param[in] output_dims  Output tensor dimensions (only h and w are read).
+ * @return    Required ctx->size in bytes, or -1.
+ */
+int32_t arm_resize_nearest_neighbor_f32_get_buffer_size(const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Nearest-neighbor resize of a float32 NHWC tensor.
+ *
+ * Pure data movement: every output element is a bit copy of one input element, so NaN (sign and payload),
+ * +/-Inf, -0.0 and subnormals are preserved bit-for-bit on the scalar and MVE legs alike (the MVE copy is a
+ * tail-predicated vldr/vstr pair, not an FP operation, so FPSCR flush-to-zero and default-NaN do not apply).
+ * No arithmetic is performed on the data; the only float math is the float32 index scale below.
+ *
+ * Index semantics are TFLite's RESIZE_NEAREST_NEIGHBOR reference, evaluated in float32 per axis:
+ *   scale = (align_corners && out > 1) ? (in - 1) / (out - 1) : in / out
+ *   idx   = align_corners ? roundf((o + offset) * scale) : floorf((o + offset) * scale)
+ *   idx   = min(idx, in - 1); if (half_pixel_centers) idx = max(idx, 0)
+ * with offset = half_pixel_centers ? 0.5f : 0.0f; roundf rounds ties away from zero, matching TfLiteRound.
+ * All four align_corners/half_pixel_centers combinations were verified bit-for-bit against TFLite 2.20 over a
+ * shape sweep (1..16 square, 80 random NHWC shapes up to 40x40, 224->7 and 7->224), including the out == 1
+ * align_corners case, which maps to input index 0.
+ *
+ * @param[in]   ctx                Scratch context. ctx->buf must be non-NULL and 4-byte aligned, and ctx->size
+ *                                 at least arm_resize_nearest_neighbor_f32_get_buffer_size(output_shape); the
+ *                                 kernel writes the x/y index maps here and does not read them after returning.
+ * @param[in]   resize_params      align_corners / half_pixel_centers.
+ * @param[in]   input_shape        Input tensor dimensions in NHWC format; every dimension must be >= 1.
+ * @param[in]   input_data         Input tensor data. Must not overlap @p output_data.
+ * @param[in]   output_size_shape  Dimensions of the output-size tensor; must hold exactly 2 elements.
+ * @param[in]   output_size_data   Output size as [output_height, output_width], both >= 1.
+ * @param[in]   output_shape       Output tensor dimensions in NHWC format; n and c must equal the input's and
+ *                                 h/w must equal @p output_size_data.
+ * @param[out]  output_data        Output tensor data.
+ * @return      ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR when any constraint above fails (including a
+ *              NULL pointer argument); nothing is written on ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_resize_nearest_neighbor_f32(const cmsis_nn_context *ctx,
+                                                    const cmsis_nn_resize_params *resize_params,
+                                                    const cmsis_nn_dims *input_shape,
+                                                    const float32_t *input_data,
+                                                    const cmsis_nn_dims *output_size_shape,
+                                                    const int32_t *output_size_data,
+                                                    const cmsis_nn_dims *output_shape,
+                                                    float32_t *output_data);
+
+/** @} */
+
+/**
  * @addtogroup FC
  * @{
  */
@@ -2318,18 +2379,15 @@ void arm_reshape_f16(const float16_t *input, float16_t *output, uint32_t total_s
  */
 
 /**
- * @brief Nearest neighbor resize function for float16 data.
- *
- * @param[in]   ctx                Context buffer holding at least
- *                                 (output_height + output_width) int32_t elements.
- * @param[in]   resize_params      Resize parameters.
- * @param[in]   input_shape        Input tensor dimensions in NHWC format.
- * @param[in]   input_data         Input tensor data.
- * @param[in]   output_size_shape  Dimensions of the output-size tensor.
- * @param[in]   output_size_data   Output size as [output_height, output_width].
- * @param[in]   output_shape       Output tensor dimensions in NHWC format.
- * @param[out]  output_data        Output tensor data.
- * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when an argument constraint fails.
+ * @copydoc arm_resize_nearest_neighbor_f32_get_buffer_size
+ */
+int32_t arm_resize_nearest_neighbor_f16_get_buffer_size(const cmsis_nn_dims *output_dims);
+
+/**
+ * @copydoc arm_resize_nearest_neighbor_f32
+ * @note    float16 twin: each element is copied as a 16-bit lane with no widening or conversion, so
+ *          half-precision NaN payloads and subnormals are preserved exactly and the data is never evaluated in
+ *          float32. Scratch is sized by arm_resize_nearest_neighbor_f16_get_buffer_size() (same query as f32).
  */
 arm_cmsis_nn_status arm_resize_nearest_neighbor_f16(const cmsis_nn_context *ctx,
                                                     const cmsis_nn_resize_params *resize_params,

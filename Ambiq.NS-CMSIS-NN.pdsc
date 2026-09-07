@@ -82,6 +82,7 @@
         <file category="header" name="Include/Internal/arm_nn_broadcast_walk.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f16_common.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f32_common.h"/>
+        <file category="header" name="Include/Internal/arm_resize_nearest_neighbor_common.h"/>
 
         <file category="source" name="Source/ActivationFunctions/arm_clamp_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_clamp_s8.c"/>
@@ -374,6 +375,7 @@
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_f32.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_s8.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_f16.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_f32.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_s16.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_s8.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_space_to_batch_nd_s16.c"/>
