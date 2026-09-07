@@ -300,10 +300,12 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                  "arm_space_to_depth_s8.c"
                  "arm_space_to_depth_s16.c")
     if(ARM_NN_ENABLE_F32)
-      list(APPEND extras "arm_reshape_f32.c")
+      list(APPEND extras "arm_reshape_f32.c"
+                         "arm_resize_nearest_neighbor_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
-      list(APPEND extras "arm_reshape_f16.c")
+      list(APPEND extras "arm_reshape_f16.c"
+                         "arm_resize_nearest_neighbor_f16.c")
     endif()
   elseif(group STREQUAL "softmax")
     set(subdir   "SoftmaxFunctions")
