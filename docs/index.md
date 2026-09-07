@@ -56,6 +56,7 @@ guides/releases
 guides/toolchains
 guides/verification
 guides/ci-matrix
+guides/pr-publication
 reference/api-groups
 contributing
 ```
