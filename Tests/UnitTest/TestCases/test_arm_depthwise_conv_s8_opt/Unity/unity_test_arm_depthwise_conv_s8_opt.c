@@ -78,3 +78,5 @@ void test_buffer_size_out_of_range_mve_arm_depthwise_conv_s8_opt(void)
 {
     buffer_size_out_of_range_mve_arm_depthwise_conv_s8_opt();
 }
+
+void test_dilated_1d_arm_depthwise_conv_s8_opt(void) { dilated_1d_arm_depthwise_conv_s8_opt(); }
