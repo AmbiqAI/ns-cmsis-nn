@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../test_arm_resize_nearest_neighbor_f16.c"
+#include "../test_arm_resize_nearest_neighbor_f32.c"
 #include "unity.h"
 
 #ifdef USING_FVP_CORSTONE_300
@@ -29,10 +29,10 @@ void setUp(void)
 
 void tearDown(void) {}
 
-void test_resize_nearest_neighbor_f16_tflite_cases(void) { resize_nearest_neighbor_f16_tflite_cases(); }
+void test_resize_nearest_neighbor_f32_tflite_cases(void) { resize_nearest_neighbor_f32_tflite_cases(); }
 
-void test_resize_nearest_neighbor_f16_special_values(void) { resize_nearest_neighbor_f16_special_values(); }
+void test_resize_nearest_neighbor_f32_special_values(void) { resize_nearest_neighbor_f32_special_values(); }
 
-void test_resize_nearest_neighbor_f16_rejects_bad_args(void) { resize_nearest_neighbor_f16_rejects_bad_args(); }
+void test_resize_nearest_neighbor_f32_rejects_bad_args(void) { resize_nearest_neighbor_f32_rejects_bad_args(); }
 
-void test_resize_nearest_neighbor_f16_buffer_size(void) { resize_nearest_neighbor_f16_buffer_size(); }
+void test_resize_nearest_neighbor_f32_buffer_size(void) { resize_nearest_neighbor_f32_buffer_size(); }

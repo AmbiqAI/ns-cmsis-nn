@@ -268,6 +268,7 @@ if(ARM_NN_ENABLE_F32)
     add_subdirectory(TestCases/test_arm_strided_slice_f32)
     add_subdirectory(TestCases/test_arm_transpose_conv_f32)
     add_subdirectory(TestCases/test_arm_transpose_f32)
+    add_subdirectory(TestCases/test_arm_resize_nearest_neighbor_f32)
 endif()
 
 if(ARM_NN_ENABLE_F16)
