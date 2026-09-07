@@ -93,6 +93,8 @@ GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         r"^arm_dynamic_update_slice",
         r"^arm_gather",
         r"^arm_mirror_pad",
+        r"^arm_nn_fill",
+        r"^arm_pack",
         r"^arm_pad",
         r"^arm_reshape",
         r"^arm_resize",
@@ -104,6 +106,7 @@ GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         r"^arm_tile",
         r"^arm_transpose_f",
         r"^arm_transpose_s",
+        r"^arm_unpack",
     ),
     "classifier-tail": (
         r"^arm_avg_?pool",

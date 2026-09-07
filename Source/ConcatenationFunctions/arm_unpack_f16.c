@@ -9,8 +9,8 @@
 
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
- * Title:        arm_split_f16.c
- * Description:  Split a float16_t tensor along one axis (any rank)
+ * Title:        arm_unpack_f16.c
+ * Description:  Unpack a float16_t tensor into unit slices along one axis (any rank)
  *
  * $Date:        6 September 2026
  * $Revision:    V.1.0.0
@@ -34,30 +34,28 @@
  * @{
  */
 
-arm_cmsis_nn_status arm_split_f16(const float16_t *input_data,
-                                  const int32_t input_dims,
-                                  const int32_t *input_shape,
-                                  const int32_t axis,
-                                  const int32_t num_splits,
-                                  const int32_t *split_dims,
-                                  float16_t *const *output_data)
+arm_cmsis_nn_status arm_unpack_f16(const float16_t *input_data,
+                                   const int32_t input_dims,
+                                   const int32_t *input_shape,
+                                   const int32_t axis,
+                                   float16_t *const *output_data)
 {
     int32_t outer;
     int32_t inner;
-    if (input_dims < 1 || axis < 0 || axis >= input_dims || input_shape == NULL || split_dims == NULL ||
+    if (input_dims < 1 || axis < 0 || axis >= input_dims || input_shape == NULL || input_shape[axis] < 1 ||
         arm_nn_axis_copy_plan(
-            input_shape, input_dims, axis, axis + 1, input_shape[axis], num_splits, split_dims, &outer, &inner) !=
+            input_shape, input_dims, axis, axis + 1, input_shape[axis], input_shape[axis], NULL, &outer, &inner) !=
             ARM_CMSIS_NN_SUCCESS)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
     const int32_t total = outer * input_shape[axis] * inner;
     if ((input_data == NULL && total != 0) ||
-        !arm_nn_axis_copy_ptrs_ok((const void *const *)output_data, num_splits, total))
+        !arm_nn_axis_copy_ptrs_ok((const void *const *)output_data, input_shape[axis], total))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
-    arm_nn_axis_scatter_f16(input_data, outer, num_splits, split_dims, inner, output_data);
+    arm_nn_axis_scatter_f16(input_data, outer, input_shape[axis], NULL, inner, output_data);
     return ARM_CMSIS_NN_SUCCESS;
 }
 

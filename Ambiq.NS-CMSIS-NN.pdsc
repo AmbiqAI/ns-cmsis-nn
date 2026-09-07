@@ -162,6 +162,8 @@
         <file category="source" name="Source/BasicMathFunctions/arm_mul_scalar_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_abs_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_abs_f32.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_fill_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_fill_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_mean_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_mean_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_max_s16.c"/>
@@ -192,9 +194,14 @@
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8_x.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8_y.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s8_z.c"/>
+        <file category="source" name="Source/ConcatenationFunctions/arm_pack_f16.c"/>
+        <file category="source" name="Source/ConcatenationFunctions/arm_pack_f32.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_split_f16.c"/>
+        <file category="source" name="Source/ConcatenationFunctions/arm_split_f32.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_split_s16.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_split_s8.c"/>
+        <file category="source" name="Source/ConcatenationFunctions/arm_unpack_f16.c"/>
+        <file category="source" name="Source/ConcatenationFunctions/arm_unpack_f32.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1_x_n_f16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1_x_n_f32.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1_x_n_s4.c"/>
@@ -352,6 +359,7 @@
         <file category="source" name="Source/PadFunctions/arm_mirror_pad_s8.c"/>
         <file category="source" name="Source/PadFunctions/arm_mirror_pad_s16.c"/>
 
+        <file category="source" name="Source/QuantizationFunctions/arm_dequantize_f16_f32.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_dequantize_s8_f32.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_dequantize_s16_f32.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_quantize_f32_s16.c"/>

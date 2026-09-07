@@ -639,6 +639,22 @@ arm_cmsis_nn_status arm_elementwise_sub_f32(const float32_t *input_1_vect,
 arm_cmsis_nn_status arm_nn_abs_f32(const float32_t *input, float32_t *output, int32_t block_size);
 
 /**
+ * @brief Fill a float32 vector with one value.
+ *
+ * Bit copy of @p value into every element (vector splat / plain stores), so a
+ * NaN fill value lands bit-exact, sign and payload included. Not named
+ * arm_fill_f32: CMSIS-DSP exports that symbol.
+ *
+ * @param[in]  value       Fill value.
+ * @param[out] output      Pointer to the output vector.
+ * @param[in]  block_size  Number of elements to write (0 is a no-op).
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` when @p block_size is negative or
+ *         @p output is NULL with a non-zero @p block_size.
+ */
+arm_cmsis_nn_status arm_nn_fill_f32(float32_t value, float32_t *output, int32_t block_size);
+
+/**
  * @brief Elementwise multiply with optional output clamp.
  *
  * NaN propagates through the clamp (TensorFlow Lite semantics): a quiet NaN in either input operand, or a
@@ -956,6 +972,106 @@ void arm_concatenation_f32_w(const float32_t *input,
                              int32_t input_w,
                              float32_t *output,
                              uint32_t offset_w);
+
+/**
+ * @brief Concatenate float32 tensors of any rank along one axis.
+ *
+ * Rank-agnostic sibling of the 4-D per-axis arm_concatenation_f32_{x,y,z,w} entry points: all inputs at
+ * once, any rank, any axis. Bit copy, NaN/Inf/-0/subnormal payloads preserved. Input @p s has the output
+ * shape with @p output_shape[axis] replaced by @p axis_sizes[s]; the inputs are laid down in order along
+ * the axis. Inputs must not overlap the output. A dimension of 0 is accepted and copies nothing.
+ *
+ * @param[in]  input_data   Array of @p num_inputs pointers to the flattened (row-major) inputs.
+ * @param[in]  num_inputs   Number of inputs (>= 1).
+ * @param[in]  axis_sizes   Array of length @p num_inputs: each input's extent along @p axis.
+ * @param[in]  output_dims  Number of dimensions in @p output_shape (>= 1).
+ * @param[in]  output_shape Output shape; @p output_shape[axis] must equal the sum of @p axis_sizes.
+ * @param[in]  axis         Axis to concatenate along (0 <= axis < output_dims).
+ * @param[out] output_data  Pointer to the flattened output.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` (output untouched) on an invalid rank,
+ *         axis, shape entry, size entry, size sum, NULL pointer or an element count above INT32_MAX.
+ */
+arm_cmsis_nn_status arm_concatenation_f32(const float32_t *const *input_data,
+                                          int32_t num_inputs,
+                                          const int32_t *axis_sizes,
+                                          int32_t output_dims,
+                                          const int32_t *output_shape,
+                                          int32_t axis,
+                                          float32_t *output_data);
+
+/**
+ * @brief Split a float32 tensor of any rank into several tensors along one axis.
+ *
+ * Inverse of arm_concatenation_f32; per-split lengths also cover SPLIT_V. Output @p s has the input
+ * shape with @p input_shape[axis] replaced by @p split_dims[s]. Bit copy, NaN/Inf/-0/subnormal payloads
+ * preserved. Outputs must not overlap the input. A dimension of 0 is accepted and copies nothing.
+ *
+ * @param[in]  input_data   Pointer to the flattened (row-major) input.
+ * @param[in]  input_dims   Number of dimensions in @p input_shape (>= 1).
+ * @param[in]  input_shape  Input shape; @p input_shape[axis] must equal the sum of @p split_dims.
+ * @param[in]  axis         Axis to split along (0 <= axis < input_dims).
+ * @param[in]  num_splits   Number of outputs (>= 1).
+ * @param[in]  split_dims   Array of length @p num_splits: each output's extent along @p axis.
+ * @param[out] output_data  Array of @p num_splits pointers to the flattened outputs.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` (outputs untouched) on an invalid rank,
+ *         axis, shape entry, split entry, split sum, NULL pointer or an element count above INT32_MAX.
+ */
+arm_cmsis_nn_status arm_split_f32(const float32_t *input_data,
+                                  int32_t input_dims,
+                                  const int32_t *input_shape,
+                                  int32_t axis,
+                                  int32_t num_splits,
+                                  const int32_t *split_dims,
+                                  float32_t *const *output_data);
+
+/**
+ * @brief Stack float32 tensors of equal shape along a new axis (TFLite PACK).
+ *
+ * The output shape is @p input_shape with @p num_inputs inserted at @p axis; input @p s lands at index
+ * @p s of that axis. Bit copy, NaN/Inf/-0/subnormal payloads preserved. Inputs must not overlap the
+ * output. Rank-0 inputs (@p input_dims == 0, @p axis == 0) stack into a vector.
+ *
+ * @param[in]  input_data   Array of @p num_inputs pointers to the flattened (row-major) inputs.
+ * @param[in]  num_inputs   Number of inputs (>= 1).
+ * @param[in]  input_dims   Number of dimensions of each input (>= 0).
+ * @param[in]  input_shape  Shape shared by every input (may be NULL when @p input_dims is 0).
+ * @param[in]  axis         Position of the new axis in the output (0 <= axis <= input_dims).
+ * @param[out] output_data  Pointer to the flattened output.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` (output untouched) on an invalid rank,
+ *         axis, shape entry, NULL pointer or an element count above INT32_MAX.
+ */
+arm_cmsis_nn_status arm_pack_f32(const float32_t *const *input_data,
+                                 int32_t num_inputs,
+                                 int32_t input_dims,
+                                 const int32_t *input_shape,
+                                 int32_t axis,
+                                 float32_t *output_data);
+
+/**
+ * @brief Unstack a float32 tensor along one axis into @p input_shape[axis] tensors (TFLite UNPACK).
+ *
+ * Inverse of arm_pack_f32: output @p s is the input with the axis fixed at index @p s and removed
+ * from the shape. Bit copy, NaN/Inf/-0/subnormal payloads preserved. Outputs must not overlap the
+ * input.
+ *
+ * @param[in]  input_data   Pointer to the flattened (row-major) input.
+ * @param[in]  input_dims   Number of dimensions in @p input_shape (>= 1).
+ * @param[in]  input_shape  Input shape; @p input_shape[axis] (>= 1) is the number of outputs.
+ * @param[in]  axis         Axis to unstack (0 <= axis < input_dims).
+ * @param[out] output_data  Array of @p input_shape[axis] pointers to the flattened outputs.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` (outputs untouched) on an invalid rank,
+ *         axis, shape entry, a zero-extent unstack axis (no outputs to produce), NULL pointer or an
+ *         element count above INT32_MAX.
+ */
+arm_cmsis_nn_status arm_unpack_f32(const float32_t *input_data,
+                                   int32_t input_dims,
+                                   const int32_t *input_shape,
+                                   int32_t axis,
+                                   float32_t *const *output_data);
 
 /** @} */
 
@@ -1883,19 +1999,41 @@ arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
 arm_cmsis_nn_status arm_nn_abs_f16(const float16_t *input, float16_t *output, int32_t block_size);
 
 /**
- * @ingroup Concatenation
- * @brief float16 split of a tensor into multiple tensors along the target axis.
+ * @brief Fill a float16 vector with one value; bit copy of @p value, NaN payload included.
  *
- * Data-layout independent pure copy; no arithmetic is performed.
+ * @param[in]  value       Fill value.
+ * @param[out] output      Pointer to the output vector.
+ * @param[in]  block_size  Number of elements to write (0 is a no-op).
  *
- * @param[in]  input_data   Pointer to the flattened input tensor data.
- * @param[in]  input_dims   Number of dimensions in input_shape.
- * @param[in]  input_shape  Array of length input_dims describing the input shape.
- * @param[in]  axis         Axis along which to split (0 <= axis < input_dims).
- * @param[in]  num_splits   Number of output tensors to produce.
- * @param[in]  split_dims   Array of length num_splits giving each slice size along axis.
- * @param[out] output_data  Array of pointers to per-output storage.
- * @return     ARM_CMSIS_NN_SUCCESS on success.
+ * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` when @p block_size is negative or
+ *         @p output is NULL with a non-zero @p block_size.
+ */
+arm_cmsis_nn_status arm_nn_fill_f16(float16_t value, float16_t *output, int32_t block_size);
+
+/**
+ * @ingroup Quantization
+ * @brief Widen a float16 vector to float32.
+ *
+ * Bit-exact widening of every input class: finite values, subnormals (normal in float32), +/-0 and
+ * +/-Inf convert exactly. No accumulation, no rounding. NaN behavior: on every leg a NaN stays a NaN with
+ * its sign, quiet bit and payload preserved bit-exactly (a signaling NaN stays signaling). The scalar leg
+ * widens on integer lanes and raises no floating-point exception flag. The MVE leg converts each 8-element
+ * block with the vector VCVT first and then rebuilds the NaN lanes from the half's bits (per 4-lane
+ * vector, 8 elements per main-loop block), so a signaling-NaN input may leave FPSCR.IOC (invalid
+ * operation, cumulative) set on that leg; no trap, and the result is the same bits. Input and output
+ * must not overlap. Serves the f16-weights DEQUANTIZE op (`kws_float_fp16_weights`).
+ *
+ * @param[in]  input       Pointer to the float16 input vector.
+ * @param[out] output      Pointer to the float32 output vector.
+ * @param[in]  block_size  Number of elements (0 is a no-op).
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` when @p block_size is negative or a
+ *         pointer is NULL with a non-zero @p block_size.
+ */
+arm_cmsis_nn_status arm_dequantize_f16_f32(const float16_t *input, float32_t *output, int32_t block_size);
+
+/**
+ * @copydoc arm_split_f32
  */
 arm_cmsis_nn_status arm_split_f16(const float16_t *input_data,
                                   const int32_t input_dims,
@@ -2102,6 +2240,36 @@ void arm_concatenation_f16_w(const float16_t *input,
                              int32_t input_w,
                              float16_t *output,
                              uint32_t offset_w);
+
+/**
+ * @copydoc arm_concatenation_f32
+ */
+arm_cmsis_nn_status arm_concatenation_f16(const float16_t *const *input_data,
+                                          int32_t num_inputs,
+                                          const int32_t *axis_sizes,
+                                          int32_t output_dims,
+                                          const int32_t *output_shape,
+                                          int32_t axis,
+                                          float16_t *output_data);
+
+/**
+ * @copydoc arm_pack_f32
+ */
+arm_cmsis_nn_status arm_pack_f16(const float16_t *const *input_data,
+                                 int32_t num_inputs,
+                                 int32_t input_dims,
+                                 const int32_t *input_shape,
+                                 int32_t axis,
+                                 float16_t *output_data);
+
+/**
+ * @copydoc arm_unpack_f32
+ */
+arm_cmsis_nn_status arm_unpack_f16(const float16_t *input_data,
+                                   int32_t input_dims,
+                                   const int32_t *input_shape,
+                                   int32_t axis,
+                                   float16_t *const *output_data);
 
 /** @} */
 

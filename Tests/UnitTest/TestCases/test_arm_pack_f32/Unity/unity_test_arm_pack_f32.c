@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../test_arm_split_f16.c"
+#include "../test_arm_pack_f32.c"
 #include "unity.h"
 
 #ifdef USING_FVP_CORSTONE_300
@@ -29,16 +29,16 @@ void setUp(void)
 
 void tearDown(void) {}
 
-void test_split_f16_rank_axis_sweep(void) { split_f16_rank_axis_sweep(); }
+void test_pack_f32_rank_axis_sweep(void) { pack_f32_rank_axis_sweep(); }
 
-void test_split_f16_tail_lengths(void) { split_f16_tail_lengths(); }
+void test_pack_f32_tail_lengths(void) { pack_f32_tail_lengths(); }
 
-void test_split_f16_payload_preservation(void) { split_f16_payload_preservation(); }
+void test_pack_f32_payload_preservation(void) { pack_f32_payload_preservation(); }
 
-void test_split_f16_zero_extent(void) { split_f16_zero_extent(); }
+void test_pack_f32_zero_extent(void) { pack_f32_zero_extent(); }
 
-void test_split_f16_arg_error(void) { split_f16_arg_error(); }
+void test_pack_f32_arg_error(void) { pack_f32_arg_error(); }
 
-void test_split_f16_fuzz(void) { split_f16_fuzz(); }
+void test_pack_f32_fuzz(void) { pack_f32_fuzz(); }
 
-void test_split_f16_unequal_sizes(void) { split_f16_unequal_sizes(); }
+void test_pack_f32_n_up_to_8(void) { pack_f32_n_up_to_8(); }
