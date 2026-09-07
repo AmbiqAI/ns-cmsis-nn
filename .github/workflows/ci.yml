@@ -32,6 +32,7 @@ on:
   # fires no event: the pipeline the `gate` job skipped would never run, and
   # the `CI Passed` failure a draft reports would never be replaced by a real
   # result. See AmbiqAI/ns-cmsis-nn#459.
+  # Push final commits while draft, then promote once; see scripts/publish_pr.py (#459).
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
