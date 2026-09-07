@@ -19,11 +19,15 @@
 file(GLOB SRC "./*_s8*.c")
 if (ARM_NN_ENABLE_F32)
   list(APPEND SRC arm_concatenation_f32.c
-                  arm_split_f32.c)
+                  arm_pack_f32.c
+                  arm_split_f32.c
+                  arm_unpack_f32.c)
 endif()
 if (ARM_NN_ENABLE_F16)
   list(APPEND SRC arm_concatenation_f16.c
-                  arm_split_f16.c)
+                  arm_pack_f16.c
+                  arm_split_f16.c
+                  arm_unpack_f16.c)
 endif()
 
 target_sources(cmsis-nn PRIVATE ${SRC})

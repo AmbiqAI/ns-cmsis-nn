@@ -28,6 +28,7 @@
  * -------------------------------------------------------------------- */
 
 #include "Internal/arm_concatenation_common.h"
+#include "Internal/arm_nn_axis_copy_common.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -43,6 +44,33 @@
  */
 
 ARM_CONCATENATION_DEFINE(f16, float16_t)
+
+arm_cmsis_nn_status arm_concatenation_f16(const float16_t *const *input_data,
+                                          const int32_t num_inputs,
+                                          const int32_t *axis_sizes,
+                                          const int32_t output_dims,
+                                          const int32_t *output_shape,
+                                          const int32_t axis,
+                                          float16_t *output_data)
+{
+    int32_t outer;
+    int32_t inner;
+    if (output_dims < 1 || axis < 0 || axis >= output_dims || output_shape == NULL || axis_sizes == NULL ||
+        arm_nn_axis_copy_plan(
+            output_shape, output_dims, axis, axis + 1, output_shape[axis], num_inputs, axis_sizes, &outer, &inner) !=
+            ARM_CMSIS_NN_SUCCESS)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    const int32_t total = outer * output_shape[axis] * inner;
+    if ((output_data == NULL && total != 0) ||
+        !arm_nn_axis_copy_ptrs_ok((const void *const *)input_data, num_inputs, total))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    arm_nn_axis_gather_f16(input_data, outer, num_inputs, axis_sizes, inner, output_data);
+    return ARM_CMSIS_NN_SUCCESS;
+}
 
 /** @} */
 
