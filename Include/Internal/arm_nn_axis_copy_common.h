@@ -99,7 +99,18 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_axis_copy_plan(const int32_t *sh
     {
         sum = num;
     }
-    if (sum != axis_len || o * axis_len * in > INT32_MAX)
+    if (sum != axis_len)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    /* Stepwise: each factor is <= INT32_MAX, so every partial product fits int64. */
+    int64_t total = o * axis_len;
+    if (total > INT32_MAX)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    total *= in;
+    if (total > INT32_MAX)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

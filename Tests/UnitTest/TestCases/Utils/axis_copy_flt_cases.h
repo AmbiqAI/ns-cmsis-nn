@@ -734,6 +734,50 @@ void AC_FN(arg_error)(void)
     }
 #endif
 
+    /* Element counts above INT32_MAX: the int64 product overflow shape (every factor near INT32_MAX) and a
+     * plain 2^32-2 count must both fail with nothing written; a count of 0 with factors at INT32_MAX validates. */
+    {
+        const int32_t big = INT32_MAX;
+#if AC_OP == AC_OP_SPLIT
+        int32_t s_over[3] = {big, big, 1 << 30}, s_wrap[3] = {2, big, 1}, s_edge[3] = {1, big, 0};
+        int32_t one[1] = {big}, two[2] = {big - 1, 1};
+        AC_PREP();
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, AC_KERNEL(packed, 3, s_over, 1, 1, one, ac_slices));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, AC_KERNEL(packed, 3, s_wrap, 1, 1, one, ac_slices));
+        AC_CHECK_UNTOUCHED();
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, AC_KERNEL(packed, 3, s_edge, 1, 2, two, ac_slices));
+        AC_CHECK_UNTOUCHED();
+#elif AC_OP == AC_OP_UNPACK
+        int32_t s_over[3] = {big, 2, 1 << 30}, s_wrap[3] = {2, 3, big}, s_edge[4] = {1, 3, big, 0};
+        AC_PREP();
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, AC_KERNEL(packed, 3, s_over, 1, ac_slices));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, AC_KERNEL(packed, 3, s_wrap, 1, ac_slices));
+        AC_CHECK_UNTOUCHED();
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, AC_KERNEL(packed, 4, s_edge, 1, ac_slices));
+        AC_CHECK_UNTOUCHED();
+#elif AC_OP == AC_OP_CONCAT
+        int32_t s_over[3] = {big, big, 1 << 30}, s_wrap[3] = {2, big, 1}, s_edge[3] = {1, big, 0};
+        int32_t one[1] = {big}, two[2] = {big - 1, 1};
+        AC_PREP();
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          AC_KERNEL((const ac_t *const *)ac_slices, 1, one, 3, s_over, 1, packed));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          AC_KERNEL((const ac_t *const *)ac_slices, 1, one, 3, s_wrap, 1, packed));
+        AC_CHECK_UNTOUCHED();
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          AC_KERNEL((const ac_t *const *)ac_slices, 2, two, 3, s_edge, 1, packed));
+        AC_CHECK_UNTOUCHED();
+#else
+        int32_t s_over[2] = {big, 1 << 30}, s_wrap[1] = {1 << 30}, s_edge[2] = {big, 0};
+        AC_PREP();
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, AC_KERNEL((const ac_t *const *)ac_slices, 2, 2, s_over, 0, packed));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, AC_KERNEL((const ac_t *const *)ac_slices, 4, 1, s_wrap, 0, packed));
+        AC_CHECK_UNTOUCHED();
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, AC_KERNEL((const ac_t *const *)ac_slices, 2, 2, s_edge, 0, packed));
+        AC_CHECK_UNTOUCHED();
+#endif
+    }
+
     /* NULL pointers. */
     {
         ac_t *null_slices[AC_MAX_SLICES];

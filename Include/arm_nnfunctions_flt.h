@@ -1998,7 +1998,14 @@ arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
 arm_cmsis_nn_status arm_nn_abs_f16(const float16_t *input, float16_t *output, int32_t block_size);
 
 /**
- * @copydoc arm_nn_fill_f32
+ * @brief Fill a float16 vector with one value; bit copy of @p value, NaN payload included.
+ *
+ * @param[in]  value       Fill value.
+ * @param[out] output      Pointer to the output vector.
+ * @param[in]  block_size  Number of elements to write (0 is a no-op).
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` when @p block_size is negative or
+ *         @p output is NULL with a non-zero @p block_size.
  */
 arm_cmsis_nn_status arm_nn_fill_f16(float16_t value, float16_t *output, int32_t block_size);
 

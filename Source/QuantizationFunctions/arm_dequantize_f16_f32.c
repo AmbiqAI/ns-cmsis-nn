@@ -35,6 +35,7 @@
  * @{
  */
 
+    #if !(defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE))
 /*
  * Integer widening of one half. Exact for every input class, raises no FP
  * flag, and keeps a NaN's sign, quiet bit and payload (a C cast would quiet
@@ -65,6 +66,7 @@ static inline uint32_t arm_nn_f16_bits_to_f32_bits(const uint32_t h)
     }
     return sign | ((113u - shift) << 23) | ((mant & 0x3FFu) << 13);
 }
+    #endif
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
 /*
