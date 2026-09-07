@@ -16,6 +16,7 @@ Covered dtypes: `f32`, `f16`
 | --- | --- | --- | --- |
 | `convolve` | `conv_settings_flt.py` | none | none |
 | `reshape` | `none` | `test_arm_reshape_f32`, `test_arm_reshape_f16` | `test_arm_reshape_flt` |
+| `resize_nearest_neighbor` | `resize_nearest_neighbor_settings_flt.py` | `test_arm_resize_nearest_neighbor_f32`, `test_arm_resize_nearest_neighbor_f16` | `none` |
 | `transpose_conv` | `transpose_conv_settings_flt.py` | `test_arm_transpose_conv_f32`, `test_arm_transpose_conv_f16` | `test_arm_transpose_conv_flt` |
 
 ## Coverage Details
@@ -65,6 +66,15 @@ Simple flat reshape/copy sanity coverage.
 - CMSIS contexts: `test_arm_reshape_flt.F32+Corstone-300-FVP`, `test_arm_reshape_flt.F16+Corstone-300-FVP`
 - Covered cases:
   - Single contiguous buffer of length 6 copied input -> output.
+
+### `resize_nearest_neighbor`
+
+Nearest-neighbor resize index maps read back from TFLite RESIZE_NEAREST_NEIGHBOR (BUILTIN_REF), compared bit-exact.
+
+- Generator: `resize_nearest_neighbor_settings_flt.py` (TensorFlow 2.20; emits `TestCases/Utils/resize_nearest_neighbor_flt_cases.h`)
+- Host targets: `test_arm_resize_nearest_neighbor_f32`, `test_arm_resize_nearest_neighbor_f16`
+- CMSIS project: none
+- Cases: 13 NHWC shapes shared by both dtypes, all four `align_corners` / `half_pixel_centers` combinations, batch 1-3, channels 1-17 (vector tails), exact .5 ties, `out == 1` with `align_corners`, 40x40 -> 7x7; raw-bit inputs (NaN, Inf, -0.0, subnormal) compared bit-exact with output and scratch canaries; argument rejection and the buffer-size query.
 
 ### `transpose_conv`
 

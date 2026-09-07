@@ -131,6 +131,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     set(patterns "*_s8*.c" "*_s16*.c")
     if(ARM_NN_ENABLE_F32)
       list(APPEND extras "arm_nn_abs_f32.c"
+                         "arm_nn_fill_f32.c"
                          "arm_elementwise_add_f32.c"
                          "arm_elementwise_sub_f32.c"
                          "arm_elementwise_mul_f32.c"
@@ -147,6 +148,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     endif()
     if(ARM_NN_ENABLE_F16)
       list(APPEND extras "arm_nn_abs_f16.c"
+                         "arm_nn_fill_f16.c"
                          "arm_elementwise_add_fp16.c"
                          "arm_elementwise_add_f16.c"
                          "arm_elementwise_sub_f16.c"
@@ -169,11 +171,16 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     set(subdir   "ConcatenationFunctions")
     set(patterns "*_s8*.c" "*_s16*.c" "*_s32*.c")
     if(ARM_NN_ENABLE_F32)
-      list(APPEND extras "arm_concatenation_f32.c")
+      list(APPEND extras "arm_concatenation_f32.c"
+                         "arm_pack_f32.c"
+                         "arm_split_f32.c"
+                         "arm_unpack_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
       list(APPEND extras "arm_concatenation_f16.c"
-                         "arm_split_f16.c")
+                         "arm_pack_f16.c"
+                         "arm_split_f16.c"
+                         "arm_unpack_f16.c")
     endif()
   elseif(group STREQUAL "convolution")
     set(subdir   "ConvolutionFunctions")
@@ -279,7 +286,10 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     endif()
   elseif(group STREQUAL "quantization")
     set(subdir   "QuantizationFunctions")
-    set(patterns "*_*.c")
+    set(patterns "*_s8*.c" "*_s16*.c" "arm_quantize_f32_*.c")
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_dequantize_f16_f32.c")
+    endif()
   elseif(group STREQUAL "reshape")
     set(subdir   "ReshapeFunctions")
     set(patterns "arm_reshape_s8.c"
@@ -294,10 +304,12 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                  "arm_space_to_depth_s8.c"
                  "arm_space_to_depth_s16.c")
     if(ARM_NN_ENABLE_F32)
-      list(APPEND extras "arm_reshape_f32.c")
+      list(APPEND extras "arm_reshape_f32.c"
+                         "arm_resize_nearest_neighbor_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
-      list(APPEND extras "arm_reshape_f16.c")
+      list(APPEND extras "arm_reshape_f16.c"
+                         "arm_resize_nearest_neighbor_f16.c")
     endif()
   elseif(group STREQUAL "softmax")
     set(subdir   "SoftmaxFunctions")

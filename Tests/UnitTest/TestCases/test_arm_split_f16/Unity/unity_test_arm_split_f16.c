@@ -29,4 +29,16 @@ void setUp(void)
 
 void tearDown(void) {}
 
-void test_split_f16_arm_split_f16(void) { split_f16_arm_split_f16(); }
+void test_split_f16_rank_axis_sweep(void) { split_f16_rank_axis_sweep(); }
+
+void test_split_f16_tail_lengths(void) { split_f16_tail_lengths(); }
+
+void test_split_f16_payload_preservation(void) { split_f16_payload_preservation(); }
+
+void test_split_f16_zero_extent(void) { split_f16_zero_extent(); }
+
+void test_split_f16_arg_error(void) { split_f16_arg_error(); }
+
+void test_split_f16_fuzz(void) { split_f16_fuzz(); }
+
+void test_split_f16_unequal_sizes(void) { split_f16_unequal_sizes(); }
