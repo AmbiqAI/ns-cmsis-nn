@@ -16,7 +16,7 @@
 
 #include "rsqrt_f16_data.h"
 
-#define RSQRT_F16_EXHAUSTIVE_BLOCK 1000
+#define RSQRT_F16_EXHAUSTIVE_BLOCK 1001
 
 static uint16_t rsqrt_f16_bits(float16_t value)
 {
