@@ -3,6 +3,17 @@
 Ambiq's optimized fork of Arm CMSIS-NN targeting Cortex-M (Apollo SoCs). Kernels
 are C with optional Helium (MVE / M-Profile Vector Extension) SIMD paths.
 
+## Publishing PRs without duplicate full CI runs
+
+Finish local checks, **push while the PR is still draft, then mark it ready**.
+The workflow in `.github/workflows/ci.yml` handles `ready_for_review` as well
+as `synchronize`; promoting first and pushing afterward starts two runs.
+Use `python3 scripts/publish_pr.py <number>` from a clean worktree to enforce
+push, head verification, then promotion. `--dry-run` previews the operation.
+A push to an already-ready PR starts a new run; finish review fixes locally
+before publishing. Do not toggle draft status to retrigger CI or poll runs.
+See [PR publication](docs/guides/pr-publication.md). Refs #459.
+
 ## SIMD: this repo uses MVE (Helium), NOT NEON
 
 Cortex-M55-class targets implement **MVE** (`arm_mve.h`), not Armv8-A **NEON**
