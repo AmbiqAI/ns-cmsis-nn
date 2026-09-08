@@ -34,11 +34,11 @@
  */
 
 // Generic fallback: reduce any axis-mask combination
-static arm_cmsis_nn_status arm_reduce_sum_generic_f32(const float32_t *input_data,
-                                                      const cmsis_nn_dims *input_dims,
-                                                      const cmsis_nn_dims *axis_dims,
-                                                      float32_t *output_data,
-                                                      const cmsis_nn_dims *output_dims)
+static arm_cmsis_nn_status arm_reduce_sum_generic_f32_legacy(const float32_t *input_data,
+                                                             const cmsis_nn_dims *input_dims,
+                                                             const cmsis_nn_dims *axis_dims,
+                                                             float32_t *output_data,
+                                                             const cmsis_nn_dims *output_dims)
 {
     const int32_t H = input_dims->h;
     const int32_t W = input_dims->w;
@@ -79,6 +79,68 @@ static arm_cmsis_nn_status arm_reduce_sum_generic_f32(const float32_t *input_dat
                     output_data[out_index] = acc;
                 }
 
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+// Refs #484.
+static arm_cmsis_nn_status arm_reduce_sum_generic_f32(const float32_t *input_data,
+                                                      const cmsis_nn_dims *input_dims,
+                                                      const cmsis_nn_dims *axis_dims,
+                                                      float32_t *output_data,
+                                                      const cmsis_nn_dims *output_dims)
+{
+    const int32_t dims[4] = {input_dims->n, input_dims->h, input_dims->w, input_dims->c};
+    const int32_t axes[4] = {axis_dims->n, axis_dims->h, axis_dims->w, axis_dims->c};
+    const int32_t out[4] = {output_dims->n, output_dims->h, output_dims->w, output_dims->c};
+    int32_t count = 1;
+    for (int32_t d = 0; d < 4; ++d)
+    {
+        if (dims[d] < 1 || out[d] != (axes[d] ? 1 : dims[d]) || dims[d] > INT32_MAX / count)
+        {
+            return arm_reduce_sum_generic_f32_legacy(input_data, input_dims, axis_dims, output_data, output_dims);
+        }
+        count *= dims[d];
+    }
+
+    const uint32_t stride_w = (uint32_t)dims[3];
+    const uint32_t stride_h = (uint32_t)dims[2] * stride_w;
+    const uint32_t stride_n = (uint32_t)dims[1] * stride_h;
+    const uint32_t step_n = axes[0] ? stride_n : 0;
+    const uint32_t step_h = axes[1] ? stride_h : 0;
+    const uint32_t step_w = axes[2] ? stride_w : 0;
+    const int32_t limit_n = axes[0] ? dims[0] : 1;
+    const int32_t limit_h = axes[1] ? dims[1] : 1;
+    const int32_t limit_w = axes[2] ? dims[2] : 1;
+    const int32_t limit_c = axes[3] ? dims[3] : 1;
+
+    for (int32_t n = 0; n < out[0]; ++n)
+        for (int32_t h = 0; h < out[1]; ++h)
+            for (int32_t w = 0; w < out[2]; ++w)
+                for (int32_t c = 0; c < out[3]; ++c)
+                {
+                    const uint32_t base =
+                        (uint32_t)n * stride_n + (uint32_t)h * stride_h + (uint32_t)w * stride_w + (uint32_t)c;
+                    // Preserve scalar order at -Ofast. Refs #484.
+                    volatile float32_t acc = 0.0f;
+                    uint32_t n_offset = base;
+                    for (int32_t ni = 0; ni < limit_n; ++ni, n_offset += step_n)
+                    {
+                        uint32_t h_offset = n_offset;
+                        for (int32_t hi = 0; hi < limit_h; ++hi, h_offset += step_h)
+                        {
+                            uint32_t w_offset = h_offset;
+                            for (int32_t wi = 0; wi < limit_w; ++wi, w_offset += step_w)
+                            {
+                                const float32_t *row = input_data + w_offset;
+                                for (int32_t ci = 0; ci < limit_c; ++ci)
+                                {
+                                    acc += row[ci];
+                                }
+                            }
+                        }
+                    }
+                    *output_data++ = acc;
+                }
     return ARM_CMSIS_NN_SUCCESS;
 }
 
