@@ -1,5 +1,37 @@
 # Changelog
 
+## [7.33.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.32.0...v7.33.0) (2026-09-07)
+
+
+### Features
+
+* add float16 nearest-neighbor resize ([42b5ba7](https://github.com/AmbiqAI/ns-cmsis-nn/commit/42b5ba7cbd40503f5f2033ebc05a702cce80214b))
+* **basicmath:** add arm_nn_sqrt_f32 and arm_nn_sqrt_f16 ([fd3fb3e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/fd3fb3e626d17d87b5bcfafc409b83e58d125980)), closes [#295](https://github.com/AmbiqAI/ns-cmsis-nn/issues/295)
+* **basicmath:** add arm_rsqrt_f32 ([20f22e7](https://github.com/AmbiqAI/ns-cmsis-nn/commit/20f22e75af14297da89365934c51a9b701c9b065)), closes [#295](https://github.com/AmbiqAI/ns-cmsis-nn/issues/295)
+* **basicmath:** add f16 reciprocal square root ([b0c9ffc](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b0c9ffcf56490bccebec5598f71909b208d25511))
+* **basicmath:** float sqrt and rsqrt kernels ([#477](https://github.com/AmbiqAI/ns-cmsis-nn/issues/477)) ([575fcf1](https://github.com/AmbiqAI/ns-cmsis-nn/commit/575fcf1a7c4646a96647f9e27ee977fd09542f02)), closes [#295](https://github.com/AmbiqAI/ns-cmsis-nn/issues/295)
+* **float:** dequantize f16 to f32, rank-agnostic split/concat/pack/unpack, and fill ([#475](https://github.com/AmbiqAI/ns-cmsis-nn/issues/475)) ([ab60825](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ab60825d2e3c37443800c40362d8f9a5a7c28adc)), closes [#411](https://github.com/AmbiqAI/ns-cmsis-nn/issues/411)
+* **reshape:** float nearest-neighbor resize, f32 and f16 ([#478](https://github.com/AmbiqAI/ns-cmsis-nn/issues/478)) ([e581b1e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/e581b1eddfb33d78a9bc76d3b0e05f1d70a875a9)), closes [#254](https://github.com/AmbiqAI/ns-cmsis-nn/issues/254) [#411](https://github.com/AmbiqAI/ns-cmsis-nn/issues/411)
+* **reshape:** shared float nearest-neighbor resize walker, f32 twin, sizers ([0fa4301](https://github.com/AmbiqAI/ns-cmsis-nn/commit/0fa4301c7b7b22a7e00132f01d93bea18d3661f4))
+
+
+### Bug Fixes
+
+* **basicmath:** guard rsqrt IEEE bit handling ([4b147c4](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4b147c4199c4b6203d8f29001a543debbbdebf1b))
+* **basicmath:** preserve rsqrt special values ([49fe4bf](https://github.com/AmbiqAI/ns-cmsis-nn/commit/49fe4bf53708bb098dc2c8e02572b7f32229fe97))
+* **ci:** publish final commits before draft promotion ([#481](https://github.com/AmbiqAI/ns-cmsis-nn/issues/481)) ([ef63559](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ef6355935fb7198d9d63c04b769c0df39ec7f98e)), closes [#459](https://github.com/AmbiqAI/ns-cmsis-nn/issues/459)
+* **reshape:** unblock the header placeholder gate; guard the resize walker's stride math ([8c38226](https://github.com/AmbiqAI/ns-cmsis-nn/commit/8c382263f574a2e8b18d8a620cbfc1a60d6fa65c)), closes [#254](https://github.com/AmbiqAI/ns-cmsis-nn/issues/254) [#411](https://github.com/AmbiqAI/ns-cmsis-nn/issues/411)
+
+
+### Performance
+
+* **basicmath:** use native f16 rsqrt operations ([90275dc](https://github.com/AmbiqAI/ns-cmsis-nn/commit/90275dc0f7266a63a282e42fc27cfd1097fa87e0))
+
+
+### Refactoring
+
+* **basicmath:** evaluate arm_rsqrt_f16 in float32 and round once ([302af18](https://github.com/AmbiqAI/ns-cmsis-nn/commit/302af18b61a975b79ae85f4f2fb22d05651fd42a)), closes [#295](https://github.com/AmbiqAI/ns-cmsis-nn/issues/295)
+
 ## [7.32.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.31.0...v7.32.0) (2026-09-06)
 
 
