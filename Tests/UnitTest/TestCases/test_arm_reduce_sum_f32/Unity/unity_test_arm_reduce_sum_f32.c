@@ -52,3 +52,5 @@ void test_rsum_f32_portable_masks_arm_reduce_sum_f32(void) { rsum_f32_portable_m
 void test_rsum_f32_consumer_spatial_layouts_arm_reduce_sum_f32(void) { rsum_f32_consumer_spatial_layouts_arm_reduce_sum_f32(); }
 
 void test_rsum_f32_legacy_shapes_arm_reduce_sum_f32(void) { rsum_f32_legacy_shapes_arm_reduce_sum_f32(); }
+
+void test_rsum_f32_spatial_order_arm_reduce_sum_f32(void) { rsum_f32_spatial_order_arm_reduce_sum_f32(); }

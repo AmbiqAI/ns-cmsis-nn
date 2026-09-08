@@ -352,3 +352,25 @@ void rsum_f32_legacy_shapes_arm_reduce_sum_f32(void)
         TEST_ASSERT_EQUAL_FLOAT(91.0f, (float)output[4]);
     }
 }
+
+void rsum_f32_spatial_order_arm_reduce_sum_f32(void)
+{
+    // LiteRT BUILTIN_REF cancellation fixture. Refs #484.
+    const float32_t pattern[4] = {1.0e20f, 1.0f, -1.0e20f, 1.0f};
+    for (int channels = 1; channels <= 3; channels += 2)
+    {
+        float32_t input[24], output[5];
+        const cmsis_nn_dims in = {1, 2, 4, channels};
+        const cmsis_nn_dims axes = {0, 1, 1, 0};
+        const cmsis_nn_dims out = {1, 1, 1, channels};
+        for (int r = 0; r < 8; ++r)
+            for (int c = 0; c < channels; ++c)
+                input[r * channels + c] = pattern[r % 4];
+        output[0] = output[channels + 1] = 91;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_reduce_sum_f32(input, &in, &axes, output + 1, &out));
+        for (int c = 0; c < channels; ++c)
+            TEST_ASSERT_EQUAL_FLOAT(1.0f, (float)output[c + 1]);
+        TEST_ASSERT_EQUAL_FLOAT(91.0f, (float)output[0]);
+        TEST_ASSERT_EQUAL_FLOAT(91.0f, (float)output[channels + 1]);
+    }
+}

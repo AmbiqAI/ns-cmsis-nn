@@ -202,6 +202,31 @@ static void arm_reduce_sum_spatial_scalar_f16(const float16_t *input_data,
         output_data += inner;
     }
 }
+    #else
+        #if !defined(__ARM_FP16_FORMAT_ALTERNATIVE)
+// Portable spatial accumulation. Refs #484.
+static void arm_reduce_sum_spatial_portable_f16(const float16_t *input_data,
+                                                float16_t *output_data,
+                                                int32_t outer,
+                                                int32_t reduction,
+                                                int32_t inner)
+{
+    for (int32_t row = 0; row < outer; ++row)
+    {
+        for (int32_t c = 0; c < inner; ++c)
+        {
+            volatile float32_t sum = 0.0f;
+            for (int32_t r = 0; r < reduction; ++r)
+            {
+                sum += (float32_t)input_data[r * inner + c];
+            }
+            output_data[c] = (float16_t)sum;
+        }
+        input_data += reduction * inner;
+        output_data += inner;
+    }
+}
+        #endif
     #endif
 
 // Fast path: reduced axes form a contiguous suffix -> row sums
@@ -265,7 +290,6 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
     int32_t in_dims[4] = {input_dims->n, input_dims->h, input_dims->w, input_dims->c};
     int32_t axis_arr[4] = {axis_dims->n ? 1 : 0, axis_dims->h ? 1 : 0, axis_dims->w ? 1 : 0, axis_dims->c ? 1 : 0};
 
-    #if defined(ARM_MATH_MVE_FLOAT16) && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     if (!axis_dims->n && !axis_dims->c && (axis_dims->h || axis_dims->w) && output_dims->n == input_dims->n &&
         output_dims->c == input_dims->c && output_dims->h == (axis_dims->h ? 1 : input_dims->h) &&
         output_dims->w == (axis_dims->w ? 1 : input_dims->w))
@@ -283,6 +307,7 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
         }
         if (bounded)
         {
+    #if defined(ARM_MATH_MVE_FLOAT16) && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
             uint32_t fpscr;
             __ASM volatile("vmrs %0, fpscr" : "=r"(fpscr));
             // Keep alternative-half handling on the existing path. Refs #484.
@@ -301,9 +326,22 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
                 }
                 return ARM_CMSIS_NN_SUCCESS;
             }
+    #elif !defined(__ARM_FP16_FORMAT_ALTERNATIVE)
+        #if defined(__ARM_FP) && (__ARM_FP & 4)
+            uint32_t fpscr;
+            __ASM volatile("vmrs %0, fpscr" : "=r"(fpscr));
+            if (!(fpscr & (1u << 26)))
+        #endif
+            {
+                const int32_t outer = axis_dims->h ? input_dims->n : input_dims->n * input_dims->h;
+                const int32_t reduction = (axis_dims->h ? input_dims->h : 1) * (axis_dims->w ? input_dims->w : 1);
+                const int32_t inner = axis_dims->w ? input_dims->c : input_dims->w * input_dims->c;
+                arm_reduce_sum_spatial_portable_f16(input_data, output_data, outer, reduction, inner);
+                return ARM_CMSIS_NN_SUCCESS;
+            }
+    #endif
         }
     }
-    #endif
 
     const int32_t suffix_start = arm_reduce_get_flatten_suffix_start_from_arrays(in_dims, axis_arr);
 
