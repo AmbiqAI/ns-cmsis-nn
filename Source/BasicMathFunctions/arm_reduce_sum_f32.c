@@ -144,6 +144,56 @@ static arm_cmsis_nn_status arm_reduce_sum_generic_f32(const float32_t *input_dat
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+// Channel-preserving spatial reductions. Refs #484.
+static void arm_reduce_sum_spatial_mve_f32(const float32_t *input_data,
+                                           int32_t outer,
+                                           int32_t reduction,
+                                           int32_t inner,
+                                           float32_t *output_data)
+{
+    for (int32_t row = 0; row < outer; ++row)
+    {
+        for (int32_t c = 0; c < inner; c += 4)
+        {
+            const mve_pred16_t p = vctp32q((uint32_t)(inner - c));
+            float32x4_t sum = vdupq_n_f32(0.0f);
+            for (int32_t r = 0; r < reduction; ++r)
+            {
+                sum = vaddq(sum, vld1q_z(input_data + r * inner + c, p));
+            }
+            vstrwq_p(output_data + c, sum, p);
+        }
+        input_data += reduction * inner;
+        output_data += inner;
+    }
+}
+
+// Keep scalar FP controls and sequential accumulation under -Ofast. Refs #484.
+static void arm_reduce_sum_spatial_scalar_f32(const float32_t *input_data,
+                                              int32_t outer,
+                                              int32_t reduction,
+                                              int32_t inner,
+                                              float32_t *output_data)
+{
+    for (int32_t row = 0; row < outer; ++row)
+    {
+        for (int32_t c = 0; c < inner; ++c)
+        {
+            float32_t sum = 0.0f;
+            for (int32_t r = 0; r < reduction; ++r)
+            {
+                const float32_t value = input_data[r * inner + c];
+                __ASM volatile("vadd.f32 %0, %0, %1" : "+t"(sum) : "t"(value));
+            }
+            output_data[c] = sum;
+        }
+        input_data += reduction * inner;
+        output_data += inner;
+    }
+}
+    #endif
+
 // Fast path: reduced axes form a contiguous suffix -> row sums
 static arm_cmsis_nn_status arm_reduce_sum_flatten_last_dims_f32(const float32_t *input_data,
                                                                 float32_t *output_data,
@@ -195,6 +245,45 @@ arm_cmsis_nn_status arm_reduce_sum_f32(const float32_t *input_data,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    if (!axis_dims->n && !axis_dims->c && (axis_dims->h || axis_dims->w) && input_dims->n > 0 && input_dims->h > 0 &&
+        input_dims->w > 0 && input_dims->c > 0 && output_dims->n == input_dims->n &&
+        output_dims->h == (axis_dims->h ? 1 : input_dims->h) && output_dims->w == (axis_dims->w ? 1 : input_dims->w) &&
+        output_dims->c == input_dims->c)
+    {
+        const int32_t sizes[4] = {input_dims->n, input_dims->h, input_dims->w, input_dims->c};
+        int32_t elements = 1;
+        bool fits = true;
+        for (int32_t i = 0; i < 4; ++i)
+        {
+            if (sizes[i] > INT32_MAX / elements)
+            {
+                fits = false;
+                break;
+            }
+            elements *= sizes[i];
+        }
+        if (fits)
+        {
+            const int32_t outer = axis_dims->h ? input_dims->n : input_dims->n * input_dims->h;
+            const int32_t reduction = (axis_dims->h ? input_dims->h : 1) * (axis_dims->w ? input_dims->w : 1);
+            const int32_t inner = axis_dims->w ? input_dims->c : input_dims->w * input_dims->c;
+            uint32_t fpscr;
+            __ASM volatile("vmrs %0, fpscr" : "=r"(fpscr));
+            // MVE uses round-to-nearest and flush-to-zero. Refs #484.
+            if ((fpscr & ((1u << 24) | (3u << 22))) == (1u << 24))
+            {
+                arm_reduce_sum_spatial_mve_f32(input_data, outer, reduction, inner, output_data);
+            }
+            else
+            {
+                arm_reduce_sum_spatial_scalar_f32(input_data, outer, reduction, inner, output_data);
+            }
+            return ARM_CMSIS_NN_SUCCESS;
+        }
+    }
+    #endif
 
     int32_t in_dims[4] = {input_dims->n, input_dims->h, input_dims->w, input_dims->c};
     int32_t axis_arr[4] = {axis_dims->n ? 1 : 0, axis_dims->h ? 1 : 0, axis_dims->w ? 1 : 0, axis_dims->c ? 1 : 0};

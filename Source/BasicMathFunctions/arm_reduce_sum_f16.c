@@ -146,6 +146,64 @@ static arm_cmsis_nn_status arm_reduce_sum_generic_f16(const float16_t *input_dat
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+    #if defined(ARM_MATH_MVE_FLOAT16) && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+// Spatial reductions preserve the innermost unreduced elements. Refs #484.
+static void arm_reduce_sum_spatial_mve_f16(const float16_t *input_data,
+                                           float16_t *output_data,
+                                           int32_t outer,
+                                           int32_t reduction,
+                                           int32_t inner)
+{
+    for (int32_t row = 0; row < outer; ++row)
+    {
+        for (int32_t c = 0; c < inner; c += 8)
+        {
+            const mve_pred16_t p = vctp16q((uint32_t)(inner - c));
+            float32x4_t even = vdupq_n_f32(0.0f);
+            float32x4_t odd = vdupq_n_f32(0.0f);
+            for (int32_t r = 0; r < reduction; ++r)
+            {
+                const float16x8_t value = vld1q_z(input_data + r * inner + c, p);
+                even = vaddq(even, arm_nn_vcvtbq_f32_f16(value));
+                odd = vaddq(odd, arm_nn_vcvttq_f32_f16(value));
+            }
+            float16x8_t result = arm_nn_vcvtbq_f16_f32(vdupq_n_f16(0.0f), even);
+            result = arm_nn_vcvttq_f16_f32(result, odd);
+            vstrhq_p(output_data + c, result, p);
+        }
+        input_data += reduction * inner;
+        output_data += inner;
+    }
+}
+
+// Scalar instructions retain directed rounding and FP32 accumulation. Refs #484.
+static void arm_reduce_sum_spatial_scalar_f16(const float16_t *input_data,
+                                              float16_t *output_data,
+                                              int32_t outer,
+                                              int32_t reduction,
+                                              int32_t inner)
+{
+    for (int32_t row = 0; row < outer; ++row)
+    {
+        for (int32_t c = 0; c < inner; ++c)
+        {
+            float32_t sum = 0.0f;
+            for (int32_t r = 0; r < reduction; ++r)
+            {
+                float32_t value;
+                __ASM volatile("vcvtb.f32.f16 %0, %1" : "=t"(value) : "t"(input_data[r * inner + c]));
+                __ASM volatile("vadd.f32 %0, %0, %1" : "+t"(sum) : "t"(value));
+            }
+            float16_t result;
+            __ASM volatile("vcvtb.f16.f32 %0, %1" : "=t"(result) : "t"(sum));
+            output_data[c] = result;
+        }
+        input_data += reduction * inner;
+        output_data += inner;
+    }
+}
+    #endif
+
 // Fast path: reduced axes form a contiguous suffix -> row sums
 static arm_cmsis_nn_status arm_reduce_sum_flatten_last_dims_f16(const float16_t *input_data,
                                                                 float16_t *output_data,
@@ -206,6 +264,46 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
 
     int32_t in_dims[4] = {input_dims->n, input_dims->h, input_dims->w, input_dims->c};
     int32_t axis_arr[4] = {axis_dims->n ? 1 : 0, axis_dims->h ? 1 : 0, axis_dims->w ? 1 : 0, axis_dims->c ? 1 : 0};
+
+    #if defined(ARM_MATH_MVE_FLOAT16) && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    if (!axis_dims->n && !axis_dims->c && (axis_dims->h || axis_dims->w) && output_dims->n == input_dims->n &&
+        output_dims->c == input_dims->c && output_dims->h == (axis_dims->h ? 1 : input_dims->h) &&
+        output_dims->w == (axis_dims->w ? 1 : input_dims->w))
+    {
+        int32_t elements = 1;
+        bool bounded = true;
+        for (int32_t d = 0; d < 4; ++d)
+        {
+            if (in_dims[d] <= 0 || in_dims[d] > INT32_MAX / elements)
+            {
+                bounded = false;
+                break;
+            }
+            elements *= in_dims[d];
+        }
+        if (bounded)
+        {
+            uint32_t fpscr;
+            __ASM volatile("vmrs %0, fpscr" : "=r"(fpscr));
+            // Keep alternative-half handling on the existing path. Refs #484.
+            if (!(fpscr & (1u << 26)))
+            {
+                const int32_t outer = axis_dims->h ? input_dims->n : input_dims->n * input_dims->h;
+                const int32_t reduction = (axis_dims->h ? input_dims->h : 1) * (axis_dims->w ? input_dims->w : 1);
+                const int32_t inner = axis_dims->w ? input_dims->c : input_dims->w * input_dims->c;
+                if (!(fpscr & (3u << 22)))
+                {
+                    arm_reduce_sum_spatial_mve_f16(input_data, output_data, outer, reduction, inner);
+                }
+                else
+                {
+                    arm_reduce_sum_spatial_scalar_f16(input_data, output_data, outer, reduction, inner);
+                }
+                return ARM_CMSIS_NN_SUCCESS;
+            }
+        }
+    }
+    #endif
 
     const int32_t suffix_start = arm_reduce_get_flatten_suffix_start_from_arrays(in_dims, axis_arr);
 
