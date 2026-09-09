@@ -37,7 +37,7 @@ static float16_t squared_difference_f16_from_bits(volatile const uint16_t *bits)
     return value;
 }
 
-void squared_difference_f16_arm_elementwise_squared_difference_f16(void)
+void squared_difference_f16(void)
 {
     const float16_t input_1[5] = {(float16_t)3.0f, (float16_t)-2.0f, (float16_t)1.0f, (float16_t)0.0f, (float16_t)8.0f};
     const float16_t input_2[5] = {(float16_t)1.0f, (float16_t)4.0f, (float16_t)-2.0f, (float16_t)0.0f, (float16_t)5.0f};
@@ -53,7 +53,7 @@ void squared_difference_f16_arm_elementwise_squared_difference_f16(void)
     }
 }
 
-void squared_difference_f16_complex_arm_elementwise_squared_difference_f16(void)
+void squared_difference_f16_complex(void)
 {
     float16_t output[SQUARED_DIFFERENCE_F16_DST_SIZE] = {0};
 
@@ -68,7 +68,7 @@ void squared_difference_f16_complex_arm_elementwise_squared_difference_f16(void)
     }
 }
 
-void squared_difference_f16_nan_inf_arm_elementwise_squared_difference_f16(void)
+void squared_difference_f16_nan_inf(void)
 {
     volatile uint16_t inf_bits = 0x7C00u;
     volatile uint16_t nan_bits = 0x7E00u;
@@ -89,7 +89,7 @@ void squared_difference_f16_nan_inf_arm_elementwise_squared_difference_f16(void)
     TEST_ASSERT_TRUE_MESSAGE(squared_difference_f16_bits_are_nan(output[4]), "Expected NaN from 1 - NaN");
 }
 
-void squared_difference_f16_arg_error_arm_elementwise_squared_difference_f16(void)
+void squared_difference_f16_arg_error(void)
 {
     const float16_t input[1] = {(float16_t)1.0f};
     float16_t output[1] = {0};

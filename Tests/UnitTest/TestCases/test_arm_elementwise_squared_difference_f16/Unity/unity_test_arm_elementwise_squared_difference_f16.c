@@ -26,22 +26,7 @@ void setUp(void)
 
 void tearDown(void) {}
 
-void test_squared_difference_f16_arm_elementwise_squared_difference_f16(void)
-{
-    squared_difference_f16_arm_elementwise_squared_difference_f16();
-}
-
-void test_squared_difference_f16_complex_arm_elementwise_squared_difference_f16(void)
-{
-    squared_difference_f16_complex_arm_elementwise_squared_difference_f16();
-}
-
-void test_squared_difference_f16_nan_inf_arm_elementwise_squared_difference_f16(void)
-{
-    squared_difference_f16_nan_inf_arm_elementwise_squared_difference_f16();
-}
-
-void test_squared_difference_f16_arg_error_arm_elementwise_squared_difference_f16(void)
-{
-    squared_difference_f16_arg_error_arm_elementwise_squared_difference_f16();
-}
+void test_squared_difference_f16(void) { squared_difference_f16(); }
+void test_squared_difference_f16_complex(void) { squared_difference_f16_complex(); }
+void test_squared_difference_f16_nan_inf(void) { squared_difference_f16_nan_inf(); }
+void test_squared_difference_f16_arg_error(void) { squared_difference_f16_arg_error(); }
