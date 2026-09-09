@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.33.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.33.0...v7.33.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* handle empty FP16/FP32 axis-copy operations ([#491](https://github.com/AmbiqAI/ns-cmsis-nn/issues/491)) ([36a1c92](https://github.com/AmbiqAI/ns-cmsis-nn/commit/36a1c9295c146f324395257d7ece3f426776ede9)), closes [#489](https://github.com/AmbiqAI/ns-cmsis-nn/issues/489)
+
 ## [7.33.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.32.0...v7.33.0) (2026-09-07)
 
 
