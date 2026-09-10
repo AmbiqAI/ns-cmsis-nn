@@ -114,12 +114,25 @@ int32_t arm_convolve_f32_get_buffer_size(const cmsis_nn_conv_params_f32 *conv_pa
         return 0;
     }
 
-    if (input_dims->c <= 0 || filter_dims->h <= 0 || filter_dims->w <= 0 || output_dims->c <= 0)
+    if (input_dims->c <= 0 || filter_dims->c <= 0 || filter_dims->h <= 0 || filter_dims->w <= 0 ||
+        output_dims->c <= 0 || input_dims->c % filter_dims->c != 0)
     {
         return 0;
     }
 
     if (layout != ARM_NN_LAYOUT_NHWC)
+    {
+        return 0;
+    }
+
+    const int32_t groups = input_dims->c / filter_dims->c;
+    if (output_dims->c % groups != 0)
+    {
+        return 0;
+    }
+
+    /* Grouped convolution uses the scratch-free generic path. */
+    if (groups > 1)
     {
         return 0;
     }

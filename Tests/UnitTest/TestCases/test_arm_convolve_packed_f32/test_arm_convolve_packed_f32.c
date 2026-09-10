@@ -31,6 +31,9 @@ static void conv_f32_reference(const cmsis_nn_conv_params_f32 *cp,
                                const cmsis_nn_dims *out,
                                float32_t *y)
 {
+    const int32_t groups = in->c / flt->c;
+    const int32_t out_ch_per_group = out->c / groups;
+
     for (int32_t b = 0; b < out->n; b++)
     {
         for (int32_t oy = 0; oy < out->h; oy++)
@@ -39,6 +42,7 @@ static void conv_f32_reference(const cmsis_nn_conv_params_f32 *cp,
             {
                 for (int32_t oc = 0; oc < out->c; oc++)
                 {
+                    const int32_t in_ch_start = (oc / out_ch_per_group) * flt->c;
                     float32_t acc = bias ? (float32_t)bias[oc] : 0.0f;
                     for (int32_t ky = 0; ky < flt->h; ky++)
                     {
@@ -54,10 +58,10 @@ static void conv_f32_reference(const cmsis_nn_conv_params_f32 *cp,
                             {
                                 continue;
                             }
-                            for (int32_t ic = 0; ic < in->c; ic++)
+                            for (int32_t ic = 0; ic < flt->c; ic++)
                             {
-                                acc += (float32_t)x[((b * in->h + iy) * in->w + ix) * in->c + ic] *
-                                    (float32_t)w[((oc * flt->h + ky) * flt->w + kx) * in->c + ic];
+                                acc += (float32_t)x[((b * in->h + iy) * in->w + ix) * in->c + in_ch_start + ic] *
+                                    (float32_t)w[((oc * flt->h + ky) * flt->w + kx) * flt->c + ic];
                             }
                         }
                     }
@@ -155,6 +159,110 @@ static void conv_f32_params(cmsis_nn_conv_params_f32 *cp, int32_t pad_h, int32_t
     cp->activation.min = (float32_t)-1.0e4f;
     cp->activation.max = (float32_t)1.0e4f;
     cp->weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
+}
+
+void convolve_grouped_f32(void)
+{
+    const cmsis_nn_dims in = {.n = 2, .h = 5, .w = 4, .c = 6};
+    const cmsis_nn_dims flt = {.n = 9, .h = 3, .w = 2, .c = 2};
+    const cmsis_nn_dims out = {.n = 2, .h = 5, .w = 3, .c = 9};
+    float32_t x[240];
+    float32_t w[108];
+    float32_t bias[9];
+    cmsis_nn_conv_params_f32 cp;
+
+    for (int32_t i = 0; i < 240; i++)
+    {
+        x[i] = conv_f32_value(i, 20);
+    }
+    for (int32_t i = 0; i < 108; i++)
+    {
+        w[i] = conv_f32_value(i, 21);
+    }
+    for (int32_t i = 0; i < 9; i++)
+    {
+        bias[i] = conv_f32_value(i, 22);
+    }
+
+    conv_f32_params(&cp, 1, 0, 0);
+    TEST_ASSERT_EQUAL(0, arm_convolve_wrapper_f32_get_buffer_size(&cp, &in, &flt, &out));
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+}
+
+void convolve_grouped_dilated_f32(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 7, .w = 7, .c = 4};
+    const cmsis_nn_dims flt = {.n = 6, .h = 2, .w = 2, .c = 2};
+    const cmsis_nn_dims out = {.n = 1, .h = 7, .w = 7, .c = 6};
+    float32_t x[196];
+    float32_t w[48];
+    float32_t bias[6];
+    cmsis_nn_conv_params_f32 cp;
+
+    for (int32_t i = 0; i < 196; i++)
+    {
+        x[i] = conv_f32_value(i, 23);
+    }
+    for (int32_t i = 0; i < 48; i++)
+    {
+        w[i] = conv_f32_value(i, 24);
+    }
+    for (int32_t i = 0; i < 6; i++)
+    {
+        bias[i] = conv_f32_value(i, 25);
+    }
+
+    conv_f32_params(&cp, 1, 1, 0);
+    cp.dilation.h = 2;
+    cp.dilation.w = 2;
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+}
+
+void convolve_group_ch_mult_1_f32(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 5, .w = 5, .c = 3};
+    const cmsis_nn_dims flt = {.n = 3, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims out = {.n = 1, .h = 5, .w = 5, .c = 3};
+    float32_t x[75];
+    float32_t w[27];
+    float32_t bias[3];
+    cmsis_nn_conv_params_f32 cp;
+
+    for (int32_t i = 0; i < 75; i++)
+    {
+        x[i] = conv_f32_value(i, 26);
+    }
+    for (int32_t i = 0; i < 27; i++)
+    {
+        w[i] = conv_f32_value(i, 27);
+    }
+    for (int32_t i = 0; i < 3; i++)
+    {
+        bias[i] = conv_f32_value(i, 28);
+    }
+
+    conv_f32_params(&cp, 1, 1, 0);
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+}
+
+void convolve_grouped_contract_f32(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 1, .w = 1, .c = 4};
+    const cmsis_nn_dims invalid_in = {.n = 1, .h = 1, .w = 1, .c = 3};
+    const cmsis_nn_dims flt = {.n = 4, .h = 1, .w = 1, .c = 2};
+    const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 1, .c = 4};
+    const float32_t x[4] = {1.0f, 2.0f, 3.0f, 4.0f};
+    const float32_t w[8] = {0};
+    float32_t y[4] = {0};
+    cmsis_nn_conv_params_f32 cp;
+
+    conv_f32_params(&cp, 0, 0, 1);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_convolve_wrapper_f32(NULL, &cp, &in, x, &flt, w, NULL, NULL, &out, y));
+
+    conv_f32_params(&cp, 0, 0, 0);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f32(NULL, &cp, &invalid_in, x, &flt, w, NULL, NULL, &out, y));
 }
 
 // 3x3, in_c = 4, out_c = 8 on a 4x4 input (in_c = 4 is one full vector, so the direct small-C kernel does not

@@ -202,11 +202,18 @@ int32_t arm_depthwise_conv_wrapper_f32_get_buffer_size(const cmsis_nn_dw_conv_pa
 /**
  * @brief Convolution, NHWC layout.
  *
+ * Standard filters use `[C_OUT, H_K, W_K, C_IN / groups]` layout. The group count is inferred as
+ * `input_dims->c / filter_dims->c`; both input and output channels must be divisible by it. Grouped convolution
+ * supports arbitrary stride, dilation and padding and uses no scratch buffer.
+ *
  * @note When `conv_params->weight_format` is set to
  *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every convolution path, including
  *       the 1xN kernels and the generic fallback that runs without scratch,
  *       interprets @p filter_data as an already prepacked `NTxN` RHS buffer
- *       instead of the standard public filter layout.
+ *       instead of the standard public filter layout. Packed weights are supported only when `groups == 1`.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, `ARM_CMSIS_NN_ARG_ERROR` for invalid grouped-channel parameters, or
+ *         `ARM_CMSIS_NN_NO_IMPL_ERROR` when grouped convolution is requested with packed weights.
  */
 arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
                                           const cmsis_nn_conv_params_f32 *conv_params,
