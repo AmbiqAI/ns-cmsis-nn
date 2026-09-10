@@ -46,3 +46,13 @@ void test_rsum_f32_size_one_dims_arm_reduce_sum_f32(void) { rsum_f32_size_one_di
 void test_rsum_f32_nan_inf_arm_reduce_sum_f32(void) { rsum_f32_nan_inf_arm_reduce_sum_f32(); }
 
 void test_rsum_f32_arg_error_arm_reduce_sum_f32(void) { rsum_f32_arg_error_arm_reduce_sum_f32(); }
+
+void test_rsum_f32_portable_masks_arm_reduce_sum_f32(void) { rsum_f32_portable_masks_arm_reduce_sum_f32(); }
+
+void test_rsum_f32_consumer_spatial_layouts_arm_reduce_sum_f32(void) { rsum_f32_consumer_spatial_layouts_arm_reduce_sum_f32(); }
+
+void test_rsum_f32_legacy_shapes_arm_reduce_sum_f32(void) { rsum_f32_legacy_shapes_arm_reduce_sum_f32(); }
+
+void test_rsum_f32_spatial_order_arm_reduce_sum_f32(void) { rsum_f32_spatial_order_arm_reduce_sum_f32(); }
+
+void test_rsum_f32_fp_control_arm_reduce_sum_f32(void) { rsum_f32_fp_control_arm_reduce_sum_f32(); }
