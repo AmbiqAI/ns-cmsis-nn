@@ -49,6 +49,37 @@ arm_convolve_group_ch_mult_1_clamp_mve_compatible(_Float16 value, _Float16 activ
 {
     return arm_nn_min_f16h(arm_nn_max_f16h(value, activation_min), activation_max);
 }
+
+__STATIC_FORCEINLINE bool arm_convolve_group_ch_mult_1_gather_offset(int32_t kernel_y,
+                                                                     int32_t kernel_x,
+                                                                     int32_t dilation_y,
+                                                                     int32_t dilation_x,
+                                                                     int32_t input_x,
+                                                                     int32_t input_ch,
+                                                                     uint16_t *offset)
+{
+    const uint64_t limit = ARM_NN_MVE_F16_GATHER_OFFSET_MAX;
+    uint64_t value = (uint64_t)(uint32_t)kernel_y * (uint32_t)dilation_y;
+    if (value > limit / (uint32_t)input_x)
+    {
+        return false;
+    }
+    value *= (uint32_t)input_x;
+
+    const uint64_t column = (uint64_t)(uint32_t)kernel_x * (uint32_t)dilation_x;
+    if (column > limit || value > limit - column)
+    {
+        return false;
+    }
+    value += column;
+
+    if (value > limit / (uint32_t)input_ch)
+    {
+        return false;
+    }
+    *offset = (uint16_t)(value * (uint32_t)input_ch);
+    return true;
+}
     #endif
 
 arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx,
@@ -111,26 +142,29 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
     const int32_t rhs_cols = (int32_t)rhs_cols_64;
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-    const int64_t max_offset_64 =
-        ((int64_t)(kernel_y - 1) * dilation_y * input_x + (int64_t)(kernel_x - 1) * dilation_x) * input_ch;
     const bool output_fits = (int64_t)(output_x - 1) * stride_x + (int64_t)(kernel_x - 1) * dilation_x < input_x &&
         (int64_t)(output_y - 1) * stride_y + (int64_t)(kernel_y - 1) * dilation_y < input_y;
 
-    if (rhs_cols <= 16 && pad_y == 0 && pad_x == 0 && output_fits && max_offset_64 >= 0 &&
-        (uint64_t)max_offset_64 <= ARM_NN_MVE_F16_GATHER_OFFSET_MAX)
+    if (rhs_cols <= 16 && pad_y == 0 && pad_x == 0 && output_fits)
     {
         const int32_t rhs_cols_0 = (rhs_cols < 8) ? rhs_cols : 8;
         const int32_t rhs_cols_1 = rhs_cols - rhs_cols_0;
         uint16x8_t offset_src_0 = vdupq_n_u16(0);
         uint16x8_t offset_src_1 = vdupq_n_u16(0);
+        bool offsets_fit = true;
 
-        for (int32_t ky = 0; ky < kernel_y; ++ky)
+        for (int32_t ky = 0; ky < kernel_y && offsets_fit; ++ky)
         {
             for (int32_t kx = 0; kx < kernel_x; ++kx)
             {
                 const int32_t idx = ky * kernel_x + kx;
-                const uint16_t offset =
-                    (uint16_t)(((int64_t)ky * dilation_y * input_x + (int64_t)kx * dilation_x) * input_ch);
+                uint16_t offset;
+                if (!arm_convolve_group_ch_mult_1_gather_offset(
+                        ky, kx, dilation_y, dilation_x, input_x, input_ch, &offset))
+                {
+                    offsets_fit = false;
+                    break;
+                }
                 if (idx < 8)
                 {
                     offset_src_0[idx] = offset;
@@ -140,6 +174,11 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
                     offset_src_1[idx - 8] = offset;
                 }
             }
+        }
+
+        if (!offsets_fit)
+        {
+            goto scalar_fallback;
         }
 
         const mve_pred16_t p0 = vctp16q((uint32_t)rhs_cols_0);
@@ -199,6 +238,7 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
         }
         return ARM_CMSIS_NN_SUCCESS;
     }
+scalar_fallback:
     #endif
 
     for (int32_t b = 0; b < input_batches; ++b)

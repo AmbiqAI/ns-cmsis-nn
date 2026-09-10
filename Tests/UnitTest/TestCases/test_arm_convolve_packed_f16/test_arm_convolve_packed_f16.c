@@ -483,6 +483,11 @@ void convolve_widened_fast_small_kernel_f16(void)
                       arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &flt, w, NULL, NULL, &out, y));
     TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y[0]);
     TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y[1]);
+
+    y[0] = y[1] = (float16_t)0.0f;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_convolve_wrapper_f16(NULL, &cp, &in, x, &flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y[0]);
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y[1]);
 #endif
 }
 

@@ -708,9 +708,10 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     /* Small grouped kernels map the whole receptive field onto one MVE gather. */
-    if (groups != 1 && pad_h == 0 && pad_w == 0 && kernel_h > 0 && kernel_w > 0 &&
-        (int64_t)kernel_h * kernel_w * kernel_ch <= 8 && output_h > 0 && output_w > 0 && stride_h > 0 && stride_w > 0 &&
-        dil_h > 0 && dil_w > 0 && (int64_t)(output_h - 1) * stride_h + (int64_t)(kernel_h - 1) * dil_h < input_h &&
+    if (groups != 1 && pad_h == 0 && pad_w == 0 && kernel_h > 0 && kernel_h <= 8 && kernel_w > 0 && kernel_w <= 8 &&
+        kernel_ch <= 8 && kernel_h * kernel_w * kernel_ch <= 8 && output_h > 0 && output_w > 0 && stride_h > 0 &&
+        stride_w > 0 && dil_h > 0 && dil_w > 0 &&
+        (int64_t)(output_h - 1) * stride_h + (int64_t)(kernel_h - 1) * dil_h < input_h &&
         (int64_t)(output_w - 1) * stride_w + (int64_t)(kernel_w - 1) * dil_w < input_w)
     {
         const arm_cmsis_nn_status st = arm_convolve_f16_fast_small_kernel(ctx,

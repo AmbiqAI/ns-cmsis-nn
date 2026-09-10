@@ -50,6 +50,44 @@ arm_convolve_f16_clamp_mve_compatible(_Float16 value, _Float16 activation_min, _
 {
     return arm_nn_min_f16h(arm_nn_max_f16h(value, activation_min), activation_max);
 }
+
+__STATIC_FORCEINLINE bool arm_convolve_f16_gather_offset(int32_t kernel_y,
+                                                         int32_t kernel_x,
+                                                         int32_t dilation_y,
+                                                         int32_t dilation_x,
+                                                         int32_t input_x,
+                                                         int32_t input_ch,
+                                                         int32_t input_channel,
+                                                         uint16_t *offset)
+{
+    const uint64_t limit = ARM_NN_MVE_F16_GATHER_OFFSET_MAX;
+    uint64_t value = (uint64_t)(uint32_t)kernel_y * (uint32_t)dilation_y;
+    if (value > limit / (uint32_t)input_x)
+    {
+        return false;
+    }
+    value *= (uint32_t)input_x;
+
+    const uint64_t column = (uint64_t)(uint32_t)kernel_x * (uint32_t)dilation_x;
+    if (column > limit || value > limit - column)
+    {
+        return false;
+    }
+    value += column;
+
+    if (value > limit / (uint32_t)input_ch)
+    {
+        return false;
+    }
+    value *= (uint32_t)input_ch;
+    if ((uint32_t)input_channel > limit - value)
+    {
+        return false;
+    }
+
+    *offset = (uint16_t)(value + (uint32_t)input_channel);
+    return true;
+}
     #endif
 
 /*
@@ -113,12 +151,17 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
     const _Float16 act_max = (_Float16)conv_params->activation.max;
 
     const int32_t output_ch_per_group = output_ch / groups;
-    const int64_t rhs_cols_64 = (int64_t)kernel_ch * kernel_y * kernel_x;
 
     /* Only handle the shapes this kernel is specialized for. */
-    if (kernel_x <= 0 || kernel_y <= 0 || rhs_cols_64 > 8 || conv_params->padding.w != 0 ||
-        conv_params->padding.h != 0 || input_x <= 0 || input_y <= 0 || conv_params->stride.w <= 0 ||
-        conv_params->stride.h <= 0 || conv_params->dilation.w <= 0 || conv_params->dilation.h <= 0)
+    if (kernel_x <= 0 || kernel_y <= 0 || kernel_x > 8 || kernel_y > 8 || kernel_ch > 8 ||
+        conv_params->padding.w != 0 || conv_params->padding.h != 0 || input_x <= 0 || input_y <= 0 ||
+        conv_params->stride.w <= 0 || conv_params->stride.h <= 0 || conv_params->dilation.w <= 0 ||
+        conv_params->dilation.h <= 0)
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+    const int32_t rhs_cols = kernel_ch * kernel_y * kernel_x;
+    if (rhs_cols > 8)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
@@ -135,32 +178,23 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
-    const int32_t rhs_cols = (int32_t)rhs_cols_64;
-
     /* Element-scaled gather uses 16-bit per-lane offsets; bail out if the window does not fit. */
     uint16x8_t offset_src = vdupq_n_u16(0);
-    size_t max_offset = 0;
     for (int32_t i = 0; i < kernel_y; i++)
     {
-        const int32_t id = i * dilation_y;
         for (int32_t j = 0; j < kernel_x; j++)
         {
-            const int32_t jd = j * dilation_x;
             const int32_t idx = i * kernel_x + j;
             for (int32_t c = 0; c < kernel_ch; c++)
             {
-                const size_t off = (size_t)(id * input_x + jd) * (size_t)input_ch + (size_t)c;
-                if (off > max_offset)
+                uint16_t offset;
+                if (!arm_convolve_f16_gather_offset(i, j, dilation_y, dilation_x, input_x, input_ch, c, &offset))
                 {
-                    max_offset = off;
+                    return ARM_CMSIS_NN_NO_IMPL_ERROR;
                 }
-                offset_src[idx * kernel_ch + c] = (uint16_t)off;
+                offset_src[idx * kernel_ch + c] = offset;
             }
         }
-    }
-    if (max_offset > ARM_NN_MVE_F16_GATHER_OFFSET_MAX)
-    {
-        return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
 
     /* Pointer step from the last output column of a row to the first of the next row. */
