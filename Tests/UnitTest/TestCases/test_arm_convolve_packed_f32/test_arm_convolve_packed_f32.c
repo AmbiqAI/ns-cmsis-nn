@@ -189,6 +189,34 @@ void convolve_grouped_f32(void)
     conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
 }
 
+void convolve_16_channels_4_groups_f32(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 5, .w = 5, .c = 16};
+    const cmsis_nn_dims flt = {.n = 12, .h = 3, .w = 3, .c = 4};
+    const cmsis_nn_dims out = {.n = 1, .h = 5, .w = 5, .c = 12};
+    float32_t x[400];
+    float32_t w[432];
+    float32_t bias[12];
+    cmsis_nn_conv_params_f32 cp;
+
+    for (int32_t i = 0; i < 400; i++)
+    {
+        x[i] = conv_f32_value(i, 29);
+    }
+    for (int32_t i = 0; i < 432; i++)
+    {
+        w[i] = conv_f32_value(i, 30);
+    }
+    for (int32_t i = 0; i < 12; i++)
+    {
+        bias[i] = conv_f32_value(i, 31);
+    }
+
+    conv_f32_params(&cp, 1, 1, 0);
+    TEST_ASSERT_EQUAL(0, arm_convolve_wrapper_f32_get_buffer_size(&cp, &in, &flt, &out));
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+}
+
 void convolve_grouped_dilated_f32(void)
 {
     const cmsis_nn_dims in = {.n = 1, .h = 7, .w = 7, .c = 4};
@@ -220,23 +248,23 @@ void convolve_grouped_dilated_f32(void)
 
 void convolve_group_ch_mult_1_f32(void)
 {
-    const cmsis_nn_dims in = {.n = 1, .h = 5, .w = 5, .c = 3};
-    const cmsis_nn_dims flt = {.n = 3, .h = 3, .w = 3, .c = 1};
-    const cmsis_nn_dims out = {.n = 1, .h = 5, .w = 5, .c = 3};
-    float32_t x[75];
-    float32_t w[27];
-    float32_t bias[3];
+    const cmsis_nn_dims in = {.n = 1, .h = 5, .w = 5, .c = 16};
+    const cmsis_nn_dims flt = {.n = 16, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims out = {.n = 1, .h = 5, .w = 5, .c = 16};
+    float32_t x[400];
+    float32_t w[144];
+    float32_t bias[16];
     cmsis_nn_conv_params_f32 cp;
 
-    for (int32_t i = 0; i < 75; i++)
+    for (int32_t i = 0; i < 400; i++)
     {
         x[i] = conv_f32_value(i, 26);
     }
-    for (int32_t i = 0; i < 27; i++)
+    for (int32_t i = 0; i < 144; i++)
     {
         w[i] = conv_f32_value(i, 27);
     }
-    for (int32_t i = 0; i < 3; i++)
+    for (int32_t i = 0; i < 16; i++)
     {
         bias[i] = conv_f32_value(i, 28);
     }

@@ -31,6 +31,8 @@ void tearDown(void) {}
 
 void test_convolve_grouped_f32(void) { convolve_grouped_f32(); }
 
+void test_convolve_16_channels_4_groups_f32(void) { convolve_16_channels_4_groups_f32(); }
+
 void test_convolve_grouped_dilated_f32(void) { convolve_grouped_dilated_f32(); }
 
 void test_convolve_group_ch_mult_1_f32(void) { convolve_group_ch_mult_1_f32(); }
