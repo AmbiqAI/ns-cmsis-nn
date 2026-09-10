@@ -209,11 +209,15 @@ jobs:
                        "either the intrinsic names moved or this check is now "
                        "asserting nothing")
 
-          # A kernel whose suite is not named test_<kernel>: the float conv
+          # Kernels whose suite is not named test_<kernel>: the float conv
           # suite is test_arm_convolve_packed_f16 (AmbiqAI/ns-cmsis-nn#325),
-          # and arm_convolve_f16 reaches the conversions through its direct
-          # small-C kernel (AmbiqAI/ns-cmsis-nn#417), which that suite runs.
-          SUITE_FOR = {"arm_convolve_f16": "test_arm_convolve_packed_f16"}
+          # and it directly exercises arm_convolve_f16 plus both grouped
+          # helper entry points.
+          SUITE_FOR = {
+              "arm_convolve_f16": "test_arm_convolve_packed_f16",
+              "arm_convolve_f16_fast_small_kernel": "test_arm_convolve_packed_f16",
+              "arm_convolve_f16_group_ch_mult_1": "test_arm_convolve_packed_f16",
+          }
           missing = [k for k in kernels if SUITE_FOR.get(k, "test_" + k) not in declared]
           for kernel in missing:
               suite = SUITE_FOR.get(kernel, "test_" + kernel)
