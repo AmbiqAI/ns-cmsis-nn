@@ -164,29 +164,90 @@ static void conv_f16_params(cmsis_nn_conv_params_f16 *cp, int32_t pad_h, int32_t
 
 void convolve_grouped_f16(void)
 {
-    const cmsis_nn_dims in = {.n = 1, .h = 5, .w = 5, .c = 4};
-    const cmsis_nn_dims flt = {.n = 6, .h = 3, .w = 3, .c = 2};
-    const cmsis_nn_dims out = {.n = 1, .h = 5, .w = 5, .c = 6};
-    float16_t x[100];
-    float16_t w[108];
-    float16_t bias[6];
+    const cmsis_nn_dims in = {.n = 1, .h = 5, .w = 5, .c = 16};
+    const cmsis_nn_dims flt = {.n = 16, .h = 3, .w = 3, .c = 4};
+    const cmsis_nn_dims out = {.n = 1, .h = 5, .w = 5, .c = 16};
+    float16_t x[400];
+    float16_t w[576];
+    float16_t bias[16];
     cmsis_nn_conv_params_f16 cp;
 
-    for (int32_t i = 0; i < 100; i++)
+    for (int32_t i = 0; i < 400; i++)
     {
         x[i] = conv_f16_value(i, 20);
     }
-    for (int32_t i = 0; i < 108; i++)
+    for (int32_t i = 0; i < 576; i++)
     {
         w[i] = conv_f16_value(i, 21);
     }
-    for (int32_t i = 0; i < 6; i++)
+    for (int32_t i = 0; i < 16; i++)
     {
         bias[i] = conv_f16_value(i, 22);
     }
 
     conv_f16_params(&cp, 1, 1, 0);
     conv_f16_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+}
+
+void convolve_grouped_contracts_f16(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 1, .w = 3, .c = 4};
+    const cmsis_nn_dims grouped_flt = {.n = 4, .h = 1, .w = 1, .c = 2};
+    const cmsis_nn_dims invalid_flt = {.n = 4, .h = 1, .w = 1, .c = 3};
+    const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 3, .c = 4};
+    const cmsis_nn_dims zero_channels_out = {.n = 1, .h = 1, .w = 3, .c = 0};
+    const cmsis_nn_dims small_flt = {.n = 4, .h = 1, .w = 3, .c = 1};
+    const cmsis_nn_dims oversized_out = {.n = 1, .h = 1, .w = 2, .c = 4};
+    const float16_t x[12] = {0};
+    const float16_t w[16] = {0};
+    float16_t y[12] = {0};
+    cmsis_nn_conv_params_f16 cp;
+
+    conv_f16_params(&cp, 0, 0, 0);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(NULL, &cp, &in, x, &invalid_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &zero_channels_out, y));
+
+    cp.weight_format = ARM_NN_WEIGHT_FORMAT_NT_N_PACKED;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_convolve_wrapper_f16(NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &out, y));
+
+    conv_f16_params(&cp, 0, 0, 0);
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_NO_IMPL_ERROR,
+        arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
+
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    cmsis_nn_dims invalid_out = oversized_out;
+    invalid_out.w = -1;
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &invalid_out, y));
+
+    invalid_out = oversized_out;
+    invalid_out.h = -1;
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &invalid_out, y));
+
+    cmsis_nn_dims invalid_batch_in = in;
+    invalid_batch_in.n = -1;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_fast_small_kernel(
+                          NULL, &cp, &invalid_batch_in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
+
+    cmsis_nn_dims empty_out = oversized_out;
+    empty_out.w = 0;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &empty_out, y));
+
+    cmsis_nn_dims empty_batch_in = in;
+    empty_batch_in.n = 0;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16_fast_small_kernel(
+                          NULL, &cp, &empty_batch_in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
+#endif
 }
 
 void convolve_group_ch_mult_1_f16(void)

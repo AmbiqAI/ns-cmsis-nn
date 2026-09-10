@@ -31,6 +31,8 @@ void tearDown(void) {}
 
 void test_convolve_grouped_f16(void) { convolve_grouped_f16(); }
 
+void test_convolve_grouped_contracts_f16(void) { convolve_grouped_contracts_f16(); }
+
 void test_convolve_group_ch_mult_1_f16(void) { convolve_group_ch_mult_1_f16(); }
 
 void test_convolve_packed_single_channel_f16(void) { convolve_packed_single_channel_f16(); }

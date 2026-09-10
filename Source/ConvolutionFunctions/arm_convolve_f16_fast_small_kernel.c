@@ -122,7 +122,11 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
-    if (output_x <= 0 || output_y <= 0)
+    if (input_batches < 0 || output_x < 0 || output_y < 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (input_batches == 0 || output_x == 0 || output_y == 0)
     {
         return ARM_CMSIS_NN_SUCCESS;
     }
