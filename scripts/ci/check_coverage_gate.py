@@ -26,7 +26,12 @@ Two checks, honest-degradation contract:
    never flake CI red (or green) on artifact retention. A fetched baseline
    that shows a regression fails for real.
 
-Stdlib only. Exit 0 = pass, exit 1 = gate failure.
+A reviewed baseline_reset in the floor config can re-anchor a legacy artifact
+comparison. Stamp its epoch into the current summary before uploading it. Once a
+successful main artifact carries that epoch, ordinary main comparisons resume.
+Unknown epochs fail rather than allowing a stale branch to reset a newer baseline.
+
+Stdlib only. Exit 0 = pass, exit 1 = gate failure (except --stamp-epoch).
 """
 
 from __future__ import annotations
@@ -34,6 +39,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import math
 import os
 import sys
 import urllib.error
@@ -148,6 +154,31 @@ def fetch_baseline(api_url: str, repo: str, token: str, current_run_id: str) -> 
     )
 
 
+def baseline_reset(config: dict) -> dict | None:
+    """Validate the reviewed transition record. Refs #484."""
+    reset = config.get("baseline_reset")
+    if reset is None:
+        return None
+    if not isinstance(reset, dict) or not isinstance(reset.get("epoch"), str) or not reset["epoch"].strip():
+        raise ValueError("baseline_reset requires a nonempty epoch")
+    rate = float(reset["line_rate"])
+    if not math.isfinite(rate) or not float(config["line_floor_pct"]) <= rate <= 100:
+        raise ValueError("baseline_reset rate must be finite and between the floor and 100")
+    return reset
+
+
+def select_baseline(baseline: dict, reset: dict | None) -> tuple[dict, str]:
+    """Retire the reset when a successful main artifact carries its epoch."""
+    if reset is None or baseline.get("baseline_epoch") == reset["epoch"]:
+        return baseline, ""
+    if baseline.get("baseline_epoch") is not None:
+        raise ValueError("baseline epoch differs from the reviewed reset; refresh this branch")
+    return {"overall_line_rate": reset["line_rate"]}, (
+        f"reviewed baseline reset {reset['epoch']}: {float(reset['line_rate']):.2f}% "
+        "replaces the pre-epoch main baseline (Refs #484)"
+    )
+
+
 def file_rates(summary: dict) -> dict[str, float]:
     return {
         entry["file"]: float(entry.get("line_rate", 0.0))
@@ -189,6 +220,7 @@ def main() -> int:
     parser.add_argument("--floor-file", required=True, help="checked-in ci/coverage-floor.json")
     parser.add_argument("--repo", required=True, help="owner/repo for baseline artifact lookup")
     parser.add_argument("--summary-file", default=os.environ.get("GITHUB_STEP_SUMMARY"))
+    parser.add_argument("--stamp-epoch", action="store_true", help="stamp the reviewed epoch before artifact upload; does not run the gate")
     args = parser.parse_args()
 
     with open(args.summary_json, encoding="utf-8") as fh:
@@ -196,7 +228,20 @@ def main() -> int:
     with open(args.floor_file, encoding="utf-8") as fh:
         floor_cfg = json.load(fh)
 
+    reset = baseline_reset(floor_cfg)
+    if args.stamp_epoch:
+        if reset is not None:
+            current["baseline_epoch"] = reset["epoch"]
+            with open(args.summary_json, "w", encoding="utf-8") as fh:
+                json.dump(current, fh, indent=2)
+                fh.write("\n")
+        return 0
+    if reset is not None and current.get("baseline_epoch") != reset["epoch"]:
+        raise ValueError("current summary lacks the reviewed baseline epoch; stamp before upload")
+
     current_pct = float(current["overall_line_rate"])
+    if not math.isfinite(current_pct) or not 0 <= current_pct <= 100:
+        raise ValueError("current coverage rate must be finite and between 0 and 100")
     floor_pct = float(floor_cfg["line_floor_pct"])
 
     failures: list[str] = []
@@ -225,6 +270,9 @@ def main() -> int:
         if baseline is None:
             warnings.append(note)
         else:
+            baseline, reset_note = select_baseline(baseline, reset)
+            if reset_note:
+                details.append(reset_note)
             # Baseline CONSUMPTION degrades like baseline fetch: a malformed
             # baseline (bad key, garbage rate) is the other side's defect and
             # must warn, not fail -- only the CURRENT summary is this gate's
@@ -235,8 +283,8 @@ def main() -> int:
                 if current_pct < previous_pct - REGRESSION_TOLERANCE_PP:
                     msg = (
                         f"regression: merged line coverage {current_pct:.2f}% dropped "
-                        f"{previous_pct - current_pct:.2f}pp below the previous successful "
-                        f"{BASELINE_BRANCH} run's {previous_pct:.2f}% "
+                        f"{previous_pct - current_pct:.2f}pp below the comparison "
+                        f"baseline {previous_pct:.2f}% "
                         f"(tolerance {REGRESSION_TOLERANCE_PP:.2f}pp)"
                     )
                     droppers = biggest_droppers(current, baseline)
@@ -255,13 +303,13 @@ def main() -> int:
     if failures:
         lines.append(
             f"FAIL -- current {current_pct:.2f}% | floor {floor_pct:.2f}% | "
-            f"previous {BASELINE_BRANCH} {prev_str} | tolerance {REGRESSION_TOLERANCE_PP:.2f}pp"
+            f"comparison baseline {prev_str} | tolerance {REGRESSION_TOLERANCE_PP:.2f}pp"
         )
         lines += [f"- {msg}" for msg in failures]
     else:
         lines.append(
             f"PASS -- current {current_pct:.2f}% | floor {floor_pct:.2f}% | "
-            f"previous {BASELINE_BRANCH} {prev_str} | tolerance {REGRESSION_TOLERANCE_PP:.2f}pp"
+            f"comparison baseline {prev_str} | tolerance {REGRESSION_TOLERANCE_PP:.2f}pp"
         )
     for msg in warnings:
         lines.append(
