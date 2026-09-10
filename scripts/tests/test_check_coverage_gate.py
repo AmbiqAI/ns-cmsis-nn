@@ -26,7 +26,7 @@ class CoverageGateTests(unittest.TestCase):
         self.floor = Path(self.tmp.name) / "floor.json"
         self.config = {"line_floor_pct": 81.0, "baseline_reset": {"epoch": "sum", "line_rate": 83.44}}
 
-    def run_gate(self, rate=83.44, previous=84.02, previous_epoch=None, stamp=True, token="test"):
+    def run_gate(self, rate=83.44, previous=84.02, previous_epoch=None, stamp=True, token="test", baseline_override=False):
         summary = {"overall_line_rate": rate, "sentinel": [1, 2]}
         self.current.write_text(json.dumps(summary))
         self.floor.write_text(json.dumps(self.config))
@@ -34,6 +34,8 @@ class CoverageGateTests(unittest.TestCase):
         baseline = {"overall_line_rate": previous}
         if previous_epoch is not None:
             baseline["baseline_epoch"] = previous_epoch
+        if baseline_override:
+            baseline = []
         output = io.StringIO()
         with patch.dict(os.environ, {"GITHUB_TOKEN": token, "GITHUB_STEP_SUMMARY": ""}), contextlib.redirect_stdout(output):
             with patch.object(gate, "fetch_baseline", return_value=(baseline, "remote baseline")) as fetch:
@@ -86,6 +88,12 @@ class CoverageGateTests(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertIn("WARNING: no-regression check skipped", output)
         self.assertEqual(self.run_gate(rate=80.99, token="")[0], 1)
+
+    def test_malformed_remote_type_preserves_loud_fallback(self):
+        result, output = self.run_gate(baseline_override=True)
+        self.assertEqual(result, 0)
+        self.assertIn("baseline unusable (expected a JSON object)", output)
+        self.assertEqual(self.run_gate(rate=80.99, baseline_override=True)[0], 1)
 
     def test_workflow_stamps_before_upload_and_gates_after(self):
         workflow = (ROOT / ".github/workflows/helia-core-tester.yml").read_text()

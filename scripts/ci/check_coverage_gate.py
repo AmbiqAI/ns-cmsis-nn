@@ -269,6 +269,8 @@ def main() -> int:
             baseline, note = None, f"baseline fetch failed: {err.__class__.__name__}: {err}"
         if baseline is None:
             warnings.append(note)
+        elif not isinstance(baseline, dict):
+            warnings.append("baseline unusable (expected a JSON object); floor-only")
         else:
             baseline, reset_note = select_baseline(baseline, reset)
             if reset_note:
