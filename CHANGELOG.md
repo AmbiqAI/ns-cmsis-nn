@@ -1,5 +1,20 @@
 # Changelog
 
+## [7.33.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.33.0...v7.33.1) (2026-09-10)
+
+### Performance
+
+* Improve FP32/FP16 ReduceSum generic traversal and spatial H/W/HW reductions, including portable scalar paths for supported non-MVE and autovectorized builds. Preserve sequential FP32 accumulation, one final FP16 narrowing, caller FP controls and existing API behavior. ([#488](https://github.com/AmbiqAI/ns-cmsis-nn/pull/488); Refs [#484](https://github.com/AmbiqAI/ns-cmsis-nn/issues/484)).
+
+### Bug Fixes
+
+* Handle valid empty FP16/FP32 UNPACK, PACK, SPLIT and rank-agnostic CONCATENATION calls without accessing null data buffers; retain metadata validation. ([#491](https://github.com/AmbiqAI/ns-cmsis-nn/pull/491); Refs [#489](https://github.com/AmbiqAI/ns-cmsis-nn/issues/489)).
+
+### Notes for integrators
+
+* No public kernel signatures, scratch requirements or numerical tolerances change. The known GCC Cortex-M55 `+nomve` scalar FP16 fault remains unqualified ([#487](https://github.com/AmbiqAI/ns-cmsis-nn/issues/487)).
+* CORE retains direct ReduceSum compatibility and FP-control tests. The reviewed coverage baseline transition preserves the 81% floor and 0.15-point regression tolerance, then resumes normal comparison after a successful main run records the new epoch (Refs [#484](https://github.com/AmbiqAI/ns-cmsis-nn/issues/484)).
+
 ## [7.33.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.32.0...v7.33.0) (2026-09-07)
 
 
