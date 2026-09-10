@@ -293,3 +293,20 @@ void avgpooling_int16_param_fail_arm_avgpool_s16(void)
     }
     TEST_ASSERT_EQUAL(expected, result);
 }
+
+// See the s8 twin: issue #318. The _mve leg is public and directly callable, so it has to answer an out-of-range
+// channel count with the dispatcher's -1 rather than a 0. Not gated on ARM_MATH_MVEI - the leg variants compile on
+// every target.
+void buffer_size_out_of_range_mve_arm_avgpool_s16(void)
+{
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s16_get_buffer_size_mve(0, -1));
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s16_get_buffer_size_mve(0, -7));
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s16_get_buffer_size_mve(3, -1));
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s16_get_buffer_size_mve(2, 2147483647));
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s16_get_buffer_size_mve(2, 1073741823));
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s16_get_buffer_size(0, -1));
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s16_get_buffer_size_dsp(0, -1));
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s16_get_buffer_size(2, 1073741823));
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s16_get_buffer_size_dsp(2, 1073741823));
+    TEST_ASSERT_EQUAL(0, arm_avgpool_s16_get_buffer_size_mve(0, 0));
+}

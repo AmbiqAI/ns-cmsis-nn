@@ -134,7 +134,7 @@ arm_cmsis_nn_status arm_reduce_min_flatten_last_dims_s8(const int8_t *input_data
         // Tail
         for (; j < inner_size; ++j)
         {
-            min_val = MIN(min_val, p[j]);
+            min_val = ARM_NN_MIN(min_val, p[j]);
         }
 
         output_data[i] = min_val;
@@ -313,8 +313,8 @@ arm_cmsis_nn_status arm_reduce_min_spatial_s8(const int8_t *input_data,
                     int16_t a1 = (int16_t)(op0 >> 16);
                     int16_t m0 = (int16_t)(min_pair0 & 0xFFFF);
                     int16_t m1 = (int16_t)(min_pair0 >> 16);
-                    m0 = MIN(m0, a0);
-                    m1 = MIN(m1, a1);
+                    m0 = ARM_NN_MIN(m0, a0);
+                    m1 = ARM_NN_MIN(m1, a1);
                     min_pair0 = PKHBT(m0, m1, 16);
                 }
                 // lane‐wise min on op1 → min_pair1
@@ -323,8 +323,8 @@ arm_cmsis_nn_status arm_reduce_min_spatial_s8(const int8_t *input_data,
                     int16_t a1 = (int16_t)(op1 >> 16);
                     int16_t m0 = (int16_t)(min_pair1 & 0xFFFF);
                     int16_t m1 = (int16_t)(min_pair1 >> 16);
-                    m0 = MIN(m0, a0);
-                    m1 = MIN(m1, a1);
+                    m0 = ARM_NN_MIN(m0, a0);
+                    m1 = ARM_NN_MIN(m1, a1);
                     min_pair1 = PKHBT(m0, m1, 16);
                 }
             }
@@ -332,17 +332,17 @@ arm_cmsis_nn_status arm_reduce_min_spatial_s8(const int8_t *input_data,
             // Collapse our two pairs into one scalar min
             int8_t m = (int8_t)((int16_t)(min_pair0 & 0xFFFF));
             int8_t t = (int8_t)((int16_t)((min_pair0 >> 16) & 0xFFFF));
-            m = MIN(m, t);
+            m = ARM_NN_MIN(m, t);
             t = (int8_t)((int16_t)(min_pair1 & 0xFFFF));
-            m = MIN(m, t);
+            m = ARM_NN_MIN(m, t);
             t = (int8_t)((int16_t)((min_pair1 >> 16) & 0xFFFF));
-            m = MIN(m, t);
+            m = ARM_NN_MIN(m, t);
 
             // Handle any leftover “tail” elements
             for (; s < spatial; ++s)
             {
                 int8_t v = base[s * C + c];
-                m = MIN(m, v);
+                m = ARM_NN_MIN(m, v);
             }
             out[c] = m;
         }

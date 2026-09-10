@@ -59,6 +59,15 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+    /* This kernel exists only on MVE builds and always reads the per-channel weight sums through
+       arm_nn_mat_mult_nt_t_1x1_out_s8(). Diagnose a missing buffer here rather than dereferencing
+       NULL and silently returning garbage output. */
+    if (weight_sum_ctx->buf == NULL)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     int16_t *buffer_a = (int16_t *)ctx->buf;
 
     const int32_t input_batches = input_dims->n;
@@ -109,6 +118,16 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
     const int32_t aligned_rhs_cols = remainder != 0 ? rhs_cols + 4 - remainder : rhs_cols;
 
     if (output_x != 1 || output_y != 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    /* The im2col scratch holds exactly one padded GEMM row: aligned_rhs_cols bytes. Each group
+       rewinds im2col_buf to the start of ctx->buf after its matmul, so the requirement does not
+       scale with the group count. arm_convolve_1x1_out_s8_get_buffer_size() publishes this same
+       figure. ctx->size is optional: callers that leave it at zero (TFLM and derivatives do) opt
+       out of the check, so only an explicitly declared, too-small buffer is rejected. */
+    if ((ctx->size != 0) && (ctx->size < aligned_rhs_cols))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

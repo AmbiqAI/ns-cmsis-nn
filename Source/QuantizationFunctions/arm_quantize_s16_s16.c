@@ -69,7 +69,7 @@ arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
         int32_t val = input[i] - input_zeropoint;
         val = arm_nn_requantize(val, effective_scale_multiplier, effective_scale_shift);
         val += output_zeropoint;
-        output[i] = CLAMP(val, INT16_MAX, INT16_MIN);
+        output[i] = ARM_NN_CLAMP(val, INT16_MAX, INT16_MIN);
     }
 #endif
 

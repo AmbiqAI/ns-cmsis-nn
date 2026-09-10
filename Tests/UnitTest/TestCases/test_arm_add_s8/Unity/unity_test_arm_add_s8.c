@@ -46,7 +46,11 @@ void tearDown(void) {}
 
 void test_add_scalar_s8_arm_add_s8(void) { add_scalar_s8_arm_add_s8(); }
 void test_add_ident_s8_arm_add_s8(void) { add_ident_s8_arm_add_s8(); }
+void test_add_scalar_neg_offset_s8_arm_add_s8(void) { add_scalar_neg_offset_s8_arm_add_s8(); }
+void test_add_ident_neg_offset_s8_arm_add_s8(void) { add_ident_neg_offset_s8_arm_add_s8(); }
 void test_add_broadcast_h_s8_arm_add_s8(void) { add_broadcast_h_s8_arm_add_s8(); }
 void test_add_broadcast_w_s8_arm_add_s8(void) { add_broadcast_w_s8_arm_add_s8(); }
 void test_add_broadcast_c_s8_arm_add_s8(void) { add_broadcast_c_s8_arm_add_s8(); }
 void test_add_broadcast_hc_s8_arm_add_s8(void) { add_broadcast_hc_s8_arm_add_s8(); }
+void test_add_broadcast_batch_scalar_s8_arm_add_s8(void) { add_broadcast_batch_scalar_s8_arm_add_s8(); }
+void test_add_dims_arg_error_s8_arm_add_s8(void) { add_dims_arg_error_s8_arm_add_s8(); }

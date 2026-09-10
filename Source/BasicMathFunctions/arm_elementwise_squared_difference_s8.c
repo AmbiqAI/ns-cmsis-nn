@@ -93,8 +93,8 @@ arm_cmsis_nn_status arm_elementwise_squared_difference_s8(const int8_t *input_1_
 
     while (loop_count > 0)
     {
-        int32_t input_1 = (*input_1_vect++ + input_1_offset) << left_shift;
-        int32_t input_2 = (*input_2_vect++ + input_2_offset) << left_shift;
+        int32_t input_1 = (*input_1_vect++ + input_1_offset) * (int32_t)((uint32_t)1 << left_shift);
+        int32_t input_2 = (*input_2_vect++ + input_2_offset) * (int32_t)((uint32_t)1 << left_shift);
 
         input_1 = arm_nn_requantize(input_1, input_1_mult, input_1_shift);
         input_2 = arm_nn_requantize(input_2, input_2_mult, input_2_shift);
@@ -104,8 +104,8 @@ arm_cmsis_nn_status arm_elementwise_squared_difference_s8(const int8_t *input_1_
         int32_t output_value = arm_nn_requantize(squared_raw_diff, out_mult, out_shift);
         output_value += out_offset;
 
-        output_value = MAX(output_value, out_activation_min);
-        output_value = MIN(output_value, out_activation_max);
+        output_value = ARM_NN_MAX(output_value, out_activation_min);
+        output_value = ARM_NN_MIN(output_value, out_activation_max);
 
         *output++ = (int8_t)output_value;
         loop_count--;

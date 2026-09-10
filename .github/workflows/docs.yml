@@ -10,39 +10,25 @@
 name: docs
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "docs/**"
-      - "Documentation/Doxygen/**"
-      - "Include/**"
-      - "Source/**"
-      - "scripts/docs/**"
-      - ".github/workflows/docs.yml"
-  pull_request:
-    paths:
-      - "docs/**"
-      - "Documentation/Doxygen/**"
-      - "Include/**"
-      - "Source/**"
-      - "scripts/docs/**"
-      - ".github/workflows/docs.yml"
+  # Invoked from ci.yml so it reports under the single required gate
+  # (AmbiqAI/ns-cmsis-nn#353); keep no push/pull_request trigger of its own.
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: docs-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build:
     name: Build site
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      # Also consumed by build_sphinx_docs.sh as the version to install.
+      DOXYGEN_VERSION: "1.9.6"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -50,7 +36,7 @@ jobs:
         run: git fetch --tags --force
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -61,11 +47,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r docs/requirements.txt
 
+      # Keyed on the version, so a hit that verifies skips the network
+      # entirely and a bump misses and re-downloads. The script re-checks the
+      # restored archive against its pinned SHA-256 and re-downloads if it
+      # does not match, so a bad restored entry is discarded rather than used
+      # (though the entry itself stays cached until the key changes).
+      - name: Cache Doxygen tarball
+        uses: actions/cache@v6
+        with:
+          path: /tmp/doxygen-${{ env.DOXYGEN_VERSION }}.linux.bin.tar.gz
+          key: doxygen-tarball-${{ runner.os }}-${{ env.DOXYGEN_VERSION }}
+
       - name: Build Sphinx + Doxygen XML site
         run: bash scripts/docs/build_sphinx_docs.sh --install-doxygen
 
       - name: Upload site artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: heliacore-docs-site
           path: site/
@@ -74,8 +71,23 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
-    runs-on: ubuntu-22.04
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Skip release-please merge commits: release.yml deploys the docs for a
+    # release itself, and two workflows deploying Pages for the same push
+    # can collide (GitHub runs one Pages deployment at a time). `contains`
+    # rather than `startsWith` so this matches release.yml's own release
+    # detection exactly -- the two workflows must never disagree on what a
+    # release push is, whichever merge method produced the commit. The
+    # github-pages concurrency group serializes docs deploys with each
+    # other; release.yml's deploy does not share it, which is fine while
+    # this job skips every push release.yml deploys for.
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      !contains(github.event.head_commit.message, 'chore(main): release')
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
     permissions:
       contents: read
       pages: write
@@ -85,7 +97,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Download Sphinx site artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: heliacore-docs-site
           path: site

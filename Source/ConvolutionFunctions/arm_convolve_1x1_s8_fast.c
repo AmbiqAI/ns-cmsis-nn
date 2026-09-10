@@ -66,6 +66,15 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
+#if defined(ARM_MATH_MVEI)
+    /* Only the MVE path of arm_nn_mat_mult_nt_t_s8() reads the per-channel weight sums. Diagnose a
+       missing buffer here rather than dereferencing NULL and silently returning garbage output. */
+    if (weight_sum_ctx->buf == NULL)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+#endif
+
     (void)filter_dims;
     (void)bias_dims;
 
@@ -160,8 +169,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
                     }
                     sum = arm_nn_requantize(sum, quant_params->multiplier[i], quant_params->shift[i]);
                     sum += conv_params->output_offset;
-                    sum = MAX(sum, conv_params->activation.min);
-                    sum = MIN(sum, conv_params->activation.max);
+                    sum = ARM_NN_MAX(sum, conv_params->activation.min);
+                    sum = ARM_NN_MIN(sum, conv_params->activation.max);
                     *out++ = (int8_t)sum;
                 }
             }

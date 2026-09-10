@@ -78,3 +78,11 @@ void test_squared_difference_broadcast_hc_s16_arm_squared_difference_s16(void)
 {
     squared_difference_broadcast_hc_s16_arm_squared_difference_s16();
 }
+void test_squared_difference_broadcast_batch_scalar_s16_arm_squared_difference_s16(void)
+{
+    squared_difference_broadcast_batch_scalar_s16_arm_squared_difference_s16();
+}
+void test_squared_difference_dims_arg_error_s16_arm_squared_difference_s16(void)
+{
+    squared_difference_dims_arg_error_s16_arm_squared_difference_s16();
+}

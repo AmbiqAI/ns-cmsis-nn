@@ -266,8 +266,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
             {
                 int32_t acc_n0 = acc[i];
                 acc_n0 = arm_nn_requantize(acc_n0, multipliers[i], shifts[i]);
-                acc_n0 = MAX(acc_n0, activation_min);
-                acc_n0 = MIN(acc_n0, activation_max);
+                acc_n0 = ARM_NN_MAX(acc_n0, activation_min);
+                acc_n0 = ARM_NN_MIN(acc_n0, activation_max);
                 *dst++ = (int16_t)acc_n0;
             }
             dst += (row_address_offset - rhs_rows);
@@ -329,8 +329,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                 int32_t shift = dst_shifts[i];
 
                 acc_n0 = arm_nn_requantize_s64(acc_n0_s64, reduced_multiplier, shift);
-                acc_n0 = MAX(acc_n0, activation_min);
-                acc_n0 = MIN(acc_n0, activation_max);
+                acc_n0 = ARM_NN_MAX(acc_n0, activation_min);
+                acc_n0 = ARM_NN_MIN(acc_n0, activation_max);
                 *dst++ = (int16_t)acc_n0;
             }
             lhs += rhs_cols;

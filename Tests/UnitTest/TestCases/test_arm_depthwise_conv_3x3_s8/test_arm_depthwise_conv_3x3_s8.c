@@ -218,6 +218,10 @@ void depthwise_kernel_3x3_arm_depthwise_conv_3x3_1_s8(void)
     }
     TEST_ASSERT_EQUAL(expected, result);
 
+    // The wrapper must not select the 3x3 kernel either; padding 2 keeps it off that route. The
+    // filter width goes back to 3 so the wrapper reads only the 3x3 weight data it is given.
+    filter_dims.w = DEPTHWISE_KERNEL_3X3_FILTER_X;
+
     const arm_cmsis_nn_status expected_wrapper = ARM_CMSIS_NN_SUCCESS;
     const int32_t buf_size =
         arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims);

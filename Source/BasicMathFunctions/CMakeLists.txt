@@ -20,21 +20,35 @@ file(GLOB SRC "./*_s8*.c" "./*_s16*.c")
 set(SRC_FLT "")
 if (ARM_NN_ENABLE_F32)
   list(APPEND SRC_FLT arm_nn_abs_f32.c
+                      arm_nn_fill_f32.c
                       arm_elementwise_add_f32.c
                       arm_elementwise_sub_f32.c
                       arm_elementwise_mul_f32.c
+                      arm_elementwise_sub_broadcast_f32.c
+                      arm_elementwise_add_broadcast_f32.c
+                      arm_elementwise_mul_broadcast_f32.c
                       arm_minimum_f32.c
                       arm_maximum_f32.c
-                      arm_reduce_sum_f32.c)
+                      arm_nn_mean_f32.c
+                      arm_reduce_sum_f32.c
+                      arm_nn_sqrt_f32.c
+                      arm_rsqrt_f32.c)
 endif()
 if (ARM_NN_ENABLE_F16)
   list(APPEND SRC_FLT arm_nn_abs_f16.c
+                      arm_nn_fill_f16.c
                       arm_elementwise_add_fp16.c
                       arm_elementwise_add_f16.c
                       arm_elementwise_sub_f16.c
                       arm_elementwise_mul_f16.c
+                      arm_elementwise_sub_broadcast_f16.c
+                      arm_elementwise_add_broadcast_f16.c
+                      arm_elementwise_mul_broadcast_f16.c
                       arm_minimum_f16.c
                       arm_maximum_f16.c
-                      arm_reduce_sum_f16.c)
+                      arm_nn_mean_f16.c
+                      arm_reduce_sum_f16.c
+                      arm_nn_sqrt_f16.c
+                      arm_rsqrt_f16.c)
 endif()
 target_sources(cmsis-nn PRIVATE ${SRC} ${SRC_FLT})

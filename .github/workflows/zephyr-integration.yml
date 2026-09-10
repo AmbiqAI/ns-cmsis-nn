@@ -15,22 +15,19 @@
 name: Zephyr Integration
 
 on:
+  # Invoked from ci.yml so it reports under the single required gate
+  # (AmbiqAI/ns-cmsis-nn#353); keep no push/pull_request trigger of its own.
+  workflow_call:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches: [main]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   wiring:
     name: Zephyr wiring (CMake mock)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Run zephyr/CMakeLists.txt wiring test
         run: cmake -S cmake/tests/zephyr_wiring -B build/zephyr_wiring
@@ -38,9 +35,10 @@ jobs:
   kconfig:
     name: Zephyr Kconfig contract
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Run Kconfig contract test
         run: python3 scripts/check_zephyr_kconfig.py

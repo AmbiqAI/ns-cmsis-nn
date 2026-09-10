@@ -43,3 +43,12 @@ void test_hard_swish_plateau_edges(void)    { hard_swish_plateau_edges_arm_hard_
 void test_hard_swish_dense_mixture(void)    { hard_swish_dense_mixture_arm_hard_swish_s8(); }
 void test_hard_swish_adversarial_step(void) { hard_swish_adversarial_step_arm_hard_swish_s8(); }
 void test_hard_swish_batched_wide(void)     { hard_swish_batched_wide_arm_hard_swish_s8(); }
+/* #289: block-boundary sizes and the full input ramp, exact against an in-test scalar reference */
+void test_hard_swish_precise_sizes_set0(void) { hard_swish_precise_sizes_arm_hard_swish_s8(0); }
+void test_hard_swish_precise_sizes_set1(void) { hard_swish_precise_sizes_arm_hard_swish_s8(1); }
+void test_hard_swish_precise_sizes_set2(void) { hard_swish_precise_sizes_arm_hard_swish_s8(2); }
+void test_hard_swish_compat_sizes_set0(void)  { hard_swish_compat_sizes_arm_hard_swish_s8(0); }
+void test_hard_swish_compat_sizes_set1(void)  { hard_swish_compat_sizes_arm_hard_swish_s8(1); }
+void test_hard_swish_compat_sizes_set2(void)  { hard_swish_compat_sizes_arm_hard_swish_s8(2); }
+void test_hard_swish_precise_ramp256(void)    { hard_swish_precise_ramp256_arm_hard_swish_s8(); }
+void test_hard_swish_compat_ramp256(void)     { hard_swish_compat_ramp256_arm_hard_swish_s8(); }

@@ -36,3 +36,12 @@
  void tearDown(void) {}
 
  void test_quantize_arm_quantize_f32_s8(void) { test_arm_quantize_f32_s8(); }
+
+ void test_quantize_ties_arm_quantize_f32_s8(void) { test_arm_quantize_f32_s8_ties_away_from_zero(); }
+
+ void test_quantize_saturate_arm_quantize_f32_s8(void) { test_arm_quantize_f32_s8_saturates_with_zero_point(); }
+
+ void test_quantize_zero_point_range_arm_quantize_f32_s8(void)
+ {
+     test_arm_quantize_f32_s8_rejects_out_of_range_zero_point();
+ }

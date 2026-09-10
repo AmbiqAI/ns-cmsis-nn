@@ -31,6 +31,24 @@ for HELIA AI workflows.
 
 ---
 
+## Project status
+
+[![CI/CD Pipeline](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/ci.yml?query=branch%3Amain)
+[![Release](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/AmbiqAI/ns-cmsis-nn/actions/workflows/release.yml?query=branch%3Amain)
+[![Latest release](https://img.shields.io/github/v/release/AmbiqAI/ns-cmsis-nn?sort=semver&label=latest%20release)](https://github.com/AmbiqAI/ns-cmsis-nn/releases/latest)
+
+Badges track `main`. Actively developed and released. Every change merges only through the
+required **CI Passed** check: kernel numerics verified on the Corstone-300
+FVP across cortex-m0/m4/m55 (the m4/m55 legs also at the shipped `-Ofast` build), a
+five-toolchain build-and-link matrix, host sanitizers, and the packaging
+contracts. Each release ships a CMSIS-Pack, per-core SDK tarballs and
+static-library bundles, all verified after publication. See
+[Testing & verification](#testing--verification) below for the summary and
+the [Testing & Verification guide](https://ambiqai.github.io/ns-cmsis-nn/guides/verification.html)
+for the full contract.
+
+---
+
 ## What heliaCORE is
 
 - Ambiq's foundation neural-network kernel layer for HELIA AI workflows on
@@ -192,6 +210,12 @@ correctness, bring-up, and fallback, but they are not the main performance
 target. On cores that only provide the classic DSP extension, float kernels may
 compile through the scalar C path but are not a performance target.
 
+Cortex-M0 has no hardware floating point, so `float32` there runs through the
+pure C scalar path (soft-float). It is supported: the tester's float suite
+runs it on the Corstone-300 FVP on every pull request, and the legacy Unity
+float suites build and run it nightly and at release. `float16` support
+remains Cortex-M55 only.
+
 For float operators that support `arm_nn_weight_format_flt`, MVE performance is
 generally better when constant weights are provided in the packed `NTxN` layout
 instead of the standard `NT x T` layout. This avoids the gather-heavy RHS access
@@ -304,7 +328,47 @@ unless the target or toolchain cannot provide the required floating-point type.
   the [TFLM int8 quantization spec][quant-int8].
 - **Buffer convention.** Every kernel takes a `cmsis_nn_context` whose `buf`
   must be sized via the matching `arm_*_get_buffer_size*` query. If the query
-  returns 0, you may pass `{ NULL, 0 }`. Sizing is not always sufficient:
+  returns 0, you may pass `{ NULL, 0 }` — **except for any
+  `arm_svdf_*_ctx_get_buffer_size` query** (all eight of them, integer and
+  float alike), where a 0 means a degenerate shape but the kernel still
+  rejects a NULL `buf` with `ARM_CMSIS_NN_ARG_ERROR`. For the **s8 and
+  s16 integer** sizers, a negative return (`-1`) means the dimensions are out of
+  range — the required size does not fit in an `int32_t`, or a dimension is
+  negative — and must never be used to size a buffer. The **s4** convolution
+  and depthwise sizers follow the same `-1` contract. One group does **not**
+  fully follow that rule and needs the caller to range-check the shape itself:
+  - **most f32/f16** sizers (`arm_convolve_f32_get_buffer_size` and siblings)
+    report a size that does not fit in an `int32_t` as **`0`**, which is
+    indistinguishable from "no buffer needed". Note this is a property of the
+    individual sizer, not of the datatype: `arm_svdf_f32_input_ctx_get_buffer_size`,
+    `arm_svdf_f32_output_ctx_get_buffer_size`,
+    `arm_svdf_f16_input_ctx_get_buffer_size` and
+    `arm_svdf_f16_output_ctx_get_buffer_size` are f32/f16 sizers that use `-1`,
+    because their kernels read `ctx->size` and `size == 0` opts out of the
+    scratch-size check. The LSTM/GRU temp-buffer queries
+    (`arm_lstm_unidirectional_*_temp1/temp2_get_buffer_size`,
+    `arm_gru_unidirectional_f32/f16_temp1_get_buffer_size`) all treat a
+    negative return as an error, but what each range-checks follows its
+    kernel: the s8/s16 and GRU queries fold dimensions and answer `-1` for
+    negatives or overflow, while the f32/f16 LSTM queries have no
+    dimensions to check (the buffers are unused) and answer `-1` only for
+    NULL params, `0` otherwise.
+    A generic float wrapper must branch per sizer, not on the datatype.
+
+  Every public `*_get_buffer_size_mve` and `*_get_buffer_size_dsp` variant
+  answers an out-of-range shape the same way as the dispatcher it belongs
+  to — `-1` wherever that dispatcher diagnoses one — so a caller that
+  tests only one leg is never told less than the dispatcher would say.
+
+  Within the s4/s8/s16 family, a route that needs no scratch buffer returns 0
+  for an in-range shape, but any route — including one that needs no buffer —
+  may return `-1` when a dimension it inspects is negative or a product
+  overflows, and which dimensions a route inspects is build-dependent. Always
+  test for `-1` before using the value, and never read a 0 as a statement that
+  the shape is valid — see the wrapper sizers' `@return` docs in
+  `Include/arm_nnfunctions.h`.
+
+  Sizing is not always sufficient:
   several kernels read a `cmsis_nn_context` as a *precomputed input* rather
   than as scratch — the int8 fully-connected family
   (`arm_fully_connected_s8`, `arm_fully_connected_per_channel_s8` and their
@@ -420,6 +484,10 @@ arm_cmsis_nn_status run_fc(const int8_t *input)
     };
 
     int32_t buf_sz = arm_fully_connected_s8_get_buffer_size(&filter_dims);
+    if (buf_sz < 0)                      /* -1 => dims out of range; never size a buffer from it */
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     int8_t  scratch[buf_sz];             /* or pool / static buffer */
     cmsis_nn_context ctx = { .buf = scratch, .size = buf_sz };
 
@@ -468,6 +536,7 @@ Additional implementation-selection options:
 | `NN_DISABLE_SPECIALIZATION` | Disables optional shape/layout-specific fast paths and forces the corresponding generic implementations. Useful for debugging or validating specialized kernels against generic paths. |
 | `ARM_NN_USE_EXP_LUT` | Selects the LUT-based scalar float softmax exp approximation. This is the default if no scalar float softmax exp macro is defined. |
 | `ARM_NN_USE_EXP_TAYLOR` | Selects the Taylor/Estrin scalar float softmax exp approximation to avoid the extra lookup-table storage. Do not define this with `ARM_NN_USE_EXP_LUT`. |
+| `ARM_NN_SKIP_GAS_F16_PROBE` | A CMake configure option, not a compile-time macro: pass `-DARM_NN_SKIP_GAS_F16_PROBE=ON` to `cmake`, defining it in your own compile flags does nothing. Default `OFF`. The MVE encoding probe is a hard error only when it cannot compile its witness with your flags at all; this downgrades that to a warning. The build then measures nothing and picks the conversion form from the compiler major instead, which is right for every Arm GNU release as shipped. See [toolchains.md](docs/guides/toolchains.md). |
 
 ### Running unit tests
 
@@ -476,11 +545,87 @@ Unit tests live in [`Tests/UnitTest/`](Tests/UnitTest/). See the
 
 ### Supported toolchains
 
-- Arm Compiler 6
-- Arm GNU Toolchain (`arm-none-eabi-gcc`)
-- LLVM Embedded Toolchain for Arm (ATfE) — best-effort
+Every family below is built and strict-linked on **every pull request**, on
+cortex-m55 (MVE + DSP + float) and cortex-m4 (DSP, no MVE). A strict link
+resolves every object in the archive — no `--gc-sections`, no ignored
+unresolved symbols — so a kernel that compiles but cannot link fails the gate.
+
+| Toolchain | Version(s) gated per PR | Built | Linked | Functional tests |
+| --- | --- | --- | --- | --- |
+| Arm GNU Toolchain (`arm-none-eabi-gcc`) | 13.2.Rel1, 14.2.Rel1, 15.3.Rel1 | integer, `float32` and, on cortex-m55, `float16` on all three | yes | partly. The numerics suite runs on 14.3.1, the CI container's toolchain, which this matrix does not gate; the `float16` conversion suites run on 13.2.Rel1, the floor, which it does gate. Nothing executes on 14.2.Rel1 or 15.3.Rel1 |
+| Arm Compiler 6 (`armclang`) | 6.23.32 | yes | yes | no |
+| LLVM Embedded Toolchain for Arm (ATfE) | 19.1.5 | yes | yes | no |
+
+- **Arm GNU Toolchain**: **GCC 13 through 15**, one floor for everything:
+  **13.2.Rel1**, for the integer, `float32` and `float16` kernels alike. One
+  pinned release per major is built and strict-linked on every pull request.
+  Versions below 13 are not supported and are not tested.
+  - The `float16` kernels convert between half and single precision, and
+    assemblers before binutils 2.43 (Arm GNU 13.3.Rel1 and older) mis-encode
+    the vector form of those conversions. The library does not use that form
+    where it would be wrong: the wrappers in
+    `Include/Internal/arm_nn_vcvt_f16.h` fall back to scalar-form conversions,
+    which every assembler encodes identically, and the CMake build picks
+    between the two by compiling a witness at configure time with the flags
+    the library target really compiles with. From 14.2.Rel1 up the vector form
+    is used. A GCC 13.x compiler can have it too by borrowing a newer
+    assembler with `-B`; see [Toolchain pinning](docs/guides/toolchains.md) for
+    that recipe, for what a build outside CMake gets, and for the
+    `ARM_NN_SKIP_GAS_F16_PROBE` option
+    ([#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)).
+- **Arm Compiler 6** — built and strict-linked, not functionally tested. Until
+  recently its release-asset check never invoked a linker at all, so armclang
+  archives shipped without their symbols ever being resolved
+  ([#291](https://github.com/AmbiqAI/ns-cmsis-nn/issues/291)); it now gets the
+  same real bare-metal link as the others.
+- **LLVM Embedded Toolchain for Arm (ATfE)** — built and strict-linked, not
+  functionally tested.
+
+The numerics suite (`helia-core-tester`, run under the Corstone-300 FVP)
+executes only against GCC 14.3.1, the toolchain pinned in the CI container. A
+separate leg runs the legacy Unity `float16` suites on the floor
+release under QEMU, because that is a class of defect a
+build-and-link gate cannot see
+([#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)). So for armclang
+and ATfE the guarantee is **built and linked, not executed**: they are
+verified to compile and resolve, not to produce correct results. Kernel
+logic is shared across all three, so the functional suite is not multiplied
+across toolchains.
 
 IAR is currently untested. Compiling for host is not supported out of the box.
+
+---
+
+## Testing & verification
+
+Every pull request must pass the FVP numerics suite (int4/int8/int16 on
+cortex-m0/m4/m55, float32/float16 where hardware support exists — the
+m4/m55 legs also at the shipped `-Ofast` flags), a strict build-and-link
+matrix across GCC 13/14/15, ATfE and armclang, the `float16` conversion
+suites executed on the float16 toolchain floor, the x86 host suites under
+ASan/UBSan/LSan, and the packaging contracts. A nightly run adds the
+legacy Unity suites on Arm, and every release re-runs the FVP numerics
+and Unity suites and verifies its published assets.
+
+cortex-m4 and cortex-m55 are the shipping targets; cortex-m0 is held to
+the same functional bar as a scalar baseline. The Corstone-300 FVP is the
+qualification vehicle — an instruction-accurate cortex-m55 model on which
+the m0/m4 images also execute — with EVB regression on Apollo parts as
+planned follow-on work. Known limits are tracked openly: armclang/ATfE are
+built and linked but not yet executed
+([#340](https://github.com/AmbiqAI/ns-cmsis-nn/issues/340)), sanitizers
+cover the scalar paths only
+([helia-core-tester#68](https://github.com/AmbiqAI/helia-core-tester/issues/68)),
+and coverage is gated on a floor and no-regression per merged run, with
+per-kernel set-membership gates still open
+([helia-core-tester#73](https://github.com/AmbiqAI/helia-core-tester/issues/73)).
+
+The full contract — per-leg matrices, the qualification model, coverage
+retrieval, release-asset inventory — is in the
+[Testing & Verification guide](https://ambiqai.github.io/ns-cmsis-nn/guides/verification.html).
+For the job-by-job lookup table, including which legs only build and what
+nothing executes at all, see the
+[CI Matrix](https://ambiqai.github.io/ns-cmsis-nn/guides/ci-matrix.html).
 
 ---
 
@@ -502,8 +647,9 @@ IAR is currently untested. Compiling for host is not supported out of the box.
 
 ## Documentation
 
-API reference is generated with Doxygen and published as a GitHub Pages site
-on each release. To build it locally:
+The documentation site — guides plus the Doxygen-generated API reference —
+is published at <https://ambiqai.github.io/ns-cmsis-nn/> on every push to
+`main`. To build it locally:
 
 ```sh
 ./Documentation/Doxygen/gen_doc.sh
@@ -535,6 +681,32 @@ Enable `ARM_NN_ENABLE_F32` and/or `ARM_NN_ENABLE_F16` in the build. They are
 off by default to keep integer-only builds small. If the enabled float headers
 are consumed by TFLM or another downstream build, use matching definitions in
 that build too.
+
+The switches carry one name per entry path:
+
+| Entry point | Set this |
+|---|---|
+| Standalone CMake | `ARM_NN_ENABLE_F32` / `ARM_NN_ENABLE_F16` |
+| NSX (`nsx/CMakeLists.txt`) | `ARM_NN_ENABLE_F32` / `ARM_NN_ENABLE_F16`, the same two options |
+| Zephyr | `CONFIG_NS_CMSIS_NN_ENABLE_F32` / `_F16`, the only writers of `ARM_NN_ENABLE_*` there |
+| `find_package(ns-cmsis-nn)` | nothing; the archive's capabilities decide |
+
+To learn what the library in scope was actually built with, call
+`ns_cmsis_nn_float_support(F32 <var> F16 <var>)` rather than reading a cache
+variable. It reads the library target, so the same call works in a source
+build, against a prebuilt archive, and after `find_package()`.
+
+`NSX_CMSIS_NN_ENABLE_F32`/`_F16` are removed; setting either is a configure
+error that names every stale switch in the build and the recovery for all of
+them at once:
+
+```console
+$ cmake -S . -B build \
+    -UNSX_CMSIS_NN_ENABLE_F32 -UNSX_CMSIS_NN_ENABLE_F16 \
+    -DARM_NN_ENABLE_F16=ON
+```
+
+See [`Documentation/build.md`](Documentation/build.md#float-switch-names).
 
 **Do floating-point kernels target all IEEE edge cases?**
 No. For performance reasons, the current floating-point kernels do not

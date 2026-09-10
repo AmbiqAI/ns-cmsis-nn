@@ -13,26 +13,36 @@
 name: NSX Integration
 
 on:
+  # Invoked from ci.yml so it reports under the single required gate
+  # (AmbiqAI/ns-cmsis-nn#353); keep no push/pull_request trigger of its own.
+  workflow_call:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches: [main]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   wiring:
     name: NSX wiring (${{ matrix.case }})
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        case: [source_all, source_subset, inline_asm, prebuilt]
+        # float_f32 and float_f16 are the only cases that catch a swapped
+        # F32/F16 pair on the source path; float_both cannot.
+        # float_renamed_switch pins the migration error for the removed
+        # NSX_CMSIS_NN_ENABLE_* spelling, float_query pins the consumer query
+        # on all three ways of getting a library, float_query_target pins that
+        # it refuses to guess between two of them, prebuilt_manifest_reject
+        # pins the manifest check plus the recovery its diagnostic names, and
+        # prebuilt_manifest_legacy pins the integer-only fallback for a
+        # manifest with no features block.
+        case: [source_all, source_subset, inline_asm, prebuilt,
+               float_f32, float_f16, float_both,
+               float_renamed_switch, float_query, float_query_target,
+               prebuilt_manifest_ok, prebuilt_manifest_reject,
+               prebuilt_manifest_legacy]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Run NSX wiring test
         run: cmake -S cmake/tests/nsx_wiring -B build/nsx_wiring -DCASE=${{ matrix.case }}
@@ -40,9 +50,10 @@ jobs:
   install:
     name: NSX install contract
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Run NSX install contract
         run: scripts/check_nsx_install.sh
@@ -55,16 +66,17 @@ jobs:
     # legacy releases predating #167's publish pipeline.
     name: NSX prebuilt-real link (cortex-m4)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install GNU Arm Embedded toolchain
         uses: carlosperate/arm-none-eabi-gcc-action@v1
         with:
-          release: 13.2.Rel1
+          release: 14.2.Rel1
 
       - name: Resolve latest release tag with staticlib assets
         id: resolve

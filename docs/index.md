@@ -14,7 +14,7 @@
     </div>
   </div>
   <div class="hero-panel">
-    <div class="panel-topline"><span>HELIA CORE</span><span class="status-live">V7.29.2</span></div> <!-- x-release-please-version -->
+    <div class="panel-topline"><span>HELIA CORE</span><span class="status-live">V7.33.1</span></div> <!-- x-release-please-version -->
     <div class="metric-grid">
       <div><strong>200+</strong><span>accelerated ops</span></div>
       <div><strong>40+</strong><span>Field models</span></div>
@@ -54,6 +54,9 @@ guides/dsp-mve-coverage
 guides/kernel-benchmarks
 guides/releases
 guides/toolchains
+guides/verification
+guides/ci-matrix
+guides/pr-publication
 reference/api-groups
 contributing
 ```

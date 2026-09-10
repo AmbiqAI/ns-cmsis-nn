@@ -60,3 +60,8 @@ void test_arm_maximum_broadcast_batch_int8(void) { maximum_broadcast_batch_int8(
 void test_arm_maximum_broadcast_height_int8(void) { maximum_broadcast_height_int8(); }
 void test_arm_maximum_broadcast_width_int8(void) { maximum_broadcast_width_int8(); }
 void test_arm_maximum_broadcast_ch_int8(void) { maximum_broadcast_ch_int8(); }
+
+void test_arm_minimum_broadcast_row_scalar_s8(void) { minimum_broadcast_row_scalar_s8(); }
+void test_arm_minimum_arg_error_s8(void) { minimum_arg_error_s8(); }
+void test_arm_maximum_broadcast_row_scalar_s8(void) { maximum_broadcast_row_scalar_s8(); }
+void test_arm_maximum_arg_error_s8(void) { maximum_arg_error_s8(); }

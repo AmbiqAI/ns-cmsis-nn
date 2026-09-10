@@ -29,6 +29,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_broadcast_walk.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -117,145 +118,25 @@ arm_cmsis_nn_status arm_minimum_s8(const cmsis_nn_context *ctx,
                                    const cmsis_nn_dims *output_dims)
 {
     (void)ctx;
-    const int32_t output_batch = output_dims->n;
-    const int32_t output_height = output_dims->h;
-    const int32_t output_width = output_dims->w;
-
-    const int32_t input_1_batch = input_1_dims->n;
-    const int32_t input_1_height = input_1_dims->h;
-    const int32_t input_1_width = input_1_dims->w;
-    const int32_t input_1_channels = input_1_dims->c;
-
-    const int32_t input_2_batch = input_2_dims->n;
-    const int32_t input_2_height = input_2_dims->h;
-    const int32_t input_2_width = input_2_dims->w;
-    const int32_t input_2_channels = input_2_dims->c;
-
-    int32_t flat_size_1 = input_1_batch * input_1_height * input_1_width * input_1_channels;
-    int32_t flat_size_2 = input_2_batch * input_2_height * input_2_width * input_2_channels;
-
-    if (arm_check_broadcast_required(input_1_dims, input_2_dims))
+    if (!input_1_data || !input_2_data || !output_data || !input_1_dims || !input_2_dims || !output_dims ||
+        !arm_nn_broadcast_dims_valid(input_1_dims, input_2_dims, output_dims))
     {
-        if (flat_size_1 == 1)
-        {
-            // arm_min_scalar expects the tensor with the scalar value to be provided first
-            arm_min_scalar_s8(input_1_data, input_2_data, output_data, flat_size_2);
-        }
-        else if (flat_size_2 == 1)
-        {
-            // arm_min_scalar expects the tensor with the scalar value to be provided first
-            arm_min_scalar_s8(input_2_data, input_1_data, output_data, flat_size_1);
-        }
-        else
-        {
-            int32_t width_1_diff = input_1_width >= input_2_width ? 0 : input_1_channels;
-            int32_t width_2_diff = input_2_width >= input_1_width ? 0 : input_2_channels;
-
-            int32_t height_1_diff =
-                input_1_height >= input_2_height ? width_1_diff : -input_1_width * (input_1_channels - width_1_diff);
-            int32_t height_2_diff =
-                input_2_height >= input_1_height ? width_2_diff : -input_2_width * (input_2_channels - width_2_diff);
-
-            int32_t batch_1_diff =
-                input_1_batch >= input_2_batch ? input_1_channels * input_1_width * input_1_height : 0;
-            int32_t batch_2_diff =
-                input_2_batch >= input_1_batch ? input_2_channels * input_2_width * input_2_height : 0;
-
-            for (int32_t i_out_batch = 0; i_out_batch < output_batch; i_out_batch++)
-            {
-                const int8_t *input_1_ptr = input_1_data;
-                const int8_t *input_2_ptr = input_2_data;
-                flat_size_1 = input_1_height * input_1_width * input_1_channels;
-                flat_size_2 = input_2_height * input_2_width * input_2_channels;
-                if (input_1_height == input_2_height && input_1_width == input_2_width &&
-                    input_1_channels == input_2_channels)
-                {
-                    arm_min_no_broadcast_s8(input_1_ptr, input_2_ptr, output_data, flat_size_1);
-                    output_data += flat_size_1;
-                }
-                else if (flat_size_1 == 1)
-                {
-                    arm_min_scalar_s8(input_1_ptr, input_2_ptr, output_data, flat_size_2);
-                    output_data += flat_size_2;
-                }
-                else if (flat_size_2 == 1)
-                {
-                    arm_min_scalar_s8(input_2_ptr, input_1_ptr, output_data, flat_size_1);
-                    output_data += flat_size_1;
-                }
-                else
-                {
-                    flat_size_1 = input_1_width * input_1_channels;
-                    flat_size_2 = input_2_width * input_2_channels;
-                    for (int32_t i_out_height = 0; i_out_height < output_height; i_out_height++)
-                    {
-                        if (input_1_width == input_2_width && input_1_channels == input_2_channels)
-                        {
-                            arm_min_no_broadcast_s8(input_1_ptr, input_2_ptr, output_data, flat_size_1);
-                            output_data += flat_size_1;
-                            input_1_ptr += flat_size_1;
-                            input_2_ptr += flat_size_1;
-                        }
-                        else if (flat_size_1 == 1)
-                        {
-                            // arm_min_scalar expects the tensor with the scalar value to be provided first
-                            arm_min_scalar_s8(input_1_ptr, input_2_ptr, output_data, flat_size_2);
-                            output_data += flat_size_2;
-                            input_2_ptr += flat_size_2;
-                        }
-                        else if (flat_size_2 == 1)
-                        {
-                            // arm_min_scalar expects the tensor with the scalar value to be provided first
-                            arm_min_scalar_s8(input_2_ptr, input_1_ptr, output_data, flat_size_1);
-                            output_data += flat_size_1;
-                            input_1_ptr += flat_size_1;
-                        }
-                        else
-                        {
-                            for (int32_t i_out_width = 0; i_out_width < output_width; i_out_width++)
-                            {
-                                if (input_1_channels == input_2_channels)
-                                {
-                                    arm_min_no_broadcast_s8(input_1_ptr, input_2_ptr, output_data, input_1_channels);
-                                    output_data += input_1_channels;
-                                    input_1_ptr += input_1_channels;
-                                    input_2_ptr += input_1_channels;
-                                }
-                                else if (input_1_channels == 1)
-                                {
-                                    // arm_min_scalar expects the tensor with the scalar value to be provided first
-                                    arm_min_scalar_s8(input_1_ptr, input_2_ptr, output_data, input_2_channels);
-                                    output_data += input_2_channels;
-                                    input_1_ptr++;
-                                    input_2_ptr += input_2_channels;
-                                }
-                                else if (input_2_channels == 1)
-                                {
-                                    // arm_min_scalar expects the tensor with the scalar value to be provided first
-                                    arm_min_scalar_s8(input_2_ptr, input_1_ptr, output_data, input_1_channels);
-                                    output_data += input_1_channels;
-                                    input_1_ptr += input_1_channels;
-                                    input_2_ptr++;
-                                }
-                                input_1_ptr -= width_1_diff;
-                                input_2_ptr -= width_2_diff;
-                            }
-                        }
-                        input_1_ptr += height_1_diff;
-                        input_2_ptr += height_2_diff;
-                    }
-                }
-                input_1_data += batch_1_diff;
-                input_2_data += batch_2_diff;
-            }
-        }
-    }
-    else
-    {
-        arm_min_no_broadcast_s8(input_1_data, input_2_data, output_data, flat_size_1);
+        return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    return (ARM_CMSIS_NN_SUCCESS);
+    ARM_NN_BROADCAST_WALK_NHWC(int8_t,
+                               int8_t,
+                               input_1_data,
+                               input_1_dims,
+                               input_2_data,
+                               input_2_dims,
+                               output_data,
+                               output_dims,
+                               arm_min_no_broadcast_s8,
+                               arm_min_scalar_s8,
+                               arm_min_scalar_s8);
+
+    return ARM_CMSIS_NN_SUCCESS;
 }
 
 /**

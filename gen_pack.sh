@@ -93,6 +93,18 @@ PACKCHK_DEPS="
 # unescaped in the pdsc <release> body in "release"/"full" modes and break the
 # packchk schema validation against PACK.xsd. With "tag" mode only the version
 # and date are emitted; full release notes still live on the GitHub Release page.
+#
+# DECISION (#395): "tag" mode is the contract for pdsc generation -- do not
+# switch this to "full". In "full" mode the changelog text falls back to raw
+# commit bodies, and upstream gen-pack's git_changelog_pdsc embeds them in
+# the <release> element WITHOUT XML-escaping, so a single '<' in a commit
+# body (a "Co-authored-by: ... <...>" trailer, for instance) breaks the pdsc
+# schema check. This repo deliberately does NOT add a local escape for that
+# text: the escaping belongs upstream in gen-pack, and ns-cmsis-nn escapes
+# only what it owns (scripts/ci/ensure_local_tag_annotation.sh escapes the
+# tag annotation it writes). CI must therefore leave PACK_CHANGELOG_MODE
+# unset for this script; .github/workflows/pack-dryrun.yml rehearses that
+# same tag-mode path against a synthetic local-only annotated tag.
 : "${PACK_CHANGELOG_MODE:=tag}"
 # custom pre-processing steps
 #
@@ -142,8 +154,15 @@ PYEOF
 
 # Set GEN_PACK_LIB_PATH to use a specific gen-pack library root
 # ... instead of bootstrap based on REQUIRED_GEN_PACK_LIB
-if [[ -f "${GEN_PACK_LIB_PATH}/gen-pack" ]]; then
-  . "${GEN_PACK_LIB}/gen-pack"
+# A set-but-invalid GEN_PACK_LIB_PATH is a hard error, not a bootstrap fallback.
+if [[ -n "${GEN_PACK_LIB_PATH}" ]] && [[ -f "${GEN_PACK_LIB_PATH}/gen-pack" ]]; then
+  . "${GEN_PACK_LIB_PATH}/gen-pack" || {
+    echo "failed to source gen-pack library from '${GEN_PACK_LIB_PATH}/gen-pack'" >&2
+    exit 1
+  }
+elif [[ -n "${GEN_PACK_LIB_PATH}" ]]; then
+  echo "GEN_PACK_LIB_PATH is set to '${GEN_PACK_LIB_PATH}' but '${GEN_PACK_LIB_PATH}/gen-pack' is not a readable regular file" >&2
+  exit 1
 else
   . <(curl -sL "https://raw.githubusercontent.com/Open-CMSIS-Pack/gen-pack/main/bootstrap")
 fi

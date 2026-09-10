@@ -71,7 +71,7 @@ arm_clamp_s8(const int8_t *input, const int8_t act_min, const int8_t act_max, in
 
     for (int i = 0; i < flat_size; ++i)
     {
-        output[i] = CLAMP(input[i], act_max, act_min);
+        output[i] = ARM_NN_CLAMP(input[i], act_max, act_min);
     }
 
 #endif

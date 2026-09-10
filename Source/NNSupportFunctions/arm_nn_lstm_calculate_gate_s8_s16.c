@@ -59,7 +59,10 @@ arm_cmsis_nn_status arm_nn_lstm_calculate_gate_s8_s16(const int8_t *data_in,
                                                       const int32_t batch_offset)
 {
 
-    memset(output, 0, params->hidden_size * params->batch_size * sizeof(int16_t));
+    if (params->hidden_size != 0 && params->batch_size != 0)
+    {
+        memset(output, 0, params->hidden_size * params->batch_size * sizeof(int16_t));
+    }
 
     arm_nn_vec_mat_mul_result_acc_s8_s16(data_in,
                                          gate->input_weights,

@@ -52,9 +52,10 @@ extern "C" {
 #define MASK_IF_NON_ZERO(x) (x) != 0 ? ~0 : 0
 #define SELECT_USING_MASK(mask, a, b) ((mask) & (a)) ^ (~(mask) & (b))
 
-#define MAX(A, B) ((A) > (B) ? (A) : (B))
-#define MIN(A, B) ((A) < (B) ? (A) : (B))
-#define CLAMP(x, h, l) MAX(MIN((x), (h)), (l))
+/* Namespaced: bare MAX/MIN/CLAMP collided with consumer macros, e.g. Zephyr's (helia-aot#305). */
+#define ARM_NN_MAX(A, B) ((A) > (B) ? (A) : (B))
+#define ARM_NN_MIN(A, B) ((A) < (B) ? (A) : (B))
+#define ARM_NN_CLAMP(x, h, l) ARM_NN_MAX(ARM_NN_MIN((x), (h)), (l))
 
 /*
  * Work around GCC PR target/118460: arm-none-eabi-gcc 14.x (and FSF 15.x
@@ -90,7 +91,7 @@ __STATIC_FORCEINLINE _Float16 arm_nn_min_f16h(_Float16 a, _Float16 b)
     __asm__("vminnm.f16 %0, %1, %2" : "=t"(r) : "t"(a), "t"(b));
     return r;
     #else
-    return MIN(a, b);
+    return ARM_NN_MIN(a, b);
     #endif
 }
 
@@ -101,14 +102,38 @@ __STATIC_FORCEINLINE _Float16 arm_nn_max_f16h(_Float16 a, _Float16 b)
     __asm__("vmaxnm.f16 %0, %1, %2" : "=t"(r) : "t"(a), "t"(b));
     return r;
     #else
-    return MAX(a, b);
+    return ARM_NN_MAX(a, b);
     #endif
 }
 
 /*
- * Returns x when x is NaN, otherwise y. The select is performed on the bit
- * patterns so that it neither expands to an HFmode conditional move (PR
- * target/118460) nor quiets/retags the NaN payload.
+ * Returns x when x is NaN, otherwise y. Both the NaN test and the select are
+ * performed on the bit patterns: the test is (bits & 0x7FFF) > 0x7C00 (all-ones
+ * exponent, non-zero mantissa), which is integer arithmetic that
+ * -ffinite-math-only (implied by the shipped -Ofast) has no license to fold,
+ * unlike the former floating-point self-compare `x != x` (#333 / #334); the
+ * bit-pattern select neither expands to an HFmode conditional move (PR
+ * target/118460) nor quiets/retags the NaN payload. This helper backs the f16
+ * elementwise clamp and, via arm_nn_clamp_scalar_f16 /
+ * arm_nn_clamp_propagate_nan_f16h, the other f16 scalar clamp users --
+ * arm_svdf_f16, arm_max_pool_f16 / arm_avg_pool_f16, the packed f16 matmul
+ * (arm_nn_mat_mult_nt_n_packed_f16), the scalar f16 RELU/RELU6/LEAKY_RELU
+ * activation legs, and arm_nn_vector_clamp_f16's scalar leg
+ * (conv/depthwise/transpose-conv f16, the 3x3 depthwise, and
+ * arm_nn_maxpool1d_f16) -- so wherever that scalar clamp runs, a NaN passes
+ * through it at every optimization level on the gated toolchains. That is a
+ * guarantee about the clamp, not the whole kernel: which builds run the
+ * scalar clamp, and whether a NaN survives the rest of the kernel to reach
+ * it, is per kernel -- several of these callers clamp with vmaxnmq/vminnmq
+ * on MVE builds (a NaN resolves to a bound there), and arm_max_pool_f16's
+ * max reduction drops a NaN before the clamp. The kernels with a NaN @note
+ * (svdf, max/avg pool, packed matmul, activation) state their exact scope
+ * there; the arm_nn_vector_clamp_f16 family is covered by a test assertion
+ * in the transpose-conv f16 suite rather than per-kernel notes. The cortex-m55 MVE RELU/RELU6 f16 legs
+ * reach the same guarantee by the vector form of this idiom rather than by calling this helper: they
+ * restore NaN lanes with arm_nn_max_propagate_nan_mve_f16 /
+ * arm_nn_clamp_propagate_nan_mve_f16 (#382). The same idiom (bit-classified
+ * select) appears in arm_prelu_f16, which does not call this helper.
  */
 __STATIC_FORCEINLINE _Float16 arm_nn_propagate_nan_f16h(_Float16 x, _Float16 y)
 {
@@ -116,7 +141,7 @@ __STATIC_FORCEINLINE _Float16 arm_nn_propagate_nan_f16h(_Float16 x, _Float16 y)
     memcpy(&x_bits, &x, sizeof(x_bits));
     memcpy(&y_bits, &y, sizeof(y_bits));
 
-    const uint16_t nan_mask = (uint16_t)(0U - (uint32_t)(x != x));
+    const uint16_t nan_mask = (uint16_t)(0U - (uint32_t)((x_bits & 0x7FFFu) > 0x7C00u));
     r_bits = (uint16_t)((x_bits & nan_mask) | (y_bits & (uint16_t)~nan_mask));
 
     _Float16 r;
@@ -125,8 +150,8 @@ __STATIC_FORCEINLINE _Float16 arm_nn_propagate_nan_f16h(_Float16 x, _Float16 y)
 }
 
 /*
- * Drop-in equivalent of CLAMP(x, h, l) for scalar _Float16 operands,
- * including its NaN behaviour: MIN(NaN, h) is h, so a NaN input resolves to
+ * Drop-in equivalent of ARM_NN_CLAMP(x, h, l) for scalar _Float16 operands,
+ * including its NaN behaviour: ARM_NN_MIN(NaN, h) is h, so a NaN input resolves to
  * the high bound, exactly as the macro does. Use
  * arm_nn_clamp_propagate_nan_f16h() where TFLite NaN propagation is required.
  */
@@ -138,8 +163,10 @@ __STATIC_FORCEINLINE _Float16 arm_nn_clamp_f16h(_Float16 x, _Float16 h, _Float16
 /*
  * Clamp with TFLite NaN semantics: NaN passes through unchanged. Mirrors the
  * MVE idiom in arm_nn_clamp_propagate_nan_mve_f16() (lower bound first, then
- * upper bound, then restore NaN lanes). Bounds are assumed ordered
- * (l <= h); inverted bounds are unspecified.
+ * upper bound, then restore NaN lanes). The NaN restore in
+ * arm_nn_propagate_nan_f16h() tests the integer bit pattern, so it holds at every
+ * optimization level including the shipped -Ofast; see #333 / #334. Bounds are
+ * assumed ordered (l <= h); inverted bounds are unspecified.
  */
 __STATIC_FORCEINLINE _Float16 arm_nn_clamp_propagate_nan_f16h(_Float16 x, _Float16 l, _Float16 h)
 {
@@ -159,7 +186,7 @@ __STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)
 }
 #endif /* ARM_NN_ENABLE_F16 */
 
-#define ARM_NN_ROUND_UP(x, multiple) ((((x) + (multiple)-1) / (multiple)) * (multiple))
+#define ARM_NN_ROUND_UP(x, multiple) ((((x) + (multiple) - 1) / (multiple)) * (multiple))
 #define REDUCE_MULTIPLIER(_mult) ((_mult < 0x7FFF0000) ? ((_mult + (1 << 15)) >> 16) : 0x7FFF)
 
 // Number of channels processed in a block for DW Conv with Int8 weights(MVE)
@@ -198,21 +225,101 @@ __STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)
     #define OPTIONAL_RESTRICT_KEYWORD
 #endif
 
+/**
+ * @brief Fold one dimension into a running buffer-size product, reporting overflow as -1.
+ *
+ * Buffer-size queries return an int32_t byte count, so the product of the dimensions they multiply
+ * has to be rejected as soon as it cannot fit. Folding one factor at a time keeps the accumulator
+ * bounded: an accumulator already known to be <= INT32_MAX times a factor <= INT32_MAX cannot
+ * exceed about 2^62, so the int64_t accumulator itself never wraps. Chaining raw (int64_t) casts
+ * across three or more int32_t dims does not have that property - 65536 * 65536 * 65536 * 65536 is
+ * exactly 2^64 and folds back to 0, which would sail through a trailing "> INT32_MAX" test.
+ *
+ * @note  This is the -1 sentinel family, used by the s8/s16 integer buffer-size queries, by the eight SVDF
+ *        staging queries (arm_svdf_{s8,state_s16_s8,f32,f16}_{input,output}_ctx_get_buffer_size) and by the
+ *        s8/s16 LSTM temp-buffer queries and the GRU temp queries
+ *        (arm_lstm_unidirectional_{s8,s16}_temp{1,2}_get_buffer_size,
+ *        arm_gru_unidirectional_{f32,f16}_temp1_get_buffer_size). The four f32/f16 LSTM temp queries have no
+ *        dimensions to fold (the buffers are unused) and answer -1 only for NULL params, 0 otherwise. It is not
+ *        interchangeable with the arm_nn_checked_size_mul() / arm_nn_size_to_i32_or_zero() helpers in
+ *        Source/NNSupportFunctions (shared header for the float sizers), which most f32 and f16 buffer-size
+ *        queries use and which report an out-of-range size as 0. Mixing the two silently flips a sizer's
+ *        out-of-range contract from "must never be used to size a buffer" to "you may pass { NULL, 0 }", so
+ *        pick the one the surrounding family already uses.
+ * @note  The split is per sizer, not per datatype. The four SVDF f32/f16 staging queries deliberately use this
+ *        -1 family rather than the 0 one their neighbours use, because their kernels read ctx->size and a
+ *        size of 0 opts out of the scratch-size check - so a 0-on-overflow answer fed back as
+ *        { alloc(0), 0 } would disable the very check meant to catch it. Do not infer a sizer's sentinel from
+ *        its datatype suffix.
+ *
+ * @param[in] acc     Running product, or -1 if an earlier fold already overflowed.
+ * @param[in] factor  Next factor to fold in.
+ * @return    acc * factor, or -1 if acc is already -1, factor is negative or out of int32_t range,
+ *            or the product exceeds INT32_MAX.
+ */
+__STATIC_FORCEINLINE int64_t arm_nn_size_mul(const int64_t acc, const int64_t factor)
+{
+    if ((acc < 0) || (factor < 0) || (acc > INT32_MAX) || (factor > INT32_MAX))
+    {
+        return -1;
+    }
+
+    const int64_t product = acc * factor;
+
+    return (product > INT32_MAX) ? -1 : product;
+}
+
+/**
+ * @brief Add to a running buffer-size product, reporting overflow as -1.
+ *
+ * Companion to arm_nn_size_mul() for the sizers that append a fixed slack term.
+ *
+ * @note  Same sentinel caveat as arm_nn_size_mul() - see its note for the full split, including why the four SVDF
+ *        f32/f16 staging queries use this -1 family rather than the 0-returning
+ *        arm_nn_checked_size_mul() / arm_nn_size_to_i32_or_zero() family that most other float sizers use.
+ *
+ * @param[in] acc      Running product, or -1 if an earlier step already overflowed.
+ * @param[in] addend   Value to add. Must be non-negative.
+ * @return    acc + addend, or -1 if acc is already -1 or the sum exceeds INT32_MAX.
+ */
+__STATIC_FORCEINLINE int64_t arm_nn_size_add(const int64_t acc, const int64_t addend)
+{
+    if ((acc < 0) || (addend < 0))
+    {
+        return -1;
+    }
+
+    const int64_t sum = acc + addend;
+
+    return (sum > INT32_MAX) ? -1 : sum;
+}
+
 #if ARM_NN_FLOAT_API_ENABLED
     #include "arm_nnsupportfunctions_flt.h"
 #endif
 
 /**
  * @brief definition to pack four 8 bit values.
+ *
+ * Byte lanes are masked and shifted in uint32_t so a negative value never
+ * feeds a signed left shift (UB); masking before the shift keeps the same
+ * bits the old shift-then-mask form kept. Bit-identical for every input.
+ * Deliberate divergence from upstream ARM-software/CMSIS-NN, which still
+ * carries the signed-shift form -- do not paste the upstream text back on a
+ * sync (issue #357).
  */
 #define PACK_S8x4_32x1(v0, v1, v2, v3)                                                                                 \
-    ((((int32_t)(v0) << 0) & (int32_t)0x000000FF) | (((int32_t)(v1) << 8) & (int32_t)0x0000FF00) |                     \
-     (((int32_t)(v2) << 16) & (int32_t)0x00FF0000) | (((int32_t)(v3) << 24) & (int32_t)0xFF000000))
+    ((int32_t)((((uint32_t)(v0)) & 0xFFu) | ((((uint32_t)(v1)) & 0xFFu) << 8) | ((((uint32_t)(v2)) & 0xFFu) << 16) |   \
+               ((((uint32_t)(v3)) & 0xFFu) << 24)))
 
 /**
  * @brief definition to pack two 16 bit values.
+ *
+ * Same treatment: the high half is shifted in uint32_t, not int32_t, so a
+ * negative v1 is defined; the low half keeps its mask. Bit-identical for
+ * every input. Same deliberate upstream divergence as PACK_S8x4_32x1 above.
  */
-#define PACK_Q15x2_32x1(v0, v1) (((int32_t)v0 & (int32_t)0xFFFF) | ((int32_t)v1 << 16))
+#define PACK_Q15x2_32x1(v0, v1) ((int32_t)((((uint32_t)(v0)) & 0xFFFFu) | (((uint32_t)(v1)) << 16)))
 
 /**
  * @defgroup groupSupport Private
@@ -244,10 +351,10 @@ __STATIC_FORCEINLINE int32_t GetNearestNeighbor(const int input_value,
     const float scaled = ((float)input_value + offset) * scale;
     int32_t output_value = align_corners ? (int32_t)roundf(scaled) : (int32_t)floorf(scaled);
 
-    output_value = MIN(output_value, input_size - 1);
+    output_value = ARM_NN_MIN(output_value, input_size - 1);
     if (half_pixel_centers)
     {
-        output_value = MAX(0, output_value);
+        output_value = ARM_NN_MAX(0, output_value);
     }
     return output_value;
 }
@@ -291,8 +398,11 @@ __STATIC_INLINE bool arm_nn_is_convolve_1_x_n(const cmsis_nn_conv_params *conv_p
                                               const cmsis_nn_dims *input_dims,
                                               const cmsis_nn_dims *filter_dims)
 {
+    // stride.w and c are each in range on their own, so their product can exceed INT32_MAX; the multiply is
+    // folded to 64 bits because a wrapped int32 product is signed-overflow UB, reachable from the public conv
+    // sizers (issue #367). The remainder test is unchanged for any product that fits in an int32_t.
     return (input_dims->h == 1) && (conv_params->dilation.w == 1) && (filter_dims->h == 1) &&
-        ((conv_params->stride.w * input_dims->c) % 4 == 0) && (input_dims->c == filter_dims->c);
+        (((int64_t)conv_params->stride.w * (int64_t)input_dims->c) % 4 == 0) && (input_dims->c == filter_dims->c);
 }
 
 /**
@@ -396,6 +506,11 @@ void arm_s8_to_s16_unordered_with_offset(const int8_t *src, int16_t *dst, int32_
  * @note  Intended for compilation on Host. If compiling for an Arm target, use
  *        arm_depthwise_conv_s8_opt_get_buffer_size(). Note also this is a support function,
  *        so not recommended to call directly even on Host.
+ * @note  This leg sizes its buffer from a fixed channel block rather than from input_dims->c, but it applies the
+ *        same dimension check as arm_depthwise_conv_s8_opt_get_buffer_size() anyway, returning -1 for a negative
+ *        input_dims->c or filter dimension, or for a byte count that would not fit in an int32_t. Without that
+ *        check this entry point - and every s4 depthwise sizer, which route here - answered a negative channel
+ *        count with a plausible positive size (issue #318).
  *
  */
 int32_t arm_depthwise_conv_s8_opt_get_buffer_size_mve(const cmsis_nn_dims *input_dims,
@@ -2030,7 +2145,7 @@ __STATIC_FORCEINLINE int16_t arm_nn_sat_lshift_s16(int16_t x, int shift)
     if (shift <= 0)
         return x; // only used for positive shifts here
     int32_t v = ((int32_t)x) << shift;
-    v = CLAMP(v, INT16_MAX, INT16_MIN);
+    v = ARM_NN_CLAMP(v, INT16_MAX, INT16_MIN);
     return (int16_t)v;
 }
 
@@ -2049,7 +2164,7 @@ __STATIC_FORCEINLINE int16_t arm_nn_sqrdmulh_s16(int16_t a, int16_t b)
     int32_t ab = (int32_t)a * (int32_t)b; /* Q0.15 * Q0.15 -> Q0.30 */
     int32_t r = (ab << 1) + (1 << 15);    /* doubling + rounding */
     r >>= 16;                             /* back to Q0.15 */
-    r = CLAMP(r, INT16_MAX, INT16_MIN);
+    r = ARM_NN_CLAMP(r, INT16_MAX, INT16_MIN);
     return (int16_t)r;
 }
 
@@ -2067,7 +2182,7 @@ __STATIC_FORCEINLINE int16_t arm_nn_sqdmulh_s16(int16_t a, int16_t b)
     int32_t q15 = (ab / (1 << 15));       // trunc toward zero (not >>)
     if (overflow)
         q15 = INT16_MAX;
-    q15 = CLAMP(q15, INT16_MAX, INT16_MIN);
+    q15 = ARM_NN_CLAMP(q15, INT16_MAX, INT16_MIN);
     return (int16_t)q15;
 }
 
@@ -2084,7 +2199,7 @@ __STATIC_FORCEINLINE int16_t arm_nn_divide_by_power_of_two_s16(int16_t x, int ex
 {
     int32_t v = x;
     int32_t r32 = arm_nn_divide_by_power_of_two(v, exponent);
-    r32 = CLAMP(r32, INT16_MAX, INT16_MIN);
+    r32 = ARM_NN_CLAMP(r32, INT16_MAX, INT16_MIN);
     return (int16_t)r32;
 }
 
@@ -2107,22 +2222,6 @@ __STATIC_FORCEINLINE void arm_memcpy_s8(int8_t *__RESTRICT dst, const int8_t *__
                    : [in] "+r"(src), [out] "+r"(dst)
                    : [cnt] "r"(block_size)
                    : "q0", "memory", "r14");
-
-// #elif defined(ARM_MATH_DSP)
-//     // TODO: Verify if this is faster than the default implementation
-//     // TODO: Update for loop to handle if block_size is not multiple of 4
-//     // Use DSP intrinsics to copy in 4-byte (int32_t) chunks.
-//     int32_t j = 0;
-//     for (; j <= block_size - 4; j += 4)
-//     {
-//         *(int32_t *)(dst + j) = *(const int32_t *)(src + j);
-//     }
-//     // Copy any remaining bytes.
-//     for (; j < copy_size; j++)
-//     {
-//         dst[j] = src[j];
-//     }
-//     dst += copy_size;
 #else
     memcpy(dst, src, block_size);
 #endif
@@ -2221,7 +2320,7 @@ __STATIC_FORCEINLINE int16x8_t arm_divide_by_power_of_two_mve_s16(const int16x8_
 __STATIC_FORCEINLINE int32x4_t arm_requantize_mve(const int32x4_t val, const int32_t multiplier, const int32_t shift)
 {
     #ifdef CMSIS_NN_USE_SINGLE_ROUNDING
-    const int right_shift = MIN(-1, shift);
+    const int right_shift = ARM_NN_MIN(-1, shift);
     const int left_shift = shift - right_shift;
 
     const int32x4_t left_shift_dup = vdupq_n_s32(left_shift);
@@ -2291,7 +2390,7 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve_pred(const int32x4_t val,
                                                        const mve_pred16_t p)
 {
     #ifdef CMSIS_NN_USE_SINGLE_ROUNDING
-    const int right_shift = MIN(-1, shift);
+    const int right_shift = ARM_NN_MIN(-1, shift);
     const int left_shift = shift - right_shift;
     const int32x4_t v_zero = vcreateq_s32(0, 0);
 
@@ -2432,12 +2531,14 @@ __STATIC_FORCEINLINE int32_t arm_nn_one_over_one_plus_x_for_x_in_0_1(int32_t val
 {
     const int64_t sum = (int64_t)val + (int64_t)NN_Q31_MAX;
     const int32_t half_denominator = (int32_t)((sum + (sum >= 0 ? 1 : -1)) / 2L);
-    int32_t x = 1515870810 + MUL_SAT(half_denominator, -1010580540);
+    /* These sums wrap by design (gemmlowp fixed-point Newton-Raphson semantics); they are done in
+     * unsigned arithmetic so the wrap is defined behaviour rather than signed overflow. */
+    int32_t x = (int32_t)((uint32_t)1515870810 + (uint32_t)MUL_SAT(half_denominator, -1010580540));
 
     const int32_t shift = (1 << 29);
-    x += MUL_POW2(MUL_SAT(x, shift - MUL_SAT(half_denominator, x)), 2);
-    x += MUL_POW2(MUL_SAT(x, shift - MUL_SAT(half_denominator, x)), 2);
-    x += MUL_POW2(MUL_SAT(x, shift - MUL_SAT(half_denominator, x)), 2);
+    x = (int32_t)((uint32_t)x + (uint32_t)MUL_POW2(MUL_SAT(x, shift - MUL_SAT(half_denominator, x)), 2));
+    x = (int32_t)((uint32_t)x + (uint32_t)MUL_POW2(MUL_SAT(x, shift - MUL_SAT(half_denominator, x)), 2));
+    x = (int32_t)((uint32_t)x + (uint32_t)MUL_POW2(MUL_SAT(x, shift - MUL_SAT(half_denominator, x)), 2));
 
     return MUL_POW2(x, 1);
 }
@@ -2803,32 +2904,6 @@ __STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(con
     }
     return -1;
 }
-
-#if defined(ARM_FLOAT16_SUPPORTED)
-
-/**
- * @brief fp16 elementwise multiplication with fp16 output
- * @param[in]       lhs                 pointer to input vector 1
- * @param[in]       rhs                 pointer to input vector 2
- * @param[in]       bias                pointer to bias
- * @param[in,out]   dst                 pointer to output vector
- * @param[in]       rhs_cols            number of samples per batch
- * @param[in]       rhs_rows            number of samples per batch
- * @param[in]       activation_min      minimum value to clamp output to
- * @param[in]       activation_max      maximum value to clamp output to
- * @return          The function returns ARM_CMSIS_NN_SUCCESS
- * @details         Supported framework: TensorFlow Lite micro
- */
-arm_cmsis_nn_status arm_nn_vec_mat_mult_t_fp16(const float16_t *lhs,
-                                               const float16_t *rhs,
-                                               const float16_t *bias,
-                                               float16_t *dst,
-                                               const int32_t rhs_cols,
-                                               const int32_t rhs_rows,
-                                               const float16_t activation_min,
-                                               const float16_t activation_max);
-
-#endif /*defined(ARM_FLOAT16_SUPPORTED)*/
 
 #ifdef __cplusplus
 }

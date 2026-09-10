@@ -175,8 +175,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_1x1_out_s8(const int32_t *weight_sum_bu
         acc_n0 += sum_tmp;
         acc_n0 = arm_nn_requantize(acc_n0, multipliers[out_idx], shifts[out_idx]);
         acc_n0 += dst_offset;
-        acc_n0 = MAX(acc_n0, activation_min);
-        acc_n0 = MIN(acc_n0, activation_max);
+        acc_n0 = ARM_NN_MAX(acc_n0, activation_min);
+        acc_n0 = ARM_NN_MIN(acc_n0, activation_max);
         *dst++ = (int8_t)acc_n0;
     }
     return ARM_CMSIS_NN_SUCCESS;

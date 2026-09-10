@@ -134,7 +134,7 @@ arm_cmsis_nn_status arm_reduce_max_flatten_last_dims_s16(const int16_t *input_da
         // Tail
         for (; j < inner_size; ++j)
         {
-            max_val = MAX(max_val, p[j]);
+            max_val = ARM_NN_MAX(max_val, p[j]);
         }
 
         output_data[i] = max_val;
@@ -162,16 +162,16 @@ arm_cmsis_nn_status arm_reduce_max_flatten_last_dims_s16(const int16_t *input_da
             int16_t l2 = (int16_t)(packed1 & 0xFFFF);
             int16_t l3 = (int16_t)(packed1 >> 16);
             // do two pairwise maxima
-            int16_t m01 = MAX(l0, l1);
-            int16_t m23 = MAX(l2, l3);
+            int16_t m01 = ARM_NN_MAX(l0, l1);
+            int16_t m23 = ARM_NN_MAX(l2, l3);
             // combine them, then compare once more against our running max
-            max_val = MAX(max_val, MAX(m01, m23));
+            max_val = ARM_NN_MAX(max_val, ARM_NN_MAX(m01, m23));
         }
 
         // Handle any remaining “tail” elements
         for (; j < inner_size; ++j)
         {
-            max_val = MAX(max_val, *in_ptr++);
+            max_val = ARM_NN_MAX(max_val, *in_ptr++);
         }
 
         // Store result
@@ -299,21 +299,21 @@ arm_cmsis_nn_status arm_reduce_max_spatial_s16(const int16_t *input_data,
                 int16_t a1 = (int16_t)((op >> 16) & 0xFFFF);
                 int16_t m0 = (int16_t)(max_pair & 0xFFFF);
                 int16_t m1 = (int16_t)((max_pair >> 16) & 0xFFFF);
-                m0 = MAX(m0, a0);
-                m1 = MAX(m1, a1);
+                m0 = ARM_NN_MAX(m0, a0);
+                m1 = ARM_NN_MAX(m1, a1);
                 max_pair = PKHBT(m0, m1, 16);
             }
 
             // collapse the two lanes into one int16
             int16_t m = (int16_t)(max_pair & 0xFFFF);
             int16_t t = (int16_t)((max_pair >> 16) & 0xFFFF);
-            m = MAX(m, t);
+            m = ARM_NN_MAX(m, t);
 
             // process any tail
             for (; s < spatial; ++s)
             {
                 int16_t v = base[s * C + c];
-                m = MAX(m, v);
+                m = ARM_NN_MAX(m, v);
             }
 
             out[c] = m;

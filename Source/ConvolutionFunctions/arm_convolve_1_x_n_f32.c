@@ -145,7 +145,7 @@ __STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mult_nt_t_strided_f32
             const float32_t *rhs_row = rhs + (size_t)c * rhs_cols;
             float32_t acc = bias ? bias[c] : 0.0f;
             acc += arm_convolve_1_x_n_dot_f32(lhs_row, rhs_row, rhs_cols);
-            dst_row[c] = CLAMP(acc, activation_max, activation_min);
+            dst_row[c] = ARM_NN_CLAMP(acc, activation_max, activation_min);
         }
     }
 
@@ -183,8 +183,47 @@ __STATIC_INLINE void arm_convolve_1_x_n_find_regions(const cmsis_nn_conv_params_
     }
 
     *left_pad_num = first_valid;
-    *no_pad_num = MAX(last_valid - first_valid + 1, 0);
+    *no_pad_num = ARM_NN_MAX(last_valid - first_valid + 1, 0);
     *right_pad_num = output_dims->w - *left_pad_num - *no_pad_num;
+}
+
+/* Route one packed patch tile through the matmul that matches the filter storage format, exactly as the
+ * patch-GEMM path in arm_convolve_f32.c does; the 1xN path previously always took the OHWI kernel and
+ * silently misread NT_N_PACKED filters. */
+__STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mul_f32(const float32_t *lhs,
+                                                                   const float32_t *rhs,
+                                                                   const float32_t *bias,
+                                                                   float32_t *dst,
+                                                                   int32_t lhs_rows,
+                                                                   int32_t rhs_rows,
+                                                                   int32_t rhs_cols,
+                                                                   int32_t row_address_offset,
+                                                                   const cmsis_nn_conv_params_f32 *conv_params)
+{
+    if (conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
+    {
+        return arm_nn_mat_mult_nt_n_packed_f32(lhs,
+                                               rhs,
+                                               bias,
+                                               dst,
+                                               lhs_rows,
+                                               rhs_rows,
+                                               rhs_cols,
+                                               row_address_offset,
+                                               conv_params->activation.min,
+                                               conv_params->activation.max);
+    }
+
+    return arm_nn_mat_mult_nt_t_f32(lhs,
+                                    rhs,
+                                    bias,
+                                    dst,
+                                    lhs_rows,
+                                    rhs_rows,
+                                    rhs_cols,
+                                    row_address_offset,
+                                    conv_params->activation.min,
+                                    conv_params->activation.max);
 }
 
 __STATIC_INLINE void arm_convolve_1_x_n_pack_rows_f32(float32_t *scratch,
@@ -204,10 +243,12 @@ __STATIC_INLINE void arm_convolve_1_x_n_pack_rows_f32(float32_t *scratch,
     {
         const int32_t out_x = start_out_x + r;
         const int32_t base_x = out_x * conv_params->stride.w - conv_params->padding.w;
-        const int32_t left_pad_cols = MAX(0, -base_x);
-        const int32_t valid_x0 = MAX(base_x, 0);
-        const int32_t valid_x1 = MIN(base_x + kernel_w, input_w);
-        const int32_t valid_cols = MAX(valid_x1 - valid_x0, 0);
+        /* Clipped to the kernel width: with padding.w > kernel_w a fully padded position would otherwise
+         * zero-fill more than one patch row and run past the scratch buffer. */
+        const int32_t left_pad_cols = ARM_NN_MIN(kernel_w, ARM_NN_MAX(0, -base_x));
+        const int32_t valid_x0 = ARM_NN_MAX(base_x, 0);
+        const int32_t valid_x1 = ARM_NN_MIN(base_x + kernel_w, input_w);
+        const int32_t valid_cols = ARM_NN_MAX(valid_x1 - valid_x0, 0);
         const int32_t right_pad_cols = kernel_w - left_pad_cols - valid_cols;
         float32_t *patch_row = scratch + (size_t)r * rhs_cols;
 
@@ -292,19 +333,11 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
 
         for (int32_t row = 0; row < left_pad_num; row += tile_rows)
         {
-            const int32_t rows = MIN(tile_rows, left_pad_num - row);
+            const int32_t rows = ARM_NN_MIN(tile_rows, left_pad_num - row);
             arm_convolve_1_x_n_pack_rows_f32(scratch, input_b, conv_params, input_dims, filter_dims, row, rows);
 
-            arm_cmsis_nn_status st = arm_nn_mat_mult_nt_t_f32(scratch,
-                                                              filter_data,
-                                                              bias_data,
-                                                              output_b,
-                                                              rows,
-                                                              output_c,
-                                                              rhs_cols,
-                                                              output_c,
-                                                              conv_params->activation.min,
-                                                              conv_params->activation.max);
+            arm_cmsis_nn_status st = arm_convolve_1_x_n_mat_mul_f32(
+                scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params);
             if (st != ARM_CMSIS_NN_SUCCESS)
             {
                 return st;
@@ -312,7 +345,26 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
             output_b += (size_t)rows * output_c;
         }
 
-        if (no_pad_num > 0)
+        if (no_pad_num > 0 && conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
+        {
+            /* The strided kernel below reads OHWI filters straight from the input; packed filters take the
+             * same pack-rows tile loop as the padded regions so the format-aware matmul can consume them. */
+            for (int32_t row = 0; row < no_pad_num; row += tile_rows)
+            {
+                const int32_t rows = ARM_NN_MIN(tile_rows, no_pad_num - row);
+                arm_convolve_1_x_n_pack_rows_f32(
+                    scratch, input_b, conv_params, input_dims, filter_dims, left_pad_num + row, rows);
+
+                arm_cmsis_nn_status st = arm_convolve_1_x_n_mat_mul_f32(
+                    scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params);
+                if (st != ARM_CMSIS_NN_SUCCESS)
+                {
+                    return st;
+                }
+                output_b += (size_t)rows * output_c;
+            }
+        }
+        else if (no_pad_num > 0)
         {
             const int32_t input_start = (conv_params->stride.w * left_pad_num - conv_params->padding.w) * input_c;
             arm_cmsis_nn_status st = arm_convolve_1_x_n_mat_mult_nt_t_strided_f32(input_b + input_start,
@@ -335,20 +387,12 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
 
         for (int32_t row = 0; row < right_pad_num; row += tile_rows)
         {
-            const int32_t rows = MIN(tile_rows, right_pad_num - row);
+            const int32_t rows = ARM_NN_MIN(tile_rows, right_pad_num - row);
             const int32_t start_out_x = left_pad_num + no_pad_num + row;
             arm_convolve_1_x_n_pack_rows_f32(scratch, input_b, conv_params, input_dims, filter_dims, start_out_x, rows);
 
-            arm_cmsis_nn_status st = arm_nn_mat_mult_nt_t_f32(scratch,
-                                                              filter_data,
-                                                              bias_data,
-                                                              output_b,
-                                                              rows,
-                                                              output_c,
-                                                              rhs_cols,
-                                                              output_c,
-                                                              conv_params->activation.min,
-                                                              conv_params->activation.max);
+            arm_cmsis_nn_status st = arm_convolve_1_x_n_mat_mul_f32(
+                scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params);
             if (st != ARM_CMSIS_NN_SUCCESS)
             {
                 return st;

@@ -168,6 +168,65 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+## Pre-commit hooks
+
+`.pre-commit-config.yaml` is the commit-time hygiene gate, and CI runs part of
+the same config over the whole tree. From a fresh clone:
+
+```bash
+uv tool install pre-commit==3.8.0
+pre-commit install
+```
+
+`python -m pip install pre-commit==3.8.0` works as well if you would rather not
+use `uv`. The dev container does this during setup.
+
+The hooks check:
+
+- whitespace hygiene: trailing whitespace and a single final newline;
+- no leftover merge conflict markers, and no newly added file over 500 kB;
+- syntax of YAML, JSON and TOML files;
+- `clang-format` over `Source/` and `Include/` C and headers (see below);
+- deferred-work markers. Write `TODO(#421): drop the workaround once the pack
+  ships`, or the same shape with `FIXME(#421)` or `HACK(#421)`; the bare words
+  are rejected. `TODO(verify)` is the only other accepted form, and it means
+  the claim next to it has not been checked against a source of record yet, so
+  it must not survive review.
+
+Nothing here scans for secrets. Credentials are caught server side by GitHub
+secret scanning with push protection, a repository setting that is enabled
+today, which rejects the push itself and cannot be bypassed by a local flag.
+
+### Two scopes
+
+`clang-format`, `trailing-whitespace` and `end-of-file-fixer` rewrite files, so
+they run at commit time over the staged files only, and the CI job skips them
+with `SKIP`. That is the same policy `clang-format` already follows: the tree
+converges as PRs touch files, rather than through one large reformat that would
+collide with every upstream sync. Those three hooks additionally skip content
+we must not rewrite at all: generated test vectors under
+`Tests/UnitTest/TestCases/`, and files inherited from Arm. The exclude is not an
+inventory of everything that still matches upstream; it names the inherited
+files these hooks would otherwise touch.
+
+When you adopt a file from ARM-software/CMSIS-NN, commit it with
+`SKIP=trailing-whitespace,end-of-file-fixer` so the fixers do not diverge it
+from upstream. If the file carries a bare deferred-work marker, that marker is
+Arm's: add the file to the `todo-needs-issue` exclude and note it in
+AmbiqAI/ns-cmsis-nn#422, rather than annotating Arm's text.
+
+The remaining hooks only report, so CI runs them over every tracked file,
+including the roughly half of `Tests/` that is Ambiq-owned. The size check is
+the exception: it looks only at files being added to the index, so it gates the
+commit, not the CI run. Because the hooks see only staged files at commit time,
+a CI run over the wider scope can fail on files you never touched; when that
+happens, fix the reported file rather than widening an exclude. The one
+exception is a file inherited unchanged from Arm, which takes the exclude route
+above.
+
+Bump a hook `rev` with `pre-commit autoupdate` in its own reviewed PR. Every
+remote rev is an exact tag; do not point a hook at a branch.
+
 ## Formatting
 
 Source and public header files under `Source/` and `Include/` use the checked-in
@@ -176,21 +235,35 @@ baseline across all inherited CMSIS-NN sources; instead, formatting is enforced
 only on files touched by a PR so the tree converges gradually without creating a
 large upstream-sync diff.
 
-Install the optional pre-commit hook to format staged C/H files before commit:
+Both the pre-commit hook and CI's changed-file gate skip
+`Include/Internal/arm_conv1x1_opt_common.h` and
+`Include/Internal/arm_depthwise_conv_opt_common.h`: they are byte-identical to
+Arm upstream and rejected by clang-format 18 (see AmbiqAI/ns-cmsis-nn#394).
+
+The pre-commit `clang-format` hook formats staged C/H files under `Source/` and
+`Include/` when you commit, so the files a PR touches arrive formatted. CI
+checks formatting only over the changed-file range, never the whole tree. To
+run the same check locally:
 
 ```bash
-python -m pip install pre-commit
-pre-commit install
-```
-
-The dev container installs and enables this hook during setup.
-
-To check the same changed-file range CI checks:
-
-```bash
-python -m pip install pre-commit
+python -m pip install pre-commit==3.8.0 clang-format==18.1.8
 bash scripts/check_clang_format_changed.sh origin/main HEAD
 ```
+
+CI enforces clang-format 18 (the pre-commit pin); the script refuses other
+majors because they disagree on committed files. Point releases inside 18 can
+disagree too, so install the exact pinned version rather than a distro 18. The
+script scans every directory on `PATH` for `clang-format` and
+`clang-format-18` and picks the first one that reports the pinned version, so a
+distro `clang-format-18` earlier on `PATH` no longer wins over a pinned copy
+installed later; it falls back to the first 18.x found with a warning. If you
+want a specific copy, point it there explicitly:
+`CLANG_FORMAT_BIN=/path/to/venv/bin/clang-format bash scripts/check_clang_format_changed.sh origin/main HEAD`.
+
+The dev container builds and runs as `linux/amd64`
+(`--platform=linux/amd64` in `.devcontainer/devcontainer.json`): the pinned
+clang-format wheel and every tool in `ci/tools/manifest.json` are x86_64
+builds, so on an arm64 host the container runs emulated.
 
 ## Reporting bugs
 

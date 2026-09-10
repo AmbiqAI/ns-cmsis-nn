@@ -497,8 +497,8 @@ static arm_cmsis_nn_status arm_convolve_s16_dsp(const cmsis_nn_context *ctx,
                         sum = arm_nn_requantize_s64(acc_64, reduced_multiplier, output_shift_ptr[i]);
                     }
 
-                    sum = MAX(sum, out_activation_min);
-                    sum = MIN(sum, out_activation_max);
+                    sum = ARM_NN_MAX(sum, out_activation_min);
+                    sum = ARM_NN_MIN(sum, out_activation_max);
                     *out++ = (int16_t)sum;
                 }
 

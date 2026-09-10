@@ -42,6 +42,7 @@ jobs:
 
   build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: resolve-container-image
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}
@@ -56,7 +57,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_ref || github.sha }}
 
@@ -80,12 +81,28 @@ jobs:
 
       - name: Restore tests-downloads cache
         id: cache-downloads
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: Tests/UnitTest/downloads
           key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
-          restore-keys: |
-            ${{ runner.os }}-tests-downloads-
+          # Deliberately no restore-keys, matching unity-m55-compile.yml,
+          # which shares this key. build_and_run_tests.sh skips the toolchain
+          # download whenever downloads/arm_gcc_download already exists, so a
+          # prefix restore hands this job the *previous* compiler across a
+          # GCC_URL change and then re-saves it under the new exact key --
+          # which the PR gate exact-matches, and would then compile with. An
+          # exact-key miss and a cold fetch is the correct behaviour on both
+          # sides of the shared key.
+          #
+          # The CMSIS_5 and ethos-u-core-platform clone pins (#402) need no
+          # key term of their own either. Those trees do live inside the
+          # cached directory, but the harness records CMSIS_5_COMMIT and
+          # ETHOS_U_CORE_PLATFORM_COMMIT in build_and_run_tests.sh, which the
+          # hashFiles() term above already covers byte for byte -- so a pin
+          # bump misses this key exactly as a GCC_URL change does, without a
+          # second copy of the SHAs here to drift out of step. The harness
+          # moves a restored clone to its pin, and fails loudly if the tree is
+          # dirty, cannot be diagnosed, or the move fails.
 
       - name: Download deps (internal cache-checks)
         run: |
@@ -95,11 +112,17 @@ jobs:
       - name: Build & run tests for ${{ matrix.core }}
         run: |
           cd Tests/UnitTest
-          ./build_and_run_tests.sh -q -c ${{ matrix.core }}
+          # The float Unity suites are gated on ARM_NN_ENABLE_F32/F16 in Tests/UnitTest/CMakeLists.txt and
+          # were never built by any job before these flags. Float16 is qualified for cortex-m55 only.
+          if [ "${{ matrix.core }}" = "cortex-m55" ]; then
+            ./build_and_run_tests.sh -q -c ${{ matrix.core }} -D ARM_NN_ENABLE_F32=ON -D ARM_NN_ENABLE_F16=ON
+          else
+            ./build_and_run_tests.sh -q -c ${{ matrix.core }} -D ARM_NN_ENABLE_F32=ON
+          fi
 
       - name: Save tests-downloads cache
         if: steps.cache-downloads.outputs.cache-hit != 'true'
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: Tests/UnitTest/downloads
           key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}

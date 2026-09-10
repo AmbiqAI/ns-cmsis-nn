@@ -19,22 +19,19 @@
 name: Verify that PDSC file is up to date
 
 on:
+  # Invoked from ci.yml so it reports under the single required gate
+  # (AmbiqAI/ns-cmsis-nn#353); keep no push/pull_request trigger of its own.
+  workflow_call:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches: [main]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   check_pdsc:
     name: Check PDSC file
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Check
         run: |
@@ -46,31 +43,46 @@ jobs:
     # plumbing, and every <file> path resolves on disk. See M3 #170.
     name: PDSC contract (identity, versions, files)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Run contract test
         run: python3 scripts/check_pdsc.py
 
-      # Check #7 (float dtype gating) guards a bug class that is green
-      # everywhere else in CI, so its own mutation tests gate it in turn.
-      - name: Run float dtype gating tests
-        run: python3 scripts/tests/test_check_pdsc_float_gating.py
+      # The float32 tanh LUT is generated data, and no test can catch a
+      # corrupted entry: the unit suite reads the same array it checks, so it
+      # pins the interpolation algorithm but not the table contents. Re-derive
+      # the table and compare it against what is checked in.
+      - name: Check generated f32 tanh LUT is re-derivable
+        run: python3 scripts/gen_tanh_lut_f32.py --check Source/NNSupportFunctions/arm_nntables_flt.c
 
-      # Check #8 (extra-files annotations) guards a release-time-only bug
-      # class -- a broken annotation is invisible until a release bumps
-      # nothing -- so its own mutation tests gate it in turn.
-      - name: Run extra-files annotation tests
-        run: python3 scripts/tests/test_check_pdsc.py
+  stale_version_refs:
+    # Complements check_pdsc.py's extra-files audit from the other side.
+    # That one asks "is everything *listed* in release-please-config.json
+    # annotated and in sync"; it is blind to a file that stamps the release
+    # version but was never listed, which drifts a release behind forever
+    # with every gate green. This one reads the previous release out of
+    # CHANGELOG.md and asserts no tracked file still mentions it, outside an
+    # explicit allowlist of files whose job is to discuss release history.
+    # It fires on the release-please PR itself, where a silently-skipped
+    # extra-file is still carrying the old version. See #347.
+    name: No stale previous-version references
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
 
-      # Check #10 (unit-test suite buildability) is the only PR gate that
-      # looks at the float unit suites at all -- no job builds them, which
-      # is how 36 registered-but-uncompilable suites read as coverage for
-      # years and hid a shipped transpose-conv bug (#253, #256). A check
-      # whose failure mode is "silently passes" needs its own gate.
-      - name: Run unit-test suite buildability tests
-        run: python3 scripts/tests/test_check_pdsc_unit_test_suites.py
+      - name: Run stale version reference check
+        run: python3 scripts/check_stale_version_refs.py
+
+      # On most days the tree contains no previous-release mentions, so a
+      # green result proves little about the scanner -- its mutation tests
+      # are what keep it honest between releases.
+      - name: Run stale version reference check tests
+        run: python3 scripts/tests/test_check_stale_version_refs.py
 
   float_cmsis_components:
     # Static guard for the float unit-test wiring: the csolution pack pin
@@ -79,12 +91,13 @@ jobs:
     # +Corstone-300-FVP. Cheap stand-in for a cbuild run.
     name: Float CMSIS component wiring
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -93,11 +106,6 @@ jobs:
 
       - name: Run float component check
         run: python3 scripts/check_float_cmsis_components.py
-
-      # The check is a merge gate whose own logic is easy to regress in
-      # either direction, so its mutation tests gate it in turn.
-      - name: Run float component check tests
-        run: python3 scripts/tests/test_check_float_cmsis_components.py
 
   dsp_symbol_collisions:
     # Guards against a public ns-cmsis-nn symbol colliding with a CMSIS-DSP
@@ -112,17 +120,13 @@ jobs:
     # prevent. See #282.
     name: CMSIS-DSP symbol collisions
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Run DSP symbol collision check
         run: python3 scripts/check_dsp_symbol_collisions.py
-
-      # The check is a merge gate whose own logic is easy to regress in
-      # either direction, so its mutation tests gate it in turn.
-      - name: Run DSP symbol collision check tests
-        run: python3 scripts/tests/test_check_dsp_symbol_collisions.py
 
   header_placeholders:
     # Guards against an unsubstituted documentation template token -- the
@@ -137,17 +141,54 @@ jobs:
     # gated. See #288.
     name: Public header placeholders
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Run header placeholder check
         run: python3 scripts/check_header_placeholders.py
 
-      # The check is a merge gate whose own logic is easy to regress in
-      # either direction, so its mutation tests gate it in turn.
-      - name: Run header placeholder check tests
-        run: python3 scripts/tests/test_check_header_placeholders.py
+  toolchain_manifest_sync:
+    # Guards against the armclang/ATfE pins in ci/tools/manifest.json (which
+    # bakes the published dev container) drifting from ci/toolchains/*.json
+    # (which selects the compilers the shipped static libraries are built
+    # with). They had already drifted -- container armclang 6.24.0 / ATfE
+    # 20.1.0 against shipped 6.23.32 / 19.1.5 -- with nothing relating the
+    # two files, so developers and helia-core-tester ran a different compiler
+    # than the product is built with. That is a "reproduces in neither
+    # direction" defect for any codegen or ABI question, and since the two
+    # files are edited by different workflows for different reasons they
+    # will drift again without a gate.
+    name: Toolchain manifest sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run toolchain manifest sync check
+        run: python3 scripts/check_toolchain_manifest_sync.py
+
+  release_asset_manifest:
+    # Same failure shape as toolchain_manifest_sync above, on the release
+    # asset contract. The required-asset list was transcribed by hand into
+    # release.yml's release-verify job, scripts/ci/audit_release_assets.sh
+    # and the table in docs/guides/releases.md, with nothing relating them.
+    # An asset added to release.yml alone was verified once at release time
+    # and never audited again; an asset dropped from the docs table left
+    # customers told to expect something the pipeline no longer promises.
+    # ci/release-assets.json is now the single source, and this holds the
+    # guide and both consumers to it.
+    name: Release asset manifest sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run release asset manifest check
+        run: python3 scripts/check_release_asset_manifest.py
 
   api_group_classification:
     # Guards docs/_ext/api_group_index.py's GROUP_PATTERNS: every public
@@ -159,14 +200,78 @@ jobs:
     # being caught by hand in review. See #283.
     name: Docs API group classification
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Run API group classification check
         run: python3 scripts/check_api_group_classification.py
 
-      # The check is a merge gate whose own logic is easy to regress in
-      # either direction, so its mutation tests gate it in turn.
-      - name: Run API group classification check tests
-        run: python3 scripts/tests/test_check_api_group_classification.py
+  script_check_tests:
+    # Mutation tests for the scripts/check_*.py merge gates.
+    #
+    # Each scripts/check_*.py gate in this workflow has at least one suite
+    # in scripts/tests/ whose job is to prove the gate can still fail: a
+    # check that passes when it should not is worse than no check, and their
+    # logic is easy to regress in either direction. Some of what they cover
+    # is visible nowhere else in CI -- pdsc check #7 (float dtype gating) is
+    # green everywhere else;
+    # check #8 (extra-files annotations) fails only at release time, where a
+    # broken annotation is invisible until a release bumps nothing; check
+    # #10 (unit-test suite buildability) was for years the only gate that
+    # looked at the float unit suites at all -- no job built them, which is
+    # how registered-but-uncompilable suites read as coverage and hid a
+    # shipped transpose-conv bug (#253, #256) -- until #330/#341 built and
+    # ran them on the host-sanitizer and legacy-tester legs.
+    #
+    # These ran as a step inside each check's own job, named one at a time.
+    # scripts/tests/test_check_pdsc_ssot.py -- which gates the check on the
+    # single-source-of-truth source list that check_pdsc.py compares the
+    # pdsc against -- was added in #298 and never added to that list, so it
+    # had never run here: a suite guarding a merge gate, unwatched, with
+    # nothing to say so. Enumerating them is the defect, so this job globs
+    # and the next suite added is covered by having been written. See #339.
+    name: Script check test suites
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      # test_check_float_cmsis_components.py runs check_float_cmsis_components.py
+      # in a subprocess and that script imports yaml. Same pin as the
+      # float_cmsis_components job, which runs the checker itself.
+      - name: Install dependencies
+        run: python -m pip install pyyaml==6.0.3
+
+      - name: Run every scripts/tests/test_check_*.py
+        run: |
+          set -eu
+          # An empty glob must fail the job, not pass it vacuously: this
+          # whole job exists because a suite can go unrun without saying so.
+          shopt -s failglob
+          status=0
+          for suite in scripts/tests/test_check_*.py; do
+            echo "== $suite"
+            python3 "$suite" || status=1
+          done
+          exit $status
+
+      # Invoked rather than run through bash so a suite that lost its
+      # executable bit fails here instead of on a release publish.
+      - name: Run every scripts/tests/test_check_*.sh
+        run: |
+          set -eu
+          shopt -s failglob
+          status=0
+          for suite in scripts/tests/test_check_*.sh; do
+            echo "== $suite"
+            "$suite" || status=1
+          done
+          exit $status

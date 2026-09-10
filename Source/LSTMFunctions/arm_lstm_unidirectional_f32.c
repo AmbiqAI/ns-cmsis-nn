@@ -58,6 +58,17 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f32(const float32_t *input,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    // Same dimension contract as arm_gru_unidirectional_*. The memory-safety case is a negative batch_size or
+    // hidden_size: the stateless cell-state memset below sizes itself as batch_size * hidden_size, which wrapped
+    // to a ~4G element count and wrote far past the buffer. input_size does not enter that count; a non-positive
+    // input_size and a negative time_steps only reach the per-step gate dot products and the step loops, which
+    // silently ran a degenerate layer (no input term, or no steps at all), and a zero batch or hidden size is
+    // likewise degenerate. All of these are rejected up front. time_steps == 0 stays legal, as it is for the
+    // GRU: no step runs, though stateless mode still zeroes the cell state as it always has.
+    if (params->batch_size < 1 || params->time_steps < 0 || params->input_size < 1 || params->hidden_size < 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
 
     // Streaming state carry: when hidden_state is supplied it seeds the initial
     // hidden state and the cell_state buffer is treated as in/out (not zeroed);
@@ -147,6 +158,24 @@ arm_cmsis_nn_status arm_lstm_unidirectional_f32(const float32_t *input,
     }
 
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+/*
+ * Bytes required behind buffers->temp1 / buffers->temp2 by arm_lstm_unidirectional_f32(): zero. Derived from
+ * the kernel, not from the struct comment: arm_nn_lstm_step_f32() computes all four gates per hidden unit in
+ * automatics (the MVE leg stages them in four stack arrays of 4 lanes, the scalar leg in single locals) and
+ * writes only cell_state and hidden_out. Neither this wrapper nor the step ever dereferences temp1 or temp2 on
+ * any build path, so both pointers may be NULL. The queries exist so arena-sizing code can treat every LSTM
+ * variant alike and so the figure has an owner if a future implementation starts staging gate vectors.
+ */
+int32_t arm_lstm_unidirectional_f32_temp1_get_buffer_size(const cmsis_nn_lstm_params_f32 *lstm_params)
+{
+    return (lstm_params == NULL) ? -1 : 0;
+}
+
+int32_t arm_lstm_unidirectional_f32_temp2_get_buffer_size(const cmsis_nn_lstm_params_f32 *lstm_params)
+{
+    return (lstm_params == NULL) ? -1 : 0;
 }
 
 /** @} */

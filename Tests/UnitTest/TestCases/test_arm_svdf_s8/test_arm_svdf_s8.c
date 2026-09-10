@@ -93,6 +93,16 @@ void svdf_int8_arm_svdf_s8(void)
 
     input_ctx.buf = malloc(scratch_size);
     output_ctx.buf = malloc(scratch_size_out);
+    /* .size is set for hygiene only: these kernels do not read it. Leaving an automatic-storage field
+       indeterminate is not a pattern worth copying out of a test. */
+    input_ctx.size = scratch_size;
+    output_ctx.size = scratch_size_out;
+
+    /* The published queries must agree with the sizes this test computes by hand; otherwise a caller that
+       trusts the library gets a different buffer from one that transcribes the formula. */
+    TEST_ASSERT_EQUAL(scratch_size, arm_svdf_s8_input_ctx_get_buffer_size(&input_dims, &weights_feature_dims));
+    TEST_ASSERT_EQUAL(scratch_size_out,
+                      arm_svdf_s8_output_ctx_get_buffer_size(&svdf_int8_params, &input_dims, &weights_feature_dims));
 
     int8_t *input_data = malloc(input_round_size);
     int8_t *state_data = malloc(state_data_size);
@@ -214,6 +224,16 @@ void svdf_int8_2_arm_svdf_s8(void)
 
     input_ctx.buf = malloc(scratch_size);
     output_ctx.buf = malloc(scratch_size_out);
+    /* .size is set for hygiene only: these kernels do not read it. Leaving an automatic-storage field
+       indeterminate is not a pattern worth copying out of a test. */
+    input_ctx.size = scratch_size;
+    output_ctx.size = scratch_size_out;
+
+    /* The published queries must agree with the sizes this test computes by hand; otherwise a caller that
+       trusts the library gets a different buffer from one that transcribes the formula. */
+    TEST_ASSERT_EQUAL(scratch_size, arm_svdf_s8_input_ctx_get_buffer_size(&input_dims, &weights_feature_dims));
+    TEST_ASSERT_EQUAL(scratch_size_out,
+                      arm_svdf_s8_output_ctx_get_buffer_size(&svdf_int8_2_params, &input_dims, &weights_feature_dims));
 
     int8_t *input_data = malloc(input_round_size);
     int8_t *state_data = malloc(state_data_size);
@@ -259,4 +279,26 @@ void svdf_int8_2_arm_svdf_s8(void)
     free(input_data);
     free(input_ctx.buf);
     free(output_ctx.buf);
+}
+
+// Issue #349: the _dsp leg is a public entry point the Python bindings call directly, so an out-of-range feature
+// batch count has to come back as the same -1 the dispatcher and the _mve leg return, not as a 0 that a caller
+// reads as "no buffer needed". Deliberately not gated on ARM_MATH_DSP: the leg variants are plain C and are
+// compiled and callable on every build target, which is the whole reason a caller can be misled by one.
+void buffer_size_out_of_range_dsp_arm_svdf_s8(void)
+{
+    // Negative feature batch count.
+    const cmsis_nn_dims negative_n = {-1, 1, 1, 1};
+    TEST_ASSERT_EQUAL(-1, arm_svdf_s8_get_buffer_size_dsp(&negative_n));
+    // Byte count that does not fit in an int32_t.
+    const cmsis_nn_dims overflowing_n = {1073741823, 1, 1, 1};
+    TEST_ASSERT_EQUAL(-1, arm_svdf_s8_get_buffer_size_dsp(&overflowing_n));
+    // The other two entry points already answered this way; pin them alongside.
+    TEST_ASSERT_EQUAL(-1, arm_svdf_s8_get_buffer_size(&negative_n));
+    TEST_ASSERT_EQUAL(-1, arm_svdf_s8_get_buffer_size_mve(&negative_n));
+    TEST_ASSERT_EQUAL(-1, arm_svdf_s8_get_buffer_size(&overflowing_n));
+    TEST_ASSERT_EQUAL(-1, arm_svdf_s8_get_buffer_size_mve(&overflowing_n));
+    // An in-range shape is undisturbed: the DSP leg needs no kernel-sum buffer.
+    const cmsis_nn_dims valid_n = {SVDF_INT8_FEATURE_BATCHES, 1, 1, 1};
+    TEST_ASSERT_EQUAL(0, arm_svdf_s8_get_buffer_size_dsp(&valid_n));
 }

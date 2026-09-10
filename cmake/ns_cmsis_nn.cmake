@@ -10,7 +10,7 @@
 #   - the Zephyr module (zephyr/CMakeLists.txt)
 #   - the NSX module    (nsx/CMakeLists.txt)
 #
-# It exposes three public entry points:
+# It exposes four public entry points:
 #
 #   ns_cmsis_nn_groups(<out_var>)
 #       Returns the list of all known operator group ids.
@@ -25,6 +25,14 @@
 #                      [INCLUDE_DIRS_VISIBILITY  PUBLIC | PRIVATE | INTERFACE])
 #       Adds the resolved source set and the public Include/ directory to
 #       <target>. <target> must already exist (created by the consumer).
+#
+#   ns_cmsis_nn_float_support(F32 <out_var> F16 <out_var> [TARGET <target>])
+#       Sets each out variable to ON or OFF from the library target's compile
+#       definitions: what the library in scope was built with, as opposed to
+#       what any one entry point was asked for. Defined in
+#       cmake/ns_cmsis_nn_float_support.cmake, which entry points that compile
+#       nothing may include on its own, and mirrored in the find_package()
+#       config template.
 #
 # Notes on selection:
 #   - Each group has an explicit subdirectory under Source/, an explicit list
@@ -48,6 +56,21 @@ set(NS_CMSIS_NN_CMAKE_INCLUDED TRUE)
 
 # Absolute path to the repository root (parent of this cmake/ directory).
 get_filename_component(NS_CMSIS_NN_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+
+# Assembler check for the float16 kernels. It lives here rather than in the
+# standalone CMakeLists.txt so the Zephyr and NSX consumers, which bypass that
+# file, are covered too; ns_cmsis_nn_attach() runs it when float16 sources are
+# actually selected, against the flags the attached target really compiles
+# with. It cannot see an architecture flag that only exists inside a generator
+# expression, and says so when it finds none.
+# See AmbiqAI/ns-cmsis-nn#427.
+include("${CMAKE_CURRENT_LIST_DIR}/check_gas_mve_encoding.cmake")
+
+# The query that tells a consumer which float widths the library in scope was
+# built with. Kept in its own module so entry points that compile nothing
+# (prebuilt modes) can offer it without pulling in the source layout.
+# See AmbiqAI/ns-cmsis-nn#420.
+include("${CMAKE_CURRENT_LIST_DIR}/ns_cmsis_nn_float_support.cmake")
 
 # Canonical, ordered list of operator group ids.
 set(_NS_CMSIS_NN_GROUPS
@@ -94,11 +117,13 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     set(patterns "*_s8*.c" "*_s16*.c")
     set(extras   "arm_relu_q7.c" "arm_relu6_q7.c" "arm_relu_q15.c")
     if(ARM_NN_ENABLE_F32)
-      list(APPEND extras "arm_nn_activation_f32.c"
+      list(APPEND extras "arm_hard_swish_f32.c"
+                         "arm_nn_activation_f32.c"
                          "arm_prelu_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
-      list(APPEND extras "arm_nn_activation_f16.c"
+      list(APPEND extras "arm_hard_swish_f16.c"
+                         "arm_nn_activation_f16.c"
                          "arm_prelu_f16.c")
     endif()
   elseif(group STREQUAL "basicmath")
@@ -106,24 +131,38 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     set(patterns "*_s8*.c" "*_s16*.c")
     if(ARM_NN_ENABLE_F32)
       list(APPEND extras "arm_nn_abs_f32.c"
+                         "arm_nn_fill_f32.c"
                          "arm_elementwise_add_f32.c"
                          "arm_elementwise_sub_f32.c"
                          "arm_elementwise_mul_f32.c"
+                         "arm_elementwise_sub_broadcast_f32.c"
+                         "arm_elementwise_add_broadcast_f32.c"
+                         "arm_elementwise_mul_broadcast_f32.c"
                          "arm_minmax_common_f32.c"
                          "arm_minimum_f32.c"
                          "arm_maximum_f32.c"
-                         "arm_reduce_sum_f32.c")
+                         "arm_nn_mean_f32.c"
+                         "arm_reduce_sum_f32.c"
+                         "arm_nn_sqrt_f32.c"
+                         "arm_rsqrt_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
       list(APPEND extras "arm_nn_abs_f16.c"
+                         "arm_nn_fill_f16.c"
                          "arm_elementwise_add_fp16.c"
                          "arm_elementwise_add_f16.c"
                          "arm_elementwise_sub_f16.c"
                          "arm_elementwise_mul_f16.c"
+                         "arm_elementwise_sub_broadcast_f16.c"
+                         "arm_elementwise_add_broadcast_f16.c"
+                         "arm_elementwise_mul_broadcast_f16.c"
                          "arm_minmax_common_f16.c"
                          "arm_minimum_f16.c"
                          "arm_maximum_f16.c"
-                         "arm_reduce_sum_f16.c")
+                         "arm_nn_mean_f16.c"
+                         "arm_reduce_sum_f16.c"
+                         "arm_nn_sqrt_f16.c"
+                         "arm_rsqrt_f16.c")
     endif()
   elseif(group STREQUAL "comparison")
     set(subdir   "ComparisonFunctions")
@@ -132,11 +171,16 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     set(subdir   "ConcatenationFunctions")
     set(patterns "*_s8*.c" "*_s16*.c" "*_s32*.c")
     if(ARM_NN_ENABLE_F32)
-      list(APPEND extras "arm_concatenation_f32.c")
+      list(APPEND extras "arm_concatenation_f32.c"
+                         "arm_pack_f32.c"
+                         "arm_split_f32.c"
+                         "arm_unpack_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
       list(APPEND extras "arm_concatenation_f16.c"
-                         "arm_split_f16.c")
+                         "arm_pack_f16.c"
+                         "arm_split_f16.c"
+                         "arm_unpack_f16.c")
     endif()
   elseif(group STREQUAL "convolution")
     set(subdir   "ConvolutionFunctions")
@@ -166,8 +210,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     endif()
     if(ARM_NN_ENABLE_F16)
       list(APPEND extras "arm_batch_matmul_f16.c"
-                         "arm_fully_connected_f16.c"
-                         "arm_fully_connected_fp16.c")
+                         "arm_fully_connected_f16.c")
     endif()
   elseif(group STREQUAL "gather")
     set(subdir   "GatherFunctions")
@@ -200,8 +243,6 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_nn_conv1d_k5_f32.c"
                          "arm_nn_conv1d_k5_packed_f32.c"
                          "arm_nn_depthwise_conv1d_k3_f32.c"
-                         "arm_nn_depthwise_conv3x3_f32.c"
-                         "arm_nn_depthwise_conv_nt_t_f32.c"
                          "arm_nn_maxpool1d_f32.c"
                          "arm_nn_pack_conv_patch_f32.c"
                          "arm_nn_gru_step_f32.c"
@@ -218,15 +259,12 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_nn_conv1d_k5_packed_f16.c"
                          "arm_nn_depthwise_conv1d_k3_f16.c"
                          "arm_nn_depthwise_conv2x5_f16.c"
-                         "arm_nn_depthwise_conv3x3_f16.c"
-                         "arm_nn_depthwise_conv_nt_t_f16.c"
                          "arm_nn_pack_conv_patch_f16.c"
                          "arm_nn_gru_step_f16.c"
                          "arm_nn_lstm_step_f16.c"
                          "arm_nn_maxpool1d_f16.c"
                          "arm_nn_mat_mult_nt_t_f16.c"
-                         "arm_nn_mat_mult_nt_n_packed_f16.c"
-                         "arm_nn_vec_mat_mult_t_fp16.c")
+                         "arm_nn_mat_mult_nt_n_packed_f16.c")
     endif()
   elseif(group STREQUAL "pad")
     set(subdir   "PadFunctions")
@@ -250,7 +288,10 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     endif()
   elseif(group STREQUAL "quantization")
     set(subdir   "QuantizationFunctions")
-    set(patterns "*_*.c")
+    set(patterns "*_s8*.c" "*_s16*.c" "arm_quantize_f32_*.c")
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_dequantize_f16_f32.c")
+    endif()
   elseif(group STREQUAL "reshape")
     set(subdir   "ReshapeFunctions")
     set(patterns "arm_reshape_s8.c"
@@ -265,10 +306,12 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                  "arm_space_to_depth_s8.c"
                  "arm_space_to_depth_s16.c")
     if(ARM_NN_ENABLE_F32)
-      list(APPEND extras "arm_reshape_f32.c")
+      list(APPEND extras "arm_reshape_f32.c"
+                         "arm_resize_nearest_neighbor_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
-      list(APPEND extras "arm_reshape_f16.c")
+      list(APPEND extras "arm_reshape_f16.c"
+                         "arm_resize_nearest_neighbor_f16.c")
     endif()
   elseif(group STREQUAL "softmax")
     set(subdir   "SoftmaxFunctions")
@@ -488,6 +531,16 @@ function(ns_cmsis_nn_attach target)
   if(NOT all_sources)
     message(WARNING "ns_cmsis_nn_attach(${target}): no sources matched (groups=${groups}, dtypes=${dtypes})")
   endif()
+
+  # Only worth asking the assembler when a float16 kernel really is being
+  # compiled: DTYPES can drop them even with ARM_NN_ENABLE_F16 on.
+  foreach(_src IN LISTS all_sources)
+    get_filename_component(_base "${_src}" NAME)
+    if(_base MATCHES "_fp?16([._]|$)")
+      ns_cmsis_nn_check_gas_mve_encoding(${target})
+      break()
+    endif()
+  endforeach()
 
   target_sources(${target} PRIVATE ${all_sources})
   # Wrap in $<BUILD_INTERFACE:...> so consumers that re-export <target> via

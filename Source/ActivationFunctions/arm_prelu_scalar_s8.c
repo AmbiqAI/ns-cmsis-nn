@@ -62,8 +62,8 @@ arm_cmsis_nn_status arm_prelu_scalar_s8(const int8_t *scalar_vect,
             for (int32_t i = 0; i < block_size; ++i)
             {
                 int32_t acc = output_value;
-                acc = MAX(acc, INT8_MIN);
-                acc = MIN(acc, INT8_MAX);
+                acc = ARM_NN_MAX(acc, INT8_MIN);
+                acc = ARM_NN_MIN(acc, INT8_MAX);
                 output[i] = (int8_t)acc;
             }
         }
@@ -74,8 +74,8 @@ arm_cmsis_nn_status arm_prelu_scalar_s8(const int8_t *scalar_vect,
                 const int32_t alpha_value = (int32_t)non_scalar_vect[i] + alpha_offset;
                 const int32_t prod = alpha_value * input_value;
                 int32_t acc = arm_nn_requantize(prod, output_multiplier_alpha, output_shift_alpha) + output_offset;
-                acc = MAX(acc, INT8_MIN);
-                acc = MIN(acc, INT8_MAX);
+                acc = ARM_NN_MAX(acc, INT8_MIN);
+                acc = ARM_NN_MIN(acc, INT8_MAX);
                 output[i] = (int8_t)acc;
             }
         }
@@ -99,8 +99,8 @@ arm_cmsis_nn_status arm_prelu_scalar_s8(const int8_t *scalar_vect,
                 acc = arm_nn_requantize(prod, output_multiplier_alpha, output_shift_alpha) + output_offset;
             }
 
-            acc = MAX(acc, INT8_MIN);
-            acc = MIN(acc, INT8_MAX);
+            acc = ARM_NN_MAX(acc, INT8_MIN);
+            acc = ARM_NN_MIN(acc, INT8_MAX);
             output[i] = (int8_t)acc;
         }
     }

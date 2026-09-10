@@ -5,9 +5,9 @@
 # Smoke-link verification for a prebuilt cmsis-nn static library.
 #
 # Compiles scripts/smoke/staticlib_smoke.c against the given archive
-# with the matching architecture flags. GCC and ATfE produce an ELF with
-# a minimal bare-metal link; armclang uses a compile-plus-archive-symbol
-# check because Arm's linker option dialect is intentionally different.
+# with the matching architecture flags and links a minimal bare-metal
+# ELF. All three toolchains link for real; armclang goes through armlink,
+# whose option dialect differs from the GNU/LLD one (see link_style).
 #
 # Failure here means the published archive is missing symbols a
 # consumer would expect, or its arch flags are mismatched.
@@ -17,7 +17,47 @@
 #                      --library <path/to/libns-cmsis-nn-*.a> \
 #                      --outdir <dir> \
 #                      [--toolchain gcc|atfe|armclang] \
-#                      [--toolchain-root <dir>]
+#                      [--toolchain-root <dir>] \
+#                      [--no-strict]
+#
+# The link is STRICT by default: every object in the archive must
+# resolve. Previously this check passed --gc-sections and
+# --unresolved-symbols=ignore-all, which meant kernels the smoke source
+# does not call were discarded, or their undefined symbols ignored,
+# before the linker ever had to resolve them. That made the check green
+# on an archive containing `__ARM_undef` -- the symbol older GCCs emit
+# when an MVE _Generic intrinsic fails to dispatch
+# (AmbiqAI/ns-cmsis-nn#305) -- which no consumer could ever supply.
+#
+# --no-strict restores the old lenient behaviour. It is an escape hatch
+# for local debugging; no CI leg uses it. As of the strict-by-default
+# change every gcc and atfe leg (cortex-m0/m4/m55) links clean, so any
+# new strict failure is a real unresolved symbol, not a known exemption.
+#
+# armclang used to be exempt: its check_mode was "archive-symbols", which
+# ran `nm --defined-only` over the .a instead of invoking a linker, so it
+# could not observe a broken archive symbol index or an unresolved
+# reference at all (AmbiqAI/ns-cmsis-nn#291). It now performs a real
+# link. Two dialect differences are handled explicitly:
+#
+#   whole-archive  armlink has no --whole-archive. Every member is
+#                  extracted and placed on the link line instead, which
+#                  is the exact equivalent and keeps the guarantee that
+#                  EVERY object must resolve -- not just the ones the
+#                  smoke source happens to reference. This one is
+#                  load-bearing: linking the .a directly was measured to
+#                  pass a planted undefined symbol.
+#   dead-strip     armlink's unused-section removal is on by default;
+#                  --no_remove is the analogue of omitting --gc-sections.
+#                  Defensive only -- armlink resolves before it strips.
+#
+# armlink already treats an unresolved reference as an error (L6218E),
+# so strictness needs no extra flag there.
+#
+# Neither linker path consults the archive SYMBOL INDEX -- the GNU side
+# passes --whole-archive, the armlink side names every extracted member --
+# so that is asserted separately, before the link, by
+# scripts/smoke/check_archive_index.sh.
 
 set -euo pipefail
 
@@ -26,6 +66,7 @@ LIBRARY=""
 OUTDIR=""
 TOOLCHAIN="gcc"
 TOOLCHAIN_ROOT=""
+STRICT=1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -34,6 +75,8 @@ while [[ $# -gt 0 ]]; do
     --outdir)     OUTDIR="${2:?}";     shift 2 ;;
     --toolchain)  TOOLCHAIN="${2:?}";  shift 2 ;;
     --toolchain-root) TOOLCHAIN_ROOT="${2-}"; shift 2 ;;
+    --strict)     STRICT=1;            shift 1 ;;
+    --no-strict)  STRICT=0;            shift 1 ;;
     *)
       echo "unknown arg: $1" >&2
       exit 2
@@ -56,6 +99,10 @@ case "${TARGET_CPU}" in
 esac
 
 [[ -f "${LIBRARY}" ]] || { echo "library not found: ${LIBRARY}" >&2; exit 3; }
+# Absolute from here on. The armlink path extracts archive members from
+# inside a scratch directory, and callers pass --library as a relative
+# path, which would stop resolving the moment we cd.
+LIBRARY="$(cd "$(dirname "${LIBRARY}")" && pwd)/$(basename "${LIBRARY}")"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 smoke_src="${repo_root}/scripts/smoke/staticlib_smoke.c"
@@ -65,8 +112,14 @@ mkdir -p "${OUTDIR}"
 OUTDIR="$(cd "${OUTDIR}" && pwd)"
 
 elf="${OUTDIR}/staticlib_smoke_${TOOLCHAIN}_${TARGET_CPU}.elf"
-obj="${OUTDIR}/staticlib_smoke_${TOOLCHAIN}_${TARGET_CPU}.o"
-check_mode="link"
+# Linker option dialect: "gnu" for the GNU ld / LLD flag spelling that
+# gcc and ATfE share, "armlink" for Arm Compiler's.
+link_style="gnu"
+# Archive extractor, only needed by the armlink path.
+ar_tool=""
+# Libraries the archive legitimately depends on, appended AFTER the
+# objects so the linker can resolve backwards into them.
+post_link_libs=()
 
 case "${TOOLCHAIN}" in
   gcc)
@@ -74,6 +127,13 @@ case "${TOOLCHAIN}" in
     nm="arm-none-eabi-nm"
     size="arm-none-eabi-size"
     link_flags=(-nostartfiles --specs=nosys.specs)
+    # GCC links libc but not libm. The archive genuinely calls floorf,
+    # roundf and round (arm_resize_nearest_neighbor_s8/s16,
+    # arm_quantize_f32_s8/s16) and, below -ffast-math, sqrtf for the errno
+    # path the sqrt kernels never take, so a strict link needs libm.
+    # These are standard libm symbols every consumer already links --
+    # unlike __ARM_undef, which nothing can supply.
+    post_link_libs=(-lm)
     command -v "${compiler}" >/dev/null || { echo "${compiler} not on PATH" >&2; exit 3; }
     command -v "${nm}"       >/dev/null || { echo "${nm} not on PATH"       >&2; exit 3; }
     command -v "${size}"     >/dev/null || { echo "${size} not on PATH"     >&2; exit 3; }
@@ -84,7 +144,16 @@ case "${TOOLCHAIN}" in
     compiler="${TOOLCHAIN_ROOT}/bin/clang"
     nm="${TOOLCHAIN_ROOT}/bin/llvm-nm"
     size="${TOOLCHAIN_ROOT}/bin/llvm-size"
-    link_flags=(--target=arm-none-eabi -nostartfiles -nostdlib)
+    # No -nostdlib. The archive genuinely calls AEABI runtime helpers
+    # (__aeabi_memcpy/memset/memclr, __aeabi_ldivmod) that the compiler
+    # emits for struct copies, zero-init and 64-bit division, plus the
+    # usual libm float entry points. Those live in compiler-rt and
+    # picolibc, so suppressing the library scan turned every one of them
+    # into a false unresolved-symbol failure the moment the link went
+    # strict. They are standard symbols every consumer already links --
+    # unlike __ARM_undef, which nothing can supply. -nostartfiles still
+    # skips crt0, since the smoke ELF has no C runtime to start.
+    link_flags=(--target=arm-none-eabi -nostartfiles)
     ;;
   armclang)
     [[ -n "${TOOLCHAIN_ROOT}" ]] || TOOLCHAIN_ROOT="${NS_CMSIS_NN_TOOLCHAIN_ROOT:-${NS_CMSIS_NN_ARMCLANG_ROOT:-}}"
@@ -92,9 +161,17 @@ case "${TOOLCHAIN}" in
     compiler="${TOOLCHAIN_ROOT}/bin/armclang"
     nm="$(command -v llvm-nm || true)"
     size="$(command -v llvm-size || true)"
+    # armar cannot extract to a chosen directory; llvm-ar reads the same
+    # ELF archive and is already installed alongside llvm-nm/llvm-size.
+    ar_tool="$(command -v llvm-ar || true)"
+    [[ -n "${ar_tool}" ]] || { echo "llvm-ar not found for armclang" >&2; exit 3; }
     arch_flags=(--target=arm-arm-none-eabi "${arch_flags[@]}")
-    link_flags=(-nostartfiles -nostdlib)
-    check_mode="archive-symbols"
+    # No -nostdlib: the archive genuinely calls floorf/roundf/round/sqrtf, and
+    # Arm Compiler's C library supplies them. Suppressing the library
+    # scan would turn those into false unresolved-symbol failures, the
+    # armlink equivalent of the -lm the gcc path appends.
+    link_flags=(-nostartfiles)
+    link_style="armlink"
     ;;
   *)
     echo "unsupported toolchain '${TOOLCHAIN}' (expect gcc|atfe|armclang)" >&2
@@ -106,25 +183,15 @@ esac
 [[ -n "${nm}" ]] || { echo "llvm-nm not found for ${TOOLCHAIN}" >&2; exit 3; }
 [[ -n "${size}" ]] || { echo "llvm-size not found for ${TOOLCHAIN}" >&2; exit 3; }
 
-if [[ "${check_mode}" == "link" ]]; then
-  echo ">>> smoke-linking ${TOOLCHAIN}/${TARGET_CPU} against $(basename "${LIBRARY}")"
-  "${compiler}" \
-    "${arch_flags[@]}" \
-    "${link_flags[@]}" \
-    -Wl,--gc-sections \
-    -Wl,--entry=ns_cmsis_nn_smoke_refs \
-    -Wl,--unresolved-symbols=ignore-all \
-    -Wl,--whole-archive "${LIBRARY}" -Wl,--no-whole-archive \
-    -o "${elf}" \
-    "${smoke_src}"
-  nm_input="${elf}"
+if (( STRICT )); then
+  echo ">>> strict smoke-linking ${TOOLCHAIN}/${TARGET_CPU} against $(basename "${LIBRARY}")"
 else
-  echo ">>> smoke-checking ${TOOLCHAIN}/${TARGET_CPU} against $(basename "${LIBRARY}")"
-  "${compiler}" "${arch_flags[@]}" -c "${smoke_src}" -o "${obj}"
-  nm_input="${LIBRARY}"
+  echo ">>> lenient smoke-linking ${TOOLCHAIN}/${TARGET_CPU} against $(basename "${LIBRARY}")"
 fi
 
-# Sanity: ELF must contain at least one symbol from each referenced group.
+# One symbol from each referenced group. Asserted twice: in the archive's
+# symbol index below -- which is how a consumer finds them -- and in the
+# linked ELF further down.
 required_syms=(
   arm_relu_q7
   arm_softmax_s8
@@ -135,6 +202,98 @@ required_syms=(
   arm_elementwise_add_s8
   arm_elementwise_mul_s8
 )
+
+# Before the link, because the link cannot see this (AmbiqAI/ns-cmsis-nn#291).
+index_args=()
+for s in "${required_syms[@]}"; do index_args+=(--require-symbol "${s}"); done
+"${repo_root}/scripts/smoke/check_archive_index.sh" \
+  --library "${LIBRARY}" \
+  --nm "${nm}" \
+  "${index_args[@]}"
+
+if [[ "${link_style}" == "gnu" ]]; then
+  if (( STRICT )); then
+    # Every object in the archive must resolve. --gc-sections is dropped
+    # too: with it, kernels the smoke source does not call are discarded
+    # before their undefined references are ever checked.
+    resolve_flags=()
+  else
+    # shellcheck disable=SC2054  # commas are part of the -Wl, linker flags
+    resolve_flags=(-Wl,--gc-sections -Wl,--unresolved-symbols=ignore-all)
+  fi
+  "${compiler}" \
+    "${arch_flags[@]}" \
+    "${link_flags[@]}" \
+    "${resolve_flags[@]}" \
+    -Wl,--entry=ns_cmsis_nn_smoke_entry \
+    -Wl,--whole-archive "${LIBRARY}" -Wl,--no-whole-archive \
+    -o "${elf}" \
+    "${smoke_src}" \
+    "${post_link_libs[@]+"${post_link_libs[@]}"}"
+else
+  # armlink dialect. Two deliberate differences from the GNU path:
+  #
+  #  1. Extraction is LOAD-BEARING. armlink has no --whole-archive, and
+  #     linking the .a directly was measured to exit 0 on a planted
+  #     undefined symbol: armlink pulls in only the members the smoke
+  #     source references, so an unresolved reference in any other kernel
+  #     -- which is most of the archive, and exactly the gap #291
+  #     describes -- goes unseen. Naming every member on the link line is
+  #     what makes the check strict. Do not "simplify" this back to
+  #     passing the archive: it silently removes the guarantee.
+  #  2. --no_remove is DEFENSIVE, not load-bearing. It is the analogue of
+  #     omitting --gc-sections, but armlink resolves symbols before it
+  #     dead-strips, so the extracted link was measured to fail on an
+  #     undefined symbol with or without it. Kept so the ELF still
+  #     contains the members we linked, which the nm check below reads.
+  #
+  # armlink already errors on an unresolved reference (L6218E), so
+  # strictness needs no third flag; --unresolved maps a dangling
+  # reference onto a real symbol and is the lenient escape hatch.
+  #
+  # Extraction is also why the index has to be checked separately: naming
+  # members on the link line means armlink never queries it. See #291.
+  members_dir="${OUTDIR}/members_${TOOLCHAIN}_${TARGET_CPU}"
+  rm -rf "${members_dir}"
+  mkdir -p "${members_dir}"
+  ( cd "${members_dir}" && "${ar_tool}" x "${LIBRARY}" )
+
+  members=()
+  while IFS= read -r m; do members+=("$m"); done \
+    < <(find "${members_dir}" -name '*.o' | sort)
+
+  listed="$("${ar_tool}" t "${LIBRARY}" | grep -c '\.o$' || true)"
+  if (( ${#members[@]} == 0 )); then
+    echo "no objects extracted from ${LIBRARY}" >&2
+    exit 3
+  fi
+  if (( ${#members[@]} != listed )); then
+    # Duplicate member basenames would silently overwrite on extract and
+    # quietly shrink the link line, weakening the check without failing.
+    echo "extracted ${#members[@]} objects but archive lists ${listed}" >&2
+    exit 3
+  fi
+  echo ">>> linking ${#members[@]} extracted archive members"
+
+  # shellcheck disable=SC2054  # commas are part of the -Wl, linker flags
+  if (( STRICT )); then
+    resolve_flags=(-Wl,--no_remove)
+  else
+    resolve_flags=(-Wl,--unresolved=ns_cmsis_nn_smoke_entry)
+  fi
+  "${compiler}" \
+    "${arch_flags[@]}" \
+    "${link_flags[@]}" \
+    "${resolve_flags[@]}" \
+    -Wl,--entry=ns_cmsis_nn_smoke_entry \
+    -o "${elf}" \
+    "${smoke_src}" \
+    "${members[@]}" \
+    "${post_link_libs[@]+"${post_link_libs[@]}"}"
+fi
+nm_input="${elf}"
+
+# Sanity: ELF must contain at least one symbol from each referenced group.
 missing=()
 nm_out="$(${nm} --defined-only "${nm_input}")"
 for s in "${required_syms[@]}"; do
@@ -148,13 +307,7 @@ if (( ${#missing[@]} > 0 )); then
   exit 4
 fi
 
-if [[ "${check_mode}" == "link" ]]; then
-  size_out="$(${size} "${elf}")"
-  echo ">>> ${elf}"
-  echo "${size_out}"
-else
-  bytes="$(stat -c %s "${LIBRARY}" 2>/dev/null || stat -f %z "${LIBRARY}")"
-  echo ">>> ${obj}"
-  echo ">>> archive bytes: ${bytes}"
-fi
+size_out="$(${size} "${elf}")"
+echo ">>> ${elf}"
+echo "${size_out}"
 echo ">>> smoke OK (${TOOLCHAIN}, ${TARGET_CPU})"

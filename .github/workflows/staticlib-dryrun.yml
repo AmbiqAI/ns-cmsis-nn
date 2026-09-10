@@ -39,6 +39,7 @@ jobs:
   build:
     name: ${{ matrix.toolchain }} / ${{ matrix.target_cpu }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -46,13 +47,13 @@ jobs:
         toolchain: [gcc, atfe]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install GNU Arm Embedded toolchain
         if: ${{ matrix.toolchain == 'gcc' }}
         uses: carlosperate/arm-none-eabi-gcc-action@v1
         with:
-          release: 13.2.Rel1
+          release: 14.2.Rel1
 
       - name: Fetch external toolchain
         if: ${{ matrix.toolchain != 'gcc' }}
@@ -91,9 +92,9 @@ jobs:
             "${f16_flag[@]}"
 
       - name: Smoke-verify static library
-        # GCC and ATfE get a bare-metal link smoke test. The armclang job
-        # below gets compile-plus-archive-symbol verification instead, because
-        # Arm's linker option dialect differs from the GNU/LLD path.
+        # Every toolchain gets the same strict bare-metal link smoke test;
+        # smoke_staticlib.sh absorbs the armlink option-dialect difference
+        # internally (AmbiqAI/ns-cmsis-nn#291).
         env:
           TARGET_CPU: ${{ matrix.target_cpu }}
           TOOLCHAIN: ${{ matrix.toolchain }}
@@ -121,7 +122,7 @@ jobs:
         run: |
           if [[ "$TOOLCHAIN" == "gcc" ]]; then
             lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
-            toolchain_version="13.2.Rel1"
+            toolchain_version="14.2.Rel1"
           else
             lib="./output/${TOOLCHAIN}/${TARGET_CPU}/libns-cmsis-nn-${TOOLCHAIN}-${TARGET_CPU}-${VERSION}.a"
             toolchain_version="$TOOLCHAIN_VERSION"
@@ -178,7 +179,7 @@ jobs:
           echo "manifest OK: f32=$got_f32 f16=$got_f16 verified=$got_verified"
 
       - name: Upload artefact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ns-cmsis-nn-staticlib-${{ matrix.toolchain }}-${{ matrix.target_cpu }}-dryrun
           path: |
@@ -217,7 +218,7 @@ jobs:
       VERSION: ${{ inputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Confirm the runtime user is root
         # The Arm UBL entitlement is bound to CI user "root". If this prints
@@ -306,9 +307,8 @@ jobs:
 
             lib="${outdir}/libns-cmsis-nn-armclang-${TARGET_CPU}-${VERSION}.a"
 
-            # Compile-plus-archive-symbol verification rather than the
-            # bare-metal link GCC and ATfE get: Arm's linker option dialect
-            # differs from the GNU/LLD path.
+            # A real strict bare-metal link via armlink, the same check
+            # GCC and ATfE get (AmbiqAI/ns-cmsis-nn#291).
             bash scripts/smoke/smoke_staticlib.sh \
               --target-cpu "$TARGET_CPU" \
               --toolchain  armclang \
@@ -359,7 +359,7 @@ jobs:
           done
 
       - name: Upload artefact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ns-cmsis-nn-staticlib-armclang-dryrun
           path: |

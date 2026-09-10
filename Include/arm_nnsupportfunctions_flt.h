@@ -31,6 +31,7 @@
 #define ARM_NNSUPPORTFUNCTIONS_FLT_H
 
 #include "Internal/arm_nn_compiler.h"
+#include "Internal/arm_nn_vcvt_f16.h"
 #include "arm_nn_types_flt.h"
 
 #ifdef __cplusplus
@@ -71,8 +72,17 @@ extern const float32_t arm_nn_exp_poly_coeffs_f32[8];
  * Stores 257 samples for `i = 0..256` so interpolation can safely read
  * `lut[idx + 1]` while indexing the 256 fractional segments.
  */
-extern const float32_t arm_nn_exp2_lut256_f32[257];
+extern const float32_t arm_nn_exp2_lut_f32[257];
 
+/**
+ * @brief Floor of @p x as an int32_t.
+ *
+ * Precondition: @p x must already be reduced to the int32_t range and must not
+ * be NaN -- the float-to-int conversion below is undefined otherwise. The only
+ * caller, arm_nn_softmax_exp_lut_f32(), guarantees this by clamping its input
+ * to [-80, 80] (NaN included, see there) before scaling by log2(e), which
+ * bounds @p x to +/-116.
+ */
 __STATIC_INLINE int32_t arm_nn_softmax_floor_to_int_f32(float32_t x)
 {
     const int32_t n = (int32_t)x;
@@ -97,7 +107,7 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp2i_f32(int32_t n)
     const int32_t float32_exponent_bias = 127;
     const int32_t float32_mantissa_bits = 23;
 
-    n = CLAMP(n, float32_max_finite_exponent, float32_min_normal_exponent);
+    n = ARM_NN_CLAMP(n, float32_max_finite_exponent, float32_min_normal_exponent);
     return arm_nn_softmax_fp32_from_bits((uint32_t)(n + float32_exponent_bias) << float32_mantissa_bits);
 }
 
@@ -118,7 +128,10 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp_taylor_f32(float32_t x)
     const float32_t log2e = 1.44269504088896341f;
     const float32_t ln2 = 0.69314718055994531f;
 
-    x = CLAMP(x, max_value, min_value);
+    /* Same clamp as arm_nn_softmax_exp_lut_f32(); see there for why both the
+     * order and the strictness of these compares are load-bearing. */
+    x = (x < max_value) ? x : max_value;
+    x = (x > min_value) ? x : min_value;
 
     const float32_t t = x * log2e;
     const int32_t n = (t >= 0.0f) ? (int32_t)(t + 0.5f) : (int32_t)(t - 0.5f);
@@ -144,7 +157,37 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp_lut_f32(float32_t x)
     const float32_t exp2_lut_segments = 256.0f;
     const int32_t exp2_lut_max_index = 255;
 
-    x = CLAMP(x, max_value, min_value);
+    /* Ordered compares, so NaN fails the first test and is flushed to
+     * max_value. This is the same result ARM_NN_CLAMP() produces (ARM_NN_MIN() runs first
+     * and returns max_value for NaN), written explicitly because the rest of
+     * this function depends on it: it is what keeps NaN out of the two
+     * float-to-int conversions below, where it would be undefined behaviour.
+     *
+     * The min-then-max ORDER is load-bearing and must not be "simplified" into
+     * a single nested conditional. Under -ffinite-math-only -- which the
+     * default library build enables, since CMSIS_OPTIMIZATION_LEVEL is -Ofast
+     * -- the compiler is free to contract each statement into VMINNM/VMAXNM,
+     * and those are IEEE minNum/maxNum, which return the *numeric* operand
+     * against a NaN. Applying the max bound first therefore sends NaN to
+     * max_value; applying the min bound first would send it to min_value
+     * instead. ARM_NN_CLAMP() expands to ARM_NN_MAX(ARM_NN_MIN(x, hi), lo), i.e. min-bound-first,
+     * so this order is what reproduces the long-standing behaviour bit for
+     * bit in every optimisation mode.
+     *
+     * The compares are STRICT for the same reason, so the saturating arm owns
+     * the exact boundary exactly as ARM_NN_MIN()/ARM_NN_MAX() do. With `<=` the pass-through
+     * arm keeps x at x == max_value, and the compiler then propagates a
+     * runtime value where base propagates the literal 80.0f -- enough to
+     * change constant folding downstream and shift the Taylor result by tens
+     * of ULP right at the boundary. NaN routing is unaffected: NaN < max_value
+     * is false either way, so NaN still lands on max_value.
+     *
+     * Defined consequence: exp(NaN) == exp(80), and hence
+     * arm_nn_sigmoid_scalar_f32(NaN) == 1.0f. NaN is not a supported input to
+     * the softmax/sigmoid kernels; this only pins down what happens if one
+     * arrives. */
+    x = (x < max_value) ? x : max_value;
+    x = (x > min_value) ? x : min_value;
 
     const float32_t t = x * log2e;
     const int32_t n = arm_nn_softmax_floor_to_int_f32(t);
@@ -162,8 +205,8 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp_lut_f32(float32_t x)
     }
 
     const float32_t frac = idx_f - (float32_t)idx;
-    const float32_t y0 = arm_nn_exp2_lut256_f32[idx];
-    const float32_t y1 = arm_nn_exp2_lut256_f32[idx + 1];
+    const float32_t y0 = arm_nn_exp2_lut_f32[idx];
+    const float32_t y1 = arm_nn_exp2_lut_f32[idx + 1];
     return (y0 + (y1 - y0) * frac) * arm_nn_softmax_exp2i_f32(n);
 }
 
@@ -181,12 +224,15 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp_scalar_f32(float32_t x)
 #if ARM_NN_ENABLE_F32
 
 /**
- * @brief LUT for tanh(x) sampled over `x in [0, 4]` for float32 helpers.
+ * @brief LUT for tanh(x) sampled over `x in [0, 6]` for float32 helpers.
  *
- * Stores 257 samples so interpolation can safely read `lut[idx + 1]` while
- * indexing the 256 fractional segments across the interval.
+ * Stores 385 samples so interpolation can safely read `lut[idx + 1]` while
+ * indexing the 384 fractional segments across the interval. The grid spacing
+ * (`6/384 == 1/64`) matches the earlier 257-entry `[0, 4]` table, so entries
+ * `0..256` are bit-identical to it and the index multiplier is unchanged.
+ * Generated by `scripts/gen_tanh_lut_f32.py`.
  */
-extern const float32_t arm_nn_tanh_lut256_f32[257];
+extern const float32_t arm_nn_tanh_lut_f32[385];
 
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
 /**
@@ -273,40 +319,6 @@ void arm_nn_depthwise_conv1d_k3_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
                                          const float32_t *__RESTRICT b,
                                          float32_t *__RESTRICT out,
                                          int32_t out_w);
-
-/**
- * @brief Specialized NHWC depthwise `3x3` kernel (float32, `ch_mult=1`).
- */
-void arm_nn_depthwise_conv3x3_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
-                                       int32_t batches,
-                                       int32_t in_c,
-                                       int32_t in_h,
-                                       int32_t in_w,
-                                       const float32_t *__RESTRICT kernel,
-                                       const float32_t *__RESTRICT b,
-                                       float32_t *__RESTRICT out,
-                                       int32_t stride_x,
-                                       int32_t stride_y,
-                                       int32_t pad_x,
-                                       int32_t pad_y,
-                                       int32_t out_h,
-                                       int32_t out_w,
-                                       float32_t act_min,
-                                       float32_t act_max);
-
-/**
- * @brief Generic depthwise helper with packed lhs tiles and transposed rhs layout (float32).
- */
-arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_f32(const float32_t *__RESTRICT lhs,
-                                                   const float32_t *__RESTRICT rhs,
-                                                   const float32_t *__RESTRICT bias,
-                                                   float32_t *__RESTRICT out,
-                                                   int32_t lhs_rows,
-                                                   int32_t total_ch,
-                                                   int32_t row_x_col,
-                                                   int32_t out_row_stride,
-                                                   float32_t activation_min,
-                                                   float32_t activation_max);
 
 /**
  * @brief Specialized NHWC 1D convolution kernel for `k=5` (float32).
@@ -488,17 +500,12 @@ void arm_nn_softmax_1x2_f32(const float32_t *in, float32_t *out);
 extern const float32_t arm_nn_exp_poly_coeffs_f16[8];
 
 /**
- * @brief Coefficients used by the float16 tanh rational approximation.
- */
-extern const float32_t arm_nn_tanh_approx_coeffs_f16[3];
-
-/**
  * @brief Quantized binary16 LUT for `2^(i/256)` used by float16 helpers.
  *
  * Stores 257 samples for `i = 0..256` so interpolation can safely read
  * `lut[idx + 1]` while indexing the 256 fractional segments.
  */
-extern const uint16_t arm_nn_exp2_lut256_f16[257];
+extern const uint16_t arm_nn_exp2_lut_f16[257];
 
 /**
  * @brief Quantized binary16 LUT for tanh(x) with `x in [0, 4]`.
@@ -506,7 +513,7 @@ extern const uint16_t arm_nn_exp2_lut256_f16[257];
  * Stores 257 samples so interpolation can safely read `lut[idx + 1]` while
  * indexing the 256 fractional segments across the interval.
  */
-extern const uint16_t arm_nn_tanh_lut256_f16[257];
+extern const uint16_t arm_nn_tanh_lut_f16[257];
 
 __STATIC_INLINE float16_t arm_nn_softmax_fp16_from_bits(uint16_t bits)
 {
@@ -533,7 +540,7 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp2i_f16(int32_t n)
     const int32_t float16_exponent_bias = 15;
     const int32_t float16_mantissa_bits = 10;
 
-    n = CLAMP(n, float16_max_finite_exponent, float16_min_normal_exponent);
+    n = ARM_NN_CLAMP(n, float16_max_finite_exponent, float16_min_normal_exponent);
     return arm_nn_softmax_fp16_from_bits((uint16_t)((n + float16_exponent_bias) << float16_mantissa_bits));
 }
 
@@ -550,7 +557,7 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_taylor_f16(float16_t x)
     const float32_t ln2 = 0.69314718055994531f;
 
     float32_t x_f32 = (float32_t)x;
-    x_f32 = CLAMP(x_f32, max_value, min_value);
+    x_f32 = ARM_NN_CLAMP(x_f32, max_value, min_value);
 
     const float32_t t = x_f32 * log2e;
     const int32_t n = (t >= 0.0f) ? (int32_t)(t + 0.5f) : (int32_t)(t - 0.5f);
@@ -578,7 +585,7 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_lut_f16(float16_t x)
     const int32_t exp2_lut_max_index = 255;
 
     float32_t x_f32 = (float32_t)x;
-    x_f32 = CLAMP(x_f32, max_value, min_value);
+    x_f32 = ARM_NN_CLAMP(x_f32, max_value, min_value);
 
     const float32_t t = x_f32 * log2e;
     const int32_t n = arm_nn_softmax_floor_to_int_f16((float16_t)t);
@@ -596,8 +603,8 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_lut_f16(float16_t x)
     }
 
     const float32_t frac = idx_f - (float32_t)idx;
-    const float32_t y0 = (float32_t)arm_nn_softmax_fp16_from_bits(arm_nn_exp2_lut256_f16[idx]);
-    const float32_t y1 = (float32_t)arm_nn_softmax_fp16_from_bits(arm_nn_exp2_lut256_f16[idx + 1]);
+    const float32_t y0 = (float32_t)arm_nn_softmax_fp16_from_bits(arm_nn_exp2_lut_f16[idx]);
+    const float32_t y1 = (float32_t)arm_nn_softmax_fp16_from_bits(arm_nn_exp2_lut_f16[idx + 1]);
     return (float16_t)((y0 + (y1 - y0) * frac) * (float32_t)arm_nn_softmax_exp2i_f16(n));
 }
 
@@ -628,8 +635,8 @@ __STATIC_INLINE float16_t arm_nn_vec_reduce_add_f16(float16x8_t in)
  */
 __STATIC_INLINE float16x8_t arm_nn_vexpq_poly_mve_f16(float16x8_t x)
 {
-    const float32x4_t x_lo = vcvtbq_f32_f16(x);
-    const float32x4_t x_hi = vcvttq_f32_f16(x);
+    const float32x4_t x_lo = arm_nn_vcvtbq_f32_f16(x);
+    const float32x4_t x_hi = arm_nn_vcvttq_f32_f16(x);
     const int32x4_t m_lo = vcvtq_s32_f32(vmulq(x_lo, 1.4426950408f));
     const int32x4_t m_hi = vcvtq_s32_f32(vmulq(x_hi, 1.4426950408f));
     const float32x4_t val_lo = vfmsq(x_lo, vcvtq_f32_s32(m_lo), vdupq_n_f32(0.6931471805f));
@@ -656,8 +663,8 @@ __STATIC_INLINE float16x8_t arm_nn_vexpq_poly_mve_f16(float16x8_t x)
     y_hi = vdupq_m(y_hi, 0.0f, vcmpltq(m_hi, -126));
 
     float16x8_t y = vdupq_n_f16((float16_t)0.0f);
-    y = vcvtbq_f16_f32(y, y_lo);
-    y = vcvttq_f16_f32(y, y_hi);
+    y = arm_nn_vcvtbq_f16_f32(y, y_lo);
+    y = arm_nn_vcvttq_f16_f32(y, y_hi);
     return y;
 }
     #endif
@@ -733,40 +740,6 @@ void arm_nn_depthwise_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                          const float16_t *__RESTRICT b,
                                          float16_t *__RESTRICT out,
                                          int32_t out_w);
-
-/**
- * @copydoc arm_nn_depthwise_conv3x3_nhwc_f32
- */
-void arm_nn_depthwise_conv3x3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
-                                       int32_t batches,
-                                       int32_t in_c,
-                                       int32_t in_h,
-                                       int32_t in_w,
-                                       const float16_t *__RESTRICT kernel,
-                                       const float16_t *__RESTRICT b,
-                                       float16_t *__RESTRICT out,
-                                       int32_t stride_x,
-                                       int32_t stride_y,
-                                       int32_t pad_x,
-                                       int32_t pad_y,
-                                       int32_t out_h,
-                                       int32_t out_w,
-                                       float16_t act_min,
-                                       float16_t act_max);
-
-/**
- * @copydoc arm_nn_depthwise_conv_nt_t_f32
- */
-arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_f16(const float16_t *__RESTRICT lhs,
-                                                   const float16_t *__RESTRICT rhs,
-                                                   const float16_t *__RESTRICT bias,
-                                                   float16_t *__RESTRICT out,
-                                                   int32_t lhs_rows,
-                                                   int32_t total_ch,
-                                                   int32_t row_x_col,
-                                                   int32_t out_row_stride,
-                                                   float16_t activation_min,
-                                                   float16_t activation_max);
 
 /**
  * @copydoc arm_nn_conv1d_k5_nhwc_f32
@@ -853,6 +826,15 @@ void arm_nn_maxpool1d_k2s2_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
 
 /**
  * @copydoc arm_nn_mat_mult_nt_t_f32
+ *
+ * @note Accumulation width per leg. MVE legs accumulate in float16: per-k on the gather path
+ *       (rhs_cols below the contiguous-K threshold), lane-partial sums then one reduction on the
+ *       contiguous-K path, and float16 lanes then one reduction on the remainder rows. Error grows
+ *       with rhs_cols there; the K=1024 tester cases carry measured tolerance overrides for this
+ *       reason. Float16 accumulation is the chosen MVE trade-off (throughput over the last ulps);
+ *       see AmbiqAI/ns-cmsis-nn#417. The scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE)
+ *       accumulates bias and every product in float32 and rounds to float16 once before the clamp
+ *       (AmbiqAI/ns-cmsis-nn#449, #457).
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
                                              const float16_t *__RESTRICT rhs,
@@ -880,6 +862,17 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
  * @param[in]  activation_min     Lower clamp bound.
  * @param[in]  activation_max     Upper clamp bound.
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ *
+ * @note On non-MVE builds the output clamp is the bit-classified scalar clamp of #380, so a NaN accumulator
+ *       (a NaN in @p lhs, @p rhs_packed or @p bias) propagates to @p dst at every optimization level
+ *       on the gated toolchains,
+ *       including the shipped -Ofast. On MVE builds the clamp is vmaxnmq/vminnmq with no NaN restore, so a
+ *       NaN resolves to a clamp bound there instead.
+ *
+ * @note Accumulation width per leg: the MVE leg accumulates in float16 lanes (one lane per output
+ *       column, per-k); the scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE) accumulates bias
+ *       and every product in float32 and rounds to float16 once before the clamp
+ *       (AmbiqAI/ns-cmsis-nn#449, #457).
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT lhs,
                                                     const float16_t *__RESTRICT rhs_packed,
@@ -901,7 +894,9 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT 
  * @param[in]   params                          Struct containing all information about the LSTM operator.
  * @param[in]   buffers                         Struct containing pointers to mutable cell-state storage.
  * @param[in]   batch_offset                    Number of timesteps between consecutive batches.
- * @return                                      The function returns ARM_CMSIS_NN_SUCCESS.
+ * @return                                      ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR on
+ *                                              invalid arguments (NULL data_in/hidden_out/params/buffers or
+ *                                              buffers->cell_state, batch_offset <= 0).
  */
 arm_cmsis_nn_status arm_nn_lstm_step_f16(const float16_t *data_in,
                                          const float16_t *hidden_in,
@@ -971,7 +966,9 @@ void arm_nn_softmax_1x2_f16(const float16_t *in, float16_t *out);
  * @param[in]   params                          Struct containing all information about the LSTM operator.
  * @param[in]   buffers                         Struct containing pointers to mutable cell-state storage.
  * @param[in]   batch_offset                    Number of timesteps between consecutive batches.
- * @return                                      The function returns ARM_CMSIS_NN_SUCCESS.
+ * @return                                      ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR on
+ *                                              invalid arguments (NULL data_in/hidden_out/params/buffers or
+ *                                              buffers->cell_state, batch_offset <= 0).
  */
 arm_cmsis_nn_status arm_nn_lstm_step_f32(const float32_t *data_in,
                                          const float32_t *hidden_in,

@@ -33,6 +33,32 @@ Other conventional types (`docs:`, `chore:`, `refactor:`, `test:`,
 `ci:`, `build:`, `perf:`) do **not** trigger a release on their own,
 but their bodies still appear in `CHANGELOG.md`.
 
+## How the version gets stamped
+
+`release-please` bumps `.release-please-manifest.json` and `CHANGELOG.md`,
+and every other file that hardcodes the release version is listed in
+`release-please-config.json` under `extra-files`. Those all use the `generic`
+updater, which rewrites a line only if that same line carries an
+`x-release-please-version` (or `-major`/`-minor`/`-patch`) comment. There is
+no error when a listed file has no such comment: the updater changes nothing
+and the release proceeds, so the file appears covered and drifts a release
+behind. Two checks close that gap, from opposite directions:
+
+- `scripts/check_pdsc.py` asserts every `extra-files` path exists, carries a
+  working annotation, and agrees with `Include/arm_nn_types.h`. It sees
+  everything on the list.
+- `scripts/check_stale_version_refs.py` reads the previous release out of
+  `CHANGELOG.md` and asserts no tracked file still mentions it, outside an
+  allowlist of files whose job is to discuss release history (this page and
+  the recovery commands below are on it). It sees the files that are *not*
+  on the list.
+
+Adding a new file that hardcodes the version means adding it to
+`extra-files` **and** putting the annotation on the value's own line. Where
+the value sits somewhere a comment cannot go — a JSON line in a fenced
+example, say — state the version in prose next to the block, with the
+annotation on that prose line, and leave the block version-free.
+
 ## What's in a release
 
 Every GitHub Release contains:
@@ -105,6 +131,31 @@ Before v7.30.0 this gate read `ARMLMD_LICENSE_FILE`, the legacy FlexLM
 licence-file variable, which has never been configured on this repository —
 which is why no release from v7.24.1 onward published any armclang asset
 (see [AmbiqAI/ns-cmsis-nn#275](https://github.com/AmbiqAI/ns-cmsis-nn/issues/275)).
+
+## Nightly published-release audit
+
+`release-verify` (in `release.yml`) enforces the table above at release
+time, but only for a run that actually reaches it — v7.26.0 through
+v7.29.1 all shipped with zero assets before it existed, and a cancelled
+run or a later `gh release upload --clobber` failure (which deletes an
+asset before replacing it) leaves nothing red behind
+([AmbiqAI/ns-cmsis-nn#274](https://github.com/AmbiqAI/ns-cmsis-nn/issues/274)).
+The `release-assets-audit` job in `nightly.yml` therefore re-checks the
+**published release objects themselves** every night, via
+`scripts/ci/audit_release_assets.sh`:
+
+- Every non-draft, non-prerelease release from `v7.26.0` (the first cut
+  under the current asset contract) onward must carry the 17 required
+  assets for its version. armclang assets are never audited by the nightly sweep at all -- even for releases cut with `ARMCLANG_REQUIRED=true` -- because the variable is point-in-time and the audit keeps no per-tag record of which contract was in force; post-publication loss of armclang assets is covered only by `release-verify` in the release run itself.
+- Failures land in one rolling issue (`Published release(s) missing
+  required assets`, label `release-audit`), which comments on subsequent
+  red nights and closes on the first clean audit — separate from the
+  `nightly` code-health issue, because the fix is a recovery dispatch, not
+  a code change.
+- To record a deliberate decision **not** to repair a historical release,
+  add its tag to the repository variable `RELEASE_AUDIT_WAIVED_TAGS`
+  (space- or comma-separated). Waived gaps are reported but do not fail
+  the audit.
 
 ## Recovering assets for an existing tag
 
@@ -205,7 +256,11 @@ overwrite the other:
   succeeds. It never runs `git push`; the remote/immutable tag is
   untouched, already-annotated tags are left completely unaltered, and
   `_tooling/` is never read by `gen-pack-action` or packaged into the
-  `.pack` output — it exists solely to supply the helper script.
+  `.pack` output — it exists solely to supply the helper script. The
+  `Pack dry-run` workflow rehearses this same `tag`-mode path per PR:
+  it creates a synthetic, local-only annotated tag at `HEAD` via the same
+  helper, so the changelog path is exercised without cutting a release
+  (AmbiqAI/ns-cmsis-nn#395).
 
 ## See also
 

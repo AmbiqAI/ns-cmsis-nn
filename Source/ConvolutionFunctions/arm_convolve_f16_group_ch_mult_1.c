@@ -201,23 +201,39 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
 
                 if (dilation_y > 1)
                 {
-                    kernel_y_start = MAX(0, (-base_y + dilation_y - 1) / dilation_y);
-                    kernel_y_end = MIN(kernel_y, (input_y - base_y + dilation_y - 1) / dilation_y);
+                    kernel_y_start = (-base_y + dilation_y - 1) / dilation_y;
+                    kernel_y_end = (input_y - base_y + dilation_y - 1) / dilation_y;
                 }
                 else
                 {
-                    kernel_y_start = MAX(0, -base_y);
-                    kernel_y_end = MIN(kernel_y, input_y - base_y);
+                    kernel_y_start = -base_y;
+                    kernel_y_end = input_y - base_y;
                 }
                 if (dilation_x > 1)
                 {
-                    kernel_x_start = MAX(0, (-base_x + dilation_x - 1) / dilation_x);
-                    kernel_x_end = MIN(kernel_x, (input_x - base_x + dilation_x - 1) / dilation_x);
+                    kernel_x_start = (-base_x + dilation_x - 1) / dilation_x;
+                    kernel_x_end = (input_x - base_x + dilation_x - 1) / dilation_x;
                 }
                 else
                 {
-                    kernel_x_start = MAX(0, -base_x);
-                    kernel_x_end = MIN(kernel_x, input_x - base_x);
+                    kernel_x_start = -base_x;
+                    kernel_x_end = input_x - base_x;
+                }
+                if (kernel_y_start < 0)
+                {
+                    kernel_y_start = 0;
+                }
+                if (kernel_y_end > kernel_y)
+                {
+                    kernel_y_end = kernel_y;
+                }
+                if (kernel_x_start < 0)
+                {
+                    kernel_x_start = 0;
+                }
+                if (kernel_x_end > kernel_x)
+                {
+                    kernel_x_end = kernel_x;
                 }
 
                 for (int32_t c = 0; c < output_ch; ++c)

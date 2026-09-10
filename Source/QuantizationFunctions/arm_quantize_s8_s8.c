@@ -69,7 +69,7 @@ arm_cmsis_nn_status arm_requantize_s8_s8(const int8_t *input,
         int32_t val = input[i] - input_zeropoint;
         val = arm_nn_requantize(val, effective_scale_multiplier, effective_scale_shift);
         val += output_zeropoint;
-        output[i] = CLAMP(val, INT8_MAX, INT8_MIN);
+        output[i] = ARM_NN_CLAMP(val, INT8_MAX, INT8_MIN);
     }
 #endif
 

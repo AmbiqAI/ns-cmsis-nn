@@ -1,15 +1,224 @@
 name: CI/CD Pipeline
 
+# Single entry point for the PR/push gate. Every check that must hold on a
+# pull request is a job (or reusable-workflow call) here, and `ci-passed`
+# summarises them into the one status context branch protection requires
+# (AmbiqAI/ns-cmsis-nn#353, #356). Matrices and reusable workflows are free
+# to change shape underneath; the required context name stays `CI Passed`.
+#
+# Rules for adding a check:
+#   - add the job here (reusable workflows take `uses:`, see below)
+#   - give it `needs: gate` so it skips with draft pull requests (#459)
+#   - add its job id to `ci-passed.needs`
+#   - a leg that must not block forks/Dependabot skips itself rather than
+#     failing: `ci-passed` treats `skipped` as passing, `failure` and
+#     `cancelled` as not.
+# Do NOT give a job a `paths:`-style condition that prevents it (and thus
+# `ci-passed`) from reporting at all — a required check that never reports
+# leaves the PR unmergeable. Path-conditional logic belongs inside the job.
+
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+  # No base-branch filter on pull_request: seven of the eight folded
+  # workflows gated PRs into any base branch before the fold-in
+  # (host-sanitizer was main-only), and a required check that never
+  # reports would leave a non-main-target PR unmergeable -- so everything
+  # here runs on every PR, whatever its base.
+  #
+  # `ready_for_review` is not a default type, and without it promoting a draft
+  # fires no event: the pipeline the `gate` job skipped would never run, and
+  # the `CI Passed` failure a draft reports would never be replaced by a real
+  # result. See AmbiqAI/ns-cmsis-nn#459.
+  # Push final commits while draft, then promote once; see scripts/publish_pr.py (#459).
   pull_request:
-    branches:
-      - main
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# One run per ref. In-progress PR runs are superseded by a new push. An
+# in-progress main run is never cancelled, though a rapid series of main
+# pushes can cancel a superseded PENDING run -- the newest queued run
+# survives and its docs deploy converges the site.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
 
+  # Draft pull requests are work pushed for backup, and this pipeline is the
+  # expensive one (FVP, QEMU, the toolchain matrix). The draft condition lives
+  # here alone: every other job declares `needs: gate`, so skipping the gate
+  # skips the pipeline. `ci-passed` still runs and reports a failure, so no
+  # green check ever covers a pipeline that ran nothing.
+  # See AmbiqAI/ns-cmsis-nn#459.
+  gate:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    steps:
+      - name: Report that the pipeline is enabled for this event
+        run: echo "Running the pipeline for ${{ github.event_name }}."
+
   helia-core-tester:
     uses: ./.github/workflows/helia-core-tester.yml
+    needs: gate
+
+  # helia-core-tester runs the functional suite on the container's single
+  # arm-gnu 14.3.1 and stays that way -- do not multiply it across GCC
+  # versions or toolchains. This leg instead builds and strict-links the
+  # archive across every toolchain family the README claims: the whole
+  # supported GCC range (13-15), ATfE, and armclang. Link-time _Generic
+  # dispatch failures cannot reach a release (AmbiqAI/ns-cmsis-nn#305),
+  # and armclang assets are linked for real rather than only archived
+  # (AmbiqAI/ns-cmsis-nn#291).
+  toolchain-strict-link:
+    uses: ./.github/workflows/toolchain-matrix-strict-link.yml
+    needs: gate
+    # Named explicitly rather than `secrets: inherit`: this workflow needs
+    # exactly one secret, and inherit would hand it every repository secret.
+    # It is declared `required: false` on the callee, because Dependabot and
+    # fork pull requests cannot supply it -- the armclang cell warns and
+    # skips instead of failing.
+    secrets:
+      ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+
+  host-sanitizer:
+    uses: ./.github/workflows/host-sanitizer.yml
+    needs: gate
+
+  # The legacy Unity suites only *run* nightly and at release (FVP time), so
+  # before this leg a test translation unit could first meet a cross-compiler
+  # at release time -- which is how the -Werror=unused-function break in
+  # test_arm_convolve_packed_f16.c escaped to the release build
+  # (AmbiqAI/ns-cmsis-nn#390, #393). This job replays legacy-tester's build
+  # with the same script, pinned toolchain and -Werror set, and stops before
+  # the FVP run. It is a compile gate, not a substitute for legacy-tester.
+  #
+  # The callee fans out over cortex-m55, cortex-m4 and cortex-m0 (#398) in
+  # its own matrix, so the cores are added without a new entry here: a failing
+  # cell fails this job, which `ci-passed` already requires. The job id and
+  # the callee's m55 cell name stay spelled "m55" to avoid churn; the only
+  # required context is `CI Passed`, which keys on this job id through
+  # `needs:`, not on either display name.
+  unity-m55-compile:
+    uses: ./.github/workflows/unity-m55-compile.yml
+    needs: gate
+
+  # The strict-link matrix above proves the whole supported GCC range compiles
+  # and links, but only the container's own toolchain ever executes anything
+  # (#340) -- so a defect the assembler introduces after the compiler is done
+  # links cleanly and reaches a customer. This leg runs the f16 suites whose
+  # kernels convert between half and single precision on the float16 toolchain
+  # floor, under QEMU (AmbiqAI/ns-cmsis-nn#427).
+  unity-f16-exec-gcc-floor:
+    uses: ./.github/workflows/unity-f16-exec-gcc-floor.yml
+    needs: gate
+
+  clang-format:
+    uses: ./.github/workflows/clang-format.yml
+    needs: gate
+
+  pre-commit:
+    uses: ./.github/workflows/pre-commit.yml
+    needs: gate
+
+  license-headers:
+    uses: ./.github/workflows/license-headers.yml
+    needs: gate
+
+  pdsc:
+    uses: ./.github/workflows/pdsc.yml
+    needs: gate
+
+  ssot-contract:
+    uses: ./.github/workflows/ssot-contract.yml
+    needs: gate
+
+  nsx-integration:
+    uses: ./.github/workflows/nsx-integration.yml
+    needs: gate
+
+  zephyr-integration:
+    uses: ./.github/workflows/zephyr-integration.yml
+    needs: gate
+
+  # The docs build gates every PR (its old paths filter already covered
+  # Include/, Source/, docs/ and more, i.e. nearly every substantive
+  # change); the deploy job inside stays gated to push-to-main, which is
+  # why this caller needs the Pages permissions the callee's deploy job
+  # asks for.
+  docs:
+    uses: ./.github/workflows/docs.yml
+    needs: gate
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+  release-contract:
+    uses: ./.github/workflows/release-contract.yml
+    needs: gate
+
+  # Pack generation is on the release path but was rehearsed only when
+  # somebody remembered to dispatch it: four times ever, across four
+  # releases, two of which shipped broken (AmbiqAI/ns-cmsis-nn#274,
+  # section 4). It now rehearses here, so a pdsc, gen_pack.sh, Doxygen or
+  # changelog break fails on the PR that causes it rather than on the
+  # release that needs it. The callee keeps its own weekly schedule for the
+  # breakages that come from outside the repository, which no PR can see.
+  pack-dryrun:
+    uses: ./.github/workflows/pack-dryrun.yml
+    needs: gate
+
+  # The one context branch protection requires (#353). `if: always()` is
+  # load-bearing: without it a failed dependency skips this job, and a
+  # skipped required check counts as PASSING under rulesets -- the gate
+  # would approve exactly when it must block. The same rule rules out skipping
+  # this job on a draft, so instead it runs and fails on a skipped `gate`: the
+  # required check reports failure and can never read as passing over a
+  # pipeline that ran nothing. Promotion to ready runs the pipeline, and this
+  # same check then reports its real result. GitHub also refuses to merge a
+  # draft, but the gate does not rely on that (AmbiqAI/ns-cmsis-nn#459).
+  ci-passed:
+    name: CI Passed
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - gate
+      - helia-core-tester
+      - toolchain-strict-link
+      - host-sanitizer
+      - unity-m55-compile
+      - unity-f16-exec-gcc-floor
+      - clang-format
+      - pre-commit
+      - license-headers
+      - pdsc
+      - ssot-contract
+      - nsx-integration
+      - zephyr-integration
+      - docs
+      - release-contract
+      - pack-dryrun
+    steps:
+      # Must precede the summary step: that step reads a skipped dependency as
+      # passing, so a draft (everything skipped) would otherwise report green.
+      - name: Fail because the pipeline was skipped for a draft
+        if: needs.gate.result == 'skipped'
+        run: |
+          echo "Pipeline not run: this pull request is a draft. It runs when the pull request is marked ready for review." >&2
+          exit 1
+      - name: Verify every gated job succeeded or was skipped
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$NEEDS_JSON" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          bad="$(echo "$NEEDS_JSON" | jq -r 'to_entries[]
+                  | select(.value.result != "success" and .value.result != "skipped")
+                  | .key')"
+          if [ -n "$bad" ]; then
+            printf 'Gated jobs not green:\n%s\n' "$bad" >&2
+            exit 1
+          fi
+          echo "All gated jobs passed."

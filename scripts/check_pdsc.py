@@ -64,8 +64,9 @@
 #      `../TestData/<name>/test_data.h` paths that their generators do
 #      produce, but only into a gitignored `TestData/` tree — the data was
 #      never checked in, so the suites were unbuildable in every checkout.
-#      No PR-gating job builds the float suites either way
-#      (ARM_NN_ENABLE_F32/F16 default OFF in the legacy build), so they
+#      No PR-gating job built the float suites either way at the time
+#      (ARM_NN_ENABLE_F32/F16 default OFF in the legacy build; the
+#      host-sanitizer job now turns both on), so they
 #      looked like coverage for years while being uncompilable — which is
 #      how a real transpose-conv output-shift bug survived to a release
 #      (#253, #256).
@@ -114,22 +115,33 @@ RP_BLOCK_END_RE = re.compile(r"x-release-please-end")
 RP_VERSION_TRIPLET_RE = re.compile(r"\d+\.\d+\.\d+")
 RP_BARE_INT_RE = re.compile(r"\d+\b")
 
-# Extra-files entries whose version literal cannot carry an
-# x-release-please annotation, mapped to a regex whose first capture group
-# is the literal to check against the canonical version. Today this is
-# just docs/guides/toolchains.md's manifest.json illustration: JSON has no
-# comment syntax, and wrapping it in an x-release-please-start-version/-end
-# block would also rewrite the unrelated ATfE compiler version a few lines
-# below ("toolchain": {"version": "19.1.5"}), since the block updater
-# rewrites the first semver-shaped string on *every* line it spans. The
-# regex is anchored to exactly two leading spaces so it matches only the
-# top-level manifest.json `"version"` field, not the nested toolchain one
-# (four leading spaces) — if that example's fields are ever reordered or
-# re-indented, the anchor (correctly) stops matching and this check fails
-# loudly instead of silently checking the wrong field.
-LITERAL_ONLY_EXTRA_FILES: dict[str, re.Pattern[str]] = {
-    "docs/guides/toolchains.md": re.compile(r'^ {2}"version": "([^"]+)",?$', re.MULTILINE),
-}
+# Escape hatch for an extra-files entry whose version literal genuinely
+# cannot carry an x-release-please annotation, mapped to a regex whose
+# first capture group is the literal to check against the canonical
+# version. An entry here is NOT bumped by release-please — it only fails
+# this check once it drifts, so someone has to bump it by hand every
+# release. That is strictly worse than an annotation, so the allowlist is
+# a last resort, not a shortcut.
+#
+# It is currently empty. Its only member was docs/guides/toolchains.md,
+# whose version sat on a JSON line inside a fenced manifest.json example:
+# JSON has no comment syntax, so an inline annotation would have made the
+# example invalid for anyone who copied it, and an
+# x-release-please-start-version/-end block around the fence would also
+# have rewritten the unrelated ATfE compiler version a few lines below
+# ("toolchain": {"version": "19.1.5"}), since the block updater rewrites
+# the first semver-shaped string on *every* line it spans. That doc now
+# states the release version in prose above the fence, where an HTML
+# comment carries the annotation and the JSON example stays version-free,
+# so it is covered by the ordinary annotation path below (#347).
+#
+# The mechanism is kept because the constraint that produced it (a value
+# whose file has no usable comment syntax on that line, and whose
+# neighbours make a block unsafe) can recur; scripts/tests/test_check_pdsc.py
+# pins its behaviour against synthetic fixtures so it cannot rot while
+# unused. Before adding an entry, check whether prose-plus-annotation or a
+# start/end block would work instead — both keep the bump automatic.
+LITERAL_ONLY_EXTRA_FILES: dict[str, re.Pattern[str]] = {}
 
 EXPECTED_PACK = {
     "schemaVersion": "1.7.36",
@@ -371,15 +383,11 @@ COND_CLOSE_RE = re.compile(r"^\s*#\s*endif\b")
 PP_RE = re.compile(r"^\s*#")
 
 # Frozen legacy allowlist. Do not extend it for new kernels: a new float
-# source must carry its own ARM_NN_ENABLE_F32/F16 gate.
-#   - the two *_fp16.c files predate the gate and self-guard on
-#     ARM_FLOAT16_SUPPORTED / MVE instead;
-#   - QuantizationFunctions/ takes float32_t across an otherwise integer
-#     API by design, so it is built in integer-only configurations.
-GATE_EXEMPT_FILES = {
-    "Source/BasicMathFunctions/arm_elementwise_add_fp16.c",
-    "Source/FullyConnectedFunctions/arm_fully_connected_fp16.c",
-}
+# source must carry its own ARM_NN_ENABLE_F32/F16 gate. It is empty since the
+# legacy *_fp16.c sources were either removed or gated like every other float
+# source; QuantizationFunctions/ takes float32_t across an otherwise integer
+# API by design, so it is built in integer-only configurations.
+GATE_EXEMPT_FILES: set[str] = set()
 GATE_EXEMPT_DIRS = ("Source/QuantizationFunctions/",)
 
 
@@ -648,8 +656,8 @@ def check_extra_files_annotations() -> None:
 #
 #   - in the pdsc, not in the SSoT: pack consumers can call the kernel,
 #     CMake/Zephyr/NSX consumers get an undefined reference at link time
-#     (#268: arm_fully_connected_fp16, arm_nn_vec_mat_mult_t_fp16,
-#     arm_softmax_u8 shipped that way);
+#     (#268: arm_softmax_u8 and two since-removed legacy fp16 sources
+#     shipped that way);
 #   - in the SSoT, not in the pdsc: the CMake build compiles a file the
 #     pack never ships (and, since check_source_coverage() pins the pdsc
 #     to `git ls-files Source/`, usually means the SSoT names a file that
@@ -1087,9 +1095,10 @@ def check_ssot_pdsc_agreement(entries: list[tuple[str, str]]) -> None:
 # suite can actually be compiled:
 #
 #   - the float suites are registered under `if(ARM_NN_ENABLE_F32)` /
-#     `if(ARM_NN_ENABLE_F16)`, and no PR-gating job turns either flag on
-#     (the legacy build defaults both OFF), so a float suite is never
-#     configured, never compiled, and never run in CI;
+#     `if(ARM_NN_ENABLE_F16)`, and at the time no PR-gating job turned
+#     either flag on (the legacy build defaults both OFF), so a float
+#     suite was never configured, never compiled, and never run in CI --
+#     the host-sanitizer job now sets both;
 #   - 36 of them included `../TestData/<name>/test_data.h` paths that
 #     their `*_settings_flt.py` generators do produce, but only into a
 #     gitignored `TestData/` tree — the data was never force-added, so
@@ -1134,84 +1143,17 @@ SUITE_SOURCE_SUFFIXES = (".c", ".h", ".cpp", ".hpp")
 # registration is how the #256 suites hid.
 NON_SUITE_SUBDIRS = frozenset({"Unity"})
 
-# TEMPORARY ALLOWLIST — REMOVE WITH #236.
-#
-# ############################################################
-# #  Exactly one suite, and it is not a precedent. Do not add #
-# #  to this dict. A suite that cannot compile gets deleted   #
-# #  (#256's disposition), not allowlisted.                   #
-# ############################################################
-#
-# test_arm_convolve_f16 is broken in precisely the way this check exists
-# to catch: dangling `../TestData/...` includes, exactly like the suites
-# #256 deleted. It was left in place by the #256 sweep only because PR
-# #236 is open against that exact directory, and deleting it underneath
-# an in-flight PR trades one avoidable mess for another. Its fate rides
-# with #236 — whichever way that PR lands, this entry and (if #236 does
-# not fix the suite) the directory itself must go with it. If #236 closes
-# unmerged, delete the suite and this entry.
-#
-# Keyed by the exact resolved include path rather than by suite name, so
-# this stays a snapshot of what was already broken when #256 landed and
-# cannot silently absorb something new: PR #236 is expected to add its
-# own float datasets, and if it adds a `../TestData/...` include without
-# checking the data in, that path is not in this dict and check #10 fires
-# on it — which mechanically enforces what #236's own review already
-# requires. Paths that #236 fixes (checked the data in) stop being
-# dangling and are caught as stale entries below; paths #236 leaves
-# broken stay allowlisted under their existing entry.
-#
-# Enumerated from Tests/UnitTest/TestCases/test_arm_convolve_f16/test_arm_convolve_f16.c
-# as of this PR — see that file for the current list if this ever needs
-# re-deriving.
-_CONVOLVE_F16_ALLOWLIST_REASON = (
-    "dangling ../TestData include, same as the suites #256 deleted; "
-    "excluded from that sweep only because PR #236 has test_arm_convolve_f16 "
-    "open. Delete this entry (and the suite, unless #236 repairs it) when "
-    "#236 lands; if #236 closes unmerged, delete the suite and this entry."
-)
-UNBUILDABLE_SUITE_ALLOWLIST: dict[str, dict[str, str]] = {
-    "test_arm_convolve_f16": {
-        path: _CONVOLVE_F16_ALLOWLIST_REASON
-        for path in (
-            "Tests/UnitTest/TestCases/TestData/conv_1x1_stride2_nhwc_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_basic_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_basic_nhwc_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_k3_opt_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_k3_opt_nhwc_tuned_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_k5_opt_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_k5_opt_nhwc_tuned_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_kernel_2x2_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_kernel_3x3_pad1_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1x1_basic_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1x1_stride_x_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1x1_stride_x_y_1_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1x1_stride_x_y_2_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1x1_stride_x_y_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_1_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_2_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_3_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_4_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_5_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_6_generic_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_7_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_1xn_8_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_2x2_dilation_5x5_input_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_2x2_dilation_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_2x3_dilation_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_3x2_dilation_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_3x3_dilation_5x5_input_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_basic_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_conv_2_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_conv_3_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_conv_4_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_conv_5_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_dilation_golden_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_out_activation_f16/test_data.h",
-            "Tests/UnitTest/TestCases/TestData/conv_match_stride2pad1_f16/test_data.h",
-        )
-    },
-}
+# Registered suites whose relative includes are allowed to dangle, keyed
+# by suite name and then by the exact resolved include path, each with a
+# documented reason. Empty on purpose: the one entry it ever held
+# (test_arm_convolve_f16, parked here by #256 while PR #236 had that
+# directory open) went with the suite's deletion. A suite that cannot
+# compile gets deleted (#256's disposition), not allowlisted -- adding to
+# this dict is the exception, and it must name the PR that removes it
+# again. The stale-entry sweep at the end of check_unit_test_suite_data()
+# fails any entry whose path no longer dangles or whose suite is no
+# longer registered, so an exception cannot outlive its reason.
+UNBUILDABLE_SUITE_ALLOWLIST: dict[str, dict[str, str]] = {}
 
 
 def tracked_repo_files() -> set[str] | None:

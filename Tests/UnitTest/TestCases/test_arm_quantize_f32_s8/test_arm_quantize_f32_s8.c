@@ -7,11 +7,14 @@
  * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  */
 
- #include "arm_nnfunctions.h"
- #include "unity.h"
+#include <math.h>
+#include <string.h>
 
- #include "../TestData/quantize_f32_s8/test_data.h"
- #include "../Utils/validate.h"
+#include "arm_nnfunctions.h"
+#include "unity.h"
+
+#include "../TestData/quantize_f32_s8/test_data.h"
+#include "../Utils/validate.h"
 
 void test_arm_quantize_f32_s8(void)
 {
@@ -31,4 +34,50 @@ void test_arm_quantize_f32_s8(void)
 
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_EQUAL_INT8_ARRAY(quantize_f32_s8_output, output, QUANTIZE_F32_S8_OUTPUT_LEN);
+}
+
+// Ties must round half away from zero on every leg (roundf and TensorFlow Lite semantics); the MVE leg
+// used to round ties to even through VRNDN before VCVTA. With scale 0.5 the scaled values are exactly
+// 2.5, -2.5, 3.5, -3.5, 0.5, -0.5, 4 and -1.
+void test_arm_quantize_f32_s8_ties_away_from_zero(void)
+{
+    const float input[8] = {1.25f, -1.25f, 1.75f, -1.75f, 0.25f, -0.25f, 2.0f, -0.5f};
+    const int8_t expected[8] = {3, -3, 4, -4, 1, -1, 4, -1};
+    int8_t output[8] = {0};
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_quantize_f32_s8(input, output, 8, 0, 0.5f));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output, 8);
+}
+
+// Values beyond the int32 range, including infinities, must clamp to the int8_t bounds after the zero
+// point is applied; adding the zero point to a saturated int32 conversion used to wrap to the wrong end.
+// NaN maps to the zero point on both legs. It is built from its bit pattern so that a -ffinite-math-only
+// build of this test cannot fold it, and only the integer outputs are compared.
+void test_arm_quantize_f32_s8_saturates_with_zero_point(void)
+{
+    const uint32_t nan_bits = 0x7fc00000U;
+    float nan_value;
+    memcpy(&nan_value, &nan_bits, sizeof(nan_value));
+
+    const float input[7] = {1.0e12f, -1.0e12f, (float)INFINITY, -(float)INFINITY, 3.0e9f, -3.0e9f, nan_value};
+    const int8_t expected_positive[7] = {127, -128, 127, -128, 127, -128, 100};
+    const int8_t expected_negative[7] = {127, -128, 127, -128, 127, -128, -100};
+    int8_t output[7] = {0};
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_quantize_f32_s8(input, output, 7, 100, 1.0f));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(expected_positive, output, 7);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_quantize_f32_s8(input, output, 7, -100, 1.0f));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(expected_negative, output, 7);
+}
+
+// A zero point outside the output type is rejected rather than folded into the clamp bounds.
+void test_arm_quantize_f32_s8_rejects_out_of_range_zero_point(void)
+{
+    const float input[1] = {0.0f};
+    int8_t output[1] = {0};
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_quantize_f32_s8(input, output, 1, INT8_MAX + 1, 1.0f));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_quantize_f32_s8(input, output, 1, INT8_MIN - 1, 1.0f));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_quantize_f32_s8(input, output, 1, INT8_MAX, 1.0f));
+    TEST_ASSERT_EQUAL(INT8_MAX, output[0]);
 }

@@ -30,3 +30,4 @@ void test_gru_small_f32_arm_gru_unidirectional_f32(void) { gru_small_f32_arm_gru
 void test_gru_timemajor_f32_arm_gru_unidirectional_f32(void) { gru_timemajor_f32_arm_gru_unidirectional_f32(); }
 void test_gru_stream_f32_arm_gru_unidirectional_f32(void) { gru_stream_f32_arm_gru_unidirectional_f32(); }
 void test_gru_prereset_f32_arm_gru_unidirectional_f32(void) { gru_prereset_f32_arm_gru_unidirectional_f32(); }
+void test_gru_sweep_f32_arm_gru_unidirectional_f32(void) { gru_sweep_f32_arm_gru_unidirectional_f32(); }

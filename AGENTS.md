@@ -3,6 +3,17 @@
 Ambiq's optimized fork of Arm CMSIS-NN targeting Cortex-M (Apollo SoCs). Kernels
 are C with optional Helium (MVE / M-Profile Vector Extension) SIMD paths.
 
+## Publishing PRs without duplicate full CI runs
+
+Finish local checks, **push while the PR is still draft, then mark it ready**.
+The workflow in `.github/workflows/ci.yml` handles `ready_for_review` as well
+as `synchronize`; promoting first and pushing afterward starts two runs.
+Use `python3 scripts/publish_pr.py <number> --expect-head <reviewed-sha>` from a clean worktree to enforce
+push, head verification, then promotion. `--dry-run` previews the operation.
+A push to an already-ready PR starts a new run; finish review fixes locally
+before publishing. Do not toggle draft status to retrigger CI or poll runs.
+See [PR publication](docs/guides/pr-publication.md). Refs #459.
+
 ## SIMD: this repo uses MVE (Helium), NOT NEON
 
 Cortex-M55-class targets implement **MVE** (`arm_mve.h`), not Armv8-A **NEON**
@@ -50,6 +61,15 @@ break the embedded build. When writing SIMD paths:
   `arm_minmax_select_f16`. Doing the select in `float32` is NOT a fix when
   both arms are round-tripped halves: GCC narrows it back to HFmode and
   still ICEs (observed on 14.3 at `-O3`).
+  This rule governs `Tests/UnitTest/TestCases/**` as well as `Source/**`. The
+  suites compile with `-fno-finite-math-only` on top of the library's flags,
+  which removes the escape hatch that hides this ICE elsewhere, so a construct
+  that builds fine in a kernel can still break the suite that tests it. If you
+  hit it, do not respond by dropping `-fno-finite-math-only` —
+  Tests/UnitTest/CMakeLists.txt explains why it has to stay — respond by not
+  writing the select. #344 has the measured flag and toolchain matrices and
+  the full diagnostic; that is where `test_arm_maximum_minimum_f16` broke
+  every cortex-m55 release leg while PR CI stayed green.
 
 ## Adding a kernel: three build manifests + header
 
@@ -108,12 +128,33 @@ count so the MVE tail-predication path is exercised.
 
 ## Formatting and checks
 
+- `pre-commit` is the commit-time hygiene gate; install it once with
+  `uv tool install pre-commit==3.8.0 && pre-commit install`. The hooks cover
+  clang-format, whitespace and final newlines, YAML/JSON/TOML syntax,
+  merge-conflict markers, oversized additions, and deferred-work markers,
+  which must reference an issue (`TODO(#421)`, or `TODO(verify)` for an
+  unverified claim). No hook scans for secrets; GitHub secret scanning with
+  push protection does that server side. clang-format and the two whitespace
+  fixers rewrite files, so they run over staged files only and CI skips them,
+  and their exclude names the generated test vectors and the inherited Arm
+  files they would otherwise touch; do not "fix" those, and see
+  `docs/contributing.md` for the upstream-sync recipe. CI runs the reporting hooks over every
+  tracked file, except the size check, which inspects staged additions only and
+  so bites at commit time. See `docs/contributing.md`.
 - clang-format via `scripts/check_clang_format_changed.sh` — that script is
   the authority on the required clang-format version and covered paths
-  (currently LLVM 18 over `Include`, `Source`, and
-  `Tests/UnitTest/Corstone-300`); `.pre-commit-config.yaml` pins the
-  pre-commit hook version separately.
+  (clang-format 18.x, matching the `.pre-commit-config.yaml` pin of 18.1.8,
+  over `Include`, `Source`, and `Tests/UnitTest/Corstone-300` -- the
+  pre-commit hook matches the version but only covers `Source` and
+  `Include`); install it
+  with `pip install clang-format==18.1.8` and, if another version is first
+  on PATH, point `CLANG_FORMAT_BIN` at it.
 - `python3 scripts/check_pdsc.py` after any manifest change.
+- `python3 scripts/check_stale_version_refs.py` if you add a file that
+  hardcodes the release version. Anything that stamps the version must be
+  listed in `release-please-config.json`'s `extra-files` with an
+  `x-release-please-*` annotation on the same line as the value, or it will
+  never be bumped.
 - License headers: new source files use the Ambiq SPDX header
   (`LicenseRef-Ambiq-Apollo-SDK`); generated test-data headers use Apache-2.0
   (matching existing precedent).

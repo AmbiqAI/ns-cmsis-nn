@@ -252,3 +252,156 @@ void transpose_3dim2_arm_transpose_s8(void)
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output_data, output_ref, output_ref_size));
 }
+
+// An output_dims that is not input_dims permuted by perm must be rejected before any write.
+// see AmbiqAI/ns-cmsis-nn#443
+void transpose_dims_mismatch_arm_transpose_s8(void)
+{
+    const int32_t buffer_size = 1 * 8 * 10 * 12;
+    const int8_t poison = (int8_t)0x5a;
+    static int8_t input_data[1 * 8 * 10 * 12];
+    static int8_t output_data[1 * 8 * 10 * 12];
+
+    const cmsis_nn_dims input_dims = {1, 8, 10, 12};
+    const cmsis_nn_dims output_dims = {12, 8, 10, 1};
+    const uint32_t perm[4] = {3, 2, 1, 0};
+    const cmsis_nn_transpose_params transpose_params = {4, perm};
+
+    for (int32_t i = 0; i < buffer_size; i++)
+    {
+        input_data[i] = (int8_t)(i & 0x7f);
+        output_data[i] = poison;
+    }
+
+    arm_cmsis_nn_status result =
+        arm_transpose_s8(input_data, output_data, &input_dims, &output_dims, &transpose_params);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, result);
+
+    bool output_untouched = true;
+    for (int32_t i = 0; i < buffer_size; i++)
+    {
+        output_untouched = output_untouched && (output_data[i] == poison);
+    }
+    TEST_ASSERT_TRUE(output_untouched);
+}
+
+// The 2-D path transposes unconditionally, so the identity permutation needs its own case.
+// see AmbiqAI/ns-cmsis-nn#443
+void transpose_2dim_identity_arm_transpose_s8(void)
+{
+    const int8_t input_data[6] = {1, 2, 3, 4, 5, 6};
+    int8_t output_data[6] = {0};
+
+    const cmsis_nn_dims input_dims = {2, 3, 1, 1};
+    const cmsis_nn_dims output_dims = {2, 3, 1, 1};
+    const uint32_t perm[2] = {0, 1};
+    const cmsis_nn_transpose_params transpose_params = {2, perm};
+
+    arm_cmsis_nn_status result =
+        arm_transpose_s8(input_data, output_data, &input_dims, &output_dims, &transpose_params);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+    TEST_ASSERT_TRUE(validate(output_data, input_data, 6));
+}
+
+// A perm with a repeated axis is not a permutation; the dims agree, so only the repeat can reject it.
+// see AmbiqAI/ns-cmsis-nn#443
+void transpose_perm_duplicate_axis_arm_transpose_s8(void)
+{
+    const int32_t input_size = 2 * 2 * 3 * 4;
+    const int32_t output_size = 2 * 2 * 2 * 3;
+    const int8_t poison = (int8_t)0x5a;
+    static int8_t input_data[2 * 2 * 3 * 4];
+    static int8_t output_data[2 * 2 * 2 * 3];
+
+    const cmsis_nn_dims input_dims = {2, 2, 3, 4};
+    const cmsis_nn_dims output_dims = {2, 2, 2, 3};
+    const uint32_t perm[4] = {0, 0, 1, 2};
+    const cmsis_nn_transpose_params transpose_params = {4, perm};
+
+    for (int32_t i = 0; i < input_size; i++)
+    {
+        input_data[i] = (int8_t)(i & 0x7f);
+    }
+    for (int32_t i = 0; i < output_size; i++)
+    {
+        output_data[i] = poison;
+    }
+
+    arm_cmsis_nn_status result =
+        arm_transpose_s8(input_data, output_data, &input_dims, &output_dims, &transpose_params);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, result);
+
+    bool output_untouched = true;
+    for (int32_t i = 0; i < output_size; i++)
+    {
+        output_untouched = output_untouched && (output_data[i] == poison);
+    }
+    TEST_ASSERT_TRUE(output_untouched);
+}
+
+// Only num_dims in [1, 4] is representable in cmsis_nn_dims. see AmbiqAI/ns-cmsis-nn#443
+void transpose_num_dims_out_of_range_arm_transpose_s8(void)
+{
+    const int32_t buffer_size = 2 * 3 * 4 * 5;
+    const int8_t poison = (int8_t)0x5a;
+    static int8_t input_data[2 * 3 * 4 * 5];
+    static int8_t output_data[2 * 3 * 4 * 5];
+
+    const cmsis_nn_dims input_dims = {2, 3, 4, 5};
+    const cmsis_nn_dims output_dims = {2, 3, 4, 5};
+    const uint32_t perm[4] = {0, 1, 2, 3};
+    const cmsis_nn_transpose_params too_few = {0, perm};
+    const cmsis_nn_transpose_params too_many = {5, perm};
+
+    for (int32_t i = 0; i < buffer_size; i++)
+    {
+        input_data[i] = (int8_t)(i & 0x7f);
+        output_data[i] = poison;
+    }
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_transpose_s8(input_data, output_data, &input_dims, &output_dims, &too_few));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_transpose_s8(input_data, output_data, &input_dims, &output_dims, &too_many));
+
+    bool output_untouched = true;
+    for (int32_t i = 0; i < buffer_size; i++)
+    {
+        output_untouched = output_untouched && (output_data[i] == poison);
+    }
+    TEST_ASSERT_TRUE(output_untouched);
+}
+// An extent of 0 agrees across the permutation, so only the extent check can reject it; without it the copy length
+// wraps. see AmbiqAI/ns-cmsis-nn#443
+void transpose_zero_extent_arm_transpose_s8(void)
+{
+    const int32_t buffer_size = 6;
+    const int8_t poison = (int8_t)0x5a;
+    int8_t input_data[6] = {1, 2, 3, 4, 5, 6};
+    int8_t output_data[6];
+
+    const cmsis_nn_dims input_dims = {2, 0, 1, 1};
+    const cmsis_nn_dims output_dims = {0, 2, 1, 1};
+    const uint32_t perm[2] = {1, 0};
+    const cmsis_nn_transpose_params transpose_params = {2, perm};
+
+    for (int32_t i = 0; i < buffer_size; i++)
+    {
+        output_data[i] = poison;
+    }
+
+    arm_cmsis_nn_status result =
+        arm_transpose_s8(input_data, output_data, &input_dims, &output_dims, &transpose_params);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, result);
+
+    bool output_untouched = true;
+    for (int32_t i = 0; i < buffer_size; i++)
+    {
+        output_untouched = output_untouched && (output_data[i] == poison);
+    }
+    TEST_ASSERT_TRUE(output_untouched);
+}

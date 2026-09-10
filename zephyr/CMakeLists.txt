@@ -3,6 +3,30 @@
 
 if(CONFIG_NS_CMSIS_NN)
 
+  # Kconfig is how Zephyr configures anything, so on this path the Kconfig
+  # symbols are the only writers of the library's float switches: whatever
+  # ARM_NN_ENABLE_F32/F16 held before is overwritten here, in the cache and in
+  # this scope. That keeps the ARMV8_1_M_MVEF dependency on
+  # NS_CMSIS_NN_ENABLE_F16 in force, since no CMake variable can stand in for
+  # the symbol. See AmbiqAI/ns-cmsis-nn#420.
+  foreach(_ns_width F32 F16)
+    if(CONFIG_NS_CMSIS_NN_ENABLE_${_ns_width})
+      set(_ns_want 1)
+    else()
+      set(_ns_want 0)
+    endif()
+    string(REGEX REPLACE "^F" "float" _ns_pretty "${_ns_width}")
+    set(ARM_NN_ENABLE_${_ns_width} ${_ns_want} CACHE BOOL
+      "Enable the CMSIS-NN ${_ns_pretty} extensions (set from \
+CONFIG_NS_CMSIS_NN_ENABLE_${_ns_width})." FORCE)
+    # A plain variable of the same name in the including scope would shadow the
+    # cache entry written above, so overwrite that form too.
+    set(ARM_NN_ENABLE_${_ns_width} ${_ns_want})
+  endforeach()
+  unset(_ns_width)
+  unset(_ns_want)
+  unset(_ns_pretty)
+
   if(CONFIG_NS_CMSIS_NN_USE_PREBUILT)
 
     # ----------------------------------------------------------------------
@@ -35,6 +59,7 @@ if(CONFIG_NS_CMSIS_NN)
         IMPORTED_LOCATION             "${_ns_sdk}/lib/libns-cmsis-nn.a"
         INTERFACE_INCLUDE_DIRECTORIES "${_ns_sdk}/include")
     endif()
+    set_property(GLOBAL PROPERTY NS_CMSIS_NN_FLOAT_TARGET ns_cmsis_nn_prebuilt)
 
     # Headers must be globally visible — application code includes
     # arm_nnfunctions.h directly, same as in source mode.
@@ -52,15 +77,19 @@ if(CONFIG_NS_CMSIS_NN)
     # prebuilt mode, or the float API surface stays invisible and any direct
     # use of the float headers fails to compile.
     #
+    # Prebuilt mode compiles nothing, so it offers the consumer query alone
+    # rather than including the whole source-layout SSoT.
+    # See AmbiqAI/ns-cmsis-nn#420.
+    include("${ZEPHYR_CURRENT_MODULE_DIR}/cmake/ns_cmsis_nn_float_support.cmake")
+
     # When the SDK tarball at CONFIG_NS_CMSIS_NN_PREBUILT_PATH ships a
     # manifest.json (schema_version >= 2 with a "features" block), the
-    # requested CONFIG_NS_CMSIS_NN_ENABLE_F32/F16 toggles are validated
-    # against it and a FATAL_ERROR is raised for any request the archive
-    # doesn't actually implement — this turns a predictable
-    # undefined-reference link error into a clear configure-time
-    # diagnostic. Older manifests without a "features" block (or no
-    # manifest.json at all) are treated conservatively as integer-only,
-    # per this project's documented compatibility fallback.
+    # float request is validated against it and a FATAL_ERROR is raised
+    # for anything the archive doesn't actually implement, which turns a
+    # predictable undefined-reference link error into a clear
+    # configure-time diagnostic. Older manifests without a "features" block
+    # (or no manifest.json at all) are treated conservatively as
+    # integer-only, per this project's documented compatibility fallback.
     set(_ns_manifest "${_ns_sdk}/manifest.json")
     set(_ns_has_f32 FALSE)
     set(_ns_has_f16 FALSE)
@@ -84,35 +113,42 @@ if(CONFIG_NS_CMSIS_NN)
     else()
       message(STATUS
         "ns-cmsis-nn: no manifest.json found at '${_ns_sdk}'; "
-        "CONFIG_NS_CMSIS_NN_ENABLE_F32/F16 requests are UNVERIFIED against "
+        "ARM_NN_ENABLE_F32/F16 requests are UNVERIFIED against "
         "archive contents and treated conservatively as integer-only for "
         "validation purposes (the flags are still forwarded as requested).")
     endif()
 
-    if(CONFIG_NS_CMSIS_NN_ENABLE_F32 AND EXISTS "${_ns_manifest}" AND NOT _ns_has_f32)
+    # Name the switch that was checked and the Kconfig symbol that writes it,
+    # so the recovery quoted here is one that reaches the request.
+    if(ARM_NN_ENABLE_F32 AND EXISTS "${_ns_manifest}" AND NOT _ns_has_f32)
       message(FATAL_ERROR
-        "CONFIG_NS_CMSIS_NN_ENABLE_F32=y but the prebuilt SDK's manifest "
-        "(${_ns_manifest}) does not report f32 support. Use an SDK tarball "
-        "built with F32 enabled, or disable CONFIG_NS_CMSIS_NN_ENABLE_F32.")
+        "ns-cmsis-nn: float32 requested via ARM_NN_ENABLE_F32, but the "
+        "prebuilt SDK's manifest (${_ns_manifest}) does not report f32 "
+        "support. Use an SDK tarball built with F32 enabled, or drop the "
+        "request: remove CONFIG_NS_CMSIS_NN_ENABLE_F32=y from the Kconfig "
+        "fragment that sets it (prj.conf, a board overlay, or the command "
+        "line), which is the only writer of ARM_NN_ENABLE_F32 here.")
     endif()
-    if(CONFIG_NS_CMSIS_NN_ENABLE_F16 AND EXISTS "${_ns_manifest}" AND NOT _ns_has_f16)
+    if(ARM_NN_ENABLE_F16 AND EXISTS "${_ns_manifest}" AND NOT _ns_has_f16)
       message(FATAL_ERROR
-        "CONFIG_NS_CMSIS_NN_ENABLE_F16=y but the prebuilt SDK's manifest "
-        "(${_ns_manifest}) does not report f16 support. Use an SDK tarball "
-        "built with F16 enabled, or disable CONFIG_NS_CMSIS_NN_ENABLE_F16.")
+        "ns-cmsis-nn: float16 requested via ARM_NN_ENABLE_F16, but the "
+        "prebuilt SDK's manifest (${_ns_manifest}) does not report f16 "
+        "support. Use an SDK tarball built with F16 enabled, or drop the "
+        "request: remove CONFIG_NS_CMSIS_NN_ENABLE_F16=y from the Kconfig "
+        "fragment that sets it (prj.conf, a board overlay, or the command "
+        "line), which is the only writer of ARM_NN_ENABLE_F16 here.")
     endif()
 
-    set(_ns_f32 0)
-    set(_ns_f16 0)
-    if(CONFIG_NS_CMSIS_NN_ENABLE_F32)
-      set(_ns_f32 1)
-    endif()
-    if(CONFIG_NS_CMSIS_NN_ENABLE_F16)
-      set(_ns_f16 1)
-    endif()
+    # Also on the imported target, which is what ns_cmsis_nn_float_support()
+    # reads; the global definitions above are what actually reaches the
+    # compiler.
+    set_property(TARGET ns_cmsis_nn_prebuilt PROPERTY
+      INTERFACE_COMPILE_DEFINITIONS
+        ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32}
+        ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16})
     zephyr_compile_definitions(
-      ARM_NN_ENABLE_F32=${_ns_f32}
-      ARM_NN_ENABLE_F16=${_ns_f16}
+      ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32}
+      ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16}
     )
 
   else()
@@ -127,24 +163,21 @@ if(CONFIG_NS_CMSIS_NN)
   zephyr_include_directories(${ZEPHYR_CURRENT_MODULE_DIR}/Include)
   zephyr_library_include_directories(${ZEPHYR_CMSIS_MODULE_DIR}/CMSIS/Core/Include)
 
-  # Bridge Zephyr Kconfig float toggles into the SSoT float gates.
-  # These variables are consumed by ns_cmsis_nn_group_sources() when it resolves
-  # per-group source lists.
-  set(ARM_NN_ENABLE_F32 0)
-  set(ARM_NN_ENABLE_F16 0)
-  if(CONFIG_NS_CMSIS_NN_ENABLE_F32)
-    set(ARM_NN_ENABLE_F32 1)
-  endif()
-  if(CONFIG_NS_CMSIS_NN_ENABLE_F16)
-    set(ARM_NN_ENABLE_F16 1)
-  endif()
-
   # Keep float feature guards visible in all translation units that include
-  # CMSIS-NN public/internal headers.
+  # CMSIS-NN public/internal headers. ARM_NN_ENABLE_F32/F16 were written from
+  # Kconfig above and are what ns_cmsis_nn_group_sources() reads when it
+  # resolves per-group source lists.
   zephyr_compile_definitions(
     ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32}
     ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16}
   )
+
+  # What ns_cmsis_nn_float_support() reads; Zephyr picks the library's name.
+  set_property(GLOBAL PROPERTY NS_CMSIS_NN_FLOAT_TARGET ${ZEPHYR_CURRENT_LIBRARY})
+  set_property(TARGET ${ZEPHYR_CURRENT_LIBRARY} PROPERTY
+    INTERFACE_COMPILE_DEFINITIONS
+      ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32}
+      ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16})
 
   # Translate the existing CONFIG_NS_CMSIS_NN_* knobs into SSoT group names.
   # Kconfig symbol names are aligned with SSoT group ids (#151); deprecated

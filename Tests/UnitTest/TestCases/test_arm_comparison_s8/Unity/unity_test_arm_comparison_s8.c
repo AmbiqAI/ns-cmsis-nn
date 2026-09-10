@@ -55,3 +55,10 @@ void test_comparison_less_equal_broadcast_hw_s8_arm_less_equal_s8(void)
 {
     comparison_less_equal_broadcast_hw_s8_arm_less_equal_s8();
 }
+
+void test_comparison_broadcast_row_scalar_s8_arm_comparison_s8(void)
+{
+    comparison_broadcast_row_scalar_s8_arm_comparison_s8();
+}
+
+void test_comparison_arg_error_s8_arm_comparison_s8(void) { comparison_arg_error_s8_arm_comparison_s8(); }

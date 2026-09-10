@@ -7,7 +7,7 @@ linking the prebuilt `.a` we already validated in CI.
 ## Install
 
 ```bash
-VERSION=7.29.2 # x-release-please-version
+VERSION=7.33.1 # x-release-please-version
 curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/Ambiq.NS-CMSIS-NN.${VERSION}.pack
 
 # CMSIS-Toolbox
@@ -19,18 +19,18 @@ cpackget add Ambiq.NS-CMSIS-NN.${VERSION}.pack
 
 ## Pick a Cvariant
 
-The pack defines the component **`Ambiq::NN Lib`** with two variants:
+The pack defines the component **heliaCORE NN Lib from Ambiq** with two variants:
 
 | Cvariant   | What you get                                                  | When to use                            |
 |------------|---------------------------------------------------------------|----------------------------------------|
 | `Source`   | The CMSIS-NN sources compiled by your project's toolchain.    | You want maximum control / portability.|
-| `Prebuilt` | A vendored `libns-cmsis-nn.a` we built with GCC 13.2.         | You want fewer moving parts.           |
+| `Prebuilt` | A vendored `libns-cmsis-nn.a` we built with GCC. The release's per-arch SDK tarball `ns-cmsis-nn-<cpu>-gcc-<version>.tar.gz` names that GCC in its `manifest.json`, under `toolchain.version`; the pack vendors the same archive bytes. | You want fewer moving parts.           |
 
 In your `.cproject` or IDE, select **one** of:
 
 ```xml
-<component Cclass="Ambiq" Cgroup="NN Lib" Cvariant="Source"   Cversion="7.29.2"/> <!-- x-release-please-version -->
-<component Cclass="Ambiq" Cgroup="NN Lib" Cvariant="Prebuilt" Cversion="7.29.2"/> <!-- x-release-please-version -->
+<component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvendor="Ambiq" Cvariant="Source"   Cversion="7.33.1"/> <!-- x-release-please-version -->
+<component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvendor="Ambiq" Cvariant="Prebuilt" Cversion="7.33.1"/> <!-- x-release-please-version -->
 ```
 
 ## Prebuilt — supported architectures
@@ -54,7 +54,7 @@ project toolchain to optimize and qualify the kernels directly.
 
 ## Verify the selection
 
-Before building firmware, confirm your project has exactly one `Ambiq::NN Lib`
+Before building firmware, confirm your project has exactly one heliaCORE NN Lib
 component selected:
 
 - Use `Source` when your IDE/toolchain should compile the kernels.

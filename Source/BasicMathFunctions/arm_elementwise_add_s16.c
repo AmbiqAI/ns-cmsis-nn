@@ -115,24 +115,24 @@ arm_cmsis_nn_status arm_elementwise_add_s16(const int16_t *input_1_vect,
         two_halfword_1 = arm_nn_read_q15x2_ia(&input_1_vect);
         two_halfword_2 = arm_nn_read_q15x2_ia(&input_2_vect);
 
-        input_1 = (int16_t)(two_halfword_1 & 0xFFFF) << left_shift;
+        input_1 = (int16_t)(two_halfword_1 & 0xFFFF) * (int32_t)((uint32_t)1 << left_shift);
         input_1 = arm_nn_requantize(input_1, input_1_mult, input_1_shift);
-        input_2 = (int16_t)(two_halfword_2 & 0xFFFF) << left_shift;
+        input_2 = (int16_t)(two_halfword_2 & 0xFFFF) * (int32_t)((uint32_t)1 << left_shift);
         input_2 = arm_nn_requantize(input_2, input_2_mult, input_2_shift);
         sum = input_1 + input_2;
         sum = arm_nn_requantize(sum, out_mult, out_shift);
-        sum = MAX(sum, out_activation_min);
-        sum = MIN(sum, out_activation_max);
+        sum = ARM_NN_MAX(sum, out_activation_min);
+        sum = ARM_NN_MIN(sum, out_activation_max);
         sum_1 = (int16_t)sum;
 
-        input_1 = (int16_t)(two_halfword_1 >> 16) << left_shift;
+        input_1 = (int16_t)(two_halfword_1 >> 16) * (int32_t)((uint32_t)1 << left_shift);
         input_1 = arm_nn_requantize(input_1, input_1_mult, input_1_shift);
-        input_2 = (int16_t)(two_halfword_2 >> 16) << left_shift;
+        input_2 = (int16_t)(two_halfword_2 >> 16) * (int32_t)((uint32_t)1 << left_shift);
         input_2 = arm_nn_requantize(input_2, input_2_mult, input_2_shift);
         sum = input_1 + input_2;
         sum = arm_nn_requantize(sum, out_mult, out_shift);
-        sum = MAX(sum, out_activation_min);
-        sum = MIN(sum, out_activation_max);
+        sum = ARM_NN_MAX(sum, out_activation_min);
+        sum = ARM_NN_MIN(sum, out_activation_max);
         sum_2 = (int16_t)sum;
 
         arm_nn_write_q15x2_ia(&output, PACK_Q15x2_32x1(sum_1, sum_2));
@@ -144,8 +144,8 @@ arm_cmsis_nn_status arm_elementwise_add_s16(const int16_t *input_1_vect,
     while (loop_count > 0)
     {
         /* C = A + B */
-        input_1 = *input_1_vect++ << left_shift;
-        input_2 = *input_2_vect++ << left_shift;
+        input_1 = *input_1_vect++ * (int32_t)((uint32_t)1 << left_shift);
+        input_2 = *input_2_vect++ * (int32_t)((uint32_t)1 << left_shift);
 
         input_1 = arm_nn_requantize(input_1, input_1_mult, input_1_shift);
         input_2 = arm_nn_requantize(input_2, input_2_mult, input_2_shift);
@@ -153,8 +153,8 @@ arm_cmsis_nn_status arm_elementwise_add_s16(const int16_t *input_1_vect,
         sum = input_1 + input_2;
         sum = arm_nn_requantize(sum, out_mult, out_shift);
 
-        sum = MAX(sum, out_activation_min);
-        sum = MIN(sum, out_activation_max);
+        sum = ARM_NN_MAX(sum, out_activation_min);
+        sum = ARM_NN_MIN(sum, out_activation_max);
 
         *output++ = (int16_t)sum;
 

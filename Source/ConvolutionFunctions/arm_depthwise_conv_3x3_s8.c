@@ -94,10 +94,11 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
     const int32_t *bias_base = bias;
     for (int32_t in_h = -pad_y, out_h = 0, out_idx = 0; out_h < output_y; in_h += stride_y, ++out_h)
     {
-        for (int32_t in_w = -pad_x, out_w = 0, ker_h_start = MAX(0, -in_h); out_w < output_x; in_w += stride_x, ++out_w)
+        for (int32_t in_w = -pad_x, out_w = 0, ker_h_start = ARM_NN_MAX(0, -in_h); out_w < output_x;
+             in_w += stride_x, ++out_w)
         {
             int32_t in_ch = 0;
-            int32_t ker_w_start = MAX(0, -in_w);
+            int32_t ker_w_start = ARM_NN_MAX(0, -in_w);
 
             bias = bias_base;
             for (; in_ch <= (input_ch - 4); in_ch += 4)
@@ -119,7 +120,7 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
 #if defined(ARM_MATH_DSP)
                 const uint32_t lhs_offset_s16x2 = PKHBT(input_offset, input_offset, 16);
 
-                for (int32_t ker_h = ker_h_start; ker_h < MIN(3, input_y - in_h); ++ker_h)
+                for (int32_t ker_h = ker_h_start; ker_h < ARM_NN_MIN(3, input_y - in_h); ++ker_h)
                 {
                     int32_t in_val = 0;
                     int32_t ker_val = 0;
@@ -175,7 +176,7 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
 
 #else
 
-                for (int32_t ker_h = ker_h_start; ker_h < MIN(3, input_y - in_h); ++ker_h)
+                for (int32_t ker_h = ker_h_start; ker_h < ARM_NN_MIN(3, input_y - in_h); ++ker_h)
                 {
                     int32_t in_val = 0;
                     int32_t ker_val = 0;
@@ -224,10 +225,10 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
                 out_buff2 += output_offset;
                 out_buff3 += output_offset;
 
-                out_buff0 = MIN(MAX(out_buff0, output_activation_min), output_activation_max);
-                out_buff1 = MIN(MAX(out_buff1, output_activation_min), output_activation_max);
-                out_buff2 = MIN(MAX(out_buff2, output_activation_min), output_activation_max);
-                out_buff3 = MIN(MAX(out_buff3, output_activation_min), output_activation_max);
+                out_buff0 = ARM_NN_MIN(ARM_NN_MAX(out_buff0, output_activation_min), output_activation_max);
+                out_buff1 = ARM_NN_MIN(ARM_NN_MAX(out_buff1, output_activation_min), output_activation_max);
+                out_buff2 = ARM_NN_MIN(ARM_NN_MAX(out_buff2, output_activation_min), output_activation_max);
+                out_buff3 = ARM_NN_MIN(ARM_NN_MAX(out_buff3, output_activation_min), output_activation_max);
 
                 output[out_idx++] = (int8_t)out_buff0;
                 output[out_idx++] = (int8_t)out_buff1;
@@ -247,7 +248,7 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
                 const int8_t *input_ptr = input + (in_h + ker_h_start) * (input_ch * input_x) + in_w * input_ch + in_ch;
                 const int8_t *kernel_ptr = kernel + ker_h_start * (input_ch * 3) + in_ch;
 
-                for (int32_t ker_h = ker_h_start; ker_h < MIN(3, input_y - in_h); ++ker_h)
+                for (int32_t ker_h = ker_h_start; ker_h < ARM_NN_MIN(3, input_y - in_h); ++ker_h)
                 {
                     if (ker_w_start == 0)
                     {
@@ -267,7 +268,7 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
 
                 out_buff = arm_nn_requantize(out_buff, output_mult[in_ch], output_shift[in_ch]);
                 out_buff += output_offset;
-                out_buff = MIN(MAX(out_buff, output_activation_min), output_activation_max);
+                out_buff = ARM_NN_MIN(ARM_NN_MAX(out_buff, output_activation_min), output_activation_max);
                 output[out_idx++] = (int8_t)out_buff;
             }
         }

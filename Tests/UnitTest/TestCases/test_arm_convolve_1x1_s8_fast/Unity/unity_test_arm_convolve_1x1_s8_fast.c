@@ -45,6 +45,11 @@ void setUp(void)
 void tearDown(void) {}
 
 void test_kernel1x1_arm_convolve_1x1_s8_fast(void) { kernel1x1_arm_convolve_1x1_s8_fast(); }
+void test_kernel1x1_null_weight_sum_arm_convolve_1x1_s8_fast(void)
+{
+    kernel1x1_null_weight_sum_arm_convolve_1x1_s8_fast();
+}
+void test_kernel1x1_null_weight_sum_arm_convolve_1x1_s8(void) { kernel1x1_null_weight_sum_arm_convolve_1x1_s8(); }
 void test_kernel1x1_stride_x_arm_convolve_1x1_s8(void) { kernel1x1_stride_x_arm_convolve_1x1_s8(); }
 void test_kernel1x1_stride_x_y_arm_convolve_1x1_s8(void) { kernel1x1_stride_x_y_arm_convolve_1x1_s8(); }
 void test_kernel1x1_stride_x_y_1_arm_convolve_1x1_s8(void) { kernel1x1_stride_x_y_1_arm_convolve_1x1_s8(); }
@@ -52,3 +57,8 @@ void test_kernel1x1_stride_x_y_2_arm_convolve_1x1_s8(void) { kernel1x1_stride_x_
 void test_buffer_size_arm_convolve_1x1_s8_fast(void) { buffer_size_arm_convolve_1x1_s8_fast(); }
 void test_buffer_size_mve_arm_convolve_1x1_s8_fast(void) { buffer_size_mve_arm_convolve_1x1_s8_fast(); }
 void test_buffer_size_dsp_arm_convolve_1x1_s8_fast(void) { buffer_size_dsp_arm_convolve_1x1_s8_fast(); }
+
+void test_buffer_size_out_of_range_dsp_arm_convolve_1x1_s8_fast(void)
+{
+    buffer_size_out_of_range_dsp_arm_convolve_1x1_s8_fast();
+}

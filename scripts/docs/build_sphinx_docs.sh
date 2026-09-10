@@ -16,6 +16,8 @@ clean_build=1
 strict=1
 doctree_dir="${DOCS_DOCTREES:-build/docs/doctrees}"
 sphinx_build_cmd="${SPHINXBUILD:-sphinx-build}"
+doxygen_download_attempts="${DOXYGEN_DOWNLOAD_ATTEMPTS:-3}"
+doxygen_retry_base_delay="${DOXYGEN_RETRY_BASE_DELAY:-2}"
 
 usage() {
   cat <<'USAGE'
@@ -45,7 +47,13 @@ Options:
 Environment:
   SPHINXBUILD                sphinx-build executable (default: sphinx-build).
   DOCS_DOCTREES              Cached doctree directory (default: build/docs/doctrees).
-  DOXYGEN_URL                Override Doxygen tarball URL.
+  DOXYGEN_URL                Override Doxygen tarball URL (skips the default sources).
+  DOXYGEN_SHA256             Expected SHA-256 of the Doxygen tarball, for a version
+                             with no pinned digest in this script.
+  DOXYGEN_INSTALL_ROOT       Where to download/extract Doxygen (default: /tmp).
+  DOXYGEN_DOWNLOAD_ATTEMPTS  Download attempts per source (default: 3).
+  DOXYGEN_RETRY_BASE_DELAY   Seconds before the first retry; doubles each
+                             attempt (default: 2).
 USAGE
 }
 
@@ -119,6 +127,127 @@ log() {
   printf '\n==> %s\n' "$*"
 }
 
+# Pinned SHA-256 of the official linux-x86-64 binary tarball, keyed by version.
+# The download is verified against this before anything reaches tar, so a
+# truncated transfer or an error page served with HTTP 200 is rejected with a
+# readable message instead of surfacing as "gzip: stdin: not in gzip format".
+# Versions with no entry here fall back to a gzip magic-byte and tar-listing
+# check; DOXYGEN_SHA256 pins one explicitly.
+doxygen_expected_sha256() {
+  case "$1" in
+    1.9.6) printf '%s' '8354583f86416586d35397c8ee7e719f5aa5804140af83cf7ba39a8c5076bdb8' ;;
+    *)     printf '' ;;
+  esac
+}
+
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    return 1
+  fi
+}
+
+# Show what the server actually sent (an error page, a redirect stub, a
+# captive-portal form) rather than leaving only a downstream tar error.
+dump_response_head() {
+  echo "--- first 512 bytes of the response ---" >&2
+  head -c 512 "$1" | tr -c '[:print:][:space:]' '.' >&2
+  printf '\n--- end of response ---\n' >&2
+}
+
+# 0 if the file is a usable Doxygen tarball, 1 otherwise. Callers that are
+# probing a cached file silence stderr; callers that just downloaded do not.
+verify_doxygen_archive() {
+  local archive="$1" expected="$2" magic actual member found
+
+  if [[ ! -s "${archive}" ]]; then
+    echo "Downloaded archive is empty: ${archive}" >&2
+    return 1
+  fi
+
+  magic="$(head -c 2 "${archive}" | od -An -tx1 | tr -d ' \n')"
+  if [[ "${magic}" != "1f8b" ]]; then
+    echo "Payload is not gzip: expected magic 1f8b, got ${magic:-<none>} ($(wc -c <"${archive}") bytes)." >&2
+    dump_response_head "${archive}"
+    return 1
+  fi
+
+  if [[ -n "${expected}" ]]; then
+    if ! actual="$(sha256_of "${archive}")"; then
+      echo "Neither sha256sum nor shasum is available; falling back to a tar listing check." >&2
+    elif [[ "${actual}" != "${expected}" ]]; then
+      echo "SHA-256 mismatch for ${archive}: expected ${expected}, got ${actual}." >&2
+      return 1
+    else
+      return 0
+    fi
+  fi
+
+  # GNU tar exits 0 with an empty listing when a gzip stream holds something
+  # other than a tar archive, so require the member the caller goes on to run
+  # rather than treating a clean exit status as proof. grep -c reads the
+  # listing to the end; grep -q would close the pipe early and, under
+  # `set -o pipefail`, turn tar's SIGPIPE into a spurious verification failure.
+  member="doxygen-${doxygen_version}/bin/doxygen"
+  found="$(tar -tzf "${archive}" 2>/dev/null | grep -cxF -- "${member}")" || found=0
+  if [[ "${found}" -eq 0 ]]; then
+    echo "Archive does not contain ${member}: ${archive}" >&2
+    return 1
+  fi
+}
+
+fetch_url() {
+  local url="$1" dest="$2"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL --connect-timeout 20 --max-time 900 "${url}" -o "${dest}"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q --timeout=20 --tries=1 -O "${dest}" "${url}"
+  else
+    echo "Neither curl nor wget is available to download Doxygen." >&2
+    exit 1
+  fi
+}
+
+# Try each source up to doxygen_download_attempts times with exponential
+# backoff. The retry wraps verification as well as the transfer, because the
+# failure this exists for -- a non-gzip body served with a success status --
+# is one the HTTP client itself reports as a completed download.
+download_doxygen_archive() {
+  local archive="$1" expected="$2"
+  shift 2
+  local urls=("$@")
+  local url attempt delay partial="${archive}.part"
+
+  for url in "${urls[@]}"; do
+    delay="${doxygen_retry_base_delay}"
+    for ((attempt = 1; attempt <= doxygen_download_attempts; attempt++)); do
+      log "Fetching ${url} (attempt ${attempt}/${doxygen_download_attempts})"
+      rm -f "${partial}"
+      if fetch_url "${url}" "${partial}"; then
+        if verify_doxygen_archive "${partial}" "${expected}"; then
+          mv -f "${partial}" "${archive}"
+          return 0
+        fi
+        echo "Verification failed for the payload from ${url}." >&2
+      else
+        echo "Transfer failed from ${url}." >&2
+      fi
+      rm -f "${partial}"
+      if ((attempt < doxygen_download_attempts)); then
+        echo "Retrying in ${delay}s." >&2
+        sleep "${delay}"
+        delay=$((delay * 2))
+      fi
+    done
+    echo "Giving up on ${url} after ${doxygen_download_attempts} attempts." >&2
+  done
+
+  return 1
+}
+
 ensure_doxygen() {
   if command -v doxygen >/dev/null 2>&1; then
     actual_version="$(doxygen --version)"
@@ -142,46 +271,43 @@ ensure_doxygen() {
   doxygen_bin="${doxygen_dir}/bin/doxygen"
 
   if [[ ! -x "${doxygen_bin}" ]]; then
-    log "Downloading Doxygen ${doxygen_version} to ${install_root}"
     archive="${install_root%/}/doxygen-${doxygen_version}.linux.bin.tar.gz"
+    expected_sha256="${DOXYGEN_SHA256:-$(doxygen_expected_sha256 "${doxygen_version}")}"
 
-    # Primary host (doxygen.nl) intermittently returns HTTP 403 to CI/cloud IP
-    # ranges, so fall back to the official GitHub releases mirror, which is
-    # served by GitHub's CDN and does not block CI runners.
+    # The GitHub release asset is listed first: it is the upstream project's
+    # own upload for the same release, served by GitHub's CDN, and
+    # www.doxygen.nl/files/ prunes older releases -- it answers 404 for the
+    # 1.9.6 and 1.9.8 tarballs while still serving 1.10.0 and later. Pinning an
+    # older version therefore makes doxygen.nl the weaker of the two sources.
+    # Whichever source answers, the payload has to clear the same verification.
     github_tag="Release_${doxygen_version//./_}"
-    github_url="https://github.com/doxygen/doxygen/releases/download/${github_tag}/doxygen-${doxygen_version}.linux.bin.tar.gz"
     if [[ -n "${DOXYGEN_URL:-}" ]]; then
       download_urls=("${DOXYGEN_URL}")
     else
       download_urls=(
+        "https://github.com/doxygen/doxygen/releases/download/${github_tag}/doxygen-${doxygen_version}.linux.bin.tar.gz"
         "https://www.doxygen.nl/files/doxygen-${doxygen_version}.linux.bin.tar.gz"
-        "${github_url}"
       )
     fi
 
-    downloaded=0
-    for url in "${download_urls[@]}"; do
-      log "Trying ${url}"
-      if command -v curl >/dev/null 2>&1; then
-        if curl -fsSL "${url}" -o "${archive}"; then
-          downloaded=1
-          break
-        fi
-      elif command -v wget >/dev/null 2>&1; then
-        if wget -O "${archive}" "${url}"; then
-          downloaded=1
-          break
-        fi
-      else
-        echo "Neither curl nor wget is available to download Doxygen." >&2
+    # An archive left by an earlier run (or restored from a CI cache) is reused
+    # only if it still verifies, so a half-written file cannot become sticky.
+    if [[ -f "${archive}" ]] && verify_doxygen_archive "${archive}" "${expected_sha256}" 2>/dev/null; then
+      log "Reusing verified Doxygen ${doxygen_version} archive at ${archive}"
+    else
+      if [[ -f "${archive}" ]]; then
+        log "Discarding unverifiable cached archive ${archive}"
+        rm -f "${archive}"
+      fi
+      log "Downloading Doxygen ${doxygen_version} to ${install_root}"
+      if [[ -z "${expected_sha256}" ]]; then
+        echo "No pinned SHA-256 for Doxygen ${doxygen_version}; verifying the payload is a readable gzip tarball only." >&2
+        echo "Set DOXYGEN_SHA256 to pin this version." >&2
+      fi
+      if ! download_doxygen_archive "${archive}" "${expected_sha256}" "${download_urls[@]}"; then
+        echo "Failed to download a verified Doxygen ${doxygen_version} archive from any source." >&2
         exit 1
       fi
-      echo "Download failed from ${url}; trying next source." >&2
-    done
-
-    if [[ ${downloaded} -ne 1 ]]; then
-      echo "Failed to download Doxygen ${doxygen_version} from all sources." >&2
-      exit 1
     fi
 
     tar -C "${install_root}" -xzf "${archive}"

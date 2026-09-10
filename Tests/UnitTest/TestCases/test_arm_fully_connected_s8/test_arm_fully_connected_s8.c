@@ -554,3 +554,25 @@ void fc_per_ch_arm_fully_connected_s8(void)
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
 }
+
+// Issue #349: the _dsp leg is a public entry point the Python bindings call directly, so an out-of-range channel
+// count has to come back as the same -1 the dispatcher and the _mve leg return, not as a 0 that a caller reads as
+// "no buffer needed". Deliberately not gated on ARM_MATH_DSP: the leg variants are plain C and are compiled and
+// callable on every build target, which is the whole reason a caller can be misled by one.
+void buffer_size_out_of_range_dsp_arm_fully_connected_s8(void)
+{
+    // Negative channel count.
+    const cmsis_nn_dims negative_c = {1, 1, 1, -1};
+    TEST_ASSERT_EQUAL(-1, arm_fully_connected_s8_get_buffer_size_dsp(&negative_c));
+    // Byte count that does not fit in an int32_t.
+    const cmsis_nn_dims overflowing_c = {1, 1, 1, 1073741823};
+    TEST_ASSERT_EQUAL(-1, arm_fully_connected_s8_get_buffer_size_dsp(&overflowing_c));
+    // The other two entry points already answered this way; pin them alongside.
+    TEST_ASSERT_EQUAL(-1, arm_fully_connected_s8_get_buffer_size(&negative_c));
+    TEST_ASSERT_EQUAL(-1, arm_fully_connected_s8_get_buffer_size_mve(&negative_c));
+    TEST_ASSERT_EQUAL(-1, arm_fully_connected_s8_get_buffer_size(&overflowing_c));
+    TEST_ASSERT_EQUAL(-1, arm_fully_connected_s8_get_buffer_size_mve(&overflowing_c));
+    // An in-range shape is undisturbed: the DSP leg needs no kernel-sum buffer.
+    const cmsis_nn_dims valid_c = {1, 1, 1, FULLY_CONNECTED_IN_CH};
+    TEST_ASSERT_EQUAL(0, arm_fully_connected_s8_get_buffer_size_dsp(&valid_c));
+}

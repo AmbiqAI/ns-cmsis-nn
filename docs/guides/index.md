@@ -30,6 +30,18 @@ contracts.
 <em>Release tags, generated artifacts, release-please, and what ships together.</em>
 </a>
 
+<a class="doc-card" href="verification.html">
+<span>Quality</span>
+<strong>Testing &amp; Verification</strong>
+<em>What every pull request and release verifies, the qualification model, known limits, and coverage reports.</em>
+</a>
+
+<a class="doc-card" href="ci-matrix.html">
+<span>Quality</span>
+<strong>CI Matrix</strong>
+<em>One row per CI job: trigger, cores, precisions, whether it executes or only builds, and toolchain versions.</em>
+</a>
+
 <a class="doc-card" href="toolchains.html">
 <span>Build contract</span>
 <strong>Toolchain Pinning</strong>
@@ -47,3 +59,4 @@ contracts.
 | How fast is MVE vs DSP? | [Kernel Benchmarks](kernel-benchmarks.md) |
 | What exactly is in a release? | [Versioning & Releases](releases.md) |
 | Which compiler should I use? | [Toolchain Pinning](toolchains.md) |
+| Which CI job runs what, and when? | [CI Matrix](ci-matrix.md) |

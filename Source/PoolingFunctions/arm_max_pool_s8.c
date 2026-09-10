@@ -119,14 +119,14 @@ static void clamp_output(int8_t *source, int32_t length, const int32_t act_min, 
     {
         in.word = arm_nn_read_s8x4(source);
 
-        in.bytes[0] = MAX(in.bytes[0], act_min);
-        in.bytes[0] = MIN(in.bytes[0], act_max);
-        in.bytes[1] = MAX(in.bytes[1], act_min);
-        in.bytes[1] = MIN(in.bytes[1], act_max);
-        in.bytes[2] = MAX(in.bytes[2], act_min);
-        in.bytes[2] = MIN(in.bytes[2], act_max);
-        in.bytes[3] = MAX(in.bytes[3], act_min);
-        in.bytes[3] = MIN(in.bytes[3], act_max);
+        in.bytes[0] = ARM_NN_MAX(in.bytes[0], act_min);
+        in.bytes[0] = ARM_NN_MIN(in.bytes[0], act_max);
+        in.bytes[1] = ARM_NN_MAX(in.bytes[1], act_min);
+        in.bytes[1] = ARM_NN_MIN(in.bytes[1], act_max);
+        in.bytes[2] = ARM_NN_MAX(in.bytes[2], act_min);
+        in.bytes[2] = ARM_NN_MIN(in.bytes[2], act_max);
+        in.bytes[3] = ARM_NN_MAX(in.bytes[3], act_min);
+        in.bytes[3] = ARM_NN_MIN(in.bytes[3], act_max);
 
         arm_nn_write_s8x4_ia(&source, in.word);
         cnt--;
@@ -136,8 +136,8 @@ static void clamp_output(int8_t *source, int32_t length, const int32_t act_min, 
     while (cnt > 0l)
     {
         int32_t comp = *source;
-        comp = MAX(comp, act_min);
-        comp = MIN(comp, act_max);
+        comp = ARM_NN_MAX(comp, act_min);
+        comp = ARM_NN_MIN(comp, act_max);
         *source++ = (int8_t)comp;
         cnt--;
     }
@@ -198,12 +198,12 @@ arm_cmsis_nn_status arm_max_pool_s8(const cmsis_nn_context *ctx,
             for (int i_x = 0, base_idx_x = -pad_x; i_x < output_x; base_idx_x += stride_x, i_x++)
             {
                 /* Condition for kernel start dimension: (base_idx_<x,y> + kernel_<x,y>_start) >= 0 */
-                const int32_t ker_y_start = MAX(0, -base_idx_y);
-                const int32_t ker_x_start = MAX(0, -base_idx_x);
+                const int32_t ker_y_start = ARM_NN_MAX(0, -base_idx_y);
+                const int32_t ker_x_start = ARM_NN_MAX(0, -base_idx_x);
 
                 /* Condition for kernel end dimension: (base_idx_<x,y> + kernel_<x,y>_end) < dim_src_<width,height> */
-                const int32_t kernel_y_end = MIN(kernel_y, input_y - base_idx_y);
-                const int32_t kernel_x_end = MIN(kernel_x, input_x - base_idx_x);
+                const int32_t kernel_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
+                const int32_t kernel_x_end = ARM_NN_MIN(kernel_x, input_x - base_idx_x);
 
                 int count = 0;
 

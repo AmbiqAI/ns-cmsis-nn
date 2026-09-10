@@ -238,8 +238,8 @@ def resolve_toolchain(requested: str, cpu: str, toolchain_bin: str | None) -> To
         gcc_bin_dir = Path(os.environ["GCC_TOOLCHAIN"]).resolve()
 
     ac6_bin_dir = None
-    if "AC6_TOOLCHAIN_6_24_0" in os.environ:
-        ac6_bin_dir = Path(os.environ["AC6_TOOLCHAIN_6_24_0"]).resolve()
+    if "AC6_TOOLCHAIN_6_23_32" in os.environ:
+        ac6_bin_dir = Path(os.environ["AC6_TOOLCHAIN_6_23_32"]).resolve()
     elif "AC6_TOOLCHAIN" in os.environ:
         ac6_bin_dir = Path(os.environ["AC6_TOOLCHAIN"]).resolve()
 

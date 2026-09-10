@@ -55,8 +55,8 @@ void arm_relu6_q7(int8_t *data, uint16_t size)
     {
         int32_t ip = data[i];
 
-        ip = MAX(ip, 0);
-        data[i] = MIN(ip, 6);
+        ip = ARM_NN_MAX(ip, 0);
+        data[i] = ARM_NN_MIN(ip, 6);
     }
 }
 

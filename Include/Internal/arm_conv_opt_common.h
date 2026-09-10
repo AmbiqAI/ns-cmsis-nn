@@ -31,17 +31,16 @@
 #ifndef ARM_CONV_OPT_COMMON_H
 #define ARM_CONV_OPT_COMMON_H
 
-#define ARM_CONV_SPEC_ENTRY(MATCH_FN, CALL_FN)                                                                         \
-    {                                                                                                                  \
-        (MATCH_FN), (CALL_FN)                                                                                          \
-    }
+#define ARM_CONV_SPEC_ENTRY(MATCH_FN, CALL_FN) {(MATCH_FN), (CALL_FN)}
 
 #define ARM_CONV_ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 /*
  * Heuristics for selecting the NHWC packed-patch-matrix + GEMM float32 path.
- * Below these sizes the packing/setup overhead tends to outweigh the GEMM win.
+ * Below MIN_OC / MIN_POS the packing/setup overhead tends to outweigh the GEMM win.
  * MAX_TILE_ROWS bounds scratch usage and keeps the packed panel cache-friendly.
+ * MIN_K gates only the 1x1 route (arm_convolve_1x1_f32.c); the generic conv
+ * takes patch-GEMM at any patch length (#417).
  */
 #define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MAX_TILE_ROWS (8)
 #define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_K (16)
@@ -50,7 +49,7 @@
 
 /*
  * Heuristics for selecting the NHWC packed-patch-matrix + GEMM float16 path.
- * These mirror the float32 thresholds and keep the packed tile large enough to amortize setup cost.
+ * These mirror the float32 thresholds, including the 1x1-only scope of MIN_K.
  */
 #define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MAX_TILE_ROWS (8)
 #define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_K (16)

@@ -457,3 +457,25 @@ void batch_matmul_ctx_sizing_s8(void)
     TEST_ASSERT_EQUAL_HEX32(BATCH_MATMUL_CTX_GUARD_PATTERN, rejected_buf);
 #endif
 }
+
+// Issue #349: the _dsp leg is a public entry point the Python bindings call directly, so an out-of-range rhs row
+// count has to come back as the same -1 the dispatcher and the _mve leg return, not as a 0 that a caller reads as
+// "no buffer needed". Deliberately not gated on ARM_MATH_DSP: the leg variants are plain C and are compiled and
+// callable on every build target, which is the whole reason a caller can be misled by one.
+void buffer_size_out_of_range_dsp_arm_batch_matmul_s8(void)
+{
+    // Negative rhs row count.
+    const cmsis_nn_dims negative_w = {1, 1, -1, 1};
+    TEST_ASSERT_EQUAL(-1, arm_batch_matmul_s8_get_buffer_size_dsp(&negative_w));
+    // Byte count that does not fit in an int32_t.
+    const cmsis_nn_dims overflowing_w = {1, 1, 1073741823, 1};
+    TEST_ASSERT_EQUAL(-1, arm_batch_matmul_s8_get_buffer_size_dsp(&overflowing_w));
+    // The other two entry points already answered this way; pin them alongside.
+    TEST_ASSERT_EQUAL(-1, arm_batch_matmul_s8_get_buffer_size(&negative_w));
+    TEST_ASSERT_EQUAL(-1, arm_batch_matmul_s8_get_buffer_size_mve(&negative_w));
+    TEST_ASSERT_EQUAL(-1, arm_batch_matmul_s8_get_buffer_size(&overflowing_w));
+    TEST_ASSERT_EQUAL(-1, arm_batch_matmul_s8_get_buffer_size_mve(&overflowing_w));
+    // An in-range shape is undisturbed: the DSP leg needs no kernel-sum buffer.
+    const cmsis_nn_dims valid_w = {1, 1, 4, 1};
+    TEST_ASSERT_EQUAL(0, arm_batch_matmul_s8_get_buffer_size_dsp(&valid_w));
+}

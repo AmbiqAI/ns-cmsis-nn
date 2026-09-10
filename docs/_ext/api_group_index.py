@@ -55,6 +55,7 @@ GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         r"^arm_minimum",
         r"^arm_mul",
         r"^arm_nn_abs",
+        r"^arm_nn_sqrt",
         r"^arm_rsqrt",
         r"^arm_select_v2",
         r"^arm_sqrt",
@@ -69,6 +70,7 @@ GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         r"^arm_greater",
         r"^arm_less",
         r"^arm_mean",
+        r"^arm_nn_mean",
         r"^arm_not_equal",
         r"^arm_reduce",
         r"^arm_vector_sum",
@@ -92,6 +94,8 @@ GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         r"^arm_dynamic_update_slice",
         r"^arm_gather",
         r"^arm_mirror_pad",
+        r"^arm_nn_fill",
+        r"^arm_pack",
         r"^arm_pad",
         r"^arm_reshape",
         r"^arm_resize",
@@ -103,6 +107,7 @@ GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         r"^arm_tile",
         r"^arm_transpose_f",
         r"^arm_transpose_s",
+        r"^arm_unpack",
     ),
     "classifier-tail": (
         r"^arm_avg_?pool",
@@ -191,7 +196,7 @@ def _matches(name: str, patterns: tuple[str, ...]) -> bool:
 
 def _dtype(name: str) -> str:
     # `fp16` is a legacy spelling of the same half-precision bucket, still
-    # used by arm_fully_connected_fp16. It has to be probed separately --
+    # used by arm_elementwise_add_fp16. It has to be probed separately --
     # `(^|_)f16($|_)` cannot match `_fp16`, because the `f16` there is
     # preceded by `p` rather than `_` -- and then folded into `f16`, since
     # docs/_static/api-filter.js compares dtype for exact equality against

@@ -58,8 +58,8 @@ arm_cmsis_nn_status arm_prelu_scalar_s16(const int16_t *scalar_vect,
         {
             int32_t output_value =
                 arm_nn_requantize(input_value, output_multiplier_identity, output_shift_identity) + output_offset;
-            output_value = MAX(output_value, INT16_MIN);
-            output_value = MIN(output_value, INT16_MAX);
+            output_value = ARM_NN_MAX(output_value, INT16_MIN);
+            output_value = ARM_NN_MIN(output_value, INT16_MAX);
             const int16_t clamped_output = (int16_t)output_value;
 
             for (int32_t i = 0; i < block_size; ++i)
@@ -74,8 +74,8 @@ arm_cmsis_nn_status arm_prelu_scalar_s16(const int16_t *scalar_vect,
                 const int32_t alpha_value = (int32_t)non_scalar_vect[i] + alpha_offset;
                 const int32_t prod = alpha_value * input_value;
                 int32_t acc = arm_nn_requantize(prod, output_multiplier_alpha, output_shift_alpha) + output_offset;
-                acc = MAX(acc, INT16_MIN);
-                acc = MIN(acc, INT16_MAX);
+                acc = ARM_NN_MAX(acc, INT16_MIN);
+                acc = ARM_NN_MIN(acc, INT16_MAX);
                 output[i] = (int16_t)acc;
             }
         }
@@ -99,8 +99,8 @@ arm_cmsis_nn_status arm_prelu_scalar_s16(const int16_t *scalar_vect,
                 acc = arm_nn_requantize(prod, output_multiplier_alpha, output_shift_alpha) + output_offset;
             }
 
-            acc = MAX(acc, INT16_MIN);
-            acc = MIN(acc, INT16_MAX);
+            acc = ARM_NN_MAX(acc, INT16_MIN);
+            acc = ARM_NN_MIN(acc, INT16_MAX);
             output[i] = (int16_t)acc;
         }
     }

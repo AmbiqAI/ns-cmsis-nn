@@ -63,13 +63,20 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
 
     /* The wrapper API is the ultimate reference for argument check */
     if ((input_dims->h != 1) || conv_params->dilation.w != 1 || ctx->buf == NULL || conv_params->stride.w == 0 ||
-        (conv_params->stride.w * input_dims->c % 4 != 0))
+        (((int64_t)conv_params->stride.w * input_dims->c) % 4 != 0))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
 #if defined(ARM_MATH_MVEI)
     (void)bias_dims;
+
+    /* Only this MVE path reads the per-channel weight sums, through arm_nn_mat_mult_nt_t_s8(). Diagnose a
+       missing buffer here rather than dereferencing NULL and silently returning garbage output. */
+    if (weight_sum_ctx->buf == NULL)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
 
     const int32_t input_x = input_dims->w;
     const int32_t kernel_x = filter_dims->w;
@@ -87,9 +94,10 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_FAILURE;
     }
 
-    const int32_t right_pad_num = pad_x + asym_pad != 0 ? MAX(1, (pad_x + asym_pad + stride_x - 1) / stride_x) : 0;
-    const int32_t left_pad_num = pad_x != 0 ? MAX(1, (pad_x + stride_x - 1) / stride_x) : 0;
-    const int32_t no_pad_num = MAX(output_x - (right_pad_num + left_pad_num), 0);
+    const int32_t right_pad_num =
+        pad_x + asym_pad != 0 ? ARM_NN_MAX(1, (pad_x + asym_pad + stride_x - 1) / stride_x) : 0;
+    const int32_t left_pad_num = pad_x != 0 ? ARM_NN_MAX(1, (pad_x + stride_x - 1) / stride_x) : 0;
+    const int32_t no_pad_num = ARM_NN_MAX(output_x - (right_pad_num + left_pad_num), 0);
 
     const int32_t pad_size_left = pad_x * input_ch;
     const int32_t pad_size_right = asym_pad ? right_pad_num * input_ch : pad_size_left;

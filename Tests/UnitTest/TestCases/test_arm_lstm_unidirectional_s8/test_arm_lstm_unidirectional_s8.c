@@ -28,12 +28,8 @@
 #include "../TestData/lstm_stateful_batch_major_multibatch/test_data.h"
 #include "../Utils/validate.h"
 
-// update the buffer size if adding a unit test with larger buffer.
-#define LARGEST_BUFFER_SIZE LSTM_1_HIDDEN_SIZE * LSTM_1_BATCH_SIZE * LSTM_1_TIME_STEPS
-
-int8_t buffer1[LARGEST_BUFFER_SIZE];
-int8_t buffer2[LARGEST_BUFFER_SIZE];
-int8_t buffer3[LARGEST_BUFFER_SIZE];
+// The temp1/temp2 scratch is sized per test from the published queries: the buffers hold int16_t gate
+// vectors, so the previous shared int8_t arrays sized in s8 elements survived only on time-step slack.
 
 void lstm_1(void)
 {
@@ -179,13 +175,27 @@ void lstm_1(void)
                                          gate_cell,
                                          gate_output};
 
+    const int32_t temp1_size = arm_lstm_unidirectional_s8_temp1_get_buffer_size(&params);
+    const int32_t temp2_size = arm_lstm_unidirectional_s8_temp2_get_buffer_size(&params);
+    /* The published queries must agree with the size this test derives by hand from the kernel's writes: the
+       temp buffers hold int16_t gate vectors of the step kernel's batch extent (the layer batch only for a
+       time-major layer). */
+    TEST_ASSERT_EQUAL((LSTM_1_TIME_MAJOR ? LSTM_1_BATCH_SIZE : 1) * LSTM_1_HIDDEN_SIZE * (int32_t)sizeof(int16_t),
+                      temp1_size);
+    TEST_ASSERT_EQUAL(temp1_size, temp2_size);
+
+    int16_t cell_state[LSTM_1_BATCH_SIZE * LSTM_1_HIDDEN_SIZE];
+
     cmsis_nn_lstm_context buffers;
-    buffers.temp1 = buffer1;
-    buffers.temp2 = buffer2;
-    buffers.cell_state = buffer3;
+    buffers.temp1 = malloc((size_t)temp1_size);
+    buffers.temp2 = malloc((size_t)temp2_size);
+    buffers.cell_state = cell_state;
     buffers.hidden_state = NULL;
 
     arm_cmsis_nn_status result = arm_lstm_unidirectional_s8(lstm_1_input_tensor, output, &params, &buffers);
+
+    free(buffers.temp1);
+    free(buffers.temp2);
 
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
@@ -334,13 +344,27 @@ void lstm_2(void)
                                          gate_cell,
                                          gate_output};
 
+    const int32_t temp1_size = arm_lstm_unidirectional_s8_temp1_get_buffer_size(&params);
+    const int32_t temp2_size = arm_lstm_unidirectional_s8_temp2_get_buffer_size(&params);
+    /* The published queries must agree with the size this test derives by hand from the kernel's writes: the
+       temp buffers hold int16_t gate vectors of the step kernel's batch extent (the layer batch only for a
+       time-major layer). */
+    TEST_ASSERT_EQUAL((LSTM_2_TIME_MAJOR ? LSTM_2_BATCH_SIZE : 1) * LSTM_2_HIDDEN_SIZE * (int32_t)sizeof(int16_t),
+                      temp1_size);
+    TEST_ASSERT_EQUAL(temp1_size, temp2_size);
+
+    int16_t cell_state[LSTM_2_BATCH_SIZE * LSTM_2_HIDDEN_SIZE];
+
     cmsis_nn_lstm_context buffers;
-    buffers.temp1 = buffer1;
-    buffers.temp2 = buffer2;
-    buffers.cell_state = buffer3;
+    buffers.temp1 = malloc((size_t)temp1_size);
+    buffers.temp2 = malloc((size_t)temp2_size);
+    buffers.cell_state = cell_state;
     buffers.hidden_state = NULL;
 
     arm_cmsis_nn_status result = arm_lstm_unidirectional_s8(lstm_2_input_tensor, output, &params, &buffers);
+
+    free(buffers.temp1);
+    free(buffers.temp2);
 
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
@@ -490,13 +514,27 @@ void lstm_one_time_step(void)
                                          gate_cell,
                                          gate_output};
 
+    const int32_t temp1_size = arm_lstm_unidirectional_s8_temp1_get_buffer_size(&params);
+    const int32_t temp2_size = arm_lstm_unidirectional_s8_temp2_get_buffer_size(&params);
+    /* The published queries must agree with the size this test derives by hand from the kernel's writes: the
+       temp buffers hold int16_t gate vectors of the step kernel's batch extent (the layer batch only for a
+       time-major layer). */
+    TEST_ASSERT_EQUAL((LSTM_ONE_TIME_STEP_TIME_MAJOR ? LSTM_ONE_TIME_STEP_BATCH_SIZE : 1) * LSTM_ONE_TIME_STEP_HIDDEN_SIZE * (int32_t)sizeof(int16_t),
+                      temp1_size);
+    TEST_ASSERT_EQUAL(temp1_size, temp2_size);
+
+    int16_t cell_state[LSTM_ONE_TIME_STEP_BATCH_SIZE * LSTM_ONE_TIME_STEP_HIDDEN_SIZE];
+
     cmsis_nn_lstm_context buffers;
-    buffers.temp1 = buffer1;
-    buffers.temp2 = buffer2;
-    buffers.cell_state = buffer3;
+    buffers.temp1 = malloc((size_t)temp1_size);
+    buffers.temp2 = malloc((size_t)temp2_size);
+    buffers.cell_state = cell_state;
     buffers.hidden_state = NULL;
 
     arm_cmsis_nn_status result = arm_lstm_unidirectional_s8(lstm_one_time_step_input_tensor, output, &params, &buffers);
+
+    free(buffers.temp1);
+    free(buffers.temp2);
 
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
@@ -653,16 +691,29 @@ void lstm_stateful_batch_major_multibatch(void)
                         LSTM_STATEFUL_BATCH_MAJOR_MULTIBATCH_HIDDEN_SIZE];
     memset(hidden_state, LSTM_STATEFUL_BATCH_MAJOR_MULTIBATCH_OUTPUT_ZERO_POINT, sizeof(hidden_state));
 
-    memset(buffer3, 0, sizeof(buffer3));
+    const int32_t temp1_size = arm_lstm_unidirectional_s8_temp1_get_buffer_size(&params);
+    const int32_t temp2_size = arm_lstm_unidirectional_s8_temp2_get_buffer_size(&params);
+    /* Batch-major layer: the step kernel runs one batch at a time, so the queries report a single batch of
+       int16_t gate vectors even though the layer batch is LSTM_STATEFUL_BATCH_MAJOR_MULTIBATCH_BATCH_SIZE. */
+    TEST_ASSERT_EQUAL((LSTM_STATEFUL_BATCH_MAJOR_MULTIBATCH_TIME_MAJOR ? LSTM_STATEFUL_BATCH_MAJOR_MULTIBATCH_BATCH_SIZE : 1) * LSTM_STATEFUL_BATCH_MAJOR_MULTIBATCH_HIDDEN_SIZE * (int32_t)sizeof(int16_t),
+                      temp1_size);
+    TEST_ASSERT_EQUAL(temp1_size, temp2_size);
+
+    /* Streaming call: the caller owns the cell state, seeded to zero for a fresh sequence. */
+    int16_t cell_state[LSTM_STATEFUL_BATCH_MAJOR_MULTIBATCH_BATCH_SIZE * LSTM_STATEFUL_BATCH_MAJOR_MULTIBATCH_HIDDEN_SIZE];
+    memset(cell_state, 0, sizeof(cell_state));
 
     cmsis_nn_lstm_context buffers;
-    buffers.temp1 = buffer1;
-    buffers.temp2 = buffer2;
-    buffers.cell_state = buffer3;
+    buffers.temp1 = malloc((size_t)temp1_size);
+    buffers.temp2 = malloc((size_t)temp2_size);
+    buffers.cell_state = cell_state;
     buffers.hidden_state = hidden_state;
 
     arm_cmsis_nn_status result =
         arm_lstm_unidirectional_s8(lstm_stateful_batch_major_multibatch_input_tensor, output, &params, &buffers);
+
+    free(buffers.temp1);
+    free(buffers.temp2);
 
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));

@@ -10,15 +10,16 @@
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
  * Title:        arm_split_f16.c
- * Description:  Split float16 vectors
+ * Description:  Split a float16_t tensor along one axis (any rank)
  *
- * $Date:        22 July 2026
+ * $Date:        6 September 2026
  * $Revision:    V.1.0.0
  *
  * Target :  Arm(R) M-Profile Architecture
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_axis_copy_common.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -41,36 +42,22 @@ arm_cmsis_nn_status arm_split_f16(const float16_t *input_data,
                                   const int32_t *split_dims,
                                   float16_t *const *output_data)
 {
-    // Compute "outer" size: product of dims before 'axis'.
-    int64_t outer_size = 1;
-    for (int32_t d = 0; d < axis; d++)
+    int32_t outer;
+    int32_t inner;
+    if (input_dims < 1 || axis < 0 || axis >= input_dims || input_shape == NULL || split_dims == NULL ||
+        arm_nn_axis_copy_plan(
+            input_shape, input_dims, axis, axis + 1, input_shape[axis], num_splits, split_dims, &outer, &inner) !=
+            ARM_CMSIS_NN_SUCCESS)
     {
-        outer_size *= input_shape[d];
+        return ARM_CMSIS_NN_ARG_ERROR;
     }
-    // Compute base "inner" size: product of dims after 'axis'.
-    int64_t base_inner_size = 1;
-    for (int32_t d = axis + 1; d < input_dims; d++)
+    const int32_t total = outer * input_shape[axis] * inner;
+    if ((input_data == NULL && total != 0) ||
+        !arm_nn_axis_copy_ptrs_ok((const void *const *)output_data, num_splits, total))
     {
-        base_inner_size *= input_shape[d];
+        return ARM_CMSIS_NN_ARG_ERROR;
     }
-
-    // For each outer index...
-    for (int k = 0; k < outer_size; k++)
-    {
-
-        // For each output tensor (split)...
-        for (int s = 0; s < num_splits; s++)
-        {
-
-            // The number of elements to copy for this output.
-            const int copy_size = split_dims[s] * base_inner_size;
-            float16_t *out_ptr = output_data[s] + k * copy_size;
-            // Split is a pure data-movement op; copy the float16 payload as-is.
-            arm_memcpy_f16(out_ptr, input_data, copy_size);
-            input_data += copy_size;
-        }
-    }
-
+    arm_nn_axis_scatter_f16(input_data, outer, num_splits, split_dims, inner, output_data);
     return ARM_CMSIS_NN_SUCCESS;
 }
 

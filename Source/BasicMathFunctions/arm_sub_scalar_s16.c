@@ -55,7 +55,7 @@ static arm_cmsis_nn_status arm_sub_scalar_s16_core(const int16_t *scalar_vect,
     (void)vector_offset;
     (void)out_offset;
 
-    int32_t scalar_val = ((int32_t)scalar_vect[0]) << left_shift;
+    int32_t scalar_val = ((int32_t)scalar_vect[0]) * (int32_t)((uint32_t)1 << left_shift);
     scalar_val = arm_nn_requantize(scalar_val, scalar_mult, scalar_shift);
 
 #if defined(ARM_MATH_MVEI)
@@ -98,20 +98,20 @@ static arm_cmsis_nn_status arm_sub_scalar_s16_core(const int16_t *scalar_vect,
     {
         two_halfword_vec = arm_nn_read_q15x2_ia(&vector_vect);
 
-        input_2 = (int16_t)(two_halfword_vec & 0xFFFF) << left_shift;
+        input_2 = (int16_t)(two_halfword_vec & 0xFFFF) * (int32_t)((uint32_t)1 << left_shift);
         input_2 = arm_nn_requantize(input_2, vector_mult, vector_shift);
         diff = scalar_minus_vector ? (scalar_val - input_2) : (input_2 - scalar_val);
         diff = arm_nn_requantize(diff, out_mult, out_shift);
-        diff = MAX(diff, out_activation_min);
-        diff = MIN(diff, out_activation_max);
+        diff = ARM_NN_MAX(diff, out_activation_min);
+        diff = ARM_NN_MIN(diff, out_activation_max);
         diff_1 = (int16_t)diff;
 
-        input_2 = (int16_t)(two_halfword_vec >> 16) << left_shift;
+        input_2 = (int16_t)(two_halfword_vec >> 16) * (int32_t)((uint32_t)1 << left_shift);
         input_2 = arm_nn_requantize(input_2, vector_mult, vector_shift);
         diff = scalar_minus_vector ? (scalar_val - input_2) : (input_2 - scalar_val);
         diff = arm_nn_requantize(diff, out_mult, out_shift);
-        diff = MAX(diff, out_activation_min);
-        diff = MIN(diff, out_activation_max);
+        diff = ARM_NN_MAX(diff, out_activation_min);
+        diff = ARM_NN_MIN(diff, out_activation_max);
         diff_2 = (int16_t)diff;
 
         arm_nn_write_q15x2_ia(&output, PACK_Q15x2_32x1(diff_1, diff_2));
@@ -123,14 +123,14 @@ static arm_cmsis_nn_status arm_sub_scalar_s16_core(const int16_t *scalar_vect,
     while (loop_count > 0)
     {
         /* C = scalar +/- vector */
-        input_2 = *vector_vect++ << left_shift;
+        input_2 = *vector_vect++ * (int32_t)((uint32_t)1 << left_shift);
         input_2 = arm_nn_requantize(input_2, vector_mult, vector_shift);
 
         diff = scalar_minus_vector ? (scalar_val - input_2) : (input_2 - scalar_val);
         diff = arm_nn_requantize(diff, out_mult, out_shift);
 
-        diff = MAX(diff, out_activation_min);
-        diff = MIN(diff, out_activation_max);
+        diff = ARM_NN_MAX(diff, out_activation_min);
+        diff = ARM_NN_MIN(diff, out_activation_max);
 
         *output++ = (int16_t)diff;
 

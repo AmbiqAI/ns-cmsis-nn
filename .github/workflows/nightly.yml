@@ -1,0 +1,274 @@
+name: Nightly
+
+# Full nightly run on main (AmbiqAI/ns-cmsis-nn#356, phase "nightly").
+#
+# The PR gate (ci.yml) deliberately keeps latency down: the legacy Unity
+# suites on the FVP otherwise execute only at release time, which means a
+# regression they would catch can sit on main for weeks before the next
+# release cut goes red. This workflow runs the full set every night so
+# drift is caught within a day, without adding a minute to PRs.
+#
+# What runs here vs per-PR:
+#   - helia-core-tester        also per-PR; included so the nightly is a
+#                              self-contained "is main green" answer
+#   - legacy-tester (Unity)    otherwise RELEASE-ONLY; sunset criterion is
+#                              tester #68/#72/#69/#74+75; criterion recorded on #356
+#   - toolchain strict link    also per-PR; same reasoning as the tester
+#
+# Failures land in ONE rolling issue ("Nightly run failing on main",
+# label `nightly`) rather than a new issue per red night -- see the
+# nightly-report job at the bottom.
+
+on:
+  schedule:
+    # Off-peak UTC; an odd minute avoids the top-of-hour scheduling
+    # thundering herd, when GitHub delays or drops cron runs.
+    - cron: '17 7 * * *'
+  # Manual dispatch so the workflow can be smoke-tested right after merge
+  # instead of waiting for the next cron window.
+  workflow_dispatch:
+
+# One nightly at a time. Never cancel an in-progress run: a slow nightly
+# overlapping a dispatched smoke run should finish and report, not vanish.
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+# The grant must be the UNION of every permission any callee declares, at
+# workflow or job level, because a called workflow requesting more than the
+# caller grants fails the run at STARTUP (zero jobs): resolve-ci-image.yml
+# declares contents:read + packages:read; helia-core-tester.yml's
+# coverage-merge-summary job declares contents:read + actions:read (the
+# coverage-gate baseline fetch, #370). ci.yml never hits this because it
+# declares no workflow-level permissions block (repo-default token; that
+# immunity holds only while the repository's default workflow permissions
+# stay permissive). Adding a permission to any callee means adding it
+# HERE and to release.yml's block -- the first scheduled nightly
+# startup-failed on exactly this after #369 and #370 merged
+# independently green.
+permissions:
+  contents: read
+  packages: read
+  actions: read
+
+jobs:
+  # Same functional suite the PR gate runs; inputs unset means the
+  # reusable workflow resolves the CI container itself and checks out the
+  # triggering ref -- main, for a scheduled run -- which is exactly what
+  # we want (release.yml is the caller that must pin both to the tag).
+  helia-core-tester:
+    uses: ./.github/workflows/helia-core-tester.yml
+
+  # The legacy Unity suites on the FVP. These are otherwise release-only
+  # (release.yml -> release-unit-tests), so without this job a Unity-visible
+  # regression is invisible until the next release cut. Kept until the
+  # sunset criterion lands (tester #68/#72/#69/#74+75; criterion recorded on #356).
+  # Inputs unset for the same reason as above: container resolved by
+  # resolve-ci-image, source_ref defaults to the triggering ref (main).
+  legacy-unit-tests:
+    uses: ./.github/workflows/legacy-tester.yml
+
+  toolchain-strict-link:
+    uses: ./.github/workflows/toolchain-matrix-strict-link.yml
+    # Named explicitly rather than `secrets: inherit` (same pattern as
+    # ci.yml): this workflow needs exactly one secret, and inherit would
+    # hand it every repository secret. It is declared `required: false`
+    # on the callee -- the armclang cell warns and skips when unset.
+    secrets:
+      ARM_UBL_LICENSE_IDENTIFIER: ${{ secrets.ARM_UBL_LICENSE_IDENTIFIER }}
+
+  # Audit of the PUBLISHED releases customers actually see
+  # (AmbiqAI/ns-cmsis-nn#274, section 2 -- the half release.yml's
+  # release-verify job cannot cover). release-verify only fires inside a
+  # release run that reaches it: v7.26.0-v7.29.1 all shipped empty BEFORE
+  # it existed, a run cancelled outright never executes it, and
+  # `gh release upload --clobber` deletes an asset before re-uploading, so
+  # a release can lose assets after its run went green. This job re-checks
+  # the live, non-draft release objects nightly, so an empty or gutted
+  # release can never again sit unnoticed for 11 days the way v7.29.1 did.
+  #
+  # Deliberately NOT wired into nightly-report below: a broken published
+  # release is customer-facing and prescribes a recovery dispatch, not a
+  # code fix, so it gets its own rolling issue (label `release-audit`)
+  # that must never be closed by "main is green again".
+  release-assets-audit:
+    runs-on: ubuntu-latest
+    # A paginated listing plus one `gh release view` per audited release,
+    # each retried 3x with short sleeps inside the script; pure hang
+    # insurance.
+    timeout-minutes: 10
+    # Job-level permissions REPLACE the workflow-level block, so both
+    # entries are needed: contents:read to check out the audit script,
+    # issues:write for the rolling issue (same pattern as nightly-report).
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Audit published release assets
+        id: audit
+        # continue-on-error so the rolling-issue step below always runs and
+        # leaves the durable signal; the last step re-raises the failure so
+        # the job itself still goes red.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Space/comma-separated tags whose gaps are a recorded decision
+          # not to repair (issue #274 priority 3) -- reported, not failed.
+          RELEASE_AUDIT_WAIVED_TAGS: ${{ vars.RELEASE_AUDIT_WAIVED_TAGS }}
+          AUDIT_REPORT_FILE: ${{ runner.temp }}/release-audit-report.md
+        run: bash scripts/ci/audit_release_assets.sh "${{ github.repository }}"
+
+      - name: Create, update, or close the rolling release-audit issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          AUDIT_OUTCOME: ${{ steps.audit.outcome }}
+          AUDIT_REPORT_FILE: ${{ runner.temp }}/release-audit-report.md
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          title='Published release(s) missing required assets'
+          label='release-audit'
+          today="$(date -u +%Y-%m-%d)"
+
+          # Same label-then-exact-title guard as nightly-report below: the
+          # label must exist before `gh issue create --label`, and
+          # `gh issue list --search` is fuzzy so the title is matched
+          # exactly with jq (inlined -- keep in sync with $title above).
+          if ! gh label list -R "$REPO" --limit 200 --json name --jq '.[].name' | grep -qxF "$label"; then
+            gh label create "$label" -R "$REPO" \
+              --color B60205 --description 'Rolling published-release asset-audit status issue'
+          fi
+
+          issue_number="$(gh issue list -R "$REPO" --state open --label "$label" \
+            --json number,title \
+            --jq '[.[] | select(.title == "Published release(s) missing required assets")][0].number // empty')"
+
+          if [[ "$AUDIT_OUTCOME" != 'success' ]]; then
+            body="Nightly audit of published GitHub Releases failed on ${today}.
+
+          Run: ${RUN_URL}
+
+          $(cat "$AUDIT_REPORT_FILE" 2>/dev/null || echo 'The audit could not produce a report -- see the run log (likely a GitHub API failure rather than a missing asset).')
+
+          This is the rolling release-audit issue: subsequent red audits comment here, and the first clean audit closes it."
+
+            if [[ -n "$issue_number" ]]; then
+              echo "Audit red; commenting on open rolling issue #${issue_number}"
+              gh issue comment "$issue_number" -R "$REPO" --body "$body"
+            else
+              echo 'Audit red; no open rolling issue -- creating one'
+              gh issue create -R "$REPO" --title "$title" --label "$label" --body "$body"
+            fi
+            exit 0
+          fi
+
+          if [[ -n "$issue_number" ]]; then
+            echo "Audit clean; closing rolling issue #${issue_number}"
+            gh issue close "$issue_number" -R "$REPO" \
+              --comment "Nightly release-asset audit is clean again as of ${today}: ${RUN_URL}"
+          else
+            echo 'Audit clean; no rolling issue open -- nothing to do'
+          fi
+
+      - name: Propagate audit failure
+        if: ${{ steps.audit.outcome == 'failure' }}
+        run: |
+          echo "release-assets-audit failed; see the audit step above and the rolling release-audit issue." >&2
+          exit 1
+
+  # Rolling-issue reporter. Contract:
+  #   - any callee failed  -> create "Nightly run failing on main" (label
+  #     `nightly`) if no open issue with that exact title exists, else
+  #     comment on the open one. One issue rolls across red nights.
+  #   - all callees passed -> if the rolling issue is open, comment that
+  #     the nightly is green again and close it. Otherwise do nothing.
+  #
+  # `if: always()` + needs on all three: the reporter must run precisely
+  # when something failed. Deliberately NO continue-on-error here: this
+  # job's only realistic failure mode is a failing gh call (which CAN be
+  # a transient API error), and a broken reporter on a broken nightly
+  # must be visibly red --
+  # swallowing gh errors would recreate the exact silence this workflow
+  # exists to end.
+  nightly-report:
+    if: always()
+    needs:
+      - helia-core-tester
+      - legacy-unit-tests
+      - toolchain-strict-link
+    runs-on: ubuntu-latest
+    # Only what the gh calls need; nothing is checked out.
+    permissions:
+      issues: write
+    steps:
+      - name: Create, update, or close the rolling nightly issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RESULT_HELIA: ${{ needs.helia-core-tester.result }}
+          RESULT_LEGACY: ${{ needs.legacy-unit-tests.result }}
+          RESULT_TOOLCHAIN: ${{ needs.toolchain-strict-link.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          title='Nightly run failing on main'
+          label='nightly'
+          today="$(date -u +%Y-%m-%d)"
+
+          # The label is part of the search guard below, so it must exist
+          # before `gh issue create --label` runs (gh does not create
+          # missing labels on issue creation -- it errors). Create only
+          # when missing: --force would re-assert color and description
+          # every night, silently reverting manual edits.
+          if ! gh label list -R "$REPO" --limit 200 --json name --jq '.[].name' | grep -qxF "$label"; then
+            gh label create "$label" -R "$REPO" \
+              --color B60205 --description 'Rolling nightly-run status issue'
+          fi
+
+          # Guard: exact-title match AND the label, open issues only.
+          # `gh issue list --search` is fuzzy, so filter exactly with jq
+          # (gh's --jq takes no --arg; the title is inlined -- keep it in
+          # sync with $title above).
+          issue_number="$(gh issue list -R "$REPO" --state open --label "$label" \
+            --json number,title \
+            --jq '[.[] | select(.title == "Nightly run failing on main")][0].number // empty')"
+
+          failed_callees=''
+          [[ "$RESULT_HELIA" == 'success' ]]     || failed_callees+="- helia-core-tester: ${RESULT_HELIA}"$'\n'
+          [[ "$RESULT_LEGACY" == 'success' ]]    || failed_callees+="- legacy-unit-tests (Unity/FVP): ${RESULT_LEGACY}"$'\n'
+          [[ "$RESULT_TOOLCHAIN" == 'success' ]] || failed_callees+="- toolchain-strict-link: ${RESULT_TOOLCHAIN}"$'\n'
+
+          if [[ -n "$failed_callees" ]]; then
+            body="Nightly run on \`main\` failed on ${today}.
+
+          Run: ${RUN_URL}
+
+          Failing callees:
+          ${failed_callees}
+          This is the rolling nightly-status issue: subsequent red nights comment here, and the first green nightly closes it."
+
+            if [[ -n "$issue_number" ]]; then
+              echo "Nightly red; commenting on open rolling issue #${issue_number}"
+              gh issue comment "$issue_number" -R "$REPO" --body "$body"
+            else
+              echo 'Nightly red; no open rolling issue -- creating one'
+              gh issue create -R "$REPO" --title "$title" --label "$label" --body "$body"
+            fi
+            exit 0
+          fi
+
+          if [[ -n "$issue_number" ]]; then
+            echo "Nightly green; closing rolling issue #${issue_number}"
+            gh issue close "$issue_number" -R "$REPO" \
+              --comment "Nightly run on \`main\` is green again as of ${today}: ${RUN_URL}"
+          else
+            echo 'Nightly green; no rolling issue open -- nothing to do'
+          fi

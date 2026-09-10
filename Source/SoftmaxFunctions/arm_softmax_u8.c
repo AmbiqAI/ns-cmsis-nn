@@ -61,7 +61,7 @@ void arm_softmax_u8(const uint8_t *input,
 
         for (col = 1; col < row_size; ++col)
         {
-            max = MAX(max, input[col]);
+            max = ARM_NN_MAX(max, input[col]);
         }
 
         int32_t diff = 0;
@@ -87,7 +87,7 @@ void arm_softmax_u8(const uint8_t *input,
             {
                 const int32_t res =
                     DIV_POW2(MUL_SAT(shifted_scale, EXP_ON_NEG(MUL_SAT(diff * mask, mult))), bits_over_unit);
-                output[col] = (uint8_t)CLAMP(res, (int32_t)255, (int32_t)0);
+                output[col] = (uint8_t)ARM_NN_CLAMP(res, (int32_t)255, (int32_t)0);
             }
             else
             {

@@ -33,3 +33,8 @@ void test_prelu_scalar_alpha_s16(void) { prelu_scalar_alpha_s16_arm_prelu_s16();
 void test_prelu_per_channel_s16(void) { prelu_per_channel_s16_arm_prelu_s16(); }
 void test_prelu_alpha_width_broadcast_s16(void) { prelu_alpha_width_broadcast_s16_arm_prelu_s16(); }
 void test_prelu_output_shape_mismatch_s16(void) { prelu_output_shape_mismatch_s16_arm_prelu_s16(); }
+void test_prelu_broadcast_batch_scalar_alpha_s16_arm_prelu_s16(void)
+{
+    prelu_broadcast_batch_scalar_alpha_s16_arm_prelu_s16();
+}
+void test_prelu_dims_arg_error_s16_arm_prelu_s16(void) { prelu_dims_arg_error_s16_arm_prelu_s16(); }

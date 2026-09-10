@@ -42,8 +42,8 @@ static inline int32_t arm_rsqrt_s16_scaled_positive(const int32_t *lut,
     {
         scaled = arm_nn_requantize(scaled, out_mult, out_shift);
     }
-    scaled = MIN(INT16_MAX, scaled);
-    scaled = MAX(INT16_MIN, scaled);
+    scaled = ARM_NN_MIN(INT16_MAX, scaled);
+    scaled = ARM_NN_MAX(INT16_MIN, scaled);
     return scaled;
 }
 
@@ -69,8 +69,8 @@ static inline int32_t arm_rsqrt_s16_sample_slot(const int32_t *lut,
     const int32_t bias = arm_rsqrt_s16_round_div2_nearest(midpoint_err);
     int32_t slot_value = s0 - bias;
 
-    slot_value = MIN(INT16_MAX, slot_value);
-    slot_value = MAX(INT16_MIN, slot_value);
+    slot_value = ARM_NN_MIN(INT16_MAX, slot_value);
+    slot_value = ARM_NN_MAX(INT16_MIN, slot_value);
     return slot_value;
 }
 
@@ -156,8 +156,8 @@ static arm_cmsis_nn_status arm_rsqrt_s16_universal_core(const int16_t *input,
         int32_t rsqrt_res = (int32_t)((int64_t)y0 + interp_delta);
 
         rsqrt_res += out_offset;
-        rsqrt_res = MIN(out_activation_max, rsqrt_res);
-        rsqrt_res = MAX(out_activation_min, rsqrt_res);
+        rsqrt_res = ARM_NN_MIN(out_activation_max, rsqrt_res);
+        rsqrt_res = ARM_NN_MAX(out_activation_min, rsqrt_res);
         output[i] = (int16_t)rsqrt_res;
     }
 
@@ -277,8 +277,8 @@ arm_cmsis_nn_status arm_rsqrt_s16_per_op(const int16_t *input,
             y0 + (((y1 - y0) * frac + (1 << (ARM_RSQRT_S16_SLOT_SHIFT - 1))) >> ARM_RSQRT_S16_SLOT_SHIFT);
 
         rsqrt_res += out_offset;
-        rsqrt_res = MIN(out_activation_max, rsqrt_res);
-        rsqrt_res = MAX(out_activation_min, rsqrt_res);
+        rsqrt_res = ARM_NN_MIN(out_activation_max, rsqrt_res);
+        rsqrt_res = ARM_NN_MAX(out_activation_min, rsqrt_res);
         output[i] = (int16_t)rsqrt_res;
     }
 

@@ -74,7 +74,7 @@ arm_cmsis_nn_status arm_clamp_s16(const int16_t *input,
 
     for (int i = 0; i < flat_size; ++i)
     {
-        output[i] = CLAMP(input[i], act_max, act_min);
+        output[i] = ARM_NN_CLAMP(input[i], act_max, act_min);
     }
 
 #endif

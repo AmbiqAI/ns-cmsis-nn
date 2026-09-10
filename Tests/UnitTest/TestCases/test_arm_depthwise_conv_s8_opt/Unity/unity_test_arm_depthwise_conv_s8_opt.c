@@ -73,3 +73,8 @@ void test_buffer_size_arm_depthwise_conv_s8_opt(void) { buffer_size_arm_depthwis
 void test_buffer_size_mve_arm_depthwise_conv_s8_opt(void) { buffer_size_mve_arm_depthwise_conv_s8_opt(); }
 
 void test_buffer_size_dsp_arm_depthwise_conv_s8_opt(void) { buffer_size_dsp_arm_depthwise_conv_s8_opt(); }
+
+void test_buffer_size_out_of_range_mve_arm_depthwise_conv_s8_opt(void)
+{
+    buffer_size_out_of_range_mve_arm_depthwise_conv_s8_opt();
+}

@@ -22,8 +22,7 @@ project(cmsis_nn_unit_tests VERSION 0.0.1)
 
 set(CMSIS_PATH "</path/to/CMSIS>" CACHE PATH "Path to CMSIS.")
 
-add_compile_options(-fomit-frame-pointer
-                    -Werror
+add_compile_options(-Werror
                     -Wimplicit-function-declaration
                     -Wunused-variable
                     -Wunused-function
@@ -43,6 +42,10 @@ endif()
 
 if(NOT BUILD_CMSIS_NN_UNIT)
     set(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 ON)
+    # Only target builds omit the frame pointer. Applying it to host builds too would
+    # override a -fno-omit-frame-pointer passed in CMAKE_C_FLAGS, because add_compile_options
+    # lands after CMAKE_C_FLAGS on the command line and the last of the pair wins.
+    add_compile_options(-fomit-frame-pointer)
 else()
     set(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 OFF)
 endif()
@@ -62,17 +65,39 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../.. cmsis-nn)
 if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 AND CMAKE_C_COMPILER_ID MATCHES "Clang")
     target_compile_options(cmsis-nn PRIVATE -Wno-error=unknown-attributes)
 endif()
+# The library above keeps its own optimisation level. Everything configured below inherits these
+# directory-level options -- the Unity harness and the suites, and on the Corstone-300 build the
+# retarget/uart shims and the CMSIS startup/system objects too -- and so is built with finite-math
+# assumptions disabled on every compiler. Unity's TEST_ASSERT_FLOAT_IS_NAN/IS_INF go through
+# UNITY_IS_NAN/UNITY_IS_INF, which with a math.h in scope expand to __builtin_isnan() and
+# __builtin_isinf_sign() (`n != n` is only Unity's fallback when math.h supplies no isnan macro).
+# -ffinite-math-only, implied by -Ofast, folds both to false, and Unity's failure printer -- guarded
+# by the same builtins -- then loops forever on the non-finite value it is asked to print. On a
+# Cortex-M0 build that hangs test_arm_reduce_sum_f32's NaN/Inf case indefinitely; on the host it
+# reproduces at -Ofast. armclang goes further and rejects the INFINITY/NAN literals in those suites
+# outright at -Ofast (-Werror,-Wnan-infinity-disabled). The four non-test objects that also take the
+# flag -- Corstone-300's retarget.c and uart.c, and CMSIS_5's startup_ARMCM*.c and system_ARMCM*.c --
+# are unchanged in code: only their .ARM.attributes Tag_ABI_FP_number_model tag moves from Finite to
+# IEEE 754.
+#
+# This flag only bites where -Ofast (or -ffast-math) is in force, which is the Corstone-300 branch
+# above; the host job builds at -O1, where the flag is a no-op -- __FINITE_MATH_ONLY__ is already 0
+# with or without it, and stripping it there leaves the host suites byte-for-byte green.
+# legacy-tester.yml, the -Ofast FVP leg, is called from release.yml and nightly.yml and never on a
+# pull request; unity-f16-exec-gcc-floor.yml is what executes -Ofast on the PR path, see
+# AmbiqAI/ns-cmsis-nn#429. Do not remove this flag on the grounds that CI stays green.
 if(BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300)
-    add_compile_options(${CMSIS_OPTIMIZATION_LEVEL})
+    add_compile_options(${CMSIS_OPTIMIZATION_LEVEL} -fno-finite-math-only)
 elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
-    # Unity checks NaN/Inf explicitly in host regressions, so keep finite-math
-    # assumptions disabled for Clang instead of inheriting the library's -Ofast.
+    # The host Clang build also swaps the deprecated -Ofast for -O3.
     add_compile_options(-O3
                         -fno-finite-math-only
                         -Wno-error=unknown-attributes)
 else()
-    add_compile_options(${CMSIS_OPTIMIZATION_LEVEL})
+    add_compile_options(${CMSIS_OPTIMIZATION_LEVEL} -fno-finite-math-only)
 endif()
+
+enable_testing()
 
 # Target for all unit tests.
 add_custom_target(cmsis_nn_unit_tests)
@@ -88,6 +113,10 @@ function(add_cmsis_nn_unit_test_executable)
             target_link_options(${target} PRIVATE "--specs=nosys.specs")
         endif()
         add_dependencies(cmsis_nn_unit_tests ${target})
+        if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300)
+            # Host builds run every suite through ctest; the FVP flow runs the .elf images itself.
+            add_test(NAME ${target} COMMAND ${target})
+        endif()
     endforeach()
     set_property(GLOBAL PROPERTY cmsis_nn_unit_test_executables "${tmp}")
 endfunction(add_cmsis_nn_unit_test_executable)
@@ -210,27 +239,116 @@ add_subdirectory(TestCases/test_arm_where_s8)
 add_subdirectory(TestCases/test_arm_where_s16)
 
 if(ARM_NN_ENABLE_F32)
+    add_subdirectory(TestCases/test_arm_convolve_packed_f32)
+    add_subdirectory(TestCases/test_arm_depthwise_conv_f32)
     add_subdirectory(TestCases/test_arm_nn_abs_f32)
+    add_subdirectory(TestCases/test_arm_nn_fill_f32)
+    add_subdirectory(TestCases/test_arm_concatenation_f32)
+    add_subdirectory(TestCases/test_arm_pack_f32)
+    add_subdirectory(TestCases/test_arm_split_f32)
+    add_subdirectory(TestCases/test_arm_unpack_f32)
+    add_subdirectory(TestCases/test_arm_batch_matmul_f32)
+    add_subdirectory(TestCases/test_arm_nn_activation_helpers_f32)
+    add_subdirectory(TestCases/test_arm_elementwise_add_f32)
+    add_subdirectory(TestCases/test_arm_elementwise_mul_f32)
     add_subdirectory(TestCases/test_arm_elementwise_sub_f32)
+    add_subdirectory(TestCases/test_arm_elementwise_sub_broadcast_f32)
+    add_subdirectory(TestCases/test_arm_elementwise_add_broadcast_f32)
+    add_subdirectory(TestCases/test_arm_elementwise_mul_broadcast_f32)
+    add_subdirectory(TestCases/test_arm_fully_connected_f32)
     add_subdirectory(TestCases/test_arm_gru_unidirectional_f32)
+    add_subdirectory(TestCases/test_arm_hard_swish_f32)
+    add_subdirectory(TestCases/test_arm_lstm_unidirectional_f32)
+    add_subdirectory(TestCases/test_arm_maximum_minimum_f32)
+    add_subdirectory(TestCases/test_arm_nn_lstm_step_f32)
+    add_subdirectory(TestCases/test_arm_nn_mean_f32)
+    add_subdirectory(TestCases/test_arm_nn_sqrt_f32)
     add_subdirectory(TestCases/test_arm_prelu_f32)
     add_subdirectory(TestCases/test_arm_reduce_sum_f32)
     add_subdirectory(TestCases/test_arm_reshape_f32)
+    add_subdirectory(TestCases/test_arm_resize_nearest_neighbor_f32)
+    add_subdirectory(TestCases/test_arm_rsqrt_f32)
     add_subdirectory(TestCases/test_arm_strided_slice_f32)
     add_subdirectory(TestCases/test_arm_transpose_conv_f32)
+    add_subdirectory(TestCases/test_arm_transpose_f32)
 endif()
 
 if(ARM_NN_ENABLE_F16)
     add_subdirectory(TestCases/test_arm_nn_abs_f16)
-    add_subdirectory(TestCases/test_arm_convolve_f16)
+    add_subdirectory(TestCases/test_arm_nn_fill_f16)
+    add_subdirectory(TestCases/test_arm_concatenation_f16)
+    add_subdirectory(TestCases/test_arm_dequantize_f16_f32)
+    add_subdirectory(TestCases/test_arm_pack_f16)
+    add_subdirectory(TestCases/test_arm_unpack_f16)
+    add_subdirectory(TestCases/test_arm_nn_activation_helpers_f16)
+    add_subdirectory(TestCases/test_arm_batch_matmul_f16)
+    add_subdirectory(TestCases/test_arm_convolve_packed_f16)
+    add_subdirectory(TestCases/test_arm_depthwise_conv_f16)
     add_subdirectory(TestCases/test_arm_elementwise_sub_f16)
+    add_subdirectory(TestCases/test_arm_elementwise_sub_broadcast_f16)
+    add_subdirectory(TestCases/test_arm_elementwise_add_broadcast_f16)
+    add_subdirectory(TestCases/test_arm_elementwise_mul_broadcast_f16)
+    add_subdirectory(TestCases/test_arm_fully_connected_f16)
     add_subdirectory(TestCases/test_arm_gru_unidirectional_f16)
+    add_subdirectory(TestCases/test_arm_hard_swish_f16)
+    add_subdirectory(TestCases/test_arm_lstm_unidirectional_f16)
+    add_subdirectory(TestCases/test_arm_maximum_minimum_f16)
+    add_subdirectory(TestCases/test_arm_nn_lstm_step_f16)
+    add_subdirectory(TestCases/test_arm_nn_mean_f16)
+    add_subdirectory(TestCases/test_arm_nn_sqrt_f16)
     add_subdirectory(TestCases/test_arm_prelu_f16)
     add_subdirectory(TestCases/test_arm_reduce_sum_f16)
     add_subdirectory(TestCases/test_arm_reshape_f16)
+    add_subdirectory(TestCases/test_arm_resize_nearest_neighbor_f16)
+    add_subdirectory(TestCases/test_arm_rsqrt_f16)
+    add_subdirectory(TestCases/test_arm_softmax_f16)
+    add_subdirectory(TestCases/test_arm_softmax_f16_shapes)
     add_subdirectory(TestCases/test_arm_split_f16)
     add_subdirectory(TestCases/test_arm_strided_slice_f16)
     add_subdirectory(TestCases/test_arm_transpose_conv_f16)
+    add_subdirectory(TestCases/test_arm_transpose_f16)
+endif()
+
+# Host-only -Ofast NaN probe (#334 item d): rebuilds the six float elementwise
+# kernels at -Ofast -ffinite-math-only -- the flag pair the harness suites
+# deliberately never see (the directory-level -fno-finite-math-only above) --
+# and fails on any clamp-to-bound of a NaN element. GNU-only because the host
+# Clang leg swaps -Ofast out as deprecated (see the Clang branches above), and
+# host-only because the FVP flow runs Unity .elf images, which this is not. The
+# directory name carries no test_arm prefix on purpose: unittest_targets.py
+# treats every TestCases/*test_arm* directory as a Unity suite and requires a
+# Unity/ subdirectory, which this standalone probe does not have.
+if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
+   AND CMAKE_C_COMPILER_ID STREQUAL "GNU"
+   AND ARM_NN_ENABLE_F32
+   AND ARM_NN_ENABLE_F16)
+    add_subdirectory(TestCases/elementwise_nan_ofast_probe)
+endif()
+
+# Host-only -Ofast NaN probe for the activation legs (#382). Same guard shape and
+# same rationale as the elementwise probe above; it rebuilds arm_nn_activation_f32
+# and arm_nn_activation_f16 under the hostile flag pair and fails if a NaN input
+# comes back as 0.0 (RELU) or a clamp bound (RELU6). The directory name carries no
+# test_arm prefix for the same unittest_targets.py reason given above. Only the
+# scalar legs run on the host; the MVE RELU/RELU6 legs are covered on target.
+if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
+   AND CMAKE_C_COMPILER_ID STREQUAL "GNU"
+   AND ARM_NN_ENABLE_F32
+   AND ARM_NN_ENABLE_F16)
+    add_subdirectory(TestCases/activation_nan_ofast_probe)
+endif()
+
+# Host-only -Ofast NaN/Inf probe for the f16 reduction legs (#429). Same guard
+# shape and same rationale as the two probes above; it rebuilds arm_nn_mean_f16
+# and arm_reduce_sum_f16 under the hostile flag pair and fails if a non-finite
+# input does not propagate through either dispatch path. The directory name
+# carries no test_arm prefix for the same unittest_targets.py reason given above.
+# Only the scalar legs run on the host; the MVE legs are covered on target.
+if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
+   AND CMAKE_C_COMPILER_ID STREQUAL "GNU"
+   AND ARM_NN_ENABLE_F32
+   AND ARM_NN_ENABLE_F16)
+    add_subdirectory(TestCases/reduction_nan_ofast_probe)
 endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)

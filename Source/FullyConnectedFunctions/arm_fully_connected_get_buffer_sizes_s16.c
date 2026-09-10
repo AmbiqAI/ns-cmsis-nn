@@ -58,7 +58,17 @@ int32_t arm_fully_connected_s16_get_buffer_size_mve(const cmsis_nn_dims *filter_
 
 int32_t arm_fully_connected_per_channel_s16_get_buffer_size_dsp(const cmsis_nn_dims *filter_dims)
 {
-    return filter_dims->c * (int32_t)sizeof(int32_t);
+    // Computed in 64 bits so that a channel count large enough to overflow the int32_t byte count cannot wrap past
+    // the range check below. Both target legs land here, so the check has to live in this leg rather than only in
+    // the dispatcher.
+    const int64_t required_bytes = (int64_t)filter_dims->c * (int64_t)sizeof(int32_t);
+
+    if ((filter_dims->c < 0) || (required_bytes > INT32_MAX))
+    {
+        return -1;
+    }
+
+    return (int32_t)required_bytes;
 }
 
 int32_t arm_fully_connected_per_channel_s16_get_buffer_size_mve(const cmsis_nn_dims *filter_dims)
@@ -68,6 +78,15 @@ int32_t arm_fully_connected_per_channel_s16_get_buffer_size_mve(const cmsis_nn_d
 
 int32_t arm_fully_connected_per_channel_s16_get_buffer_size(const cmsis_nn_dims *filter_dims)
 {
+    // Validated once here, ahead of the dispatch below, so an invalid dim returns -1 on every build target. Both
+    // legs re-check this on their own, since binding glue may call them directly.
+    const int64_t required_bytes = (int64_t)filter_dims->c * (int64_t)sizeof(int32_t);
+
+    if ((filter_dims->c < 0) || (required_bytes > INT32_MAX))
+    {
+        return -1;
+    }
+
 #if defined(ARM_MATH_MVEI)
     return arm_fully_connected_per_channel_s16_get_buffer_size_mve(filter_dims);
 #else

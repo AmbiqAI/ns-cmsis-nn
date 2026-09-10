@@ -49,3 +49,5 @@ void test_batch_matmul_3_s8(void) { batch_matmul_3_s8(); }
 void test_batch_matmul_4_s8(void) { batch_matmul_4_s8(); }
 void test_batch_matmul_5_s8(void) { batch_matmul_5_s8(); }
 void test_batch_matmul_ctx_sizing_s8(void) { batch_matmul_ctx_sizing_s8(); }
+
+void test_buffer_size_out_of_range_dsp_arm_batch_matmul_s8(void) { buffer_size_out_of_range_dsp_arm_batch_matmul_s8(); }

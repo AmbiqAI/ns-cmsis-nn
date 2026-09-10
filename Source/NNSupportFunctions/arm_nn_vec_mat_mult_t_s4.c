@@ -389,10 +389,10 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
         res1 += dst_offset;
 
         // Clamp the result
-        res0 = MAX(res0, activation_min);
-        res0 = MIN(res0, activation_max);
-        res1 = MAX(res1, activation_min);
-        res1 = MIN(res1, activation_max);
+        res0 = ARM_NN_MAX(res0, activation_min);
+        res0 = ARM_NN_MIN(res0, activation_max);
+        res1 = ARM_NN_MAX(res1, activation_min);
+        res1 = ARM_NN_MIN(res1, activation_max);
 
         *dst = (int8_t)res0;
         *(dst + 2 * row_loop_cnt) = (int8_t)res1;
@@ -457,10 +457,10 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
         res1 += dst_offset;
 
         // Clamp the result
-        res0 = MAX(res0, activation_min);
-        res0 = MIN(res0, activation_max);
-        res1 = MAX(res1, activation_min);
-        res1 = MIN(res1, activation_max);
+        res0 = ARM_NN_MAX(res0, activation_min);
+        res0 = ARM_NN_MIN(res0, activation_max);
+        res1 = ARM_NN_MAX(res1, activation_min);
+        res1 = ARM_NN_MIN(res1, activation_max);
 
         *dst = (int8_t)res0;
 
@@ -538,10 +538,10 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
         res1 += dst_offset;
 
         // Clamp the result
-        res0 = MAX(res0, activation_min);
-        res0 = MIN(res0, activation_max);
-        res1 = MAX(res1, activation_min);
-        res1 = MIN(res1, activation_max);
+        res0 = ARM_NN_MAX(res0, activation_min);
+        res0 = ARM_NN_MIN(res0, activation_max);
+        res1 = ARM_NN_MAX(res1, activation_min);
+        res1 = ARM_NN_MIN(res1, activation_max);
 
         *dst = (int8_t)res0;
 
@@ -585,10 +585,10 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
         res1 += dst_offset;
 
         // Clamp the result
-        res0 = MAX(res0, activation_min);
-        res0 = MIN(res0, activation_max);
-        res1 = MAX(res1, activation_min);
-        res1 = MIN(res1, activation_max);
+        res0 = ARM_NN_MAX(res0, activation_min);
+        res0 = ARM_NN_MIN(res0, activation_max);
+        res1 = ARM_NN_MAX(res1, activation_min);
+        res1 = ARM_NN_MIN(res1, activation_max);
 
         *dst = (int8_t)res0;
         *(dst + 2 * row_loop_cnt) = (int8_t)res1;
@@ -723,8 +723,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
         res0 += dst_offset;
 
         // Clamp the result
-        res0 = MAX(res0, activation_min);
-        res0 = MIN(res0, activation_max);
+        res0 = ARM_NN_MAX(res0, activation_min);
+        res0 = ARM_NN_MIN(res0, activation_max);
 
         *(dst + 2 * row_loop_cnt) = (int8_t)res0;
         dst++;

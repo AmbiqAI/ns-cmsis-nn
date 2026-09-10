@@ -57,8 +57,8 @@ arm_cmsis_nn_status arm_abs_s16(const int16_t *input,
             const int32_t input_val = (int32_t)*input++ - input_offset;
             int32_t output_val = (input_val > 0) ? input_val : -input_val;
             output_val += out_offset;
-            output_val = MAX(output_val, out_activation_min);
-            output_val = MIN(output_val, out_activation_max);
+            output_val = ARM_NN_MAX(output_val, out_activation_min);
+            output_val = ARM_NN_MIN(output_val, out_activation_max);
 
             *output++ = (int16_t)output_val;
             loop_count--;
@@ -74,8 +74,8 @@ arm_cmsis_nn_status arm_abs_s16(const int16_t *input,
             int32_t output_val;
             output_val = arm_nn_requantize(abs_val, out_mult, out_shift);
             output_val += out_offset;
-            output_val = MAX(output_val, out_activation_min);
-            output_val = MIN(output_val, out_activation_max);
+            output_val = ARM_NN_MAX(output_val, out_activation_min);
+            output_val = ARM_NN_MIN(output_val, out_activation_max);
 
             *output++ = (int16_t)output_val;
             loop_count--;

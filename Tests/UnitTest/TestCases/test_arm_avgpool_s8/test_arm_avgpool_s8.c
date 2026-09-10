@@ -391,3 +391,26 @@ void avgpooling_param_fail_arm_avgpool_s8(void)
     }
     TEST_ASSERT_EQUAL(expected, result);
 }
+
+// Issue #318: the _mve leg is a public entry point the Python bindings call directly, so an out-of-range channel
+// count has to come back as the same -1 the dispatcher and the _dsp leg return, not as a 0 that a caller reads as
+// "no buffer needed". Deliberately not gated on ARM_MATH_MVEI: the leg variants are plain C and are compiled and
+// callable on every build target, which is the whole reason a caller can be misled by one.
+void buffer_size_out_of_range_mve_arm_avgpool_s8(void)
+{
+    // Negative channel count.
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s8_get_buffer_size_mve(0, -1));
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s8_get_buffer_size_mve(0, -7));
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s8_get_buffer_size_mve(3, -1));
+    // Byte count that does not fit in an int32_t.
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s8_get_buffer_size_mve(2, 2147483647));
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s8_get_buffer_size_mve(2, 1073741823));
+    // The other two entry points already answered this way; pin them alongside.
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s8_get_buffer_size(0, -1));
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s8_get_buffer_size_dsp(0, -1));
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s8_get_buffer_size(2, 1073741823));
+    TEST_ASSERT_EQUAL(-1, arm_avgpool_s8_get_buffer_size_dsp(2, 1073741823));
+    // An in-range shape is undisturbed: the Helium leg needs no accumulator buffer.
+    TEST_ASSERT_EQUAL(0, arm_avgpool_s8_get_buffer_size_mve(AVGPOOLING_5_OUTPUT_W, AVGPOOLING_5_INPUT_C));
+    TEST_ASSERT_EQUAL(0, arm_avgpool_s8_get_buffer_size_mve(0, 0));
+}

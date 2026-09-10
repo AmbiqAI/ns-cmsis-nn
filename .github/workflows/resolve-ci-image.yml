@@ -26,6 +26,7 @@ permissions:
 jobs:
   resolve:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       container_image: ${{ steps.resolve.outputs.container_image }}
       resolved_from: ${{ steps.resolve.outputs.resolved_from }}

@@ -148,12 +148,12 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
             out_mult++;
             out_shift++;
 
-            ch_0_out_0 = MAX(ch_0_out_0, activation_min);
-            ch_0_out_0 = MIN(ch_0_out_0, activation_max);
+            ch_0_out_0 = ARM_NN_MAX(ch_0_out_0, activation_min);
+            ch_0_out_0 = ARM_NN_MIN(ch_0_out_0, activation_max);
             *out_0++ = (int16_t)ch_0_out_0;
 
-            ch_0_out_1 = MAX(ch_0_out_1, activation_min);
-            ch_0_out_1 = MIN(ch_0_out_1, activation_max);
+            ch_0_out_1 = ARM_NN_MAX(ch_0_out_1, activation_min);
+            ch_0_out_1 = ARM_NN_MIN(ch_0_out_1, activation_max);
             *out_1++ = (int16_t)ch_0_out_1;
 
             ch_1_out_0 = arm_nn_requantize(ch_1_out_0, *out_mult, *out_shift);
@@ -161,12 +161,12 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
             out_mult++;
             out_shift++;
 
-            ch_1_out_0 = MAX(ch_1_out_0, activation_min);
-            ch_1_out_0 = MIN(ch_1_out_0, activation_max);
+            ch_1_out_0 = ARM_NN_MAX(ch_1_out_0, activation_min);
+            ch_1_out_0 = ARM_NN_MIN(ch_1_out_0, activation_max);
             *out_0++ = (int16_t)ch_1_out_0;
 
-            ch_1_out_1 = MAX(ch_1_out_1, activation_min);
-            ch_1_out_1 = MIN(ch_1_out_1, activation_max);
+            ch_1_out_1 = ARM_NN_MAX(ch_1_out_1, activation_min);
+            ch_1_out_1 = ARM_NN_MIN(ch_1_out_1, activation_max);
             *out_1++ = (int16_t)ch_1_out_1;
         }
         else
@@ -212,20 +212,20 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
             ch_1_out_0 = arm_nn_requantize_s64(ch_1_out_0_s64, reduced_multiplier, *out_shift);
             ch_1_out_1 = arm_nn_requantize_s64(ch_1_out_1_s64, reduced_multiplier, *out_shift);
 
-            ch_0_out_0 = MAX(ch_0_out_0, activation_min);
-            ch_0_out_0 = MIN(ch_0_out_0, activation_max);
+            ch_0_out_0 = ARM_NN_MAX(ch_0_out_0, activation_min);
+            ch_0_out_0 = ARM_NN_MIN(ch_0_out_0, activation_max);
             *out_0++ = (int16_t)ch_0_out_0;
 
-            ch_0_out_1 = MAX(ch_0_out_1, activation_min);
-            ch_0_out_1 = MIN(ch_0_out_1, activation_max);
+            ch_0_out_1 = ARM_NN_MAX(ch_0_out_1, activation_min);
+            ch_0_out_1 = ARM_NN_MIN(ch_0_out_1, activation_max);
             *out_1++ = (int16_t)ch_0_out_1;
 
-            ch_1_out_0 = MAX(ch_1_out_0, activation_min);
-            ch_1_out_0 = MIN(ch_1_out_0, activation_max);
+            ch_1_out_0 = ARM_NN_MAX(ch_1_out_0, activation_min);
+            ch_1_out_0 = ARM_NN_MIN(ch_1_out_0, activation_max);
             *out_0++ = (int16_t)ch_1_out_0;
 
-            ch_1_out_1 = MAX(ch_1_out_1, activation_min);
-            ch_1_out_1 = MIN(ch_1_out_1, activation_max);
+            ch_1_out_1 = ARM_NN_MAX(ch_1_out_1, activation_min);
+            ch_1_out_1 = ARM_NN_MIN(ch_1_out_1, activation_max);
             *out_1++ = (int16_t)ch_1_out_1;
 
             out_mult++;
@@ -295,12 +295,12 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
             out_mult++;
             out_shift++;
 
-            ch_0_out_0 = MAX(ch_0_out_0, activation_min);
-            ch_0_out_0 = MIN(ch_0_out_0, activation_max);
+            ch_0_out_0 = ARM_NN_MAX(ch_0_out_0, activation_min);
+            ch_0_out_0 = ARM_NN_MIN(ch_0_out_0, activation_max);
             *out_0++ = (int16_t)ch_0_out_0;
 
-            ch_0_out_1 = MAX(ch_0_out_1, activation_min);
-            ch_0_out_1 = MIN(ch_0_out_1, activation_max);
+            ch_0_out_1 = ARM_NN_MAX(ch_0_out_1, activation_min);
+            ch_0_out_1 = ARM_NN_MIN(ch_0_out_1, activation_max);
             *out_1++ = (int16_t)ch_0_out_1;
         }
         else
@@ -333,12 +333,12 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
             ch_0_out_0 = arm_nn_requantize_s64(ch_0_out_0_s64, reduced_multiplier, *out_shift);
             ch_0_out_1 = arm_nn_requantize_s64(ch_0_out_1_s64, reduced_multiplier, *out_shift);
 
-            ch_0_out_0 = MAX(ch_0_out_0, activation_min);
-            ch_0_out_0 = MIN(ch_0_out_0, activation_max);
+            ch_0_out_0 = ARM_NN_MAX(ch_0_out_0, activation_min);
+            ch_0_out_0 = ARM_NN_MIN(ch_0_out_0, activation_max);
             *out_0++ = (int16_t)ch_0_out_0;
 
-            ch_0_out_1 = MAX(ch_0_out_1, activation_min);
-            ch_0_out_1 = MIN(ch_0_out_1, activation_max);
+            ch_0_out_1 = ARM_NN_MAX(ch_0_out_1, activation_min);
+            ch_0_out_1 = ARM_NN_MIN(ch_0_out_1, activation_max);
             *out_1++ = (int16_t)ch_0_out_1;
             out_mult++;
             out_shift++;
