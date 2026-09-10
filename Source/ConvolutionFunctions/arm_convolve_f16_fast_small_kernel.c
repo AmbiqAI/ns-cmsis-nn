@@ -187,8 +187,8 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
             }
         }
 
-        input_data += input_x * input_y * input_ch;
-        output_data += output_x * output_y * output_ch;
+        input_data += (size_t)input_x * input_y * input_ch;
+        output_data += (size_t)output_x * output_y * output_ch;
     }
 
     return ARM_CMSIS_NN_SUCCESS;
