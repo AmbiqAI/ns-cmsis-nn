@@ -280,6 +280,10 @@
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_wrapper_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_vector_sum_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_vector_sum_s8_s64.c"/>
+        <file category="source" name="Source/GatherFunctions/arm_gather_f16.c"/>
+        <file category="source" name="Source/GatherFunctions/arm_gather_f32.c"/>
+        <file category="source" name="Source/GatherFunctions/arm_gather_nd_f16.c"/>
+        <file category="source" name="Source/GatherFunctions/arm_gather_nd_f32.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_nd_s16.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_nd_s8.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_s16.c"/>
