@@ -19,7 +19,7 @@ cpackget add Ambiq.NS-CMSIS-NN.${VERSION}.pack
 
 ## Pick a Cvariant
 
-The pack defines the component **`Ambiq::NN Lib`** with two variants:
+The pack defines the component **heliaCORE NN Lib from Ambiq** with two variants:
 
 | Cvariant   | What you get                                                  | When to use                            |
 |------------|---------------------------------------------------------------|----------------------------------------|
@@ -29,8 +29,8 @@ The pack defines the component **`Ambiq::NN Lib`** with two variants:
 In your `.cproject` or IDE, select **one** of:
 
 ```xml
-<component Cclass="Ambiq" Cgroup="NN Lib" Cvariant="Source"   Cversion="7.33.1"/> <!-- x-release-please-version -->
-<component Cclass="Ambiq" Cgroup="NN Lib" Cvariant="Prebuilt" Cversion="7.33.1"/> <!-- x-release-please-version -->
+<component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvendor="Ambiq" Cvariant="Source"   Cversion="7.33.1"/> <!-- x-release-please-version -->
+<component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvendor="Ambiq" Cvariant="Prebuilt" Cversion="7.33.1"/> <!-- x-release-please-version -->
 ```
 
 ## Prebuilt — supported architectures
@@ -54,7 +54,7 @@ project toolchain to optimize and qualify the kernels directly.
 
 ## Verify the selection
 
-Before building firmware, confirm your project has exactly one `Ambiq::NN Lib`
+Before building firmware, confirm your project has exactly one heliaCORE NN Lib
 component selected:
 
 - Use `Source` when your IDE/toolchain should compile the kernels.
