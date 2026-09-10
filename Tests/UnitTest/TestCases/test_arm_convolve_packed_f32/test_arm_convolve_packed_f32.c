@@ -273,12 +273,37 @@ void convolve_group_ch_mult_1_f32(void)
     conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
 }
 
+void convolve_small_c_grouped_f32(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 3, .w = 3, .c = 2};
+    const cmsis_nn_dims flt = {.n = 2, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims out = {.n = 1, .h = 3, .w = 3, .c = 2};
+    float32_t x[18];
+    float32_t w[18];
+    float32_t bias[2];
+    cmsis_nn_conv_params_f32 cp;
+
+    for (int32_t i = 0; i < 18; i++)
+    {
+        x[i] = conv_f32_value(i, 32);
+        w[i] = conv_f32_value(i, 33);
+    }
+    for (int32_t i = 0; i < 2; i++)
+    {
+        bias[i] = conv_f32_value(i, 34);
+    }
+
+    conv_f32_params(&cp, 1, 1, 0);
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+}
+
 void convolve_grouped_contract_f32(void)
 {
     const cmsis_nn_dims in = {.n = 1, .h = 1, .w = 1, .c = 4};
     const cmsis_nn_dims invalid_in = {.n = 1, .h = 1, .w = 1, .c = 3};
     const cmsis_nn_dims flt = {.n = 4, .h = 1, .w = 1, .c = 2};
     const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 1, .c = 4};
+    const cmsis_nn_dims nondivisible_channel_out = {.n = 1, .h = 1, .w = 1, .c = 3};
     const cmsis_nn_dims zero_channel_out = {.n = 1, .h = 1, .w = 1, .c = 0};
     const cmsis_nn_dims negative_channel_out = {.n = 1, .h = 1, .w = 1, .c = -4};
     const float32_t x[4] = {1.0f, 2.0f, 3.0f, 4.0f};
@@ -293,6 +318,8 @@ void convolve_grouped_contract_f32(void)
     conv_f32_params(&cp, 0, 0, 0);
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_convolve_wrapper_f32(NULL, &cp, &invalid_in, x, &flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f32(NULL, &cp, &in, x, &flt, w, NULL, NULL, &nondivisible_channel_out, y));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_convolve_wrapper_f32(NULL, &cp, &in, x, &flt, w, NULL, NULL, &zero_channel_out, y));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,

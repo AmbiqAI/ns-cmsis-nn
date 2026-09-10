@@ -729,7 +729,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
     #endif
 
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-        if (arm_conv_nhwc_use_small_c_f32(input_dims, output_dims))
+        if (groups == 1 && arm_conv_nhwc_use_small_c_f32(input_dims, output_dims))
         {
             return arm_conv_small_c_dispatch_f32(
                 conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data);

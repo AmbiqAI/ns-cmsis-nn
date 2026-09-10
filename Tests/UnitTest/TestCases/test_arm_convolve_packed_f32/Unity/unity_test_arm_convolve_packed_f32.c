@@ -37,6 +37,8 @@ void test_convolve_grouped_dilated_f32(void) { convolve_grouped_dilated_f32(); }
 
 void test_convolve_group_ch_mult_1_f32(void) { convolve_group_ch_mult_1_f32(); }
 
+void test_convolve_small_c_grouped_f32(void) { convolve_small_c_grouped_f32(); }
+
 void test_convolve_grouped_contract_f32(void) { convolve_grouped_contract_f32(); }
 
 void test_convolve_packed_3x3_f32(void) { convolve_packed_3x3_f32(); }
