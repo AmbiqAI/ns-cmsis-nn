@@ -671,7 +671,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
     const int32_t groups = input_c / kernel_ch;
-    if (groups <= 0 || output_c % groups != 0)
+    if (groups <= 0 || output_c <= 0 || output_c % groups != 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

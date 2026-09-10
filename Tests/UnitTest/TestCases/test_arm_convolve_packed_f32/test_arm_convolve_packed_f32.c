@@ -279,6 +279,8 @@ void convolve_grouped_contract_f32(void)
     const cmsis_nn_dims invalid_in = {.n = 1, .h = 1, .w = 1, .c = 3};
     const cmsis_nn_dims flt = {.n = 4, .h = 1, .w = 1, .c = 2};
     const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 1, .c = 4};
+    const cmsis_nn_dims zero_channel_out = {.n = 1, .h = 1, .w = 1, .c = 0};
+    const cmsis_nn_dims negative_channel_out = {.n = 1, .h = 1, .w = 1, .c = -4};
     const float32_t x[4] = {1.0f, 2.0f, 3.0f, 4.0f};
     const float32_t w[8] = {0};
     float32_t y[4] = {0};
@@ -291,6 +293,10 @@ void convolve_grouped_contract_f32(void)
     conv_f32_params(&cp, 0, 0, 0);
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_convolve_wrapper_f32(NULL, &cp, &invalid_in, x, &flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f32(NULL, &cp, &in, x, &flt, w, NULL, NULL, &zero_channel_out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f32(NULL, &cp, &in, x, &flt, w, NULL, NULL, &negative_channel_out, y));
 }
 
 // 3x3, in_c = 4, out_c = 8 on a 4x4 input (in_c = 4 is one full vector, so the direct small-C kernel does not
