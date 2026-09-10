@@ -124,7 +124,8 @@ void rsum_f16_nan_inf_arm_reduce_sum_f16(void)
 
 void rsum_f16_arg_error_arm_reduce_sum_f16(void)
 {
-    float16_t output[8] = {0};
+    float16_t output[8];
+    memset(output, 0xa5, sizeof(output));
     const cmsis_nn_dims axis_dims = {0, 0, 0, 1};
     const cmsis_nn_dims output_dims = {2, 3, 4, 1};
 
@@ -138,6 +139,11 @@ void rsum_f16_arg_error_arm_reduce_sum_f16(void)
                       arm_reduce_sum_f16(rsum_f16_input, &rsum_f16_input_dims, &axis_dims, NULL, &output_dims));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_reduce_sum_f16(rsum_f16_input, &rsum_f16_input_dims, &axis_dims, output, NULL));
+    const unsigned char *bytes = (const unsigned char *)output;
+    for (size_t i = 0; i < sizeof(output); ++i)
+    {
+        TEST_ASSERT_EQUAL_HEX8(0xa5, bytes[i]);
+    }
 }
 
 void rsum_f16_portable_masks_arm_reduce_sum_f16(void)
@@ -349,4 +355,27 @@ void rsum_f16_spatial_order_arm_reduce_sum_f16(void)
         TEST_ASSERT_EQUAL_FLOAT(91.0f, (float)output[0]);
         TEST_ASSERT_EQUAL_FLOAT(91.0f, (float)output[channels + 1]);
     }
+}
+
+void rsum_f16_fp_control_arm_reduce_sum_f16(void)
+{
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    // Exact sums under the control-selected spatial route. Refs #484.
+    const float16_t input[12] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    const float16_t expected[8] = {91, 8, 10, 12, 14, 16, 18, 91};
+    float16_t output[8] = {91, 91, 91, 91, 91, 91, 91, 91};
+    const cmsis_nn_dims in = {1, 2, 2, 3}, axes = {0, 1, 0, 0}, out = {1, 1, 2, 3};
+    uint32_t saved_fpscr, restored_fpscr;
+    __ASM volatile("vmrs %0, fpscr" : "=r"(saved_fpscr) : : "memory");
+    const uint32_t controlled_fpscr = (saved_fpscr & ~((3u << 22) | (1u << 26))) | (1u << 22);
+    __ASM volatile("vmsr fpscr, %0" : : "r"(controlled_fpscr) : "memory");
+    const arm_cmsis_nn_status status = arm_reduce_sum_f16(input, &in, &axes, output + 1, &out);
+    __ASM volatile("vmsr fpscr, %0" : : "r"(saved_fpscr) : "memory");
+    __ASM volatile("vmrs %0, fpscr" : "=r"(restored_fpscr) : : "memory");
+    TEST_ASSERT_EQUAL_HEX32(saved_fpscr, restored_fpscr);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+    TEST_ASSERT_EQUAL_MEMORY(expected, output, sizeof(expected));
+#else
+    TEST_IGNORE_MESSAGE("Requires explicit MVE FP-control dispatch");
+#endif
 }

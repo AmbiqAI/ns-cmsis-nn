@@ -54,3 +54,5 @@ void test_rsum_f16_consumer_spatial_layouts_arm_reduce_sum_f16(void) { rsum_f16_
 void test_rsum_f16_legacy_shapes_arm_reduce_sum_f16(void) { rsum_f16_legacy_shapes_arm_reduce_sum_f16(); }
 
 void test_rsum_f16_spatial_order_arm_reduce_sum_f16(void) { rsum_f16_spatial_order_arm_reduce_sum_f16(); }
+
+void test_rsum_f16_fp_control_arm_reduce_sum_f16(void) { rsum_f16_fp_control_arm_reduce_sum_f16(); }

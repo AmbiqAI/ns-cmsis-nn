@@ -54,3 +54,5 @@ void test_rsum_f32_consumer_spatial_layouts_arm_reduce_sum_f32(void) { rsum_f32_
 void test_rsum_f32_legacy_shapes_arm_reduce_sum_f32(void) { rsum_f32_legacy_shapes_arm_reduce_sum_f32(); }
 
 void test_rsum_f32_spatial_order_arm_reduce_sum_f32(void) { rsum_f32_spatial_order_arm_reduce_sum_f32(); }
+
+void test_rsum_f32_fp_control_arm_reduce_sum_f32(void) { rsum_f32_fp_control_arm_reduce_sum_f32(); }
