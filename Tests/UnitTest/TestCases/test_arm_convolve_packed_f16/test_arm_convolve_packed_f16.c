@@ -367,6 +367,98 @@ static inline bool conv_f16_bits_are_nan(float16_t x)
     return (uint16_t)(bits & 0x7FFFu) > 0x7C00u;
 }
 
+void convolve_widened_single_group_dispatch_f16(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims flt = {.n = 1, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 1, .c = 1};
+    const float16_t x[9] = {(float16_t)256.0f, (float16_t)256.0f, (float16_t)1.0f};
+    const float16_t w[9] = {(float16_t)256.0f, (float16_t)-256.0f, (float16_t)1.0f};
+    float16_t y = (float16_t)0.0f;
+    cmsis_nn_conv_params_f16 cp;
+
+    conv_f16_params(&cp, 0, 0, 0);
+    cp.activation.min = (float16_t)-65504.0f;
+    cp.activation.max = (float16_t)65504.0f;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_convolve_wrapper_f16(NULL, &cp, &in, x, &flt, w, NULL, NULL, &out, &y));
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y);
+}
+
+void convolve_widened_group_ch_mult_1_f16(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims flt = {.n = 1, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 1, .c = 1};
+    const float16_t x[9] = {(float16_t)2048.0f, (float16_t)1.0f, (float16_t)-2048.0f};
+    const float16_t w[9] = {(float16_t)1.0f, (float16_t)1.0f, (float16_t)1.0f};
+    float16_t y = (float16_t)0.0f;
+    cmsis_nn_conv_params_f16 cp;
+
+    conv_f16_params(&cp, 0, 0, 0);
+    cp.activation.min = (float16_t)-65504.0f;
+    cp.activation.max = (float16_t)65504.0f;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16_group_ch_mult_1(NULL, &cp, &in, x, &flt, w, NULL, NULL, &out, &y));
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y);
+}
+
+void convolve_widened_fast_small_kernel_f16(void)
+{
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const cmsis_nn_dims in = {.n = 1, .h = 1, .w = 3, .c = 2};
+    const cmsis_nn_dims flt = {.n = 2, .h = 1, .w = 3, .c = 1};
+    const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 1, .c = 2};
+    const float16_t x[6] = {
+        (float16_t)256.0f, (float16_t)256.0f, (float16_t)256.0f, (float16_t)256.0f, (float16_t)1.0f, (float16_t)1.0f};
+    const float16_t w[6] = {
+        (float16_t)256.0f, (float16_t)-256.0f, (float16_t)1.0f, (float16_t)256.0f, (float16_t)-256.0f, (float16_t)1.0f};
+    float16_t y[2] = {0};
+    cmsis_nn_conv_params_f16 cp;
+
+    conv_f16_params(&cp, 0, 0, 0);
+    cp.activation.min = (float16_t)-65504.0f;
+    cp.activation.max = (float16_t)65504.0f;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y[0]);
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y[1]);
+#endif
+}
+
+void convolve_single_group_nan_compatibility_f16(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 1, .w = 1, .c = 1};
+    const cmsis_nn_dims flt = {.n = 1, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 1, .c = 1};
+    const float16_t w[9] = {0, 0, 0, 0, (float16_t)1.0f, 0, 0, 0, 0};
+    cmsis_nn_conv_params_f16 cp;
+    int32_t nan_count = 0;
+
+    conv_f16_params(&cp, 1, 1, 0);
+    cp.activation.min = (float16_t)-65504.0f;
+    cp.activation.max = (float16_t)65504.0f;
+    for (uint32_t bits = 0; bits <= UINT16_MAX; bits++)
+    {
+        volatile uint16_t input_bits = (uint16_t)bits;
+        const float16_t x = conv_f16_from_bits(&input_bits);
+        if (!conv_f16_bits_are_nan(x))
+        {
+            continue;
+        }
+
+        float16_t y = (float16_t)0.0f;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_wrapper_f16(NULL, &cp, &in, &x, &flt, w, NULL, NULL, &out, &y));
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+        TEST_ASSERT_EQUAL_FLOAT(-65504.0f, (float32_t)y);
+#else
+        TEST_ASSERT_EQUAL_FLOAT(65504.0f, (float32_t)y);
+#endif
+        nan_count++;
+    }
+    TEST_ASSERT_EQUAL_INT32(2046, nan_count);
+}
+
 // NaN through arm_nn_mat_mult_nt_n_packed_f16's output clamp, the packed f16 matmul entry the packed
 // conv paths land on. On the scalar (non-MVE) build path the clamp is the bit-classified clamp of #380,
 // so the NaN row must come back NaN at every optimization level; the MVE path clamps with

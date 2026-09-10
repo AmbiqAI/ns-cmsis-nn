@@ -36,6 +36,22 @@
  * @{
  */
 
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+__STATIC_FORCEINLINE float32_t arm_convolve_f16_widened_dot(float16x8_t lhs, float16x8_t rhs)
+{
+    const float32x4_t product_lo = vmulq(arm_nn_vcvtbq_f32_f16(lhs), arm_nn_vcvtbq_f32_f16(rhs));
+    const float32x4_t product_hi = vmulq(arm_nn_vcvttq_f32_f16(lhs), arm_nn_vcvttq_f32_f16(rhs));
+    return arm_nn_vec_reduce_add_f32(vaddq(product_lo, product_hi));
+}
+
+/* Match the established MVE convolution clamp: maxNum with the lower bound first makes NaN resolve to min. */
+__STATIC_FORCEINLINE _Float16
+arm_convolve_f16_clamp_mve_compatible(_Float16 value, _Float16 activation_min, _Float16 activation_max)
+{
+    return arm_nn_min_f16h(arm_nn_max_f16h(value, activation_min), activation_max);
+}
+    #endif
+
 /*
  * Fast float16 convolution for small kernels. Optimal when
  * rhs_cols = kernel_h * kernel_w * kernel_ch <= 8 and padding is zero.
@@ -159,8 +175,7 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
                 float16_t *out_c = output_data + i_group * output_ch_per_group + c;
                 const float16x8_t weight = vld1q_z(filter_data_ptr, p);
                 filter_data_ptr += rhs_cols;
-                const _Float16 bias_val =
-                    bias_data ? (_Float16)bias_data[i_group * output_ch_per_group + c] : (_Float16)0.0f;
+                const float32_t bias_val = bias_data ? (float32_t)bias_data[i_group * output_ch_per_group + c] : 0.0f;
 
                 for (int32_t i_out_y = 0; i_out_y < output_y; i_out_y++)
                 {
@@ -168,8 +183,9 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
                     {
                         const float16x8_t in = vldrhq_gather_shifted_offset_z(input_data_pr, offset_src, p);
                         input_data_pr += input_ch * stride_x;
-                        _Float16 acc = (_Float16)arm_nn_vec_reduce_add_f16(vmulq(weight, in)) + bias_val;
-                        acc = arm_nn_clamp_f16h(acc, act_max, act_min);
+                        const float32_t acc32 = arm_convolve_f16_widened_dot(weight, in) + bias_val;
+                        _Float16 acc = (_Float16)acc32;
+                        acc = arm_convolve_f16_clamp_mve_compatible(acc, act_min, act_max);
                         *out_c = (float16_t)acc;
                         out_c += output_ch;
                     }
@@ -178,8 +194,9 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
                     {
                         const float16x8_t in = vldrhq_gather_shifted_offset_z(input_data_pr, offset_src, p);
                         input_data_pr += input_ch * stride_edge;
-                        _Float16 acc = (_Float16)arm_nn_vec_reduce_add_f16(vmulq(weight, in)) + bias_val;
-                        acc = arm_nn_clamp_f16h(acc, act_max, act_min);
+                        const float32_t acc32 = arm_convolve_f16_widened_dot(weight, in) + bias_val;
+                        _Float16 acc = (_Float16)acc32;
+                        acc = arm_convolve_f16_clamp_mve_compatible(acc, act_min, act_max);
                         *out_c = (float16_t)acc;
                         out_c += output_ch;
                     }

@@ -43,6 +43,14 @@ void test_convolve_1xn_pad_wider_than_kernel_f16(void) { convolve_1xn_pad_wider_
 
 void test_convolve_packed_matmul_nan_f16(void) { convolve_packed_matmul_nan_f16(); }
 
+void test_convolve_widened_single_group_dispatch_f16(void) { convolve_widened_single_group_dispatch_f16(); }
+
+void test_convolve_widened_group_ch_mult_1_f16(void) { convolve_widened_group_ch_mult_1_f16(); }
+
+void test_convolve_widened_fast_small_kernel_f16(void) { convolve_widened_fast_small_kernel_f16(); }
+
+void test_convolve_single_group_nan_compatibility_f16(void) { convolve_single_group_nan_compatibility_f16(); }
+
 void test_convolve_small_k_3x3_s2_f16(void) { convolve_small_k_3x3_s2_f16(); }
 
 void test_convolve_small_k_few_filters_f16(void) { convolve_small_k_few_filters_f16(); }

@@ -731,7 +731,8 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
     #endif
 
     /* Depthwise-equivalent Conv2D: one input and one output channel per group. */
-    if (kernel_ch == 1 && input_c == output_c && conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_STANDARD)
+    if (groups != 1 && kernel_ch == 1 && input_c == output_c &&
+        conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_STANDARD)
     {
         return arm_convolve_f16_group_ch_mult_1(ctx,
                                                 conv_params,

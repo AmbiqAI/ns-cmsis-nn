@@ -35,6 +35,22 @@
  * @{
  */
 
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+__STATIC_FORCEINLINE float32_t arm_convolve_group_ch_mult_1_widened_dot(float16x8_t lhs, float16x8_t rhs)
+{
+    const float32x4_t product_lo = vmulq(arm_nn_vcvtbq_f32_f16(lhs), arm_nn_vcvtbq_f32_f16(rhs));
+    const float32x4_t product_hi = vmulq(arm_nn_vcvttq_f32_f16(lhs), arm_nn_vcvttq_f32_f16(rhs));
+    return arm_nn_vec_reduce_add_f32(vaddq(product_lo, product_hi));
+}
+
+/* Match the established MVE convolution clamp: maxNum with the lower bound first makes NaN resolve to min. */
+__STATIC_FORCEINLINE _Float16
+arm_convolve_group_ch_mult_1_clamp_mve_compatible(_Float16 value, _Float16 activation_min, _Float16 activation_max)
+{
+    return arm_nn_min_f16h(arm_nn_max_f16h(value, activation_min), activation_max);
+}
+    #endif
+
 arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx,
                                                      const cmsis_nn_conv_params_f16 *conv_params,
                                                      const cmsis_nn_dims *input_dims,
@@ -144,34 +160,36 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
                     weight_1 = vld1q_z(filter_ptr + 8, p1);
                 }
                 filter_ptr += rhs_cols;
-                const _Float16 bias = bias_data ? (_Float16)bias_data[c] : (_Float16)0.0f;
+                const float32_t bias = bias_data ? (float32_t)bias_data[c] : 0.0f;
 
                 for (int32_t out_y = 0; out_y < output_y; ++out_y)
                 {
                     for (int32_t out_x = 0; out_x < output_x - 1; ++out_x)
                     {
                         const float16x8_t input_0 = vldrhq_gather_shifted_offset_z(input_ptr, offset_src_0, p0);
-                        _Float16 acc = (_Float16)arm_nn_vec_reduce_add_f16(vmulq(weight_0, input_0));
+                        float32_t acc32 = arm_convolve_group_ch_mult_1_widened_dot(weight_0, input_0);
                         if (rhs_cols_1 > 0)
                         {
                             const float16x8_t input_1 = vldrhq_gather_shifted_offset_z(input_ptr, offset_src_1, p1);
-                            acc += (_Float16)arm_nn_vec_reduce_add_f16(vmulq(weight_1, input_1));
+                            acc32 += arm_convolve_group_ch_mult_1_widened_dot(weight_1, input_1);
                         }
-                        acc += bias;
-                        *out_c = (float16_t)arm_nn_clamp_f16h(acc, activation_max, activation_min);
+                        _Float16 acc = (_Float16)(acc32 + bias);
+                        *out_c = (float16_t)arm_convolve_group_ch_mult_1_clamp_mve_compatible(
+                            acc, activation_min, activation_max);
                         out_c += output_ch;
                         input_ptr += input_ch * stride_x;
                     }
 
                     const float16x8_t input_0 = vldrhq_gather_shifted_offset_z(input_ptr, offset_src_0, p0);
-                    _Float16 acc = (_Float16)arm_nn_vec_reduce_add_f16(vmulq(weight_0, input_0));
+                    float32_t acc32 = arm_convolve_group_ch_mult_1_widened_dot(weight_0, input_0);
                     if (rhs_cols_1 > 0)
                     {
                         const float16x8_t input_1 = vldrhq_gather_shifted_offset_z(input_ptr, offset_src_1, p1);
-                        acc += (_Float16)arm_nn_vec_reduce_add_f16(vmulq(weight_1, input_1));
+                        acc32 += arm_convolve_group_ch_mult_1_widened_dot(weight_1, input_1);
                     }
-                    acc += bias;
-                    *out_c = (float16_t)arm_nn_clamp_f16h(acc, activation_max, activation_min);
+                    _Float16 acc = (_Float16)(acc32 + bias);
+                    *out_c = (float16_t)arm_convolve_group_ch_mult_1_clamp_mve_compatible(
+                        acc, activation_min, activation_max);
                     out_c += output_ch;
                     input_ptr += input_ch * stride_edge;
                 }
@@ -238,7 +256,7 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
 
                 for (int32_t c = 0; c < output_ch; ++c)
                 {
-                    _Float16 acc = bias_data ? (_Float16)bias_data[c] : (_Float16)0.0f;
+                    float32_t acc32 = bias_data ? (float32_t)bias_data[c] : 0.0f;
                     const float16_t *filter_c = filter_data + (size_t)c * rhs_cols;
 
                     for (int32_t ky = kernel_y_start; ky < kernel_y_end; ++ky)
@@ -248,11 +266,12 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
                         {
                             const int32_t in_x = base_x + kx * dilation_x;
                             const size_t input_index = ((size_t)in_y * input_x + in_x) * input_ch + c;
-                            acc += (_Float16)input_b[input_index] * (_Float16)filter_c[ky * kernel_x + kx];
+                            acc32 += (float32_t)input_b[input_index] * (float32_t)filter_c[ky * kernel_x + kx];
                         }
                     }
 
                     const size_t output_index = ((size_t)out_y * output_x + out_x) * output_ch + c;
+                    const _Float16 acc = (_Float16)acc32;
                     output_b[output_index] = (float16_t)arm_nn_clamp_f16h(acc, activation_max, activation_min);
                 }
             }
