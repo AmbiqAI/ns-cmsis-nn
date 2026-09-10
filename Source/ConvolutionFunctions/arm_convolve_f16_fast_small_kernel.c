@@ -152,6 +152,11 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
 
     const int32_t output_ch_per_group = output_ch / groups;
 
+    if (input_batches < 0 || input_x < 0 || input_y < 0 || kernel_x < 0 || kernel_y < 0 || output_x < 0 || output_y < 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     /* Only handle the shapes this kernel is specialized for. */
     if (kernel_x <= 0 || kernel_y <= 0 || kernel_x > 8 || kernel_y > 8 || kernel_ch > 8 ||
         conv_params->padding.w != 0 || conv_params->padding.h != 0 || input_x <= 0 || input_y <= 0 ||
@@ -164,10 +169,6 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
     if (rhs_cols > 8)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
-    }
-    if (input_batches < 0 || output_x < 0 || output_y < 0)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
     }
     if (input_batches == 0 || output_x == 0 || output_y == 0)
     {

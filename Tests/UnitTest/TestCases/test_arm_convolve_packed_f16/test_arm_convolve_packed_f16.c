@@ -237,6 +237,18 @@ void convolve_grouped_contracts_f16(void)
                       arm_convolve_f16_fast_small_kernel(
                           NULL, &cp, &invalid_batch_in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
 
+    cmsis_nn_dims invalid_spatial_in = in;
+    invalid_spatial_in.w = -1;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_fast_small_kernel(
+                          NULL, &cp, &invalid_spatial_in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
+
+    cmsis_nn_dims invalid_spatial_filter = small_flt;
+    invalid_spatial_filter.h = -1;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_fast_small_kernel(
+                          NULL, &cp, &in, x, &invalid_spatial_filter, w, NULL, NULL, &oversized_out, y));
+
     cmsis_nn_dims empty_out = oversized_out;
     empty_out.w = 0;
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
