@@ -29,6 +29,7 @@ void test_conv_basic_f16_arm_convolve_f16(void) { conv_basic_f16_arm_convolve_f1
 void test_conv_basic_nhwc_f16_arm_convolve_f16(void) { conv_basic_nhwc_f16_arm_convolve_f16(); }
 void test_conv_grouped_nhwc_f16_arm_convolve_f16(void) { conv_grouped_nhwc_f16_arm_convolve_f16(); }
 void test_conv_grouped_dilation_nhwc_f16_arm_convolve_f16(void) { conv_grouped_dilation_nhwc_f16_arm_convolve_f16(); }
+void test_conv_group_ch_mult_1_nhwc_f16_arm_convolve_f16(void) { conv_group_ch_mult_1_nhwc_f16_arm_convolve_f16(); }
 void test_conv_small_kernel_grouped_nhwc_f16_arm_convolve_f16(void)
 {
     conv_small_kernel_grouped_nhwc_f16_arm_convolve_f16();

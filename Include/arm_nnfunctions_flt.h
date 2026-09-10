@@ -1151,6 +1151,26 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
                                                        float16_t *output_data);
 
 /**
+ * @brief Float16 grouped convolution with one input and one output channel per group.
+ *
+ * This is the Conv2D-layout equivalent of depthwise convolution with channel multiplier one. The filter must use
+ * standard `[C_OUT, H_K, W_K, 1]` layout. Arbitrary stride, dilation, and padding are supported.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, `ARM_CMSIS_NN_ARG_ERROR` for invalid arguments or dimensions, or
+ *         `ARM_CMSIS_NN_NO_IMPL_ERROR` when packed weights are requested.
+ */
+arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx,
+                                                     const cmsis_nn_conv_params_f16 *conv_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const float16_t *input_data,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const float16_t *filter_data,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const float16_t *bias_data,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     float16_t *output_data);
+
+/**
  * @brief Float16 convolution with layout dispatch and grouped-convolution support.
  *
  * Parameters and filter conventions match @ref arm_convolve_nhwc_f16. The current implementation accepts only

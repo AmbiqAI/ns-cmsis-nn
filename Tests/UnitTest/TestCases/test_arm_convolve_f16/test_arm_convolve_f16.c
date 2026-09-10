@@ -180,6 +180,67 @@ RUN_CONV_F16_CASE(CONV_MATCH_3X2_DILATION_F16, conv_match_3x2_dilation_f16, 2.0e
 RUN_CONV_F16_CASE(CONV_MATCH_3X3_DILATION_5X5_INPUT_F16, conv_match_3x3_dilation_5x5_input_f16, 2.0e-2f)
 RUN_CONV_F16_CASE(CONV_MATCH_2X2_DILATION_5X5_INPUT_F16, conv_match_2x2_dilation_5x5_input_f16, 2.0e-2f)
 
+void conv_group_ch_mult_1_nhwc_f16_arm_convolve_f16(void)
+{
+    enum
+    {
+        BATCHES = 2,
+        INPUT_H = 4,
+        INPUT_W = 5,
+        CHANNELS = 3,
+        FILTER_H = 3,
+        FILTER_W = 3,
+        OUTPUT_H = 2,
+        OUTPUT_W = 3,
+        INPUT_SIZE = BATCHES * INPUT_H * INPUT_W * CHANNELS,
+        FILTER_SIZE = CHANNELS * FILTER_H * FILTER_W,
+        OUTPUT_SIZE = BATCHES * OUTPUT_H * OUTPUT_W * CHANNELS
+    };
+    float16_t input[INPUT_SIZE];
+    float16_t filter[FILTER_SIZE];
+    float16_t output[OUTPUT_SIZE];
+    const float16_t bias[CHANNELS] = {(float16_t)1.0f, (float16_t)-1.0f, (float16_t)0.5f};
+    const float expected[CHANNELS] = {10.0f, 17.0f, 27.5f};
+
+    for (int32_t i = 0; i < INPUT_SIZE; ++i)
+    {
+        input[i] = (float16_t)((i % CHANNELS) + 1);
+    }
+    for (int32_t i = 0; i < FILTER_SIZE; ++i)
+    {
+        filter[i] = (float16_t)1.0f;
+    }
+
+    const cmsis_nn_context ctx = {0};
+    const cmsis_nn_conv_params_f16 conv_params = {.padding = {.w = 0, .h = 0},
+                                                  .stride = {.w = 1, .h = 1},
+                                                  .dilation = {.w = 1, .h = 1},
+                                                  .activation = {.min = -100.0f, .max = 100.0f},
+                                                  .weight_format = ARM_NN_WEIGHT_FORMAT_STANDARD};
+    const cmsis_nn_dims input_dims = {.n = BATCHES, .w = INPUT_W, .h = INPUT_H, .c = CHANNELS};
+    const cmsis_nn_dims filter_dims = {.n = CHANNELS, .w = FILTER_W, .h = FILTER_H, .c = 1};
+    const cmsis_nn_dims bias_dims = {.n = 1, .w = 1, .h = 1, .c = CHANNELS};
+    const cmsis_nn_dims output_dims = {.n = BATCHES, .w = OUTPUT_W, .h = OUTPUT_H, .c = CHANNELS};
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16(&ctx,
+                                       &conv_params,
+                                       &input_dims,
+                                       input,
+                                       &filter_dims,
+                                       filter,
+                                       &bias_dims,
+                                       bias,
+                                       &output_dims,
+                                       output,
+                                       ARM_NN_LAYOUT_NHWC));
+
+    for (int32_t i = 0; i < OUTPUT_SIZE; ++i)
+    {
+        TEST_ASSERT_FLOAT_WITHIN(1.0e-3f, expected[i % CHANNELS], (float)output[i]);
+    }
+}
+
 /*
  * Grouped convolution (filter_dims.c == IN_CH / groups) is not covered by the
  * standard macro, which assumes the filter spans all input channels.

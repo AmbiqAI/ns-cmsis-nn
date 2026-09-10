@@ -347,6 +347,21 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
     }
     #endif
 
+    /* Depthwise-equivalent Conv2D: one input and one output channel per group. */
+    if (kernel_ch == 1 && input_c == output_c)
+    {
+        return arm_convolve_f16_group_ch_mult_1(ctx,
+                                                conv_params,
+                                                input_dims,
+                                                input_data,
+                                                filter_dims,
+                                                filter_data,
+                                                bias_dims,
+                                                bias_data,
+                                                output_dims,
+                                                output_data);
+    }
+
     /* The fast paths below assume a single group (filter spans all input channels). */
     if (groups == 1)
     {
