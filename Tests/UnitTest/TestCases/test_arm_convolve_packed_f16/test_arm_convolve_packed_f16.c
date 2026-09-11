@@ -244,6 +244,7 @@ void convolve_grouped_contracts_f16(void)
     const cmsis_nn_dims negative_in = {.n = -1, .h = 1, .w = 3, .c = 4};
     const cmsis_nn_dims negative_batch_out = {.n = -1, .h = 1, .w = 3, .c = 4};
     const cmsis_nn_dims zero_batch_out = {.n = 0, .h = 1, .w = 3, .c = 4};
+    const cmsis_nn_dims two_batch_in = {.n = 2, .h = 1, .w = 3, .c = 4};
     /* 46341^2 exceeds INT32_MAX, so the patch and position products must be evaluated wider than int32_t. */
     const cmsis_nn_dims single_group_in = {.n = 1, .h = 1, .w = 3, .c = 1};
     const cmsis_nn_dims overflow_patch_flt = {.n = 4, .h = 46341, .w = 46341, .c = 1};
@@ -292,6 +293,18 @@ void convolve_grouped_contracts_f16(void)
     TEST_ASSERT_EQUAL(
         ARM_CMSIS_NN_SUCCESS,
         arm_convolve_f16_group_ch_mult_1(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &zero_batch_out, y));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_convolve_wrapper_f16(NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &zero_batch_out, y));
+    /* Two positive but unequal batch counts would overrun the smaller tensor, whichever side it is on. */
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(NULL, &cp, &two_batch_in, x, &grouped_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_f16_fast_small_kernel(NULL, &cp, &two_batch_in, x, &small_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_f16_group_ch_mult_1(NULL, &cp, &two_batch_in, x, &small_flt, w, NULL, NULL, &out, y));
     /* Overflowing descriptors must be rejected, not wrapped into a plausible int32_t extent. */
     TEST_ASSERT_EQUAL(
         ARM_CMSIS_NN_ARG_ERROR,

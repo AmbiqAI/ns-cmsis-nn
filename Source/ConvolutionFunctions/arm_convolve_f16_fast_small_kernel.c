@@ -174,6 +174,12 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
+    /* The batch loop is bounded by the input batch, so an unequal output batch overruns or underfills. */
+    if (input_dims->n > 0 && output_dims->n > 0 && input_dims->n != output_dims->n)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;

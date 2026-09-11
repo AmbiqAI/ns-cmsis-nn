@@ -699,16 +699,28 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
     const int32_t output_ch_per_group = output_c / groups;
-    /* Without this the generic grouped loops would run zero iterations and report SUCCESS for a malformed shape. */
-    if (groups != 1 &&
-        (batch < 0 || input_h < 0 || input_w < 0 || kernel_h < 0 || kernel_w < 0 || output_dims->n < 0 ||
-         output_h < 0 || output_w < 0))
+    const int32_t output_batch = output_dims->n;
+    if (groups != 1)
     {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-    if (groups != 1 && conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
-    {
-        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+        /* Without this the generic grouped loops would run zero iterations and report SUCCESS for a malformed shape. */
+        if (batch < 0 || input_h < 0 || input_w < 0 || kernel_h < 0 || kernel_w < 0 || output_batch < 0 ||
+            output_h < 0 || output_w < 0)
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+        /* Every grouped loop below is bounded by the input batch, so an unequal output batch overruns or underfills. */
+        if (batch > 0 && output_batch > 0 && batch != output_batch)
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+        if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
+        {
+            return ARM_CMSIS_NN_NO_IMPL_ERROR;
+        }
+        if (output_batch == 0)
+        {
+            return ARM_CMSIS_NN_SUCCESS;
+        }
     }
 
     /* Widen first: these products overflow int32_t for representable-but-unservable descriptors, which is UB. */

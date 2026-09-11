@@ -1794,7 +1794,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
  *
  * @param[in,out] ctx         Unused; no scratch buffer is required.
  * @param[in]     conv_params Convolution parameters. Padding must be zero and weights must use the standard format.
- * @param[in]     input_dims  Input dimensions in `[N, H, W, C_IN]` order.
+ * @param[in]     input_dims  Input dimensions in `[N, H, W, C_IN]` order. A positive `N` must equal the output batch.
  * @param[in]     input_data  Pointer to the input tensor data.
  * @param[in]     filter_dims Filter dimensions in `[C_OUT, H_K, W_K, C_IN / groups]` order.
  * @param[in]     filter_data Pointer to the standard-format filter tensor data.
@@ -1829,7 +1829,8 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
  * @param[in]     conv_params Convolution parameters. Stride and dilation must be positive, and weights must use the
  *                            standard format.
  * @param[in]     input_dims  Input dimensions in `[N, H, W, C_IN]` order. Spatial and channel dimensions must be
- *                            positive; a zero batch selects a successful no-op.
+ *                            positive; a zero batch selects a successful no-op, and a positive `N` must equal the
+ *                            output batch.
  * @param[in]     input_data  Pointer to the input tensor data.
  * @param[in]     filter_dims Filter dimensions in `[C_OUT, H_K, W_K, 1]` order. `C_OUT` must equal `C_IN`, and spatial
  *                            dimensions must be positive.
