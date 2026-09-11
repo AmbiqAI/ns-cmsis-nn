@@ -159,9 +159,9 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
     const _Float16 activation_min = (_Float16)conv_params->activation.min;
     const _Float16 activation_max = (_Float16)conv_params->activation.max;
 
-    if (filter_dims->c != 1 || input_ch <= 0 || input_ch != output_ch || input_batches < 0 || input_x <= 0 ||
-        input_y <= 0 || kernel_x <= 0 || kernel_y <= 0 || output_x < 0 || output_y < 0 || stride_x <= 0 ||
-        stride_y <= 0 || dilation_x <= 0 || dilation_y <= 0)
+    if (filter_dims->c != 1 || filter_dims->n != output_ch || input_ch <= 0 || input_ch != output_ch ||
+        input_batches < 0 || input_x <= 0 || input_y <= 0 || kernel_x <= 0 || kernel_y <= 0 || output_x < 0 ||
+        output_y < 0 || stride_x <= 0 || stride_y <= 0 || dilation_x <= 0 || dilation_y <= 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

@@ -696,7 +696,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
     const int32_t groups = input_c / kernel_ch;
-    if (groups <= 0 || output_c <= 0 || output_c % groups != 0)
+    if (groups <= 0 || output_c <= 0 || output_c % groups != 0 || (groups != 1 && filter_dims->n != output_c))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -837,10 +837,10 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
 
         for (int32_t out_y = 0; out_y < output_h; ++out_y)
         {
-            const int32_t in_y0 = out_y * stride_h - pad_h;
+            const int64_t in_y0 = (int64_t)out_y * stride_h - pad_h;
             for (int32_t out_x = 0; out_x < output_w; ++out_x)
             {
-                const int32_t in_x0 = out_x * stride_w - pad_w;
+                const int64_t in_x0 = (int64_t)out_x * stride_w - pad_w;
                 float16_t *out_pos = output_b + ((size_t)out_y * output_w + (size_t)out_x) * output_c;
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
@@ -856,14 +856,14 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
 
                         for (int32_t ky = 0; ky < kernel_h; ++ky)
                         {
-                            const int32_t in_y = in_y0 + ky * dil_h;
+                            const int64_t in_y = in_y0 + (int64_t)ky * dil_h;
                             if (in_y < 0 || in_y >= input_h)
                             {
                                 continue;
                             }
                             for (int32_t kx = 0; kx < kernel_w; ++kx)
                             {
-                                const int32_t in_x = in_x0 + kx * dil_w;
+                                const int64_t in_x = in_x0 + (int64_t)kx * dil_w;
                                 if (in_x < 0 || in_x >= input_w)
                                 {
                                     continue;
@@ -904,14 +904,14 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
 
                     for (int32_t ky = 0; ky < kernel_h; ++ky)
                     {
-                        const int32_t in_y = in_y0 + ky * dil_h;
+                        const int64_t in_y = in_y0 + (int64_t)ky * dil_h;
                         if (in_y < 0 || in_y >= input_h)
                         {
                             continue;
                         }
                         for (int32_t kx = 0; kx < kernel_w; ++kx)
                         {
-                            const int32_t in_x = in_x0 + kx * dil_w;
+                            const int64_t in_x = in_x0 + (int64_t)kx * dil_w;
                             if (in_x < 0 || in_x >= input_w)
                             {
                                 continue;

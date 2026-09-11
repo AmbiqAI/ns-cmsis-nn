@@ -187,17 +187,61 @@ void convolve_grouped_f16(void)
 
     conv_f16_params(&cp, 1, 1, 0);
     conv_f16_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+
+    {
+        const cmsis_nn_dims large_in = {.n = 1, .h = 1, .w = 2, .c = 4};
+        const cmsis_nn_dims large_flt = {.n = 4, .h = 1, .w = 1, .c = 2};
+        const cmsis_nn_dims large_out = {.n = 1, .h = 1, .w = 3, .c = 4};
+        const float16_t large_x[8] = {
+            (float16_t)1.0f,
+            (float16_t)2.0f,
+            (float16_t)3.0f,
+            (float16_t)4.0f,
+            (float16_t)5.0f,
+            (float16_t)7.0f,
+            (float16_t)11.0f,
+            (float16_t)13.0f,
+        };
+        const float16_t large_w[8] = {
+            (float16_t)1.0f,
+            (float16_t)0.0f,
+            (float16_t)0.0f,
+            (float16_t)1.0f,
+            (float16_t)1.0f,
+            (float16_t)0.0f,
+            (float16_t)0.0f,
+            (float16_t)1.0f,
+        };
+        float16_t large_y[12] = {0};
+
+        conv_f16_params(&cp, 0, 0, 0);
+        cp.stride.w = INT32_C(1073741824);
+        cp.padding.w = INT32_MAX;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_wrapper_f16(
+                              NULL, &cp, &large_in, large_x, &large_flt, large_w, NULL, NULL, &large_out, large_y));
+        for (int32_t i = 0; i < 8; ++i)
+        {
+            TEST_ASSERT_EQUAL_FLOAT(0.0f, (float32_t)large_y[i]);
+        }
+        TEST_ASSERT_EQUAL_FLOAT(5.0f, (float32_t)large_y[8]);
+        TEST_ASSERT_EQUAL_FLOAT(7.0f, (float32_t)large_y[9]);
+        TEST_ASSERT_EQUAL_FLOAT(11.0f, (float32_t)large_y[10]);
+        TEST_ASSERT_EQUAL_FLOAT(13.0f, (float32_t)large_y[11]);
+    }
 }
 
 void convolve_grouped_contracts_f16(void)
 {
     const cmsis_nn_dims in = {.n = 1, .h = 1, .w = 3, .c = 4};
     const cmsis_nn_dims grouped_flt = {.n = 4, .h = 1, .w = 1, .c = 2};
+    const cmsis_nn_dims mismatched_grouped_flt = {.n = 3, .h = 1, .w = 1, .c = 2};
     const cmsis_nn_dims invalid_flt = {.n = 4, .h = 1, .w = 1, .c = 3};
     const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 3, .c = 4};
     const cmsis_nn_dims nondivisible_channels_out = {.n = 1, .h = 1, .w = 3, .c = 3};
     const cmsis_nn_dims zero_channels_out = {.n = 1, .h = 1, .w = 3, .c = 0};
     const cmsis_nn_dims small_flt = {.n = 4, .h = 1, .w = 3, .c = 1};
+    const cmsis_nn_dims mismatched_small_flt = {.n = 3, .h = 1, .w = 3, .c = 1};
     const cmsis_nn_dims oversized_out = {.n = 1, .h = 1, .w = 2, .c = 4};
     const float16_t x[12] = {0};
     const float16_t w[16] = {0};
@@ -207,6 +251,14 @@ void convolve_grouped_contracts_f16(void)
     conv_f16_params(&cp, 0, 0, 0);
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_convolve_wrapper_f16(NULL, &cp, &in, x, &invalid_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(NULL, &cp, &in, x, &mismatched_grouped_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_fast_small_kernel(
+                          NULL, &cp, &in, x, &mismatched_small_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_group_ch_mult_1(
+                          NULL, &cp, &in, x, &mismatched_small_flt, w, NULL, NULL, &out, y));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_convolve_wrapper_f16(
                           NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &nondivisible_channels_out, y));

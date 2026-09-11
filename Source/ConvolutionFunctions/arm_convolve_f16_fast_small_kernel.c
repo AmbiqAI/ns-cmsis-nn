@@ -163,7 +163,7 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
         return ARM_CMSIS_NN_ARG_ERROR;
     }
     const int32_t groups = input_ch / kernel_ch;
-    if (output_ch <= 0 || output_ch % groups != 0)
+    if (output_ch <= 0 || filter_dims->n != output_ch || output_ch % groups != 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
