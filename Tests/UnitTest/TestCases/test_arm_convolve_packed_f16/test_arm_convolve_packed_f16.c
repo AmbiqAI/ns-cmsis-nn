@@ -248,6 +248,8 @@ void convolve_grouped_contracts_f16(void)
     /* 46341^2 exceeds INT32_MAX, so the patch and position products must be evaluated wider than int32_t. */
     const cmsis_nn_dims single_group_in = {.n = 1, .h = 1, .w = 3, .c = 1};
     const cmsis_nn_dims overflow_patch_flt = {.n = 4, .h = 46341, .w = 46341, .c = 1};
+    /* INT32_MAX^2 still fits in int64_t, so the kernel area must be narrowed before the channel factor is applied. */
+    const cmsis_nn_dims huge_kernel_flt = {.n = 4, .h = INT32_MAX, .w = INT32_MAX, .c = 1};
     const cmsis_nn_dims unit_flt = {.n = 4, .h = 1, .w = 1, .c = 1};
     const cmsis_nn_dims overflow_positions_out = {.n = 1, .h = 46341, .w = 46341, .c = 4};
     const cmsis_nn_dims small_flt = {.n = 4, .h = 1, .w = 3, .c = 1};
@@ -312,6 +314,9 @@ void convolve_grouped_contracts_f16(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_convolve_wrapper_f16(
                           NULL, &cp, &single_group_in, x, &unit_flt, w, NULL, NULL, &overflow_positions_out, y));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_wrapper_f16(NULL, &cp, &single_group_in, x, &huge_kernel_flt, w, NULL, NULL, &out, y));
     TEST_ASSERT_EQUAL_INT32(0, arm_convolve_wrapper_f16_get_buffer_size(&cp, &in, &grouped_flt, &out));
     TEST_ASSERT_EQUAL_INT32(0, arm_convolve_wrapper_f16_get_buffer_size(&cp, &in, &invalid_flt, &out));
     TEST_ASSERT_EQUAL_INT32(

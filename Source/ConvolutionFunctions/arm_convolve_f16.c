@@ -723,11 +723,16 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
         }
     }
 
-    /* Widen first: these products overflow int32_t for representable-but-unservable descriptors, which is UB. */
-    const int64_t patch_len_64 = (int64_t)kernel_h * kernel_w * input_c;
+    /* Narrow one factor at a time: three int32_t dimensions multiplied together overflow int64_t as well. */
+    const int64_t kernel_area_64 = (int64_t)kernel_h * kernel_w;
     const int64_t output_positions_64 = (int64_t)output_h * output_w;
-    if (patch_len_64 > INT32_MAX || patch_len_64 < INT32_MIN || output_positions_64 > INT32_MAX ||
+    if (kernel_area_64 > INT32_MAX || kernel_area_64 < INT32_MIN || output_positions_64 > INT32_MAX ||
         output_positions_64 < INT32_MIN)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    const int64_t patch_len_64 = kernel_area_64 * input_c;
+    if (patch_len_64 > INT32_MAX || patch_len_64 < INT32_MIN)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
