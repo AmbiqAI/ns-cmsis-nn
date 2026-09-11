@@ -242,6 +242,8 @@ void convolve_grouped_contracts_f16(void)
     const cmsis_nn_dims zero_channels_out = {.n = 1, .h = 1, .w = 3, .c = 0};
     const cmsis_nn_dims negative_out = {.n = 1, .h = -1, .w = 3, .c = 4};
     const cmsis_nn_dims negative_in = {.n = -1, .h = 1, .w = 3, .c = 4};
+    const cmsis_nn_dims negative_batch_out = {.n = -1, .h = 1, .w = 3, .c = 4};
+    const cmsis_nn_dims zero_batch_out = {.n = 0, .h = 1, .w = 3, .c = 4};
     /* 46341^2 exceeds INT32_MAX, so the patch and position products must be evaluated wider than int32_t. */
     const cmsis_nn_dims single_group_in = {.n = 1, .h = 1, .w = 3, .c = 1};
     const cmsis_nn_dims overflow_patch_flt = {.n = 4, .h = 46341, .w = 46341, .c = 1};
@@ -276,6 +278,20 @@ void convolve_grouped_contracts_f16(void)
                       arm_convolve_wrapper_f16(NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &negative_out, y));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_convolve_wrapper_f16(NULL, &cp, &negative_in, x, &grouped_flt, w, NULL, NULL, &out, y));
+    /* The output batch is not the loop bound, so it needs its own rejection rather than riding on the input batch. */
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_wrapper_f16(NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &negative_batch_out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_fast_small_kernel(
+                          NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &negative_batch_out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_group_ch_mult_1(
+                          NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &negative_batch_out, y));
+    /* A zero output batch is zero-sized work, not a licence to write input_batches worth of output. */
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_convolve_f16_group_ch_mult_1(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &zero_batch_out, y));
     /* Overflowing descriptors must be rejected, not wrapped into a plausible int32_t extent. */
     TEST_ASSERT_EQUAL(
         ARM_CMSIS_NN_ARG_ERROR,
@@ -298,6 +314,9 @@ void convolve_grouped_contracts_f16(void)
         arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
 
 #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &zero_batch_out, y));
     cmsis_nn_dims invalid_out = oversized_out;
     invalid_out.w = -1;
     TEST_ASSERT_EQUAL(

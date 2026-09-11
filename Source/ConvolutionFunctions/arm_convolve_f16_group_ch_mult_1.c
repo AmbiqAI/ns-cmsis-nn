@@ -145,6 +145,7 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
     const int32_t input_y = input_dims->h;
     const int32_t input_x = input_dims->w;
     const int32_t input_ch = input_dims->c;
+    const int32_t output_batches = output_dims->n;
     const int32_t output_y = output_dims->h;
     const int32_t output_x = output_dims->w;
     const int32_t output_ch = output_dims->c;
@@ -160,8 +161,8 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
     const _Float16 activation_max = (_Float16)conv_params->activation.max;
 
     if (filter_dims->c != 1 || filter_dims->n != output_ch || input_ch <= 0 || input_ch != output_ch ||
-        input_batches < 0 || input_x <= 0 || input_y <= 0 || kernel_x <= 0 || kernel_y <= 0 || output_x < 0 ||
-        output_y < 0 || stride_x <= 0 || stride_y <= 0 || dilation_x <= 0 || dilation_y <= 0)
+        input_batches < 0 || input_x <= 0 || input_y <= 0 || kernel_x <= 0 || kernel_y <= 0 || output_batches < 0 ||
+        output_x < 0 || output_y < 0 || stride_x <= 0 || stride_y <= 0 || dilation_x <= 0 || dilation_y <= 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -169,7 +170,7 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
-    if (output_x == 0 || output_y == 0 || input_batches == 0)
+    if (output_x == 0 || output_y == 0 || input_batches == 0 || output_batches == 0)
     {
         return ARM_CMSIS_NN_SUCCESS;
     }

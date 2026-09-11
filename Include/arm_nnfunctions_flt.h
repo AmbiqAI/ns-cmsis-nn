@@ -1800,7 +1800,8 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
  * @param[in]     filter_data Pointer to the standard-format filter tensor data.
  * @param[in]     bias_dims   Unused.
  * @param[in]     bias_data   Optional bias tensor with `C_OUT` elements.
- * @param[in]     output_dims Output dimensions in `[N, H, W, C_OUT]` order.
+ * @param[in]     output_dims Output dimensions in `[N, H, W, C_OUT]` order. Zero batch or spatial dimensions select a
+ *                            successful no-op; negative dimensions are invalid.
  * @param[out]    output_data Pointer to the output tensor data.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success, `ARM_CMSIS_NN_ARG_ERROR` for NULL required pointers, negative dimensions,
