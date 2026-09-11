@@ -701,6 +701,12 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
     const int32_t output_ch_per_group = output_c / groups;
+    /* Without this the generic grouped loops would run zero iterations and report SUCCESS for a malformed shape. */
+    if (groups != 1 &&
+        (batch < 0 || input_h < 0 || input_w < 0 || kernel_h < 0 || kernel_w < 0 || output_h < 0 || output_w < 0))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     if (groups != 1 && conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;

@@ -240,6 +240,8 @@ void convolve_grouped_contracts_f16(void)
     const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 3, .c = 4};
     const cmsis_nn_dims nondivisible_channels_out = {.n = 1, .h = 1, .w = 3, .c = 3};
     const cmsis_nn_dims zero_channels_out = {.n = 1, .h = 1, .w = 3, .c = 0};
+    const cmsis_nn_dims negative_out = {.n = 1, .h = -1, .w = 3, .c = 4};
+    const cmsis_nn_dims negative_in = {.n = -1, .h = 1, .w = 3, .c = 4};
     const cmsis_nn_dims small_flt = {.n = 4, .h = 1, .w = 3, .c = 1};
     const cmsis_nn_dims mismatched_small_flt = {.n = 3, .h = 1, .w = 3, .c = 1};
     const cmsis_nn_dims oversized_out = {.n = 1, .h = 1, .w = 2, .c = 4};
@@ -264,6 +266,11 @@ void convolve_grouped_contracts_f16(void)
                           NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &nondivisible_channels_out, y));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_convolve_wrapper_f16(NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &zero_channels_out, y));
+    /* Negative extents must not reach the generic grouped loops, which would run zero iterations and report success. */
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &negative_out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(NULL, &cp, &negative_in, x, &grouped_flt, w, NULL, NULL, &out, y));
     TEST_ASSERT_EQUAL_INT32(0, arm_convolve_wrapper_f16_get_buffer_size(&cp, &in, &grouped_flt, &out));
     TEST_ASSERT_EQUAL_INT32(0, arm_convolve_wrapper_f16_get_buffer_size(&cp, &in, &invalid_flt, &out));
     TEST_ASSERT_EQUAL_INT32(

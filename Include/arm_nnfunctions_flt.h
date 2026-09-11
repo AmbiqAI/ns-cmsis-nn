@@ -1867,6 +1867,11 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
  *       legs do the same. MVE leg: the direct small-C kernel accumulates in float32 (widened
  *       lanes); the direct OHWI / NT_N_PACKED fallback and every matmul-backed path (1x1, 1xN,
  *       patch-GEMM) accumulate in float16 lanes, as the two matmul helpers' notes state.
+ *       Grouped convolution (`groups > 1`) adds two helpers that widen on both legs:
+ *       `arm_convolve_f16_fast_small_kernel` and `arm_convolve_f16_group_ch_mult_1` accumulate bias
+ *       and every tap in float32 and round to float16 once at the store. The generic grouped
+ *       fallback follows the direct fallback above: float32 on the scalar leg, float16 lanes under
+ *       MVE.
  */
 arm_cmsis_nn_status arm_convolve_f16(const cmsis_nn_context *ctx,
                                      const cmsis_nn_conv_params_f16 *conv_params,
