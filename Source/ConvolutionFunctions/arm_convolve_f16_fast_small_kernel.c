@@ -88,6 +88,46 @@ __STATIC_FORCEINLINE bool arm_convolve_f16_gather_offset(int32_t kernel_y,
     *offset = (uint16_t)(value + (uint32_t)input_channel);
     return true;
 }
+
+__STATIC_FORCEINLINE bool arm_convolve_f16_pointer_steps(int32_t input_x,
+                                                         int32_t input_ch,
+                                                         int32_t output_x,
+                                                         int32_t output_y,
+                                                         int32_t stride_x,
+                                                         int32_t stride_y,
+                                                         size_t *column_step,
+                                                         size_t *row_step)
+{
+    *column_step = 0;
+    *row_step = 0;
+
+    if (output_x > 1)
+    {
+        const uint64_t step = (uint64_t)(uint32_t)input_ch * (uint32_t)stride_x;
+        if (step > SIZE_MAX)
+        {
+            return false;
+        }
+        *column_step = (size_t)step;
+    }
+
+    if (output_y > 1)
+    {
+        const uint64_t next_row = (uint64_t)(uint32_t)stride_y * (uint32_t)input_x;
+        const uint64_t current_column = (uint64_t)(uint32_t)(output_x - 1) * (uint32_t)stride_x;
+        if (next_row < current_column)
+        {
+            return false;
+        }
+        const uint64_t spatial_step = next_row - current_column;
+        if (spatial_step > SIZE_MAX / (uint32_t)input_ch)
+        {
+            return false;
+        }
+        *row_step = (size_t)(spatial_step * (uint32_t)input_ch);
+    }
+    return true;
+}
     #endif
 
 /*
@@ -128,6 +168,12 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
+    if (input_dims->n < 0 || input_dims->w < 0 || input_dims->h < 0 || filter_dims->w < 0 || filter_dims->h < 0 ||
+        output_dims->w < 0 || output_dims->h < 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
@@ -151,11 +197,6 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
     const _Float16 act_max = (_Float16)conv_params->activation.max;
 
     const int32_t output_ch_per_group = output_ch / groups;
-
-    if (input_batches < 0 || input_x < 0 || input_y < 0 || kernel_x < 0 || kernel_y < 0 || output_x < 0 || output_y < 0)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
 
     /* Only handle the shapes this kernel is specialized for. */
     if (kernel_x <= 0 || kernel_y <= 0 || kernel_x > 8 || kernel_y > 8 || kernel_ch > 8 ||
@@ -198,8 +239,13 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
         }
     }
 
-    /* Pointer step from the last output column of a row to the first of the next row. */
-    const int32_t stride_edge = input_x - (output_x - 1) * stride_x + (stride_y - 1) * input_x;
+    size_t column_step;
+    size_t row_step;
+    if (!arm_convolve_f16_pointer_steps(
+            input_x, input_ch, output_x, output_y, stride_x, stride_y, &column_step, &row_step))
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
     const mve_pred16_t p = vctp16q((uint32_t)rhs_cols);
 
     for (int32_t i_batch = 0; i_batch < input_batches; i_batch++)
@@ -221,7 +267,7 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
                     for (int32_t i_out_x = 0; i_out_x < output_x - 1; i_out_x++)
                     {
                         const float16x8_t in = vldrhq_gather_shifted_offset_z(input_data_pr, offset_src, p);
-                        input_data_pr += input_ch * stride_x;
+                        input_data_pr += column_step;
                         const float32_t acc32 = arm_convolve_f16_widened_dot(weight, in) + bias_val;
                         _Float16 acc = (_Float16)acc32;
                         acc = arm_convolve_f16_clamp_mve_compatible(acc, act_min, act_max);
@@ -232,12 +278,18 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
                     /* Last output column of the row advances to the next row. */
                     {
                         const float16x8_t in = vldrhq_gather_shifted_offset_z(input_data_pr, offset_src, p);
-                        input_data_pr += input_ch * stride_edge;
+                        if (i_out_y + 1 < output_y)
+                        {
+                            input_data_pr += row_step;
+                        }
                         const float32_t acc32 = arm_convolve_f16_widened_dot(weight, in) + bias_val;
                         _Float16 acc = (_Float16)acc32;
                         acc = arm_convolve_f16_clamp_mve_compatible(acc, act_min, act_max);
                         *out_c = (float16_t)acc;
-                        out_c += output_ch;
+                        if (i_out_y + 1 < output_y)
+                        {
+                            out_c += output_ch;
+                        }
                     }
                 }
             }

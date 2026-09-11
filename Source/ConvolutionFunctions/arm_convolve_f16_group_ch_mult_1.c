@@ -80,6 +80,46 @@ __STATIC_FORCEINLINE bool arm_convolve_group_ch_mult_1_gather_offset(int32_t ker
     *offset = (uint16_t)(value * (uint32_t)input_ch);
     return true;
 }
+
+__STATIC_FORCEINLINE bool arm_convolve_group_ch_mult_1_pointer_steps(int32_t input_x,
+                                                                     int32_t input_ch,
+                                                                     int32_t output_x,
+                                                                     int32_t output_y,
+                                                                     int32_t stride_x,
+                                                                     int32_t stride_y,
+                                                                     size_t *column_step,
+                                                                     size_t *row_step)
+{
+    *column_step = 0;
+    *row_step = 0;
+
+    if (output_x > 1)
+    {
+        const uint64_t step = (uint64_t)(uint32_t)input_ch * (uint32_t)stride_x;
+        if (step > SIZE_MAX)
+        {
+            return false;
+        }
+        *column_step = (size_t)step;
+    }
+
+    if (output_y > 1)
+    {
+        const uint64_t next_row = (uint64_t)(uint32_t)stride_y * (uint32_t)input_x;
+        const uint64_t current_column = (uint64_t)(uint32_t)(output_x - 1) * (uint32_t)stride_x;
+        if (next_row < current_column)
+        {
+            return false;
+        }
+        const uint64_t spatial_step = next_row - current_column;
+        if (spatial_step > SIZE_MAX / (uint32_t)input_ch)
+        {
+            return false;
+        }
+        *row_step = (size_t)(spatial_step * (uint32_t)input_ch);
+    }
+    return true;
+}
     #endif
 
 arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx,
@@ -119,15 +159,15 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
     const _Float16 activation_min = (_Float16)conv_params->activation.min;
     const _Float16 activation_max = (_Float16)conv_params->activation.max;
 
-    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
-    {
-        return ARM_CMSIS_NN_NO_IMPL_ERROR;
-    }
     if (filter_dims->c != 1 || input_ch <= 0 || input_ch != output_ch || input_batches < 0 || input_x <= 0 ||
         input_y <= 0 || kernel_x <= 0 || kernel_y <= 0 || output_x < 0 || output_y < 0 || stride_x <= 0 ||
         stride_y <= 0 || dilation_x <= 0 || dilation_y <= 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
     if (output_x == 0 || output_y == 0 || input_batches == 0)
     {
@@ -181,9 +221,15 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
             goto scalar_fallback;
         }
 
+        size_t column_step;
+        size_t row_step;
+        if (!arm_convolve_group_ch_mult_1_pointer_steps(
+                input_x, input_ch, output_x, output_y, stride_x, stride_y, &column_step, &row_step))
+        {
+            goto scalar_fallback;
+        }
         const mve_pred16_t p0 = vctp16q((uint32_t)rhs_cols_0);
         const mve_pred16_t p1 = vctp16q((uint32_t)rhs_cols_1);
-        const int32_t stride_edge = input_x - (output_x - 1) * stride_x + (stride_y - 1) * input_x;
 
         for (int32_t b = 0; b < input_batches; ++b)
         {
@@ -216,7 +262,7 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
                         *out_c = (float16_t)arm_convolve_group_ch_mult_1_clamp_mve_compatible(
                             acc, activation_min, activation_max);
                         out_c += output_ch;
-                        input_ptr += input_ch * stride_x;
+                        input_ptr += column_step;
                     }
 
                     const float16x8_t input_0 = vldrhq_gather_shifted_offset_z(input_ptr, offset_src_0, p0);
@@ -229,8 +275,11 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
                     _Float16 acc = (_Float16)(acc32 + bias);
                     *out_c = (float16_t)arm_convolve_group_ch_mult_1_clamp_mve_compatible(
                         acc, activation_min, activation_max);
-                    out_c += output_ch;
-                    input_ptr += input_ch * stride_edge;
+                    if (out_y + 1 < output_y)
+                    {
+                        out_c += output_ch;
+                        input_ptr += row_step;
+                    }
                 }
             }
             input_data += (size_t)input_y * input_x * input_ch;

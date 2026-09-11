@@ -724,7 +724,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                                                                           bias_data,
                                                                           output_dims,
                                                                           output_data);
-        if (st == ARM_CMSIS_NN_SUCCESS)
+        if (st != ARM_CMSIS_NN_NO_IMPL_ERROR)
         {
             return st;
         }
