@@ -1800,8 +1800,9 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
  * @param[in]     output_dims Output dimensions in `[N, H, W, C_OUT]` order.
  * @param[out]    output_data Pointer to the output tensor data.
  *
- * @return `ARM_CMSIS_NN_SUCCESS` on success, `ARM_CMSIS_NN_ARG_ERROR` for NULL required pointers or invalid grouped
- *         channels, or `ARM_CMSIS_NN_NO_IMPL_ERROR` for an unsupported shape, weight format, or target.
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, `ARM_CMSIS_NN_ARG_ERROR` for NULL required pointers, negative dimensions,
+ *         or invalid grouped channels, or `ARM_CMSIS_NN_NO_IMPL_ERROR` for an unsupported shape, weight format, or
+ *         target.
  */
 arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *ctx,
                                                        const cmsis_nn_conv_params_f16 *conv_params,
