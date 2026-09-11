@@ -297,14 +297,14 @@ scalar_fallback:
 
         for (int32_t out_y = 0; out_y < output_y; ++out_y)
         {
-            const int32_t base_y = out_y * stride_y - pad_y;
+            const int64_t base_y = (int64_t)out_y * stride_y - pad_y;
             for (int32_t out_x = 0; out_x < output_x; ++out_x)
             {
-                const int32_t base_x = out_x * stride_x - pad_x;
-                int32_t kernel_y_start;
-                int32_t kernel_y_end;
-                int32_t kernel_x_start;
-                int32_t kernel_x_end;
+                const int64_t base_x = (int64_t)out_x * stride_x - pad_x;
+                int64_t kernel_y_start;
+                int64_t kernel_y_end;
+                int64_t kernel_x_start;
+                int64_t kernel_x_end;
 
                 if (dilation_y > 1)
                 {
@@ -348,12 +348,12 @@ scalar_fallback:
                     float32_t acc32 = bias_data ? (float32_t)bias_data[c] : 0.0f;
                     const float16_t *filter_c = filter_data + (size_t)c * rhs_cols;
 
-                    for (int32_t ky = kernel_y_start; ky < kernel_y_end; ++ky)
+                    for (int64_t ky = kernel_y_start; ky < kernel_y_end; ++ky)
                     {
-                        const int32_t in_y = base_y + ky * dilation_y;
-                        for (int32_t kx = kernel_x_start; kx < kernel_x_end; ++kx)
+                        const int64_t in_y = base_y + ky * dilation_y;
+                        for (int64_t kx = kernel_x_start; kx < kernel_x_end; ++kx)
                         {
-                            const int32_t in_x = base_x + kx * dilation_x;
+                            const int64_t in_x = base_x + kx * dilation_x;
                             const size_t input_index = ((size_t)in_y * input_x + in_x) * input_ch + c;
                             acc32 += (float32_t)input_b[input_index] * (float32_t)filter_c[ky * kernel_x + kx];
                         }

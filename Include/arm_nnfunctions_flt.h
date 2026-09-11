@@ -1774,6 +1774,9 @@ int32_t arm_depthwise_conv_wrapper_f16_get_buffer_size(const cmsis_nn_dw_conv_pa
 
 /**
  * @copydoc arm_convolve_nhwc_f32
+ *
+ * @note `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED` is supported only when `groups == 1`. Grouped convolution requires
+ *       `ARM_NN_WEIGHT_FORMAT_STANDARD`.
  */
 arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                                           const cmsis_nn_conv_params_f16 *conv_params,
@@ -1821,7 +1824,23 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
  * This is the Conv2D-layout equivalent of depthwise convolution with channel multiplier one. The filter must use
  * standard `[C_OUT, H_K, W_K, 1]` layout. Arbitrary stride, dilation, and padding are supported.
  *
- * @return `ARM_CMSIS_NN_SUCCESS` on success, `ARM_CMSIS_NN_ARG_ERROR` for invalid arguments or dimensions, or
+ * @param[in,out] ctx         Unused; no scratch buffer is required.
+ * @param[in]     conv_params Convolution parameters. Stride and dilation must be positive, and weights must use the
+ *                            standard format.
+ * @param[in]     input_dims  Input dimensions in `[N, H, W, C_IN]` order. Spatial and channel dimensions must be
+ *                            positive; a zero batch selects a successful no-op.
+ * @param[in]     input_data  Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter dimensions in `[C_OUT, H_K, W_K, 1]` order. `C_OUT` must equal `C_IN`, and spatial
+ *                            dimensions must be positive.
+ * @param[in]     filter_data Pointer to the standard-format filter tensor data.
+ * @param[in]     bias_dims   Unused.
+ * @param[in]     bias_data   Optional bias tensor with `C_OUT` elements.
+ * @param[in]     output_dims Output dimensions in `[N, H, W, C_IN]` order. Zero batch or spatial dimensions select a
+ *                            successful no-op; negative dimensions are invalid.
+ * @param[out]    output_data Pointer to the output tensor data.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or for zero-sized work, `ARM_CMSIS_NN_ARG_ERROR` for NULL required
+ *         pointers, invalid dimensions, or a channel contract other than one input and output channel per group, or
  *         `ARM_CMSIS_NN_NO_IMPL_ERROR` when packed weights are requested.
  */
 arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx,
@@ -1837,6 +1856,9 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
 
 /**
  * @copydoc arm_convolve_f32
+ *
+ * @note `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED` is supported only when `groups == 1`. Grouped convolution requires
+ *       `ARM_NN_WEIGHT_FORMAT_STANDARD`.
  *
  * @note Accumulation width per leg. Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): the
  *       direct OHWI / NT_N_PACKED fallback accumulates bias and every tap in float32 and rounds to
@@ -1860,6 +1882,9 @@ arm_cmsis_nn_status arm_convolve_f16(const cmsis_nn_context *ctx,
 
 /**
  * @copydoc arm_convolve_wrapper_f32
+ *
+ * @note `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED` is supported only when `groups == 1`. Grouped convolution requires
+ *       `ARM_NN_WEIGHT_FORMAT_STANDARD`.
  */
 arm_cmsis_nn_status arm_convolve_wrapper_f16(const cmsis_nn_context *ctx,
                                              const cmsis_nn_conv_params_f16 *conv_params,

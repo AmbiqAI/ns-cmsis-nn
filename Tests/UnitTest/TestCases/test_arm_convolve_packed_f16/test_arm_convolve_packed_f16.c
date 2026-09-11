@@ -304,6 +304,25 @@ void convolve_group_ch_mult_1_f16(void)
 
     conv_f16_params(&cp, 1, 1, 0);
     conv_f16_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+
+    {
+        const cmsis_nn_dims large_in = {.n = 1, .h = 1, .w = 2, .c = 1};
+        const cmsis_nn_dims large_flt = {.n = 1, .h = 1, .w = 1, .c = 1};
+        const cmsis_nn_dims large_out = {.n = 1, .h = 1, .w = 3, .c = 1};
+        const float16_t large_x[2] = {(float16_t)3.0f, (float16_t)5.0f};
+        const float16_t large_w = (float16_t)1.0f;
+        float16_t large_y[3] = {(float16_t)-1.0f, (float16_t)-1.0f, (float16_t)-1.0f};
+
+        conv_f16_params(&cp, 0, 0, 0);
+        cp.stride.w = INT32_C(1073741824);
+        cp.padding.w = INT32_MAX;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_f16_group_ch_mult_1(
+                              NULL, &cp, &large_in, large_x, &large_flt, &large_w, NULL, NULL, &large_out, large_y));
+        TEST_ASSERT_EQUAL_FLOAT(0.0f, (float32_t)large_y[0]);
+        TEST_ASSERT_EQUAL_FLOAT(0.0f, (float32_t)large_y[1]);
+        TEST_ASSERT_EQUAL_FLOAT(5.0f, (float32_t)large_y[2]);
+    }
 }
 
 /* Packed C_IN=C_OUT=1 must stay on the established single-group path. */
