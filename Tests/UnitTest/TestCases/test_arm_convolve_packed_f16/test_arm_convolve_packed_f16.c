@@ -32,6 +32,9 @@ static void conv_f16_reference(const cmsis_nn_conv_params_f16 *cp,
                                const cmsis_nn_dims *out,
                                float32_t *y)
 {
+    const int32_t groups = in->c / flt->c;
+    const int32_t out_ch_per_group = out->c / groups;
+
     for (int32_t b = 0; b < out->n; b++)
     {
         for (int32_t oy = 0; oy < out->h; oy++)
@@ -40,6 +43,7 @@ static void conv_f16_reference(const cmsis_nn_conv_params_f16 *cp,
             {
                 for (int32_t oc = 0; oc < out->c; oc++)
                 {
+                    const int32_t in_ch_start = (oc / out_ch_per_group) * flt->c;
                     float32_t acc = bias ? (float32_t)bias[oc] : 0.0f;
                     for (int32_t ky = 0; ky < flt->h; ky++)
                     {
@@ -55,10 +59,10 @@ static void conv_f16_reference(const cmsis_nn_conv_params_f16 *cp,
                             {
                                 continue;
                             }
-                            for (int32_t ic = 0; ic < in->c; ic++)
+                            for (int32_t ic = 0; ic < flt->c; ic++)
                             {
-                                acc += (float32_t)x[((b * in->h + iy) * in->w + ix) * in->c + ic] *
-                                    (float32_t)w[((oc * flt->h + ky) * flt->w + kx) * in->c + ic];
+                                acc += (float32_t)x[((b * in->h + iy) * in->w + ix) * in->c + in_ch_start + ic] *
+                                    (float32_t)w[((oc * flt->h + ky) * flt->w + kx) * flt->c + ic];
                             }
                         }
                     }
@@ -156,6 +160,300 @@ static void conv_f16_params(cmsis_nn_conv_params_f16 *cp, int32_t pad_h, int32_t
     cp->activation.min = (float16_t)-1.0e4f;
     cp->activation.max = (float16_t)1.0e4f;
     cp->weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
+}
+
+void convolve_grouped_f16(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 5, .w = 5, .c = 16};
+    const cmsis_nn_dims flt = {.n = 16, .h = 3, .w = 3, .c = 4};
+    const cmsis_nn_dims out = {.n = 1, .h = 5, .w = 5, .c = 16};
+    float16_t x[400];
+    float16_t w[576];
+    float16_t bias[16];
+    cmsis_nn_conv_params_f16 cp;
+
+    for (int32_t i = 0; i < 400; i++)
+    {
+        x[i] = conv_f16_value(i, 20);
+    }
+    for (int32_t i = 0; i < 576; i++)
+    {
+        w[i] = conv_f16_value(i, 21);
+    }
+    for (int32_t i = 0; i < 16; i++)
+    {
+        bias[i] = conv_f16_value(i, 22);
+    }
+
+    conv_f16_params(&cp, 1, 1, 0);
+    conv_f16_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+
+    {
+        const cmsis_nn_dims large_in = {.n = 1, .h = 1, .w = 2, .c = 4};
+        const cmsis_nn_dims large_flt = {.n = 4, .h = 1, .w = 1, .c = 2};
+        const cmsis_nn_dims large_out = {.n = 1, .h = 1, .w = 3, .c = 4};
+        const float16_t large_x[8] = {
+            (float16_t)1.0f,
+            (float16_t)2.0f,
+            (float16_t)3.0f,
+            (float16_t)4.0f,
+            (float16_t)5.0f,
+            (float16_t)7.0f,
+            (float16_t)11.0f,
+            (float16_t)13.0f,
+        };
+        const float16_t large_w[8] = {
+            (float16_t)1.0f,
+            (float16_t)0.0f,
+            (float16_t)0.0f,
+            (float16_t)1.0f,
+            (float16_t)1.0f,
+            (float16_t)0.0f,
+            (float16_t)0.0f,
+            (float16_t)1.0f,
+        };
+        float16_t large_y[12] = {0};
+
+        conv_f16_params(&cp, 0, 0, 0);
+        cp.stride.w = INT32_C(1073741824);
+        cp.padding.w = INT32_MAX;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_wrapper_f16(
+                              NULL, &cp, &large_in, large_x, &large_flt, large_w, NULL, NULL, &large_out, large_y));
+        for (int32_t i = 0; i < 8; ++i)
+        {
+            TEST_ASSERT_EQUAL_FLOAT(0.0f, (float32_t)large_y[i]);
+        }
+        TEST_ASSERT_EQUAL_FLOAT(5.0f, (float32_t)large_y[8]);
+        TEST_ASSERT_EQUAL_FLOAT(7.0f, (float32_t)large_y[9]);
+        TEST_ASSERT_EQUAL_FLOAT(11.0f, (float32_t)large_y[10]);
+        TEST_ASSERT_EQUAL_FLOAT(13.0f, (float32_t)large_y[11]);
+    }
+}
+
+void convolve_grouped_contracts_f16(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 1, .w = 3, .c = 4};
+    const cmsis_nn_dims grouped_flt = {.n = 4, .h = 1, .w = 1, .c = 2};
+    const cmsis_nn_dims mismatched_grouped_flt = {.n = 3, .h = 1, .w = 1, .c = 2};
+    const cmsis_nn_dims invalid_flt = {.n = 4, .h = 1, .w = 1, .c = 3};
+    const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 3, .c = 4};
+    const cmsis_nn_dims nondivisible_channels_out = {.n = 1, .h = 1, .w = 3, .c = 3};
+    const cmsis_nn_dims zero_channels_out = {.n = 1, .h = 1, .w = 3, .c = 0};
+    const cmsis_nn_dims negative_out = {.n = 1, .h = -1, .w = 3, .c = 4};
+    const cmsis_nn_dims negative_in = {.n = -1, .h = 1, .w = 3, .c = 4};
+    const cmsis_nn_dims negative_batch_out = {.n = -1, .h = 1, .w = 3, .c = 4};
+    const cmsis_nn_dims zero_batch_out = {.n = 0, .h = 1, .w = 3, .c = 4};
+    const cmsis_nn_dims two_batch_in = {.n = 2, .h = 1, .w = 3, .c = 4};
+    /* 46341^2 exceeds INT32_MAX, so the patch and position products must be evaluated wider than int32_t. */
+    const cmsis_nn_dims single_group_in = {.n = 1, .h = 1, .w = 3, .c = 1};
+    const cmsis_nn_dims overflow_patch_flt = {.n = 4, .h = 46341, .w = 46341, .c = 1};
+    /* INT32_MAX^2 still fits in int64_t, so the kernel area must be narrowed before the channel factor is applied. */
+    const cmsis_nn_dims huge_kernel_flt = {.n = 4, .h = INT32_MAX, .w = INT32_MAX, .c = 1};
+    const cmsis_nn_dims unit_flt = {.n = 4, .h = 1, .w = 1, .c = 1};
+    const cmsis_nn_dims overflow_positions_out = {.n = 1, .h = 46341, .w = 46341, .c = 4};
+    const cmsis_nn_dims small_flt = {.n = 4, .h = 1, .w = 3, .c = 1};
+    const cmsis_nn_dims mismatched_small_flt = {.n = 3, .h = 1, .w = 3, .c = 1};
+    const cmsis_nn_dims oversized_out = {.n = 1, .h = 1, .w = 2, .c = 4};
+    const float16_t x[12] = {0};
+    const float16_t w[16] = {0};
+    float16_t y[12] = {0};
+    cmsis_nn_conv_params_f16 cp;
+
+    conv_f16_params(&cp, 0, 0, 0);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(NULL, &cp, &in, x, &invalid_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(NULL, &cp, &in, x, &mismatched_grouped_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_fast_small_kernel(
+                          NULL, &cp, &in, x, &mismatched_small_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_group_ch_mult_1(
+                          NULL, &cp, &in, x, &mismatched_small_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(
+                          NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &nondivisible_channels_out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &zero_channels_out, y));
+    /* Negative extents must not reach the generic grouped loops, which would run zero iterations and report success. */
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &negative_out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(NULL, &cp, &negative_in, x, &grouped_flt, w, NULL, NULL, &out, y));
+    /* The output batch is not the loop bound, so it needs its own rejection rather than riding on the input batch. */
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_wrapper_f16(NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &negative_batch_out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_fast_small_kernel(
+                          NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &negative_batch_out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_group_ch_mult_1(
+                          NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &negative_batch_out, y));
+    /* A zero output batch is zero-sized work, not a licence to write input_batches worth of output. */
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_convolve_f16_group_ch_mult_1(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &zero_batch_out, y));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_convolve_wrapper_f16(NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &zero_batch_out, y));
+    /* Two positive but unequal batch counts would overrun the smaller tensor, whichever side it is on. */
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(NULL, &cp, &two_batch_in, x, &grouped_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_f16_fast_small_kernel(NULL, &cp, &two_batch_in, x, &small_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_f16_group_ch_mult_1(NULL, &cp, &two_batch_in, x, &small_flt, w, NULL, NULL, &out, y));
+    /* Overflowing descriptors must be rejected, not wrapped into a plausible int32_t extent. */
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_wrapper_f16(NULL, &cp, &single_group_in, x, &overflow_patch_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(
+                          NULL, &cp, &single_group_in, x, &unit_flt, w, NULL, NULL, &overflow_positions_out, y));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_wrapper_f16(NULL, &cp, &single_group_in, x, &huge_kernel_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL_INT32(0, arm_convolve_wrapper_f16_get_buffer_size(&cp, &in, &grouped_flt, &out));
+    TEST_ASSERT_EQUAL_INT32(0, arm_convolve_wrapper_f16_get_buffer_size(&cp, &in, &invalid_flt, &out));
+    TEST_ASSERT_EQUAL_INT32(
+        0, arm_convolve_wrapper_f16_get_buffer_size(&cp, &in, &grouped_flt, &nondivisible_channels_out));
+
+    cp.weight_format = ARM_NN_WEIGHT_FORMAT_NT_N_PACKED;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_convolve_wrapper_f16(NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &out, y));
+
+    conv_f16_params(&cp, 0, 0, 0);
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_NO_IMPL_ERROR,
+        arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
+
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &zero_batch_out, y));
+    cmsis_nn_dims invalid_out = oversized_out;
+    invalid_out.w = -1;
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &invalid_out, y));
+
+    invalid_out = oversized_out;
+    invalid_out.h = -1;
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &invalid_out, y));
+
+    cmsis_nn_dims invalid_batch_in = in;
+    invalid_batch_in.n = -1;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(
+                          NULL, &cp, &invalid_batch_in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_fast_small_kernel(
+                          NULL, &cp, &invalid_batch_in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
+
+    cmsis_nn_dims invalid_spatial_in = in;
+    invalid_spatial_in.w = -1;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_fast_small_kernel(
+                          NULL, &cp, &invalid_spatial_in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
+
+    cp.weight_format = ARM_NN_WEIGHT_FORMAT_NT_N_PACKED;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_fast_small_kernel(
+                          NULL, &cp, &invalid_spatial_in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
+    cp.weight_format = ARM_NN_WEIGHT_FORMAT_STANDARD;
+
+    cmsis_nn_dims invalid_spatial_filter = small_flt;
+    invalid_spatial_filter.h = -1;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_fast_small_kernel(
+                          NULL, &cp, &in, x, &invalid_spatial_filter, w, NULL, NULL, &oversized_out, y));
+
+    cmsis_nn_dims empty_out = oversized_out;
+    empty_out.w = 0;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &empty_out, y));
+
+    cmsis_nn_dims empty_batch_in = in;
+    empty_batch_in.n = 0;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16_fast_small_kernel(
+                          NULL, &cp, &empty_batch_in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
+#endif
+}
+
+void convolve_group_ch_mult_1_f16(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 5, .w = 5, .c = 3};
+    const cmsis_nn_dims flt = {.n = 3, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims out = {.n = 1, .h = 5, .w = 5, .c = 3};
+    float16_t x[75];
+    float16_t w[27];
+    float16_t bias[3];
+    cmsis_nn_conv_params_f16 cp;
+
+    for (int32_t i = 0; i < 75; i++)
+    {
+        x[i] = conv_f16_value(i, 23);
+    }
+    for (int32_t i = 0; i < 27; i++)
+    {
+        w[i] = conv_f16_value(i, 24);
+    }
+    for (int32_t i = 0; i < 3; i++)
+    {
+        bias[i] = conv_f16_value(i, 25);
+    }
+
+    conv_f16_params(&cp, 1, 1, 0);
+    conv_f16_check(&cp, &in, x, &flt, w, w, bias, &out, 0);
+
+    {
+        const cmsis_nn_dims large_in = {.n = 1, .h = 1, .w = 2, .c = 1};
+        const cmsis_nn_dims large_flt = {.n = 1, .h = 1, .w = 1, .c = 1};
+        const cmsis_nn_dims large_out = {.n = 1, .h = 1, .w = 3, .c = 1};
+        const float16_t large_x[2] = {(float16_t)3.0f, (float16_t)5.0f};
+        const float16_t large_w = (float16_t)1.0f;
+        float16_t large_y[3] = {(float16_t)-1.0f, (float16_t)-1.0f, (float16_t)-1.0f};
+
+        conv_f16_params(&cp, 0, 0, 0);
+        cp.stride.w = INT32_C(1073741824);
+        cp.padding.w = INT32_MAX;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_f16_group_ch_mult_1(
+                              NULL, &cp, &large_in, large_x, &large_flt, &large_w, NULL, NULL, &large_out, large_y));
+        TEST_ASSERT_EQUAL_FLOAT(0.0f, (float32_t)large_y[0]);
+        TEST_ASSERT_EQUAL_FLOAT(0.0f, (float32_t)large_y[1]);
+        TEST_ASSERT_EQUAL_FLOAT(5.0f, (float32_t)large_y[2]);
+    }
+}
+
+/* Packed C_IN=C_OUT=1 must stay on the established single-group path. */
+void convolve_packed_single_channel_f16(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims flt = {.n = 1, .h = 1, .w = 1, .c = 1};
+    const cmsis_nn_dims out = {.n = 1, .h = 3, .w = 3, .c = 1};
+    float16_t x[9];
+    float16_t w[1] = {(float16_t)0.75f};
+    float16_t bias[1] = {(float16_t)-0.125f};
+    cmsis_nn_conv_params_f16 cp;
+
+    for (int32_t i = 0; i < 9; i++)
+    {
+        x[i] = conv_f16_value(i, 26);
+    }
+    float16_t *w_packed = pack_rhs_nt_n_from_nt_t_f16(w, 1, 1);
+
+    conv_f16_params(&cp, 0, 0, 1);
+    conv_f16_check(&cp, &in, x, &flt, w_packed, w, bias, &out, 0);
+
+    free(w_packed);
 }
 
 // 3x3, in_c = 4, out_c = 12 on a 4x4 input (so the second packed block is exercised). Route: on MVE the direct
@@ -284,6 +582,124 @@ static inline bool conv_f16_bits_are_nan(float16_t x)
     uint16_t bits;
     memcpy(&bits, &x, sizeof(bits));
     return (uint16_t)(bits & 0x7FFFu) > 0x7C00u;
+}
+
+void convolve_widened_single_group_dispatch_f16(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims flt = {.n = 1, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 1, .c = 1};
+    const float16_t x[9] = {(float16_t)256.0f, (float16_t)256.0f, (float16_t)1.0f};
+    const float16_t w[9] = {(float16_t)256.0f, (float16_t)-256.0f, (float16_t)1.0f};
+    float16_t y = (float16_t)0.0f;
+    cmsis_nn_conv_params_f16 cp;
+
+    conv_f16_params(&cp, 0, 0, 0);
+    cp.activation.min = (float16_t)-65504.0f;
+    cp.activation.max = (float16_t)65504.0f;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_convolve_wrapper_f16(NULL, &cp, &in, x, &flt, w, NULL, NULL, &out, &y));
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y);
+}
+
+void convolve_widened_group_ch_mult_1_f16(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims flt = {.n = 1, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 1, .c = 1};
+    const float16_t x[9] = {(float16_t)2048.0f, (float16_t)1.0f, (float16_t)-2048.0f};
+    const float16_t w[9] = {(float16_t)1.0f, (float16_t)1.0f, (float16_t)1.0f};
+    float16_t y = (float16_t)0.0f;
+    cmsis_nn_conv_params_f16 cp;
+
+    conv_f16_params(&cp, 0, 0, 0);
+    cp.activation.min = (float16_t)-65504.0f;
+    cp.activation.max = (float16_t)65504.0f;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16_group_ch_mult_1(NULL, &cp, &in, x, &flt, w, NULL, NULL, &out, &y));
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y);
+
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const cmsis_nn_dims grouped_in = {.n = 1, .h = 3, .w = 3, .c = 2};
+    const cmsis_nn_dims grouped_flt = {.n = 2, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims grouped_out = {.n = 1, .h = 1, .w = 1, .c = 2};
+    float16_t grouped_x[18] = {0};
+    float16_t grouped_w[18] = {0};
+    float16_t grouped_y[2] = {0};
+    volatile uint16_t nan_bits = 0x7E01u;
+    grouped_x[0] = conv_f16_from_bits(&nan_bits);
+    grouped_w[0] = (float16_t)1.0f;
+    cp.stride.h = INT32_MAX;
+    cp.activation.min = (float16_t)-7.0f;
+    cp.activation.max = (float16_t)11.0f;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_wrapper_f16(
+                          NULL, &cp, &grouped_in, grouped_x, &grouped_flt, grouped_w, NULL, NULL, &grouped_out, grouped_y));
+    TEST_ASSERT_EQUAL_FLOAT(-7.0f, (float32_t)grouped_y[0]);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, (float32_t)grouped_y[1]);
+#endif
+}
+
+void convolve_widened_fast_small_kernel_f16(void)
+{
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const cmsis_nn_dims in = {.n = 1, .h = 1, .w = 3, .c = 2};
+    const cmsis_nn_dims flt = {.n = 2, .h = 1, .w = 3, .c = 1};
+    const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 1, .c = 2};
+    const float16_t x[6] = {
+        (float16_t)256.0f, (float16_t)256.0f, (float16_t)256.0f, (float16_t)256.0f, (float16_t)1.0f, (float16_t)1.0f};
+    const float16_t w[6] = {
+        (float16_t)256.0f, (float16_t)-256.0f, (float16_t)1.0f, (float16_t)256.0f, (float16_t)-256.0f, (float16_t)1.0f};
+    float16_t y[2] = {0};
+    cmsis_nn_conv_params_f16 cp;
+
+    conv_f16_params(&cp, 0, 0, 0);
+    cp.activation.min = (float16_t)-65504.0f;
+    cp.activation.max = (float16_t)65504.0f;
+    cp.stride.h = INT32_MAX;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y[0]);
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y[1]);
+
+    y[0] = y[1] = (float16_t)0.0f;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_convolve_wrapper_f16(NULL, &cp, &in, x, &flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y[0]);
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y[1]);
+#endif
+}
+
+void convolve_single_group_nan_compatibility_f16(void)
+{
+    const cmsis_nn_dims in = {.n = 1, .h = 1, .w = 1, .c = 1};
+    const cmsis_nn_dims flt = {.n = 1, .h = 3, .w = 3, .c = 1};
+    const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 1, .c = 1};
+    const float16_t w[9] = {0, 0, 0, 0, (float16_t)1.0f, 0, 0, 0, 0};
+    cmsis_nn_conv_params_f16 cp;
+    int32_t nan_count = 0;
+
+    conv_f16_params(&cp, 1, 1, 0);
+    cp.activation.min = (float16_t)-65504.0f;
+    cp.activation.max = (float16_t)65504.0f;
+    for (uint32_t bits = 0; bits <= UINT16_MAX; bits++)
+    {
+        volatile uint16_t input_bits = (uint16_t)bits;
+        const float16_t x = conv_f16_from_bits(&input_bits);
+        if (!conv_f16_bits_are_nan(x))
+        {
+            continue;
+        }
+
+        float16_t y = (float16_t)0.0f;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_wrapper_f16(NULL, &cp, &in, &x, &flt, w, NULL, NULL, &out, &y));
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+        TEST_ASSERT_EQUAL_FLOAT(-65504.0f, (float32_t)y);
+#else
+        TEST_ASSERT_EQUAL_FLOAT(65504.0f, (float32_t)y);
+#endif
+        nan_count++;
+    }
+    TEST_ASSERT_EQUAL_INT32(2046, nan_count);
 }
 
 // NaN through arm_nn_mat_mult_nt_n_packed_f16's output clamp, the packed f16 matmul entry the packed
