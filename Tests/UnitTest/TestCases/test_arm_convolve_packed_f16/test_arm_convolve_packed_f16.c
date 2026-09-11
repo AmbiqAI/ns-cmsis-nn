@@ -242,6 +242,11 @@ void convolve_grouped_contracts_f16(void)
     const cmsis_nn_dims zero_channels_out = {.n = 1, .h = 1, .w = 3, .c = 0};
     const cmsis_nn_dims negative_out = {.n = 1, .h = -1, .w = 3, .c = 4};
     const cmsis_nn_dims negative_in = {.n = -1, .h = 1, .w = 3, .c = 4};
+    /* 46341^2 exceeds INT32_MAX, so the patch and position products must be evaluated wider than int32_t. */
+    const cmsis_nn_dims single_group_in = {.n = 1, .h = 1, .w = 3, .c = 1};
+    const cmsis_nn_dims overflow_patch_flt = {.n = 4, .h = 46341, .w = 46341, .c = 1};
+    const cmsis_nn_dims unit_flt = {.n = 4, .h = 1, .w = 1, .c = 1};
+    const cmsis_nn_dims overflow_positions_out = {.n = 1, .h = 46341, .w = 46341, .c = 4};
     const cmsis_nn_dims small_flt = {.n = 4, .h = 1, .w = 3, .c = 1};
     const cmsis_nn_dims mismatched_small_flt = {.n = 3, .h = 1, .w = 3, .c = 1};
     const cmsis_nn_dims oversized_out = {.n = 1, .h = 1, .w = 2, .c = 4};
@@ -271,6 +276,13 @@ void convolve_grouped_contracts_f16(void)
                       arm_convolve_wrapper_f16(NULL, &cp, &in, x, &grouped_flt, w, NULL, NULL, &negative_out, y));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_convolve_wrapper_f16(NULL, &cp, &negative_in, x, &grouped_flt, w, NULL, NULL, &out, y));
+    /* Overflowing descriptors must be rejected, not wrapped into a plausible int32_t extent. */
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_wrapper_f16(NULL, &cp, &single_group_in, x, &overflow_patch_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f16(
+                          NULL, &cp, &single_group_in, x, &unit_flt, w, NULL, NULL, &overflow_positions_out, y));
     TEST_ASSERT_EQUAL_INT32(0, arm_convolve_wrapper_f16_get_buffer_size(&cp, &in, &grouped_flt, &out));
     TEST_ASSERT_EQUAL_INT32(0, arm_convolve_wrapper_f16_get_buffer_size(&cp, &in, &invalid_flt, &out));
     TEST_ASSERT_EQUAL_INT32(

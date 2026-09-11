@@ -687,8 +687,6 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
     const int32_t pad_w = conv_params->padding.w;
     const int32_t dil_h = conv_params->dilation.h;
     const int32_t dil_w = conv_params->dilation.w;
-    const int32_t patch_len = kernel_h * kernel_w * input_c;
-    const int32_t output_positions = output_h * output_w;
 
     /* Grouped convolution: C_IN = groups * kernel_ch and C_OUT = groups * out_ch_per_group. */
     if (kernel_ch <= 0 || input_c % kernel_ch != 0)
@@ -711,6 +709,17 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
+
+    /* Widen first: these products overflow int32_t for representable-but-unservable descriptors, which is UB. */
+    const int64_t patch_len_64 = (int64_t)kernel_h * kernel_w * input_c;
+    const int64_t output_positions_64 = (int64_t)output_h * output_w;
+    if (patch_len_64 > INT32_MAX || patch_len_64 < INT32_MIN || output_positions_64 > INT32_MAX ||
+        output_positions_64 < INT32_MIN)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    const int32_t patch_len = (int32_t)patch_len_64;
+    const int32_t output_positions = (int32_t)output_positions_64;
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     /* Small grouped kernels map the whole receptive field onto one MVE gather. */
