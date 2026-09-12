@@ -1671,6 +1671,102 @@ arm_cmsis_nn_status arm_nn_mean_f32(const float32_t *input_data,
                                     float32_t *output_data,
                                     const cmsis_nn_dims *output_dims);
 
+/** @} */
+
+/**
+ * @addtogroup Gather
+ * @{
+ */
+
+/**
+ * @brief Gather contiguous slices along an axis.
+ *
+ * Data rank is 1..4 and indices rank is 0..4; rank-0 indices contain one index.
+ * Negative axis normalizes by input_rank; negative batch_dims normalizes by
+ * coords_rank. After normalization, 0 <= batch_dims <= coords_rank and
+ * batch_dims <= axis < input_rank. Leading batch dimensions must match.
+ * The inferred output shape is input_shape[:axis] +
+ * indices_shape[batch_dims:] + input_shape[axis + 1:].
+ *
+ * Shapes use the first rank fields of cmsis_nn_dims in n, h, w, c order;
+ * unused fields are ignored. The inferred output rank must be 0..4, and
+ * output_dims must match its leading dimensions. A rank-0 output is one element.
+ * All dimension extents must be nonnegative. Input, index and output buffer
+ * byte counts must each fit INT32_MAX; this is a CORE capacity limit.
+ *
+ * All metadata pointers are required. A NULL data, indices or output pointer is
+ * accepted only when that respective buffer has zero elements. Valid empty
+ * calls copy nothing. All supplied indices are checked, even for empty output.
+ * Coordinates must be nonnegative and below their corresponding axis extent.
+ * Invalid metadata or indices return ARG_ERROR without changing output.
+ *
+ * This operation preserves all bits, including NaN payloads, signed zero and
+ * subnormals, independently of floating-point controls. Buffers must not overlap.
+ * No scratch buffer is required. Portable copies use existing MVE copy paths
+ * when enabled.
+ *
+ * @param[in] input_data Input data buffer.
+ * @param[in] input_dims Input shape in leading-dimension order.
+ * @param[in] indices_data Signed 32-bit indices.
+ * @param[in] indices_dims Indices shape in leading-dimension order.
+ * @param[in] params Ranks and gathering parameters.
+ * @param[out] output_data Output data buffer.
+ * @param[in] output_dims Inferred output shape in leading-dimension order.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_gather_f32(const float32_t *input_data,
+                                   const cmsis_nn_dims *input_dims,
+                                   const int32_t *indices_data,
+                                   const cmsis_nn_dims *indices_dims,
+                                   const cmsis_nn_gather_params *params,
+                                   float32_t *output_data,
+                                   const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Gather contiguous slices using coordinate tuples.
+ *
+ * Data rank is 1..4 and indices rank is 1..4. The final indices dimension
+ * is the tuple width, which must be at least one. batch_dims is a TensorFlow-style
+ * extension (not a LiteRT builtin option): 0 <= batch_dims < indices_rank,
+ * batch_dims < params_rank, and batch_dims + tuple_width <= params_rank.
+ * Leading batch dimensions must match. The inferred output shape is
+ * indices_shape[:-1] + params_shape[batch_dims + tuple_width:].
+ * Empty data with a nonempty index buffer is rejected.
+ *
+ * Shapes use the first rank fields of cmsis_nn_dims in n, h, w, c order;
+ * unused fields are ignored. The inferred output rank must be 0..4, and
+ * output_dims must match its leading dimensions. A rank-0 output is one element.
+ * All dimension extents must be nonnegative. Input, index and output buffer
+ * byte counts must each fit INT32_MAX; this is a CORE capacity limit.
+ *
+ * All metadata pointers are required. A NULL data, indices or output pointer is
+ * accepted only when that respective buffer has zero elements. Valid empty
+ * calls copy nothing. All supplied indices are checked, even for empty output.
+ * Coordinates must be nonnegative and below their corresponding axis extent.
+ * Invalid metadata or indices return ARG_ERROR without changing output.
+ *
+ * This operation preserves all bits, including NaN payloads, signed zero and
+ * subnormals, independently of floating-point controls. Buffers must not overlap.
+ * No scratch buffer is required. Portable copies use existing MVE copy paths
+ * when enabled.
+ *
+ * @param[in] params_data Input data buffer.
+ * @param[in] params_dims Input shape in leading-dimension order.
+ * @param[in] indices_data Signed 32-bit indices.
+ * @param[in] indices_dims Indices shape in leading-dimension order.
+ * @param[in] params Ranks and gathering parameters.
+ * @param[out] output_data Output data buffer.
+ * @param[in] output_dims Inferred output shape in leading-dimension order.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_gather_nd_f32(const float32_t *params_data,
+                                      const cmsis_nn_dims *params_dims,
+                                      const int32_t *indices_data,
+                                      const cmsis_nn_dims *indices_dims,
+                                      const cmsis_nn_gather_nd_params *params,
+                                      float32_t *output_data,
+                                      const cmsis_nn_dims *output_dims);
+
     /** @} */
 
 #endif /* ARM_NN_ENABLE_F32 */
@@ -2843,6 +2939,102 @@ arm_cmsis_nn_status arm_nn_mean_f16(const float16_t *input_data,
                                     const cmsis_nn_dims *axis_dims,
                                     float16_t *output_data,
                                     const cmsis_nn_dims *output_dims);
+
+/** @} */
+
+/**
+ * @addtogroup Gather
+ * @{
+ */
+
+/**
+ * @brief Gather contiguous slices along an axis.
+ *
+ * Data rank is 1..4 and indices rank is 0..4; rank-0 indices contain one index.
+ * Negative axis normalizes by input_rank; negative batch_dims normalizes by
+ * coords_rank. After normalization, 0 <= batch_dims <= coords_rank and
+ * batch_dims <= axis < input_rank. Leading batch dimensions must match.
+ * The inferred output shape is input_shape[:axis] +
+ * indices_shape[batch_dims:] + input_shape[axis + 1:].
+ *
+ * Shapes use the first rank fields of cmsis_nn_dims in n, h, w, c order;
+ * unused fields are ignored. The inferred output rank must be 0..4, and
+ * output_dims must match its leading dimensions. A rank-0 output is one element.
+ * All dimension extents must be nonnegative. Input, index and output buffer
+ * byte counts must each fit INT32_MAX; this is a CORE capacity limit.
+ *
+ * All metadata pointers are required. A NULL data, indices or output pointer is
+ * accepted only when that respective buffer has zero elements. Valid empty
+ * calls copy nothing. All supplied indices are checked, even for empty output.
+ * Coordinates must be nonnegative and below their corresponding axis extent.
+ * Invalid metadata or indices return ARG_ERROR without changing output.
+ *
+ * This operation preserves all bits, including NaN payloads, signed zero and
+ * subnormals, independently of floating-point controls. Buffers must not overlap.
+ * No scratch buffer is required. Portable copies use existing MVE copy paths
+ * when enabled.
+ *
+ * @param[in] input_data Input data buffer.
+ * @param[in] input_dims Input shape in leading-dimension order.
+ * @param[in] indices_data Signed 32-bit indices.
+ * @param[in] indices_dims Indices shape in leading-dimension order.
+ * @param[in] params Ranks and gathering parameters.
+ * @param[out] output_data Output data buffer.
+ * @param[in] output_dims Inferred output shape in leading-dimension order.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_gather_f16(const float16_t *input_data,
+                                   const cmsis_nn_dims *input_dims,
+                                   const int32_t *indices_data,
+                                   const cmsis_nn_dims *indices_dims,
+                                   const cmsis_nn_gather_params *params,
+                                   float16_t *output_data,
+                                   const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Gather contiguous slices using coordinate tuples.
+ *
+ * Data rank is 1..4 and indices rank is 1..4. The final indices dimension
+ * is the tuple width, which must be at least one. batch_dims is a TensorFlow-style
+ * extension (not a LiteRT builtin option): 0 <= batch_dims < indices_rank,
+ * batch_dims < params_rank, and batch_dims + tuple_width <= params_rank.
+ * Leading batch dimensions must match. The inferred output shape is
+ * indices_shape[:-1] + params_shape[batch_dims + tuple_width:].
+ * Empty data with a nonempty index buffer is rejected.
+ *
+ * Shapes use the first rank fields of cmsis_nn_dims in n, h, w, c order;
+ * unused fields are ignored. The inferred output rank must be 0..4, and
+ * output_dims must match its leading dimensions. A rank-0 output is one element.
+ * All dimension extents must be nonnegative. Input, index and output buffer
+ * byte counts must each fit INT32_MAX; this is a CORE capacity limit.
+ *
+ * All metadata pointers are required. A NULL data, indices or output pointer is
+ * accepted only when that respective buffer has zero elements. Valid empty
+ * calls copy nothing. All supplied indices are checked, even for empty output.
+ * Coordinates must be nonnegative and below their corresponding axis extent.
+ * Invalid metadata or indices return ARG_ERROR without changing output.
+ *
+ * This operation preserves all bits, including NaN payloads, signed zero and
+ * subnormals, independently of floating-point controls. Buffers must not overlap.
+ * No scratch buffer is required. Portable copies use existing MVE copy paths
+ * when enabled.
+ *
+ * @param[in] params_data Input data buffer.
+ * @param[in] params_dims Input shape in leading-dimension order.
+ * @param[in] indices_data Signed 32-bit indices.
+ * @param[in] indices_dims Indices shape in leading-dimension order.
+ * @param[in] params Ranks and gathering parameters.
+ * @param[out] output_data Output data buffer.
+ * @param[in] output_dims Inferred output shape in leading-dimension order.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_gather_nd_f16(const float16_t *params_data,
+                                      const cmsis_nn_dims *params_dims,
+                                      const int32_t *indices_data,
+                                      const cmsis_nn_dims *indices_dims,
+                                      const cmsis_nn_gather_nd_params *params,
+                                      float16_t *output_data,
+                                      const cmsis_nn_dims *output_dims);
 
     /** @} */
 
