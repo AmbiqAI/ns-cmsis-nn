@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.34.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.33.1...v7.34.0) (2026-09-12)
+
+
+### Features
+
+* add FP16 and FP32 GATHER and GATHER_ND ([#496](https://github.com/AmbiqAI/ns-cmsis-nn/issues/496)) ([1327b17](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1327b17ee4cd2bfd42eab3e87af443587e25dc95))
+* **float:** add FP16 and FP32 reduce-min/max kernels ([#499](https://github.com/AmbiqAI/ns-cmsis-nn/issues/499)) ([7c28064](https://github.com/AmbiqAI/ns-cmsis-nn/commit/7c28064c047cde53cd87d8b9b61257ff43bdc549))
+
 ## [7.33.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.33.0...v7.33.1) (2026-09-10)
 
 ### Performance
