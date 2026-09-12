@@ -117,7 +117,12 @@ static inline arm_cmsis_nn_status arm_nn_arg_extrema(const void *input_data,
     }
     const size_t reduction = (size_t)dims[axis];
     const uint32_t sign = width == 2 ? UINT32_C(0x8000) : UINT32_C(0x80000000);
-    const uint32_t infinity = width == 2 ? UINT32_C(0x7c00) : UINT32_C(0x7f800000);
+    #if defined(__ARM_FP16_FORMAT_ALTERNATIVE) && !(defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2))
+    /* Scalar alternative-format half has only finite values, including exponent 31. */
+    const uint32_t nan_boundary = width == 2 ? UINT32_C(0x7fff) : UINT32_C(0x7f800000);
+    #else
+    const uint32_t nan_boundary = width == 2 ? UINT32_C(0x7c00) : UINT32_C(0x7f800000);
+    #endif
     const uint8_t *input = (const uint8_t *)input_data;
     for (size_t o = 0; o < outer; ++o)
     {
@@ -129,7 +134,7 @@ static inline arm_cmsis_nn_status arm_nn_arg_extrema(const void *input_data,
             for (size_t k = 0; k < reduction; ++k)
             {
                 const uint32_t bits = arm_nn_arg_load(input + (base + k * inner) * width, width);
-                if ((bits & (sign - 1)) > infinity)
+                if ((bits & (sign - 1)) > nan_boundary)
                 {
                     best_index = (int32_t)k;
                     break;

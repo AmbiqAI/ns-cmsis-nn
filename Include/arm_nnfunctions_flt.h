@@ -3054,6 +3054,8 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
  * with no floating-point arithmetic or conversion; numerical FP controls and
  * cumulative exception flags are preserved. This deliberate CORE NaN policy may
  * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
+ * IEEE binary16 uses the NaN/infinity rules above. Scalar Arm alternative-format
+ * float16_t has no NaNs or infinities; every encoding is ordered as a finite value.
  *
  * Metadata is required; extents must be nonnegative and the reduced extent must
  * be positive, even when another extent is zero. Declared input and INT32 output
@@ -3087,6 +3089,8 @@ arm_argmin_f16(const float16_t *input_data, const cmsis_nn_dims *input_dims, int
  * with no floating-point arithmetic or conversion; numerical FP controls and
  * cumulative exception flags are preserved. This deliberate CORE NaN policy may
  * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
+ * IEEE binary16 uses the NaN/infinity rules above. Scalar Arm alternative-format
+ * float16_t has no NaNs or infinities; every encoding is ordered as a finite value.
  *
  * Metadata is required; extents must be nonnegative and the reduced extent must
  * be positive, even when another extent is zero. Declared input and INT32 output
