@@ -1625,6 +1625,74 @@ arm_cmsis_nn_status arm_reduce_sum_f32(const float32_t *input_data,
 
 /**
  * @ingroup Reduction
+ * @brief Reduces a f32 NHWC tensor to its maximum along a binary axis mask.
+ *
+ * Values are selected without floating-point arithmetic, accumulation or conversion.
+ * Any NaN in a reduction yields canonical quiet NaN (0x7fc00000); infinities and subnormals
+ * retain their bits. Equal numeric values retain the first input in row-major order,
+ * including zero signs. Scalar and MVE paths share this bit contract independently of
+ * FP controls. LiteRT nonfinite/zero-sign behavior may differ by shape/resolver. Refs #498.
+ *
+ * A zero mask copies bits unchanged, including NaN payloads. Reducing a singleton axis
+ * instead canonicalizes NaNs. An empty reduced domain produces -Inf; an empty output
+ * performs no accesses to data buffers.
+ *
+ * All metadata pointers are required. Extents must be nonnegative, mask entries exactly
+ * 0 or 1, and output extents equal input extents with reduced axes retained as 1.
+ * Declared input/output byte counts must each fit INT32_MAX; any zero extent makes its
+ * tensor count zero. Data pointers may be NULL only for zero-element tensors. Buffers
+ * must be contiguous, normally aligned, adequately allocated and non-overlapping;
+ * allocation capacity and overlap are caller preconditions, not runtime checks.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_max_f32(const float32_t *input_data,
+                                       const cmsis_nn_dims *input_dims,
+                                       const cmsis_nn_dims *axis_dims,
+                                       float32_t *output_data,
+                                       const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
+ * @brief Reduces a f32 NHWC tensor to its minimum along a binary axis mask.
+ *
+ * Values are selected without floating-point arithmetic, accumulation or conversion.
+ * Any NaN in a reduction yields canonical quiet NaN (0x7fc00000); infinities and subnormals
+ * retain their bits. Equal numeric values retain the first input in row-major order,
+ * including zero signs. Scalar and MVE paths share this bit contract independently of
+ * FP controls. LiteRT nonfinite/zero-sign behavior may differ by shape/resolver. Refs #498.
+ *
+ * A zero mask copies bits unchanged, including NaN payloads. Reducing a singleton axis
+ * instead canonicalizes NaNs. An empty reduced domain produces +Inf; an empty output
+ * performs no accesses to data buffers.
+ *
+ * All metadata pointers are required. Extents must be nonnegative, mask entries exactly
+ * 0 or 1, and output extents equal input extents with reduced axes retained as 1.
+ * Declared input/output byte counts must each fit INT32_MAX; any zero extent makes its
+ * tensor count zero. Data pointers may be NULL only for zero-element tensors. Buffers
+ * must be contiguous, normally aligned, adequately allocated and non-overlapping;
+ * allocation capacity and overlap are caller preconditions, not runtime checks.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_min_f32(const float32_t *input_data,
+                                       const cmsis_nn_dims *input_dims,
+                                       const cmsis_nn_dims *axis_dims,
+                                       float32_t *output_data,
+                                       const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
  * @brief Computes the mean of a float32 tensor along the specified axes.
  *
  * Values are accumulated and divided once in float32; unlike the float16
@@ -2900,6 +2968,74 @@ arm_cmsis_nn_status arm_softmax_f16(const float16_t *input, int32_t num_rows, in
  * @copydoc arm_reduce_sum_f32
  */
 arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
+                                       const cmsis_nn_dims *input_dims,
+                                       const cmsis_nn_dims *axis_dims,
+                                       float16_t *output_data,
+                                       const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
+ * @brief Reduces a f16 NHWC tensor to its maximum along a binary axis mask.
+ *
+ * Values are selected without floating-point arithmetic, accumulation or conversion.
+ * Any NaN in a reduction yields canonical quiet NaN (0x7e00); infinities and subnormals
+ * retain their bits. Equal numeric values retain the first input in row-major order,
+ * including zero signs. Scalar and MVE paths share this bit contract independently of
+ * FP controls. LiteRT nonfinite/zero-sign behavior may differ by shape/resolver. Refs #498.
+ *
+ * A zero mask copies bits unchanged, including NaN payloads. Reducing a singleton axis
+ * instead canonicalizes NaNs. An empty reduced domain produces -Inf; an empty output
+ * performs no accesses to data buffers.
+ *
+ * All metadata pointers are required. Extents must be nonnegative, mask entries exactly
+ * 0 or 1, and output extents equal input extents with reduced axes retained as 1.
+ * Declared input/output byte counts must each fit INT32_MAX; any zero extent makes its
+ * tensor count zero. Data pointers may be NULL only for zero-element tensors. Buffers
+ * must be contiguous, normally aligned, adequately allocated and non-overlapping;
+ * allocation capacity and overlap are caller preconditions, not runtime checks.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_max_f16(const float16_t *input_data,
+                                       const cmsis_nn_dims *input_dims,
+                                       const cmsis_nn_dims *axis_dims,
+                                       float16_t *output_data,
+                                       const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
+ * @brief Reduces a f16 NHWC tensor to its minimum along a binary axis mask.
+ *
+ * Values are selected without floating-point arithmetic, accumulation or conversion.
+ * Any NaN in a reduction yields canonical quiet NaN (0x7e00); infinities and subnormals
+ * retain their bits. Equal numeric values retain the first input in row-major order,
+ * including zero signs. Scalar and MVE paths share this bit contract independently of
+ * FP controls. LiteRT nonfinite/zero-sign behavior may differ by shape/resolver. Refs #498.
+ *
+ * A zero mask copies bits unchanged, including NaN payloads. Reducing a singleton axis
+ * instead canonicalizes NaNs. An empty reduced domain produces +Inf; an empty output
+ * performs no accesses to data buffers.
+ *
+ * All metadata pointers are required. Extents must be nonnegative, mask entries exactly
+ * 0 or 1, and output extents equal input extents with reduced axes retained as 1.
+ * Declared input/output byte counts must each fit INT32_MAX; any zero extent makes its
+ * tensor count zero. Data pointers may be NULL only for zero-element tensors. Buffers
+ * must be contiguous, normally aligned, adequately allocated and non-overlapping;
+ * allocation capacity and overlap are caller preconditions, not runtime checks.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_min_f16(const float16_t *input_data,
                                        const cmsis_nn_dims *input_dims,
                                        const cmsis_nn_dims *axis_dims,
                                        float16_t *output_data,
