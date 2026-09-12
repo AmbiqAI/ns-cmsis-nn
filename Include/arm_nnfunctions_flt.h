@@ -2262,6 +2262,24 @@ arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
                                             int32_t block_size);
 
 /**
+ * @brief Elementwise squared difference of two float16 vectors.
+ *
+ * Each output element is calculated as `(input_1_vect[i] - input_2_vect[i])^2`.
+ *
+ * @param[in]  input_1_vect         Pointer to the first input vector.
+ * @param[in]  input_2_vect         Pointer to the second input vector.
+ * @param[out] output               Pointer to the output vector.
+ * @param[in]  block_size           Number of elements to process.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` when an input/output pointer is NULL or
+ *         @p block_size is less than 1.
+ */
+arm_cmsis_nn_status arm_elementwise_squared_difference_f16(const float16_t *input_1_vect,
+                                                           const float16_t *input_2_vect,
+                                                           float16_t *output,
+                                                           int32_t block_size);
+
+/**
  * @copydoc arm_nn_abs_f32
  */
 arm_cmsis_nn_status arm_nn_abs_f16(const float16_t *input, float16_t *output, int32_t block_size);
