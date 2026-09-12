@@ -29,6 +29,8 @@ if (ARM_NN_ENABLE_F32)
                       arm_elementwise_mul_broadcast_f32.c
                       arm_minimum_f32.c
                       arm_maximum_f32.c
+                      arm_argmin_f32.c
+                      arm_argmax_f32.c
                       arm_nn_mean_f32.c
                       arm_reduce_max_f32.c
                       arm_reduce_min_f32.c
@@ -48,6 +50,8 @@ if (ARM_NN_ENABLE_F16)
                       arm_elementwise_mul_broadcast_f16.c
                       arm_minimum_f16.c
                       arm_maximum_f16.c
+                      arm_argmin_f16.c
+                      arm_argmax_f16.c
                       arm_nn_mean_f16.c
                       arm_reduce_max_f16.c
                       arm_reduce_min_f16.c
