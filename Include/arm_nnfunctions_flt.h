@@ -1625,6 +1625,72 @@ arm_cmsis_nn_status arm_reduce_sum_f32(const float32_t *input_data,
 
 /**
  * @ingroup Reduction
+ * @brief Returns the first minimum's axis-relative INT32 index for a f32 tensor.
+ *
+ * The input is contiguous NHWC with four extents; axis is a canonical index 0..3.
+ * Output contains the product of the other three extents, in row-major order
+ * with the reduced axis removed. Logical ranks, negative-axis normalization and
+ * squeezed output metadata are the caller's responsibility. No scratch is needed.
+ *
+ * Any NaN selects the first NaN's index, regardless of payload, sign or signaling
+ * bit. Otherwise equal numeric extrema retain the first index, including +0/-0
+ * ties. Infinities and subnormals follow numeric order. Selection uses raw bits,
+ * with no floating-point arithmetic or conversion; numerical FP controls and
+ * cumulative exception flags are preserved. This deliberate CORE NaN policy may
+ * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
+ *
+ * Metadata is required; extents must be nonnegative and the reduced extent must
+ * be positive, even when another extent is zero. Declared input and INT32 output
+ * byte counts must each fit INT32_MAX; any zero extent makes its tensor count zero.
+ * Data pointers may be NULL only for zero-element tensors. Valid empty outputs
+ * perform no data accesses. Buffers must be normally aligned, contiguous,
+ * adequately allocated and non-overlapping with each other and metadata; capacity
+ * and overlap are caller preconditions. All detected errors precede output writes.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis Canonical reduction axis, in [0,3].
+ * @param[out] output_data INT32 indices, each in [0,input_dims[axis]).
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status
+arm_argmin_f32(const float32_t *input_data, const cmsis_nn_dims *input_dims, int32_t axis, int32_t *output_data);
+
+/**
+ * @ingroup Reduction
+ * @brief Returns the first maximum's axis-relative INT32 index for a f32 tensor.
+ *
+ * The input is contiguous NHWC with four extents; axis is a canonical index 0..3.
+ * Output contains the product of the other three extents, in row-major order
+ * with the reduced axis removed. Logical ranks, negative-axis normalization and
+ * squeezed output metadata are the caller's responsibility. No scratch is needed.
+ *
+ * Any NaN selects the first NaN's index, regardless of payload, sign or signaling
+ * bit. Otherwise equal numeric extrema retain the first index, including +0/-0
+ * ties. Infinities and subnormals follow numeric order. Selection uses raw bits,
+ * with no floating-point arithmetic or conversion; numerical FP controls and
+ * cumulative exception flags are preserved. This deliberate CORE NaN policy may
+ * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
+ *
+ * Metadata is required; extents must be nonnegative and the reduced extent must
+ * be positive, even when another extent is zero. Declared input and INT32 output
+ * byte counts must each fit INT32_MAX; any zero extent makes its tensor count zero.
+ * Data pointers may be NULL only for zero-element tensors. Valid empty outputs
+ * perform no data accesses. Buffers must be normally aligned, contiguous,
+ * adequately allocated and non-overlapping with each other and metadata; capacity
+ * and overlap are caller preconditions. All detected errors precede output writes.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis Canonical reduction axis, in [0,3].
+ * @param[out] output_data INT32 indices, each in [0,input_dims[axis]).
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status
+arm_argmax_f32(const float32_t *input_data, const cmsis_nn_dims *input_dims, int32_t axis, int32_t *output_data);
+
+/**
+ * @ingroup Reduction
  * @brief Reduces a f32 NHWC tensor to its maximum along a binary axis mask.
  *
  * Values are selected without floating-point arithmetic, accumulation or conversion.
@@ -2972,6 +3038,76 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
                                        const cmsis_nn_dims *axis_dims,
                                        float16_t *output_data,
                                        const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
+ * @brief Returns the first minimum's axis-relative INT32 index for a f16 tensor.
+ *
+ * The input is contiguous NHWC with four extents; axis is a canonical index 0..3.
+ * Output contains the product of the other three extents, in row-major order
+ * with the reduced axis removed. Logical ranks, negative-axis normalization and
+ * squeezed output metadata are the caller's responsibility. No scratch is needed.
+ *
+ * Any NaN selects the first NaN's index, regardless of payload, sign or signaling
+ * bit. Otherwise equal numeric extrema retain the first index, including +0/-0
+ * ties. Infinities and subnormals follow numeric order. Selection uses raw bits,
+ * with no floating-point arithmetic or conversion; numerical FP controls and
+ * cumulative exception flags are preserved. This deliberate CORE NaN policy may
+ * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
+ * IEEE binary16 uses the NaN/infinity rules above. Scalar Arm alternative-format
+ * float16_t has no NaNs or infinities; every encoding is ordered as a finite value.
+ *
+ * Metadata is required; extents must be nonnegative and the reduced extent must
+ * be positive, even when another extent is zero. Declared input and INT32 output
+ * byte counts must each fit INT32_MAX; any zero extent makes its tensor count zero.
+ * Data pointers may be NULL only for zero-element tensors. Valid empty outputs
+ * perform no data accesses. Buffers must be normally aligned, contiguous,
+ * adequately allocated and non-overlapping with each other and metadata; capacity
+ * and overlap are caller preconditions. All detected errors precede output writes.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis Canonical reduction axis, in [0,3].
+ * @param[out] output_data INT32 indices, each in [0,input_dims[axis]).
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status
+arm_argmin_f16(const float16_t *input_data, const cmsis_nn_dims *input_dims, int32_t axis, int32_t *output_data);
+
+/**
+ * @ingroup Reduction
+ * @brief Returns the first maximum's axis-relative INT32 index for a f16 tensor.
+ *
+ * The input is contiguous NHWC with four extents; axis is a canonical index 0..3.
+ * Output contains the product of the other three extents, in row-major order
+ * with the reduced axis removed. Logical ranks, negative-axis normalization and
+ * squeezed output metadata are the caller's responsibility. No scratch is needed.
+ *
+ * Any NaN selects the first NaN's index, regardless of payload, sign or signaling
+ * bit. Otherwise equal numeric extrema retain the first index, including +0/-0
+ * ties. Infinities and subnormals follow numeric order. Selection uses raw bits,
+ * with no floating-point arithmetic or conversion; numerical FP controls and
+ * cumulative exception flags are preserved. This deliberate CORE NaN policy may
+ * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
+ * IEEE binary16 uses the NaN/infinity rules above. Scalar Arm alternative-format
+ * float16_t has no NaNs or infinities; every encoding is ordered as a finite value.
+ *
+ * Metadata is required; extents must be nonnegative and the reduced extent must
+ * be positive, even when another extent is zero. Declared input and INT32 output
+ * byte counts must each fit INT32_MAX; any zero extent makes its tensor count zero.
+ * Data pointers may be NULL only for zero-element tensors. Valid empty outputs
+ * perform no data accesses. Buffers must be normally aligned, contiguous,
+ * adequately allocated and non-overlapping with each other and metadata; capacity
+ * and overlap are caller preconditions. All detected errors precede output writes.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis Canonical reduction axis, in [0,3].
+ * @param[out] output_data INT32 indices, each in [0,input_dims[axis]).
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status
+arm_argmax_f16(const float16_t *input_data, const cmsis_nn_dims *input_dims, int32_t axis, int32_t *output_data);
 
 /**
  * @ingroup Reduction
