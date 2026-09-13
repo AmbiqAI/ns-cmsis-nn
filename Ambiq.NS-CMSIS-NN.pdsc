@@ -79,6 +79,7 @@
         <file category="header" name="Include/Internal/arm_conv_opt_f32.h"/>
         <file category="header" name="Include/Internal/arm_depthwise_conv_opt_f16.h"/>
         <file category="header" name="Include/Internal/arm_depthwise_conv_opt_f32.h"/>
+        <file category="header" name="Include/Internal/arm_nn_arg_extrema_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_broadcast_walk.h"/>
         <file category="header" name="Include/Internal/arm_nn_reduce_extrema_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_sqrt_flt.h"/>
@@ -119,8 +120,12 @@
         <file category="source" name="Source/BasicMathFunctions/arm_add_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_scalar_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_scalar_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_argmax_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_argmax_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_argmax_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_argmax_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_argmin_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_argmin_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_argmin_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_argmin_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_broadcast_f16.c"/>
