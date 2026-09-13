@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.35.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.34.0...v7.35.0) (2026-09-13)
+
+
+### Features
+
+* add float argmin and argmax index reductions ([#503](https://github.com/AmbiqAI/ns-cmsis-nn/issues/503)) ([041adf8](https://github.com/AmbiqAI/ns-cmsis-nn/commit/041adf863f60147290177094a01d470b6ca190fe))
+
 ## [7.34.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.33.1...v7.34.0) (2026-09-12)
 
 
