@@ -18,6 +18,8 @@ static const float16_t encoded[] = {65504.0f, 1.0f};
 /* Exact finite decoding in units of 2^-24; independent of the kernel's keys. */
 static int64_t value(uint16_t bits)
 {
+    /* Half has ten fraction bits, five exponent bits and sign bit 15.
+     * 1024 restores the implicit leading one for a normal finite value. */
     uint32_t exponent = (bits >> 10) & 31;
     uint32_t fraction = bits & 1023;
 #if !defined(__ARM_FP16_FORMAT_ALTERNATIVE)
@@ -56,6 +58,8 @@ int test_formats(void)
     if (arm_argmax_f16(encoded, &dims, 3, &output) != ARM_CMSIS_NN_SUCCESS || output != 0)
         return 4;
 
+    /* +0, -0, largest IEEE finite; then IEEE +Inf/NaNs or alternative
+     * +65536, +65600, +131008; finally -Inf/-NaN or -65536/-131008. */
     const uint16_t anchors[] = {0, 0x8000, 0x7bff, 0x7c00, 0x7c01, 0x7fff, 0xfc00, 0xffff};
     for (uint32_t bits = 0; bits < 65536; ++bits)
         for (unsigned a = 0; a < sizeof(anchors) / sizeof(anchors[0]); ++a)
@@ -72,6 +76,7 @@ int test_formats(void)
         }
 #if ARM_NN_ENABLE_F32
     /* Alternative half must not disable IEEE single-precision NaN selection. */
+    /* IEEE binary32 +1 and a positive NaN with the lowest fraction bit set. */
     const uint32_t words32[] = {0x3f800000, 0x7f800001};
     float32_t input32[2];
     memcpy(input32, words32, sizeof(input32));
