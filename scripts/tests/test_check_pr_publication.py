@@ -144,6 +144,79 @@ class PublicationTests(unittest.TestCase):
 
 
 class GitIntegrationTests(unittest.TestCase):
+    def test_real_push_urls_in_dry_run(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            bare, work = root / "remote.git", root / "work"
+            env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull)
+
+            def git(*args, cwd=work):
+                return subprocess.check_output(("git", *args), cwd=cwd, env=env,
+                                               text=True, stderr=subprocess.DEVNULL).strip()
+
+            git("init", "--bare", str(bare), cwd=root)
+            git("init", "-b", "topic", str(work), cwd=root)
+            git("config", "user.name", "Publication test")
+            git("config", "user.email", "test@example.invalid")
+            git("commit", "--allow-empty", "-m", "Base. Refs #485")
+            old = git("rev-parse", "HEAD")
+            git("remote", "add", "origin", str(bare))
+            git("push", "origin", "HEAD:topic")
+            git("commit", "--allow-empty", "-m", "Reviewed. Refs #485")
+            new = git("rev-parse", "HEAD")
+            calls = []
+
+            def command(*args):
+                calls.append(args)
+                if args[:3] == ("gh", "pr", "view"):
+                    return json.dumps(dict(state="OPEN", isDraft=True, headRefName="topic",
+                                           headRefOid=old, isCrossRepository=False))
+                if args[0] != "git" or args[1] == "push":
+                    self.fail(f"Unexpected write command: {args}")
+                return git(*args[1:])
+
+            prefixes = ("git@github.com:", "https://github.com/", "ssh://git@github.com/")
+            for prefix in prefixes:
+                for suffix in ("", ".git"):
+                    url = prefix + "ambiqai/NS-CMSIS-NN" + suffix
+                    with self.subTest(url=url):
+                        git("config", "remote.origin.pushurl", url)
+                        calls.clear()
+                        with patch.object(publisher, "run", command):
+                            publisher.publish(485, "AmbiqAI/ns-cmsis-nn", "origin", new,
+                                              dry_run=True)
+                        self.assertIn(("git", "remote", "get-url", "--push", "--all", "origin"), calls)
+                        self.assertIn(("git", "merge-base", "--is-ancestor", "FETCH_HEAD", new), calls)
+                        self.assertEqual(git("rev-parse", "refs/heads/topic", cwd=bare), old)
+
+            invalid_urls = (
+                "git@github.com.evil:AmbiqAI/ns-cmsis-nn.git",
+                "https://github.com.evil/AmbiqAI/ns-cmsis-nn.git",
+                "ssh://git@github.com.evil/AmbiqAI/ns-cmsis-nn.git",
+                "ssh://git@github.com@evil.example/AmbiqAI/ns-cmsis-nn.git",
+                "ssh://other@github.com/AmbiqAI/ns-cmsis-nn.git",
+                *(prefix + "other/ns-cmsis-nn.git" for prefix in prefixes),
+                *(prefix + "AmbiqAI/other.git" for prefix in prefixes),
+            )
+            for url in invalid_urls:
+                with self.subTest(url=url):
+                    git("config", "remote.origin.pushurl", url)
+                    calls.clear()
+                    with patch.object(publisher, "run", command):
+                        with self.assertRaisesRegex(ValueError, "does not match"):
+                            publisher.publish(485, "AmbiqAI/ns-cmsis-nn", "origin", new,
+                                              dry_run=True)
+                    self.assertFalse(any(c[:2] == ("git", "fetch") for c in calls))
+
+            git("config", "remote.origin.pushurl", "ssh://git@github.com/AmbiqAI/ns-cmsis-nn.git")
+            git("config", "--add", "remote.origin.pushurl", "https://github.com/AmbiqAI/ns-cmsis-nn.git")
+            calls.clear()
+            with patch.object(publisher, "run", command):
+                with self.assertRaisesRegex(ValueError, "exactly one push URL"):
+                    publisher.publish(485, "AmbiqAI/ns-cmsis-nn", "origin", new, dry_run=True)
+            self.assertFalse(any(c[:2] == ("git", "fetch") for c in calls))
+            self.assertEqual(git("rev-parse", "refs/heads/topic", cwd=bare), old)
+
     def test_real_fast_forward_is_remote_before_promotion(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

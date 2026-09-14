@@ -127,12 +127,8 @@ case "${TOOLCHAIN}" in
     nm="arm-none-eabi-nm"
     size="arm-none-eabi-size"
     link_flags=(-nostartfiles --specs=nosys.specs)
-    # GCC links libc but not libm. The archive genuinely calls floorf,
-    # roundf and round (arm_resize_nearest_neighbor_s8/s16,
-    # arm_quantize_f32_s8/s16) and, below -ffast-math, sqrtf for the errno
-    # path the sqrt kernels never take, so a strict link needs libm.
-    # These are standard libm symbols every consumer already links --
-    # unlike __ARM_undef, which nothing can supply.
+    # GCC needs libm for floorf/roundf/round and sqrtf on targets without
+    # hardware sqrt, including fast-math builds. Refs #485.
     post_link_libs=(-lm)
     command -v "${compiler}" >/dev/null || { echo "${compiler} not on PATH" >&2; exit 3; }
     command -v "${nm}"       >/dev/null || { echo "${nm} not on PATH"       >&2; exit 3; }
