@@ -24,7 +24,7 @@
 
 ```cmake
 find_package(ns-cmsis-nn REQUIRED CONFIG)
-target_link_libraries(app PRIVATE nsx::cmsis_nn)
+target_link_libraries(app PRIVATE ns::cmsis-nn)
 ```
   </div>
 </div>
