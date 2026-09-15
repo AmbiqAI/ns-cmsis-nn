@@ -2,7 +2,7 @@
 
 heliaCORE ships a relocatable CMake config package inside each SDK
 tarball. After extraction, `find_package(ns-cmsis-nn)` exposes the
-target `nsx::cmsis_nn`, plus a set of cache variables describing the
+target `ns::cmsis-nn`, plus a set of cache variables describing the
 arch and toolchain the archive was built with.
 
 ## 1. Download the SDK tarball
@@ -27,10 +27,10 @@ list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/third_party/ns-cmsis-nn-corte
 find_package(ns-cmsis-nn 7.35.0 REQUIRED CONFIG) # x-release-please-version
 
 add_executable(my_firmware main.c)
-target_link_libraries(my_firmware PRIVATE nsx::cmsis_nn)
+target_link_libraries(my_firmware PRIVATE ns::cmsis-nn)
 ```
 
-That's it. `nsx::cmsis_nn` is an `IMPORTED STATIC` target that already
+That's it. `ns::cmsis-nn` is an `IMPORTED STATIC` target that already
 carries the right `INTERFACE_INCLUDE_DIRECTORIES`.
 
 ## 3. Configure-time guardrails
@@ -63,7 +63,6 @@ cmake --build build --verbose
 
 In the configure or verbose build output, look for:
 
-- `nsx::cmsis_nn` in the link line.
 - The extracted package's `include/` directory in the compiler include paths.
 - The package's `lib/libns-cmsis-nn.a` in the final link command.
 
