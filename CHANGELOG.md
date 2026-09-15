@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.35.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.35.0...v7.35.1) (2026-09-15)
+
+
+### Bug Fixes
+
+* include declared license files in CMSIS pack ([f0e8bbf](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f0e8bbf0fc2290d423b7fd59adcad7e63c8daae1)), closes [#506](https://github.com/AmbiqAI/ns-cmsis-nn/issues/506)
+
+
+### Refactoring
+
+* clarify float ARG representation constants ([#507](https://github.com/AmbiqAI/ns-cmsis-nn/issues/507)) ([795ff5d](https://github.com/AmbiqAI/ns-cmsis-nn/commit/795ff5d8ffcae2bfaa708fcc7f0574531a0c985d)), closes [#505](https://github.com/AmbiqAI/ns-cmsis-nn/issues/505)
+
 ## [7.35.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.34.0...v7.35.0) (2026-09-13)
 
 
