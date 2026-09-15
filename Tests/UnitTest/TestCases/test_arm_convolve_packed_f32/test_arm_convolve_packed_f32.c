@@ -306,6 +306,18 @@ void convolve_grouped_contract_f32(void)
     const cmsis_nn_dims nondivisible_channel_out = {.n = 1, .h = 1, .w = 1, .c = 3};
     const cmsis_nn_dims zero_channel_out = {.n = 1, .h = 1, .w = 1, .c = 0};
     const cmsis_nn_dims negative_channel_out = {.n = 1, .h = 1, .w = 1, .c = -4};
+    const cmsis_nn_dims mismatched_flt = {.n = 3, .h = 1, .w = 1, .c = 2};
+    const cmsis_nn_dims negative_spatial_out = {.n = 1, .h = -1, .w = 1, .c = 4};
+    const cmsis_nn_dims negative_batch_out = {.n = -1, .h = 1, .w = 1, .c = 4};
+    const cmsis_nn_dims negative_batch_in = {.n = -1, .h = 1, .w = 1, .c = 4};
+    const cmsis_nn_dims zero_batch_out = {.n = 0, .h = 1, .w = 1, .c = 4};
+    const cmsis_nn_dims two_batch_in = {.n = 2, .h = 1, .w = 1, .c = 4};
+    /* 46341^2 exceeds INT32_MAX and INT32_MAX^2 still fits in int64_t, so each factor must be narrowed in turn. */
+    const cmsis_nn_dims single_group_in = {.n = 1, .h = 1, .w = 1, .c = 1};
+    const cmsis_nn_dims overflow_patch_flt = {.n = 4, .h = 46341, .w = 46341, .c = 1};
+    const cmsis_nn_dims huge_kernel_flt = {.n = 4, .h = INT32_MAX, .w = INT32_MAX, .c = 1};
+    const cmsis_nn_dims unit_flt = {.n = 4, .h = 1, .w = 1, .c = 1};
+    const cmsis_nn_dims overflow_positions_out = {.n = 1, .h = 46341, .w = 46341, .c = 4};
     const float32_t x[4] = {1.0f, 2.0f, 3.0f, 4.0f};
     const float32_t w[8] = {0};
     float32_t y[4] = {0};
@@ -324,6 +336,33 @@ void convolve_grouped_contract_f32(void)
                       arm_convolve_wrapper_f32(NULL, &cp, &in, x, &flt, w, NULL, NULL, &zero_channel_out, y));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_convolve_wrapper_f32(NULL, &cp, &in, x, &flt, w, NULL, NULL, &negative_channel_out, y));
+    /* A grouped filter that does not declare C_OUT rows would index past the weight tensor. */
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f32(NULL, &cp, &in, x, &mismatched_flt, w, NULL, NULL, &out, y));
+    /* Negative extents must not reach the generic grouped loops, which would run zero iterations and report success. */
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f32(NULL, &cp, &in, x, &flt, w, NULL, NULL, &negative_spatial_out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f32(NULL, &cp, &negative_batch_in, x, &flt, w, NULL, NULL, &out, y));
+    /* The output batch is not the loop bound, so it needs its own rejection rather than riding on the input batch. */
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f32(NULL, &cp, &in, x, &flt, w, NULL, NULL, &negative_batch_out, y));
+    /* A zero output batch is zero-sized work, not a licence to write input_batches worth of output. */
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_wrapper_f32(NULL, &cp, &in, x, &flt, w, NULL, NULL, &zero_batch_out, y));
+    /* Two positive but unequal batch counts would overrun the smaller tensor, whichever side it is on. */
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f32(NULL, &cp, &two_batch_in, x, &flt, w, NULL, NULL, &out, y));
+    /* Overflowing descriptors must be rejected, not wrapped into a plausible int32_t extent. */
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_wrapper_f32(NULL, &cp, &single_group_in, x, &overflow_patch_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_convolve_wrapper_f32(NULL, &cp, &single_group_in, x, &huge_kernel_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_wrapper_f32(
+                          NULL, &cp, &single_group_in, x, &unit_flt, w, NULL, NULL, &overflow_positions_out, y));
 }
 
 // 3x3, in_c = 4, out_c = 8 on a 4x4 input (in_c = 4 is one full vector, so the direct small-C kernel does not

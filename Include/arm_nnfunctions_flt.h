@@ -204,7 +204,9 @@ int32_t arm_depthwise_conv_wrapper_f32_get_buffer_size(const cmsis_nn_dw_conv_pa
  *
  * Standard filters use `[C_OUT, H_K, W_K, C_IN / groups]` layout. The group count is inferred as
  * `input_dims->c / filter_dims->c`; both input and output channels must be divisible by it. Grouped convolution
- * supports arbitrary stride, dilation and padding and uses no scratch buffer.
+ * supports arbitrary stride, dilation and padding and uses no scratch buffer. When `groups > 1`, `filter_dims->n`
+ * must equal `C_OUT`, dimensions must be non-negative, a positive input batch must equal the output batch, and a
+ * zero output batch selects a successful no-op.
  *
  * @note When `conv_params->weight_format` is set to
  *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every convolution path, including

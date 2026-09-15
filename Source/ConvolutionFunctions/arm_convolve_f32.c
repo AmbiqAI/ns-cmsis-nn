@@ -662,8 +662,6 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
     const int32_t pad_w = conv_params->padding.w;
     const int32_t dil_h = conv_params->dilation.h;
     const int32_t dil_w = conv_params->dilation.w;
-    const int32_t patch_len = kernel_h * kernel_w * input_c;
-    const int32_t output_positions = output_h * output_w;
 
     /* Grouped convolution: C_IN = groups * kernel_ch and C_OUT = groups * out_ch_per_group. */
     if (kernel_ch <= 0 || input_c % kernel_ch != 0)
@@ -671,15 +669,50 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
     const int32_t groups = input_c / kernel_ch;
-    if (groups <= 0 || output_c <= 0 || output_c % groups != 0)
+    if (groups <= 0 || output_c <= 0 || output_c % groups != 0 || (groups != 1 && filter_dims->n != output_c))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
     const int32_t output_ch_per_group = output_c / groups;
-    if (groups != 1 && conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
+    const int32_t output_batch = output_dims->n;
+    if (groups != 1)
     {
-        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+        /* Without this the generic grouped loops would run zero iterations and report SUCCESS for a malformed shape. */
+        if (batch < 0 || input_h < 0 || input_w < 0 || kernel_h < 0 || kernel_w < 0 || output_batch < 0 ||
+            output_h < 0 || output_w < 0)
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+        /* Every grouped loop below is bounded by the input batch, so an unequal output batch overruns or underfills. */
+        if (batch > 0 && output_batch > 0 && batch != output_batch)
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+        if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
+        {
+            return ARM_CMSIS_NN_NO_IMPL_ERROR;
+        }
+        if (output_batch == 0)
+        {
+            return ARM_CMSIS_NN_SUCCESS;
+        }
     }
+
+    /* Narrow one factor at a time: three int32_t dimensions multiplied together overflow int64_t as well. */
+    const int64_t kernel_area_64 = (int64_t)kernel_h * kernel_w;
+    const int64_t output_positions_64 = (int64_t)output_h * output_w;
+    if (kernel_area_64 > INT32_MAX || kernel_area_64 < INT32_MIN || output_positions_64 > INT32_MAX ||
+        output_positions_64 < INT32_MIN)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    const int64_t patch_len_64 = kernel_area_64 * input_c;
+    if (patch_len_64 > INT32_MAX || patch_len_64 < INT32_MIN)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    const int32_t patch_len = (int32_t)patch_len_64;
+    const int32_t output_positions = (int32_t)output_positions_64;
 
     /* Existing optimized paths assume that each filter spans every input channel. */
     if (groups == 1)
