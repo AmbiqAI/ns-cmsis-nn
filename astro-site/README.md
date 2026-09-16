@@ -1,9 +1,11 @@
 # heliaCORE Astro Starlight site
 
 The Astro Starlight replacement for the Sphinx site in `docs/`, built on the
-shared `@ambiqai/helia-ui` design system. It is a scaffold: the page conversion,
-the generated C API reference, and the charts land in
-AmbiqAI/ns-cmsis-nn#518, #519 and #520.
+shared `@ambiqai/helia-ui` design system. The sixteen handwritten pages are
+converted; the generated C API reference at `/reference/api/` and the benchmark
+charts land in AmbiqAI/ns-cmsis-nn#519 and #520, which is why the links to that
+route and the two chart sections on the benchmarks page have nothing behind them
+yet.
 
 **GitHub Pages still serves the Sphinx build.** CI builds this site to an
 artifact named `astro-site` for review only. Pages switches over in
