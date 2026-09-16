@@ -21,16 +21,24 @@ export default defineConfig({
     starlight({
       title: 'heliaCORE',
       description: 'Optimized AI kernels for Ambiq Silicon',
-      /* The asset names describe the background the wordmark sits on rather
-         than the theme that shows it, so the pairing is inverted here: the
-         dark wordmark is the one a light page needs. */
-      logo: {
-        light: './src/assets/helia-core-logo-dark.png',
-        dark: './src/assets/helia-core-logo-light.png',
-        replacesTitle: true,
-      },
       plugins: [
         heliaStarlight({
+          accent: 'helia-core',
+          /* The left navigation is the site's table of contents, and the
+             landing page is the first place a reader needs it. */
+          sidebar: 'always',
+          /* The package header draws the name as text, so the site carries no
+             wordmark asset in the bar. The links are absolute under the base
+             path, like the footer's, because the header renders on every page
+             rather than only at the root. */
+          header: {
+            title: 'heliaCORE',
+            links: [
+              { label: 'Getting started', href: `${basePath}getting-started/` },
+              { label: 'Guides', href: `${basePath}guides/` },
+              { label: 'API', href: `${basePath}reference/` },
+            ],
+          },
           /* Stated rather than left to default so the four artifacts this site
              owes a crawler and an agent are visible in review. The JSON-LD
              publisher is Ambiq at https://www.ambiq.com, fixed by the package. */

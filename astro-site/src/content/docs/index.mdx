@@ -1,53 +1,38 @@
 ---
 title: heliaCORE
 description: Optimized AI kernels for Ambiq Silicon
-template: splash
-hero:
-  title: Kernel acceleration for Ambiq AI.
-  tagline: Optimized AI kernels for Ambiq Silicon
-  image:
-    light: ../../assets/helia-core-logo-dark.png
-    dark: ../../assets/helia-core-logo-light.png
-  actions:
-    - text: Getting started
-      link: getting-started/
-      icon: right-arrow
-    - text: Why heliaCORE
-      link: why/
-      variant: minimal
-    - text: API
-      link: reference/
-      variant: minimal
+tableOfContents: false
 ---
 
-import Badge from '@ambiqai/helia-ui/astro/Badge';
 import Band from '@ambiqai/helia-ui/astro/Band';
 import BigNumber from '@ambiqai/helia-ui/astro/BigNumber';
+import Button from '@ambiqai/helia-ui/astro/Button';
 import Card from '@ambiqai/helia-ui/astro/Card';
 import CardContent from '@ambiqai/helia-ui/astro/CardContent';
 import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
 import CardHeader from '@ambiqai/helia-ui/astro/CardHeader';
 import Chip from '@ambiqai/helia-ui/astro/Chip';
 import Eyebrow from '@ambiqai/helia-ui/astro/Eyebrow';
+import Hero from '@ambiqai/helia-ui/astro/Hero';
 import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
-import SplitPanel from '@ambiqai/helia-ui/astro/SplitPanel';
 import StatCard from '@ambiqai/helia-ui/astro/StatCard';
 
-<Band tone="plain" density="compact">
+<Hero
+  variant="contrast"
+  eyebrow="Optimized AI kernels for Ambiq Silicon"
+  badge="ATfE + MVE ready"
+  summary="heliaCORE is Ambiq's optimized neural-network kernel library for Ambiq silicon. This repository delivers it as ns-cmsis-nn: a CMSIS-NN-based kernel layer with Ambiq-tuned operators, CMSIS-Pack delivery, and HELIA integration paths for Apollo-class Cortex-M accelerators."
+>
+  <Fragment>Kernel <em>acceleration</em> for Ambiq AI.</Fragment>
 
-<Badge tone="accent" size="md"><span>ATfE + MVE ready</span></Badge>
+  <Button slot="actions" href="getting-started/">Getting started</Button>
 
-**heliaCORE** is Ambiq's optimized neural-network kernel library for Ambiq
-silicon. This repository delivers it as `ns-cmsis-nn`: a CMSIS-NN-based kernel
-layer with Ambiq-tuned operators, CMSIS-Pack delivery, and HELIA integration
-paths for Apollo-class Cortex-M accelerators.
+  <Button slot="actions" href="why/" variant="secondary">Why heliaCORE</Button>
 
-</Band>
+  <Button slot="actions" href="reference/" variant="secondary">API</Button>
 
-<SplitPanel tone="tinted" ratio="1:1" titleAs="h2">
-  <Fragment slot="eyebrow">HELIA CORE</Fragment>
-  <Fragment slot="title">V7.35.0</Fragment>{/* x-release-please-version */}
-  <Fragment slot="body">
+  <Fragment slot="aside">
+    <CardHeader padding="none" titleAs="h2" eyebrow="HELIA CORE">V7.35.0{/* x-release-please-version */}</CardHeader>
     <CardGrid columns={2} density="compact">
       <StatCard label="accelerated ops"><span>200+</span></StatCard>
       <StatCard label="Field models"><span>40+</span></StatCard>
@@ -55,15 +40,15 @@ paths for Apollo-class Cortex-M accelerators.
       <StatCard label="Paths"><span>4</span></StatCard>
     </CardGrid>
   </Fragment>
-  <Fragment slot="code">
+  <Fragment slot="media">
 
-```cmake
+```cmake wrap
 find_package(ns-cmsis-nn REQUIRED CONFIG)
 target_link_libraries(app PRIVATE ns::cmsis-nn)
 ```
 
   </Fragment>
-</SplitPanel>
+</Hero>
 
 <Band tone="muted" density="compact">
 
