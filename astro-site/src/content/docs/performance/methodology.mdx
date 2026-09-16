@@ -1,0 +1,29 @@
+---
+title: Methodology
+description: The board, clock, timer, toolchain, and counting rules behind the published cycle counts.
+---
+
+The cycle counts on [Kernel benchmarks](../kernel-benchmarks/) were taken under
+the conditions below. The table is carried here unchanged from that page, so a
+number and the conditions it was measured under can be cited separately.
+
+## Test conditions
+
+| Parameter | Value |
+|-----------|-------|
+| **Board** | Apollo510 EVB (Cortex-M55) |
+| **Clock** | 96 MHz (LP mode) |
+| **Timer** | DWT->CYCCNT |
+| **ISA paths** | Scalar C (REF), DSP SIMD, MVE / Helium |
+| **Toolchain** | arm-none-eabi-gcc 14.3.0 |
+| **Optimization** | -O3, CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY |
+| **Iterations** | 100 per kernel |
+| **Metric** | Average CPU cycles |
+
+All three paths run on the same SoC at the same clock, so a speedup column
+compares implementations rather than devices. What the REF baseline is, and why
+it is not a strictly scalar instruction stream, is stated on
+[Kernel benchmarks](../kernel-benchmarks/).
+
+These are kernel measurements, not model measurements: they say what one
+operator costs at one shape, not what a graph costs end to end.

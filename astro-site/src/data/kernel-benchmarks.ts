@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
 /**
  * Apollo510 kernel benchmark results, as published in the results tables on
- * guides/kernel-benchmarks.
+ * performance/kernel-benchmarks.
  *
  * Every row of those tables is carried here whole, including the columns the
  * charts do not plot, so the charts are fed from a record of the measurement
@@ -31,14 +31,12 @@ export interface KernelBenchmark {
 }
 
 /*
- * The ISA paths. The order is the one the names sort in, not the one the
- * results tables read in: the chart part takes the order of the bars in a
- * group from the sorted series names and the order of the legend from the
- * order of the rows, so rows written any other way label the chart wrongly.
+ * The ISA paths, fastest first: a grouped bar follows the order of the series
+ * here, and MVE is the path the charts are read for.
  */
 export const ISA_PATHS = {
-  dsp: 'DSP (GCC)',
   mve: 'MVE (GCC)',
+  dsp: 'DSP (GCC)',
   ref: 'Reference (GCC)',
 } as const;
 
@@ -53,13 +51,15 @@ export interface KernelSpeedup {
 
 /**
  * Speedup against the REF path, REF cycles over the path's own. REF is 1.0 by
- * construction and is plotted so the baseline the other two are read against
- * is on the chart rather than in the reader's head.
+ * construction, so it is the charts' reference line rather than a third series
+ * of identical bars.
  */
 export function refSpeedups(
   rows: readonly KernelBenchmark[],
 ): KernelSpeedup[] {
-  const paths = Object.keys(ISA_PATHS) as IsaPath[];
+  const paths = (Object.keys(ISA_PATHS) as IsaPath[]).filter(
+    (path) => path !== 'ref',
+  );
   return rows.flatMap((row) =>
     paths.map((path) => ({
       kernel: row.label,

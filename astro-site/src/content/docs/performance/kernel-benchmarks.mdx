@@ -55,12 +55,18 @@ The largest MVE gains appear in MAC-dominated kernels where Helium's 128-bit vec
   title="REF speedup: convolution and matrix-multiply (GCC)"
   subtitle="Speedup against the REF path, by kernel"
   kind="bar"
+  orientation="horizontal"
   data={refSpeedups(CONVOLUTION_KERNELS)}
   x="kernel"
   y="speedup"
   series="path"
+  scale={{ type: 'log', min: 0.5, max: 16 }}
+  axis={{ valueLabel: 'Speedup against REF', categoryLabel: 'Kernel' }}
+  valueLabels
+  valueFormat={(value) => `${value.toFixed(1)}x`}
+  referenceLines={[{ value: 1, label: 'REF baseline' }]}
   width={1220}
-  height={430}
+  height={520}
 />
 
 Each bar reports speedup relative to REF; values greater than 1.0x indicate lower average cycle count than REF.
@@ -91,12 +97,18 @@ process 16 int8 or 8 int16 values per vector instruction.
   title="REF speedup: elementwise and scalar (GCC)"
   subtitle="Speedup against the REF path, by kernel"
   kind="bar"
+  orientation="horizontal"
   data={refSpeedups(ELEMENTWISE_KERNELS)}
   x="kernel"
   y="speedup"
   series="path"
+  scale={{ type: 'log', min: 0.5, max: 16 }}
+  axis={{ valueLabel: 'Speedup against REF', categoryLabel: 'Kernel' }}
+  valueLabels
+  valueFormat={(value) => `${value.toFixed(1)}x`}
+  referenceLines={[{ value: 1, label: 'REF baseline' }]}
   width={1220}
-  height={430}
+  height={520}
 />
 
 Each bar reports speedup relative to REF; values greater than 1.0x indicate lower average cycle count than REF.
@@ -118,15 +130,5 @@ Each bar reports speedup relative to REF; values greater than 1.0x indicate lowe
 | `arm_comparison_s8` | n4096 | 266,441 | 208,747 | 78,071 | 1.28x | 3.41x |
 | `arm_comparison_s16` | n4096 | 270,764 | 237,720 | 77,986 | 1.14x | 3.47x |
 
-## Test conditions
-
-| Parameter | Value |
-|-----------|-------|
-| **Board** | Apollo510 EVB (Cortex-M55) |
-| **Clock** | 96 MHz (LP mode) |
-| **Timer** | DWT->CYCCNT |
-| **ISA paths** | Scalar C (REF), DSP SIMD, MVE / Helium |
-| **Toolchain** | arm-none-eabi-gcc 14.3.0 |
-| **Optimization** | -O3, CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY |
-| **Iterations** | 100 per kernel |
-| **Metric** | Average CPU cycles |
+The board, clock, timer, toolchain and iteration count these numbers were taken
+under are on [Methodology](../methodology/).

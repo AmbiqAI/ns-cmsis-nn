@@ -1,0 +1,16 @@
+/* SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK */
+/*
+ * The site's Tailwind entry, from the shape @ambiqai/helia-ui documents for a
+ * consuming Starlight site. It exists because the Reference section mounts the
+ * package's RefIndex island, and the shadcn components it draws are Tailwind
+ * utility classes that something in this tree has to compile.
+ *
+ * The scan list is ours: Tailwind resolves a `@source` glob relative to the
+ * file that declares it, so the package cannot name a path in this repository
+ * and this file names the package directories whose parts the site renders.
+ */
+@import '@ambiqai/helia-ui/starlight-tailwind.css';
+
+@source '../content/**/*.{md,mdx}';
+@source '../../node_modules/@ambiqai/helia-ui/astro/**/*.astro';
+@source '../../node_modules/@ambiqai/helia-ui/react/**/*.tsx';

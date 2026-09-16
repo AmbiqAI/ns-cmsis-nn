@@ -1,0 +1,65 @@
+---
+title: Data types and quantization
+description: The integer and floating-point data types heliaCORE kernels are built for.
+---
+
+:::caution[Draft copy, pending owner approval]
+Written from the repository sources cited in this page's source comments.
+:::
+
+A heliaCORE kernel is named for the data types it works on, and the build
+selects source files by the same tags.
+
+## The tags in a kernel name
+
+{/* cmake/ns_cmsis_nn.cmake:103, `set(_NS_CMSIS_NN_DTYPES ...)`, and the
+     selection note at lines 43-46: files whose basename carries a recognized
+     dtype tag are kept only if that tag is in the requested DTYPES list. */}
+
+`cmake/ns_cmsis_nn.cmake` recognizes nine data-type tags in a source file
+name: `s4`, `s8`, `s16`, `s32`, `s64`, `q7`, `q15`, `f16` and `f32`. The same
+tags appear in the function names, so `arm_convolve_s8` and
+`arm_convolve_s16` are the int8 and int16 kernels of the same operator. A file
+with no recognized tag, such as a lookup table, is always compiled.
+
+A build can narrow what it compiles to a list of tags. `ns_cmsis_nn_attach()`
+takes `DTYPES`, and `DTYPES ALL` is the default and a no-op.
+
+## Quantized combinations
+
+| Combination | Written as | Where it appears |
+|---|---|---|
+| int8 activations, int8 weights | A8W8 | The broadest surface: convolution, depthwise, fully connected, pooling, elementwise, data movement. |
+| int16 activations, int8 weights | A16W8 | Kernels that need wider activation precision, including convolution, fully connected and the classifier tail. |
+| int8 activations, int4 weights | s4 weights | Selected high-value kernels: convolution, depthwise convolution, fully connected and the matmul helpers behind them. |
+
+The `s32` and `s64` tags are accumulator and bias widths rather than a model's
+activation type, and `q7` and `q15` are the inherited CMSIS-NN names for the
+older 8-bit and 16-bit fixed-point kernels.
+
+For the count of kernels each tag has in each operator family, see
+[Data types by family](../../coverage/data-types-by-family/).
+
+## Floating point is a build option
+
+{/* CMakeLists.txt:22-23, `option(ARM_NN_ENABLE_F32 ... OFF)` and
+     `option(ARM_NN_ENABLE_F16 ... OFF)`; README.md, "Experimental
+     floating-point support". */}
+
+The `float32` and `float16` kernels inherited from upstream CMSIS-NN are
+disabled by default, so an integer-only build pays for neither the code size
+nor the public API surface. Two CMake options turn them on:
+
+| Option | Default | Effect |
+|---|---|---|
+| `ARM_NN_ENABLE_F32` | `OFF` | Compiles the `f32` kernels and declares their APIs. |
+| `ARM_NN_ENABLE_F16` | `OFF` | Compiles the `f16` kernels and declares their APIs. |
+
+`ns_cmsis_nn_float_support()` reports what the library target in scope was
+actually built with, which is not always what one entry point asked for, and
+the `find_package` config offers the same query to a consuming project.
+
+`float16` also depends on the assembler, not only the compiler: the build
+probes how the assembler in use encodes the MVE half-to-single conversions and
+picks the form that is correct on it. That probe, and the versions it matters
+for, are described in [Toolchains](../../getting-started/toolchains/).

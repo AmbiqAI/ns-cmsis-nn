@@ -19,6 +19,8 @@ import Hero from '@ambiqai/helia-ui/astro/Hero';
 import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
 import StatCard from '@ambiqai/helia-ui/astro/StatCard';
 
+import coverage from '../../data/coverage.json';
+
 <Hero
   variant="contrast"
   eyebrow="Optimized AI kernels for Ambiq Silicon"
@@ -35,7 +37,7 @@ import StatCard from '@ambiqai/helia-ui/astro/StatCard';
 
   <Button slot="actions" href="getting-started/">Getting started</Button>
 
-  <Button slot="actions" href="why/" variant="secondary">Why heliaCORE</Button>
+  <Button slot="actions" href="architecture/acceleration-paths/" variant="secondary">Architecture</Button>
 
   <Button slot="actions" href="reference/" variant="secondary">API</Button>
 
@@ -88,9 +90,19 @@ more coverage, and packaging for runtimes, compilers, and firmware builds.
 
 <Band tone="plain">
 
-<Eyebrow>Ambiq workload coverage</Eyebrow>
+<Eyebrow>Coverage at a glance</Eyebrow>
 
 ## Coverage for real Ambiq model graphs
+
+{/* Counts generated at prebuild by astro-site/scripts/build-coverage.mjs from
+    Include/arm_nnfunctions*.h and the group list in cmake/ns_cmsis_nn.cmake. */}
+
+<CardGrid columns={4} density="compact">
+  <StatCard label="operator groups in the build"><span>{coverage.operatorGroups.count}</span></StatCard>
+  <StatCard label="API families"><span>{coverage.apiGroups}</span></StatCard>
+  <StatCard label="public kernels"><span>{coverage.totals.functions}</span></StatCard>
+  <StatCard label="data-type tags"><span>{coverage.dtypes.length}</span></StatCard>
+</CardGrid>
 
 Arm CMSIS-NN provides the trusted foundation for efficient neural-network
 kernels on Cortex-M. In Ambiq's HELIA workflows, internal profiling across
@@ -116,14 +128,8 @@ foundation so those end-to-end paths stay optimized on Ambiq silicon.
   </Card>
 </CardGrid>
 
-<CardGrid columns={3}>
-  <BigNumber label="Ambiq field-like suite" caption="40+ models, 53 operator types, 247 unique operators, and 963 operator instances.">40+</BigNumber>
-  <BigNumber label="MLPerf Tiny baseline" caption="5 models, 7 operator types, 34 unique operators, and 80 operator instances.">Tiny</BigNumber>
-  <BigNumber label="Expanded coverage" caption="200+ accelerated operators for Ambiq silicon, plus additional variants for existing operators.">200+</BigNumber>
-</CardGrid>
-
-[Explore Cortex-M accelerators](guides/dsp-mve-coverage/)
-[Browse operator & kernel coverage](guides/operator-kernel-coverage/)
+[Browse operator coverage](coverage/operator-coverage/)
+[See data types by family](coverage/data-types-by-family/)
 
 </Band>
 
@@ -170,6 +176,25 @@ foundation so those end-to-end paths stay optimized on Ambiq silicon.
 
 </Band>
 
+<Band tone="muted">
+
+<Eyebrow>Apollo510 EVB · Cortex-M55 · 96 MHz LP mode</Eyebrow>
+
+## Measured on one board, three paths
+
+<CardGrid columns={3}>
+  <BigNumber label="MVE vs REF" caption="Up to 11.98× faster than the REF path">11.98×</BigNumber>
+  <BigNumber label="MVE vs DSP" caption="Up to 7.83× faster than DSP">7.83×</BigNumber>
+  <BigNumber label="DSP vs REF" caption="Up to 3.26× faster than the REF path">3.26×</BigNumber>
+</CardGrid>
+
+Peak average-cycle speedups across the benchmarked kernels, measured with
+cycle counts on the same SoC at the same clock. The per-kernel tables are on
+[Kernel benchmarks](performance/kernel-benchmarks/) and the conditions on
+[Methodology](performance/methodology/).
+
+</Band>
+
 <Band tone="plain">
 
 <Eyebrow>HELIA family</Eyebrow>
@@ -181,6 +206,13 @@ runtime and compiler flows. heliaRT and heliaAOT both rely on optimized HELIA
 kernels where applicable; heliaCORE is the shared kernel foundation behind
 those paths.
 
+- **heliaRT** is the runtime path. heliaCORE is the optimized kernel library
+  underneath it.
+- **heliaAOT** is the ahead-of-time compiler path. heliaCORE provides optimized
+  kernels that make generated inference code efficient.
+- **neuralSPOT-X / NSX** is the SDK and integration layer. NSX-based projects
+  can consume heliaCORE through CMake, Zephyr, or release artifacts.
+
 <CardGrid columns={2}>
   <LinkCard
     href="https://ambiqai.github.io/helia-rt/"
@@ -191,12 +223,71 @@ those paths.
     Ambiq's optimized LiteRT runtime for Apollo applications, powered by HELIA kernels from heliaCORE where they apply.
   </LinkCard>
   <LinkCard
-    href="why/#where-it-fits"
+    href="architecture/acceleration-paths/"
     title="heliaAOT"
     eyebrow="Compiler path"
     meta="See where it fits"
   >
     Ahead-of-time generation for deterministic, low-footprint firmware, using heliaCORE kernels as the shared foundation.
+  </LinkCard>
+</CardGrid>
+
+</Band>
+
+<Band tone="plain">
+
+<Eyebrow>Where to go next</Eyebrow>
+
+## The rest of the site
+
+<CardGrid columns={3}>
+  <LinkCard
+    href="getting-started/"
+    title="Getting started"
+    eyebrow="integrate"
+    meta="Choose a path"
+  >
+    CMake, CMSIS-Pack, Zephyr, neuralSPOT-X, and the toolchains each one expects.
+  </LinkCard>
+  <LinkCard
+    href="architecture/acceleration-paths/"
+    title="Architecture"
+    eyebrow="how it works"
+    meta="Read the paths"
+  >
+    Scalar C, DSP and MVE paths, the Cortex-M targets they run on, data types, and how a build selects one.
+  </LinkCard>
+  <LinkCard
+    href="coverage/operator-coverage/"
+    title="Coverage"
+    eyebrow="what is in it"
+    meta="Browse coverage"
+  >
+    Operator families, the data types each family carries, and what this fork adds to Arm CMSIS-NN.
+  </LinkCard>
+  <LinkCard
+    href="performance/kernel-benchmarks/"
+    title="Performance"
+    eyebrow="measured"
+    meta="See the numbers"
+  >
+    Per-kernel cycle counts on Apollo510 and the conditions they were measured under.
+  </LinkCard>
+  <LinkCard
+    href="reference/"
+    title="Reference"
+    eyebrow="C API"
+    meta="Open the API"
+  >
+    Every public function, grouped by operator family, generated from the headers.
+  </LinkCard>
+  <LinkCard
+    href="contributing/"
+    title="Contributing"
+    eyebrow="maintainers"
+    meta="Read the contract"
+  >
+    Verification, the CI matrix, the publication rule, and how releases are cut.
   </LinkCard>
 </CardGrid>
 

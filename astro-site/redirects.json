@@ -1,0 +1,15 @@
+{
+  "/why": "/ns-cmsis-nn/",
+  "/guides": "/ns-cmsis-nn/",
+  "/guides/operator-kernel-coverage": "/ns-cmsis-nn/coverage/operator-coverage/",
+  "/guides/dsp-mve-coverage": "/ns-cmsis-nn/architecture/acceleration-paths/",
+  "/guides/kernel-benchmarks": "/ns-cmsis-nn/performance/kernel-benchmarks/",
+  "/guides/toolchains": "/ns-cmsis-nn/getting-started/toolchains/",
+  "/guides/verification": "/ns-cmsis-nn/contributing/verification/",
+  "/guides/ci-matrix": "/ns-cmsis-nn/contributing/ci-matrix/",
+  "/guides/pr-publication": "/ns-cmsis-nn/contributing/pr-publication/",
+  "/guides/releases": "/ns-cmsis-nn/contributing/releases/",
+  "/architecture": "/ns-cmsis-nn/architecture/acceleration-paths/",
+  "/coverage": "/ns-cmsis-nn/coverage/operator-coverage/",
+  "/performance": "/ns-cmsis-nn/performance/kernel-benchmarks/"
+}

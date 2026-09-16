@@ -112,7 +112,7 @@ GitHub Release asset.
 It refuses to run
 (fails fast) if `v7.29.2` doesn't already have a published GitHub Release, so
 it cannot be used to create a new tag/release under a different name. See
-[Required vs optional assets](../guides/releases/#required-vs-optional-assets)
+[Required vs optional assets](releases/#required-vs-optional-assets)
 for which assets are safe to be missing (armclang, unless the repository
 variable `ARMCLANG_REQUIRED` is set to `true`) versus which indicate a real
 regression.
@@ -135,7 +135,7 @@ tags (AmbiqAI/ns-cmsis-nn#228): `publish-pack` no longer fails with
 `Tag has no annotation message` against Release Please's lightweight tags
 (a local-only compatibility step, `scripts/ci/ensure_local_tag_annotation.sh`,
 annotates the tag in the runner's local checkout only — see
-[Recovering assets for an existing tag](../guides/releases/#recovering-assets-for-an-existing-tag));
+[Recovering assets for an existing tag](releases/#recovering-assets-for-an-existing-tag));
 and `publish-staticlib-bundles`'s `gh release upload` no longer fails with
 `fatal: not a git repository` in its no-checkout job, since every `gh
 release` call now passes `--repo` explicitly instead of relying on git

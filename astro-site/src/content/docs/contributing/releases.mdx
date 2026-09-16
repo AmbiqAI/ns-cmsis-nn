@@ -174,7 +174,7 @@ gh workflow run release.yml --ref main -f recover_tag=v7.29.2
 
 The run fails fast if `recover_tag` isn't already a published GitHub Release,
 so it can't be used to sneak out a brand-new tag. See
-[Contributing → Release recovery](../../contributing/#release-recovery) for
+[Contributing → Release recovery](../#release-recovery) for
 the full recovery runbook.
 
 Every recovery run — and every normal release run — resolves `recover_tag`
@@ -267,7 +267,7 @@ overwrite the other:
 
 ## See also
 
-- Maintainer release notes in [Contributing](../../contributing/#maintainer-release-notes)
+- Maintainer release notes in [Contributing](../#maintainer-release-notes)
    explain how to recover when the pipeline fails.
 - Toolchain identity is recorded in `manifest.json` inside
-  each tarball. See [Toolchain Pinning](../toolchains/).
+  each tarball. See [Toolchain Pinning](../../getting-started/toolchains/).
