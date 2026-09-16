@@ -3,8 +3,8 @@
 The Astro Starlight replacement for the Sphinx site in `docs/`, built on the
 shared `@ambiqai/helia-ui` design system. The handwritten pages are converted
 and the C API reference at `/reference/api/` is generated at build time. The
-benchmark charts land in AmbiqAI/ns-cmsis-nn#520, which is why the two chart
-sections on the benchmarks page have nothing behind them yet.
+benchmark charts draw the Apollo510 values in `src/data/kernel-benchmarks.ts`;
+capturing new ones is AmbiqAI/ns-cmsis-nn#520.
 
 **GitHub Pages still serves the Sphinx build.** CI builds this site to an
 artifact named `astro-site` for review only. Pages switches over in
@@ -51,7 +51,9 @@ a current reference. It does three things:
    and `llms-full.txt` go to `public/reference/api/` and ship at
    `/ns-cmsis-nn/reference/api/`.
 3. Writes the operator-family index at `reference/api/index.mdx` from
-   `reference.config.json`.
+   `reference.config.json`, a page per family at
+   `reference/api/<family>/index.mdx`, and `src/data/reference-nav.json`, the
+   Reference section's sidebar fragment.
 
 `reference.config.json` carries the eight families verbatim from
 `GROUP_PATTERNS` in `docs/_ext/api_group_index.py` — same ids, same patterns,
@@ -74,18 +76,20 @@ The cost is that `Include/` and Doxygen are required to work on the site at all.
 `npm run dev` and `npm run check` generate the reference when it is missing;
 `npm run build` regenerates it every time.
 
-The `Reference` sidebar group lists its handwritten pages explicitly, like the
-rest of the sidebar, and carries one `autogenerate` sub-entry for
-`reference/api` because those pages do not exist until the prebuild runs. The
-generated `index.mdx` is titled `API` with `sidebar.order: 0`, so it lands first
-inside that sub-entry with the module pages under it.
+The `Reference` section lists the eight operator families as its top level,
+with the module pages that declare each family's kernels under it. Those
+entries cannot be written by hand, because the pages do not exist until the
+prebuild runs, so the generator writes them to `src/data/reference-nav.json`
+and `astro.config.mjs` reads that file. It is committed for the same reason the
+data-type matrix is: `npm run check` and `npm run dev` may skip generation when
+the output is already there, and the config is read either way.
 
 ## The design system is pinned by tag
 
 `@ambiqai/helia-ui` is installed from a git tag, never a branch:
 
 ```json
-"@ambiqai/helia-ui": "github:AmbiqAI/helia-ui#v0.1.0-alpha.9"
+"@ambiqai/helia-ui": "github:AmbiqAI/helia-ui#v0.1.0-alpha.10"
 ```
 
 To move to a newer release, change the tag in `package.json`, then regenerate
