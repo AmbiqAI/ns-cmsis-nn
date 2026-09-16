@@ -45,7 +45,14 @@ extern "C" {
  * hits/lines/branches to the real implementation instead of collapsing them
  * into the call site of the thin wrapper that invokes it.
  *
- * @param[in]  select_max  Non-zero to compute elementwise maximum, zero for minimum.
+ * @param[in,out] ctx           Function context. Unused; may be NULL.
+ * @param[in]     input_1_data  Pointer to the first input tensor data.
+ * @param[in]     input_1_dims  Dimensions of the first input tensor.
+ * @param[in]     input_2_data  Pointer to the second input tensor data.
+ * @param[in]     input_2_dims  Dimensions of the second input tensor.
+ * @param[out]    output_data   Pointer to the output tensor data.
+ * @param[in]     output_dims   Dimensions of the output tensor.
+ * @param[in]     select_max    Non-zero to compute elementwise maximum, zero for minimum.
  *
  * @return  ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
  */

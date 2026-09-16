@@ -137,7 +137,7 @@ int32_t arm_convolve_wrapper_s4_get_buffer_size(const cmsis_nn_conv_params *conv
 
 /**
  * @brief Get the required buffer size for arm_convolve_wrapper_s4 for Arm(R) Helium Architecture case.
- *        Refer to arm_convolve_wrapper_s4_get_buffer_size() for function argument details.
+ * @copydetails arm_convolve_wrapper_s4_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_convolve_wrapper_s4_get_buffer_size(). Currently this operator does not have an
@@ -153,7 +153,7 @@ int32_t arm_convolve_wrapper_s4_get_buffer_size_mve(const cmsis_nn_conv_params *
 
 /**
  * @brief Get the required buffer size for arm_convolve_wrapper_s4 for processors with DSP extension.
- *        Refer to arm_convolve_wrapper_s4_get_buffer_size() for function argument details.
+ * @copydetails arm_convolve_wrapper_s4_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_convolve_wrapper_s4_get_buffer_size().
@@ -263,7 +263,7 @@ int32_t arm_convolve_wrapper_s8_get_buffer_size(const cmsis_nn_conv_params *conv
 
 /**
  * @brief Get the required buffer size for arm_convolve_s8 for Arm(R) Helium Architecture case.
- *        Refer to arm_convolve_s8_get_buffer_size() for function argument details.
+ * @copydetails arm_convolve_s8_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_convolve_s8_get_buffer_size().
@@ -274,7 +274,7 @@ int32_t arm_convolve_s8_get_buffer_size_mve(const cmsis_nn_dims *input_dims, con
 
 /**
  * @brief Get the required buffer size for arm_convolve_wrapper_s8 for Arm(R) Helium Architecture case.
- *        Refer to arm_convolve_wrapper_s8_get_buffer_size() for function argument details.
+ * @copydetails arm_convolve_wrapper_s8_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_convolve_wrapper_s8_get_buffer_size().
@@ -289,7 +289,7 @@ int32_t arm_convolve_wrapper_s8_get_buffer_size_mve(const cmsis_nn_conv_params *
 
 /**
  * @brief Get the required buffer size for arm_convolve_wrapper_s8 for processors with DSP extension.
- *        Refer to arm_convolve_wrapper_s8_get_buffer_size() for function argument details.
+ * @copydetails arm_convolve_wrapper_s8_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_convolve_wrapper_s8_get_buffer_size().
@@ -397,7 +397,7 @@ int32_t arm_convolve_wrapper_s16_get_buffer_size(const cmsis_nn_conv_params *con
 
 /**
  * @brief Get the required buffer size for arm_convolve_wrapper_s16 for for processors with DSP extension.
- *        Refer to arm_convolve_wrapper_s16_get_buffer_size() for function argument details.
+ * @copydetails arm_convolve_wrapper_s16_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_convolve_wrapper_s16_get_buffer_size().
@@ -411,7 +411,7 @@ int32_t arm_convolve_wrapper_s16_get_buffer_size_dsp(const cmsis_nn_conv_params 
 
 /**
  * @brief Get the required buffer size for arm_convolve_wrapper_s16 for Arm(R) Helium Architecture case.
- *        Refer to arm_convolve_wrapper_s16_get_buffer_size() for function argument details.
+ * @copydetails arm_convolve_wrapper_s16_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_convolve_wrapper_s16_get_buffer_size().
@@ -799,7 +799,7 @@ int32_t arm_transpose_conv_s8_get_reverse_conv_buffer_size(const cmsis_nn_transp
 
 /**
  * @brief Get size of additional buffer required by arm_transpose_conv_s8() for Arm(R) Helium Architecture case.
- *        Refer to arm_transpose_conv_s8_get_buffer_size() for function argument details.
+ * @copydetails arm_transpose_conv_s8_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_transpose_conv_s8_get_buffer_size().
@@ -1666,7 +1666,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s4(const cmsis_nn_context *ctx,
  *
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
- *                                 Range of dw_conv_params->input_offset : [-128, 127]
+ *                                 Range of dw_conv_params->output_offset : [-128, 127]
  * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [H, W, C_IN]
  *                                 Batch argument N is not used and assumed to be 1.
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
@@ -1695,7 +1695,7 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size(const cmsis_nn_dw_conv_par
 
 /**
  * @brief Get size of additional buffer required by arm_depthwise_conv_wrapper_s8() for processors with DSP extension.
- *        Refer to arm_depthwise_conv_wrapper_s8_get_buffer_size() for function argument details.
+ * @copydetails arm_depthwise_conv_wrapper_s8_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_depthwise_conv_wrapper_s8_get_buffer_size().
@@ -1711,7 +1711,7 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp(const cmsis_nn_dw_conv
 
 /**
  * @brief Get size of additional buffer required by arm_depthwise_conv_wrapper_s8() for Arm(R) Helium Architecture case.
- *        Refer to arm_depthwise_conv_wrapper_s8_get_buffer_size() for function argument details.
+ * @copydetails arm_depthwise_conv_wrapper_s8_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_depthwise_conv_wrapper_s8_get_buffer_size().
@@ -1730,7 +1730,7 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(const cmsis_nn_dw_conv
  *
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
- *                                 Range of dw_conv_params->input_offset : [-128, 127]
+ *                                 Range of dw_conv_params->output_offset : [-128, 127]
  * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [H, W, C_IN]
  *                                 Batch argument N is not used and assumed to be 1.
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
@@ -1755,7 +1755,7 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size(const cmsis_nn_dw_conv_par
 
 /**
  * @brief Get size of additional buffer required by arm_depthwise_conv_wrapper_s4() for processors with DSP extension.
- *        Refer to arm_depthwise_conv_wrapper_s4_get_buffer_size() for function argument details.
+ * @copydetails arm_depthwise_conv_wrapper_s4_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_depthwise_conv_wrapper_s4_get_buffer_size().
@@ -1772,7 +1772,7 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_dsp(const cmsis_nn_dw_conv
 
 /**
  * @brief Get size of additional buffer required by arm_depthwise_conv_wrapper_s4() for Arm(R) Helium Architecture case.
- *        Refer to arm_depthwise_conv_wrapper_s4_get_buffer_size() for function argument details.
+ * @copydetails arm_depthwise_conv_wrapper_s4_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_depthwise_conv_wrapper_s4_get_buffer_size().
@@ -1799,7 +1799,7 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
- *                                 Range of dw_conv_params->input_offset : [-128, 127]
+ *                                 Range of dw_conv_params->output_offset : [-128, 127]
  * @param[in]      quant_params    Per-channel quantization info.
  *                                 It contains the multiplier and shift values to be applied to each
  *                                 output channel
@@ -1840,7 +1840,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
- *                                 Range of dw_conv_params->input_offset : [-128, 127]
+ *                                 Range of dw_conv_params->output_offset : [-128, 127]
  * @param[in]      quant_params    Per-channel quantization info.
  *                                 It contains the multiplier and shift values to be applied to each
  *                                 output channel
@@ -1992,7 +1992,7 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size(const cmsis_nn_dw_conv_pa
 
 /**
  * @brief Get size of additional buffer required by arm_depthwise_conv_wrapper_s16() for processors with DSP extension.
- *        Refer to arm_depthwise_conv_wrapper_s16_get_buffer_size() for function argument details.
+ * @copydetails arm_depthwise_conv_wrapper_s16_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_depthwise_conv_wrapper_s16_get_buffer_size().
@@ -2008,7 +2008,8 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_dsp(const cmsis_nn_dw_con
 
 /**
  * @brief Get size of additional buffer required by arm_depthwise_conv_wrapper_s16() for Arm(R) Helium Architecture
- * case. Refer to arm_depthwise_conv_wrapper_s16_get_buffer_size() for function argument details.
+ * case.
+ * @copydetails arm_depthwise_conv_wrapper_s16_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_depthwise_conv_wrapper_s16_get_buffer_size().
@@ -2024,7 +2025,27 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
 
 /**
  * @brief Optimized s16 depthwise convolution function with constraint that in_channel equals out_channel.
- *        Refer arm_depthwise_conv_s16() for function argument details.
+ *
+ * @param[in, out] ctx             Function context that contains the additional buffer if required by the function.
+ *                                 arm_depthwise_conv_fast_s16_get_buffer_size() will return the buffer_size if
+ *                                 required.
+ *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
+ *                                 dw_conv_params->dilation is not used.
+ *                                 dw_conv_params->input_offset  : Not used
+ *                                 dw_conv_params->output_offset : Not used
+ * @param[in]      quant_params    Per-channel quantization info.
+ *                                 It contains the multiplier and shift values to be applied to each
+ *                                 output channel
+ * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ *                                 Batch argument N is not used.
+ * @param[in]      input_data      Input (activation) data pointer. Data type: int16
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      filter_data     Filter data pointer. Data type: int8
+ * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
+ * @param[in]      bias_data       Bias data pointer. Data type: int64
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output_data     Output data pointer. Data type: int16
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - ctx-buff == NULL and
@@ -2070,8 +2091,24 @@ int32_t arm_depthwise_conv_fast_s16_get_buffer_size(const cmsis_nn_dims *input_d
 
 /**
  * @brief Optimized s8 depthwise convolution function for 3x3 kernel size with some constraints on
- *        the input arguments(documented below). Refer arm_depthwise_conv_s8() for function
- *        argument details.
+ *        the input arguments(documented below).
+ * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL.
+ * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
+ *                                 dw_conv_params->dilation is not used.
+ *                                 Range of dw_conv_params->input_offset : [-127, 128]
+ *                                 Range of dw_conv_params->output_offset : [-128, 127]
+ * @param[in]      quant_params    Per-channel quantization info.
+ *                                 It contains the multiplier and shift values to be applied to each
+ *                                 output channel
+ * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ *                                 Batch argument N is not used.
+ * @param[in]      input_data      Input (activation) data pointer. Data type: int8
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      filter_data     Filter data pointer. Data type: int8
+ * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
+ * @param[in]      bias_data       Bias data pointer. Data type: int32
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[in, out] output_data     Output data pointer. Data type: int8
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - Unsupported dimension of tensors
@@ -2100,7 +2137,29 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
 
 /**
  * @brief Optimized s8 depthwise convolution function with constraint that in_channel equals out_channel.
- *        Refer arm_depthwise_conv_s8() for the argument details it has in common with this function.
+ *
+ * @param[in, out] ctx             Function context that contains the additional buffer if required by the function.
+ *                                 arm_depthwise_conv_s8_opt_get_buffer_size() will return the buffer_size if required.
+ *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      weight_sum_ctx  Per-channel weight sums, supplied by the caller and only read by this
+ *                                 function. See the note below for how to size, fill and reuse the buffer and for
+ *                                 when a NULL buf is diagnosed.
+ * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
+ *                                 dw_conv_params->dilation is not used.
+ *                                 Range of dw_conv_params->input_offset  : [-127, 128]
+ *                                 Range of dw_conv_params->output_offset : [-128, 127]
+ * @param[in]      quant_params    Per-channel quantization info.
+ *                                 It contains the multiplier and shift values to be applied to each
+ *                                 output channel
+ * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ *                                 Batch argument N is not used.
+ * @param[in]      input_data      Input (activation) data pointer. Data type: int8
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      filter_data     Filter data pointer. Data type: int8
+ * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
+ * @param[in]      bias_data       Bias data pointer. Data type: int32
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output_data     Output data pointer. Data type: int8
  *
  * @note       The second argument, weight_sum_ctx, has no counterpart on arm_depthwise_conv_s8(), so it is
  *             described here rather than by reference. It carries per-channel weight sums that the caller
@@ -2151,7 +2210,28 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
 
 /**
  * @brief Optimized s4 depthwise convolution function with constraint that in_channel equals out_channel.
- *        Refer arm_depthwise_conv_s4() for function argument details.
+ *
+ * @param[in, out] ctx             Function context that contains the additional buffer required by the function.
+ *                                 arm_depthwise_conv_s4_opt_get_buffer_size() will return the buffer_size. A NULL
+ *                                 ctx->buf is diagnosed with <code>ARM_CMSIS_NN_ARG_ERROR</code>.
+ *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
+ *                                 dw_conv_params->dilation is not used.
+ *                                 Range of dw_conv_params->input_offset  : [-127, 128]
+ *                                 Range of dw_conv_params->output_offset : [-128, 127]
+ * @param[in]      quant_params    Per-channel quantization info.
+ *                                 It contains the multiplier and shift values to be applied to each
+ *                                 output channel
+ * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ *                                 Batch argument N is not used.
+ * @param[in]      input_data      Input (activation) data pointer. Data type: int8
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      filter_data     Filter data pointer. Data type: int8_t packed 4-bit weights, e.g four sequential
+ *                                 weights [0x1, 0x2, 0x3, 0x4]  packed as [0x21, 0x43].
+ * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
+ * @param[in]      bias_data       Bias data pointer. Data type: int32
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output_data     Output data pointer. Data type: int8
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or
@@ -2547,7 +2627,7 @@ int32_t arm_fully_connected_s8_get_buffer_size(const cmsis_nn_dims *filter_dims)
 
 /**
  * @brief Get size of additional buffer required by arm_fully_connected_s8() for processors with DSP extension.
- *        Refer to arm_fully_connected_s8_get_buffer_size() for function argument details.
+ * @copydetails arm_fully_connected_s8_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_fully_connected_s8_get_buffer_size().
@@ -2558,7 +2638,7 @@ int32_t arm_fully_connected_s8_get_buffer_size_dsp(const cmsis_nn_dims *filter_d
 
 /**
  * @brief Get size of additional buffer required by arm_fully_connected_s8() for Arm(R) Helium Architecture case.
- *        Refer to arm_fully_connected_s8_get_buffer_size() for function argument details.
+ * @copydetails arm_fully_connected_s8_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_fully_connected_s8_get_buffer_size().
@@ -2741,7 +2821,7 @@ int32_t arm_fully_connected_s16_get_buffer_size(const cmsis_nn_dims *filter_dims
 
 /**
  * @brief Get size of additional buffer required by arm_fully_connected_s16() for processors with DSP extension.
- *        Refer to arm_fully_connected_s16_get_buffer_size() for function argument details.
+ * @copydetails arm_fully_connected_s16_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_fully_connected_s16_get_buffer_size().
@@ -2751,7 +2831,7 @@ int32_t arm_fully_connected_s16_get_buffer_size_dsp(const cmsis_nn_dims *filter_
 
 /**
  * @brief Get size of additional buffer required by arm_fully_connected_s16() for Arm(R) Helium Architecture case.
- *        Refer to arm_fully_connected_s16_get_buffer_size() for function argument details.
+ * @copydetails arm_fully_connected_s16_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_fully_connected_s16_get_buffer_size().
@@ -2772,7 +2852,8 @@ int32_t arm_fully_connected_per_channel_s16_get_buffer_size(const cmsis_nn_dims 
 
 /**
  * @brief Get size of additional buffer required by arm_fully_connected_per_channel_s16() for processors with DSP
- * extension. Refer to arm_fully_connected_per_channel_s16_get_buffer_size() for function argument details.
+ * extension.
+ * @copydetails arm_fully_connected_per_channel_s16_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_fully_connected_per_channel_s16_get_buffer_size().
@@ -2783,7 +2864,8 @@ int32_t arm_fully_connected_per_channel_s16_get_buffer_size_dsp(const cmsis_nn_d
 
 /**
  * @brief Get size of additional buffer required by arm_fully_connected_per_channel_s16() for Arm(R) Helium Architecture
- * case. Refer to arm_fully_connected_per_channel_s16_get_buffer_size() for function argument details.
+ * case.
+ * @copydetails arm_fully_connected_per_channel_s16_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_fully_connected_per_channel_s16_get_buffer_size().
@@ -2962,7 +3044,8 @@ arm_cmsis_nn_status arm_abs_s8(const int8_t *input,
  * @param[in]       sqrt_lut            pointer to 256-entry lookup table
  * @return          The function returns    ARM_CMSIS_NN_SUCCESS
  */
-arm_cmsis_nn_status arm_sqrt_s8(const int8_t *input, const cmsis_nn_dims *input_dims, int8_t *output, int8_t *sqrt_lut);
+arm_cmsis_nn_status
+arm_sqrt_s8(const int8_t *input, const cmsis_nn_dims *input_dims, int8_t *output, const int8_t *sqrt_lut);
 
 /**
  * @brief s16 elementwise square root using piecewise LUT with linear interpolation
@@ -3461,10 +3544,29 @@ arm_cmsis_nn_status arm_elementwise_sub_s16(const int16_t *input_1_vect,
 
 /**
  * @brief s8 elementwise squared difference of two tensors with support for broadcasting.
- * @param[in] left_shift  Common left shift applied to both inputs before requantization. Bound: the kernel evaluates
- *                        (value + offset) << left_shift in int32; with full-range int8 inputs and zero-points the
- *                        widest operand is 255, so left_shift is at most 23. The scale 1 << left_shift is itself
- *                        representable up to 30. Not validated by the kernel.
+ * @param[in]       input1_data        pointer to input tensor 1
+ * @param[in]       input1_dims        pointer to input tensor 1 dimensions
+ * @param[in]       input2_data        pointer to input tensor 2
+ * @param[in]       input2_dims        pointer to input tensor 2 dimensions
+ * @param[in]       input1_offset      offset for input 1. Range: -127 to 128
+ * @param[in]       input1_mult        multiplier for input 1
+ * @param[in]       input1_shift       shift for input 1
+ * @param[in]       input2_offset      offset for input 2. Range: -127 to 128
+ * @param[in]       input2_mult        multiplier for input 2
+ * @param[in]       input2_shift       shift for input 2
+ * @param[in]       left_shift         Common left shift applied to both inputs before requantization.
+ *                                     Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                     range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                     most 23. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                     validated by the kernel.
+ * @param[out]      output_data        pointer to output tensor
+ * @param[in]       output_dims        pointer to output tensor dimensions
+ * @param[in]       out_offset         output offset. Range: -128 to 127
+ * @param[in]       out_mult           output multiplier
+ * @param[in]       out_shift          output shift
+ * @param[in]       out_activation_min minimum value to clamp output to. Min: -128
+ * @param[in]       out_activation_max maximum value to clamp output to. Max: 127
+ *
  * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
  *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
  *             their broadcast shape.
@@ -3490,10 +3592,28 @@ arm_cmsis_nn_status arm_squared_difference_s8(const int8_t *input1_data,
 
 /**
  * @brief s8 elementwise squared difference of scalar and vector.
- * @param[in] left_shift  Common left shift applied to both inputs before requantization. Bound: the kernel evaluates
- *                        (value + offset) << left_shift in int32; with full-range int8 inputs and zero-points the
- *                        widest operand is 255, so left_shift is at most 23. The scale 1 << left_shift is itself
- *                        representable up to 30. Not validated by the kernel.
+ * @param[in]       input_1_vect        pointer to input scalar
+ * @param[in]       input_2_vect        pointer to input vector
+ * @param[in]       input_1_offset      offset for input 1. Range: -127 to 128
+ * @param[in]       input_1_mult        multiplier for input 1
+ * @param[in]       input_1_shift       shift for input 1
+ * @param[in]       input_2_offset      offset for input 2. Range: -127 to 128
+ * @param[in]       input_2_mult        multiplier for input 2
+ * @param[in]       input_2_shift       shift for input 2
+ * @param[in]       left_shift          Common left shift applied to both inputs before requantization.
+ *                                      Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                      range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                      most 23. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                      validated by the kernel.
+ * @param[out]      output              pointer to output vector
+ * @param[in]       out_offset          output offset. Range: -128 to 127
+ * @param[in]       out_mult            output multiplier
+ * @param[in]       out_shift           output shift
+ * @param[in]       out_activation_min  minimum value to clamp output to. Min: -128
+ * @param[in]       out_activation_max  maximum value to clamp output to. Max: 127
+ * @param[in]       block_size          number of samples
+ *
+ * @return     The function returns    ARM_CMSIS_NN_SUCCESS
  */
 arm_cmsis_nn_status arm_squared_difference_scalar_s8(const int8_t *input_1_vect,
                                                      const int8_t *input_2_vect,
@@ -3514,10 +3634,28 @@ arm_cmsis_nn_status arm_squared_difference_scalar_s8(const int8_t *input_1_vect,
 
 /**
  * @brief s8 elementwise squared difference of two vectors.
- * @param[in] left_shift  Common left shift applied to both inputs before requantization. Bound: the kernel evaluates
- *                        (value + offset) << left_shift in int32; with full-range int8 inputs and zero-points the
- *                        widest operand is 255, so left_shift is at most 23. The scale 1 << left_shift is itself
- *                        representable up to 30. Not validated by the kernel.
+ * @param[in]       input_1_vect        pointer to input vector 1
+ * @param[in]       input_2_vect        pointer to input vector 2
+ * @param[in]       input_1_offset      offset for input 1. Range: -127 to 128
+ * @param[in]       input_1_mult        multiplier for input 1
+ * @param[in]       input_1_shift       shift for input 1
+ * @param[in]       input_2_offset      offset for input 2. Range: -127 to 128
+ * @param[in]       input_2_mult        multiplier for input 2
+ * @param[in]       input_2_shift       shift for input 2
+ * @param[in]       left_shift          Common left shift applied to both inputs before requantization.
+ *                                      Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                      range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                      most 23. The scale 1 << left_shift is itself representable up to 30. Not
+ *                                      validated by the kernel.
+ * @param[out]      output              pointer to output vector
+ * @param[in]       out_offset          output offset. Range: -128 to 127
+ * @param[in]       out_mult            output multiplier
+ * @param[in]       out_shift           output shift
+ * @param[in]       out_activation_min  minimum value to clamp output to. Min: -128
+ * @param[in]       out_activation_max  maximum value to clamp output to. Max: 127
+ * @param[in]       block_size          number of samples
+ *
+ * @return     The function returns    ARM_CMSIS_NN_SUCCESS
  */
 arm_cmsis_nn_status arm_elementwise_squared_difference_s8(const int8_t *input_1_vect,
                                                           const int8_t *input_2_vect,
@@ -3538,10 +3676,29 @@ arm_cmsis_nn_status arm_elementwise_squared_difference_s8(const int8_t *input_1_
 
 /**
  * @brief s16 elementwise squared difference of two tensors with support for broadcasting.
- * @param[in] left_shift  Common left shift applied to both inputs before requantization. Bound: the kernel evaluates
- *                        (value + offset) << left_shift in int32; with full-range int16 inputs and a zero zero-point
- *                        the widest operand is 32768, so left_shift is at most 16, and a non-zero zero-point lowers it.
- *                        The scale 1 << left_shift is itself representable up to 30. Not validated by the kernel.
+ * @param[in]       input1_data        pointer to input tensor 1
+ * @param[in]       input1_dims        pointer to input tensor 1 dimensions
+ * @param[in]       input2_data        pointer to input tensor 2
+ * @param[in]       input2_dims        pointer to input tensor 2 dimensions
+ * @param[in]       input1_offset      offset for input 1
+ * @param[in]       input1_mult        multiplier for input 1
+ * @param[in]       input1_shift       shift for input 1
+ * @param[in]       input2_offset      offset for input 2
+ * @param[in]       input2_mult        multiplier for input 2
+ * @param[in]       input2_shift       shift for input 2
+ * @param[in]       left_shift         Common left shift applied to both inputs before requantization.
+ *                                     Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                     range int16 inputs and a zero zero-point the widest operand is 32768, so
+ *                                     left_shift is at most 16, and a non-zero zero-point lowers it. The scale 1 <<
+ *                                     left_shift is itself representable up to 30. Not validated by the kernel.
+ * @param[out]      output_data        pointer to output tensor
+ * @param[in]       output_dims        pointer to output tensor dimensions
+ * @param[in]       out_offset         output offset
+ * @param[in]       out_mult           output multiplier
+ * @param[in]       out_shift          output shift
+ * @param[in]       out_activation_min minimum value to clamp output to. Min: -32768
+ * @param[in]       out_activation_max maximum value to clamp output to. Max: 32767
+ *
  * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is
  *             not positive, the two input shapes are not broadcast-compatible, or the output shape is not
  *             their broadcast shape.
@@ -3567,10 +3724,28 @@ arm_cmsis_nn_status arm_squared_difference_s16(const int16_t *input1_data,
 
 /**
  * @brief s16 elementwise squared difference of scalar and vector.
- * @param[in] left_shift  Common left shift applied to both inputs before requantization. Bound: the kernel evaluates
- *                        (value + offset) << left_shift in int32; with full-range int16 inputs and a zero zero-point
- *                        the widest operand is 32768, so left_shift is at most 16, and a non-zero zero-point lowers it.
- *                        The scale 1 << left_shift is itself representable up to 30. Not validated by the kernel.
+ * @param[in]       input_1_vect        pointer to input scalar
+ * @param[in]       input_2_vect        pointer to input vector
+ * @param[in]       input_1_offset      offset for input 1
+ * @param[in]       input_1_mult        multiplier for input 1
+ * @param[in]       input_1_shift       shift for input 1
+ * @param[in]       input_2_offset      offset for input 2
+ * @param[in]       input_2_mult        multiplier for input 2
+ * @param[in]       input_2_shift       shift for input 2
+ * @param[in]       left_shift          Common left shift applied to both inputs before requantization.
+ *                                      Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                      range int16 inputs and a zero zero-point the widest operand is 32768, so
+ *                                      left_shift is at most 16, and a non-zero zero-point lowers it. The scale 1 <<
+ *                                      left_shift is itself representable up to 30. Not validated by the kernel.
+ * @param[out]      output              pointer to output vector
+ * @param[in]       out_offset          output offset
+ * @param[in]       out_mult            output multiplier
+ * @param[in]       out_shift           output shift
+ * @param[in]       out_activation_min  minimum value to clamp output to. Min: -32768
+ * @param[in]       out_activation_max  maximum value to clamp output to. Max: 32767
+ * @param[in]       block_size          number of samples
+ *
+ * @return     The function returns    ARM_CMSIS_NN_SUCCESS
  */
 arm_cmsis_nn_status arm_squared_difference_scalar_s16(const int16_t *input_1_vect,
                                                       const int16_t *input_2_vect,
@@ -3591,10 +3766,28 @@ arm_cmsis_nn_status arm_squared_difference_scalar_s16(const int16_t *input_1_vec
 
 /**
  * @brief s16 elementwise squared difference of two vectors.
- * @param[in] left_shift  Common left shift applied to both inputs before requantization. Bound: the kernel evaluates
- *                        (value + offset) << left_shift in int32; with full-range int16 inputs and a zero zero-point
- *                        the widest operand is 32768, so left_shift is at most 16, and a non-zero zero-point lowers it.
- *                        The scale 1 << left_shift is itself representable up to 30. Not validated by the kernel.
+ * @param[in]       input_1_vect        pointer to input vector 1
+ * @param[in]       input_2_vect        pointer to input vector 2
+ * @param[in]       input_1_offset      offset for input 1
+ * @param[in]       input_1_mult        multiplier for input 1
+ * @param[in]       input_1_shift       shift for input 1
+ * @param[in]       input_2_offset      offset for input 2
+ * @param[in]       input_2_mult        multiplier for input 2
+ * @param[in]       input_2_shift       shift for input 2
+ * @param[in]       left_shift          Common left shift applied to both inputs before requantization.
+ *                                      Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                      range int16 inputs and a zero zero-point the widest operand is 32768, so
+ *                                      left_shift is at most 16, and a non-zero zero-point lowers it. The scale 1 <<
+ *                                      left_shift is itself representable up to 30. Not validated by the kernel.
+ * @param[out]      output              pointer to output vector
+ * @param[in]       out_offset          output offset
+ * @param[in]       out_mult            output multiplier
+ * @param[in]       out_shift           output shift
+ * @param[in]       out_activation_min  minimum value to clamp output to. Min: -32768
+ * @param[in]       out_activation_max  maximum value to clamp output to. Max: 32767
+ * @param[in]       block_size          number of samples
+ *
+ * @return     The function returns    ARM_CMSIS_NN_SUCCESS
  */
 arm_cmsis_nn_status arm_elementwise_squared_difference_s16(const int16_t *input_1_vect,
                                                            const int16_t *input_2_vect,
@@ -4004,6 +4197,26 @@ arm_cmsis_nn_status arm_comparison_s16(const cmsis_nn_context *ctx,
 /**
  * @brief s8 elementwise equality comparison with support for broadcasting.
  *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor (bool values)
+ * @param[in]   output_dims           Output tensor dimensions
+ * @param[in]   input_1_offset        Zero-point for input1 tensor
+ * @param[in]   input_1_mult          Multiplier for input1 tensor
+ * @param[in]   input_1_shift         Shift for input1 tensor
+ * @param[in]   input_2_offset        Zero-point for input2 tensor
+ * @param[in]   input_2_mult          Multiplier for input2 tensor
+ * @param[in]   input_2_shift         Shift for input2 tensor
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                    range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                    most 23. The scale 1 << left_shift is itself representable up to 30. Not validated
+ *                                    by the kernel.
+ *
  * @return     As arm_comparison_s8(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_equal_s8(const cmsis_nn_context *ctx,
@@ -4023,6 +4236,26 @@ arm_cmsis_nn_status arm_equal_s8(const cmsis_nn_context *ctx,
 
 /**
  * @brief s8 elementwise inequality comparison with support for broadcasting.
+ *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor (bool values)
+ * @param[in]   output_dims           Output tensor dimensions
+ * @param[in]   input_1_offset        Zero-point for input1 tensor
+ * @param[in]   input_1_mult          Multiplier for input1 tensor
+ * @param[in]   input_1_shift         Shift for input1 tensor
+ * @param[in]   input_2_offset        Zero-point for input2 tensor
+ * @param[in]   input_2_mult          Multiplier for input2 tensor
+ * @param[in]   input_2_shift         Shift for input2 tensor
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                    range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                    most 23. The scale 1 << left_shift is itself representable up to 30. Not validated
+ *                                    by the kernel.
  *
  * @return     As arm_comparison_s8(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
@@ -4044,6 +4277,26 @@ arm_cmsis_nn_status arm_not_equal_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s8 elementwise greater-than comparison with support for broadcasting.
  *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor (bool values)
+ * @param[in]   output_dims           Output tensor dimensions
+ * @param[in]   input_1_offset        Zero-point for input1 tensor
+ * @param[in]   input_1_mult          Multiplier for input1 tensor
+ * @param[in]   input_1_shift         Shift for input1 tensor
+ * @param[in]   input_2_offset        Zero-point for input2 tensor
+ * @param[in]   input_2_mult          Multiplier for input2 tensor
+ * @param[in]   input_2_shift         Shift for input2 tensor
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                    range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                    most 23. The scale 1 << left_shift is itself representable up to 30. Not validated
+ *                                    by the kernel.
+ *
  * @return     As arm_comparison_s8(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_greater_s8(const cmsis_nn_context *ctx,
@@ -4063,6 +4316,26 @@ arm_cmsis_nn_status arm_greater_s8(const cmsis_nn_context *ctx,
 
 /**
  * @brief s8 elementwise greater-or-equal comparison with support for broadcasting.
+ *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor (bool values)
+ * @param[in]   output_dims           Output tensor dimensions
+ * @param[in]   input_1_offset        Zero-point for input1 tensor
+ * @param[in]   input_1_mult          Multiplier for input1 tensor
+ * @param[in]   input_1_shift         Shift for input1 tensor
+ * @param[in]   input_2_offset        Zero-point for input2 tensor
+ * @param[in]   input_2_mult          Multiplier for input2 tensor
+ * @param[in]   input_2_shift         Shift for input2 tensor
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                    range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                    most 23. The scale 1 << left_shift is itself representable up to 30. Not validated
+ *                                    by the kernel.
  *
  * @return     As arm_comparison_s8(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
@@ -4084,6 +4357,26 @@ arm_cmsis_nn_status arm_greater_equal_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s8 elementwise less-than comparison with support for broadcasting.
  *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor (bool values)
+ * @param[in]   output_dims           Output tensor dimensions
+ * @param[in]   input_1_offset        Zero-point for input1 tensor
+ * @param[in]   input_1_mult          Multiplier for input1 tensor
+ * @param[in]   input_1_shift         Shift for input1 tensor
+ * @param[in]   input_2_offset        Zero-point for input2 tensor
+ * @param[in]   input_2_mult          Multiplier for input2 tensor
+ * @param[in]   input_2_shift         Shift for input2 tensor
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                    range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                    most 23. The scale 1 << left_shift is itself representable up to 30. Not validated
+ *                                    by the kernel.
+ *
  * @return     As arm_comparison_s8(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_less_s8(const cmsis_nn_context *ctx,
@@ -4103,6 +4396,26 @@ arm_cmsis_nn_status arm_less_s8(const cmsis_nn_context *ctx,
 
 /**
  * @brief s8 elementwise less-or-equal comparison with support for broadcasting.
+ *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor (bool values)
+ * @param[in]   output_dims           Output tensor dimensions
+ * @param[in]   input_1_offset        Zero-point for input1 tensor
+ * @param[in]   input_1_mult          Multiplier for input1 tensor
+ * @param[in]   input_1_shift         Shift for input1 tensor
+ * @param[in]   input_2_offset        Zero-point for input2 tensor
+ * @param[in]   input_2_mult          Multiplier for input2 tensor
+ * @param[in]   input_2_shift         Shift for input2 tensor
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                    range int8 inputs and zero-points the widest operand is 255, so left_shift is at
+ *                                    most 23. The scale 1 << left_shift is itself representable up to 30. Not validated
+ *                                    by the kernel.
  *
  * @return     As arm_comparison_s8(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
@@ -4124,6 +4437,26 @@ arm_cmsis_nn_status arm_less_equal_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s16 elementwise equality comparison with support for broadcasting.
  *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor (bool values)
+ * @param[in]   output_dims           Output tensor dimensions
+ * @param[in]   input_1_offset        Zero-point for input1 tensor
+ * @param[in]   input_1_mult          Multiplier for input1 tensor
+ * @param[in]   input_1_shift         Shift for input1 tensor
+ * @param[in]   input_2_offset        Zero-point for input2 tensor
+ * @param[in]   input_2_mult          Multiplier for input2 tensor
+ * @param[in]   input_2_shift         Shift for input2 tensor
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                    range int16 inputs and a zero zero-point the widest operand is 32768, so
+ *                                    left_shift is at most 16, and a non-zero zero-point lowers it. The scale 1 <<
+ *                                    left_shift is itself representable up to 30. Not validated by the kernel.
+ *
  * @return     As arm_comparison_s16(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_equal_s16(const cmsis_nn_context *ctx,
@@ -4143,6 +4476,26 @@ arm_cmsis_nn_status arm_equal_s16(const cmsis_nn_context *ctx,
 
 /**
  * @brief s16 elementwise inequality comparison with support for broadcasting.
+ *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor (bool values)
+ * @param[in]   output_dims           Output tensor dimensions
+ * @param[in]   input_1_offset        Zero-point for input1 tensor
+ * @param[in]   input_1_mult          Multiplier for input1 tensor
+ * @param[in]   input_1_shift         Shift for input1 tensor
+ * @param[in]   input_2_offset        Zero-point for input2 tensor
+ * @param[in]   input_2_mult          Multiplier for input2 tensor
+ * @param[in]   input_2_shift         Shift for input2 tensor
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                    range int16 inputs and a zero zero-point the widest operand is 32768, so
+ *                                    left_shift is at most 16, and a non-zero zero-point lowers it. The scale 1 <<
+ *                                    left_shift is itself representable up to 30. Not validated by the kernel.
  *
  * @return     As arm_comparison_s16(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
@@ -4164,6 +4517,26 @@ arm_cmsis_nn_status arm_not_equal_s16(const cmsis_nn_context *ctx,
 /**
  * @brief s16 elementwise greater-than comparison with support for broadcasting.
  *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor (bool values)
+ * @param[in]   output_dims           Output tensor dimensions
+ * @param[in]   input_1_offset        Zero-point for input1 tensor
+ * @param[in]   input_1_mult          Multiplier for input1 tensor
+ * @param[in]   input_1_shift         Shift for input1 tensor
+ * @param[in]   input_2_offset        Zero-point for input2 tensor
+ * @param[in]   input_2_mult          Multiplier for input2 tensor
+ * @param[in]   input_2_shift         Shift for input2 tensor
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                    range int16 inputs and a zero zero-point the widest operand is 32768, so
+ *                                    left_shift is at most 16, and a non-zero zero-point lowers it. The scale 1 <<
+ *                                    left_shift is itself representable up to 30. Not validated by the kernel.
+ *
  * @return     As arm_comparison_s16(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_greater_s16(const cmsis_nn_context *ctx,
@@ -4183,6 +4556,26 @@ arm_cmsis_nn_status arm_greater_s16(const cmsis_nn_context *ctx,
 
 /**
  * @brief s16 elementwise greater-or-equal comparison with support for broadcasting.
+ *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor (bool values)
+ * @param[in]   output_dims           Output tensor dimensions
+ * @param[in]   input_1_offset        Zero-point for input1 tensor
+ * @param[in]   input_1_mult          Multiplier for input1 tensor
+ * @param[in]   input_1_shift         Shift for input1 tensor
+ * @param[in]   input_2_offset        Zero-point for input2 tensor
+ * @param[in]   input_2_mult          Multiplier for input2 tensor
+ * @param[in]   input_2_shift         Shift for input2 tensor
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                    range int16 inputs and a zero zero-point the widest operand is 32768, so
+ *                                    left_shift is at most 16, and a non-zero zero-point lowers it. The scale 1 <<
+ *                                    left_shift is itself representable up to 30. Not validated by the kernel.
  *
  * @return     As arm_comparison_s16(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
@@ -4204,6 +4597,26 @@ arm_cmsis_nn_status arm_greater_equal_s16(const cmsis_nn_context *ctx,
 /**
  * @brief s16 elementwise less-than comparison with support for broadcasting.
  *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor (bool values)
+ * @param[in]   output_dims           Output tensor dimensions
+ * @param[in]   input_1_offset        Zero-point for input1 tensor
+ * @param[in]   input_1_mult          Multiplier for input1 tensor
+ * @param[in]   input_1_shift         Shift for input1 tensor
+ * @param[in]   input_2_offset        Zero-point for input2 tensor
+ * @param[in]   input_2_mult          Multiplier for input2 tensor
+ * @param[in]   input_2_shift         Shift for input2 tensor
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                    range int16 inputs and a zero zero-point the widest operand is 32768, so
+ *                                    left_shift is at most 16, and a non-zero zero-point lowers it. The scale 1 <<
+ *                                    left_shift is itself representable up to 30. Not validated by the kernel.
+ *
  * @return     As arm_comparison_s16(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
 arm_cmsis_nn_status arm_less_s16(const cmsis_nn_context *ctx,
@@ -4223,6 +4636,26 @@ arm_cmsis_nn_status arm_less_s16(const cmsis_nn_context *ctx,
 
 /**
  * @brief s16 elementwise less-or-equal comparison with support for broadcasting.
+ *
+ * @param[in]   ctx                   Temporary scratch buffer
+ *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   input_1_data          Pointer to input1 tensor
+ * @param[in]   input_1_dims          Input1 tensor dimensions
+ * @param[in]   input_2_data          Pointer to input2 tensor
+ * @param[in]   input_2_dims          Input2 tensor dimensions
+ * @param[out]  output_data           Pointer to the output tensor (bool values)
+ * @param[in]   output_dims           Output tensor dimensions
+ * @param[in]   input_1_offset        Zero-point for input1 tensor
+ * @param[in]   input_1_mult          Multiplier for input1 tensor
+ * @param[in]   input_1_shift         Shift for input1 tensor
+ * @param[in]   input_2_offset        Zero-point for input2 tensor
+ * @param[in]   input_2_mult          Multiplier for input2 tensor
+ * @param[in]   input_2_shift         Shift for input2 tensor
+ * @param[in]   left_shift            Common left shift prior to requantization.
+ *                                    Bound: the kernel evaluates (value + offset) << left_shift in int32; with full-
+ *                                    range int16 inputs and a zero zero-point the widest operand is 32768, so
+ *                                    left_shift is at most 16, and a non-zero zero-point lowers it. The scale 1 <<
+ *                                    left_shift is itself representable up to 30. Not validated by the kernel.
  *
  * @return     As arm_comparison_s16(): ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for invalid arguments.
  */
@@ -4839,7 +5272,7 @@ int32_t arm_avgpool_s8_get_buffer_size(const int dim_dst_width, const int ch_src
 
 /**
  * @brief Get the required buffer size for S8 average pooling function for processors with DSP extension.
- *        Refer to arm_avgpool_s8_get_buffer_size() for function argument details.
+ * @copydetails arm_avgpool_s8_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_avgpool_s8_get_buffer_size().
@@ -4851,7 +5284,7 @@ int32_t arm_avgpool_s8_get_buffer_size_dsp(const int dim_dst_width, const int ch
 
 /**
  * @brief Get the required buffer size for S8 average pooling function for Arm(R) Helium Architecture case.
- *        Refer to arm_avgpool_s8_get_buffer_size() for function argument details.
+ * @copydetails arm_avgpool_s8_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_avgpool_s8_get_buffer_size().
@@ -4913,7 +5346,7 @@ int32_t arm_avgpool_s16_get_buffer_size(const int dim_dst_width, const int ch_sr
 
 /**
  * @brief Get the required buffer size for S16 average pooling function for processors with DSP extension.
- *        Refer to arm_avgpool_s16_get_buffer_size() for function argument details.
+ * @copydetails arm_avgpool_s16_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_avgpool_s16_get_buffer_size().
@@ -4925,7 +5358,7 @@ int32_t arm_avgpool_s16_get_buffer_size_dsp(const int dim_dst_width, const int c
 
 /**
  * @brief Get the required buffer size for S16 average pooling function for Arm(R) Helium Architecture case.
- *        Refer to arm_avgpool_s16_get_buffer_size() for function argument details.
+ * @copydetails arm_avgpool_s16_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_avgpool_s16_get_buffer_size().
@@ -5694,13 +6127,13 @@ arm_cmsis_nn_status arm_concatenation_s32(const int32_t *const *input_data,
 
 /**
  * @brief  int8/uint8 split function to be used for splitting a tensor into multiple tensors along the target axis
- * @param  input_data      Pointer to the flattened input tensor data.
- * @param  input_dims      Number of dimensions in input_shape.
- * @param  input_shape     Array of length input_dims describing the shape of input_data.
- * @param  axis            Axis along which to split (0 <= axis < input_dims).
- * @param  num_splits      Number of output tensors to produce.
- * @param  split_dims      Array of length num_splits giving size of each slice along axis.
- * @param  output_data     Array of pointers; output_data[i] points to storage for the i-th output tensor.
+ * @param[in]  input_data      Pointer to the flattened input tensor data.
+ * @param[in]  input_dims      Number of dimensions in input_shape.
+ * @param[in]  input_shape     Array of length input_dims describing the shape of input_data.
+ * @param[in]  axis            Axis along which to split (0 <= axis < input_dims).
+ * @param[in]  num_splits      Number of output tensors to produce.
+ * @param[in]  split_dims      Array of length num_splits giving size of each slice along axis.
+ * @param[out] output_data     Array of pointers; output_data[i] points to storage for the i-th output tensor.
  *
  * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR if split_dims sum mismatch.
  *
@@ -5717,13 +6150,13 @@ arm_cmsis_nn_status arm_split_s8(const int8_t *input_data,
 
 /**
  * @brief  int16/uint16 split function to be used for splitting a tensor into multiple tensors along the target axis
- * @param  input_data      Pointer to the flattened input tensor data.
- * @param  input_dims      Number of dimensions in input_shape.
- * @param  input_shape     Array of length input_dims describing the shape of input_data.
- * @param  axis            Axis along which to split (0 <= axis < input_dims).
- * @param  num_splits      Number of output tensors to produce.
- * @param  split_dims      Array of length num_splits giving size of each slice along axis.
- * @param  output_data     Array of pointers; output_data[i] points to storage for the i-th output tensor.
+ * @param[in]  input_data      Pointer to the flattened input tensor data.
+ * @param[in]  input_dims      Number of dimensions in input_shape.
+ * @param[in]  input_shape     Array of length input_dims describing the shape of input_data.
+ * @param[in]  axis            Axis along which to split (0 <= axis < input_dims).
+ * @param[in]  num_splits      Number of output tensors to produce.
+ * @param[in]  split_dims      Array of length num_splits giving size of each slice along axis.
+ * @param[out] output_data     Array of pointers; output_data[i] points to storage for the i-th output tensor.
  *
  * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR if split_dims sum mismatch.
  *
@@ -5805,7 +6238,7 @@ arm_cmsis_nn_status arm_split_s16(const int16_t *input_data,
  * @param[in]   input_dims            Input tensor dimensions
  * @param[in]   input_data            Pointer to input tensor
  * @param[in]   state_dims            State tensor dimensions
- * @param[in]   state_data            Pointer to state tensor
+ * @param[in, out] state_data          Pointer to state tensor
  * @param[in]   weights_feature_dims  Weights (feature) tensor dimensions
  * @param[in]   weights_feature_data  Pointer to the weights (feature) tensor
  * @param[in]   weights_time_dims     Weights (time) tensor dimensions
@@ -5879,7 +6312,7 @@ arm_cmsis_nn_status arm_svdf_s8(const cmsis_nn_context *ctx,
  * @param[in]   input_dims            Input tensor dimensions
  * @param[in]   input_data            Pointer to input tensor
  * @param[in]   state_dims            State tensor dimensions
- * @param[in]   state_data            Pointer to state tensor
+ * @param[in, out] state_data          Pointer to state tensor
  * @param[in]   weights_feature_dims  Weights (feature) tensor dimensions
  * @param[in]   weights_feature_data  Pointer to the weights (feature) tensor
  * @param[in]   weights_time_dims     Weights (time) tensor dimensions
@@ -5931,7 +6364,7 @@ int32_t arm_svdf_s8_get_buffer_size(const cmsis_nn_dims *weights_feature_dims);
 
 /**
  * @brief Get size of the kernel-sum buffer required by arm_svdf_s8() for processors with DSP extension.
- *        Refer to arm_svdf_s8_get_buffer_size() for function argument details.
+ * @copydetails arm_svdf_s8_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_svdf_s8_get_buffer_size().
@@ -5942,7 +6375,7 @@ int32_t arm_svdf_s8_get_buffer_size_dsp(const cmsis_nn_dims *weights_feature_dim
 
 /**
  * @brief Get size of the kernel-sum buffer required by arm_svdf_s8() for Arm(R) Helium Architecture case.
- *        Refer to arm_svdf_s8_get_buffer_size() for function argument details.
+ * @copydetails arm_svdf_s8_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_svdf_s8_get_buffer_size().
@@ -6008,8 +6441,7 @@ int32_t arm_svdf_s8_output_ctx_get_buffer_size(const cmsis_nn_svdf_params *svdf_
 
 /**
  * @brief Get size of the input_ctx staging buffer required by arm_svdf_state_s16_s8().
- *        Refer to arm_svdf_s8_input_ctx_get_buffer_size() for argument details, the -1-on-invalid contract and
- *        the degenerate-0 caveat.
+ * @copydetails arm_svdf_s8_input_ctx_get_buffer_size
  *
  * @details    Returns input_dims->n * weights_feature_dims->n * sizeof(int32_t) - the same figure as
  *             arm_svdf_s8_input_ctx_get_buffer_size() for the same shape. The accumulators are int32_t even though
@@ -6021,8 +6453,7 @@ int32_t arm_svdf_state_s16_s8_input_ctx_get_buffer_size(const cmsis_nn_dims *inp
 
 /**
  * @brief Get size of the output_ctx staging buffer required by arm_svdf_state_s16_s8().
- *        Refer to arm_svdf_s8_output_ctx_get_buffer_size() for argument details, the -1-on-invalid contract and
- *        the degenerate-0 caveat.
+ * @copydetails arm_svdf_s8_output_ctx_get_buffer_size
  *
  * @details    Returns input_dims->n * (weights_feature_dims->n / svdf_params->rank) * sizeof(int32_t), truncating
  *             division - the same figure as arm_svdf_s8_output_ctx_get_buffer_size() for the same shape.
@@ -6042,7 +6473,7 @@ int32_t arm_svdf_state_s16_s8_output_ctx_get_buffer_size(const cmsis_nn_svdf_par
  * @param[in]   input                      Pointer to input data
  * @param[out]  output                     Pointer to output data
  * @param[in]   params                     Struct containing all information about the lstm operator, see arm_nn_types.
- * @param[in]   buffers                    Struct containing pointers to all temporary scratch buffers needed for the
+ * @param[in, out] buffers                 Struct containing pointers to all temporary scratch buffers needed for the
  * lstm operator, see arm_nn_types. Size temp1 with arm_lstm_unidirectional_s8_temp1_get_buffer_size() and
  * temp2 with arm_lstm_unidirectional_s8_temp2_get_buffer_size() - both hold int16_t gate vectors even though
  * the layer datatype is s8, so sizing them in s8 elements under-allocates by half.
@@ -6065,7 +6496,7 @@ arm_cmsis_nn_status arm_lstm_unidirectional_s8(const int8_t *input,
  * @param[in]   input                      Pointer to input data
  * @param[out]  output                     Pointer to output data
  * @param[in]   params                     Struct containing all information about the lstm operator, see arm_nn_types.
- * @param[in]   buffers                    Struct containing pointers to all temporary scratch buffers needed for the
+ * @param[in, out] buffers                 Struct containing pointers to all temporary scratch buffers needed for the
  * lstm operator, see arm_nn_types. Size temp1 with arm_lstm_unidirectional_s16_temp1_get_buffer_size() and
  * temp2 with arm_lstm_unidirectional_s16_temp2_get_buffer_size().
  *
@@ -6106,8 +6537,7 @@ int32_t arm_lstm_unidirectional_s8_temp1_get_buffer_size(const cmsis_nn_lstm_par
 
 /**
  * @brief Get size of the temp2 scratch buffer required by arm_lstm_unidirectional_s8().
- *        Refer to arm_lstm_unidirectional_s8_temp1_get_buffer_size() for argument details and the -1-on-invalid
- *        contract.
+ * @copydetails arm_lstm_unidirectional_s8_temp1_get_buffer_size
  *
  * @return Required buffer size in bytes: the same figure as arm_lstm_unidirectional_s8_temp1_get_buffer_size()
  *         for the same params. temp2 stages the cell-gate vector and the tanh(cell_state) vector, both of the
@@ -6117,8 +6547,7 @@ int32_t arm_lstm_unidirectional_s8_temp2_get_buffer_size(const cmsis_nn_lstm_par
 
 /**
  * @brief Get size of the temp1 scratch buffer required by arm_lstm_unidirectional_s16().
- *        Refer to arm_lstm_unidirectional_s8_temp1_get_buffer_size() for argument details, the -1-on-invalid
- *        contract and the time_steps / degenerate-0 notes.
+ * @copydetails arm_lstm_unidirectional_s8_temp1_get_buffer_size
  *
  * @return Required buffer size in bytes:
  *         (time_major != 0 ? batch_size : 1) * hidden_size * sizeof(int16_t) - the same figure as
@@ -6129,8 +6558,7 @@ int32_t arm_lstm_unidirectional_s16_temp1_get_buffer_size(const cmsis_nn_lstm_pa
 
 /**
  * @brief Get size of the temp2 scratch buffer required by arm_lstm_unidirectional_s16().
- *        Refer to arm_lstm_unidirectional_s8_temp1_get_buffer_size() for argument details, the -1-on-invalid
- *        contract and the time_steps / degenerate-0 notes.
+ * @copydetails arm_lstm_unidirectional_s8_temp1_get_buffer_size
  *
  * @return Required buffer size in bytes: the same figure as arm_lstm_unidirectional_s16_temp1_get_buffer_size()
  *         for the same params.
@@ -6251,7 +6679,7 @@ int32_t arm_batch_matmul_s8_get_buffer_size(const cmsis_nn_dims *input_rhs_dims)
 
 /**
  * @brief Get size of the scratch buffer required by arm_batch_matmul_s8() for processors with DSP extension.
- *        Refer to arm_batch_matmul_s8_get_buffer_size() for function argument details.
+ * @copydetails arm_batch_matmul_s8_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_batch_matmul_s8_get_buffer_size().
@@ -6262,7 +6690,7 @@ int32_t arm_batch_matmul_s8_get_buffer_size_dsp(const cmsis_nn_dims *input_rhs_d
 
 /**
  * @brief Get size of the scratch buffer required by arm_batch_matmul_s8() for Arm(R) Helium Architecture case.
- *        Refer to arm_batch_matmul_s8_get_buffer_size() for function argument details.
+ * @copydetails arm_batch_matmul_s8_get_buffer_size
  *
  * @note       Intended for compilation on Host. If compiling for an Arm target, use
  *             arm_batch_matmul_s8_get_buffer_size().
