@@ -24,3 +24,7 @@ __pycache__
 linkchecker-out.csv
 .vscode
 .DS_Store
+# Astro Starlight site (astro-site/) build and dependency output
+astro-site/node_modules/
+astro-site/dist/
+astro-site/.astro/

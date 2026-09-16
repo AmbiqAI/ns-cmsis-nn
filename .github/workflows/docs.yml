@@ -68,6 +68,41 @@ jobs:
           path: site/
           retention-days: 14
 
+  # The Astro Starlight site that replaces this Sphinx build at the cut-over
+  # (AmbiqAI/ns-cmsis-nn#521). Until then it is built for review only: it
+  # produces its own artifact and the Pages deploy below still publishes the
+  # Sphinx output. ci.yml carries no paths filter, so this reports on every
+  # pull request and push the Sphinx build does.
+  astro:
+    name: Build Astro site
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: astro-site/package-lock.json
+
+      - name: Install site dependencies
+        working-directory: astro-site
+        run: npm ci
+
+      - name: Build Astro site
+        working-directory: astro-site
+        run: npm run build
+
+      - name: Upload Astro site artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: astro-site
+          path: astro-site/dist
+          retention-days: 14
+
   deploy:
     name: Deploy to GitHub Pages
     needs: build
