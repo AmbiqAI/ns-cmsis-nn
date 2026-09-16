@@ -265,6 +265,36 @@ The dev container builds and runs as `linux/amd64`
 clang-format wheel and every tool in `ci/tools/manifest.json` are x86_64
 builds, so on an arm64 host the container runs emulated.
 
+## Header documentation
+
+Every function declared in the public headers (`Include/arm_nnfunctions.h`,
+`Include/arm_nnfunctions_flt.h`, `Include/arm_nnsupportfunctions.h`,
+`Include/arm_nnsupportfunctions_flt.h`) carries a `/** */` block directly above
+it with one `@param[in]`, `@param[out]` or `@param[in,out]` line per parameter,
+named exactly as in the signature. The direction follows the type: a scalar or
+a pointer whose every pointee level is `const` is `[in]`; any other pointer is
+`[out]` when the callee only writes it and `[in,out]` when it reads it first
+(state buffers, pointers the callee advances). A `const cmsis_nn_context *`
+may be `[in]` or `[in,out]`. A variant with the same parameter names as its
+base function may use a single `@copydetails base` (keeping its own `@brief`)
+or `@copydoc base` instead of repeating the tags, as long as the base is not a
+`static` inline function, which doxygen cannot resolve.
+
+These tags are the machine-readable half of the kernel contract:
+`helia-core-tester` reads them to know which buffers a kernel writes. Two
+gates enforce them. `scripts/check_doxygen_params.py` parses the headers
+directly and fails on a missing block, a missing or extra tag, a tag without a
+direction, or a direction that contradicts the type; it runs in CI and as a
+pre-commit hook. The docs build sets `WARN_AS_ERROR = FAIL_ON_WARNINGS`, so
+anything doxygen itself flags fails the docs, pack and release builds. To run
+the check locally:
+
+```bash
+python3 scripts/check_doxygen_params.py
+```
+
+See AmbiqAI/ns-cmsis-nn#526 for the background.
+
 ## Reporting bugs
 
 Open an issue at
