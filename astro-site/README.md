@@ -57,9 +57,8 @@ a current reference. It does three things:
 `GROUP_PATTERNS` in `docs/_ext/api_group_index.py` — same ids, same patterns,
 same order — so `scripts/check_api_group_classification.py` guards this page as
 well as the Sphinx one. The generator has no grouping option, which is why the
-index is assembled here from `reference.json` rather than by the generator;
-that, and the two workarounds the script carries, are filed on the helia-ui
-tracking issue.
+index is assembled here from `reference.json` rather than by the generator; it
+is filed on the helia-ui tracking issue.
 
 ### The output is not committed
 
@@ -86,7 +85,7 @@ inside that sub-entry with the module pages under it.
 `@ambiqai/helia-ui` is installed from a git tag, never a branch:
 
 ```json
-"@ambiqai/helia-ui": "github:AmbiqAI/helia-ui#v0.1.0-alpha.7"
+"@ambiqai/helia-ui": "github:AmbiqAI/helia-ui#v0.1.0-alpha.8"
 ```
 
 To move to a newer release, change the tag in `package.json`, then regenerate

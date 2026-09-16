@@ -170,45 +170,13 @@ function slug(heading) {
     .replace(/ /g, '-');
 }
 
-/* Starlight lowercases a page slug, so a module path with capitals in it --
-   every Doxygen @defgroup here, NNConv and LSTM among them -- is served from
-   a lowercased route. doxyref builds its own URLs from the path as written,
-   which is why these are not taken from the model
-   (AmbiqAI/helia-ui gap, see README.md). */
+/* `path` on a module is the Doxygen group id as written -- NNConv and LSTM
+   among them -- while the page is served from the slugged route. */
 function moduleRoute(modulePath) {
   return `${config.base}${routePrefix}/${modulePath
     .split('.')
     .map((segment) => segment.toLowerCase())
     .join('/')}/`;
-}
-
-/* heliaStarlight's discoverability check fails the build on a page with no
-   `description`, and doxyref writes none for a module whose Doxygen group or
-   header carries no brief. The stand-in says only what the page is. */
-function fillMissingDescriptions(model) {
-  let filled = 0;
-  const walk = (dir) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(full);
-      } else if (entry.name === 'index.mdx' && full !== indexPage) {
-        const text = fs.readFileSync(full, 'utf8');
-        if (/^description:/m.test(text)) continue;
-        const title = /^title: "(.*)"$/m.exec(text)?.[1] ?? model.name;
-        fs.writeFileSync(
-          full,
-          text.replace(
-            /^(title: .*)$/m,
-            `$1\ndescription: "Generated C API reference for ${title}."`,
-          ),
-        );
-        filled += 1;
-      }
-    }
-  };
-  walk(outDir);
-  return filled;
 }
 
 function collectFunctions(model) {
@@ -371,14 +339,10 @@ const model = JSON.parse(
 );
 const functions = collectFunctions(model);
 const { membership, ungrouped, duplicated, headers } = renderIndex(model, functions);
-const filled = fillMissingDescriptions(model);
 
 console.log(
   `build-reference: ${functions.length} functions across ${headers.size} headers`,
 );
-if (filled > 0) {
-  console.log(`  descriptions supplied for ${filled} pages doxyref left bare`);
-}
 for (const { group, members } of membership) {
   console.log(`  ${group.id}: ${members.length}`);
 }
