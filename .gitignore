@@ -24,3 +24,13 @@ __pycache__
 linkchecker-out.csv
 .vscode
 .DS_Store
+# Astro Starlight site (astro-site/) build and dependency output
+astro-site/node_modules/
+astro-site/dist/
+astro-site/.astro/
+# Generated C API reference (astro-site/scripts/build-reference.mjs). Doxygen
+# XML scratch, the doxyref pages and the doxyref artifacts, all rebuilt by the
+# prebuild step; reference.config.json is the committed input.
+astro-site/.cache/
+astro-site/src/content/docs/reference/api/
+astro-site/public/reference/

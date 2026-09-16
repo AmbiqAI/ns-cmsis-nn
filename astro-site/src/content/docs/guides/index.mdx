@@ -1,0 +1,74 @@
+---
+title: Guides
+description: Operator coverage, benchmarks, toolchains, and release process.
+---
+
+import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
+import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
+
+Use these guides when you need more detail than the integration quick starts.
+They cover operator scope, acceleration paths, release mechanics, and toolchain
+contracts.
+
+<CardGrid columns={2}>
+  <LinkCard
+    href="operator-kernel-coverage/"
+    title="Operator & Kernel Coverage"
+    eyebrow="Coverage"
+  >
+    Operator families, data types, backend paths, and where to find exact C APIs.
+  </LinkCard>
+  <LinkCard
+    href="dsp-mve-coverage/"
+    title="Cortex-M Accelerators"
+    eyebrow="Acceleration"
+  >
+    Scalar C, DSP, MVE/Helium, and floating-point paths for Ambiq Cortex-M kernels.
+  </LinkCard>
+  <LinkCard
+    href="kernel-benchmarks/"
+    title="Kernel Benchmarks"
+    eyebrow="Performance"
+  >
+    Cycle-count charts comparing DSP and MVE paths on Apollo hardware.
+  </LinkCard>
+  <LinkCard
+    href="releases/"
+    title="Versioning & Releases"
+    eyebrow="Delivery"
+  >
+    Release tags, generated artifacts, release-please, and what ships together.
+  </LinkCard>
+  <LinkCard
+    href="verification/"
+    title="Testing & Verification"
+    eyebrow="Quality"
+  >
+    What every pull request and release verifies, the qualification model, known limits, and coverage reports.
+  </LinkCard>
+  <LinkCard
+    href="ci-matrix/"
+    title="CI Matrix"
+    eyebrow="Quality"
+  >
+    One row per CI job: trigger, cores, precisions, whether it executes or only builds, and toolchain versions.
+  </LinkCard>
+  <LinkCard
+    href="toolchains/"
+    title="Toolchain Pinning"
+    eyebrow="Build contract"
+  >
+    ATfE recommendation, GCC prebuilt ABI checks, CPU flags, and CMake validation.
+  </LinkCard>
+</CardGrid>
+
+## Common Questions
+
+| Question | Guide |
+|---|---|
+| Which operators and dtypes are covered? | [Operator & Kernel Coverage](operator-kernel-coverage/) |
+| What are the Cortex-M accelerator paths? | [Cortex-M Accelerators](dsp-mve-coverage/) |
+| How fast is MVE vs DSP? | [Kernel Benchmarks](kernel-benchmarks/) |
+| What exactly is in a release? | [Versioning & Releases](releases/) |
+| Which compiler should I use? | [Toolchain Pinning](toolchains/) |
+| Which CI job runs what, and when? | [CI Matrix](ci-matrix/) |

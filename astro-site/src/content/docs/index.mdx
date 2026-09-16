@@ -1,0 +1,222 @@
+---
+title: heliaCORE
+description: Optimized AI kernels for Ambiq Silicon
+template: splash
+hero:
+  title: Kernel acceleration for Ambiq AI.
+  tagline: Optimized AI kernels for Ambiq Silicon
+  image:
+    light: ../../assets/helia-core-logo-dark.png
+    dark: ../../assets/helia-core-logo-light.png
+  actions:
+    - text: Getting started
+      link: getting-started/
+      icon: right-arrow
+    - text: Why heliaCORE
+      link: why/
+      variant: minimal
+    - text: API
+      link: reference/
+      variant: minimal
+---
+
+import Badge from '@ambiqai/helia-ui/astro/Badge';
+import Band from '@ambiqai/helia-ui/astro/Band';
+import BigNumber from '@ambiqai/helia-ui/astro/BigNumber';
+import Card from '@ambiqai/helia-ui/astro/Card';
+import CardContent from '@ambiqai/helia-ui/astro/CardContent';
+import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
+import CardHeader from '@ambiqai/helia-ui/astro/CardHeader';
+import Chip from '@ambiqai/helia-ui/astro/Chip';
+import Eyebrow from '@ambiqai/helia-ui/astro/Eyebrow';
+import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
+import SplitPanel from '@ambiqai/helia-ui/astro/SplitPanel';
+import StatCard from '@ambiqai/helia-ui/astro/StatCard';
+
+<Band tone="plain" density="compact">
+
+<Badge tone="accent" size="md"><span>ATfE + MVE ready</span></Badge>
+
+**heliaCORE** is Ambiq's optimized neural-network kernel library for Ambiq
+silicon. This repository delivers it as `ns-cmsis-nn`: a CMSIS-NN-based kernel
+layer with Ambiq-tuned operators, CMSIS-Pack delivery, and HELIA integration
+paths for Apollo-class Cortex-M accelerators.
+
+</Band>
+
+<SplitPanel tone="tinted" ratio="1:1" titleAs="h2">
+  <Fragment slot="eyebrow">HELIA CORE</Fragment>
+  <Fragment slot="title">V7.35.0</Fragment>{/* x-release-please-version */}
+  <Fragment slot="body">
+    <CardGrid columns={2} density="compact">
+      <StatCard label="accelerated ops"><span>200+</span></StatCard>
+      <StatCard label="Field models"><span>40+</span></StatCard>
+      <StatCard label="Op types"><span>53</span></StatCard>
+      <StatCard label="Paths"><span>4</span></StatCard>
+    </CardGrid>
+  </Fragment>
+  <Fragment slot="code">
+
+```cmake
+find_package(ns-cmsis-nn REQUIRED CONFIG)
+target_link_libraries(app PRIVATE ns::cmsis-nn)
+```
+
+  </Fragment>
+</SplitPanel>
+
+<Band tone="muted" density="compact">
+
+<Chip tone="static">CMSIS-Pack</Chip>
+<Chip tone="static">Zephyr</Chip>
+<Chip tone="static">CMake</Chip>
+<Chip tone="static">neuralSPOT-X</Chip>
+<Chip tone="static">ATfE</Chip>
+<Chip tone="static">GCC</Chip>
+<Chip tone="static">Cortex-M0+</Chip>
+<Chip tone="static">Cortex-M4</Chip>
+<Chip tone="static">Cortex-M55</Chip>
+<Chip tone="static">Apollo510</Chip>
+
+</Band>
+
+<Band tone="plain">
+
+<Eyebrow>What it is</Eyebrow>
+
+## A kernel layer for HELIA AI workloads
+
+heliaCORE is Ambiq's optimized neural-network kernel layer for Apollo-class
+devices. In this repository, it is delivered as `ns-cmsis-nn`: inherited
+CMSIS-NN-compatible APIs where they apply, Ambiq-tuned kernels where HELIA needs
+more coverage, and packaging for runtimes, compilers, and firmware builds.
+
+</Band>
+
+<Band tone="plain">
+
+<Eyebrow>Ambiq workload coverage</Eyebrow>
+
+## Coverage for real Ambiq model graphs
+
+Arm CMSIS-NN provides the trusted foundation for efficient neural-network
+kernels on Cortex-M. In Ambiq's HELIA workflows, internal profiling across
+field-like models also highlighted important Ambiq-specific coverage needs:
+real graphs spend measurable time in padding, activations, reductions, and
+other operators around the largest MAC-heavy layers.
+
+heliaCORE broadens Cortex-M accelerator coverage around the CMSIS-NN-compatible
+foundation so those end-to-end paths stay optimized on Ambiq silicon.
+
+<CardGrid columns={3}>
+  <Card>
+    <CardHeader titleAs="h3" eyebrow="MVE"><span>MVE-first where available</span></CardHeader>
+    <CardContent>Cortex-M55 paths are a primary optimization target, with vectorized kernels where MVE can improve end-to-end latency.</CardContent>
+  </Card>
+  <Card>
+    <CardHeader titleAs="h3" eyebrow="DSP"><span>DSP coverage for Apollo-class MCUs</span></CardHeader>
+    <CardContent>Cortex-M DSP paths remain important on Apollo targets without MVE, so DSP variants stay part of the release surface.</CardContent>
+  </Card>
+  <Card>
+    <CardHeader titleAs="h3" eyebrow="Flow"><span>Glue operators count too</span></CardHeader>
+    <CardContent>Coverage extends beyond obvious MAC-heavy layers to the graph operators that shape real HELIA deployments.</CardContent>
+  </Card>
+</CardGrid>
+
+<CardGrid columns={3}>
+  <BigNumber label="Ambiq field-like suite" caption="40+ models, 53 operator types, 247 unique operators, and 963 operator instances.">40+</BigNumber>
+  <BigNumber label="MLPerf Tiny baseline" caption="5 models, 7 operator types, 34 unique operators, and 80 operator instances.">Tiny</BigNumber>
+  <BigNumber label="Expanded coverage" caption="200+ accelerated operators for Ambiq silicon, plus additional variants for existing operators.">200+</BigNumber>
+</CardGrid>
+
+[Explore Cortex-M accelerators](guides/dsp-mve-coverage/)
+[Browse operator & kernel coverage](guides/operator-kernel-coverage/)
+
+</Band>
+
+<Band tone="plain">
+
+<Eyebrow>Pick your integration</Eyebrow>
+
+## Four supported ways in
+
+<CardGrid columns={4}>
+  <LinkCard
+    href="getting-started/cmake/"
+    title="CMake package"
+    eyebrow="Prebuilt SDK"
+    meta="Start with CMake"
+  >
+    Link a per-architecture package with the exported CMake target; configure validates CPU and compiler.
+  </LinkCard>
+  <LinkCard
+    href="getting-started/cmsis-pack/"
+    title="CMSIS-Pack"
+    eyebrow="CMSIS tooling"
+    meta="Use the pack"
+  >
+    Install the Ambiq pack and select a source or prebuilt variant for your project.
+  </LinkCard>
+  <LinkCard
+    href="getting-started/zephyr/"
+    title="Zephyr Module"
+    eyebrow="RTOS module"
+    meta="Wire Zephyr"
+  >
+    Enable the module with Kconfig and optionally point it at a prebuilt archive.
+  </LinkCard>
+  <LinkCard
+    href="getting-started/neuralspot-x/"
+    title="neuralSPOT-X"
+    eyebrow="HELIA stack"
+    meta="Use NSX"
+  >
+    Consume heliaCORE through the NSX CMake graph for heliaRT-based applications.
+  </LinkCard>
+</CardGrid>
+
+</Band>
+
+<Band tone="plain">
+
+<Eyebrow>HELIA family</Eyebrow>
+
+## Powering heliaRT and heliaAOT
+
+heliaCORE provides the optimized kernel layer that powers Ambiq's edge-AI
+runtime and compiler flows. heliaRT and heliaAOT both rely on optimized HELIA
+kernels where applicable; heliaCORE is the shared kernel foundation behind
+those paths.
+
+<CardGrid columns={2}>
+  <LinkCard
+    href="https://ambiqai.github.io/helia-rt/"
+    title="heliaRT"
+    eyebrow="Runtime path"
+    meta="Open heliaRT"
+  >
+    Ambiq's optimized LiteRT runtime for Apollo applications, powered by HELIA kernels from heliaCORE where they apply.
+  </LinkCard>
+  <LinkCard
+    href="why/#where-it-fits"
+    title="heliaAOT"
+    eyebrow="Compiler path"
+    meta="See where it fits"
+  >
+    Ahead-of-time generation for deterministic, low-footprint firmware, using heliaCORE kernels as the shared foundation.
+  </LinkCard>
+</CardGrid>
+
+</Band>
+
+<Band tone="muted">
+
+<Eyebrow>Arm CMSIS ecosystem</Eyebrow>
+
+heliaCORE is built on and distributed for the Arm CMSIS ecosystem, including
+CMSIS-NN-compatible APIs and CMSIS-Pack delivery. Ambiq-specific additions are
+intended to ease integration into the HELIA AI platform for Ambiq silicon. For
+vendor-neutral Cortex-M kernel work, Arm CMSIS-NN remains the upstream
+ecosystem reference.
+
+</Band>

@@ -70,6 +70,8 @@ ALLOWED: dict[str, str] = {
     "CHANGELOG.md": "the release history itself",
     "docs/contributing.md": "recovery-command examples (`gh workflow run ... recover_tag=vX.Y.Z`)",
     "docs/guides/releases.md": "recovery-command examples and per-release post-mortem notes",
+    "astro-site/src/content/docs/contributing.mdx": "recovery-command examples (`gh workflow run ... recover_tag=vX.Y.Z`)",
+    "astro-site/src/content/docs/guides/releases.mdx": "recovery-command examples and per-release post-mortem notes",
     ".github/workflows/release.yml": "comments citing the specific historical runs the recovery paths exist for",
     ".github/workflows/build_publish_docker.yml": "comments on recovering historical tags that predate the helper scripts",
     "scripts/ci/resolve_release_commit.sh": "comments naming the tags whose mis-resolution motivated the script",
