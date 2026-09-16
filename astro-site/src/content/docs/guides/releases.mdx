@@ -95,7 +95,7 @@ gap (see [AmbiqAI/ns-cmsis-nn#228](https://github.com/AmbiqAI/ns-cmsis-nn/issues
 | `ns-cmsis-nn-<cpu>-atfe-<version>.tar.gz`                              | **Required** | Free toolchain (LLVM-Embedded-Toolchain-for-Arm), no license dependency. |
 | `ns-cmsis-nn-staticlibs-gcc-<version>.zip`                             | **Required** | Same as above.                                                          |
 | `ns-cmsis-nn-staticlibs-atfe-<version>.zip`                            | **Required** | Same as above.                                                          |
-| `ns-cmsis-nn-<cpu>-armclang-<version>.tar.gz`                          | **Optional** | Promoted to required only when the repository variable `ARMCLANG_REQUIRED` is `true`. Not keyed on whether a licence is configured. |
+| `ns-cmsis-nn-<cpu>-armclang-<version>.tar.gz`                          | **Optional** | Promoted to required only when the repository variable `ARMCLANG_REQUIRED` is `true`. Not keyed on whether a license is configured. |
 | `ns-cmsis-nn-staticlibs-armclang-<version>.zip`                        | **Optional** | Same as above.                                                          |
 | `ghcr.io/ambiqai/ns-cmsis-nn-ci:vX.Y.Z` image                          | **Required** | Needed by `release-unit-tests` / `release-helia-core-tester`.           |
 | GitHub Pages docs update                                               | **Required** | Rides along with `publish-pack`.                                       |
@@ -104,7 +104,7 @@ Armclang is licensed through Arm's **User-Based Licensing**: the
 `ARM_UBL_LICENSE_IDENTIFIER` secret is an activation code, redeemed once per
 release run by `armlm activate --code` in the `publish-staticlibs-armclang`
 job before any compilation happens. That job builds all three Cortex-M
-targets on a single runner precisely so the licence is activated once and the
+targets on a single runner precisely so the license is activated once and the
 Arm Compiler archive is downloaded once.
 
 The eight `armclang` assets are **optional** unless the repository variable
@@ -121,7 +121,7 @@ way out, because the recovery such a failure prescribes re-runs the same job.
 Turn `ARMCLANG_REQUIRED` on only after a release run has actually published
 the eight, and turn it off to ride out an Arm licensing outage.
 
-Independently of that switch: when no licence is configured,
+Independently of that switch: when no license is configured,
 `resolve-release-capabilities` reports the capability as unavailable, every
 step of `publish-staticlibs-armclang` self-skips (the job succeeds as a
 no-op and self-reports via `::notice::`/`::warning::` annotations), and the
@@ -131,7 +131,7 @@ unaffected: they come from a different job entirely, and
 never hold up the tag, pack, gcc/atfe libs, CI image, or tests.
 
 Before v7.30.0 this gate read `ARMLMD_LICENSE_FILE`, the legacy FlexLM
-licence-file variable, which has never been configured on this repository —
+license-file variable, which has never been configured on this repository —
 which is why no release from v7.24.1 onward published any armclang asset
 (see [AmbiqAI/ns-cmsis-nn#275](https://github.com/AmbiqAI/ns-cmsis-nn/issues/275)).
 
