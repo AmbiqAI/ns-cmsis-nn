@@ -57,7 +57,12 @@ Architecture), and the "Guides > Guides" duplicate label.
 - Generated reference pages are never nested more than one level under their
   group.
 - Landing page keeps the sidebar (already the case).
-- Card grids align (helia-ui #94, fix in progress).
+- Card grids align (helia-ui #94, fixed).
+- helia-ui is the base, not the whole. Compose from parts first; where a page
+  needs something specific to this site, write a site component on the
+  package tokens and recipes and keep it under astro-site/src/components.
+  Promote to the package only when it is plainly generic or a second site
+  needs it. Never bypass the tokens with raw CSS.
 
 ## Decisions (owner, 2026-09-16)
 
