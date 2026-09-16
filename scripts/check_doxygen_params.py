@@ -33,6 +33,7 @@ COPYDOC_RE = re.compile(r'[@\\]copy(?:doc|details)\s+(?P<name>[A-Za-z_]\w*)')
 QUALIFIER_RE = re.compile(r'\b(__RESTRICT|__restrict|restrict)\b')
 STATIC_RE = re.compile(r'\b(static|__STATIC_INLINE|__STATIC_FORCEINLINE)\b')
 DIRECTIONS = ('in', 'out', 'in,out')
+COMMENT_MARKER = '@@COMMENT@@'
 # The buffer behind a const context pointer is written, so both tags are honest.
 DIRECTION_EXCEPTIONS = {'const cmsis_nn_context *': {'in', 'in,out'}}
 
@@ -75,12 +76,15 @@ def blank_non_doc(text):
     out, i, n = [], 0, len(text)
     while i < n:
         two = text[i:i + 2]
+        marker = False
         if two == '/*' and not text.startswith('/**', i):
             end = text.find('*/', i + 2)
             end = n if end < 0 else end + 2
+            marker = True
         elif two == '//':
             end = text.find('\n', i)
             end = n if end < 0 else end
+            marker = True
         elif text[i] == '"':
             end = i + 1
             while end < n and text[end] != '"' and text[end] != '\n':
@@ -90,7 +94,12 @@ def blank_non_doc(text):
             out.append(text[i])
             i += 1
             continue
-        out.append(re.sub(r'[^\n]', ' ', text[i:end]))
+        blanked = re.sub(r'[^\n]', ' ', text[i:end])
+        # A comment that starts its own line is a boundary between a doc block and whatever
+        # follows; a trailing comment inside a statement is not.
+        if marker and not text[text.rfind('\n', 0, i) + 1:i].strip():
+            blanked = COMMENT_MARKER + blanked
+        out.append(blanked)
         i = end
     return ''.join(out)
 
@@ -141,6 +150,9 @@ def parse_header(path):
             if not CONDITIONAL_RE.match(s):
                 pending_doc = None
             continue
+        if s.startswith(COMMENT_MARKER):
+            pending_doc = None
+            continue
         if s.startswith('/**'):
             block = [s]
             while '*/' not in block[-1] and i < len(lines):
@@ -179,10 +191,12 @@ def parse_header(path):
 
 def doc_tags(doc):
     """Return (copydoc_target, [(name, direction)]) from a doc block."""
-    copydoc = COPYDOC_RE.search(doc)
+    copydocs = COPYDOC_RE.findall(doc)
+    if len(copydocs) > 1:
+        raise ValueError('multiple copy directives in one block: ' + ', '.join(copydocs))
     tags = [(m.group('name'), None if m.group('dir') is None else m.group('dir').replace(' ', ''))
             for m in PARAM_TAG_RE.finditer(doc)]
-    return (copydoc.group('name') if copydoc else None), tags
+    return (copydocs[0] if copydocs else None), tags
 
 
 def resolve_tags(decl, by_name, visiting):

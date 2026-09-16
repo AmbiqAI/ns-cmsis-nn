@@ -235,6 +235,11 @@ class FixtureTests(unittest.TestCase):
         result = self.assert_fails(text, 'fx_kernel_s8_get_buffer_size_mve', 'missing @param in_dims')
         self.assertIn('@param input_dims: no such parameter', result.stderr)
 
+    def test_multiple_copy_directives_are_rejected(self):
+        text = CLEAN.replace(' * @copydetails fx_kernel_s8_get_buffer_size\n',
+                             ' * @copydetails fx_kernel_s8_get_buffer_size\n * @copydoc fx_nonexistent\n')
+        self.assert_fails(text, 'fx_kernel_s8_get_buffer_size_mve', 'multiple copy directives')
+
     def test_copydoc_mixed_with_params(self):
         text = CLEAN.replace(' * @copydetails fx_kernel_s8_get_buffer_size\n',
                              ' * @copydetails fx_kernel_s8_get_buffer_size\n * @param[in] input_dims Dims.\n')
@@ -250,6 +255,8 @@ class FixtureTests(unittest.TestCase):
             'deleted': CLEAN.replace(block, ''),
             'plain comment': CLEAN.replace(block, block.replace('/**', '/*', 1)),
             'define between': CLEAN.replace(block, block + '#define FX_BETWEEN 1\n'),
+            'block comment between': CLEAN.replace(block, block + '/* not a doc block */\n'),
+            'line comment between': CLEAN.replace(block, block + '// not a doc block\n'),
             'blank doc then decl': CLEAN.replace(block, block + '/** @brief orphan */\nextern int fx_var;\n'),
         }
         for label, text in cases.items():
