@@ -113,7 +113,14 @@ git_changelog -f html -p "v" > src/history.txt
 sed -i -e 's/@/\\@/g' src/history.txt
 
 echo_log "\"${UTILITY_DOXYGEN}\" nn.dxy"
-"${UTILITY_DOXYGEN}" nn.dxy
+# nn.dxy sets WARN_AS_ERROR = FAIL_ON_WARNINGS, so doxygen exits non-zero after
+# printing every warning; undocumented or mistagged parameters must fail the
+# docs, pack and release builds rather than scroll past (#526).
+if ! "${UTILITY_DOXYGEN}" nn.dxy; then
+  echo "doxygen reported warnings; see the output above" >&2
+  popd > /dev/null || true
+  exit 1
+fi
 
 mkdir -p "${DIRNAME}/${GENDIR}/search/"
 cp -f "${DIRNAME}/style_template/search.css" "${DIRNAME}/${GENDIR}/search/"
