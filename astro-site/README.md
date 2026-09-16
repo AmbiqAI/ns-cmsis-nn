@@ -85,7 +85,7 @@ inside that sub-entry with the module pages under it.
 `@ambiqai/helia-ui` is installed from a git tag, never a branch:
 
 ```json
-"@ambiqai/helia-ui": "github:AmbiqAI/helia-ui#v0.1.0-alpha.8"
+"@ambiqai/helia-ui": "github:AmbiqAI/helia-ui#v0.1.0-alpha.9"
 ```
 
 To move to a newer release, change the tag in `package.json`, then regenerate
