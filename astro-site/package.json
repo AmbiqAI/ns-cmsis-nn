@@ -10,9 +10,13 @@
     "npm": ">=11"
   },
   "scripts": {
+    "reference": "node scripts/build-reference.mjs",
+    "predev": "node scripts/build-reference.mjs --if-missing",
     "dev": "astro dev",
+    "prebuild": "node scripts/build-reference.mjs",
     "build": "astro build",
     "preview": "astro preview",
+    "precheck": "node scripts/build-reference.mjs --if-missing",
     "check": "astro check"
   },
   "dependencies": {
