@@ -75,10 +75,11 @@ The cost is that `Include/` and Doxygen are required to work on the site at all.
 `npm run dev` and `npm run check` generate the reference when it is missing;
 `npm run build` regenerates it every time.
 
-The sidebar needs no entry of its own: the `Reference` group autogenerates from
-the `reference/` directory, and the generated `index.mdx` is titled `API` with
-`sidebar.order: 0`, so it lands first in that group with the module pages under
-it.
+The `Reference` sidebar group lists its handwritten pages explicitly, like the
+rest of the sidebar, and carries one `autogenerate` sub-entry for
+`reference/api` because those pages do not exist until the prebuild runs. The
+generated `index.mdx` is titled `API` with `sidebar.order: 0`, so it lands first
+inside that sub-entry with the module pages under it.
 
 ## The design system is pinned by tag
 

@@ -3,10 +3,7 @@ title: API
 description: The heliaCORE C API, grouped by operator family.
 ---
 
-import Card from '@ambiqai/helia-ui/astro/Card';
-import CardContent from '@ambiqai/helia-ui/astro/CardContent';
 import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
-import CardHeader from '@ambiqai/helia-ui/astro/CardHeader';
 import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
 
 heliaCORE keeps the CMSIS-NN C API shape where compatibility matters, then adds
@@ -30,38 +27,30 @@ detail.
 ## Browse By Kernel Family
 
 <CardGrid columns={3}>
-  <Card>
-    <CardHeader titleAs="h3" eyebrow="compute"><span>Convolution</span></CardHeader>
-    <CardContent>Conv2D, depthwise, transpose convolution, wrappers, and buffer helpers.</CardContent>
-  </Card>
-  <Card>
-    <CardHeader titleAs="h3" eyebrow="compute"><span>Fully connected</span></CardHeader>
-    <CardContent>Dense layers, batch matmul paths, and scratch sizing helpers.</CardContent>
-  </Card>
-  <Card>
-    <CardHeader titleAs="h3" eyebrow="graph glue"><span>Elementwise</span></CardHeader>
-    <CardContent>Add, sub, mul, square difference, min/max, batch norm, select, and arithmetic glue.</CardContent>
-  </Card>
-  <Card>
-    <CardHeader titleAs="h3" eyebrow="selection"><span>Reduction and comparison</span></CardHeader>
-    <CardContent>Argmin/argmax, min/max reductions, comparisons, means, vector sums, and where.</CardContent>
-  </Card>
-  <Card>
-    <CardHeader titleAs="h3" eyebrow="activation"><span>Activation</span></CardHeader>
-    <CardContent>ReLU, LeakyReLU, PReLU, Hard-Swish, Logistic, Tanh, and clamp.</CardContent>
-  </Card>
-  <Card>
-    <CardHeader titleAs="h3" eyebrow="layout"><span>Data movement</span></CardHeader>
-    <CardContent>Pad, reshape, transpose, concatenate, gather, resize, strided slice, tile, broadcast, scatter, mirror pad, and sequence/slice-update utilities.</CardContent>
-  </Card>
-  <Card>
-    <CardHeader titleAs="h3" eyebrow="tail"><span>Pooling, softmax, quantization</span></CardHeader>
-    <CardContent>Classifier tail APIs plus dtype conversion and requantization utilities.</CardContent>
-  </Card>
-  <Card>
-    <CardHeader titleAs="h3" eyebrow="sequence"><span>Sequence</span></CardHeader>
-    <CardContent>LSTM, GRU, and SVDF functions for temporal workloads.</CardContent>
-  </Card>
+  <LinkCard href="api/#convolution-functions" title="Convolution" eyebrow="compute">
+    Conv2D, depthwise, transpose convolution, wrappers, and buffer helpers.
+  </LinkCard>
+  <LinkCard href="api/#fully-connected-layer-functions" title="Fully connected" eyebrow="compute">
+    Dense layers, batch matmul paths, and scratch sizing helpers.
+  </LinkCard>
+  <LinkCard href="api/#elementwise-functions" title="Elementwise" eyebrow="graph glue">
+    Add, sub, mul, square difference, min/max, batch norm, select, and arithmetic glue.
+  </LinkCard>
+  <LinkCard href="api/#basic-math-and-reduction" title="Reduction and comparison" eyebrow="selection">
+    Argmin/argmax, min/max reductions, comparisons, means, vector sums, and where.
+  </LinkCard>
+  <LinkCard href="api/#activation-functions" title="Activation" eyebrow="activation">
+    ReLU, LeakyReLU, PReLU, Hard-Swish, Logistic, Tanh, and clamp.
+  </LinkCard>
+  <LinkCard href="api/#data-movement" title="Data movement" eyebrow="layout">
+    Pad, reshape, transpose, concatenate, gather, resize, strided slice, tile, broadcast, scatter, mirror pad, and sequence/slice-update utilities.
+  </LinkCard>
+  <LinkCard href="api/#classifier-tail" title="Pooling, softmax, quantization" eyebrow="tail">
+    Classifier tail APIs plus dtype conversion and requantization utilities.
+  </LinkCard>
+  <LinkCard href="api/#sequence-functions" title="Sequence" eyebrow="sequence">
+    LSTM, GRU, and SVDF functions for temporal workloads.
+  </LinkCard>
   <LinkCard href="api/" title="Types and support" eyebrow="index">
     Structs, enums, files, and low-level support helpers in the full generated index.
   </LinkCard>
