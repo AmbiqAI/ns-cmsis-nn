@@ -346,7 +346,7 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
  * @brief s16 grouped convolution optimized for the case where filter_dims->c == 1
  *        and input_ch == output_ch (channel multiplier = 1).
  *
- * @param[in, out] ctx            Function context (unused, pass NULL-initialised).
+ * @param[in]      ctx            Function context (unused, pass NULL-initialised).
  * @param[in]      conv_params    Convolution parameters (strides, dilations, pads, activation).
  * @param[in]      quant_params   Per-channel quantization info (multiplier and shift).
  * @param[in]      input_dims     Input tensor dimensions.  Format: [N, H, W, C_IN]
@@ -1585,7 +1585,7 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
  * @param[in]      bias_data       Bias data pointer. Data type: int32
  * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
- * @param[in, out] output_data     Output data pointer. Data type: int8
+ * @param[out]     output_data     Output data pointer. Data type: int8
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion, or
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> on the arm_depthwise_conv_s8_opt() route if ctx->buf is NULL
  *                when a scratch buffer is required, or if weight_sum_ctx->buf is NULL on builds where it is read
@@ -1642,7 +1642,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
  * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
  * @param[in]      bias_data       Bias data pointer. Data type: int32
  * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
- * @param[in, out] output_data     Output data pointer. Data type: int8
+ * @param[out]     output_data     Output data pointer. Data type: int8
  * @return     The function returns
  *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion.
  *
@@ -1811,7 +1811,7 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv
  * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
  * @param[in]      bias_data       Bias data pointer. Data type: int32
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
- * @param[in, out] output_data     Output data pointer. Data type: int8
+ * @param[out]     output_data     Output data pointer. Data type: int8
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  * @details
@@ -1893,7 +1893,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
  * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
  * @param[in]      bias_data       Bias data pointer. Data type: int64
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
- * @param[in, out] output_data     Output data pointer. Data type: int16
+ * @param[out]     output_data     Output data pointer. Data type: int16
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  * @details
@@ -1938,7 +1938,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
  * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
  * @param[in]      bias_data       Bias data pointer. Data type: int64
  * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
- * @param[in, out] output_data     Output data pointer. Data type: int16
+ * @param[out]     output_data     Output data pointer. Data type: int16
  * @return     The function returns
  *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion.
  *
@@ -2108,7 +2108,7 @@ int32_t arm_depthwise_conv_fast_s16_get_buffer_size(const cmsis_nn_dims *input_d
  * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
  * @param[in]      bias_data       Bias data pointer. Data type: int32
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
- * @param[in, out] output_data     Output data pointer. Data type: int8
+ * @param[out]     output_data     Output data pointer. Data type: int8
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - Unsupported dimension of tensors
@@ -2336,7 +2336,7 @@ int32_t arm_depthwise_conv_s4_opt_get_buffer_size(const cmsis_nn_dims *input_dim
  *                               N : Batches
  *                               C_OUT : Output depth
  *                               H & W : Not used.
- * @param[in, out] output_data    Output data pointer. Data type: int8
+ * @param[out]     output_data    Output data pointer. Data type: int8
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  * @details
@@ -2405,7 +2405,7 @@ arm_cmsis_nn_status arm_fully_connected_s4(const cmsis_nn_context *ctx,
  *                               N : Batches
  *                               C_OUT : Output depth
  *                               H & W : Not used.
- * @param[in, out] output_data    Output data pointer. Data type: int8
+ * @param[out]     output_data    Output data pointer. Data type: int8
  *
  * @return     The function returns either
  *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
@@ -2478,7 +2478,7 @@ arm_cmsis_nn_status arm_fully_connected_s8(const cmsis_nn_context *ctx,
  *                               N : Batches
  *                               C_OUT : Output depth
  *                               H & W : Not used.
- * @param[in, out] output_data    Output data pointer. Data type: int8
+ * @param[out]     output_data    Output data pointer. Data type: int8
  *
  * @return     The function returns either
  *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
@@ -2553,7 +2553,7 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s8(const cmsis_nn_context *c
  *                               N : Batches
  *                               C_OUT : Output depth
  *                               H & W : Not used.
- * @param[in, out] output_data    Output data pointer. Data type: int8
+ * @param[out]     output_data    Output data pointer. Data type: int8
  *
  * @return     The function returns either
  *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
@@ -2650,7 +2650,7 @@ int32_t arm_fully_connected_s8_get_buffer_size_mve(const cmsis_nn_dims *filter_d
 /**
  * @brief Basic s16 Fully Connected function.
  *
- * @param[in, out] ctx           Unused. This function currently ignores the context entirely on every build - it
+ * @param[in]      ctx           Unused. This function currently ignores the context entirely on every build - it
  *                               neither reads nor writes ctx->buf - and arm_fully_connected_s16_get_buffer_size()
  *                               returns 0 accordingly, so { NULL, 0 } is accepted. Unlike the s8 variants, no
  *                               precomputed kernel sums are required here. None of this is a guarantee about
@@ -2676,7 +2676,7 @@ int32_t arm_fully_connected_s8_get_buffer_size_mve(const cmsis_nn_dims *filter_d
  *                               N : Batches
  *                               C_OUT : Output depth
  *                               H & W : Not used.
- * @param[in, out] output_data    Output data pointer. Data type: int16
+ * @param[out]     output_data    Output data pointer. Data type: int16
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
  *
  * @details
@@ -2730,7 +2730,7 @@ arm_cmsis_nn_status arm_fully_connected_s16(const cmsis_nn_context *ctx,
  *                               N : Batches
  *                               C_OUT : Output depth
  *                               H & W : Not used.
- * @param[in, out] output_data    Output data pointer. Data type: int16
+ * @param[out]     output_data    Output data pointer. Data type: int16
  *
  * @return     The function returns either
  *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
@@ -2791,7 +2791,7 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s16(const cmsis_nn_context *
  *                               N : Batches
  *                               C_OUT : Output depth
  *                               H & W : Not used.
- * @param[in, out] output_data    Output data pointer. Data type: int16
+ * @param[out]     output_data    Output data pointer. Data type: int16
  * @return     The function returns either
  *                 <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
  *                <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
@@ -3991,8 +3991,7 @@ arm_cmsis_nn_status arm_elementwise_mul_s16(const int16_t *input_1_vect,
 /**
  * @brief s8 elementwise minimum w/ support for broadcasting and scalar inputs.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4019,8 +4018,7 @@ arm_cmsis_nn_status arm_minimum_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s8 elementwise maximum w/ support for broadcasting and scalar inputs.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4047,8 +4045,7 @@ arm_cmsis_nn_status arm_maximum_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s16 elementwise minimum w/ support for broadcasting and scalar inputs.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4075,8 +4072,7 @@ arm_cmsis_nn_status arm_minimum_s16(const cmsis_nn_context *ctx,
 /**
  * @brief s16 elementwise maximum w/ support for broadcasting and scalar inputs.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4109,8 +4105,7 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
 /**
  * @brief s8 elementwise comparison with support for broadcasting.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4153,8 +4148,7 @@ arm_cmsis_nn_status arm_comparison_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s16 elementwise comparison with support for broadcasting.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4197,8 +4191,7 @@ arm_cmsis_nn_status arm_comparison_s16(const cmsis_nn_context *ctx,
 /**
  * @brief s8 elementwise equality comparison with support for broadcasting.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4237,8 +4230,7 @@ arm_cmsis_nn_status arm_equal_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s8 elementwise inequality comparison with support for broadcasting.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4277,8 +4269,7 @@ arm_cmsis_nn_status arm_not_equal_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s8 elementwise greater-than comparison with support for broadcasting.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4317,8 +4308,7 @@ arm_cmsis_nn_status arm_greater_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s8 elementwise greater-or-equal comparison with support for broadcasting.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4357,8 +4347,7 @@ arm_cmsis_nn_status arm_greater_equal_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s8 elementwise less-than comparison with support for broadcasting.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4397,8 +4386,7 @@ arm_cmsis_nn_status arm_less_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s8 elementwise less-or-equal comparison with support for broadcasting.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4437,8 +4425,7 @@ arm_cmsis_nn_status arm_less_equal_s8(const cmsis_nn_context *ctx,
 /**
  * @brief s16 elementwise equality comparison with support for broadcasting.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4477,8 +4464,7 @@ arm_cmsis_nn_status arm_equal_s16(const cmsis_nn_context *ctx,
 /**
  * @brief s16 elementwise inequality comparison with support for broadcasting.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4517,8 +4503,7 @@ arm_cmsis_nn_status arm_not_equal_s16(const cmsis_nn_context *ctx,
 /**
  * @brief s16 elementwise greater-than comparison with support for broadcasting.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4557,8 +4542,7 @@ arm_cmsis_nn_status arm_greater_s16(const cmsis_nn_context *ctx,
 /**
  * @brief s16 elementwise greater-or-equal comparison with support for broadcasting.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4597,8 +4581,7 @@ arm_cmsis_nn_status arm_greater_equal_s16(const cmsis_nn_context *ctx,
 /**
  * @brief s16 elementwise less-than comparison with support for broadcasting.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -4637,8 +4620,7 @@ arm_cmsis_nn_status arm_less_s16(const cmsis_nn_context *ctx,
 /**
  * @brief s16 elementwise less-or-equal comparison with support for broadcasting.
  *
- * @param[in]   ctx                   Temporary scratch buffer
- *                                    The caller is expected to clear the buffer, if applicable, for security reasons.
+ * @param[in]   ctx                   Unused; may be NULL.
  * @param[in]   input_1_data          Pointer to input1 tensor
  * @param[in]   input_1_dims          Input1 tensor dimensions
  * @param[in]   input_2_data          Pointer to input2 tensor
@@ -5237,7 +5219,7 @@ arm_cmsis_nn_status arm_prelu_scalar_s16(const int16_t *scalar_vect,
  * @param[in]      output_dims  Output tensor dimensions. Format: [H, W, C_OUT]
  *                              Argument N is not used.
  *                              C_OUT equals C_IN.
- * @param[in, out] output_data Output data pointer. Data type: int8
+ * @param[out]     output_data Output data pointer. Data type: int8
  *
  * @return     The function returns either
  *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
@@ -5312,7 +5294,7 @@ int32_t arm_avgpool_s8_get_buffer_size_mve(const int dim_dst_width, const int ch
  * @param[in]      output_dims  Output tensor dimensions. Format: [H, W, C_OUT]
  *                              Argument N is not used.
  *                              C_OUT equals C_IN.
- * @param[in, out] output_data  Output data pointer. Data type: int16
+ * @param[out]     output_data  Output data pointer. Data type: int16
  *
  * @return                        The function returns
  *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
@@ -5385,7 +5367,7 @@ int32_t arm_avgpool_s16_get_buffer_size_mve(const int dim_dst_width, const int c
  * @param[in]      output_dims  Output tensor dimensions. Format: [H, W, C_OUT]
  *                              Argument N is not used.
  *                              C_OUT equals C_IN.
- * @param[in, out] output_data    Output data pointer. Data type: int8
+ * @param[out]     output_data    Output data pointer. Data type: int8
  *
  * @return     The function returns either
  *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,

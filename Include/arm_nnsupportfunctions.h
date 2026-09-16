@@ -83,9 +83,12 @@ extern "C" {
 
 #if ARM_NN_ENABLE_F16
 /**
- * @brief IEEE 754 minNum of two scalar f16 values.
+ * @brief Minimum of two scalar f16 values.
  *
- * NaN operands are suppressed (the non-NaN operand wins), matching both VMINNM.F16 and the ARM_NN_MIN fallback.
+ * With ARM_NN_F16_CMOV_WORKAROUND this is IEEE 754 minNum via VMINNM.F16: a NaN operand is suppressed and the
+ * non-NaN operand wins. The scalar fallback is ARM_NN_MIN, an ordered compare, so its NaN handling depends on
+ * operand order: a NaN <code>b</code> is returned, a NaN <code>a</code> is not. Do not rely on NaN suppression
+ * on non-MVE builds.
  *
  * @param[in]      a               First operand
  * @param[in]      b               Second operand
@@ -103,9 +106,12 @@ __STATIC_FORCEINLINE _Float16 arm_nn_min_f16h(_Float16 a, _Float16 b)
 }
 
 /**
- * @brief IEEE 754 maxNum of two scalar f16 values.
+ * @brief Maximum of two scalar f16 values.
  *
- * NaN operands are suppressed (the non-NaN operand wins), matching both VMAXNM.F16 and the ARM_NN_MAX fallback.
+ * With ARM_NN_F16_CMOV_WORKAROUND this is IEEE 754 maxNum via VMAXNM.F16: a NaN operand is suppressed and the
+ * non-NaN operand wins. The scalar fallback is ARM_NN_MAX, an ordered compare, so its NaN handling depends on
+ * operand order: a NaN <code>b</code> is returned, a NaN <code>a</code> is not. Do not rely on NaN suppression
+ * on non-MVE builds.
  *
  * @param[in]      a               First operand
  * @param[in]      b               Second operand
@@ -1037,7 +1043,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
  *
  * @param[in]  lhs                Pointer to the LHS input matrix
  * @param[in]  rhs                Pointer to the RHS input matrix
- * @param[out] dst                Pointer to the output matrix with "m" rows and "n" columns
+ * @param[in, out] dst            Pointer to the output matrix with "m" rows and "n" columns. Accumulated into,
+ *                                so it must be zeroed by the caller before the call
  * @param[in]  lhs_rows           Number of LHS input rows
  * @param[in]  rhs_rows           Number of LHS input columns/RHS input rows
  * @param[in]  rhs_cols           Number of RHS input columns

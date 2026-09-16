@@ -45,7 +45,7 @@ extern "C" {
  * hits/lines/branches to the real implementation instead of collapsing them
  * into the call site of the thin wrapper that invokes it.
  *
- * @param[in,out] ctx           Function context. Unused; may be NULL.
+ * @param[in]     ctx           Function context. Unused; may be NULL.
  * @param[in]     input_1_data  Pointer to the first input tensor data.
  * @param[in]     input_1_dims  Dimensions of the first input tensor.
  * @param[in]     input_2_data  Pointer to the second input tensor data.

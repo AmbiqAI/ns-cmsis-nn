@@ -830,7 +830,7 @@ arm_cmsis_nn_status arm_strided_slice_f32(const float32_t *input_data,
  * about NaN, must screen its inputs rather than rely on either leg. See issue #316, and #333 for the same
  * -ffinite-math-only caveat on the elementwise family.
  *
- * @param[in,out] ctx          Function context. Unused; may be NULL.
+ * @param[in]     ctx          Function context. Unused; may be NULL.
  * @param[in]     input_1_data Input 1, NHWC, sized by @p input_1_dims.
  * @param[in]     input_1_dims Dimensions of input 1.
  * @param[in]     input_2_data Input 2, NHWC, sized by @p input_2_dims.
@@ -866,7 +866,7 @@ arm_cmsis_nn_status arm_minimum_f32(const cmsis_nn_context *ctx,
  * about NaN, must screen its inputs rather than rely on either leg. See issue #316, and #333 for the same
  * -ffinite-math-only caveat on the elementwise family.
  *
- * @param[in,out] ctx          Function context. Unused; may be NULL.
+ * @param[in]     ctx          Function context. Unused; may be NULL.
  * @param[in]     input_1_data Input 1, NHWC, sized by @p input_1_dims.
  * @param[in]     input_1_dims Dimensions of input 1.
  * @param[in]     input_2_data Input 2, NHWC, sized by @p input_2_dims.
@@ -1636,7 +1636,7 @@ arm_transpose_conv_f32_get_reverse_conv_buffer_size(const cmsis_nn_transpose_con
 /**
  * @brief Stateful singular value decomposition filter.
  *
- * @param[in,out] ctx                  Unused by this function. Reserved for future use; may be NULL.
+ * @param[in]     ctx                  Unused by this function. Reserved for future use; may be NULL.
  * @param[in,out] input_ctx            Mandatory, not optional: a NULL input_ctx, or a NULL input_ctx->buf, is
  *                                     diagnosed with ARM_CMSIS_NN_ARG_ERROR on every build. Staging buffer written
  *                                     by this function, holding one element per (input batch, feature batch).
@@ -3086,7 +3086,7 @@ arm_transpose_conv_f16_get_reverse_conv_buffer_size(const cmsis_nn_transpose_con
 /**
  * @brief Stateful singular value decomposition filter, float16 variant.
  *
- * @param[in,out] ctx                  Unused by this function. Reserved for future use; may be NULL.
+ * @param[in]     ctx                  Unused by this function. Reserved for future use; may be NULL.
  * @param[in,out] input_ctx            Mandatory, not optional: a NULL input_ctx, or a NULL input_ctx->buf, is
  *                                     diagnosed with ARM_CMSIS_NN_ARG_ERROR on every build. Staging buffer
  *                                     written by this function, holding one element per (input batch, feature
