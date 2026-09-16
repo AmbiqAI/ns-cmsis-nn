@@ -16,8 +16,9 @@ import CardHeader from '@ambiqai/helia-ui/astro/CardHeader';
 import Chip from '@ambiqai/helia-ui/astro/Chip';
 import Eyebrow from '@ambiqai/helia-ui/astro/Eyebrow';
 import Hero from '@ambiqai/helia-ui/astro/Hero';
-import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
 import StatCard from '@ambiqai/helia-ui/astro/StatCard';
+
+import LinkCard from '../../components/LinkCard.astro';
 
 import coverage from '../../data/coverage.json';
 
@@ -183,15 +184,16 @@ foundation so those end-to-end paths stay optimized on Ambiq silicon.
 ## Measured on one board, three paths
 
 <CardGrid columns={3}>
-  <BigNumber label="MVE vs REF" caption="Up to 11.98× faster than the REF path">11.98×</BigNumber>
-  <BigNumber label="MVE vs DSP" caption="Up to 7.83× faster than DSP">7.83×</BigNumber>
-  <BigNumber label="DSP vs REF" caption="Up to 3.26× faster than the REF path">3.26×</BigNumber>
+  <BigNumber label="MVE vs REF" caption="Peak speedup over the REF path">12×</BigNumber>
+  <BigNumber label="MVE vs DSP" caption="Peak speedup over the DSP path">8×</BigNumber>
+  <BigNumber label="DSP vs REF" caption="Peak speedup over the REF path">3×</BigNumber>
 </CardGrid>
 
 Peak average-cycle speedups across the benchmarked kernels, measured with
-cycle counts on the same SoC at the same clock. The per-kernel tables are on
-[Kernel benchmarks](performance/kernel-benchmarks/) and the conditions on
-[Methodology](performance/methodology/).
+cycle counts on the same SoC at the same clock: 11.98× for MVE against REF,
+7.83× for MVE against DSP, and 3.26× for DSP against REF. The per-kernel
+tables are on [Kernel benchmarks](performance/kernel-benchmarks/) and the
+conditions on [Methodology](performance/methodology/).
 
 </Band>
 
@@ -229,65 +231,6 @@ those paths.
     meta="See where it fits"
   >
     Ahead-of-time generation for deterministic, low-footprint firmware, using heliaCORE kernels as the shared foundation.
-  </LinkCard>
-</CardGrid>
-
-</Band>
-
-<Band tone="plain">
-
-<Eyebrow>Where to go next</Eyebrow>
-
-## The rest of the site
-
-<CardGrid columns={3}>
-  <LinkCard
-    href="getting-started/"
-    title="Getting started"
-    eyebrow="integrate"
-    meta="Choose a path"
-  >
-    CMake, CMSIS-Pack, Zephyr, neuralSPOT-X, and the toolchains each one expects.
-  </LinkCard>
-  <LinkCard
-    href="architecture/acceleration-paths/"
-    title="Architecture"
-    eyebrow="how it works"
-    meta="Read the paths"
-  >
-    Scalar C, DSP and MVE paths, the Cortex-M targets they run on, data types, and how a build selects one.
-  </LinkCard>
-  <LinkCard
-    href="coverage/operator-coverage/"
-    title="Coverage"
-    eyebrow="what is in it"
-    meta="Browse coverage"
-  >
-    Operator families, the data types each family carries, and what this fork adds to Arm CMSIS-NN.
-  </LinkCard>
-  <LinkCard
-    href="performance/kernel-benchmarks/"
-    title="Performance"
-    eyebrow="measured"
-    meta="See the numbers"
-  >
-    Per-kernel cycle counts on Apollo510 and the conditions they were measured under.
-  </LinkCard>
-  <LinkCard
-    href="reference/"
-    title="Reference"
-    eyebrow="C API"
-    meta="Open the API"
-  >
-    Every public function, grouped by operator family, generated from the headers.
-  </LinkCard>
-  <LinkCard
-    href="contributing/"
-    title="Contributing"
-    eyebrow="maintainers"
-    meta="Read the contract"
-  >
-    Verification, the CI matrix, the publication rule, and how releases are cut.
   </LinkCard>
 </CardGrid>
 
