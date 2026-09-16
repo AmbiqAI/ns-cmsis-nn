@@ -6,7 +6,14 @@ description: Measured cycle counts for the REF, DSP, and MVE paths on Apollo510.
 import Band from '@ambiqai/helia-ui/astro/Band';
 import BigNumber from '@ambiqai/helia-ui/astro/BigNumber';
 import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
+import Chart from '@ambiqai/helia-ui/astro/Chart';
 import Eyebrow from '@ambiqai/helia-ui/astro/Eyebrow';
+
+import {
+  CONVOLUTION_KERNELS,
+  ELEMENTWISE_KERNELS,
+  refSpeedups,
+} from '../../../data/kernel-benchmarks';
 
 <Band tone="muted">
 
@@ -44,7 +51,19 @@ M55, rather than a strictly scalar instruction stream.
 
 The largest MVE gains appear in MAC-dominated kernels where Helium's 128-bit vector engine amortizes unpacking, memory access, and accumulation overhead across wide vector operations. DSP kernels generally improve throughput on s8/s16 workloads, though some s4 kernels remain dominated by packing and unpacking overhead.
 
-The x-axis reports speedup relative to REF on a logarithmic scale; values greater than 1.0x indicate lower average cycle count than REF.
+<Chart
+  title="REF speedup: convolution and matrix-multiply (GCC)"
+  subtitle="Speedup against the REF path, by kernel"
+  kind="bar"
+  data={refSpeedups(CONVOLUTION_KERNELS)}
+  x="kernel"
+  y="speedup"
+  series="path"
+  width={1220}
+  height={430}
+/>
+
+Each bar reports speedup relative to REF; values greater than 1.0x indicate lower average cycle count than REF.
 
 | Kernel | Shape | REF (GCC) | DSP (GCC) | MVE (GCC) | DSP speedup | MVE speedup |
 |--------|-------|----------:|----------:|----------:|------------:|------------:|
@@ -68,7 +87,19 @@ The x-axis reports speedup relative to REF on a logarithmic scale; values greate
 Elementwise kernels are pure data-parallel and benefit from MVE's ability to
 process 16 int8 or 8 int16 values per vector instruction.
 
-The x-axis reports speedup relative to REF on a logarithmic scale; values greater than 1.0x indicate lower average cycle count than REF.
+<Chart
+  title="REF speedup: elementwise and scalar (GCC)"
+  subtitle="Speedup against the REF path, by kernel"
+  kind="bar"
+  data={refSpeedups(ELEMENTWISE_KERNELS)}
+  x="kernel"
+  y="speedup"
+  series="path"
+  width={1220}
+  height={430}
+/>
+
+Each bar reports speedup relative to REF; values greater than 1.0x indicate lower average cycle count than REF.
 
 | Kernel | Shape | REF (GCC) | DSP (GCC) | MVE (GCC) | DSP speedup | MVE speedup |
 |--------|-------|----------:|----------:|----------:|------------:|------------:|
