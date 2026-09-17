@@ -129,7 +129,7 @@ static int matrix(const char *id, int channels, int cols, int low, int high, int
     int32_t mult[7], shift[7], bias[7];
     for (int p = 0; p < 2; ++p)
         for (int i = 0; i < cols; ++i)
-            input[p * cols + i] = (int16_t)activation(i, phase ^ p, control);
+            input[p * cols + i] = (int16_t)activation(i, (phase + p) % cols, control);
     pack(filter, sizeof(filter), low, high);
     memset(output, 85, sizeof(output));
     quant(mult, shift, bias, channels, control);
@@ -231,6 +231,7 @@ static int run_case(int which, int low, int high, int phase, int control)
 int main(int argc, char **argv)
 {
     const char *names[] = {"D1", "D3", "D2", "DO", "M46", "M57", "M66", "M77", "C7"};
+    const int phases[] = {2, 2, 2, 2, 6, 7, 6, 7, 7};
     int executed = 0;
     for (int c = 0; c < 9; ++c)
     {
@@ -240,14 +241,14 @@ int main(int argc, char **argv)
         for (int low = -8; low <= 7; ++low)
             for (int high = -8; high <= 7; ++high)
             {
-                for (int phase = 0; phase < 2; ++phase)
+                for (int phase = 0; phase < phases[c]; ++phase)
                     if (run_case(c, low, high, phase, 0))
                         return 1;
                 ++pairs;
             }
         if (pairs != 256 || run_case(c, -7, 3, 0, 1))
             return 1;
-        printf("%s PASS: 256 pairs, two phases, signed/bias/clamp control\n", names[c]);
+        printf("%s PASS: 256 pairs, %d phases, signed/bias/clamp control\n", names[c], phases[c]);
         ++executed;
     }
     if (executed == 0)
