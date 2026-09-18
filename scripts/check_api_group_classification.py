@@ -16,9 +16,8 @@ REPO = Path(__file__).resolve().parents[1]
 INCLUDE_DIR = REPO / "Include"
 API_GROUP_INDEX = REPO / "scripts" / "docs" / "api_groups.py"
 
-# See "Header discovery" above.
 PUBLIC_HEADER_GLOB = "arm_nnfunctions*.h"
-MIN_EXPECTED_PUBLIC_HEADERS = 2  # today: arm_nnfunctions.h + arm_nnfunctions_flt.h
+MIN_EXPECTED_PUBLIC_HEADERS = 2  # Integer and floating-point public surfaces.
 
 # Matches a declaration/reference of the form `arm_some_name(` in a header.
 # Deliberately permissive: it also picks up @copydoc/@ref mentions inside
@@ -44,12 +43,7 @@ def fail(msg: str) -> None:
 
 
 def load_api_group_index(path: Path = API_GROUP_INDEX):
-    """Import scripts/docs/api_groups.py by file path (it is not on a
-    normal import path -- Sphinx only puts it on sys.path at build time via
-    conf.py), so this check and the directive it guards always agree on
-    GROUP_PATTERNS and the matching rule. Returns None (after recording a
-    failure) if `path` does not exist.
-    """
+    """Load family patterns; record a failure and return None if missing."""
     if not path.is_file():
         fail(f"{path} not found -- cannot load GROUP_PATTERNS")
         return None
@@ -71,9 +65,7 @@ def load_public_names(include_dir: Path) -> set[str] | None:
     """The public top-level kernel API surface: every name declared (or
     doc-referenced) in Include/arm_nnfunctions*.h. Returns None (after
     recording a failure) if header discovery looks broken, so callers can
-    bail out without a confusing "0 gaps found" result -- see the
-    "Header discovery" note above for why a bare non-empty check is not
-    enough on its own.
+    bail out without reporting success for an incomplete API surface.
     """
     paths = sorted(include_dir.glob(PUBLIC_HEADER_GLOB))
     if len(paths) < MIN_EXPECTED_PUBLIC_HEADERS:

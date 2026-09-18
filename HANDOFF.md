@@ -8,7 +8,7 @@ Replace the Sphinx site with Astro/Starlight on independent helia-ui, including 
 
 - Worktree: `/Users/adam.page/Ambiq/helia/helia-core/.claude/worktrees/helia-ui-migration`
 - Branch `docs/helia-ui-migration`; PR https://github.com/AmbiqAI/ns-cmsis-nn/pull/522
-- Content overhaul committed as 4c42de2a; main112f487e merged in 239074c4. Cutover changes prepared for publication.
+- Content overhaul committed as 4c42de2a; main112f487e merged in 239074c4. Cutover published in b276e520; PR is ready for review.
 - Source `astro-site/`; preview http://127.0.0.1:4321/ns-cmsis-nn/ serves its dist.
 - Do not edit the root checkout or other tasks' worktrees.
 
@@ -45,12 +45,12 @@ Removed Sphinx renderer, dependencies, extension, CSS and JS. Preserved authored
 - Pre-commit all-files passes, including executable-bit corrections.
 - Earlier C/C++ first-kernel, pooling and requantization examples ran on host. No new hardware acceptance or complete pack/Zephyr/NSX firmware validation.
 
-Evidence: `/private/tmp/heliacore-takeover/cutover-*.log`, browser screenshots under ignored `astro-site/test-results/`. Local complete build took7.8seconds with dependencies installed. Historical GitHub docs build step took17m12s across three Sphinx passes; new GitHub timing still to measure.
+Evidence: `/private/tmp/heliacore-takeover/cutover-*.log`, browser screenshots under ignored `astro-site/test-results/`. Local complete build took7.8seconds with dependencies installed. Historical GitHub docs build step took17m12s across three Sphinx passes; new GitHub docs job passed in99seconds, including a12second API/site build (run35295199316).
 
 ## Next steps
 
-1. Publish PR522 from a clean worktree with scripts/publish_pr.py and the reviewed SHA: push while draft, then promote. No attribution trailers; normal configured git identity.
-2. Verify exact-head full required CI. Fix failures before merge; do not bypass checks.
+1. PR522 was pushed while draft and promoted with scripts/publish_pr.py. First full CI found three stale release extra-files entries for pages that no longer carry version pins; removed them and verified PDSC/stale-version checks. Publish this correction without toggling draft.
+2. Verify exact-head full required CI. Docs passed and screenshots from the GitHub artifact were inspected. Remaining kernel/toolchain jobs were still running. Repository rules require one approving review and CI Passed; do not bypass either.
 3. Merge, verify Pages deployment and production rendering/search/API/404 behavior. Record GitHub docs timing separately from local timing.
 4. Bring this handoff current with shipped versus verified status.
 
