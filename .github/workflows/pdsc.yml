@@ -191,7 +191,7 @@ jobs:
         run: python3 scripts/check_release_asset_manifest.py
 
   api_group_classification:
-    # Guards docs/_ext/api_group_index.py's GROUP_PATTERNS: every public
+    # Guards scripts/docs/api_groups.py's GROUP_PATTERNS: every public
     # top-level kernel in Include/arm_nnfunctions*.h must match at least
     # one group, or it silently disappears from the customer-facing
     # "Browse By Kernel Family" docs page with an otherwise green docs

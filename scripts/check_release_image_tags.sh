@@ -202,7 +202,7 @@ job_skips_recovery() {
 # be skipped in recovery mode so an old tag cannot publish infrastructure
 # images or depend on the retired vcpkg-artifacts subsystem.
 release_workflow="${REPO}/.github/workflows/release.yml"
-for job in publish-ci-image release-unit-tests release-helia-core-tester; do
+for job in publish-ci-image release-unit-tests release-helia-core-tester publish-docs; do
   block="$(workflow_job_block "${release_workflow}" "${job}" || true)"
   if ! job_skips_recovery "${block}"; then
     report "${job}: must run for new releases and skip existing-tag recovery"

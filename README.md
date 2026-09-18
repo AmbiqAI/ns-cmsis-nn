@@ -1,5 +1,7 @@
 # heliaCORE
 
+[Documentation](https://ambiqai.github.io/ns-cmsis-nn/) · [Build and contribute to the site](astro-site/README.md)
+
 > Ambiq's optimized neural-network kernel library for Ambiq silicon (package:
 > `ns-cmsis-nn`), built on the Arm CMSIS-NN and CMSIS-Pack ecosystem.
 

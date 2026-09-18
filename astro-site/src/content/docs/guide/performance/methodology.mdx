@@ -1,0 +1,158 @@
+---
+title: Measurement methodology
+description: Interpret the published cycle counts and measure kernels in your own firmware.
+---
+
+Measure the kernel in the configuration your application uses. Compare output
+correctness first, then execution cost. A faster kernel is useful only if it
+preserves the required behavior for your tensors.
+
+## Conditions of the published measurements
+
+The [kernel benchmark tables](/ns-cmsis-nn/guide/performance/kernel-benchmarks/)
+retain the following conditions from the
+[repository measurement record](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/docs/guides/kernel-benchmarks.md).
+
+| Parameter | Recorded value |
+|---|---|
+| Board | Apollo510 EVB (Cortex-M55) |
+| Clock | 96 MHz (LP mode) |
+| Counter | DWT CYCCNT |
+| Implementations | Portable C (REF), DSP, MVE / Helium |
+| Compiler | arm-none-eabi-gcc 14.3.0 |
+| Optimization | `-O3`, `CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY` |
+| Iterations | 100 per kernel |
+| Metric | Average CPU cycles per call |
+
+All three implementations were measured on the same SoC at the same clock.
+REF is compiled portable C, which the compiler may optimize with target-specific
+instructions. Ratios divide one implementation's average cycles by another's;
+the headline geometric means give each listed workload equal weight.
+The detailed tables retain individual ratios. For ratios r₁ through rₙ, the
+geometric mean is exp(mean(log(r))). It does not sum timings from unrelated
+shapes or represent the latency of a complete model.
+
+:::note[Scope of the record]
+The published record does not specify the measured source revision, complete
+build commands, memory placement, cache/warmup policy, or interrupt handling.
+It does not provide a runnable benchmark harness. Use these results as recorded
+kernel measurements, not a reproducible performance guarantee for another
+release, compiler, board configuration, or model.
+:::
+
+## Measure a kernel in your application
+
+### 1. Capture the workload
+
+Record the kernel symbol, tensor dimensions and layout, stride/padding where
+applicable, data types, quantization parameters, and scratch-buffer size.
+Preserve the inputs and expected outputs so the comparison can be repeated.
+Include shapes representative of your model, rather than choosing only a
+favorable vector-aligned size.
+
+### 2. Record the build and board configuration
+
+Keep the heliaCORE commit or release, compiler version, full compile/link flags,
+feature definitions, firmware ELF, and link map with the results. Record the
+board and clock configuration, code/data/scratch placement, and relevant cache
+settings. When comparing implementations, hold these conditions fixed and
+record the source or build changes used to select each path.
+
+See [Acceleration paths](/ns-cmsis-nn/guide/architecture/acceleration-paths/) for
+ways to verify the selected implementation. A `REF` label alone does not prove
+which instructions the compiler emitted.
+
+### 3. Verify outputs before timing
+
+Run the kernel and compare its result with expected output under the API's
+numeric contract. Check return status where provided. Reinitialize any inputs
+that the kernel modifies before each iteration, so repeated calls perform the
+same work. Keep validation and logging outside the timed interval.
+
+### 4. Define the timed interval
+
+Use the board SDK's supported timing facilities. If you use DWT CYCCNT, verify
+that the counter is enabled and advancing on your target, account for counter
+wraparound, and measure the overhead of the timing reads.
+
+State whether allocation, input packing, weight preparation, and cache warmup
+are inside or outside the interval. Measure the full operation your application
+pays for; if preparation is reused across calls, report it separately. Choose
+and record an interrupt policy that represents your comparison, rather than
+silently mixing interrupted and uninterrupted runs.
+
+### 5. Report the distribution and comparison
+
+Record the iteration count, individual samples where practical, and summary
+statistics such as minimum, median, and mean. Explain warmup and any excluded
+samples. Report the actual cycle counts alongside the ratio:
+
+```text
+speedup = baseline average cycles / candidate average cycles
+```
+
+A value greater than 1 means fewer cycles for the candidate; below 1 means more.
+Convert cycles to elapsed time only with the measured clock configuration. Cycle
+counts alone do not measure energy or establish battery-life improvements.
+
+## Capture MVE counters
+
+Use [helia-core-tester's hardware runner](https://github.com/AmbiqAI/helia-core-tester/blob/f2a73596ced2c2dcdd0a67b8759408a92f497e34/README.md#hardware-cli)
+to combine correctness checks with timing and named PMU events. Complete that
+repository's hardware/toolchain setup first. From its checkout, this example
+builds, flashes when required, and runs convolution cases on a connected board:
+
+```bash
+uv run helia_core_tester hardware run \
+  --board apollo510_evb \
+  --suite int \
+  --family ConvolutionFunctions \
+  --pmu-counters mve:ARM_PMU_MVE_INST_RETIRED,ARM_PMU_MVE_STALL_RESOURCE_MEM,ARM_PMU_MVE_PRED
+```
+
+Select the board and probe explicitly when more than one is connected. The tester
+README documents device selection, firmware setup, counter support and limits.
+The example is a capture workflow, not a command to reproduce the older cycle
+tables: those tables do not record a matching source revision or capture plan.
+
+### Choose counters for a question
+
+| Event | Interpretation |
+|---|---|
+| `ARM_PMU_MVE_INST_RETIRED` | MVE instructions architecturally executed. Check that vector code runs in the measured window. |
+| `ARM_PMU_MVE_FP_MAC_RETIRED` | Floating-point MVE multiply or multiply-accumulate instructions executed. Useful when examining a supported float compute kernel. |
+| `ARM_PMU_MVE_STALL_RESOURCE_MEM` | Stalls attributed to MVE memory-resource conflicts. Investigate layout, access patterns, and placement alongside cycle counts. |
+| `ARM_PMU_MVE_PRED` | Cycles with one or more predicated beats executing. This does not measure lane utilization. |
+
+Definitions come from [CMSIS PMU events](https://arm-software.github.io/CMSIS_6/main/Core/group__pmu8__events__armv81.html).
+Availability depends on the target and capture configuration; an unsupported
+counter is not a zero measurement. The tester's
+[event catalog](https://github.com/AmbiqAI/helia-core-tester/blob/f2a73596ced2c2dcdd0a67b8759408a92f497e34/assets/pmu/armv8m_pmu_events.json)
+lists selectable names.
+
+### Read a capture correctly
+
+- Check output correctness first. Then inspect `overflow_detected`,
+  `valid_for_regression`, and the individual counter support flags. The validity
+  field does not replace a correctness result.
+- `case_summary.csv` reports counter medians per invocation. Raw samples retain
+  the capture values and iteration counts; apply the documented normalization
+  before comparing them with the summary.
+- Selecting more counters can require multiple passes. Each pass replays the
+  workload, so keep input and state preparation consistent. Do not add replayed
+  cycle counts into a single-call latency or assume all events were simultaneous.
+- PMU cycles and DWT cycles can use different capture boundaries. Compare each
+  against its own window and overhead rather than forcing their values to match.
+- Retired instruction counts and stall events explain activity. They are not
+  direct measurements of throughput, vector utilization, power, or energy.
+
+Keep the raw samples, case summary, session manifest, correctness results and
+firmware artifacts together. See [Validation](../validation/) for the evidence
+needed to support a result.
+
+## Check the full model too
+
+Kernel timings isolate one operation and shape. Model latency also includes
+other operators, tensor movement, preparation, and runtime overhead. After
+improving a kernel, measure end-to-end inference in the intended heliaAOT,
+heliaRT, or custom-runtime application to establish the application benefit.

@@ -1,0 +1,161 @@
+---
+title: Toolchains
+description: Match compiler and ABI settings, inspect prebuilt metadata, and handle FP16 assembler compatibility.
+---
+
+Use the compiler qualified for your firmware project. heliaCORE provides source
+integration and release SDK libraries for GCC, Arm Toolchain for Embedded
+(ATfE), and Arm Compiler 6. Source builds let you compile the kernels with the
+same settings as the rest of your application.
+
+## Choose the integration mode
+
+| Situation | Approach |
+|---|---|
+| Existing firmware toolchain and a matching release archive | Use that toolchain's prebuilt SDK and verify its manifest. |
+| Different compiler version, target flags, or kernel features | Build from source and validate with your application. |
+| Comparing compiler performance | Build the same kernels and measure the same inputs, target, flags, and memory placement. |
+| CMSIS-Pack project using a compiler other than GCC | Use the Source variant; prebuilt file selections require GCC. |
+
+Do not infer compatibility from a toolchain name alone. Compiler version,
+architecture flags, float ABI, and enabled features all contribute to the build
+configuration.
+
+## Inspect a prebuilt SDK
+
+Each SDK includes `manifest.json`. Compare these fields with your firmware's
+compiler and verbose build output:
+
+| Field | Check |
+|---|---|
+| `version` | Headers and archive belong to the release you selected. |
+| `toolchain.id` | `gcc`, `atfe`, or `armclang` artifact family. |
+| `toolchain.compiler_id` | CMake compiler identity. |
+| `toolchain.version` | Compiler version used to build the archive. |
+| `abi.arch_flags` | CPU, FPU, and float ABI configuration. |
+| `features.f32`, `features.f16` | Floating-point kernels compiled into the archive. |
+
+The package records build identity; it does not change your board's flags to
+match. If the configurations disagree, select another archive or build sources.
+See [Targets](../cortex-m-targets/) for the release CPU profiles.
+
+### What CMake validates
+
+`find_package(ns-cmsis-nn REQUIRED CONFIG)` performs these limited checks:
+
+| Check | Behavior |
+|---|---|
+| Archive and include directory | Reports the package as unavailable if either is missing. |
+| `-mcpu` in `CMAKE_C_FLAGS` | Fails if that CPU string differs from the recorded target. |
+| Available `CMAKE_C_COMPILER_ID` | Fails if it differs from the archive's recorded compiler ID. |
+| Requested package version | Applies CMake package-version compatibility rules; use `EXACT` when requiring an exact version. |
+
+It does **not** comprehensively validate target-local flags, compiler versions,
+FPU settings, or float ABI. NSX and Zephyr prebuilt adapters import their
+configured archive directly and do not inherit these `find_package` checks.
+They have their own float-feature validation when manifest metadata is available.
+
+| Compiler family | CMake ID |
+|---|---|
+| Arm Toolchain for Embedded | `Clang` |
+| GNU Arm Embedded | `GNU` |
+| Arm Compiler 6 | `ARMClang` |
+
+The compiler-ID check is a package provenance check. It is not a claim that all
+objects from different Arm toolchains are inherently ABI-incompatible, or that
+all compilers sharing one ID are interchangeable.
+
+## Configure a source build
+
+For a firmware project, use its existing toolchain and follow the
+[CMake integration guide](/ns-cmsis-nn/getting-started/cmake/#build-from-source).
+Do not replace a board SDK's toolchain with the repository's standalone archive
+build configuration.
+
+To build only the library using the repository's GCC toolchain, run from the
+heliaCORE checkout with `arm-none-eabi-gcc` available on `PATH`:
+
+```bash
+cmake -S . -B build/heliacore-gcc \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
+  -DNS_CMSIS_NN_TARGET_CPU=cortex-m55 \
+  -DARM_NN_ENABLE_F32=ON \
+  -DARM_NN_ENABLE_F16=OFF
+cmake --build build/heliacore-gcc --verbose
+```
+
+Choose the release CPU profile that matches your intended configuration. This
+build produces a library, not a flashable board application. The example enables
+FP32 deliberately; leave both float options off for an integer-only build.
+Use a fresh build directory when changing compiler toolchains.
+
+## FP16 assembler compatibility
+
+On MVE targets, some FP16 kernels widen to FP32 for arithmetic and narrow the
+result again. Older GNU assemblers can mis-encode the vector half/single
+conversion instructions. The library supplies conversion wrappers and a CMake
+probe so supported source builds can use a correct implementation.
+
+- When the probe verifies vector encodings, the wrappers use vector conversions.
+- When it detects affected encodings, the wrappers use scalar conversions.
+- If the probe cannot establish a result, the headers use their compiler-based
+  fallback policy. Read configure output when using custom compiler/assembler
+  combinations.
+
+The fallback applies to conversion users, including support helpers; it is not
+limited to a fixed list of kernels. Its performance effect depends on how often
+the workload uses those conversions. This mechanism does not enable FP16 APIs:
+you must still select the feature through your integration's build options.
+
+<details>
+<summary>How to inspect the probe and fallback</summary>
+
+The probe measures object encodings with the compiler and target flags available
+at configuration time. It reports its result through target definitions:
+
+| Definition | Meaning |
+|---|---|
+| `ARM_NN_GAS_F16_VERIFIED=1` | Vector half/single conversions were verified. |
+| `ARM_NN_GAS_VCVT_F16_BROKEN=1` | Conversion wrappers must use the scalar workaround. |
+
+Target options hidden in unevaluated generator expressions, flags added too late,
+or a failing witness compilation can prevent a conclusive probe. Check the
+configure messages and the verbose compile command rather than treating the
+absence of a build error as an encoding verdict.
+
+Outside CMake, `Include/Internal/arm_nn_vcvt_f16.h` provides a fallback: GNU
+compiler versions below 14 use scalar conversions unless explicitly verified;
+newer GNU versions use vector conversions unless marked affected. This is a
+proxy for the assembler normally shipped with that compiler. A custom compiler
+and assembler pairing can invalidate that assumption.
+
+Do not define `ARM_NN_GAS_F16_VERIFIED` merely to suppress the fallback. It asserts
+that the assembler has been verified. For a custom older assembler, the affected
+conversion path can be selected explicitly with
+`ARM_NN_GAS_VCVT_F16_BROKEN=1`.
+
+The scalar workaround can preserve NaN payloads differently from the vector
+form. Both produce NaNs for NaN inputs; applications that depend on payload bits
+must validate their chosen configuration.
+
+See the [conversion header](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/Include/Internal/arm_nn_vcvt_f16.h)
+and [assembler investigation](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)
+for the implementation and measured encoding evidence.
+
+</details>
+
+## Verify a toolchain change
+
+1. Record the compiler version, target flags, feature switches, and library release.
+2. Build with verbose output and confirm the intended compiler and options reach
+   both kernels and their callers.
+3. Run correctness tests for the operators and shapes your application uses.
+4. Measure performance under the same board, input, and memory conditions before
+   comparing results. Follow the [benchmark methodology](/ns-cmsis-nn/guide/performance/methodology/).
+
+| Failure | Next check |
+|---|---|
+| CMake reports a compiler mismatch | Choose the matching SDK or build from source. |
+| Linker reports incompatible floating-point ABI | Compare `-mfloat-abi` and FPU settings across all inputs. |
+| Float function is missing | Check feature definitions and archive contents, then [Build options](../build-path-selection/). |
+| Unexpected results after a compiler change | Reproduce with fixed inputs and inspect the selected CPU path and FP16 probe result where applicable. |

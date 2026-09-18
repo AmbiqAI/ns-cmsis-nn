@@ -1,0 +1,179 @@
+---
+title: Build options
+description: Select operator groups, enable data types, and verify the kernels included in your firmware.
+---
+
+Configure heliaCORE around the kernels your application calls. Source builds let
+you select operator groups and floating-point features before compilation.
+Prebuilt libraries already have those choices fixed; consumer settings cannot add
+functions to an archive.
+
+import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
+import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
+
+<CardGrid columns={2}>
+  <LinkCard title="Choose sources" href="#select-operator-groups">Include the families your application needs and their support functions.</LinkCard>
+  <LinkCard title="Enable floating point" href="#enable-floating-point">Keep source selection and compiler-visible APIs aligned.</LinkCard>
+</CardGrid>
+
+## Select operator groups
+
+The shared manifest, `cmake/ns_cmsis_nn.cmake`, defines the source files for each
+operator group. CMake, Zephyr, and neuralSPOT-X use that manifest, but expose
+different configuration controls:
+
+| Integration | Group selection | Default behavior |
+|---|---|---|
+| Direct CMake attachment | `ns_cmsis_nn_attach(... GROUPS ...)` | Omitting `GROUPS` selects all groups. |
+| Repository's top-level CMake build | Options such as `CONVOLUTION`, `ACTIVATION`, and `NNSUPPORT` | Each group option defaults to `ON`. |
+| Zephyr | `CONFIG_NS_CMSIS_NN_ACTIVATION`, `CONFIG_NS_CMSIS_NN_CONVOLUTION`, and other Kconfig symbols | Select the groups you need; `CONFIG_NS_CMSIS_NN_ALL=y` implies all groups and floating-point features where supported. |
+| neuralSPOT-X source build | `NSX_CMSIS_NN_GROUPS` | Defaults to `ALL`. |
+| CMSIS-Pack Source | Pack component source list | Uses the pack's source list, not the CMake group switches. |
+
+Group names are build categories, not individual runtime operators. Selecting
+`convolution`, for example, includes multiple convolution implementations.
+Keep `nnsupport` when your chosen kernels depend on shared math or tables. The
+manifest does not inspect your model and calculate its dependency closure.
+
+### Direct CMake attachment
+
+This example adds activation kernels and their support sources to an existing
+firmware target. Create that target and apply your board configuration first.
+
+```cmake title="CMakeLists.txt · existing my_firmware target"
+set(ARM_NN_ENABLE_F32 OFF)
+set(ARM_NN_ENABLE_F16 OFF)
+include("${CMAKE_SOURCE_DIR}/third_party/ns-cmsis-nn/cmake/ns_cmsis_nn.cmake")
+
+ns_cmsis_nn_attach(my_firmware
+    GROUPS activation nnsupport
+    DTYPES ALL
+)
+target_compile_definitions(my_firmware PRIVATE
+    ARM_NN_ENABLE_F32=$<BOOL:${ARM_NN_ENABLE_F32}>
+    ARM_NN_ENABLE_F16=$<BOOL:${ARM_NN_ENABLE_F16}>
+)
+```
+
+The helper adds sources and the public include directory. It does not add the
+floating-point compiler definitions shown above. If attaching to a separate
+library, make those definitions `PUBLIC` so callers see the same API declarations.
+
+`DTYPES` is an optional filename filter. Start with `ALL`; narrow it only after
+checking the kernels and helpers your application calls. A filter such as
+`DTYPES q7` fits the [First kernel](/ns-cmsis-nn/getting-started/first-kernel/)
+example, but is not a general recipe for all 8-bit inference. Mixed-type helpers
+may be needed, and files without a recognized type tag remain included.
+
+### Zephyr
+
+A minimal activation configuration is:
+
+```ini title="prj.conf"
+CONFIG_NS_CMSIS_NN=y
+CONFIG_NS_CMSIS_NN_ACTIVATION=y
+```
+
+Activation implies the support group. Do not also enable upstream
+`CONFIG_CMSIS_NN`: the module's Kconfig makes the two integrations mutually
+exclusive. Use `west build -t menuconfig` to inspect available group choices.
+See [Zephyr integration](/ns-cmsis-nn/getting-started/zephyr/) for module setup.
+
+### neuralSPOT-X
+
+Set the group list before NSX adds the heliaCORE module:
+
+```cmake title="Before NSX module setup"
+set(NSX_CMSIS_NN_GROUPS "activation;nnsupport" CACHE STRING
+    "heliaCORE operator groups")
+```
+
+This setting applies to source builds. When `NSX_CMSIS_NN_LIB` points to a
+prebuilt archive, the module imports that file instead. See
+[neuralSPOT-X integration](/ns-cmsis-nn/getting-started/neuralspot-x/).
+
+## Enable floating point
+
+FP16 and FP32 are experimental APIs with per-operator support. Source selection
+and compiler definitions must agree; enabling one without the other can leave
+functions absent from the build or hidden from callers.
+
+| Integration | Enable FP32 | Enable FP16 |
+|---|---|---|
+| Direct attachment or top-level CMake | `ARM_NN_ENABLE_F32=ON` | `ARM_NN_ENABLE_F16=ON` |
+| neuralSPOT-X | `ARM_NN_ENABLE_F32=ON` | `ARM_NN_ENABLE_F16=ON` |
+| Zephyr | `CONFIG_NS_CMSIS_NN_ENABLE_F32=y` | `CONFIG_NS_CMSIS_NN_ENABLE_F16=y` |
+| CMSIS-Pack Source, compiler definitions | `ARM_NN_ENABLE_F32=1` | `ARM_NN_ENABLE_F16=1` |
+
+For [CMSIS-Pack](/ns-cmsis-nn/getting-started/cmsis-pack/#optional-floating-point-kernels),
+apply the numeric definitions to both component sources and callers. The pack
+does not translate CMake options into compiler definitions.
+
+For the direct-attachment example above, change `ARM_NN_ENABLE_F32` to `ON`
+before attaching sources. Leave `DTYPES ALL`, or include `f32` in a deliberate
+filter. The compiler definitions in the example then enable the corresponding
+APIs. The top-level CMake, NSX, and Zephyr adapters propagate definitions for you.
+
+CMake and NSX float options default off. Zephyr's individual float symbols also
+default off, but `CONFIG_NS_CMSIS_NN_ALL=y` implies them. Zephyr's FP16 symbol
+additionally requires `ARMV8_1_M_MVEF`; it cannot be enabled for every target.
+For compiler requirements, see [Toolchains](../toolchains/).
+
+### Prebuilt libraries
+
+Check `features.f32` and `features.f16` in the SDK's `manifest.json`. The CMake
+package exposes the float features compiled into that archive automatically.
+NSX and Zephyr keep explicit float opt-ins and validate requests against available
+manifest metadata. Missing or older metadata is not evidence that an archive
+contains the requested functions.
+
+After creating or importing a library target, a CMake consumer can query its
+exposed float features:
+
+```cmake
+ns_cmsis_nn_float_support(F32 has_f32 F16 has_f16 TARGET ns::cmsis-nn)
+message(STATUS "heliaCORE features: FP32=${has_f32}, FP16=${has_f16}")
+```
+
+Use your actual library target, such as `nsx::cmsis_nn`, when integrating through
+another adapter. This query reports target definitions; it does not run kernels
+or inspect a binary for every symbol. For direct attachment to an executable,
+keep the explicit options and definitions aligned as shown above.
+
+## Select the CPU execution path
+
+DSP and Helium implementations are selected at compile time from the target's
+architecture features. A runtime does not switch a compiled library between
+CPUs. Source integration uses the consuming build's flags; the repository's
+standalone toolchain files set flags for their selected CPU.
+
+| Compiler feature | Library path, where implemented |
+|---|---|
+| `__ARM_FEATURE_DSP` | DSP implementations through `ARM_MATH_DSP`. |
+| Integer `__ARM_FEATURE_MVE` | Helium integer implementations through `ARM_MATH_MVEI`. |
+| Floating-point `__ARM_FEATURE_MVE` | Helium floating-point implementations through `ARM_MATH_MVEF` and `ARM_MATH_MVE_FLOAT16`. |
+| No applicable acceleration feature | Scalar implementation where the selected API provides one. |
+
+`ARM_MATH_AUTOVECTORIZE` disables explicit MVE paths where their guards check
+that macro, allowing the compiler to handle vectorization instead. Do not
+manually define architecture macros to emulate hardware the target lacks.
+See [Targets](../cortex-m-targets/) and [Acceleration paths](../acceleration-paths/).
+
+## Verify a configuration change
+
+1. Reconfigure using your existing board toolchain or SDK workflow.
+2. Inspect a verbose build: check which source files compile and whether the
+   `ARM_NN_ENABLE_F32/F16` definitions match the intended features.
+3. Check the link map or linked symbols for the functions your application calls.
+   Compiling a file alone does not prove its feature-gated functions are present.
+4. Run a representative kernel on the target and compare its output with expected
+   data. Recheck performance separately when changing optimization or CPU flags.
+
+| Symptom | Check first |
+|---|---|
+| A function is undeclared | Public header and feature definitions visible to the calling source. |
+| Undefined reference at link time | Operator group, type filter, library version, and prebuilt feature contents. |
+| Float options appear ignored in Zephyr | Set Kconfig symbols; its adapter overwrites the corresponding CMake variables. |
+| Changed source options have no effect | Confirm the integration is building sources rather than importing an archive. |
+
+For initial setup, return to [Getting started](/ns-cmsis-nn/getting-started/).

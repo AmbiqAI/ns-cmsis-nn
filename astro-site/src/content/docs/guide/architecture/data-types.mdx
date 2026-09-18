@@ -1,0 +1,72 @@
+---
+title: Data types
+description: Choose a kernel format and keep source selection, public APIs, and model data consistent.
+---
+
+import Callout from '@ambiqai/helia-ui/astro/Callout';
+
+Choose a kernel that matches the model's tensor format. heliaCORE provides
+quantized integer and floating-point functions; availability depends on the
+operator, shape, and target. Changing a function suffix does not convert a model.
+
+## Choose a format
+
+| Format | Activations | Weights | Where to check |
+|---|---|---|---|
+| **A8W8** | Signed 8-bit | Signed 8-bit | `s8` convolution and fully connected APIs; check each operator's contract. |
+| **A16W8** | Signed 16-bit | Signed 8-bit | `s16` convolution and fully connected APIs; bias requirements vary by function. |
+| **A8W4** | Signed 8-bit | Packed signed 4-bit | Selected `s4` convolution and fully connected APIs; packing is part of the contract. |
+| **FP16** | Half-precision floating point | Half precision, where applicable | `f16` APIs, enabled explicitly and subject to target/compiler support. |
+| **FP32** | Single-precision floating point | Single precision, where applicable | `f32` APIs, enabled explicitly. |
+
+Weight combinations apply to weighted operators. Pooling, data movement, and
+other operations may have no weights at all. Use [Operator coverage](/ns-cmsis-nn/guide/coverage/operator-coverage/)
+to find a family and the [Kernel index](/ns-cmsis-nn/reference/kernel-index/) to
+inspect individual signatures and constraints.
+
+<Callout title="Floating-point APIs are experimental" tone="experimental">
+FP16 and FP32 are opt-in features. Enabling a format does not give every operator
+an implementation for every shape or acceleration path. Check the selected API
+and validate its output with your model data.
+</Callout>
+
+## Read function names carefully
+
+The source manifest recognizes `s4`, `s8`, `s16`, `s32`, `s64`, `q7`, `q15`,
+`f16`, and `f32` tags. A suffix identifies a kernel variant, not every argument
+in its signature: an `s8` convolution accepts int8 inputs and weights but int32
+bias and quantization parameters.
+
+- `q7` and `q15` identify inherited fixed-point APIs. The `q7` ReLU in
+  [First kernel](/ns-cmsis-nn/getting-started/first-kernel/) clamps signed values
+  at integer zero; it is not an affine-quantization adapter.
+- `s32` and `s64` can identify intermediate, index, bias, or accumulator data.
+  Read the parameters rather than treating them as a model-wide precision.
+- Mixed names can describe mixed input/output types. For example,
+  `arm_elementwise_mul_s16_s8` accepts int16 inputs and writes int8 output.
+
+For scale, zero-point, and requantization conventions, continue to
+[Quantization](/ns-cmsis-nn/guide/using-kernels/quantization/).
+
+## Enable the matching sources and APIs
+
+Source selection and preprocessor definitions must agree. The standalone CMake
+options `ARM_NN_ENABLE_F32` and `ARM_NN_ENABLE_F16` default to `OFF`. Other
+integration entry points can select different defaults; follow that integration's
+guide rather than assuming all builds are integer-only.
+
+| Layer | What to configure |
+|---|---|
+| Source selection | Enable the operator groups and include the relevant tags in `DTYPES`. Floating-point sources also need their CMake feature option enabled. |
+| Compiler definitions | Define `ARM_NN_ENABLE_F32` and `ARM_NN_ENABLE_F16` consistently for the library and consuming code. The direct `ns_cmsis_nn_attach()` helper does not set these definitions for you. |
+| Headers | `arm_nnfunctions.h` includes the floating-point declarations when the float API is enabled. Use the header required by the selected API. |
+| Prebuilt library | Check the package's feature manifest. Defining a macro in your application cannot add a kernel missing from its archive. |
+
+`DTYPES ALL` applies no filename-type filter. Untagged common files in selected
+groups remain included; the filter does not discover an application's kernel
+dependencies. Preserve the support groups needed by your chosen functions.
+
+Follow the complete [CMake source recipe](/ns-cmsis-nn/getting-started/cmake/)
+for definitions and include propagation. See [Build options](/ns-cmsis-nn/guide/architecture/build-path-selection/)
+for selection controls and [Toolchains](/ns-cmsis-nn/guide/architecture/toolchains/)
+for FP16 compiler requirements.

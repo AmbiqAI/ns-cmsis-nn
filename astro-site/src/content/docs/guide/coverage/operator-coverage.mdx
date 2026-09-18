@@ -1,0 +1,78 @@
+---
+title: Operator coverage
+description: Find the operator family and numeric format your application needs.
+---
+
+import coverage from '../../../../data/coverage.json';
+
+heliaCORE builds on Arm CMSIS-NN with additional operators and implementations
+for production models on Ambiq silicon. Its coverage includes convolution and
+dense layers, tensor indexing and movement, reductions, comparisons, activations,
+and recurrent operations, with both quantized and floating-point APIs.
+
+Start with the operation your model needs, then check the exact data type and
+shape in the [kernel index](/ns-cmsis-nn/reference/kernel-index/). Search by name,
+filter by family or data type, and open the function for its contract.
+
+## Find an operator family
+
+The links below open the corresponding API family. Each family contains multiple
+operations and variants; a family containing FP16 functions does not imply FP16
+support for every operation in that family.
+
+<table>
+  <thead><tr><th>Family</th><th>Operations and variants</th><th>Numeric tags present</th></tr></thead>
+  <tbody>
+    {coverage.families.map((family) => (
+      <tr>
+        <td><a href={family.href}>{family.label}</a></td>
+        <td>{family.blurb}</td>
+        <td>{coverage.dtypes.filter((dtype) => family.counts[dtype] > 0).join(', ')}</td>
+      </tr>
+    ))}
+  </tbody>
+</table>
+
+The table is generated from declarations in the public kernel headers using the
+same extracted API model as the reference. It includes wrapper and buffer-sizing
+functions. It is an API inventory, not a count of distinct model operators or
+accelerated implementations. [Detailed function counts](../data-types-by-family/)
+explain the counting rules.
+
+## Choose a numeric format
+
+| Format | Typical API tag | Check before using |
+|---|---|---|
+| A8W8 | `s8` | Activation and weight quantization, offsets, bias type, and per-channel parameters |
+| A16W8 | `s16` on the relevant compute APIs | Weight and accumulator types in the signature; `s16` alone does not describe all arguments |
+| 4-bit weights | `s4` | Packed weight layout and supported shapes; this is not a general 4-bit activation format |
+| FP16 | `f16` | Opt-in float API and build support, target features, and function-specific constraints |
+| FP32 | `f32` | Opt-in float API and the selected target implementation |
+
+The inherited `q7` and `q15` names use separate fixed-point conventions. Do not
+choose them solely because their storage width matches a quantized tensor.
+See [Data types](/ns-cmsis-nn/guide/architecture/data-types/) and
+[Quantization](/ns-cmsis-nn/guide/using-kernels/quantization/) before preparing inputs.
+
+## Check the full operation
+
+Before treating an operator as supported in your application, confirm all four:
+
+1. **Contract:** the function accepts the tensor layout, shape, strides, padding,
+   and numeric format required by your model.
+2. **Build:** its source group, support functions, and data type are included in
+   your library, and public headers have matching feature definitions.
+3. **Memory:** output, state, and scratch buffers satisfy the function's requirements.
+4. **Execution:** the selected path produces the expected result for representative
+   inputs on your target. DSP or Helium coverage can depend on shape and format.
+
+Use [Calling kernels](/ns-cmsis-nn/guide/using-kernels/calling-kernels/) for the call
+sequence and [Acceleration](/ns-cmsis-nn/guide/architecture/acceleration-paths/)
+for implementation selection.
+
+## Built on Arm CMSIS-NN
+
+Arm CMSIS-NN supplies the foundation. heliaCORE extends it with operations such
+as gather, scatter, graph updates, reductions, and floating-point arithmetic for
+Ambiq applications. The [CMSIS-NN relationship](../compared-with-cmsis-nn/) gives
+concrete additions and the source revisions used for comparison.

@@ -1,0 +1,107 @@
+---
+title: Memory
+description: Size scratch buffers, preserve layer state, and manage tensor ownership when calling kernels.
+---
+
+import Callout from '@ambiqai/helia-ui/astro/Callout';
+
+Plan memory for the selected API and compiled target. The caller supplies the
+input/output tensors and any context buffers. A scratch-size query covers that
+kernel's temporary workspace; it is not the total memory needed by a layer or model.
+
+## Separate the lifetimes
+
+| Resource | Keep it valid for | Reuse rule |
+|---|---|---|
+| Input and output tensors | The call and any later consumer of those tensors | Reuse storage only after its data is no longer needed. Overlap only where the specific API permits it. |
+| Scratch workspace | The duration of the call | Sequential calls can share a sufficiently large, suitably aligned workspace. Concurrent calls need separate writable workspace. |
+| Weights, bias, and quantization arrays | Every call that reads them | Immutable arrays may be shared. Do not change them during a call. |
+| Precomputed weight sums | Calls using the same layer parameters | Retain per-layer sums; recompute after weights, bias, or input offset changes. |
+| Recurrent state | Successive steps in the same sequence | Follow the recurrent API's reset and update rules; it is not disposable scratch. |
+
+Do not use one memory region interchangeably for persistent state and scratch.
+Saving workspace across calls does not mean its contents are preserved.
+
+## Query before allocating
+
+Use the sizing function paired with the entry point you call. For example,
+`arm_convolve_wrapper_s8_get_buffer_size()` matches the wrapper, while
+`arm_avgpool_s8_get_buffer_size(output_dims.w, input_dims.c)` sizes average pooling.
+Use the target's normal sizing API when compiling for that target; explicit
+`_dsp` and `_mve` sizing variants are useful to host-side tooling.
+
+1. Validate your tensor shapes and arithmetic used to calculate tensor capacities.
+2. Query the workspace size using the same parameters you will pass to the kernel.
+3. Check a negative return **before** converting the signed size to `size_t`.
+4. Supply at least that many bytes, with the alignment required by the selected API.
+5. Keep the buffer valid until the kernel returns, then reuse or release it.
+
+For the s8 pooling and convolution queries above, `-1` reports an out-of-range
+size or inspected dimension, and `0` means no scratch is required by that route.
+Neither a zero nor positive return validates every dimension or proves the tensor
+buffers are large enough.
+
+<Callout title="The context is not an allocator" tone="note">
+Setting `cmsis_nn_context.size` does not allocate memory. Do not assume every
+kernel checks that field against the backing buffer. Allocate and verify capacity
+in the caller before passing `ctx.buf`.
+</Callout>
+
+## A workspace can change with the build
+
+For `arm_avgpool_s8`, a valid channel count needs the following workspace:
+
+| Compiled path | Scratch bytes |
+|---|---|
+| DSP without MVE | Input channels × `sizeof(int32_t)` |
+| MVE | 0 |
+| Portable C | 0 |
+
+[Calling kernels](/ns-cmsis-nn/guide/using-kernels/calling-kernels/) contains a
+complete two-channel example. Its `int32_t scratch[2]` supplies eight bytes and
+natural int32 alignment, sufficient for that pooling example on all three paths.
+The example still calls the sizing API and checks capacity, so a changed contract
+fails visibly rather than writing beyond the array.
+
+This is a pooling-specific rule. Do not infer another kernel's buffer size or
+alignment from it. Re-query or regenerate the memory plan when changing the
+kernel, shape, compiler path, or library version.
+
+## Keep convolution weight sums out of scratch
+
+For the s8 convolution wrapper, query `arm_convolve_s8_get_weights_sum_size()`
+for the separate weight-sum buffer. On MVE it contains one `int32_t` per output
+channel. On other builds the query returns zero; it can also return `-1` for an
+out-of-range output channel count.
+
+Fill the buffer with `arm_convolve_weight_sum()` before the first call. For each
+output channel it combines the sum of the layer's weights multiplied by the input
+offset with the channel bias. It stays valid across input batches while those
+parameters are unchanged. Keep separate precomputed contents for different
+layers, or deliberately recompute them before reusing the storage.
+
+The wrapper requires a non-null `weight_sum_ctx` structure even on non-MVE builds
+where its buffer can be null. The helper's documented `ARM_CMSIS_NN_NO_IMPL_ERROR`
+return on non-MVE is a no-op, not a failure of convolution. On MVE, a non-null but
+unfilled buffer is not safe: its incorrect values can pass argument checks.
+
+Depthwise convolution has a different filter layout and its own weight-sum
+helper. Do not substitute ordinary convolution sums. Consult the exact wrapper's
+contract when an implementation has special dispatch rules.
+
+## Ownership, overlap, and cleanup
+
+The [First kernel](/ns-cmsis-nn/getting-started/first-kernel/) ReLU explicitly
+operates in place. That permission does not extend to pooling or convolution;
+use separate input, output, and scratch buffers unless the selected API documents
+supported overlap. A `const` input pointer alone does not establish an aliasing
+contract.
+
+Headers for the examples ask the caller to clear context buffers for security.
+Use your application's guaranteed-erasure facility when data must not remain in
+memory: an ordinary `memset` of dead local storage may be optimized away. Clear
+persistent sums only when finished using them, or recompute them before reuse.
+
+For exact context and weight-sum requirements, see
+[convolution APIs](/ns-cmsis-nn/reference/api/heliacore/arm_nnfunctions/#arm_convolve_wrapper_s8)
+and [pooling APIs](/ns-cmsis-nn/reference/api/heliacore/arm_nnfunctions/#arm_avgpool_s8).
