@@ -6,7 +6,6 @@
   "doxyfileTemplate": "Documentation/Doxygen/nn.dxy.in",
   "input": "Include",
   "sourceUrlTemplate": "https://github.com/AmbiqAI/ns-cmsis-nn/blob/{commit}/{path}#L{line}",
-  "groupsNote": "The eight operator families, carried over from GROUP_PATTERNS in docs/_ext/api_group_index.py. The patterns, their order and the group ids are identical to the Sphinx directive, so scripts/check_api_group_classification.py keeps guarding the same vocabulary. Headings, eyebrows and blurbs are the wording already on docs/reference/api-groups.md. A pattern is a JavaScript regular expression tested against the bare function name; a function joins the first group whose patterns match.",
   "groups": [
     {
       "id": "convolution",

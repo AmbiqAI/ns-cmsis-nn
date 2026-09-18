@@ -34,8 +34,16 @@ for (const header of coverage.headers) {
 }
 assert.equal(coverage.totals.functions, names.size);
 assert.equal(coverage.families.reduce((sum, family) => sum + family.functions, 0), names.size);
+const expectedByDtype = new Map();
+for (const name of names) {
+  const tags = new Set([...name.matchAll(/(?:^|_)(s4|s8|s16|s32|s64|u8|q7|q15|f16|fp16|f32)(?=_|$)/g)]
+    .map((match) => match[1] === 'fp16' ? 'f16' : match[1]));
+  for (const tag of tags) expectedByDtype.set(tag, (expectedByDtype.get(tag) ?? 0) + 1);
+}
+for (const tag of expectedByDtype.keys()) {
+  assert.ok(coverage.dtypes.includes(tag), `Missing API data type: ${tag}`);
+}
 for (const dtype of coverage.dtypes) {
-  assert.equal(coverage.totals.byDtype[dtype],
-    [...names].filter((name) => name.split('_').includes(dtype)).length, dtype);
+  assert.equal(coverage.totals.byDtype[dtype], expectedByDtype.get(dtype) ?? 0, dtype);
 }
 console.log(`Coverage matches ${names.size} declarations, including multiline prototypes (${fileURLToPath(new URL('../src/data/coverage.json', import.meta.url))}).`);

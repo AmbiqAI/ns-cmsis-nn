@@ -8,7 +8,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       const errors: string[] = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.setViewportSize({ width, height: 998 });
-      for (const route of ['', 'getting-started/first-kernel/', 'guide/', 'reference/kernel-index/', 'reference/api/heliacore/nnconv/']) {
+      for (const route of ['', 'getting-started/first-kernel/', 'guide/', 'guide/coverage/data-types-by-family/', 'reference/kernel-index/', 'reference/api/heliacore/nnconv/']) {
         const response = await page.goto(`/ns-cmsis-nn/${route}`);
         expect(response?.status()).toBe(200);
         await expect(page.locator('h1')).toBeVisible();

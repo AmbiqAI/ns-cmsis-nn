@@ -13,10 +13,8 @@ const siteRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const repoRoot = path.resolve(siteRoot, '..');
 const outFile = path.join(siteRoot, 'src', 'data', 'coverage.json');
 
-/* The tag list is `_NS_CMSIS_NN_DTYPES` in cmake/ns_cmsis_nn.cmake, in the
-   order that file writes it, so the table columns follow the build's
-   vocabulary rather than an editorial one. */
-const DTYPES = ['s4', 's8', 's16', 's32', 's64', 'q7', 'q15', 'f16', 'f32'];
+// API formats include unsigned kernels in addition to the build's dtype selectors.
+const DTYPES = ['s4', 's8', 's16', 's32', 's64', 'u8', 'q7', 'q15', 'f16', 'f32'];
 
 const config = JSON.parse(
   fs.readFileSync(path.join(siteRoot, 'reference.config.json'), 'utf8'),
@@ -55,6 +53,7 @@ if (headers.some((name) => perHeader[name] === 0)) {
 function tagsOf(name) {
   return name
     .split('_')
+    .map((segment) => segment === 'fp16' ? 'f16' : segment)
     .filter((segment) => DTYPES.includes(segment))
     .filter((segment, index, all) => all.indexOf(segment) === index);
 }

@@ -34,7 +34,7 @@ Doxygen1.17 feeds shared doxyref during prebuild. Exact coverage check verifies4
 
 The docs workflow builds, checks types/coverage and runs rendered browser tests, then uploads the tested site. Main deployments consume that same artifact. Release publishing calls the workflow at the release commit independently of pack/library builds. Historical asset recovery cannot publish docs. CMSIS-Pack Doxygen/tooling behavior remains intact.
 
-Removed Sphinx renderer, dependencies, extension, CSS and JS. Preserved authored Markdown and Documentation pack sources. The header-classification guard now imports scripts/docs/api_groups.py independently of Sphinx.
+Removed Sphinx renderer, dependencies, extension, CSS and JS. Preserved authored Markdown and Documentation pack sources. The header-classification guard reads the same reference.config.json family patterns through scripts/docs/api_groups.py, independently of Sphinx.
 
 ## Verified locally
 
@@ -49,8 +49,10 @@ Evidence: `/private/tmp/heliacore-takeover/cutover-*.log`, browser screenshots u
 
 ## Next steps
 
+Review corrections: coverage includes u8 and normalizes fp16 to f16 (77 FP16-tagged public names); regression fixtures reject both original undercounts. Removed duplicated family patterns and retired dtype helper. Issues517/520 now reflect the accepted shared-foundation/local-composition scope.
+
 1. PR522 was pushed while draft and promoted with scripts/publish_pr.py. First full CI found three stale release extra-files entries for pages that no longer carry version pins; removed them and verified PDSC/stale-version checks. Publish this correction without toggling draft.
-2. Verify exact-head full required CI. Docs passed and screenshots from the GitHub artifact were inspected. Remaining kernel/toolchain jobs were still running. Repository rules require one approving review and CI Passed; do not bypass either.
+2. Verify exact-head full required CI. Docs passed in99seconds, then74seconds with cache (run35295392152); API/site build steps12seconds and9seconds. GitHub artifact screenshots, search and kernel filtering were inspected. Remaining kernel jobs were still running before coverage review corrections. Repository rules require one approving review and CI Passed; do not bypass either.
 3. Merge, verify Pages deployment and production rendering/search/API/404 behavior. Record GitHub docs timing separately from local timing.
 4. Bring this handoff current with shipped versus verified status.
 
