@@ -42,17 +42,12 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "scripts" / "check_api_group_classification.py"
-API_GROUP_INDEX = REPO / "docs" / "_ext" / "api_group_index.py"
+API_GROUP_INDEX = REPO / "scripts" / "docs" / "api_groups.py"
 
 
 def load_module(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
-    # Register before exec: api_group_index.py's ApiFunction is a
-    # @dataclass, whose class-processing looks the defining module up in
-    # sys.modules by name -- skip this and it raises AttributeError on a
-    # module that is perfectly valid. See check_api_group_classification.py's
-    # load_api_group_index() for the same fix on the non-test path.
     sys.modules[name] = mod
     spec.loader.exec_module(mod)
     return mod

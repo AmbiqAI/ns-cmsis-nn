@@ -3,49 +3,7 @@
 # SPDX-FileCopyrightText: Copyright 2024-2026 Ambiq <opensource@ambiq.com>
 # SPDX-License-Identifier: Apache-2.0
 #
-# Guard for docs/_ext/api_group_index.py's GROUP_PATTERNS: every public
-# top-level kernel must match at least one group, or it silently drops off
-# the customer-facing "Browse By Kernel Family" page with an otherwise
-# green docs build (#283).
-#
-# Modelled on check_dsp_symbol_collisions.py (#282/#285): pure Python, no
-# build, sub-second, wired into pdsc.yml beside the existing guards.
-#
-# Layer decision -- headers directly, not the generated docs/api/ tree:
-#   An earlier version of this check lived inside docs/_ext/api_group_index.py
-#   itself and iterated the doxygen-generated function_*.rst pages,
-#   intersected with names parsed from the public headers. That is
-#   strictly weaker than iterating the headers directly: the generated-page
-#   set is doxygen/exhale/breathe output, and a public kernel whose page
-#   never gets generated -- which is not hypothetical, this repo already
-#   carries ~150 pre-existing Breathe "Cannot find function" warnings for
-#   unrelated reasons -- would be silently absent from that set and never
-#   reach the check at all, on top of costing a full doxygen+sphinx cycle
-#   (a couple of minutes, plus a network fetch of doxygen in CI) to
-#   discover what is really a one-line pattern omission. Reading
-#   Include/arm_nnfunctions*.h directly needs neither doxygen nor Sphinx,
-#   runs in milliseconds, and cannot be blinded by a generation failure
-#   somewhere else in the docs toolchain.
-#
-# GROUP_PATTERNS itself is imported from docs/_ext/api_group_index.py
-# (importlib, matching test_check_pdsc.py's pattern for importing a
-# script that is not on a normal import path) rather than duplicated, so
-# there is exactly one place that defines "what group does this kernel
-# name belong to".
-#
-# Header discovery is a glob (Include/arm_nnfunctions*.h), not a hardcoded
-# filename list, and a minimum-file-count assertion, not just a
-# non-empty-result one. A hardcoded two-item list silently degrades in two
-# different ways: delete Include/ entirely and it produces zero names (an
-# empty result is at least loud), but rename just arm_nnfunctions_flt.h --
-# the float API, which is explicitly experimental and still churning --
-# and it produces a smaller-but-nonzero name set with every float kernel
-# quietly exempted from ever being checked again, which a bare
-# non-empty-set check would wave through in silence. The glob plus a
-# minimum count catches both: today there are two conceptually distinct
-# public surfaces (the integer/quantized API and the float API), so
-# finding fewer than two is itself the failure signal, independent of
-# knowing either file's exact name.
+# Every public kernel must match a family; see #283 and #521.
 
 from __future__ import annotations
 
@@ -56,7 +14,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 INCLUDE_DIR = REPO / "Include"
-API_GROUP_INDEX = REPO / "docs" / "_ext" / "api_group_index.py"
+API_GROUP_INDEX = REPO / "scripts" / "docs" / "api_groups.py"
 
 # See "Header discovery" above.
 PUBLIC_HEADER_GLOB = "arm_nnfunctions*.h"
@@ -86,7 +44,7 @@ def fail(msg: str) -> None:
 
 
 def load_api_group_index(path: Path = API_GROUP_INDEX):
-    """Import docs/_ext/api_group_index.py by file path (it is not on a
+    """Import scripts/docs/api_groups.py by file path (it is not on a
     normal import path -- Sphinx only puts it on sys.path at build time via
     conf.py), so this check and the directive it guards always agree on
     GROUP_PATTERNS and the matching rule. Returns None (after recording a
@@ -97,10 +55,6 @@ def load_api_group_index(path: Path = API_GROUP_INDEX):
         return None
     spec = importlib.util.spec_from_file_location("api_group_index", path)
     mod = importlib.util.module_from_spec(spec)
-    # Register before exec: api_group_index.py's ApiFunction is a
-    # @dataclass, and dataclass's own class-processing looks the defining
-    # module up in sys.modules by name -- skip this and it raises
-    # AttributeError on a module that is perfectly valid.
     sys.modules[spec.name] = mod
     spec.loader.exec_module(mod)
     return mod

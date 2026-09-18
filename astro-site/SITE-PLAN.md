@@ -1,5 +1,7 @@
 # heliaCORE site plan
 
+Historical planning notes. For maintained authoring and publication instructions, see [README.md](README.md).
+
 The product site explains the library, helps users integrate it, and documents
 its kernels. The owner requested content and layout improvement alongside the
 Astro/Starlight migration. The annotated Home review supersedes the earlier

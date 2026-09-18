@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
 // @ts-check
-/*
- * The Astro Starlight site, built alongside the Sphinx site in docs/ until the
- * cut-over (AmbiqAI/ns-cmsis-nn#521). Pages still serves the Sphinx build.
- */
+
 import fs from 'node:fs';
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';

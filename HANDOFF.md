@@ -2,65 +2,56 @@
 
 ## Goal and authorization
 
-Replace Sphinx with an Astro/Starlight product site using shared helia-ui; improve content, navigation and visual presentation. Owner approved local implementation and independent release-readiness reviews. GitHub writes still require findings and approval. Product migration remains uncommitted and undeployed. Shared-package publication is authorized; helia-ui is authoritative and independent. Hub PR29 is closed and superseded. Sphinx remains production.
+Replace the Sphinx site with Astro/Starlight on independent helia-ui, including content, navigation and API improvements. Owner accepted the site and approved completing publication, cutover and Sphinx retirement. Existing issues #516/#519/#524/#521 and PR #522 cover this work. New benchmark and API-contract issues remain unapproved drafts.
 
-## Workspace and tracking
+## Workspace and source
 
 - Worktree: `/Users/adam.page/Ambiq/helia/helia-core/.claude/worktrees/helia-ui-migration`
-- Branch `docs/helia-ui-migration`, HEAD af724c78, extensive intentional dirty changes.
-- Parent #516, API #519, structure #524, cutover #521; draft PR #522 open.
-- Root main3cb6f74e is release7.35.1; migration source/examples7.35.0. Reconcile before publication, don't edit root blindly.
-- Source `astro-site/`; never root `site/`, which Sphinx deletes.
-- Preview http://127.0.0.1:4321/ns-cmsis-nn/ serves Astro dist.
-- helia-ui pinned alpha.13 at d3635e9; developer-hub paired checkout belongs to other work.
+- Branch `docs/helia-ui-migration`; PR https://github.com/AmbiqAI/ns-cmsis-nn/pull/522
+- Content overhaul committed as 4c42de2a; main112f487e merged in 239074c4. Cutover changes prepared for publication.
+- Source `astro-site/`; preview http://127.0.0.1:4321/ns-cmsis-nn/ serves its dist.
+- Do not edit the root checkout or other tasks' worktrees.
 
-## Content decisions and local implementation
+## Decisions
 
-Four top-level sections: Home, Getting started, User guide, API reference. Desktop Home has no sidebar; mobile menu retained. Home accepted by owner. Leads with Ambiq silicon, credits Arm CMSIS-NN, describes operator extensions without adversarial comparisons, promotes SSoT/selective builds, DSP/MVE, and four numeric formats. No generic Why/What sections or chip dumps.
+Four primary sections: Home, Getting started, User guide, API reference. Home leads with Ambiq silicon and credits Arm CMSIS-NN without adversarial comparisons. It covers operator extensions, DSP/MVE, numeric formats and selective SSoT builds. heliaAOT is recommended for complete models; heliaRT is the optimized LiteRT MCU interpreter path. Both use heliaCORE.
 
-heliaAOT is recommended for model deployment; heliaRT is optimized LiteRT MCU interpreter path. Both use heliaCORE. Guide overview uses compact shared-component cards over a heliaCORE foundation strip in local DeploymentPaths.astro.
+Getting started follows Overview, Requirements, Integration (CMake/CMSIS-Pack/Zephyr/NSX), First kernel. User guide follows Using kernels, Configuration and Performance. Compact dropdowns support kernel browsing; no header-file filter wall. Editorial notes are excluded from site content.
 
-Getting started: Overview, Requirements, Integration(CMake/CMSIS-Pack/Zephyr/NSX), First kernel. Source-verified options, float definitions, ABI caveats, package selection and troubleshooting. C/C++ first-kernel example runs on host. CMSIS-Pack float configuration added in final review; no full firmware validation.
+Benchmarks use 28 GCC integer workloads. Highlights use one significant figure without approximation symbols; detailed tables retain precision. No inferred FP16, compiler, PMU, footprint or whole-model measurements.
 
-User guide: Using kernels(coverage/data types/quantization/calling/memory), Configuration(build options/targets/toolchains), Performance(acceleration/benchmarks/measurement/validation). Source-grounded contracts and runnable pooling/rounding examples. Old moved Astro URLs retained through redirects.
+Keep existing authored redirects. Unknown URLs return a custom 404 then redirect to Home after five seconds, with immediate Home/API links. Exhaustive old generated API URL/anchor mapping is explicitly dropped. Missing fragments on existing pages may land without scrolling.
 
-Benchmarks:28GCC integer workloads; highlight rounding is ONE significant figure with no approximation/equal symbol. Full tables/CSV retain precision. Local spotlight/chart components show derived speedups; no invented extra measurement dimensions. Expanded GCC/ATfE/ACfE, FP16/FP32, footprint, setup, PMU and correctness measurement issue draft awaits approval. Tester source reviewed at f2a73596; no new board measurements. Reserve unreleased heliaDSP/heliaML for later hub work.
+## Shared package: released and consumed
 
-## API and build
+helia-ui owns its CI, gallery and releases. Dev Hub issue30 is closed; it is an ordinary consumer. Core pins v0.1.0-alpha.13, release commit d3635e977a5c668c9457415d5f67941aab70304d. All139installed files matched release source after clean install; no node_modules patches.
 
-Doxygen1.17 -> shared doxyref -> MDX/model/navigation/coverage during prebuild. All404public declarations match exact header name sets; full model585functions includes helpers. Kernel browser/family lists use public kernels only. Internal support page retained for contracts but removed from search. C parameter blanks originate in headers, not extraction.
+Shared fixes include code-frame separators, external-link icons, underline offset, responsive API names/tables, C signatures and Direction labels. Shared release CI, package tests and gallery deployment passed. Do not reimplement those fixes locally.
 
-Markdown callouts use shared Callout via scripts/markdown-callouts.mjs. Internal editorial notes live outside content; check-public-content runs after API generation. Postbuild writes physical Sphinx .html redirects and checks internal links/fragments. CI Astro job now runs type and coverage regression checks locally staged, still review artifact only.
+## API and deployment implementation
 
-## Shared-package ownership and release
+Doxygen1.17 feeds shared doxyref during prebuild. Exact coverage check verifies404public declarations; the full585function model includes helpers. Generated MDX/JSON are ignored and regenerated, with public-content and internal-link checks.
 
-helia-ui owns its code, CI, gallery, release preparation and publication. Dev Hub is an ordinary tagged consumer. No subtree mirroring. Hub issue30 tracks decoupling; helia-ui issues38/12/67/59 cover releases and shared fixes.
+The docs workflow builds, checks types/coverage and runs rendered browser tests, then uploads the tested site. Main deployments consume that same artifact. Release publishing calls the workflow at the release commit independently of pack/library builds. Historical asset recovery cannot publish docs. CMSIS-Pack Doxygen/tooling behavior remains intact.
 
-Published https://github.com/AmbiqAI/helia-ui/releases/tag/v0.1.0-alpha.13 at d3635e977a5c668c9457415d5f67941aab70304d. Fix PR103 and version PR104 merged. Exact-main CI35289523576, Publish35289796054 and gallery deployment35289758709 passed. Local validation181unit tests/148gallery browser tests plus installed tarball tests. Version PR's initial automatic CI needed approval; explicitly dispatched full CI35289218808 passed before merge.
+Removed Sphinx renderer, dependencies, extension, CSS and JS. Preserved authored Markdown and Documentation pack sources. The header-classification guard now imports scripts/docs/api_groups.py independently of Sphinx.
 
-Shared package contains code-frame separator, external-link icons, underline offset, responsive API names/tables, signature comma cleanup, and C parameter Direction labels. Alpha.13 removes neighboring-document access, adds a public discoverability CLI, removes monorepo paths and stale diagnostics, and tests props/token-migration isolation. Active source worktree `.cache/helia-ui-independent`, branch codex/standalone-tooling. Old `.cache/helia-ui-frame-fix` and `.cache/helia-hub-release` are preserved historical artifacts; hub PR29 closed/superseded.
+## Verified locally
 
-heliaCORE dependency and lockfile now pin alpha.13. Clean npm ci completed; all139installed shared files match release source exactly, no patches. Build/API generation, Astro diagnostics, coverage regression, links,15responsive page checks and legacy redirects passed. Screenshots inspected; header icon/underline/code separator verified. Hub may upgrade its alpha.12 pin and use `helia-ui-check-discoverability --root .`; that consumer work belongs to its owner.
+- Full build:92pages plus redirects,134HTMLfiles,13,975links and3,528fragments, zero broken.
+- Astro check:0errors/warnings/hints; exact public coverage regression passes.
+- Eight browser tests: Home/first-kernel/guide/index/API at1437/390/320px in light/dark, no overflow or page errors; authored redirects and timed404 fallback pass. Screenshots inspected.
+- API classification tests11pass; stale version, actionlint, release recovery and pack-tooling checks pass.
+- Pre-commit all-files passes, including executable-bit corrections.
+- Earlier C/C++ first-kernel, pooling and requantization examples ran on host. No new hardware acceptance or complete pack/Zephyr/NSX firmware validation.
 
-## Latest verification
+Evidence: `/private/tmp/heliacore-takeover/cutover-*.log`, browser screenshots under ignored `astro-site/test-results/`. Local complete build took7.8seconds with dependencies installed. Historical GitHub docs build step took17m12s across three Sphinx passes; new GitHub timing still to measure.
 
-Three independent agents reviewed content, API and rendered UX. Findings/fixes recorded in `astro-site/internal-notes/release-readiness-review.md`.
+## Next steps
 
-Build/check pass,0errors/warnings/hints.133HTML files,13,856internal links,3,523fragments,0broken. Exact404public symbols;585generated function signatures with0trailing commas.26shared extractor/rendering tests pass; name-set negative regression and missing-link negative checks pass.
+1. Publish PR522 from a clean worktree with scripts/publish_pr.py and the reviewed SHA: push while draft, then promote. No attribution trailers; normal configured git identity.
+2. Verify exact-head full required CI. Fix failures before merge; do not bypass checks.
+3. Merge, verify Pages deployment and production rendering/search/API/404 behavior. Record GitHub docs timing separately from local timing.
+4. Bring this handoff current with shipped versus verified status.
 
-UX40sample states across10routes desktop/mobile/light/dark. After fixes15responsive checks across1437/390/320px,0overflow/JS errors. Search excludes Internal support, kernel browser404functions; representative legacy .html redirects work. Screenshot inspected. Earlier strict-C/C++ first-kernel, pooling and requantization examples pass host execution. No hardware acceptance, full pack/Zephyr/NSX firmware build or product-site GitHub CI/deployment run. Shared-package CI/release/deployment passed as above.
-
-Evidence `/private/tmp/heliacore-takeover/`: readiness logs/scripts, release-ux files, release-api-mobile-fixed.png, shared-api-tests.log and earlier example validation artifacts. Playwright comes from developer-hub node_modules, cached headless shell1243; do not install browsers.
-
-## Approved cutover in progress
-
-Owner approved completing the migration, including publication and Sphinx retirement. Keep authored redirects, use a custom 404 that redirects unknown pages to Home; missing fragments on existing pages may land without scrolling. Exhaustive Exhale mapping is no longer required. Tracking #521. Dev Hub #30 is closed. Next: reconcile main, switch both workflows, validate the exact build in CI and publish.
-
-## Next actions and publication gates
-
-1. Shared-package release and clean consumption COMPLETE. Product migration remains local/uncommitted.
-2. Map old Exhale API deep links and changed Sphinx fragments from actual old inventory. Authored .html page redirects now present; generated API compatibility is incomplete.
-3. Reconcile newer main and version refs, rerun validation on publication head.
-4. Complete #521 BOTH docs.yml and release.yml to avoid Sphinx redeployment. Preserve pack Doxygen and historical recovery restrictions; document rollback. Obtain approval before GH writes/cutover.
-5. Source-contract backlog:107public functions have undocumented params,769/2845blank descriptions. Draft api-contracts-issue-draft.md includes warning-baseline/regression gate. Existing quantization-contract-issue-draft.md records incorrect output_offset sign comment. Do not invent descriptions.
-6. Expanded benchmark issue remains draft, no approval yet. Internal notes/drafts must never become public site pages.
+Internal drafts and prior review evidence are preserved under ignored `astro-site/.cache/internal-notes/` and `astro-site/.cache/TAKEOVER-REVIEW.md`. Source-contract gaps include undocumented public parameters and an output_offset sign comment; expanded benchmark measurements are also drafted. Do not publish those drafts or expose internal planning on the site.

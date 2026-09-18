@@ -1,5 +1,7 @@
 # heliaCORE landing page: content and evidence
 
+Historical planning notes. For maintained authoring and publication instructions, see [README.md](README.md).
+
 The owner's annotated review supersedes the earlier six-heading proposal.
 Home must explain the library, broad production-model coverage, data types,
 Cortex-M acceleration, and integration. Avoid generic "what/why" sections,

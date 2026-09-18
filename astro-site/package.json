@@ -22,7 +22,8 @@
     "check:content": "node scripts/check-public-content.mjs",
     "check:links": "python3 scripts/check-site-links.py",
     "postbuild": "node scripts/build-legacy-redirects.mjs && npm run check:links",
-    "test:coverage": "node --test scripts/check-coverage.test.mjs"
+    "test:coverage": "node --test scripts/check-coverage.test.mjs",
+    "test:smoke": "playwright test"
   },
   "dependencies": {
     "@ambiqai/helia-ui": "github:AmbiqAI/helia-ui#v0.1.0-alpha.13",
@@ -41,6 +42,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.6",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "@playwright/test": "^1.62.1"
   }
 }

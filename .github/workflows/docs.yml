@@ -1,18 +1,15 @@
 # SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
-#
-# Builds the heliaCORE Sphinx site and renders the generated Doxygen XML API.
-#
-# - On PR: builds the Sphinx site as a sanity check and uploads it as an
-#   artifact so reviewers can download a static preview.
-# - On push to main: builds and deploys the customer-facing Sphinx site to
-#   GitHub Pages so docs updates can go live without forcing a package release.
-
 name: docs
 
 on:
-  # Invoked from ci.yml so it reports under the single required gate
-  # (AmbiqAI/ns-cmsis-nn#353); keep no push/pull_request trigger of its own.
   workflow_call:
+    inputs:
+      source_ref:
+        type: string
+        default: ''
+      release_publish:
+        type: boolean
+        default: false
   workflow_dispatch:
 
 permissions:
@@ -20,78 +17,18 @@ permissions:
 
 jobs:
   build:
-    name: Build site
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    env:
-      # Also consumed by build_sphinx_docs.sh as the version to install.
-      DOXYGEN_VERSION: "1.9.6"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Fetch tags
-        run: git fetch --tags --force
-
-      - name: Setup Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: docs/requirements.txt
-
-      - name: Install Sphinx documentation dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r docs/requirements.txt
-
-      # Keyed on the version, so a hit that verifies skips the network
-      # entirely and a bump misses and re-downloads. The script re-checks the
-      # restored archive against its pinned SHA-256 and re-downloads if it
-      # does not match, so a bad restored entry is discarded rather than used
-      # (though the entry itself stays cached until the key changes).
-      - name: Cache Doxygen tarball
-        uses: actions/cache@v6
-        with:
-          path: /tmp/doxygen-${{ env.DOXYGEN_VERSION }}.linux.bin.tar.gz
-          key: doxygen-tarball-${{ runner.os }}-${{ env.DOXYGEN_VERSION }}
-
-      - name: Build Sphinx + Doxygen XML site
-        run: bash scripts/docs/build_sphinx_docs.sh --install-doxygen
-
-      - name: Upload site artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: heliacore-docs-site
-          path: site/
-          retention-days: 14
-
-  # The Astro Starlight site that replaces this Sphinx build at the cut-over
-  # (AmbiqAI/ns-cmsis-nn#521). Until then it is built for review only: it
-  # produces its own artifact and the Pages deploy below still publishes the
-  # Sphinx output. ci.yml carries no paths filter, so this reports on every
-  # pull request and push the Sphinx build does.
-  astro:
-    name: Build Astro site
+    name: Build and test Astro site
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
-      # Not the 1.9.6 the Sphinx build pins: helia-ui-doxyref reads the XML
-      # schema of this release, and an older dump gives a thinner model with
-      # no error. The two sites run different Doxygen versions until the
-      # cut-over retires the Sphinx build.
       ASTRO_DOXYGEN_VERSION: "1.17.0"
       ASTRO_DOXYGEN_SHA256: "75419ef4f446fc1c24ef12514b574e66e898ee6f527c6ae2ad84f91a905823c2"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.source_ref || github.sha }}
           fetch-depth: 0
-
-      - name: Fetch tags
-        run: git fetch --tags --force
 
       - name: Cache Doxygen tarball
         uses: actions/cache@v6
@@ -99,10 +36,6 @@ jobs:
           path: /tmp/doxygen-${{ env.ASTRO_DOXYGEN_VERSION }}.linux.bin.tar.gz
           key: doxygen-tarball-${{ runner.os }}-${{ env.ASTRO_DOXYGEN_VERSION }}
 
-      # The sources, and verifying before anything reaches tar, are
-      # scripts/docs/build_sphinx_docs.sh's. That script is not called here
-      # because it has no install-only mode and this job needs neither Python
-      # nor Sphinx.
       - name: Install Doxygen
         run: |
           set -euo pipefail
@@ -135,40 +68,50 @@ jobs:
         working-directory: astro-site
         run: npm ci
 
-      - name: Check Astro site
+      - name: Install browser for validation
         working-directory: astro-site
-        run: |
-          npm run test:coverage
-          npm run check
+        run: npx playwright install --with-deps chromium
 
-      - name: Build Astro site
+      - name: Generate API and build site
         working-directory: astro-site
         run: npm run build
 
-      - name: Upload Astro site artifact
+      - name: Validate types and coverage
+        working-directory: astro-site
+        run: |
+          npm run check
+          npm run test:coverage
+
+      - name: Test rendered site and redirects
+        working-directory: astro-site
+        run: npm run test:smoke
+
+      - name: Upload browser evidence
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: astro-site
-          path: astro-site/dist
+          name: docs-browser-evidence
+          path: astro-site/test-results/
+          retention-days: 14
+
+      - name: Upload tested site
+        uses: actions/upload-artifact@v7
+        with:
+          name: heliacore-docs-site
+          path: astro-site/dist/
           retention-days: 14
 
   deploy:
-    name: Deploy to GitHub Pages
+    name: Deploy tested site to GitHub Pages
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    # Skip release-please merge commits: release.yml deploys the docs for a
-    # release itself, and two workflows deploying Pages for the same push
-    # can collide (GitHub runs one Pages deployment at a time). `contains`
-    # rather than `startsWith` so this matches release.yml's own release
-    # detection exactly -- the two workflows must never disagree on what a
-    # release push is, whichever merge method produced the commit. The
-    # github-pages concurrency group serializes docs deploys with each
-    # other; release.yml's deploy does not share it, which is fine while
-    # this job skips every push release.yml deploys for.
+    # Release recovery restores assets, never the live site. See #521 and #228.
     if: >-
-      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      !contains(github.event.head_commit.message, 'chore(main): release')
+      github.ref == 'refs/heads/main' &&
+      (inputs.release_publish || github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+      !contains(github.event.head_commit.message, 'chore(main): release')))
     concurrency:
       group: github-pages
       cancel-in-progress: false
@@ -180,7 +123,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Download Sphinx site artifact
+      - name: Download tested site
         uses: actions/download-artifact@v8
         with:
           name: heliacore-docs-site

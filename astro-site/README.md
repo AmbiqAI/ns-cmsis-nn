@@ -1,143 +1,66 @@
-# heliaCORE Astro Starlight site
+# heliaCORE documentation
 
-The Astro Starlight replacement for the Sphinx site in `docs/`, built on the
-shared `@ambiqai/helia-ui` design system. The handwritten pages are converted
-and the C API reference at `/reference/api/` is generated at build time. The
-benchmark charts draw the Apollo510 values in `src/data/kernel-benchmarks.ts`;
-capturing new ones is AmbiqAI/ns-cmsis-nn#520.
+The customer documentation site uses Astro/Starlight and an immutable
+`@ambiqai/helia-ui` release. Product content and composition live here; shared
+components and generators are maintained in `AmbiqAI/helia-ui`.
 
-**GitHub Pages still serves the Sphinx build.** CI builds this site to an
-artifact named `astro-site` for review only. Pages switches over in
-AmbiqAI/ns-cmsis-nn#521.
+## Develop and verify
 
-## Running it locally
-
-Node 24 and the npm 11 it ships. `engine-strict` makes `engines` a refusal
-rather than a warning, so an older pair fails the install instead of producing
-a tree nothing has been exercised on.
+Use Node 24, npm 11, Python 3.11 or newer, and Doxygen 1.17.0. CI verifies the
+Doxygen download against its pinned checksum.
 
 ```sh
 cd astro-site
 npm ci
-npm run dev        # dev server at http://localhost:4321/ns-cmsis-nn/
-npm run build      # static output in dist/
-npm run preview    # serve dist/ at the base path
-npm run check      # astro check
-npm run reference  # regenerate the C API reference on its own
-npm run check:links # validate internal links and fragments in dist/
+npm run dev
 ```
 
-Doxygen has to be on `PATH`: `brew install doxygen`, or the pinned tarball the
-`astro` job in `.github/workflows/docs.yml` unpacks. `npm run build` refuses
-without it.
-
-The site is served under the base path `/ns-cmsis-nn/`, matching the Pages URL.
-Write every link in the content relative (`getting-started/`) so it follows the
-base path; a root-relative link (`/getting-started/`) resolves in `astro dev`
-and 404s in production.
-
-## The generated C API reference
-
-`scripts/build-reference.mjs` runs as `prebuild`, so `npm run build` always has
-a current reference. It does three things:
-
-1. Appends an XML-only override block to `Documentation/Doxygen/nn.dxy.in`, the
-   Doxyfile the Sphinx site already uses, and runs Doxygen over `Include/` into
-   `.cache/reference/xml/`. Doxygen takes the last assignment of a tag, so the
-   template stays the one definition of what is extracted and the block only
-   redirects the output.
-2. Runs `helia-ui-doxyref` over that XML. Pages go to
-   `src/content/docs/reference/api/`, guarded by the `.doxyref-manifest.json`
-   the generator writes there; `reference.json`, a JSON per module, `llms.txt`
-   and `llms-full.txt` go to `public/reference/api/` and ship at
-   `/ns-cmsis-nn/reference/api/`.
-3. Writes the operator-family index at `reference/api/index.mdx` from
-   `reference.config.json`, a page per family at
-   `reference/api/<family>/index.mdx`, and `src/data/reference-nav.json`, the
-   Reference section's sidebar fragment.
-
-`reference.config.json` carries the eight families verbatim from
-`GROUP_PATTERNS` in `docs/_ext/api_group_index.py` — same ids, same patterns,
-same order — so `scripts/check_api_group_classification.py` guards this page as
-well as the Sphinx one. The generator has no grouping option, which is why the
-index is assembled here from `reference.json` rather than by the generator; it
-is filed on the helia-ui tracking issue.
-
-### The output is not committed
-
-Everything under `src/content/docs/reference/api/` and `public/reference/` is
-gitignored, along with the `.cache/` scratch. Committing it would put a
-thousand-odd generated files in front of every reviewer of an unrelated change
-and invite a hand-edit that the next build silently drops. What is committed is
-the input: the Doxyfile, the headers, and `reference.config.json`. Two runs from
-a clean tree at the same commit produce a byte-identical `reference.json`, so
-the build is the record rather than the checkout.
-
-The cost is that `Include/` and Doxygen are required to work on the site at all.
-`npm run dev` and `npm run check` generate the reference when it is missing;
-`npm run build` regenerates it every time.
-
-The `Reference` section lists the eight operator families as its top level,
-with the module pages that declare each family's kernels under it. Those
-entries cannot be written by hand, because the pages do not exist until the
-prebuild runs, so the generator writes them to `src/data/reference-nav.json`
-and `astro.config.mjs` reads that file. It is committed for the same reason the
-data-type matrix is: `npm run check` and `npm run dev` may skip generation when
-the output is already there, and the config is read either way.
-
-## The design system is pinned by tag
-
-`@ambiqai/helia-ui` is installed from a git tag, never a branch:
-
-```json
-"@ambiqai/helia-ui": "github:AmbiqAI/helia-ui#v0.1.0-alpha.11"
-```
-
-To move to a newer release, change the tag in `package.json`, then regenerate
-the lockfile and prove a clean install:
+Use the npm scripts so API generation runs before the development server.
+After changing public headers, run `npm run reference` to refresh the API.
 
 ```sh
-cd astro-site
-npx -y npm@11.19.0 install --package-lock-only --ignore-scripts
-npm ci
 npm run build
+npm run check
+npm run test:coverage
+npm run test:smoke
 ```
 
-Commit `package.json` and `package-lock.json` together. Never hand-edit the
-lockfile.
+The browser suite uses Playwright Chromium. CI installs it; local development
+uses the cached browser. `npm run build` regenerates the API, validates public
+coverage and content, renders the site, writes legacy redirects, and checks
+internal links and fragments. Build output is `dist/` and browser evidence is
+`test-results/`; neither is committed.
 
-Tags are published from
-[AmbiqAI/helia-ui](https://github.com/AmbiqAI/helia-ui). The theme, shell, and discoverability metadata come from `heliaStarlight()`.
-Product-specific compositions live in `src/components` and may use scoped
-styles built on the package tokens. Shared defects belong in helia-ui.
+## Content and API
 
-## Directory name
+Authored pages live in `src/content/docs/`. Prefer Markdown for prose and MDX
+when composing shared parts. Site-specific components live in `src/components/`.
+Do not put internal reviews or unfinished planning notes in the public collection.
 
-The Sphinx build writes its HTML to `site/` at the repository root and clears
-that directory on every run (`scripts/docs/build_sphinx_docs.sh`), so this
-source tree lives in `astro-site/` instead. The two can be merged once the
-Sphinx build is retired.
+`reference.config.json` configures API input headers and family grouping.
+`scripts/build-reference.mjs` uses the repository's
+`Documentation/Doxygen/nn.dxy.in` template to generate XML, then invokes the
+installed `helia-ui-doxyref` command. Generated API pages and models are ignored
+by Git and reproduced during the build. `scripts/check-coverage.mjs` compares
+exact public declaration names with the generated index.
 
-## Publication boundary
+Use `redirects.json` for known moved pages. The build emits physical `.html`
+redirect files for older links. Unknown URLs receive `404.html`, which explains
+that the page moved and redirects to Home after five seconds. Missing anchors
+on existing pages do not trigger a 404; those links land on the existing page.
 
-`npm run build` regenerates the API and coverage data, checks public content
-for editorial markers, and then builds the site.
-The CI Astro job runs this same command and uploads the integrated site.
-Generation failures prevent the artifact upload. The postbuild link check uses
-Python 3 and rejects missing internal pages and fragment targets before CI can
-upload the site artifact. `npm run check` separately validates Astro types.
+## Publishing and recovery
 
-Keep maintainer implementation details here and review queues under
-`internal-notes/` or GitHub issues, never in `src/content/docs/`. Marking a
-public content page `draft: true` is rejected rather than silently publishing it.
-The marker check is a guardrail, not a substitute for editorial review.
+`.github/workflows/docs.yml` builds, validates, and browser-tests the site before
+uploading its artifact. Pages deploys that exact artifact. Pull requests only
+produce review artifacts; pushes to main publish the site.
 
-Production cut-over is tracked in #521 and must update both the ordinary docs
-and release Pages deployments after site approval.
+On a release, `release.yml` calls the same workflow with the exact release
+commit, independently of CMSIS-Pack generation. Existing-tag asset recovery
+never publishes documentation. CMSIS-Pack retains its own Doxygen generation.
 
-Markdown callouts in the site's MDX pages (`:::note`, `:::tip`, `:::caution`,
-`:::danger`) render through helia-ui's `Callout` component via
-`scripts/markdown-callouts.mjs`. The adapter runs during rendering, so generated
-API pages retain the same styling after regeneration. Caution maps to the
-warning tone; danger maps to critical. Keep internal review notes in
-`internal-notes/`, outside the content collection.
+To recover a failed deployment, rerun the failed deployment job against its
+existing tested artifact. If the artifact has expired, dispatch `docs.yml`
+from main to rebuild and validate the current site. For a content regression,
+revert the responsible change through a PR and publish the resulting tested
+main commit. Do not redeploy an old release's documentation over the live site.

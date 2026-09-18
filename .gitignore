@@ -34,3 +34,5 @@ astro-site/.astro/
 astro-site/.cache/
 astro-site/src/content/docs/reference/api/
 astro-site/public/reference/
+astro-site/test-results/
+astro-site/playwright-report/
