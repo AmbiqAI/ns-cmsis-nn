@@ -38,8 +38,8 @@ status context is `CI Passed`.
 | `contract`, `find_package` | `ssot-contract.yml` | none | n/a | CMake configure only | none |
 | `wiring`, `install`, `prebuilt_real` | `nsx-integration.yml` | none | n/a | CMake configure only | none |
 | `wiring`, `kconfig` | `zephyr-integration.yml` | none | n/a | CMake and Python only, no Zephyr SDK | none |
-| `build` | `docs.yml` | none | n/a | Sphinx and Doxygen build | none |
-| `changed-files` | `clang-format.yml` | none | n/a | formatting check on changed files | clang-format 16.0.6 |
+| `build` | `docs.yml` | none | n/a | Doxygen API generation, Astro build, coverage/link checks and browser tests | none |
+| `changed-files` | `clang-format.yml` | none | n/a | formatting check on changed files | clang-format 18.1.8 |
 | `all-files` | `pre-commit.yml` | none | n/a | the pre-commit hook set on the whole tree | pre-commit 3.8.0 |
 | `check` | `license-headers.yml` | none | n/a | header check on the host | none pinned |
 | `ci-tool-manifest`, `gen-pack-action-pin`, and the other contract jobs | `release-contract.yml` | none | n/a | shell assertions over the release path's own wiring | none pinned |
@@ -103,7 +103,7 @@ through a caller.
 | Job | Workflow | Trigger | Executes | Notes |
 | --- | --- | --- | --- | --- |
 | `resolve` | `resolve-ci-image.yml` | `workflow_call` only | no | resolves which `ghcr.io/ambiqai/ns-cmsis-nn-ci` tag a caller runs in, and reports whether it came from a release or the fallback |
-| `build-and-push` | `build_publish_docker.yml` | `workflow_call`, `workflow_dispatch`, `schedule` (`0 16 * * 1`) | yes, a container build and push | builds the CI image from `.devcontainer/Dockerfile`, which installs Arm GNU 14.3.1, ATfE 19.1.5 and armclang 6.23.32 per `ci/tools/manifest.json`, plus clang-format 16.0.6; called from `release.yml`'s `publish-ci-image` |
+| `build-and-push` | `build_publish_docker.yml` | `workflow_call`, `workflow_dispatch`, `schedule` (`0 16 * * 1`) | yes, a container build and push | builds the CI image from `.devcontainer/Dockerfile`, which installs Arm GNU 14.3.1, ATfE 19.1.5 and armclang 6.23.32 per `ci/tools/manifest.json`, plus clang-format 18.1.8; called from `release.yml`'s `publish-ci-image` |
 
 ## What runs only on demand
 

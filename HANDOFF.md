@@ -8,7 +8,7 @@ Replace the Sphinx site with Astro/Starlight on independent helia-ui, including 
 
 - Worktree: `/Users/adam.page/Ambiq/helia/helia-core/.claude/worktrees/helia-ui-migration`
 - Branch `docs/helia-ui-migration`; PR https://github.com/AmbiqAI/ns-cmsis-nn/pull/522
-- Content overhaul committed as 4c42de2a; main112f487e merged in 239074c4. Cutover published in b276e520; PR is ready for review.
+- Content overhaul committed as 4c42de2a; main112f487e merged in 239074c4. Cutover published in b276e520, followed by release-config correction81748936 and coverage correction9e12f712. PR is ready for review.
 - Source `astro-site/`; preview http://127.0.0.1:4321/ns-cmsis-nn/ serves its dist.
 - Do not edit the root checkout or other tasks' worktrees.
 
@@ -52,8 +52,18 @@ Evidence: `/private/tmp/heliacore-takeover/cutover-*.log`, browser screenshots u
 Review corrections: coverage includes u8 and normalizes fp16 to f16 (77 FP16-tagged public names); regression fixtures reject both original undercounts. Removed duplicated family patterns and retired dtype helper. Issues517/520 now reflect the accepted shared-foundation/local-composition scope.
 
 1. PR522 was pushed while draft and promoted with scripts/publish_pr.py. First full CI found three stale release extra-files entries for pages that no longer carry version pins; removed them and verified PDSC/stale-version checks. Publish this correction without toggling draft.
-2. Verify exact-head full required CI. Docs passed in99seconds, then74seconds with cache (run35295392152); API/site build steps12seconds and9seconds. GitHub artifact screenshots, search and kernel filtering were inspected. Remaining kernel jobs were still running before coverage review corrections. Repository rules require one approving review and CI Passed; do not bypass either.
+2. Latest head9e12f712db12aa1bd91d3b56305eae87a98fc30b, full CI https://github.com/AmbiqAI/ns-cmsis-nn/actions/runs/35296004070 passed. Its docs job passed in76seconds, including browser checks on the coverage correction. Verify exact-head full required CI. Docs passed in99seconds, then74seconds with cache (run35295392152); API/site build steps12seconds and9seconds. GitHub artifact screenshots, search and kernel filtering were inspected. Remaining kernel jobs were still running before coverage review corrections. Repository rules require one approving review and CI Passed; do not bypass either.
 3. Merge, verify Pages deployment and production rendering/search/API/404 behavior. Record GitHub docs timing separately from local timing.
 4. Bring this handoff current with shipped versus verified status.
 
 Internal drafts and prior review evidence are preserved under ignored `astro-site/.cache/internal-notes/` and `astro-site/.cache/TAKEOVER-REVIEW.md`. Source-contract gaps include undocumented public parameters and an output_offset sign comment; expanded benchmark measurements are also drafted. Do not publish those drafts or expose internal planning on the site.
+
+This local handoff update records final-head CI progress without triggering another full run. Production is still Sphinx until approval, merge and Pages deployment.
+
+Owner requested two deep adversarial reviews and one lightly guided independent review of head9e12f712. Reviewers dispatched for delivery/API generation, API/content accuracy, and fresh review. Verify findings before changes or publication.
+
+## Independent review outcome
+
+Two deep adversarial reviews and one lightly guided review completed on9e12f712. Delivery review found obsolete Sphinx build instructions and two stale published CI descriptions; corrected the retained API page and both published/retained contributor pages. Nearby formatter pin and shipped FP16 matrix text were reconciled with workflows. Delivery re-review found no further issue. API/content review independently matched404public declarations and28benchmark rows, checked integration/configuration contracts and mobile filtering/navigation; no findings. Light review found no actionable issue.
+
+Full build and eight browser tests pass after these prose corrections; both changed published CI rows were rendered and inspected. Clean-cache npm installation with SSH disabled and empty Git config succeeded via HTTPS codeload, disproving the SSH-lockfile concern. Evidence: /private/tmp/heliacore-takeover/{adversarial-fix-build.log,adversarial-fix-smoke.log,review-ci-row.png,anonymous-install.log}. Publish these final corrections, then require green CI on their new head and one approving review before merge. No live Pages or new hardware validation was performed.
