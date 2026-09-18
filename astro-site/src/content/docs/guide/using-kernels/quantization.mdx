@@ -1,0 +1,100 @@
+---
+title: Quantization
+description: Map model scales and zero-points to integer kernel offsets, requantization, and activation limits.
+---
+
+import Callout from '@ambiqai/helia-ui/astro/Callout';
+
+An integer tensor is more than an array of bytes. Its scale and zero-point
+connect stored values to real values. heliaCORE kernels receive the parameters
+prepared by your runtime or model conversion flow; they do not infer them from
+the tensor data.
+
+## Scale and zero-point
+
+The affine mapping is `real = scale × (stored − zero_point)`. With scale `0.25`
+and zero-point `-4`:
+
+| Stored int8 value | Real value |
+|---|---|
+| `-8` | `-1.0` |
+| `-4` | `0.0` |
+| `0` | `1.0` |
+| `4` | `2.0` |
+
+For LiteRT int8 convolution, weights use zero-point zero, and each output channel
+can have its own weight scale. Bias is int32 with scale
+`input_scale × weight_scale[channel]` and zero-point zero. Average pooling uses
+the same input and output scale/zero-point. These conventions follow the
+[LiteRT int8 quantization specification](https://developers.google.com/edge/litert/conversion/tensorflow/quantization/quantization_spec).
+
+## Map int8 convolution parameters
+
+The following mapping applies to `arm_convolve_wrapper_s8` and its s8 convolution
+implementations. Other operator families expose different parameter structures.
+
+| Kernel parameter | Value to supply | Reason |
+|---|---|---|
+| `conv_params.input_offset` | Negative input zero-point | Added to each stored input before multiplication. For zero-point `-4`, supply `4`. |
+| `conv_params.output_offset` | Output zero-point | Added after requantization. For output zero-point `-3`, supply `-3`. |
+| `quant_params.multiplier[channel]` and `shift[channel]` | Fixed-point encoding of the channel's effective scale | Rescales the accumulator to the output tensor's units. |
+| `bias_data[channel]` | Quantized int32 bias | Added in accumulator units, before output rescaling. |
+| `conv_params.activation.min/max` | Bounds in the output tensor's integer units | Clips the final value to the activation range. |
+
+For this API, input offset is in `[-127, 128]` and output offset is in
+`[-128, 127]`. Do not use the same sign convention for both offsets. The
+convolution implementation adds output offset after requantization and before
+clipping.
+
+The effective scale for output channel `c` is
+`input_scale × weight_scale[c] / output_scale`. Supply multiplier and shift arrays
+with one entry per output channel in the same channel order as the weights.
+Use the converter/runtime's prepared values and rounding convention; casting a
+floating-point scale to `int32_t` is not an equivalent encoding.
+
+## Requantization and rounding
+
+The `arm_nn_requantize` helper combines an integer multiplier with a signed shift.
+Its shift range is `[-31, 30]`; positive shifts increase the scale and negative
+shifts reduce it. `CMSIS_NN_USE_SINGLE_ROUNDING` changes the rounding calculation,
+so keep the library build and reference-output generation consistent.
+
+For a simple exact check, multiplier `1073741824` (2³⁰) with shift `0` represents
+a factor of one half. An accumulator of `16` becomes `8`; an output offset of
+`-3` then produces stored value `5`, before any activation clipping. This example
+uses exact values and does not specify how halfway rounding cases should behave.
+
+See the implementation contract for
+[arm_nn_requantize](/ns-cmsis-nn/reference/api/heliacore/arm_nnsupportfunctions/#arm_nn_requantize) when using the helper
+directly. Do not apply an s8 requantization recipe to s16 or floating-point kernels
+without checking their own bias widths, offsets, and supported parameter ranges.
+
+## Activation bounds belong to the output tensor
+
+For an int8 output with zero-point `-4`, a fused ReLU lower bound is `-4`, not
+integer zero. If no upper activation limit applies, the representable upper bound
+is `127`. Derive any bounded activation's endpoints using the output quantization
+and clamp them to the output data type's range.
+
+<Callout title="The first ReLU example has a narrower purpose" tone="note">
+`arm_relu_q7` clamps negative stored integers to zero in place. It does not accept
+a zero-point. Use it only where that behavior matches your data; the
+[First kernel](/ns-cmsis-nn/getting-started/first-kernel/) example is an execution
+check, not a general quantized-model activation adapter.
+</Callout>
+
+## Check a layer before checking a whole model
+
+| Symptom | Check first |
+|---|---|
+| Values are consistently shifted | Input/output zero-points and the sign of their kernel offsets. |
+| Most values saturate at an endpoint | Effective scale, bias units, and integer activation limits. |
+| Some output channels differ | Per-channel parameter order and filter layout. |
+| Differences occur mainly near rounding boundaries | Converter/reference rounding and the library's requantization build options. |
+| MVE convolution differs despite successful status | Whether the weight-sum buffer was initialized for the same weights, bias, and input offset. |
+
+Use known layer inputs and expected outputs from the model conversion or reference
+flow. Test nonzero zero-points and saturation boundaries as well as typical
+values. Compare the exact layer parameters before attributing a mismatch to an
+acceleration path. Continue to [Calling kernels](/ns-cmsis-nn/guide/using-kernels/calling-kernels/)
+and [Memory](/ns-cmsis-nn/guide/using-kernels/memory/) for tensor setup and state.

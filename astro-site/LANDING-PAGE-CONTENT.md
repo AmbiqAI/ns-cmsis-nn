@@ -1,168 +1,96 @@
-# heliaCORE landing page: copy draft
+# heliaCORE landing page: content and evidence
 
-For review before any of it is built. Layout is a separate agreement.
+The owner's annotated review supersedes the earlier six-heading proposal.
+Home must explain the library, broad production-model coverage, data types,
+Cortex-M acceleration, and integration. Avoid generic "what/why" sections,
+repeated introductions, unexplained metric panels, and undifferentiated chips.
 
-## Who lands here
+## Page structure
 
-A firmware or embedded ML engineer who has a model and an Apollo part. Their
-real problems, in the order they hit them:
+1. **Neural network kernels for Cortex-M.** State what heliaCORE does and show
+   A8W8, A16W8, FP16, and FP32 with short explanations. Float APIs remain
+   explicitly opt-in and experimental, as documented in the repository.
+2. **Far broader operator coverage than CMSIS-NN.** Lead with the explicit
+   comparison, then show concrete operator families and
+   examples beyond convolution and dense layers. Do not equate benchmark
+   coverage with production coverage or promise every graph is fully optimized.
+3. **Put DSP and Helium to work.** Explain packed integer and vector execution,
+   target selection, and caller-owned memory. Link to architecture and benchmarks.
+4. **One kernel library. Your build system.** Explain the source manifest and
+   what each CMake, CMSIS-Pack, Zephyr, and neuralSPOT-X path means to a user.
+   Include an explicit setup link for the section.
+5. **From model execution to kernel calls.** Briefly connect heliaRT and heliaAOT
+   to the kernel library and direct users to function contracts.
 
-1. Their graph has an operator the stock kernel library never optimized, and
-   that one operator eats the inference budget.
-2. They cannot tell whether their part will reach the vector path or quietly
-   fall back to scalar C.
-3. Wiring a kernel library into their build is a chore, and every vendor tells
-   a different integration story.
+Copy lives in `src/content/docs/index.mdx`, so the package's Markdown and
+llms renditions can read it. `src/components/HomeLayout.astro` owns only local
+layout styles, scoped to the homepage and based on shared package tokens.
 
-The page answers those three, in that order, and then says where to start.
+## Evidence used
 
-## The arc
-
-Hero, then the coverage argument, then the speed argument, then where it sits
-in HELIA, then how to get it, then where to go deep. Six sections, no section
-named after a question.
-
----
-
-## 1. Hero
-
-**Eyebrow:** Optimized AI kernels for Ambiq silicon
-
-**Headline:** Every operator at silicon speed.
-_(accent on "Every")_
-
-Alternatives: "Full speed, operator by operator." / "The fast path for every
-operator in your graph."
-
-**Badge:** ATfE + MVE ready
-
-**Lede:**
-heliaCORE is Ambiq's neural network kernel library for Apollo devices. It
-ships a tuned kernel for every operator in the graph, selects the fastest path
-the core supports, and links into your build through CMake, CMSIS-Pack,
-Zephyr, or neuralSPOT-X.
-
-**Actions:** Get started · Architecture · Browse the API
-
-**Side panel:** version, four figures, the two-line CMake snippet.
-_See "Claims to settle" on the four figures._
-
----
-
-## 2. The coverage argument
-
-**Heading:** One slow operator is a slow model.
-
-Alternatives: "Inference time collects where nobody looked." / "The graph is
-only as fast as its slowest kernel."
-
-**Lede:**
-Inference time pools in the operators nobody optimized. A graph that runs nine
-tuned kernels and one reference fallback spends most of its cycles in the
-fallback. heliaCORE covers twenty-three operator families, so the whole graph
-runs on the vector path instead of just the convolutions.
-
-**Supporting content:** the eight API groups with kernel counts, the data type
-row (s8, s16, s4 weights, f16 and f32 behind a build flag), and one line on
-what this fork adds over upstream Arm CMSIS-NN.
-
-**Section link:** Browse coverage
-
----
-
-## 3. The speed argument
-
-**Heading:** Your Cortex-M55 is already an accelerator.
-
-Alternatives: "Helium is the accelerator you already shipped." / "No separate
-NPU in the budget."
-
-**Lede:**
-Helium vector extensions, tightly coupled memory, and the core act together as
-a small programmable engine for neural network math. heliaCORE is what
-programs it. Hand-tuned MVE kernels keep the vector unit fed, a DSP path
-serves Cortex-M4, and a scalar path serves Cortex-M0+, all from one source
-tree and one build.
-
-**Supporting content:** three rounded figures (12x, 8x, 3x) with a bar chart
-of the three paths, and the board and clock as a caption under them, not as a
-heading. Per-kernel tables live on the Performance section.
-
-**Section link:** See the numbers
-
----
-
-## 4. Where it sits
-
-**Heading:** Underneath heliaAOT and heliaRT.
-
-Alternatives: "The floor the HELIA stack stands on." / "Everything above it
-gets faster."
-
-**Lede:**
-Models compiled by heliaAOT and graphs executed by heliaRT land on these
-kernels. You rarely call heliaCORE directly. You link it, and the layers above
-inherit the speed.
-
-**Supporting content:** the four-layer stack, model tooling to kernels to
-acceleration path to Apollo silicon.
-
----
-
-## 5. Integration
-
-**Heading:** One build description, four ways to consume it.
-
-Alternatives: "However you build, the same kernels." / "Generated from one
-source, verified in CI."
-
-**Lede:**
-The CMSIS-Pack, the Zephyr module, the neuralSPOT-X integration, and the
-prebuilt static libraries are all generated from a single CMake source of
-truth and checked in CI. The kernels you link are the kernels that were
-tested.
-
-**Supporting content:** four compact rows, each with the one line that gets
-you going.
-
-**Section link:** Get started
-
----
-
-## 6. Going deeper
-
-**Heading:** Find the kernel, read the contract.
-
-Alternatives: "Five hundred kernels, one search box." / "Every function, every
-variant."
-
-**Lede:**
-Every public function, searchable by name and filtered by operator group, data
-type, and header. Each entry links to its generated reference page.
-
-**Supporting content:** the live kernel index, plus two links into Architecture
-and Contributing.
-
----
-
-## Claims to settle before this ships
-
-| Claim | Status |
+| Claim | Source |
 |---|---|
-| 23 operator families | Verified, Source/ directory |
-| 585 functions across 17 headers, per-group counts | Verified, generated reference |
-| Three paths mapped to M0+/M4/M55 | Verified, README core support table |
-| 12x / 8x / 3x on Apollo510 at 96 MHz LP | Verified in repo, new values pending |
-| One CMake source feeding four exports | Verified, CI workflows |
-| heliaRT and heliaAOT consume it | Verified, docs/index.md |
-| MVE MAC throughput (8 int8, 4 int16 and fp16, 2 int32 and fp32) | Not in the repo. Needs an Arm Helium or Apollo510 source of record before it appears. |
-| "200+ accelerated ops", "53 op types", "4 paths" | Carried from the old site. Provenance unknown, worth confirming against the generated counts. |
-| "40+ field models" | Carried from the old site. This is a deployment claim, not a repo fact. Confirm or drop. |
-| What this fork adds over upstream CMSIS-NN | No verified comparison exists. Needs the coverage matrix before any number is claimed. |
+| Library purpose, scalar/DSP/MVE selection, no dynamic allocation | [README](../README.md), Highlights and architecture sections |
+| A8W8 and A16W8 quantized kernels | [Public integer header](../Include/arm_nnfunctions.h), convolution and fully connected signatures |
+| FP16/FP32 support and opt-in status | [README](../README.md), experimental float support; [float declarations](../Include/arm_nnfunctions_flt.h) |
+| Gather, scatter, tile, reductions, broadcast arithmetic, GRU | [Source tree](../Source/), [integer header](../Include/arm_nnfunctions.h), [float header](../Include/arm_nnfunctions_flt.h) |
+| Explicit float MVE implementation example | [Reduce sum](../Source/BasicMathFunctions/arm_reduce_sum_f32.c), MVE predicates and vector accumulation |
+| Shared operator/source selection | [CMake manifest](../cmake/ns_cmsis_nn.cmake), [Zephyr consumer](../zephyr/CMakeLists.txt), [NSX consumer](../nsx/CMakeLists.txt) |
+| Pack consistency rather than a generated single manifest | [PDSC validator](../scripts/check_pdsc.py), SSoT versus PDSC source-list agreement |
+| Four integration options | [Getting started](src/content/docs/getting-started/index.mdx) and its linked setup pages |
 
-## What I need from you
+The upstream comparison is deliberately specific, not a coverage multiplier.
+Checked upstream commit
+[`9e1b4768`](https://github.com/ARM-software/CMSIS-NN/tree/9e1b4768c640606817f0d8f8e53a3d39be817ab4):
+its Source tree and public integer/float headers lack the named gather,
+scatter, reduction, broadcast arithmetic, and GRU entry points used as examples
+above. This is not a complete semantic equivalence or performance comparison.
+Its [README](https://github.com/ARM-software/CMSIS-NN/blob/9e1b4768c640606817f0d8f8e53a3d39be817ab4/README.md)
+also documents experimental FP16/FP32, so floating point is a heliaCORE
+capability, not a claim of exclusivity.
 
-1. Pick or rewrite the six headings.
-2. Say whether the coverage argument in section 2 is the right lead. It is the
-   strongest idea here and everything else follows from it.
-3. Rule on the three unverified claims in the table above.
+## Removed from Home
+
+- "40+ field models," "200+ accelerated ops," and "53 op types": provenance
+  or definitions were insufficient for the landing page.
+- Bare 12x/8x/3x figures: retained unchanged on the detailed performance page,
+  with their measurement context, rather than used as the acceleration story.
+- Numeric MVE throughput claims: not introduced without a source of record.
+- Build group counts presented as model operator coverage: different concepts.
+
+The owner requested stronger differentiation after the first rendered revision.
+The hero and coverage heading now state the broader CMSIS-NN coverage directly;
+the linked comparison page provides a nine-row table with fixed source revisions.
+No function-count ratio is used as a proxy for distinct model operators.
+
+## Layout and product direction from the annotated review
+
+The hero has four highlights: coverage, acceleration, data types, and shared
+build integration. Section copy follows its heading, without a separate
+right-hand paragraph. The integration section uses the package Mosaic with
+a large build-manifest feature card and smaller integration cards.
+
+The owner positions heliaAOT as the flagship, recommended inference path for
+latency, power, and memory efficiency. heliaCORE powers both heliaAOT and
+heliaRT; most users should begin with these model-level solutions. The paired
+heliaAOT README confirms standalone C inference generation and planned memory;
+the heliaRT README confirms the optimized LiteRT for Microcontrollers basis.
+This is product guidance, not a quantified performance comparison.
+
+## Partner-aware positioning
+
+Owner direction: make Ambiq silicon the primary target in the headline and name
+Apollo in the opening. Introduce the kernel library and its role in HELIA
+inference before presenting operator coverage. Credit the Arm CMSIS-NN
+foundation and show concrete extensions without competitive or dismissive
+headlines. This supersedes earlier requests for aggressive comparative copy.
+
+## Accepted content review
+
+Applied the owner's approved review: recommend AOT/RT before build integration;
+give hero, introduction, and closing distinct roles; explain broader coverage's
+benefit without equating kernel availability to runtime model compatibility;
+define quantized formats and link operator-specific support; lead SSoT with
+consistent selection and avoid broad package-verification claims. The linked
+CMSIS-NN page uses the same partner-aware framing. Target and toolchain links
+provide a route to compatibility details without adding a hardware chip list.

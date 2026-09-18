@@ -183,7 +183,7 @@ function collectFunctions(model) {
   const functions = [];
   const visit = (module) => {
     for (const symbol of module.symbols ?? []) {
-      if (symbol.kind === 'function') {
+      if (symbol.kind === 'function' && /^Include\/arm_nnfunctions.*\.h$/.test(symbol.source?.path ?? '')) {
         functions.push({
           id: symbol.id,
           name: symbol.name,
@@ -237,7 +237,7 @@ function renderIndex(model, functions) {
     "import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';",
     "import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';",
     '',
-    `Every function Doxygen extracts from \`${config.input}/\`: ` +
+    `Public kernel functions declared in \`arm_nnfunctions*.h\`: ` +
       `${functions.length} across ${headers.size} headers. Start with an ` +
       'operator family, then follow a function through to its parameters, ' +
       'return values and source.',
@@ -439,6 +439,18 @@ run(process.execPath, doxyrefArgs);
 const model = JSON.parse(
   fs.readFileSync(path.join(publicDir, routePrefix, 'reference.json'), 'utf8'),
 );
+// Keep low-level contracts linkable without presenting them as a kernel entry point.
+function describeSupport(module) {
+  if (module.path.split('.').at(-1).toLowerCase() === 'groupsupport') {
+    module.name = 'Internal support';
+    const page = path.join(outDir, ...module.path.toLowerCase().split('.'), 'index.mdx');
+    const mdx = fs.readFileSync(page, 'utf8')
+      .replace(/^title:.*$/m, 'title: "Internal support"\npagefind: false');
+    fs.writeFileSync(page, mdx);
+  }
+  for (const child of module.submodules ?? []) describeSupport(child);
+}
+for (const module of model.modules ?? []) describeSupport(module);
 const functions = collectFunctions(model);
 const { membership, ungrouped, duplicated, headers } = renderIndex(model, functions);
 renderGroupPages(membership);

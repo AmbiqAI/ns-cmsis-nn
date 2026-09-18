@@ -1,0 +1,61 @@
+---
+title: CMSIS-NN foundation and extensions
+description: How heliaCORE builds on Arm CMSIS-NN with additional operators for Ambiq devices.
+---
+
+Arm CMSIS-NN provides the foundation for heliaCORE. For production models on
+Ambiq devices, heliaCORE builds on its convolution,
+fully connected, pooling, and recurrent kernels with additional operations spanning tensor
+indexing, graph updates, reductions, comparisons, and floating-point math.
+
+## Additional graph operations
+
+The following examples are declared in heliaCORE's public kernel headers and
+are absent from the upstream public headers at the comparison revision below.
+They illustrate the expansion; they are not the complete list of additions.
+
+| Operation | heliaCORE data types | Upstream public API |
+|---|---|---|
+| Gather and GatherND | s8, s16, FP16, FP32 | Not present |
+| ScatterND and Tile | s8, s16 | Not present |
+| Select and DynamicUpdateSlice | s8, s16 | Not present |
+| ReverseSequence | s8, s16 | Not present |
+| ArgMin and ArgMax | s8, s16, FP16, FP32 | Not present |
+| Reduce minimum and maximum | s8, s16, FP16, FP32 | Not present |
+| Reduce sum | FP16, FP32 | Not present |
+| Broadcast add, subtract, multiply | FP16, FP32 | Not present |
+| GRU | FP16, FP32 | Not present |
+
+This broader coverage lets model integrations use dedicated library kernels
+for more of the graph. Support for a data type does not imply that every shape
+has a DSP or MVE implementation. Use the [kernel index](/ns-cmsis-nn/reference/kernel-index/)
+for individual functions and the [data-type matrix](/ns-cmsis-nn/guide/coverage/data-types-by-family/)
+for family-level coverage.
+
+## Quantized and floating-point models
+
+heliaCORE supports A8W8 and A16W8 quantized kernels as well as opt-in,
+experimental FP16 and FP32 APIs. Upstream also provides experimental FP16/FP32;
+the distinction is the additional operations and variants, not the existence
+of floating-point support alone.
+
+## Integration with the Arm ecosystem
+
+heliaCORE retains inherited CMSIS-NN-style interfaces where supported, adds
+Ambiq-targeted implementations, and integrates through CMake, CMSIS-Pack,
+Zephyr, and neuralSPOT-X. Upstream-derived files retain their Arm attribution
+and Apache-2.0 licensing. See [About and licenses](/ns-cmsis-nn/about/).
+
+## Comparison sources
+
+The comparison uses the public integer and floating-point headers, with the
+source trees checked for the named implementations:
+
+- heliaCORE revision `af724c78`: [integer header](https://github.com/AmbiqAI/ns-cmsis-nn/blob/af724c78778b545cc5a86bd74c7c830ea6df3899/Include/arm_nnfunctions.h),
+  [float header](https://github.com/AmbiqAI/ns-cmsis-nn/blob/af724c78778b545cc5a86bd74c7c830ea6df3899/Include/arm_nnfunctions_flt.h).
+- Arm CMSIS-NN revision `9e1b4768`: [integer header](https://github.com/ARM-software/CMSIS-NN/blob/9e1b4768c640606817f0d8f8e53a3d39be817ab4/Include/arm_nnfunctions.h),
+  [float header](https://github.com/ARM-software/CMSIS-NN/blob/9e1b4768c640606817f0d8f8e53a3d39be817ab4/Include/arm_nnfunctions_flt.h).
+
+This is an operator/API comparison, not an upstream performance benchmark.
+[Kernel benchmarks](/ns-cmsis-nn/guide/performance/kernel-benchmarks/) compare
+heliaCORE's own execution paths under the documented measurement conditions.

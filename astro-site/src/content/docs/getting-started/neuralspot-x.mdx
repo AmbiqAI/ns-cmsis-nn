@@ -1,53 +1,105 @@
 ---
 title: neuralSPOT-X
 description: Consume heliaCORE through the NSX CMake graph.
+prev:
+  label: Overview
+  link: /ns-cmsis-nn/getting-started/
+next:
+  label: First kernel
+  link: /ns-cmsis-nn/getting-started/first-kernel/
 ---
 
-If you're already on [neuralSPOT-X (NSX)](https://github.com/AmbiqAI/neuralSPOT),
-you don't need to integrate heliaCORE — NSX already does it for you.
+Use [neuralSPOT-X](https://github.com/AmbiqAI/neuralspotx)'s heliaCORE module
+rather than adding a second library. The adapter exposes `nsx::cmsis_nn` and
+uses the SDK's board-flags target for source builds and consumers.
 
-## What NSX provides
+## 1. Check the SDK integration
 
-- A CMake target (`nsx::cmsis_nn` via NSX's graph) that resolves to the
-  heliaCORE-built archive matched to your NSX target arch.
-- Board-flag propagation through the `NSX_BOARD_FLAGS_TARGET` interface
-  library — the kernels link against the same `-mcpu`/`-mfpu` flags
-  the rest of your firmware uses.
-- Automatic linkage of `nsx::cmsis_nn` into your model runtime
-  (heliaRT, LiteRT-for-Micro, etc.).
+Start with a board application that builds and runs with your installed NSX
+version. Follow that version's dependency workflow to include the heliaCORE
+module, then check its resolved release or commit in the dependency configuration.
+The [NSX repository](https://github.com/AmbiqAI/neuralspotx) documents the SDK
+workflow; the settings below describe heliaCORE's `nsx/` adapter.
 
-## Pinning a heliaCORE version inside NSX
+For applications whose runtime already depends on heliaCORE, keep that dependency
+path. For direct kernel calls, link your existing application target to the module
+after the SDK has created it:
 
-NSX projects pin heliaCORE the same way they pin any other dependency:
-via the NSX manifest or a CMake cache variable. Refer to your NSX
-project's docs for the exact knob — typically:
-
-```cmake
-set(NSX_CMSIS_NN_VERSION "7.35.0" CACHE STRING "heliaCORE release to use") # x-release-please-version
+```cmake title="Application CMakeLists.txt · direct kernel use"
+target_link_libraries(my_firmware PRIVATE nsx::cmsis_nn)
 ```
 
-## Verifying the link
+Replace `my_firmware` with your SDK application target. Do not add a second
+heliaCORE checkout when the runtime already supplies the module.
 
-NSX's CI includes a smoke test that links a tiny consumer against
-`nsx::cmsis_nn` + the NSX board flags target, the same way real NSX
-firmware does. The test config lives at
-[`cmake/tests/nsx_prebuilt_real_link/`](https://github.com/AmbiqAI/ns-cmsis-nn/tree/main/cmake/tests/nsx_prebuilt_real_link)
-inside this repo and runs on every heliaCORE PR.
+## 2. Choose the build mode
 
-For an application build, verify the resolved CMake target and version before
-debugging model-level failures:
+| Mode | Selection | Result |
+|---|---|---|
+| **Source (default)** | Leave `NSX_CMSIS_NN_LIB` unset. | The adapter compiles kernels with the board-flags target. |
+| **Prebuilt** | Set `NSX_CMSIS_NN_LIB` to a compatible archive. | The adapter imports that archive directly. |
 
-- Confirm the NSX dependency manifest or cache value resolves to the intended
-  heliaCORE release.
-- Check the verbose link line for `libns-cmsis-nn.a` or the source-built
-  heliaCORE target.
-- Confirm the NSX board flags target and heliaCORE package agree on `-mcpu`,
-  FPU, and ABI settings.
+### Source selection
 
-If you ever see "undefined reference" to a CMSIS-NN symbol from an NSX
-project, the most common culprits are:
+Set these before the SDK configures the heliaCORE module, or supply them through
+your SDK's CMake configuration mechanism:
 
-- A heliaCORE version pinned older than the NSX commit you're on.
-- A board-flag mismatch — NSX is targeting a different `-mcpu` than
-  the heliaCORE archive was built for. `find_package` will catch
-  this; see [Toolchain Pinning](../toolchains/).
+```cmake title="Source configuration · First kernel"
+set(NSX_CMSIS_NN_GROUPS "activation;nnsupport" CACHE STRING "heliaCORE groups")
+set(ARM_NN_ENABLE_F32 OFF CACHE BOOL "Enable FP32")
+set(ARM_NN_ENABLE_F16 OFF CACHE BOOL "Enable FP16")
+```
+
+`ALL` selects every group. If changing a previously configured cache, update its
+values through your build configuration or use a fresh build directory; a plain
+`set(... CACHE ...)` does not overwrite an existing value. Do not set
+`NSX_CMSIS_NN_LIB` when you intend to build from source.
+
+### Prebuilt selection
+
+Point the adapter at the extracted SDK's archive and manifest:
+
+```cmake title="Prebuilt configuration"
+set(NSX_CMSIS_NN_LIB "/path/to/sdk/lib/libns-cmsis-nn.a" CACHE FILEPATH "heliaCORE archive")
+set(NSX_CMSIS_NN_MANIFEST "/path/to/sdk/manifest.json" CACHE FILEPATH "heliaCORE manifest")
+```
+
+Use headers matching that archive: the adapter uses the module checkout's
+`Include/` directory. Keep the checkout and archive on the same release.
+
+:::caution[Check archive compatibility]
+The adapter imports the archive directly; it does not call the standalone
+`find_package` package's CPU/compiler checks. Compare its manifest with your
+board's CPU, FPU, compiler, and float ABI. Manifest feature checks validate
+requested floating-point support, not complete binary compatibility.
+:::
+
+## 3. Build and verify
+
+Build using your SDK's board-application workflow and enable verbose output.
+Look for one of these configure messages:
+
+```text
+nsx-cmsis-nn: building from source (groups=activation;nnsupport)
+```
+
+or, when using a prebuilt archive:
+
+```text
+nsx-cmsis-nn: using prebuilt /path/to/sdk/lib/libns-cmsis-nn.a
+```
+
+Confirm the compiler commands use the board flags. In prebuilt mode, confirm
+the final link uses the requested archive. Continue to [First kernel](../first-kernel/)
+to test execution.
+
+| Symptom | Check |
+|---|---|
+| `nsx::cmsis_nn` does not exist | Ensure the SDK configured the heliaCORE module before linking the application. |
+| Unexpected build mode | Inspect `NSX_CMSIS_NN_LIB` in the cache; unset it for source mode. |
+| Missing kernel symbol | Check release alignment, selected groups, and requested floating-point support. |
+
+## Source reference
+
+The [heliaCORE NSX adapter](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/nsx/CMakeLists.txt)
+defines these options and the source/prebuilt behavior.

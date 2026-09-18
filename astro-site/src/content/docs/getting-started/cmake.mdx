@@ -1,14 +1,76 @@
 ---
-title: CMake (find_package)
-description: Link the relocatable CMake config package shipped in each SDK tarball.
+title: CMake
+description: Link a prebuilt heliaCORE package or select kernels in a source build.
+prev:
+  label: Overview
+  link: /ns-cmsis-nn/getting-started/
+next:
+  label: First kernel
+  link: /ns-cmsis-nn/getting-started/first-kernel/
 ---
 
-heliaCORE ships a relocatable CMake config package inside each SDK
-tarball. After extraction, `find_package(ns-cmsis-nn)` exposes the
-target `ns::cmsis-nn`, plus a set of cache variables describing the
-arch and toolchain the archive was built with.
+Use a prebuilt package when its CPU and compiler settings match your firmware.
+Choose a source build when you need to select operator groups or data types.
+Both paths require an existing CMake firmware target and board toolchain;
+see [Requirements](../requirements/). Use one path, not both.
 
-## 1. Download the SDK tarball
+import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
+import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
+
+<CardGrid columns={2}>
+<LinkCard title="Source" href="#build-from-source">Choose groups and data types; compile with your firmware's flags.</LinkCard>
+<LinkCard title="Prebuilt" href="#use-a-prebuilt-package">Use a release library that matches your CPU, compiler, and ABI.</LinkCard>
+</CardGrid>
+
+## Build from source
+
+Check out the heliaCORE release you intend to use into
+`third_party/ns-cmsis-nn`. Keep that checkout pinned to a release tag or commit
+in your project's dependency management.
+
+After creating your firmware target (named `my_firmware` below), attach the
+sources through the shared CMake manifest:
+
+```cmake title="CMakeLists.txt · after creating my_firmware"
+set(ARM_NN_ENABLE_F32 OFF)
+set(ARM_NN_ENABLE_F16 OFF)
+include("${CMAKE_SOURCE_DIR}/third_party/ns-cmsis-nn/cmake/ns_cmsis_nn.cmake")
+
+ns_cmsis_nn_attach(my_firmware
+    GROUPS activation nnsupport
+    DTYPES q7
+)
+target_compile_definitions(my_firmware PRIVATE
+    ARM_NN_ENABLE_F32=$<BOOL:${ARM_NN_ENABLE_F32}>
+    ARM_NN_ENABLE_F16=$<BOOL:${ARM_NN_ENABLE_F16}>
+)
+```
+
+This selects the activation and support groups with the `q7` source filter for
+[First kernel](../first-kernel/). The helper also adds the public include path.
+Sources compile with your firmware target's flags. Keep required support
+sources when adding other groups; the manifest does not infer a model's kernel
+dependencies for you. Untagged common sources remain included by the type filter.
+
+To use a broader set, change `GROUPS` and `DTYPES` to match your application,
+or use `ALL`. To add FP32, for example, set `ARM_NN_ENABLE_F32 ON` before
+attaching sources and include `f32` in `DTYPES`. FP16 follows the same pattern
+with `ARM_NN_ENABLE_F16` and `f16`, subject to target/toolchain support.
+Keep the compiler definitions above aligned with these CMake variables:
+`ns_cmsis_nn_attach()` selects sources and include paths but does not define
+those compiler macros. If you attach to a separate library, use `PUBLIC`
+definitions so its consumers see the same APIs. See
+[Build configuration](/ns-cmsis-nn/guide/architecture/build-path-selection/).
+
+Build with your existing board toolchain and confirm the verbose build compiles
+the selected sources. Then continue to [First kernel](../first-kernel/).
+
+## Use a prebuilt package
+
+The release SDK tarball exposes `ns::cmsis-nn` through
+`find_package(ns-cmsis-nn)`. Select the package matching your target and compiler.
+
+### 1. Download the SDK tarball
 
 Pick the tarball matching your target CPU:
 
@@ -18,49 +80,53 @@ CPU=cortex-m4   # or cortex-m0, cortex-m55
 TOOLCHAIN=atfe # or gcc, armclang
 curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz
 curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz.sha256
-sha256sum -c ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz.sha256
+shasum -a 256 -c ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz.sha256
+mkdir -p third_party
 tar -xzf ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz -C third_party/
 ```
 
-## 2. Wire it into your CMake project
+### 2. Wire it into your CMake project
 
-```cmake
-list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/third_party/ns-cmsis-nn-cortex-m4-atfe-7.35.0") # x-release-please-version
+After creating your existing firmware target, add:
 
-find_package(ns-cmsis-nn 7.35.0 REQUIRED CONFIG) # x-release-please-version
-
-add_executable(my_firmware main.c)
+```cmake title="CMakeLists.txt · existing firmware target"
+find_package(ns-cmsis-nn REQUIRED CONFIG)
 target_link_libraries(my_firmware PRIVATE ns::cmsis-nn)
 ```
 
-That's it. `ns::cmsis-nn` is an `IMPORTED STATIC` target that already
-carries the right `INTERFACE_INCLUDE_DIRECTORIES`.
+Configure using the extracted package directory. In the same shell used for the
+download above:
 
-## 3. Configure-time guardrails
+```bash
+SDK_DIR="$PWD/third_party/ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}"
+cmake -S . -B build -DCMAKE_PREFIX_PATH="$SDK_DIR"
+```
 
-`find_package` will **fail fast** if your project's compile flags don't
-match the archive:
+Retain your project's board toolchain, presets, and other configure arguments.
+Use a build directory already configured for that board, or supply its toolchain
+when configuring a fresh directory. `my_firmware` stands for your existing target;
+do not create a second executable. The imported target supplies include paths
+and the archive's floating-point feature definitions.
 
-- **CPU mismatch** — if your `-mcpu=` differs from the archive's, you
-  get a `FATAL_ERROR` with the expected vs actual value.
-- **Compiler ID mismatch** — the archive records the `CMAKE_C_COMPILER_ID`
-  it was built with (e.g. `GNU` for GCC, `ARMClang` for Arm Compiler 6).
-  The packaged CMake config rejects a different consumer compiler ID as a
-  conservative provenance check.
+On systems without `shasum`, use `sha256sum -c` for the checksum step.
 
-This is intentional for packaged SDK consumption: a `.a` built for the wrong CPU
-or float ABI can fail only after it reaches a device, and compiler provenance is
-part of release qualification. Pick the SDK tarball built with your project
-compiler, or build heliaCORE from source when you need different compiler flags.
+### 3. Configure-time guardrails
 
-## 4. Verify the integration
+The package rejects a different compiler ID and a conflicting `-mcpu` when
+that flag is present in `CMAKE_C_FLAGS`. These checks do not inspect every
+per-target option or validate the FPU and float ABI.
+
+Compare your firmware's verbose compiler command with `manifest.json` before
+linking: compiler identity/version, CPU/FPU flags, and float ABI must fit your
+project. See the [requirements checklist](../requirements/#check-your-build).
+A successful configure alone does not establish compatibility.
+
+### 4. Verify the integration
 
 After configuration, confirm CMake imported the heliaCORE package and selected
 the expected archive:
 
 ```bash
-cmake -S . -B build \
-  -DCMAKE_PREFIX_PATH="$PWD/third_party/ns-cmsis-nn-cortex-m4-atfe-7.35.0" # x-release-please-version
 cmake --build build --verbose
 ```
 
@@ -73,9 +139,27 @@ If CMake reports a CPU mismatch, switch to the matching release artifact. If it
 reports a compiler mismatch and you want ATfE to optimize the kernels, build
 heliaCORE from source with your project's toolchain.
 
+:::tip[Expected result]
+The final link uses the selected SDK's `lib/libns-cmsis-nn.a`, and compilation
+uses its `include/` directory. Run First kernel next to verify execution.
+:::
+
+## Troubleshooting
+
+| Symptom | Check |
+|---|---|
+| Package not found | Point `CMAKE_PREFIX_PATH` at the extracted SDK directory, not the archive file. |
+| CPU or compiler mismatch | Select a matching package or build from source. |
+| Floating-point symbol missing | Check both source selection and compiler definitions, or the prebuilt manifest's features. |
+
+## Next step
+
+Run [First kernel](../first-kernel/) to check execution, then use the
+[User guide](/ns-cmsis-nn/guide/) for configuration and optimization.
+
 ## Reference
 
 - Manifest: `manifest.json` (inside each tarball) describes
-  the exact toolchain and build flags. See [Toolchain Pinning](../toolchains/).
+  the exact toolchain and build flags. See [Toolchain Pinning](/ns-cmsis-nn/guide/architecture/toolchains/).
 - Smoke test: a minimal consumer project lives in
   [`cmake/tests/find_package/`](https://github.com/AmbiqAI/ns-cmsis-nn/tree/main/cmake/tests/find_package).

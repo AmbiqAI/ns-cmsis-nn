@@ -6,25 +6,25 @@ description: The heliaCORE C API, grouped by operator family.
 import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
 import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
 
-heliaCORE keeps the CMSIS-NN C API shape where compatibility matters, then adds
-Ambiq-tuned kernels and integration paths for HELIA workloads on Apollo-class
-targets. Start with the operator families below, filter to the kernels you care
-about, then drill into exact generated signatures when you need implementation
-detail.
+Use the API reference to check function signatures, tensor layouts, parameters,
+and working-memory requirements. The reference is generated from the heliaCORE
+headers and includes public kernels, wrappers, buffer-size queries, and support
+helpers. For a direct integration, start with a public kernel or wrapper and
+follow its documented constraints.
 
 <CardGrid columns={3}>
-  <LinkCard href="../" title="What it is" eyebrow="positioning">
-    A CMSIS-NN-compatible kernel layer packaged for Ambiq firmware and HELIA runtime integration.
+  <LinkCard href="kernel-index/" title="Kernel index">
+    Search functions by name and filter by operator group or data type.
   </LinkCard>
-  <LinkCard href="../coverage/compared-with-cmsis-nn/" title="How it differs" eyebrow="compatibility">
-    Inherited CMSIS-NN APIs stay recognizable while Ambiq coverage fills model-graph gaps around real deployments.
+  <LinkCard href="/ns-cmsis-nn/guide/using-kernels/calling-kernels/" title="Calling kernels">
+    Prepare tensors and parameters, choose a wrapper, and check the result.
   </LinkCard>
-  <LinkCard href="../getting-started/neuralspot-x/" title="How it fits HELIA" eyebrow="integration">
-    Use heliaCORE through neuralSPOT-X or direct CMake/CMSIS-Pack flows depending on your firmware stack.
+  <LinkCard href="/ns-cmsis-nn/guide/coverage/compared-with-cmsis-nn/" title="API compatibility">
+    Understand the relationship to Arm CMSIS-NN and the additional heliaCORE APIs.
   </LinkCard>
 </CardGrid>
 
-## Browse By Kernel Family
+## Browse by kernel family
 
 <CardGrid columns={3}>
   <LinkCard href="api/#convolution-functions" title="Convolution" eyebrow="compute">
@@ -64,4 +64,4 @@ the [generated C API reference](api/).
 Structs, enums, files, and lower-level support helpers are intentionally kept in
 the [full generated C API index](api/) to avoid
 duplicating declarations across the grouped operator view and the complete
-Exhale tree.
+generated reference.

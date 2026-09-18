@@ -1,10 +1,21 @@
 ---
 title: Zephyr Module
 description: Add heliaCORE to west.yml, enable the Kconfig, and link.
+prev:
+  label: Overview
+  link: /ns-cmsis-nn/getting-started/
+next:
+  label: First kernel
+  link: /ns-cmsis-nn/getting-started/first-kernel/
 ---
 
 heliaCORE is a first-class Zephyr module. Add it to your `west.yml`,
-flip a Kconfig, and link.
+enable the required kernel groups, and build your board application.
+
+## Prerequisites
+
+Start with a working board application and matching target/compiler settings.
+See [Requirements](../requirements/) before choosing source or prebuilt kernels.
 
 ## 1. Add to `west.yml`
 
@@ -25,13 +36,29 @@ Then `west update`.
 ## 2. Enable in your app's `prj.conf`
 
 ```ini
+CONFIG_CMSIS_NN=n
 CONFIG_NS_CMSIS_NN=y
-CONFIG_NS_CMSIS_NN_ALL=y
+CONFIG_NS_CMSIS_NN_ACTIVATION=y
 ```
 
 That's the source build — Zephyr will compile the kernels with your
 project's toolchain. The CMSIS-NN headers are added to the include
 path automatically, and the kernels are linked into your image.
+
+:::tip[Minimal setup for First kernel]
+The activation option brings in its support group. This configuration leaves
+experimental floating-point kernels disabled. heliaCORE's Zephyr module requires
+Cortex-M and cannot be enabled alongside upstream `CONFIG_CMSIS_NN=y`. If another
+component selects that upstream option, resolve that dependency before continuing.
+:::
+
+### Add more kernels when needed
+
+Select individual `CONFIG_NS_CMSIS_NN_*` groups in menuconfig. To enable all
+groups, use `CONFIG_NS_CMSIS_NN_ALL=y`; this also implies experimental FP32 and
+FP16 where the target supports it. For explicit floating-point selection, use
+`CONFIG_NS_CMSIS_NN_ENABLE_F32=y` or `CONFIG_NS_CMSIS_NN_ENABLE_F16=y` and check
+target dependencies in menuconfig.
 
 ## 3. (Optional) Use the prebuilt `.a`
 
@@ -55,7 +82,13 @@ CPU/FPU flags, float ABI, and calling convention. Prefer the release tarball
 whose toolchain stamp matches your Zephyr compiler.
 :::
 
-## 4. Verify the module wiring
+## 4. Build and verify
+
+Build and flash using your existing Zephyr board configuration. Keep its board
+name, overlays, and application-specific arguments. For a configured build,
+`west build -d build` rebuilds the application; `west flash -d build` uses its
+configured runner.
+
 
 After `west build`, confirm Zephyr picked up the module and selected the path
 you expected:
@@ -73,8 +106,25 @@ If the module does not appear in `.config`, check that the `west.yml` path
 matches the module location and that your application enables
 `CONFIG_NS_CMSIS_NN=y`.
 
+:::tip[Expected configuration]
+The generated `.config` contains `CONFIG_NS_CMSIS_NN=y` and
+`CONFIG_NS_CMSIS_NN_ACTIVATION=y` for the minimal source example. It does not
+enable the upstream `CONFIG_CMSIS_NN` library.
+:::
+
+| Symptom | Check |
+|---|---|
+| Module option unavailable | Confirm the module is in the west workspace, the target is Cortex-M, and upstream CMSIS-NN is disabled. |
+| Float option unavailable | Check its target dependencies in menuconfig. |
+| Archive feature mismatch | Select an archive containing the requested features or return to source mode. |
+
 ## Reference
 
 - Module manifest: [`zephyr/module.yml`](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/zephyr/module.yml)
 - Kconfig: [`zephyr/Kconfig`](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/zephyr/Kconfig)
 - CMake glue: [`zephyr/CMakeLists.txt`](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/zephyr/CMakeLists.txt)
+
+## Next step
+
+Run [First kernel](../first-kernel/) to verify an actual kernel result on your
+target. Keep activation kernels enabled for that example.

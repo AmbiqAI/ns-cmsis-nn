@@ -1,29 +1,12 @@
 ---
 title: Kernel index
-description: Search every public heliaCORE kernel by name, operator family, data type, or header.
+description: Find heliaCORE functions by name, operator group, or data type.
 tableOfContents: false
 ---
 
-import RefIndex from '@ambiqai/helia-ui/astro/RefIndex';
-import reference from '../../../../public/reference/api/reference.json';
-import { groups } from '../../../../reference.config.json';
+import KernelIndex from '../../../components/KernelIndex.astro';
 
-:::caution[Draft copy, pending owner approval]
-The index itself is generated. The sentence below it is new.
-:::
+Search by function name or description, then narrow the results by operator group
+and data type. Select a function to read its parameters and requirements.
 
-<RefIndex
-  reference={reference}
-  base="/ns-cmsis-nn/"
-  groups={groups}
-  label="Kernel index"
-  placeholder="Filter kernels by name"
-/>
-
-{/* Rows built at prebuild from astro-site/public/reference/api/reference.json,
-    the model scripts/build-reference.mjs writes; the families are the ones
-    astro-site/reference.config.json defines for the rest of the section. */}
-
-Every symbol the reference documents, in one list: search by name, or narrow by
-operator family, data type, or the header a kernel is declared in. A row links
-to the function on its module page.
+<KernelIndex />

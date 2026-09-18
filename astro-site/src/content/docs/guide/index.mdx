@@ -1,0 +1,66 @@
+---
+title: User guide
+description: Choose kernels, configure your build, manage tensors and memory, and measure execution on Ambiq silicon.
+---
+
+import DeploymentPaths from '../../../components/DeploymentPaths.astro';
+import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
+import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
+
+Use this guide after heliaCORE is linked into your application. It takes you from
+choosing a function to supplying its tensors and working memory, enabling the
+right execution path, and checking the result on your Ambiq target.
+
+## Deploy a complete model
+
+Most application developers should start with heliaAOT or heliaRT. Both use
+heliaCORE for supported operations on Ambiq silicon.
+
+<DeploymentPaths />
+
+This guide covers direct kernel integration and custom runtimes. If the library
+is not integrated yet, start with [Getting started](/ns-cmsis-nn/getting-started/).
+
+## Choose your next task
+
+<CardGrid columns={2}>
+<LinkCard title="Find a kernel" href="coverage/operator-coverage/">
+Explore operator families and data types, then check the shape and layout requirements of a specific API.
+</LinkCard>
+<LinkCard title="Call it correctly" href="using-kernels/calling-kernels/">
+Choose a wrapper or specialized function, prepare its parameters, and check the returned status and output.
+</LinkCard>
+<LinkCard title="Configure the build" href="architecture/build-path-selection/">
+Include the operator groups and numeric types you need, with matching compiler settings and headers.
+</LinkCard>
+<LinkCard title="Measure execution" href="performance/methodology/">
+Measure representative inputs on your target and separate kernel timing from complete model latency.
+</LinkCard>
+</CardGrid>
+
+## From a model operation to a kernel call
+
+| Step | Decide | Continue with |
+|---|---|---|
+| Select | Which operation, numeric format, and tensor layout does the model require? | [Operator coverage](coverage/operator-coverage/) and [Data types](architecture/data-types/) |
+| Prepare | Which offsets, multipliers, shapes, and buffers does this API expect? | [Quantization](using-kernels/quantization/), [Calling kernels](using-kernels/calling-kernels/), and [Memory](using-kernels/memory/) |
+| Configure | Which source groups and processor features should the build include? | [Build options](architecture/build-path-selection/), [Targets](architecture/cortex-m-targets/), and [Toolchains](architecture/toolchains/) |
+| Verify | Does the output match a reference, and is the selected implementation efficient for this shape? | [Acceleration](architecture/acceleration-paths/) and [Measurement](performance/methodology/) |
+
+An available C function, an accelerated implementation, and an operation supported
+by a model runtime are different things. Check the function contract for data-type
+and shape restrictions, then confirm that your runtime actually calls it.
+
+## Find the cause of a problem
+
+| Symptom | Start here |
+|---|---|
+| Function is undeclared or missing at link time | [Build options](architecture/build-path-selection/): source groups, data types, and public feature definitions |
+| Function returns an error | [Calling kernels](using-kernels/calling-kernels/): constraints and status handling |
+| Output is incorrect | [Quantization](using-kernels/quantization/) and the function's tensor layout in the [API reference](/ns-cmsis-nn/reference/) |
+| Scratch memory is too large or incorrectly reused | [Memory](using-kernels/memory/): sizing, ownership, and lifetime |
+| Output is correct but execution is slow | [Acceleration](architecture/acceleration-paths/) and [Measurement](performance/methodology/) |
+
+The [API reference](/ns-cmsis-nn/reference/) is the source for each function's
+parameters and constraints. The [kernel index](/ns-cmsis-nn/reference/kernel-index/)
+lets you search, filter, and sort that inventory without browsing header files.

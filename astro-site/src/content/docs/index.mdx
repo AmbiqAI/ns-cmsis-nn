@@ -1,249 +1,249 @@
 ---
 title: heliaCORE
-description: Optimized AI kernels for Ambiq Silicon
+description: Neural network kernels optimized for Ambiq silicon, with broad operator coverage, quantized and floating-point support, and integrated build options.
 tableOfContents: false
+prev: false
+next: false
 helia:
   pageTitle: false
 ---
 
-import Band from '@ambiqai/helia-ui/astro/Band';
-import BigNumber from '@ambiqai/helia-ui/astro/BigNumber';
-import Button from '@ambiqai/helia-ui/astro/Button';
-import Card from '@ambiqai/helia-ui/astro/Card';
-import CardContent from '@ambiqai/helia-ui/astro/CardContent';
-import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
-import CardHeader from '@ambiqai/helia-ui/astro/CardHeader';
-import Chip from '@ambiqai/helia-ui/astro/Chip';
-import Eyebrow from '@ambiqai/helia-ui/astro/Eyebrow';
 import Hero from '@ambiqai/helia-ui/astro/Hero';
-import StatCard from '@ambiqai/helia-ui/astro/StatCard';
+import Band from '@ambiqai/helia-ui/astro/Band';
+import Button from '@ambiqai/helia-ui/astro/Button';
+import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
+import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
+import Mosaic from '@ambiqai/helia-ui/astro/Mosaic';
+import Card from '@ambiqai/helia-ui/astro/Card';
+import CardHeader from '@ambiqai/helia-ui/astro/CardHeader';
+import CardContent from '@ambiqai/helia-ui/astro/CardContent';
+import HomeLayout from '../../components/HomeLayout.astro';
 
-import LinkCard from '../../components/LinkCard.astro';
+<HomeLayout>
 
-import coverage from '../../data/coverage.json';
-
-<Hero
-  variant="contrast"
-  eyebrow="Optimized AI kernels for Ambiq Silicon"
-  badge="ATfE + MVE ready"
->
-  <Fragment>Kernel <em>acceleration</em> for Ambiq AI.</Fragment>
-
-  <Fragment slot="summary">
-    **heliaCORE** is Ambiq's optimized neural-network kernel library for Ambiq
-    silicon. This repository delivers it as `ns-cmsis-nn`: a CMSIS-NN-based
-    kernel layer with Ambiq-tuned operators, CMSIS-Pack delivery, and HELIA
-    integration paths for Apollo-class Cortex-M accelerators.
-  </Fragment>
-
-  <Button slot="actions" href="getting-started/">Getting started</Button>
-
-  <Button slot="actions" href="architecture/acceleration-paths/" variant="secondary">Architecture</Button>
-
-  <Button slot="actions" href="reference/" variant="secondary">API</Button>
-
-  <Fragment slot="aside">
-    <CardHeader padding="none" titleAs="h2" eyebrow="HELIA CORE">V7.35.0{/* x-release-please-version */}</CardHeader>
-    <CardGrid columns={2} density="compact">
-      <StatCard label="accelerated ops"><span>200+</span></StatCard>
-      <StatCard label="Field models"><span>40+</span></StatCard>
-      <StatCard label="Op types"><span>53</span></StatCard>
-      <StatCard label="Paths"><span>4</span></StatCard>
-    </CardGrid>
-  </Fragment>
-  <Fragment slot="media">
-
-```cmake wrap
-find_package(ns-cmsis-nn REQUIRED CONFIG)
-target_link_libraries(app PRIVATE ns::cmsis-nn)
-```
-
-  </Fragment>
+<Hero variant="contrast" eyebrow="heliaCORE · Ambiq's neural network kernel library">
+<Fragment>Neural network kernels for <em>Ambiq silicon.</em></Fragment>
+<Fragment slot="summary">
+heliaCORE is Ambiq’s neural network kernel library for Apollo devices. Built on
+Arm CMSIS-NN, it combines expanded operator coverage, quantized and floating-point
+computation, and optimized Cortex-M DSP and Helium paths to power inference on
+Ambiq silicon.
+</Fragment>
+<Button slot="actions" href="#inference">Choose your inference path</Button>
+<Button slot="actions" href="/ns-cmsis-nn/reference/kernel-index/" variant="secondary">Explore the kernels</Button>
+<div slot="aside" class="highlights">
+<div>
+<strong>Expanded operator coverage</strong>
+<p>Tensor indexing, reductions, broadcast math, and recurrent layers.</p>
+</div>
+<div>
+<strong>DSP + Helium</strong>
+<p>Optimized for Cortex-M acceleration.</p>
+</div>
+<div>
+<strong>Quantized + floating-point</strong>
+<p>A8W8 and A16W8: 8- or 16-bit activations with 8-bit weights. FP16 and FP32: opt-in, experimental floating-point APIs.</p>
+</div>
+<div>
+<strong>One build foundation</strong>
+<p>CMake, CMSIS-Pack, Zephyr, and neuralSPOT-X.</p>
+</div>
+<p class="panel-note">Support varies by operator and target. <a class="inline-link" href="/ns-cmsis-nn/guide/coverage/data-types-by-family/">Check data-type coverage →</a></p>
+</div>
 </Hero>
 
+<Band density="compact">
+<div class="section-heading">
+<h2>Optimized computation throughout your model</h2>
+<p>Production models do more than convolution and matrix multiplication. They
+also move tensors, combine results, and maintain state. heliaCORE gives model
+integrations optimized library kernels for more of these operations, including
+the work between convolution and dense layers.</p>
+<p>For most applications, start with <a class="inline-link" href="#inference">heliaAOT or heliaRT</a>,
+which use heliaCORE to execute supported model operations on Ambiq devices.
+heliaAOT is the recommended starting point for latency, power, and memory
+efficiency. Direct kernel integration is available for custom runtimes and
+firmware that need control over individual operations.</p>
+</div>
+</Band>
+
+<Band density="compact">
+<div class="section-heading">
+<div>
+<p class="eyebrow">Operator coverage</p>
+<h2>Coverage across production model graphs</h2>
+</div>
+<p>Alongside the convolution, dense, and other kernels inherited from Arm CMSIS-NN,
+heliaCORE adds extensive support for tensor indexing, reductions, comparisons,
+broadcast math, and recurrent networks. This extends kernel coverage to more of
+the operations that make up a complete model. Your inference runtime or compiler
+also determines which model operations it can map to these kernels.</p>
+</div>
+<div class="family-grid">
+<article>
+<h3>Tensor indexing and updates</h3>
+<p>Gather, GatherND, ScatterND, Tile, Select, ReverseSequence, and DynamicUpdateSlice extend the graph operations available to your model.</p>
+</article>
+<article>
+<h3>Reductions and comparisons</h3>
+<p>Reduce sum, minimum and maximum, ArgMin, ArgMax, and comparison kernels cover decisions and aggregation within the graph.</p>
+</article>
+<article>
+<h3>More floating-point operations</h3>
+<p>FP16 and FP32 additions include broadcast add, subtract and multiply, gather, and reductions, alongside convolution and dense layers.</p>
+</article>
+<article>
+<h3>Extended recurrent support</h3>
+<p>FP16 and FP32 GRU kernels expand recurrent model support beyond the inherited LSTM and SVDF implementations.</p>
+</article>
+</div>
+<div class="section-actions">
+<Button href="/ns-cmsis-nn/guide/coverage/operator-coverage/" variant="secondary">Explore operator coverage</Button>
+<a class="text-link" href="/ns-cmsis-nn/guide/coverage/compared-with-cmsis-nn/">Explore the CMSIS-NN foundation and extensions →</a>
+</div>
+</Band>
+
 <Band tone="muted" density="compact">
-
-<Chip tone="static">CMSIS-Pack</Chip>
-<Chip tone="static">Zephyr</Chip>
-<Chip tone="static">CMake</Chip>
-<Chip tone="static">neuralSPOT-X</Chip>
-<Chip tone="static">ATfE</Chip>
-<Chip tone="static">GCC</Chip>
-<Chip tone="static">Cortex-M0+</Chip>
-<Chip tone="static">Cortex-M4</Chip>
-<Chip tone="static">Cortex-M55</Chip>
-<Chip tone="static">Apollo510</Chip>
-
+<div class="section-heading">
+<div>
+<p class="eyebrow">Cortex-M acceleration</p>
+<h2>Put DSP and Helium to work</h2>
+</div>
+<p>Use the compute features already in the processor. heliaCORE selects implementations
+from the target's compiler flags, with specialized paths for supported kernels
+and portable C implementations where the selected API provides one.</p>
+</div>
+<div class="acceleration-grid">
+<article>
+<p class="feature-tag">DSP extensions</p>
+<h3>Packed integer computation</h3>
+<p>DSP instructions process packed integer values and accelerate multiply-accumulate
+operations used by quantized kernels.</p>
+</article>
+<article>
+<p class="feature-tag">Helium / MVE</p>
+<h3>Vectorized neural network math</h3>
+<p>Hand-tuned vector implementations accelerate integer and floating-point operations,
+with predicated processing for the ends of tensors.</p>
+</article>
+<article>
+<p class="feature-tag">Memory control</p>
+<h3>Buffers owned by your firmware</h3>
+<p>No dynamic allocation inside the library. Query scratch-buffer requirements
+and supply the memory from your application's allocation strategy.</p>
+</article>
+</div>
+<div class="section-actions">
+<Button href="/ns-cmsis-nn/guide/architecture/acceleration-paths/" variant="secondary">Explore acceleration paths</Button>
+<a class="text-link" href="/ns-cmsis-nn/guide/performance/kernel-benchmarks/">View kernel benchmarks →</a>
+<a class="text-link" href="/ns-cmsis-nn/guide/architecture/cortex-m-targets/">Supported targets →</a>
+<a class="text-link" href="/ns-cmsis-nn/guide/architecture/toolchains/">Toolchain requirements →</a>
+</div>
 </Band>
 
-<Band tone="plain">
+<Band density="compact">
+<div class="section-heading">
+<div>
+<p class="eyebrow">Build integration</p>
+<h2>One kernel library. Your build system.</h2>
+</div>
+<p>Add heliaCORE to an existing firmware project or use it through the HELIA stack.
+Choose the integration that matches your tools, then configure the operator groups
+and data types your application needs.</p>
+</div>
+<Mosaic pattern="feature-start">
+<Card tone="ink" density="comfortable" class="build-feature">
+<CardHeader titleAs="h3" eyebrow="CMake single source of truth">Build only what your application needs</CardHeader>
+<CardContent>
+<p>One CMake manifest defines the kernel sources for standalone, Zephyr, and
+neuralSPOT-X builds. Conditional source selection lets you leave unused operator
+groups and optional floating-point kernels out of the build.</p>
+<div class="build-selection" aria-label="Example of conditional kernel selection at build time">
+<div class="build-selection__source">
+<span class="feature-tag">One shared source manifest</span>
+<code>cmake/ns_cmsis_nn.cmake</code>
+</div>
+<div class="build-selection__options">
+<div>
+<h4>Choose operator groups</h4>
+<p class="build-selection__example">Example configuration</p>
+<dl>
+<div><dt>Convolution</dt><dd class="build-selection__on">ON</dd></div>
+<div><dt>Fully connected</dt><dd class="build-selection__on">ON</dd></div>
+<div><dt>LSTM</dt><dd class="build-selection__off">OFF</dd></div>
+<div><dt>SVDF</dt><dd class="build-selection__off">OFF</dd></div>
+</dl>
+</div>
+<div>
+<h4>Enable the data types you need</h4>
+<p>Filter sources by data type. FP16 and FP32 are separate, opt-in build options.</p>
+<dl>
+<div><dt>FP16 kernels</dt><dd class="build-selection__off">OFF</dd></div>
+<div><dt>FP32 kernels</dt><dd class="build-selection__off">OFF</dd></div>
+</dl>
+<p class="build-selection__example">Floating-point defaults shown</p>
+</div>
+</div>
+<div class="build-selection__result">
+<strong>Selected sources compile into your library.</strong>
+<p>Disabled groups and floating-point variants stay out of the source build.
+Selection happens at build time, with no runtime switch.</p>
+</div>
+</div>
+<p>CMSIS-Pack source lists are checked against the repository to keep packaged
+kernels aligned with source builds.</p>
+</CardContent>
+</Card>
 
-<Eyebrow>What it is</Eyebrow>
-
-## A kernel layer for HELIA AI workloads
-
-heliaCORE is Ambiq's optimized neural-network kernel layer for Apollo-class
-devices. In this repository, it is delivered as `ns-cmsis-nn`: inherited
-CMSIS-NN-compatible APIs where they apply, Ambiq-tuned kernels where HELIA needs
-more coverage, and packaging for runtimes, compilers, and firmware builds.
-
+<LinkCard title="CMake" href="/ns-cmsis-nn/getting-started/cmake/">
+For an existing CMake application. Install a prebuilt library package and link the
+exported target, or build from source with the groups and data types you select.
+</LinkCard>
+<LinkCard title="CMSIS-Pack" href="/ns-cmsis-nn/getting-started/cmsis-pack/">
+For projects using CMSIS tooling. Add the Ambiq pack and choose source components
+or a prebuilt library for your target.
+</LinkCard>
+<LinkCard title="Zephyr" href="/ns-cmsis-nn/getting-started/zephyr/">
+For Zephyr applications. Add the module to your workspace and configure kernel
+support through Kconfig, using sources or a prebuilt archive.
+</LinkCard>
+<LinkCard title="neuralSPOT-X" href="/ns-cmsis-nn/getting-started/neuralspot-x/">
+For applications built with Ambiq's development SDK. Bring heliaCORE into the
+SDK's CMake build, including applications that use heliaRT.
+</LinkCard>
+</Mosaic>
+<div class="section-actions">
+<Button href="/ns-cmsis-nn/getting-started/">Choose your integration</Button>
+<a class="text-link" href="/ns-cmsis-nn/guide/architecture/build-path-selection/">Configure kernels and data types →</a>
+</div>
 </Band>
 
-<Band tone="plain">
-
-<Eyebrow>Coverage at a glance</Eyebrow>
-
-## Coverage for real Ambiq model graphs
-
-{/* Counts generated at prebuild by astro-site/scripts/build-coverage.mjs from
-    Include/arm_nnfunctions*.h and the group list in cmake/ns_cmsis_nn.cmake. */}
-
-<CardGrid columns={4} density="compact">
-  <StatCard label="operator groups in the build"><span>{coverage.operatorGroups.count}</span></StatCard>
-  <StatCard label="API families"><span>{coverage.apiGroups}</span></StatCard>
-  <StatCard label="public kernels"><span>{coverage.totals.functions}</span></StatCard>
-  <StatCard label="data-type tags"><span>{coverage.dtypes.length}</span></StatCard>
-</CardGrid>
-
-Arm CMSIS-NN provides the trusted foundation for efficient neural-network
-kernels on Cortex-M. In Ambiq's HELIA workflows, internal profiling across
-field-like models also highlighted important Ambiq-specific coverage needs:
-real graphs spend measurable time in padding, activations, reductions, and
-other operators around the largest MAC-heavy layers.
-
-heliaCORE broadens Cortex-M accelerator coverage around the CMSIS-NN-compatible
-foundation so those end-to-end paths stay optimized on Ambiq silicon.
-
-<CardGrid columns={3}>
-  <Card>
-    <CardHeader titleAs="h3" eyebrow="MVE"><span>MVE-first where available</span></CardHeader>
-    <CardContent>Cortex-M55 paths are a primary optimization target, with vectorized kernels where MVE can improve end-to-end latency.</CardContent>
-  </Card>
-  <Card>
-    <CardHeader titleAs="h3" eyebrow="DSP"><span>DSP coverage for Apollo-class MCUs</span></CardHeader>
-    <CardContent>Cortex-M DSP paths remain important on Apollo targets without MVE, so DSP variants stay part of the release surface.</CardContent>
-  </Card>
-  <Card>
-    <CardHeader titleAs="h3" eyebrow="Flow"><span>Glue operators count too</span></CardHeader>
-    <CardContent>Coverage extends beyond obvious MAC-heavy layers to the graph operators that shape real HELIA deployments.</CardContent>
-  </Card>
-</CardGrid>
-
-[Browse operator coverage](coverage/operator-coverage/)
-[See data types by family](coverage/data-types-by-family/)
-
-</Band>
-
-<Band tone="plain">
-
-<Eyebrow>Pick your integration</Eyebrow>
-
-## Four supported ways in
-
-<CardGrid columns={4}>
-  <LinkCard
-    href="getting-started/cmake/"
-    title="CMake package"
-    eyebrow="Prebuilt SDK"
-    meta="Start with CMake"
-  >
-    Link a per-architecture package with the exported CMake target; configure validates CPU and compiler.
-  </LinkCard>
-  <LinkCard
-    href="getting-started/cmsis-pack/"
-    title="CMSIS-Pack"
-    eyebrow="CMSIS tooling"
-    meta="Use the pack"
-  >
-    Install the Ambiq pack and select a source or prebuilt variant for your project.
-  </LinkCard>
-  <LinkCard
-    href="getting-started/zephyr/"
-    title="Zephyr Module"
-    eyebrow="RTOS module"
-    meta="Wire Zephyr"
-  >
-    Enable the module with Kconfig and optionally point it at a prebuilt archive.
-  </LinkCard>
-  <LinkCard
-    href="getting-started/neuralspot-x/"
-    title="neuralSPOT-X"
-    eyebrow="HELIA stack"
-    meta="Use NSX"
-  >
-    Consume heliaCORE through the NSX CMake graph for heliaRT-based applications.
-  </LinkCard>
-</CardGrid>
-
-</Band>
-
-<Band tone="muted">
-
-<Eyebrow>Apollo510 EVB · Cortex-M55 · 96 MHz LP mode</Eyebrow>
-
-## Measured on one board, three paths
-
-<CardGrid columns={3}>
-  <BigNumber label="MVE vs REF" caption="Peak speedup over the REF path">12×</BigNumber>
-  <BigNumber label="MVE vs DSP" caption="Peak speedup over the DSP path">8×</BigNumber>
-  <BigNumber label="DSP vs REF" caption="Peak speedup over the REF path">3×</BigNumber>
-</CardGrid>
-
-Peak average-cycle speedups across the benchmarked kernels, measured with
-cycle counts on the same SoC at the same clock: 11.98× for MVE against REF,
-7.83× for MVE against DSP, and 3.26× for DSP against REF. The per-kernel
-tables are on [Kernel benchmarks](performance/kernel-benchmarks/) and the
-conditions on [Methodology](performance/methodology/).
-
-</Band>
-
-<Band tone="plain">
-
-<Eyebrow>HELIA family</Eyebrow>
-
-## Powering heliaRT and heliaAOT
-
-heliaCORE provides the optimized kernel layer that powers Ambiq's edge-AI
-runtime and compiler flows. heliaRT and heliaAOT both rely on optimized HELIA
-kernels where applicable; heliaCORE is the shared kernel foundation behind
-those paths.
-
-- **heliaRT** is the runtime path. heliaCORE is the optimized kernel library
-  underneath it.
-- **heliaAOT** is the ahead-of-time compiler path. heliaCORE provides optimized
-  kernels that make generated inference code efficient.
-- **neuralSPOT-X / NSX** is the SDK and integration layer. NSX-based projects
-  can consume heliaCORE through CMake, Zephyr, or release artifacts.
-
+<Band tone="muted" density="compact" id="inference">
+<div class="section-heading">
+<div>
+<p class="eyebrow">Powered by heliaCORE</p>
+<h2>Choose your inference integration</h2>
+</div>
+<p>Choose heliaAOT to compile your model ahead of time, or heliaRT for a LiteRT for
+Microcontrollers runtime integration. Both use heliaCORE kernels for supported
+operations. Their guides cover model compatibility and deployment.</p>
+</div>
 <CardGrid columns={2}>
-  <LinkCard
-    href="https://ambiqai.github.io/helia-rt/"
-    title="heliaRT"
-    eyebrow="Runtime path"
-    meta="Open heliaRT"
-  >
-    Ambiq's optimized LiteRT runtime for Apollo applications, powered by HELIA kernels from heliaCORE where they apply.
-  </LinkCard>
-  <LinkCard
-    href="architecture/acceleration-paths/"
-    title="heliaAOT"
-    eyebrow="Compiler path"
-    meta="See where it fits"
-  >
-    Ahead-of-time generation for deterministic, low-footprint firmware, using heliaCORE kernels as the shared foundation.
-  </LinkCard>
+<LinkCard title="heliaAOT" eyebrow="Recommended · Flagship inference solution" tone="ink" href="https://ambiqai.github.io/helia-aot/">
+Our ahead-of-time inference path, recommended for latency, power, and memory
+efficiency. Compile your model into standalone C inference code that uses
+heliaCORE kernels, with memory planned before deployment.
+</LinkCard>
+<LinkCard title="heliaRT" eyebrow="Optimized LiteRT for Microcontrollers" href="https://ambiqai.github.io/helia-rt/">
+Our optimized fork of LiteRT for Microcontrollers. Run models through a familiar
+runtime integration, powered by heliaCORE's expanded kernel coverage and
+Ambiq-targeted optimizations.
+</LinkCard>
 </CardGrid>
-
+<div class="section-actions">
+<p>Building a custom runtime or integrating kernels directly?</p>
+<a class="text-link" href="/ns-cmsis-nn/getting-started/">Get started with direct integration →</a>
+</div>
 </Band>
 
-<Band tone="muted">
-
-<Eyebrow>Arm CMSIS ecosystem</Eyebrow>
-
-heliaCORE is built on and distributed for the Arm CMSIS ecosystem, including
-CMSIS-NN-compatible APIs and CMSIS-Pack delivery. Ambiq-specific additions are
-intended to ease integration into the HELIA AI platform for Ambiq silicon. For
-vendor-neutral Cortex-M kernel work, Arm CMSIS-NN remains the upstream
-ecosystem reference.
-
-</Band>
+</HomeLayout>

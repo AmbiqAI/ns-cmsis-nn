@@ -102,3 +102,19 @@ export const ELEMENTWISE_KERNELS: readonly KernelBenchmark[] = [
   { kernel: 'arm_comparison_s8', label: 'comparison_s8', shape: 'n4096', cycles: { ref: 266441, dsp: 208747, mve: 78071 } },
   { kernel: 'arm_comparison_s16', label: 'comparison_s16', shape: 'n4096', cycles: { ref: 270764, dsp: 237720, mve: 77986 } },
 ];
+
+/** Each workload has equal weight; timings from unrelated shapes are not pooled. */
+export function geometricSpeedup(rows: readonly KernelBenchmark[], baseline: 'ref' | 'dsp') {
+  return Math.exp(rows.reduce((sum, row) =>
+    sum + Math.log(row.cycles[baseline] / row.cycles.mve), 0) / rows.length);
+}
+
+export const ALL_KERNELS = [...CONVOLUTION_KERNELS, ...ELEMENTWISE_KERNELS];
+export const BENCHMARK_SUMMARY = {
+  refToMve: geometricSpeedup(ALL_KERNELS, 'ref'),
+  dspToMve: geometricSpeedup(ALL_KERNELS, 'dsp'),
+  mveWins: ALL_KERNELS.filter(row => row.cycles.mve < row.cycles.ref && row.cycles.mve < row.cycles.dsp).length,
+  count: ALL_KERNELS.length,
+  computeSpeedup: geometricSpeedup(CONVOLUTION_KERNELS, 'ref'),
+  elementwiseSpeedup: geometricSpeedup(ELEMENTWISE_KERNELS, 'ref'),
+};

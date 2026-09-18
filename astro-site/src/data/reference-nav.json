@@ -9,10 +9,6 @@
         {
           "label": "Convolution Functions",
           "slug": "reference/api/heliacore/nnconv"
-        },
-        {
-          "label": "arm_depthwise_conv_opt_common.h",
-          "slug": "reference/api/heliacore/internal/arm_depthwise_conv_opt_common"
         }
       ]
     },
@@ -140,7 +136,7 @@
       "slug": "reference/api/heliacore/genpubtypes"
     },
     {
-      "label": "Private",
+      "label": "Internal support",
       "slug": "reference/api/heliacore/groupsupport"
     },
     {

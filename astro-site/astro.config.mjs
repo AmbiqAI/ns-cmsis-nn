@@ -10,6 +10,8 @@ import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 import starlight from '@astrojs/starlight';
 import { heliaStarlight } from '@ambiqai/helia-ui/starlight';
+import { satteri } from '@astrojs/markdown-satteri';
+import markdownCallouts from './scripts/markdown-callouts.mjs';
 
 /* `site` plus `base` reproduce the Pages URL the Sphinx site already serves,
    so a canonical link and an Open Graph card resolve to the live origin. */
@@ -67,13 +69,13 @@ const referenceItems = [
       slug: module.slug,
     })),
   },
-  { label: 'Generation notes', slug: 'reference/doxygen' },
 ];
 
 export default defineConfig({
   site,
   base,
-  redirects,
+  redirects: Object.fromEntries(Object.entries(redirects).filter(([route]) => !route.endsWith('.html'))),
+  markdown: { processor: satteri({ mdastPlugins: [markdownCallouts] }) },
   integrations: [
     starlight({
       title: 'heliaCORE',
@@ -85,8 +87,6 @@ export default defineConfig({
       plugins: [
         heliaStarlight({
           accent: 'helia-core',
-          /* The left navigation is the site's table of contents, and the
-             landing page is the first place a reader needs it. */
           sidebar: 'always',
           /* The package header draws the name as text, so the site carries no
              wordmark asset in the bar. Its links are not written here: the
@@ -94,104 +94,49 @@ export default defineConfig({
              sidebar are one definition. */
           header: {
             title: 'heliaCORE',
+            hub: { label: 'HELIA', href: 'https://ambiqai.github.io/helia-developer-hub/' },
           },
-          /* One entry per section of astro-site/SITE-PLAN.md, in the plan's
-             order. Each carries the pages of that section; the plugin puts the
-             list in the bar and scopes the sidebar to the section the reader
-             is in, under the section's name. The three section hrefs that have
-             no landing page of their own are redirects, declared in
-             redirects.json. */
           sections: [
+            { label: 'Home', href: basePath, sidebar: false },
             {
-              label: 'Home',
-              href: basePath,
-              sidebar: [{ label: 'Overview', slug: '' }],
-            },
-            {
-              label: 'Getting started',
-              href: `${basePath}getting-started/`,
+              label: 'Getting started', href: `${basePath}getting-started/`,
               sidebar: [
                 { label: 'Overview', slug: 'getting-started' },
-                { label: 'CMake (find_package)', slug: 'getting-started/cmake' },
-                { label: 'CMSIS-Pack', slug: 'getting-started/cmsis-pack' },
-                { label: 'Zephyr module', slug: 'getting-started/zephyr' },
-                { label: 'neuralSPOT-X', slug: 'getting-started/neuralspot-x' },
-                { label: 'Toolchains', slug: 'getting-started/toolchains' },
+                { label: 'Requirements', slug: 'getting-started/requirements' },
+                { label: 'Integration', collapsed: false, items: [
+                  { label: 'CMake', slug: 'getting-started/cmake' },
+                  { label: 'CMSIS-Pack', slug: 'getting-started/cmsis-pack' },
+                  { label: 'Zephyr', slug: 'getting-started/zephyr' },
+                  { label: 'neuralSPOT-X', slug: 'getting-started/neuralspot-x' },
+                ] },
+                { label: 'First kernel', slug: 'getting-started/first-kernel' },
               ],
             },
             {
-              label: 'Architecture',
-              href: `${basePath}architecture/`,
+              label: 'User guide', href: `${basePath}guide/`,
               sidebar: [
-                {
-                  label: 'Acceleration paths',
-                  slug: 'architecture/acceleration-paths',
-                },
-                {
-                  label: 'Cortex-M targets',
-                  slug: 'architecture/cortex-m-targets',
-                },
-                {
-                  label: 'Data types and quantization',
-                  slug: 'architecture/data-types',
-                },
-                {
-                  label: 'How the build selects a path',
-                  slug: 'architecture/build-path-selection',
-                },
+                { label: 'Overview', slug: 'guide' },
+                { label: 'Using kernels', collapsed: false, items: [
+                  { label: 'Operator coverage', slug: 'guide/coverage/operator-coverage' },
+                  { label: 'Data types', slug: 'guide/architecture/data-types' },
+                  { label: 'Quantization', slug: 'guide/using-kernels/quantization' },
+                  { label: 'Calling kernels', slug: 'guide/using-kernels/calling-kernels' },
+                  { label: 'Memory', slug: 'guide/using-kernels/memory' },
+                ] },
+                { label: 'Configuration', items: [
+                  { label: 'Build options', slug: 'guide/architecture/build-path-selection' },
+                  { label: 'Targets', slug: 'guide/architecture/cortex-m-targets' },
+                  { label: 'Toolchains', slug: 'guide/architecture/toolchains' },
+                ] },
+                { label: 'Performance', items: [
+                  { label: 'Acceleration', slug: 'guide/architecture/acceleration-paths' },
+                  { label: 'Benchmarks', slug: 'guide/performance/kernel-benchmarks' },
+                  { label: 'Measurement', slug: 'guide/performance/methodology' },
+                  { label: 'Validation', slug: 'guide/performance/validation' },
+                ] },
               ],
             },
-            {
-              label: 'Coverage',
-              href: `${basePath}coverage/`,
-              sidebar: [
-                { label: 'Operator coverage', slug: 'coverage/operator-coverage' },
-                {
-                  label: 'Data types by family',
-                  slug: 'coverage/data-types-by-family',
-                },
-                {
-                  label: 'Compared with CMSIS-NN',
-                  slug: 'coverage/compared-with-cmsis-nn',
-                },
-              ],
-            },
-            {
-              /* Cross-SoC comparison is built but carries `sidebar.hidden`:
-                 the page reserves the route and says what will be published
-                 there, and stays out of the navigation until it has values. */
-              label: 'Performance',
-              href: `${basePath}performance/`,
-              sidebar: [
-                {
-                  label: 'Kernel benchmarks',
-                  slug: 'performance/kernel-benchmarks',
-                },
-                { label: 'Methodology', slug: 'performance/methodology' },
-              ],
-            },
-            {
-              label: 'Reference',
-              href: `${basePath}reference/`,
-              sidebar: referenceItems,
-            },
-            {
-              label: 'Contributing',
-              href: `${basePath}contributing/`,
-              sidebar: [
-                { label: 'Overview', slug: 'contributing' },
-                {
-                  label: 'Testing and verification',
-                  slug: 'contributing/verification',
-                },
-                { label: 'CI matrix', slug: 'contributing/ci-matrix' },
-                {
-                  label: 'Publish once after local review',
-                  slug: 'contributing/pr-publication',
-                },
-                { label: 'Releases and versioning', slug: 'contributing/releases' },
-              ],
-            },
+            { label: 'API reference', href: `${basePath}reference/`, sidebar: referenceItems },
           ],
           /* Stated rather than left to default so the four artifacts this site
              owes a crawler and an agent are visible in review. The JSON-LD
@@ -204,18 +149,12 @@ export default defineConfig({
           },
           footer: {
             links: [
-              { label: 'Overview', href: basePath },
               { label: 'Getting started', href: `${basePath}getting-started/` },
-              { label: 'Architecture', href: `${basePath}architecture/` },
-              { label: 'Coverage', href: `${basePath}coverage/` },
-              { label: 'Performance', href: `${basePath}performance/` },
-              { label: 'Reference', href: `${basePath}reference/` },
+              { label: 'User guide', href: `${basePath}guide/` },
+              { label: 'API reference', href: `${basePath}reference/` },
               { label: 'Contributing', href: `${basePath}contributing/` },
-              { label: 'About', href: `${basePath}about/` },
-              {
-                label: 'GitHub',
-                href: 'https://github.com/AmbiqAI/ns-cmsis-nn',
-              },
+              { label: 'About and licenses', href: `${basePath}about/` },
+              { label: 'GitHub', href: 'https://github.com/AmbiqAI/ns-cmsis-nn' },
             ],
             /* The copyright line from the Sphinx conf.py, carried verbatim so
                the Arm attribution stays on every page. */

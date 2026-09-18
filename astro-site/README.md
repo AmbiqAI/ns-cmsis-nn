@@ -24,6 +24,7 @@ npm run build      # static output in dist/
 npm run preview    # serve dist/ at the base path
 npm run check      # astro check
 npm run reference  # regenerate the C API reference on its own
+npm run check:links # validate internal links and fragments in dist/
 ```
 
 Doxygen has to be on `PATH`: `brew install doxygen`, or the pinned tarball the
@@ -89,7 +90,7 @@ the output is already there, and the config is read either way.
 `@ambiqai/helia-ui` is installed from a git tag, never a branch:
 
 ```json
-"@ambiqai/helia-ui": "github:AmbiqAI/helia-ui#v0.1.0-alpha.10"
+"@ambiqai/helia-ui": "github:AmbiqAI/helia-ui#v0.1.0-alpha.11"
 ```
 
 To move to a newer release, change the tag in `package.json`, then regenerate
@@ -106,10 +107,9 @@ Commit `package.json` and `package-lock.json` together. Never hand-edit the
 lockfile.
 
 Tags are published from
-[AmbiqAI/helia-ui](https://github.com/AmbiqAI/helia-ui). Anything the package
-cannot do for this site is a helia-ui issue, not a local stylesheet: this site
-carries no CSS of its own, and the theme, the shell and the discoverability
-metadata all come from `heliaStarlight()`.
+[AmbiqAI/helia-ui](https://github.com/AmbiqAI/helia-ui). The theme, shell, and discoverability metadata come from `heliaStarlight()`.
+Product-specific compositions live in `src/components` and may use scoped
+styles built on the package tokens. Shared defects belong in helia-ui.
 
 ## Directory name
 
@@ -117,3 +117,27 @@ The Sphinx build writes its HTML to `site/` at the repository root and clears
 that directory on every run (`scripts/docs/build_sphinx_docs.sh`), so this
 source tree lives in `astro-site/` instead. The two can be merged once the
 Sphinx build is retired.
+
+## Publication boundary
+
+`npm run build` regenerates the API and coverage data, checks public content
+for editorial markers, and then builds the site.
+The CI Astro job runs this same command and uploads the integrated site.
+Generation failures prevent the artifact upload. The postbuild link check uses
+Python 3 and rejects missing internal pages and fragment targets before CI can
+upload the site artifact. `npm run check` separately validates Astro types.
+
+Keep maintainer implementation details here and review queues under
+`internal-notes/` or GitHub issues, never in `src/content/docs/`. Marking a
+public content page `draft: true` is rejected rather than silently publishing it.
+The marker check is a guardrail, not a substitute for editorial review.
+
+Production cut-over is tracked in #521 and must update both the ordinary docs
+and release Pages deployments after site approval.
+
+Markdown callouts in the site's MDX pages (`:::note`, `:::tip`, `:::caution`,
+`:::danger`) render through helia-ui's `Callout` component via
+`scripts/markdown-callouts.mjs`. The adapter runs during rendering, so generated
+API pages retain the same styling after regeneration. Caution maps to the
+warning tone; danger maps to critical. Keep internal review notes in
+`internal-notes/`, outside the content collection.

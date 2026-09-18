@@ -1,0 +1,68 @@
+---
+title: Data types by family
+description: Function-name counts by numeric tag, derived from the public kernel API.
+---
+
+import coverage from '../../../../data/coverage.json';
+
+
+This supporting inventory counts {coverage.totals.functions} unique function names
+from <code>{coverage.headers.join(', ')}</code>, extracted by the same Doxygen
+pipeline as the API reference. Counts include wrappers and scratch-buffer queries,
+not just compute kernels. Internal headers and the separate support-function
+headers are outside this table's scope.
+
+A function is assigned to the first matching API family. Each numeric tag in its
+name contributes to its corresponding column, so a mixed-type function can appear
+in more than one column. The **Functions** column counts the name once. Numeric
+tags do not describe every argument's type; check the signature for weights, bias,
+indices, and output. Column totals therefore must not be added together.
+
+Return to [Operator coverage](../operator-coverage/) to choose an operation.
+
+<table>
+  <thead>
+    <tr>
+      <th>Family</th>
+      <th>Functions</th>
+      {coverage.dtypes.map((dtype) => (
+        <th>{dtype}</th>
+      ))}
+    </tr>
+  </thead>
+  <tbody>
+    {coverage.families.map((family) => (
+      <tr>
+        <td><a href={family.href}>{family.label}</a></td>
+        <td>{family.functions}</td>
+        {coverage.dtypes.map((dtype) => (
+          <td>{family.counts[dtype] === 0 ? '—' : family.counts[dtype]}</td>
+        ))}
+      </tr>
+    ))}
+    <tr>
+      <td><strong>All families</strong></td>
+      <td>{coverage.totals.functions}</td>
+      {coverage.dtypes.map((dtype) => (
+        <td>{coverage.totals.byDtype[dtype]}</td>
+      ))}
+    </tr>
+  </tbody>
+</table>
+
+## How to read it
+
+- **Nonzero count:** at least one function has this numeric tag. It does not
+  establish support for every operation, shape, or accelerated path in the family.
+- **Dash:** no declaration in this inventory has that tag. Consult the API
+  signature before drawing conclusions about argument types.
+- **FP16 and FP32:** declarations are extracted with float APIs enabled. Your
+  compiler only sees the declarations allowed by your feature definitions, and
+  your library must contain matching implementations.
+- **`q7` and `q15`:** inherited fixed-point APIs, with conventions defined by each
+  function. They are distinct from the affine quantization of the `s8` APIs.
+
+See [Data types](/ns-cmsis-nn/guide/architecture/data-types/) for format selection
+and [Build options](/ns-cmsis-nn/guide/architecture/build-path-selection/) for
+source and feature selection. This inventory describes this documentation build;
+it does not inspect the contents of a separately installed prebuilt library.

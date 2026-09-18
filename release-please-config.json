@@ -24,7 +24,7 @@
         { "type": "generic", "path": "astro-site/src/content/docs/getting-started/cmsis-pack.mdx" },
         { "type": "generic", "path": "astro-site/src/content/docs/getting-started/neuralspot-x.mdx" },
         { "type": "generic", "path": "astro-site/src/content/docs/getting-started/zephyr.mdx" },
-        { "type": "generic", "path": "astro-site/src/content/docs/getting-started/toolchains.mdx" },
+        { "type": "generic", "path": "astro-site/src/content/docs/guide/architecture/toolchains.mdx" },
         { "type": "generic", "path": "astro-site/src/content/docs/index.mdx" },
         { "type": "generic", "path": "Documentation/build.md" },
         { "type": "generic", "path": "cmake/ns-cmsis-nn-prebuilt.cmake" },

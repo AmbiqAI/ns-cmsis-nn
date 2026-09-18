@@ -1,0 +1,37 @@
+---
+// SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+import type { ReferenceModel } from '@ambiqai/helia-ui/reference-model';
+import { buildRefIndex } from '@ambiqai/helia-ui/ref-index-model';
+import reference from '../../public/reference/api/reference.json';
+import { groups } from '../../reference.config.json';
+import KernelBrowser from './KernelBrowser';
+
+const rows = buildRefIndex(reference as ReferenceModel, { base: '/ns-cmsis-nn/', groups })
+  .filter((row) => row.facets.headers?.some((header) => /^arm_nnfunctions.*\.h$/.test(header)));
+---
+
+<KernelBrowser client:load rows={rows} />
+
+<style is:global>
+  .kernel-browser { margin-top: var(--helia-space-5); }
+  .kernel-browser .kernel-controls { display: grid; grid-template-columns: minmax(12rem, 2fr) minmax(10rem, 1.5fr) minmax(8rem, 1fr) minmax(9rem, 1fr); gap: var(--helia-space-4); }
+  .kernel-browser label { display: grid; gap: var(--helia-space-2); min-width: 0; font-size: var(--helia-text-small); font-weight: 600; }
+  .kernel-browser select { width: 100%; min-width: 0; min-height: var(--helia-control-md); padding: var(--helia-space-2); border: 1px solid var(--sl-color-hairline); border-radius: var(--helia-radius); background: var(--sl-color-bg); color: var(--sl-color-text); font: inherit; }
+  .kernel-browser button { padding: var(--helia-space-2) var(--helia-space-4); border: 1px solid var(--sl-color-hairline); border-radius: var(--helia-radius); background: var(--sl-color-bg); color: var(--sl-color-text); font: inherit; cursor: pointer; }
+  .kernel-browser :is(select, button):focus-visible { outline: 2px solid var(--sl-color-text-accent); outline-offset: 2px; }
+  .kernel-browser button:disabled { opacity: 0.4; cursor: default; }
+  .kernel-browser .kernel-results { display: flex; justify-content: space-between; align-items: center; gap: var(--helia-space-3); margin-block: var(--helia-space-4); font-size: var(--helia-text-small); }
+  .kernel-browser p { margin: 0; }
+  .kernel-browser .kernel-table { border: 1px solid var(--sl-color-hairline); border-radius: var(--helia-radius); overflow: hidden; }
+  .kernel-browser table { display: table; width: 100%; table-layout: fixed; margin: 0; border-collapse: collapse; font-size: var(--helia-text-body); }
+  .kernel-browser th, .kernel-browser td { padding: var(--helia-space-4); text-align: left; vertical-align: top; border-bottom: 1px solid var(--sl-color-hairline); overflow-wrap: anywhere; }
+  .kernel-browser thead { background: var(--sl-color-bg-sidebar); }
+  .kernel-browser thead th:first-child { width: 45%; }
+  .kernel-browser tbody th a { font-family: var(--sl-font-mono); font-size: var(--helia-text-small); }
+  .kernel-browser small { display: block; font-weight: 400; color: var(--sl-color-gray-2); margin-top: var(--helia-space-1); }
+  .kernel-browser .kernel-pagination { display: flex; justify-content: center; align-items: center; gap: var(--helia-space-4); margin-top: var(--helia-space-5); }
+  .kernel-browser .kernel-empty { padding: var(--helia-space-6); text-align: center; border: 1px solid var(--sl-color-hairline); border-radius: var(--helia-radius); }
+  .kernel-browser .kernel-empty button { margin-top: var(--helia-space-4); }
+  @media (max-width: 75rem) { .kernel-browser .kernel-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); } .kernel-browser .kernel-search { grid-column: 1 / -1; } }
+  @media (max-width: 35rem) { .kernel-browser .kernel-controls { grid-template-columns: 1fr; } .kernel-browser th, .kernel-browser td { padding: var(--helia-space-2); } }
+</style>
