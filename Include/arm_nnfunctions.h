@@ -4928,7 +4928,7 @@ arm_cmsis_nn_status arm_nn_activation_s16(const int16_t *input,
  * @param[in]      relu_multiplier_exp         Exponent for ReLU6 multiplier
  * @param[out]     output                      Pointer to the output buffer
  * @param[in]      output_size                 Number of elements in the tensor
- * @return         The function returns ARM_MATH_SUCCESS
+ * @return         ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR if output_multiplier_exp is positive.
  *
  * @details This version is compatible with TFLite implementation of Hard-Swish.
  * hires_input_scale = (1.0 / 128.0) * float(input_scale)

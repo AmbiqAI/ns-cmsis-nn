@@ -370,6 +370,7 @@ if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
    AND NOT CMAKE_CROSSCOMPILING
    AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
     add_subdirectory(TestCases/int4_decode_probe)
+    add_subdirectory(TestCases/hard_swish_compat_probe)
 endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
