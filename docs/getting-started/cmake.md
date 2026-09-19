@@ -2,8 +2,9 @@
 
 heliaCORE ships a relocatable CMake config package inside each SDK
 tarball. After extraction, `find_package(ns-cmsis-nn)` exposes the
-target `ns::cmsis-nn`, plus a set of cache variables describing the
-arch and toolchain the archive was built with.
+target `ns::cmsis-nn`, plus ordinary CMake variables describing the
+architecture and toolchain the archive was built with. These are package metadata,
+not cache settings for changing the prebuilt archive.
 
 ## 1. Download the SDK tarball
 
@@ -16,6 +17,7 @@ TOOLCHAIN=atfe # or gcc, armclang
 curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz
 curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz.sha256
 sha256sum -c ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz.sha256
+mkdir -p third_party
 tar -xzf ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz -C third_party/
 ```
 
@@ -35,20 +37,22 @@ carries the right `INTERFACE_INCLUDE_DIRECTORIES`.
 
 ## 3. Configure-time guardrails
 
-`find_package` will **fail fast** if your project's compile flags don't
-match the archive:
+The package checks two aspects of the consumer configuration:
 
-- **CPU mismatch** — if your `-mcpu=` differs from the archive's, you
-  get a `FATAL_ERROR` with the expected vs actual value.
-- **Compiler ID mismatch** — the archive records the `CMAKE_C_COMPILER_ID`
-  it was built with (e.g. `GNU` for GCC, `ARMClang` for Arm Compiler 6).
-  The packaged CMake config rejects a different consumer compiler ID as a
-  conservative provenance check.
+- **CPU mismatch:** when `CMAKE_C_FLAGS` contains `-mcpu=`, a value that
+  differs from the archive's CPU produces a `FATAL_ERROR`. This check does
+  not inspect per-target or configuration-specific compiler options.
+- **Compiler ID mismatch:** when both compiler IDs are known, the package
+  rejects a consumer `CMAKE_C_COMPILER_ID` that differs from the recorded
+  ID (for example, `GNU` or `ARMClang`). This is a provenance check, not a
+  compiler-version comparison.
 
-This is intentional for packaged SDK consumption: a `.a` built for the wrong CPU
-or float ABI can fail only after it reaches a device, and compiler provenance is
-part of release qualification. Pick the SDK tarball built with your project
-compiler, or build heliaCORE from source when you need different compiler flags.
+These checks do not validate the FPU or float ABI. Compare your firmware's
+verbose compiler command with the package's `manifest.json`: compiler
+identity/version, CPU/FPU flags, and float ABI must fit your project.
+A successful configure alone does not establish compatibility. Choose a
+matching SDK tarball, or build heliaCORE from source when you need different
+compiler flags.
 
 ## 4. Verify the integration
 
