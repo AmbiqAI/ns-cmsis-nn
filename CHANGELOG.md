@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.35.2](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.35.1...v7.35.2) (2026-09-19)
+
+
+### Bug Fixes
+
+* complete [@param](https://github.com/param) documentation for the public headers and const-qualify the arm_sqrt_s8 LUT ([b87a0ca](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b87a0cad5ea2f1b5e51233a5c557091a6911aa3f))
+* **int4:** define low-nibble decoding in convolution paths ([#529](https://github.com/AmbiqAI/ns-cmsis-nn/issues/529)) ([112f487](https://github.com/AmbiqAI/ns-cmsis-nn/commit/112f487e6fdc8f7a5f296f5c40fad355579e723e))
+
 ## [7.35.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.35.0...v7.35.1) (2026-09-15)
 
 
