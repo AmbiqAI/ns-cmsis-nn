@@ -3,18 +3,19 @@
 
 if(CONFIG_NS_CMSIS_NN)
 
+  include("${ZEPHYR_CURRENT_MODULE_DIR}/cmake/ns_cmsis_nn_configuration.cmake")
+
   # Kconfig is how Zephyr configures anything, so on this path the Kconfig
   # symbols are the only writers of the library's float switches: whatever
   # ARM_NN_ENABLE_F32/F16 held before is overwritten here, in the cache and in
   # this scope. That keeps the ARMV8_1_M_MVEF dependency on
   # NS_CMSIS_NN_ENABLE_F16 in force, since no CMake variable can stand in for
   # the symbol. See AmbiqAI/ns-cmsis-nn#420.
+  _ns_cmsis_nn_float_values("${CONFIG_NS_CMSIS_NN_ENABLE_F32}"
+    "${CONFIG_NS_CMSIS_NN_ENABLE_F16}" _ns_f32 _ns_f16)
   foreach(_ns_width F32 F16)
-    if(CONFIG_NS_CMSIS_NN_ENABLE_${_ns_width})
-      set(_ns_want 1)
-    else()
-      set(_ns_want 0)
-    endif()
+    string(TOLOWER "${_ns_width}" _ns_lower)
+    set(_ns_want ${_ns_${_ns_lower}})
     string(REGEX REPLACE "^F" "float" _ns_pretty "${_ns_width}")
     set(ARM_NN_ENABLE_${_ns_width} ${_ns_want} CACHE BOOL
       "Enable the CMSIS-NN ${_ns_pretty} extensions (set from \
@@ -26,6 +27,9 @@ CONFIG_NS_CMSIS_NN_ENABLE_${_ns_width})." FORCE)
   unset(_ns_width)
   unset(_ns_want)
   unset(_ns_pretty)
+  unset(_ns_lower)
+  unset(_ns_f32)
+  unset(_ns_f16)
 
   if(CONFIG_NS_CMSIS_NN_USE_PREBUILT)
 
@@ -179,40 +183,8 @@ CONFIG_NS_CMSIS_NN_ENABLE_${_ns_width})." FORCE)
       ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32}
       ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16})
 
-  # Translate the existing CONFIG_NS_CMSIS_NN_* knobs into SSoT group names.
-  # Kconfig symbol names are aligned with SSoT group ids (#151); deprecated
-  # spellings (BASICMATH / STRIDED_SLICE / SVD) `select` into the new ones.
-  set(_ns_groups)
-  foreach(_pair
-            "ACTIVATION;activation"
-            "BASICMATHSNN;basicmath"
-            "COMPARISON;comparison"
-            "CONCATENATION;concatenation"
-            "CONVOLUTION;convolution"
-            "FULLYCONNECTED;fullyconnected"
-            "GATHER;gather"
-            "LSTM;lstm"
-            "NNSUPPORT;nnsupport"
-            "PAD;pad"
-            "POOLING;pooling"
-            "QUANTIZATION;quantization"
-            "RESHAPE;reshape"
-            "SOFTMAX;softmax"
-            "STRIDEDSLICE;stridedslice"
-            "SVDF;svd"
-            "TRANSPOSE;transpose"
-            "TILE;tile"
-            "BROADCAST;broadcast"
-            "SCATTER;scatter"
-            "SELECT;select"
-            "REVERSESEQUENCE;reversesequence"
-            "DYNAMICUPDATESLICE;dynamicupdateslice")
-    list(GET _pair 0 _kconfig)
-    list(GET _pair 1 _group)
-    if(CONFIG_NS_CMSIS_NN_${_kconfig})
-      list(APPEND _ns_groups ${_group})
-    endif()
-  endforeach()
+  # Kconfig resolves deprecated spellings before these existing knobs are read.
+  _ns_cmsis_nn_groups_from_options(_ns_groups ZEPHYR)
 
   if(_ns_groups)
     ns_cmsis_nn_attach(${ZEPHYR_CURRENT_LIBRARY}

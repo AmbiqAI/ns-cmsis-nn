@@ -70,6 +70,28 @@ If the module does not appear in `.config`, check that the `west.yml` path
 matches the module location and that your application enables
 `CONFIG_NS_CMSIS_NN=y`.
 
+## Source-build configuration ownership
+
+Zephyr's Kconfig symbols remain authoritative, including the float-width
+settings. The adapter updates both the CMake cache and normal variables from
+Kconfig, so a standalone `-DARM_NN_ENABLE_F16=ON` cannot bypass a Kconfig
+dependency. Optimization comes from Zephyr's `optimization_fast` setting;
+standalone and NSX optimization options do not override it. Float and inline
+requantize definitions remain visible to application translation units through
+Zephyr's global definition API.
+
+The shared source mapping preserves Zephyr's group order and empty selection:
+when no group is enabled, no sources are attached. This is not the standalone or
+NSX convention where an empty group list selects all groups. Prebuilt mode keeps
+its existing manifest checks and does not apply source-build optimization.
+
+For an application using the repository's armclang toolchain, set CMP0123 to NEW
+after `cmake_minimum_required()` and before enabling C/C++ with `project()`.
+The module is included too late to change compiler initialization. See the
+[NSX application setup and manual check](neuralspot-x.md#arm-compiler-application-setup)
+for the policy example; that modeled fixture does not establish a Zephyr board
+build. Use the policy setup required by your actual Zephyr/toolchain integration.
+
 ## Reference
 
 - Module manifest: [`zephyr/module.yml`](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/zephyr/module.yml)

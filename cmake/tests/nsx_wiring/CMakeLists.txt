@@ -11,6 +11,8 @@
 # and asserts on the resulting target graph.
 #
 # Parameterised by -DCASE=<case>, where <case> is one of:
+#   configuration_reconfigure — all float pairs, sparse/empty groups and
+#                               options across 30 same-cache transitions.
 #   source_all      (default) — baseline int source set attached, alias present.
 #   source_subset             — NSX_CMSIS_NN_GROUPS=activation;convolution,
 #                               expect SSoT-derived source count.
@@ -69,7 +71,7 @@ project(ns_cmsis_nn_nsx_wiring C)
 
 set(CASE "source_all" CACHE STRING "Which wiring case to exercise.")
 set_property(CACHE CASE PROPERTY STRINGS
-  source_all source_subset inline_asm float_f32 float_f16 float_both
+  configuration_reconfigure source_all source_subset inline_asm float_f32 float_f16 float_both
   float_renamed_switch float_query float_query_target prebuilt
   prebuilt_manifest_ok prebuilt_manifest_reject
   prebuilt_manifest_legacy)
@@ -81,8 +83,12 @@ function(_compute_expected_source_count out_var groups enable_f32 enable_f16)
   set(ARM_NN_ENABLE_F32 ${enable_f32})
   set(ARM_NN_ENABLE_F16 ${enable_f16})
 
-  if(groups STREQUAL "ALL")
-    ns_cmsis_nn_groups(_expected_groups)
+  # Pin the existing order independently of the shared configuration resolver.
+  if(groups STREQUAL "ALL" OR groups STREQUAL "")
+    set(_expected_groups activation basicmath comparison concatenation convolution
+        fullyconnected gather lstm pad pooling quantization reshape softmax
+        stridedslice svd transpose tile broadcast scatter select reversesequence
+        dynamicupdateslice nnsupport)
   else()
     set(_expected_groups ${groups})
   endif()
@@ -98,6 +104,7 @@ function(_compute_expected_source_count out_var groups enable_f32 enable_f16)
   endif()
   list(LENGTH _expected_sources _expected_count)
   set(${out_var} ${_expected_count} PARENT_SCOPE)
+  set(${out_var}_ordered "${_expected_sources}" PARENT_SCOPE)
 endfunction()
 
 # ----------------------------------------------------------------------------
@@ -429,11 +436,25 @@ if(CASE STREQUAL "float_query_target")
 project(probe C)
 set(ARM_NN_ENABLE_F32 OFF)
 set(ARM_NN_ENABLE_F16 OFF)
+set(CMSIS_OPTIMIZATION_LEVEL -O1 CACHE STRING \"standalone\" FORCE)
+set(CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY ON)
 add_subdirectory(\"${_repo_root}\" ssot)
 set(ARM_NN_ENABLE_F16 ON)
 add_library(_nsx_board_flags INTERFACE)
 set(NSX_BOARD_FLAGS_TARGET _nsx_board_flags)
+set(NSX_CMSIS_NN_OPTIMIZATION -Os CACHE STRING \"NSX\" FORCE)
+set(NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM OFF)
 add_subdirectory(\"${_repo_root}/nsx\" nsx)
+get_target_property(_standalone_opts cmsis-nn COMPILE_OPTIONS)
+get_target_property(_nsx_opts nsx_cmsis_nn COMPILE_OPTIONS)
+get_target_property(_standalone_defs cmsis-nn INTERFACE_COMPILE_DEFINITIONS)
+get_target_property(_nsx_defs nsx_cmsis_nn INTERFACE_COMPILE_DEFINITIONS)
+if(NOT \"\${_standalone_opts}\" STREQUAL \"-O1\"
+   OR NOT \"\${_nsx_opts}\" STREQUAL \"-Os\"
+   OR NOT \"\${_standalone_defs}\" STREQUAL \"ARM_NN_ENABLE_F32=0;ARM_NN_ENABLE_F16=0;CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY\"
+   OR NOT \"\${_nsx_defs}\" STREQUAL \"ARM_NN_ENABLE_F32=0;ARM_NN_ENABLE_F16=1\")
+  message(FATAL_ERROR \"mixed targets leaked optimization/requantize/float settings\")
+endif()
 foreach(_want cmsis-nn nsx_cmsis_nn)
   if(NOT TARGET \${_want})
     message(FATAL_ERROR \"probe setup: \${_want} was never created\")
@@ -492,6 +513,98 @@ endforeach()
     message(FATAL_ERROR "NSX wiring [${CASE}] FAILED:${_failures}")
   endif()
   message(STATUS "NSX wiring [${CASE}] OK.")
+  return()
+endif()
+
+# These children deliberately bypass the per-case FORCE resets below. Every
+# transition reuses one cache, with inputs supplied by the consumer or -D.
+if(CASE STREQUAL "configuration_reconfigure")
+  set(_probe "${CMAKE_BINARY_DIR}/_configuration_probe")
+  file(MAKE_DIRECTORY "${_probe}")
+  set(_body [=[
+cmake_minimum_required(VERSION 3.19)
+project(configuration_probe C)
+include("@FIXTURE@/CMakeLists.txt")
+]=])
+  set(FIXTURE "${CMAKE_CURRENT_LIST_DIR}")
+  string(CONFIGURE "${_body}" _body @ONLY)
+  file(WRITE "${_probe}/CMakeLists.txt" "${_body}")
+  foreach(_input command normal forced_cache)
+    foreach(_state "OFF;OFF;-O0;OFF" "ON;OFF;-O2;ON"
+                    "OFF;ON;-Os;OFF" "ON;ON;-O3;ON" "OFF;OFF;-O0;OFF")
+      list(GET _state 0 _f32)
+      list(GET _state 1 _f16)
+      list(GET _state 2 _opt)
+      list(GET _state 3 _asm)
+      foreach(_selection sparse empty)
+        execute_process(COMMAND "${CMAKE_COMMAND}" -S "${_probe}" -B "${_probe}/_b"
+          -DCASE=configuration_probe -DINPUT=${_input} -DSELECTION=${_selection}
+          -DWANT_F32=${_f32} -DWANT_F16=${_f16} -DWANT_OPT=${_opt} -DWANT_ASM=${_asm}
+          -DARM_NN_ENABLE_F32=${_f32} -DARM_NN_ENABLE_F16=${_f16}
+          -DNSX_CMSIS_NN_OPTIMIZATION=${_opt} -DNSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM=${_asm}
+          RESULT_VARIABLE _rc OUTPUT_VARIABLE _out ERROR_VARIABLE _err)
+        if(NOT _rc EQUAL 0)
+          _fail("${_input}/${_state}/${_selection} reconfigure failed:\n${_out}\n${_err}")
+        endif()
+      endforeach()
+    endforeach()
+  endforeach()
+  if(_failures)
+    message(FATAL_ERROR "NSX wiring [${CASE}] FAILED:${_failures}")
+  endif()
+  message(STATUS "NSX wiring [${CASE}] OK (30 same-directory transitions).")
+  return()
+endif()
+
+if(CASE STREQUAL "configuration_probe")
+  foreach(_pair "ARM_NN_ENABLE_F32;${WANT_F32}" "ARM_NN_ENABLE_F16;${WANT_F16}"
+                "NSX_CMSIS_NN_OPTIMIZATION;${WANT_OPT}"
+                "NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM;${WANT_ASM}")
+    list(GET _pair 0 _name)
+    list(GET _pair 1 _value)
+    if(INPUT STREQUAL "normal")
+      # A conflicting cache value must lose to the parent's normal variable.
+      set(${_name} "OFF" CACHE STRING "probe conflict" FORCE)
+      set(${_name} "${_value}")
+    elseif(INPUT STREQUAL "forced_cache")
+      set(${_name} "${_value}" CACHE STRING "parent setting" FORCE)
+    endif()
+  endforeach()
+  # GROUPS is a set(CACHE) input, not option(): initialize it as a consumer
+  # cache entry (a normal variable alone is discarded on first creation).
+  set(NSX_CMSIS_NN_GROUPS "select;nnsupport;activation;select" CACHE STRING "consumer groups" FORCE)
+  if(SELECTION STREQUAL "empty")
+    set(NSX_CMSIS_NN_GROUPS "" CACHE STRING "consumer groups" FORCE)
+  endif()
+  add_library(_nsx_board_flags INTERFACE)
+  set(NSX_BOARD_FLAGS_TARGET _nsx_board_flags)
+  add_subdirectory("${_repo_root}/nsx" nsx)
+  _compute_expected_source_count(_expected "${NSX_CMSIS_NN_GROUPS}" "${WANT_F32}" "${WANT_F16}")
+  get_target_property(_sources nsx_cmsis_nn SOURCES)
+  if(NOT "${_sources}" STREQUAL "${_expected_ordered}")
+    message(FATAL_ERROR "reconfigure: ordered source selection differs")
+  endif()
+  set(_defs)
+  foreach(_width F32 F16)
+    if(WANT_${_width})
+      list(APPEND _defs "ARM_NN_ENABLE_${_width}=1")
+    else()
+      list(APPEND _defs "ARM_NN_ENABLE_${_width}=0")
+    endif()
+  endforeach()
+  if(WANT_ASM)
+    list(APPEND _defs CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY)
+  endif()
+  foreach(_property COMPILE_DEFINITIONS INTERFACE_COMPILE_DEFINITIONS)
+    get_target_property(_got nsx_cmsis_nn ${_property})
+    if(NOT "${_got}" STREQUAL "${_defs}")
+      message(FATAL_ERROR "reconfigure: ${_property}='${_got}', expected '${_defs}'")
+    endif()
+  endforeach()
+  get_target_property(_options nsx_cmsis_nn COMPILE_OPTIONS)
+  if(NOT "${_options}" STREQUAL "${WANT_OPT}")
+    message(FATAL_ERROR "reconfigure: options='${_options}', expected '${WANT_OPT}'")
+  endif()
   return()
 endif()
 
@@ -571,7 +684,7 @@ elseif(CASE STREQUAL "prebuilt_manifest_ok")
   set(_expect_f16_define 0)
 
 else()
-  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: source_all, source_subset, inline_asm, float_f32, float_f16, float_both, float_renamed_switch, float_query, float_query_target, prebuilt, prebuilt_manifest_ok, prebuilt_manifest_reject, prebuilt_manifest_legacy.")
+  message(FATAL_ERROR "Unknown CASE='${CASE}'. Valid: configuration_reconfigure, source_all, source_subset, inline_asm, float_f32, float_f16, float_both, float_renamed_switch, float_query, float_query_target, prebuilt, prebuilt_manifest_ok, prebuilt_manifest_reject, prebuilt_manifest_legacy.")
 endif()
 
 # ----------------------------------------------------------------------------
@@ -630,6 +743,9 @@ else()
     if(NOT _srcs)
       _fail("source mode: no sources attached to nsx_cmsis_nn")
     else()
+      if(NOT "${_srcs}" STREQUAL "${_expected_sources_ordered}")
+        _fail("source mode (${CASE}): ordered sources differ from the manifest in contract group order")
+      endif()
       list(LENGTH _srcs _nsrc)
       if(NOT _nsrc EQUAL _expected_sources)
         _fail("source mode (${CASE}): attached ${_nsrc} sources; expected ${_expected_sources}")
