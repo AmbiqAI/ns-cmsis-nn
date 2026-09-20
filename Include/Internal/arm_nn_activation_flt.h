@@ -420,9 +420,10 @@ __STATIC_INLINE float16_t arm_nn_tanh_scalar_ref_f16(float16_t x)
     const _Float16 xh = (_Float16)x;
     uint16_t x_bits;
     memcpy(&x_bits, &xh, sizeof(x_bits));
-    if ((uint16_t)(x_bits & 0x7FFFu) > 0x7C00u)
+    const uint16_t magnitude = x_bits & 0x7FFFu;
+    if (magnitude > 0x7C00u || magnitude == 0)
     {
-        return x; /* NaN propagates, payload and sign intact. */
+        return x; /* Keep zero's sign even under directed rounding. */
     }
 
     _Float16 y;
@@ -542,6 +543,9 @@ __STATIC_INLINE float16x8_t arm_nn_max_propagate_nan_mve_f16(float16x8_t x, floa
 
 __STATIC_INLINE float16x8_t arm_nn_vtanh_lut_direct_mve_f16(float16x8_t x)
 {
+    /* Integer classification keeps NaNs and signed zero intact under -Ofast. */
+    const uint16x8_t magnitude = vshlq_n_u16(vreinterpretq_u16_f16(x), 1);
+    const mve_pred16_t special_p = vcmphiq_n_u16(magnitude, 0xF800) | vcmpeqq_n_u16(magnitude, 0);
     float16x8_t ax = vabsq(x);
     const mve_pred16_t sat_p = vcmpgtq(ax, (float16_t)4.0f);
     ax = vminnmq(ax, vdupq_n_f16((float16_t)4.0f));
@@ -556,7 +560,8 @@ __STATIC_INLINE float16x8_t arm_nn_vtanh_lut_direct_mve_f16(float16x8_t x)
         vldrhq_gather_shifted_offset((const float16_t *)arm_nn_tanh_lut_f16, vaddq(idx, (uint16_t)1U));
     float16x8_t y = vfmaq(y0, vsubq(y1, y0), frac);
     y = vpselq(vdupq_n_f16((float16_t)1.0f), y, sat_p);
-    return vnegq_m(y, y, vcmpltq(x, (float16_t)0.0f));
+    y = vnegq_m(y, y, vcmpltq(x, (float16_t)0.0f));
+    return vpselq(x, y, special_p);
 }
 
 __STATIC_INLINE float16x8_t arm_nn_vhardswish_mve_f16(float16x8_t x)
