@@ -2213,16 +2213,19 @@ __STATIC_FORCEINLINE int32_t arm_nn_requantize_s64(const int64_t val,
 }
 
 /**
- * @brief       Saturing left shift for int16_t
+ * @brief       Saturating left shift for int16_t
  * @param[in]   x       value to be shifted
- * @param[in]   shift   number of bits to shift
+ * @param[in]   shift   Nonpositive values return x; positive values multiply by 2^shift with s16 saturation.
  * @return      shifted value
  */
 __STATIC_FORCEINLINE int16_t arm_nn_sat_lshift_s16(int16_t x, int shift)
 {
     if (shift <= 0)
-        return x; // only used for positive shifts here
-    int32_t v = ((int32_t)x) << shift;
+        return x;
+    if (shift >= 15)
+        return x == 0 ? 0 : (x > 0 ? INT16_MAX : INT16_MIN);
+    // shift is 1..14, so the product fits int32_t even for INT16_MIN.
+    int32_t v = (int32_t)x * (1 << shift);
     v = ARM_NN_CLAMP(v, INT16_MAX, INT16_MIN);
     return (int16_t)v;
 }
@@ -2240,8 +2243,9 @@ __STATIC_FORCEINLINE int16_t arm_nn_sqrdmulh_s16(int16_t a, int16_t b)
     if ((a == INT16_MIN) && (b == INT16_MIN))
         return INT16_MAX;
     int32_t ab = (int32_t)a * (int32_t)b; /* Q0.15 * Q0.15 -> Q0.30 */
-    int32_t r = (ab << 1) + (1 << 15);    /* doubling + rounding */
-    r >>= 16;                             /* back to Q0.15 */
+    // Excluding INT16_MIN * INT16_MIN, doubling and rounding both fit int32_t.
+    int32_t r = ab * 2 + (1 << 15); /* doubling + rounding */
+    r >>= 16;                       /* back to Q0.15 */
     r = ARM_NN_CLAMP(r, INT16_MAX, INT16_MIN);
     return (int16_t)r;
 }

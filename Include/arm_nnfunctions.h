@@ -4928,14 +4928,17 @@ arm_cmsis_nn_status arm_nn_activation_s16(const int16_t *input,
  * @param[in]      relu_multiplier_exp         Exponent for ReLU6 multiplier
  * @param[out]     output                      Pointer to the output buffer
  * @param[in]      output_size                 Number of elements in the tensor
- * @return         The function returns ARM_MATH_SUCCESS
+ * @return         ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR if output_multiplier_exp is positive.
  *
  * @details This version is compatible with TFLite implementation of Hard-Swish.
  * hires_input_scale = (1.0 / 128.0) * float(input_scale)
  * relu_scale = 3.0 / 32768.0
  * out_mul_real = hires_input_scale / float(output_scale)
+ * relu_mul_real = hires_input_scale / relu_scale
  * output_multiplier_fp, output_multiplier_exp = to_q15_exp(out_mul_real)
- * relu_multiplier_fp, relu_multiplier_exp = to_q15_exp(relu_scale)
+ * relu_multiplier_fp, relu_multiplier_exp = to_q15_exp(relu_mul_real)
+ * Here to_q15_exp quantizes to Q31 with a frexp exponent, then rounds and saturates the Q31 multiplier to Q15.
+ * For input_scale = output_scale = 0.125, the output pair is (16384, -6) and the ReLU pair is (21845, 4).
  */
 arm_cmsis_nn_status arm_hard_swish_compat_s8(const int8_t *input,
                                              const int32_t input_offset,
