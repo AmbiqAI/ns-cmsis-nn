@@ -321,45 +321,17 @@ if(ARM_NN_ENABLE_F16)
     add_subdirectory(TestCases/test_arm_transpose_f16)
 endif()
 
-# Host-only -Ofast NaN probe (#334 item d): rebuilds the six float elementwise
-# kernels at -Ofast -ffinite-math-only -- the flag pair the harness suites
-# deliberately never see (the directory-level -fno-finite-math-only above) --
-# and fails on any clamp-to-bound of a NaN element. GNU-only because the host
-# Clang leg swaps -Ofast out as deprecated (see the Clang branches above), and
-# host-only because the FVP flow runs Unity .elf images, which this is not. The
-# directory name carries no test_arm prefix on purpose: unittest_targets.py
-# treats every TestCases/*test_arm* directory as a Unity suite and requires a
-# Unity/ subdirectory, which this standalone probe does not have.
+# These standalone GNU float probes rebuild their kernel objects with
+# -Ofast -ffinite-math-only, overriding the inherited -fno-finite-math-only.
+# They are not Unity suites: the FVP flow does not run them, and their directory
+# names omit test_arm so unittest_targets.py does not generate Unity runners.
+# GNU-only because the Clang configuration replaces deprecated -Ofast with -O3.
 if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
    AND CMAKE_C_COMPILER_ID STREQUAL "GNU"
    AND ARM_NN_ENABLE_F32
    AND ARM_NN_ENABLE_F16)
     add_subdirectory(TestCases/elementwise_nan_ofast_probe)
-endif()
-
-# Host-only -Ofast NaN probe for the activation legs (#382). Same guard shape and
-# same rationale as the elementwise probe above; it rebuilds arm_nn_activation_f32
-# and arm_nn_activation_f16 under the hostile flag pair and fails if a NaN input
-# comes back as 0.0 (RELU) or a clamp bound (RELU6). The directory name carries no
-# test_arm prefix for the same unittest_targets.py reason given above. Only the
-# scalar legs run on the host; the MVE RELU/RELU6 legs are covered on target.
-if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
-   AND CMAKE_C_COMPILER_ID STREQUAL "GNU"
-   AND ARM_NN_ENABLE_F32
-   AND ARM_NN_ENABLE_F16)
     add_subdirectory(TestCases/activation_nan_ofast_probe)
-endif()
-
-# Host-only -Ofast NaN/Inf probe for the f16 reduction legs (#429). Same guard
-# shape and same rationale as the two probes above; it rebuilds arm_nn_mean_f16
-# and arm_reduce_sum_f16 under the hostile flag pair and fails if a non-finite
-# input does not propagate through either dispatch path. The directory name
-# carries no test_arm prefix for the same unittest_targets.py reason given above.
-# Only the scalar legs run on the host; the MVE legs are covered on target.
-if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
-   AND CMAKE_C_COMPILER_ID STREQUAL "GNU"
-   AND ARM_NN_ENABLE_F32
-   AND ARM_NN_ENABLE_F16)
     add_subdirectory(TestCases/reduction_nan_ofast_probe)
 endif()
 
