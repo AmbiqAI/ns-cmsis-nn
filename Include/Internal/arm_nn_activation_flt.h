@@ -320,9 +320,8 @@ __STATIC_INLINE float32x4_t arm_nn_max_propagate_nan_mve_f32(float32x4_t x, floa
  * |x| == xmax: the predicate below is >=, matching the scalar helper's
  * !(ax < xmax), so both legs saturate at the boundary rather than one
  * interpolating to lut[SEGMENTS] there. Subnormal inputs flush to zero here
- * (MVE runs with FZ set) and interpolate on the scalar leg; the float16 twins
- * differ only at -0.0, whose sign only the scalar leg keeps (measured in the
- * #251 PR discussion). NaN is the other place the legs differ: a qNaN lane comes
+ * (MVE runs with FZ set) and interpolate on the scalar leg. NaN is the other
+ * place these float32 legs differ: a qNaN lane comes
  * out as -tanh(xmax) and an sNaN lane as a negated default qNaN, both NEGATIVE
  * because the vnegq_m predicate below uses VCMP `lt`, which Armv8.1-M defines
  * as !ge and is therefore true for unordered operands. See the scalar helper's
