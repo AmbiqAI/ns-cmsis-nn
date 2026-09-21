@@ -80,13 +80,11 @@ void nn_activation_helpers_f16_tanh_helia_rt_points(void)
     const float16_t x05 = (float16_t)(_Float16)0.5f;
 
     TEST_ASSERT_FLOAT_WITHIN(TANH_F16_HELIA_X2_TOL, (float)tanh(2.0), f16_val(arm_nn_tanh_scalar_ref_f16(x2)));
-    TEST_ASSERT_FLOAT_WITHIN(TANH_F16_HELIA_X2_TOL,
-                             (float)tanh(-2.0),
-                             f16_val(arm_nn_tanh_scalar_ref_f16((float16_t)(-(_Float16)x2))));
+    TEST_ASSERT_FLOAT_WITHIN(
+        TANH_F16_HELIA_X2_TOL, (float)tanh(-2.0), f16_val(arm_nn_tanh_scalar_ref_f16((float16_t)(-(_Float16)x2))));
     TEST_ASSERT_FLOAT_WITHIN(TANH_F16_HELIA_X05_TOL, (float)tanh(0.5), f16_val(arm_nn_tanh_scalar_ref_f16(x05)));
-    TEST_ASSERT_FLOAT_WITHIN(TANH_F16_HELIA_X05_TOL,
-                             (float)tanh(-0.5),
-                             f16_val(arm_nn_tanh_scalar_ref_f16((float16_t)(-(_Float16)x05))));
+    TEST_ASSERT_FLOAT_WITHIN(
+        TANH_F16_HELIA_X05_TOL, (float)tanh(-0.5), f16_val(arm_nn_tanh_scalar_ref_f16((float16_t)(-(_Float16)x05))));
 }
 
 /* (c) Non-finite and boundary contract: NaN propagates by bit pattern (the
@@ -109,21 +107,19 @@ void nn_activation_helpers_f16_tanh_non_finite_and_boundary(void)
 
     /* First value above the table window saturates; the boundary itself interpolates to lut[256]. */
     TEST_ASSERT_EQUAL_UINT16(0x3C00u, f16_bits(arm_nn_tanh_scalar_ref_f16(f16_from_bits(0x4401u)))); /* 4.00390625 */
-    TEST_ASSERT_EQUAL_UINT16(arm_nn_tanh_lut_f16[256],
-                             f16_bits(arm_nn_tanh_scalar_ref_f16((float16_t)(_Float16)4.0f)));
+    TEST_ASSERT_EQUAL_UINT16(arm_nn_tanh_lut_f16[256], f16_bits(arm_nn_tanh_scalar_ref_f16((float16_t)(_Float16)4.0f)));
 
-    /* Zero returns zero. The helper copies x's sign bit (so -0 stays -0 at
-     * source level, as the rational helper did), but -Ofast's -fno-signed-zeros
-     * licenses the compiler to hand back either zero, so only magnitude is
-     * asserted for -0. */
-    TEST_ASSERT_EQUAL_UINT16(0x0000u, f16_bits(arm_nn_tanh_scalar_ref_f16(f16_from_bits(0x0000u))));
-    TEST_ASSERT_EQUAL_UINT16(0x0000u,
-                             (uint16_t)(f16_bits(arm_nn_tanh_scalar_ref_f16(f16_from_bits(0x8000u))) & 0x7FFFu));
+    /* Load the encodings at runtime so -fno-signed-zeros cannot fold a constant argument. */
+    const volatile uint16_t zeros[] = {0x0000U, 0x8000U};
+    for (uint32_t i = 0; i < 2U; ++i)
+    {
+        const uint16_t bits = zeros[i];
+        TEST_ASSERT_EQUAL_UINT16(bits, f16_bits(arm_nn_tanh_scalar_ref_f16(f16_from_bits(bits))));
+    }
 }
 
-/* (d) Scalar-vs-MVE agreement (#315 / #407): on MVE builds the two legs must
- * be bit-identical for every finite input except -0.0, where vabsq gives the
- * vector leg +0 while the scalar leg keeps IEEE tanh(-0) == -0. */
+/* (d) Retain the finite agreement check in this suite's optimized configuration.
+ * Unfused scalar interpolation (e.g. at -O0) can differ by one ULP. */
 void nn_activation_helpers_f16_tanh_scalar_vs_mve_agreement(void)
 {
 #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
@@ -139,14 +135,145 @@ void nn_activation_helpers_f16_tanh_scalar_vs_mve_agreement(void)
         for (uint32_t lane = 0; lane < 8U; ++lane)
         {
             const uint16_t b = (uint16_t)(u + lane);
-            if ((uint16_t)(b & 0x7FFFu) >= 0x7C00u || b == 0x8000u)
+            if ((uint16_t)(b & 0x7FFFu) >= 0x7C00u)
             {
-                continue; /* NaN/Inf divergence is documented at the helpers; -0 noted above. */
+                continue; /* Special values are checked independently below. */
             }
             TEST_ASSERT_EQUAL_UINT16(f16_bits(arm_nn_tanh_scalar_ref_f16(in[lane])), f16_bits(out[lane]));
         }
     }
 #else
     TEST_PASS();
+#endif
+}
+
+/* Exercise the public dispatch with an independent encoding oracle for all
+ * special values and the existing mathematical accuracy bound for finite ones. */
+void nn_activation_helpers_f16_tanh_public_exhaustive(void)
+{
+    float16_t input[17];
+    float16_t output[18];
+    for (uint32_t start = 0; start < 0x10000U; start += 17U)
+    {
+        const uint32_t count = (0x10000U - start < 17U) ? 0x10000U - start : 17U;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            input[i] = f16_from_bits((uint16_t)(start + i));
+        }
+        output[count] = f16_from_bits(0x3555U);
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_nn_activation_f16(input, output, (int32_t)count, ARM_NN_FLT_ACT_TANH, 0));
+        TEST_ASSERT_EQUAL_UINT16(0x3555U, f16_bits(output[count]));
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const uint16_t bits = (uint16_t)(start + i);
+            const uint16_t magnitude = bits & 0x7FFFU;
+            const uint16_t actual = f16_bits(output[i]);
+            TEST_ASSERT_EQUAL_UINT16(bits, f16_bits(input[i]));
+            if (magnitude > 0x7C00U)
+            {
+                TEST_ASSERT_TRUE((actual & 0x7FFFU) > 0x7C00U);
+            }
+            else if (magnitude == 0)
+            {
+                TEST_ASSERT_EQUAL_UINT16(bits, actual);
+            }
+            else if (magnitude == 0x7C00U)
+            {
+                TEST_ASSERT_EQUAL_UINT16((bits & 0x8000U) | 0x3C00U, actual);
+            }
+            else
+            {
+                const float ref = (float)tanh((double)f16_val(input[i]));
+                TEST_ASSERT_FLOAT_WITHIN(TANH_F16_GLOBAL_TOL, ref, f16_val(output[i]));
+            }
+        }
+    }
+}
+
+void nn_activation_helpers_f16_tanh_public_tails(void)
+{
+    const uint16_t patterns[] = {0x0000U, 0x8000U, 0x7C00U, 0xFC00U, 0x7E00U, 0xFE00U, 0x7C01U, 0xFC01U};
+    float16_t input[17];
+    float16_t output[19];
+    for (int32_t count = 0; count <= 17; ++count)
+    {
+        for (uint32_t rotation = 0; rotation < 8U; ++rotation)
+        {
+            for (int32_t i = 0; i < count; ++i)
+            {
+                input[i] = f16_from_bits(patterns[((uint32_t)i + rotation) % 8U]);
+            }
+            output[0] = f16_from_bits(0x3555U);
+            output[count + 1] = f16_from_bits(0x3555U);
+            const arm_cmsis_nn_status status = arm_nn_activation_f16(input, output + 1, count, ARM_NN_FLT_ACT_TANH, 0);
+            TEST_ASSERT_EQUAL(count == 0 ? ARM_CMSIS_NN_ARG_ERROR : ARM_CMSIS_NN_SUCCESS, status);
+            TEST_ASSERT_EQUAL_UINT16(0x3555U, f16_bits(output[0]));
+            TEST_ASSERT_EQUAL_UINT16(0x3555U, f16_bits(output[count + 1]));
+            for (int32_t i = 0; i < count; ++i)
+            {
+                const uint16_t bits = patterns[((uint32_t)i + rotation) % 8U];
+                const uint16_t actual = f16_bits(output[i + 1]);
+                TEST_ASSERT_EQUAL_UINT16(bits, f16_bits(input[i]));
+                if ((bits & 0x7FFFU) > 0x7C00U)
+                {
+                    TEST_ASSERT_TRUE((actual & 0x7FFFU) > 0x7C00U);
+                }
+                else
+                {
+                    const uint16_t expected = (bits & 0x7FFFU) == 0 ? bits : (bits & 0x8000U) | 0x3C00U;
+                    TEST_ASSERT_EQUAL_UINT16(expected, actual);
+                }
+            }
+        }
+    }
+}
+
+void nn_activation_helpers_f16_tanh_fp_controls(void)
+{
+#if defined(__ARM_FP) && (__ARM_FP != 0)
+    uint32_t saved;
+    __asm__ volatile("vmrs %0, fpscr" : "=r"(saved) : : "memory");
+    const uint32_t controls = (3U << 22) | (1U << 24) | (1U << 25) | (1U << 19);
+    const volatile uint16_t patterns[] = {0x0000U, 0x8000U, 0x7C00U, 0xFC00U, 0x7E00U, 0xFE00U, 0x7C01U, 0xFC01U};
+    uint32_t errors = 0;
+    for (uint32_t mode = 0; mode < 32U; ++mode)
+    {
+        const uint32_t selected = (saved & ~controls) | ((mode & 3U) << 22) | (((mode >> 2) & 1U) << 24) |
+            (((mode >> 3) & 1U) << 25) | (((mode >> 4) & 1U) << 19);
+        float16_t input[9];
+        float16_t output[9];
+        for (uint32_t i = 0; i < 9U; ++i)
+        {
+            input[i] = f16_from_bits(patterns[i % 8U]);
+        }
+        __asm__ volatile("vmsr fpscr, %0" : : "r"(selected) : "memory");
+        const arm_cmsis_nn_status status = arm_nn_activation_f16(input, output, 9, ARM_NN_FLT_ACT_TANH, 0);
+        /* Also exercise the scalar helper when the public dispatch selects MVE. */
+        const uint16_t scalar_positive_zero = f16_bits(arm_nn_tanh_scalar_ref_f16(input[0]));
+        const uint16_t scalar_negative_zero = f16_bits(arm_nn_tanh_scalar_ref_f16(input[1]));
+        uint32_t after;
+        __asm__ volatile("vmrs %0, fpscr" : "=r"(after) : : "memory");
+        __asm__ volatile("vmsr fpscr, %0" : : "r"(saved) : "memory");
+        errors += status != ARM_CMSIS_NN_SUCCESS;
+        errors += (after & controls) != (selected & controls);
+        errors += scalar_positive_zero != 0x0000U;
+        errors += scalar_negative_zero != 0x8000U;
+        for (uint32_t i = 0; i < 9U; ++i)
+        {
+            const uint16_t bits = patterns[i % 8U];
+            const uint16_t actual = f16_bits(output[i]);
+            if ((bits & 0x7FFFU) > 0x7C00U)
+            {
+                errors += (actual & 0x7FFFU) <= 0x7C00U;
+            }
+            else
+            {
+                const uint16_t expected = (bits & 0x7FFFU) == 0 ? bits : (bits & 0x8000U) | 0x3C00U;
+                errors += actual != expected;
+            }
+        }
+    }
+    TEST_ASSERT_EQUAL_UINT32(0, errors);
 #endif
 }

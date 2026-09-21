@@ -2470,8 +2470,13 @@ arm_cmsis_nn_status arm_avg_pool_f16(const cmsis_nn_context *ctx,
  *       shipped -Ofast. This holds uniformly across build paths: the scalar path serves every build
  *       without MVE float16 (and LEAKY_RELU on MVE builds too), while the MVE RELU/RELU6 legs
  *       (cortex-m55) restore the NaN lanes that vmaxnmq/vminnmq suppress, using the same integer-domain
- *       lane classification as the elementwise clamps. SIGMOID, TANH and HARDSWISH are outside this
+ *       lane classification as the elementwise clamps. SIGMOID and HARDSWISH are outside this
  *       contract; see the per-helper notes in Include/Internal/arm_nn_activation_flt.h.
+ *
+ * @note TANH propagates NaN on both scalar and MVE paths, preserves the sign of zero, and maps
+ *       +/-Inf to +/-1, including under -Ofast. NaN payload, sign and signaling state are not
+ *       specified. The finite LUT interpolation may round differently across paths; bitwise
+ *       scalar/MVE agreement is not required. Caller FP control settings are not changed.
  *
  * @note Both legs of the HARDSWISH mux evaluate natively in float16 -- the scalar helper
  *       (arm_nn_hardswish_scalar_f16) with a separately rounded multiply-and-add gate, the MVE helper
