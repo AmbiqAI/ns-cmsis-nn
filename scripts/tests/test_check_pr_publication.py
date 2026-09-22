@@ -165,15 +165,32 @@ class GitIntegrationTests(unittest.TestCase):
             git("commit", "--allow-empty", "-m", "Reviewed. Refs #485")
             new = git("rev-parse", "HEAD")
             calls = []
+            # A dry run may only inspect the checkout and fetch the PR branch;
+            # every other command, git or not, fails the test.
+            allowed = (("git", "status", "--porcelain"),
+                       ("git", "rev-parse", "HEAD"),
+                       ("git", "remote", "get-url", "--push", "--all", "origin"),
+                       ("git", "check-ref-format", "--branch", "topic"),
+                       ("git", "fetch", "--no-tags", "--", "origin", "topic"),
+                       ("git", "rev-parse", "FETCH_HEAD"),
+                       ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", new))
 
             def command(*args):
                 calls.append(args)
                 if args[:3] == ("gh", "pr", "view"):
                     return json.dumps(dict(state="OPEN", isDraft=True, headRefName="topic",
                                            headRefOid=old, isCrossRepository=False))
-                if args[0] != "git" or args[1] == "push":
-                    self.fail(f"Unexpected write command: {args}")
+                if args not in allowed:
+                    self.fail(f"Unexpected command during dry run: {args}")
                 return git(*args[1:])
+
+            for unexpected in (("git", "push", "--", "origin", new + ":refs/heads/topic"),
+                               ("git", "config", "remote.origin.pushurl", "https://github.com/x/y"),
+                               ("git", "switch", "-c", "other"),
+                               ("gh", "pr", "ready", "485", "--repo", "AmbiqAI/ns-cmsis-nn")):
+                with self.subTest(unexpected=unexpected):
+                    with self.assertRaises(AssertionError):
+                        command(*unexpected)
 
             prefixes = ("git@github.com:", "https://github.com/", "ssh://git@github.com/")
             for prefix in prefixes:
