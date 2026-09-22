@@ -46,7 +46,7 @@ union fx_word
 
 /* A plain comment, not a doc block. */
 /**
- * @brief Convolution-shaped kernel.
+ * @brief Convolution-shaped kernel, see https://example.com/kernels#s8 and the "S8" note.
  * @param[in, out] ctx          Function context that may hold a scratch buffer.
  * @param[in]      params       Kernel parameters.
  * @param[in]      input_data   Input tensor.
@@ -94,7 +94,8 @@ void fx_pointers(const int8_t **advanced,
                  int32_t scalar);
 
 /**
- * @brief Inline helper with a body that contains braces in a string and conditional code.
+ * @brief Inline helper whose body has braces in a string, a character literal, and a
+ *        conditional whose branches share one closing brace.
  * @param[out] dst         Destination buffer.
  * @param[in]  src         Source buffer.
  * @param[in]  block_size  Number of elements to copy.
@@ -104,10 +105,25 @@ fx_memcpy(int8_t *__RESTRICT dst, const int8_t *__RESTRICT src, uint32_t block_s
 {
 #if defined(ARM_MATH_MVEI)
     __asm volatile("   wlstp.8 lr, %[cnt], 1f {  \\n" : : [cnt] "r"(block_size));
+    if (block_size) {
+#elif defined(ARM_MATH_DSP)
+    if (block_size > 1) {
 #else
-    for (uint32_t i = 0; i < block_size; i++) { dst[i] = src[i]; }
+    if (src[0] != '{') {
 #endif
+        for (uint32_t i = 0; i < block_size; i++) { dst[i] = src[i]; }
+    }
 }
+
+/**
+ * @brief Attribute before the return type, a struct return, and a callback parameter.
+ * @param[in]  words     Words to fold.
+ * @param[in]  fold      Callback applied to each word.
+ * @param[out] result    Receives the folded word.
+ * @return     The union that received the result.
+ */
+__attribute__((warn_unused_result)) union fx_word *
+fx_fold(const union fx_word *words, int32_t (*fold)(int32_t, int32_t), union fx_word *result);
 
 /**
  * @brief Inline twin; doxygen cannot resolve a copy directive to a static target, so it carries its own tags.
@@ -156,7 +172,7 @@ class FixtureTests(unittest.TestCase):
     def test_clean_fixture_passes(self):
         result = self.check(CLEAN)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('OK: 6 declarations in 1 headers', result.stdout)
+        self.assertIn('OK: 7 declarations in 1 headers', result.stdout)
 
     def test_missing_param(self):
         text = CLEAN.replace(' * @param[in]      size         Number of elements.\n', '')
@@ -272,6 +288,100 @@ class FixtureTests(unittest.TestCase):
                              ' * @brief Buffer size for the MVE leg.\n * @param[in] input_dims Dims.\n')
         self.assert_fails(text, 'fx_kernel_s8_get_buffer_size_mve', 'missing @param filter_dims')
 
+    # Each of the following shapes once made the scanner drop a declaration and exit 0. The
+    # twin's missing tag is the canary: it is only reported if the scanner reached it.
+    TWIN_MISSING_DST = CLEAN.replace(' * @param[out] dst         Destination buffer.\n'
+                                     ' * @param[in]  src         Source buffer.\n'
+                                     ' * @param[in]  block_size  Number of elements to copy.\n'
+                                     ' */\n__STATIC_FORCEINLINE void\nfx_memcpy_twin',
+                                     ' * @param[in]  src         Source buffer.\n'
+                                     ' * @param[in]  block_size  Number of elements to copy.\n'
+                                     ' */\n__STATIC_FORCEINLINE void\nfx_memcpy_twin')
+
+    def assert_twin_still_checked(self, text):
+        self.assertNotEqual(text, CLEAN)
+        self.assert_fails(text, 'fx_memcpy_twin', 'missing @param dst')
+
+    def test_url_or_quote_in_doc_block_does_not_swallow_the_next_declaration(self):
+        for label, tail in (('url on closing line', ' see https://example.com/x */'),
+                            ('odd quote on closing line', ' the "S8 path */')):
+            with self.subTest(case=label):
+                text = self.TWIN_MISSING_DST.replace(' * @brief Inline twin; doxygen cannot resolve a copy '
+                                                     'directive to a static target, so it carries its own tags.\n'
+                                                     ' * @param[in]  src         Source buffer.\n'
+                                                     ' * @param[in]  block_size  Number of elements to copy.\n */',
+                                                     ' * @brief Inline twin' + tail)
+                result = self.check(text)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn('fx_memcpy_twin', result.stderr)
+                self.assertIn('missing @param', result.stderr)
+
+    def test_shared_closing_brace_across_preprocessor_branches(self):
+        self.assertIn('#elif defined(ARM_MATH_DSP)\n    if (block_size > 1) {\n', CLEAN)
+        self.assert_twin_still_checked(self.TWIN_MISSING_DST)
+
+    def test_character_literal_brace_in_inline_body(self):
+        self.assertIn("if (src[0] != '{') {", CLEAN)
+        text = self.TWIN_MISSING_DST.replace("if (src[0] != '{') {", "if (src[0] != '\\\\{' && src[1] != '}') {")
+        self.assert_twin_still_checked(text)
+
+    def test_unbalanced_braces_fail_loud(self):
+        body = '    fx_memcpy(dst, src, block_size);\n}'
+        self.assertIn(body, CLEAN)
+        cases = (
+            ('extra close', body, body + '\n}', 'unexpected closing brace'),
+            ('never closed', body, body[:-2], 'extern block opened here is never closed'),
+        )
+        for label, old, new, fragment in cases:
+            with self.subTest(case=label):
+                self.assertIn(old, CLEAN)
+                result = self.check(CLEAN.replace(old, new))
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn('fixture.h:', result.stderr)
+                self.assertIn(fragment, result.stderr)
+
+    def test_struct_and_enum_return_types_are_functions(self):
+        self.assertIn('union fx_word *\nfx_fold(', CLEAN)
+        text = CLEAN.replace(' * @param[out] result    Receives the folded word.\n', '')
+        self.assert_fails(text, 'fx_fold', 'missing @param result')
+        text = CLEAN.replace('union fx_word *\nfx_fold(', 'enum fx_kind\nfx_fold(').replace(
+            ' * @param[out] result    Receives the folded word.\n', '')
+        self.assert_fails(text, 'fx_fold', 'missing @param result')
+
+    def test_code_after_a_same_line_comment_is_still_a_declaration(self):
+        # A plain comment is a boundary (the block above no longer counts); a one-line doc
+        # block is the declaration's own. Either way the declaration must be seen.
+        for label, prefix, fragment in (('plain comment', '/* MVE only */ ', 'no doc block'),
+                                        ('one-line doc block', '/** @brief Twin. */ ', 'missing @param dst')):
+            with self.subTest(case=label):
+                text = CLEAN.replace(TWIN_TAGS + ' */\n__STATIC_FORCEINLINE void\nfx_memcpy_twin',
+                                     ' * @brief Orphan block.\n */\n' + prefix + '__STATIC_FORCEINLINE void fx_memcpy_twin')
+                self.assertNotEqual(text, CLEAN)
+                self.assert_fails(text, 'fx_memcpy_twin', fragment)
+
+    def test_attribute_before_the_return_type_does_not_name_the_function(self):
+        self.assertIn('__attribute__((warn_unused_result)) union fx_word *', CLEAN)
+        text = CLEAN.replace(' * @param[in]  words     Words to fold.\n', '')
+        result = self.assert_fails(text, 'fx_fold', 'missing @param words')
+        self.assertNotIn('__attribute__', result.stderr)
+
+    def test_function_pointer_parameter_is_input_only(self):
+        self.assertIn('int32_t (*fold)(int32_t, int32_t)', CLEAN)
+        text = CLEAN.replace('@param[in]  fold', '@param[out] fold')
+        self.assert_fails(text, 'fx_fold', '@param fold (int32_t (*fold)(int32_t, int32_t)): tagged [out], expects [in]')
+
+    def test_unparseable_parameter_is_reported_against_its_declaration(self):
+        text = CLEAN.replace('int32_t (*fold)(int32_t, int32_t)', 'int32_t (*)(int32_t, int32_t)')
+        result = self.assert_fails(text, 'fx_fold', "cannot parse parameter 'int32_t (*)(int32_t, int32_t)'")
+        fold_line = CLEAN.splitlines().index('__attribute__((warn_unused_result)) union fx_word *') + 1
+        self.assertIn(f'fixture.h:{fold_line}: fx_fold:', result.stderr)
+        # The rest of the header is still checked.
+        with tempfile.TemporaryDirectory() as directory:
+            (Path(directory) / 'fixture.h').write_text(text)
+            listing = run(['--include-dir', directory, '--list', 'fixture.h'])
+        self.assertIn('fx_memcpy_twin', listing.stdout)
+        self.assertIn("fx_fold\t!cannot parse parameter", listing.stdout)
+
     def test_missing_and_empty_headers(self):
         with tempfile.TemporaryDirectory() as directory:
             result = run(['--include-dir', directory, 'absent.h'])
@@ -288,7 +398,7 @@ class FixtureTests(unittest.TestCase):
             result = run(['--include-dir', directory, '--list', 'fixture.h'])
         self.assertEqual(result.returncode, 0, result.stderr)
         lines = {line.split('\t')[1]: line for line in result.stdout.splitlines() if '\t' in line}
-        self.assertEqual(len(lines), 6)
+        self.assertEqual(len(lines), 7)
         self.assertIn('advanced=const int8_t * *:in,out', lines['fx_pointers'])
         self.assertIn('dims=const int32_t:in', lines['fx_pointers'])
         self.assertIn('dst=int8_t *:out', lines['fx_memcpy_twin'])

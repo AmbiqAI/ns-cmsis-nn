@@ -4,13 +4,19 @@
 
 The doc block above each declaration in Include/ is the machine-readable half of the
 kernel contract: the C types cannot say whether a mutable pointer is written only or
-read first, so the @param[out] / @param[in,out] tags have to be trustworthy. Doxygen's
-own WARN_NO_PARAMDOC only fires when a block already carries at least one tag, so a
-brief-only block passes it silently; this check reads the headers directly, needs no
-doxygen and no build, and fails on any of: a declaration with no doc block, a missing
-or extra @param, a tag without a direction, a direction that contradicts the
+read first, so the @param[out] / @param[in,out] tags have to be trustworthy. The docs
+build sets EXTRACT_ALL = YES, which makes doxygen disable WARN_NO_PARAMDOC, and its
+WARN_IF_INCOMPLETE_DOC only fires once a block already carries at least one tag, so a
+brief-only block passes the docs build silently; this check reads the headers directly,
+needs no doxygen and no build, and fails on any of: a declaration with no doc block, a
+missing or extra @param, a tag without a direction, a direction that contradicts the
 const-ness of the parameter type, or a @copydoc whose target is unknown, cyclic, or
 itself incomplete. See AmbiqAI/ns-cmsis-nn#526.
+
+The scanner is deliberately fail-loud: anything it cannot parse (a parameter shape it
+does not know, an inline body whose braces do not balance) is reported as an error
+against the declaration rather than skipped, because a silently dropped declaration
+would pass the gate forever and vanish from the --list contract as well.
 """
 
 import argparse
@@ -27,7 +33,10 @@ DEFAULT_HEADERS = (
 )
 CONDITIONAL_RE = re.compile(r'^#\s*(if|ifdef|ifndef|elif|else|endif)\b')
 DECL_RE = re.compile(r'^(?P<ret>[^;{}()]*?)\b(?P<name>[A-Za-z_]\w*)\s*\((?P<params>.*)\)\s*$', re.S)
-NOT_A_FUNCTION_RE = re.compile(r'^(typedef|struct|union|enum)\b')
+# Aggregate bodies are cut at their opening brace before this is applied, so only a typedef
+# can still look like a function here; `struct x *f(...)` and `enum e f(...)` are functions.
+NOT_A_FUNCTION_RE = re.compile(r'^typedef\b')
+FUNCTION_POINTER_RE = re.compile(r'^(?P<ret>.+?)\(\s*\*\s*(?P<name>[A-Za-z_]\w*)\s*\)\s*\(.*\)$')
 PARAM_TAG_RE = re.compile(r'[@\\]param\s*(?:\[(?P<dir>[^\]]*)\])?\s*(?P<name>[A-Za-z_]\w*)')
 COPYDOC_RE = re.compile(r'[@\\]copy(?:doc|details)\s+(?P<name>[A-Za-z_]\w*)')
 QUALIFIER_RE = re.compile(r'\b(__RESTRICT|__restrict|restrict)\b')
@@ -42,16 +51,26 @@ class Param:
     def __init__(self, text):
         text = ' '.join(QUALIFIER_RE.sub(' ', text).split())
         self.is_array = text.endswith(']')
+        self.is_function_pointer = False
         if self.is_array:
             text = text[:text.rindex('[')].rstrip()
+        pointer = FUNCTION_POINTER_RE.match(text)
+        if pointer:
+            self.is_function_pointer = True
+            self.name = pointer.group('name')
+            self.type = text
+            return
         match = re.search(r'([A-Za-z_]\w*)$', text)
-        if match is None or match.group(1) == text:
+        if match is None or match.group(1) == text or '(' in text or ')' in text:
             raise ValueError(f'cannot parse parameter {text!r}')
         self.name = match.group(1)
         self.type = text[:match.start()].strip()
         self.type = re.sub(r'\s*\*\s*', ' * ', self.type).replace('  ', ' ').strip()
 
     def expected_directions(self):
+        # A function pointer is a value the callee calls, never a buffer it writes.
+        if self.is_function_pointer:
+            return {'in'}
         normalized = self.type.replace(' * ', ' *').strip()
         if normalized in DIRECTION_EXCEPTIONS:
             return DIRECTION_EXCEPTIONS[normalized]
@@ -66,28 +85,44 @@ class Param:
 
 
 class Decl:
-    def __init__(self, path, line, name, params, doc, is_static):
+    def __init__(self, path, line, name, params, doc, is_static, error=None):
         self.path, self.line, self.name, self.params, self.doc = path, line, name, params, doc
-        self.is_static = is_static
+        self.is_static, self.error = is_static, error
+
+
+def is_doc_block_start(text, i):
+    """A /** that opens its own line starts a doc block; /**/ and trailing /**< member docs do not."""
+    if not text.startswith('/**', i) or text.startswith('/**/', i) or text.startswith('/**<', i):
+        return False
+    return not text[text.rfind('\n', 0, i) + 1:i].strip()
 
 
 def blank_non_doc(text):
-    """Replace // and /* */ comments (not /** */) and string literals with spaces."""
+    """Replace // and /* */ comments, string and character literals with spaces.
+
+    Doc blocks are copied through verbatim as a unit so that a URL or a quote inside one can
+    never be mistaken for the start of a comment or literal in the code that follows.
+    """
     out, i, n = [], 0, len(text)
     while i < n:
         two = text[i:i + 2]
         marker = False
-        if two == '/*' and not text.startswith('/**', i):
+        if two == '/*':
             end = text.find('*/', i + 2)
             end = n if end < 0 else end + 2
+            if is_doc_block_start(text, i):
+                out.append(text[i:end])
+                i = end
+                continue
             marker = True
         elif two == '//':
             end = text.find('\n', i)
             end = n if end < 0 else end
             marker = True
-        elif text[i] == '"':
+        elif text[i] in '"\'':
+            quote = text[i]
             end = i + 1
-            while end < n and text[end] != '"' and text[end] != '\n':
+            while end < n and text[end] != quote and text[end] != '\n':
                 end += 2 if text[end] == '\\' else 1
             end = min(end + 1, n)
         else:
@@ -102,6 +137,25 @@ def blank_non_doc(text):
         out.append(blanked)
         i = end
     return ''.join(out)
+
+
+def strip_attributes(stmt):
+    """Remove __attribute__((...)) so the declarator, not the attribute, names the function."""
+    while True:
+        start = stmt.find('__attribute__')
+        if start < 0:
+            return stmt
+        open_paren = stmt.find('(', start)
+        if open_paren < 0:
+            return stmt
+        depth = 0
+        for k in range(open_paren, len(stmt)):
+            depth += (stmt[k] == '(') - (stmt[k] == ')')
+            if depth == 0:
+                break
+        else:
+            return stmt
+        stmt = stmt[:start] + ' ' + stmt[k + 1:]
 
 
 def logical_lines(text):
@@ -133,59 +187,117 @@ def split_params(params):
     return [Param(part) for part in parts]
 
 
+class BodySkipper:
+    """Track brace depth through an inline body, counting only the first branch of each
+    preprocessor conditional opened inside it: the branches share one closing brace, so
+    counting every branch would leave the depth stuck above zero and drop every later
+    declaration in the file."""
+
+    def __init__(self, opened_at, tail):
+        self.opened_at = opened_at
+        self.depth = tail.count('{') - tail.count('}')
+        self.branches = []
+
+    def feed(self, s):
+        directive = CONDITIONAL_RE.match(s)
+        if directive:
+            keyword = directive.group(1)
+            if keyword in ('if', 'ifdef', 'ifndef'):
+                self.branches.append(False)
+            elif keyword in ('elif', 'else') and self.branches:
+                self.branches[-1] = True
+            elif keyword == 'endif' and self.branches:
+                self.branches.pop()
+        elif not s.startswith('#') and not any(self.branches):
+            self.depth += s.count('{') - s.count('}')
+        return self.depth <= 0
+
+
 def parse_header(path):
     """Return every function declaration in the header with its preceding doc block."""
     text = blank_non_doc(path.read_text())
-    decls, pending_doc, depth = [], None, 0
+    decls, pending_doc, body, extern_blocks = [], None, None, []
     lines = list(logical_lines(text))
     i = 0
     while i < len(lines):
         lineno, line = lines[i]
         s = line.strip()
         i += 1
-        if depth > 0:
-            depth += s.count('{') - s.count('}')
-            continue
-        if s.startswith('#'):
-            if not CONDITIONAL_RE.match(s):
+        # A line can hold several tokens of interest (`/* x */ int f(void);`), so each
+        # branch that consumes only part of the line loops on the remainder.
+        while s:
+            if body is not None:
+                if body.feed(s):
+                    if body.depth < 0:
+                        raise ValueError(f'{path}:{body.opened_at}: braces in the body opened '
+                                         'here do not balance')
+                    body = None
+                break
+            if s.startswith('#'):
+                if not CONDITIONAL_RE.match(s):
+                    pending_doc = None
+                break
+            if s.startswith(COMMENT_MARKER):
                 pending_doc = None
-            continue
-        if s.startswith(COMMENT_MARKER):
-            pending_doc = None
-            continue
-        if s.startswith('/**'):
-            block = [s]
-            while '*/' not in block[-1] and i < len(lines):
-                block.append(lines[i][1].strip())
+                s = s[len(COMMENT_MARKER):].strip()
+                continue
+            if s.startswith('/**'):
+                block, current = [], s
+                while '*/' not in current and i < len(lines):
+                    block.append(current)
+                    current = lines[i][1].strip()
+                    i += 1
+                head, terminator, rest = current.partition('*/')
+                block.append(head + terminator)
+                pending_doc = (lineno, '\n'.join(block))
+                s = rest.strip()
+                continue
+            # The only bare braces legal at file scope are an extern "C" block's; an
+            # unmatched one means a body above was miscounted, so refuse the file.
+            if re.match(r'^extern\s*\{$', s):
+                extern_blocks.append(lineno)
+                break
+            if s == '}':
+                if not extern_blocks:
+                    raise ValueError(f'{path}:{lineno}: unexpected closing brace at file scope')
+                extern_blocks.pop()
+                break
+            stmt, paren = [], 0
+            while True:
+                for char in s:
+                    paren += (char == '(') - (char == ')')
+                stmt.append(s)
+                if paren == 0 and (s.endswith(';') or '{' in s):
+                    break
+                if i >= len(lines):
+                    break
+                s = lines[i][1].strip()
                 i += 1
-            pending_doc = (lineno, '\n'.join(block))
-            continue
-        if not s or s == '}' or re.match(r'^extern\s*\{$', s):
-            continue
-        stmt, paren, opened = [], 0, False
-        while True:
-            for char in s:
-                paren += (char == '(') - (char == ')')
-            stmt.append(s)
-            if paren == 0 and (s.endswith(';') or '{' in s):
-                opened = '{' in s
-                break
-            if i >= len(lines):
-                break
-            s = lines[i][1].strip()
-            i += 1
-        joined = ' '.join(stmt)
-        if opened:
-            tail = joined[joined.index('{'):]
-            depth = tail.count('{') - tail.count('}')
-            joined = joined[:joined.index('{')]
-        joined = joined.rstrip('; ').strip()
-        match = DECL_RE.match(joined)
-        if match and not NOT_A_FUNCTION_RE.match(joined):
-            decls.append(Decl(path, lineno, match.group('name'),
-                              split_params(match.group('params')), pending_doc,
-                              bool(STATIC_RE.search(match.group('ret')))))
-        pending_doc = None
+            joined = ' '.join(stmt)
+            if '{' in joined:
+                cut = joined.index('{')
+                body = BodySkipper(lineno, joined[cut:])
+                if body.depth < 0:
+                    raise ValueError(f'{path}:{lineno}: braces in the body opened here do not balance')
+                if body.depth == 0:
+                    body = None
+                joined = joined[:cut]
+            joined = strip_attributes(joined.rstrip('; ').strip())
+            match = DECL_RE.match(joined)
+            if match and not NOT_A_FUNCTION_RE.match(joined):
+                params, error = [], None
+                try:
+                    params = split_params(match.group('params'))
+                except ValueError as failure:
+                    error = str(failure)
+                decls.append(Decl(path, lineno, match.group('name'), params, pending_doc,
+                                  bool(STATIC_RE.search(match.group('ret'))), error))
+            pending_doc = None
+            break
+    if body is not None:
+        raise ValueError(f'{path}:{body.opened_at}: the body opened here is never closed')
+    if extern_blocks:
+        raise ValueError(f'{path}:{extern_blocks[-1]}: the extern block opened here is never closed')
     return decls
 
 
@@ -219,6 +331,8 @@ def resolve_tags(decl, by_name, visiting):
 
 
 def check_decl(decl, by_name):
+    if decl.error:
+        raise ValueError(decl.error)
     tags = resolve_tags(decl, by_name, {decl.name})
     problems = []
     seen = {}
@@ -268,7 +382,7 @@ def check_headers(paths, list_decls=False):
         except ValueError:
             rel = decl.path
         if list_decls:
-            fields = []
+            fields = [f'!{decl.error}'] if decl.error else []
             for param in decl.params:
                 declared = '?'
                 if decl.doc is not None:

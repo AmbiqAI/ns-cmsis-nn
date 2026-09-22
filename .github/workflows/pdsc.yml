@@ -212,9 +212,11 @@ jobs:
     # Every function in the public headers must carry a doc block with one
     # direction-tagged @param per parameter (or a @copydoc to a non-static
     # declaration that has them), and the direction must agree with the
-    # parameter type. Doxygen's own WARN_NO_PARAMDOC only fires once a block
-    # already has at least one tag, so a brief-only block passed the docs
-    # build silently; 191 of 558 public declarations were in that state.
+    # parameter type. The docs build sets EXTRACT_ALL = YES, which makes
+    # doxygen disable WARN_NO_PARAMDOC, and WARN_IF_INCOMPLETE_DOC only fires
+    # once a block already has at least one tag, so a brief-only block passed
+    # the docs build silently; 191 of 558 public declarations were in that
+    # state. This script, not doxygen, is what catches absent parameter docs.
     # helia-core-tester reads these tags as the kernel contract. See #526.
     name: Header @param documentation
     runs-on: ubuntu-latest
