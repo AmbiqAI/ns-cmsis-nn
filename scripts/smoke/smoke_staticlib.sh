@@ -127,8 +127,9 @@ case "${TOOLCHAIN}" in
     nm="arm-none-eabi-nm"
     size="arm-none-eabi-size"
     link_flags=(-nostartfiles --specs=nosys.specs)
-    # GCC needs libm for floorf/roundf/round and sqrtf on targets without
-    # hardware sqrt, including fast-math builds. Refs #485.
+    # GCC needs libm for floorf/roundf/round, and for sqrtf on targets
+    # without hardware sqrt even under fast-math; hard-FPU builds without
+    # fast-math still reference it for the errno path. Refs #485.
     post_link_libs=(-lm)
     command -v "${compiler}" >/dev/null || { echo "${compiler} not on PATH" >&2; exit 3; }
     command -v "${nm}"       >/dev/null || { echo "${nm} not on PATH"       >&2; exit 3; }

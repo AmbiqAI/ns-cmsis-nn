@@ -165,8 +165,8 @@ class GitIntegrationTests(unittest.TestCase):
             git("commit", "--allow-empty", "-m", "Reviewed. Refs #485")
             new = git("rev-parse", "HEAD")
             calls = []
-            # A dry run may only inspect the checkout and fetch the PR branch;
-            # every other command, git or not, fails the test.
+            # Besides reading the PR, a dry run may only inspect the checkout
+            # and fetch the PR branch; any other command fails the test.
             allowed = (("git", "status", "--porcelain"),
                        ("git", "rev-parse", "HEAD"),
                        ("git", "remote", "get-url", "--push", "--all", "origin"),
@@ -203,6 +203,7 @@ class GitIntegrationTests(unittest.TestCase):
                             publisher.publish(485, "AmbiqAI/ns-cmsis-nn", "origin", new,
                                               dry_run=True)
                         self.assertIn(("git", "remote", "get-url", "--push", "--all", "origin"), calls)
+                        self.assertIn(("git", "fetch", "--no-tags", "--", "origin", "topic"), calls)
                         self.assertIn(("git", "merge-base", "--is-ancestor", "FETCH_HEAD", new), calls)
                         self.assertEqual(git("rev-parse", "refs/heads/topic", cwd=bare), old)
 
