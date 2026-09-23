@@ -37,7 +37,11 @@ DECL_RE = re.compile(r'^(?P<ret>[^;{}()]*?)\b(?P<name>[A-Za-z_]\w*)\s*\((?P<para
 # can still look like a function here; `struct x *f(...)` and `enum e f(...)` are functions.
 NOT_A_FUNCTION_RE = re.compile(r'^typedef\b')
 FUNCTION_POINTER_RE = re.compile(r'^(?P<ret>.+?)\(\s*\*\s*(?P<name>[A-Za-z_]\w*)\s*\)\s*\(.*\)$')
-PARAM_TAG_RE = re.compile(r'[@\\]param\s*(?:\[(?P<dir>[^\]]*)\])?\s*(?P<name>[A-Za-z_]\w*)')
+PARAM_TAG_RE = re.compile(r'[@\\]param\b\s*(?:\[(?P<dir>[^\]]*)\])?\s*(?P<name>[A-Za-z_]\w*)')
+# Example code inside a block is rendered, not interpreted, so a tag in it documents nothing.
+VERBATIM_RE = re.compile(r'[@\\](code|verbatim)\b.*?(?:[@\\]end(?:code|verbatim)\b|\Z)', re.S)
+# A block that opens or closes a doxygen group documents the group, not the next declaration.
+GROUP_MARKER_RE = re.compile(r'[@\\](\{|\}|addtogroup\b|defgroup\b)')
 COPYDOC_RE = re.compile(r'[@\\]copy(?:doc|details)\s+(?P<name>[A-Za-z_]\w*)')
 QUALIFIER_RE = re.compile(r'\b(__RESTRICT|__restrict|restrict)\b')
 STATIC_RE = re.compile(r'\b(static|__STATIC_INLINE|__STATIC_FORCEINLINE)\b')
@@ -50,10 +54,12 @@ DIRECTION_EXCEPTIONS = {'const cmsis_nn_context *': {'in', 'in,out'}}
 class Param:
     def __init__(self, text):
         text = ' '.join(QUALIFIER_RE.sub(' ', text).split())
-        self.is_array = text.endswith(']')
         self.is_function_pointer = False
+        extent = re.search(r'(\s*\[[^\]]*\])+$', text)
+        self.extent = extent.group(0).strip() if extent else ''
+        self.is_array = bool(self.extent)
         if self.is_array:
-            text = text[:text.rindex('[')].rstrip()
+            text = text[:extent.start()].rstrip()
         pointer = FUNCTION_POINTER_RE.match(text)
         if pointer:
             self.is_function_pointer = True
@@ -67,11 +73,17 @@ class Param:
         self.type = text[:match.start()].strip()
         self.type = re.sub(r'\s*\*\s*', ' * ', self.type).replace('  ', ' ').strip()
 
+    @property
+    def spelling(self):
+        """The type as declared, including an array extent, for listings and messages."""
+        return f'{self.type} {self.extent}'.strip()
+
     def expected_directions(self):
         # A function pointer is a value the callee calls, never a buffer it writes.
         if self.is_function_pointer:
             return {'in'}
-        normalized = self.type.replace(' * ', ' *').strip()
+        # A const on the pointer itself does not change what the callee may write through it.
+        normalized = re.sub(r'\s*\bconst$', '', self.type.replace(' * ', ' *').strip())
         if normalized in DIRECTION_EXCEPTIONS:
             return DIRECTION_EXCEPTIONS[normalized]
         levels = self.type.split('*')
@@ -158,6 +170,14 @@ def strip_attributes(stmt):
         stmt = stmt[:start] + ' ' + stmt[k + 1:]
 
 
+def looks_like_call(stmt):
+    """True when a statement has an identifier followed by a parameter list outside any
+    array extent, and is not an initialised variable."""
+    if '=' in stmt:
+        return False
+    return re.search(r'\b[A-Za-z_]\w*\s*\(', re.sub(r'\[[^\]]*\]', '', stmt)) is not None
+
+
 def logical_lines(text):
     """Yield (first_line_number, line) with backslash continuations joined."""
     lines = text.split('\n')
@@ -215,8 +235,11 @@ class BodySkipper:
 
 def parse_header(path):
     """Return every function declaration in the header with its preceding doc block."""
-    text = blank_non_doc(path.read_text())
+    text = blank_non_doc(path.read_text(encoding='utf-8'))
     decls, pending_doc, body, extern_blocks = [], None, None, []
+    # One entry per open file-scope conditional: the doc block a declaration in an earlier
+    # branch consumed, so the same block can document its #else/#elif twin.
+    conditionals, doc_depth = [], 0
     lines = list(logical_lines(text))
     i = 0
     while i < len(lines):
@@ -234,8 +257,16 @@ def parse_header(path):
                     body = None
                 break
             if s.startswith('#'):
-                if not CONDITIONAL_RE.match(s):
+                directive = CONDITIONAL_RE.match(s)
+                if not directive:
                     pending_doc = None
+                elif directive.group(1) in ('if', 'ifdef', 'ifndef'):
+                    conditionals.append(None)
+                elif directive.group(1) in ('elif', 'else'):
+                    if conditionals and conditionals[-1] is not None:
+                        pending_doc, doc_depth = conditionals[-1], len(conditionals) - 1
+                elif conditionals:
+                    conditionals.pop()
                 break
             if s.startswith(COMMENT_MARKER):
                 pending_doc = None
@@ -249,7 +280,9 @@ def parse_header(path):
                     i += 1
                 head, terminator, rest = current.partition('*/')
                 block.append(head + terminator)
-                pending_doc = (lineno, '\n'.join(block))
+                doc = '\n'.join(block)
+                pending_doc = None if GROUP_MARKER_RE.search(doc) else (lineno, doc)
+                doc_depth = len(conditionals)
                 s = rest.strip()
                 continue
             # The only bare braces legal at file scope are an extern "C" block's; an
@@ -284,7 +317,9 @@ def parse_header(path):
                 joined = joined[:cut]
             joined = strip_attributes(joined.rstrip('; ').strip())
             match = DECL_RE.match(joined)
-            if match and not NOT_A_FUNCTION_RE.match(joined):
+            if NOT_A_FUNCTION_RE.match(joined):
+                pass
+            elif match:
                 params, error = [], None
                 try:
                     params = split_params(match.group('params'))
@@ -292,6 +327,15 @@ def parse_header(path):
                     error = str(failure)
                 decls.append(Decl(path, lineno, match.group('name'), params, pending_doc,
                                   bool(STATIC_RE.search(match.group('ret'))), error))
+            elif looks_like_call(joined):
+                # Something with a parameter list that the grammar above does not cover, such
+                # as a macro after the closing parenthesis: report it rather than lose it.
+                name = re.search(r'([A-Za-z_]\w*)\s*\(', joined).group(1)
+                decls.append(Decl(path, lineno, name, [], pending_doc, False,
+                                  f'unrecognized declaration {joined!r}'))
+            if pending_doc is not None:
+                for level in range(doc_depth, len(conditionals)):
+                    conditionals[level] = pending_doc
             pending_doc = None
             break
     if body is not None:
@@ -303,6 +347,7 @@ def parse_header(path):
 
 def doc_tags(doc):
     """Return (copydoc_target, [(name, direction)]) from a doc block."""
+    doc = VERBATIM_RE.sub(' ', doc)
     copydocs = COPYDOC_RE.findall(doc)
     if len(copydocs) > 1:
         raise ValueError('multiple copy directives in one block: ' + ', '.join(copydocs))
@@ -312,12 +357,10 @@ def doc_tags(doc):
 
 
 def resolve_tags(decl, by_name, visiting):
-    """Follow @copydoc chains and return the terminal tag list, raising on bad chains."""
+    """Follow @copydoc chains and return the accumulated tag list, raising on bad chains."""
     if decl.doc is None:
         raise ValueError('no doc block immediately before the declaration')
     target, tags = doc_tags(decl.doc[1])
-    if target and tags:
-        raise ValueError('doc block mixes @copydoc with @param tags')
     if target is None:
         return tags
     if target in visiting:
@@ -327,7 +370,9 @@ def resolve_tags(decl, by_name, visiting):
     if by_name[target].is_static:
         raise ValueError(f'@copydoc target {target} is a static function, which doxygen cannot resolve; '
                          'write the tags inline')
-    return resolve_tags(by_name[target], by_name, visiting | {decl.name})
+    # Doxygen merges the copied tags with the block's own, so a wrapper may document only
+    # the parameters its base lacks; an overlap shows up as a duplicate tag.
+    return resolve_tags(by_name[target], by_name, visiting | {decl.name}) + tags
 
 
 def check_decl(decl, by_name):
@@ -359,7 +404,7 @@ def check_decl(decl, by_name):
         expected = params[name].expected_directions()
         if direction not in expected:
             wanted = ' or '.join(f'[{d}]' for d in sorted(expected))
-            problems.append(f'@param {name} ({params[name].type}): tagged [{direction}], expects {wanted}')
+            problems.append(f'@param {name} ({params[name].spelling}): tagged [{direction}], expects {wanted}')
     if problems:
         raise ValueError('; '.join(problems))
 
@@ -390,7 +435,7 @@ def check_headers(paths, list_decls=False):
                         declared = dict(resolve_tags(decl, by_name, {decl.name})).get(param.name) or '?'
                     except ValueError:
                         pass
-                fields.append(f'{param.name}={param.type}:{declared}')
+                fields.append(f'{param.name}={param.spelling}:{declared}')
             print(f'{rel}:{decl.line}\t{decl.name}\t' + '\t'.join(fields))
         try:
             check_decl(decl, by_name)

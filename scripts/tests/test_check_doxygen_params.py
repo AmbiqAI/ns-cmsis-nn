@@ -28,6 +28,11 @@ extern "C" {
 #endif
 
 /**
+ * @addtogroup fxGroup
+ * @{
+ */
+
+/**
  * @brief A lookup table that must not be credited to the next function.
  */
 extern const int8_t fx_table[16];
@@ -136,6 +141,10 @@ fx_memcpy_twin(int8_t *__RESTRICT dst, const int8_t *__RESTRICT src, uint32_t bl
 {
     fx_memcpy(dst, src, block_size);
 }
+
+/**
+ * @}
+ */
 
 #ifdef __cplusplus
 }
@@ -256,10 +265,68 @@ class FixtureTests(unittest.TestCase):
                              ' * @copydetails fx_kernel_s8_get_buffer_size\n * @copydoc fx_nonexistent\n')
         self.assert_fails(text, 'fx_kernel_s8_get_buffer_size_mve', 'multiple copy directives')
 
-    def test_copydoc_mixed_with_params(self):
-        text = CLEAN.replace(' * @copydetails fx_kernel_s8_get_buffer_size\n',
-                             ' * @copydetails fx_kernel_s8_get_buffer_size\n * @param[in] input_dims Dims.\n')
-        self.assert_fails(text, 'fx_kernel_s8_get_buffer_size_mve', 'mixes @copydoc with @param')
+    def test_copydetails_merges_with_the_blocks_own_tags(self):
+        # A wrapper that adds a parameter documents only that one, as doxygen renders it.
+        wrapper = CLEAN.replace(' * @copydetails fx_kernel_s8_get_buffer_size\n */\n'
+                                'int32_t fx_kernel_s8_get_buffer_size_mve(const cmsis_nn_dims *input_dims, '
+                                'const cmsis_nn_dims *filter_dims);',
+                                ' * @copydetails fx_kernel_s8_get_buffer_size\n * @param[out] scratch  Scratch size.\n */\n'
+                                'int32_t fx_kernel_s8_get_buffer_size_mve(const cmsis_nn_dims *input_dims, '
+                                'const cmsis_nn_dims *filter_dims, int32_t *scratch);')
+        self.assertNotEqual(wrapper, CLEAN)
+        self.assertEqual(self.check(wrapper).returncode, 0, self.check(wrapper).stderr)
+        self.assert_fails(wrapper.replace('@param[out] scratch', '@param[in] scratch'),
+                          'fx_kernel_s8_get_buffer_size_mve', 'expects [in,out] or [out]')
+        overlap = CLEAN.replace(' * @copydetails fx_kernel_s8_get_buffer_size\n',
+                                ' * @copydetails fx_kernel_s8_get_buffer_size\n * @param[in] input_dims Dims.\n')
+        self.assert_fails(overlap, 'fx_kernel_s8_get_buffer_size_mve', 'duplicate @param input_dims')
+
+    def test_param_inside_a_code_example_is_not_a_tag(self):
+        text = CLEAN.replace(' * @param[in]      size         Number of elements.\n',
+                             ' * @code\n * @param[in]      size         Number of elements.\n * @endcode\n')
+        self.assert_fails(text, 'fx_kernel_s8', 'missing @param size')
+
+    def test_param_tag_requires_a_word_boundary(self):
+        text = CLEAN.replace('@param[in]      size', '@params[in]     size')
+        result = self.assert_fails(text, 'fx_kernel_s8', 'missing @param size')
+        self.assertNotIn('no such parameter', result.stderr)
+
+    def test_group_marker_is_not_a_doc_block(self):
+        self.assertIn('/**\n * @}\n */\n', CLEAN)
+        for marker in ('/** @} */', '/**\n * @addtogroup fxOther\n * @{\n */', '/** @defgroup fxOther Other */'):
+            with self.subTest(marker=marker):
+                text = CLEAN.replace('/**\n * @}\n */\n', marker + '\nvoid fx_after_group(void);\n/**\n * @}\n */\n')
+                self.assert_fails(text, 'fx_after_group', 'no doc block')
+
+    def test_trailing_macro_after_the_parameter_list_is_reported(self):
+        text = self.TWIN_MISSING_DST.replace('/**\n * @brief Inline twin',
+                                             '/** @brief Deprecated. */\nvoid fx_old(int8_t *out) FX_DEPRECATED;\n\n'
+                                             '/**\n * @brief Inline twin')
+        result = self.assert_fails(text, 'fx_old', "unrecognized declaration 'void fx_old(int8_t *out) FX_DEPRECATED'")
+        self.assertIn('fx_memcpy_twin', result.stderr)
+        self.assertIn('missing @param dst', result.stderr)
+
+    def test_const_pointer_to_const_context(self):
+        text = CLEAN.replace('fx_kernel_s8(const cmsis_nn_context *ctx,', 'fx_kernel_s8(const cmsis_nn_context *const ctx,')
+        self.assertNotEqual(text, CLEAN)
+        self.assertEqual(self.check(text).returncode, 0, self.check(text).stderr)
+        self.assert_fails(text.replace('@param[in, out] ctx', '@param[out]     ctx'), 'fx_kernel_s8', 'expects [in] or [in,out]')
+
+    def test_one_doc_block_documents_both_branches_of_a_conditional(self):
+        decl = 'int32_t\nfx_kernel_s8_get_buffer_size(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims);\n'
+        self.assertIn(decl, CLEAN)
+        text = CLEAN.replace(decl, '#if defined(ARM_MATH_MVEI)\n' + decl + '#elif defined(ARM_MATH_DSP)\n' + decl
+                             + '#else\n' + decl + '#endif\n')
+        result = self.check(text)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('OK: 9 declarations', result.stdout)
+        broken = text.replace(' * @param[in] filter_dims  Filter tensor dimensions.\n', '')
+        result = self.assert_fails(broken, 'fx_kernel_s8_get_buffer_size', 'missing @param filter_dims')
+        self.assertEqual(result.stderr.count('missing @param filter_dims'), 4, result.stderr)
+        # The block is not carried past the #endif to an unrelated declaration.
+        orphan = text.replace('#endif\n\n/**\n * @brief Pointer shapes.', '#endif\nvoid fx_after_endif(void);\n\n/**\n * @brief Pointer shapes.')
+        self.assertNotEqual(orphan, text)
+        self.assert_fails(orphan, 'fx_after_endif', 'no doc block')
 
     def test_no_doc_block(self):
         block = ('/**\n * @brief Buffer size query.\n'
@@ -400,7 +467,7 @@ class FixtureTests(unittest.TestCase):
         lines = {line.split('\t')[1]: line for line in result.stdout.splitlines() if '\t' in line}
         self.assertEqual(len(lines), 7)
         self.assertIn('advanced=const int8_t * *:in,out', lines['fx_pointers'])
-        self.assertIn('dims=const int32_t:in', lines['fx_pointers'])
+        self.assertIn('dims=const int32_t [4]:in', lines['fx_pointers'])
         self.assertIn('dst=int8_t *:out', lines['fx_memcpy_twin'])
         self.assertIn('block_size=uint32_t:in', lines['fx_memcpy'])
         kernel_line = CLEAN.splitlines().index('arm_cmsis_nn_status fx_kernel_s8(const cmsis_nn_context *ctx,') + 1

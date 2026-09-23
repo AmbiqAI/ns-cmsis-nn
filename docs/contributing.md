@@ -278,7 +278,10 @@ a pointer whose every pointee level is `const` is `[in]`; any other pointer is
 may be `[in]` or `[in,out]`. A variant with the same parameter names as its
 base function may use a single `@copydetails base` (keeping its own `@brief`)
 or `@copydoc base` instead of repeating the tags, as long as the base is not a
-`static` inline function, which doxygen cannot resolve.
+`static` inline function, which doxygen cannot resolve. A wrapper that adds a
+parameter its base lacks keeps the copy directive and adds a `@param` line for
+the new parameter only; doxygen merges the two, and a tag that repeats one of
+the copied parameters is an error.
 
 These tags are the machine-readable half of the kernel contract:
 `helia-core-tester` reads them to know which buffers a kernel writes. Two
