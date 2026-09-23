@@ -449,6 +449,17 @@ class FixtureTests(unittest.TestCase):
         self.assertIn('fx_memcpy_twin', listing.stdout)
         self.assertIn("fx_fold\t!cannot parse parameter", listing.stdout)
 
+    def test_unterminated_comment_fails_loud(self):
+        # A C compiler rejects the file, but the gate must not exit 0 with the tail swallowed.
+        closer = '/**\n * @}\n */\n'
+        self.assertIn(closer, CLEAN)
+        line = CLEAN.splitlines().index('/**', CLEAN.splitlines().index(' * @}') - 1) + 1
+        for label, opener in (('doc block', '/**'), ('plain comment', '/*')):
+            with self.subTest(case=label):
+                result = self.check(CLEAN.replace(closer, opener + '\n * @}\n'))
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn(f'fixture.h:{line}: comment opened here is never closed', result.stderr)
+
     def test_missing_and_empty_headers(self):
         with tempfile.TemporaryDirectory() as directory:
             result = run(['--include-dir', directory, 'absent.h'])

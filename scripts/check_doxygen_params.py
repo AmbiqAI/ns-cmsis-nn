@@ -121,7 +121,9 @@ def blank_non_doc(text):
         marker = False
         if two == '/*':
             end = text.find('*/', i + 2)
-            end = n if end < 0 else end + 2
+            if end < 0:
+                raise ValueError(f'{text.count(chr(10), 0, i) + 1}: comment opened here is never closed')
+            end += 2
             if is_doc_block_start(text, i):
                 out.append(text[i:end])
                 i = end
@@ -235,7 +237,10 @@ class BodySkipper:
 
 def parse_header(path):
     """Return every function declaration in the header with its preceding doc block."""
-    text = blank_non_doc(path.read_text(encoding='utf-8'))
+    try:
+        text = blank_non_doc(path.read_text(encoding='utf-8'))
+    except ValueError as error:
+        raise ValueError(f'{path}:{error}') from None
     decls, pending_doc, body, extern_blocks = [], None, None, []
     # One entry per open file-scope conditional: the doc block a declaration in an earlier
     # branch consumed, so the same block can document its #else/#elif twin.
