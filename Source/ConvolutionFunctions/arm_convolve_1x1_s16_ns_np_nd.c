@@ -174,6 +174,12 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
     int32_t *output_shift = quant_params->shift;
 
     int32_t lhs_rows = output_x * output_y;
+
+    if (output_data == NULL)
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
@@ -195,11 +201,6 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
         else
 #endif
         {
-            if (output_data == NULL)
-            {
-                return ARM_CMSIS_NN_NO_IMPL_ERROR;
-            }
-
             arm_nn_mat_mult_nt_t_s16(input_data,
                                      filter_data,
                                      bias_data,
