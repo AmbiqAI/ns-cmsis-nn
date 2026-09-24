@@ -31,7 +31,7 @@
  * @{
  */
 
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
 
 /*
  * A 1x1 convolution reduces over input channels only, so when the input pixel
@@ -133,7 +133,7 @@ static void conv_1x1_s16_resident_pixel(const int16_t *input,
    vector, and a partial vector would need predication in the innermost loop. */
     #define CONV_1X1_S16_RESIDENT_MAX_CH 32
 
-#endif // ARM_MATH_MVEI
+#endif // ARM_MATH_MVEI && !ARM_MATH_AUTOVECTORIZE
 
 /*
  * Pointwise s16 convolution function: no stride, no padding, no dilation.
@@ -174,17 +174,16 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
     int32_t *output_shift = quant_params->shift;
 
     int32_t lhs_rows = output_x * output_y;
-    int16_t *out = output_data;
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
         if (bias_data != NULL && bias_data->data != NULL && bias_data->is_int32_bias &&
             rhs_cols <= CONV_1X1_S16_RESIDENT_MAX_CH && (rhs_cols & 0x7) == 0)
         {
             conv_1x1_s16_resident_pixel(input_data,
                                         filter_data,
                                         (const int32_t *)bias_data->data,
-                                        out,
+                                        output_data,
                                         output_mult,
                                         output_shift,
                                         lhs_rows,
@@ -196,10 +195,15 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
         else
 #endif
         {
+            if (output_data == NULL)
+            {
+                return ARM_CMSIS_NN_NO_IMPL_ERROR;
+            }
+
             arm_nn_mat_mult_nt_t_s16(input_data,
                                      filter_data,
                                      bias_data,
-                                     out,
+                                     output_data,
                                      output_mult,
                                      output_shift,
                                      lhs_rows,
@@ -208,11 +212,6 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
                                      out_activation_min,
                                      out_activation_max,
                                      output_dims->c);
-
-            if (out == NULL)
-            {
-                return ARM_CMSIS_NN_NO_IMPL_ERROR;
-            }
         }
 
         /* Advance to the next batch */
