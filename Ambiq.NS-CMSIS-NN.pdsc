@@ -17,7 +17,7 @@
   <repository type="git">https://github.com/AmbiqAI/ns-cmsis-nn</repository>
 
   <releases>
-    <release version="7.33.0"> <!-- x-release-please-version -->
+    <release version="7.35.1"> <!-- x-release-please-version -->
       Active development
     </release>
   </releases>
@@ -59,7 +59,7 @@
 
   <components>
     <!-- heliaCORE NN — Source variant: build the 200+ kernel sources in-tree. -->
-    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.33.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.35.1" condition="CMSIS-NN"> <!-- x-release-please-version -->
       <description>heliaCORE NN — Ambiq's optimized superset of Arm CMSIS-NN, tuned for Apollo SoCs.</description>
       <files>
         <file category="doc" name="Documentation/html/index.html"/>
@@ -79,7 +79,10 @@
         <file category="header" name="Include/Internal/arm_conv_opt_f32.h"/>
         <file category="header" name="Include/Internal/arm_depthwise_conv_opt_f16.h"/>
         <file category="header" name="Include/Internal/arm_depthwise_conv_opt_f32.h"/>
+        <file category="header" name="Include/Internal/arm_nn_arg_extrema_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_broadcast_walk.h"/>
+        <file category="header" name="Include/Internal/arm_nn_reduce_extrema_flt.h"/>
+        <file category="header" name="Include/Internal/arm_nn_s4_decode.h"/>
         <file category="header" name="Include/Internal/arm_nn_sqrt_flt.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f16_common.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f32_common.h"/>
@@ -118,8 +121,12 @@
         <file category="source" name="Source/BasicMathFunctions/arm_add_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_scalar_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_add_scalar_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_argmax_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_argmax_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_argmax_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_argmax_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_argmin_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_argmin_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_argmin_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_argmin_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_broadcast_f16.c"/>
@@ -171,8 +178,12 @@
         <file category="source" name="Source/BasicMathFunctions/arm_nn_mean_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_sqrt_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_sqrt_f32.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_reduce_max_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_reduce_max_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_max_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_max_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_reduce_min_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_reduce_min_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_min_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_min_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_sum_f16.c"/>
@@ -281,6 +292,10 @@
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_wrapper_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_vector_sum_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_vector_sum_s8_s64.c"/>
+        <file category="source" name="Source/GatherFunctions/arm_gather_f16.c"/>
+        <file category="source" name="Source/GatherFunctions/arm_gather_f32.c"/>
+        <file category="source" name="Source/GatherFunctions/arm_gather_nd_f16.c"/>
+        <file category="source" name="Source/GatherFunctions/arm_gather_nd_f32.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_nd_s16.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_nd_s8.c"/>
         <file category="source" name="Source/GatherFunctions/arm_gather_s16.c"/>
@@ -432,7 +447,7 @@
          libns-cmsis-nn.a instead of compiling sources. One <file> entry per
          supported core; CMSIS-Pack pickers (Keil/CMSIS-Toolbox) resolve the
          right archive via the Dcore + Tcompiler conditions above. -->
-    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.33.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.35.1" condition="CMSIS-NN"> <!-- x-release-please-version -->
       <description>heliaCORE NN — Ambiq's prebuilt GCC archive for Cortex-M0/M0+/M4/M55.</description>
       <files>
         <file category="doc"    name="Documentation/html/index.html"/>

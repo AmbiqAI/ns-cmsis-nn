@@ -1,0 +1,67 @@
+---
+title: Getting started
+description: Choose a HELIA inference solution or integrate heliaCORE into your firmware.
+---
+
+import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
+import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
+
+For model deployment, start with [heliaAOT](https://ambiqai.github.io/helia-aot/)
+or [heliaRT](https://ambiqai.github.io/helia-rt/). Both use heliaCORE for supported
+operations. heliaAOT is the recommended starting point for latency, power, and
+memory efficiency. Choose heliaRT when you want an optimized LiteRT for Microcontrollers runtime integration.
+
+These guides are for developers integrating kernels directly into firmware or a
+custom runtime. Start with [Requirements](requirements/), choose one integration
+below, then [run your first kernel](first-kernel/).
+
+<CardGrid columns={3}>
+<LinkCard title="1. Requirements" href="requirements/">Check your target, compiler, and build prerequisites.</LinkCard>
+<LinkCard title="2. Integration" href="#choose-an-integration">Add the library through your project's build system.</LinkCard>
+<LinkCard title="3. First kernel" href="first-kernel/">Execute a small example and check its output.</LinkCard>
+</CardGrid>
+
+## Before you begin
+
+Have a board application that you can already build, flash, and debug. These
+guides add heliaCORE to that application; your board SDK continues to provide
+startup code, device support, and the linker configuration.
+
+Choose a source build if you need custom operator selection or compiler settings.
+A prebuilt library is suitable when its target, compiler, ABI, and kernel features
+match your application. [Requirements](requirements/) explains how to check.
+
+## Choose an integration
+
+Use the guide that matches the build system already in your project. These are
+alternative paths; you do not need to complete all four.
+
+<CardGrid columns={2}>
+<LinkCard title="CMake" href="cmake/">
+Link a prebuilt package or build from source with the operator groups and data types you select.
+</LinkCard>
+<LinkCard title="CMSIS-Pack" href="cmsis-pack/">
+Add the Ambiq component through your IDE or CMSIS tooling, using source or prebuilt kernels.
+</LinkCard>
+<LinkCard title="Zephyr" href="zephyr/">
+Add the module to your workspace and configure kernel support through Kconfig.
+</LinkCard>
+<LinkCard title="neuralSPOT-X" href="neuralspot-x/">
+Use the SDK's existing heliaCORE integration and verify the dependency and target settings.
+</LinkCard>
+</CardGrid>
+
+For a custom CMake firmware project, start with [CMake](cmake/). If your SDK
+already supplies heliaCORE, use its integration instead of adding a second copy.
+
+## Verify execution
+
+The integration guides check that the headers and library are part of your build.
+[First kernel](first-kernel/) adds a small activation example with an expected
+result so you can check execution on your target. At the end, your application should
+build with one matching set of heliaCORE headers and kernels, execute the example,
+and return the expected result.
+
+From there, use the [User guide](../guide/) to select operators, configure data
+types, and understand acceleration and performance. The
+[API reference](../reference/) documents individual function contracts.

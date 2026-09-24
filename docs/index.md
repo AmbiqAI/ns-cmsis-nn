@@ -14,7 +14,7 @@
     </div>
   </div>
   <div class="hero-panel">
-    <div class="panel-topline"><span>HELIA CORE</span><span class="status-live">V7.33.0</span></div> <!-- x-release-please-version -->
+    <div class="panel-topline"><span>HELIA CORE</span><span class="status-live">V7.35.1</span></div> <!-- x-release-please-version -->
     <div class="metric-grid">
       <div><strong>200+</strong><span>accelerated ops</span></div>
       <div><strong>40+</strong><span>Field models</span></div>
@@ -24,7 +24,7 @@
 
 ```cmake
 find_package(ns-cmsis-nn REQUIRED CONFIG)
-target_link_libraries(app PRIVATE nsx::cmsis_nn)
+target_link_libraries(app PRIVATE ns::cmsis-nn)
 ```
   </div>
 </div>

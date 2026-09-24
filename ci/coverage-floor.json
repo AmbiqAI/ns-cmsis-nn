@@ -1,4 +1,11 @@
 {
   "why": "Hard floor for merged line coverage across all CPU/suite legs (see AmbiqAI/ns-cmsis-nn#356, AmbiqAI/helia-core-tester#73). Raising this floor is a deliberate, reviewed diff to this file -- never a workflow edit. Set ~1.5pp below the 82.49% observed on current main (2026-08-31; note main drifted down 1.22pp from 83.71% on 2026-08-11 with nothing to catch it -- the defect this gate ends). The no-regression check in scripts/ci/check_coverage_gate.py is the tight guard; this floor is the backstop when no previous artifact is available. The tight guard ratchets: each merged 0.15pp drop re-anchors the baseline, so sustained decay walks main toward this floor -- if coverage trends down, investigate before lowering anything here. helia-core-tester#73's preferred set-membership gates (zero_reachable_files and expected_zero_but_covered_files emptiness) remain open on that issue.",
-  "line_floor_pct": 81.0
+  "line_floor_pct": 81.0,
+  "baseline_reset": {
+    "epoch": "reduce-sum-488",
+    "line_rate": 83.44,
+    "run_id": 34303547578,
+    "head_sha": "9f87921031614588b80190a4919d9d586b2d7053",
+    "reason": "Refs #484: Adam approved re-anchoring the explained new ReduceSum coverage gap; retain the 81% floor and 0.15pp tolerance. Resume the main-artifact baseline after this epoch reaches a successful main run."
+  }
 }

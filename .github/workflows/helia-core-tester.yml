@@ -590,6 +590,14 @@ jobs:
           cd Tests/helia-core-tester
           uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --suite int --profile "m4-f32-fallback|cortex-m4|artifacts/reports-fallback/m4-f32|float|float" --profile "m55-f32-fallback|cortex-m55|artifacts/reports-fallback/m55-f32|float|float" --profile "m55-f16-fallback|cortex-m55|artifacts/reports-fallback/m55-f16|float|float" --profile "m55-f32-mvef|cortex-m55|artifacts/reports-mvef/m55-f32|float-mve|float" --profile "m55-f16-mvef|cortex-m55|artifacts/reports-mvef/m55-f16|float-mve|float" --summary-file "$GITHUB_STEP_SUMMARY"
 
+      - name: Stamp reviewed coverage baseline epoch
+        run: |
+          cd Tests/helia-core-tester
+          uv run python "$GITHUB_WORKSPACE/scripts/ci/check_coverage_gate.py" \
+            --summary-json artifacts/reports/coverage/merged/coverage_merged_summary.json \
+            --floor-file "$GITHUB_WORKSPACE/ci/coverage-floor.json" \
+            --repo "${{ github.repository }}" --stamp-epoch
+
       - name: Upload merged coverage reports
         uses: actions/upload-artifact@v7
         with:

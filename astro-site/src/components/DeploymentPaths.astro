@@ -1,0 +1,39 @@
+---
+import Card from '@ambiqai/helia-ui/astro/Card';
+import CardHeader from '@ambiqai/helia-ui/astro/CardHeader';
+import CardContent from '@ambiqai/helia-ui/astro/CardContent';
+import Badge from '@ambiqai/helia-ui/astro/Badge';
+---
+<div class="deployment-paths not-content">
+  <div class="runtimes">
+    <Card tone="muted" interactive>
+      <CardHeader eyebrow="Ahead-of-time compilation" href="https://ambiqai.github.io/helia-aot/">
+        heliaAOT <Badge slot="action" tone="accent">Recommended</Badge>
+      </CardHeader>
+      <CardContent>
+        <p>Start here for latency, power, and memory efficiency. Compile supported models into C for execution without an on-device interpreter.</p>
+      </CardContent>
+    </Card>
+    <Card interactive>
+      <CardHeader eyebrow="Interpreter-based execution" href="https://ambiqai.github.io/helia-rt/">heliaRT</CardHeader>
+      <CardContent>
+        <p>Use Ambiq’s optimized LiteRT for Microcontrollers runtime when you want the familiar interpreter and tensor-arena workflow.</p>
+      </CardContent>
+    </Card>
+  </div>
+  <div class="foundation">
+    <span class="connection" aria-hidden="true"></span>
+    <strong>heliaCORE</strong>
+    <span>The optimized kernel foundation powering both paths.</span>
+  </div>
+</div>
+<style>
+  .deployment-paths { margin-block: 1.5rem; }
+  .runtimes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  .foundation { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem 1rem; margin-top: 1rem; padding: 1rem 1.25rem; border: 1px solid var(--helia-surface-border); border-radius: var(--helia-radius-md); background: var(--helia-surface-muted); }
+  .connection { position: absolute; top: -1rem; left: 25%; right: 25%; height: 1rem; border-inline: 1px solid var(--helia-surface-border); }
+  @media (max-width: 42rem) {
+    .runtimes { grid-template-columns: 1fr; }
+    .connection { left: 50%; right: auto; border-right: 0; }
+  }
+</style>

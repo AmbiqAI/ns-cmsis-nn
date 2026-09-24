@@ -1,0 +1,95 @@
+---
+title: Validation
+description: How heliaCORE uses reference comparisons, mutation testing, simulation, and hardware evidence.
+---
+
+import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
+import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
+
+Fast kernels need trustworthy results. heliaCORE uses
+[helia-core-tester](https://github.com/AmbiqAI/helia-core-tester) to generate test
+inputs and expected outputs, build kernel harnesses, execute supported suites,
+and collect correctness and performance evidence. Integer, FP16, and FP32 paths
+need different cases and numerical checks; successful compilation is only one
+part of that process.
+
+## Reference-output checks
+
+Descriptors define the operation, shapes, tensor types, and comparison policy.
+The generation pipeline creates inputs and reference outputs so a kernel's result
+can be checked against a known expectation. Float comparisons use explicit
+absolute and relative tolerances where appropriate; pure data movement can have
+a stricter contract.
+
+The tester also supports cases designed to expose numerical and shape errors:
+nonzero quantization offsets, broadcast layouts, partial-vector tails, and
+non-finite float inputs where the operator defines their behavior. Recurrent
+cases must account for persistent state, rather than treating each step as an
+independent stateless call. See the
+[tester descriptor and comparison documentation](https://github.com/AmbiqAI/helia-core-tester/blob/f2a73596ced2c2dcdd0a67b8759408a92f497e34/README.md).
+
+A skipped case is different from a passed case. Read the requested configuration,
+generated manifest, capability skips, and execution report together when judging
+coverage for a specific release.
+
+## Mutation testing
+
+A test suite should catch incorrect implementations, not simply execute them.
+The tester's mutation workflow deliberately changes kernel behavior, rebuilds,
+and records which cases detect the injected fault. Examples in the
+[recorded float audit](https://github.com/AmbiqAI/helia-core-tester/blob/f2a73596ced2c2dcdd0a67b8759408a92f497e34/docs/audits/issue-53-mutation-testing-remaining-families.md)
+include removing bias, changing a pooling scale, reversing a comparison, and
+copying one element too few.
+
+That audit caught its injected faults with the existing float tests. It establishes
+evidence for those cases and fault classes, not a claim that every possible bug
+is covered. The mutation workflow distinguishes a surviving fault from one that
+is not applicable to the selected CPU capabilities.
+
+## Simulation and build checks
+
+The heliaCORE
+[tester workflow](https://github.com/AmbiqAI/ns-cmsis-nn/blob/af724c78778b545cc5a86bd74c7c830ea6df3899/.github/workflows/helia-core-tester.yml)
+defines integer runs across Cortex-M profiles and separate float execution legs,
+including FP16 and FP32. FVP runs exercise compiled target code under simulation;
+they do not measure execution time on an Ambiq board.
+
+The tester repository also checks generation and compilation of harnesses in its
+[self-validation workflow](https://github.com/AmbiqAI/helia-core-tester/blob/f2a73596ced2c2dcdd0a67b8759408a92f497e34/.github/workflows/self-validate.yml).
+That workflow explicitly skips execution. Use the artifacts from an actual run
+to establish a pass, rather than inferring one from a workflow definition.
+
+## Hardware evidence
+
+The hardware runner streams cases to firmware on an Ambiq board, compares outputs,
+and captures DWT cycles and supported PMU events. Its
+[hardware report](https://github.com/AmbiqAI/helia-core-tester/blob/f2a73596ced2c2dcdd0a67b8759408a92f497e34/docs/performance-streaming-report.md)
+records Apollo510 correctness and PMU capture checks and separates verified paths
+from remaining limitations.
+
+Useful evidence travels with the result:
+
+| Artifact | What to verify |
+|---|---|
+| Session manifest and target identity | Kernel/tester revisions, board, firmware, compiler, and selected cases |
+| Correctness results | Expected output, comparison policy, failures, and skipped cases |
+| Raw timing and PMU samples | Iterations, event names, support flags, and overflow status |
+| Case summary | Statistics and normalization for each workload |
+| Memory report and build artifacts | Code/data placement and the firmware actually measured |
+
+An overflow-free counter is not a correctness verdict. Check correctness and
+counter validity separately. Hardware support in the runner also does not imply
+that every descriptor has a hardware adapter or that every configuration has
+been exercised on a board.
+
+## Validate your application
+
+Use the library's test evidence as a foundation, then check your model's actual
+shapes, parameters, compiler settings, and memory placement. Keep reference inputs
+and expected outputs alongside the firmware used for qualification. Re-run
+representative cases after changing a kernel library, compiler, or build option.
+
+<CardGrid columns={2}>
+  <LinkCard title="Read the measured results" href="../kernel-benchmarks/">Explore the recorded REF, DSP, and MVE comparisons and their scope.</LinkCard>
+  <LinkCard title="Capture your own evidence" href="../methodology/#capture-mve-counters">Record kernel cycles and selected MVE events with the hardware tester.</LinkCard>
+</CardGrid>

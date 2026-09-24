@@ -557,7 +557,20 @@ void AC_FN(payload_preservation)(void)
     ac_assert_slice_guards(c.num);
 }
 
-/* A zero-extent dimension: success, nothing written. */
+/* Refs #489: empty tensors accept NULL data, but still validate metadata. */
+static void ac_run_empty_case(const ac_case_t *c)
+{
+    ac_t *null_slices[AC_MAX_SLICES] = {NULL};
+    ac_run_case(c);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, ac_call(c, NULL, NULL));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, ac_call(c, NULL, null_slices));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, ac_call(c, NULL, ac_slices));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, ac_call(c, ac_packed_buf, NULL));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, ac_call(c, ac_packed_buf, null_slices));
+    ac_assert_guard(ac_packed_buf, 2 * AC_GUARD);
+    ac_assert_slice_guards(c->num);
+}
+
 void AC_FN(zero_extent)(void)
 {
     ac_case_t c = {3, {2, AC_UNIT ? 3 : 4, 0}, 1, 0, {0}};
@@ -569,14 +582,33 @@ void AC_FN(zero_extent)(void)
     c.sizes[0] = 1;
     c.sizes[1] = 3;
 #endif
-    ac_run_case(&c);
-#if !AC_UNIT
-    /* Zero along the axis itself, with every slice empty. */
-    c.shape[1] = 0;
+    ac_run_empty_case(&c);
+    c.shape[0] = 0;
     c.shape[2] = 5;
+    ac_run_empty_case(&c);
+
+    c.shape[2] = -1;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, ac_call(&c, NULL, NULL));
+    c.shape[2] = 5;
+    c.axis = -1;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, ac_call(&c, NULL, NULL));
+    c.axis = 1;
+#if !AC_UNIT
+    c.sizes[0] = -1;
+    c.sizes[1] = 5;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, ac_call(&c, NULL, NULL));
     c.sizes[0] = 0;
     c.sizes[1] = 0;
-    ac_run_case(&c);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, ac_call(&c, NULL, NULL));
+    c.shape[0] = 2;
+    c.shape[1] = 0;
+    ac_run_empty_case(&c);
+#elif AC_OP == AC_OP_UNPACK
+    c.shape[1] = 0;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, ac_call(&c, NULL, NULL));
+#else
+    c.num = 0;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, ac_call(&c, NULL, NULL));
 #endif
 }
 

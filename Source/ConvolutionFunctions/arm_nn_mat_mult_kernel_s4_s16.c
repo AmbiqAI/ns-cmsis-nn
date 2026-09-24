@@ -27,6 +27,7 @@
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_s4_decode.h"
 #include "arm_nnsupportfunctions.h"
 
 /*
@@ -120,11 +121,11 @@ int8_t *arm_nn_mat_mult_kernel_s4_s16(const int8_t *packed_input_a,
 #endif
         while (col_count)
         {
-            int8_t lower_a0 = (int8_t)(packed_ip_a0[0] << 4) >> 4;
+            int8_t lower_a0 = arm_nn_s4_low_nibble(packed_ip_a0[0]);
             int8_t higher_a0 = packed_ip_a0[0] >> 4;
             int16_t b0 = *ip_b0++;
 
-            int8_t lower_a1 = (int8_t)(packed_ip_a1[0] << 4) >> 4;
+            int8_t lower_a1 = arm_nn_s4_low_nibble(packed_ip_a1[0]);
             int8_t higher_a1 = packed_ip_a1[0] >> 4;
             int16_t b1 = *ip_b1++;
 
@@ -149,11 +150,11 @@ int8_t *arm_nn_mat_mult_kernel_s4_s16(const int8_t *packed_input_a,
         /* left over column */
         if (num_col_a % 2)
         {
-            int8_t lower_a0 = (int8_t)(packed_ip_a0[0] << 4) >> 4;
+            int8_t lower_a0 = arm_nn_s4_low_nibble(packed_ip_a0[0]);
             spillover0 = packed_ip_a0[0] >> 4;
             int16_t b0 = *ip_b0++;
 
-            int8_t lower_a1 = (int8_t)(packed_ip_a1[0] << 4) >> 4;
+            int8_t lower_a1 = arm_nn_s4_low_nibble(packed_ip_a1[0]);
             spillover1 = packed_ip_a1[0] >> 4;
             int16_t b1 = *ip_b1++;
 
@@ -266,11 +267,11 @@ int8_t *arm_nn_mat_mult_kernel_s4_s16(const int8_t *packed_input_a,
 #endif
         while (col_count)
         {
-            int8_t lower_a0 = (int8_t)(packed_ip_a0[0] << 4) >> 4;
+            int8_t lower_a0 = arm_nn_s4_low_nibble(packed_ip_a0[0]);
             int8_t higher_a0 = packed_ip_a0[0] >> 4;
             int16_t b0 = *ip_b0++;
 
-            int8_t lower_a1 = (int8_t)(packed_ip_a1[0] << 4) >> 4;
+            int8_t lower_a1 = arm_nn_s4_low_nibble(packed_ip_a1[0]);
             int8_t higher_a1 = packed_ip_a1[0] >> 4;
             int16_t b1 = *ip_b1++;
 
@@ -387,7 +388,7 @@ int8_t *arm_nn_mat_mult_kernel_s4_s16(const int8_t *packed_input_a,
 
         while (col_count)
         {
-            int8_t a0 = (int8_t)(packed_ip_a0[0] << 4) >> 4;
+            int8_t a0 = arm_nn_s4_low_nibble(packed_ip_a0[0]);
             int8_t a1 = packed_ip_a0[0] >> 4;
             int16_t b0 = *ip_b0++;
             int16_t b1 = *ip_b1++;
@@ -407,7 +408,7 @@ int8_t *arm_nn_mat_mult_kernel_s4_s16(const int8_t *packed_input_a,
         }
         if (num_col_a % 2 && left_over_rows != 1)
         {
-            int8_t a0 = (int8_t)(packed_ip_a0[0] << 4) >> 4;
+            int8_t a0 = arm_nn_s4_low_nibble(packed_ip_a0[0]);
 
             int16_t b0 = *ip_b0++;
             int16_t b1 = *ip_b1++;

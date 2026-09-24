@@ -28,6 +28,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_s4_decode.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -285,7 +286,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
 
                 while (col_count)
                 {
-                    int8_t ker_a0 = (int8_t)(*ker_a_ptr << 4) >> 4;
+                    int8_t ker_a0 = arm_nn_s4_low_nibble(*ker_a_ptr);
                     int8_t ker_a1 = *ker_a_ptr >> 4;
                     ker_a_ptr++;
 
@@ -300,7 +301,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
 
                 if (rhs_cols % 2 && !(i % 2))
                 {
-                    int8_t ker_a0 = (int8_t)(*ker_a_ptr << 4) >> 4;
+                    int8_t ker_a0 = arm_nn_s4_low_nibble(*ker_a_ptr);
                     spilled_ker_a = *ker_a_ptr >> 4;
                     ker_a_ptr++;
                     int16_t ip_b0 = *ip_as_col;

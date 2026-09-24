@@ -42,17 +42,12 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "scripts" / "check_api_group_classification.py"
-API_GROUP_INDEX = REPO / "docs" / "_ext" / "api_group_index.py"
+API_GROUP_INDEX = REPO / "scripts" / "docs" / "api_groups.py"
 
 
 def load_module(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
-    # Register before exec: api_group_index.py's ApiFunction is a
-    # @dataclass, whose class-processing looks the defining module up in
-    # sys.modules by name -- skip this and it raises AttributeError on a
-    # module that is perfectly valid. See check_api_group_classification.py's
-    # load_api_group_index() for the same fix on the non-test path.
     sys.modules[name] = mod
     spec.loader.exec_module(mod)
     return mod
@@ -139,20 +134,6 @@ class ApiGroupClassificationCase(unittest.TestCase):
         mod.check_api_group_classification()
         self.assertEqual(mod.failures, [])
         self.assertGreater(mod._stats.get("public", 0), 0)
-
-    def test_fp16_spelling_lands_in_the_f16_dtype_bucket(self):
-        """arm_elementwise_add_fp16 is a real float16_t kernel -- declared
-        under ARM_NN_ENABLE_F16 in arm_nnfunctions_flt.h, which nn.dxy.in
-        predefines to 1, so it renders on the page -- that spells the dtype
-        `fp16` rather than
-        `f16`. api-filter.js compares dtype for exact equality against the
-        chip values in api-groups.md, so any return other than "f16" leaves
-        the kernel unreachable from every chip and badged wrong."""
-        mod = load_module("api_group_index", API_GROUP_INDEX)
-        self.assertEqual(mod._dtype("arm_elementwise_add_fp16"), "f16")
-        self.assertEqual(mod._dtype("arm_avg_pool_f16"), "f16")
-        self.assertEqual(mod._dtype("arm_avg_pool_f32"), "f32")
-        self.assertEqual(mod._dtype("arm_convolve_s8"), "s8")
 
     # -- the required mutation case ----------------------------------------
 

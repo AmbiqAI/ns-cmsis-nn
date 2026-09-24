@@ -1,0 +1,137 @@
+---
+title: Build and run your first kernel
+description: Verify heliaCORE execution with a small in-place ReLU example.
+prev:
+  label: Integration overview
+  link: /ns-cmsis-nn/getting-started/
+next:
+  label: User guide
+  link: /ns-cmsis-nn/guide/
+---
+
+Complete one [integration guide](../) first. This example uses the integer
+activation group and requires no floating-point support, model file, or scratch
+buffer. Keep the activation group enabled; if you filter source files by data
+type, include `q7` for this function.
+
+import Callout from '@ambiqai/helia-ui/astro/Callout';
+
+| Input | Operation | Expected output |
+|---|---|---|
+| `[-8, -1, 0, 3, 7]` | ReLU: clamp negative values to zero | `[0, 0, 0, 3, 7]` |
+
+## 1. Add the example
+
+Save this as `first_kernel.c` and add it to your firmware's source list. The
+inherited `arm_relu_q7` API operates on signed 8-bit values in place: negative
+values become zero and nonnegative values remain unchanged.
+
+```c title="first_kernel.c"
+#include "first_kernel.h"
+#include <stdint.h>
+#include "arm_nnfunctions.h"
+
+int helia_first_kernel(void)
+{
+    int8_t values[] = {-8, -1, 0, 3, 7};
+    const int8_t expected[] = {0, 0, 0, 3, 7};
+    const uint16_t count = sizeof(values) / sizeof(values[0]);
+
+    arm_relu_q7(values, count);
+
+    for (uint16_t i = 0; i < count; ++i)
+    {
+        if (values[i] != expected[i])
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+```
+
+The function owns its input/output buffer on the stack. It returns `0` when
+all output elements match, or `1` on a mismatch. This is a kernel integration
+check, not an example of running a complete neural network.
+
+Save the declaration beside it in `first_kernel.h`. The linkage guard lets
+both C and C++ applications call the C implementation:
+
+```c title="first_kernel.h"
+#ifndef FIRST_KERNEL_H
+#define FIRST_KERNEL_H
+#ifdef __cplusplus
+extern "C" {
+#endif
+int helia_first_kernel(void);
+#ifdef __cplusplus
+}
+#endif
+#endif
+```
+
+This example clamps stored signed values at integer zero. It is not a general
+affine-quantized activation with an arbitrary zero-point. See
+[data types and quantization](/ns-cmsis-nn/guide/architecture/data-types/) before
+applying activation kernels to model tensors.
+
+## 2. Register the source
+
+For CMake or an NSX CMake application, use your existing firmware target:
+
+```cmake title="Application CMakeLists.txt"
+target_sources(my_firmware PRIVATE first_kernel.c)
+```
+
+For Zephyr, add it to the application's `app` target:
+
+```cmake title="Zephyr application CMakeLists.txt"
+target_sources(app PRIVATE src/first_kernel.c)
+```
+
+For this Zephyr layout, place both files in `src/`. For CMSIS-Toolbox, add
+`first_kernel.c` to an existing project group's `files` list; in an IDE, add it
+to the application's source group. Keep the header beside your calling source
+or add its directory to the application's include paths.
+
+## 3. Call, build, and run
+
+Include the header in your application:
+
+```c
+#include "first_kernel.h"
+```
+
+Inside your existing entry point, after board initialization, call:
+
+```c
+volatile int kernel_result = helia_first_kernel();
+```
+
+Build with your normal firmware command, flash using your board's existing
+workflow, then inspect `kernel_result` in the debugger immediately after the
+call. It should be **0**. You can also report the return value through your
+application's logging facility. Building and linking alone do not verify the
+output; execute the call on the target.
+
+<Callout title="Expected return: 0" tone="success">
+All five output values match. A return of 1 means at least one value differs.
+Inspect the result after executing the call, not just after building the image.
+</Callout>
+
+## If it does not work
+
+| Symptom | Action |
+|---|---|
+| Header not found | Check heliaCORE's include path and the location of `first_kernel.h`. |
+| Undefined `helia_first_kernel` | Register `first_kernel.c` and use the shared header for C/C++ linkage. |
+| Undefined `arm_relu_q7` | Check library linkage, the activation group, and the `q7` source filter. |
+| Fault or unexpected result | Check CPU/FPU/ABI compatibility, then inspect input and output buffers in the debugger. |
+
+## Next steps
+
+For a full model, use [heliaAOT](https://ambiqai.github.io/helia-aot/) or
+[heliaRT](https://ambiqai.github.io/helia-rt/). For direct kernel development,
+continue with [build configuration](/ns-cmsis-nn/guide/architecture/build-path-selection/)
+and the [API reference](/ns-cmsis-nn/reference/), including each kernel's tensor,
+quantization, and scratch-buffer requirements.

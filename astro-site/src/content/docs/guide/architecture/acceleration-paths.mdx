@@ -1,0 +1,101 @@
+---
+title: Acceleration paths
+description: Select and verify Cortex-M kernel implementations for your Ambiq firmware.
+---
+
+import Card from '@ambiqai/helia-ui/astro/Card';
+import CardContent from '@ambiqai/helia-ui/astro/CardContent';
+import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
+import CardHeader from '@ambiqai/helia-ui/astro/CardHeader';
+
+heliaCORE uses Cortex-M compute features available on Ambiq silicon. Your
+compiler's target flags determine which implementations can be compiled;
+each kernel's data type, shape, and implementation determine which path runs.
+This applies whether heliaCORE is called by heliaAOT, heliaRT, or your own firmware.
+
+## Available implementations
+
+<CardGrid columns={3}>
+  <Card>
+    <CardHeader titleAs="h3"><span>Portable C</span></CardHeader>
+    <CardContent>The baseline implementation for kernels that provide it. The compiler can still optimize this code for the selected processor.</CardContent>
+  </Card>
+  <Card>
+    <CardHeader titleAs="h3"><span>DSP extensions</span></CardHeader>
+    <CardContent>Packed integer arithmetic and multiply-accumulate instructions accelerate supported quantized kernels.</CardContent>
+  </Card>
+  <Card>
+    <CardHeader titleAs="h3"><span>Helium / MVE</span></CardHeader>
+    <CardContent>Vector implementations process multiple tensor elements together, with predication for partial vectors where implemented.</CardContent>
+  </Card>
+</CardGrid>
+
+Floating-point support is a separate choice: enable FP16 or FP32 APIs only when
+your selected kernels, compiler, and target support them. Enabling a data type
+does not guarantee an MVE implementation for every operation. Check
+[data-type coverage](/ns-cmsis-nn/guide/coverage/data-types-by-family/) and the
+[kernel reference](/ns-cmsis-nn/reference/kernel-index/) before choosing an API.
+
+## Configure your build
+
+1. Use the CPU, FPU, and float ABI settings supplied by your board toolchain.
+   See [Cortex-M targets](/ns-cmsis-nn/guide/architecture/cortex-m-targets/).
+2. For source builds, select the operator groups and data types you need in
+   [Build configuration](/ns-cmsis-nn/guide/architecture/build-path-selection/).
+   Keep the same target settings on the firmware and kernel sources.
+3. For a prebuilt library, choose an archive with matching settings and enabled
+   features. Changing application flags cannot change the implementation in an
+   already compiled archive. Check its manifest and
+   [toolchain compatibility](/ns-cmsis-nn/guide/architecture/toolchains/).
+
+The public headers translate compiler feature definitions into kernel guards:
+
+| Compiler feature | Kernel guard | Enables selection of |
+|---|---|---|
+| `__ARM_FEATURE_DSP` | `ARM_MATH_DSP` | DSP implementations where supplied |
+| Integer MVE feature bit | `ARM_MATH_MVEI` | Integer vector implementations |
+| Floating-point MVE feature bit | `ARM_MATH_MVEF`, `ARM_MATH_MVE_FLOAT16` | Floating-point vector implementations, subject to API feature gates |
+
+These mappings are defined in
+[`arm_nn_math_types.h`](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/Include/arm_nn_math_types.h).
+`ARM_MATH_AUTOVECTORIZE` changes explicit vector-path selection in kernels that
+check it. Use the actual function's guards when investigating a build rather
+than assuming one macro describes the whole library.
+
+:::note[Target flags select capabilities]
+Do not force feature macros to compensate for incorrect target flags. A macro
+cannot add processor instructions to the device. Configure the board toolchain,
+then inspect the features that compiler configuration exposes.
+:::
+
+## Verify the implementation
+
+**Inspect the build.** Enable verbose output in your build system and find the
+compile command for the kernel source. Check its CPU/FPU/ABI flags, feature
+options, and optimization level. With GCC or Clang, reuse that command's
+preprocessor settings with `-dM -E` to inspect the effective macros, or `-E` to
+inspect the selected source branch. Remove object-output options when doing so.
+
+**Inspect the linked code.** Use the matching toolchain's disassembler on your
+firmware ELF to inspect the kernel implementation. The link map identifies the
+object or archive that supplied it. This is especially useful if an SDK already
+contains a copy of CMSIS-NN or heliaCORE.
+
+**Run and measure.** First verify output correctness with representative inputs,
+including shapes that exercise a partial vector. Then measure the call on your
+Ambiq target. Kernel availability, successful linking, and compiler feature
+macros do not by themselves establish a speedup.
+
+## When performance differs from expectations
+
+| Observation | What to check |
+|---|---|
+| Expected vector path is absent | Effective compiler feature macros, API feature gates, kernel guards, and the linked library |
+| A vector implementation is slower for one shape | Tensor sizes, layout, packing/setup costs, memory placement, and the exact function selected |
+| A wrapper selects a different function | The wrapper's shape constraints and buffer requirements in the API reference |
+| Kernel cycles improve but model latency barely changes | Time spent in other operators, data movement, and runtime overhead |
+
+Use the [published kernel measurements](/ns-cmsis-nn/guide/performance/kernel-benchmarks/)
+as examples for the recorded shapes and configuration. Follow
+[Measurement methodology](/ns-cmsis-nn/guide/performance/methodology/) to compare
+implementations in your own application.

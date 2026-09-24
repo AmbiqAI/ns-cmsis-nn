@@ -193,6 +193,13 @@ int32_t arm_depthwise_conv_f32_get_buffer_size(const cmsis_nn_dw_conv_params_f32
 
 /**
  * @brief Get the buffer size required by the depthwise convolution wrapper.
+ *
+ * @param[in] dw_conv_params Depthwise convolution parameters.
+ * @param[in] input_dims     Input tensor dimensions.
+ * @param[in] filter_dims    Filter tensor dimensions.
+ * @param[in] output_dims    Output tensor dimensions.
+ *
+ * @return Required buffer size in bytes, or 0 when no scratch buffer is needed.
  */
 int32_t arm_depthwise_conv_wrapper_f32_get_buffer_size(const cmsis_nn_dw_conv_params_f32 *dw_conv_params,
                                                        const cmsis_nn_dims *input_dims,
@@ -202,11 +209,24 @@ int32_t arm_depthwise_conv_wrapper_f32_get_buffer_size(const cmsis_nn_dw_conv_pa
 /**
  * @brief Convolution, NHWC layout.
  *
+ * @param[in,out] ctx         Function context that may hold a temporary scratch buffer.
+ * @param[in]     conv_params Convolution parameters (stride, padding, dilation and activation clamp).
+ * @param[in]     input_dims  Input tensor dimensions. Format: [N, H, W, C_IN].
+ * @param[in]     input_data  Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter tensor dimensions. Format: [C_OUT, HK, WK, C_IN].
+ * @param[in]     filter_data Pointer to the filter tensor data.
+ * @param[in]     bias_dims   Bias tensor dimensions. Format: [C_OUT].
+ * @param[in]     bias_data   Optional bias tensor data.
+ * @param[in]     output_dims Output tensor dimensions. Format: [N, H, W, C_OUT].
+ * @param[out]    output_data Pointer to the output tensor data.
+ *
  * @note When `conv_params->weight_format` is set to
  *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every convolution path, including
  *       the 1xN kernels and the generic fallback that runs without scratch,
  *       interprets @p filter_data as an already prepacked `NTxN` RHS buffer
  *       instead of the standard public filter layout.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
                                           const cmsis_nn_conv_params_f32 *conv_params,
@@ -256,6 +276,19 @@ arm_cmsis_nn_status arm_convolve_f32(const cmsis_nn_context *ctx,
 
 /**
  * @brief Convolution wrapper using the CMSIS-NN baseline path.
+ *
+ * @param[in,out] ctx         Function context that may hold a temporary scratch buffer.
+ * @param[in]     conv_params Convolution parameters (stride, padding, dilation and activation clamp).
+ * @param[in]     input_dims  Input tensor dimensions. Format: [N, H, W, C_IN].
+ * @param[in]     input_data  Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter tensor dimensions. Format: [C_OUT, HK, WK, C_IN].
+ * @param[in]     filter_data Pointer to the filter tensor data.
+ * @param[in]     bias_dims   Bias tensor dimensions. Format: [C_OUT].
+ * @param[in]     bias_data   Optional bias tensor data.
+ * @param[in]     output_dims Output tensor dimensions. Format: [N, H, W, C_OUT].
+ * @param[out]    output_data Pointer to the output tensor data.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_convolve_wrapper_f32(const cmsis_nn_context *ctx,
                                              const cmsis_nn_conv_params_f32 *conv_params,
@@ -270,6 +303,19 @@ arm_cmsis_nn_status arm_convolve_wrapper_f32(const cmsis_nn_context *ctx,
 
 /**
  * @brief 1x1 convolution, NHWC layout.
+ *
+ * @param[in,out] ctx         Function context that may hold a temporary scratch buffer.
+ * @param[in]     conv_params Convolution parameters (stride, padding, dilation and activation clamp).
+ * @param[in]     input_dims  Input tensor dimensions. Format: [N, H, W, C_IN].
+ * @param[in]     input_data  Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter tensor dimensions. Format: [C_OUT, HK, WK, C_IN].
+ * @param[in]     filter_data Pointer to the filter tensor data.
+ * @param[in]     bias_dims   Bias tensor dimensions. Format: [C_OUT].
+ * @param[in]     bias_data   Optional bias tensor data.
+ * @param[in]     output_dims Output tensor dimensions. Format: [N, H, W, C_OUT].
+ * @param[out]    output_data Pointer to the output tensor data.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_convolve_1x1_nhwc_f32(const cmsis_nn_context *ctx,
                                               const cmsis_nn_conv_params_f32 *conv_params,
@@ -285,10 +331,24 @@ arm_cmsis_nn_status arm_convolve_1x1_nhwc_f32(const cmsis_nn_context *ctx,
 /**
  * @brief 1x1 convolution, dispatch by layout.
  *
+ * @param[in,out] ctx         Function context that may hold a temporary scratch buffer.
+ * @param[in]     conv_params Convolution parameters (stride, padding, dilation and activation clamp).
+ * @param[in]     input_dims  Input tensor dimensions. Format depends on @p layout.
+ * @param[in]     input_data  Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter tensor dimensions. Format depends on @p layout.
+ * @param[in]     filter_data Pointer to the filter tensor data.
+ * @param[in]     bias_dims   Bias tensor dimensions. Format: [C_OUT].
+ * @param[in]     bias_data   Optional bias tensor data.
+ * @param[in]     output_dims Output tensor dimensions. Format depends on @p layout.
+ * @param[out]    output_data Pointer to the output tensor data.
+ * @param[in]     layout      Tensor layout selector. Current float APIs require `ARM_NN_LAYOUT_NHWC`.
+ *
  * @note When `conv_params->weight_format` is set to
  *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, the matmul-backed 1x1
  *       convolution paths interpret @p filter_data as an already prepacked
  *       `NTxN` RHS buffer instead of the standard public filter layout.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_convolve_1x1_f32(const cmsis_nn_context *ctx,
                                          const cmsis_nn_conv_params_f32 *conv_params,
@@ -305,6 +365,17 @@ arm_cmsis_nn_status arm_convolve_1x1_f32(const cmsis_nn_context *ctx,
 /**
  * @brief 1xN convolution, NHWC layout.
  *
+ * @param[in,out] ctx         Function context that may hold a temporary scratch buffer.
+ * @param[in]     conv_params Convolution parameters (stride, padding, dilation and activation clamp).
+ * @param[in]     input_dims  Input tensor dimensions. Format: [N, H, W, C_IN].
+ * @param[in]     input_data  Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter tensor dimensions. Format: [C_OUT, HK, WK, C_IN].
+ * @param[in]     filter_data Pointer to the filter tensor data.
+ * @param[in]     bias_dims   Bias tensor dimensions. Format: [C_OUT].
+ * @param[in]     bias_data   Optional bias tensor data.
+ * @param[in]     output_dims Output tensor dimensions. Format: [N, H, W, C_OUT].
+ * @param[out]    output_data Pointer to the output tensor data.
+ *
  * @note When `conv_params->weight_format` is set to
  *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, @p filter_data is interpreted as
  *       an already prepacked `NTxN` RHS buffer instead of the standard public
@@ -313,6 +384,8 @@ arm_cmsis_nn_status arm_convolve_1x1_f32(const cmsis_nn_context *ctx,
  *       packed into scratch and multiplied by the format-aware matmul, so a
  *       packed 1xN layer with little or no padding runs slower than its OHWI
  *       equivalent.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_conv_params_f32 *conv_params,
@@ -328,6 +401,18 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
 /**
  * @brief 1xN convolution, dispatch by layout.
  *
+ * @param[in,out] ctx         Function context that may hold a temporary scratch buffer.
+ * @param[in]     conv_params Convolution parameters (stride, padding, dilation and activation clamp).
+ * @param[in]     input_dims  Input tensor dimensions. Format depends on @p layout.
+ * @param[in]     input_data  Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter tensor dimensions. Format depends on @p layout.
+ * @param[in]     filter_data Pointer to the filter tensor data.
+ * @param[in]     bias_dims   Bias tensor dimensions. Format: [C_OUT].
+ * @param[in]     bias_data   Optional bias tensor data.
+ * @param[in]     output_dims Output tensor dimensions. Format depends on @p layout.
+ * @param[out]    output_data Pointer to the output tensor data.
+ * @param[in]     layout      Tensor layout selector. Current float APIs require `ARM_NN_LAYOUT_NHWC`.
+ *
  * @note When `conv_params->weight_format` is set to
  *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, @p filter_data is interpreted as
  *       an already prepacked `NTxN` RHS buffer instead of the standard public
@@ -336,6 +421,8 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
  *       packed into scratch and multiplied by the format-aware matmul, so a
  *       packed 1xN layer with little or no padding runs slower than its OHWI
  *       equivalent.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_f32(const cmsis_nn_context *ctx,
                                            const cmsis_nn_conv_params_f32 *conv_params,
@@ -373,6 +460,13 @@ int32_t arm_convolve_f32_get_buffer_size(const cmsis_nn_conv_params_f32 *conv_pa
 
 /**
  * @brief Get the buffer size required by the convolution wrapper.
+ *
+ * @param[in] conv_params  Convolution parameters.
+ * @param[in] input_dims   Input tensor dimensions.
+ * @param[in] filter_dims  Filter tensor dimensions.
+ * @param[in] output_dims  Output tensor dimensions.
+ *
+ * @return Required buffer size in bytes, or 0 when no scratch buffer is needed.
  */
 int32_t arm_convolve_wrapper_f32_get_buffer_size(const cmsis_nn_conv_params_f32 *conv_params,
                                                  const cmsis_nn_dims *input_dims,
@@ -382,10 +476,18 @@ int32_t arm_convolve_wrapper_f32_get_buffer_size(const cmsis_nn_conv_params_f32 
 /**
  * @brief Get the buffer size required by 1x1 convolution.
  *
+ * @param[in] conv_params  Convolution parameters.
+ * @param[in] input_dims   Input tensor dimensions.
+ * @param[in] filter_dims  Filter tensor dimensions.
+ * @param[in] output_dims  Output tensor dimensions.
+ * @param[in] layout       Tensor layout selector.
+ *
  * @note Returns `0` for the unity-stride no-pack path. For non-unity-stride NHWC
  *       1x1 convolution, the returned scratch size enables the packed-tile + GEMM path.
  *       When `conv_params->weight_format` is `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`,
  *       this still excludes the offline-packed filter storage itself.
+ *
+ * @return Required buffer size in bytes, or 0 when no scratch buffer is needed.
  */
 int32_t arm_convolve_1x1_f32_get_buffer_size(const cmsis_nn_conv_params_f32 *conv_params,
                                              const cmsis_nn_dims *input_dims,
@@ -395,6 +497,14 @@ int32_t arm_convolve_1x1_f32_get_buffer_size(const cmsis_nn_conv_params_f32 *con
 
 /**
  * @brief Get the buffer size required by 1xN convolution.
+ *
+ * @param[in] conv_params  Convolution parameters.
+ * @param[in] input_dims   Input tensor dimensions.
+ * @param[in] filter_dims  Filter tensor dimensions.
+ * @param[in] output_dims  Output tensor dimensions.
+ * @param[in] layout       Tensor layout selector.
+ *
+ * @return Required buffer size in bytes, or 0 when no scratch buffer is needed.
  */
 int32_t arm_convolve_1_x_n_f32_get_buffer_size(const cmsis_nn_conv_params_f32 *conv_params,
                                                const cmsis_nn_dims *input_dims,
@@ -720,6 +830,14 @@ arm_cmsis_nn_status arm_strided_slice_f32(const float32_t *input_data,
  * about NaN, must screen its inputs rather than rely on either leg. See issue #316, and #333 for the same
  * -ffinite-math-only caveat on the elementwise family.
  *
+ * @param[in]     ctx          Function context. Unused; may be NULL.
+ * @param[in]     input_1_data Input 1, NHWC, sized by @p input_1_dims.
+ * @param[in]     input_1_dims Dimensions of input 1.
+ * @param[in]     input_2_data Input 2, NHWC, sized by @p input_2_dims.
+ * @param[in]     input_2_dims Dimensions of input 2.
+ * @param[out]    output_data  Output, NHWC, sized by @p output_dims.
+ * @param[in]     output_dims  Broadcast output dimensions.
+ *
  * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is not
  *         positive, the shapes are not broadcast-compatible, or the output shape is not their broadcast shape.
  *         @p ctx is unused and may be NULL.
@@ -747,6 +865,14 @@ arm_cmsis_nn_status arm_minimum_f32(const cmsis_nn_context *ctx,
  * difference is invisible to anything that is not bit-exact; a caller that cares about the sign of a zero, or
  * about NaN, must screen its inputs rather than rely on either leg. See issue #316, and #333 for the same
  * -ffinite-math-only caveat on the elementwise family.
+ *
+ * @param[in]     ctx          Function context. Unused; may be NULL.
+ * @param[in]     input_1_data Input 1, NHWC, sized by @p input_1_dims.
+ * @param[in]     input_1_dims Dimensions of input 1.
+ * @param[in]     input_2_data Input 2, NHWC, sized by @p input_2_dims.
+ * @param[in]     input_2_dims Dimensions of input 2.
+ * @param[out]    output_data  Output, NHWC, sized by @p output_dims.
+ * @param[in]     output_dims  Broadcast output dimensions.
  *
  * @return ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, a dimension is not
  *         positive, the shapes are not broadcast-compatible, or the output shape is not their broadcast shape.
@@ -805,6 +931,15 @@ arm_cmsis_nn_status arm_elementwise_sub_broadcast_f32(const float32_t *input_1_d
  *
  * Broadcast rules, argument checking and return values as for arm_elementwise_sub_broadcast_f32; numerics
  * are those of arm_elementwise_add_f32 on the materialised broadcast operands, including its NaN contract.
+ *
+ * @param[in]  input_1_data        First input, NHWC, sized by @p input_1_dims.
+ * @param[in]  input_1_dims        Dimensions of input 1.
+ * @param[in]  input_2_data        Second input, NHWC, sized by @p input_2_dims.
+ * @param[in]  input_2_dims        Dimensions of input 2.
+ * @param[out] output_data         Output, NHWC, sized by @p output_dims.
+ * @param[in]  output_dims         Broadcast output dimensions.
+ * @param[in]  out_activation_min  Minimum output clamp value.
+ * @param[in]  out_activation_max  Maximum output clamp value.
  */
 arm_cmsis_nn_status arm_elementwise_add_broadcast_f32(const float32_t *input_1_data,
                                                       const cmsis_nn_dims *input_1_dims,
@@ -820,6 +955,15 @@ arm_cmsis_nn_status arm_elementwise_add_broadcast_f32(const float32_t *input_1_d
  *
  * Broadcast rules, argument checking and return values as for arm_elementwise_sub_broadcast_f32; numerics
  * are those of arm_elementwise_mul_f32 on the materialised broadcast operands, including its NaN contract.
+ *
+ * @param[in]  input_1_data        First input, NHWC, sized by @p input_1_dims.
+ * @param[in]  input_1_dims        Dimensions of input 1.
+ * @param[in]  input_2_data        Second input, NHWC, sized by @p input_2_dims.
+ * @param[in]  input_2_dims        Dimensions of input 2.
+ * @param[out] output_data         Output, NHWC, sized by @p output_dims.
+ * @param[in]  output_dims         Broadcast output dimensions.
+ * @param[in]  out_activation_min  Minimum output clamp value.
+ * @param[in]  out_activation_max  Maximum output clamp value.
  */
 arm_cmsis_nn_status arm_elementwise_mul_broadcast_f32(const float32_t *input_1_data,
                                                       const cmsis_nn_dims *input_1_dims,
@@ -882,6 +1026,19 @@ arm_cmsis_nn_status arm_rsqrt_f32(const float32_t *input, float32_t *output, int
 
 /**
  * @brief Fully connected layer, NHWC layout.
+ *
+ * @param[in]     ctx         Function context. Unused; may be NULL.
+ * @param[in]     fc_params   Fully connected parameters and activation clamp.
+ * @param[in]     input_dims  Input tensor dimensions.
+ * @param[in]     input       Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter tensor dimensions.
+ * @param[in]     kernel      Pointer to the filter tensor data.
+ * @param[in]     bias_dims   Bias tensor dimensions.
+ * @param[in]     bias        Optional bias tensor data.
+ * @param[in]     output_dims Output tensor dimensions.
+ * @param[out]    output      Pointer to the output tensor data.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_fully_connected_nhwc_f32(const cmsis_nn_context *ctx,
                                                  const cmsis_nn_fc_params_f32 *fc_params,
@@ -897,7 +1054,7 @@ arm_cmsis_nn_status arm_fully_connected_nhwc_f32(const cmsis_nn_context *ctx,
 /**
  * @brief Fully connected layer, dispatch by layout.
  *
- * @param[in,out] ctx         Function context that may hold a temporary scratch buffer.
+ * @param[in]     ctx         Function context. Unused; may be NULL.
  * @param[in]     fc_params   Fully connected parameters and activation clamp.
  * @param[in]     input_dims  Input tensor dimensions.
  * @param[in]     input       Pointer to the input tensor data.
@@ -971,6 +1128,19 @@ arm_cmsis_nn_status arm_transpose_f32(const cmsis_nn_context *ctx,
 
 /**
  * @brief Concatenate tensors along the X axis.
+ *
+ * Call once per input tensor: @p offset_x selects where the input is stored along the X axis of the
+ * output tensor and must be advanced by @p input_x after each call. The output tensor must have the
+ * same height, channels and batch size as every input tensor.
+ *
+ * @param[in]  input    Pointer to the input tensor. Must not overlap the output tensor.
+ * @param[in]  input_x  Width of the input tensor.
+ * @param[in]  input_y  Height of the input tensor.
+ * @param[in]  input_z  Channels in the input tensor.
+ * @param[in]  input_w  Batch size in the input tensor.
+ * @param[out] output   Pointer to the output tensor.
+ * @param[in]  output_x Width of the output tensor.
+ * @param[in]  offset_x Offset on the X axis at which the input tensor is stored. Must be less than @p output_x.
  */
 void arm_concatenation_f32_x(const float32_t *input,
                              int32_t input_x,
@@ -983,6 +1153,19 @@ void arm_concatenation_f32_x(const float32_t *input,
 
 /**
  * @brief Concatenate tensors along the Y axis.
+ *
+ * Call once per input tensor: @p offset_y selects where the input is stored along the Y axis of the
+ * output tensor and must be advanced by @p input_y after each call. The output tensor must have the
+ * same width, channels and batch size as every input tensor.
+ *
+ * @param[in]  input    Pointer to the input tensor. Must not overlap the output tensor.
+ * @param[in]  input_x  Width of the input tensor.
+ * @param[in]  input_y  Height of the input tensor.
+ * @param[in]  input_z  Channels in the input tensor.
+ * @param[in]  input_w  Batch size in the input tensor.
+ * @param[out] output   Pointer to the output tensor.
+ * @param[in]  output_y Height of the output tensor.
+ * @param[in]  offset_y Offset on the Y axis at which the input tensor is stored. Must be less than @p output_y.
  */
 void arm_concatenation_f32_y(const float32_t *input,
                              int32_t input_x,
@@ -995,6 +1178,19 @@ void arm_concatenation_f32_y(const float32_t *input,
 
 /**
  * @brief Concatenate tensors along the Z axis.
+ *
+ * Call once per input tensor: @p offset_z selects where the input is stored along the Z axis of the
+ * output tensor and must be advanced by @p input_z after each call. The output tensor must have the
+ * same width, height and batch size as every input tensor.
+ *
+ * @param[in]  input    Pointer to the input tensor. Must not overlap the output tensor.
+ * @param[in]  input_x  Width of the input tensor.
+ * @param[in]  input_y  Height of the input tensor.
+ * @param[in]  input_z  Channels in the input tensor.
+ * @param[in]  input_w  Batch size in the input tensor.
+ * @param[out] output   Pointer to the output tensor.
+ * @param[in]  output_z Channels in the output tensor.
+ * @param[in]  offset_z Offset on the Z axis at which the input tensor is stored. Must be less than @p output_z.
  */
 void arm_concatenation_f32_z(const float32_t *input,
                              int32_t input_x,
@@ -1007,6 +1203,18 @@ void arm_concatenation_f32_z(const float32_t *input,
 
 /**
  * @brief Concatenate tensors along the W axis.
+ *
+ * Call once per input tensor: @p offset_w selects where the input is stored along the W axis of the
+ * output tensor and must be advanced by @p input_w after each call. The output tensor must have the
+ * same width, height and channels as every input tensor.
+ *
+ * @param[in]  input    Pointer to the input tensor. Must not overlap the output tensor.
+ * @param[in]  input_x  Width of the input tensor.
+ * @param[in]  input_y  Height of the input tensor.
+ * @param[in]  input_z  Channels in the input tensor.
+ * @param[in]  input_w  Batch size in the input tensor.
+ * @param[out] output   Pointer to the output tensor.
+ * @param[in]  offset_w Offset on the W axis at which the input tensor is stored.
  */
 void arm_concatenation_f32_w(const float32_t *input,
                              int32_t input_x,
@@ -1125,6 +1333,17 @@ arm_cmsis_nn_status arm_unpack_f32(const float32_t *input_data,
 
 /**
  * @brief Pad a tensor with a constant value.
+ *
+ * @param[in]  input      Pointer to the input tensor data.
+ * @param[out] output     Pointer to the output tensor data, sized by @p input_size plus @p pre_pad and @p post_pad
+ *                        in every dimension.
+ * @param[in]  pad_value  Value to pad with.
+ * @param[in]  input_size Input tensor dimensions.
+ * @param[in]  pre_pad    Padding to apply before the data in each dimension.
+ * @param[in]  post_pad   Padding to apply after the data in each dimension.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, or `ARM_CMSIS_NN_ARG_ERROR` when a pointer is NULL or a padded
+ *         output dimension is not positive.
  */
 arm_cmsis_nn_status arm_pad_f32(const float32_t *input,
                                 float32_t *output,
@@ -1142,6 +1361,18 @@ arm_cmsis_nn_status arm_pad_f32(const float32_t *input,
 
 /**
  * @brief Apply batch normalization.
+ *
+ * Computes `output = input * scale[c] + bias[c]` for every element of channel `c`, with @p scale and @p bias
+ * holding the pre-folded per-channel factors.
+ *
+ * @param[in]  input      Pointer to the input tensor data. Format: [N, H, W, C].
+ * @param[out] output     Pointer to the output tensor data, same shape as @p input.
+ * @param[in]  scale      Per-channel scale, `input_dims->c` values.
+ * @param[in]  bias       Per-channel bias, `input_dims->c` values.
+ * @param[in]  input_dims Input tensor dimensions. Every dimension must be positive.
+ * @param[in]  layout     Tensor layout selector. Must be `ARM_NN_LAYOUT_NHWC`.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_batch_norm_f32(const float32_t *input,
                                        float32_t *output,
@@ -1152,6 +1383,10 @@ arm_cmsis_nn_status arm_batch_norm_f32(const float32_t *input,
 
 /**
  * @brief Reshape by copying data without changing element order.
+ *
+ * @param[in]  input      Pointer to the input tensor data.
+ * @param[out] output     Pointer to the output tensor data. Nothing is copied when it aliases @p input.
+ * @param[in]  total_size Number of elements to copy.
  */
 void arm_reshape_f32(const float32_t *input, float32_t *output, uint32_t total_size);
 
@@ -1273,6 +1508,21 @@ int32_t arm_batch_matmul_f32_get_buffer_size(const cmsis_nn_bmm_params_f32 *bmm_
 
 /**
  * @brief Transpose convolution wrapper using the CMSIS-NN baseline path.
+ *
+ * @param[in]     ctx                   Function context. Unused; may be NULL.
+ * @param[in]     output_ctx            Output context. Unused; may be NULL.
+ * @param[in]     transpose_conv_params Transpose convolution parameters.
+ * @param[in]     input_dims            Input tensor dimensions.
+ * @param[in]     input_data            Pointer to the input tensor data.
+ * @param[in]     filter_dims           Filter tensor dimensions.
+ * @param[in]     filter_data           Pointer to the filter tensor data.
+ * @param[in]     bias_dims             Bias tensor dimensions.
+ * @param[in]     bias_data             Optional bias tensor data.
+ * @param[in]     output_dims           Output tensor dimensions.
+ * @param[out]    output_data           Pointer to the output tensor data.
+ * @param[in]     layout                Tensor layout selector. Current float APIs require `ARM_NN_LAYOUT_NHWC`.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_transpose_conv_wrapper_f32(const cmsis_nn_context *ctx,
                                                    const cmsis_nn_context *output_ctx,
@@ -1289,6 +1539,20 @@ arm_cmsis_nn_status arm_transpose_conv_wrapper_f32(const cmsis_nn_context *ctx,
 
 /**
  * @brief Transpose convolution, NHWC layout.
+ *
+ * @param[in]     ctx                   Function context. Unused; may be NULL.
+ * @param[in]     output_ctx            Output context. Unused; may be NULL.
+ * @param[in]     transpose_conv_params Transpose convolution parameters.
+ * @param[in]     input_dims            Input tensor dimensions.
+ * @param[in]     input_data            Pointer to the input tensor data.
+ * @param[in]     filter_dims           Filter tensor dimensions.
+ * @param[in]     filter_data           Pointer to the filter tensor data.
+ * @param[in]     bias_dims             Bias tensor dimensions.
+ * @param[in]     bias_data             Optional bias tensor data.
+ * @param[in]     output_dims           Output tensor dimensions.
+ * @param[out]    output_data           Pointer to the output tensor data.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_transpose_conv_nhwc_f32(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_context *output_ctx,
@@ -1305,8 +1569,8 @@ arm_cmsis_nn_status arm_transpose_conv_nhwc_f32(const cmsis_nn_context *ctx,
 /**
  * @brief Transpose convolution, dispatch by layout.
  *
- * @param[in,out] ctx                   Function context that may hold a temporary scratch buffer.
- * @param[in,out] output_ctx            Output accumulation context for helper implementations.
+ * @param[in]     ctx                   Function context. Unused; may be NULL.
+ * @param[in]     output_ctx            Output context. Unused; may be NULL.
  * @param[in]     transpose_conv_params Transpose convolution parameters.
  * @param[in]     input_dims            Input tensor dimensions.
  * @param[in]     input_data            Pointer to the input tensor data.
@@ -1372,7 +1636,7 @@ arm_transpose_conv_f32_get_reverse_conv_buffer_size(const cmsis_nn_transpose_con
 /**
  * @brief Stateful singular value decomposition filter.
  *
- * @param[in,out] ctx                  Unused by this function. Reserved for future use; may be NULL.
+ * @param[in]     ctx                  Unused by this function. Reserved for future use; may be NULL.
  * @param[in,out] input_ctx            Mandatory, not optional: a NULL input_ctx, or a NULL input_ctx->buf, is
  *                                     diagnosed with ARM_CMSIS_NN_ARG_ERROR on every build. Staging buffer written
  *                                     by this function, holding one element per (input batch, feature batch).
@@ -1553,9 +1817,11 @@ arm_cmsis_nn_status arm_gru_unidirectional_f32(const float32_t *input,
 int32_t arm_lstm_unidirectional_f32_temp1_get_buffer_size(const cmsis_nn_lstm_params_f32 *lstm_params);
 
 /**
- * @brief Get size of the temp2 scratch buffer required by arm_lstm_unidirectional_f32().
- *        Refer to arm_lstm_unidirectional_f32_temp1_get_buffer_size(): the contract is identical, and the
- *        answer is the same 0 (temp2 is likewise never dereferenced).
+ * @brief Get size of the temp2 scratch buffer required by arm_lstm_unidirectional_f32(). The contract is
+ *        identical to arm_lstm_unidirectional_f32_temp1_get_buffer_size(), and the answer is the same 0
+ *        (temp2 is likewise never dereferenced).
+ *
+ * @copydetails arm_lstm_unidirectional_f32_temp1_get_buffer_size
  */
 int32_t arm_lstm_unidirectional_f32_temp2_get_buffer_size(const cmsis_nn_lstm_params_f32 *lstm_params);
 
@@ -1625,6 +1891,140 @@ arm_cmsis_nn_status arm_reduce_sum_f32(const float32_t *input_data,
 
 /**
  * @ingroup Reduction
+ * @brief Returns the first minimum's axis-relative INT32 index for a f32 tensor.
+ *
+ * The input is contiguous NHWC with four extents; axis is a canonical index 0..3.
+ * Output contains the product of the other three extents, in row-major order
+ * with the reduced axis removed. Logical ranks, negative-axis normalization and
+ * squeezed output metadata are the caller's responsibility. No scratch is needed.
+ *
+ * Any NaN selects the first NaN's index, regardless of payload, sign or signaling
+ * bit. Otherwise equal numeric extrema retain the first index, including +0/-0
+ * ties. Infinities and subnormals follow numeric order. Selection uses raw bits,
+ * with no floating-point arithmetic or conversion; numerical FP controls and
+ * cumulative exception flags are preserved. This deliberate CORE NaN policy may
+ * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
+ *
+ * Metadata is required; extents must be nonnegative and the reduced extent must
+ * be positive, even when another extent is zero. Declared input and INT32 output
+ * byte counts must each fit INT32_MAX; any zero extent makes its tensor count zero.
+ * Data pointers may be NULL only for zero-element tensors. Valid empty outputs
+ * perform no data accesses. Buffers must be normally aligned, contiguous,
+ * adequately allocated and non-overlapping with each other and metadata; capacity
+ * and overlap are caller preconditions. All detected errors precede output writes.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis Canonical reduction axis, in [0,3].
+ * @param[out] output_data INT32 indices, each in [0,input_dims[axis]).
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status
+arm_argmin_f32(const float32_t *input_data, const cmsis_nn_dims *input_dims, int32_t axis, int32_t *output_data);
+
+/**
+ * @ingroup Reduction
+ * @brief Returns the first maximum's axis-relative INT32 index for a f32 tensor.
+ *
+ * The input is contiguous NHWC with four extents; axis is a canonical index 0..3.
+ * Output contains the product of the other three extents, in row-major order
+ * with the reduced axis removed. Logical ranks, negative-axis normalization and
+ * squeezed output metadata are the caller's responsibility. No scratch is needed.
+ *
+ * Any NaN selects the first NaN's index, regardless of payload, sign or signaling
+ * bit. Otherwise equal numeric extrema retain the first index, including +0/-0
+ * ties. Infinities and subnormals follow numeric order. Selection uses raw bits,
+ * with no floating-point arithmetic or conversion; numerical FP controls and
+ * cumulative exception flags are preserved. This deliberate CORE NaN policy may
+ * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
+ *
+ * Metadata is required; extents must be nonnegative and the reduced extent must
+ * be positive, even when another extent is zero. Declared input and INT32 output
+ * byte counts must each fit INT32_MAX; any zero extent makes its tensor count zero.
+ * Data pointers may be NULL only for zero-element tensors. Valid empty outputs
+ * perform no data accesses. Buffers must be normally aligned, contiguous,
+ * adequately allocated and non-overlapping with each other and metadata; capacity
+ * and overlap are caller preconditions. All detected errors precede output writes.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis Canonical reduction axis, in [0,3].
+ * @param[out] output_data INT32 indices, each in [0,input_dims[axis]).
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status
+arm_argmax_f32(const float32_t *input_data, const cmsis_nn_dims *input_dims, int32_t axis, int32_t *output_data);
+
+/**
+ * @ingroup Reduction
+ * @brief Reduces a f32 NHWC tensor to its maximum along a binary axis mask.
+ *
+ * Values are selected without floating-point arithmetic, accumulation or conversion.
+ * Any NaN in a reduction yields canonical quiet NaN (0x7fc00000); infinities and subnormals
+ * retain their bits. Equal numeric values retain the first input in row-major order,
+ * including zero signs. Scalar and MVE paths share this bit contract independently of
+ * FP controls. LiteRT nonfinite/zero-sign behavior may differ by shape/resolver. Refs #498.
+ *
+ * A zero mask copies bits unchanged, including NaN payloads. Reducing a singleton axis
+ * instead canonicalizes NaNs. An empty reduced domain produces -Inf; an empty output
+ * performs no accesses to data buffers.
+ *
+ * All metadata pointers are required. Extents must be nonnegative, mask entries exactly
+ * 0 or 1, and output extents equal input extents with reduced axes retained as 1.
+ * Declared input/output byte counts must each fit INT32_MAX; any zero extent makes its
+ * tensor count zero. Data pointers may be NULL only for zero-element tensors. Buffers
+ * must be contiguous, normally aligned, adequately allocated and non-overlapping;
+ * allocation capacity and overlap are caller preconditions, not runtime checks.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_max_f32(const float32_t *input_data,
+                                       const cmsis_nn_dims *input_dims,
+                                       const cmsis_nn_dims *axis_dims,
+                                       float32_t *output_data,
+                                       const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
+ * @brief Reduces a f32 NHWC tensor to its minimum along a binary axis mask.
+ *
+ * Values are selected without floating-point arithmetic, accumulation or conversion.
+ * Any NaN in a reduction yields canonical quiet NaN (0x7fc00000); infinities and subnormals
+ * retain their bits. Equal numeric values retain the first input in row-major order,
+ * including zero signs. Scalar and MVE paths share this bit contract independently of
+ * FP controls. LiteRT nonfinite/zero-sign behavior may differ by shape/resolver. Refs #498.
+ *
+ * A zero mask copies bits unchanged, including NaN payloads. Reducing a singleton axis
+ * instead canonicalizes NaNs. An empty reduced domain produces +Inf; an empty output
+ * performs no accesses to data buffers.
+ *
+ * All metadata pointers are required. Extents must be nonnegative, mask entries exactly
+ * 0 or 1, and output extents equal input extents with reduced axes retained as 1.
+ * Declared input/output byte counts must each fit INT32_MAX; any zero extent makes its
+ * tensor count zero. Data pointers may be NULL only for zero-element tensors. Buffers
+ * must be contiguous, normally aligned, adequately allocated and non-overlapping;
+ * allocation capacity and overlap are caller preconditions, not runtime checks.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_min_f32(const float32_t *input_data,
+                                       const cmsis_nn_dims *input_dims,
+                                       const cmsis_nn_dims *axis_dims,
+                                       float32_t *output_data,
+                                       const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
  * @brief Computes the mean of a float32 tensor along the specified axes.
  *
  * Values are accumulated and divided once in float32; unlike the float16
@@ -1670,6 +2070,102 @@ arm_cmsis_nn_status arm_nn_mean_f32(const float32_t *input_data,
                                     const cmsis_nn_dims *axis_dims,
                                     float32_t *output_data,
                                     const cmsis_nn_dims *output_dims);
+
+/** @} */
+
+/**
+ * @addtogroup Gather
+ * @{
+ */
+
+/**
+ * @brief Gather contiguous slices along an axis.
+ *
+ * Data rank is 1..4 and indices rank is 0..4; rank-0 indices contain one index.
+ * Negative axis normalizes by input_rank; negative batch_dims normalizes by
+ * coords_rank. After normalization, 0 <= batch_dims <= coords_rank and
+ * batch_dims <= axis < input_rank. Leading batch dimensions must match.
+ * The inferred output shape is input_shape[:axis] +
+ * indices_shape[batch_dims:] + input_shape[axis + 1:].
+ *
+ * Shapes use the first rank fields of cmsis_nn_dims in n, h, w, c order;
+ * unused fields are ignored. The inferred output rank must be 0..4, and
+ * output_dims must match its leading dimensions. A rank-0 output is one element.
+ * All dimension extents must be nonnegative. Input, index and output buffer
+ * byte counts must each fit INT32_MAX; this is a CORE capacity limit.
+ *
+ * All metadata pointers are required. A NULL data, indices or output pointer is
+ * accepted only when that respective buffer has zero elements. Valid empty
+ * calls copy nothing. All supplied indices are checked, even for empty output.
+ * Coordinates must be nonnegative and below their corresponding axis extent.
+ * Invalid metadata or indices return ARG_ERROR without changing output.
+ *
+ * This operation preserves all bits, including NaN payloads, signed zero and
+ * subnormals, independently of floating-point controls. Buffers must not overlap.
+ * No scratch buffer is required. Portable copies use existing MVE copy paths
+ * when enabled.
+ *
+ * @param[in] input_data Input data buffer.
+ * @param[in] input_dims Input shape in leading-dimension order.
+ * @param[in] indices_data Signed 32-bit indices.
+ * @param[in] indices_dims Indices shape in leading-dimension order.
+ * @param[in] params Ranks and gathering parameters.
+ * @param[out] output_data Output data buffer.
+ * @param[in] output_dims Inferred output shape in leading-dimension order.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_gather_f32(const float32_t *input_data,
+                                   const cmsis_nn_dims *input_dims,
+                                   const int32_t *indices_data,
+                                   const cmsis_nn_dims *indices_dims,
+                                   const cmsis_nn_gather_params *params,
+                                   float32_t *output_data,
+                                   const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Gather contiguous slices using coordinate tuples.
+ *
+ * Data rank is 1..4 and indices rank is 1..4. The final indices dimension
+ * is the tuple width, which must be at least one. batch_dims is a TensorFlow-style
+ * extension (not a LiteRT builtin option): 0 <= batch_dims < indices_rank,
+ * batch_dims < params_rank, and batch_dims + tuple_width <= params_rank.
+ * Leading batch dimensions must match. The inferred output shape is
+ * indices_shape[:-1] + params_shape[batch_dims + tuple_width:].
+ * Empty data with a nonempty index buffer is rejected.
+ *
+ * Shapes use the first rank fields of cmsis_nn_dims in n, h, w, c order;
+ * unused fields are ignored. The inferred output rank must be 0..4, and
+ * output_dims must match its leading dimensions. A rank-0 output is one element.
+ * All dimension extents must be nonnegative. Input, index and output buffer
+ * byte counts must each fit INT32_MAX; this is a CORE capacity limit.
+ *
+ * All metadata pointers are required. A NULL data, indices or output pointer is
+ * accepted only when that respective buffer has zero elements. Valid empty
+ * calls copy nothing. All supplied indices are checked, even for empty output.
+ * Coordinates must be nonnegative and below their corresponding axis extent.
+ * Invalid metadata or indices return ARG_ERROR without changing output.
+ *
+ * This operation preserves all bits, including NaN payloads, signed zero and
+ * subnormals, independently of floating-point controls. Buffers must not overlap.
+ * No scratch buffer is required. Portable copies use existing MVE copy paths
+ * when enabled.
+ *
+ * @param[in] params_data Input data buffer.
+ * @param[in] params_dims Input shape in leading-dimension order.
+ * @param[in] indices_data Signed 32-bit indices.
+ * @param[in] indices_dims Indices shape in leading-dimension order.
+ * @param[in] params Ranks and gathering parameters.
+ * @param[out] output_data Output data buffer.
+ * @param[in] output_dims Inferred output shape in leading-dimension order.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_gather_nd_f32(const float32_t *params_data,
+                                      const cmsis_nn_dims *params_dims,
+                                      const int32_t *indices_data,
+                                      const cmsis_nn_dims *indices_dims,
+                                      const cmsis_nn_gather_nd_params *params,
+                                      float32_t *output_data,
+                                      const cmsis_nn_dims *output_dims);
 
     /** @} */
 
@@ -1974,8 +2470,13 @@ arm_cmsis_nn_status arm_avg_pool_f16(const cmsis_nn_context *ctx,
  *       shipped -Ofast. This holds uniformly across build paths: the scalar path serves every build
  *       without MVE float16 (and LEAKY_RELU on MVE builds too), while the MVE RELU/RELU6 legs
  *       (cortex-m55) restore the NaN lanes that vmaxnmq/vminnmq suppress, using the same integer-domain
- *       lane classification as the elementwise clamps. SIGMOID, TANH and HARDSWISH are outside this
+ *       lane classification as the elementwise clamps. SIGMOID and HARDSWISH are outside this
  *       contract; see the per-helper notes in Include/Internal/arm_nn_activation_flt.h.
+ *
+ * @note TANH propagates NaN on both scalar and MVE paths, preserves the sign of zero, and maps
+ *       +/-Inf to +/-1, including under -Ofast. NaN payload, sign and signaling state are not
+ *       specified. The finite LUT interpolation may round differently across paths; bitwise
+ *       scalar/MVE agreement is not required. Caller FP control settings are not changed.
  *
  * @note Both legs of the HARDSWISH mux evaluate natively in float16 -- the scalar helper
  *       (arm_nn_hardswish_scalar_f16) with a separately rounded multiply-and-add gate, the MVE helper
@@ -2359,7 +2860,7 @@ arm_cmsis_nn_status arm_transpose_f16(const cmsis_nn_context *ctx,
                                       float16_t *output);
 
 /**
- * @brief arm concatenation f16 x
+ * @copydoc arm_concatenation_f32_x
  */
 void arm_concatenation_f16_x(const float16_t *input,
                              int32_t input_x,
@@ -2371,7 +2872,7 @@ void arm_concatenation_f16_x(const float16_t *input,
                              uint32_t offset_x);
 
 /**
- * @brief arm concatenation f16 y
+ * @copydoc arm_concatenation_f32_y
  */
 void arm_concatenation_f16_y(const float16_t *input,
                              int32_t input_x,
@@ -2383,7 +2884,7 @@ void arm_concatenation_f16_y(const float16_t *input,
                              uint32_t offset_y);
 
 /**
- * @brief arm concatenation f16 z
+ * @copydoc arm_concatenation_f32_z
  */
 void arm_concatenation_f16_z(const float16_t *input,
                              int32_t input_x,
@@ -2395,7 +2896,7 @@ void arm_concatenation_f16_z(const float16_t *input,
                              uint32_t offset_z);
 
 /**
- * @brief arm concatenation f16 w
+ * @copydoc arm_concatenation_f32_w
  */
 void arm_concatenation_f16_w(const float16_t *input,
                              int32_t input_x,
@@ -2608,7 +3109,7 @@ arm_transpose_conv_f16_get_reverse_conv_buffer_size(const cmsis_nn_transpose_con
 /**
  * @brief Stateful singular value decomposition filter, float16 variant.
  *
- * @param[in,out] ctx                  Unused by this function. Reserved for future use; may be NULL.
+ * @param[in]     ctx                  Unused by this function. Reserved for future use; may be NULL.
  * @param[in,out] input_ctx            Mandatory, not optional: a NULL input_ctx, or a NULL input_ctx->buf, is
  *                                     diagnosed with ARM_CMSIS_NN_ARG_ERROR on every build. Staging buffer
  *                                     written by this function, holding one element per (input batch, feature
@@ -2779,24 +3280,33 @@ arm_cmsis_nn_status arm_gru_unidirectional_f16(const float16_t *input,
                                                cmsis_nn_gru_context_f16 *buffers);
 
 /**
- * @brief Get size of the temp1 scratch buffer required by arm_lstm_unidirectional_f16().
- *        Refer to arm_lstm_unidirectional_f32_temp1_get_buffer_size(): the contract is identical, and the
- *        answer is the same 0 on every build target (the float16 implementation likewise never dereferences
- *        temp1 or temp2, which may both be NULL).
+ * @brief Get size of the temp1 scratch buffer required by arm_lstm_unidirectional_f16(). The contract is
+ *        identical to arm_lstm_unidirectional_f32_temp1_get_buffer_size(), and the answer is the same 0 on
+ *        every build target (the float16 implementation likewise never dereferences temp1 or temp2, which may
+ *        both be NULL).
+ *
+ * @param[in] lstm_params LSTM operator parameters, i.e. the same cmsis_nn_lstm_params_f16 passed to
+ *                        arm_lstm_unidirectional_f16(). No field is read.
+ *
+ * @return 0 for any non-NULL lstm_params, -1 for a NULL lstm_params.
  */
 int32_t arm_lstm_unidirectional_f16_temp1_get_buffer_size(const cmsis_nn_lstm_params_f16 *lstm_params);
 
 /**
- * @brief Get size of the temp2 scratch buffer required by arm_lstm_unidirectional_f16().
- *        Refer to arm_lstm_unidirectional_f32_temp1_get_buffer_size(): the contract is identical, and the
- *        answer is the same 0.
+ * @brief Get size of the temp2 scratch buffer required by arm_lstm_unidirectional_f16(). The contract is
+ *        identical to arm_lstm_unidirectional_f32_temp1_get_buffer_size(), and the answer is the same 0.
+ *
+ * @copydetails arm_lstm_unidirectional_f16_temp1_get_buffer_size
  */
 int32_t arm_lstm_unidirectional_f16_temp2_get_buffer_size(const cmsis_nn_lstm_params_f16 *lstm_params);
 
 /**
- * @brief Get size of the temp1 scratch buffer required by arm_gru_unidirectional_f16().
- *        Refer to arm_gru_unidirectional_f32_temp1_get_buffer_size() for argument details, the -1-on-invalid
- *        contract and the pre-reset degenerate-0 note.
+ * @brief Get size of the temp1 scratch buffer required by arm_gru_unidirectional_f16(). See
+ *        arm_gru_unidirectional_f32_temp1_get_buffer_size() for the -1-on-invalid contract and the pre-reset
+ *        degenerate-0 note; both apply here unchanged.
+ *
+ * @param[in] gru_params GRU operator parameters, i.e. the same cmsis_nn_gru_params_f16 passed to
+ *                       arm_gru_unidirectional_f16(). Only reset_after and hidden_size are read.
  *
  * @return Required buffer size in bytes: hidden_size * sizeof(float16_t) when reset_after == 0, 0 when
  *         reset_after != 0 (temp1 is never dereferenced and may be NULL). Half the figure
@@ -2822,6 +3332,144 @@ arm_cmsis_nn_status arm_softmax_f16(const float16_t *input, int32_t num_rows, in
  * @copydoc arm_reduce_sum_f32
  */
 arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
+                                       const cmsis_nn_dims *input_dims,
+                                       const cmsis_nn_dims *axis_dims,
+                                       float16_t *output_data,
+                                       const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
+ * @brief Returns the first minimum's axis-relative INT32 index for a f16 tensor.
+ *
+ * The input is contiguous NHWC with four extents; axis is a canonical index 0..3.
+ * Output contains the product of the other three extents, in row-major order
+ * with the reduced axis removed. Logical ranks, negative-axis normalization and
+ * squeezed output metadata are the caller's responsibility. No scratch is needed.
+ *
+ * Any NaN selects the first NaN's index, regardless of payload, sign or signaling
+ * bit. Otherwise equal numeric extrema retain the first index, including +0/-0
+ * ties. Infinities and subnormals follow numeric order. Selection uses raw bits,
+ * with no floating-point arithmetic or conversion; numerical FP controls and
+ * cumulative exception flags are preserved. This deliberate CORE NaN policy may
+ * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
+ * IEEE binary16 uses the NaN/infinity rules above. Scalar Arm alternative-format
+ * float16_t has no NaNs or infinities; every encoding is ordered as a finite value.
+ *
+ * Metadata is required; extents must be nonnegative and the reduced extent must
+ * be positive, even when another extent is zero. Declared input and INT32 output
+ * byte counts must each fit INT32_MAX; any zero extent makes its tensor count zero.
+ * Data pointers may be NULL only for zero-element tensors. Valid empty outputs
+ * perform no data accesses. Buffers must be normally aligned, contiguous,
+ * adequately allocated and non-overlapping with each other and metadata; capacity
+ * and overlap are caller preconditions. All detected errors precede output writes.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis Canonical reduction axis, in [0,3].
+ * @param[out] output_data INT32 indices, each in [0,input_dims[axis]).
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status
+arm_argmin_f16(const float16_t *input_data, const cmsis_nn_dims *input_dims, int32_t axis, int32_t *output_data);
+
+/**
+ * @ingroup Reduction
+ * @brief Returns the first maximum's axis-relative INT32 index for a f16 tensor.
+ *
+ * The input is contiguous NHWC with four extents; axis is a canonical index 0..3.
+ * Output contains the product of the other three extents, in row-major order
+ * with the reduced axis removed. Logical ranks, negative-axis normalization and
+ * squeezed output metadata are the caller's responsibility. No scratch is needed.
+ *
+ * Any NaN selects the first NaN's index, regardless of payload, sign or signaling
+ * bit. Otherwise equal numeric extrema retain the first index, including +0/-0
+ * ties. Infinities and subnormals follow numeric order. Selection uses raw bits,
+ * with no floating-point arithmetic or conversion; numerical FP controls and
+ * cumulative exception flags are preserved. This deliberate CORE NaN policy may
+ * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
+ * IEEE binary16 uses the NaN/infinity rules above. Scalar Arm alternative-format
+ * float16_t has no NaNs or infinities; every encoding is ordered as a finite value.
+ *
+ * Metadata is required; extents must be nonnegative and the reduced extent must
+ * be positive, even when another extent is zero. Declared input and INT32 output
+ * byte counts must each fit INT32_MAX; any zero extent makes its tensor count zero.
+ * Data pointers may be NULL only for zero-element tensors. Valid empty outputs
+ * perform no data accesses. Buffers must be normally aligned, contiguous,
+ * adequately allocated and non-overlapping with each other and metadata; capacity
+ * and overlap are caller preconditions. All detected errors precede output writes.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis Canonical reduction axis, in [0,3].
+ * @param[out] output_data INT32 indices, each in [0,input_dims[axis]).
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status
+arm_argmax_f16(const float16_t *input_data, const cmsis_nn_dims *input_dims, int32_t axis, int32_t *output_data);
+
+/**
+ * @ingroup Reduction
+ * @brief Reduces a f16 NHWC tensor to its maximum along a binary axis mask.
+ *
+ * Values are selected without floating-point arithmetic, accumulation or conversion.
+ * Any NaN in a reduction yields canonical quiet NaN (0x7e00); infinities and subnormals
+ * retain their bits. Equal numeric values retain the first input in row-major order,
+ * including zero signs. Scalar and MVE paths share this bit contract independently of
+ * FP controls. LiteRT nonfinite/zero-sign behavior may differ by shape/resolver. Refs #498.
+ *
+ * A zero mask copies bits unchanged, including NaN payloads. Reducing a singleton axis
+ * instead canonicalizes NaNs. An empty reduced domain produces -Inf; an empty output
+ * performs no accesses to data buffers.
+ *
+ * All metadata pointers are required. Extents must be nonnegative, mask entries exactly
+ * 0 or 1, and output extents equal input extents with reduced axes retained as 1.
+ * Declared input/output byte counts must each fit INT32_MAX; any zero extent makes its
+ * tensor count zero. Data pointers may be NULL only for zero-element tensors. Buffers
+ * must be contiguous, normally aligned, adequately allocated and non-overlapping;
+ * allocation capacity and overlap are caller preconditions, not runtime checks.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_max_f16(const float16_t *input_data,
+                                       const cmsis_nn_dims *input_dims,
+                                       const cmsis_nn_dims *axis_dims,
+                                       float16_t *output_data,
+                                       const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
+ * @brief Reduces a f16 NHWC tensor to its minimum along a binary axis mask.
+ *
+ * Values are selected without floating-point arithmetic, accumulation or conversion.
+ * Any NaN in a reduction yields canonical quiet NaN (0x7e00); infinities and subnormals
+ * retain their bits. Equal numeric values retain the first input in row-major order,
+ * including zero signs. Scalar and MVE paths share this bit contract independently of
+ * FP controls. LiteRT nonfinite/zero-sign behavior may differ by shape/resolver. Refs #498.
+ *
+ * A zero mask copies bits unchanged, including NaN payloads. Reducing a singleton axis
+ * instead canonicalizes NaNs. An empty reduced domain produces +Inf; an empty output
+ * performs no accesses to data buffers.
+ *
+ * All metadata pointers are required. Extents must be nonnegative, mask entries exactly
+ * 0 or 1, and output extents equal input extents with reduced axes retained as 1.
+ * Declared input/output byte counts must each fit INT32_MAX; any zero extent makes its
+ * tensor count zero. Data pointers may be NULL only for zero-element tensors. Buffers
+ * must be contiguous, normally aligned, adequately allocated and non-overlapping;
+ * allocation capacity and overlap are caller preconditions, not runtime checks.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_min_f16(const float16_t *input_data,
                                        const cmsis_nn_dims *input_dims,
                                        const cmsis_nn_dims *axis_dims,
                                        float16_t *output_data,
@@ -2861,6 +3509,102 @@ arm_cmsis_nn_status arm_nn_mean_f16(const float16_t *input_data,
                                     const cmsis_nn_dims *axis_dims,
                                     float16_t *output_data,
                                     const cmsis_nn_dims *output_dims);
+
+/** @} */
+
+/**
+ * @addtogroup Gather
+ * @{
+ */
+
+/**
+ * @brief Gather contiguous slices along an axis.
+ *
+ * Data rank is 1..4 and indices rank is 0..4; rank-0 indices contain one index.
+ * Negative axis normalizes by input_rank; negative batch_dims normalizes by
+ * coords_rank. After normalization, 0 <= batch_dims <= coords_rank and
+ * batch_dims <= axis < input_rank. Leading batch dimensions must match.
+ * The inferred output shape is input_shape[:axis] +
+ * indices_shape[batch_dims:] + input_shape[axis + 1:].
+ *
+ * Shapes use the first rank fields of cmsis_nn_dims in n, h, w, c order;
+ * unused fields are ignored. The inferred output rank must be 0..4, and
+ * output_dims must match its leading dimensions. A rank-0 output is one element.
+ * All dimension extents must be nonnegative. Input, index and output buffer
+ * byte counts must each fit INT32_MAX; this is a CORE capacity limit.
+ *
+ * All metadata pointers are required. A NULL data, indices or output pointer is
+ * accepted only when that respective buffer has zero elements. Valid empty
+ * calls copy nothing. All supplied indices are checked, even for empty output.
+ * Coordinates must be nonnegative and below their corresponding axis extent.
+ * Invalid metadata or indices return ARG_ERROR without changing output.
+ *
+ * This operation preserves all bits, including NaN payloads, signed zero and
+ * subnormals, independently of floating-point controls. Buffers must not overlap.
+ * No scratch buffer is required. Portable copies use existing MVE copy paths
+ * when enabled.
+ *
+ * @param[in] input_data Input data buffer.
+ * @param[in] input_dims Input shape in leading-dimension order.
+ * @param[in] indices_data Signed 32-bit indices.
+ * @param[in] indices_dims Indices shape in leading-dimension order.
+ * @param[in] params Ranks and gathering parameters.
+ * @param[out] output_data Output data buffer.
+ * @param[in] output_dims Inferred output shape in leading-dimension order.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_gather_f16(const float16_t *input_data,
+                                   const cmsis_nn_dims *input_dims,
+                                   const int32_t *indices_data,
+                                   const cmsis_nn_dims *indices_dims,
+                                   const cmsis_nn_gather_params *params,
+                                   float16_t *output_data,
+                                   const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Gather contiguous slices using coordinate tuples.
+ *
+ * Data rank is 1..4 and indices rank is 1..4. The final indices dimension
+ * is the tuple width, which must be at least one. batch_dims is a TensorFlow-style
+ * extension (not a LiteRT builtin option): 0 <= batch_dims < indices_rank,
+ * batch_dims < params_rank, and batch_dims + tuple_width <= params_rank.
+ * Leading batch dimensions must match. The inferred output shape is
+ * indices_shape[:-1] + params_shape[batch_dims + tuple_width:].
+ * Empty data with a nonempty index buffer is rejected.
+ *
+ * Shapes use the first rank fields of cmsis_nn_dims in n, h, w, c order;
+ * unused fields are ignored. The inferred output rank must be 0..4, and
+ * output_dims must match its leading dimensions. A rank-0 output is one element.
+ * All dimension extents must be nonnegative. Input, index and output buffer
+ * byte counts must each fit INT32_MAX; this is a CORE capacity limit.
+ *
+ * All metadata pointers are required. A NULL data, indices or output pointer is
+ * accepted only when that respective buffer has zero elements. Valid empty
+ * calls copy nothing. All supplied indices are checked, even for empty output.
+ * Coordinates must be nonnegative and below their corresponding axis extent.
+ * Invalid metadata or indices return ARG_ERROR without changing output.
+ *
+ * This operation preserves all bits, including NaN payloads, signed zero and
+ * subnormals, independently of floating-point controls. Buffers must not overlap.
+ * No scratch buffer is required. Portable copies use existing MVE copy paths
+ * when enabled.
+ *
+ * @param[in] params_data Input data buffer.
+ * @param[in] params_dims Input shape in leading-dimension order.
+ * @param[in] indices_data Signed 32-bit indices.
+ * @param[in] indices_dims Indices shape in leading-dimension order.
+ * @param[in] params Ranks and gathering parameters.
+ * @param[out] output_data Output data buffer.
+ * @param[in] output_dims Inferred output shape in leading-dimension order.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_gather_nd_f16(const float16_t *params_data,
+                                      const cmsis_nn_dims *params_dims,
+                                      const int32_t *indices_data,
+                                      const cmsis_nn_dims *indices_dims,
+                                      const cmsis_nn_gather_nd_params *params,
+                                      float16_t *output_data,
+                                      const cmsis_nn_dims *output_dims);
 
     /** @} */
 

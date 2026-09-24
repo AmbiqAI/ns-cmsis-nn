@@ -57,6 +57,7 @@
 cmake_minimum_required(VERSION 3.19)
 include(GNUInstallDirs)
 include(${CMAKE_CURRENT_LIST_DIR}/../cmake/ns_cmsis_nn.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/../cmake/ns_cmsis_nn_configuration.cmake)
 
 if(NOT DEFINED NSX_BOARD_FLAGS_TARGET)
     message(FATAL_ERROR
@@ -110,14 +111,7 @@ option(ARM_NN_ENABLE_F32 "Enable CMSIS-NN float32 extensions." OFF)
 option(ARM_NN_ENABLE_F16 "Enable CMSIS-NN float16 extensions." OFF)
 
 # The headers gate on the numeric value, so normalize once for both modes.
-set(_nsx_f32 0)
-set(_nsx_f16 0)
-if(ARM_NN_ENABLE_F32)
-    set(_nsx_f32 1)
-endif()
-if(ARM_NN_ENABLE_F16)
-    set(_nsx_f16 1)
-endif()
+_ns_cmsis_nn_float_values("${ARM_NN_ENABLE_F32}" "${ARM_NN_ENABLE_F16}" _nsx_f32 _nsx_f16)
 
 set(NSX_CMSIS_NN_MANIFEST "" CACHE FILEPATH
     "Explicit path to the manifest.json describing NSX_CMSIS_NN_LIB's \
@@ -254,24 +248,15 @@ else()
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/nsx/modules/nsx-cmsis-nn/Include>
     )
 
-    target_compile_options(nsx_cmsis_nn PRIVATE ${NSX_CMSIS_NN_OPTIMIZATION})
-
-    target_compile_definitions(nsx_cmsis_nn
-        PUBLIC
-            ARM_NN_ENABLE_F32=${_nsx_f32}
-            ARM_NN_ENABLE_F16=${_nsx_f16}
-    )
+    _ns_cmsis_nn_source_options(nsx_cmsis_nn
+        "${_nsx_f32}" "${_nsx_f16}"
+        "${NSX_CMSIS_NN_OPTIMIZATION}" "${NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM}")
 
     target_link_libraries(nsx_cmsis_nn
         PUBLIC ${NSX_BOARD_FLAGS_TARGET}
     )
     if(TARGET nsx_soc_hal)
         target_link_libraries(nsx_cmsis_nn PRIVATE nsx_soc_hal)
-    endif()
-
-    if(NSX_CMSIS_NN_USE_REQUANTIZE_INLINE_ASM)
-        target_compile_definitions(nsx_cmsis_nn
-            PUBLIC CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY)
     endif()
 
 endif()

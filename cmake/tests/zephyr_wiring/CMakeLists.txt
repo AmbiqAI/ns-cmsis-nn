@@ -208,28 +208,80 @@ endif()
 
 set(_srcs_all_groups_default "${_srcs}")
 
-# ----------------------------------------------------------------------------
-# Translation-table coverage: every renamed Kconfig knob in this test must
-# also appear in the real zephyr/CMakeLists.txt foreach() pair list. Read
-# the file and grep for each knob to catch any typo (e.g. "FULLYCONNETED").
-# ----------------------------------------------------------------------------
-file(READ "${_repo_root}/zephyr/CMakeLists.txt" _zcml)
-foreach(_k IN LISTS _renamed_knobs)
-  string(FIND "${_zcml}" "\"${_k};" _hit)
-  if(_hit EQUAL -1)
-    _fail("translation table is missing Kconfig knob '${_k}' (or its spelling drifted)")
-  endif()
+# Exercise actual knob routing, not the implementation's spelling/table shape.
+# Only per-group contents come from the unchanged source manifest; this ordered
+# mapping is the pre-refactor Zephyr contract, independent of the new helper.
+set(_contract_groups activation basicmath comparison concatenation convolution
+    fullyconnected gather lstm nnsupport pad pooling quantization reshape softmax
+    stridedslice svd transpose tile broadcast scatter select reversesequence
+    dynamicupdateslice)
+ns_cmsis_nn_groups(_manifest_groups)
+set(_coverage "${_contract_groups}")
+list(SORT _coverage)
+list(SORT _manifest_groups)
+if(NOT "${_coverage}" STREQUAL "${_manifest_groups}")
+  _fail("explicit knob contract does not cover the source manifest groups")
+endif()
+foreach(_widths "0;0" "1;0" "0;1" "1;1")
+  list(GET _widths 0 CONFIG_NS_CMSIS_NN_ENABLE_F32)
+  list(GET _widths 1 CONFIG_NS_CMSIS_NN_ENABLE_F16)
+  foreach(_selection RANGE 0 25)
+    foreach(_knob IN LISTS _renamed_knobs)
+      set(CONFIG_NS_CMSIS_NN_${_knob} 0)
+    endforeach()
+    if(_selection LESS 23)
+      list(GET _renamed_knobs ${_selection} _knob)
+      set(CONFIG_NS_CMSIS_NN_${_knob} 1)
+      list(GET _contract_groups ${_selection} _selected_groups)
+    elseif(_selection EQUAL 23)
+      foreach(_knob IN LISTS _renamed_knobs)
+        set(CONFIG_NS_CMSIS_NN_${_knob} 1)
+      endforeach()
+      set(_selected_groups "${_contract_groups}")
+    elseif(_selection EQUAL 24)
+      set(CONFIG_NS_CMSIS_NN_ACTIVATION 1)
+      set(CONFIG_NS_CMSIS_NN_NNSUPPORT 1)
+      set(CONFIG_NS_CMSIS_NN_SELECT 1)
+      set(_selected_groups activation nnsupport select)
+    else()
+      set(_selected_groups "")
+    endif()
+    set(STUB_COMPILE_DEFINITIONS "")
+    set(STUB_COMPILE_OPTIONS "")
+    set(CONFIG_NS_CMSIS_NN_REQUANTIZE_INLINE_ASSEMBLY 0)
+    include("${_repo_root}/zephyr/CMakeLists.txt")
+    set(ARM_NN_ENABLE_F32 "${CONFIG_NS_CMSIS_NN_ENABLE_F32}")
+    set(ARM_NN_ENABLE_F16 "${CONFIG_NS_CMSIS_NN_ENABLE_F16}")
+    set(_expected_ordered "")
+    foreach(_group IN LISTS _selected_groups)
+      ns_cmsis_nn_group_sources(${_group} _group_sources)
+      list(APPEND _expected_ordered ${_group_sources})
+    endforeach()
+    get_target_property(_actual ${STUB_LIBRARY_NAME} SOURCES)
+    if(NOT _actual)
+      set(_actual "")
+      # CMake requires at least one source to generate a STATIC target. Attach
+      # a fixture-only TU after inspecting the genuine empty selection.
+      file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/empty.c" "/* empty wiring fixture */\n")
+      target_sources(${STUB_LIBRARY_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/empty.c")
+    endif()
+    if(NOT "${_actual}" STREQUAL "${_expected_ordered}")
+      _fail("knob routing ${_selection}, widths ${_widths}: ordered sources differ")
+    endif()
+    set(_expected_defs "ARM_NN_ENABLE_F32=${CONFIG_NS_CMSIS_NN_ENABLE_F32};ARM_NN_ENABLE_F16=${CONFIG_NS_CMSIS_NN_ENABLE_F16}")
+    get_target_property(_iface ${STUB_LIBRARY_NAME} INTERFACE_COMPILE_DEFINITIONS)
+    if(NOT "${STUB_COMPILE_DEFINITIONS}" STREQUAL "${_expected_defs}"
+       OR NOT "${_iface}" STREQUAL "${_expected_defs}")
+      _fail("knob routing ${_selection}, widths ${_widths}: float definitions differ")
+    endif()
+    if(NOT "${STUB_COMPILE_OPTIONS}" STREQUAL "$<TARGET_PROPERTY:compiler,optimization_fast>")
+      _fail("Zephyr optimization expression changed")
+    endif()
+  endforeach()
 endforeach()
-
-# Coverage cross-check: the translation table must reference EVERY group the
-# SSoT exposes. Pull the group list and verify each lowercase id appears as
-# the value half of a "KNOB;group" pair.
-ns_cmsis_nn_groups(_all_groups)
-foreach(_g IN LISTS _all_groups)
-  string(FIND "${_zcml}" ";${_g}\"" _hit)
-  if(_hit EQUAL -1)
-    _fail("SSoT group '${_g}' has no Kconfig knob in the Zephyr translation table")
-  endif()
+# Restore the all-groups input used by the following legacy cases.
+foreach(_knob IN LISTS _renamed_knobs)
+  set(CONFIG_NS_CMSIS_NN_${_knob} 1)
 endforeach()
 
 # ----------------------------------------------------------------------------

@@ -150,11 +150,19 @@ __STATIC_FORCEINLINE int32_t arm_nn_axis_copy_ptrs_ok(const void *const *ptrs, c
                                                            const int32_t inner,                                        \
                                                            TYPE *const *slices)                                        \
     {                                                                                                                  \
+        if (inner == 0)                                                                                                \
+        {                                                                                                              \
+            return;                                                                                                    \
+        }                                                                                                              \
         for (int32_t k = 0; k < outer; k++)                                                                            \
         {                                                                                                              \
             for (int32_t s = 0; s < num; s++)                                                                          \
             {                                                                                                          \
                 const int32_t run = (sizes != NULL ? sizes[s] : 1) * inner;                                            \
+                if (run == 0)                                                                                          \
+                {                                                                                                      \
+                    continue;                                                                                          \
+                }                                                                                                      \
                 arm_memcpy_##SUFFIX(slices[s] + (size_t)k * (size_t)run, packed, (uint32_t)run);                       \
                 packed += run;                                                                                         \
             }                                                                                                          \
@@ -167,11 +175,19 @@ __STATIC_FORCEINLINE int32_t arm_nn_axis_copy_ptrs_ok(const void *const *ptrs, c
                                                           const int32_t inner,                                         \
                                                           TYPE *packed)                                                \
     {                                                                                                                  \
+        if (inner == 0)                                                                                                \
+        {                                                                                                              \
+            return;                                                                                                    \
+        }                                                                                                              \
         for (int32_t k = 0; k < outer; k++)                                                                            \
         {                                                                                                              \
             for (int32_t s = 0; s < num; s++)                                                                          \
             {                                                                                                          \
                 const int32_t run = (sizes != NULL ? sizes[s] : 1) * inner;                                            \
+                if (run == 0)                                                                                          \
+                {                                                                                                      \
+                    continue;                                                                                          \
+                }                                                                                                      \
                 arm_memcpy_##SUFFIX(packed, slices[s] + (size_t)k * (size_t)run, (uint32_t)run);                       \
                 packed += run;                                                                                         \
             }                                                                                                          \

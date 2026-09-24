@@ -28,6 +28,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_s4_decode.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -144,7 +145,7 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                                 {
                                     int8_t ker_val0, ker_val1;
 
-                                    ker_val0 = ((int8_t)(kernel[ker_idx_0] << 4) >> 4);
+                                    ker_val0 = arm_nn_s4_low_nibble(kernel[ker_idx_0]);
                                     ker_val1 = (kernel[ker_idx_0] >> 4);
 
                                     acc_0 += (input[idx_0] + input_offset) * ker_val0;
@@ -238,7 +239,7 @@ static void depthwise_conv_s4_generic(const int8_t *input,
 
                                         if (get_low_nibble)
                                         {
-                                            ker_val0 = ((int8_t)(kernel[ker_idx_0] << 4) >> 4);
+                                            ker_val0 = arm_nn_s4_low_nibble(kernel[ker_idx_0]);
                                         }
                                         else
                                         {
@@ -329,7 +330,7 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                                     {
                                         int8_t ker_val0, ker_val1;
 
-                                        ker_val0 = ((int8_t)(kernel[ker_idx_0] << 4) >> 4);
+                                        ker_val0 = arm_nn_s4_low_nibble(kernel[ker_idx_0]);
                                         ker_val1 = (kernel[ker_idx_0] >> 4);
 
                                         acc_0 += (input[idx_0] + input_offset) * ker_val0;
@@ -442,7 +443,7 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                                     if (get_low_nibble)
                                     {
                                         get_low_nibble = 0;
-                                        ker_val = ((int8_t)(kernel[ker_idx_0] << 4) >> 4);
+                                        ker_val = arm_nn_s4_low_nibble(kernel[ker_idx_0]);
                                     }
                                     else
                                     {
