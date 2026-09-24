@@ -2368,10 +2368,10 @@ __STATIC_FORCEINLINE int32x4_t arm_doubling_high_mult_mve(const int32x4_t m1, co
  */
 __STATIC_FORCEINLINE int32x4_t arm_divide_by_power_of_two_mve(const int32x4_t dividend, const int32_t exponent)
 {
-    const int32x4_t shift = vdupq_n_s32(-exponent);
-    const int32x4_t fixup = vshrq_n_s32(vandq_s32(dividend, shift), 31);
+    /* Scalar-operand VRSHL keeps the shift out of a Q register; only the fixup mask needs one. */
+    const int32x4_t fixup = vshrq_n_s32(vandq_s32(dividend, vdupq_n_s32(-exponent)), 31);
     const int32x4_t fixed_up_dividend = vqaddq_s32(dividend, fixup);
-    return vrshlq_s32(fixed_up_dividend, shift);
+    return vrshlq_n_s32(fixed_up_dividend, -exponent);
 }
 
 /**
@@ -2413,8 +2413,39 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve(const int32x4_t val, const int
 
     return result;
     #else
+    return arm_divide_by_power_of_two_mve(arm_doubling_high_mult_mve(vshlq_r_s32(val, LEFT_SHIFT(shift)), multiplier),
+                                          RIGHT_SHIFT(shift));
+    #endif
+}
+
+/**
+ * @brief           Requantize a given vector that still needs a left shift applied first.
+ * @param[in]       val             Vector to be requantized
+ * @param[in]       pre_left_shift  Extra left shift to apply to val, folded into the internal one
+ * @param[in]       multiplier      multiplier
+ * @param[in]       shift           shift
+ *
+ * @return          Same result as applying vshlq_r_s32(val, pre_left_shift) before arm_requantize_mve,
+ *                  but with one VSHL instead of two. Both shift counts must be >= 0 and sum to <= 31.
+ *
+ */
+__STATIC_FORCEINLINE int32x4_t arm_requantize_shifted_mve(const int32x4_t val,
+                                                          const int32_t pre_left_shift,
+                                                          const int32_t multiplier,
+                                                          const int32_t shift)
+{
+    #ifdef CMSIS_NN_USE_SINGLE_ROUNDING
+    const int right_shift = ARM_NN_MIN(-1, shift);
+    const int left_shift = shift - right_shift;
+
+    int32x4_t result = vqdmulhq_n_s32(vshlq_r_s32(val, left_shift + pre_left_shift), multiplier);
+    result = vrshlq_n_s32(result, right_shift);
+
+    return result;
+    #else
     return arm_divide_by_power_of_two_mve(
-        arm_doubling_high_mult_mve(vshlq_s32(val, vdupq_n_s32(LEFT_SHIFT(shift))), multiplier), RIGHT_SHIFT(shift));
+        arm_doubling_high_mult_mve(vshlq_r_s32(val, LEFT_SHIFT(shift) + pre_left_shift), multiplier),
+        RIGHT_SHIFT(shift));
     #endif
 }
 
