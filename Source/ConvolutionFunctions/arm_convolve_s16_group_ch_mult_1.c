@@ -151,7 +151,8 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
                 int16_t *out_c = output_data + c;
 
                 int16x8_t weight_0 = vldrbq_z_s16(filter_ptr, p0);
-                int16x8_t weight_1;
+                /* Initialized so the guarded uses below stay provable to the compiler. */
+                int16x8_t weight_1 = vdupq_n_s16(0);
                 if (rhs_cols_1 > 0)
                 {
                     weight_1 = vldrbq_z_s16(filter_ptr + 8, p1);
