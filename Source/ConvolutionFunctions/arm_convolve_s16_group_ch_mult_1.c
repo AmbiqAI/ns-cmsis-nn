@@ -206,7 +206,7 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
                                 input_ptr += in_step;
                             }
 
-                            int32x4_t acc_v = vld1q_s32(acc4);
+                            int32x4_t acc_v = vldrwq_s32(acc4);
                             acc_v = arm_requantize_mve(acc_v, multiplier, shift);
                             acc_v = vmaxq_s32(acc_v, vdupq_n_s32(activation_min));
                             acc_v = vminq_s32(acc_v, vdupq_n_s32(activation_max));
