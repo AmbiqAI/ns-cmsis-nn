@@ -533,6 +533,12 @@ jobs:
           name: reports-cortex-m55
           path: Tests/helia-core-tester/artifacts/reports
 
+      - name: Download m0 f32 float fallback reports
+        uses: actions/download-artifact@v8
+        with:
+          name: reports-m0-f32-fallback
+          path: Tests/helia-core-tester/artifacts/reports-fallback/m0-f32
+
       - name: Download m4 f32 float fallback reports
         uses: actions/download-artifact@v8
         with:
@@ -567,6 +573,10 @@ jobs:
         run: |
           cd Tests/helia-core-tester
           uv run python -m helia_core_tester.scripts.merge_lcov_inputs \
+            --input artifacts/reports-fallback/m0-f32/coverage/float/cortex-m0/coverage.info \
+            --output artifacts/reports/coverage/float/cortex-m0/coverage.info
+
+          uv run python -m helia_core_tester.scripts.merge_lcov_inputs \
             --input artifacts/reports-fallback/m4-f32/coverage/float/cortex-m4/coverage.info \
             --output artifacts/reports/coverage/float/cortex-m4/coverage.info
 
@@ -588,7 +598,7 @@ jobs:
       - name: Publish CPU coverage and test summary table
         run: |
           cd Tests/helia-core-tester
-          uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --suite int --profile "m4-f32-fallback|cortex-m4|artifacts/reports-fallback/m4-f32|float|float" --profile "m55-f32-fallback|cortex-m55|artifacts/reports-fallback/m55-f32|float|float" --profile "m55-f16-fallback|cortex-m55|artifacts/reports-fallback/m55-f16|float|float" --profile "m55-f32-mvef|cortex-m55|artifacts/reports-mvef/m55-f32|float-mve|float" --profile "m55-f16-mvef|cortex-m55|artifacts/reports-mvef/m55-f16|float-mve|float" --summary-file "$GITHUB_STEP_SUMMARY"
+          uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --suite int --profile "m0-f32-fallback|cortex-m0|artifacts/reports-fallback/m0-f32|float|float" --profile "m4-f32-fallback|cortex-m4|artifacts/reports-fallback/m4-f32|float|float" --profile "m55-f32-fallback|cortex-m55|artifacts/reports-fallback/m55-f32|float|float" --profile "m55-f16-fallback|cortex-m55|artifacts/reports-fallback/m55-f16|float|float" --profile "m55-f32-mvef|cortex-m55|artifacts/reports-mvef/m55-f32|float-mve|float" --profile "m55-f16-mvef|cortex-m55|artifacts/reports-mvef/m55-f16|float-mve|float" --summary-file "$GITHUB_STEP_SUMMARY"
 
       - name: Stamp reviewed coverage baseline epoch
         run: |
