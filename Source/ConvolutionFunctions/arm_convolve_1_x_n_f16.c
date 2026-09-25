@@ -52,9 +52,9 @@
         #define ARM_NN_CONV_1XN_F16_MVE_MAX_RHS_COLS_SUB ((int32_t)ARM_NN_MVE_F16_MAX_GATHER_STRIDE_4)
     #endif
 
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
 __STATIC_INLINE float16_t arm_convolve_1_x_n_dot_f16(const float16_t *lhs, const float16_t *rhs, int32_t len)
 {
-    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     float16x8_t vacc = vdupq_n_f16((float16_t)0.0f);
     for (int32_t i = 0; i < len; i += 8)
     {
@@ -62,15 +62,19 @@ __STATIC_INLINE float16_t arm_convolve_1_x_n_dot_f16(const float16_t *lhs, const
         vacc = vfmaq_m(vacc, vld1q_z(lhs + i, p), vld1q_z(rhs + i, p), p);
     }
     return arm_nn_vec_reduce_add_f16(vacc);
+}
     #else
-    _Float16 acc = (_Float16)0.0f;
+/* Scalar leg accumulates in float32; the caller adds the bias and rounds to f16 once (#449, #465). */
+__STATIC_INLINE float32_t arm_convolve_1_x_n_dot_f16(const float16_t *lhs, const float16_t *rhs, int32_t len)
+{
+    float32_t acc = 0.0f;
     for (int32_t i = 0; i < len; ++i)
     {
-        acc += (_Float16)lhs[i] * (_Float16)rhs[i];
+        acc += (float32_t)lhs[i] * (float32_t)rhs[i];
     }
-    return (float16_t)acc;
-    #endif
+    return acc;
 }
+    #endif
 
 __STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mult_nt_t_strided_f16(const float16_t *__RESTRICT lhs,
                                                                                  const float16_t *__RESTRICT rhs,
@@ -176,8 +180,16 @@ __STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mult_nt_t_strided_f16
         for (; c < rhs_rows; ++c)
         {
             const float16_t *rhs_row = rhs + (size_t)c * rhs_cols;
+
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
             _Float16 acc = bias ? (_Float16)bias[c] : (_Float16)0.0f;
             acc += (_Float16)arm_convolve_1_x_n_dot_f16(lhs_row, rhs_row, rhs_cols);
+    #else
+            const float32_t acc32 =
+                (bias ? (float32_t)bias[c] : 0.0f) + arm_convolve_1_x_n_dot_f16(lhs_row, rhs_row, rhs_cols);
+            _Float16 acc = (_Float16)acc32;
+    #endif
+
             dst_row[c] = (float16_t)arm_nn_clamp_f16h(acc, (_Float16)activation_max, (_Float16)activation_min);
         }
     }
