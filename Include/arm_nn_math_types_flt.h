@@ -69,6 +69,18 @@ typedef float float32_t;
     #endif
 
     /*
+     * float16 is qualified with MVE. As a safeguard for Armv8.1-M builds without
+     * MVE (e.g. cortex-m55+nomve): Arm GNU Toolchain 13.2 to 15.2 compile scalar
+     * half-precision loads and stores there to Advanced SIMD encodings, which are
+     * UNDEFINED on M-profile; 15.3 does not. Refs AmbiqAI/ns-cmsis-nn#487.
+     */
+    #if defined(__GNUC__) && !defined(__clang__) && defined(__ARM_ARCH_PROFILE) && (__ARM_ARCH_PROFILE == 'M') &&      \
+        defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC) && !defined(__ARM_FEATURE_MVE) &&                                \
+        ((__GNUC__ < 15) || ((__GNUC__ == 15) && (__GNUC_MINOR__ < 3)))
+        #error "ARM_NN_ENABLE_F16 on Armv8.1-M without MVE needs GCC 15.3 or later; use MVE, +nomve.fp or Clang"
+    #endif
+
+    /*
      * Align float16 availability with CMSIS float16 usage.
      * When MVE float16 is enabled the type is typically provided by arm_mve.h.
      * Otherwise fall back to the compiler scalar float16 types when available.

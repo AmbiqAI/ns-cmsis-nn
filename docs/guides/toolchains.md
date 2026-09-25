@@ -32,6 +32,15 @@ format with a compiler option: pass `-mfp16-format=ieee` when enabling
 or infinity encodings and is rejected at compile time by
 `arm_nn_math_types_flt.h`.
 
+`float16` is qualified with MVE. No Ambiq product ships Cortex-M55 without
+MVE, and `float16` without MVE is not an expected configuration. As a safeguard,
+a GCC `float16` build for Armv8.1-M without MVE (for example `cortex-m55+nomve`)
+is rejected on GCC before 15.3: Arm GNU Toolchain 13.2 through 15.2 compile
+scalar half-precision loads and stores there to Advanced SIMD encodings that
+are undefined on M-profile. MVE builds and `+nomve.fp` builds are unaffected,
+and a no-MVE build with GCC 15.3 or a Clang-based compiler is not
+runtime-qualified.
+
 ## `float16` and the MVE half/single conversions
 
 Three `float16` kernels convert between half and single precision:
