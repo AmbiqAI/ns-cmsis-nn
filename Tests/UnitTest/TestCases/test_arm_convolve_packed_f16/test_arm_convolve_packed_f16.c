@@ -574,6 +574,7 @@ void convolve_1xn_pad_wider_than_kernel_f16(void)
 // builds this TU with -fno-finite-math-only (Tests/UnitTest/CMakeLists.txt); the staging is
 // defense-in-depth for a standalone -Ofast build, where the implied -ffinite-math-only licenses
 // constant-folding arithmetic on a compile-time NaN so the kernel is never handed one at all.
+#if !defined(__ARM_FP16_FORMAT_ALTERNATIVE)
 static float16_t conv_f16_from_bits(volatile const uint16_t *bits)
 {
     const uint16_t b = *bits;
@@ -590,6 +591,7 @@ static inline bool conv_f16_bits_are_nan(float16_t x)
     memcpy(&bits, &x, sizeof(bits));
     return (uint16_t)(bits & 0x7FFFu) > 0x7C00u;
 }
+#endif
 
 void convolve_widened_single_group_dispatch_f16(void)
 {
@@ -625,7 +627,7 @@ void convolve_widened_group_ch_mult_1_f16(void)
                       arm_convolve_f16_group_ch_mult_1(NULL, &cp, &in, x, &flt, w, NULL, NULL, &out, &y));
     TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y);
 
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE) && !defined(__ARM_FP16_FORMAT_ALTERNATIVE)
     const cmsis_nn_dims grouped_in = {.n = 1, .h = 3, .w = 3, .c = 2};
     const cmsis_nn_dims grouped_flt = {.n = 2, .h = 3, .w = 3, .c = 1};
     const cmsis_nn_dims grouped_out = {.n = 1, .h = 1, .w = 1, .c = 2};
@@ -677,6 +679,9 @@ void convolve_widened_fast_small_kernel_f16(void)
 
 void convolve_single_group_nan_compatibility_f16(void)
 {
+#if defined(__ARM_FP16_FORMAT_ALTERNATIVE)
+    TEST_IGNORE_MESSAGE("Arm alternative half precision has no infinity or NaN encodings");
+#else
     const cmsis_nn_dims in = {.n = 1, .h = 1, .w = 1, .c = 1};
     const cmsis_nn_dims flt = {.n = 1, .h = 3, .w = 3, .c = 1};
     const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 1, .c = 1};
@@ -699,14 +704,15 @@ void convolve_single_group_nan_compatibility_f16(void)
         float16_t y = (float16_t)0.0f;
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
                           arm_convolve_wrapper_f16(NULL, &cp, &in, &x, &flt, w, NULL, NULL, &out, &y));
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
         TEST_ASSERT_EQUAL_FLOAT(-65504.0f, (float32_t)y);
-#else
+    #else
         TEST_ASSERT_EQUAL_FLOAT(65504.0f, (float32_t)y);
-#endif
+    #endif
         nan_count++;
     }
     TEST_ASSERT_EQUAL_INT32(2046, nan_count);
+#endif
 }
 
 // NaN through arm_nn_mat_mult_nt_n_packed_f16's output clamp, the packed f16 matmul entry the packed
@@ -716,6 +722,9 @@ void convolve_single_group_nan_compatibility_f16(void)
 // (documented on the declaration). The finite row must clamp normally on both paths.
 void convolve_packed_matmul_nan_f16(void)
 {
+#if defined(__ARM_FP16_FORMAT_ALTERNATIVE)
+    TEST_IGNORE_MESSAGE("Arm alternative half precision has no infinity or NaN encodings");
+#else
     volatile uint16_t nan_bits = 0x7E00u;
     const float16_t nan = conv_f16_from_bits(&nan_bits);
     // lhs: 2 rows, K = 1. Row 0 is NaN, row 1 is finite and overflows the upper bound.
@@ -728,15 +737,16 @@ void convolve_packed_matmul_nan_f16(void)
         ARM_CMSIS_NN_SUCCESS,
         arm_nn_mat_mult_nt_n_packed_f16(lhs, rhs_packed, NULL, dst, 2, 2, 1, 2, (float16_t)-6.0f, (float16_t)6.0f));
 
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     TEST_ASSERT_EQUAL_FLOAT(-6.0f, (float32_t)dst[0]);
     TEST_ASSERT_EQUAL_FLOAT(-6.0f, (float32_t)dst[1]);
-#else
+    #else
     TEST_ASSERT_TRUE_MESSAGE(conv_f16_bits_are_nan(dst[0]), "Expected NaN through the scalar clamp");
     TEST_ASSERT_TRUE_MESSAGE(conv_f16_bits_are_nan(dst[1]), "Expected NaN through the scalar clamp");
-#endif
+    #endif
     TEST_ASSERT_EQUAL_FLOAT(6.0f, (float32_t)dst[2]);
     TEST_ASSERT_EQUAL_FLOAT(6.0f, (float32_t)dst[3]);
+#endif
 }
 
 // Stride-2 3x3 with a single input channel (patch length 9). Route: on MVE the direct small-C kernel (in_c < 8),
