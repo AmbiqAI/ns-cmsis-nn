@@ -91,6 +91,12 @@ Public float declarations go in `Include/arm_nnfunctions_flt.h` — the f32
 section and f16 section are separate `#if ARM_NN_ENABLE_*` blocks; put each
 declaration in the right one.
 
+After adding or changing any public prototype or its `@param` tags, run
+`python3 scripts/check_kernel_contract.py export` and commit
+`Tests/KernelContracts/kernel_contracts.json`: helia-core-tester reads that
+export instead of the headers, and the `kernel_contract` CI job and the
+`kernel-contract-fresh` pre-commit hook fail on a stale copy.
+
 **Naming — a new public float kernel must not take a bare CMSIS-DSP verb
 name** (`arm_add_f32`, `arm_sqrt_f32`, `arm_mean_f32`, ...) — CMSIS-DSP owns
 those, and a same-named export is a silent link-order collision, not a
