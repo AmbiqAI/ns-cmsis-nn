@@ -1,0 +1,146 @@
+---
+title: CMSIS-Pack
+description: Install the Ambiq pack and pick the Source or Prebuilt Cvariant.
+prev:
+  label: Overview
+  link: /ns-cmsis-nn/getting-started/
+next:
+  label: First kernel
+  link: /ns-cmsis-nn/getting-started/first-kernel/
+---
+
+heliaCORE publishes a CMSIS-Pack on every release. The pack ships with
+two Cvariants so you can choose between rebuilding from source or
+linking a prebuilt GCC archive when the component conditions match your project.
+
+## Prerequisites
+
+Start with a working board application and matching target/compiler settings.
+See [Requirements](../requirements/) before choosing source or prebuilt kernels.
+
+## 1. Install the pack
+
+```bash
+VERSION=7.35.1 # x-release-please-version
+curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/Ambiq.NS-CMSIS-NN.${VERSION}.pack
+
+# CMSIS-Toolbox
+cpackget add Ambiq.NS-CMSIS-NN.${VERSION}.pack
+
+# Keil MDK / older tooling
+# Double-click the .pack file, or import via Pack Installer.
+```
+
+## 2. Select Source or Prebuilt
+
+The pack defines the component **heliaCORE NN Lib from Ambiq** with two variants:
+
+| Cvariant   | What you get                                                  | When to use                            |
+|------------|---------------------------------------------------------------|----------------------------------------|
+| `Source`   | The CMSIS-NN sources compiled by your project's toolchain.    | You want maximum control / portability.|
+| `Prebuilt` | A vendored `libns-cmsis-nn.a` we built with GCC. The release's per-arch SDK tarball `ns-cmsis-nn-<cpu>-gcc-<version>.tar.gz` names that GCC in its `manifest.json`, under `toolchain.version`; the pack vendors the same archive bytes. | Your GCC project matches a supported archive condition.           |
+
+### CMSIS-Toolbox projects
+
+Merge this component entry into your existing `.cproject.yml` file:
+
+```yaml title="Your application.cproject.yml · Source variant"
+project:
+  components:
+    - component: Ambiq::Machine Learning:NN Lib:heliaCORE&Source
+```
+
+Keep the project's existing board/device, compiler, groups, and other components.
+Do not replace the whole project with this fragment. To select a supported
+prebuilt configuration, change `&Source` to `&Prebuilt`, not add a second entry.
+Build with your existing solution/context using CMSIS-Toolbox.
+
+### IDE projects
+
+Install the downloaded pack with your IDE's pack manager. In its component
+selection view, choose **Ambiq → Machine Learning → NN Lib → heliaCORE** and
+select exactly one variant, **Source** or **Prebuilt**. Rebuild the board project
+so the generated include paths and selected sources or library are applied.
+
+## Prebuilt — supported architectures
+
+The `Prebuilt` Cvariant is gated by per-arch conditions. The pack ships
+GCC-built archives for:
+
+- ARMv6-M (`cortex-m0` / `cortex-m0+`)
+- ARMv7E-M (`cortex-m4` with FPv4 SP-D16)
+- ARMv8.1-M MVE (`cortex-m55`)
+
+If your target doesn't match one of these, switch to the `Source`
+Cvariant — the kernels will be recompiled by your toolchain.
+
+:::caution[Prebuilt requires GCC selection]
+The pack's prebuilt archive conditions require `Tcompiler="GCC"` as well as a
+matching architecture. Select **Source** for ATfE or Arm Compiler 6 projects.
+Binary compatibility alone does not make the pack's Prebuilt variant selectable.
+:::
+
+## 3. Build
+
+Build your existing board project using its IDE or CMSIS-Toolbox build command.
+For `Source`, confirm the build compiles the component sources. For `Prebuilt`,
+confirm the final link includes the selected `libns-cmsis-nn.a`.
+
+### Optional floating-point kernels
+
+The pack includes floating-point sources and headers, but selecting the component
+does not enable their experimental APIs. Both float feature macros default to
+`0`. In **Source** mode, set numeric preprocessor definitions in your project's
+compiler settings for both the component sources and the application code that
+calls them. For FP32 only, use:
+
+```text title="Compiler definitions · FP32 only"
+ARM_NN_ENABLE_F32=1
+ARM_NN_ENABLE_F16=0
+```
+
+Set `ARM_NN_ENABLE_F16=1` as well when you need FP16 and your target and compiler
+support it. These are C preprocessor values, not CMake `ON`/`OFF` options.
+Rebuild the component after changing them and inspect a verbose compiler command
+to confirm the definitions reach the kernel sources. See
+[Toolchains](/ns-cmsis-nn/guide/architecture/toolchains/) for FP16 requirements.
+
+In **Prebuilt** mode, definitions only expose declarations to your application;
+they cannot add functions to the archive. Check `features.f32` and `features.f16`
+in the matching release's GCC SDK `manifest.json`, and enable only features that
+archive contains. Keep the pack, SDK metadata, and headers on the same release.
+Use Source mode if the archive lacks the required floating-point kernels.
+
+## 4. Verify the selection
+
+Before building firmware, confirm your project has exactly one heliaCORE NN Lib
+component selected:
+
+- Use `Source` when your IDE/toolchain should compile the kernels.
+- Use `Prebuilt` when the target architecture and ABI match the selected archive.
+
+For CMSIS-Toolbox projects, inspect the resolved component list after pack
+resolution and confirm the selected component includes the intended `Cvariant`.
+For IDE projects, open the pack/component view and verify the `Source` or
+`Prebuilt` variant before the first full build.
+
+:::tip[Expected result]
+Exactly one heliaCORE variant is resolved. Source mode compiles the selected
+component sources; Prebuilt mode links the GCC archive selected for the target.
+:::
+
+| Symptom | Check |
+|---|---|
+| Prebuilt cannot be selected | Confirm the compiler is GCC and the architecture matches a pack condition; otherwise choose Source. |
+| Duplicate symbols | Remove duplicate Source/Prebuilt selections or another CMSIS-NN library. |
+| Component not found | Confirm the pack is installed and the component name matches the YAML above. |
+
+## Reference
+
+- Pack manifest: [`Ambiq.NS-CMSIS-NN.pdsc`](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/Ambiq.NS-CMSIS-NN.pdsc)
+- Pack build script: [`gen_pack.sh`](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/gen_pack.sh)
+
+## Next step
+
+Run [First kernel](../first-kernel/) to verify an actual kernel result on your
+target. Keep activation kernels enabled for that example.

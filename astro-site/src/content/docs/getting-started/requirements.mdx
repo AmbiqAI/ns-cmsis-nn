@@ -1,0 +1,64 @@
+---
+title: Requirements
+description: Prepare your firmware project and choose source or prebuilt heliaCORE kernels.
+---
+
+Start with an Ambiq firmware project that builds and runs on your target board.
+heliaCORE supplies kernels; your board SDK supplies startup code, the linker
+script, device support, and the flash/debug workflow.
+
+## Before you begin
+
+- A board application that you can build, flash, and debug.
+- Your board SDK's compiler and build tools available in the shell or IDE.
+- One heliaCORE release selected for headers and library sources or archives.
+- For source integration, CMake 3.15.6 or newer where using this repository's top-level build; your SDK may require a newer version.
+
+## Check your build
+
+For an existing CMake build, run `cmake --build build --verbose` and inspect a
+compiler command for a firmware source file. If nothing rebuilds, use your IDE's
+build log or rebuild that file. Record the compiler executable/version and
+`-mcpu`, `-mfpu`, and `-mfloat-abi` flags, including those supplied by your board
+configuration.
+
+Compare a prebuilt SDK's `manifest.json` with that command:
+
+| Manifest field | Compare with your firmware |
+|---|---|
+| `toolchain.id` | Artifact toolchain name: `gcc`, `atfe`, or `armclang`. |
+| `toolchain.compiler_id` and `toolchain.version` | Compiler family and version used to build the archive. |
+| `abi.arch_flags` | CPU, FPU, and float ABI flags. |
+| `features.f32` and `features.f16` | Whether the archive contains the floating-point kernels you need. |
+
+If no release package matches your requirements, use a source build.
+
+## Target and compiler
+
+- Identify your target's Cortex-M core and the CPU, FPU, and float ABI flags used by your firmware.
+- For a prebuilt library, select a release artifact matching your CPU and compiler. Check its `manifest.json` for the build configuration.
+- For a source build, use your project's toolchain and target flags. DSP and Helium paths are selected at compile time where supported.
+
+See [Cortex-M targets](/ns-cmsis-nn/guide/architecture/cortex-m-targets/) for
+architecture details and [Toolchains](/ns-cmsis-nn/guide/architecture/toolchains/)
+for compiler compatibility and floating-point requirements.
+
+## Source or prebuilt?
+
+| Choose | When it fits |
+|---|---|
+| **Prebuilt** | A release library matches your firmware's CPU, compiler, ABI, and required kernel features. |
+| **Source** | You need custom operator selection, or no archive supplies your required features and compiler settings. |
+
+FP16 and FP32 are opt-in, experimental APIs. Support varies by operator and
+target. Check [data-type coverage](/ns-cmsis-nn/guide/coverage/data-types-by-family/)
+before enabling them. Changing a build option does not add kernels to an
+already compiled archive; select a matching archive or rebuild from source.
+
+## Prepare your integration
+
+Use one heliaCORE release throughout your project. Download packages from
+[GitHub Releases](https://github.com/AmbiqAI/ns-cmsis-nn/releases), verify the
+provided checksums, and follow the guide for [CMake](../cmake/),
+[CMSIS-Pack](../cmsis-pack/), [Zephyr](../zephyr/), or
+[neuralSPOT-X](../neuralspot-x/).

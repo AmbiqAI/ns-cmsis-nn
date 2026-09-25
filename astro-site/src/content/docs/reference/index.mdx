@@ -1,0 +1,67 @@
+---
+title: API
+description: The heliaCORE C API, grouped by operator family.
+---
+
+import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
+import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
+
+Use the API reference to check function signatures, tensor layouts, parameters,
+and working-memory requirements. The reference is generated from the heliaCORE
+headers and includes public kernels, wrappers, buffer-size queries, and support
+helpers. For a direct integration, start with a public kernel or wrapper and
+follow its documented constraints.
+
+<CardGrid columns={3}>
+  <LinkCard href="kernel-index/" title="Kernel index">
+    Search functions by name and filter by operator group or data type.
+  </LinkCard>
+  <LinkCard href="/ns-cmsis-nn/guide/using-kernels/calling-kernels/" title="Calling kernels">
+    Prepare tensors and parameters, choose a wrapper, and check the result.
+  </LinkCard>
+  <LinkCard href="/ns-cmsis-nn/guide/coverage/compared-with-cmsis-nn/" title="API compatibility">
+    Understand the relationship to Arm CMSIS-NN and the additional heliaCORE APIs.
+  </LinkCard>
+</CardGrid>
+
+## Browse by kernel family
+
+<CardGrid columns={3}>
+  <LinkCard href="api/#convolution-functions" title="Convolution" eyebrow="compute">
+    Conv2D, depthwise, transpose convolution, wrappers, and buffer helpers.
+  </LinkCard>
+  <LinkCard href="api/#fully-connected-layer-functions" title="Fully connected" eyebrow="compute">
+    Dense layers, batch matmul paths, and scratch sizing helpers.
+  </LinkCard>
+  <LinkCard href="api/#elementwise-functions" title="Elementwise" eyebrow="graph glue">
+    Add, sub, mul, square difference, min/max, batch norm, select, and arithmetic glue.
+  </LinkCard>
+  <LinkCard href="api/#basic-math-and-reduction" title="Reduction and comparison" eyebrow="selection">
+    Argmin/argmax, min/max reductions, comparisons, means, vector sums, and where.
+  </LinkCard>
+  <LinkCard href="api/#activation-functions" title="Activation" eyebrow="activation">
+    ReLU, LeakyReLU, PReLU, Hard-Swish, Logistic, Tanh, and clamp.
+  </LinkCard>
+  <LinkCard href="api/#data-movement" title="Data movement" eyebrow="layout">
+    Pad, reshape, transpose, concatenate, gather, resize, strided slice, tile, broadcast, scatter, mirror pad, and sequence/slice-update utilities.
+  </LinkCard>
+  <LinkCard href="api/#classifier-tail" title="Pooling, softmax, quantization" eyebrow="tail">
+    Classifier tail APIs plus dtype conversion and requantization utilities.
+  </LinkCard>
+  <LinkCard href="api/#sequence-functions" title="Sequence" eyebrow="sequence">
+    LSTM, GRU, and SVDF functions for temporal workloads.
+  </LinkCard>
+  <LinkCard href="api/" title="Types and support" eyebrow="index">
+    Structs, enums, files, and low-level support helpers in the full generated index.
+  </LinkCard>
+</CardGrid>
+
+For file-by-file browsing, structs, enums, and the complete generated tree, open
+the [generated C API reference](api/).
+
+## Types and Support
+
+Structs, enums, files, and lower-level support helpers are intentionally kept in
+the [full generated C API index](api/) to avoid
+duplicating declarations across the grouped operator view and the complete
+generated reference.

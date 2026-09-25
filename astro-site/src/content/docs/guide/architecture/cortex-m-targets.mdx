@@ -1,0 +1,85 @@
+---
+title: Targets
+description: Match heliaCORE sources or release libraries to your Ambiq firmware target.
+---
+
+heliaCORE targets Ambiq silicon. Choose its build configuration from the
+Cortex-M core and ABI used by your board SDK. The board configuration supplies
+startup code, memory layout, and device support; the kernel library uses the
+architecture features reported by the compiler.
+
+## Start with the firmware configuration
+
+Inspect a compiler command from a working board application. Record:
+
+- The compiler executable and version.
+- `-mcpu`, including any architecture modifiers.
+- `-mfpu`, when explicitly supplied.
+- `-mfloat-abi`, which must agree across linked objects.
+
+Use your board SDK's settings rather than selecting flags from a processor
+family name alone. The library does not enable device clocks, configure the
+FPU, or initialize memory on the application's behalf.
+
+## Release artifact targets
+
+The release build defines these CPU configurations. These are library build
+profiles, not a list of supported development boards.
+
+| Artifact CPU | Architecture flags in the GCC release toolchain |
+|---|---|
+| `cortex-m0` | `-mcpu=cortex-m0 -mthumb -mfloat-abi=soft` |
+| `cortex-m4` | `-mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard` |
+| `cortex-m55` | `-mcpu=cortex-m55 -mthumb -mfloat-abi=hard` |
+
+The toolchain dimension is `gcc`, `atfe`, or `armclang`. Inspect the chosen
+archive's `manifest.json` for its exact flags and features; the table does not
+replace that check. See the repository's
+[GCC toolchain file](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/cmake/toolchain/arm-none-eabi-gcc.cmake)
+for the source of these profiles.
+
+:::note[Matching the package]
+The CMake package checks a CPU spelling only when `-mcpu` appears in
+`CMAKE_C_FLAGS`, and compares compiler IDs when available. It does not inspect
+all target-local options or validate FPU and float ABI settings. A successful
+configure is not proof that the firmware and archive are compatible.
+:::
+
+The CMSIS-Pack maps its Cortex-M0 archive to M0 and M0+ device selections under
+GCC. That mapping is specific to the pack: the CMake package's CPU comparison
+uses exact strings and does not normalize `cortex-m0+` to `cortex-m0`.
+
+## Acceleration depends on features and the kernel
+
+| Feature reported by the compiler | What heliaCORE can use |
+|---|---|
+| No DSP or Helium feature | Scalar C implementations where the API supports them. |
+| Cortex-M DSP extensions | Packed integer instructions in kernels with a DSP path. |
+| Helium / MVE | Vector instructions in kernels with an MVE path. |
+| Floating-point support | FP32 or FP16 implementations when enabled and supported by the target and compiler. |
+
+A processor feature does not guarantee every operator, shape, or data type has
+an accelerated implementation. Check the function's constraints in the
+[API reference](/ns-cmsis-nn/reference/) and the
+[coverage guide](/ns-cmsis-nn/guide/coverage/operator-coverage/).
+
+## Choose source or prebuilt
+
+**Use a matching prebuilt archive** when its CPU configuration, compiler, ABI,
+and feature contents fit your existing firmware. Follow the
+[CMake package instructions](/ns-cmsis-nn/getting-started/cmake/#use-a-prebuilt-package)
+or your integration's prebuilt workflow.
+
+**Build from source** when no release artifact matches, when selecting a smaller
+set of operator groups, or when qualifying kernels with your project's compiler
+and flags. See [Build options](../build-path-selection/). Keep the board's
+configuration consistent between kernel sources and their callers.
+
+## Verify on the device
+
+Run [First kernel](/ns-cmsis-nn/getting-started/first-kernel/) to establish a
+working integration, then validate representative operators and shapes from your
+application. Check output correctness before measuring cycles. The published
+[benchmarks](/ns-cmsis-nn/guide/performance/kernel-benchmarks/) describe their own
+board and measurement conditions; they are not a performance guarantee for a
+different target or memory configuration.

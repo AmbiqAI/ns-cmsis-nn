@@ -20,6 +20,9 @@
         { "type": "generic", "path": "docs/getting-started/zephyr.md" },
         { "type": "generic", "path": "docs/guides/toolchains.md" },
         { "type": "generic", "path": "docs/index.md" },
+        { "type": "generic", "path": "astro-site/src/content/docs/getting-started/cmake.mdx" },
+        { "type": "generic", "path": "astro-site/src/content/docs/getting-started/cmsis-pack.mdx" },
+        { "type": "generic", "path": "astro-site/src/content/docs/getting-started/zephyr.mdx" },
         { "type": "generic", "path": "Documentation/build.md" },
         { "type": "generic", "path": "cmake/ns-cmsis-nn-prebuilt.cmake" },
         { "type": "generic", "path": "zephyr/Kconfig" }

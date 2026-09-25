@@ -40,6 +40,7 @@ project(CMSISNN C CXX)
 # Consumed by this standalone build, by zephyr/CMakeLists.txt, and by
 # nsx/CMakeLists.txt.
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/ns_cmsis_nn.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/ns_cmsis_nn_configuration.cmake)
 
 # ----------------------------------------------------------------------------
 # Operator-group enable knobs.
@@ -76,39 +77,7 @@ option(NNSUPPORT       "NN Support"         ON)
 option(CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY
        "Enable inline-assembly version of the requantize routine" OFF)
 
-# Translate the per-group options into a GROUPS list for the SSoT module.
-set(_NS_ENABLED_GROUPS "")
-foreach(_pair
-    "ACTIVATION;activation"
-    "BASICMATHSNN;basicmath"
-    "COMPARISON;comparison"
-    "CONCATENATION;concatenation"
-    "CONVOLUTION;convolution"
-    "FULLYCONNECTED;fullyconnected"
-    "GATHER;gather"
-    "LSTM;lstm"
-    "PAD;pad"
-    "POOLING;pooling"
-    "QUANTIZATION;quantization"
-    "RESHAPE;reshape"
-    "SOFTMAX;softmax"
-    "STRIDEDSLICE;stridedslice"
-    "SVDF;svd"
-    "TRANSPOSE;transpose"
-    "TILE;tile"
-    "BROADCAST;broadcast"
-    "SCATTER;scatter"
-    "SELECTOPS;select"
-    "REVERSESEQUENCE;reversesequence"
-    "DYNAMICUPDATESLICE;dynamicupdateslice"
-    "NNSUPPORT;nnsupport"
-    )
-  list(GET _pair 0 _opt)
-  list(GET _pair 1 _grp)
-  if(${_opt})
-    list(APPEND _NS_ENABLED_GROUPS "${_grp}")
-  endif()
-endforeach()
+_ns_cmsis_nn_groups_from_options(_NS_ENABLED_GROUPS STANDALONE)
 
 # ----------------------------------------------------------------------------
 # Library target.
@@ -127,22 +96,9 @@ add_library(cmsis-nn STATIC)
 add_library(ns-cmsis-nn  ALIAS cmsis-nn)
 add_library(ns::cmsis-nn ALIAS cmsis-nn)
 
-if(ARM_NN_ENABLE_F32)
-    set(ARM_NN_ENABLE_F32_VALUE 1)
-else()
-    set(ARM_NN_ENABLE_F32_VALUE 0)
-endif()
-
-if(ARM_NN_ENABLE_F16)
-    set(ARM_NN_ENABLE_F16_VALUE 1)
-else()
-    set(ARM_NN_ENABLE_F16_VALUE 0)
-endif()
-
-target_compile_options(cmsis-nn PRIVATE ${CMSIS_OPTIMIZATION_LEVEL})
-target_compile_definitions(cmsis-nn
-                           PUBLIC ARM_NN_ENABLE_F32=${ARM_NN_ENABLE_F32_VALUE}
-                                  ARM_NN_ENABLE_F16=${ARM_NN_ENABLE_F16_VALUE})
+_ns_cmsis_nn_source_options(cmsis-nn
+  "${ARM_NN_ENABLE_F32}" "${ARM_NN_ENABLE_F16}"
+  "${CMSIS_OPTIMIZATION_LEVEL}" "${CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY}")
 
 ns_cmsis_nn_attach(cmsis-nn
                    GROUPS ${_NS_ENABLED_GROUPS}
@@ -153,11 +109,6 @@ if(DEFINED CMSIS_PATH)
   target_include_directories(cmsis-nn PUBLIC "${CMSIS_PATH}/CMSIS/Core/Include")
 endif()
 target_link_libraries(cmsis-nn PRIVATE m)
-
-if(CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY)
-  target_compile_definitions(cmsis-nn
-    PUBLIC CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY)
-endif()
 
 option(CMSISNN_BUILD_PYBIND "Build pybind11 Python module for CMSIS-NN helpers" OFF)
 

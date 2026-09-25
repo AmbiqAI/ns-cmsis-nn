@@ -141,7 +141,11 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_minmax_common_f32.c"
                          "arm_minimum_f32.c"
                          "arm_maximum_f32.c"
+                         "arm_argmin_f32.c"
+                         "arm_argmax_f32.c"
                          "arm_nn_mean_f32.c"
+                         "arm_reduce_max_f32.c"
+                         "arm_reduce_min_f32.c"
                          "arm_reduce_sum_f32.c"
                          "arm_nn_sqrt_f32.c"
                          "arm_rsqrt_f32.c")
@@ -152,6 +156,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_elementwise_add_fp16.c"
                          "arm_elementwise_add_f16.c"
                          "arm_elementwise_sub_f16.c"
+                         "arm_elementwise_squared_difference_f16.c"
                          "arm_elementwise_mul_f16.c"
                          "arm_elementwise_sub_broadcast_f16.c"
                          "arm_elementwise_add_broadcast_f16.c"
@@ -159,7 +164,11 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_minmax_common_f16.c"
                          "arm_minimum_f16.c"
                          "arm_maximum_f16.c"
+                         "arm_argmin_f16.c"
+                         "arm_argmax_f16.c"
                          "arm_nn_mean_f16.c"
+                         "arm_reduce_max_f16.c"
+                         "arm_reduce_min_f16.c"
                          "arm_reduce_sum_f16.c"
                          "arm_nn_sqrt_f16.c"
                          "arm_rsqrt_f16.c")
@@ -214,7 +223,13 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     endif()
   elseif(group STREQUAL "gather")
     set(subdir   "GatherFunctions")
-    set(patterns "*_*.c")
+    set(patterns "*_s8.c" "*_s16.c")
+    if(ARM_NN_ENABLE_F32)
+      list(APPEND extras "arm_gather_f32.c" "arm_gather_nd_f32.c")
+    endif()
+    if(ARM_NN_ENABLE_F16)
+      list(APPEND extras "arm_gather_f16.c" "arm_gather_nd_f16.c")
+    endif()
   elseif(group STREQUAL "lstm")
     set(subdir   "LSTMFunctions")
     set(patterns "*_s8.c" "*_s16.c")

@@ -52,3 +52,5 @@ void test_hard_swish_compat_sizes_set1(void)  { hard_swish_compat_sizes_arm_hard
 void test_hard_swish_compat_sizes_set2(void)  { hard_swish_compat_sizes_arm_hard_swish_s8(2); }
 void test_hard_swish_precise_ramp256(void)    { hard_swish_precise_ramp256_arm_hard_swish_s8(); }
 void test_hard_swish_compat_ramp256(void)     { hard_swish_compat_ramp256_arm_hard_swish_s8(); }
+
+void test_hard_swish_compat_litert(void) { hard_swish_compat_litert_arm_hard_swish_s8(); }

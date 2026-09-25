@@ -52,6 +52,9 @@ extern "C" {
  * Gated on MVE availability rather than ARM_NN_ENABLE_F32: float32x4_t is a
  * hardware register type, and float16 kernels that accumulate in float32
  * (e.g. arm_reduce_sum_f16) need this helper in F16-only builds.
+ *
+ * @param[in] v Vector to reduce.
+ * @return Sum of the four lanes of @p v.
  */
 __STATIC_INLINE float32_t arm_nn_vec_reduce_add_f32(float32x4_t v)
 {
@@ -82,6 +85,9 @@ extern const float32_t arm_nn_exp2_lut_f32[257];
  * caller, arm_nn_softmax_exp_lut_f32(), guarantees this by clamping its input
  * to [-80, 80] (NaN included, see there) before scaling by log2(e), which
  * bounds @p x to +/-116.
+ *
+ * @param[in] x Value to floor.
+ * @return Largest int32_t not greater than @p x.
  */
 __STATIC_INLINE int32_t arm_nn_softmax_floor_to_int_f32(float32_t x)
 {
@@ -89,6 +95,12 @@ __STATIC_INLINE int32_t arm_nn_softmax_floor_to_int_f32(float32_t x)
     return (x < (float32_t)n) ? (n - 1) : n;
 }
 
+/**
+ * @brief Reinterpret a 32-bit pattern as a float32.
+ *
+ * @param[in] bits IEEE-754 binary32 bit pattern.
+ * @return The float32 value with the bit pattern @p bits.
+ */
 __STATIC_INLINE float32_t arm_nn_softmax_fp32_from_bits(uint32_t bits)
 {
     union
@@ -100,6 +112,12 @@ __STATIC_INLINE float32_t arm_nn_softmax_fp32_from_bits(uint32_t bits)
     return cvt.f;
 }
 
+/**
+ * @brief Compute `2^n` as a float32 by building the exponent field directly.
+ *
+ * @param[in] n Integer exponent. Clamped to the normal float32 exponent range `[-126, 127]`.
+ * @return `2^n` as a float32.
+ */
 __STATIC_INLINE float32_t arm_nn_softmax_exp2i_f32(int32_t n)
 {
     const int32_t float32_min_normal_exponent = -126;
@@ -111,8 +129,10 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp2i_f32(int32_t n)
     return arm_nn_softmax_fp32_from_bits((uint32_t)(n + float32_exponent_bias) << float32_mantissa_bits);
 }
 
-/*
- * Taylor/Estrin exp approximation on r in [-ln2/2, ln2/2].
+/**
+ * @brief Taylor/Estrin exp approximation for float32 softmax helpers.
+ *
+ * The polynomial is evaluated on r in [-ln2/2, ln2/2].
  * Coefficients come from the Maclaurin series of exp(r):
  *   exp(r) ~= 1 + r + r^2/2! + r^3/3! + r^4/4! + r^5/5! + r^6/6!
  * Grouped via Estrin to reduce dependency depth:
@@ -120,6 +140,9 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp2i_f32(int32_t n)
  *
  * Range reduction follows:
  *   x = n * ln(2) + r,  exp(x) = exp(r) * 2^n
+ *
+ * @param[in] x Exponent argument. Clamped to `[-80, 80]` before evaluation.
+ * @return Approximation of `exp(x)`.
  */
 __STATIC_INLINE float32_t arm_nn_softmax_exp_taylor_f32(float32_t x)
 {
@@ -149,6 +172,15 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp_taylor_f32(float32_t x)
     return (t0 + t1 * r2 + t2 * r4 + t3 * r6) * arm_nn_softmax_exp2i_f32(n);
 }
 
+/**
+ * @brief LUT-based exp approximation for float32 softmax helpers.
+ *
+ * Splits `x * log2(e)` into an integer part handled by arm_nn_softmax_exp2i_f32() and a fractional part
+ * interpolated linearly from `arm_nn_exp2_lut_f32`.
+ *
+ * @param[in] x Exponent argument. Clamped to `[-80, 80]` before evaluation; NaN is flushed to `80`.
+ * @return Approximation of `exp(x)`.
+ */
 __STATIC_INLINE float32_t arm_nn_softmax_exp_lut_f32(float32_t x)
 {
     const float32_t max_value = 80.0f;
@@ -210,6 +242,15 @@ __STATIC_INLINE float32_t arm_nn_softmax_exp_lut_f32(float32_t x)
     return (y0 + (y1 - y0) * frac) * arm_nn_softmax_exp2i_f32(n);
 }
 
+/**
+ * @brief Scalar exp approximation used by the float32 softmax paths.
+ *
+ * Dispatches to arm_nn_softmax_exp_taylor_f32() when `ARM_NN_USE_EXP_TAYLOR` is defined and to
+ * arm_nn_softmax_exp_lut_f32() otherwise.
+ *
+ * @param[in] x Exponent argument.
+ * @return Approximation of `exp(x)`.
+ */
 __STATIC_INLINE float32_t arm_nn_softmax_exp_scalar_f32(float32_t x)
 {
     #if defined(ARM_NN_USE_EXP_TAYLOR)
@@ -237,6 +278,9 @@ extern const float32_t arm_nn_tanh_lut_f32[385];
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
 /**
  * @brief MVE float32 exp approximation used by float softmax paths.
+ *
+ * @param[in] x Vector of exponent arguments.
+ * @return Per-lane approximation of `exp(x)`. Lanes that would underflow are flushed to zero.
  */
 __STATIC_INLINE float32x4_t arm_nn_vexpq_poly_mve_f32(float32x4_t x)
 {
@@ -311,6 +355,14 @@ __STATIC_FORCEINLINE void arm_memset_f32(float32_t *__RESTRICT dst, const float3
 
 /**
  * @brief Specialized NHWC depthwise 1D kernel for `k=3`, `ch_mult=1` (float32).
+ *
+ * @param[in]  x_nhwc Input row in NHWC layout with shape `[in_w][in_c]`.
+ * @param[in]  in_c   Number of input (and output) channels.
+ * @param[in]  in_w   Input width. Currently unused by the kernel.
+ * @param[in]  kernel Depthwise weights with shape `[3][in_c]`.
+ * @param[in]  b      Optional bias vector of `in_c` elements. May be NULL.
+ * @param[out] out    Output row in NHWC layout with shape `[out_w][in_c]`.
+ * @param[in]  out_w  Output width. Output position `ow` reads input positions `ow..ow+2`.
  */
 void arm_nn_depthwise_conv1d_k3_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
                                          int32_t in_c,
@@ -322,6 +374,15 @@ void arm_nn_depthwise_conv1d_k3_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
 
 /**
  * @brief Specialized NHWC 1D convolution kernel for `k=5` (float32).
+ *
+ * @param[in]  x_nhwc Input row in NHWC layout with shape `[in_w][in_c]`.
+ * @param[in]  in_c   Number of input channels.
+ * @param[in]  in_w   Input width. Currently unused by the kernel.
+ * @param[in]  kernel Weights with shape `[out_c][5][in_c]`.
+ * @param[in]  b      Optional bias vector of `out_c` elements. May be NULL.
+ * @param[out] out    Output row in NHWC layout with shape `[out_w][out_c]`.
+ * @param[in]  out_c  Number of output channels.
+ * @param[in]  out_w  Output width. Output position `ow` reads input positions `ow..ow+4`.
  */
 void arm_nn_conv1d_k5_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
                                int32_t in_c,
@@ -337,6 +398,15 @@ void arm_nn_conv1d_k5_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
  *
  * The packed kernel uses the same `NTxN` RHS layout as
  * `arm_nn_mat_mult_nt_n_packed_f32`, i.e. `[(5 * in_c)][out_c_block_of_4]`.
+ *
+ * @param[in]  x_nhwc        Input row in NHWC layout with shape `[in_w][in_c]`.
+ * @param[in]  in_c          Number of input channels.
+ * @param[in]  in_w          Input width. Currently unused by the kernel.
+ * @param[in]  kernel_packed Weights packed in output-channel blocks of 4 as described above.
+ * @param[in]  b             Optional bias vector of `out_c` elements. May be NULL.
+ * @param[out] out           Output row in NHWC layout with shape `[out_w][out_c]`.
+ * @param[in]  out_c         Number of output channels.
+ * @param[in]  out_w         Output width. Output position `ow` reads input positions `ow..ow+4`.
  */
 void arm_nn_conv1d_k5_packed_f32(const float32_t *__RESTRICT x_nhwc,
                                  int32_t in_c,
@@ -349,6 +419,15 @@ void arm_nn_conv1d_k5_packed_f32(const float32_t *__RESTRICT x_nhwc,
 
 /**
  * @brief Specialized NHWC 1D convolution kernel for `k=3` (float32).
+ *
+ * @param[in]  x_nhwc Input row in NHWC layout with shape `[in_w][in_c]`.
+ * @param[in]  in_c   Number of input channels.
+ * @param[in]  in_w   Input width. Currently unused by the kernel.
+ * @param[in]  kernel Weights with shape `[out_c][3][in_c]`.
+ * @param[in]  b      Optional bias vector of `out_c` elements. May be NULL.
+ * @param[out] out    Output row in NHWC layout with shape `[out_w][out_c]`.
+ * @param[in]  out_c  Number of output channels.
+ * @param[in]  out_w  Output width. Output position `ow` reads input positions `ow..ow+2`.
  */
 void arm_nn_conv1d_k3_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
                                int32_t in_c,
@@ -364,6 +443,15 @@ void arm_nn_conv1d_k3_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
  *
  * The packed kernel uses the same `NTxN` RHS layout as
  * `arm_nn_mat_mult_nt_n_packed_f32`, i.e. `[(3 * in_c)][out_c_block_of_4]`.
+ *
+ * @param[in]  x_nhwc        Input row in NHWC layout with shape `[in_w][in_c]`.
+ * @param[in]  in_c          Number of input channels.
+ * @param[in]  in_w          Input width. Currently unused by the kernel.
+ * @param[in]  kernel_packed Weights packed in output-channel blocks of 4 as described above.
+ * @param[in]  b             Optional bias vector of `out_c` elements. May be NULL.
+ * @param[out] out           Output row in NHWC layout with shape `[out_w][out_c]`.
+ * @param[in]  out_c         Number of output channels.
+ * @param[in]  out_w         Output width. Output position `ow` reads input positions `ow..ow+2`.
  */
 void arm_nn_conv1d_k3_packed_f32(const float32_t *__RESTRICT x_nhwc,
                                  int32_t in_c,
@@ -376,6 +464,12 @@ void arm_nn_conv1d_k3_packed_f32(const float32_t *__RESTRICT x_nhwc,
 
 /**
  * @brief Specialized NHWC max-pool 1D kernel for `k=3`, `s=3` (float32).
+ *
+ * @param[in]  x_nhwc Input row in NHWC layout with shape `[in_w][in_c]`.
+ * @param[in]  in_c   Number of channels.
+ * @param[in]  in_w   Input width. Currently unused by the kernel.
+ * @param[out] out    Output row in NHWC layout with shape `[out_w][in_c]`.
+ * @param[in]  out_w  Output width. Output position `ow` reads input positions `3*ow..3*ow+2`.
  */
 void arm_nn_maxpool1d_k3s3_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
                                     int32_t in_c,
@@ -385,6 +479,12 @@ void arm_nn_maxpool1d_k3s3_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
 
 /**
  * @brief Specialized NHWC max-pool 1D kernel for `k=2`, `s=2` without output clamp (float32).
+ *
+ * @param[in]  x_nhwc Input row in NHWC layout with shape `[in_w][in_c]`.
+ * @param[in]  in_c   Number of channels.
+ * @param[in]  in_w   Input width. Currently unused by the kernel.
+ * @param[out] out    Output row in NHWC layout with shape `[out_w][in_c]`.
+ * @param[in]  out_w  Output width. Output position `ow` reads input positions `2*ow..2*ow+1`.
  */
 void arm_nn_maxpool1d_k2s2_nhwc_noclip_f32(const float32_t *__RESTRICT x_nhwc,
                                            int32_t in_c,
@@ -394,6 +494,14 @@ void arm_nn_maxpool1d_k2s2_nhwc_noclip_f32(const float32_t *__RESTRICT x_nhwc,
 
 /**
  * @brief Specialized NHWC max-pool 1D kernel for `k=2`, `s=2` with clamp (float32).
+ *
+ * @param[in]  x_nhwc  Input row in NHWC layout with shape `[in_w][in_c]`.
+ * @param[in]  in_c    Number of channels.
+ * @param[in]  in_w    Input width. Currently unused by the kernel.
+ * @param[out] out     Output row in NHWC layout with shape `[out_w][in_c]`.
+ * @param[in]  out_w   Output width. Output position `ow` reads input positions `2*ow..2*ow+1`.
+ * @param[in]  act_min Lower clamp bound applied to @p out.
+ * @param[in]  act_max Upper clamp bound applied to @p out.
  */
 void arm_nn_maxpool1d_k2s2_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
                                     int32_t in_c,
@@ -460,6 +568,24 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f32(const float32_t *__RESTRICT 
  * @brief Pack a single convolution patch into one row of a contiguous float32 patch matrix.
  *
  * Developers familiar with im2row/im2col terminology can think of this as packing one output patch into one row.
+ *
+ * @param[in]  input      Input tensor for one batch in NHWC layout with shape `[in_h][in_w][in_c]`.
+ * @param[in]  in_h       Input height.
+ * @param[in]  in_w       Input width.
+ * @param[in]  in_c       Number of input channels.
+ * @param[in]  kernel_h   Kernel height.
+ * @param[in]  kernel_w   Kernel width.
+ * @param[in]  stride_h   Vertical stride.
+ * @param[in]  stride_w   Horizontal stride.
+ * @param[in]  pad_h      Top padding.
+ * @param[in]  pad_w      Left padding.
+ * @param[in]  dilation_h Vertical dilation.
+ * @param[in]  dilation_w Horizontal dilation.
+ * @param[in]  out_y      Output row index of the patch to pack.
+ * @param[in]  out_x      Output column index of the patch to pack.
+ * @param[in]  pad_value  Value written for taps that fall outside the input.
+ * @param[out] patch_row  Destination row of `kernel_h * kernel_w * in_c` elements, ordered
+ *                        `[kernel_h][kernel_w][in_c]`.
  */
 void arm_nn_pack_conv_patch_f32(const float32_t *__RESTRICT input,
                                 int32_t in_h,
@@ -515,6 +641,12 @@ extern const uint16_t arm_nn_exp2_lut_f16[257];
  */
 extern const uint16_t arm_nn_tanh_lut_f16[257];
 
+/**
+ * @brief Reinterpret a 16-bit pattern as a float16.
+ *
+ * @param[in] bits IEEE-754 binary16 bit pattern.
+ * @return The float16 value with the bit pattern @p bits.
+ */
 __STATIC_INLINE float16_t arm_nn_softmax_fp16_from_bits(uint16_t bits)
 {
     union
@@ -526,6 +658,12 @@ __STATIC_INLINE float16_t arm_nn_softmax_fp16_from_bits(uint16_t bits)
     return cvt.f;
 }
 
+/**
+ * @brief Floor of @p x as an int32_t.
+ *
+ * @param[in] x Value to floor. Must be finite and within the int32_t range.
+ * @return Largest int32_t not greater than @p x.
+ */
 __STATIC_INLINE int32_t arm_nn_softmax_floor_to_int_f16(float16_t x)
 {
     const float32_t x_f32 = (float32_t)x;
@@ -533,6 +671,12 @@ __STATIC_INLINE int32_t arm_nn_softmax_floor_to_int_f16(float16_t x)
     return (x_f32 < (float32_t)n) ? (n - 1) : n;
 }
 
+/**
+ * @brief Compute `2^n` as a float16 by building the exponent field directly.
+ *
+ * @param[in] n Integer exponent. Clamped to the normal float16 exponent range `[-14, 15]`.
+ * @return `2^n` as a float16.
+ */
 __STATIC_INLINE float16_t arm_nn_softmax_exp2i_f16(int32_t n)
 {
     const int32_t float16_min_normal_exponent = -14;
@@ -544,10 +688,14 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp2i_f16(int32_t n)
     return arm_nn_softmax_fp16_from_bits((uint16_t)((n + float16_exponent_bias) << float16_mantissa_bits));
 }
 
-/*
- * Taylor/Estrin exp approximation for float16 softmax helpers.
+/**
+ * @brief Taylor/Estrin exp approximation for float16 softmax helpers.
+ *
  * The evaluation uses float32 intermediates to keep the approximation stable,
  * but it is fully independent from the float32 softmax support tables.
+ *
+ * @param[in] x Exponent argument. Clamped to `[-80, 80]` before evaluation.
+ * @return Approximation of `exp(x)`.
  */
 __STATIC_INLINE float16_t arm_nn_softmax_exp_taylor_f16(float16_t x)
 {
@@ -576,6 +724,15 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_taylor_f16(float16_t x)
     return (float16_t)(poly * (float32_t)arm_nn_softmax_exp2i_f16(n));
 }
 
+/**
+ * @brief LUT-based exp approximation for float16 softmax helpers.
+ *
+ * Splits `x * log2(e)` into an integer part handled by arm_nn_softmax_exp2i_f16() and a fractional part
+ * interpolated linearly from `arm_nn_exp2_lut_f16`, using float32 intermediates.
+ *
+ * @param[in] x Exponent argument. Clamped to `[-80, 80]` before evaluation.
+ * @return Approximation of `exp(x)`.
+ */
 __STATIC_INLINE float16_t arm_nn_softmax_exp_lut_f16(float16_t x)
 {
     const float32_t max_value = 80.0f;
@@ -608,6 +765,15 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_lut_f16(float16_t x)
     return (float16_t)((y0 + (y1 - y0) * frac) * (float32_t)arm_nn_softmax_exp2i_f16(n));
 }
 
+/**
+ * @brief Scalar exp approximation used by the float16 softmax paths.
+ *
+ * Dispatches to arm_nn_softmax_exp_taylor_f16() when `ARM_NN_USE_EXP_TAYLOR` is defined and to
+ * arm_nn_softmax_exp_lut_f16() otherwise.
+ *
+ * @param[in] x Exponent argument.
+ * @return Approximation of `exp(x)`.
+ */
 __STATIC_INLINE float16_t arm_nn_softmax_exp_scalar_f16(float16_t x)
 {
     #if defined(ARM_NN_USE_EXP_TAYLOR)
@@ -620,6 +786,9 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_scalar_f16(float16_t x)
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
 /**
  * @brief Reduce a float16 MVE vector with addition.
+ *
+ * @param[in] in Vector to reduce.
+ * @return Sum of the eight lanes of @p in.
  */
 __STATIC_INLINE float16_t arm_nn_vec_reduce_add_f16(float16x8_t in)
 {
@@ -632,6 +801,9 @@ __STATIC_INLINE float16_t arm_nn_vec_reduce_add_f16(float16x8_t in)
 
 /**
  * @brief MVE float16 exp approximation used by float softmax paths.
+ *
+ * @param[in] x Vector of exponent arguments.
+ * @return Per-lane approximation of `exp(x)`. Lanes that would underflow are flushed to zero.
  */
 __STATIC_INLINE float16x8_t arm_nn_vexpq_poly_mve_f16(float16x8_t x)
 {
@@ -670,7 +842,10 @@ __STATIC_INLINE float16x8_t arm_nn_vexpq_poly_mve_f16(float16x8_t x)
     #endif
 
 /**
- * @copydoc arm_memcpy_f32
+ * @brief Copy a float16 vector.
+ * @param[out] dst        Destination buffer.
+ * @param[in]  src        Source buffer.
+ * @param[in]  block_size Number of elements to copy.
  */
 __STATIC_FORCEINLINE void
 arm_memcpy_f16(float16_t *__RESTRICT dst, const float16_t *__RESTRICT src, uint32_t block_size)
@@ -691,7 +866,10 @@ arm_memcpy_f16(float16_t *__RESTRICT dst, const float16_t *__RESTRICT src, uint3
 }
 
 /**
- * @copydoc arm_memset_f32
+ * @brief Set a float16 vector to a constant value.
+ * @param[out] dst        Destination buffer.
+ * @param[in]  val        Fill value.
+ * @param[in]  block_size Number of elements to write.
  */
 __STATIC_FORCEINLINE void arm_memset_f16(float16_t *__RESTRICT dst, const float16_t val, uint32_t block_size)
 {
@@ -717,6 +895,18 @@ __STATIC_FORCEINLINE void arm_memset_f16(float16_t *__RESTRICT dst, const float1
 
 /**
  * @brief Specialized NHWC depthwise `2x5` kernel (float16).
+ *
+ * @param[in]  x_nhwc  Input tensor in NHWC layout with shape `[batches][2][in_w][in_c]`.
+ * @param[in]  batches Number of batches.
+ * @param[in]  in_c    Number of input channels.
+ * @param[in]  in_w    Input width.
+ * @param[in]  ch_mult Channel multiplier; the output has `in_c * ch_mult` channels.
+ * @param[in]  kernel  Depthwise weights with shape `[2][5][in_c * ch_mult]`.
+ * @param[in]  b       Optional bias vector of `in_c * ch_mult` elements. May be NULL.
+ * @param[out] out     Output tensor in NHWC layout with shape `[batches][1][out_w][in_c * ch_mult]`.
+ * @param[in]  out_w   Output width. Output position `ow` reads input columns `ow..ow+4`.
+ * @param[in]  act_min Lower clamp bound applied to @p out.
+ * @param[in]  act_max Upper clamp bound applied to @p out.
  */
 void arm_nn_depthwise_conv2x5_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                        int32_t batches,
@@ -758,6 +948,15 @@ void arm_nn_conv1d_k5_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
  *
  * The packed kernel uses the same `NTxN` RHS layout as
  * `arm_nn_mat_mult_nt_n_packed_f16`, i.e. `[(5 * in_c)][out_c_block_of_8]`.
+ *
+ * @param[in]  x_nhwc        Input row in NHWC layout with shape `[in_w][in_c]`.
+ * @param[in]  in_c          Number of input channels.
+ * @param[in]  in_w          Input width. Currently unused by the kernel.
+ * @param[in]  kernel_packed Weights packed in output-channel blocks of 8 as described above.
+ * @param[in]  b             Optional bias vector of `out_c` elements. May be NULL.
+ * @param[out] out           Output row in NHWC layout with shape `[out_w][out_c]`.
+ * @param[in]  out_c         Number of output channels.
+ * @param[in]  out_w         Output width. Output position `ow` reads input positions `ow..ow+4`.
  */
 void arm_nn_conv1d_k5_packed_f16(const float16_t *__RESTRICT x_nhwc,
                                  int32_t in_c,
@@ -785,6 +984,15 @@ void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
  *
  * The packed kernel uses the same `NTxN` RHS layout as
  * `arm_nn_mat_mult_nt_n_packed_f16`, i.e. `[(3 * in_c)][out_c_block_of_8]`.
+ *
+ * @param[in]  x_nhwc        Input row in NHWC layout with shape `[in_w][in_c]`.
+ * @param[in]  in_c          Number of input channels.
+ * @param[in]  in_w          Input width. Currently unused by the kernel.
+ * @param[in]  kernel_packed Weights packed in output-channel blocks of 8 as described above.
+ * @param[in]  b             Optional bias vector of `out_c` elements. May be NULL.
+ * @param[out] out           Output row in NHWC layout with shape `[out_w][out_c]`.
+ * @param[in]  out_c         Number of output channels.
+ * @param[in]  out_w         Output width. Output position `ow` reads input positions `ow..ow+2`.
  */
 void arm_nn_conv1d_k3_packed_f16(const float16_t *__RESTRICT x_nhwc,
                                  int32_t in_c,
@@ -797,6 +1005,8 @@ void arm_nn_conv1d_k3_packed_f16(const float16_t *__RESTRICT x_nhwc,
 
 /**
  * @brief Specialized NHWC max-pool 1D kernel for `k=3`, `s=3` (float16).
+ *
+ * @copydetails arm_nn_maxpool1d_k3s3_nhwc_f32
  */
 void arm_nn_maxpool1d_k3s3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                     int32_t in_c,
@@ -806,6 +1016,8 @@ void arm_nn_maxpool1d_k3s3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
 
 /**
  * @brief Specialized NHWC max-pool 1D kernel for `k=2`, `s=2` without output clamp (float16).
+ *
+ * @copydetails arm_nn_maxpool1d_k2s2_nhwc_noclip_f32
  */
 void arm_nn_maxpool1d_k2s2_nhwc_noclip_f16(const float16_t *__RESTRICT x_nhwc,
                                            int32_t in_c,
@@ -815,6 +1027,8 @@ void arm_nn_maxpool1d_k2s2_nhwc_noclip_f16(const float16_t *__RESTRICT x_nhwc,
 
 /**
  * @brief Specialized NHWC max-pool 1D kernel for `k=2`, `s=2` with clamp (float16).
+ *
+ * @copydetails arm_nn_maxpool1d_k2s2_nhwc_f32
  */
 void arm_nn_maxpool1d_k2s2_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                     int32_t in_c,
@@ -892,7 +1106,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT 
  * @param[in]   hidden_in                       Hidden state / recurrent input pointer. May be NULL for the first step.
  * @param[out]  hidden_out                      Hidden state / recurrent output pointer.
  * @param[in]   params                          Struct containing all information about the LSTM operator.
- * @param[in]   buffers                         Struct containing pointers to mutable cell-state storage.
+ * @param[in,out] buffers                       Struct containing pointers to mutable cell-state storage.
  * @param[in]   batch_offset                    Number of timesteps between consecutive batches.
  * @return                                      ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR on
  *                                              invalid arguments (NULL data_in/hidden_out/params/buffers or
@@ -964,7 +1178,7 @@ void arm_nn_softmax_1x2_f16(const float16_t *in, float16_t *out);
  * @param[in]   hidden_in                       Hidden state / recurrent input pointer. May be NULL for the first step.
  * @param[out]  hidden_out                      Hidden state / recurrent output pointer.
  * @param[in]   params                          Struct containing all information about the LSTM operator.
- * @param[in]   buffers                         Struct containing pointers to mutable cell-state storage.
+ * @param[in,out] buffers                       Struct containing pointers to mutable cell-state storage.
  * @param[in]   batch_offset                    Number of timesteps between consecutive batches.
  * @return                                      ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR on
  *                                              invalid arguments (NULL data_in/hidden_out/params/buffers or

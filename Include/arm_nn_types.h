@@ -39,7 +39,7 @@
 
 // Version information
 #define NS_CMSIS_NN_VERSION_MAJOR (7)  /* x-release-please-major */
-#define NS_CMSIS_NN_VERSION_MINOR (33) /* x-release-please-minor */
+#define NS_CMSIS_NN_VERSION_MINOR (35) /* x-release-please-minor */
 #define NS_CMSIS_NN_VERSION_PATCH (1)  /* x-release-please-patch */
 
 /**
@@ -222,7 +222,7 @@ typedef struct
     int32_t axis;        /**< Axis to gather from. Supports negative indexing. */
     int32_t batch_dims;  /**< Number of leading batch dimensions */
     int32_t input_rank;  /**< Rank of the input tensor (range: [1, 4]) */
-    int32_t coords_rank; /**< Rank of the coordinate tensor (range: [1, 4]) */
+    int32_t coords_rank; /**< Rank of the coordinate tensor ([1, 4]; float gather also accepts scalar rank 0) */
 } cmsis_nn_gather_params;
 
 /** CMSIS-NN object for the gather_nd operator */
