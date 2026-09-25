@@ -111,9 +111,30 @@ class Param:
 
 
 class Decl:
-    def __init__(self, path, line, name, params, doc, is_static, error=None):
+    def __init__(self, path, line, name, params, doc, is_static, error=None, ret='', guards=()):
         self.path, self.line, self.name, self.params, self.doc = path, line, name, params, doc
         self.is_static, self.error = is_static, error
+        # The declared return type and the stack of preprocessor conditions the declaration
+        # sits under, for consumers that export the header contract; the check itself
+        # needs neither.
+        self.ret, self.guards = ret, tuple(guards)
+
+
+def guard_condition(keyword, condition):
+    """The condition a #if/#ifdef/#ifndef line opens, as one expression string."""
+    if keyword == 'ifdef':
+        return f'defined({condition})'
+    if keyword == 'ifndef':
+        return f'!defined({condition})'
+    return condition
+
+
+def negate_condition(condition):
+    if condition.startswith('!defined('):
+        return condition[1:]
+    if re.fullmatch(r'defined\(\w+\)|\w+', condition):
+        return '!' + condition
+    return f'!({condition})'
 
 
 def is_doc_block_start(text, i):
@@ -257,8 +278,9 @@ def parse_header(path):
         raise ValueError(f'{path}:{error}') from None
     decls, pending_doc, body, extern_blocks = [], None, None, []
     # One entry per open file-scope conditional: the doc block a declaration in an earlier
-    # branch consumed, so the same block can document its #else/#elif twin.
-    conditionals, doc_depth = [], 0
+    # branch consumed, so the same block can document its #else/#elif twin. `guards` runs
+    # in step with it and holds the condition text of each open conditional.
+    conditionals, doc_depth, guards = [], 0, []
     lines = list(logical_lines(text))
     i = 0
     while i < len(lines):
@@ -279,13 +301,19 @@ def parse_header(path):
                 directive = CONDITIONAL_RE.match(s)
                 if not directive:
                     pending_doc = None
-                elif directive.group(1) in ('if', 'ifdef', 'ifndef'):
+                    break
+                keyword, condition = directive.group(1), s[directive.end():].strip()
+                if keyword in ('if', 'ifdef', 'ifndef'):
                     conditionals.append(None)
-                elif directive.group(1) in ('elif', 'else'):
+                    guards.append(guard_condition(keyword, condition))
+                elif keyword in ('elif', 'else'):
                     if conditionals and conditionals[-1] is not None:
                         pending_doc, doc_depth = conditionals[-1], len(conditionals) - 1
+                    if guards:
+                        guards[-1] = negate_condition(guards[-1]) if keyword == 'else' else condition
                 elif conditionals:
                     conditionals.pop()
+                    guards.pop()
                 break
             if s.startswith(COMMENT_MARKER):
                 pending_doc = None
@@ -344,14 +372,15 @@ def parse_header(path):
                     params = split_params(match.group('params'))
                 except ValueError as failure:
                     error = str(failure)
+                ret = ' '.join(STATIC_RE.sub(' ', match.group('ret')).split())
                 decls.append(Decl(path, lineno, match.group('name'), params, pending_doc,
-                                  bool(STATIC_RE.search(match.group('ret'))), error))
+                                  bool(STATIC_RE.search(match.group('ret'))), error, ret, guards))
             elif looks_like_call(joined):
                 # Something with a parameter list that the grammar above does not cover, such
                 # as a macro after the closing parenthesis: report it rather than lose it.
                 name = re.search(r'([A-Za-z_]\w*)\s*\(', joined).group(1)
                 decls.append(Decl(path, lineno, name, [], pending_doc, False,
-                                  f'unrecognized declaration {joined!r}'))
+                                  f'unrecognized declaration {joined!r}', guards=guards))
             if pending_doc is not None:
                 for level in range(doc_depth, len(conditionals)):
                     conditionals[level] = pending_doc
