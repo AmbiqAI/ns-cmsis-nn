@@ -52,19 +52,19 @@ def function_record(decl, by_name, include_dir):
         header = decl.path.resolve().relative_to(REPO).as_posix()
     except ValueError:
         header = decl.path.resolve().relative_to(Path(include_dir).resolve().parent).as_posix()
+    params = []
+    for param in decl.params:
+        record = {'name': param.name, 'type': param.type, 'direction': directions[param.name]}
+        if param.extent:
+            record['extent'] = param.extent
+        params.append(record)
     return {
         'name': decl.name,
         'header': header,
         'line': decl.line,
         'guards': [guard for guard in decl.guards if not NOISE_GUARD_RE.match(guard)],
         'returns': decl.ret,
-        'static': False,
-        'params': [{
-            'name': param.name,
-            'type': param.type,
-            'extent': param.extent,
-            'direction': directions[param.name],
-        } for param in decl.params],
+        'params': params,
     }
 
 
@@ -92,8 +92,30 @@ def build_contract(include_dir):
     return {'schema': SCHEMA, 'functions': functions}
 
 
+RECORD_KEYS = ('name', 'header', 'line', 'guards', 'returns', 'params')
+
+
 def render(document):
-    return json.dumps(document, indent=2, sort_keys=True) + '\n'
+    """The one canonical text form: one line per parameter, fixed key order, so the file
+    stays reviewable in diffs and well under the pre-commit large-file limit."""
+    lines = ['{', f'  "schema": {json.dumps(document["schema"])},', '  "functions": [']
+    records = document['functions']
+    for i, record in enumerate(records):
+        lines.append('    {')
+        for key in RECORD_KEYS[:-1]:
+            lines.append(f'      {json.dumps(key)}: {json.dumps(record[key])},')
+        params = record['params']
+        if not params:
+            lines.append('      "params": []')
+        else:
+            lines.append('      "params": [')
+            for j, param in enumerate(params):
+                item = json.dumps(param, sort_keys=True, separators=(', ', ': '))
+                lines.append(f'        {item}' + (',' if j + 1 < len(params) else ''))
+            lines.append('      ]')
+        lines.append('    }' + (',' if i + 1 < len(records) else ''))
+    lines += ['  ]', '}']
+    return '\n'.join(lines) + '\n'
 
 
 def write_atomically(path, text):
@@ -127,7 +149,11 @@ def check(include_dir, output):
         raise ExportError(f'{output}: cannot be read as JSON ({error})') from None
     if committed.get('schema') != SCHEMA:
         raise ExportError(f'{output}: schema {committed.get("schema")!r}, expected {SCHEMA!r}')
-    if output.read_text(encoding='utf-8') != render(committed):
+    try:
+        canonical = render(committed)
+    except (KeyError, TypeError) as error:
+        raise ExportError(f'{output}: malformed record ({error!r})') from None
+    if output.read_text(encoding='utf-8') != canonical:
         raise ExportError(f'{output}: not in canonical form; run `{Path(sys.argv[0]).name} export`')
     if comparable(committed) != comparable(fresh):
         fresh_names = {record['name']: record for record in fresh['functions']}

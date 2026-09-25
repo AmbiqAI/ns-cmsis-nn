@@ -16,7 +16,11 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / 'scripts/check_kernel_contract.py'
 sys.path.insert(0, str(SCRIPT.parent))
 from check_doxygen_params import DIRECTIONS, parse_header, public_headers  # noqa: E402
-from check_kernel_contract import SCHEMA  # noqa: E402
+from check_kernel_contract import SCHEMA, render  # noqa: E402
+
+# Pre-commit's check-added-large-files default; the export must stay reviewable and
+# committable without a per-file exemption.
+LARGE_FILE_LIMIT = 500 * 1024
 
 FIXTURE = '''\
 #ifndef FX_H
@@ -120,11 +124,10 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(add['header'], 'Include/arm_nnfunctions.h')
         self.assertEqual(add['guards'], [])
         self.assertEqual(add['returns'], 'arm_cmsis_nn_status')
-        self.assertFalse(add['static'])
         self.assertEqual(add['params'], [
-            {'name': 'a', 'type': 'const int8_t *', 'extent': '', 'direction': 'in'},
-            {'name': 'out', 'type': 'int8_t *', 'extent': '', 'direction': 'out'},
-            {'name': 'n', 'type': 'const int32_t', 'extent': '', 'direction': 'in'},
+            {'name': 'a', 'type': 'const int8_t *', 'direction': 'in'},
+            {'name': 'out', 'type': 'int8_t *', 'direction': 'out'},
+            {'name': 'n', 'type': 'const int32_t', 'direction': 'in'},
         ])
         self.assertEqual(add['line'], FIXTURE.splitlines().index(
             'arm_cmsis_nn_status fx_add(const int8_t *a, int8_t *out, const int32_t n);') + 1)
@@ -134,7 +137,7 @@ class ExportTests(unittest.TestCase):
         # The #else twin carries the negated condition and keeps its array extent.
         self.assertEqual(by_name['fx_dims']['guards'], ['!FX_ENABLE_F16'])
         self.assertEqual(by_name['fx_dims']['params'],
-                         [{'name': 'dims', 'type': 'const int32_t', 'extent': '[4]', 'direction': 'in'}])
+                         [{'name': 'dims', 'type': 'const int32_t', 'direction': 'in', 'extent': '[4]'}])
         self.assertEqual(by_name['fx_cb']['guards'], ['defined(FX_HAVE_CB)'])
         self.assertEqual(by_name['fx_cb']['params'][0]['direction'], 'in')
         self.assertIn('(*fn)', by_name['fx_cb']['params'][0]['type'])
@@ -147,7 +150,8 @@ class ExportTests(unittest.TestCase):
         # Sorted by header then name, canonical rendering.
         keys = [(record['header'], record['name']) for record in document['functions']]
         self.assertEqual(keys, sorted(keys))
-        self.assertEqual(raw, json.dumps(document, indent=2, sort_keys=True) + '\n')
+        self.assertEqual(raw, render(document))
+        self.assertEqual(list(document['functions'][0]), ['name', 'header', 'line', 'guards', 'returns', 'params'])
 
     def test_undocumented_parameter_aborts_with_no_file(self):
         broken = FIXTURE.replace(' * @param[in]  n    Element count.\n', '', 1)
@@ -270,7 +274,7 @@ class CheckTests(unittest.TestCase):
     def test_wrong_schema_fails(self):
         document = json.loads(self.output.read_text())
         document['schema'] = 'ns-cmsis-nn/kernel-contracts/0'
-        self.output.write_text(json.dumps(document, indent=2, sort_keys=True) + '\n')
+        self.output.write_text(render(document))
         result = self.check()
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn('schema', result.stderr)
@@ -282,6 +286,14 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn('not in canonical form', result.stderr)
 
+    def test_record_with_unknown_shape_is_malformed(self):
+        document = json.loads(self.output.read_text())
+        del document['functions'][0]['returns']
+        self.output.write_text(json.dumps(document))
+        result = self.check()
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn('malformed record', result.stderr)
+
 
 class RealHeaderTests(unittest.TestCase):
     def test_real_headers_export(self):
@@ -290,6 +302,9 @@ class RealHeaderTests(unittest.TestCase):
             result = run(['export', '--output', str(output)], cwd=ROOT)
             self.assertEqual(result.returncode, 0, result.stderr)
             document = json.loads(output.read_text())
+            size = output.stat().st_size
+        self.assertLess(size, LARGE_FILE_LIMIT,
+                        'kernel_contracts.json would trip check-added-large-files; split it per header')
         functions = document['functions']
         expected = [decl for path in public_headers(ROOT / 'Include')
                     for decl in parse_header(path) if not decl.is_static]
