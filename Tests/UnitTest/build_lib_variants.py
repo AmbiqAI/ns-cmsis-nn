@@ -87,10 +87,10 @@ VARIANTS: list[Variant] = [
 ]
 
 
+# float16_t is IEEE binary16; the Arm alternative format is rejected by the headers.
 F16_COMPILER_MACROS = (
     "__FLT16_MAX__",
     "__ARM_FP16_FORMAT_IEEE",
-    "__ARM_FP16_FORMAT_ALTERNATIVE",
 )
 
 

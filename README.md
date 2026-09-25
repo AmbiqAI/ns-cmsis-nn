@@ -218,6 +218,13 @@ runs it on the Corstone-300 FVP on every pull request, and the legacy Unity
 float suites build and run it nightly and at release. `float16` support
 remains Cortex-M55 only.
 
+`float16_t` is IEEE 754 binary16. The Arm alternative half-precision format
+(GCC `-mfp16-format=alternative`) is not supported and is rejected at compile
+time. A GCC source build that enables `float16` without FP16 arithmetic (for
+example Cortex-M4, or Cortex-M55 with `-mfloat-abi=soft` or `+nofp`) must pass
+`-mfp16-format=ieee`; such a build compiles, but `float16` is released and
+CI-qualified on Cortex-M55 only.
+
 For float operators that support `arm_nn_weight_format_flt`, MVE performance is
 generally better when constant weights are provided in the packed `NTxN` layout
 instead of the standard `NT x T` layout. This avoids the gather-heavy RHS access
