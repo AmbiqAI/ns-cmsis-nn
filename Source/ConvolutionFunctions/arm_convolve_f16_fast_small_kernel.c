@@ -185,6 +185,12 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
 
+    /* Valid zero-sized work is target- and specialization-independent. */
+    if (input_dims->n == 0 || output_dims->n == 0 || output_dims->w == 0 || output_dims->h == 0)
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     const int32_t input_batches = input_dims->n;
     const int32_t input_x = input_dims->w;
@@ -216,10 +222,6 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
     if (rhs_cols > 8)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
-    }
-    if (input_batches == 0 || output_dims->n == 0 || output_x == 0 || output_y == 0)
-    {
-        return ARM_CMSIS_NN_SUCCESS;
     }
     if ((int64_t)(output_x - 1) * stride_x + (int64_t)(kernel_x - 1) * dilation_x >= input_x ||
         (int64_t)(output_y - 1) * stride_y + (int64_t)(kernel_y - 1) * dilation_y >= input_y)

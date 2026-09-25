@@ -253,6 +253,7 @@ void convolve_grouped_contracts_f16(void)
     const cmsis_nn_dims unit_flt = {.n = 4, .h = 1, .w = 1, .c = 1};
     const cmsis_nn_dims overflow_positions_out = {.n = 1, .h = 46341, .w = 46341, .c = 4};
     const cmsis_nn_dims small_flt = {.n = 4, .h = 1, .w = 3, .c = 1};
+    const cmsis_nn_dims unsupported_flt = {.n = 4, .h = 9, .w = 9, .c = 1};
     const cmsis_nn_dims mismatched_small_flt = {.n = 3, .h = 1, .w = 3, .c = 1};
     const cmsis_nn_dims oversized_out = {.n = 1, .h = 1, .w = 2, .c = 4};
     const float16_t x[12] = {0};
@@ -331,10 +332,26 @@ void convolve_grouped_contracts_f16(void)
         ARM_CMSIS_NN_NO_IMPL_ERROR,
         arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
 
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    /* A validated no-op succeeds before target- and shape-specific implementation checks. */
     TEST_ASSERT_EQUAL(
         ARM_CMSIS_NN_SUCCESS,
         arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &zero_batch_out, y));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &unsupported_flt, w, NULL, NULL, &zero_batch_out, y));
+
+    cmsis_nn_dims empty_out = oversized_out;
+    empty_out.w = 0;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &empty_out, y));
+
+    cmsis_nn_dims empty_batch_in = in;
+    empty_batch_in.n = 0;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16_fast_small_kernel(
+                          NULL, &cp, &empty_batch_in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
+
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     cmsis_nn_dims invalid_out = oversized_out;
     invalid_out.w = -1;
     TEST_ASSERT_EQUAL(
@@ -374,16 +391,6 @@ void convolve_grouped_contracts_f16(void)
                       arm_convolve_f16_fast_small_kernel(
                           NULL, &cp, &in, x, &invalid_spatial_filter, w, NULL, NULL, &oversized_out, y));
 
-    cmsis_nn_dims empty_out = oversized_out;
-    empty_out.w = 0;
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                      arm_convolve_f16_fast_small_kernel(NULL, &cp, &in, x, &small_flt, w, NULL, NULL, &empty_out, y));
-
-    cmsis_nn_dims empty_batch_in = in;
-    empty_batch_in.n = 0;
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                      arm_convolve_f16_fast_small_kernel(
-                          NULL, &cp, &empty_batch_in, x, &small_flt, w, NULL, NULL, &oversized_out, y));
 #endif
 }
 
