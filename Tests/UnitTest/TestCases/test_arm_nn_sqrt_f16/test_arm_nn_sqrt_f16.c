@@ -25,7 +25,6 @@ static uint16_t sqrt_f16_bits(float16_t value)
     return bits;
 }
 
-#if !defined(__ARM_FP16_FORMAT_ALTERNATIVE)
 // Contract reference (Include/arm_nnfunctions_flt.h, arm_nn_sqrt_f16): specials by bit
 // pattern; positive finite inputs are the float64 result rounded once to
 // float16, independent of the kernel's float32 evaluation.
@@ -53,7 +52,6 @@ static uint16_t sqrt_f16_reference_bits(uint16_t in_bits)
     memcpy(&x, &in_bits, sizeof(x));
     return sqrt_f16_bits((float16_t)sqrt((double)x));
 }
-#endif
 
 void sqrt_f16_arm_nn_sqrt_f16(void)
 {
@@ -80,9 +78,6 @@ void sqrt_f16_in_place_arm_nn_sqrt_f16(void)
 
 void sqrt_f16_special_values_arm_nn_sqrt_f16(void)
 {
-#if defined(__ARM_FP16_FORMAT_ALTERNATIVE)
-    TEST_IGNORE_MESSAGE("Arm alternative half precision has no infinity or NaN encodings");
-#else
     // +0, -0, -1, +Inf, -Inf, sNaN payload, qNaN, -qNaN, -min subnormal, -max finite
     const uint16_t input_bits[] = {0x0000, 0x8000, 0xBC00, 0x7C00, 0xFC00, 0x7D55, 0x7E01, 0xFE01, 0x8001, 0xFBFF};
     const uint16_t expected_bits[] = {0x0000, 0x8000, 0x7E00, 0x7C00, 0x7E00, 0x7F55, 0x7E01, 0xFE01, 0x7E00, 0x7E00};
@@ -96,16 +91,12 @@ void sqrt_f16_special_values_arm_nn_sqrt_f16(void)
     {
         TEST_ASSERT_EQUAL_HEX16(expected_bits[i], sqrt_f16_bits(output[i]));
     }
-#endif
 }
 
 // Every float16 bit pattern, in blocks that are not a lane multiple, against
 // the float64 reference: proves the documented 0-ulp contract (#295).
 void sqrt_f16_exhaustive_arm_nn_sqrt_f16(void)
 {
-#if defined(__ARM_FP16_FORMAT_ALTERNATIVE)
-    TEST_IGNORE_MESSAGE("Arm alternative half precision has no infinity or NaN encodings");
-#else
     static float16_t input[SQRT_F16_EXHAUSTIVE_BLOCK];
     static float16_t output[SQRT_F16_EXHAUSTIVE_BLOCK];
     char msg[48];
@@ -131,7 +122,6 @@ void sqrt_f16_exhaustive_arm_nn_sqrt_f16(void)
             }
         }
     }
-#endif
 }
 
 void sqrt_f16_arg_error_arm_nn_sqrt_f16(void)

@@ -60,6 +60,15 @@ typedef float float32_t;
 #if ARM_NN_ENABLE_F16
 
     /*
+     * float16_t is IEEE 754 binary16. The Arm alternative half-precision format
+     * (GCC -mfp16-format=alternative) has no NaN or infinity encodings, and the
+     * float16 kernels are not written for it.
+     */
+    #if defined(__ARM_FP16_FORMAT_ALTERNATIVE)
+        #error "ARM_NN_ENABLE_F16 does not support the Arm alternative half format; use -mfp16-format=ieee"
+    #endif
+
+    /*
      * Align float16 availability with CMSIS float16 usage.
      * When MVE float16 is enabled the type is typically provided by arm_mve.h.
      * Otherwise fall back to the compiler scalar float16 types when available.
@@ -67,22 +76,22 @@ typedef float float32_t;
     #if !defined(ARM_FLOAT16_SUPPORTED)
         #if defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2)
             #define ARM_FLOAT16_SUPPORTED
-        #elif defined(__ARM_FP16_FORMAT_IEEE) || defined(__ARM_FP16_FORMAT_ALTERNATIVE) || defined(__FLT16_MAX__)
+        #elif defined(__ARM_FP16_FORMAT_IEEE) || defined(__FLT16_MAX__)
             #define ARM_FLOAT16_SUPPORTED
         #endif
     #endif
 
     #if !defined(ARM_FLOAT16_SUPPORTED)
-        #error "ARM_NN_ENABLE_F16 requires toolchain support for float16_t"
+        #error "ARM_NN_ENABLE_F16 requires toolchain support for float16_t (GCC: -mfp16-format=ieee)"
     #endif
 
     #if !(defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2))
-        #if defined(__ARM_FP16_FORMAT_IEEE) || defined(__ARM_FP16_FORMAT_ALTERNATIVE)
+        #if defined(__ARM_FP16_FORMAT_IEEE)
 typedef __fp16 float16_t;
         #elif defined(__FLT16_MAX__)
 typedef _Float16 float16_t;
         #else
-            #error "ARM_NN_ENABLE_F16 requires toolchain support for float16_t"
+            #error "ARM_NN_ENABLE_F16 requires toolchain support for float16_t (GCC: -mfp16-format=ieee)"
         #endif
     #endif
 

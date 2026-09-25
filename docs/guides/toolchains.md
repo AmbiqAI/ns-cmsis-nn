@@ -21,6 +21,17 @@ toolchain versions that differ from the release.
 | Released prebuilt tarballs | Match your project compiler: `atfe`, `armclang`, or `gcc` | The CMake package validates compiler ID and CPU flags against the selected archive. |
 | Existing GCC-based firmware | GNU Arm Embedded | Keep using GCC when that is the qualified project compiler, but treat ATfE as the performance-forward migration path. |
 
+## `float16` format
+
+`float16_t` is IEEE 754 binary16 on every toolchain. ATfE and armclang only
+offer IEEE, and GCC refuses the alternative format when a Cortex-M55 or
+Cortex-M85 floating-point unit is enabled. Other GCC builds (cores without FP16
+arithmetic, or Cortex-M55/M85 with `-mfloat-abi=soft` or `+nofp`) choose the
+format with a compiler option: pass `-mfp16-format=ieee` when enabling
+`float16`. The Arm alternative format (`-mfp16-format=alternative`) has no NaN
+or infinity encodings and is rejected at compile time by
+`arm_nn_math_types_flt.h`.
+
 ## `float16` and the MVE half/single conversions
 
 Three `float16` kernels convert between half and single precision:

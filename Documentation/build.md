@@ -565,6 +565,19 @@ error is the migration aid.
 
 See AmbiqAI/ns-cmsis-nn#420.
 
+### `float16` is IEEE binary16
+
+`ARM_NN_ENABLE_F16` requires IEEE 754 binary16. `Include/arm_nn_math_types_flt.h`
+stops the build with an `#error` when the compiler selects the Arm alternative
+half-precision format (GCC `-mfp16-format=alternative`), and names the fix. The
+Clang-based compilers only offer IEEE, and GCC refuses the alternative format
+when a Cortex-M55 or Cortex-M85 floating-point unit is enabled. Every other GCC
+build selects the format with a flag: cores without FP16 arithmetic (Cortex-M0,
+M4, M7, M33 and similar), and Cortex-M55/M85 with `-mfloat-abi=soft` or `+nofp`.
+Those builds must pass `-mfp16-format=ieee` for `float16`. They compile but are
+not released or CI-qualified: `float16` is qualified on Cortex-M55 only. `Tests/UnitTest/TestCases/Utils/check_f16_format_contract.py`
+checks both outcomes and runs in CI. See AmbiqAI/ns-cmsis-nn#511.
+
 ## Float (F32/F16) capability manifest
 
 Published archives are **supersets**: each `target_cpu`/toolchain

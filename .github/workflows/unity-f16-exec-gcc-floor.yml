@@ -321,6 +321,18 @@ jobs:
           fi
           echo "${TOOLCHAIN_ROOT}/bin" >> "$GITHUB_PATH"
 
+      - name: Check the float16 format contract
+        # float16_t is IEEE binary16 only (AmbiqAI/ns-cmsis-nn#511). GCC is the
+        # one compiler that can select the Arm alternative half format, so this
+        # cell, which already has the floor GCC and QEMU, checks that IEEE
+        # builds and the alternative format fails with the header's #error,
+        # then runs the scalar IEEE half ARG regression on Cortex-M4 QEMU.
+        run: |
+          set -euo pipefail
+          python3 Tests/UnitTest/TestCases/Utils/check_f16_format_contract.py \
+            --cc arm-none-eabi-gcc \
+            --output "${RUNNER_TEMP}/f16-format-contract"
+
       - name: Clone the pinned harness dependencies
         # Read from the harness rather than repeated here, the same way
         # unity-m55-compile.yml reads them: build_and_run_tests.sh is the one
