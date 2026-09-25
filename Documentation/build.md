@@ -575,8 +575,23 @@ when a Cortex-M55 or Cortex-M85 floating-point unit is enabled. Every other GCC
 build selects the format with a flag: cores without FP16 arithmetic (Cortex-M0,
 M4, M7, M33 and similar), and Cortex-M55/M85 with `-mfloat-abi=soft` or `+nofp`.
 Those builds must pass `-mfp16-format=ieee` for `float16`. They compile but are
-not released or CI-qualified: `float16` is qualified on Cortex-M55 only. `Tests/UnitTest/TestCases/Utils/check_f16_format_contract.py`
-checks both outcomes and runs in CI. See AmbiqAI/ns-cmsis-nn#511.
+not released or CI-qualified: `float16` is qualified on Cortex-M55 with MVE only.
+
+No Ambiq product ships Cortex-M55 without MVE, and `float16` without MVE is not
+an expected configuration. As a safeguard for experimental or misconfigured
+builds, the same header stops a GCC `float16` build for Armv8.1-M without MVE
+(for example Cortex-M52/M55/M85 `+nomve`, FPU enabled) on GCC before 15.3. Arm
+GNU Toolchain 13.2 through 15.2 compile scalar half-precision loads and stores
+there to Advanced SIMD encodings that are undefined on M-profile: without an
+explicit `-mfpu` the image builds and faults at run time, and with
+`-mfpu=fpv5-sp-d16` the assembler rejects them. Arm GNU Toolchain 15.3 emits
+`vldr.16`/`vstr.16`. MVE and `+nomve.fp` (integer MVE) builds are unaffected.
+A no-MVE `float16` build with GCC 15.3 or a Clang-based compiler compiles but is
+not runtime-qualified.
+
+`Tests/UnitTest/TestCases/Utils/check_f16_format_contract.py` checks these
+outcomes. CI runs it with the floor GCC (13.2); the GCC 15.3 side was verified
+locally. See AmbiqAI/ns-cmsis-nn#511 and #487.
 
 ## Float (F32/F16) capability manifest
 

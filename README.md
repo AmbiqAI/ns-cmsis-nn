@@ -223,7 +223,15 @@ remains Cortex-M55 only.
 time. A GCC source build that enables `float16` without FP16 arithmetic (for
 example Cortex-M4, or Cortex-M55 with `-mfloat-abi=soft` or `+nofp`) must pass
 `-mfp16-format=ieee`; such a build compiles, but `float16` is released and
-CI-qualified on Cortex-M55 only.
+CI-qualified only on Cortex-M55 with MVE.
+
+No Ambiq product ships Cortex-M55 without MVE, and `float16` without MVE is not
+an expected configuration. As a safeguard for experimental or misconfigured
+builds, the headers reject a GCC `float16` build for Armv8.1-M without MVE (for
+example `cortex-m55+nomve`) on GCC before 15.3: Arm GNU Toolchain 13.2 to 15.2
+emit half-precision loads and stores there that are undefined on M-profile. With
+GCC 15.3 or a Clang-based compiler such a build compiles, but it is not
+runtime-qualified.
 
 For float operators that support `arm_nn_weight_format_flt`, MVE performance is
 generally better when constant weights are provided in the packed `NTxN` layout
