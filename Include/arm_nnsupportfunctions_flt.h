@@ -957,6 +957,10 @@ void arm_nn_conv1d_k5_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
  * @param[out] out           Output row in NHWC layout with shape `[out_w][out_c]`.
  * @param[in]  out_c         Number of output channels.
  * @param[in]  out_w         Output width. Output position `ow` reads input positions `ow..ow+4`.
+ *
+ * @note Accumulation width per leg. Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): bias and products
+ *       accumulate in float32 and round to float16 once at the store (AmbiqAI/ns-cmsis-nn#449, #465). MVE leg:
+ *       float16 lanes.
  */
 void arm_nn_conv1d_k5_packed_f16(const float16_t *__RESTRICT x_nhwc,
                                  int32_t in_c,
@@ -993,6 +997,10 @@ void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
  * @param[out] out           Output row in NHWC layout with shape `[out_w][out_c]`.
  * @param[in]  out_c         Number of output channels.
  * @param[in]  out_w         Output width. Output position `ow` reads input positions `ow..ow+2`.
+ *
+ * @note Accumulation width per leg. Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): bias and products
+ *       accumulate in float32 and round to float16 once at the store (AmbiqAI/ns-cmsis-nn#449, #465). MVE leg:
+ *       float16 lanes.
  */
 void arm_nn_conv1d_k3_packed_f16(const float16_t *__RESTRICT x_nhwc,
                                  int32_t in_c,

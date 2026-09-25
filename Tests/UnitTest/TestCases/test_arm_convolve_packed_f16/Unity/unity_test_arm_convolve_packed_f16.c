@@ -52,3 +52,5 @@ void test_convolve_full_c_partial_block_f16(void) { convolve_full_c_partial_bloc
 void test_convolve_small_c_no_overread_f16(void) { convolve_small_c_no_overread_f16(); }
 
 void test_convolve_small_c_inf_weight_in_padding_f16(void) { convolve_small_c_inf_weight_in_padding_f16(); }
+
+void test_convolve_scalar_f32_accumulation_f16(void) { convolve_scalar_f32_accumulation_f16(); }

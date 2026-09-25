@@ -175,16 +175,17 @@ void arm_nn_conv1d_k5_packed_f16(const float16_t *__RESTRICT x_nhwc,
         {
             const int32_t lane = oc % block_cols;
             const float16_t *w_base = kernel_packed + ((size_t)oc / block_cols) * 5U * (size_t)in_c * block_cols;
-            _Float16 acc = b ? (_Float16)b[oc] : (_Float16)0.0f;
+            /* Accumulate in float32 and round to f16 once at the store (#449, #465). */
+            float32_t acc = b ? (float32_t)b[oc] : 0.0f;
 
             for (int32_t ic = 0; ic < in_c; ++ic)
             {
                 const float16_t *w_ic = w_base + (size_t)ic * block_cols;
-                acc += (_Float16)x0[ic] * (_Float16)w_ic[(size_t)0 * in_c * block_cols + lane];
-                acc += (_Float16)x1[ic] * (_Float16)w_ic[(size_t)1 * in_c * block_cols + lane];
-                acc += (_Float16)x2[ic] * (_Float16)w_ic[(size_t)2 * in_c * block_cols + lane];
-                acc += (_Float16)x3[ic] * (_Float16)w_ic[(size_t)3 * in_c * block_cols + lane];
-                acc += (_Float16)x4[ic] * (_Float16)w_ic[(size_t)4 * in_c * block_cols + lane];
+                acc += (float32_t)x0[ic] * (float32_t)w_ic[(size_t)0 * in_c * block_cols + lane];
+                acc += (float32_t)x1[ic] * (float32_t)w_ic[(size_t)1 * in_c * block_cols + lane];
+                acc += (float32_t)x2[ic] * (float32_t)w_ic[(size_t)2 * in_c * block_cols + lane];
+                acc += (float32_t)x3[ic] * (float32_t)w_ic[(size_t)3 * in_c * block_cols + lane];
+                acc += (float32_t)x4[ic] * (float32_t)w_ic[(size_t)4 * in_c * block_cols + lane];
             }
 
             y[oc] = (float16_t)acc;

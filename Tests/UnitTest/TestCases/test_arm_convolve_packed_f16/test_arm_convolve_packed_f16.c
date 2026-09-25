@@ -648,3 +648,87 @@ void convolve_small_c_inf_weight_in_padding_f16(void)
 
     free(w_packed);
 }
+
+// Long chains on the scalar leg (#465), which accumulates in float32 and rounds to float16 once. With all-ones data
+// over just over 2048 taps a float16 accumulator stops at 2048 (2048 + 1 rounds back to 2048), so the result must be
+// the exact tap count. Positive non-integer data in [0.5, 1.5) catches float16 accumulation even when the compiler
+// splits the chain into short partial sums: the result must be within one float16 ulp of the float32 reference.
+// Routes: the k=3 and k=5 conv1d packed specializations and the 1xN OHWI no-padding region. The MVE leg accumulates
+// in float16 lanes by design, so the case applies to non-MVE builds and ARM_MATH_AUTOVECTORIZE.
+#if !defined(ARM_MATH_MVE_FLOAT16) || defined(ARM_MATH_AUTOVECTORIZE)
+static void conv_f16_long_chain(int32_t in_w, int32_t in_c, int32_t kw, int32_t packed, int32_t all_ones)
+{
+    const int32_t out_c = 2;
+    const cmsis_nn_dims in = {1, 1, in_w, in_c};
+    const cmsis_nn_dims flt = {out_c, 1, kw, in_c};
+    const cmsis_nn_dims out = {1, 1, in_w - kw + 1, out_c};
+    const int32_t x_n = in_w * in_c;
+    const int32_t w_n = out_c * kw * in_c;
+    const int32_t y_n = out.w * out_c;
+    float16_t *x = (float16_t *)malloc((size_t)x_n * sizeof(float16_t));
+    float16_t *w = (float16_t *)malloc((size_t)w_n * sizeof(float16_t));
+    float16_t *y = (float16_t *)malloc((size_t)y_n * sizeof(float16_t));
+    cmsis_nn_conv_params_f16 cp;
+    TEST_ASSERT_NOT_NULL(x);
+    TEST_ASSERT_NOT_NULL(w);
+    TEST_ASSERT_NOT_NULL(y);
+    for (int32_t i = 0; i < x_n; i++)
+    {
+        x[i] = all_ones ? (float16_t)1.0f : (float16_t)(0.5f + (float32_t)((i * 37) % 64) / 64.0f);
+    }
+    for (int32_t i = 0; i < w_n; i++)
+    {
+        w[i] = all_ones ? (float16_t)1.0f : (float16_t)(0.5f + (float32_t)((i * 53 + 11) % 64) / 64.0f);
+    }
+    float16_t *w_kernel = packed ? pack_rhs_nt_n_from_nt_t_f16(w, out_c, kw * in_c) : w;
+    TEST_ASSERT_NOT_NULL(w_kernel);
+
+    conv_f16_params(&cp, 0, 0, packed);
+    const int32_t size = arm_convolve_wrapper_f16_get_buffer_size(&cp, &in, &flt, &out);
+    TEST_ASSERT_TRUE(size >= 0);
+    cmsis_nn_context ctx = {size > 0 ? malloc((size_t)size) : NULL, size};
+    TEST_ASSERT_TRUE(size == 0 || ctx.buf != NULL);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_wrapper_f16(&ctx, &cp, &in, x, &flt, w_kernel, NULL, NULL, &out, y));
+    float32_t *ref = (float32_t *)malloc((size_t)y_n * sizeof(float32_t));
+    TEST_ASSERT_NOT_NULL(ref);
+    conv_f16_reference(&cp, &in, x, &flt, w, NULL, &out, ref);
+    for (int32_t i = 0; i < y_n; i++)
+    {
+        if (all_ones)
+        {
+            TEST_ASSERT_EQUAL_FLOAT((float32_t)(kw * in_c), (float32_t)y[i]);
+        }
+        else
+        {
+            int exp2;
+            (void)frexpf(ref[i], &exp2);
+            TEST_ASSERT_FLOAT_WITHIN(ldexpf(1.0f, exp2 - 11), ref[i], (float32_t)y[i]);
+        }
+    }
+
+    free(ref);
+    free(ctx.buf);
+    if (packed)
+    {
+        free(w_kernel);
+    }
+    free(y);
+    free(w);
+    free(x);
+}
+#endif
+
+void convolve_scalar_f32_accumulation_f16(void)
+{
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    TEST_IGNORE_MESSAGE("MVE leg accumulates in float16 lanes");
+#else
+    for (int32_t all_ones = 1; all_ones >= 0; all_ones--)
+    {
+        conv_f16_long_chain(4, 684, 3, 1, all_ones); /* k=3 packed: 2052 taps */
+        conv_f16_long_chain(6, 412, 5, 1, all_ones); /* k=5 packed: 2060 taps */
+        conv_f16_long_chain(8, 294, 7, 0, all_ones); /* 1xN OHWI no-padding region: 2058 taps */
+    }
+#endif
+}
