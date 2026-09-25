@@ -649,14 +649,16 @@ void convolve_small_c_inf_weight_in_padding_f16(void)
     free(w_packed);
 }
 
-// Long chains on the scalar leg (#465), which accumulates in float32 and rounds to float16 once. With all-ones data
-// over just over 2048 taps a float16 accumulator stops at 2048 (2048 + 1 rounds back to 2048), so the result must be
-// the exact tap count. Positive non-integer data in [0.5, 1.5) catches float16 accumulation even when the compiler
-// splits the chain into short partial sums: the result must be within one float16 ulp of the float32 reference.
-// Routes: the k=3 and k=5 conv1d packed specializations and the 1xN OHWI no-padding region. The MVE leg accumulates
-// in float16 lanes by design, so the case applies to non-MVE builds and ARM_MATH_AUTOVECTORIZE.
+// Long chains on the scalar leg (#465), which accumulates bias and products in float32 and rounds to float16 once.
+// The bias is minus the float16-rounded chain at output 0, so it cancels most of the sum. With x = 1 and
+// w = 1 + 2^-10 over just over 2048 taps every partial sum is exact in float32 in any order, and the result must be
+// exactly the chain's fractional excess (2^-8 for 2052 taps): a float16 accumulator, a bias added after rounding (0)
+// or a dropped bias all miss it. Positive non-integer data in [0.5, 1.5) must stay within the float32 accumulation
+// bound of a float64 reference plus 1.5 float16 ulp. Routes: the k=3 and k=5 conv1d packed specializations and the
+// 1xN OHWI no-padding region. The MVE leg accumulates in float16 lanes by design, so the case applies to non-MVE
+// builds and ARM_MATH_AUTOVECTORIZE.
 #if !defined(ARM_MATH_MVE_FLOAT16) || defined(ARM_MATH_AUTOVECTORIZE)
-static void conv_f16_long_chain(int32_t in_w, int32_t in_c, int32_t kw, int32_t packed, int32_t all_ones)
+static void conv_f16_long_chain(int32_t in_w, int32_t in_c, int32_t kw, int32_t packed, int32_t exact)
 {
     const int32_t out_c = 2;
     const cmsis_nn_dims in = {1, 1, in_w, in_c};
@@ -674,11 +676,11 @@ static void conv_f16_long_chain(int32_t in_w, int32_t in_c, int32_t kw, int32_t 
     TEST_ASSERT_NOT_NULL(y);
     for (int32_t i = 0; i < x_n; i++)
     {
-        x[i] = all_ones ? (float16_t)1.0f : (float16_t)(0.5f + (float32_t)((i * 37) % 64) / 64.0f);
+        x[i] = exact ? (float16_t)1.0f : (float16_t)(0.5f + (float32_t)((i * 37) % 64) / 64.0f);
     }
     for (int32_t i = 0; i < w_n; i++)
     {
-        w[i] = all_ones ? (float16_t)1.0f : (float16_t)(0.5f + (float32_t)((i * 53 + 11) % 64) / 64.0f);
+        w[i] = exact ? (float16_t)(1.0f + 1.0f / 1024.0f) : (float16_t)(0.5f + (float32_t)((i * 53 + 11) % 64) / 64.0f);
     }
     float16_t *w_kernel = packed ? pack_rhs_nt_n_from_nt_t_f16(w, out_c, kw * in_c) : w;
     TEST_ASSERT_NOT_NULL(w_kernel);
@@ -688,26 +690,46 @@ static void conv_f16_long_chain(int32_t in_w, int32_t in_c, int32_t kw, int32_t 
     TEST_ASSERT_TRUE(size >= 0);
     cmsis_nn_context ctx = {size > 0 ? malloc((size_t)size) : NULL, size};
     TEST_ASSERT_TRUE(size == 0 || ctx.buf != NULL);
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                      arm_convolve_wrapper_f16(&ctx, &cp, &in, x, &flt, w_kernel, NULL, NULL, &out, y));
-    float32_t *ref = (float32_t *)malloc((size_t)y_n * sizeof(float32_t));
-    TEST_ASSERT_NOT_NULL(ref);
-    conv_f16_reference(&cp, &in, x, &flt, w, NULL, &out, ref);
-    for (int32_t i = 0; i < y_n; i++)
+    const int32_t taps = kw * in_c;
+    float16_t bias[2];
+    for (int32_t oc = 0; oc < out_c; oc++)
     {
-        if (all_ones)
+        double s = 0.0;
+        for (int32_t k = 0; k < taps; k++)
         {
-            TEST_ASSERT_EQUAL_FLOAT((float32_t)(kw * in_c), (float32_t)y[i]);
+            s += (double)x[k] * (double)w[oc * taps + k];
         }
-        else
+        bias[oc] = (float16_t)(-s);
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_wrapper_f16(&ctx, &cp, &in, x, &flt, w_kernel, NULL, bias, &out, y));
+    for (int32_t o = 0; o < out.w; o++)
+    {
+        for (int32_t oc = 0; oc < out_c; oc++)
         {
-            int exp2;
-            (void)frexpf(ref[i], &exp2);
-            TEST_ASSERT_FLOAT_WITHIN(ldexpf(1.0f, exp2 - 11), ref[i], (float32_t)y[i]);
+            double r = (double)bias[oc];
+            double sum_abs = fabs(r);
+            for (int32_t k = 0; k < taps; k++)
+            {
+                const double prod = (double)x[o * in_c + k] * (double)w[oc * taps + k];
+                r += prod;
+                sum_abs += fabs(prod);
+            }
+            const float32_t got = (float32_t)y[o * out_c + oc];
+            if (exact)
+            {
+                TEST_ASSERT_EQUAL_FLOAT((float32_t)r, got);
+            }
+            else
+            {
+                int exp2;
+                (void)frexp(r, &exp2);
+                const double tol = (double)(taps + 1) * ldexp(1.0, -24) * sum_abs + 1.5 * ldexp(1.0, exp2 - 11);
+                TEST_ASSERT_FLOAT_WITHIN((float32_t)tol, (float32_t)r, got);
+            }
         }
     }
 
-    free(ref);
     free(ctx.buf);
     if (packed)
     {
@@ -724,11 +746,11 @@ void convolve_scalar_f32_accumulation_f16(void)
 #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     TEST_IGNORE_MESSAGE("MVE leg accumulates in float16 lanes");
 #else
-    for (int32_t all_ones = 1; all_ones >= 0; all_ones--)
+    for (int32_t exact = 1; exact >= 0; exact--)
     {
-        conv_f16_long_chain(4, 684, 3, 1, all_ones); /* k=3 packed: 2052 taps */
-        conv_f16_long_chain(6, 412, 5, 1, all_ones); /* k=5 packed: 2060 taps */
-        conv_f16_long_chain(8, 294, 7, 0, all_ones); /* 1xN OHWI no-padding region: 2058 taps */
+        conv_f16_long_chain(4, 684, 3, 1, exact); /* k=3 packed: 2052 taps */
+        conv_f16_long_chain(6, 412, 5, 1, exact); /* k=5 packed: 2060 taps */
+        conv_f16_long_chain(8, 294, 7, 0, exact); /* 1xN OHWI no-padding region: 2058 taps */
     }
 #endif
 }
