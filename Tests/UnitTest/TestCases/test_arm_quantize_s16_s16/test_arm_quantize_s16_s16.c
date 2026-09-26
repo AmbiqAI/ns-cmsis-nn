@@ -161,7 +161,7 @@ static int requantize_case_s16(uint32_t seed,
             saturated++;
         }
     }
-    for (int32_t i = size; i < REQ_MAX_SIZE; i++)
+    for (int32_t i = size > 0 ? size : 0; i < REQ_MAX_SIZE; i++)
     {
         TEST_ASSERT_EQUAL_INT16_MESSAGE(REQ_GUARD, output[i], "wrote past size");
     }
@@ -175,6 +175,16 @@ static void test_arm_requantize_s16_s16_sizes(void)
     {
         requantize_case_s16(1u + (uint32_t)size, size, 0x4F1A2B3C, -6, 0, 0);
         requantize_case_s16(91u + (uint32_t)size, size, 0x7FFFFFFF, -3, 17, -23);
+    }
+}
+
+/* A negative length must write nothing. Note size & 3 is 3 for size == -1, so a tail
+   derived from the mask alone would store past the start of the output buffer. */
+static void test_arm_requantize_s16_s16_negative_size(void)
+{
+    for (int32_t size = -8; size < 0; size++)
+    {
+        requantize_case_s16(41u + (uint32_t)(-size), size, 0x7FFFFFFF, -3, 0, 0);
     }
 }
 

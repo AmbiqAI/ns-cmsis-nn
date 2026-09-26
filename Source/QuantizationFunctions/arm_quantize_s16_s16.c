@@ -66,7 +66,9 @@ arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
         output += 4;
     }
 
-    const int32_t tail = size & 3;
+    /* size & 3 is 3 for any negative size, so the tail is gated on size instead: a negative
+       length must write nothing, as the scalar path below does. */
+    const int32_t tail = size > 0 ? (size & 3) : 0;
     if (tail)
     {
         mve_pred16_t pred = vctp32q(tail);
