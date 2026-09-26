@@ -2061,6 +2061,7 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - ctx-buff == NULL and
  *                                                      arm_depthwise_conv_fast_s16_get_buffer_size() != 0 or
  *                                                      input channel != output channel or
+ *                                                      filter_dims->w * filter_dims->h >= MAX_COL_COUNT (512) or
  *                                                      dw_conv_params->dilation.h != 1 or
  *                                                      dw_conv_params->dilation.w < 1
  *
@@ -2068,9 +2069,11 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *
  * @details
  *    - Supported framework: TensorFlow Lite
- *    - The following constrains on the arguments apply
- *        -# Number of input channel equals number of output channels or ch_mult equals 1
- *    - Reccomended when number of channels is 4 or greater.
+ *    - The following constraints on the arguments apply
+ *        -# ch_mult == 1: the number of input channels equals the number of output channels
+ *        -# filter_dims->w * filter_dims->h < MAX_COL_COUNT (512)
+ *        -# dw_conv_params->dilation.h == 1 and dw_conv_params->dilation.w >= 1
+ *    - Recommended when number of channels is 4 or greater.
  *
  */
 arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
