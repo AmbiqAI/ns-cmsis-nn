@@ -82,14 +82,24 @@ repos:
         files: ^(Source|Include)/.*\.(c|h)$
 
       # The public headers' @param tags are the kernel contract the tester
-      # reads (#526). The check needs all four headers at once because copy
-      # directives cross files, so it ignores the staged filename list and
-      # runs whenever any of them is touched.
+      # reads (#526). The check needs every public functions header at once
+      # because copy directives cross files, so it ignores the staged filename
+      # list and runs whenever any of them is touched; the script discovers
+      # them with the same arm_nn*functions*.h pattern this regex spells.
       - id: doxygen-params
         name: public header @param tags are complete and direction-correct
         entry: scripts/check_doxygen_params.py
         language: script
-        files: ^Include/arm_nn(support)?functions(_flt)?\.h$
+        files: ^Include/arm_nn[^/]*functions[^/]*\.h$
+        pass_filenames: false
+
+      # The exported kernel contract must match the headers it was generated
+      # from; regenerate with `python3 scripts/check_kernel_contract.py export`.
+      - id: kernel-contract-fresh
+        name: Tests/KernelContracts/kernel_contracts.json matches the public headers
+        entry: scripts/check_kernel_contract.py
+        language: script
+        files: ^(Include/arm_nn[^/]*functions[^/]*\.h|Tests/KernelContracts/kernel_contracts\.json)$
         pass_filenames: false
 
       - id: todo-needs-issue
