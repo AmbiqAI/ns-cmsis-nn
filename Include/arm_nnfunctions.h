@@ -1930,7 +1930,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
  *                                 always matches the wrapper's own routing.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
- *                                 dw_conv_params->dilation is not used.
+ *                                 Dilation is supported in both dimensions. When ch_mult == 1 and
+ *                                 filter_dims->w * filter_dims->h < 512, arm_depthwise_conv_fast_s16() is used for an
+ *                                 undilated layer and for a 1D layer dilated along the width only: filter, input and
+ *                                 output height 1, stride 1 in both dimensions, dw_conv_params->padding.h == 0,
+ *                                 dilation.h == 1 and dilation.w >= 1. Other layers use arm_depthwise_conv_s16().
  *                                 Range of dw_conv_params->input_offset : Not used
  *                                 Range of dw_conv_params->output_offset : Not used
  * @param[in]      quant_params    Per-channel quantization info.
@@ -2037,7 +2041,7 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                                 required.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
- *                                 dw_conv_params->dilation is not used.
+ *                                 dw_conv_params->dilation.w is honoured; dw_conv_params->dilation.h must be 1.
  *                                 dw_conv_params->input_offset  : Not used
  *                                 dw_conv_params->output_offset : Not used
  * @param[in]      quant_params    Per-channel quantization info.
@@ -2057,7 +2061,9 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - ctx-buff == NULL and
  *                                                      arm_depthwise_conv_fast_s16_get_buffer_size() != 0 or
  *                                                      input channel != output channel or
- *                                                      ch_mult != 1
+ *                                                      ch_mult != 1 or
+ *                                                      dw_conv_params->dilation.h != 1 or
+ *                                                      dw_conv_params->dilation.w < 1
  *
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *

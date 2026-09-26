@@ -17,6 +17,8 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <stdint.h>
+#include <string.h>
 #include <unity.h>
 
 #include "../TestData/dw_int16xint8_fast/test_data.h"
@@ -1017,4 +1019,248 @@ void buffer_size_dsp_arm_depthwise_conv_fast_s16(void)
 
     TEST_ASSERT_EQUAL(wrapper_buf_size, dsp_wrapper_buf_size);
 #endif
+}
+
+/* Dilated 1D 16x8 layers (heartkit and sleepkit TCN shapes plus tails) run through arm_depthwise_conv_wrapper_s16()
+   and must match arm_depthwise_conv_s16(). */
+#define DIL_MAX_LEN 256
+#define DIL_MAX_CH 64
+static int16_t dil_input[DIL_MAX_LEN * DIL_MAX_CH];
+static int8_t dil_filter[9 * DIL_MAX_CH];
+static int16_t dil_output[DIL_MAX_LEN * DIL_MAX_CH];
+static int16_t dil_reference[DIL_MAX_LEN * DIL_MAX_CH];
+static int64_t dil_bias[DIL_MAX_CH];
+static int32_t dil_mult[DIL_MAX_CH];
+static int32_t dil_shift[DIL_MAX_CH];
+static int16_t dil_scratch[8192];
+
+static void dilated_1d_s16_case(int32_t batches, int32_t len, int32_t k, int32_t ch, int32_t dil, int32_t pad)
+{
+    const int32_t out_len = len + 2 * pad - (k - 1) * dil;
+    TEST_ASSERT_TRUE(out_len > 0 && batches * len * ch <= DIL_MAX_LEN * DIL_MAX_CH &&
+                     batches * out_len * ch <= DIL_MAX_LEN * DIL_MAX_CH);
+    uint32_t seed = (uint32_t)(len * 131 + k * 17 + ch * 7 + dil);
+    for (int32_t i = 0; i < batches * len * ch; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        dil_input[i] = (int16_t)(seed >> 16);
+    }
+    for (int32_t i = 0; i < k * ch; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        dil_filter[i] = (int8_t)(seed >> 24);
+    }
+    for (int32_t i = 0; i < ch; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        /* Small enough that most outputs stay inside the int16 range, so the comparison checks the taps. */
+        dil_bias[i] = (int64_t)(int32_t)seed / 4096;
+        dil_mult[i] = 0x40000000 + (i % 64) * 0x800000;
+        dil_shift[i] = -7 - (i % 3);
+    }
+    const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                            .output_offset = 0,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {pad, 0},
+                                            .dilation = {dil, 1},
+                                            .activation = {-32768, 32767}};
+    const cmsis_nn_per_channel_quant_params quant = {dil_mult, dil_shift};
+    const cmsis_nn_dims input_dims = {batches, 1, len, ch}, filter_dims = {1, 1, k, ch}, bias_dims = {1, 1, 1, ch},
+                        output_dims = {batches, 1, out_len, ch};
+    const cmsis_nn_context none = {NULL, 0};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_s16(&none,
+                                             &params,
+                                             &quant,
+                                             &input_dims,
+                                             dil_input,
+                                             &filter_dims,
+                                             dil_filter,
+                                             &bias_dims,
+                                             dil_bias,
+                                             &output_dims,
+                                             dil_reference));
+    int32_t unclamped = 0;
+    for (int32_t i = 0; i < batches * out_len * ch; i++)
+    {
+        unclamped += (dil_reference[i] != INT16_MAX && dil_reference[i] != INT16_MIN);
+    }
+    TEST_ASSERT_TRUE(2 * unclamped >= batches * out_len * ch);
+    const int32_t size =
+        arm_depthwise_conv_wrapper_s16_get_buffer_size(&params, &input_dims, &filter_dims, &output_dims);
+    TEST_ASSERT_EQUAL(arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims), size);
+    TEST_ASSERT_TRUE(size >= 0 && size <= (int32_t)sizeof(dil_scratch));
+    const cmsis_nn_context ctx = {size > 0 ? dil_scratch : NULL, size};
+    memset(dil_output, 0x5A, sizeof(dil_output));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_wrapper_s16(&ctx,
+                                                     &params,
+                                                     &quant,
+                                                     &input_dims,
+                                                     dil_input,
+                                                     &filter_dims,
+                                                     dil_filter,
+                                                     &bias_dims,
+                                                     dil_bias,
+                                                     &output_dims,
+                                                     dil_output));
+    TEST_ASSERT_EQUAL_INT16_ARRAY(dil_reference, dil_output, batches * out_len * ch);
+}
+
+void dilated_1d_arm_depthwise_conv_fast_s16(void)
+{
+    const int32_t cases[][4] = {
+        /* input_len, filter_len, channels, dilation */
+        {256, 7, 16, 2},
+        {256, 7, 24, 4},
+        {256, 7, 32, 8},
+        {240, 5, 24, 2},
+        {240, 5, 32, 4},
+        {240, 5, 48, 8},
+        {240, 7, 48, 16},
+        {240, 7, 64, 16},
+        {37, 3, 5, 3},
+        {64, 2, 33, 16},
+        {9, 7, 3, 2},
+        {1, 3, 17, 4},
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+    {
+        const int32_t eff = (cases[i][1] - 1) * cases[i][3];
+        dilated_1d_s16_case(1, cases[i][0], cases[i][1], cases[i][2], cases[i][3], eff / 2);
+        if (cases[i][0] > eff)
+        {
+            dilated_1d_s16_case(1, cases[i][0], cases[i][1], cases[i][2], cases[i][3], 0);
+        }
+    }
+    /* The fast kernel loops over batches itself. */
+    dilated_1d_s16_case(3, 37, 5, 19, 3, 6);
+}
+
+/* The dilated 1D route runs arm_depthwise_conv_fast_s16(): with no scratch it is rejected on builds that need one,
+   whereas a 2D-dilated layer and a vertically dilated 1D layer stay on arm_depthwise_conv_s16(), which needs none. */
+void dilated_1d_route_arm_depthwise_conv_fast_s16(void)
+{
+    const int32_t len = 64, k = 5, ch = 16, dil = 4;
+    for (int32_t i = 0; i < 2 * len * ch; i++)
+    {
+        dil_input[i] = (int16_t)((i * 97) % 2000 - 1000);
+    }
+    for (int32_t i = 0; i < k * ch; i++)
+    {
+        dil_filter[i] = (int8_t)((i * 5 + 1) % 120 - 60);
+    }
+    for (int32_t i = 0; i < ch; i++)
+    {
+        dil_bias[i] = i * 100;
+        dil_mult[i] = 0x40000000;
+        dil_shift[i] = -5;
+    }
+    cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                      .output_offset = 0,
+                                      .ch_mult = 1,
+                                      .stride = {1, 1},
+                                      .padding = {((k - 1) * dil) / 2, 0},
+                                      .dilation = {dil, 1},
+                                      .activation = {-32768, 32767}};
+    const cmsis_nn_per_channel_quant_params quant = {dil_mult, dil_shift};
+    const cmsis_nn_dims input_dims = {1, 1, len, ch}, filter_dims = {1, 1, k, ch}, bias_dims = {1, 1, 1, ch},
+                        output_dims = {1, 1, len, ch};
+    const cmsis_nn_context none = {NULL, 0};
+    const arm_cmsis_nn_status status = arm_depthwise_conv_wrapper_s16(&none,
+                                                                      &params,
+                                                                      &quant,
+                                                                      &input_dims,
+                                                                      dil_input,
+                                                                      &filter_dims,
+                                                                      dil_filter,
+                                                                      &bias_dims,
+                                                                      dil_bias,
+                                                                      &output_dims,
+                                                                      dil_output);
+#if defined(ARM_MATH_DSP)
+    TEST_ASSERT_TRUE(arm_depthwise_conv_wrapper_s16_get_buffer_size(&params, &input_dims, &filter_dims, &output_dims) >
+                     0);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, status);
+#else
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+#endif
+
+    /* 2D and dilated in both dimensions, then 1D with vertical dilation: both stay on the reference route. */
+    params.dilation.h = 2;
+    const cmsis_nn_dims input_2d = {1, 2, len, ch}, output_2d = {1, 2, len, ch};
+    TEST_ASSERT_EQUAL(0, arm_depthwise_conv_wrapper_s16_get_buffer_size(&params, &input_2d, &filter_dims, &output_2d));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_wrapper_s16(&none,
+                                                     &params,
+                                                     &quant,
+                                                     &input_2d,
+                                                     dil_input,
+                                                     &filter_dims,
+                                                     dil_filter,
+                                                     &bias_dims,
+                                                     dil_bias,
+                                                     &output_2d,
+                                                     dil_output));
+    TEST_ASSERT_EQUAL(0,
+                      arm_depthwise_conv_wrapper_s16_get_buffer_size(&params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_s16(&none,
+                                             &params,
+                                             &quant,
+                                             &input_dims,
+                                             dil_input,
+                                             &filter_dims,
+                                             dil_filter,
+                                             &bias_dims,
+                                             dil_bias,
+                                             &output_dims,
+                                             dil_reference));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_wrapper_s16(&none,
+                                                     &params,
+                                                     &quant,
+                                                     &input_dims,
+                                                     dil_input,
+                                                     &filter_dims,
+                                                     dil_filter,
+                                                     &bias_dims,
+                                                     dil_bias,
+                                                     &output_dims,
+                                                     dil_output));
+    TEST_ASSERT_EQUAL_INT16_ARRAY(dil_reference, dil_output, len * ch);
+}
+
+/* arm_depthwise_conv_fast_s16() steps only the horizontal tap index by dilation, so it rejects vertical dilation
+   and a non-positive horizontal dilation instead of computing a wrong result. */
+void dilation_arg_check_arm_depthwise_conv_fast_s16(void)
+{
+    const cmsis_nn_dims input_dims = {1, 4, 8, 4}, filter_dims = {1, 3, 3, 4}, bias_dims = {1, 1, 1, 4},
+                        output_dims = {1, 4, 8, 4};
+    const cmsis_nn_per_channel_quant_params quant = {dil_mult, dil_shift};
+    const cmsis_nn_context ctx = {dil_scratch, (int32_t)sizeof(dil_scratch)};
+    const cmsis_nn_tile bad_dilations[] = {{2, 2}, {1, 2}, {0, 1}, {-1, 1}};
+    for (size_t i = 0; i < sizeof(bad_dilations) / sizeof(bad_dilations[0]); i++)
+    {
+        const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                                .output_offset = 0,
+                                                .ch_mult = 1,
+                                                .stride = {1, 1},
+                                                .padding = {1, 1},
+                                                .dilation = bad_dilations[i],
+                                                .activation = {-32768, 32767}};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_depthwise_conv_fast_s16(&ctx,
+                                                      &params,
+                                                      &quant,
+                                                      &input_dims,
+                                                      dil_input,
+                                                      &filter_dims,
+                                                      dil_filter,
+                                                      &bias_dims,
+                                                      dil_bias,
+                                                      &output_dims,
+                                                      dil_output));
+    }
 }

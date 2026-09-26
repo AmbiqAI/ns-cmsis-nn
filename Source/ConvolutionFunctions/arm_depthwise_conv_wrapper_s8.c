@@ -137,7 +137,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
 #endif
 
     const bool dilation_opt_supported =
-        arm_nn_dw_conv_s8_opt_dilation_supported(dw_conv_params, input_dims, filter_dims, output_dims);
+        arm_nn_dw_conv_opt_dilation_supported(dw_conv_params, input_dims, filter_dims, output_dims);
 
     if (1 == dw_conv_params->ch_mult && input_dims->n == 1 && dilation_opt_supported)
     {
