@@ -298,6 +298,22 @@ python3 scripts/check_doxygen_params.py
 
 See AmbiqAI/ns-cmsis-nn#526 for the background.
 
+### The exported kernel contract
+
+`Tests/KernelContracts/kernel_contracts.json` is generated from those doc
+blocks: one record per public function with its return type, the `#if`
+conditions it sits under, and every parameter's C type, array extent and
+direction. `helia-core-tester` reads this file instead of parsing the headers.
+It is committed, so after changing a public prototype or its `@param` tags run
+
+```bash
+python3 scripts/check_kernel_contract.py export
+```
+
+and commit the result; CI and the `kernel-contract-fresh` pre-commit hook fail
+when the file is stale, non-canonical or missing. Line-number changes alone do
+not count as drift. See AmbiqAI/ns-cmsis-nn#525 and #386.
+
 ## Reporting bugs
 
 Open an issue at
