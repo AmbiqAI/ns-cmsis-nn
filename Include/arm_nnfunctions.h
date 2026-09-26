@@ -1803,7 +1803,7 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv
  *                                 arm_depthwise_conv_wrapper_s8_get_buffer_size() instead, because another route
  *                                 through that wrapper does require a buffer.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
- *                                 dw_conv_params->dilation is not used.
+ *                                 Dilation is supported in both dimensions.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
  *                                 Range of dw_conv_params->output_offset : [-128, 127]
  * @param[in]      quant_params    Per-channel quantization info.
