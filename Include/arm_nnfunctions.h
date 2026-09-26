@@ -1331,10 +1331,11 @@ arm_cmsis_nn_status arm_convolve_weight_sum(int32_t *vector_sum_buf,
  *     contiguous runs of <code>KH * KW * C_IN</code> weights. The two agree only by coincidence. Several in-tree
  *     tests do fill a depthwise weight_sum_ctx with arm_convolve_weight_sum() and are still correct, for one of
  *     three unrelated reasons: arm_depthwise_conv_wrapper_s8() does not consume the buffer on that route at all
- *     (ch_mult != 1, batches != 1 or dilation != 1); the wrapper converts the layer to a regular convolution, so
- *     conv-style sums are what is wanted; or C_OUT is 1, which collapses the stride-C_OUT walk to a contiguous
- *     one and makes the two helpers compute identical values. None of those generalise, so do not read them as
- *     licence to substitute one helper for the other. Use this function wherever the sums are actually read.
+ *     (ch_mult != 1, batches != 1, or a dilation the optimized route does not take - see that function); the
+ *     wrapper converts the layer to a regular convolution, so conv-style sums are what is wanted; or C_OUT is 1,
+ *     which collapses the stride-C_OUT walk to a contiguous one and makes the two helpers compute identical values.
+ *     None of those generalise, so do not read them as licence to substitute one helper for the other. Use this
+ *     function wherever the sums are actually read.
  */
 arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
                                                       int8_t *scratch_buf,
@@ -1543,11 +1544,15 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  *                                 arm_depthwise_convolve_weight_sum() for the layout and the full reuse rules.
  *                                 Whether the buffer is consumed at all depends on the route this wrapper takes.
  *                                 It is forwarded to arm_depthwise_conv_s8_opt(), which reads it under MVE, only
- *                                 when dw_conv_params->ch_mult == 1, input_dims->n == 1 and both dilations are 1.
- *                                 Outside that case the wrapper calls arm_depthwise_conv_s8(), which has no such
- *                                 parameter and ignores the context entirely - which is why several in-tree tests
- *                                 legitimately pass sums built by arm_convolve_weight_sum(), or none at all, on
- *                                 those routes. On MVE with input_dims->c == 1 and an output channel count above
+ *                                 when dw_conv_params->ch_mult == 1, input_dims->n == 1, and either both dilations
+ *                                 are 1 or the layer is 1D and dilated along the width only: filter, input and
+ *                                 output height 1, stride 1 in both dimensions, dw_conv_params->padding.h == 0,
+ *                                 dilation.h == 1 and dilation.w >= 1. Such a dilated 1D layer therefore reads the
+ *                                 sums too. Outside those cases the wrapper calls arm_depthwise_conv_s8(), which
+ *                                 has no such parameter and ignores the context entirely - which is why several
+ *                                 in-tree tests legitimately pass sums built by arm_convolve_weight_sum(), or none
+ *                                 at all, on those routes (a 2D-dilated layer, for example). On MVE with
+ *                                 input_dims->c == 1 and an output channel count above
  *                                 CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD (8 on armclang, 1
  *                                 otherwise), the layer is instead converted to a regular convolution, and
  *                                 conv-style sums from arm_convolve_weight_sum() are what that route wants.
@@ -1571,7 +1576,8 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  *                                 for an output_dims->c that is negative or too large to size.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
- *                                 dw_conv_params->dilation is not used.
+ *                                 Dilation is supported in both dimensions; see weight_sum_ctx for which dilated
+ *                                 layers take the arm_depthwise_conv_s8_opt() route.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
  *                                 Range of dw_conv_params->output_offset : [-128, 127]
  * @param[in]      quant_params    Per-channel quantization info.
@@ -1797,7 +1803,7 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv
  *                                 arm_depthwise_conv_wrapper_s8_get_buffer_size() instead, because another route
  *                                 through that wrapper does require a buffer.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
- *                                 dw_conv_params->dilation is not used.
+ *                                 Dilation is supported in both dimensions.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
  *                                 Range of dw_conv_params->output_offset : [-128, 127]
  * @param[in]      quant_params    Per-channel quantization info.
@@ -2145,7 +2151,7 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *                                 function. See the note below for how to size, fill and reuse the buffer and for
  *                                 when a NULL buf is diagnosed.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
- *                                 dw_conv_params->dilation is not used.
+ *                                 dw_conv_params->dilation.w is honoured; dw_conv_params->dilation.h must be 1.
  *                                 Range of dw_conv_params->input_offset  : [-127, 128]
  *                                 Range of dw_conv_params->output_offset : [-128, 127]
  * @param[in]      quant_params    Per-channel quantization info.
@@ -2181,6 +2187,8 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or ch_mult != 1, or
+ *                                                      dw_conv_params->dilation.h != 1 or
+ *                                                      dw_conv_params->dilation.w < 1, or
  *                                                      ctx->buf is NULL when a scratch buffer is required, or
  *                                                      weight_sum_ctx->buf is NULL on builds where it is read
  *                                                      (ARM_MATH_DSP and ARM_MATH_MVEI both defined)

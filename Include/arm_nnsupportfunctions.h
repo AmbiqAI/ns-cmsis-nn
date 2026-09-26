@@ -452,6 +452,34 @@ __STATIC_INLINE bool arm_nn_is_convolve_1_x_n(const cmsis_nn_conv_params *conv_p
 }
 
 /**
+ * @brief Check if the dilation, stride and padding of an s8 depthwise layer allow the arm_depthwise_conv_s8_opt()
+ *        route.
+ * @param[in]   dw_conv_params  Depthwise convolution parameters
+ * @param[in]   input_dims      Input dimensions
+ * @param[in]   filter_dims     Filter dimensions
+ * @param[in]   output_dims     Output dimensions
+ * @return      true for an undilated layer (dilation 1 in both dimensions), or for a 1D layer dilated along
+ *              the width only: filter, input and output height 1, stride 1 in both dimensions, no vertical
+ *              padding, dilation.h == 1 and dilation.w >= 1. false otherwise.
+ *
+ * @note Does not check ch_mult or the batch count. arm_depthwise_conv_wrapper_s8() and its buffer-size functions
+ *       check those themselves, and all of them take this predicate so that routing and sizing agree.
+ */
+__STATIC_INLINE bool arm_nn_dw_conv_s8_opt_dilation_supported(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                              const cmsis_nn_dims *input_dims,
+                                                              const cmsis_nn_dims *filter_dims,
+                                                              const cmsis_nn_dims *output_dims)
+{
+    if (dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1)
+    {
+        return true;
+    }
+    return (dw_conv_params->dilation.h == 1) && (dw_conv_params->dilation.w >= 1) && (filter_dims->h == 1) &&
+        (input_dims->h == 1) && (output_dims->h == 1) && (dw_conv_params->stride.w == 1) &&
+        (dw_conv_params->stride.h == 1) && (dw_conv_params->padding.h == 0);
+}
+
+/**
  * @defgroup genPrivTypes Structure Types
  * @ingroup groupSupport
  * @brief Data structure types used by private functions.
