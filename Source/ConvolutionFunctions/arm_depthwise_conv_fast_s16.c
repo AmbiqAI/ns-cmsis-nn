@@ -74,6 +74,12 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
+    /* The optimized paths step the horizontal tap index by dilation.w and have no vertical dilation */
+    if (dw_conv_params->dilation.h != 1 || dw_conv_params->dilation.w < 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     if (ctx->buf == NULL && arm_depthwise_conv_fast_s16_get_buffer_size(input_dims, filter_dims) != 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
@@ -90,6 +96,7 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
     const int32_t pad_y = dw_conv_params->padding.h;
     const int32_t stride_x = dw_conv_params->stride.w;
     const int32_t stride_y = dw_conv_params->stride.h;
+    const int32_t dilation_x = dw_conv_params->dilation.w;
     const int32_t *output_shift = quant_params->shift;
     const int32_t *output_mult = quant_params->multiplier;
     const int32_t output_x = output_dims->w;
@@ -113,7 +120,7 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
             {
                 for (int i_ker_y = base_idx_y; i_ker_y < base_idx_y + kernel_y; i_ker_y++)
                 {
-                    for (int i_ker_x = base_idx_x; i_ker_x < base_idx_x + kernel_x; i_ker_x++)
+                    for (int i_ker_x = base_idx_x; i_ker_x < base_idx_x + kernel_x * dilation_x; i_ker_x += dilation_x)
                     {
                         if (i_ker_y < 0 || i_ker_y >= input_y || i_ker_x < 0 || i_ker_x >= input_x)
                         {
@@ -254,7 +261,7 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
 
                     for (int i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
                     {
-                        const int32_t idx_x = base_idx_x + i_ker_x;
+                        const int32_t idx_x = base_idx_x + i_ker_x * dilation_x;
 
                         if (idx_x < 0 || idx_x >= input_x)
                         {

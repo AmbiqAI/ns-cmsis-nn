@@ -42,8 +42,9 @@
 extern "C" {
 #endif
 
-#define USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims)                                         \
-    (dw_conv_params->ch_mult == 1 && dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1 &&             \
+#define USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims, output_dims)                            \
+    (dw_conv_params->ch_mult == 1 &&                                                                                   \
+     arm_nn_dw_conv_opt_dilation_supported(dw_conv_params, input_dims, filter_dims, output_dims) &&                    \
      filter_dims->w * filter_dims->h < 512)
 
 #define LEFT_SHIFT(_shift) (_shift > 0 ? _shift : 0)
@@ -452,8 +453,8 @@ __STATIC_INLINE bool arm_nn_is_convolve_1_x_n(const cmsis_nn_conv_params *conv_p
 }
 
 /**
- * @brief Check if the dilation, stride and padding of an s8 depthwise layer allow the arm_depthwise_conv_s8_opt()
- *        route.
+ * @brief Check if the dilation, stride and padding of a depthwise layer allow the arm_depthwise_conv_s8_opt() or
+ *        arm_depthwise_conv_fast_s16() route.
  * @param[in]   dw_conv_params  Depthwise convolution parameters
  * @param[in]   input_dims      Input dimensions
  * @param[in]   filter_dims     Filter dimensions
@@ -462,13 +463,14 @@ __STATIC_INLINE bool arm_nn_is_convolve_1_x_n(const cmsis_nn_conv_params *conv_p
  *              the width only: filter, input and output height 1, stride 1 in both dimensions, no vertical
  *              padding, dilation.h == 1 and dilation.w >= 1. false otherwise.
  *
- * @note Does not check ch_mult or the batch count. arm_depthwise_conv_wrapper_s8() and its buffer-size functions
- *       check those themselves, and all of them take this predicate so that routing and sizing agree.
+ * @note Does not check ch_mult, the batch count or the kernel size: arm_depthwise_conv_wrapper_s8(),
+ *       arm_depthwise_conv_wrapper_s16() and their buffer-size functions apply their own conditions on those, and all
+ *       of them take this predicate so that routing and sizing agree.
  */
-__STATIC_INLINE bool arm_nn_dw_conv_s8_opt_dilation_supported(const cmsis_nn_dw_conv_params *dw_conv_params,
-                                                              const cmsis_nn_dims *input_dims,
-                                                              const cmsis_nn_dims *filter_dims,
-                                                              const cmsis_nn_dims *output_dims)
+__STATIC_INLINE bool arm_nn_dw_conv_opt_dilation_supported(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                           const cmsis_nn_dims *input_dims,
+                                                           const cmsis_nn_dims *filter_dims,
+                                                           const cmsis_nn_dims *output_dims)
 {
     if (dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1)
     {

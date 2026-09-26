@@ -92,11 +92,9 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size(const cmsis_nn_dw_conv_pa
                                                        const cmsis_nn_dims *filter_dims,
                                                        const cmsis_nn_dims *output_dims)
 {
-    (void)output_dims;
-
     int32_t size = 0;
 
-    if (USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims))
+    if (USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims, output_dims))
     {
         size = arm_depthwise_conv_fast_s16_get_buffer_size(input_dims, filter_dims);
     }
@@ -109,11 +107,9 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
                                                            const cmsis_nn_dims *filter_dims,
                                                            const cmsis_nn_dims *output_dims)
 {
-    (void)output_dims;
-
     int32_t size = 0;
 
-    if (USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims))
+    if (USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims, output_dims))
     {
         size = arm_depthwise_conv_fast_s16_get_buffer_size_mve(input_dims, filter_dims);
     }
@@ -126,11 +122,9 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_dsp(const cmsis_nn_dw_con
                                                            const cmsis_nn_dims *filter_dims,
                                                            const cmsis_nn_dims *output_dims)
 {
-    (void)output_dims;
-
     int32_t size = 0;
 
-    if (USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims))
+    if (USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims, output_dims))
     {
         size = arm_depthwise_conv_fast_s16_get_buffer_size_dsp(input_dims, filter_dims);
     }
