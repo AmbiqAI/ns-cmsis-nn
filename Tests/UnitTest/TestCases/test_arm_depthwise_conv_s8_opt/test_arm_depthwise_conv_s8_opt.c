@@ -1948,6 +1948,39 @@ void dilated_1d_route_arm_depthwise_conv_s8_opt(void)
                                                     bias,
                                                     &output_2d,
                                                     output));
+
+    /* A 1D layer with vertical dilation is outside the route too: no scratch needed, reference result. */
+    static int8_t reference[LEN * CH];
+    const cmsis_nn_context none = {NULL, 0};
+    params.dilation.h = 2;
+    TEST_ASSERT_EQUAL(0,
+                      arm_depthwise_conv_wrapper_s8_get_buffer_size(&params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_s8(&none,
+                                            &params,
+                                            &quant,
+                                            &input_dims,
+                                            input,
+                                            &filter_dims,
+                                            filter,
+                                            &bias_dims,
+                                            bias,
+                                            &output_dims,
+                                            reference));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_wrapper_s8(&no_scratch,
+                                                    &weight_sum_ctx,
+                                                    &params,
+                                                    &quant,
+                                                    &input_dims,
+                                                    input,
+                                                    &filter_dims,
+                                                    filter,
+                                                    &bias_dims,
+                                                    bias,
+                                                    &output_dims,
+                                                    output));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(reference, output, LEN * CH);
 }
 
 /* arm_depthwise_conv_s8_opt() steps only the horizontal tap index by dilation, so it rejects vertical dilation and a
