@@ -36,3 +36,6 @@
  void tearDown(void) {}
 
  void test_quantize_arm_quantize_s16_s16(void) { test_arm_quantize_s16_s16(); }
+ void test_requantize_s16_sizes_arm_quantize_s16_s16(void) { test_arm_requantize_s16_s16_sizes(); }
+ void test_requantize_s16_saturation_arm_quantize_s16_s16(void) { test_arm_requantize_s16_s16_saturation(); }
+ void test_requantize_s16_zero_points_arm_quantize_s16_s16(void) { test_arm_requantize_s16_s16_zero_points(); }
