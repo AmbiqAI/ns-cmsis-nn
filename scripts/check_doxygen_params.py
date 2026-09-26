@@ -25,12 +25,13 @@ import re
 import sys
 
 REPO = Path(__file__).resolve().parents[1]
-DEFAULT_HEADERS = (
-    'arm_nnfunctions.h',
-    'arm_nnfunctions_flt.h',
-    'arm_nnsupportfunctions.h',
-    'arm_nnsupportfunctions_flt.h',
-)
+# The public headers are discovered, not listed: a fifth functions header (the way the
+# _flt.h pair was split out) must be checked the day it appears, and neither the script
+# nor the pre-commit hook would say so if it were missing from a hand-kept list. The
+# floor catches the opposite drift, a rename or removal that would otherwise shrink the
+# checked surface silently (same pattern as check_api_group_classification.py).
+PUBLIC_HEADER_GLOB = 'arm_nn*functions*.h'
+MIN_PUBLIC_HEADERS = 4
 CONDITIONAL_RE = re.compile(r'^#\s*(if|ifdef|ifndef|elif|else|endif)\b')
 DECL_RE = re.compile(r'^(?P<ret>[^;{}()]*?)\b(?P<name>[A-Za-z_]\w*)\s*\((?P<params>.*)\)\s*$', re.S)
 # Aggregate bodies are cut at their opening brace before this is applied, so only a typedef
@@ -49,6 +50,19 @@ DIRECTIONS = ('in', 'out', 'in,out')
 COMMENT_MARKER = '@@COMMENT@@'
 # The buffer behind a const context pointer is written, so both tags are honest.
 DIRECTION_EXCEPTIONS = {'const cmsis_nn_context *': {'in', 'in,out'}}
+
+
+def public_headers(include_dir):
+    """Return the public functions headers under include_dir, sorted; raise on too few."""
+    paths = sorted(Path(include_dir).glob(PUBLIC_HEADER_GLOB))
+    if len(paths) < MIN_PUBLIC_HEADERS:
+        raise ValueError(
+            f'expected at least {MIN_PUBLIC_HEADERS} public headers matching '
+            f'{PUBLIC_HEADER_GLOB!r} in {include_dir}, found {len(paths)}: '
+            f'{[path.name for path in paths]}. A public header may have been renamed or '
+            'removed; if the reduction is deliberate, update PUBLIC_HEADER_GLOB / '
+            'MIN_PUBLIC_HEADERS in this script to match.')
+    return paths
 
 
 class Param:
@@ -97,9 +111,30 @@ class Param:
 
 
 class Decl:
-    def __init__(self, path, line, name, params, doc, is_static, error=None):
+    def __init__(self, path, line, name, params, doc, is_static, error=None, ret='', guards=()):
         self.path, self.line, self.name, self.params, self.doc = path, line, name, params, doc
         self.is_static, self.error = is_static, error
+        # The declared return type and the stack of preprocessor conditions the declaration
+        # sits under, for consumers that export the header contract; the check itself
+        # needs neither.
+        self.ret, self.guards = ret, tuple(guards)
+
+
+def guard_condition(keyword, condition):
+    """The condition a #if/#ifdef/#ifndef line opens, as one expression string."""
+    if keyword == 'ifdef':
+        return f'defined({condition})'
+    if keyword == 'ifndef':
+        return f'!defined({condition})'
+    return condition
+
+
+def negate_condition(condition):
+    if condition.startswith('!defined('):
+        return condition[1:]
+    if re.fullmatch(r'defined\(\w+\)|\w+', condition):
+        return '!' + condition
+    return f'!({condition})'
 
 
 def is_doc_block_start(text, i):
@@ -243,8 +278,9 @@ def parse_header(path):
         raise ValueError(f'{path}:{error}') from None
     decls, pending_doc, body, extern_blocks = [], None, None, []
     # One entry per open file-scope conditional: the doc block a declaration in an earlier
-    # branch consumed, so the same block can document its #else/#elif twin.
-    conditionals, doc_depth = [], 0
+    # branch consumed, so the same block can document its #else/#elif twin. `guards` runs
+    # in step with it and holds the condition text of each open conditional.
+    conditionals, doc_depth, guards = [], 0, []
     lines = list(logical_lines(text))
     i = 0
     while i < len(lines):
@@ -265,13 +301,19 @@ def parse_header(path):
                 directive = CONDITIONAL_RE.match(s)
                 if not directive:
                     pending_doc = None
-                elif directive.group(1) in ('if', 'ifdef', 'ifndef'):
+                    break
+                keyword, condition = directive.group(1), s[directive.end():].strip()
+                if keyword in ('if', 'ifdef', 'ifndef'):
                     conditionals.append(None)
-                elif directive.group(1) in ('elif', 'else'):
+                    guards.append(guard_condition(keyword, condition))
+                elif keyword in ('elif', 'else'):
                     if conditionals and conditionals[-1] is not None:
                         pending_doc, doc_depth = conditionals[-1], len(conditionals) - 1
+                    if guards:
+                        guards[-1] = negate_condition(guards[-1]) if keyword == 'else' else condition
                 elif conditionals:
                     conditionals.pop()
+                    guards.pop()
                 break
             if s.startswith(COMMENT_MARKER):
                 pending_doc = None
@@ -330,14 +372,15 @@ def parse_header(path):
                     params = split_params(match.group('params'))
                 except ValueError as failure:
                     error = str(failure)
+                ret = ' '.join(STATIC_RE.sub(' ', match.group('ret')).split())
                 decls.append(Decl(path, lineno, match.group('name'), params, pending_doc,
-                                  bool(STATIC_RE.search(match.group('ret'))), error))
+                                  bool(STATIC_RE.search(match.group('ret'))), error, ret, guards))
             elif looks_like_call(joined):
                 # Something with a parameter list that the grammar above does not cover, such
                 # as a macro after the closing parenthesis: report it rather than lose it.
                 name = re.search(r'([A-Za-z_]\w*)\s*\(', joined).group(1)
                 decls.append(Decl(path, lineno, name, [], pending_doc, False,
-                                  f'unrecognized declaration {joined!r}'))
+                                  f'unrecognized declaration {joined!r}', guards=guards))
             if pending_doc is not None:
                 for level in range(doc_depth, len(conditionals)):
                     conditionals[level] = pending_doc
@@ -456,13 +499,16 @@ def main():
                         help='directory that relative header names resolve against')
     parser.add_argument('--list', action='store_true',
                         help='print every parsed declaration with its parameter types and tags')
-    parser.add_argument('header', nargs='*', default=list(DEFAULT_HEADERS),
-                        help='headers to check (default: the public CMSIS-NN headers)')
+    parser.add_argument('header', nargs='*', default=[],
+                        help=f'headers to check (default: every {PUBLIC_HEADER_GLOB} under '
+                             '--include-dir)')
     args = parser.parse_args()
     include_dir = Path(args.include_dir)
     paths = [Path(h) if Path(h).is_absolute() or Path(h).exists() else include_dir / h
              for h in args.header]
     try:
+        if not paths:
+            paths = public_headers(include_dir)
         count, errors = check_headers(paths, list_decls=args.list)
     except (OSError, ValueError) as error:
         print(f'ERROR: {error}', file=sys.stderr)
