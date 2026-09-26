@@ -1,5 +1,36 @@
 # Changelog
 
+## [7.36.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.35.1...v7.36.0) (2026-09-26)
+
+
+### Features
+
+* **basicmath:** add float16 squared difference ([f41b773](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f41b773f08188b04bf3a37a58184ed39fed78ba9))
+
+
+### Bug Fixes
+
+* **activation:** define compatibility Hard Swish signed arithmetic ([#533](https://github.com/AmbiqAI/ns-cmsis-nn/issues/533)) ([4b1681e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4b1681e22fcc0205acf3947ec880a533f76fc07f))
+* **activation:** preserve FP16 tanh NaNs and signed zeros ([#537](https://github.com/AmbiqAI/ns-cmsis-nn/issues/537)) ([834dde0](https://github.com/AmbiqAI/ns-cmsis-nn/commit/834dde068e0dfa61d53cf6b7663997eecd6eb1a6))
+* complete [@param](https://github.com/param) documentation for the public headers and const-qualify the arm_sqrt_s8 LUT ([b87a0ca](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b87a0cad5ea2f1b5e51233a5c557091a6911aa3f))
+* **f16:** accumulate the scalar 1xN and packed conv1d f16 legs in float32 ([#551](https://github.com/AmbiqAI/ns-cmsis-nn/issues/551)) ([28e947b](https://github.com/AmbiqAI/ns-cmsis-nn/commit/28e947b79fa842769fcb2f58f0b3b6bf9e58709c)), closes [#465](https://github.com/AmbiqAI/ns-cmsis-nn/issues/465) [#386](https://github.com/AmbiqAI/ns-cmsis-nn/issues/386)
+* **float:** reject float16 without MVE on GCC before 15.3 ([#545](https://github.com/AmbiqAI/ns-cmsis-nn/issues/545)) ([6517949](https://github.com/AmbiqAI/ns-cmsis-nn/commit/65179491c2114ccff173bec06d3f52edac850444)), closes [#487](https://github.com/AmbiqAI/ns-cmsis-nn/issues/487)
+* **float:** require IEEE binary16 for float16 builds ([#544](https://github.com/AmbiqAI/ns-cmsis-nn/issues/544)) ([c000c30](https://github.com/AmbiqAI/ns-cmsis-nn/commit/c000c3097b74151b9f193916e98ee544dd249d09)), closes [#511](https://github.com/AmbiqAI/ns-cmsis-nn/issues/511) [#538](https://github.com/AmbiqAI/ns-cmsis-nn/issues/538)
+* **int4:** define low-nibble decoding in convolution paths ([#529](https://github.com/AmbiqAI/ns-cmsis-nn/issues/529)) ([112f487](https://github.com/AmbiqAI/ns-cmsis-nn/commit/112f487e6fdc8f7a5f296f5c40fad355579e723e))
+* **tooling:** accept GitHub SSH URL remotes ([#486](https://github.com/AmbiqAI/ns-cmsis-nn/issues/486)) ([3bcf7d7](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3bcf7d780b1f9ad854b8e5f250d52bda210654bd)), closes [#485](https://github.com/AmbiqAI/ns-cmsis-nn/issues/485)
+
+
+### Performance
+
+* **depthwise:** route dilated 1D 16x8 depthwise layers to the fast kernel ([#553](https://github.com/AmbiqAI/ns-cmsis-nn/issues/553)) ([b42ce32](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b42ce3229b6ba11385dcb2680f063d4b3ebf32a8)), closes [#473](https://github.com/AmbiqAI/ns-cmsis-nn/issues/473)
+* **depthwise:** route dilated 1D int8 depthwise layers to the optimized kernel ([#552](https://github.com/AmbiqAI/ns-cmsis-nn/issues/552)) ([016743a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/016743a62b333a8fb5d9547a1f746ec8ea8c6f65)), closes [#473](https://github.com/AmbiqAI/ns-cmsis-nn/issues/473) [#476](https://github.com/AmbiqAI/ns-cmsis-nn/issues/476)
+
+
+### Refactoring
+
+* **cmake:** share source-build configuration across integrations ([#535](https://github.com/AmbiqAI/ns-cmsis-nn/issues/535)) ([377baeb](https://github.com/AmbiqAI/ns-cmsis-nn/commit/377baeb96127c012395360922945758801fd7dac))
+* **test:** consolidate float probe registration ([#534](https://github.com/AmbiqAI/ns-cmsis-nn/issues/534)) ([1bbfb3f](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1bbfb3fc3ddc0b823a6e12567bfb3d21c69619af))
+
 ## [7.35.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.35.0...v7.35.1) (2026-09-15)
 
 

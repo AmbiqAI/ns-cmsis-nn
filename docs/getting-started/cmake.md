@@ -11,7 +11,7 @@ not cache settings for changing the prebuilt archive.
 Pick the tarball matching your target CPU:
 
 ```bash
-VERSION=7.35.1 # x-release-please-version
+VERSION=7.36.0 # x-release-please-version
 CPU=cortex-m4   # or cortex-m0, cortex-m55
 TOOLCHAIN=atfe # or gcc, armclang
 curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz
@@ -24,9 +24,9 @@ tar -xzf ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz -C third_party/
 ## 2. Wire it into your CMake project
 
 ```cmake
-list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/third_party/ns-cmsis-nn-cortex-m4-atfe-7.35.1") # x-release-please-version
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/third_party/ns-cmsis-nn-cortex-m4-atfe-7.36.0") # x-release-please-version
 
-find_package(ns-cmsis-nn 7.35.1 REQUIRED CONFIG) # x-release-please-version
+find_package(ns-cmsis-nn 7.36.0 REQUIRED CONFIG) # x-release-please-version
 
 add_executable(my_firmware main.c)
 target_link_libraries(my_firmware PRIVATE ns::cmsis-nn)
@@ -61,7 +61,7 @@ the expected archive:
 
 ```bash
 cmake -S . -B build \
-  -DCMAKE_PREFIX_PATH="$PWD/third_party/ns-cmsis-nn-cortex-m4-atfe-7.35.1" # x-release-please-version
+  -DCMAKE_PREFIX_PATH="$PWD/third_party/ns-cmsis-nn-cortex-m4-atfe-7.36.0" # x-release-please-version
 cmake --build build --verbose
 ```
 
