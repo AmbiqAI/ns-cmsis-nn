@@ -136,12 +136,16 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
     }
 #endif
 
-    if (1 == dw_conv_params->ch_mult && input_dims->n == 1 && dw_conv_params->dilation.w == 1 &&
-        dw_conv_params->dilation.h == 1)
+    const int32_t dilation_opt_supported = (dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1) ||
+        (dw_conv_params->dilation.h == 1 && filter_dims->h == 1 && input_dims->h == 1 && output_dims->h == 1 &&
+         dw_conv_params->stride.w == 1 && dw_conv_params->stride.h == 1 && dw_conv_params->padding.h == 0 &&
+         dw_conv_params->dilation.w >= 1);
+
+    if (1 == dw_conv_params->ch_mult && input_dims->n == 1 && dilation_opt_supported)
     {
 #if !defined(ARM_MATH_MVEI)
         if (filter_dims->w == 3 && filter_dims->h == 3 && dw_conv_params->padding.h <= 1 &&
-            dw_conv_params->padding.w <= 1)
+            dw_conv_params->padding.w <= 1 && dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1)
         {
             status = arm_depthwise_conv_3x3_s8(ctx,
                                                dw_conv_params,
