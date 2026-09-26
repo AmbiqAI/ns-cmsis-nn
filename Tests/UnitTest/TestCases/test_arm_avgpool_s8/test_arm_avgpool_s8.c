@@ -414,3 +414,186 @@ void buffer_size_out_of_range_mve_arm_avgpool_s8(void)
     TEST_ASSERT_EQUAL(0, arm_avgpool_s8_get_buffer_size_mve(AVGPOOLING_5_OUTPUT_W, AVGPOOLING_5_INPUT_C));
     TEST_ASSERT_EQUAL(0, arm_avgpool_s8_get_buffer_size_mve(0, 0));
 }
+
+// Issue #546: arm_avgpool_s8 must return ARM_CMSIS_NN_ARG_ERROR without modifying any destination bytes
+// when an output position has an empty pooling window (tested for empty-X, empty-Y, and both).
+void avgpooling_empty_window_arm_avgpool_s8(void)
+{
+    const int8_t input_data[4] = {1, 2, 3, 4};
+    int8_t output[9];
+
+    cmsis_nn_context ctx;
+    cmsis_nn_pool_params pool_params;
+    cmsis_nn_dims input_dims;
+    cmsis_nn_dims filter_dims;
+    cmsis_nn_dims output_dims;
+
+    input_dims.n = 1;
+    input_dims.w = 2;
+    input_dims.h = 2;
+    input_dims.c = 1;
+
+    filter_dims.w = 1;
+    filter_dims.h = 1;
+
+    pool_params.padding.w = 0;
+    pool_params.padding.h = 0;
+    pool_params.stride.w = 1;
+    pool_params.stride.h = 1;
+
+    pool_params.activation.min = -128;
+    pool_params.activation.max = 127;
+
+    // Case 1: Issue #546 reproducer (both X and Y exceed input dimensions at position (2, 2)).
+    {
+        memset(output, 0x55, sizeof(output));
+        output_dims.w = 3;
+        output_dims.h = 3;
+        output_dims.c = 1;
+
+        ctx.size = arm_avgpool_s8_get_buffer_size(output_dims.w, input_dims.c);
+        ctx.buf = ctx.size > 0 ? malloc(ctx.size) : NULL;
+
+        arm_cmsis_nn_status result =
+            arm_avgpool_s8(&ctx, &pool_params, &input_dims, input_data, &filter_dims, &output_dims, output);
+
+        if (ctx.buf)
+        {
+            memset(ctx.buf, 0, ctx.size);
+            free(ctx.buf);
+        }
+
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, result);
+        for (size_t i = 0; i < sizeof(output); i++)
+        {
+            TEST_ASSERT_EQUAL_HEX8(0x55, (uint8_t)output[i]);
+        }
+    }
+
+    // Case 2: Empty X intersection with valid Y (output_w = 3, output_h = 2).
+    {
+        memset(output, 0x55, sizeof(output));
+        output_dims.w = 3;
+        output_dims.h = 2;
+        output_dims.c = 1;
+
+        ctx.size = arm_avgpool_s8_get_buffer_size(output_dims.w, input_dims.c);
+        ctx.buf = ctx.size > 0 ? malloc(ctx.size) : NULL;
+
+        arm_cmsis_nn_status result =
+            arm_avgpool_s8(&ctx, &pool_params, &input_dims, input_data, &filter_dims, &output_dims, output);
+
+        if (ctx.buf)
+        {
+            memset(ctx.buf, 0, ctx.size);
+            free(ctx.buf);
+        }
+
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, result);
+        for (size_t i = 0; i < sizeof(output); i++)
+        {
+            TEST_ASSERT_EQUAL_HEX8(0x55, (uint8_t)output[i]);
+        }
+    }
+
+    // Case 3: Empty Y intersection with valid X (output_w = 2, output_h = 3).
+    {
+        memset(output, 0x55, sizeof(output));
+        output_dims.w = 2;
+        output_dims.h = 3;
+        output_dims.c = 1;
+
+        ctx.size = arm_avgpool_s8_get_buffer_size(output_dims.w, input_dims.c);
+        ctx.buf = ctx.size > 0 ? malloc(ctx.size) : NULL;
+
+        arm_cmsis_nn_status result =
+            arm_avgpool_s8(&ctx, &pool_params, &input_dims, input_data, &filter_dims, &output_dims, output);
+
+        if (ctx.buf)
+        {
+            memset(ctx.buf, 0, ctx.size);
+            free(ctx.buf);
+        }
+
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, result);
+        for (size_t i = 0; i < sizeof(output); i++)
+        {
+            TEST_ASSERT_EQUAL_HEX8(0x55, (uint8_t)output[i]);
+        }
+    }
+
+    // Case 4: Extreme integer-overflow bound leading to an empty window at i_x = 3.
+    // Preflight validation must reject it upfront without any output writes.
+    {
+        memset(output, 0x55, sizeof(output));
+        input_dims.w = 2;
+        input_dims.h = 1;
+        input_dims.c = 1;
+        filter_dims.w = INT32_MAX;
+        filter_dims.h = 1;
+        pool_params.padding.w = 1;
+        pool_params.padding.h = 0;
+        pool_params.stride.w = 1;
+        pool_params.stride.h = 1;
+        output_dims.w = 4;
+        output_dims.h = 1;
+        output_dims.c = 1;
+
+        ctx.size = arm_avgpool_s8_get_buffer_size(output_dims.w, input_dims.c);
+        ctx.buf = ctx.size > 0 ? malloc(ctx.size) : NULL;
+
+        arm_cmsis_nn_status result =
+            arm_avgpool_s8(&ctx, &pool_params, &input_dims, input_data, &filter_dims, &output_dims, output);
+
+        if (ctx.buf)
+        {
+            memset(ctx.buf, 0, ctx.size);
+            free(ctx.buf);
+        }
+
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, result);
+        for (size_t i = 0; i < sizeof(output); i++)
+        {
+            TEST_ASSERT_EQUAL_HEX8(0x55, (uint8_t)output[i]);
+        }
+    }
+
+    // Case 5: Extreme integer-overflow bound with valid windows across all output positions.
+    // In 32-bit math, i_x = 2 overflows (2 * 1 - 1 + INT32_MAX) resulting in a spurious late ARG_ERROR
+    // after partial output writes. Widened int64_t calculations must process it successfully.
+    {
+        const int8_t test_input[2] = {10, 20};
+        const int8_t expected_output[3] = {15, 15, 20};
+        memset(output, 0x55, sizeof(output));
+        input_dims.w = 2;
+        input_dims.h = 1;
+        input_dims.c = 1;
+        filter_dims.w = INT32_MAX;
+        filter_dims.h = 1;
+        pool_params.padding.w = 1;
+        pool_params.padding.h = 0;
+        pool_params.stride.w = 1;
+        pool_params.stride.h = 1;
+        output_dims.w = 3;
+        output_dims.h = 1;
+        output_dims.c = 1;
+
+        ctx.size = arm_avgpool_s8_get_buffer_size(output_dims.w, input_dims.c);
+        ctx.buf = ctx.size > 0 ? malloc(ctx.size) : NULL;
+
+        arm_cmsis_nn_status result =
+            arm_avgpool_s8(&ctx, &pool_params, &input_dims, test_input, &filter_dims, &output_dims, output);
+
+        if (ctx.buf)
+        {
+            memset(ctx.buf, 0, ctx.size);
+            free(ctx.buf);
+        }
+
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+        for (int i = 0; i < 3; i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(expected_output[i], output[i]);
+        }
+    }
+}
