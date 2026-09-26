@@ -71,6 +71,12 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
+    /* The optimized paths step the horizontal tap index by dilation.w and have no vertical dilation */
+    if (dw_conv_params->dilation.h != 1 || dw_conv_params->dilation.w < 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     if (ctx->buf == NULL && arm_depthwise_conv_s8_opt_get_buffer_size(input_dims, filter_dims) != 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;

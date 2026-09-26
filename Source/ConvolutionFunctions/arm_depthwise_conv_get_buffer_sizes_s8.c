@@ -136,10 +136,8 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size(const cmsis_nn_dw_conv_par
     }
 #endif
 
-    const int32_t dilation_opt_supported = (dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1) ||
-        (dw_conv_params->dilation.h == 1 && filter_dims->h == 1 && input_dims->h == 1 && output_dims->h == 1 &&
-         dw_conv_params->stride.w == 1 && dw_conv_params->stride.h == 1 && dw_conv_params->padding.h == 0 &&
-         dw_conv_params->dilation.w >= 1);
+    const bool dilation_opt_supported =
+        arm_nn_dw_conv_s8_opt_dilation_supported(dw_conv_params, input_dims, filter_dims, output_dims);
 
     if (input_dims->c == output_dims->c && input_dims->n == 1 && dilation_opt_supported)
     {
@@ -163,10 +161,8 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp(const cmsis_nn_dw_conv
 {
     int32_t size = 0;
 
-    const int32_t dilation_opt_supported = (dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1) ||
-        (dw_conv_params->dilation.h == 1 && filter_dims->h == 1 && input_dims->h == 1 && output_dims->h == 1 &&
-         dw_conv_params->stride.w == 1 && dw_conv_params->stride.h == 1 && dw_conv_params->padding.h == 0 &&
-         dw_conv_params->dilation.w >= 1);
+    const bool dilation_opt_supported =
+        arm_nn_dw_conv_s8_opt_dilation_supported(dw_conv_params, input_dims, filter_dims, output_dims);
 
     if (input_dims->c == output_dims->c && input_dims->n == 1 && dilation_opt_supported)
     {
@@ -188,10 +184,8 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(const cmsis_nn_dw_conv
 {
     int32_t size = 0;
 
-    const int32_t dilation_opt_supported = (dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1) ||
-        (dw_conv_params->dilation.h == 1 && filter_dims->h == 1 && input_dims->h == 1 && output_dims->h == 1 &&
-         dw_conv_params->stride.w == 1 && dw_conv_params->stride.h == 1 && dw_conv_params->padding.h == 0 &&
-         dw_conv_params->dilation.w >= 1);
+    const bool dilation_opt_supported =
+        arm_nn_dw_conv_s8_opt_dilation_supported(dw_conv_params, input_dims, filter_dims, output_dims);
 
     if (input_dims->c == output_dims->c && input_dims->n == 1 && dilation_opt_supported)
     {

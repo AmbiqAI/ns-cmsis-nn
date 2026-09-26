@@ -136,10 +136,8 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
     }
 #endif
 
-    const int32_t dilation_opt_supported = (dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1) ||
-        (dw_conv_params->dilation.h == 1 && filter_dims->h == 1 && input_dims->h == 1 && output_dims->h == 1 &&
-         dw_conv_params->stride.w == 1 && dw_conv_params->stride.h == 1 && dw_conv_params->padding.h == 0 &&
-         dw_conv_params->dilation.w >= 1);
+    const bool dilation_opt_supported =
+        arm_nn_dw_conv_s8_opt_dilation_supported(dw_conv_params, input_dims, filter_dims, output_dims);
 
     if (1 == dw_conv_params->ch_mult && input_dims->n == 1 && dilation_opt_supported)
     {
