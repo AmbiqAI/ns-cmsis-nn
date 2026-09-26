@@ -25,12 +25,13 @@ import re
 import sys
 
 REPO = Path(__file__).resolve().parents[1]
-DEFAULT_HEADERS = (
-    'arm_nnfunctions.h',
-    'arm_nnfunctions_flt.h',
-    'arm_nnsupportfunctions.h',
-    'arm_nnsupportfunctions_flt.h',
-)
+# The public headers are discovered, not listed: a fifth functions header (the way the
+# _flt.h pair was split out) must be checked the day it appears, and neither the script
+# nor the pre-commit hook would say so if it were missing from a hand-kept list. The
+# floor catches the opposite drift, a rename or removal that would otherwise shrink the
+# checked surface silently (same pattern as check_api_group_classification.py).
+PUBLIC_HEADER_GLOB = 'arm_nn*functions*.h'
+MIN_PUBLIC_HEADERS = 4
 CONDITIONAL_RE = re.compile(r'^#\s*(if|ifdef|ifndef|elif|else|endif)\b')
 DECL_RE = re.compile(r'^(?P<ret>[^;{}()]*?)\b(?P<name>[A-Za-z_]\w*)\s*\((?P<params>.*)\)\s*$', re.S)
 # Aggregate bodies are cut at their opening brace before this is applied, so only a typedef
@@ -49,6 +50,19 @@ DIRECTIONS = ('in', 'out', 'in,out')
 COMMENT_MARKER = '@@COMMENT@@'
 # The buffer behind a const context pointer is written, so both tags are honest.
 DIRECTION_EXCEPTIONS = {'const cmsis_nn_context *': {'in', 'in,out'}}
+
+
+def public_headers(include_dir):
+    """Return the public functions headers under include_dir, sorted; raise on too few."""
+    paths = sorted(Path(include_dir).glob(PUBLIC_HEADER_GLOB))
+    if len(paths) < MIN_PUBLIC_HEADERS:
+        raise ValueError(
+            f'expected at least {MIN_PUBLIC_HEADERS} public headers matching '
+            f'{PUBLIC_HEADER_GLOB!r} in {include_dir}, found {len(paths)}: '
+            f'{[path.name for path in paths]}. A public header may have been renamed or '
+            'removed; if the reduction is deliberate, update PUBLIC_HEADER_GLOB / '
+            'MIN_PUBLIC_HEADERS in this script to match.')
+    return paths
 
 
 class Param:
@@ -456,13 +470,16 @@ def main():
                         help='directory that relative header names resolve against')
     parser.add_argument('--list', action='store_true',
                         help='print every parsed declaration with its parameter types and tags')
-    parser.add_argument('header', nargs='*', default=list(DEFAULT_HEADERS),
-                        help='headers to check (default: the public CMSIS-NN headers)')
+    parser.add_argument('header', nargs='*', default=[],
+                        help=f'headers to check (default: every {PUBLIC_HEADER_GLOB} under '
+                             '--include-dir)')
     args = parser.parse_args()
     include_dir = Path(args.include_dir)
     paths = [Path(h) if Path(h).is_absolute() or Path(h).exists() else include_dir / h
              for h in args.header]
     try:
+        if not paths:
+            paths = public_headers(include_dir)
         count, errors = check_headers(paths, list_decls=args.list)
     except (OSError, ValueError) as error:
         print(f'ERROR: {error}', file=sys.stderr)
