@@ -47,3 +47,4 @@ void tearDown(void) {}
 void test_mul_arm_elementwise_mul_s8(void) { mul_arm_elementwise_mul_s8(); }
 void test_mul_arm_elementwise_mul_1_s8(void) { mul_arm_elementwise_mul_1_s8(); }
 void test_mul_arm_elementwise_mul_2_s8(void) { mul_arm_elementwise_mul_2_s8(); }
+void test_mul_saturation_arm_elementwise_mul_s8(void) { mul_saturation_arm_elementwise_mul_s8(); }
