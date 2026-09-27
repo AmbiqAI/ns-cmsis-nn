@@ -564,26 +564,22 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
                                               int8_t *output)
 {
 #if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
-    /* Few channels and 1xk kernels run faster vectorized across output pixels than across channels. The planar path
-       also declines when ctx->size cannot hold its plane. */
-    if (arm_depthwise_conv_s8_opt_planar_supported(dw_conv_params, input_dims, filter_dims, output_dims))
+    /* Few channels and 1xk kernels run faster vectorized across output pixels than across channels. The planar kernel
+       applies the arm_depthwise_conv_s8_opt_planar_supported() rule itself and also declines, writing nothing, when
+       ctx->size cannot hold its plane or an argument is invalid; the channel path then computes the layer or reports
+       the argument error. */
+    if (arm_nn_depthwise_conv_s8_planar(ctx,
+                                        weight_sum_ctx,
+                                        dw_conv_params,
+                                        quant_params,
+                                        input_dims,
+                                        input,
+                                        filter_dims,
+                                        kernel,
+                                        output_dims,
+                                        output) == ARM_CMSIS_NN_SUCCESS)
     {
-        const arm_cmsis_nn_status status = arm_depthwise_conv_s8_opt_planar(ctx,
-                                                                            weight_sum_ctx,
-                                                                            dw_conv_params,
-                                                                            quant_params,
-                                                                            input_dims,
-                                                                            input,
-                                                                            filter_dims,
-                                                                            kernel,
-                                                                            bias_dims,
-                                                                            bias,
-                                                                            output_dims,
-                                                                            output);
-        if (status != ARM_CMSIS_NN_NO_IMPL_ERROR)
-        {
-            return status;
-        }
+        return ARM_CMSIS_NN_SUCCESS;
     }
 #endif
     return arm_depthwise_conv_s8_opt_channelwise(ctx,

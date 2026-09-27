@@ -128,15 +128,12 @@ static bool dw_planar_use_dot(const cmsis_nn_dw_conv_params *dw_conv_params,
 }
 
 /*
- * Plane size of the planar path. The rule is plain C so it evaluates the same on every build.
- *
- * Refer header file for details.
- *
+ * Returns the plane size in bytes the planar path needs, or -1 when the layer is not one it handles.
  */
-int32_t arm_nn_depthwise_conv_s8_planar_bytes(const cmsis_nn_dw_conv_params *dw_conv_params,
-                                              const cmsis_nn_dims *input_dims,
-                                              const cmsis_nn_dims *filter_dims,
-                                              const cmsis_nn_dims *output_dims)
+__STATIC_FORCEINLINE int32_t dw_planar_plane_bytes(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   const cmsis_nn_dims *filter_dims,
+                                                   const cmsis_nn_dims *output_dims)
 {
     if (input_dims->c != output_dims->c || input_dims->n != 1 || dw_conv_params->ch_mult != 1 ||
         dw_conv_params->stride.w != 1 || dw_conv_params->stride.h != 1 || dw_conv_params->dilation.h != 1 ||
@@ -187,6 +184,21 @@ int32_t arm_nn_depthwise_conv_s8_planar_bytes(const cmsis_nn_dw_conv_params *dw_
     }
     bytes = plane_w * plane_h + DW_PLANAR_SLACK;
     return bytes > INT32_MAX ? -1 : (int32_t)bytes;
+}
+
+/*
+ * Plane size of the planar path. The rule is plain C so it evaluates the same on every build. The kernel below keeps
+ * its own inlined call to dw_planar_plane_bytes().
+ *
+ * Refer header file for details.
+ *
+ */
+int32_t arm_nn_depthwise_conv_s8_planar_bytes(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *filter_dims,
+                                              const cmsis_nn_dims *output_dims)
+{
+    return dw_planar_plane_bytes(dw_conv_params, input_dims, filter_dims, output_dims);
 }
 
 #if defined(ARM_MATH_MVEI)
@@ -286,8 +298,7 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_s8_planar(const cmsis_nn_context *ctx,
                                                     int8_t *output)
 {
 #if defined(ARM_MATH_MVEI)
-    const int32_t plane_bytes =
-        arm_nn_depthwise_conv_s8_planar_bytes(dw_conv_params, input_dims, filter_dims, output_dims);
+    const int32_t plane_bytes = dw_planar_plane_bytes(dw_conv_params, input_dims, filter_dims, output_dims);
     if (plane_bytes < 0 || ctx == NULL || ctx->buf == NULL || plane_bytes > ctx->size || weight_sum_ctx == NULL ||
         weight_sum_ctx->buf == NULL || plane_bytes > arm_depthwise_conv_s8_opt_get_buffer_size(input_dims, filter_dims))
     {
