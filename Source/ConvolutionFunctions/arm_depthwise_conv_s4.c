@@ -69,7 +69,6 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                                       const int32_t dilation_y)
 
 {
-    (void)output_ch;
     int i_out = 0;
     int i_batch;
 
@@ -375,20 +374,12 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                 for (int i_out_x = 0; i_out_x < output_x; i_out_x++)
                 {
                     const int16_t base_idx_x = (i_out_x * stride_x) - pad_x;
-                    int idx_out_ch_s4 = 0;
-                    int get_low_nibble = 1;
 
                     for (int i_input_ch = 0; i_input_ch < input_ch; i_input_ch++)
                     {
                         for (int i_ch_mult = 0; i_ch_mult < ch_mult; i_ch_mult++)
                         {
                             const int idx_out_ch = i_ch_mult + i_input_ch * ch_mult;
-                            if (idx_out_ch && (idx_out_ch % 2 == 0))
-                            {
-                                idx_out_ch_s4++;
-                            }
-
-                            int16_t kernel_index_offset_uneven = 0;
                             int32_t acc_0 = 0;
 
                             int ker_y_start;
@@ -432,38 +423,23 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                                 int32_t idx_x = base_idx_x + dilation_x * ker_x_start;
                                 int32_t idx_0 = (idx_y * input_x + idx_x) * input_ch + i_input_ch;
 
-                                int32_t ker_idx_0 =
-                                    (i_ker_y * kernel_x + ker_x_start) * (kernel_index_offset * ch_mult) +
-                                    idx_out_ch_s4 + kernel_index_offset_uneven;
+                                /* With an odd channel count a tap can start mid-byte, so each weight is found by its
+                                   nibble index, low nibble first. */
+                                int32_t ker_nibble = (i_ker_y * kernel_x + ker_x_start) * output_ch + idx_out_ch;
 
                                 for (int i_ker_x = ker_x_start; i_ker_x < ker_x_end; i_ker_x++)
                                 {
-                                    int8_t ker_val;
-
-                                    if (get_low_nibble)
-                                    {
-                                        get_low_nibble = 0;
-                                        ker_val = arm_nn_s4_low_nibble(kernel[ker_idx_0]);
-                                    }
-                                    else
-                                    {
-                                        ker_val = (kernel[ker_idx_0] >> 4);
-                                        get_low_nibble = 1;
-                                        kernel_index_offset_uneven++;
-                                    }
+                                    const int8_t ker_byte = kernel[ker_nibble >> 1];
+                                    const int8_t ker_val =
+                                        (ker_nibble & 1) ? (int8_t)(ker_byte >> 4) : arm_nn_s4_low_nibble(ker_byte);
 
                                     acc_0 += (input[idx_0] + input_offset) * ker_val;
                                     idx_0 += dilation_x * input_ch;
                                     idx_x += dilation_x;
-                                    ker_idx_0 += (kernel_index_offset * ch_mult) + get_low_nibble;
+                                    ker_nibble += output_ch;
                                 }
                                 idx_y += dilation_y;
                             }
-                            if ((kernel_x * kernel_y) % 2)
-                            {
-                                get_low_nibble = !get_low_nibble;
-                            }
-                            get_low_nibble = !get_low_nibble;
 
                             /* Requantize and clamp output to provided range */
                             acc_0 = arm_nn_requantize(acc_0, output_mult[idx_out_ch], output_shift[idx_out_ch]);

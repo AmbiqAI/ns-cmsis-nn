@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: Copyright 2023-2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -17,6 +18,7 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <stdlib.h>
 #include <unity.h>
 
@@ -615,4 +617,119 @@ void depthwise_int4_generic_6_arm_depthwise_conv_s4(void)
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, depthwise_int4_generic_6_output_ref, DEPTHWISE_INT4_GENERIC_6_DST_SIZE));
     memset(output, 0, DEPTHWISE_INT4_GENERIC_6_DST_SIZE);
+}
+
+/* Weight t * C_OUT + c of a packed int4 filter, low nibble first. */
+static int32_t s4_weight(const int8_t *filter, int32_t index)
+{
+    const int8_t byte = filter[index >> 1];
+    return (index & 1) ? (byte >> 4) : ((int8_t)(byte << 4) >> 4);
+}
+
+/* Odd and even channel counts, channel multipliers, 1-D and 2-D kernels, with and without padding and dilation,
+   against a scalar reference. With an odd channel count a filter tap can start in the middle of a byte. */
+void channel_parity_arm_depthwise_conv_s4(void)
+{
+    enum
+    {
+        max_in = 4 * 6 * 7,
+        max_out = 4 * 6 * 21,
+        max_w = 9 * 21
+    };
+    static int8_t input[max_in], filter[(max_w + 1) / 2], output[max_out], reference[max_out];
+    static int32_t bias[21], mult[21], shift[21];
+    const int32_t channels[] = {1, 2, 3, 4, 5, 7};
+    const int32_t multipliers[] = {1, 2, 3};
+    const int32_t shapes[][4] = {{1, 6, 1, 3}, {4, 6, 3, 3}}; /* input h, w, kernel h, w */
+    const cmsis_nn_context ctx = {NULL, 0};
+    for (size_t i_s = 0; i_s < sizeof(shapes) / sizeof(shapes[0]); i_s++)
+    {
+        for (size_t i_c = 0; i_c < sizeof(channels) / sizeof(channels[0]); i_c++)
+        {
+            for (size_t i_m = 0; i_m < sizeof(multipliers) / sizeof(multipliers[0]); i_m++)
+            {
+                for (int32_t pad = 0; pad < 2; pad++)
+                {
+                    for (int32_t dil = 1; dil < 3; dil++)
+                    {
+                        const int32_t ih = shapes[i_s][0], iw = shapes[i_s][1], kh = shapes[i_s][2],
+                                      kw = shapes[i_s][3];
+                        const int32_t ic = channels[i_c], cm = multipliers[i_m], oc = ic * cm;
+                        const int32_t pad_h = kh > 1 ? pad : 0, pad_w = pad * dil;
+                        const int32_t oh = ih + 2 * pad_h - (kh - 1) * dil, ow = iw + 2 * pad_w - (kw - 1) * dil;
+                        if (oh < 1 || ow < 1)
+                        {
+                            continue;
+                        }
+                        uint32_t seed = (uint32_t)(ic * 131 + cm * 17 + pad * 7 + dil * 3 + (int32_t)i_s);
+                        for (int32_t i = 0; i < ih * iw * ic; i++)
+                        {
+                            seed = seed * 1664525u + 1013904223u;
+                            input[i] = (int8_t)(seed >> 24);
+                        }
+                        for (int32_t i = 0; i < (kh * kw * oc + 1) / 2; i++)
+                        {
+                            seed = seed * 1664525u + 1013904223u;
+                            filter[i] = (int8_t)(seed >> 24);
+                        }
+                        for (int32_t i = 0; i < oc; i++)
+                        {
+                            seed = seed * 1664525u + 1013904223u;
+                            bias[i] = (int32_t)(seed >> 20) - 2048;
+                            mult[i] = 0x40000000 + (i % 7) * 0x4000000;
+                            shift[i] = -5 - (i % 3);
+                        }
+                        const cmsis_nn_dw_conv_params params = {.input_offset = 3,
+                                                                .output_offset = -2,
+                                                                .ch_mult = cm,
+                                                                .stride = {1, 1},
+                                                                .padding = {pad_w, pad_h},
+                                                                .dilation = {dil, dil},
+                                                                .activation = {-128, 127}};
+                        for (int32_t y = 0; y < oh; y++)
+                        {
+                            for (int32_t x = 0; x < ow; x++)
+                            {
+                                for (int32_t c = 0; c < oc; c++)
+                                {
+                                    int32_t acc = bias[c];
+                                    for (int32_t ty = 0; ty < kh; ty++)
+                                    {
+                                        for (int32_t tx = 0; tx < kw; tx++)
+                                        {
+                                            const int32_t iy = y - pad_h + ty * dil, ix = x - pad_w + tx * dil;
+                                            if (iy >= 0 && iy < ih && ix >= 0 && ix < iw)
+                                            {
+                                                acc += (input[(iy * iw + ix) * ic + c / cm] + params.input_offset) *
+                                                    s4_weight(filter, (ty * kw + tx) * oc + c);
+                                            }
+                                        }
+                                    }
+                                    int32_t r = arm_nn_requantize(acc, mult[c], shift[c]) + params.output_offset;
+                                    r = r < -128 ? -128 : (r > 127 ? 127 : r);
+                                    reference[(y * ow + x) * oc + c] = (int8_t)r;
+                                }
+                            }
+                        }
+                        const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+                        const cmsis_nn_dims input_dims = {1, ih, iw, ic}, filter_dims = {1, kh, kw, oc},
+                                            bias_dims = {1, 1, 1, oc}, output_dims = {1, oh, ow, oc};
+                        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                                          arm_depthwise_conv_s4(&ctx,
+                                                                &params,
+                                                                &quant,
+                                                                &input_dims,
+                                                                input,
+                                                                &filter_dims,
+                                                                filter,
+                                                                &bias_dims,
+                                                                bias,
+                                                                &output_dims,
+                                                                output));
+                        TEST_ASSERT_EQUAL_INT8_ARRAY(reference, output, oh * ow * oc);
+                    }
+                }
+            }
+        }
+    }
 }
