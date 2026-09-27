@@ -92,7 +92,7 @@ arm_cmsis_nn_status arm_elementwise_mul_s8(const int8_t *input_1_vect,
         int16x8_t half0 = vdupq_n_s16(0);
         half0 = vqmovnbq_s32(half0, res_a);
         half0 = vqmovntq_s32(half0, res_b);
-        half0 = vqaddq_s16(half0, vdupq_n_s16((int16_t)out_offset));
+        half0 = vqaddq_n_s16(half0, (int16_t)out_offset);
 
         half0 = vmaxq_s16(half0, vdupq_n_s16(out_activation_min));
         half0 = vminq_s16(half0, vdupq_n_s16(out_activation_max));
