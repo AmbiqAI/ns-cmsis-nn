@@ -1423,8 +1423,8 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
  * @param[out]     output          Output data pointer
  *
  * @return         <code>ARM_CMSIS_NN_SUCCESS</code> when the layer was computed, or
- *                 <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> when it is not one this path takes (then nothing is
- *                 written) or MVE is not available.
+ *                 <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> when it is not one this path takes or its plane does not
+ *                 fit in ctx->size (then nothing is written), or MVE is not available.
  */
 arm_cmsis_nn_status arm_nn_depthwise_conv_s8_planar(const cmsis_nn_context *ctx,
                                                     const cmsis_nn_context *weight_sum_ctx,

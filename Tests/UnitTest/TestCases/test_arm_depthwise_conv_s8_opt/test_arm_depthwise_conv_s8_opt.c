@@ -2195,8 +2195,55 @@ void planar_size_overflow_arm_depthwise_conv_s8_opt(void)
     const cmsis_nn_dims input_dims = {1, 65534, 8, 1}, filter_dims = {1, 3, 65529, 1}, output_dims = {1, 65534, 8, 1};
     const cmsis_nn_context ctx = {planar_scratch, (int32_t)sizeof(planar_scratch)};
     const cmsis_nn_context wsum = {planar_wsum, (int32_t)sizeof(planar_wsum)};
+    memset(planar_scratch, 0x3C, sizeof(planar_scratch));
+    memset(planar_out, 0x5A, sizeof(planar_out));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
                       arm_nn_depthwise_conv_s8_planar(
                           &ctx, &wsum, &params, &quant, &input_dims, planar_in, &filter_dims, planar_ker, &output_dims, planar_out));
+    for (size_t i = 0; i < sizeof(planar_out); i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[i]);
+    }
+    for (size_t i = 0; i < sizeof(planar_scratch); i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x3C, planar_scratch[i]);
+    }
+#endif
+}
+
+/* A layer the pixel-vectorized path takes is declined, writing nothing, when the context is smaller than its plane;
+   arm_depthwise_conv_s8_opt() then computes it as before. */
+void planar_small_context_arm_depthwise_conv_s8_opt(void)
+{
+#if defined(ARM_MATH_MVEI)
+    const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                            .output_offset = 0,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {1, 1},
+                                            .dilation = {1, 1},
+                                            .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {planar_mult, planar_shift};
+    const cmsis_nn_dims input_dims = {1, 7, 9, 5}, filter_dims = {1, 3, 3, 5}, output_dims = {1, 7, 9, 5};
+    /* The plane is (9 + 2) * (7 + 2) + 32 = 131 bytes. */
+    const cmsis_nn_context ctx = {planar_scratch, 130};
+    const cmsis_nn_context wsum = {planar_wsum, (int32_t)sizeof(planar_wsum)};
+    memset(planar_scratch, 0x3C, sizeof(planar_scratch));
+    memset(planar_out, 0x5A, sizeof(planar_out));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_nn_depthwise_conv_s8_planar(
+                          &ctx, &wsum, &params, &quant, &input_dims, planar_in, &filter_dims, planar_ker, &output_dims, planar_out));
+    for (size_t i = 0; i < sizeof(planar_out); i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[i]);
+    }
+    for (size_t i = 0; i < sizeof(planar_scratch); i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x3C, planar_scratch[i]);
+    }
+    const cmsis_nn_context fits = {planar_scratch, 131};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_nn_depthwise_conv_s8_planar(
+                          &fits, &wsum, &params, &quant, &input_dims, planar_in, &filter_dims, planar_ker, &output_dims, planar_out));
 #endif
 }
