@@ -119,8 +119,8 @@ __STATIC_FORCEINLINE void arm_mul_s8_row_broadcast(const int8_t *vec,
             {
                 res_a = vqrdmulhq_n_s32(res_a, out_mult);
                 res_b = vqrdmulhq_n_s32(res_b, out_mult);
-                res_a = vrshlq_s32(vqaddq_s32(res_a, vshrq_n_s32(res_a, 31)), shift);
-                res_b = vrshlq_s32(vqaddq_s32(res_b, vshrq_n_s32(res_b, 31)), shift);
+                res_a = arm_divide_by_nonzero_power_of_two_mve(res_a, shift);
+                res_b = arm_divide_by_nonzero_power_of_two_mve(res_b, shift);
             }
             else
             {

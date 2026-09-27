@@ -137,10 +137,10 @@ __STATIC_FORCEINLINE void arm_add_s8_row_broadcast(const int8_t *vec,
             v = vqrdmulhq_n_s32(vshlq_r_s32(vaddq_n_s32(v, vec_offset), left_shift), vec_mult);
             if (vec_div)
             {
-                v = vrshlq_s32(vqaddq_s32(v, vshrq_n_s32(v, 31)), vec_neg_exp);
+                v = arm_divide_by_nonzero_power_of_two_mve(v, vec_neg_exp);
             }
             v = vqrdmulhq_n_s32(vaddq_s32(v, r), out_mult);
-            v = vrshlq_s32(vqaddq_s32(v, vshrq_n_s32(v, 31)), out_neg_exp);
+            v = arm_divide_by_nonzero_power_of_two_mve(v, out_neg_exp);
             v = vaddq_n_s32(v, out_offset);
             v = vmaxq_s32(v, act_min);
             v = vminq_s32(v, act_max);

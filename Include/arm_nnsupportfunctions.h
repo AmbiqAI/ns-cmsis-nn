@@ -2432,6 +2432,21 @@ __STATIC_FORCEINLINE int32x4_t arm_divide_by_power_of_two_mve(const int32x4_t di
 }
 
 /**
+ * @brief           Vector rounding divide by a non-zero power of two for int32x4_t.
+ * @param[in]       dividend - Dividend vector
+ * @param[in]       neg_exp  - Negated exponent in every lane: divisor = power(2, -neg_exp)
+ *                             Range: [-31, -1]
+ * @return          Rounded result of division. Midpoint is rounded away from zero. Equal to
+ *                  arm_divide_by_power_of_two_mve() for the same exponent, whose fixup reduces to the sign of the
+ *                  dividend when the exponent is non-zero.
+ *
+ */
+__STATIC_FORCEINLINE int32x4_t arm_divide_by_nonzero_power_of_two_mve(const int32x4_t dividend, const int32x4_t neg_exp)
+{
+    return vrshlq_s32(vqaddq_s32(dividend, vshrq_n_s32(dividend, 31)), neg_exp);
+}
+
+/**
  * @brief           Vector rounding divide by power of two for int16x8_t.
  * @param[in]       dividend - Dividend vector
  * @param[in]       exponent - Divisor = power(2, exponent)

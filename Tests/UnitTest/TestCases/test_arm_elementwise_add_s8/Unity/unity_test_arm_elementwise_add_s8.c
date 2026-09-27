@@ -49,3 +49,5 @@ void test_add_arm_elementwise_add_s8(void) { add_arm_elementwise_add_s8(); }
 void test_block_size_invariance_arm_elementwise_add_s8(void) { block_size_invariance_arm_elementwise_add_s8(); }
 
 void test_block_size_invariance_arm_add_scalar_s8(void) { block_size_invariance_arm_add_scalar_s8(); }
+
+void test_add_requant_sets_arm_elementwise_add_s8(void) { add_requant_sets_arm_elementwise_add_s8(); }

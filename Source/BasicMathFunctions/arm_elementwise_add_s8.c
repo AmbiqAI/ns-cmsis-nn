@@ -51,14 +51,6 @@
 /* Note: __SHIFT is expected to be <=0 */
 
 #if defined(ARM_MATH_MVEI) && !defined(CMSIS_NN_USE_SINGLE_ROUNDING)
-/* Rounding divide by 2^e, half away from zero, for e in [1, 31] given as neg_exp = -e. Equal to
- * arm_divide_by_power_of_two_mve for a non-zero exponent: the sign mask it builds from (x & -e) is
- * the sign of x whenever e != 0, so the AND is dropped. */
-__STATIC_FORCEINLINE int32x4_t arm_elementwise_add_s8_rdiv(const int32x4_t x, const int32x4_t neg_exp)
-{
-    return vrshlq_s32(vqaddq_s32(x, vshrq_n_s32(x, 31)), neg_exp);
-}
-
 /* MVE add for input shifts in [-31, 0], left_shift in [0, 31] and out_shift in [-31, -1]: each
  * requantization is arm_requantize_mve with its zero left shift and, for a zero input shift, its
  * identity divide removed. in_1_div/in_2_div are compile-time constants at every call site. */
@@ -101,15 +93,15 @@ __STATIC_FORCEINLINE void arm_elementwise_add_s8_mve(const int8_t *input_1_vect,
         vect_2 = vqrdmulhq_n_s32(vect_2, input_2_mult);
         if (in_1_div)
         {
-            vect_1 = arm_elementwise_add_s8_rdiv(vect_1, neg_exp_1);
+            vect_1 = arm_divide_by_nonzero_power_of_two_mve(vect_1, neg_exp_1);
         }
         if (in_2_div)
         {
-            vect_2 = arm_elementwise_add_s8_rdiv(vect_2, neg_exp_2);
+            vect_2 = arm_divide_by_nonzero_power_of_two_mve(vect_2, neg_exp_2);
         }
 
         vect_1 = vaddq_s32(vect_1, vect_2);
-        vect_1 = arm_elementwise_add_s8_rdiv(vqrdmulhq_n_s32(vect_1, out_mult), neg_exp_out);
+        vect_1 = arm_divide_by_nonzero_power_of_two_mve(vqrdmulhq_n_s32(vect_1, out_mult), neg_exp_out);
         vect_1 = vaddq_n_s32(vect_1, out_offset);
 
         vect_1 = vmaxq_s32(vect_1, act_min);
