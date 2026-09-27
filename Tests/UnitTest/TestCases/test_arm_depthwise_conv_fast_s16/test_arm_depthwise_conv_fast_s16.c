@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: Copyright 2010-2023 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -17,7 +18,10 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <inttypes.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unity.h>
 
@@ -1263,4 +1267,152 @@ void dilation_arg_check_arm_depthwise_conv_fast_s16(void)
                                                       &output_dims,
                                                       dil_output));
     }
+}
+
+#if defined(ARM_MATH_MVEI) && defined(USING_FVP_CORSTONE_300)
+    #define GUARD_BLOCK 32
+    #define GUARD_OFFSET 1024
+/* Operands under test end at guard_arena + GUARD_OFFSET; the next GUARD_BLOCK bytes are left unmapped. */
+static int8_t guard_arena[GUARD_OFFSET + GUARD_BLOCK] __attribute__((aligned(GUARD_BLOCK)));
+
+/* The startup code leaves MemManage disabled, so an access to the gap escalates to HardFault. Report it and end the
+   run rather than spin in the default handler. */
+void HardFault_Handler(void)
+{
+    printf("HardFault: CFSR=0x%08" PRIx32 " MMFAR=0x%08" PRIx32 "\n", SCB->CFSR, SCB->MMFAR);
+    exit(1);
+}
+
+/* Maps everything except the gap, with no default background map, so any access to the gap faults. RLAR limits are
+   inclusive 32-byte granules: region 0 ends at gap - 1 and region 1 starts at gap + GUARD_BLOCK. */
+static void guard_gap_enable(void)
+{
+    const uint32_t gap = (uint32_t)&guard_arena[GUARD_OFFSET];
+    ARM_MPU_Disable();
+    ARM_MPU_SetMemAttr(0, ARM_MPU_ATTR(ARM_MPU_ATTR_NON_CACHEABLE, ARM_MPU_ATTR_NON_CACHEABLE));
+    ARM_MPU_SetRegion(0, ARM_MPU_RBAR(0, ARM_MPU_SH_NON, 0, 1, 0), ARM_MPU_RLAR(gap - GUARD_BLOCK, 0));
+    ARM_MPU_SetRegion(1, ARM_MPU_RBAR(gap + GUARD_BLOCK, ARM_MPU_SH_NON, 0, 1, 0), ARM_MPU_RLAR(0xFFFFFFE0U, 0));
+    MPU->CTRL = MPU_CTRL_ENABLE_Msk;
+    __DSB();
+    __ISB();
+}
+
+static void guard_gap_disable(void)
+{
+    MPU->CTRL = 0;
+    __DSB();
+    __ISB();
+    ARM_MPU_ClrRegion(0);
+    ARM_MPU_ClrRegion(1);
+}
+
+/* Storage of the given size that ends exactly at the gap. */
+static void *guard_end(size_t bytes) { return &guard_arena[GUARD_OFFSET - bytes]; }
+
+static void *guard_place(const void *src, size_t bytes) { return memcpy(guard_end(bytes), src, bytes); }
+#endif
+
+/* With a channel count that is not a multiple of 4, the MVE kernel must stay inside every operand, both in the
+   four-pixel blocks and in the leftover pixels. Each operand in turn is placed against an MPU gap. */
+void operand_bounds_arm_depthwise_conv_fast_s16(void)
+{
+#if defined(ARM_MATH_MVEI) && defined(USING_FVP_CORSTONE_300)
+    const int32_t k = 3;
+    enum
+    {
+        op_input,
+        op_filter,
+        op_bias,
+        op_mult,
+        op_shift,
+        op_scratch,
+        op_output,
+        op_end
+    };
+    const int32_t channels[] = {1, 2, 3, 5, 7, 17};
+    const int32_t lengths[] = {1, 3, 4, 5};
+    for (size_t i_ch = 0; i_ch < sizeof(channels) / sizeof(channels[0]); i_ch++)
+    {
+        for (size_t i_len = 0; i_len < sizeof(lengths) / sizeof(lengths[0]); i_len++)
+        {
+            const int32_t ch = channels[i_ch], len = lengths[i_len];
+            uint32_t seed = (uint32_t)(len * 131 + ch * 7);
+            for (int32_t i = 0; i < len * ch; i++)
+            {
+                seed = seed * 1664525u + 1013904223u;
+                dil_input[i] = (int16_t)(seed >> 16);
+            }
+            for (int32_t i = 0; i < k * ch; i++)
+            {
+                seed = seed * 1664525u + 1013904223u;
+                dil_filter[i] = (int8_t)(seed >> 24);
+            }
+            for (int32_t i = 0; i < ch; i++)
+            {
+                seed = seed * 1664525u + 1013904223u;
+                dil_bias[i] = (int64_t)(int32_t)seed / 4096;
+                dil_mult[i] = 0x40000000 + i * 0x800000;
+                dil_shift[i] = -7 - (i % 3);
+            }
+            const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                                    .output_offset = 0,
+                                                    .ch_mult = 1,
+                                                    .stride = {1, 1},
+                                                    .padding = {1, 0},
+                                                    .dilation = {1, 1},
+                                                    .activation = {-32768, 32767}};
+            const cmsis_nn_dims input_dims = {1, 1, len, ch}, filter_dims = {1, 1, k, ch}, bias_dims = {1, 1, 1, ch},
+                                output_dims = {1, 1, len, ch};
+            const cmsis_nn_per_channel_quant_params ref_quant = {dil_mult, dil_shift};
+            const cmsis_nn_context none = {NULL, 0};
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_depthwise_conv_s16(&none,
+                                                     &params,
+                                                     &ref_quant,
+                                                     &input_dims,
+                                                     dil_input,
+                                                     &filter_dims,
+                                                     dil_filter,
+                                                     &bias_dims,
+                                                     dil_bias,
+                                                     &output_dims,
+                                                     dil_reference));
+            const int32_t scratch_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
+            /* The kernel uses only the im2col rows for four pixels, not the trailing slack in the reported size. */
+            const int32_t scratch_used = 4 * k * ch * (int32_t)sizeof(int16_t);
+            TEST_ASSERT_TRUE(scratch_used <= scratch_size && scratch_used <= GUARD_OFFSET);
+
+            for (int op = op_input; op < op_end; op++)
+            {
+                const int16_t *input = op == op_input ? guard_place(dil_input, len * ch * sizeof(int16_t)) : dil_input;
+                const int8_t *filter = op == op_filter ? guard_place(dil_filter, k * ch) : dil_filter;
+                const int64_t *bias = op == op_bias ? guard_place(dil_bias, ch * sizeof(int64_t)) : dil_bias;
+                int32_t *mult = op == op_mult ? guard_place(dil_mult, ch * sizeof(int32_t)) : dil_mult;
+                int32_t *shift = op == op_shift ? guard_place(dil_shift, ch * sizeof(int32_t)) : dil_shift;
+                int16_t *output = op == op_output ? guard_end(len * ch * sizeof(int16_t)) : dil_output;
+                void *scratch = op == op_scratch ? guard_end(scratch_used) : dil_scratch;
+                const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+                const cmsis_nn_context ctx = {scratch, scratch_size};
+                memset(output, 0x5A, len * ch * sizeof(int16_t));
+
+                guard_gap_enable();
+                const arm_cmsis_nn_status status = arm_depthwise_conv_fast_s16(&ctx,
+                                                                               &params,
+                                                                               &quant,
+                                                                               &input_dims,
+                                                                               input,
+                                                                               &filter_dims,
+                                                                               filter,
+                                                                               &bias_dims,
+                                                                               bias,
+                                                                               &output_dims,
+                                                                               output);
+                guard_gap_disable();
+
+                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+                TEST_ASSERT_EQUAL_INT16_ARRAY(dil_reference, output, len * ch);
+            }
+        }
+    }
+#endif
 }
