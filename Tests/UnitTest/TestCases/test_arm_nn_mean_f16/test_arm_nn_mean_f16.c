@@ -431,8 +431,9 @@ static void mean_f16_order_case(const cmsis_nn_dims in, const cmsis_nn_dims axis
 }
 #endif
 
-/* Inexact data under round to nearest and round toward zero, against a sequentially summed reference, with sentinels
-   after the output; and a sum that rounds differently toward zero. */
+/* Inexact data under round to nearest, toward plus infinity and toward zero, against a sequentially summed reference,
+   with sentinels after the output; sums that round differently toward zero and toward plus infinity; and
+   alternative-half inputs. */
 void mean_f16_middle_block_order_arm_nn_mean_f16(void)
 {
 #if defined(ARM_MATH_MVE_FLOAT16) && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
@@ -441,7 +442,7 @@ void mean_f16_middle_block_order_arm_nn_mean_f16(void)
         {{1, 4, 8, 19}, {0, 0, 1, 0}},
         {{1, 8, 4, 5}, {0, 1, 0, 0}},
     };
-    const uint32_t modes[] = {0u, 3u << 22};
+    const uint32_t modes[] = {0u, 1u << 22, 3u << 22};
     for (size_t m = 0; m < sizeof(modes) / sizeof(modes[0]); m++)
     {
         for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
@@ -466,6 +467,40 @@ void mean_f16_middle_block_order_arm_nn_mean_f16(void)
     for (int32_t i = 0; i < 2; i++)
     {
         TEST_ASSERT_EQUAL_MEMORY(&expected_bits, &output[i], sizeof(float16_t));
+    }
+
+    /* Toward plus infinity: 2048 + 2^-24 rounds up to 2048 + 2^-12 in float32, so the mean narrows up to 512.5 (0x6001);
+       round-to-nearest adds would give 512 (0x6000). */
+    static const uint16_t rp_bits[4] = {0x6800u, 0x0001u, 0x0000u, 0x0000u};
+    for (int32_t i = 0; i < 8; i++)
+    {
+        memcpy(&input[i], &rp_bits[i / 2], sizeof(float16_t));
+    }
+    mean_f16_set_fpscr((saved & ~(3u << 22)) | (1u << 22));
+    const arm_cmsis_nn_status status_rp = arm_nn_mean_f16(input, &in, &axis, output, &out);
+    mean_f16_set_fpscr(saved);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status_rp);
+    static const uint16_t rp_expected = 0x6001u;
+    for (int32_t i = 0; i < 2; i++)
+    {
+        TEST_ASSERT_EQUAL_MEMORY(&rp_expected, &output[i], sizeof(float16_t));
+    }
+
+    /* With FPSCR.AHP set, 0x7C00 is 65536 rather than infinity: the mean of {65536, 1, 1, 1} is 16384.75, which
+       rounds to 16384 (0x7400). */
+    static const uint16_t ahp_bits[4] = {0x7C00u, 0x3C00u, 0x3C00u, 0x3C00u};
+    for (int32_t i = 0; i < 8; i++)
+    {
+        memcpy(&input[i], &ahp_bits[i / 2], sizeof(float16_t));
+    }
+    mean_f16_set_fpscr((saved & ~(3u << 22)) | (1u << 26));
+    const arm_cmsis_nn_status status_ahp = arm_nn_mean_f16(input, &in, &axis, output, &out);
+    mean_f16_set_fpscr(saved);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status_ahp);
+    static const uint16_t ahp_expected = 0x7400u;
+    for (int32_t i = 0; i < 2; i++)
+    {
+        TEST_ASSERT_EQUAL_MEMORY(&ahp_expected, &output[i], sizeof(float16_t));
     }
 #endif
 }

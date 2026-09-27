@@ -119,9 +119,9 @@ static arm_cmsis_nn_status arm_mean_flatten_last_dims_f16(const float16_t *input
 
     #if defined(ARM_MATH_MVE_FLOAT16) && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
 // Input viewed as [outer, reduce, inner] with the middle dim reduced. Each lane sums one inner element over the
-// reduced rows in float32, in the order of the generic path, and the divide is the same. MVE adds round to nearest
-// and MVE conversions ignore FPSCR.AHP, so this matches the generic path only under that setting (checked by the
-// caller). Widened halves are never float32 subnormals, so flush-to-zero does not change the sums.
+// reduced rows in float32, in the order of the generic path, and the divide is the same. MVE adds round to nearest,
+// so this matches the generic path under round-to-nearest with IEEE halves (checked by the caller), except that a NaN
+// comes out as the default NaN. Widened halves are never float32 subnormals, so flush-to-zero does not change the sums.
 static arm_cmsis_nn_status arm_mean_middle_block_f16(const float16_t *input_data,
                                                      float16_t *output_data,
                                                      int32_t outer,
@@ -258,7 +258,8 @@ arm_cmsis_nn_status arm_nn_mean_f16(const float16_t *input_data,
     {
         uint32_t fpscr;
         __ASM volatile("vmrs %0, fpscr" : "=r"(fpscr));
-        // MVE adds round to nearest and MVE conversions ignore FPSCR.AHP. Refs #484.
+        // MVE adds round to nearest; FPSCR.AHP selects alternative-half conversions at run time, so keep those on the
+        // scalar path. Refs #484.
         if (!(fpscr & ((1u << 26) | (3u << 22))))
         {
             return arm_mean_middle_block_f16(

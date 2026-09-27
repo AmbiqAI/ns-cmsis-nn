@@ -528,8 +528,9 @@ static void mean_f32_order_case(const cmsis_nn_dims in, const cmsis_nn_dims axis
 }
 #endif
 
-/* Inexact data under each FPSCR mode the kernel distinguishes (round to nearest with and without flush-to-zero,
-   round toward zero), against a sequentially summed reference, with sentinels after the output. */
+/* Inexact data under each FPSCR mode the kernel distinguishes (round to nearest with and without flush-to-zero, round
+   toward plus infinity with and without it, round toward zero), against a sequentially summed reference, with
+   sentinels after the output. */
 void mean_f32_middle_block_order_arm_nn_mean_f32(void)
 {
 #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
@@ -538,7 +539,7 @@ void mean_f32_middle_block_order_arm_nn_mean_f32(void)
         {{1, 4, 8, 19}, {0, 0, 1, 0}},
         {{1, 8, 4, 5}, {0, 1, 0, 0}},
     };
-    const uint32_t modes[] = {0u, 1u << 24, 3u << 22};
+    const uint32_t modes[] = {0u, 1u << 24, 1u << 22, 3u << 22, (1u << 24) | (1u << 22)};
     for (size_t m = 0; m < sizeof(modes) / sizeof(modes[0]); m++)
     {
         for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)

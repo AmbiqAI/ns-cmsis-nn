@@ -119,7 +119,8 @@ static arm_cmsis_nn_status arm_mean_flatten_last_dims_f32(const float32_t *input
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
 // Input viewed as [outer, reduce, inner] with the middle dim reduced. Each lane sums one inner element over the
 // reduced rows in the order of the generic path, and the divide is the same. MVE adds round to nearest and flush
-// subnormals, so this matches the generic path only under that FPSCR setting (checked by the caller).
+// subnormals, so this matches the generic path only under that FPSCR setting (checked by the caller), except that a
+// NaN comes out as the default NaN.
 static arm_cmsis_nn_status arm_mean_middle_block_f32(const float32_t *input_data,
                                                      float32_t *output_data,
                                                      int32_t outer,
