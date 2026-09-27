@@ -2208,6 +2208,23 @@ void planar_size_overflow_arm_depthwise_conv_s8_opt(void)
     {
         TEST_ASSERT_EQUAL_INT8(0x3C, planar_scratch[i]);
     }
+
+    /* Extents near INT32_MAX on both sides must be declined before the 64-bit plane product can overflow. */
+    const cmsis_nn_dw_conv_params wide_params = {.input_offset = 0,
+                                                 .output_offset = 0,
+                                                 .ch_mult = 1,
+                                                 .stride = {1, 1},
+                                                 .padding = {0, 0},
+                                                 .dilation = {128, 1},
+                                                 .activation = {-128, 127}};
+    const cmsis_nn_dims wide_in = {1, INT32_MAX, INT32_MAX, 1}, wide_filter = {1, INT32_MAX, INT32_MAX, 1};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_nn_depthwise_conv_s8_planar(
+                          &ctx, &wsum, &wide_params, &quant, &wide_in, planar_in, &wide_filter, planar_ker, &wide_in, planar_out));
+    for (size_t i = 0; i < sizeof(planar_out); i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[i]);
+    }
 #endif
 }
 

@@ -149,8 +149,13 @@ static int32_t dw_planar_plane_bytes(const cmsis_nn_dw_conv_params *dw_conv_para
     {
         return -1;
     }
-    /* Sizes are formed in 64 bits and rejected past INT32_MAX; the caller also rejects any plane above the scratch. */
+    /* Sizes are formed in 64 bits and rejected past INT32_MAX, each side before the product so it cannot overflow; the
+       caller also rejects any plane above the scratch. */
     const int64_t plane_w = (int64_t)output_dims->w + (int64_t)(filter_dims->w - 1) * dilation_x;
+    if (plane_w > INT32_MAX)
+    {
+        return -1;
+    }
     int64_t bytes;
     if (dw_planar_use_dot(dw_conv_params, input_dims, filter_dims, output_dims))
     {
@@ -170,6 +175,10 @@ static int32_t dw_planar_plane_bytes(const cmsis_nn_dw_conv_params *dw_conv_para
         return -1;
     }
     const int64_t plane_h = (int64_t)output_dims->h + filter_dims->h - 1;
+    if (plane_h > INT32_MAX)
+    {
+        return -1;
+    }
     bytes = plane_w * plane_h + DW_PLANAR_SLACK;
     return bytes > INT32_MAX ? -1 : (int32_t)bytes;
 }
