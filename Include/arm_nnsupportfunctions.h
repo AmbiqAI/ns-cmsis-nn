@@ -3088,6 +3088,62 @@ __STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(con
     return -1;
 }
 
+/**
+ * @brief Reports whether the reduced axes of a 4-D tensor form one contiguous block followed by kept axes, as in a
+ *        NHWC mean over H and W, and gives the flattened sizes. Axes of size 1 are ignored.
+ *
+ * @param[in]  in_dims   4-element array {n, h, w, c}
+ * @param[in]  axis_arr  4-element mask {axis_n, axis_h, axis_w, axis_c}
+ * @param[out] outer     Product of the dims before the reduced block
+ * @param[out] reduce    Product of the reduced dims
+ * @param[out] inner     Product of the dims after the reduced block
+ * @return  1 if the input is [outer, reduce, inner] with the middle dim reduced and inner > 1, otherwise 0
+ */
+__STATIC_FORCEINLINE int32_t arm_reduce_get_middle_block_from_arrays(const int32_t in_dims[4],
+                                                                     const int32_t axis_arr[4],
+                                                                     int32_t *outer,
+                                                                     int32_t *reduce,
+                                                                     int32_t *inner)
+{
+    int32_t first = -1;
+    int32_t last = -1;
+    for (int32_t d = 0; d < 4; ++d)
+    {
+        if (axis_arr[d] && in_dims[d] > 1)
+        {
+            first = first < 0 ? d : first;
+            last = d;
+        }
+    }
+    if (first < 0)
+    {
+        return 0;
+    }
+    *outer = 1;
+    *reduce = 1;
+    *inner = 1;
+    for (int32_t d = 0; d < 4; ++d)
+    {
+        if (d < first)
+        {
+            *outer *= in_dims[d];
+        }
+        else if (d > last)
+        {
+            *inner *= in_dims[d];
+        }
+        else if (axis_arr[d])
+        {
+            *reduce *= in_dims[d];
+        }
+        else if (in_dims[d] > 1)
+        {
+            return 0;
+        }
+    }
+    return *inner > 1;
+}
+
 #ifdef __cplusplus
 }
 #endif
