@@ -2394,6 +2394,28 @@ void direct_entries_arm_depthwise_conv_s8_opt(void)
         }
     }
 
+#if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
+    /* Where the weight sums are read, a NULL buffer is an argument error on every entry, including the planar one for
+       a layer it takes. */
+    const cmsis_nn_context no_wsum = {NULL, 0};
+    for (size_t i = 0; i < sizeof(entries) / sizeof(entries[0]); i++)
+    {
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          entries[i](&ctx,
+                                     &no_wsum,
+                                     &params,
+                                     &quant,
+                                     &input_dims,
+                                     planar_in,
+                                     &filter_dims,
+                                     planar_ker,
+                                     &bias_dims,
+                                     planar_bias,
+                                     &output_dims,
+                                     planar_out));
+    }
+#endif
+
     /* A context too small for the plane: the planar entry declines, the dispatcher falls back. planar_ref still holds
        this layer's reference from planar_case() above. */
     const cmsis_nn_context small = {planar_scratch, 16};
