@@ -1283,7 +1283,8 @@ void HardFault_Handler(void)
     exit(1);
 }
 
-/* Maps everything except the gap, with no default background map, so any access to the gap faults. */
+/* Maps everything except the gap, with no default background map, so any access to the gap faults. RLAR limits are
+   inclusive 32-byte granules: region 0 ends at gap - 1 and region 1 starts at gap + GUARD_BLOCK. */
 static void guard_gap_enable(void)
 {
     const uint32_t gap = (uint32_t)&guard_arena[GUARD_OFFSET];
