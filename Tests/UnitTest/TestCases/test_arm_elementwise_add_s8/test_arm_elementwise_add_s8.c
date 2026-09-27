@@ -205,7 +205,7 @@ void add_requant_sets_arm_elementwise_add_s8(void)
         in_1[i] = (int8_t)(seed >> 24);
         in_2[i] = (int8_t)(seed >> 16);
     }
-    const int32_t lengths[] = {1, 3, 4, 35, 64, 67};
+    const int32_t lengths[] = {1, 2, 3, 4, 35, 64, 66, 67};
     for (size_t k = 0; k < sizeof(add_q_sets) / sizeof(add_q_sets[0]); k++)
     {
         const add_q_params *q = &add_q_sets[k];

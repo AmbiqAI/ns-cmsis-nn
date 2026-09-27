@@ -469,6 +469,9 @@ void mul_row_broadcast_s8_arm_mul_s8(void)
             mul_row_broadcast_case(d[0], d[1], d[2], swap, 128, 128, -128, 1173388748, -7, -128, 127);
             mul_row_broadcast_case(d[0], d[1], d[2], swap, -3, 17, 5, 1518500250, -9, -100, 90);
             mul_row_broadcast_case(d[0], d[1], d[2], swap, 7, -2, -1, 1073741824, 0, -128, 127);
+            /* Products past the int16 range: the output offset must saturate, not wrap. */
+            mul_row_broadcast_case(d[0], d[1], d[2], swap, 128, 128, 5, 1073741824, 1, -128, 127);
+            mul_row_broadcast_case(d[0], d[1], d[2], swap, 128, -127, -5, 1073741824, 1, -128, 127);
         }
     }
 }
