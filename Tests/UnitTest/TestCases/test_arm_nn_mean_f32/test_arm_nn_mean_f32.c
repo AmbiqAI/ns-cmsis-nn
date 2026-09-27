@@ -411,3 +411,58 @@ void mean_f32_generic_nan_inf_arm_nn_mean_f32(void)
     TEST_ASSERT_EQUAL_FLOAT(4.0f, output[2]);
     TEST_ASSERT_FLOAT_IS_INF(output[3]);
 }
+
+/* Reduced axes forming one block with kept axes after it (a NHWC mean over H and W, over H only, over W only, and over
+   N, H and W), with channel counts that are not a multiple of the lane count. Values are multiples of 1/64 and the
+   reduction counts are powers of two, so every partial sum and the divide are exact and the result must match. */
+static void mean_f32_middle_case(const cmsis_nn_dims in, const cmsis_nn_dims axis)
+{
+    static float32_t input[1 * 1 * 256 * 24];
+    static float32_t output[256 * 24];
+    static float32_t expected[256 * 24];
+    const cmsis_nn_dims out = {axis.n ? 1 : in.n, axis.h ? 1 : in.h, axis.w ? 1 : in.w, axis.c ? 1 : in.c};
+    const int32_t count = (axis.n ? in.n : 1) * (axis.h ? in.h : 1) * (axis.w ? in.w : 1);
+    for (int32_t i = 0; i < in.n * in.h * in.w * in.c; i++)
+    {
+        input[i] = (float32_t)((float)((i * 37) % 2001 - 1000) / 64.0f);
+    }
+    for (int32_t n = 0; n < out.n; n++)
+        for (int32_t h = 0; h < out.h; h++)
+            for (int32_t w = 0; w < out.w; w++)
+                for (int32_t c = 0; c < out.c; c++)
+                {
+                    float sum = 0.0f;
+                    for (int32_t rn = 0; rn < (axis.n ? in.n : 1); rn++)
+                        for (int32_t rh = 0; rh < (axis.h ? in.h : 1); rh++)
+                            for (int32_t rw = 0; rw < (axis.w ? in.w : 1); rw++)
+                            {
+                                const int32_t i_n = axis.n ? rn : n, i_h = axis.h ? rh : h, i_w = axis.w ? rw : w;
+                                sum += (float)input[((i_n * in.h + i_h) * in.w + i_w) * in.c + c];
+                            }
+                    expected[((n * out.h + h) * out.w + w) * out.c + c] = (float32_t)(sum / (float)count);
+                }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_nn_mean_f32(input, &in, &axis, output, &out));
+    for (int32_t i = 0; i < out.n * out.h * out.w * out.c; i++)
+    {
+        TEST_ASSERT_TRUE((float)expected[i] == (float)output[i]);
+    }
+}
+
+void mean_f32_middle_block_arm_nn_mean_f32(void)
+{
+    const cmsis_nn_dims cases[][2] = {
+        {{1, 1, 256, 8}, {0, 1, 1, 0}},
+        {{1, 1, 256, 24}, {0, 1, 1, 0}},
+        {{1, 4, 4, 19}, {0, 1, 1, 0}},
+        {{2, 4, 2, 9}, {0, 1, 1, 0}},
+        {{2, 4, 2, 9}, {1, 1, 1, 0}},
+        {{1, 8, 2, 11}, {0, 1, 0, 0}},
+        {{1, 2, 8, 5}, {0, 0, 1, 0}},
+        {{2, 1, 1, 7}, {1, 0, 0, 0}},
+        {{2, 3, 4, 5}, {1, 0, 1, 0}},
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+    {
+        mean_f32_middle_case(cases[i][0], cases[i][1]);
+    }
+}

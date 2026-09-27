@@ -116,6 +116,43 @@ static arm_cmsis_nn_status arm_mean_flatten_last_dims_f32(const float32_t *input
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+// Input viewed as [outer, reduce, inner] with the middle dim reduced. Each lane sums one inner element over the
+// reduced rows in the order of the generic path, and the divide is the same, so results match it.
+static arm_cmsis_nn_status arm_mean_middle_block_f32(const float32_t *input_data,
+                                                     float32_t *output_data,
+                                                     int32_t outer,
+                                                     int32_t reduce,
+                                                     int32_t inner,
+                                                     int32_t reduction_count)
+{
+    for (int32_t i = 0; i < outer; ++i)
+    {
+        const float32_t *block = &input_data[i * reduce * inner];
+        for (int32_t j = 0; j < inner; j += 4)
+        {
+            const mve_pred16_t p = vctp32q((uint32_t)(inner - j));
+            float32x4_t vacc = vdupq_n_f32(0.0f);
+            const float32_t *src = &block[j];
+            for (int32_t r = 0; r < reduce; ++r)
+            {
+                vacc = vaddq(vacc, vld1q_z(src, p));
+                src += inner;
+            }
+            float32_t sums[4];
+            vst1q(sums, vacc);
+            const int32_t count = ARM_NN_MIN(4, inner - j);
+            for (int32_t k = 0; k < count; ++k)
+            {
+                output_data[i * inner + j + k] = sums[k] / (float32_t)reduction_count;
+            }
+        }
+    }
+
+    return ARM_CMSIS_NN_SUCCESS;
+}
+    #endif
+
 /*
  * float32 mean over the specified axes. Accumulation and the single divide
  * are in float32: unlike arm_nn_mean_f16 there is no cheap wider
@@ -187,6 +224,17 @@ arm_cmsis_nn_status arm_nn_mean_f32(const float32_t *input_data,
         return arm_mean_flatten_last_dims_f32(
             input_data, output_data, outer_size, inner_size, (int32_t)reduction_count);
     }
+
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    int32_t outer_size;
+    int32_t reduce_size;
+    int32_t inner_size;
+    if (arm_reduce_get_middle_block_from_arrays(input_shape, axis_mask, &outer_size, &reduce_size, &inner_size))
+    {
+        return arm_mean_middle_block_f32(
+            input_data, output_data, outer_size, reduce_size, inner_size, (int32_t)reduction_count);
+    }
+    #endif
 
     return arm_mean_generic_f32(input_data, input_dims, axis_dims, output_data, output_dims, (int32_t)reduction_count);
 }
