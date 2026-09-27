@@ -1,5 +1,20 @@
 # Changelog
 
+## [7.36.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.36.0...v7.36.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* **basicmath:** saturate the output offset in the MVE s8 multiply ([#565](https://github.com/AmbiqAI/ns-cmsis-nn/issues/565)) ([ee03cbc](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ee03cbc0e765a545b2500d04bf96dcfa1425058d)), closes [#561](https://github.com/AmbiqAI/ns-cmsis-nn/issues/561)
+* **depthwise:** keep the MVE s16 fast kernel inside its operands ([#558](https://github.com/AmbiqAI/ns-cmsis-nn/issues/558)) ([570cd1c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/570cd1c4a0a549d20c375418db5c9ffbf0488d34)), closes [#557](https://github.com/AmbiqAI/ns-cmsis-nn/issues/557)
+
+
+### Performance
+
+* **basicmath:** fuse W-broadcast s8 add and mul and drop no-op add requantize steps ([#569](https://github.com/AmbiqAI/ns-cmsis-nn/issues/569)) ([81e4418](https://github.com/AmbiqAI/ns-cmsis-nn/commit/81e4418bc51f4da894e01646185882971ae5174c)), closes [#562](https://github.com/AmbiqAI/ns-cmsis-nn/issues/562)
+* **depthwise:** vectorize few-channel and 1xk s8 depthwise across output pixels ([#566](https://github.com/AmbiqAI/ns-cmsis-nn/issues/566)) ([9d73416](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9d73416e4708c981bb41cf2635903446c369327b)), closes [#563](https://github.com/AmbiqAI/ns-cmsis-nn/issues/563)
+* **mean:** vectorize float MEAN when the reduced axes are followed by kept axes ([#567](https://github.com/AmbiqAI/ns-cmsis-nn/issues/567)) ([94c8bf8](https://github.com/AmbiqAI/ns-cmsis-nn/commit/94c8bf8ffb20ae0bf79ba4bcd4ce2a9516d33191)), closes [#564](https://github.com/AmbiqAI/ns-cmsis-nn/issues/564)
+
 ## [7.36.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.35.1...v7.36.0) (2026-09-26)
 
 
