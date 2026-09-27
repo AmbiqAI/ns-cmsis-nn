@@ -118,7 +118,8 @@ static arm_cmsis_nn_status arm_mean_flatten_last_dims_f32(const float32_t *input
 
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
 // Input viewed as [outer, reduce, inner] with the middle dim reduced. Each lane sums one inner element over the
-// reduced rows in the order of the generic path, and the divide is the same, so results match it.
+// reduced rows in the order of the generic path, and the divide is the same. MVE adds round to nearest and flush
+// subnormals, so this matches the generic path only under that FPSCR setting (checked by the caller).
 static arm_cmsis_nn_status arm_mean_middle_block_f32(const float32_t *input_data,
                                                      float32_t *output_data,
                                                      int32_t outer,
@@ -146,6 +147,33 @@ static arm_cmsis_nn_status arm_mean_middle_block_f32(const float32_t *input_data
             {
                 output_data[i * inner + j + k] = sums[k] / (float32_t)reduction_count;
             }
+        }
+    }
+
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+// The same view summed with scalar adds, which follow FPSCR rounding and flush-to-zero like the generic path. The
+// adds are written as instructions so the compiler cannot vectorize them. Refs #484.
+static arm_cmsis_nn_status arm_mean_middle_block_scalar_f32(const float32_t *input_data,
+                                                            float32_t *output_data,
+                                                            int32_t outer,
+                                                            int32_t reduce,
+                                                            int32_t inner,
+                                                            int32_t reduction_count)
+{
+    for (int32_t i = 0; i < outer; ++i)
+    {
+        const float32_t *block = &input_data[i * reduce * inner];
+        for (int32_t j = 0; j < inner; ++j)
+        {
+            float32_t sum = 0.0f;
+            for (int32_t r = 0; r < reduce; ++r)
+            {
+                const float32_t value = block[r * inner + j];
+                __ASM volatile("vadd.f32 %0, %0, %1" : "+t"(sum) : "t"(value));
+            }
+            output_data[i * inner + j] = sum / (float32_t)reduction_count;
         }
     }
 
@@ -231,7 +259,15 @@ arm_cmsis_nn_status arm_nn_mean_f32(const float32_t *input_data,
     int32_t inner_size;
     if (arm_reduce_get_middle_block_from_arrays(input_shape, axis_mask, &outer_size, &reduce_size, &inner_size))
     {
-        return arm_mean_middle_block_f32(
+        uint32_t fpscr;
+        __ASM volatile("vmrs %0, fpscr" : "=r"(fpscr));
+        // MVE uses round-to-nearest and flush-to-zero. Refs #484.
+        if ((fpscr & ((1u << 24) | (3u << 22))) == (1u << 24))
+        {
+            return arm_mean_middle_block_f32(
+                input_data, output_data, outer_size, reduce_size, inner_size, (int32_t)reduction_count);
+        }
+        return arm_mean_middle_block_scalar_f32(
             input_data, output_data, outer_size, reduce_size, inner_size, (int32_t)reduction_count);
     }
     #endif

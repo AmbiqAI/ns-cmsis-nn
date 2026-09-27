@@ -48,3 +48,4 @@ void test_mean_f32_finite_overflow_divergence_arm_nn_mean_f32(void) { mean_f32_f
 void test_mean_f32_generic_nan_inf_arm_nn_mean_f32(void) { mean_f32_generic_nan_inf_arm_nn_mean_f32(); }
 void test_mean_f32_arg_error_arm_nn_mean_f32(void) { mean_f32_arg_error_arm_nn_mean_f32(); }
 void test_mean_f32_middle_block_arm_nn_mean_f32(void) { mean_f32_middle_block_arm_nn_mean_f32(); }
+void test_mean_f32_middle_block_order_arm_nn_mean_f32(void) { mean_f32_middle_block_order_arm_nn_mean_f32(); }

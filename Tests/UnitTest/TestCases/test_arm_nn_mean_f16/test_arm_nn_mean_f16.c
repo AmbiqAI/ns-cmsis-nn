@@ -9,6 +9,7 @@
 
 #include <arm_nnfunctions.h>
 #include <math.h>
+#include <string.h>
 #include <unity.h>
 
 #include "mean_f16_data.h"
@@ -314,9 +315,10 @@ void mean_f16_generic_nan_inf_arm_nn_mean_f16(void)
     TEST_ASSERT_FLOAT_IS_INF((float)output[3]);
 }
 
-/* Reduced axes forming one block with kept axes after it (a NHWC mean over H and W, over H only, over W only, and over
-   N, H and W), with channel counts that are not a multiple of the lane count. Values are multiples of 1/64 and the
-   reduction counts are powers of two, so every partial sum and the divide are exact and the result must match. */
+/* Reduced axes forming one block with kept axes after it (a NHWC mean over H and W, over H only, over W only, over N
+   only, and over N, H and W), channel counts with and without a vector tail, and a non-contiguous N,W reduction that
+   stays on the generic path. Values are multiples of 1/64 and the reduction counts are powers of two, so every partial
+   sum and the divide are exact and the result must match. */
 static void mean_f16_middle_case(const cmsis_nn_dims in, const cmsis_nn_dims axis)
 {
     static float16_t input[1 * 1 * 256 * 24];
@@ -367,4 +369,103 @@ void mean_f16_middle_block_arm_nn_mean_f16(void)
     {
         mean_f16_middle_case(cases[i][0], cases[i][1]);
     }
+}
+
+#if defined(ARM_MATH_MVE_FLOAT16) && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+
+static uint32_t mean_f16_get_fpscr(void)
+{
+    uint32_t value;
+    __asm volatile("vmrs %0, fpscr" : "=r"(value));
+    return value;
+}
+
+static void mean_f16_set_fpscr(uint32_t value) { __asm volatile("vmsr fpscr, %0" : : "r"(value)); }
+
+/* Sequentially summed reference over one reduced axis block, for inexact data. Counts are powers of two, so the
+   divide is exact; the sums follow FPSCR because each add is forced through a volatile. */
+static void mean_f16_order_case(const cmsis_nn_dims in, const cmsis_nn_dims axis, uint32_t fpscr)
+{
+    static float16_t input[1 * 8 * 8 * 19];
+    static float16_t output[8 * 8 * 19 + 8];
+    const cmsis_nn_dims out = {axis.n ? 1 : in.n, axis.h ? 1 : in.h, axis.w ? 1 : in.w, in.c};
+    const int32_t count = (axis.n ? in.n : 1) * (axis.h ? in.h : 1) * (axis.w ? in.w : 1);
+    const int32_t n_out = out.n * out.h * out.w * out.c;
+    uint32_t seed = (uint32_t)(in.h * 31 + in.w * 7 + in.c);
+    for (int32_t i = 0; i < in.n * in.h * in.w * in.c; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        input[i] = (float16_t)((float)(int32_t)(seed >> 8) / 1234567.0f);
+    }
+    const uint32_t saved = mean_f16_get_fpscr();
+    mean_f16_set_fpscr((saved & ~((1u << 24) | (3u << 22) | (1u << 26))) | fpscr);
+    for (int32_t i = 0; i < n_out + 8; i++)
+    {
+        output[i] = (float16_t)-7.0f;
+    }
+    const arm_cmsis_nn_status status = arm_nn_mean_f16(input, &in, &axis, output, &out);
+    int32_t mismatches = 0;
+    for (int32_t n = 0; n < out.n; n++)
+        for (int32_t h = 0; h < out.h; h++)
+            for (int32_t w = 0; w < out.w; w++)
+                for (int32_t c = 0; c < out.c; c++)
+                {
+                    volatile float sum = 0.0f;
+                    for (int32_t rn = 0; rn < (axis.n ? in.n : 1); rn++)
+                        for (int32_t rh = 0; rh < (axis.h ? in.h : 1); rh++)
+                            for (int32_t rw = 0; rw < (axis.w ? in.w : 1); rw++)
+                            {
+                                const int32_t i_n = axis.n ? rn : n, i_h = axis.h ? rh : h, i_w = axis.w ? rw : w;
+                                sum += (float)input[((i_n * in.h + i_h) * in.w + i_w) * in.c + c];
+                            }
+                    const float16_t expected = (float16_t)(sum / (float)count);
+                    mismatches += memcmp(&expected, &output[((n * out.h + h) * out.w + w) * out.c + c], sizeof(expected)) != 0;
+                }
+    mean_f16_set_fpscr(saved);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+    TEST_ASSERT_EQUAL_INT32(0, mismatches);
+    for (int32_t i = n_out; i < n_out + 8; i++)
+    {
+        TEST_ASSERT_TRUE((float)output[i] == -7.0f);
+    }
+}
+#endif
+
+/* Inexact data under round to nearest and round toward zero, against a sequentially summed reference, with sentinels
+   after the output; and a sum that rounds differently toward zero. */
+void mean_f16_middle_block_order_arm_nn_mean_f16(void)
+{
+#if defined(ARM_MATH_MVE_FLOAT16) && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const cmsis_nn_dims cases[][2] = {
+        {{1, 8, 8, 19}, {0, 1, 1, 0}},
+        {{1, 4, 8, 19}, {0, 0, 1, 0}},
+        {{1, 8, 4, 5}, {0, 1, 0, 0}},
+    };
+    const uint32_t modes[] = {0u, 3u << 22};
+    for (size_t m = 0; m < sizeof(modes) / sizeof(modes[0]); m++)
+    {
+        for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+        {
+            mean_f16_order_case(cases[i][0], cases[i][1], modes[m]);
+        }
+    }
+
+    static const uint16_t row_bits[4] = {0x67FFu, 0x3BFFu, 0x0F80u, 0x0000u}; /* 2047, 1 - 2^-11, 15 * 2^-15, 0 */
+    float16_t input[8], output[2];
+    for (int32_t i = 0; i < 8; i++)
+    {
+        memcpy(&input[i], &row_bits[i / 2], sizeof(float16_t));
+    }
+    const cmsis_nn_dims in = {1, 4, 1, 2}, axis = {0, 1, 0, 0}, out = {1, 1, 1, 2};
+    const uint32_t saved = mean_f16_get_fpscr();
+    mean_f16_set_fpscr((saved & ~(3u << 22)) | (3u << 22));
+    const arm_cmsis_nn_status status = arm_nn_mean_f16(input, &in, &axis, output, &out);
+    mean_f16_set_fpscr(saved);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+    static const uint16_t expected_bits = 0x5FFFu;
+    for (int32_t i = 0; i < 2; i++)
+    {
+        TEST_ASSERT_EQUAL_MEMORY(&expected_bits, &output[i], sizeof(float16_t));
+    }
+#endif
 }

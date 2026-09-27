@@ -119,7 +119,9 @@ static arm_cmsis_nn_status arm_mean_flatten_last_dims_f16(const float16_t *input
 
     #if defined(ARM_MATH_MVE_FLOAT16) && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
 // Input viewed as [outer, reduce, inner] with the middle dim reduced. Each lane sums one inner element over the
-// reduced rows in float32, in the order of the generic path, and the divide is the same, so results match it.
+// reduced rows in float32, in the order of the generic path, and the divide is the same. MVE adds round to nearest
+// and MVE conversions ignore FPSCR.AHP, so this matches the generic path only under that setting (checked by the
+// caller). Widened halves are never float32 subnormals, so flush-to-zero does not change the sums.
 static arm_cmsis_nn_status arm_mean_middle_block_f16(const float16_t *input_data,
                                                      float16_t *output_data,
                                                      int32_t outer,
@@ -152,6 +154,34 @@ static arm_cmsis_nn_status arm_mean_middle_block_f16(const float16_t *input_data
                 const float32_t sum = (k & 1) ? sums[4 + (k >> 1)] : sums[k >> 1];
                 output_data[i * inner + j + k] = (float16_t)(sum / (float32_t)reduction_count);
             }
+        }
+    }
+
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+// The same view summed with scalar conversions and adds, which follow FPSCR like the generic path. They are written
+// as instructions so the compiler cannot vectorize them. Refs #484.
+static arm_cmsis_nn_status arm_mean_middle_block_scalar_f16(const float16_t *input_data,
+                                                            float16_t *output_data,
+                                                            int32_t outer,
+                                                            int32_t reduce,
+                                                            int32_t inner,
+                                                            int32_t reduction_count)
+{
+    for (int32_t i = 0; i < outer; ++i)
+    {
+        const float16_t *block = &input_data[i * reduce * inner];
+        for (int32_t j = 0; j < inner; ++j)
+        {
+            float32_t sum = 0.0f;
+            for (int32_t r = 0; r < reduce; ++r)
+            {
+                float32_t value;
+                __ASM volatile("vcvtb.f32.f16 %0, %1" : "=t"(value) : "t"(block[r * inner + j]));
+                __ASM volatile("vadd.f32 %0, %0, %1" : "+t"(sum) : "t"(value));
+            }
+            output_data[i * inner + j] = (float16_t)(sum / (float32_t)reduction_count);
         }
     }
 
@@ -226,7 +256,15 @@ arm_cmsis_nn_status arm_nn_mean_f16(const float16_t *input_data,
     int32_t inner_size;
     if (arm_reduce_get_middle_block_from_arrays(input_shape, axis_mask, &outer_size, &reduce_size, &inner_size))
     {
-        return arm_mean_middle_block_f16(
+        uint32_t fpscr;
+        __ASM volatile("vmrs %0, fpscr" : "=r"(fpscr));
+        // MVE adds round to nearest and MVE conversions ignore FPSCR.AHP. Refs #484.
+        if (!(fpscr & ((1u << 26) | (3u << 22))))
+        {
+            return arm_mean_middle_block_f16(
+                input_data, output_data, outer_size, reduce_size, inner_size, (int32_t)reduction_count);
+        }
+        return arm_mean_middle_block_scalar_f16(
             input_data, output_data, outer_size, reduce_size, inner_size, (int32_t)reduction_count);
     }
     #endif
