@@ -1403,6 +1403,22 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
                                                   int8_t *out);
 
 /**
+ * @brief Plane size in bytes that arm_nn_depthwise_conv_s8_planar() needs for a layer, or -1 when the layer is not
+ *        one it takes. The rule is plain C and evaluates the same on every build.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [1, H, W, C_IN]
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
+ *
+ * @return         The plane size in bytes, or -1.
+ */
+int32_t arm_nn_depthwise_conv_s8_planar_bytes(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *filter_dims,
+                                              const cmsis_nn_dims *output_dims);
+
+/**
  * @brief s8 depthwise convolution with channel multiplier 1 and stride 1, vectorized across the output pixels of
  *        one channel plane instead of across channels. It serves the few-channel and 1xk layers of
  *        arm_depthwise_conv_s8_opt(), with the same scratch buffer and weight sums.

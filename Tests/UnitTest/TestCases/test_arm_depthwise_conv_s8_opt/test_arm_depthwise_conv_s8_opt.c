@@ -2157,6 +2157,57 @@ static void planar_case(int32_t ih,
         TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[oh * ow * ch + i]);
         TEST_ASSERT_EQUAL_INT8(0x3C, planar_scratch[size + i]);
     }
+
+    /* The predicate is plain C and gives the same answer on every build. */
+    TEST_ASSERT_EQUAL(expect_planar,
+                      arm_depthwise_conv_s8_opt_planar_supported(&params, &input_dims, &filter_dims, &output_dims));
+
+    /* The direct entries: the channel-vectorized one computes every layer; the planar one computes the layers the
+       predicate accepts and writes nothing otherwise. */
+    memset(planar_out, 0x5A, sizeof(planar_out));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_s8_opt_channelwise(&ctx,
+                                                            &wsum,
+                                                            &params,
+                                                            &quant,
+                                                            &input_dims,
+                                                            planar_in,
+                                                            &filter_dims,
+                                                            planar_ker,
+                                                            &bias_dims,
+                                                            planar_bias,
+                                                            &output_dims,
+                                                            planar_out));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(planar_ref, planar_out, oh * ow * ch);
+    memset(planar_out, 0x5A, sizeof(planar_out));
+    const arm_cmsis_nn_status direct = arm_depthwise_conv_s8_opt_planar(&ctx,
+                                                                        &wsum,
+                                                                        &params,
+                                                                        &quant,
+                                                                        &input_dims,
+                                                                        planar_in,
+                                                                        &filter_dims,
+                                                                        planar_ker,
+                                                                        &bias_dims,
+                                                                        planar_bias,
+                                                                        &output_dims,
+                                                                        planar_out);
+#if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(expect_planar ? ARM_CMSIS_NN_SUCCESS : ARM_CMSIS_NN_NO_IMPL_ERROR, direct);
+#else
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, direct);
+#endif
+    if (direct == ARM_CMSIS_NN_SUCCESS)
+    {
+        TEST_ASSERT_EQUAL_INT8_ARRAY(planar_ref, planar_out, oh * ow * ch);
+    }
+    else
+    {
+        for (int32_t i = 0; i < oh * ow * ch; i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[i]);
+        }
+    }
 }
 
 void planar_shapes_arm_depthwise_conv_s8_opt(void)
@@ -2180,6 +2231,204 @@ void planar_shapes_arm_depthwise_conv_s8_opt(void)
         planar_case(s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], 128, -128, 127);
         planar_case(s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], -5, -60, 70);
     }
+}
+
+/* The public predicate is the planar kernel's own rule: over a grid of shapes on both sides of every limit, it
+   accepts exactly the layers the kernel computes with the arm_depthwise_conv_s8_opt() scratch. */
+void planar_predicate_grid_arm_depthwise_conv_s8_opt(void)
+{
+#if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
+    const int32_t channels[] = {1, 8, 9, 16, 17, 24, 32, 33};
+    const int32_t kernels[][2] = {{3, 3}, {5, 5}, {1, 3}, {1, 5}, {1, 9}, {1, 16}, {1, 17}};
+    const int32_t dilations[] = {1, 2, 4, 8};
+    const int32_t sizes[][2] = {{1, 8}, {1, 24}, {1, 64}, {8, 8}, {8, 16}, {12, 32}, {80, 80}};
+    const int32_t strides[] = {1, 2};
+    int32_t accepted = 0, declined = 0, fit_declined = 0;
+    for (size_t i_c = 0; i_c < sizeof(channels) / sizeof(channels[0]); i_c++)
+    {
+        for (size_t i_k = 0; i_k < sizeof(kernels) / sizeof(kernels[0]); i_k++)
+        {
+            for (size_t i_d = 0; i_d < sizeof(dilations) / sizeof(dilations[0]); i_d++)
+            {
+                for (size_t i_s = 0; i_s < sizeof(sizes) / sizeof(sizes[0]); i_s++)
+                {
+                    for (size_t i_st = 0; i_st < sizeof(strides) / sizeof(strides[0]); i_st++)
+                    {
+                        const int32_t ch = channels[i_c], kh = kernels[i_k][0], kw = kernels[i_k][1];
+                        const int32_t dil = dilations[i_d], ih = sizes[i_s][0], iw = sizes[i_s][1];
+                        const int32_t stride = strides[i_st];
+                        if (kh > ih)
+                        {
+                            continue;
+                        }
+                        const int32_t pad_w = ((kw - 1) * dil) / 2, pad_h = (kh - 1) / 2;
+                        const int32_t ow = (iw + 2 * pad_w - (kw - 1) * dil - 1) / stride + 1;
+                        const int32_t oh = (ih + 2 * pad_h - (kh - 1) - 1) / stride + 1;
+                        if (ow < 1 || oh < 1 || ih * iw * ch > PLANAR_MAX_IO || oh * ow * ch > PLANAR_MAX_IO)
+                        {
+                            continue;
+                        }
+                        const cmsis_nn_dw_conv_params params = {.input_offset = 3,
+                                                                .output_offset = -3,
+                                                                .ch_mult = 1,
+                                                                .stride = {stride, stride},
+                                                                .padding = {pad_w, pad_h},
+                                                                .dilation = {dil, 1},
+                                                                .activation = {-128, 127}};
+                        const cmsis_nn_per_channel_quant_params quant = {planar_mult, planar_shift};
+                        const cmsis_nn_dims input_dims = {1, ih, iw, ch}, filter_dims = {1, kh, kw, ch},
+                                            output_dims = {1, oh, ow, ch};
+                        const int32_t size = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
+                        TEST_ASSERT_TRUE(size >= 0 && size <= (int32_t)sizeof(planar_scratch));
+                        const cmsis_nn_context ctx = {planar_scratch, size};
+                        const cmsis_nn_context wsum = {planar_wsum, ch * (int32_t)sizeof(int32_t)};
+                        const int32_t supported = arm_depthwise_conv_s8_opt_planar_supported(
+                            &params, &input_dims, &filter_dims, &output_dims);
+                        const arm_cmsis_nn_status status = arm_nn_depthwise_conv_s8_planar(&ctx,
+                                                                                           &wsum,
+                                                                                           &params,
+                                                                                           &quant,
+                                                                                           &input_dims,
+                                                                                           planar_in,
+                                                                                           &filter_dims,
+                                                                                           planar_ker,
+                                                                                           &output_dims,
+                                                                                           planar_out);
+                        TEST_ASSERT_EQUAL(supported ? ARM_CMSIS_NN_SUCCESS : ARM_CMSIS_NN_NO_IMPL_ERROR, status);
+                        accepted += supported;
+                        declined += !supported;
+                        fit_declined += !supported &&
+                            arm_nn_depthwise_conv_s8_planar_bytes(&params, &input_dims, &filter_dims, &output_dims) >=
+                                0;
+                    }
+                }
+            }
+        }
+    }
+    /* The grid reaches both outcomes, and a plane that only the scratch size declines. */
+    TEST_ASSERT_TRUE(accepted > 0 && declined > 0 && fit_declined > 0);
+#endif
+}
+
+/* The direct entries reject the same arguments as arm_depthwise_conv_s8_opt(). When ctx->size cannot hold the plane,
+   the planar entry declines without writing and arm_depthwise_conv_s8_opt() computes the layer on the channel path. */
+void direct_entries_arm_depthwise_conv_s8_opt(void)
+{
+    const int32_t ih = 7, iw = 9, ch = 5, kh = 3, kw = 3;
+    planar_case(ih, iw, ch, kh, kw, 1, 1, 1, 1, 3, -128, 127);
+    const cmsis_nn_dw_conv_params params = {.input_offset = 3,
+                                            .output_offset = -3,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {1, 1},
+                                            .dilation = {1, 1},
+                                            .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {planar_mult, planar_shift};
+    const cmsis_nn_dims input_dims = {1, ih, iw, ch}, filter_dims = {1, kh, kw, ch}, bias_dims = {1, 1, 1, ch},
+                        output_dims = {1, ih, iw, ch};
+    const int32_t size = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
+    const cmsis_nn_context ctx = {planar_scratch, size};
+    const cmsis_nn_context wsum = {planar_wsum, ch * (int32_t)sizeof(int32_t)};
+
+    typedef arm_cmsis_nn_status (*dw_fn)(const cmsis_nn_context *,
+                                         const cmsis_nn_context *,
+                                         const cmsis_nn_dw_conv_params *,
+                                         const cmsis_nn_per_channel_quant_params *,
+                                         const cmsis_nn_dims *,
+                                         const int8_t *,
+                                         const cmsis_nn_dims *,
+                                         const int8_t *,
+                                         const cmsis_nn_dims *,
+                                         const int32_t *,
+                                         const cmsis_nn_dims *,
+                                         int8_t *);
+    const dw_fn entries[] = {
+        arm_depthwise_conv_s8_opt, arm_depthwise_conv_s8_opt_planar, arm_depthwise_conv_s8_opt_channelwise};
+    const cmsis_nn_dims wrong_out = {1, ih, iw, ch + 1};
+    cmsis_nn_dw_conv_params dil_h = params;
+    dil_h.dilation.h = 2;
+    const cmsis_nn_context no_buf = {NULL, size};
+    for (size_t i = 0; i < sizeof(entries) / sizeof(entries[0]); i++)
+    {
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          entries[i](&ctx,
+                                     &wsum,
+                                     &params,
+                                     &quant,
+                                     &input_dims,
+                                     planar_in,
+                                     &filter_dims,
+                                     planar_ker,
+                                     &bias_dims,
+                                     planar_bias,
+                                     &wrong_out,
+                                     planar_out));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          entries[i](&ctx,
+                                     &wsum,
+                                     &dil_h,
+                                     &quant,
+                                     &input_dims,
+                                     planar_in,
+                                     &filter_dims,
+                                     planar_ker,
+                                     &bias_dims,
+                                     planar_bias,
+                                     &output_dims,
+                                     planar_out));
+        if (size > 0)
+        {
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                              entries[i](&no_buf,
+                                         &wsum,
+                                         &params,
+                                         &quant,
+                                         &input_dims,
+                                         planar_in,
+                                         &filter_dims,
+                                         planar_ker,
+                                         &bias_dims,
+                                         planar_bias,
+                                         &output_dims,
+                                         planar_out));
+        }
+    }
+
+    /* A context too small for the plane: the planar entry declines, the dispatcher falls back. planar_ref still holds
+       this layer's reference from planar_case() above. */
+    const cmsis_nn_context small = {planar_scratch, 16};
+    memset(planar_out, 0x5A, sizeof(planar_out));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_depthwise_conv_s8_opt_planar(&small,
+                                                       &wsum,
+                                                       &params,
+                                                       &quant,
+                                                       &input_dims,
+                                                       planar_in,
+                                                       &filter_dims,
+                                                       planar_ker,
+                                                       &bias_dims,
+                                                       planar_bias,
+                                                       &output_dims,
+                                                       planar_out));
+    for (int32_t i = 0; i < ih * iw * ch; i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[i]);
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_s8_opt(&small,
+                                                &wsum,
+                                                &params,
+                                                &quant,
+                                                &input_dims,
+                                                planar_in,
+                                                &filter_dims,
+                                                planar_ker,
+                                                &bias_dims,
+                                                planar_bias,
+                                                &output_dims,
+                                                planar_out));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(planar_ref, planar_out, ih * iw * ch);
 }
 
 /* A plane whose size does not fit in int32 (65536 x 65536 bytes) must be declined, not wrapped into a small size that
