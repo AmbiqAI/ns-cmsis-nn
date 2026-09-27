@@ -89,6 +89,21 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+    /* Few channels and 1xk kernels run faster vectorized across output pixels than across channels. */
+    if (arm_nn_depthwise_conv_s8_planar(ctx,
+                                        weight_sum_ctx,
+                                        dw_conv_params,
+                                        quant_params,
+                                        input_dims,
+                                        input,
+                                        filter_dims,
+                                        kernel,
+                                        output_dims,
+                                        output) == ARM_CMSIS_NN_SUCCESS)
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
 #endif
 
 #ifdef ARM_MATH_DSP

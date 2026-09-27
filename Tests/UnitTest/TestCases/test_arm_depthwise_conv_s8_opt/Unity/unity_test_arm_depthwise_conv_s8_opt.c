@@ -83,3 +83,6 @@ void test_dilated_1d_arm_depthwise_conv_s8_opt(void) { dilated_1d_arm_depthwise_
 void test_dilated_scope_gate_arm_depthwise_conv_s8_opt(void) { dilated_scope_gate_arm_depthwise_conv_s8_opt(); }
 void test_dilated_1d_route_arm_depthwise_conv_s8_opt(void) { dilated_1d_route_arm_depthwise_conv_s8_opt(); }
 void test_dilation_arg_check_arm_depthwise_conv_s8_opt(void) { dilation_arg_check_arm_depthwise_conv_s8_opt(); }
+void test_planar_shapes_arm_depthwise_conv_s8_opt(void) { planar_shapes_arm_depthwise_conv_s8_opt(); }
+void test_planar_size_overflow_arm_depthwise_conv_s8_opt(void) { planar_size_overflow_arm_depthwise_conv_s8_opt(); }
+void test_planar_small_context_arm_depthwise_conv_s8_opt(void) { planar_small_context_arm_depthwise_conv_s8_opt(); }
