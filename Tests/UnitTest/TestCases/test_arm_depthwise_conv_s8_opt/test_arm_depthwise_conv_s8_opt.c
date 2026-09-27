@@ -2053,6 +2053,7 @@ static void planar_case(int32_t ih,
                         int32_t dil,
                         int32_t pad_h,
                         int32_t pad_w,
+                        int32_t expect_planar,
                         int32_t input_offset,
                         int32_t act_min,
                         int32_t act_max)
@@ -2118,6 +2119,22 @@ static void planar_case(int32_t ih,
     const cmsis_nn_context wsum = {planar_wsum, ch * (int32_t)sizeof(int32_t)};
     memset(planar_scratch, 0x3C, sizeof(planar_scratch));
     memset(planar_out, 0x5A, sizeof(planar_out));
+#if defined(ARM_MATH_MVEI)
+    /* The model shapes take the pixel-vectorized path; the gate's neighbours are declined without writing output. */
+    const arm_cmsis_nn_status planar_status = arm_nn_depthwise_conv_s8_planar(
+        &ctx, &wsum, &params, &quant, &input_dims, planar_in, &filter_dims, planar_ker, &output_dims, planar_out);
+    TEST_ASSERT_EQUAL(expect_planar ? ARM_CMSIS_NN_SUCCESS : ARM_CMSIS_NN_NO_IMPL_ERROR, planar_status);
+    if (!expect_planar)
+    {
+        for (int32_t i = 0; i < oh * ow * ch + PLANAR_GUARD; i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[i]);
+        }
+    }
+    memset(planar_out, 0x5A, sizeof(planar_out));
+#else
+    (void)expect_planar;
+#endif
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
                       arm_depthwise_conv_s8_opt(&ctx,
                                                 &wsum,
@@ -2141,23 +2158,45 @@ static void planar_case(int32_t ih,
 
 void planar_shapes_arm_depthwise_conv_s8_opt(void)
 {
-    /* ih, iw, ch, kh, kw, dilation, pad_h, pad_w */
-    const int32_t shapes[][8] = {
-        {48, 48, 8, 3, 3, 1, 1, 1},  /* VWW DW1 */
-        {1, 240, 14, 1, 3, 1, 0, 1}, /* tcn32 */
-        {1, 240, 8, 1, 3, 2, 0, 2},  {1, 240, 8, 1, 3, 4, 0, 4},  {1, 240, 8, 1, 3, 8, 0, 8},
-        {1, 256, 16, 1, 9, 1, 0, 4}, /* heart-arr */
-        {1, 128, 24, 1, 9, 1, 0, 4}, {1, 64, 32, 1, 9, 1, 0, 4},  {1, 32, 40, 1, 9, 1, 0, 4},
-        {1, 256, 1, 1, 7, 1, 0, 3}, /* heart-seg */
-        {1, 256, 16, 1, 7, 2, 0, 6}, {1, 256, 24, 1, 7, 4, 0, 12}, {1, 256, 32, 1, 7, 8, 0, 24},
-        {7, 9, 5, 3, 3, 1, 1, 1},   {9, 17, 16, 5, 5, 1, 2, 2},   {6, 23, 3, 3, 3, 2, 1, 2},
-        {1, 11, 6, 1, 5, 1, 0, 0},  {1, 100, 3, 1, 16, 5, 0, 37}, {1, 9, 1, 1, 7, 1, 0, 3},
-        {1, 64, 33, 1, 7, 1, 0, 3}, {1, 40, 17, 1, 5, 1, 0, 2},   {3, 31, 2, 3, 3, 1, 0, 1},
+    /* ih, iw, ch, kh, kw, dilation, pad_h, pad_w, takes the pixel-vectorized path */
+    const int32_t shapes[][9] = {
+        {48, 48, 8, 3, 3, 1, 1, 1, 1},  /* VWW DW1 */
+        {1, 240, 14, 1, 3, 1, 0, 1, 1}, /* tcn32 */
+        {1, 240, 8, 1, 3, 2, 0, 2, 1},   {1, 240, 8, 1, 3, 4, 0, 4, 1},  {1, 240, 8, 1, 3, 8, 0, 8, 1},
+        {1, 256, 16, 1, 9, 1, 0, 4, 1}, /* heart-arr */
+        {1, 128, 24, 1, 9, 1, 0, 4, 1},  {1, 64, 32, 1, 9, 1, 0, 4, 1},  {1, 32, 40, 1, 9, 1, 0, 4, 0},
+        {1, 256, 1, 1, 7, 1, 0, 3, 1}, /* heart-seg */
+        {1, 256, 16, 1, 7, 2, 0, 6, 1},  {1, 256, 24, 1, 7, 4, 0, 12, 1}, {1, 256, 32, 1, 7, 8, 0, 24, 0},
+        {7, 9, 5, 3, 3, 1, 1, 1, 1},     {9, 17, 16, 5, 5, 1, 2, 2, 1},  {6, 23, 3, 3, 3, 2, 1, 2, 1},
+        {1, 11, 6, 1, 5, 1, 0, 0, 0},    {1, 100, 3, 1, 16, 5, 0, 37, 1}, {1, 9, 1, 1, 7, 1, 0, 3, 1},
+        {1, 64, 33, 1, 7, 1, 0, 3, 0},   {1, 40, 17, 1, 5, 1, 0, 2, 1},  {3, 31, 2, 3, 3, 1, 0, 1, 1},
     };
     for (size_t i = 0; i < sizeof(shapes) / sizeof(shapes[0]); i++)
     {
         const int32_t *s = shapes[i];
-        planar_case(s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], 128, -128, 127);
-        planar_case(s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], -5, -60, 70);
+        planar_case(s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], 128, -128, 127);
+        planar_case(s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], -5, -60, 70);
     }
+}
+
+/* A plane whose size does not fit in int32 (65536 x 65536 bytes) must be declined, not wrapped into a small size that
+   passes the scratch check. The data buffers are never touched. */
+void planar_size_overflow_arm_depthwise_conv_s8_opt(void)
+{
+#if defined(ARM_MATH_MVEI)
+    const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                            .output_offset = 0,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {0, 0},
+                                            .dilation = {1, 1},
+                                            .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {planar_mult, planar_shift};
+    const cmsis_nn_dims input_dims = {1, 65534, 8, 1}, filter_dims = {1, 3, 65529, 1}, output_dims = {1, 65534, 8, 1};
+    const cmsis_nn_context ctx = {planar_scratch, (int32_t)sizeof(planar_scratch)};
+    const cmsis_nn_context wsum = {planar_wsum, (int32_t)sizeof(planar_wsum)};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_nn_depthwise_conv_s8_planar(
+                          &ctx, &wsum, &params, &quant, &input_dims, planar_in, &filter_dims, planar_ker, &output_dims, planar_out));
+#endif
 }

@@ -1411,7 +1411,7 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
  *        one channel plane instead of across channels. It serves the few-channel and 1xk layers of
  *        arm_depthwise_conv_s8_opt(), with the same scratch buffer and weight sums.
  *
- * @param[in]      ctx             Scratch buffer of arm_depthwise_conv_s8_opt_get_buffer_size() bytes
+ * @param[in, out] ctx             Scratch buffer of arm_depthwise_conv_s8_opt_get_buffer_size() bytes
  * @param[in]      weight_sum_ctx  Per-channel weight sums from arm_depthwise_convolve_weight_sum(), bias included
  * @param[in]      dw_conv_params  Depthwise convolution parameters
  * @param[in]      quant_params    Per-channel quantization parameters

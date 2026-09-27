@@ -1,19 +1,10 @@
 /*
  * SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  *
- * Licensed under the Apache License, Version 2.0 (the License); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an AS IS BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Licensed under the Ambiq Apollo SDK License.
+ * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  */
 
 /* ----------------------------------------------------------------------
@@ -44,8 +35,6 @@
     #define DW_PLANAR_BLOCK (16)
 /* Plane bytes past the last row that a block or a 16-lane tap load may read; those lanes are never stored. */
     #define DW_PLANAR_SLACK (32)
-/* Widest channel count routed to the 1xk dot-product path. */
-    #define DW_PLANAR_DOT_MAX_CH (64)
 
 /* Fills n plane bytes: [0, i_start) and [i_end, n) take -input_offset, [i_start, i_end) are gathered from src at
    an element stride of step bytes. A padded tap then contributes (-input_offset) * w, which the weight sum cancels
@@ -132,7 +121,7 @@ static bool dw_planar_use_dot(const cmsis_nn_dw_conv_params *dw_conv_params,
                               const cmsis_nn_dims *output_dims)
 {
     return output_dims->h == 1 && input_dims->h == 1 && filter_dims->h == 1 && dw_conv_params->padding.h == 0 &&
-        filter_dims->w >= 5 && filter_dims->w <= 16 && dw_conv_params->dilation.w * input_dims->c <= 9362;
+        filter_dims->w >= 5 && filter_dims->w <= 16;
 }
 
 /*
@@ -145,8 +134,8 @@ static int32_t dw_planar_plane_bytes(const cmsis_nn_dw_conv_params *dw_conv_para
 {
     if (input_dims->c != output_dims->c || input_dims->n != 1 || dw_conv_params->ch_mult != 1 ||
         dw_conv_params->stride.w != 1 || dw_conv_params->stride.h != 1 || dw_conv_params->dilation.h != 1 ||
-        dw_conv_params->dilation.w < 1 || input_dims->c < 1 || input_dims->c > 4096 || output_dims->w < 1 ||
-        output_dims->h < 1 || filter_dims->w < 1 || filter_dims->h < 1)
+        dw_conv_params->dilation.w < 1 || input_dims->c < 1 || output_dims->w < 1 || output_dims->h < 1 ||
+        filter_dims->w < 1 || filter_dims->h < 1)
     {
         return -1;
     }
@@ -154,20 +143,24 @@ static int32_t dw_planar_plane_bytes(const cmsis_nn_dw_conv_params *dw_conv_para
        counts and for narrow planes that leave most of a 16-pixel block idle. */
     const int32_t ch = input_dims->c;
     const int32_t dilation_x = dw_conv_params->dilation.w;
-    /* On Apollo510 the channel-vectorized path is within 1.15x at C = 40 and at C = 32 with dilation 8. */
-    if (ch > 32 || ch * dilation_x > 128)
+    /* On Apollo510 the channel-vectorized path is within 1.15x at C = 40 and at C = 32 with dilation 8. The bound on
+       C * dilation also keeps the gather offsets of dw_planar_fill() (step * 15 or step * 7) inside their lane type. */
+    if (ch > 32 || dilation_x > 128 / ch)
     {
         return -1;
     }
-    const int32_t plane_w = output_dims->w + (filter_dims->w - 1) * dilation_x;
+    /* Sizes are formed in 64 bits and rejected past INT32_MAX; the caller also rejects any plane above the scratch. */
+    const int64_t plane_w = (int64_t)output_dims->w + (int64_t)(filter_dims->w - 1) * dilation_x;
+    int64_t bytes;
     if (dw_planar_use_dot(dw_conv_params, input_dims, filter_dims, output_dims))
     {
         /* Past 16 channels the per-phase fill and the per-channel loop cost more than they save on short phases. */
-        if (ch > DW_PLANAR_DOT_MAX_CH || output_dims->w < 8 || (ch > 16 && output_dims->w < 24 * dilation_x))
+        if (output_dims->w < 8 || (ch > 16 && output_dims->w < 24 * dilation_x))
         {
             return -1;
         }
-        return ((plane_w + dilation_x - 1) / dilation_x) * dilation_x + DW_PLANAR_SLACK;
+        bytes = ((plane_w + dilation_x - 1) / dilation_x) * dilation_x + DW_PLANAR_SLACK;
+        return bytes > INT32_MAX ? -1 : (int32_t)bytes;
     }
     const bool profitable = output_dims->w >= 8 &&
         ((output_dims->h == 1) ? (ch <= 16 || (ch <= 32 && output_dims->w >= 32))
@@ -176,8 +169,9 @@ static int32_t dw_planar_plane_bytes(const cmsis_nn_dw_conv_params *dw_conv_para
     {
         return -1;
     }
-    const int32_t plane_h = output_dims->h + filter_dims->h - 1;
-    return plane_w * plane_h + DW_PLANAR_SLACK;
+    const int64_t plane_h = (int64_t)output_dims->h + filter_dims->h - 1;
+    bytes = plane_w * plane_h + DW_PLANAR_SLACK;
+    return bytes > INT32_MAX ? -1 : (int32_t)bytes;
 }
 
 static void dw_planar_dot_1xk(const int8_t *input,
