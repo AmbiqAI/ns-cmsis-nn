@@ -1377,7 +1377,9 @@ void operand_bounds_arm_depthwise_conv_fast_s16(void)
                                                      &output_dims,
                                                      dil_reference));
             const int32_t scratch_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
-            TEST_ASSERT_TRUE(scratch_size > 0 && scratch_size <= GUARD_OFFSET);
+            /* The kernel uses only the im2col rows for four pixels, not the trailing slack in the reported size. */
+            const int32_t scratch_used = 4 * k * ch * (int32_t)sizeof(int16_t);
+            TEST_ASSERT_TRUE(scratch_used <= scratch_size && scratch_used <= GUARD_OFFSET);
 
             for (int op = op_input; op < op_end; op++)
             {
@@ -1387,7 +1389,7 @@ void operand_bounds_arm_depthwise_conv_fast_s16(void)
                 int32_t *mult = op == op_mult ? guard_place(dil_mult, ch * sizeof(int32_t)) : dil_mult;
                 int32_t *shift = op == op_shift ? guard_place(dil_shift, ch * sizeof(int32_t)) : dil_shift;
                 int16_t *output = op == op_output ? guard_end(len * ch * sizeof(int16_t)) : dil_output;
-                void *scratch = op == op_scratch ? guard_end(scratch_size) : dil_scratch;
+                void *scratch = op == op_scratch ? guard_end(scratch_used) : dil_scratch;
                 const cmsis_nn_per_channel_quant_params quant = {mult, shift};
                 const cmsis_nn_context ctx = {scratch, scratch_size};
                 memset(output, 0x5A, len * ch * sizeof(int16_t));
