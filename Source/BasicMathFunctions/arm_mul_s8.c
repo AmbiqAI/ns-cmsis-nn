@@ -72,6 +72,76 @@
                       out_activation_max,                                                                              \
                       (n))
 
+#if defined(ARM_MATH_MVEI) && !defined(CMSIS_NN_USE_SINGLE_ROUNDING)
+/*
+ * Multiply n_rows consecutive rows of c elements of vec by the single row `row` (c elements), with the
+ * arithmetic of arm_elementwise_mul_s8: 16-bit offset add, 16x16->32 product, arm_requantize_mve_32x4,
+ * saturating narrow to 16 bits, output offset and clamp. The output offset add saturates, so a
+ * requantized product outside the int16 range clamps like the scalar reference instead of wrapping.
+ * The channels are walked in blocks of 8 so the row block and all constants stay in registers across
+ * the rows. neg_shift is a compile-time constant
+ * at each call site: for out_shift < 0 the left shift is 0 and the divide exponent is non-zero, so the
+ * shift and the zero-exponent mask of arm_divide_by_power_of_two_mve_32x4 drop out; otherwise the
+ * divide is the identity.
+ */
+__STATIC_FORCEINLINE void arm_mul_s8_row_broadcast(const int8_t *vec,
+                                                   const int8_t *row,
+                                                   const int32_t vec_offset,
+                                                   const int32_t row_offset,
+                                                   int8_t *output,
+                                                   const int32_t out_offset,
+                                                   const int32_t out_mult,
+                                                   const int32_t out_shift,
+                                                   const int32_t out_activation_min,
+                                                   const int32_t out_activation_max,
+                                                   const int32_t n_rows,
+                                                   const int32_t c,
+                                                   const int neg_shift)
+{
+    const int32x4_t shift = vdupq_n_s32(out_shift);
+    const int16x8_t act_min = vdupq_n_s16((int16_t)out_activation_min);
+    const int16x8_t act_max = vdupq_n_s16((int16_t)out_activation_max);
+
+    for (int32_t c0 = 0; c0 < c; c0 += 8)
+    {
+        const mve_pred16_t p = vctp16q((uint32_t)(c - c0));
+        const int16x8_t r = vaddq_n_s16(vldrbq_z_s16(row + c0, p), (int16_t)row_offset);
+        const int8_t *v_ptr = vec + c0;
+        int8_t *o_ptr = output + c0;
+
+        for (int32_t i = 0; i < n_rows; i++)
+        {
+            const int16x8_t v = vaddq_n_s16(vldrbq_z_s16(v_ptr, p), (int16_t)vec_offset);
+            int32x4_t res_a = vmullbq_int_s16(v, r);
+            int32x4_t res_b = vmulltq_int_s16(v, r);
+
+            if (neg_shift)
+            {
+                res_a = vqrdmulhq_n_s32(res_a, out_mult);
+                res_b = vqrdmulhq_n_s32(res_b, out_mult);
+                res_a = vrshlq_s32(vqaddq_s32(res_a, vshrq_n_s32(res_a, 31)), shift);
+                res_b = vrshlq_s32(vqaddq_s32(res_b, vshrq_n_s32(res_b, 31)), shift);
+            }
+            else
+            {
+                res_a = vqrdmulhq_n_s32(vshlq_s32(res_a, shift), out_mult);
+                res_b = vqrdmulhq_n_s32(vshlq_s32(res_b, shift), out_mult);
+            }
+
+            int16x8_t res = vqmovntq_s32(vqmovnbq_s32(vdupq_n_s16(0), res_a), res_b);
+            res = vqaddq_n_s16(res, (int16_t)out_offset);
+            res = vmaxq_s16(res, act_min);
+            res = vminq_s16(res, act_max);
+
+            vstrbq_p_s16(o_ptr, res, p);
+
+            v_ptr += c;
+            o_ptr += c;
+        }
+    }
+}
+#endif
+
 /*
  * s8 elementwise mul w/ support for broadcasting and scalar
  *
@@ -97,6 +167,71 @@ arm_cmsis_nn_status arm_mul_s8(const int8_t *input1_data,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+#if defined(ARM_MATH_MVEI) && !defined(CMSIS_NN_USE_SINGLE_ROUNDING)
+    /* One operand broadcast along W with matching C (e.g. [N,H,W,C] x [N|1,H|1,1,C], the squeeze-and-excite
+     * scale): the walk would call arm_elementwise_mul_s8 once per C-element row; run the rows in one pass. */
+    if (input1_dims->c == input2_dims->c && input1_dims->c > 1 && (input1_dims->w == 1) != (input2_dims->w == 1) &&
+        output_dims->w > 1)
+    {
+        const int32_t vec_is_1 = input2_dims->w == 1;
+        const int8_t *vec = vec_is_1 ? input1_data : input2_data;
+        const int8_t *row = vec_is_1 ? input2_data : input1_data;
+        const cmsis_nn_dims *vec_dims = vec_is_1 ? input1_dims : input2_dims;
+        const cmsis_nn_dims *row_dims = vec_is_1 ? input2_dims : input1_dims;
+        const int32_t vec_offset = vec_is_1 ? input1_offset : input2_offset;
+        const int32_t row_offset = vec_is_1 ? input2_offset : input1_offset;
+        const int32_t c = output_dims->c;
+        const int32_t w = output_dims->w;
+        const int32_t vec_n_stride = (vec_dims->n == 1) ? 0 : vec_dims->h * w * c;
+        const int32_t vec_h_stride = (vec_dims->h == 1) ? 0 : w * c;
+        const int32_t row_n_stride = (row_dims->n == 1) ? 0 : row_dims->h * c;
+        const int32_t row_h_stride = (row_dims->h == 1) ? 0 : c;
+
+        for (int32_t n = 0; n < output_dims->n; n++)
+        {
+            for (int32_t h = 0; h < output_dims->h; h++)
+            {
+                const int8_t *vec_nh = vec + n * vec_n_stride + h * vec_h_stride;
+                const int8_t *row_nh = row + n * row_n_stride + h * row_h_stride;
+                if (out_shift < 0)
+                {
+                    arm_mul_s8_row_broadcast(vec_nh,
+                                             row_nh,
+                                             vec_offset,
+                                             row_offset,
+                                             output_data,
+                                             out_offset,
+                                             out_mult,
+                                             out_shift,
+                                             out_activation_min,
+                                             out_activation_max,
+                                             w,
+                                             c,
+                                             1);
+                }
+                else
+                {
+                    arm_mul_s8_row_broadcast(vec_nh,
+                                             row_nh,
+                                             vec_offset,
+                                             row_offset,
+                                             output_data,
+                                             out_offset,
+                                             out_mult,
+                                             out_shift,
+                                             out_activation_min,
+                                             out_activation_max,
+                                             w,
+                                             c,
+                                             0);
+                }
+                output_data += w * c;
+            }
+        }
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+#endif
 
     ARM_NN_BROADCAST_WALK_NHWC(int8_t,
                                int8_t,
