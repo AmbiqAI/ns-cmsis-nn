@@ -29,6 +29,9 @@
 #include "../TestData/depthwise_out_activation/test_data.h"
 #include "../TestData/depthwise_sub_block/test_data.h"
 #include "../TestData/depthwise_x_stride/test_data.h"
+/* The largest operand placed against the gap is the 4 x 9 x CH_IN_BLOCK_MVE padded lhs. */
+#define GUARD_OFFSET 4608
+#include "../Utils/mpu_guard.h"
 #include "../Utils/utils.h"
 #include "../Utils/validate.h"
 
@@ -2262,5 +2265,109 @@ void planar_small_context_arm_depthwise_conv_s8_opt(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
                       arm_nn_depthwise_conv_s8_planar(
                           &fits, &wsum, &params, &quant, &input_dims, planar_in, &filter_dims, planar_ker, &output_dims, planar_out));
+#endif
+}
+
+/* arm_nn_depthwise_conv_nt_t_padded_s8() with a channel count that is not a multiple of 4 must stay inside every
+   operand. Each operand in turn is placed against an MPU gap and the result is compared with a scalar reference. The
+   active channels are also run as the first part of a wider tensor, and without a bias. */
+void padded_nt_t_bounds_arm_depthwise_conv_s8_opt(void)
+{
+#if defined(MPU_GUARD_AVAILABLE)
+    enum
+    {
+        op_none,
+        op_lhs,
+        op_lhs_rows,
+        op_rhs,
+        op_bias,
+        op_mult,
+        op_shift,
+        op_out,
+        op_end
+    };
+    enum
+    {
+        max_ch = 20
+    };
+    static int8_t lhs[4 * 9 * CH_IN_BLOCK_MVE], rhs[9 * max_ch], out[4 * max_ch], expected[4 * max_ch];
+    static int32_t bias[max_ch], mult[max_ch], shift[max_ch];
+    const int32_t channels[] = {1, 2, 3, 5, 7, 17};
+    const int32_t taps[] = {1, 3, 9};
+    const int32_t input_offset = 5, out_offset = -3;
+    for (int32_t variant = 0; variant < 3; variant++)
+    {
+        const int32_t no_bias = variant == 2;
+        for (size_t i_ch = 0; i_ch < sizeof(channels) / sizeof(channels[0]); i_ch++)
+        {
+            for (size_t i_tap = 0; i_tap < sizeof(taps) / sizeof(taps[0]); i_tap++)
+            {
+                const int32_t ch = channels[i_ch], k = taps[i_tap];
+                const int32_t total = variant == 1 ? ch + 3 : ch;
+                const int32_t lhs_bytes = 4 * k * CH_IN_BLOCK_MVE;
+                /* The rows in use end with the last active channel of the last row. */
+                const int32_t lhs_rows = (4 * k - 1) * CH_IN_BLOCK_MVE + ch;
+                const int32_t rhs_bytes = (k - 1) * total + ch;
+                const int32_t out_bytes = 3 * total + ch;
+                uint32_t seed = (uint32_t)(k * 131 + ch * 7 + variant);
+                for (int32_t i = 0; i < lhs_bytes; i++)
+                {
+                    seed = seed * 1664525u + 1013904223u;
+                    lhs[i] = (int8_t)(seed >> 24);
+                }
+                for (int32_t i = 0; i < k * total; i++)
+                {
+                    seed = seed * 1664525u + 1013904223u;
+                    rhs[i] = (int8_t)(seed >> 24);
+                }
+                for (int32_t i = 0; i < ch; i++)
+                {
+                    seed = seed * 1664525u + 1013904223u;
+                    bias[i] = no_bias ? 0 : (int32_t)(seed >> 20) - 2048;
+                    mult[i] = 0x40000000 + (i % 7) * 0x4000000;
+                    shift[i] = -7 - (i % 3);
+                }
+                memset(expected, 0x5A, sizeof(expected));
+                for (int32_t r = 0; r < 4; r++)
+                {
+                    for (int32_t c = 0; c < ch; c++)
+                    {
+                        int32_t acc = bias[c];
+                        for (int32_t t = 0; t < k; t++)
+                        {
+                            acc += (lhs[(r * k + t) * CH_IN_BLOCK_MVE + c] + input_offset) * rhs[t * total + c];
+                        }
+                        int32_t v = arm_nn_requantize(acc, mult[c], shift[c]) + out_offset;
+                        v = v < -128 ? -128 : (v > 127 ? 127 : v);
+                        expected[r * total + c] = (int8_t)v;
+                    }
+                }
+                for (int op = op_none; op < op_end; op++)
+                {
+                    if (op == op_bias && no_bias)
+                    {
+                        continue;
+                    }
+                    const int8_t *l = op == op_lhs ? guard_place(lhs, lhs_bytes)
+                                                   : (op == op_lhs_rows ? guard_place(lhs, lhs_rows) : lhs);
+                    const int8_t *w = op == op_rhs ? guard_place(rhs, rhs_bytes) : rhs;
+                    const int32_t *b =
+                        no_bias ? NULL : (op == op_bias ? guard_place(bias, ch * sizeof(int32_t)) : bias);
+                    const int32_t *m = op == op_mult ? guard_place(mult, ch * sizeof(int32_t)) : mult;
+                    const int32_t *sh = op == op_shift ? guard_place(shift, ch * sizeof(int32_t)) : shift;
+                    int8_t *o = op == op_out ? guard_end(out_bytes) : out;
+                    memset(o, 0x5A, out_bytes);
+
+                    guard_gap_enable();
+                    const arm_cmsis_nn_status status = arm_nn_depthwise_conv_nt_t_padded_s8(
+                        l, w, input_offset, ch, total, sh, m, out_offset, -128, 127, (uint16_t)k, b, o);
+                    guard_gap_disable();
+
+                    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+                    TEST_ASSERT_EQUAL_INT8_ARRAY(expected, o, out_bytes);
+                }
+            }
+        }
+    }
 #endif
 }
