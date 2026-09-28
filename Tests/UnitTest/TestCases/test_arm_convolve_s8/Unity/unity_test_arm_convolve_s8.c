@@ -79,3 +79,9 @@ void test_conv_2x2_dilation_5x5_input_arm_convolve_s8(void) { conv_2x2_dilation_
 void test_buffer_size_arm_convolve_s8(void) { buffer_size_arm_convolve_s8(); }
 void test_buffer_size_mve_arm_convolve_s8(void) { buffer_size_mve_arm_convolve_s8(); }
 void test_buffer_size_dsp_arm_convolve_s8(void) { buffer_size_dsp_arm_convolve_s8(); }
+
+void test_small_cin_arm_convolve_s8(void) { small_cin_arm_convolve_s8(); }
+void test_small_cin_out_ch_arm_convolve_s8(void) { small_cin_out_ch_arm_convolve_s8(); }
+void test_mlperf_first_layers_arm_convolve_s8(void) { mlperf_first_layers_arm_convolve_s8(); }
+void test_low_depth_neighbours_arm_convolve_s8(void) { low_depth_neighbours_arm_convolve_s8(); }
+void test_low_depth_null_buffers_arm_convolve_s8(void) { low_depth_null_buffers_arm_convolve_s8(); }
