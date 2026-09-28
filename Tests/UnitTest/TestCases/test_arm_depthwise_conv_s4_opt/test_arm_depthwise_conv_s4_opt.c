@@ -556,8 +556,9 @@ void buffer_size_out_of_range_mve_arm_depthwise_conv_s4_opt(void)
 /* Weight t * C + c of a packed int4 filter, low nibble first. */
 static int32_t s4_weight(const int8_t *filter, int32_t index)
 {
-    const int8_t byte = filter[index >> 1];
-    return (index & 1) ? (byte >> 4) : ((int8_t)(byte << 4) >> 4);
+    const uint8_t byte = (uint8_t)filter[index >> 1];
+    const int32_t nibble = (index & 1) ? (byte >> 4) : (byte & 0x0f);
+    return (nibble ^ 8) - 8;
 }
 #endif
 
