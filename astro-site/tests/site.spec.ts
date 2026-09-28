@@ -83,3 +83,17 @@ test('kernel catalog combines search and facets and resets results', async ({ pa
   await catalog.getByRole('link', { name: 'arm_abs_s16', exact: true }).click();
   await expect(page).toHaveURL(/#arm_abs_s16$/);
 });
+
+
+test('kernel index Markdown lists the rendered catalog', async ({ request, page }) => {
+  await page.goto('/ns-cmsis-nn/reference/kernel-index/');
+  const sidecar = await page.locator('script[data-helia-rendition="reference-browser"]').textContent();
+  const response = await request.get('/ns-cmsis-nn/reference/kernel-index/index.md');
+  expect(response.ok()).toBe(true);
+  const markdown = await response.text();
+  expect(sidecar).toBeTruthy();
+  for (const name of sidecar!.matchAll(/\[(arm_[^\]]+)\]/g)) {
+    expect(markdown).toContain(`[${name[1]}]`);
+  }
+  expect(markdown).toContain('## Functions');
+});

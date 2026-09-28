@@ -44,6 +44,18 @@ for (const module of modules) {
   fs.writeFileSync(target, renderModuleMarkdown(module, { index, options }));
 }
 
+const kernelDir = path.join(dist, 'reference/kernel-index');
+const kernelHtml = fs.readFileSync(path.join(kernelDir, 'index.html'), 'utf8');
+const sidecar = kernelHtml.match(/<script\b[^>]*data-helia-rendition="reference-browser"[^>]*>([\s\S]*?)<\/script>/);
+if (!sidecar) throw new Error('Kernel index is missing its reference-browser rendition');
+const kernelRows = sidecar[1].replace(
+  /<(\\+)(\/|!--)/g,
+  (_, held, opener) => `<${held.slice(1)}${opener}`,
+);
+const kernelMarkdownPath = path.join(kernelDir, 'index.md');
+const kernelIntro = fs.readFileSync(kernelMarkdownPath, 'utf8').split('\n## Functions\n')[0];
+fs.writeFileSync(kernelMarkdownPath, `${kernelIntro.trimEnd()}\n\n## Functions\n\n${kernelRows.trim()}\n`);
+
 const bundle = `${catalog.routes
   .map((page) => {
     if (!page.markdown.startsWith(catalog.base)) {
