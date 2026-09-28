@@ -28,6 +28,19 @@
  * @{
  */
 
+/* Bytes of one packed 4-channel group, [9 taps x 4 weights][ws], and channels packed and processed per pass. The pass
+   size bounds the scratch use for wide layers. */
+#define DW3_GRP (52)
+#define DW3_CB (64)
+
+/* Scratch bytes of dw3_s8(): the [full | left | right] parameter variants and the multiplier/shift pairs of one channel
+   pass, one pad row of input W x C bytes, and 16 bytes that cover aligning the start to 16. The gate and
+   arm_depthwise_conv_s8_opt_3x3_get_buffer_size() both use it. */
+__STATIC_FORCEINLINE int64_t dw3_scratch_bytes(const cmsis_nn_dims *input_dims)
+{
+    return (DW3_CB / 4) * (3 * DW3_GRP + 32) + (int64_t)input_dims->w * input_dims->c + 16;
+}
+
 #if defined(ARM_MATH_MVEI)
 
 /* A block is three output rows at one output column; each 4-channel group loads its nine weight vectors once for the
@@ -36,11 +49,8 @@
    inward (so every load stays inside the row), sets the weights of the padded column to zero and cancels that column's
    input_offset term in ws. Rows outside the input read a pad row of -input_offset, which the ws term cancels as in the
    im2col path of arm_depthwise_conv_s8_opt. */
-    #define DW3_GRP (52)
     #define DW3_NB (3)
     #define DW3_MAX_ROWS ((DW3_NB - 1) * 2 + 3)
-/* Channels packed and processed per pass; bounds the scratch use for wide layers. */
-    #define DW3_CB (64)
 
 /* Pins the accumulators and orders memory at each tap, so the compiler neither hoists the next taps' loads nor sinks
    their multiplies; either one keeps more vectors live than the eight Q registers hold. */
@@ -323,12 +333,6 @@ static void dw3_run_any(const dw3_layer *L)
 
 static void dw3_run_c64_s1(const dw3_layer *L) { dw3_run(L, 1, 64, 1); }
 
-/* Scratch bytes: three parameter variants and the multiplier/shift pairs of one channel pass, and one pad row. */
-static int64_t dw3_scratch_bytes(const cmsis_nn_dims *input_dims)
-{
-    return (DW3_CB / 4) * (3 * DW3_GRP + 32) + (int64_t)input_dims->w * input_dims->c + 16;
-}
-
 /* Gate, parameter packing and channel passes shared by every entry; run computes one pass. */
 __attribute__((noinline)) static arm_cmsis_nn_status dw3_s8(const cmsis_nn_context *ctx,
                                                             const cmsis_nn_context *weight_sum_ctx,
@@ -543,4 +547,24 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_3x3_c64_s1(const cmsis_nn_context 
 
 /**
  * @} end of NNConv group
+ */
+
+/**
+ * @addtogroup GetBufferSizeNNConv
+ * @{
+ */
+
+int32_t arm_depthwise_conv_s8_opt_3x3_get_buffer_size(const cmsis_nn_dims *input_dims)
+{
+    /* Plain C, so every build returns the same size. The gate of dw3_s8() admits no dimension that returns -1 here. */
+    if (input_dims->w < 0 || input_dims->c < 0)
+    {
+        return -1;
+    }
+    const int64_t bytes = dw3_scratch_bytes(input_dims);
+    return bytes > INT32_MAX ? -1 : (int32_t)bytes;
+}
+
+/**
+ * @} end of GetBufferSizeNNConv group
  */
