@@ -21,7 +21,7 @@
     "check": "astro check",
     "check:content": "node scripts/check-public-content.mjs",
     "check:links": "python3 scripts/check-site-links.py",
-    "postbuild": "node scripts/build-legacy-redirects.mjs && npm run check:links",
+    "postbuild": "node scripts/build-legacy-redirects.mjs && node scripts/publish-reference-markdown.mjs && npm run check:links",
     "test:coverage": "node --test scripts/check-coverage.test.mjs",
     "test:smoke": "playwright test"
   },

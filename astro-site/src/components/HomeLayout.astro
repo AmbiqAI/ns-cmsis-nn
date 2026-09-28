@@ -1,14 +1,41 @@
 ---
 // SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+import Landing from '@ambiqai/helia-ui/astro/Landing';
 ---
 
-<div class="heliacore-home not-content"><slot /></div>
+<Landing class="heliacore-home not-content"><slot /></Landing>
 
 <style is:global>
+  .hero-release-row { flex-basis: 100%; margin-top: 2px; }
+  .heliacore-home .hero-release-row a { display: inline-flex; border: 1px solid #41454c; border-radius: 100px; padding: 4px 11px; color: #c4cbd5; font: 12px/1.5 system-ui; text-decoration: none; }
+  .heliacore-home .hero-release-row a:hover { border-color: currentColor; color: #f7faff; text-decoration: none; }
+  .heliacore-home .hero-release-row a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 
+
+  .heliacore-home .helia-hero { min-height: 550px; padding: 40px; gap: 40px; --helia-hero-headline: 40px; }
+  .heliacore-home .helia-hero__eyebrow { font-size: 14px; font-weight: 400; letter-spacing: .03em; }
+  .heliacore-home .helia-hero__summary { font-size: 16px; }
+  .core-kernel-panel { border: 1px solid #3d3830; border-radius: 18px; padding: 18px 20px; background: linear-gradient(135deg, #211f1b, #15171a); }
+  .core-capability { display: grid; grid-template-columns: 22px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid #39362f; }
+  .core-capability:first-child { border-top: 0; padding-top: 0; }
+  .core-capability-index { color: #d5ac68; font: 12px ui-monospace, monospace; padding-top: 3px; }
+  .core-capability strong { display: block; color: #f7faff; font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .heliacore-home .core-capability p { color: #d5d8dc; font-size: 13px; line-height: 1.5; }
+  .core-formats { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 7px; }
+  .core-formats span { border: 1px solid #574a34; color: #e4c48f; border-radius: 5px; padding: 3px 6px; font: 11px ui-monospace, monospace; }
+  .core-coverage-link { display: flex; justify-content: space-between; gap: 10px; border: 1px solid #514737; border-radius: 8px; padding: 10px 12px; color: #e4c48f; text-decoration: none; font-size: 12px; }
+  .core-coverage-link:hover { border-color: #d5ac68; background: #d5ac6810; }
+  .core-coverage-link:focus-visible { outline: 2px solid #d5ac68; outline-offset: 3px; }
+  @media(max-width: 991px) { .heliacore-home .helia-hero { min-height: auto; padding: 30px 24px; --helia-hero-headline: 36px; } }
+  .core-hero-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 20px 0 0; }
+  .core-hero-chips a { display: inline-flex; align-items: center; gap: 10px; padding: 8px 15px; border: 1px solid var(--helia-surface-border); border-radius: var(--helia-radius-pill); color: var(--helia-ink-secondary); background: var(--helia-surface-paper); font-size: 13px; text-decoration: none; transition: border-color .18s, background .18s; }
+  .core-hero-chips a span { color: var(--helia-product-accent); }
+  .core-hero-chips a:hover { border-color: var(--helia-product-accent); background: color-mix(in srgb, var(--helia-product-accent) 8%, var(--helia-surface-paper)); color: var(--helia-ink-primary); }
+  .core-hero-chips a:focus-visible { outline: 2px solid var(--helia-product-accent); outline-offset: 3px; }
+  @media(max-width: 600px) { .core-hero-chips { justify-content: flex-start; } }
   .heliacore-home .keep-together { white-space: nowrap; }
   .heliacore-home { color: var(--sl-color-text); }
-  .heliacore-home .section-heading { display: grid; gap: var(--helia-space-4); margin-bottom: var(--helia-space-6); max-width: 58rem; }
+  .heliacore-home .section-heading { display: grid; gap: var(--helia-space-4); margin-bottom: var(--helia-space-6); }
   .heliacore-home h2 { font-size: var(--helia-text-section); line-height: 1.15; letter-spacing: -0.025em; margin: 0; }
   .heliacore-home h3 { font-size: var(--helia-text-subhead); line-height: 1.4; margin: 0 0 var(--helia-space-3); }
   .heliacore-home p { margin: 0; line-height: 1.65; }
@@ -21,8 +48,7 @@
   .heliacore-home .family-grid p, .heliacore-home .acceleration-grid p { color: var(--sl-color-gray-2); }
   .heliacore-home .acceleration-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--helia-space-6); }
   .heliacore-home .feature-tag { color: var(--sl-color-text-accent); margin-bottom: var(--helia-space-3); }
-  .heliacore-home .section-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--helia-space-6); margin-top: var(--helia-space-6); }
-  .heliacore-home .section-actions .text-link { color: var(--sl-color-text); text-decoration: underline; text-underline-offset: 0.2em; }
+  .heliacore-home .section-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--helia-space-3); margin-top: var(--helia-space-6); }
   .heliacore-home .highlights { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--helia-space-5); }
   .heliacore-home .highlights strong { display: block; font-size: var(--helia-text-card-title); line-height: 1.35; margin-bottom: var(--helia-space-2); }
   .heliacore-home .highlights p { font-size: var(--helia-text-small); }
@@ -53,6 +79,15 @@
   .heliacore-home .acceleration-grid { grid-template-columns: 1fr; gap: var(--helia-space-6); }
   }
   @media (max-width: 30rem) {
-  .heliacore-home .family-grid { grid-template-columns: 1fr; gap: var(--helia-space-6); }
+  .heliacore-home .family-grid, .heliacore-home .highlights { grid-template-columns: 1fr; gap: var(--helia-space-6); }
+  }
+
+  .heliacore-home .helia-hero { position: relative; }
+  .heliacore-home .hero-release-row { position: absolute; top: 16px; right: 20px; margin: 0; }
+  @media (max-width: 991px) {
+    .heliacore-home .helia-hero { row-gap: 18px; padding-top: 64px; }
+    .heliacore-home .helia-hero__lede { display: contents; }
+    .heliacore-home .helia-hero__side { order: 1; margin-top: 10px; }
+    .heliacore-home .helia-hero__actions { order: 2; margin-top: 10px; }
   }
 </style>
