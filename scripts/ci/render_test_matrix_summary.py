@@ -41,6 +41,7 @@ EXPECTED = {
     "reports-cortex-m55": ("m55", "int"),
     "reports-m4-int-shipped": ("m4", "int-shipped"),
     "reports-m55-int-shipped": ("m55", "int-shipped"),
+    "reports-m55-int-mvei": ("m55", "int-mvei"),
     "reports-m0-f32-fallback": ("m0", "f32-fallback"),
     "reports-m4-f32-fallback": ("m4", "f32-fallback"),
     "reports-m55-f32-fallback": ("m55", "f32-fallback"),
@@ -54,6 +55,7 @@ ROWS = ["m0", "m4", "m55"]
 COLUMNS = [
     "int",
     "int-shipped",
+    "int-mvei",
     "f32-fallback",
     "f32-mvef",
     "f32-shipped",
