@@ -887,9 +887,11 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_f16_body(const cmsis_
                      * across every tap and reduced once per output (#417). */
                     const float16_t *w_oc = filter_data + (size_t)oc * kernel_h * kernel_w * input_c;
                     float16x8_t vacc = vdupq_n_f16((float16_t)0.0f);
-                    /* Folding (#586): at most `block` channel vectors per float16 partial, each block's lanes summed
-                     * in float32 onto a float32 accumulator that starts at the bias; one rounding at the end. */
-                    float32_t acc32 = bias_data ? (float32_t)bias_data[oc] : 0.0f;
+                    /* Folding (#586): at most `block` channel vectors per float16 partial, each block's lanes folded
+                     * into float32 pair accumulators, summed once; the bias is added in float32 and the total
+                     * rounds once. */
+                    float32x4_t acc_pairs = vdupq_n_f32(0.0f);
+                    bool first_block = true;
                     int32_t n_vec = 0;
     #else
                     /* Scalar leg: float32 accumulation, one f16 rounding at the store (#449, #457). */
@@ -926,7 +928,8 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_f16_body(const cmsis_
                                 {
                                     if (n_vec == block)
                                     {
-                                        acc32 += arm_nn_vec_reduce_add_f16_to_f32(vacc);
+                                        arm_nn_f16_fold_pairs_f32(&acc_pairs, vacc, first_block);
+                                        first_block = false;
                                         vacc = vdupq_n_f16((float16_t)0.0f);
                                         n_vec = 0;
                                     }
@@ -971,7 +974,9 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_f16_body(const cmsis_
                     _Float16 acc;
                     if (fold)
                     {
-                        acc = (_Float16)(acc32 + arm_nn_vec_reduce_add_f16_to_f32(vacc));
+                        arm_nn_f16_fold_pairs_f32(&acc_pairs, vacc, first_block);
+                        acc = (_Float16)((bias_data ? (float32_t)bias_data[oc] : 0.0f) +
+                                         arm_nn_f16_pairs_sum_f32(acc_pairs));
                     }
                     else
                     {

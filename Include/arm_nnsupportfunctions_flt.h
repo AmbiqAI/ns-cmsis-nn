@@ -810,23 +810,84 @@ __STATIC_INLINE float16_t arm_nn_vec_reduce_add_f16(float16x8_t in)
 }
 
 /**
+ * @brief Fold a float16 lane partial into four float32 pair accumulators (reduction kernels).
+ *
+ * Lanes 2j and 2j+1 are widened exactly and added in float32; the pair sum is added to accumulator lane j, or sets
+ * it on the first partial (AmbiqAI/ns-cmsis-nn#586).
+ *
+ * @param[in,out] acc   Float32 pair accumulators.
+ * @param[in]     in    Float16 partial sums.
+ * @param[in]     first True for the first partial: the accumulator is set rather than added to.
+ */
+__STATIC_FORCEINLINE void arm_nn_f16_fold_pairs_f32(float32x4_t *acc, float16x8_t in, const bool first)
+{
+    float32x4_t pairs = vaddq(arm_nn_vcvtbq_f32_f16(in), arm_nn_vcvttq_f32_f16(in));
+    /* Opaque to the optimizer: -ffast-math must not re-pair `acc + (even + odd)` as `(acc + even) + odd`. */
+    __asm__("" : "+w"(pairs));
+    *acc = first ? pairs : vaddq(*acc, pairs);
+}
+
+/**
+ * @brief Sum four float32 pair accumulators once: (0+1) + (2+3), each addition rounded to float32.
+ *
+ * With arm_nn_f16_fold_pairs_f32 this pairs the lanes of a single partial as arm_nn_vec_reduce_add_f16 does:
+ * ((0+1) + (2+3)) + ((4+5) + (6+7)) (AmbiqAI/ns-cmsis-nn#586).
+ *
+ * @param[in] acc Float32 pair accumulators.
+ * @return Float32 sum of the four accumulator lanes.
+ */
+__STATIC_FORCEINLINE float32_t arm_nn_f16_pairs_sum_f32(float32x4_t acc)
+{
+    acc = vaddq(acc, vrev64q(acc));
+    float32_t total = vgetq_lane_f32(acc, 0) + vgetq_lane_f32(acc, 2);
+    /* Opaque to the optimizer: under -ffast-math the caller's `bias + total` must not be reassociated into the
+     * lane sum, or the float32 rounding order would depend on the compiler. */
+    __asm__("" : "+t"(total));
+    return total;
+}
+
+/**
+ * @brief arm_nn_f16_pairs_sum_f32 for four accumulators at once.
+ *
+ * @param[in] acc0 Float32 pair accumulators of output 0.
+ * @param[in] acc1 Float32 pair accumulators of output 1.
+ * @param[in] acc2 Float32 pair accumulators of output 2.
+ * @param[in] acc3 Float32 pair accumulators of output 3.
+ * @return Lane j holds the sum of accumulator j, rounded exactly as arm_nn_f16_pairs_sum_f32 rounds it.
+ */
+__STATIC_FORCEINLINE float32x4_t arm_nn_f16_pairs_sum4_f32(float32x4_t acc0,
+                                                           float32x4_t acc1,
+                                                           float32x4_t acc2,
+                                                           float32x4_t acc3)
+{
+    /* De-interleaving load: vector i of `v` holds lane i of every accumulator. */
+    float32_t t[16];
+    vst1q(t, acc0);
+    vst1q(t + 4, acc1);
+    vst1q(t + 8, acc2);
+    vst1q(t + 12, acc3);
+    const float32x4x4_t v = vld4q_f32(t);
+    float32x4_t s01 = vaddq(v.val[0], v.val[1]);
+    float32x4_t s23 = vaddq(v.val[2], v.val[3]);
+    /* Opaque to the optimizer, as in arm_nn_f16_pairs_sum_f32: -ffast-math must not re-pair the four sums. */
+    __asm__("" : "+w"(s01), "+w"(s23));
+    float32x4_t total = vaddq(s01, s23);
+    __asm__("" : "+w"(total));
+    return total;
+}
+
+/**
  * @brief Sum the eight lanes of a float16 partial in float32.
  *
- * Every lane widens exactly; the lanes pair as in arm_nn_vec_reduce_add_f16 ((0+1) + (2+3)) + ((4+5) + (6+7)),
- * with each addition rounded to float32 (AmbiqAI/ns-cmsis-nn#586).
+ * Every lane widens exactly; the lanes then sum ((0+1) + (2+3)) + ((4+5) + (6+7)) in float32, as
+ * arm_nn_f16_fold_pairs_f32 then arm_nn_f16_pairs_sum_f32 (AmbiqAI/ns-cmsis-nn#586).
  *
  * @param[in] in Float16 partial sums.
  * @return Float32 sum of the eight lanes of @p in.
  */
 __STATIC_FORCEINLINE float32_t arm_nn_vec_reduce_add_f16_to_f32(float16x8_t in)
 {
-    float32x4_t sum = vaddq(arm_nn_vcvtbq_f32_f16(in), arm_nn_vcvttq_f32_f16(in));
-    sum = vaddq(sum, vrev64q(sum));
-    float32_t total = vgetq_lane_f32(sum, 0) + vgetq_lane_f32(sum, 2);
-    /* Opaque to the optimizer: under -ffast-math the caller's `acc + total` must not be reassociated into the
-     * lane sum, or the float32 rounding order would depend on the compiler. */
-    __asm__("" : "+t"(total));
-    return total;
+    return arm_nn_f16_pairs_sum_f32(vaddq(arm_nn_vcvtbq_f32_f16(in), arm_nn_vcvttq_f32_f16(in)));
 }
 
 /**
@@ -1003,8 +1064,9 @@ void arm_nn_depthwise_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
  *
  * @note MVE leg: blockwise float16 accumulation (AmbiqAI/ns-cmsis-nn#586). Input channel c feeds lane c % 8 with
  *       5 taps per channel step; above 32 taps per output, a lane's float16 partial covers at most 6 channel
- *       steps, each block's lanes are summed in float32 onto a float32 accumulator that starts at the bias, and
- *       the total rounds to float16 once. Up to 32 taps: float16 lanes, a float16 reduction and the bias added
+ *       steps; each block's lanes are folded into float32 pair accumulators (arm_nn_f16_fold_pairs_f32), which
+ *       are summed once (arm_nn_f16_pairs_sum_f32), the bias is added in float32 and the total rounds to float16
+ *       once. Up to 32 taps: float16 lanes, a float16 reduction and the bias added
  *       in float16, as before. The scalar leg accumulates in float32 (#449, #465).
  */
 void arm_nn_conv1d_k5_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
@@ -1081,8 +1143,9 @@ void arm_nn_conv1d_k5_packed_f16_acc16(const float16_t *__RESTRICT x_nhwc,
  *
  * @note MVE leg: blockwise float16 accumulation (AmbiqAI/ns-cmsis-nn#586). Input channel c feeds lane c % 8 with
  *       3 taps per channel step; above 32 taps per output, a lane's float16 partial covers at most 10 channel
- *       steps, each block's lanes are summed in float32 onto a float32 accumulator that starts at the bias, and
- *       the total rounds to float16 once. Up to 32 taps: float16 lanes, a float16 reduction and the bias added
+ *       steps; each block's lanes are folded into float32 pair accumulators (arm_nn_f16_fold_pairs_f32), which
+ *       are summed once (arm_nn_f16_pairs_sum_f32), the bias is added in float32 and the total rounds to float16
+ *       once. Up to 32 taps: float16 lanes, a float16 reduction and the bias added
  *       in float16, as before. The scalar leg accumulates in float32 (#449, #465).
  */
 void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
@@ -1198,12 +1261,13 @@ void arm_nn_maxpool1d_k2s2_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
  *       the contiguous-K threshold), lane-partial sums then one float16 reduction plus the bias in
  *       float16 at rhs_cols 32. Above 32, on the contiguous-K path and the remainder rows, each lane
  *       (element k goes to lane k % 8) sums at most 32 of its own taps (256 elements) in float16;
- *       each block's lanes are then summed in float32 ((0+1) + (2+3)) + ((4+5) + (6+7)) onto a
- *       float32 accumulator that starts at the bias, and the total rounds to float16 once before the
- *       clamp. arm_nn_mat_mult_nt_t_f16_acc16 keeps the float16 lanes and float16 reduction
- *       throughout. The scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE)
- *       accumulates bias and every product in float32 and rounds to float16 once before the clamp
- *       (AmbiqAI/ns-cmsis-nn#449, #457).
+ *       each block's lanes are then widened and lanes 2j and 2j+1 added in float32 into pair
+ *       accumulator j (set by the first block, added to by later ones); the four pair accumulators
+ *       are summed once as (0+1) + (2+3), so a single block sums ((0+1) + (2+3)) + ((4+5) + (6+7)),
+ *       the bias is added in float32 and the total rounds to float16 once before the clamp.
+ * arm_nn_mat_mult_nt_t_f16_acc16 keeps the float16 lanes and float16 reduction throughout. The scalar leg (non-MVE
+ * builds and ARM_MATH_AUTOVECTORIZE) accumulates bias and every product in float32 and rounds to float16 once before
+ * the clamp (AmbiqAI/ns-cmsis-nn#449, #457).
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
                                              const float16_t *__RESTRICT rhs,

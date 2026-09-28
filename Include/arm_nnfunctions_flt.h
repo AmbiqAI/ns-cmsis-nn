@@ -2400,9 +2400,10 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16_acc16(const cmsis_nn_context *ctx,
  * float32 sum rounds to float16 once, before the clamp. An accumulator of at most 32 taps gives exactly the
  * float16-lane result. The `_acc16` entry keeps float16 lanes throughout. Where a dot product spreads its taps over the
  * lanes of one vector (OHWI rows, the contiguous-K matmul, the conv1d k=3 / k=5 OHWI kernels), each lane's own taps
- * form its blocks and, once the reduction exceeds 32 taps, each block's lanes are summed in float32 onto a float32
- * accumulator that starts at the bias. The k=3 / k=5 kernels close a block on a whole input-channel step (30 taps per
- * lane).
+ * form its blocks and, once the reduction exceeds 32 taps, each block's lanes are widened and lanes 2j and 2j+1 added
+ * in float32 into pair accumulator j (the first block sets it); the four pair accumulators are summed once as
+ * (0+1) + (2+3), the bias is added in float32 and the total rounds once. The k=3 / k=5 kernels close a block on a
+ * whole input-channel step (30 taps per lane).
  */
 arm_cmsis_nn_status arm_convolve_f16(const cmsis_nn_context *ctx,
                                      const cmsis_nn_conv_params_f16 *conv_params,
