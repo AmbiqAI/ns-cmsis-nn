@@ -736,7 +736,7 @@ void channel_parity_arm_depthwise_conv_s4(void)
                                                                     bias,
                                                                     &output_dims,
                                                                     output));
-                            char message[64];
+                            char message[128];
                             snprintf(message,
                                      sizeof(message),
                                      "ic %ld cm %ld k %ldx%ld pad %ld dil %ld stride %ld",
