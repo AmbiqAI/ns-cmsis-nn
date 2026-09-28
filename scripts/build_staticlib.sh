@@ -173,6 +173,10 @@ else
   echo ">>> strip command unavailable for ${TOOLCHAIN}; leaving archive unstripped"
 fi
 
+# The archive must keep one section per function (see the CFLAGS above); fail rather than publish one that would
+# drag whole objects into a --gc-sections link.
+python3 "${repo_root}/scripts/check_staticlib_sections.py" "${final_path}"
+
 ( cd "${OUTDIR}" && sha256sum "${final_name}" > "${final_name}.sha256" )
 
 # Sidecar: single source of truth for what was actually compiled into this
