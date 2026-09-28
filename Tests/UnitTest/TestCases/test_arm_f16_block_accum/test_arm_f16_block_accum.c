@@ -1,0 +1,1214 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 Ambiq
+ *
+ * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+ *
+ * Licensed under the Ambiq Apollo SDK License.
+ * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
+ */
+
+#include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
+#include <math.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
+#include <unity.h>
+
+// Blockwise float16 accumulation (AmbiqAI/ns-cmsis-nn#586). Every output of the default entries is checked bit for
+// bit against an exact emulation of the kernel's own arithmetic: float16 fused multiply-adds (one rounding each) in
+// the kernel's tap order, at most 32 taps per lane per float16 partial, partials widened exactly into float32
+// (float32 additions in the kernel's order), one rounding to float16 at the end. The `_acc16` entries are checked
+// against the same emulation with no fold (the float16 chain every MVE leg ran before #586), and for reductions of
+// at most 32 taps the two entries must agree byte for byte. A +0 / -0 difference counts as agreement.
+//
+// Two lane shapes are emulated. A lane kernel keeps one output per vector lane and adds one tap per step, the bias
+// starting the first partial. A reduction kernel spreads one output's taps over the eight lanes of a vector
+// (channel c to lane c % 8, each vector step one tap per lane, or T for the k=3 / k=5 conv1d kernels), counts its
+// blocks in vector steps, and when the reduction is longer than 32 taps sums each block's lanes in float32 as
+// ((0+1) + (2+3)) + ((4+5) + (6+7)) onto a float32 accumulator seeded with the bias; otherwise the lanes reduce in
+// float16 in the same pairing and the bias is added in float16.
+
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #define BA_MVE 1
+#else
+    #define BA_MVE 0
+#endif
+
+#define BA_BLOCK 32
+#define BA_NONE INT32_MAX
+
+#define BA_IN_MAX 3072
+#define BA_W_MAX 5120
+#define BA_OUT_MAX 3072
+#define BA_BIAS_MAX 64
+#define BA_SCRATCH_MAX 4096
+
+static float16_t ba_in[BA_IN_MAX];
+static float16_t ba_w[BA_W_MAX];
+static float16_t ba_wp[BA_W_MAX];
+static float16_t ba_bias[BA_BIAS_MAX];
+static float16_t ba_out[BA_OUT_MAX];
+static float16_t ba_out16[BA_OUT_MAX];
+static float16_t ba_scratch[BA_SCRATCH_MAX];
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Exact arithmetic                                                                                                  */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+static uint16_t ba_bits(float16_t v)
+{
+    uint16_t b;
+    memcpy(&b, &v, sizeof(b));
+    return b;
+}
+
+static float16_t ba_from_bits(uint16_t b)
+{
+    float16_t v;
+    memcpy(&v, &b, sizeof(v));
+    return v;
+}
+
+// Round a double to the nearest binary16 (ties to even), subnormals included.
+static float16_t ba_round_f16(double x)
+{
+    if (x == 0.0 || isnan(x))
+    {
+        return (float16_t)x;
+    }
+    const double ax = fabs(x);
+    if (ax >= 65520.0)
+    {
+        return ba_from_bits(x > 0.0 ? 0x7C00u : 0xFC00u);
+    }
+    int e;
+    (void)frexp(ax, &e);
+    int q = e - 11;
+    if (q < -24)
+    {
+        q = -24;
+    }
+    const double scaled = ldexp(ax, -q);
+    double r = floor(scaled);
+    const double frac = scaled - r;
+    if (frac > 0.5 || (frac == 0.5 && fmod(r, 2.0) != 0.0))
+    {
+        r += 1.0;
+    }
+    const double res = ldexp(r, q);
+    return (float16_t)(x < 0.0 ? -res : res);
+}
+
+// round_f16(a * b + c) with a single rounding. The product is exact in double; the sum is corrected by TwoSum so a
+// double rounding cannot land on a binary16 midpoint.
+static float16_t ba_fma16(float16_t a, float16_t b, float16_t c)
+{
+    volatile double p = (double)a * (double)b;
+    volatile double cc = (double)c;
+    volatile double s = p + cc;
+    volatile double z = s - p;
+    volatile double err = (p - (s - z)) + (cc - z);
+    double r = s;
+    if (err != 0.0)
+    {
+        uint64_t bits;
+        memcpy(&bits, &r, sizeof(bits));
+        bits = ((err > 0.0) == (r > 0.0)) ? bits + 1u : bits - 1u;
+        memcpy(&r, &bits, sizeof(r));
+    }
+    return ba_round_f16(r);
+}
+
+static float16_t ba_add16(float16_t a, float16_t b) { return ba_round_f16((double)a + (double)b); }
+
+static float32_t ba_add32(float32_t a, float32_t b)
+{
+    volatile float32_t r = a + b;
+    return r;
+}
+
+// arm_nn_vec_reduce_add_f16_to_f32
+static float32_t ba_sum8_f32(const float16_t p[8])
+{
+    const float32_t s0 = ba_add32((float32_t)p[0], (float32_t)p[1]);
+    const float32_t s1 = ba_add32((float32_t)p[2], (float32_t)p[3]);
+    const float32_t s2 = ba_add32((float32_t)p[4], (float32_t)p[5]);
+    const float32_t s3 = ba_add32((float32_t)p[6], (float32_t)p[7]);
+    return ba_add32(ba_add32(s0, s1), ba_add32(s2, s3));
+}
+
+// arm_nn_vec_reduce_add_f16
+static float16_t ba_sum8_f16(const float16_t p[8])
+{
+    const float16_t a = ba_add16(p[0], p[1]);
+    const float16_t b = ba_add16(p[2], p[3]);
+    const float16_t c = ba_add16(p[4], p[5]);
+    const float16_t d = ba_add16(p[6], p[7]);
+    return ba_add16(ba_add16(a, b), ba_add16(c, d));
+}
+
+static float16_t ba_bias_or_zero(const float16_t *bias) { return ba_from_bits(bias ? ba_bits(*bias) : 0u); }
+
+/* Lane kernel: `n` taps in order, bias first, at most `block` taps per float16 partial. */
+typedef void (*ba_lane_tap_fn)(const void *ctx, int32_t t, float16_t *x, float16_t *w);
+
+static float16_t ba_emu_lane(const void *ctx, ba_lane_tap_fn fn, int32_t n, const float16_t *bias, int32_t block)
+{
+    float16_t p = ba_bias_or_zero(bias);
+    float32_t acc = 0.0f;
+    bool folded = false;
+    int32_t in_block = 0;
+    for (int32_t t = 0; t < n; ++t)
+    {
+        if (in_block == block)
+        {
+            acc = folded ? ba_add32(acc, (float32_t)p) : (float32_t)p;
+            folded = true;
+            p = ba_from_bits(0u);
+            in_block = 0;
+        }
+        float16_t x;
+        float16_t w;
+        fn(ctx, t, &x, &w);
+        p = ba_fma16(x, w, p);
+        ++in_block;
+    }
+    if (!folded)
+    {
+        return p;
+    }
+    return ba_round_f16((double)ba_add32(acc, (float32_t)p));
+}
+
+/* Reduction kernel: `n_steps` vector steps of up to `taps` taps per lane; the callback returns false for a lane the
+ * step does not reach. `fold` mirrors the kernel's own choice (reduction longer than the block). */
+typedef bool (*ba_red_tap_fn)(const void *ctx, int32_t step, int32_t lane, int32_t t, float16_t *x, float16_t *w);
+
+static float16_t ba_emu_reduce(const void *ctx,
+                               ba_red_tap_fn fn,
+                               int32_t n_steps,
+                               int32_t taps,
+                               const float16_t *bias,
+                               bool fold,
+                               int32_t block_steps)
+{
+    float16_t p[8];
+    for (int32_t l = 0; l < 8; ++l)
+    {
+        p[l] = ba_from_bits(0u);
+    }
+    float32_t acc = bias ? (float32_t)*bias : 0.0f;
+    int32_t in_block = 0;
+    for (int32_t s = 0; s < n_steps; ++s)
+    {
+        if (fold && in_block == block_steps)
+        {
+            acc = ba_add32(acc, ba_sum8_f32(p));
+            for (int32_t l = 0; l < 8; ++l)
+            {
+                p[l] = ba_from_bits(0u);
+            }
+            in_block = 0;
+        }
+        for (int32_t l = 0; l < 8; ++l)
+        {
+            for (int32_t t = 0; t < taps; ++t)
+            {
+                float16_t x;
+                float16_t w;
+                if (fn(ctx, s, l, t, &x, &w))
+                {
+                    p[l] = ba_fma16(x, w, p[l]);
+                }
+            }
+        }
+        ++in_block;
+    }
+    if (fold)
+    {
+        return ba_round_f16((double)ba_add32(acc, ba_sum8_f32(p)));
+    }
+    return ba_add16(ba_bias_or_zero(bias), ba_sum8_f16(p));
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Data and checking                                                                                                 */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+static uint32_t ba_hash(uint32_t i, uint32_t seed)
+{
+    uint32_t h = i * 2654435761u + seed * 40503u + 0x9E3779B9u;
+    h ^= h >> 15;
+    h *= 2246822519u;
+    h ^= h >> 13;
+    h *= 3266489917u;
+    h ^= h >> 16;
+    return h;
+}
+
+// Full-precision values in [-1, 1): products carry 22 significant bits, so every float16 addition rounds.
+static void ba_fill(float16_t *dst, int32_t n, uint32_t seed)
+{
+    for (int32_t i = 0; i < n; ++i)
+    {
+        dst[i] = (float16_t)((float32_t)((int32_t)(ba_hash((uint32_t)i, seed) & 0xFFFFu) - 32768) / 32768.0f);
+    }
+}
+
+// NT_N_PACKED: [ceil(n / 8)][k][8], tail lanes zero.
+static void ba_pack_nt_n(const float16_t *w, float16_t *wp, int32_t n, int32_t k)
+{
+    const int32_t blocks = (n + 7) / 8;
+    for (int32_t b = 0; b < blocks; ++b)
+    {
+        for (int32_t kk = 0; kk < k; ++kk)
+        {
+            for (int32_t l = 0; l < 8; ++l)
+            {
+                const int32_t col = b * 8 + l;
+                wp[((size_t)b * k + kk) * 8 + l] = ba_from_bits(col < n ? ba_bits(w[(size_t)col * k + kk]) : 0u);
+            }
+        }
+    }
+}
+
+typedef float16_t (*ba_ref_fn)(const void *ctx, int32_t idx, int32_t block);
+
+static uint32_t ba_checksum;
+static int32_t ba_failures; /* cases of the current test that disagree; every case runs before the test asserts */
+
+static void ba_begin(void) { ba_failures = 0; }
+
+static void ba_end(void) { TEST_ASSERT_EQUAL_INT32(0, ba_failures); }
+
+// Compares n outputs with the emulation at `block`; returns the mismatch count and prints the first few.
+static int32_t
+ba_check(const char *what, const float16_t *out, int32_t n, ba_ref_fn ref, const void *ctx, int32_t block)
+{
+    int32_t bad = 0;
+    for (int32_t i = 0; i < n; ++i)
+    {
+        const uint16_t got = ba_bits(out[i]);
+        const uint16_t want = ba_bits(ref(ctx, i, block));
+        ba_checksum = (ba_checksum ^ got) * 16777619u;
+        if (got != want && !(((got | want) & 0x7FFFu) == 0u))
+        {
+            if (bad < 3)
+            {
+                printf("%s[%ld]: got 0x%04x want 0x%04x\n", what, (long)i, (unsigned)got, (unsigned)want);
+            }
+            ++bad;
+        }
+    }
+    return bad;
+}
+
+static int32_t ba_count_diff(const float16_t *a, const float16_t *b, int32_t n)
+{
+    int32_t diff = 0;
+    for (int32_t i = 0; i < n; ++i)
+    {
+        diff += ba_bits(a[i]) != ba_bits(b[i]);
+    }
+    return diff;
+}
+
+static void ba_expect_same(const char *what, int32_t n);
+
+// Default entry against the fold emulation and _acc16 against the float16 chain; with at most 32 taps the two
+// entries must also agree byte for byte. Scalar legs (non-MVE builds) accumulate in float32 on both entries, which
+// must then agree everywhere.
+static void ba_expect(const char *what, int32_t n, ba_ref_fn ref, const void *ctx, int32_t k_taps)
+{
+    char label[64];
+    if (!BA_MVE)
+    {
+        ba_expect_same(what, n);
+        return;
+    }
+    ba_checksum = 2166136261u;
+    snprintf(label, sizeof(label), "%s acc16", what);
+    const int32_t bad16 = ba_check(label, ba_out16, n, ref, ctx, BA_NONE);
+    const uint32_t sum16 = ba_checksum;
+    snprintf(label, sizeof(label), "%s fold", what);
+    const int32_t bad = ba_check(label, ba_out, n, ref, ctx, BA_BLOCK);
+    const int32_t same = (k_taps <= BA_BLOCK) ? ba_count_diff(ba_out, ba_out16, n) : 0;
+    printf("CASE %s n=%ld fold_mismatch=%ld acc16_mismatch=%ld short_k_diff=%ld acc16_cksum=%08lx\n",
+           what,
+           (long)n,
+           (long)bad,
+           (long)bad16,
+           (long)same,
+           (unsigned long)sum16);
+    ba_failures += (bad != 0) + (bad16 != 0) + (same != 0);
+}
+
+// Shapes whose MVE route is the gather kernel with lanes as outputs and fewer than 32 taps: nothing folds, so the
+// two entries must agree byte for byte.
+static void ba_expect_same(const char *what, int32_t n)
+{
+    const int32_t diff = ba_count_diff(ba_out, ba_out16, n);
+    ba_checksum = 2166136261u;
+    for (int32_t i = 0; i < n; ++i)
+    {
+        ba_checksum = (ba_checksum ^ ba_bits(ba_out16[i])) * 16777619u;
+    }
+    printf("CASE %s n=%ld entries_diff=%ld acc16_cksum=%08lx\n", what, (long)n, (long)diff, (unsigned long)ba_checksum);
+    ba_failures += diff != 0;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Fully connected (arm_nn_mat_mult_nt_t_f16 / _nt_n_packed_f16)                                                     */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+typedef struct
+{
+    int32_t batch;
+    int32_t k;
+    int32_t n;
+    const float16_t *bias;
+    int32_t out; /* output being emulated */
+} ba_fc;
+
+static bool ba_fc_red_tap(const void *vctx, int32_t s, int32_t l, int32_t t, float16_t *x, float16_t *w)
+{
+    (void)t;
+    const ba_fc *c = (const ba_fc *)vctx;
+    const int32_t kk = s * 8 + l;
+    if (kk >= c->k)
+    {
+        return false;
+    }
+    const int32_t b = c->out / c->n;
+    const int32_t col = c->out % c->n;
+    *x = ba_in[(size_t)b * c->k + kk];
+    *w = ba_w[(size_t)col * c->k + kk];
+    return true;
+}
+
+static void ba_fc_lane_tap(const void *vctx, int32_t t, float16_t *x, float16_t *w)
+{
+    const ba_fc *c = (const ba_fc *)vctx;
+    const int32_t b = c->out / c->n;
+    const int32_t col = c->out % c->n;
+    *x = ba_in[(size_t)b * c->k + t];
+    *w = ba_w[(size_t)col * c->k + t];
+}
+
+static float16_t ba_fc_ref_std(const void *vctx, int32_t idx, int32_t block)
+{
+    ba_fc c = *(const ba_fc *)vctx;
+    c.out = idx;
+    const float16_t *bias = c.bias ? &c.bias[idx % c.n] : NULL;
+    /* K >= 32: every row takes the contiguous-K groups or the remainder dot, both reductions. */
+    return ba_emu_reduce(&c, ba_fc_red_tap, (c.k + 7) / 8, 1, bias, c.k > block, block);
+}
+
+static float16_t ba_fc_ref_packed(const void *vctx, int32_t idx, int32_t block)
+{
+    ba_fc c = *(const ba_fc *)vctx;
+    c.out = idx;
+    return ba_emu_lane(&c, ba_fc_lane_tap, c.k, c.bias ? &c.bias[idx % c.n] : NULL, block);
+}
+
+static void ba_fc_case(int32_t batch, int32_t k, int32_t n, bool packed, bool bias)
+{
+    const cmsis_nn_context ctx = {NULL, 0};
+    const cmsis_nn_dims input_dims = {batch, 1, 1, k};
+    const cmsis_nn_dims filter_dims = {k, 1, 1, n};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, n};
+    const cmsis_nn_dims output_dims = {batch, 1, 1, n};
+    cmsis_nn_fc_params_f16 fc_params;
+    char what[48];
+
+    TEST_ASSERT_TRUE(batch * k <= BA_IN_MAX && n * k <= BA_W_MAX && (!packed || ((n + 7) / 8) * 8 * k <= BA_W_MAX));
+    memset(&fc_params, 0, sizeof(fc_params));
+    fc_params.activation.min = (float16_t)-6.0e4f;
+    fc_params.activation.max = (float16_t)6.0e4f;
+    fc_params.weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
+    ba_fill(ba_in, batch * k, (uint32_t)k * 3u + 1u);
+    ba_fill(ba_w, n * k, (uint32_t)k * 3u + 2u);
+    ba_fill(ba_bias, n, (uint32_t)k * 3u + 3u);
+    const float16_t *w = ba_w;
+    if (packed)
+    {
+        ba_pack_nt_n(ba_w, ba_wp, n, k);
+        w = ba_wp;
+    }
+    const float16_t *b = bias ? ba_bias : NULL;
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_fully_connected_f16(&ctx,
+                                              &fc_params,
+                                              &input_dims,
+                                              ba_in,
+                                              &filter_dims,
+                                              w,
+                                              &bias_dims,
+                                              b,
+                                              &output_dims,
+                                              ba_out,
+                                              ARM_NN_LAYOUT_NHWC));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_fully_connected_f16_acc16(&ctx,
+                                                    &fc_params,
+                                                    &input_dims,
+                                                    ba_in,
+                                                    &filter_dims,
+                                                    w,
+                                                    &bias_dims,
+                                                    b,
+                                                    &output_dims,
+                                                    ba_out16,
+                                                    ARM_NN_LAYOUT_NHWC));
+    const ba_fc c = {batch, k, n, b, 0};
+    snprintf(what, sizeof(what), "fc%s k%ld n%ld", packed ? "-packed" : "", (long)k, (long)n);
+    if (!packed && k < 32)
+    {
+        /* Below the contiguous-K threshold the gather kernel's lanes are outputs; nothing folds there. */
+        ba_expect_same(what, batch * n);
+        return;
+    }
+    ba_expect(what, batch * n, packed ? ba_fc_ref_packed : ba_fc_ref_std, &c, k);
+}
+
+void ba_fc_std_long_k(void)
+{
+    ba_begin();
+    ba_fc_case(2, 33, 5, false, true);
+    ba_fc_case(1, 64, 5, false, true);
+    ba_fc_case(2, 98, 5, false, false);
+    ba_fc_case(1, 280, 5, false, true);
+    ba_fc_case(2, 1024, 5, false, true);
+    ba_end();
+}
+
+void ba_fc_packed_long_k(void)
+{
+    ba_begin();
+    ba_fc_case(2, 33, 5, true, true);
+    ba_fc_case(1, 64, 9, true, true);
+    ba_fc_case(2, 98, 5, true, false);
+    ba_fc_case(1, 280, 13, true, true);
+    ba_fc_case(1, 640, 5, true, true);
+    ba_end();
+}
+
+void ba_fc_short_k(void)
+{
+    ba_begin();
+    ba_fc_case(2, 8, 13, false, true);
+    ba_fc_case(1, 31, 9, false, true);
+    ba_fc_case(2, 32, 5, false, true);
+    ba_fc_case(1, 32, 5, false, false);
+    ba_fc_case(2, 17, 5, true, true);
+    ba_fc_case(1, 32, 13, true, true);
+    ba_end();
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* 1x1 convolution (matmul-backed)                                                                                   */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+static void ba_conv1x1_case(int32_t k, int32_t n, bool packed)
+{
+    const cmsis_nn_context ctx = {NULL, 0};
+    const cmsis_nn_dims input_dims = {1, 1, 3, k};
+    const cmsis_nn_dims filter_dims = {n, 1, 1, k};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, n};
+    const cmsis_nn_dims output_dims = {1, 1, 3, n};
+    cmsis_nn_conv_params_f16 p;
+    char what[48];
+
+    memset(&p, 0, sizeof(p));
+    p.stride.h = 1;
+    p.stride.w = 1;
+    p.dilation.h = 1;
+    p.dilation.w = 1;
+    p.activation.min = (float16_t)-6.0e4f;
+    p.activation.max = (float16_t)6.0e4f;
+    p.weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
+    TEST_ASSERT_TRUE(3 * k <= BA_IN_MAX && ((n + 7) / 8) * 8 * k <= BA_W_MAX);
+    ba_fill(ba_in, 3 * k, (uint32_t)k + 11u);
+    ba_fill(ba_w, n * k, (uint32_t)k + 12u);
+    ba_fill(ba_bias, n, (uint32_t)k + 13u);
+    const float16_t *w = ba_w;
+    if (packed)
+    {
+        ba_pack_nt_n(ba_w, ba_wp, n, k);
+        w = ba_wp;
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_1x1_f16(&ctx,
+                                           &p,
+                                           &input_dims,
+                                           ba_in,
+                                           &filter_dims,
+                                           w,
+                                           &bias_dims,
+                                           ba_bias,
+                                           &output_dims,
+                                           ba_out,
+                                           ARM_NN_LAYOUT_NHWC));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_1x1_f16_acc16(&ctx,
+                                                 &p,
+                                                 &input_dims,
+                                                 ba_in,
+                                                 &filter_dims,
+                                                 w,
+                                                 &bias_dims,
+                                                 ba_bias,
+                                                 &output_dims,
+                                                 ba_out16,
+                                                 ARM_NN_LAYOUT_NHWC));
+    const ba_fc c = {3, k, n, ba_bias, 0};
+    snprintf(what, sizeof(what), "1x1%s k%ld", packed ? "-packed" : "", (long)k);
+    ba_expect(what, 3 * n, packed ? ba_fc_ref_packed : ba_fc_ref_std, &c, k);
+}
+
+void ba_conv1x1_long_k(void)
+{
+    ba_begin();
+    ba_conv1x1_case(64, 5, false);
+    ba_conv1x1_case(98, 9, false);
+    ba_conv1x1_case(280, 5, true);
+    ba_conv1x1_case(32, 5, false);
+    ba_conv1x1_case(24, 9, true);
+    ba_end();
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* 1xN convolution: padded regions through the matmul, the no-padding region through the strided kernel            */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+typedef struct
+{
+    int32_t in_w;
+    int32_t in_c;
+    int32_t kw;
+    int32_t pad;
+    int32_t out_c;
+    int32_t out_w;
+    int32_t dil;
+    bool packed;
+    int32_t ox;
+    int32_t oc;
+} ba_c1d;
+
+// Patch element j (tap-major, channel-minor) of output x; zero where the tap falls in the padding.
+static float16_t ba_c1d_patch(const ba_c1d *c, int32_t j)
+{
+    const int32_t tap = j / c->in_c;
+    const int32_t ch = j % c->in_c;
+    const int32_t ix = c->ox - c->pad + tap * c->dil;
+    return ba_from_bits((ix >= 0 && ix < c->in_w) ? ba_bits(ba_in[(size_t)ix * c->in_c + ch]) : 0u);
+}
+
+static bool ba_c1d_red_tap(const void *vctx, int32_t s, int32_t l, int32_t t, float16_t *x, float16_t *w)
+{
+    (void)t;
+    const ba_c1d *c = (const ba_c1d *)vctx;
+    const int32_t k = c->kw * c->in_c;
+    const int32_t j = s * 8 + l;
+    if (j >= k)
+    {
+        return false;
+    }
+    *x = ba_c1d_patch(c, j);
+    *w = ba_w[(size_t)c->oc * k + j];
+    return true;
+}
+
+static void ba_c1d_lane_tap(const void *vctx, int32_t t, float16_t *x, float16_t *w)
+{
+    const ba_c1d *c = (const ba_c1d *)vctx;
+    *x = ba_c1d_patch(c, t);
+    *w = ba_w[(size_t)c->oc * c->kw * c->in_c + t];
+}
+
+static float16_t ba_c1xn_ref(const void *vctx, int32_t idx, int32_t block)
+{
+    ba_c1d c = *(const ba_c1d *)vctx;
+    c.ox = idx / c.out_c;
+    c.oc = idx % c.out_c;
+    const int32_t k = c.kw * c.in_c;
+    const float16_t *bias = &ba_bias[c.oc];
+    const int32_t base = c.ox - c.pad;
+    const bool interior = base >= 0 && base + c.kw <= c.in_w;
+    if (c.packed)
+    {
+        return ba_emu_lane(&c, ba_c1d_lane_tap, k, bias, block);
+    }
+    /* Strided kernel (no-padding region): gather lanes for whole blocks of 8, then 4, of output channels, then the
+     * remainder dot. Padded regions: the matmul's contiguous-K groups of four and its remainder dot. */
+    const int32_t lane_oc = (c.out_c / 8) * 8 + ((c.out_c % 8) / 4) * 4;
+    if (interior && c.oc < lane_oc)
+    {
+        return ba_emu_lane(&c, ba_c1d_lane_tap, k, bias, block);
+    }
+    return ba_emu_reduce(&c, ba_c1d_red_tap, (k + 7) / 8, 1, bias, k > block, block);
+}
+
+static void ba_c1xn_case(int32_t in_w, int32_t in_c, int32_t kw, int32_t out_c, bool packed)
+{
+    const int32_t pad = kw / 2;
+    const cmsis_nn_dims input_dims = {1, 1, in_w, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 1, kw, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, 1, in_w, out_c};
+    cmsis_nn_conv_params_f16 p;
+    char what[48];
+
+    memset(&p, 0, sizeof(p));
+    p.stride.h = 1;
+    p.stride.w = 1;
+    p.padding.w = pad;
+    p.dilation.h = 1;
+    p.dilation.w = 1;
+    p.activation.min = (float16_t)-6.0e4f;
+    p.activation.max = (float16_t)6.0e4f;
+    p.weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
+    const int32_t buf =
+        arm_convolve_1_x_n_f16_get_buffer_size(&p, &input_dims, &filter_dims, &output_dims, ARM_NN_LAYOUT_NHWC);
+    TEST_ASSERT_TRUE(buf > 0 && buf <= (int32_t)sizeof(ba_scratch));
+    const cmsis_nn_context ctx = {ba_scratch, buf};
+    TEST_ASSERT_TRUE(in_w * in_c <= BA_IN_MAX && ((out_c + 7) / 8) * 8 * kw * in_c <= BA_W_MAX);
+    ba_fill(ba_in, in_w * in_c, (uint32_t)in_c + 21u);
+    ba_fill(ba_w, out_c * kw * in_c, (uint32_t)in_c + 22u);
+    ba_fill(ba_bias, out_c, (uint32_t)in_c + 23u);
+    const float16_t *w = ba_w;
+    if (packed)
+    {
+        ba_pack_nt_n(ba_w, ba_wp, out_c, kw * in_c);
+        w = ba_wp;
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_1_x_n_f16(&ctx,
+                                             &p,
+                                             &input_dims,
+                                             ba_in,
+                                             &filter_dims,
+                                             w,
+                                             &bias_dims,
+                                             ba_bias,
+                                             &output_dims,
+                                             ba_out,
+                                             ARM_NN_LAYOUT_NHWC));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_1_x_n_f16_acc16(&ctx,
+                                                   &p,
+                                                   &input_dims,
+                                                   ba_in,
+                                                   &filter_dims,
+                                                   w,
+                                                   &bias_dims,
+                                                   ba_bias,
+                                                   &output_dims,
+                                                   ba_out16,
+                                                   ARM_NN_LAYOUT_NHWC));
+    const ba_c1d c = {in_w, in_c, kw, pad, out_c, in_w, 1, packed, 0, 0};
+    snprintf(what, sizeof(what), "1xN%s k%ld c%ld", packed ? "-packed" : "", (long)kw, (long)in_c);
+    if (!packed && kw * in_c < 32)
+    {
+        /* Short padded rows take the matmul's gather lanes; nothing folds there. */
+        ba_expect_same(what, in_w * out_c);
+        return;
+    }
+    ba_expect(what, in_w * out_c, ba_c1xn_ref, &c, kw * in_c);
+}
+
+void ba_conv_1xn_long_k(void)
+{
+    ba_begin();
+    ba_c1xn_case(16, 14, 7, 13, false); /* K = 98 */
+    ba_c1xn_case(12, 40, 7, 13, false); /* K = 280 */
+    ba_c1xn_case(12, 40, 7, 5, true);
+    ba_c1xn_case(10, 5, 7, 13, false); /* K = 35 */
+    ba_c1xn_case(10, 4, 7, 13, false); /* K = 28 */
+    ba_end();
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Dilated conv1d through the generic convolution's patch-GEMM                                                       */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+static float16_t ba_dil_ref(const void *vctx, int32_t idx, int32_t block)
+{
+    ba_c1d c = *(const ba_c1d *)vctx;
+    c.ox = idx / c.out_c;
+    c.oc = idx % c.out_c;
+    const int32_t k = c.kw * c.in_c;
+    if (c.packed)
+    {
+        return ba_emu_lane(&c, ba_c1d_lane_tap, k, &ba_bias[c.oc], block);
+    }
+    return ba_emu_reduce(&c, ba_c1d_red_tap, (k + 7) / 8, 1, &ba_bias[c.oc], k > block, block);
+}
+
+static void ba_dil_case(int32_t in_w, int32_t in_c, int32_t out_c, bool packed)
+{
+    const int32_t kw = 3;
+    const int32_t dil = 2;
+    const cmsis_nn_dims input_dims = {1, 1, in_w, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 1, kw, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, 1, in_w, out_c};
+    cmsis_nn_conv_params_f16 p;
+    char what[48];
+
+    memset(&p, 0, sizeof(p));
+    p.stride.h = 1;
+    p.stride.w = 1;
+    p.padding.w = dil;
+    p.dilation.h = 1;
+    p.dilation.w = dil;
+    p.activation.min = (float16_t)-6.0e4f;
+    p.activation.max = (float16_t)6.0e4f;
+    p.weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
+    const cmsis_nn_context ctx = {ba_scratch, (int32_t)sizeof(ba_scratch)};
+    TEST_ASSERT_TRUE(in_w * in_c <= BA_IN_MAX && ((out_c + 7) / 8) * 8 * kw * in_c <= BA_W_MAX);
+    ba_fill(ba_in, in_w * in_c, (uint32_t)in_c + 31u);
+    ba_fill(ba_w, out_c * kw * in_c, (uint32_t)in_c + 32u);
+    ba_fill(ba_bias, out_c, (uint32_t)in_c + 33u);
+    const float16_t *w = ba_w;
+    if (packed)
+    {
+        ba_pack_nt_n(ba_w, ba_wp, out_c, kw * in_c);
+        w = ba_wp;
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16(&ctx,
+                                       &p,
+                                       &input_dims,
+                                       ba_in,
+                                       &filter_dims,
+                                       w,
+                                       &bias_dims,
+                                       ba_bias,
+                                       &output_dims,
+                                       ba_out,
+                                       ARM_NN_LAYOUT_NHWC));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16_acc16(&ctx,
+                                             &p,
+                                             &input_dims,
+                                             ba_in,
+                                             &filter_dims,
+                                             w,
+                                             &bias_dims,
+                                             ba_bias,
+                                             &output_dims,
+                                             ba_out16,
+                                             ARM_NN_LAYOUT_NHWC));
+    const ba_c1d c = {in_w, in_c, kw, dil, out_c, in_w, dil, packed, 0, 0};
+    snprintf(what, sizeof(what), "dil%s c%ld", packed ? "-packed" : "", (long)in_c);
+    if (!packed && kw * in_c < 32)
+    {
+        ba_expect_same(what, in_w * out_c);
+        return;
+    }
+    ba_expect(what, in_w * out_c, ba_dil_ref, &c, kw * in_c);
+}
+
+void ba_conv1d_dilated_long_k(void)
+{
+    ba_begin();
+    ba_dil_case(10, 11, 9, false); /* K = 33 */
+    ba_dil_case(10, 33, 9, false); /* K = 99 */
+    ba_dil_case(8, 94, 9, false);  /* K = 282 */
+    ba_dil_case(10, 33, 9, true);
+    ba_dil_case(10, 10, 9, false); /* K = 30 */
+    ba_end();
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* k=3 / k=5 conv1d specializations                                                                                  */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+static bool ba_spec_red_tap(const void *vctx, int32_t s, int32_t l, int32_t t, float16_t *x, float16_t *w)
+{
+    const ba_c1d *c = (const ba_c1d *)vctx;
+    const int32_t ch = s * 8 + l;
+    if (ch >= c->in_c)
+    {
+        return false;
+    }
+    *x = ba_in[(size_t)(c->ox + t) * c->in_c + ch];
+    *w = ba_w[((size_t)c->oc * c->kw + t) * c->in_c + ch];
+    return true;
+}
+
+static void ba_spec_lane_tap(const void *vctx, int32_t t, float16_t *x, float16_t *w)
+{
+    const ba_c1d *c = (const ba_c1d *)vctx;
+    const int32_t ch = t / c->kw;
+    const int32_t tap = t % c->kw;
+    *x = ba_in[(size_t)(c->ox + tap) * c->in_c + ch];
+    *w = ba_w[((size_t)c->oc * c->kw + tap) * c->in_c + ch];
+}
+
+static float16_t ba_spec_ref(const void *vctx, int32_t idx, int32_t block)
+{
+    ba_c1d c = *(const ba_c1d *)vctx;
+    c.ox = idx / c.out_c;
+    c.oc = idx % c.out_c;
+    const int32_t taps = c.kw * c.in_c;
+    /* A partial covers block / kw channels (per vector step for the OHWI kernel, per channel for the packed one). */
+    const int32_t per = (block == BA_NONE) ? BA_NONE : (block / c.kw);
+    if (c.packed)
+    {
+        return ba_emu_lane(&c, ba_spec_lane_tap, taps, &ba_bias[c.oc], (block == BA_NONE) ? BA_NONE : per * c.kw);
+    }
+    return ba_emu_reduce(&c, ba_spec_red_tap, (c.in_c + 7) / 8, c.kw, &ba_bias[c.oc], taps > block, per);
+}
+
+static void ba_spec_case(int32_t kw, int32_t in_w, int32_t in_c, int32_t out_c, bool packed)
+{
+    const cmsis_nn_dims input_dims = {1, 1, in_w, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 1, kw, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const int32_t out_w = in_w - kw + 1;
+    const cmsis_nn_dims output_dims = {1, 1, out_w, out_c};
+    cmsis_nn_conv_params_f16 p;
+    char what[48];
+
+    memset(&p, 0, sizeof(p));
+    p.stride.h = 1;
+    p.stride.w = 1;
+    p.dilation.h = 1;
+    p.dilation.w = 1;
+    p.activation.min = (float16_t)-6.0e4f;
+    p.activation.max = (float16_t)6.0e4f;
+    p.weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
+    const cmsis_nn_context ctx = {ba_scratch, (int32_t)sizeof(ba_scratch)};
+    TEST_ASSERT_TRUE(in_w * in_c <= BA_IN_MAX && ((out_c + 7) / 8) * 8 * kw * in_c <= BA_W_MAX);
+    ba_fill(ba_in, in_w * in_c, (uint32_t)(in_c * kw) + 41u);
+    ba_fill(ba_w, out_c * kw * in_c, (uint32_t)(in_c * kw) + 42u);
+    ba_fill(ba_bias, out_c, (uint32_t)(in_c * kw) + 43u);
+    const float16_t *w = ba_w;
+    if (packed)
+    {
+        ba_pack_nt_n(ba_w, ba_wp, out_c, kw * in_c);
+        w = ba_wp;
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16(&ctx,
+                                       &p,
+                                       &input_dims,
+                                       ba_in,
+                                       &filter_dims,
+                                       w,
+                                       &bias_dims,
+                                       ba_bias,
+                                       &output_dims,
+                                       ba_out,
+                                       ARM_NN_LAYOUT_NHWC));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16_acc16(&ctx,
+                                             &p,
+                                             &input_dims,
+                                             ba_in,
+                                             &filter_dims,
+                                             w,
+                                             &bias_dims,
+                                             ba_bias,
+                                             &output_dims,
+                                             ba_out16,
+                                             ARM_NN_LAYOUT_NHWC));
+    const ba_c1d c = {in_w, in_c, kw, 0, out_c, out_w, 1, packed, 0, 0};
+    snprintf(what, sizeof(what), "k%ld%s c%ld", (long)kw, packed ? "-packed" : "", (long)in_c);
+    ba_expect(what, out_w * out_c, ba_spec_ref, &c, kw * in_c);
+}
+
+void ba_conv1d_spec_long_k(void)
+{
+    ba_begin();
+    ba_spec_case(3, 6, 11, 5, false); /* K = 33 */
+    ba_spec_case(3, 5, 33, 5, false); /* K = 99 */
+    ba_spec_case(3, 4, 94, 5, false); /* K = 282 */
+    ba_spec_case(3, 5, 33, 13, true);
+    ba_spec_case(3, 5, 10, 5, false);  /* K = 30 */
+    ba_spec_case(5, 7, 24, 5, false);  /* K = 120 */
+    ba_spec_case(5, 7, 16, 17, false); /* the in_c == 16 kernel, K = 80 */
+    ba_spec_case(5, 7, 56, 5, false);  /* K = 280 */
+    ba_spec_case(5, 7, 20, 9, true);
+    ba_spec_case(5, 7, 6, 5, false); /* K = 30 */
+    ba_end();
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Direct OHWI / NT_N_PACKED fallback (no scratch)                                                                   */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+typedef struct
+{
+    int32_t hw;
+    int32_t in_c;
+    int32_t out_c;
+    int32_t pos[9]; /* in-range taps of the output being emulated: input pixel index */
+    int32_t tap[9]; /* ... and filter tap index */
+    int32_t n_pos;
+    int32_t oc;
+} ba_direct;
+
+static bool ba_direct_red_tap(const void *vctx, int32_t s, int32_t l, int32_t t, float16_t *x, float16_t *w)
+{
+    (void)t;
+    const ba_direct *c = (const ba_direct *)vctx;
+    const int32_t steps = (c->in_c + 7) / 8;
+    const int32_t pi = s / steps;
+    const int32_t ch = (s % steps) * 8 + l;
+    if (ch >= c->in_c)
+    {
+        return false;
+    }
+    *x = ba_in[(size_t)c->pos[pi] * c->in_c + ch];
+    *w = ba_w[((size_t)c->oc * 9 + c->tap[pi]) * c->in_c + ch];
+    return true;
+}
+
+static void ba_direct_lane_tap(const void *vctx, int32_t t, float16_t *x, float16_t *w)
+{
+    const ba_direct *c = (const ba_direct *)vctx;
+    const int32_t pi = t / c->in_c;
+    const int32_t ch = t % c->in_c;
+    *x = ba_in[(size_t)c->pos[pi] * c->in_c + ch];
+    *w = ba_w[((size_t)c->oc * 9 + c->tap[pi]) * c->in_c + ch];
+}
+
+static bool ba_direct_packed;
+
+static float16_t ba_direct_ref(const void *vctx, int32_t idx, int32_t block)
+{
+    ba_direct c = *(const ba_direct *)vctx;
+    const int32_t px = idx / c.out_c;
+    const int32_t oy = px / c.hw;
+    const int32_t ox = px % c.hw;
+    c.oc = idx % c.out_c;
+    c.n_pos = 0;
+    for (int32_t ky = 0; ky < 3; ++ky)
+    {
+        for (int32_t kx = 0; kx < 3; ++kx)
+        {
+            const int32_t iy = oy - 1 + ky;
+            const int32_t ix = ox - 1 + kx;
+            if (iy >= 0 && iy < c.hw && ix >= 0 && ix < c.hw)
+            {
+                c.pos[c.n_pos] = iy * c.hw + ix;
+                c.tap[c.n_pos] = ky * 3 + kx;
+                ++c.n_pos;
+            }
+        }
+    }
+    if (ba_direct_packed)
+    {
+        return ba_emu_lane(&c, ba_direct_lane_tap, c.n_pos * c.in_c, &ba_bias[c.oc], block);
+    }
+    return ba_emu_reduce(
+        &c, ba_direct_red_tap, c.n_pos * ((c.in_c + 7) / 8), 1, &ba_bias[c.oc], 9 * c.in_c > block, block);
+}
+
+static void ba_direct_case(int32_t hw, int32_t in_c, int32_t out_c, bool packed)
+{
+    const cmsis_nn_context ctx = {NULL, 0};
+    const cmsis_nn_dims input_dims = {1, hw, hw, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 3, 3, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, hw, hw, out_c};
+    cmsis_nn_conv_params_f16 p;
+    char what[48];
+
+    memset(&p, 0, sizeof(p));
+    p.stride.h = 1;
+    p.stride.w = 1;
+    p.padding.h = 1;
+    p.padding.w = 1;
+    p.dilation.h = 1;
+    p.dilation.w = 1;
+    p.activation.min = (float16_t)-6.0e4f;
+    p.activation.max = (float16_t)6.0e4f;
+    p.weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
+    TEST_ASSERT_TRUE(hw * hw * in_c <= BA_IN_MAX && ((out_c + 7) / 8) * 8 * 9 * in_c <= BA_W_MAX);
+    ba_fill(ba_in, hw * hw * in_c, (uint32_t)in_c + 51u);
+    ba_fill(ba_w, out_c * 9 * in_c, (uint32_t)in_c + 52u);
+    ba_fill(ba_bias, out_c, (uint32_t)in_c + 53u);
+    const float16_t *w = ba_w;
+    if (packed)
+    {
+        ba_pack_nt_n(ba_w, ba_wp, out_c, 9 * in_c);
+        w = ba_wp;
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16(&ctx,
+                                       &p,
+                                       &input_dims,
+                                       ba_in,
+                                       &filter_dims,
+                                       w,
+                                       &bias_dims,
+                                       ba_bias,
+                                       &output_dims,
+                                       ba_out,
+                                       ARM_NN_LAYOUT_NHWC));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16_acc16(&ctx,
+                                             &p,
+                                             &input_dims,
+                                             ba_in,
+                                             &filter_dims,
+                                             w,
+                                             &bias_dims,
+                                             ba_bias,
+                                             &output_dims,
+                                             ba_out16,
+                                             ARM_NN_LAYOUT_NHWC));
+    ba_direct c;
+    memset(&c, 0, sizeof(c));
+    c.hw = hw;
+    c.in_c = in_c;
+    c.out_c = out_c;
+    ba_direct_packed = packed;
+    snprintf(what, sizeof(what), "direct%s c%ld", packed ? "-packed" : "", (long)in_c);
+    ba_expect(what, hw * hw * out_c, ba_direct_ref, &c, 9 * in_c);
+}
+
+void ba_conv_direct_long_k(void)
+{
+    ba_begin();
+    ba_direct_case(4, 8, 5, false);  /* K = 72: one vector step per tap */
+    ba_direct_case(4, 40, 5, false); /* K = 360: blocks end inside a tap */
+    ba_direct_case(4, 13, 5, true);  /* K = 117 */
+    ba_direct_case(4, 40, 5, true);
+    ba_end();
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Depthwise: ch_mult == 1 direct kernel, ch_mult > 1 generic kernel, one-channel to-conv route                    */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+typedef struct
+{
+    int32_t hw;
+    int32_t k;
+    int32_t in_c;
+    int32_t mult;
+    bool zero_taps; /* the to-conv route reads the padded taps as zeros */
+    int32_t oy;
+    int32_t ox;
+    int32_t oc;
+    int32_t taps[64];
+    int32_t n;
+} ba_dw;
+
+static void ba_dw_lane_tap(const void *vctx, int32_t t, float16_t *x, float16_t *w)
+{
+    const ba_dw *c = (const ba_dw *)vctx;
+    const int32_t tap = c->taps[t];
+    const int32_t iy = c->oy - c->k / 2 + tap / c->k;
+    const int32_t ix = c->ox - c->k / 2 + tap % c->k;
+    const bool in = iy >= 0 && iy < c->hw && ix >= 0 && ix < c->hw;
+    const int32_t ic = c->oc / c->mult;
+    *x = ba_from_bits(in ? ba_bits(ba_in[((size_t)iy * c->hw + ix) * c->in_c + ic]) : 0u);
+    *w = ba_w[(size_t)tap * c->in_c * c->mult + c->oc];
+}
+
+static float16_t ba_dw_ref(const void *vctx, int32_t idx, int32_t block)
+{
+    ba_dw c = *(const ba_dw *)vctx;
+    const int32_t out_c = c.in_c * c.mult;
+    const int32_t px = idx / out_c;
+    c.oy = px / c.hw;
+    c.ox = px % c.hw;
+    c.oc = idx % out_c;
+    c.n = 0;
+    for (int32_t tap = 0; tap < c.k * c.k; ++tap)
+    {
+        const int32_t iy = c.oy - c.k / 2 + tap / c.k;
+        const int32_t ix = c.ox - c.k / 2 + tap % c.k;
+        if (c.zero_taps || (iy >= 0 && iy < c.hw && ix >= 0 && ix < c.hw))
+        {
+            c.taps[c.n++] = tap;
+        }
+    }
+    return ba_emu_lane(&c, ba_dw_lane_tap, c.n, &ba_bias[c.oc], block);
+}
+
+static void ba_dw_case(int32_t hw, int32_t k, int32_t in_c, int32_t mult, bool with_ctx)
+{
+    const int32_t out_c = in_c * mult;
+    const cmsis_nn_dims input_dims = {1, hw, hw, in_c};
+    const cmsis_nn_dims filter_dims = {1, k, k, out_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, hw, hw, out_c};
+    cmsis_nn_dw_conv_params_f16 p;
+    char what[48];
+
+    memset(&p, 0, sizeof(p));
+    p.ch_mult = mult;
+    p.stride.h = 1;
+    p.stride.w = 1;
+    p.padding.h = k / 2;
+    p.padding.w = k / 2;
+    p.dilation.h = 1;
+    p.dilation.w = 1;
+    p.activation.min = (float16_t)-6.0e4f;
+    p.activation.max = (float16_t)6.0e4f;
+    const cmsis_nn_context ctx = {with_ctx ? ba_scratch : NULL, with_ctx ? (int32_t)sizeof(ba_scratch) : 0};
+    TEST_ASSERT_TRUE(hw * hw * in_c <= BA_IN_MAX && k * k * out_c <= BA_W_MAX && hw * hw * out_c <= BA_OUT_MAX);
+    ba_fill(ba_in, hw * hw * in_c, (uint32_t)(k * 100 + in_c) + 61u);
+    ba_fill(ba_w, k * k * out_c, (uint32_t)(k * 100 + in_c) + 62u);
+    ba_fill(ba_bias, out_c, (uint32_t)(k * 100 + in_c) + 63u);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_f16(&ctx,
+                                             &p,
+                                             &input_dims,
+                                             ba_in,
+                                             &filter_dims,
+                                             ba_w,
+                                             &bias_dims,
+                                             ba_bias,
+                                             &output_dims,
+                                             ba_out,
+                                             ARM_NN_LAYOUT_NHWC));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_f16_acc16(&ctx,
+                                                   &p,
+                                                   &input_dims,
+                                                   ba_in,
+                                                   &filter_dims,
+                                                   ba_w,
+                                                   &bias_dims,
+                                                   ba_bias,
+                                                   &output_dims,
+                                                   ba_out16,
+                                                   ARM_NN_LAYOUT_NHWC));
+    ba_dw c;
+    memset(&c, 0, sizeof(c));
+    c.hw = hw;
+    c.k = k;
+    c.in_c = in_c;
+    c.mult = mult;
+    c.zero_taps = BA_MVE && with_ctx && in_c == 1 && out_c >= 8;
+    snprintf(what, sizeof(what), "dw k%ld c%ld x%ld", (long)k, (long)in_c, (long)mult);
+    if (!BA_MVE && mult > 1)
+    {
+        /* The generic kernel's scalar legs keep their float16 accumulator. */
+        ba_expect_same(what, hw * hw * out_c);
+        return;
+    }
+    ba_expect(what, hw * hw * out_c, ba_dw_ref, &c, k * k);
+}
+
+void ba_depthwise_long_k(void)
+{
+    ba_begin();
+    ba_dw_case(9, 7, 20, 1, false); /* 49 taps inside, 16..42 at the edges; channel blocks 16 + 4 */
+    ba_dw_case(8, 7, 8, 1, false);
+    ba_dw_case(7, 7, 3, 2, false);  /* generic kernel */
+    ba_dw_case(8, 7, 1, 9, true);   /* to-conv route: 49 taps with the padding read as zeros */
+    ba_dw_case(8, 5, 20, 1, false); /* 25 taps: nothing folds */
+    ba_dw_case(7, 5, 3, 2, false);
+    ba_end();
+}
