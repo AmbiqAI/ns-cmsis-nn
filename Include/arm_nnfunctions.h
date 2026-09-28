@@ -2209,6 +2209,10 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *    - The following constrains on the arguments apply
  *        -# Number of input channel equals number of output channels or ch_mult equals 1
  *    - Reccomended when number of channels is 4 or greater.
+ *    - On builds with ARM_MATH_DSP and ARM_MATH_MVEI, layers that arm_depthwise_conv_s8_opt_planar_supported()
+ *      accepts run the planar path, with the same result as arm_depthwise_conv_s8_opt_planar(), unless ctx->size
+ *      cannot hold its plane; every other layer runs the channel path of arm_depthwise_conv_s8_opt_channelwise().
+ *      Callers that choose the path ahead of time can call either one directly.
  *
  */
 arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
@@ -2223,6 +2227,114 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
                                               const int32_t *bias_data,
                                               const cmsis_nn_dims *output_dims,
                                               int8_t *output_data);
+
+/**
+ * @brief Whether arm_depthwise_conv_s8_opt() runs a layer on its planar path, vectorized across the output pixels of
+ *        each channel plane rather than across channels.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ *
+ * @return     1 when the planar path takes the layer with a scratch of arm_depthwise_conv_s8_opt_get_buffer_size_mve()
+ *             bytes, 0 otherwise.
+ *
+ * @details
+ *    - The rule is plain C and evaluates the same on every build, so a code generator can apply it ahead of time.
+ *      The planar path itself exists only on builds with ARM_MATH_DSP and ARM_MATH_MVEI.
+ *    - It depends only on the shapes and dw_conv_params: batch 1, C_IN equal to C_OUT, positive dimensions, stride 1,
+ *      ch_mult 1, dilation.h 1, dilation.w at least 1 and at most 128 / C (integer division), at most 32 channels,
+ *      the widths the path is faster for, and a plane that fits the scratch. This function is the reference for
+ *      the rule; a mirror should be checked against it.
+ *    - The width thresholds follow measured speed and may be retuned in a later release. A caller that calls
+ *      arm_depthwise_conv_s8_opt_planar() directly must handle <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>, for
+ *      example by calling arm_depthwise_conv_s8_opt_channelwise().
+ *
+ */
+int32_t arm_depthwise_conv_s8_opt_planar_supported(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   const cmsis_nn_dims *filter_dims,
+                                                   const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief The planar path of arm_depthwise_conv_s8_opt() on its own: s8 depthwise convolution vectorized across the
+ *        output pixels of each channel plane.
+ *
+ * @param[in, out] ctx             Function context with the arm_depthwise_conv_s8_opt_get_buffer_size() scratch
+ * @param[in]      weight_sum_ctx  Per-channel weight sums, as for arm_depthwise_conv_s8_opt()
+ * @param[in]      dw_conv_params  Depthwise convolution parameters, as for arm_depthwise_conv_s8_opt()
+ * @param[in]      quant_params    Per-channel quantization info
+ * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      input_data      Input (activation) data pointer. Data type: int8
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      filter_data     Filter data pointer. Data type: int8
+ * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
+ * @param[in]      bias_data       Bias data pointer. Data type: int32
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output_data     Output data pointer. Data type: int8
+ *
+ * @return     The function returns one of the following
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - as for arm_depthwise_conv_s8_opt()
+ *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - arm_depthwise_conv_s8_opt_planar_supported() rejects the
+ *                                                          layer, ctx->size cannot hold its plane, or the build
+ *                                                          lacks ARM_MATH_DSP or ARM_MATH_MVEI; nothing is written
+ *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ *
+ * @details
+ *    - The output is identical to arm_depthwise_conv_s8_opt() and arm_depthwise_conv_s8(). The bias is read through
+ *      the weight sums; bias_dims and bias_data are unused.
+ *
+ */
+arm_cmsis_nn_status arm_depthwise_conv_s8_opt_planar(const cmsis_nn_context *ctx,
+                                                     const cmsis_nn_context *weight_sum_ctx,
+                                                     const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                     const cmsis_nn_per_channel_quant_params *quant_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const int8_t *input_data,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const int8_t *filter_data,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const int32_t *bias_data,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     int8_t *output_data);
+
+/**
+ * @brief The channel-vectorized path of arm_depthwise_conv_s8_opt() on its own, without the planar attempt.
+ *
+ * @param[in, out] ctx             Function context with the arm_depthwise_conv_s8_opt_get_buffer_size() scratch
+ * @param[in]      weight_sum_ctx  Per-channel weight sums, as for arm_depthwise_conv_s8_opt()
+ * @param[in]      dw_conv_params  Depthwise convolution parameters, as for arm_depthwise_conv_s8_opt()
+ * @param[in]      quant_params    Per-channel quantization info
+ * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      input_data      Input (activation) data pointer. Data type: int8
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      filter_data     Filter data pointer. Data type: int8
+ * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
+ * @param[in]      bias_data       Bias data pointer. Data type: int32
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output_data     Output data pointer. Data type: int8
+ *
+ * @return     The function returns one of the following
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - as for arm_depthwise_conv_s8_opt()
+ *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ *
+ * @details
+ *    - The output is identical to arm_depthwise_conv_s8_opt() and arm_depthwise_conv_s8() for every layer.
+ *
+ */
+arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context *ctx,
+                                                          const cmsis_nn_context *weight_sum_ctx,
+                                                          const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                          const cmsis_nn_per_channel_quant_params *quant_params,
+                                                          const cmsis_nn_dims *input_dims,
+                                                          const int8_t *input_data,
+                                                          const cmsis_nn_dims *filter_dims,
+                                                          const int8_t *filter_data,
+                                                          const cmsis_nn_dims *bias_dims,
+                                                          const int32_t *bias_data,
+                                                          const cmsis_nn_dims *output_dims,
+                                                          int8_t *output_data);
 
 /**
  * @brief Optimized s4 depthwise convolution function with constraint that in_channel equals out_channel.
