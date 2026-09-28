@@ -402,6 +402,18 @@ libns-cmsis-nn-cortex-m{0,4,55}-<version>.a
 libns-cmsis-nn-cortex-m{0,4,55}-<version>.a.sha256
 ```
 
+Every source is compiled with `-ffunction-sections -fdata-sections`,
+so a consumer's `--gc-sections` link keeps only the kernels it calls
+rather than every function in their objects. Before writing the
+checksum, `scripts/build_staticlib.sh` runs
+[`scripts/check_staticlib_sections.py`](../scripts/check_staticlib_sections.py)
+over the archive. It reads the ELF members directly, the same way for
+gcc, atfe and armclang, and fails the build when any member keeps code
+in a plain `.text` section or the multi-function
+`arm_convolve_get_buffer_sizes_s8` object has fewer than two `.text.*`
+sections. It exits 1 when the check fails and 2 when the archive or a
+member cannot be read.
+
 A smoke-link step links a tiny TU that references one symbol per
 kernel group against the produced `.a` and checks that all expected
 symbols resolve. Failure of the smoke step blocks the upload for the
