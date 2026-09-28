@@ -68,13 +68,13 @@ __STATIC_FORCEINLINE int arm_convolve_s8_is_small_cin(const cmsis_nn_conv_params
 }
 
 /* lhs_rows im2col columns of col_len = 16 * nk bytes against output_ch filters, four output channels per step. */
-__STATIC_FORCEINLINE void arm_convolve_s8_small_cin_gemm_nk(const int8_t *__RESTRICT lhs,
+__STATIC_FORCEINLINE void arm_convolve_s8_small_cin_gemm_nk(const int8_t *lhs,
                                                             const int32_t lhs_rows,
-                                                            const int8_t *__RESTRICT filter_data,
+                                                            const int8_t *filter_data,
                                                             const int32_t *weight_sum,
                                                             const int32_t *output_mult,
                                                             const int32_t *output_shift,
-                                                            int8_t *__RESTRICT out,
+                                                            int8_t *out,
                                                             const int32_t output_ch,
                                                             const int32_t rhs_cols,
                                                             const int32_t out_offset,
@@ -100,18 +100,18 @@ __STATIC_FORCEINLINE void arm_convolve_s8_small_cin_gemm_nk(const int8_t *__REST
             if (nk == 1)
             {
                 const int8x16_t a0 = vldrbq_s8(a);
-                acc0 = vmladavq_s8(a0, vldrbq_z_s8(w0, p_last));
-                acc1 = vmladavq_s8(a0, vldrbq_z_s8(w1, p_last));
-                acc2 = vmladavq_s8(a0, vldrbq_z_s8(w2, p_last));
+                acc0 = vmladavq_s8(a0, vldrbq_s8(w0));
+                acc1 = vmladavq_s8(a0, vldrbq_s8(w1));
+                acc2 = vmladavq_s8(a0, vldrbq_s8(w2));
                 acc3 = vmladavq_s8(a0, vldrbq_z_s8(w3, p_last));
             }
             else if (nk == 2)
             {
                 const int8x16_t a0 = vldrbq_s8(a);
                 const int8x16_t a1 = vldrbq_s8(a + 16);
-                acc0 = vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w0)), a1, vldrbq_z_s8(w0 + 16, p_last));
-                acc1 = vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w1)), a1, vldrbq_z_s8(w1 + 16, p_last));
-                acc2 = vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w2)), a1, vldrbq_z_s8(w2 + 16, p_last));
+                acc0 = vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w0)), a1, vldrbq_s8(w0 + 16));
+                acc1 = vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w1)), a1, vldrbq_s8(w1 + 16));
+                acc2 = vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w2)), a1, vldrbq_s8(w2 + 16));
                 acc3 = vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w3)), a1, vldrbq_z_s8(w3 + 16, p_last));
             }
             else
@@ -119,15 +119,12 @@ __STATIC_FORCEINLINE void arm_convolve_s8_small_cin_gemm_nk(const int8_t *__REST
                 const int8x16_t a0 = vldrbq_s8(a);
                 const int8x16_t a1 = vldrbq_s8(a + 16);
                 const int8x16_t a2 = vldrbq_s8(a + 32);
-                acc0 = vmladavaq_s8(vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w0)), a1, vldrbq_s8(w0 + 16)),
-                                    a2,
-                                    vldrbq_z_s8(w0 + 32, p_last));
-                acc1 = vmladavaq_s8(vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w1)), a1, vldrbq_s8(w1 + 16)),
-                                    a2,
-                                    vldrbq_z_s8(w1 + 32, p_last));
-                acc2 = vmladavaq_s8(vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w2)), a1, vldrbq_s8(w2 + 16)),
-                                    a2,
-                                    vldrbq_z_s8(w2 + 32, p_last));
+                acc0 = vmladavaq_s8(
+                    vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w0)), a1, vldrbq_s8(w0 + 16)), a2, vldrbq_s8(w0 + 32));
+                acc1 = vmladavaq_s8(
+                    vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w1)), a1, vldrbq_s8(w1 + 16)), a2, vldrbq_s8(w1 + 32));
+                acc2 = vmladavaq_s8(
+                    vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w2)), a1, vldrbq_s8(w2 + 16)), a2, vldrbq_s8(w2 + 32));
                 acc3 = vmladavaq_s8(vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w3)), a1, vldrbq_s8(w3 + 16)),
                                     a2,
                                     vldrbq_z_s8(w3 + 32, p_last));
@@ -146,8 +143,14 @@ __STATIC_FORCEINLINE void arm_convolve_s8_small_cin_gemm_nk(const int8_t *__REST
     }
 }
 
-/* Out of line, with a run-time row count, so that each K-chunk count has one rolled copy of the loop. */
-static __attribute__((noinline)) void
+/* Out of line, with a run-time row count, so that each K-chunk count has one rolled copy of the loop. GCC would
+   otherwise clone it per call site (interprocedural constant propagation), hence noipa there. */
+    #if defined(__GNUC__) && !defined(__clang__)
+        #define ARM_CONVOLVE_S8_SMALL_CIN_GEMM_ATTR __attribute__((noinline, noipa))
+    #else
+        #define ARM_CONVOLVE_S8_SMALL_CIN_GEMM_ATTR __attribute__((noinline))
+    #endif
+static ARM_CONVOLVE_S8_SMALL_CIN_GEMM_ATTR void
 arm_convolve_s8_small_cin_gemm(const int8_t *lhs,
                                const int32_t lhs_rows,
                                const int8_t *filter_data,
@@ -252,6 +255,14 @@ arm_convolve_s8_small_cin(const cmsis_nn_context *ctx,
     const int32_t in_row_stride = input_x * input_ch;
     const mve_pred16_t p_row = vctp8q((uint32_t)row_len);
     const int8x16_t pad_val = vdupq_n_s8((int8_t)-input_offset);
+    /* Zero the column bytes past rhs_cols: the GEMM reads them against the next filter's first values. */
+    {
+        const mve_pred16_t p_tail = (mve_pred16_t)~vctp8q((uint32_t)(rhs_cols - (col_len - 16)));
+        for (int32_t i = 1; i <= 4; i++)
+        {
+            vstrbq_p_s8(buf + i * col_len - 16, vdupq_n_s8(0), p_tail);
+        }
+    }
 
     for (int32_t i_batch = 0; i_batch < input_dims->n; i_batch++)
     {
