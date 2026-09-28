@@ -2334,7 +2334,7 @@ void planar_predicate_grid_arm_depthwise_conv_s8_opt(void)
 }
 
 /* The direct entries reject the same arguments as arm_depthwise_conv_s8_opt(). When ctx->size cannot hold the plane,
-   the planar entry declines without writing and arm_depthwise_conv_s8_opt() computes the layer on the channel path. */
+   the planar entry declines without writing. */
 void direct_entries_arm_depthwise_conv_s8_opt(void)
 {
     const int32_t ih = 7, iw = 9, ch = 5, kh = 3, kw = 3;
@@ -2453,8 +2453,9 @@ void direct_entries_arm_depthwise_conv_s8_opt(void)
     }
 #endif
 
-    /* A context too small for the plane: the planar entry declines, the dispatcher falls back. planar_ref still holds
-       this layer's reference from planar_case() above. */
+    /* A context too small for the plane: the planar entry declines without writing. arm_depthwise_conv_s8_opt() is
+       not called here, because its channel path needs the full arm_depthwise_conv_s8_opt_get_buffer_size(); see
+       planar_no_fit_arm_depthwise_conv_s8_opt() for its fallback. */
     const cmsis_nn_context small = {planar_scratch, 16};
     memset(planar_out, 0x5A, sizeof(planar_out));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
@@ -2474,20 +2475,23 @@ void direct_entries_arm_depthwise_conv_s8_opt(void)
     {
         TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[i]);
     }
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                      arm_depthwise_conv_s8_opt(&small,
-                                                &wsum,
-                                                &params,
-                                                &quant,
-                                                &input_dims,
-                                                planar_in,
-                                                &filter_dims,
-                                                planar_ker,
-                                                &bias_dims,
-                                                planar_bias,
-                                                &output_dims,
-                                                planar_out));
-    TEST_ASSERT_EQUAL_INT8_ARRAY(planar_ref, planar_out, ih * iw * ch);
+}
+
+/* A layer that meets every planar condition except the scratch: its plane exceeds the
+   arm_depthwise_conv_s8_opt_get_buffer_size() scratch, so the planar entry declines without writing and
+   arm_depthwise_conv_s8_opt() computes the layer on the channel path without writing past that scratch. */
+void planar_no_fit_arm_depthwise_conv_s8_opt(void)
+{
+    const int32_t ih = 64, iw = 80, ch = 2, kh = 3, kw = 3;
+#if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
+    const cmsis_nn_dw_conv_params params = {
+        .ch_mult = 1, .stride = {1, 1}, .padding = {1, 1}, .dilation = {1, 1}, .activation = {-128, 127}};
+    const cmsis_nn_dims input_dims = {1, ih, iw, ch}, filter_dims = {1, kh, kw, ch}, output_dims = {1, ih, iw, ch};
+    TEST_ASSERT_TRUE(arm_depthwise_conv_s8_opt_planar_supported(&params, &input_dims, &filter_dims, &output_dims) == 0);
+    TEST_ASSERT_TRUE(arm_nn_depthwise_conv_s8_planar_bytes(&params, &input_dims, &filter_dims, &output_dims) >
+                     arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims));
+#endif
+    planar_case(ih, iw, ch, kh, kw, 1, 1, 1, 0, 3, -128, 127);
 }
 
 /* A plane whose size does not fit in int32 (65536 x 65536 bytes) must be declined, not wrapped into a small size that
