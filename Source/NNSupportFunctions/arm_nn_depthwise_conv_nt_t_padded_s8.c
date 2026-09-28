@@ -45,101 +45,6 @@
  * @{
  */
 
-#if defined(ARM_MATH_MVEI)
-/*
- * The last block, of 1 to 3 channels, for the four lhs matrices. Every load is predicated, so it never reads past
- * lhs, rhs, bias, out_mult or out_shift. It is kept out of line so the full-block loop keeps its accumulators in
- * registers.
- */
-static __attribute__((noinline)) void depthwise_conv_nt_t_padded_s8_tail(const int8_t *lhs,
-                                                                         const int8_t *rhs,
-                                                                         const int32_t input_offset,
-                                                                         const int32_t total_ch,
-                                                                         const int32_t *out_shift,
-                                                                         const int32_t *out_mult,
-                                                                         const int32_t out_offset,
-                                                                         const int32_t activation_min,
-                                                                         const int32_t activation_max,
-                                                                         const uint16_t row_x_col,
-                                                                         const int32_t *bias,
-                                                                         const int32_t offset,
-                                                                         const uint32_t num_ch_to_process,
-                                                                         int8_t *out)
-{
-    const mve_pred16_t p = vctp32q(num_ch_to_process);
-    int32x4_t out_0 = vdupq_n_s32(0);
-    if (bias)
-    {
-        out_0 = vldrwq_z_s32(bias, p);
-    }
-    int32x4_t out_1 = out_0;
-    int32x4_t out_2 = out_0;
-    int32x4_t out_3 = out_0;
-
-    const int8_t *rhs_0 = rhs + offset;
-    const int8_t *lhs_0 = lhs + offset;
-    const int8_t *lhs_1 = lhs + row_x_col * CH_IN_BLOCK_MVE + offset;
-    const int8_t *lhs_2 = lhs + (row_x_col * CH_IN_BLOCK_MVE * 2) + offset;
-    const int8_t *lhs_3 = lhs + (row_x_col * CH_IN_BLOCK_MVE * 3) + offset;
-
-    for (int i_row_x_col = 0; i_row_x_col < row_x_col; i_row_x_col++)
-    {
-        const int32x4_t ker_0 = vldrbq_z_s32(rhs_0, p);
-
-        int32x4_t ip_0 = vldrbq_z_s32(lhs_0, p);
-        ip_0 = vaddq_n_s32(ip_0, input_offset);
-        out_0 += vmulq_s32(ip_0, ker_0);
-
-        int32x4_t ip_1 = vldrbq_z_s32(lhs_1, p);
-        ip_1 = vaddq_n_s32(ip_1, input_offset);
-        out_1 += vmulq_s32(ip_1, ker_0);
-
-        int32x4_t ip_2 = vldrbq_z_s32(lhs_2, p);
-        ip_2 = vaddq_n_s32(ip_2, input_offset);
-        out_2 += vmulq_s32(ip_2, ker_0);
-
-        int32x4_t ip_3 = vldrbq_z_s32(lhs_3, p);
-        ip_3 = vaddq_n_s32(ip_3, input_offset);
-
-        out_3 += vmulq_s32(ip_3, ker_0);
-
-        lhs_0 += CH_IN_BLOCK_MVE;
-        lhs_1 += CH_IN_BLOCK_MVE;
-        lhs_2 += CH_IN_BLOCK_MVE;
-        lhs_3 += CH_IN_BLOCK_MVE;
-
-        rhs_0 += total_ch;
-    }
-
-    const int32x4_t mult = vldrwq_z_s32(out_mult, p);
-    const int32x4_t shift = vldrwq_z_s32(out_shift, p);
-
-    out_0 = arm_requantize_mve_32x4(out_0, mult, shift);
-    out_0 = vaddq_n_s32(out_0, out_offset);
-    out_0 = vmaxq_s32(out_0, vdupq_n_s32(activation_min));
-    out_0 = vminq_s32(out_0, vdupq_n_s32(activation_max));
-    vstrbq_p_s32(out, out_0, p);
-
-    out_1 = arm_requantize_mve_32x4(out_1, mult, shift);
-    out_1 = vaddq_n_s32(out_1, out_offset);
-    out_1 = vmaxq_s32(out_1, vdupq_n_s32(activation_min));
-    out_1 = vminq_s32(out_1, vdupq_n_s32(activation_max));
-    vstrbq_p_s32(out + total_ch, out_1, p);
-
-    out_2 = arm_requantize_mve_32x4(out_2, mult, shift);
-    out_2 = vaddq_n_s32(out_2, out_offset);
-    out_2 = vmaxq_s32(out_2, vdupq_n_s32(activation_min));
-    out_2 = vminq_s32(out_2, vdupq_n_s32(activation_max));
-    vstrbq_p_s32(out + 2 * total_ch, out_2, p);
-
-    out_3 = arm_requantize_mve_32x4(out_3, mult, shift);
-    out_3 = vaddq_n_s32(out_3, out_offset);
-    out_3 = vmaxq_s32(out_3, vdupq_n_s32(activation_min));
-    out_3 = vminq_s32(out_3, vdupq_n_s32(activation_max));
-    vstrbq_p_s32(out + 3 * total_ch, out_3, p);
-}
-#endif
-
 /*
  * Depthwise convolution of transposed rhs matrix with 4 lhs matrices. One or more of the rhs matrices are padded.
  * Dimensions are the same for lhs and rhs.
@@ -163,36 +68,19 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_padded_s8(const int8_t *lhs,
                                                          int8_t *out)
 {
 #if defined(ARM_MATH_MVEI)
-    /* The last 1 to 3 channels, if any, before the full four-channel blocks. */
-    if (active_ch & 0x3)
-    {
-        const int32_t tail_offset = active_ch & ~0x3;
-        depthwise_conv_nt_t_padded_s8_tail(lhs,
-                                           rhs,
-                                           input_offset,
-                                           total_ch,
-                                           out_shift + tail_offset,
-                                           out_mult + tail_offset,
-                                           out_offset,
-                                           activation_min,
-                                           activation_max,
-                                           row_x_col,
-                                           output_bias ? output_bias + tail_offset : NULL,
-                                           tail_offset,
-                                           (uint32_t)(active_ch & 0x3),
-                                           out + tail_offset);
-    }
-    const int32_t loop_count = active_ch / 4;
+    int32_t loop_count = (active_ch + 3) / 4;
     const int32_t *bias = output_bias;
     uint32_t num_ch_to_process = active_ch;
 
     for (int i_loop_cnt = 0, offset = 0; i_loop_cnt < loop_count;
          num_ch_to_process -= 4, out += 4, offset += 4, i_loop_cnt++)
     {
+        /* The last block loads only its live channels, so no operand is read past active_ch. */
+        const mve_pred16_t p = vctp32q(num_ch_to_process);
         int32x4_t out_0 = vdupq_n_s32(0);
         if (bias)
         {
-            out_0 = vldrwq_s32(bias);
+            out_0 = vldrwq_z_s32(bias, p);
             bias += 4;
         }
         int32x4_t out_1 = out_0;
@@ -207,21 +95,21 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_padded_s8(const int8_t *lhs,
 
         for (int i_row_x_col = 0; i_row_x_col < row_x_col; i_row_x_col++)
         {
-            const int32x4_t ker_0 = vldrbq_s32(rhs_0);
+            const int32x4_t ker_0 = vldrbq_z_s32(rhs_0, p);
 
-            int32x4_t ip_0 = vldrbq_s32(lhs_0);
+            int32x4_t ip_0 = vldrbq_z_s32(lhs_0, p);
             ip_0 = vaddq_n_s32(ip_0, input_offset);
             out_0 += vmulq_s32(ip_0, ker_0);
 
-            int32x4_t ip_1 = vldrbq_s32(lhs_1);
+            int32x4_t ip_1 = vldrbq_z_s32(lhs_1, p);
             ip_1 = vaddq_n_s32(ip_1, input_offset);
             out_1 += vmulq_s32(ip_1, ker_0);
 
-            int32x4_t ip_2 = vldrbq_s32(lhs_2);
+            int32x4_t ip_2 = vldrbq_z_s32(lhs_2, p);
             ip_2 = vaddq_n_s32(ip_2, input_offset);
             out_2 += vmulq_s32(ip_2, ker_0);
 
-            int32x4_t ip_3 = vldrbq_s32(lhs_3);
+            int32x4_t ip_3 = vldrbq_z_s32(lhs_3, p);
             ip_3 = vaddq_n_s32(ip_3, input_offset);
 
             out_3 += vmulq_s32(ip_3, ker_0);
@@ -234,8 +122,8 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_padded_s8(const int8_t *lhs,
             rhs_0 += total_ch;
         }
 
-        const int32x4_t mult = vldrwq_s32(out_mult);
-        const int32x4_t shift = vldrwq_s32(out_shift);
+        const int32x4_t mult = vldrwq_z_s32(out_mult, p);
+        const int32x4_t shift = vldrwq_z_s32(out_shift, p);
         out_mult += 4;
         out_shift += 4;
 
@@ -243,7 +131,6 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_padded_s8(const int8_t *lhs,
         out_0 = vaddq_n_s32(out_0, out_offset);
         out_0 = vmaxq_s32(out_0, vdupq_n_s32(activation_min));
         out_0 = vminq_s32(out_0, vdupq_n_s32(activation_max));
-        mve_pred16_t p = vctp32q(num_ch_to_process);
         vstrbq_p_s32(out, out_0, p);
 
         out_1 = arm_requantize_mve_32x4(out_1, mult, shift);
