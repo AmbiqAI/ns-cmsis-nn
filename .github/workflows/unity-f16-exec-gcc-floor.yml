@@ -55,6 +55,19 @@ jobs:
       #   Source/SoftmaxFunctions/arm_softmax_f16.c
       #       -> test_arm_softmax_f16      (via arm_nn_vexpq_poly_mve_f16
       #                                     in arm_nnsupportfunctions_flt.h)
+      #   Source/FullyConnectedFunctions/arm_fully_connected_f16.c
+      #       -> test_arm_fully_connected_f16
+      #   Source/FullyConnectedFunctions/arm_batch_matmul_f16.c
+      #       -> test_arm_batch_matmul_f16
+      #   Source/ConvolutionFunctions/arm_depthwise_conv_f16.c
+      #       -> test_arm_depthwise_conv_f16
+      #   the float16 matmuls (arm_nn_mat_mult_nt_t_f16,
+      #   arm_nn_mat_mult_nt_n_packed_f16), the 1x1 and 1xN convolutions and
+      #   the conv1d k=3 / k=5 kernels
+      #       -> test_arm_f16_block_accum  (all of these through the blockwise
+      #                                     float16 fold helpers in
+      #                                     arm_nnsupportfunctions_flt.h,
+      #                                     AmbiqAI/ns-cmsis-nn#586)
       #
       # test_arm_hard_swish_f16 is listed too and is not derived: that
       # kernel's MVE leg is pure half precision and reaches no conversion at
@@ -67,8 +80,12 @@ jobs:
       # arm_softmax_f16's second suite is listed here by hand: the shapes
       # around the 8-lane boundary are worth running on this toolchain too.
       SUITES: >-
+        test_arm_batch_matmul_f16
         test_arm_convolve_packed_f16
+        test_arm_depthwise_conv_f16
         test_arm_dequantize_f16_f32
+        test_arm_f16_block_accum
+        test_arm_fully_connected_f16
         test_arm_hard_swish_f16
         test_arm_nn_mean_f16
         test_arm_reduce_sum_f16
@@ -101,6 +118,11 @@ jobs:
           import sys
 
           DEF = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*(?:[\s*]+[A-Za-z_][A-Za-z0-9_]*)*)\s*\(")
+          # `__attribute__((...))` in a definition head, before or after the
+          # storage class. Left in, DEF reads `__attribute__` as the name of
+          # the function that follows, and every file using an attribute then
+          # counts as calling that function.
+          ATTR = re.compile(r"__attribute__\s*\(\((?:[^()]|\([^()]*\))*\)\)\s*")
           NOISE = re.compile(r'"(?:\\.|[^"\\])*"' r"|'(?:\\.|[^'\\])*'" r"|//.*")
 
 
@@ -136,7 +158,7 @@ jobs:
                           if start < 0:
                               break
                           in_block, i = True, start + 2
-                      yield "".join(out)
+                      yield ATTR.sub("", "".join(out))
 
 
           # Functions defined in `path` whose body names one of `names`.
@@ -214,6 +236,19 @@ jobs:
           # and arm_convolve_f16 reaches the conversions through its direct
           # small-C kernel (AmbiqAI/ns-cmsis-nn#417), which that suite runs.
           SUITE_FOR = {"arm_convolve_f16": "test_arm_convolve_packed_f16"}
+          # Kernels without a suite of their own reach the conversions through
+          # the blockwise float16 fold helpers (AmbiqAI/ns-cmsis-nn#586);
+          # test_arm_f16_block_accum runs each of them on its fold path.
+          SUITE_FOR.update({k: "test_arm_f16_block_accum" for k in (
+              "arm_convolve_1_x_n_f16",
+              "arm_convolve_1x1_f16",
+              "arm_nn_conv1d_k3_f16",
+              "arm_nn_conv1d_k3_packed_f16",
+              "arm_nn_conv1d_k5_f16",
+              "arm_nn_conv1d_k5_packed_f16",
+              "arm_nn_mat_mult_nt_n_packed_f16",
+              "arm_nn_mat_mult_nt_t_f16",
+          )})
           missing = [k for k in kernels if SUITE_FOR.get(k, "test_" + k) not in declared]
           for kernel in missing:
               suite = SUITE_FOR.get(kernel, "test_" + kernel)
