@@ -25,9 +25,11 @@
 // Two lane shapes are emulated. A lane kernel keeps one output per vector lane and adds one tap per step, the bias
 // starting the first partial. A reduction kernel spreads one output's taps over the eight lanes of a vector
 // (channel c to lane c % 8, each vector step one tap per lane, or T for the k=3 / k=5 conv1d kernels), counts its
-// blocks in vector steps, and when the reduction is longer than 32 taps sums each block's lanes in float32 as
-// ((0+1) + (2+3)) + ((4+5) + (6+7)) onto a float32 accumulator seeded with the bias; otherwise the lanes reduce in
-// float16 in the same pairing and the bias is added in float16.
+// blocks in vector steps, and when the reduction is longer than 32 taps widens each block's lanes and adds lanes 2j
+// and 2j+1 in float32 into pair accumulator j (set by the first block, added to by later ones); the four pair
+// accumulators are summed once as (0+1) + (2+3), the bias is added in float32 and the total rounds once. For a single
+// block that is ((0+1) + (2+3)) + ((4+5) + (6+7)) in float32. Up to 32 taps the lanes reduce in float16 in the same
+// pairing and the bias is added in float16.
 
 #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     #define BA_MVE 1
@@ -128,14 +130,21 @@ static float32_t ba_add32(float32_t a, float32_t b)
     return r;
 }
 
-// arm_nn_vec_reduce_add_f16_to_f32
-static float32_t ba_sum8_f32(const float16_t p[8])
+// arm_nn_f16_fold_pairs_f32: lanes 2j and 2j+1 widen and add in float32 into pair accumulator j (set on the first
+// partial, added to afterwards)
+static void ba_fold_pairs_f32(float32_t acc[4], const float16_t p[8], bool first)
 {
-    const float32_t s0 = ba_add32((float32_t)p[0], (float32_t)p[1]);
-    const float32_t s1 = ba_add32((float32_t)p[2], (float32_t)p[3]);
-    const float32_t s2 = ba_add32((float32_t)p[4], (float32_t)p[5]);
-    const float32_t s3 = ba_add32((float32_t)p[6], (float32_t)p[7]);
-    return ba_add32(ba_add32(s0, s1), ba_add32(s2, s3));
+    for (int32_t j = 0; j < 4; ++j)
+    {
+        const float32_t pair = ba_add32((float32_t)p[2 * j], (float32_t)p[2 * j + 1]);
+        acc[j] = first ? pair : ba_add32(acc[j], pair);
+    }
+}
+
+// arm_nn_f16_pairs_sum_f32: (0+1) + (2+3)
+static float32_t ba_pairs_sum_f32(const float32_t acc[4])
+{
+    return ba_add32(ba_add32(acc[0], acc[1]), ba_add32(acc[2], acc[3]));
 }
 
 // arm_nn_vec_reduce_add_f16
@@ -182,7 +191,9 @@ static float16_t ba_emu_lane(const void *ctx, ba_lane_tap_fn fn, int32_t n, cons
 }
 
 /* Reduction kernel: `n_steps` vector steps of up to `taps` taps per lane; the callback returns false for a lane the
- * step does not reach. `fold` mirrors the kernel's own choice (reduction longer than the block). */
+ * step does not reach. `fold` mirrors the kernel's own choice (reduction longer than the block): every block of at
+ * most `block_steps` steps is folded into four float32 pair accumulators, which are summed once; then the bias is
+ * added in float32 and the total rounds once. */
 typedef bool (*ba_red_tap_fn)(const void *ctx, int32_t step, int32_t lane, int32_t t, float16_t *x, float16_t *w);
 
 static float16_t ba_emu_reduce(const void *ctx,
@@ -198,13 +209,15 @@ static float16_t ba_emu_reduce(const void *ctx,
     {
         p[l] = ba_from_bits(0u);
     }
-    float32_t acc = bias ? (float32_t)*bias : 0.0f;
+    float32_t pairs[4];
+    bool first = true;
     int32_t in_block = 0;
     for (int32_t s = 0; s < n_steps; ++s)
     {
         if (fold && in_block == block_steps)
         {
-            acc = ba_add32(acc, ba_sum8_f32(p));
+            ba_fold_pairs_f32(pairs, p, first);
+            first = false;
             for (int32_t l = 0; l < 8; ++l)
             {
                 p[l] = ba_from_bits(0u);
@@ -227,7 +240,9 @@ static float16_t ba_emu_reduce(const void *ctx,
     }
     if (fold)
     {
-        return ba_round_f16((double)ba_add32(acc, ba_sum8_f32(p)));
+        ba_fold_pairs_f32(pairs, p, first);
+        const float32_t b32 = bias ? (float32_t)*bias : 0.0f;
+        return ba_round_f16((double)ba_add32(b32, ba_pairs_sum_f32(pairs)));
     }
     return ba_add16(ba_bias_or_zero(bias), ba_sum8_f16(p));
 }
@@ -412,6 +427,11 @@ static float16_t ba_fc_ref_packed(const void *vctx, int32_t idx, int32_t block)
     return ba_emu_lane(&c, ba_fc_lane_tap, c.k, c.bias ? &c.bias[idx % c.n] : NULL, block);
 }
 
+/* When set, ba_fc_case replaces its random data: every output's first block puts +2048 on lane 0 and 2^-13 on lane 2,
+ * its second block puts -2048 on lane 0. Summing each block's lanes on its own loses the 2^-13 in float32; the pair
+ * accumulators cancel lane 0 across blocks first and keep it, so the result tells the two orders apart. */
+static bool ba_fc_crafted;
+
 static void ba_fc_case(int32_t batch, int32_t k, int32_t n, bool packed, bool bias)
 {
     const cmsis_nn_context ctx = {NULL, 0};
@@ -430,6 +450,24 @@ static void ba_fc_case(int32_t batch, int32_t k, int32_t n, bool packed, bool bi
     ba_fill(ba_in, batch * k, (uint32_t)k * 3u + 1u);
     ba_fill(ba_w, n * k, (uint32_t)k * 3u + 2u);
     ba_fill(ba_bias, n, (uint32_t)k * 3u + 3u);
+    if (ba_fc_crafted)
+    {
+        TEST_ASSERT_TRUE(k > 256 + 8);
+        memset(ba_in, 0, sizeof(float16_t) * (size_t)(batch * k));
+        memset(ba_w, 0, sizeof(float16_t) * (size_t)(n * k));
+        for (int32_t b = 0; b < batch; ++b)
+        {
+            ba_in[b * k + 0] = (float16_t)1.0f;
+            ba_in[b * k + 2] = (float16_t)1.0f;
+            ba_in[b * k + 256] = (float16_t)1.0f;
+        }
+        for (int32_t j = 0; j < n; ++j)
+        {
+            ba_w[j * k + 0] = (float16_t)2048.0f;
+            ba_w[j * k + 2] = (float16_t)1.220703125e-4f; /* 2^-13 */
+            ba_w[j * k + 256] = (float16_t)-2048.0f;
+        }
+    }
     const float16_t *w = ba_w;
     if (packed)
     {
@@ -492,6 +530,15 @@ void ba_fc_packed_long_k(void)
     ba_fc_case(2, 98, 5, true, false);
     ba_fc_case(1, 280, 13, true, true);
     ba_fc_case(1, 640, 5, true, true);
+    ba_end();
+}
+
+void ba_fc_block_order(void)
+{
+    ba_begin();
+    ba_fc_crafted = true;
+    ba_fc_case(1, 512, 5, false, false);
+    ba_fc_crafted = false;
     ba_end();
 }
 

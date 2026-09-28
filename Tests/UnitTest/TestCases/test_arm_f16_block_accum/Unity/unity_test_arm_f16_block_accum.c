@@ -33,6 +33,8 @@ void test_fc_std_long_k(void) { ba_fc_std_long_k(); }
 
 void test_fc_packed_long_k(void) { ba_fc_packed_long_k(); }
 
+void test_fc_block_order(void) { ba_fc_block_order(); }
+
 void test_fc_short_k(void) { ba_fc_short_k(); }
 
 void test_conv1x1_long_k(void) { ba_conv1x1_long_k(); }
