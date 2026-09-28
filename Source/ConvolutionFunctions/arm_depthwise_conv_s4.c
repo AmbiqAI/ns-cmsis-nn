@@ -423,8 +423,8 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                                 int32_t idx_x = base_idx_x + dilation_x * ker_x_start;
                                 int32_t idx_0 = (idx_y * input_x + idx_x) * input_ch + i_input_ch;
 
-                                /* With an odd channel count a tap can start mid-byte, so each weight is found by its
-                                   nibble index, low nibble first. */
+                                /* With an odd input channel count a tap can start mid-byte, so each weight is found by
+                                   its nibble index, low nibble first. */
                                 int32_t ker_nibble = (i_ker_y * kernel_x + ker_x_start) * output_ch + idx_out_ch;
 
                                 for (int i_ker_x = ker_x_start; i_ker_x < ker_x_end; i_ker_x++)
