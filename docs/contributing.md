@@ -39,6 +39,37 @@ historically that has tripped up downstream artifact generators. Use the word
 (`and`) or HTML entity if needed.
 :::
 
+## Kernel structure and code size
+
+Optimised kernels must not grow the image of a model that does not use them.
+NSX source builds and the prebuilt archives compile every function into its
+own section (`-ffunction-sections -fdata-sections`), so a `--gc-sections` link
+keeps only the functions a program reaches. The rules below keep that true.
+
+- **Specialised paths are direct entries.** A path tuned for one shape family
+  is its own public function with the generic function's signature, scratch
+  size and weight-sum contract. Outside its gate it returns
+  `ARM_CMSIS_NN_NO_IMPL_ERROR` and writes nothing. The generic function never
+  calls it, so a `--gc-sections` link drops it when nothing references it.
+  Examples: `arm_depthwise_conv_s8_opt_3x3()` and `arm_convolve_s8_small_cin()`.
+- **Code generators call the entry directly.** Wrappers
+  (`arm_*_wrapper_*()`) may route to an entry for other callers, but only
+  after a cheap inline pre-check, so layers outside the gate pay almost
+  nothing.
+- **Select variants at compile time.** When one body serves two variants,
+  such as the FP16 default and `_acc16` entries, instantiate it once per entry
+  with a compile-time constant. Neither variant may reference the other at run
+  time.
+- **Inline deliberately.** Keep small hot code inline within a kernel. Put
+  widely reused logic in shared out-of-line helpers that are linked once:
+  requantization, the FP16 fold, matmul cores, and im2col or packing.
+- **Every kernel PR reports two things:**
+  - A function map: public entries, shared helpers and inlined code, with
+    their sizes.
+  - The image delta from a `--gc-sections` link. It must be zero for a program
+    that calls only the generic function. Also report it for the wrapper and
+    for each new entry, and check that every intended symbol is in the image.
+
 ## Maintainer release notes
 
 Most contributors only need conventional commits. Maintainers should also know
