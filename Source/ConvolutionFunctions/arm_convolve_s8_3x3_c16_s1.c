@@ -36,15 +36,6 @@
  * border is first copied to an im2col slot with padding. Four pixels are then multiplied against every filter as in
  * arm_nn_mat_mult_nt_t_s8(), with the same requantization, so the output is the same bit for bit.
  */
-__STATIC_FORCEINLINE int arm_convolve_s8_is_3x3_c16_s1(const cmsis_nn_conv_params *conv_params,
-                                                       const cmsis_nn_dims *input_dims,
-                                                       const cmsis_nn_dims *filter_dims,
-                                                       const cmsis_nn_dims *upscale_dims)
-{
-    return (upscale_dims == NULL) && (input_dims->c == 16) && (filter_dims->c == 16) && (filter_dims->w == 3) &&
-        (filter_dims->h == 3) && (conv_params->stride.w == 1) && (conv_params->stride.h == 1) &&
-        (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1);
-}
 
 /* Output channels for four pixels whose kernel rows start at seg[ky][pixel]; only the first n_pix are stored. */
 static __attribute__((noinline)) void arm_convolve_s8_3x3_c16_block(const int8_t *seg[3][4],
@@ -262,7 +253,7 @@ arm_cmsis_nn_status arm_convolve_s8_3x3_c16_s1(const cmsis_nn_context *ctx,
 #endif
 
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
-    if (!arm_convolve_s8_is_3x3_c16_s1(conv_params, input_dims, filter_dims, upscale_dims))
+    if (!arm_nn_is_convolve_s8_3x3_c16_s1(conv_params, input_dims, filter_dims, upscale_dims))
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }

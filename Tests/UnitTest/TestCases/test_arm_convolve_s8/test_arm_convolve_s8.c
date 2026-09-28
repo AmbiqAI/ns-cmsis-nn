@@ -2256,10 +2256,6 @@ typedef struct
 #define LOW_DEPTH_GUARD_VALUE ((int8_t)0x5A)
 
 static uint32_t low_depth_seed;
-#if defined(MPU_GUARD_AVAILABLE)
-/* When set, the direct entry that takes the layer reads the weights from a copy that ends at an unmapped MPU gap. */
-static int low_depth_weights_at_gap;
-#endif
 
 static int32_t low_depth_rand(void)
 {
@@ -2373,10 +2369,42 @@ low_depth_expect_untouched(const int8_t *output, int32_t output_size, const int8
     }
 }
 
-/* Runs both direct entries and arm_convolve_s8() on one layer. arm_convolve_s8() and the entry named by entry (on
-   builds that have it) must match the reference; the other entry must return ARM_CMSIS_NN_NO_IMPL_ERROR and write
-   nothing. */
-static void low_depth_check(const low_depth_case_t *tc, uint32_t seed, low_depth_entry_t entry)
+/* Flags of low_depth_check_at(). */
+#define LOW_DEPTH_AT_GAP 1
+#define LOW_DEPTH_DISTINCT_SCRATCH 2
+
+/* Whether arm_convolve_wrapper_s8() takes its arm_convolve_s8() branch for a layer, where it may run a direct entry. */
+static int low_depth_wrapper_calls_conv(const cmsis_nn_conv_params *conv_params,
+                                        const cmsis_nn_dims *input_dims,
+                                        const cmsis_nn_dims *filter_dims,
+                                        const cmsis_nn_dims *output_dims)
+{
+    if (arm_nn_is_convolve_1x1(conv_params, input_dims, filter_dims) ||
+        arm_nn_is_convolve_1_x_n(conv_params, input_dims, filter_dims))
+    {
+        return 0;
+    }
+#if defined(ARM_MATH_MVEI)
+    if ((output_dims->h == 1) && (output_dims->w == 1) && (((int64_t)conv_params->stride.w * input_dims->c) % 4 == 0) &&
+        (input_dims->c == filter_dims->c))
+    {
+        return 0;
+    }
+#else
+    (void)output_dims;
+#endif
+    return 1;
+}
+
+/* Runs both direct entries, arm_convolve_s8() and arm_convolve_wrapper_s8() on one layer. arm_convolve_s8(), the
+   wrapper and the entry named by entry (on builds that have it) must match the reference; the other entry must return
+   ARM_CMSIS_NN_NO_IMPL_ERROR and write nothing. When the wrapper takes its arm_convolve_s8() branch, its scratch size
+   must equal arm_convolve_s8_get_buffer_size() and it must leave the scratch as the entry that takes the layer does,
+   or as arm_convolve_s8() does for a layer outside both gates. With LOW_DEPTH_DISTINCT_SCRATCH, the scratch the entry
+   leaves must also differ from what arm_convolve_s8() leaves, so that this identifies the route. With
+   LOW_DEPTH_AT_GAP, where the MPU guard is available, the entry that takes the layer reads the weights from a copy
+   that ends at an unmapped MPU gap. */
+static void low_depth_check_at(const low_depth_case_t *tc, uint32_t seed, low_depth_entry_t entry, int flags)
 {
     const int32_t input_size = tc->n * tc->in_h * tc->in_w * tc->in_c;
     const int32_t rhs_cols = tc->k_h * tc->k_w * tc->in_c;
@@ -2438,7 +2466,9 @@ static void low_depth_check(const low_depth_case_t *tc, uint32_t seed, low_depth
     const int32_t buf_size = arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
     TEST_ASSERT_TRUE(buf_size >= 0);
     int8_t *scratch = malloc(buf_size + LOW_DEPTH_GUARD);
+    int8_t *images = malloc(3 * buf_size + 1);
     TEST_ASSERT_NOT_NULL(scratch);
+    TEST_ASSERT_NOT_NULL(images);
     const cmsis_nn_context ctx = {scratch, buf_size};
     const cmsis_nn_context weight_sum_ctx = {weight_sum, tc->out_c * (int32_t)sizeof(int32_t)};
     const arm_cmsis_nn_status sum_status =
@@ -2464,7 +2494,7 @@ static void low_depth_check(const low_depth_case_t *tc, uint32_t seed, low_depth
         memset(output, LOW_DEPTH_GUARD_VALUE, output_size + 2 * LOW_DEPTH_GUARD);
         const int8_t *kernel_weights = weights;
 #if defined(MPU_GUARD_AVAILABLE)
-        const int at_gap = low_depth_weights_at_gap && e != LOW_DEPTH_GENERAL && e == (int32_t)entry;
+        const int at_gap = (flags & LOW_DEPTH_AT_GAP) && e != LOW_DEPTH_GENERAL && e == (int32_t)entry;
         if (at_gap)
         {
             TEST_ASSERT_TRUE(weights_size <= GUARD_OFFSET);
@@ -2507,8 +2537,62 @@ static void low_depth_check(const low_depth_case_t *tc, uint32_t seed, low_depth
             TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, status);
             low_depth_expect_untouched(output, output_size, scratch, buf_size);
         }
+        memcpy(images + e * buf_size, scratch, buf_size);
     }
 
+#if defined(LOW_DEPTH_DIRECT_AVAILABLE)
+    const int32_t taker = (int32_t)entry;
+#else
+    const int32_t taker = LOW_DEPTH_GENERAL;
+#endif
+    const int32_t wrap_size =
+        arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    TEST_ASSERT_TRUE(wrap_size >= 0);
+    int8_t *wrap_scratch = malloc(wrap_size + LOW_DEPTH_GUARD);
+    TEST_ASSERT_NOT_NULL(wrap_scratch);
+    memset(wrap_scratch, LOW_DEPTH_SCRATCH_FILL, wrap_size);
+    memset(wrap_scratch + wrap_size, LOW_DEPTH_GUARD_VALUE, LOW_DEPTH_GUARD);
+    memset(output, LOW_DEPTH_GUARD_VALUE, output_size + 2 * LOW_DEPTH_GUARD);
+    const cmsis_nn_context wrap_ctx = {wrap_scratch, wrap_size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_wrapper_s8(&wrap_ctx,
+                                              &weight_sum_ctx,
+                                              &conv_params,
+                                              &quant_params,
+                                              &input_dims,
+                                              input,
+                                              &filter_dims,
+                                              weights,
+                                              &bias_dims,
+                                              bias,
+                                              &output_dims,
+                                              output + LOW_DEPTH_GUARD));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output + LOW_DEPTH_GUARD, output_size);
+    for (int32_t i = 0; i < LOW_DEPTH_GUARD; i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(LOW_DEPTH_GUARD_VALUE, output[i]);
+        TEST_ASSERT_EQUAL_INT8(LOW_DEPTH_GUARD_VALUE, output[LOW_DEPTH_GUARD + output_size + i]);
+        TEST_ASSERT_EQUAL_INT8(LOW_DEPTH_GUARD_VALUE, wrap_scratch[wrap_size + i]);
+    }
+    if (low_depth_wrapper_calls_conv(&conv_params, &input_dims, &filter_dims, &output_dims))
+    {
+        TEST_ASSERT_EQUAL(buf_size, wrap_size);
+        if (buf_size > 0)
+        {
+            TEST_ASSERT_EQUAL_INT8_ARRAY(images + taker * buf_size, wrap_scratch, buf_size);
+        }
+        if ((flags & LOW_DEPTH_DISTINCT_SCRATCH) && taker != LOW_DEPTH_GENERAL)
+        {
+            TEST_ASSERT_TRUE(memcmp(images + LOW_DEPTH_GENERAL * buf_size, images + taker * buf_size, buf_size) != 0);
+        }
+    }
+    else
+    {
+        TEST_ASSERT_FALSE(flags & LOW_DEPTH_DISTINCT_SCRATCH);
+    }
+
+    free(wrap_scratch);
+    free(images);
     free(scratch);
     free(output);
     free(expected);
@@ -2603,6 +2687,11 @@ static const low_depth_case_t low_depth_neighbour_cases[] = {
     {1, 10, 10, 1, 7, 7, 8, 1, 1, 3, 3, 1, 1, 10, 10, 128, -128, 127},
 };
 
+static void low_depth_check(const low_depth_case_t *tc, uint32_t seed, low_depth_entry_t entry)
+{
+    low_depth_check_at(tc, seed, entry, 0);
+}
+
 static void low_depth_check_all(const low_depth_case_t *cases, int32_t count, uint32_t seed, low_depth_entry_t entry)
 {
     for (int32_t i = 0; i < count; i++)
@@ -2667,12 +2756,11 @@ static const low_depth_case_t small_cin_weights_at_gap_cases[] = {
 void small_cin_weights_at_gap_arm_convolve_s8(void)
 {
 #if defined(MPU_GUARD_AVAILABLE)
-    low_depth_weights_at_gap = 1;
-    low_depth_check_all(small_cin_weights_at_gap_cases,
-                        sizeof(small_cin_weights_at_gap_cases) / sizeof(small_cin_weights_at_gap_cases[0]),
-                        61u,
-                        LOW_DEPTH_SMALL_CIN);
-    low_depth_weights_at_gap = 0;
+    for (size_t i = 0; i < sizeof(small_cin_weights_at_gap_cases) / sizeof(small_cin_weights_at_gap_cases[0]); i++)
+    {
+        low_depth_check_at(
+            &small_cin_weights_at_gap_cases[i], 61u + 97u * (uint32_t)i, LOW_DEPTH_SMALL_CIN, LOW_DEPTH_AT_GAP);
+    }
 #endif
 }
 
@@ -2860,5 +2948,27 @@ void low_depth_arg_errors_arm_convolve_s8(void)
         low_depth_expect_status(entry, &outside, 4, 0, 0, 1, null_sums_status);
         low_depth_expect_status(entry, &bad_in_groups, 2, 0, 0, 0, ARM_CMSIS_NN_ARG_ERROR);
         low_depth_expect_status(entry, &bad_out_groups, 2, 0, 0, 0, ARM_CMSIS_NN_ARG_ERROR);
+    }
+}
+
+void wrapper_route_arm_convolve_s8(void)
+{
+    /* Layers on the arm_convolve_s8() branch of arm_convolve_wrapper_s8() whose entry leaves the scratch unlike
+       arm_convolve_s8() does, so the scratch shows which one the wrapper ran: 27, 40 and 9 filter values (the column
+       tails the small input-depth path zeroes lie past the general path's columns), and a 16-channel 3x3 layer with
+       every patch inside the input (the path reads them in place and writes no scratch). */
+    const struct
+    {
+        low_depth_case_t tc;
+        low_depth_entry_t entry;
+    } routed[] = {
+        {{1, 8, 7, 3, 3, 3, 8, 1, 1, 1, 1, 1, 1, 8, 7, 128, -128, 127}, LOW_DEPTH_SMALL_CIN},
+        {{1, 20, 10, 1, 10, 4, 8, 2, 2, 4, 1, 1, 1, 10, 5, -83, -128, 127}, LOW_DEPTH_SMALL_CIN},
+        {{1, 1, 40, 1, 1, 9, 16, 1, 2, 0, 3, 1, 1, 1, 20, -24, -128, 127}, LOW_DEPTH_SMALL_CIN},
+        {{1, 9, 11, 16, 3, 3, 12, 1, 1, 0, 0, 1, 1, 7, 9, -3, -128, 127}, LOW_DEPTH_3X3_C16_S1},
+    };
+    for (size_t i = 0; i < sizeof(routed) / sizeof(routed[0]); i++)
+    {
+        low_depth_check_at(&routed[i].tc, 83u + 97u * (uint32_t)i, routed[i].entry, LOW_DEPTH_DISTINCT_SCRATCH);
     }
 }

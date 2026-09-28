@@ -216,6 +216,11 @@ int32_t arm_convolve_wrapper_s4_get_buffer_size_dsp(const cmsis_nn_conv_params *
  *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
  *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
  *
+ * @details
+ *    - On builds with ARM_MATH_MVEI (without ARM_MATH_AUTOVECTORIZE), a layer that would run arm_convolve_s8() and
+ *      is in the gate of arm_convolve_s8_small_cin() or arm_convolve_s8_3x3_c16_s1() runs that entry instead, with
+ *      the same result, scratch and weight sums. The input depth is checked first, so other layers skip both gates.
+ *
  */
 arm_cmsis_nn_status arm_convolve_wrapper_s8(const cmsis_nn_context *ctx,
                                             const cmsis_nn_context *weight_sum_ctx,
@@ -606,7 +611,8 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
  *      of 4. Stride, padding and batch count are as for arm_convolve_s8().
  *    - Scratch: ctx->buf holds arm_convolve_s8_get_buffer_size() bytes (4 x 16 x ceil(HK x WK x C_IN / 16) on
  *      ARM_MATH_MVEI builds), the same as arm_convolve_s8(), and needs no alignment.
- *    - It is a direct entry: arm_convolve_s8() does not call it. A caller that selects the kernel per layer ahead of
+ *    - It is a direct entry: arm_convolve_s8() does not call it, and arm_convolve_wrapper_s8() calls it for layers in
+ *      the gate that it would otherwise pass to arm_convolve_s8(). A caller that selects the kernel per layer ahead of
  *      time calls it for layers in the gate and arm_convolve_s8() for every other layer, or on
  *      <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>. Both take the same arguments, scratch and weight sums.
  *
@@ -657,7 +663,8 @@ arm_cmsis_nn_status arm_convolve_s8_small_cin(const cmsis_nn_context *ctx,
  *      bias_data are unused.
  *    - Gate: upscale_dims NULL, C_IN and CK both 16 (one group), HK and WK both 3, and stride and dilation 1 in both
  *      dimensions. Padding, batch count and C_OUT are as for arm_convolve_s8().
- *    - It is a direct entry: arm_convolve_s8() does not call it. A caller that selects the kernel per layer ahead of
+ *    - It is a direct entry: arm_convolve_s8() does not call it, and arm_convolve_wrapper_s8() calls it for layers in
+ *      the gate that it would otherwise pass to arm_convolve_s8(). A caller that selects the kernel per layer ahead of
  *      time calls it for layers in the gate and arm_convolve_s8() for every other layer, or on
  *      <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>. The gate does not overlap that of arm_convolve_s8_small_cin().
  *

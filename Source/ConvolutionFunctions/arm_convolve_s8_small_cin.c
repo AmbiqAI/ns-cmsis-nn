@@ -31,8 +31,9 @@
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
 
 /*
- * Input depth 1 to 3 (first layers): one group, unit dilation, no upscale, a kernel row (kernel_x * input_ch) of at
- * most 16 bytes, at most 48 filter values per output channel and a multiple of 4 output channels.
+ * Input depth 1 to 3 (first layers), in the gate of arm_nn_is_convolve_s8_small_cin(): one group, unit dilation, no
+ * upscale, a kernel row (kernel_x * input_ch) of at most 16 bytes, at most 48 filter values per output channel and a
+ * multiple of 4 output channels.
  *
  * im2col writes each kernel row with one predicated vector store, taking padding lanes from a splat of -input_offset,
  * into columns of col_len = 16 * nk bytes, so four columns fill the arm_convolve_s8_get_buffer_size() buffer exactly.
@@ -40,20 +41,6 @@
  * shifts applied as vectors and the four results stored contiguously. The integer sums and the requantization are
  * those of arm_nn_mat_mult_nt_t_s8(), so the output is the same bit for bit.
  */
-__STATIC_FORCEINLINE int arm_convolve_s8_is_small_cin(const cmsis_nn_conv_params *conv_params,
-                                                      const cmsis_nn_dims *input_dims,
-                                                      const cmsis_nn_dims *filter_dims,
-                                                      const cmsis_nn_dims *output_dims,
-                                                      const cmsis_nn_dims *upscale_dims)
-{
-    const int32_t kernel_x = filter_dims->w;
-    const int32_t kernel_y = filter_dims->h;
-    const int32_t input_ch = input_dims->c;
-    return (upscale_dims == NULL) && (filter_dims->c == input_ch) && (input_ch >= 1) && (input_ch <= 3) &&
-        (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1) && (kernel_x >= 1) && (kernel_y >= 1) &&
-        (kernel_x * input_ch <= 16) && (kernel_x * kernel_y * input_ch <= 48) && (output_dims->c > 0) &&
-        ((output_dims->c & 3) == 0);
-}
 
 /* lhs_rows im2col columns of col_len = 16 * nk bytes against output_ch filters, four output channels per step. With
    whole_head, the first three filters' last chunks are loaded whole: past rhs_cols they read the following filters,
@@ -407,7 +394,7 @@ arm_cmsis_nn_status arm_convolve_s8_small_cin(const cmsis_nn_context *ctx,
 #endif
 
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
-    if (!arm_convolve_s8_is_small_cin(conv_params, input_dims, filter_dims, output_dims, upscale_dims))
+    if (!arm_nn_is_convolve_s8_small_cin(conv_params, input_dims, filter_dims, output_dims, upscale_dims))
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
