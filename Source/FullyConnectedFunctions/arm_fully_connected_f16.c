@@ -51,7 +51,8 @@ static arm_cmsis_nn_status arm_fully_connected_core_f16(const cmsis_nn_context *
                                                         const cmsis_nn_dims *bias_dims,
                                                         const float16_t *bias,
                                                         const cmsis_nn_dims *output_dims,
-                                                        float16_t *output)
+                                                        float16_t *output,
+                                                        const bool acc16)
 {
     (void)ctx;
     (void)bias_dims;
@@ -62,28 +63,51 @@ static arm_cmsis_nn_status arm_fully_connected_core_f16(const cmsis_nn_context *
 
     if (fc_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
     {
-        return arm_nn_mat_mult_nt_n_packed_f16(input,
-                                               kernel,
-                                               bias,
-                                               output,
-                                               batch_cnt,
-                                               output_len,
-                                               input_len,
-                                               output_len,
-                                               fc_params->activation.min,
-                                               fc_params->activation.max);
+        return (acc16 ? arm_nn_mat_mult_nt_n_packed_f16_acc16
+                      : arm_nn_mat_mult_nt_n_packed_f16)(input,
+                                                         kernel,
+                                                         bias,
+                                                         output,
+                                                         batch_cnt,
+                                                         output_len,
+                                                         input_len,
+                                                         output_len,
+                                                         fc_params->activation.min,
+                                                         fc_params->activation.max);
     }
 
-    return arm_nn_mat_mult_nt_t_f16(input,
-                                    kernel,
-                                    bias,
-                                    output,
-                                    batch_cnt,
-                                    output_len,
-                                    input_len,
-                                    output_len,
-                                    fc_params->activation.min,
-                                    fc_params->activation.max);
+    return (acc16 ? arm_nn_mat_mult_nt_t_f16_acc16 : arm_nn_mat_mult_nt_t_f16)(input,
+                                                                               kernel,
+                                                                               bias,
+                                                                               output,
+                                                                               batch_cnt,
+                                                                               output_len,
+                                                                               input_len,
+                                                                               output_len,
+                                                                               fc_params->activation.min,
+                                                                               fc_params->activation.max);
+}
+
+__STATIC_INLINE arm_cmsis_nn_status arm_fully_connected_nhwc_f16_body(const cmsis_nn_context *ctx,
+                                                                      const cmsis_nn_fc_params_f16 *fc_params,
+                                                                      const cmsis_nn_dims *input_dims,
+                                                                      const float16_t *input,
+                                                                      const cmsis_nn_dims *filter_dims,
+                                                                      const float16_t *kernel,
+                                                                      const cmsis_nn_dims *bias_dims,
+                                                                      const float16_t *bias,
+                                                                      const cmsis_nn_dims *output_dims,
+                                                                      float16_t *output,
+                                                                      const bool acc16)
+{
+    const int32_t input_len = input_dims->h * input_dims->w * input_dims->c;
+    if (filter_dims->n != input_len)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    return arm_fully_connected_core_f16(
+        ctx, fc_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output, acc16);
 }
 
 /* Refer header file for details. */
@@ -98,14 +122,24 @@ arm_cmsis_nn_status arm_fully_connected_nhwc_f16(const cmsis_nn_context *ctx,
                                                  const cmsis_nn_dims *output_dims,
                                                  float16_t *output)
 {
-    const int32_t input_len = input_dims->h * input_dims->w * input_dims->c;
-    if (filter_dims->n != input_len)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
+    return arm_fully_connected_nhwc_f16_body(
+        ctx, fc_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output, false);
+}
 
-    return arm_fully_connected_core_f16(
-        ctx, fc_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output);
+/* Refer header file for details. */
+arm_cmsis_nn_status arm_fully_connected_nhwc_f16_acc16(const cmsis_nn_context *ctx,
+                                                       const cmsis_nn_fc_params_f16 *fc_params,
+                                                       const cmsis_nn_dims *input_dims,
+                                                       const float16_t *input,
+                                                       const cmsis_nn_dims *filter_dims,
+                                                       const float16_t *kernel,
+                                                       const cmsis_nn_dims *bias_dims,
+                                                       const float16_t *bias,
+                                                       const cmsis_nn_dims *output_dims,
+                                                       float16_t *output)
+{
+    return arm_fully_connected_nhwc_f16_body(
+        ctx, fc_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output, true);
 }
 
 /* Refer header file for details. */
@@ -127,6 +161,28 @@ arm_cmsis_nn_status arm_fully_connected_f16(const cmsis_nn_context *ctx,
     }
 
     return arm_fully_connected_nhwc_f16(
+        ctx, fc_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output);
+}
+
+/* Refer header file for details. */
+arm_cmsis_nn_status arm_fully_connected_f16_acc16(const cmsis_nn_context *ctx,
+                                                  const cmsis_nn_fc_params_f16 *fc_params,
+                                                  const cmsis_nn_dims *input_dims,
+                                                  const float16_t *input,
+                                                  const cmsis_nn_dims *filter_dims,
+                                                  const float16_t *kernel,
+                                                  const cmsis_nn_dims *bias_dims,
+                                                  const float16_t *bias,
+                                                  const cmsis_nn_dims *output_dims,
+                                                  float16_t *output,
+                                                  arm_nn_tensor_layout layout)
+{
+    if (layout != ARM_NN_LAYOUT_NHWC)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    return arm_fully_connected_nhwc_f16_acc16(
         ctx, fc_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output);
 }
 

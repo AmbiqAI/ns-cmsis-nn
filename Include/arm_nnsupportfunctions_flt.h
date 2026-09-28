@@ -616,6 +616,16 @@ void arm_nn_softmax_1x2_f32(const float32_t *in, float32_t *out);
 
 #if ARM_NN_ENABLE_F16
 
+    /**
+     * @brief Blockwise float16 accumulation on the MVE legs (AmbiqAI/ns-cmsis-nn#586).
+     *
+     * A float16 accumulator lane sums at most ARM_NN_F16_ACC_BLOCK taps, in the kernel's tap order, before its partial
+     * is widened exactly and added into a float32 accumulator; the float32 sum rounds to float16 once. The `_acc16`
+     * entries instantiate the same kernel bodies with ARM_NN_F16_ACC_BLOCK_NONE, which never folds.
+     */
+    #define ARM_NN_F16_ACC_BLOCK (32)
+    #define ARM_NN_F16_ACC_BLOCK_NONE (INT32_MAX)
+
 /**
  * @brief Polynomial coefficients used by the float16 MVE exp approximation.
  *
@@ -800,6 +810,63 @@ __STATIC_INLINE float16_t arm_nn_vec_reduce_add_f16(float16x8_t in)
 }
 
 /**
+ * @brief Sum the eight lanes of a float16 partial in float32.
+ *
+ * Every lane widens exactly; the lanes pair as in arm_nn_vec_reduce_add_f16 ((0+1) + (2+3)) + ((4+5) + (6+7)),
+ * with each addition rounded to float32 (AmbiqAI/ns-cmsis-nn#586).
+ *
+ * @param[in] in Float16 partial sums.
+ * @return Float32 sum of the eight lanes of @p in.
+ */
+__STATIC_FORCEINLINE float32_t arm_nn_vec_reduce_add_f16_to_f32(float16x8_t in)
+{
+    float32x4_t sum = vaddq(arm_nn_vcvtbq_f32_f16(in), arm_nn_vcvttq_f32_f16(in));
+    sum = vaddq(sum, vrev64q(sum));
+    float32_t total = vgetq_lane_f32(sum, 0) + vgetq_lane_f32(sum, 2);
+    /* Opaque to the optimizer: under -ffast-math the caller's `acc + total` must not be reassociated into the
+     * lane sum, or the float32 rounding order would depend on the compiler. */
+    __asm__("" : "+t"(total));
+    return total;
+}
+
+/**
+ * @brief Fold a float16 lane partial into per-lane float32 accumulators.
+ *
+ * @param[in,out] acc_even Float32 accumulators of lanes 0, 2, 4, 6.
+ * @param[in,out] acc_odd  Float32 accumulators of lanes 1, 3, 5, 7.
+ * @param[in]     in       Float16 partial sums; widened exactly.
+ * @param[in]     first    True for the first partial: the accumulators are set rather than added to.
+ */
+__STATIC_FORCEINLINE void
+arm_nn_f16_fold_lanes_f32(float32x4_t *acc_even, float32x4_t *acc_odd, float16x8_t in, const bool first)
+{
+    if (first)
+    {
+        *acc_even = arm_nn_vcvtbq_f32_f16(in);
+        *acc_odd = arm_nn_vcvttq_f32_f16(in);
+    }
+    else
+    {
+        *acc_even = vaddq(*acc_even, arm_nn_vcvtbq_f32_f16(in));
+        *acc_odd = vaddq(*acc_odd, arm_nn_vcvttq_f32_f16(in));
+    }
+}
+
+/**
+ * @brief Round per-lane float32 accumulators to float16 once.
+ *
+ * @param[in] acc_even Float32 accumulators of lanes 0, 2, 4, 6.
+ * @param[in] acc_odd  Float32 accumulators of lanes 1, 3, 5, 7.
+ * @return The eight lanes rounded to float16.
+ */
+__STATIC_FORCEINLINE float16x8_t arm_nn_f16_narrow_lanes_f32(float32x4_t acc_even, float32x4_t acc_odd)
+{
+    /* Both half-lanes are written by the two narrowing converts, so any seed will do. */
+    const float16x8_t lo = arm_nn_vcvtbq_f16_f32(vreinterpretq_f16_f32(acc_even), acc_even);
+    return arm_nn_vcvttq_f16_f32(lo, acc_odd);
+}
+
+/**
  * @brief MVE float16 exp approximation used by float softmax paths.
  *
  * @param[in] x Vector of exponent arguments.
@@ -933,6 +1000,12 @@ void arm_nn_depthwise_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
 
 /**
  * @copydoc arm_nn_conv1d_k5_nhwc_f32
+ *
+ * @note MVE leg: blockwise float16 accumulation (AmbiqAI/ns-cmsis-nn#586). Input channel c feeds lane c % 8 with
+ *       5 taps per channel step; above 32 taps per output, a lane's float16 partial covers at most 6 channel
+ *       steps, each block's lanes are summed in float32 onto a float32 accumulator that starts at the bias, and
+ *       the total rounds to float16 once. Up to 32 taps: float16 lanes, a float16 reduction and the bias added
+ *       in float16, as before. The scalar leg accumulates in float32 (#449, #465).
  */
 void arm_nn_conv1d_k5_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                int32_t in_c,
@@ -942,6 +1015,21 @@ void arm_nn_conv1d_k5_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                float16_t *__RESTRICT out,
                                int32_t out_c,
                                int32_t out_w);
+
+/**
+ * @copydoc arm_nn_conv1d_k5_nhwc_f16
+ *
+ * @note Every MVE accumulator lane stays in float16 (no blockwise fold, AmbiqAI/ns-cmsis-nn#586); the scalar leg is
+ *       the same as arm_nn_conv1d_k5_nhwc_f16.
+ */
+void arm_nn_conv1d_k5_nhwc_f16_acc16(const float16_t *__RESTRICT x_nhwc,
+                                     int32_t in_c,
+                                     int32_t in_w,
+                                     const float16_t *__RESTRICT kernel,
+                                     const float16_t *__RESTRICT b,
+                                     float16_t *__RESTRICT out,
+                                     int32_t out_c,
+                                     int32_t out_w);
 
 /**
  * @brief Specialized NHWC 1D convolution kernel for `k=5` (float16, packed weights).
@@ -960,7 +1048,9 @@ void arm_nn_conv1d_k5_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
  *
  * @note Accumulation width per leg. Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): bias and products
  *       accumulate in float32 and round to float16 once at the store (AmbiqAI/ns-cmsis-nn#449, #465). MVE leg:
- *       float16 lanes.
+ *       blockwise (#586): a lane's float16 partial covers at most 6 input channels (30 taps, bias first)
+ *       before it is widened into a float32 accumulator; one rounding at the store. Up to 32 taps
+ *       (in_c <= 6) this is the float16-lane result.
  */
 void arm_nn_conv1d_k5_packed_f16(const float16_t *__RESTRICT x_nhwc,
                                  int32_t in_c,
@@ -972,7 +1062,28 @@ void arm_nn_conv1d_k5_packed_f16(const float16_t *__RESTRICT x_nhwc,
                                  int32_t out_w);
 
 /**
+ * @copydoc arm_nn_conv1d_k5_packed_f16
+ *
+ * @note Every MVE accumulator lane stays in float16 (no blockwise fold, AmbiqAI/ns-cmsis-nn#586); the scalar leg is
+ *       the same as arm_nn_conv1d_k5_packed_f16.
+ */
+void arm_nn_conv1d_k5_packed_f16_acc16(const float16_t *__RESTRICT x_nhwc,
+                                       int32_t in_c,
+                                       int32_t in_w,
+                                       const float16_t *__RESTRICT kernel_packed,
+                                       const float16_t *__RESTRICT b,
+                                       float16_t *__RESTRICT out,
+                                       int32_t out_c,
+                                       int32_t out_w);
+
+/**
  * @copydoc arm_nn_conv1d_k3_nhwc_f32
+ *
+ * @note MVE leg: blockwise float16 accumulation (AmbiqAI/ns-cmsis-nn#586). Input channel c feeds lane c % 8 with
+ *       3 taps per channel step; above 32 taps per output, a lane's float16 partial covers at most 10 channel
+ *       steps, each block's lanes are summed in float32 onto a float32 accumulator that starts at the bias, and
+ *       the total rounds to float16 once. Up to 32 taps: float16 lanes, a float16 reduction and the bias added
+ *       in float16, as before. The scalar leg accumulates in float32 (#449, #465).
  */
 void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                int32_t in_c,
@@ -982,6 +1093,21 @@ void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                float16_t *__RESTRICT out,
                                int32_t out_c,
                                int32_t out_w);
+
+/**
+ * @copydoc arm_nn_conv1d_k3_nhwc_f16
+ *
+ * @note Every MVE accumulator lane stays in float16 (no blockwise fold, AmbiqAI/ns-cmsis-nn#586); the scalar leg is
+ *       the same as arm_nn_conv1d_k3_nhwc_f16.
+ */
+void arm_nn_conv1d_k3_nhwc_f16_acc16(const float16_t *__RESTRICT x_nhwc,
+                                     int32_t in_c,
+                                     int32_t in_w,
+                                     const float16_t *__RESTRICT kernel,
+                                     const float16_t *__RESTRICT b,
+                                     float16_t *__RESTRICT out,
+                                     int32_t out_c,
+                                     int32_t out_w);
 
 /**
  * @brief Specialized NHWC 1D convolution kernel for `k=3` (float16, packed weights).
@@ -1000,7 +1126,9 @@ void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
  *
  * @note Accumulation width per leg. Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): bias and products
  *       accumulate in float32 and round to float16 once at the store (AmbiqAI/ns-cmsis-nn#449, #465). MVE leg:
- *       float16 lanes.
+ *       blockwise (#586): a lane's float16 partial covers at most 10 input channels (30 taps, bias first)
+ *       before it is widened into a float32 accumulator; one rounding at the store. Up to 32 taps
+ *       (in_c <= 10) this is the float16-lane result.
  */
 void arm_nn_conv1d_k3_packed_f16(const float16_t *__RESTRICT x_nhwc,
                                  int32_t in_c,
@@ -1010,6 +1138,21 @@ void arm_nn_conv1d_k3_packed_f16(const float16_t *__RESTRICT x_nhwc,
                                  float16_t *__RESTRICT out,
                                  int32_t out_c,
                                  int32_t out_w);
+
+/**
+ * @copydoc arm_nn_conv1d_k3_packed_f16
+ *
+ * @note Every MVE accumulator lane stays in float16 (no blockwise fold, AmbiqAI/ns-cmsis-nn#586); the scalar leg is
+ *       the same as arm_nn_conv1d_k3_packed_f16.
+ */
+void arm_nn_conv1d_k3_packed_f16_acc16(const float16_t *__RESTRICT x_nhwc,
+                                       int32_t in_c,
+                                       int32_t in_w,
+                                       const float16_t *__RESTRICT kernel_packed,
+                                       const float16_t *__RESTRICT b,
+                                       float16_t *__RESTRICT out,
+                                       int32_t out_c,
+                                       int32_t out_w);
 
 /**
  * @brief Specialized NHWC max-pool 1D kernel for `k=3`, `s=3` (float16).
@@ -1049,12 +1192,16 @@ void arm_nn_maxpool1d_k2s2_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
 /**
  * @copydoc arm_nn_mat_mult_nt_t_f32
  *
- * @note Accumulation width per leg. MVE legs accumulate in float16: per-k on the gather path
- *       (rhs_cols below the contiguous-K threshold), lane-partial sums then one reduction on the
- *       contiguous-K path, and float16 lanes then one reduction on the remainder rows. Error grows
- *       with rhs_cols there; the K=1024 tester cases carry measured tolerance overrides for this
- *       reason. Float16 accumulation is the chosen MVE trade-off (throughput over the last ulps);
- *       see AmbiqAI/ns-cmsis-nn#417. The scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE)
+ * @note Accumulation width per leg. MVE legs accumulate blockwise (AmbiqAI/ns-cmsis-nn#586, Adam's
+ *       decision of 2026-09-28, superseding the float16-lane choice of #417 / #446 for the MVE legs).
+ *       Up to rhs_cols 32 nothing changes: per-k float16 lanes on the gather path (rhs_cols below
+ *       the contiguous-K threshold), lane-partial sums then one float16 reduction plus the bias in
+ *       float16 at rhs_cols 32. Above 32, on the contiguous-K path and the remainder rows, each lane
+ *       (element k goes to lane k % 8) sums at most 32 of its own taps (256 elements) in float16;
+ *       each block's lanes are then summed in float32 ((0+1) + (2+3)) + ((4+5) + (6+7)) onto a
+ *       float32 accumulator that starts at the bias, and the total rounds to float16 once before the
+ *       clamp. arm_nn_mat_mult_nt_t_f16_acc16 keeps the float16 lanes and float16 reduction
+ *       throughout. The scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE)
  *       accumulates bias and every product in float32 and rounds to float16 once before the clamp
  *       (AmbiqAI/ns-cmsis-nn#449, #457).
  */
@@ -1068,6 +1215,34 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
                                              int32_t row_address_offset,
                                              float16_t activation_min,
                                              float16_t activation_max);
+
+/**
+ * @brief arm_nn_mat_mult_nt_t_f16 with every MVE accumulator lane in float16 (no blockwise fold).
+ *
+ * Same arguments, return codes and scalar leg as arm_nn_mat_mult_nt_t_f16; see its accumulation note.
+ *
+ * @param[in]  lhs                Left-hand matrix, row-major `[lhs_rows, rhs_cols]`.
+ * @param[in]  rhs                Right-hand matrix, row-major `[rhs_rows, rhs_cols]` (transposed operand).
+ * @param[in]  bias               Optional bias vector of `rhs_rows` elements.
+ * @param[out] dst                Output matrix.
+ * @param[in]  lhs_rows           Number of rows in @p lhs.
+ * @param[in]  rhs_rows           Number of rows in @p rhs.
+ * @param[in]  rhs_cols           Shared reduction dimension `K`.
+ * @param[in]  row_address_offset Output row stride, expressed in elements.
+ * @param[in]  activation_min     Lower clamp bound.
+ * @param[in]  activation_max     Upper clamp bound.
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_acc16(const float16_t *__RESTRICT lhs,
+                                                   const float16_t *__RESTRICT rhs,
+                                                   const float16_t *__RESTRICT bias,
+                                                   float16_t *__RESTRICT dst,
+                                                   int32_t lhs_rows,
+                                                   int32_t rhs_rows,
+                                                   int32_t rhs_cols,
+                                                   int32_t row_address_offset,
+                                                   float16_t activation_min,
+                                                   float16_t activation_max);
 
 /**
  * @brief Matrix multiply with non-transposed lhs and packed non-transposed rhs (float16).
@@ -1091,9 +1266,12 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
  *       including the shipped -Ofast. On MVE builds the clamp is vmaxnmq/vminnmq with no NaN restore, so a
  *       NaN resolves to a clamp bound there instead.
  *
- * @note Accumulation width per leg: the MVE leg accumulates in float16 lanes (one lane per output
- *       column, per-k); the scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE) accumulates bias
- *       and every product in float32 and rounds to float16 once before the clamp
+ * @note Accumulation width per leg: the MVE leg accumulates blockwise (AmbiqAI/ns-cmsis-nn#586): one
+ *       lane per output column, per-k, the bias opening the first block; every 32 k the float16
+ *       partial is widened exactly into per-lane float32 accumulators, which round to float16 once
+ *       before the clamp (rhs_cols up to 32: exactly the float16-lane result;
+ *       arm_nn_mat_mult_nt_n_packed_f16_acc16 keeps float16 lanes throughout). The scalar leg (non-MVE builds and
+ * ARM_MATH_AUTOVECTORIZE) accumulates bias and every product in float32 and rounds to float16 once before the clamp
  *       (AmbiqAI/ns-cmsis-nn#449, #457).
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT lhs,
@@ -1106,6 +1284,34 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT 
                                                     int32_t row_address_offset,
                                                     float16_t activation_min,
                                                     float16_t activation_max);
+
+/**
+ * @brief arm_nn_mat_mult_nt_n_packed_f16 with every MVE accumulator lane in float16 (no blockwise fold).
+ *
+ * Same arguments, return codes and scalar leg as arm_nn_mat_mult_nt_n_packed_f16; see its accumulation note.
+ *
+ * @param[in]  lhs                Left-hand matrix stored row-major with logical shape `[lhs_rows, rhs_cols]`.
+ * @param[in]  rhs_packed         Right-hand matrix packed in column blocks of 8.
+ * @param[in]  bias               Optional bias vector.
+ * @param[out] dst                Output matrix.
+ * @param[in]  lhs_rows           Number of rows in @p lhs.
+ * @param[in]  rhs_rows           Number of logical output columns in the unpacked rhs matrix.
+ * @param[in]  rhs_cols           Shared reduction dimension `K`.
+ * @param[in]  row_address_offset Output row stride, expressed in elements.
+ * @param[in]  activation_min     Lower clamp bound.
+ * @param[in]  activation_max     Upper clamp bound.
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16_acc16(const float16_t *__RESTRICT lhs,
+                                                          const float16_t *__RESTRICT rhs_packed,
+                                                          const float16_t *__RESTRICT bias,
+                                                          float16_t *__RESTRICT dst,
+                                                          int32_t lhs_rows,
+                                                          int32_t rhs_rows,
+                                                          int32_t rhs_cols,
+                                                          int32_t row_address_offset,
+                                                          float16_t activation_min,
+                                                          float16_t activation_max);
 
 /**
  * @brief Update LSTM function for an iteration step using float16 input, output and state.

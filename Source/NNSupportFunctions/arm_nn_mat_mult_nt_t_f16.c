@@ -70,24 +70,56 @@ __STATIC_INLINE float32_t dot_nt_t_f16_scalar(const float16_t *__RESTRICT lhs_ro
     #endif
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-__STATIC_INLINE
-float16_t dot_nt_t_f16_mve(const float16_t *__RESTRICT lhs_row, const float16_t *__RESTRICT rhs_row, int32_t len)
+/* Bias plus one row dot product. Up to `block` taps per lane: float16 lanes, one float16 reduction, the bias added
+ * in float16. Longer rows: each lane sums at most `block` taps (8 * block elements of the row) in float16, the
+ * block's lanes are summed in float32 (arm_nn_vec_reduce_add_f16_to_f32) onto a float32 accumulator that starts at
+ * the bias, and the total rounds to float16 once (#586). */
+__STATIC_FORCEINLINE _Float16 dot_nt_t_f16_mve(const float16_t *__RESTRICT lhs_row,
+                                               const float16_t *__RESTRICT rhs_row,
+                                               const float16_t *bias,
+                                               int32_t len,
+                                               const int32_t block)
 {
-    /* Full blocks unpredicated, one predicated tail: no vctp inside a loop. */
+    const int32_t span = (block > INT32_MAX / ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS)
+        ? INT32_MAX
+        : block * ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS;
+    float32_t acc32 = bias ? (float32_t)*bias : 0.0f;
     float16x8_t vacc = vdupq_n_f16((float16_t)0.0f);
     int32_t i = 0;
 
-    for (; i + ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS <= len; i += ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS)
+    for (;;)
     {
-        vacc = vfmaq(vacc, vld1q(lhs_row + i), vld1q(rhs_row + i));
-    }
-    if (i < len)
-    {
-        const mve_pred16_t p = vctp16q((uint32_t)(len - i));
-        vacc = vfmaq_m(vacc, vld1q_z(lhs_row + i, p), vld1q_z(rhs_row + i, p), p);
+        const int32_t end = (len - i > span) ? i + span : len;
+        /* Full blocks unpredicated, one predicated tail: no vctp inside a loop. */
+        for (; i + ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS <= end; i += ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS)
+        {
+            vacc = vfmaq(vacc, vld1q(lhs_row + i), vld1q(rhs_row + i));
+        }
+        if (i < end)
+        {
+            const mve_pred16_t p = vctp16q((uint32_t)(end - i));
+            vacc = vfmaq_m(vacc, vld1q_z(lhs_row + i, p), vld1q_z(rhs_row + i, p), p);
+            i = end;
+        }
+        if (len <= block)
+        {
+            break;
+        }
+        acc32 += arm_nn_vec_reduce_add_f16_to_f32(vacc);
+        if (i == len)
+        {
+            break;
+        }
+        vacc = vdupq_n_f16((float16_t)0.0f);
     }
 
-    return arm_nn_vec_reduce_add_f16(vacc);
+    if (len <= block)
+    {
+        _Float16 acc = bias ? (_Float16)*bias : (_Float16)0.0f;
+        acc += (_Float16)arm_nn_vec_reduce_add_f16(vacc);
+        return acc;
+    }
+    return (_Float16)acc32;
 }
 
 /* CONTIG_ROWS rhs rows against one lhs row: one contiguous lhs load feeds four accumulators, each reduced once.
@@ -144,20 +176,84 @@ __attribute__((noinline)) static void mat_mult_nt_t_f16_contig_rows(const float1
     dst[2] = (float16_t)arm_nn_clamp_f16h(acc2, (_Float16)activation_max, (_Float16)activation_min);
     dst[3] = (float16_t)arm_nn_clamp_f16h(acc3, (_Float16)activation_max, (_Float16)activation_min);
 }
+
+/* mat_mult_nt_t_f16_contig_rows for rows longer than ARM_NN_F16_ACC_BLOCK taps per lane (#586): each lane sums at
+ * most ARM_NN_F16_ACC_BLOCK taps in float16, then each accumulator's lanes are summed in float32 onto a float32
+ * accumulator that starts at the bias; one rounding to float16 before the clamp. */
+__attribute__((noinline)) static void mat_mult_nt_t_f16_contig_rows_fold(const float16_t *__RESTRICT lhs_row,
+                                                                         const float16_t *__RESTRICT rhs_block,
+                                                                         const float16_t *__RESTRICT bias,
+                                                                         float16_t *__RESTRICT dst,
+                                                                         int32_t len,
+                                                                         float16_t activation_min,
+                                                                         float16_t activation_max)
+{
+    const int32_t span = ARM_NN_F16_ACC_BLOCK * ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS;
+    const float16_t *rhs0 = rhs_block;
+    const float16_t *rhs1 = rhs0 + len;
+    const float16_t *rhs2 = rhs1 + len;
+    const float16_t *rhs3 = rhs2 + len;
+    float32_t acc0 = bias ? (float32_t)bias[0] : 0.0f;
+    float32_t acc1 = bias ? (float32_t)bias[1] : 0.0f;
+    float32_t acc2 = bias ? (float32_t)bias[2] : 0.0f;
+    float32_t acc3 = bias ? (float32_t)bias[3] : 0.0f;
+    int32_t k = 0;
+
+    while (k < len)
+    {
+        const int32_t end = (len - k > span) ? k + span : len;
+        float16x8_t vacc0 = vdupq_n_f16((float16_t)0.0f);
+        float16x8_t vacc1 = vdupq_n_f16((float16_t)0.0f);
+        float16x8_t vacc2 = vdupq_n_f16((float16_t)0.0f);
+        float16x8_t vacc3 = vdupq_n_f16((float16_t)0.0f);
+
+        for (; k + ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS <= end; k += ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS)
+        {
+            const float16x8_t vlhs = vld1q(lhs_row + k);
+            vacc0 = vfmaq(vacc0, vlhs, vld1q(rhs0 + k));
+            vacc1 = vfmaq(vacc1, vlhs, vld1q(rhs1 + k));
+            vacc2 = vfmaq(vacc2, vlhs, vld1q(rhs2 + k));
+            vacc3 = vfmaq(vacc3, vlhs, vld1q(rhs3 + k));
+        }
+        if (k < end)
+        {
+            const mve_pred16_t p = vctp16q((uint32_t)(end - k));
+            const float16x8_t vlhs = vld1q_z(lhs_row + k, p);
+            vacc0 = vfmaq_m(vacc0, vlhs, vld1q_z(rhs0 + k, p), p);
+            vacc1 = vfmaq_m(vacc1, vlhs, vld1q_z(rhs1 + k, p), p);
+            vacc2 = vfmaq_m(vacc2, vlhs, vld1q_z(rhs2 + k, p), p);
+            vacc3 = vfmaq_m(vacc3, vlhs, vld1q_z(rhs3 + k, p), p);
+            k = end;
+        }
+
+        acc0 += arm_nn_vec_reduce_add_f16_to_f32(vacc0);
+        acc1 += arm_nn_vec_reduce_add_f16_to_f32(vacc1);
+        acc2 += arm_nn_vec_reduce_add_f16_to_f32(vacc2);
+        acc3 += arm_nn_vec_reduce_add_f16_to_f32(vacc3);
+    }
+
+    dst[0] = (float16_t)arm_nn_clamp_f16h((_Float16)acc0, (_Float16)activation_max, (_Float16)activation_min);
+    dst[1] = (float16_t)arm_nn_clamp_f16h((_Float16)acc1, (_Float16)activation_max, (_Float16)activation_min);
+    dst[2] = (float16_t)arm_nn_clamp_f16h((_Float16)acc2, (_Float16)activation_max, (_Float16)activation_min);
+    dst[3] = (float16_t)arm_nn_clamp_f16h((_Float16)acc3, (_Float16)activation_max, (_Float16)activation_min);
+}
     #endif
 
-/* Refer header file for details. */
-arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
-                                             const float16_t *__RESTRICT rhs,
-                                             const float16_t *__RESTRICT bias,
-                                             float16_t *__RESTRICT dst,
-                                             int32_t lhs_rows,
-                                             int32_t rhs_rows,
-                                             int32_t rhs_cols,
-                                             int32_t row_address_offset,
-                                             float16_t activation_min,
-                                             float16_t activation_max)
+/* Shared body; `block` is ARM_NN_F16_ACC_BLOCK or ARM_NN_F16_ACC_BLOCK_NONE at every call site. */
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_body(const float16_t *__RESTRICT lhs,
+                                                                       const float16_t *__RESTRICT rhs,
+                                                                       const float16_t *__RESTRICT bias,
+                                                                       float16_t *__RESTRICT dst,
+                                                                       int32_t lhs_rows,
+                                                                       int32_t rhs_rows,
+                                                                       int32_t rhs_cols,
+                                                                       int32_t row_address_offset,
+                                                                       float16_t activation_min,
+                                                                       float16_t activation_max,
+                                                                       const int32_t block)
 {
+    (void)block;
+
     if (!lhs || !rhs || !dst || lhs_rows <= 0 || rhs_rows <= 0 || rhs_cols <= 0 || row_address_offset <= 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
@@ -174,13 +270,14 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
         {
             for (; c + ARM_NN_MAT_MULT_NT_T_F16_CONTIG_ROWS <= rhs_rows; c += ARM_NN_MAT_MULT_NT_T_F16_CONTIG_ROWS)
             {
-                mat_mult_nt_t_f16_contig_rows(lhs_row,
-                                              rhs + (size_t)c * rhs_cols,
-                                              bias ? bias + c : NULL,
-                                              dst_row + c,
-                                              rhs_cols,
-                                              activation_min,
-                                              activation_max);
+                (rhs_cols > block ? mat_mult_nt_t_f16_contig_rows_fold
+                                  : mat_mult_nt_t_f16_contig_rows)(lhs_row,
+                                                                   rhs + (size_t)c * rhs_cols,
+                                                                   bias ? bias + c : NULL,
+                                                                   dst_row + c,
+                                                                   rhs_cols,
+                                                                   activation_min,
+                                                                   activation_max);
             }
         }
         else if (rhs_cols <= ARM_NN_MAT_MULT_NT_T_F16_MVE_MAX_RHS_COLS)
@@ -265,8 +362,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
             const float16_t *rhs_row = rhs + (size_t)c * rhs_cols;
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-            _Float16 acc = bias ? (_Float16)bias[c] : (_Float16)0.0f;
-            acc += (_Float16)dot_nt_t_f16_mve(lhs_row, rhs_row, rhs_cols);
+            _Float16 acc = dot_nt_t_f16_mve(lhs_row, rhs_row, bias ? bias + c : NULL, rhs_cols, block);
     #else
             const float32_t acc32 =
                 (bias ? (float32_t)bias[c] : 0.0f) + dot_nt_t_f16_scalar(lhs_row, rhs_row, rhs_cols);
@@ -278,6 +374,64 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
     }
 
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+/* Refer header file for details. */
+arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_acc16(const float16_t *__RESTRICT lhs,
+                                                   const float16_t *__RESTRICT rhs,
+                                                   const float16_t *__RESTRICT bias,
+                                                   float16_t *__RESTRICT dst,
+                                                   int32_t lhs_rows,
+                                                   int32_t rhs_rows,
+                                                   int32_t rhs_cols,
+                                                   int32_t row_address_offset,
+                                                   float16_t activation_min,
+                                                   float16_t activation_max)
+{
+    return arm_nn_mat_mult_nt_t_f16_body(lhs,
+                                         rhs,
+                                         bias,
+                                         dst,
+                                         lhs_rows,
+                                         rhs_rows,
+                                         rhs_cols,
+                                         row_address_offset,
+                                         activation_min,
+                                         activation_max,
+                                         ARM_NN_F16_ACC_BLOCK_NONE);
+}
+
+/* Refer header file for details. */
+arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
+                                             const float16_t *__RESTRICT rhs,
+                                             const float16_t *__RESTRICT bias,
+                                             float16_t *__RESTRICT dst,
+                                             int32_t lhs_rows,
+                                             int32_t rhs_rows,
+                                             int32_t rhs_cols,
+                                             int32_t row_address_offset,
+                                             float16_t activation_min,
+                                             float16_t activation_max)
+{
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    /* Up to ARM_NN_F16_ACC_BLOCK taps nothing folds, so both instantiations agree bit for bit there. */
+    if (rhs_cols > ARM_NN_F16_ACC_BLOCK)
+    {
+        return arm_nn_mat_mult_nt_t_f16_body(lhs,
+                                             rhs,
+                                             bias,
+                                             dst,
+                                             lhs_rows,
+                                             rhs_rows,
+                                             rhs_cols,
+                                             row_address_offset,
+                                             activation_min,
+                                             activation_max,
+                                             ARM_NN_F16_ACC_BLOCK);
+    }
+    #endif
+    return arm_nn_mat_mult_nt_t_f16_acc16(
+        lhs, rhs, bias, dst, lhs_rows, rhs_rows, rhs_cols, row_address_offset, activation_min, activation_max);
 }
 
 /**

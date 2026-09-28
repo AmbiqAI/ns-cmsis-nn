@@ -24,16 +24,25 @@
         #define ARM_NN_CONV1D_K3_NHWC_F16_OC4_BLOCK (4)
     #endif
 
-void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
-                               int32_t in_c,
-                               int32_t in_w,
-                               const float16_t *__RESTRICT kernel,
-                               const float16_t *__RESTRICT b,
-                               float16_t *__RESTRICT out,
-                               int32_t out_c,
-                               int32_t out_w)
+__STATIC_FORCEINLINE void arm_nn_conv1d_k3_nhwc_f16_body(const float16_t *__RESTRICT x_nhwc,
+                                                         int32_t in_c,
+                                                         int32_t in_w,
+                                                         const float16_t *__RESTRICT kernel,
+                                                         const float16_t *__RESTRICT b,
+                                                         float16_t *__RESTRICT out,
+                                                         int32_t out_c,
+                                                         int32_t out_w,
+                                                         const int32_t block)
 {
     (void)in_w;
+    (void)block;
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    /* Each lane takes 3 taps per input-channel vector. With more than `block` taps per output, a lane's float16
+     * partial covers at most block / 3 channel vectors; each block's lanes are summed in float32 onto a float32
+     * accumulator that starts at the bias, and the sum rounds to float16 once (#586). */
+    const bool fold = 3 * in_c > block;
+    const int32_t span = fold ? (block / 3) * 8 : in_c;
+    #endif
 
     for (int32_t ow = 0; ow < out_w; ++ow)
     {
@@ -55,39 +64,64 @@ void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
             float16x8_t vacc1 = vdupq_n_f16((float16_t)0.0f);
             float16x8_t vacc2 = vdupq_n_f16((float16_t)0.0f);
             float16x8_t vacc3 = vdupq_n_f16((float16_t)0.0f);
+            float32_t vacc0_sum = b ? (float32_t)b[oc + 0] : 0.0f;
+            float32_t vacc1_sum = b ? (float32_t)b[oc + 1] : 0.0f;
+            float32_t vacc2_sum = b ? (float32_t)b[oc + 2] : 0.0f;
+            float32_t vacc3_sum = b ? (float32_t)b[oc + 3] : 0.0f;
 
-            for (int32_t ic = 0; ic < in_c; ic += 8)
+            int32_t ic0 = 0;
+            do
             {
-                const mve_pred16_t p = vctp16q((uint32_t)(in_c - ic));
-                const float16x8_t vx0 = vld1q_z(x0 + ic, p);
-                const float16x8_t vx1 = vld1q_z(x1 + ic, p);
-                const float16x8_t vx2 = vld1q_z(x2 + ic, p);
+                const int32_t ic_end = (in_c - ic0 > span) ? ic0 + span : in_c;
+                for (int32_t ic = ic0; ic < ic_end; ic += 8)
+                {
+                    const mve_pred16_t p = vctp16q((uint32_t)(ic_end - ic));
+                    const float16x8_t vx0 = vld1q_z(x0 + ic, p);
+                    const float16x8_t vx1 = vld1q_z(x1 + ic, p);
+                    const float16x8_t vx2 = vld1q_z(x2 + ic, p);
 
-                vacc0 = vfmaq(vacc0, vx0, vld1q_z(w_base0 + 0 * in_c + ic, p));
-                vacc0 = vfmaq(vacc0, vx1, vld1q_z(w_base0 + 1 * in_c + ic, p));
-                vacc0 = vfmaq(vacc0, vx2, vld1q_z(w_base0 + 2 * in_c + ic, p));
+                    vacc0 = vfmaq(vacc0, vx0, vld1q_z(w_base0 + 0 * in_c + ic, p));
+                    vacc0 = vfmaq(vacc0, vx1, vld1q_z(w_base0 + 1 * in_c + ic, p));
+                    vacc0 = vfmaq(vacc0, vx2, vld1q_z(w_base0 + 2 * in_c + ic, p));
 
-                vacc1 = vfmaq(vacc1, vx0, vld1q_z(w_base1 + 0 * in_c + ic, p));
-                vacc1 = vfmaq(vacc1, vx1, vld1q_z(w_base1 + 1 * in_c + ic, p));
-                vacc1 = vfmaq(vacc1, vx2, vld1q_z(w_base1 + 2 * in_c + ic, p));
+                    vacc1 = vfmaq(vacc1, vx0, vld1q_z(w_base1 + 0 * in_c + ic, p));
+                    vacc1 = vfmaq(vacc1, vx1, vld1q_z(w_base1 + 1 * in_c + ic, p));
+                    vacc1 = vfmaq(vacc1, vx2, vld1q_z(w_base1 + 2 * in_c + ic, p));
 
-                vacc2 = vfmaq(vacc2, vx0, vld1q_z(w_base2 + 0 * in_c + ic, p));
-                vacc2 = vfmaq(vacc2, vx1, vld1q_z(w_base2 + 1 * in_c + ic, p));
-                vacc2 = vfmaq(vacc2, vx2, vld1q_z(w_base2 + 2 * in_c + ic, p));
+                    vacc2 = vfmaq(vacc2, vx0, vld1q_z(w_base2 + 0 * in_c + ic, p));
+                    vacc2 = vfmaq(vacc2, vx1, vld1q_z(w_base2 + 1 * in_c + ic, p));
+                    vacc2 = vfmaq(vacc2, vx2, vld1q_z(w_base2 + 2 * in_c + ic, p));
 
-                vacc3 = vfmaq(vacc3, vx0, vld1q_z(w_base3 + 0 * in_c + ic, p));
-                vacc3 = vfmaq(vacc3, vx1, vld1q_z(w_base3 + 1 * in_c + ic, p));
-                vacc3 = vfmaq(vacc3, vx2, vld1q_z(w_base3 + 2 * in_c + ic, p));
-            }
+                    vacc3 = vfmaq(vacc3, vx0, vld1q_z(w_base3 + 0 * in_c + ic, p));
+                    vacc3 = vfmaq(vacc3, vx1, vld1q_z(w_base3 + 1 * in_c + ic, p));
+                    vacc3 = vfmaq(vacc3, vx2, vld1q_z(w_base3 + 2 * in_c + ic, p));
+                }
+                if (fold)
+                {
+                    vacc0_sum += arm_nn_vec_reduce_add_f16_to_f32(vacc0);
+                    vacc0 = vdupq_n_f16((float16_t)0.0f);
+                    vacc1_sum += arm_nn_vec_reduce_add_f16_to_f32(vacc1);
+                    vacc1 = vdupq_n_f16((float16_t)0.0f);
+                    vacc2_sum += arm_nn_vec_reduce_add_f16_to_f32(vacc2);
+                    vacc2 = vdupq_n_f16((float16_t)0.0f);
+                    vacc3_sum += arm_nn_vec_reduce_add_f16_to_f32(vacc3);
+                    vacc3 = vdupq_n_f16((float16_t)0.0f);
+                }
+                ic0 = ic_end;
+            } while (ic0 < in_c);
 
-            const _Float16 acc0 =
-                (b ? (_Float16)b[oc + 0] : (_Float16)0.0f) + (_Float16)arm_nn_vec_reduce_add_f16(vacc0);
-            const _Float16 acc1 =
-                (b ? (_Float16)b[oc + 1] : (_Float16)0.0f) + (_Float16)arm_nn_vec_reduce_add_f16(vacc1);
-            const _Float16 acc2 =
-                (b ? (_Float16)b[oc + 2] : (_Float16)0.0f) + (_Float16)arm_nn_vec_reduce_add_f16(vacc2);
-            const _Float16 acc3 =
-                (b ? (_Float16)b[oc + 3] : (_Float16)0.0f) + (_Float16)arm_nn_vec_reduce_add_f16(vacc3);
+            const _Float16 acc0 = fold
+                ? (_Float16)vacc0_sum
+                : (b ? (_Float16)b[oc + 0] : (_Float16)0.0f) + (_Float16)arm_nn_vec_reduce_add_f16(vacc0);
+            const _Float16 acc1 = fold
+                ? (_Float16)vacc1_sum
+                : (b ? (_Float16)b[oc + 1] : (_Float16)0.0f) + (_Float16)arm_nn_vec_reduce_add_f16(vacc1);
+            const _Float16 acc2 = fold
+                ? (_Float16)vacc2_sum
+                : (b ? (_Float16)b[oc + 2] : (_Float16)0.0f) + (_Float16)arm_nn_vec_reduce_add_f16(vacc2);
+            const _Float16 acc3 = fold
+                ? (_Float16)vacc3_sum
+                : (b ? (_Float16)b[oc + 3] : (_Float16)0.0f) + (_Float16)arm_nn_vec_reduce_add_f16(vacc3);
 
             y[oc + 0] = (float16_t)acc0;
             y[oc + 1] = (float16_t)acc1;
@@ -102,16 +136,35 @@ void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
             const float16_t *w2 = w1 + in_c;
             _Float16 acc = b ? (_Float16)b[oc] : (_Float16)0.0f;
             float16x8_t vacc = vdupq_n_f16((float16_t)0.0f);
+            float32_t vacc_sum = b ? (float32_t)b[oc] : 0.0f;
 
-            for (int32_t ic = 0; ic < in_c; ic += 8)
+            int32_t ic0 = 0;
+            do
             {
-                const mve_pred16_t p = vctp16q((uint32_t)(in_c - ic));
-                vacc = vfmaq(vacc, vld1q_z(x0 + ic, p), vld1q_z(w0 + ic, p));
-                vacc = vfmaq(vacc, vld1q_z(x1 + ic, p), vld1q_z(w1 + ic, p));
-                vacc = vfmaq(vacc, vld1q_z(x2 + ic, p), vld1q_z(w2 + ic, p));
-            }
+                const int32_t ic_end = (in_c - ic0 > span) ? ic0 + span : in_c;
+                for (int32_t ic = ic0; ic < ic_end; ic += 8)
+                {
+                    const mve_pred16_t p = vctp16q((uint32_t)(ic_end - ic));
+                    vacc = vfmaq(vacc, vld1q_z(x0 + ic, p), vld1q_z(w0 + ic, p));
+                    vacc = vfmaq(vacc, vld1q_z(x1 + ic, p), vld1q_z(w1 + ic, p));
+                    vacc = vfmaq(vacc, vld1q_z(x2 + ic, p), vld1q_z(w2 + ic, p));
+                }
+                if (fold)
+                {
+                    vacc_sum += arm_nn_vec_reduce_add_f16_to_f32(vacc);
+                    vacc = vdupq_n_f16((float16_t)0.0f);
+                }
+                ic0 = ic_end;
+            } while (ic0 < in_c);
 
-            acc += (_Float16)arm_nn_vec_reduce_add_f16(vacc);
+            if (fold)
+            {
+                acc = (_Float16)vacc_sum;
+            }
+            else
+            {
+                acc += (_Float16)arm_nn_vec_reduce_add_f16(vacc);
+            }
             y[oc] = (float16_t)acc;
         }
     #else
@@ -129,6 +182,30 @@ void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
         }
     #endif
     }
+}
+
+void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
+                               int32_t in_c,
+                               int32_t in_w,
+                               const float16_t *__RESTRICT kernel,
+                               const float16_t *__RESTRICT b,
+                               float16_t *__RESTRICT out,
+                               int32_t out_c,
+                               int32_t out_w)
+{
+    arm_nn_conv1d_k3_nhwc_f16_body(x_nhwc, in_c, in_w, kernel, b, out, out_c, out_w, ARM_NN_F16_ACC_BLOCK);
+}
+
+void arm_nn_conv1d_k3_nhwc_f16_acc16(const float16_t *__RESTRICT x_nhwc,
+                                     int32_t in_c,
+                                     int32_t in_w,
+                                     const float16_t *__RESTRICT kernel,
+                                     const float16_t *__RESTRICT b,
+                                     float16_t *__RESTRICT out,
+                                     int32_t out_c,
+                                     int32_t out_w)
+{
+    arm_nn_conv1d_k3_nhwc_f16_body(x_nhwc, in_c, in_w, kernel, b, out, out_c, out_w, ARM_NN_F16_ACC_BLOCK_NONE);
 }
 
 #endif /* ARM_NN_ENABLE_F16 */

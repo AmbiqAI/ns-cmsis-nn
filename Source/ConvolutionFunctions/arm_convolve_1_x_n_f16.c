@@ -53,15 +53,45 @@
     #endif
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-__STATIC_INLINE float16_t arm_convolve_1_x_n_dot_f16(const float16_t *lhs, const float16_t *rhs, int32_t len)
+/* Bias plus one dot product. Up to `block` taps: float16 lanes, one float16 reduction, the bias added in float16.
+ * Longer: each lane sums at most `block` taps (8 * block elements) in float16, each block's lanes are summed in
+ * float32 onto a float32 accumulator that starts at the bias, and the total rounds to float16 once (#586). */
+__STATIC_FORCEINLINE _Float16 arm_convolve_1_x_n_dot_f16(const float16_t *lhs,
+                                                         const float16_t *rhs,
+                                                         const float16_t *bias,
+                                                         int32_t len,
+                                                         const int32_t block)
 {
+    const int32_t span = (block > INT32_MAX / 8) ? INT32_MAX : block * 8;
+    float32_t acc32 = bias ? (float32_t)*bias : 0.0f;
     float16x8_t vacc = vdupq_n_f16((float16_t)0.0f);
-    for (int32_t i = 0; i < len; i += 8)
+    int32_t i = 0;
+    for (;;)
     {
-        const mve_pred16_t p = vctp16q((uint32_t)(len - i));
-        vacc = vfmaq_m(vacc, vld1q_z(lhs + i, p), vld1q_z(rhs + i, p), p);
+        const int32_t end = (len - i > span) ? i + span : len;
+        for (; i < end; i += 8)
+        {
+            const mve_pred16_t p = vctp16q((uint32_t)(end - i));
+            vacc = vfmaq_m(vacc, vld1q_z(lhs + i, p), vld1q_z(rhs + i, p), p);
+        }
+        if (len <= block)
+        {
+            break;
+        }
+        acc32 += arm_nn_vec_reduce_add_f16_to_f32(vacc);
+        if (i >= len)
+        {
+            break;
+        }
+        vacc = vdupq_n_f16((float16_t)0.0f);
     }
-    return arm_nn_vec_reduce_add_f16(vacc);
+    if (len <= block)
+    {
+        _Float16 acc = bias ? (_Float16)*bias : (_Float16)0.0f;
+        acc += (_Float16)arm_nn_vec_reduce_add_f16(vacc);
+        return acc;
+    }
+    return (_Float16)acc32;
 }
     #else
 /* Scalar leg accumulates in float32; the caller adds the bias and rounds to f16 once (#449, #465). */
@@ -76,18 +106,20 @@ __STATIC_INLINE float32_t arm_convolve_1_x_n_dot_f16(const float16_t *lhs, const
 }
     #endif
 
-__STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mult_nt_t_strided_f16(const float16_t *__RESTRICT lhs,
-                                                                                 const float16_t *__RESTRICT rhs,
-                                                                                 const float16_t *__RESTRICT bias,
-                                                                                 float16_t *__RESTRICT dst,
-                                                                                 int32_t lhs_rows,
-                                                                                 int32_t rhs_rows,
-                                                                                 int32_t rhs_cols,
-                                                                                 int32_t lhs_cols_offset,
-                                                                                 int32_t row_address_offset,
-                                                                                 float16_t activation_min,
-                                                                                 float16_t activation_max)
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mult_nt_t_strided_f16(const float16_t *__RESTRICT lhs,
+                                                                                      const float16_t *__RESTRICT rhs,
+                                                                                      const float16_t *__RESTRICT bias,
+                                                                                      float16_t *__RESTRICT dst,
+                                                                                      int32_t lhs_rows,
+                                                                                      int32_t rhs_rows,
+                                                                                      int32_t rhs_cols,
+                                                                                      int32_t lhs_cols_offset,
+                                                                                      int32_t row_address_offset,
+                                                                                      float16_t activation_min,
+                                                                                      float16_t activation_max,
+                                                                                      const int32_t block)
 {
+    (void)block;
     if (!lhs || !rhs || !dst || lhs_rows <= 0 || rhs_rows <= 0 || rhs_cols <= 0 || lhs_cols_offset <= 0 ||
         row_address_offset <= 0)
     {
@@ -121,13 +153,34 @@ __STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mult_nt_t_strided_f16
                     float16x8_t vacc_hi =
                         bias ? vld1q(bias + c + ARM_NN_CONV_1XN_F16_MVE_BLOCK_ROWS) : vdupq_n_f16((float16_t)0.0f);
 
-                    for (int32_t k = 0; k < rhs_cols; ++k)
+                    float32x4_t vsum_lo[2] = {vdupq_n_f32(0.0f), vdupq_n_f32(0.0f)};
+                    float32x4_t vsum_hi[2] = {vdupq_n_f32(0.0f), vdupq_n_f32(0.0f)};
+                    int32_t k = 0;
+                    for (;;)
                     {
-                        const float16_t lhs_v = lhs_row[k];
-                        const float16x8_t vrhs_lo = vldrhq_gather_shifted_offset(rhs_block + k, offsets);
-                        const float16x8_t vrhs_hi = vldrhq_gather_shifted_offset(rhs_block + k, offsets_hi);
-                        vacc_lo = vfmaq(vacc_lo, vrhs_lo, lhs_v);
-                        vacc_hi = vfmaq(vacc_hi, vrhs_hi, lhs_v);
+                        const int32_t end = (rhs_cols - k > block) ? k + block : rhs_cols;
+                        for (; k < end; ++k)
+                        {
+                            const float16_t lhs_v = lhs_row[k];
+                            const float16x8_t vrhs_lo = vldrhq_gather_shifted_offset(rhs_block + k, offsets);
+                            const float16x8_t vrhs_hi = vldrhq_gather_shifted_offset(rhs_block + k, offsets_hi);
+                            vacc_lo = vfmaq(vacc_lo, vrhs_lo, lhs_v);
+                            vacc_hi = vfmaq(vacc_hi, vrhs_hi, lhs_v);
+                        }
+                        if (rhs_cols <= block)
+                        {
+                            break;
+                        }
+                        arm_nn_f16_fold_lanes_f32(&vsum_lo[0], &vsum_lo[1], vacc_lo, end == block);
+                        arm_nn_f16_fold_lanes_f32(&vsum_hi[0], &vsum_hi[1], vacc_hi, end == block);
+                        if (k == rhs_cols)
+                        {
+                            vacc_lo = arm_nn_f16_narrow_lanes_f32(vsum_lo[0], vsum_lo[1]);
+                            vacc_hi = arm_nn_f16_narrow_lanes_f32(vsum_hi[0], vsum_hi[1]);
+                            break;
+                        }
+                        vacc_lo = vdupq_n_f16((float16_t)0.0f);
+                        vacc_hi = vdupq_n_f16((float16_t)0.0f);
                     }
 
                     vacc_lo = arm_nn_clamp_mve_f16(vacc_lo, vmin, vmax);
@@ -142,10 +195,28 @@ __STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mult_nt_t_strided_f16
                 const float16_t *rhs_block = rhs + (size_t)c * rhs_cols;
                 float16x8_t vacc = bias ? vld1q(bias + c) : vdupq_n_f16((float16_t)0.0f);
 
-                for (int32_t k = 0; k < rhs_cols; ++k)
+                float32x4_t vsum_even = vdupq_n_f32(0.0f);
+                float32x4_t vsum_odd = vdupq_n_f32(0.0f);
+                int32_t k = 0;
+                for (;;)
                 {
-                    const float16x8_t vrhs = vldrhq_gather_shifted_offset(rhs_block + k, offsets);
-                    vacc = vfmaq(vacc, vrhs, lhs_row[k]);
+                    const int32_t end = (rhs_cols - k > block) ? k + block : rhs_cols;
+                    for (; k < end; ++k)
+                    {
+                        const float16x8_t vrhs = vldrhq_gather_shifted_offset(rhs_block + k, offsets);
+                        vacc = vfmaq(vacc, vrhs, lhs_row[k]);
+                    }
+                    if (rhs_cols <= block)
+                    {
+                        break;
+                    }
+                    arm_nn_f16_fold_lanes_f32(&vsum_even, &vsum_odd, vacc, end == block);
+                    if (k == rhs_cols)
+                    {
+                        vacc = arm_nn_f16_narrow_lanes_f32(vsum_even, vsum_odd);
+                        break;
+                    }
+                    vacc = vdupq_n_f16((float16_t)0.0f);
                 }
 
                 vacc = arm_nn_clamp_mve_f16(vacc, vmin, vmax);
@@ -162,10 +233,28 @@ __STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mult_nt_t_strided_f16
                     const float16_t *rhs_block = rhs + (size_t)c * rhs_cols;
                     float16x8_t vacc = bias ? vld1q_z(bias + c, p) : vdupq_n_f16((float16_t)0.0f);
 
-                    for (int32_t k = 0; k < rhs_cols; ++k)
+                    float32x4_t vsum_even = vdupq_n_f32(0.0f);
+                    float32x4_t vsum_odd = vdupq_n_f32(0.0f);
+                    int32_t k = 0;
+                    for (;;)
                     {
-                        const float16x8_t vrhs = vldrhq_gather_shifted_offset_z(rhs_block + k, offsets, p);
-                        vacc = vfmaq(vacc, vrhs, lhs_row[k]);
+                        const int32_t end = (rhs_cols - k > block) ? k + block : rhs_cols;
+                        for (; k < end; ++k)
+                        {
+                            const float16x8_t vrhs = vldrhq_gather_shifted_offset_z(rhs_block + k, offsets, p);
+                            vacc = vfmaq(vacc, vrhs, lhs_row[k]);
+                        }
+                        if (rhs_cols <= block)
+                        {
+                            break;
+                        }
+                        arm_nn_f16_fold_lanes_f32(&vsum_even, &vsum_odd, vacc, end == block);
+                        if (k == rhs_cols)
+                        {
+                            vacc = arm_nn_f16_narrow_lanes_f32(vsum_even, vsum_odd);
+                            break;
+                        }
+                        vacc = vdupq_n_f16((float16_t)0.0f);
                     }
 
                     vacc = arm_nn_clamp_mve_f16(vacc, vmin, vmax);
@@ -182,8 +271,7 @@ __STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mult_nt_t_strided_f16
             const float16_t *rhs_row = rhs + (size_t)c * rhs_cols;
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-            _Float16 acc = bias ? (_Float16)bias[c] : (_Float16)0.0f;
-            acc += (_Float16)arm_convolve_1_x_n_dot_f16(lhs_row, rhs_row, rhs_cols);
+            _Float16 acc = arm_convolve_1_x_n_dot_f16(lhs_row, rhs_row, bias ? bias + c : NULL, rhs_cols, block);
     #else
             const float32_t acc32 =
                 (bias ? (float32_t)bias[c] : 0.0f) + arm_convolve_1_x_n_dot_f16(lhs_row, rhs_row, rhs_cols);
@@ -243,32 +331,34 @@ __STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mul_f16(const float16
                                                                    int32_t rhs_rows,
                                                                    int32_t rhs_cols,
                                                                    int32_t row_address_offset,
-                                                                   const cmsis_nn_conv_params_f16 *conv_params)
+                                                                   const cmsis_nn_conv_params_f16 *conv_params,
+                                                                   const bool acc16)
 {
     if (conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
     {
-        return arm_nn_mat_mult_nt_n_packed_f16(lhs,
-                                               rhs,
-                                               bias,
-                                               dst,
-                                               lhs_rows,
-                                               rhs_rows,
-                                               rhs_cols,
-                                               row_address_offset,
-                                               conv_params->activation.min,
-                                               conv_params->activation.max);
+        return (acc16 ? arm_nn_mat_mult_nt_n_packed_f16_acc16
+                      : arm_nn_mat_mult_nt_n_packed_f16)(lhs,
+                                                         rhs,
+                                                         bias,
+                                                         dst,
+                                                         lhs_rows,
+                                                         rhs_rows,
+                                                         rhs_cols,
+                                                         row_address_offset,
+                                                         conv_params->activation.min,
+                                                         conv_params->activation.max);
     }
 
-    return arm_nn_mat_mult_nt_t_f16(lhs,
-                                    rhs,
-                                    bias,
-                                    dst,
-                                    lhs_rows,
-                                    rhs_rows,
-                                    rhs_cols,
-                                    row_address_offset,
-                                    conv_params->activation.min,
-                                    conv_params->activation.max);
+    return (acc16 ? arm_nn_mat_mult_nt_t_f16_acc16 : arm_nn_mat_mult_nt_t_f16)(lhs,
+                                                                               rhs,
+                                                                               bias,
+                                                                               dst,
+                                                                               lhs_rows,
+                                                                               rhs_rows,
+                                                                               rhs_cols,
+                                                                               row_address_offset,
+                                                                               conv_params->activation.min,
+                                                                               conv_params->activation.max);
 }
 
 __STATIC_INLINE void arm_convolve_1_x_n_pack_rows_f16(float16_t *scratch,
@@ -316,18 +406,19 @@ __STATIC_INLINE void arm_convolve_1_x_n_pack_rows_f16(float16_t *scratch,
     }
 }
 
-arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16(const cmsis_nn_context *ctx,
-                                                const cmsis_nn_conv_params_f16 *conv_params,
-                                                const cmsis_nn_dims *input_dims,
-                                                const float16_t *input_data,
-                                                const cmsis_nn_dims *filter_dims,
-                                                const float16_t *filter_data,
-                                                const cmsis_nn_dims *bias_dims,
-                                                const float16_t *bias_data,
-                                                const cmsis_nn_dims *output_dims,
-                                                float16_t *output_data)
+/* Shared body; `block` is ARM_NN_F16_ACC_BLOCK or ARM_NN_F16_ACC_BLOCK_NONE at every call site. */
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16_body(const cmsis_nn_context *ctx,
+                                                                          const cmsis_nn_conv_params_f16 *conv_params,
+                                                                          const cmsis_nn_dims *input_dims,
+                                                                          const float16_t *input_data,
+                                                                          const cmsis_nn_dims *filter_dims,
+                                                                          const float16_t *filter_data,
+                                                                          const float16_t *bias_data,
+                                                                          const cmsis_nn_dims *output_dims,
+                                                                          float16_t *output_data,
+                                                                          const int32_t block)
 {
-    (void)bias_dims;
+    const bool acc16 = block == ARM_NN_F16_ACC_BLOCK_NONE;
 
     if (!ctx || !ctx->buf || !conv_params || !input_dims || !input_data || !filter_dims || !filter_data ||
         !output_dims || !output_data)
@@ -382,7 +473,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16(const cmsis_nn_context *ctx,
             arm_convolve_1_x_n_pack_rows_f16(scratch, input_b, conv_params, input_dims, filter_dims, row, rows);
 
             arm_cmsis_nn_status st = arm_convolve_1_x_n_mat_mul_f16(
-                scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params);
+                scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params, acc16);
             if (st != ARM_CMSIS_NN_SUCCESS)
             {
                 return st;
@@ -401,7 +492,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16(const cmsis_nn_context *ctx,
                     scratch, input_b, conv_params, input_dims, filter_dims, left_pad_num + row, rows);
 
                 arm_cmsis_nn_status st = arm_convolve_1_x_n_mat_mul_f16(
-                    scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params);
+                    scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params, acc16);
                 if (st != ARM_CMSIS_NN_SUCCESS)
                 {
                     return st;
@@ -422,7 +513,8 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16(const cmsis_nn_context *ctx,
                                                                                   lhs_cols_offset,
                                                                                   output_c,
                                                                                   conv_params->activation.min,
-                                                                                  conv_params->activation.max);
+                                                                                  conv_params->activation.max,
+                                                                                  block);
             if (st != ARM_CMSIS_NN_SUCCESS)
             {
                 return st;
@@ -437,7 +529,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16(const cmsis_nn_context *ctx,
             arm_convolve_1_x_n_pack_rows_f16(scratch, input_b, conv_params, input_dims, filter_dims, start_out_x, rows);
 
             arm_cmsis_nn_status st = arm_convolve_1_x_n_mat_mul_f16(
-                scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params);
+                scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params, acc16);
             if (st != ARM_CMSIS_NN_SUCCESS)
             {
                 return st;
@@ -447,6 +539,85 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16(const cmsis_nn_context *ctx,
     }
 
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+/* One out-of-line instantiation per block length, so the public entries below stay thin. */
+static __attribute__((noinline)) arm_cmsis_nn_status
+arm_convolve_1_x_n_nhwc_f16_fold(const cmsis_nn_context *ctx,
+                                 const cmsis_nn_conv_params_f16 *conv_params,
+                                 const cmsis_nn_dims *input_dims,
+                                 const float16_t *input_data,
+                                 const cmsis_nn_dims *filter_dims,
+                                 const float16_t *filter_data,
+                                 const float16_t *bias_data,
+                                 const cmsis_nn_dims *output_dims,
+                                 float16_t *output_data)
+{
+    return arm_convolve_1_x_n_nhwc_f16_body(ctx,
+                                            conv_params,
+                                            input_dims,
+                                            input_data,
+                                            filter_dims,
+                                            filter_data,
+                                            bias_data,
+                                            output_dims,
+                                            output_data,
+                                            ARM_NN_F16_ACC_BLOCK);
+}
+
+static __attribute__((noinline)) arm_cmsis_nn_status
+arm_convolve_1_x_n_nhwc_f16_nofold(const cmsis_nn_context *ctx,
+                                   const cmsis_nn_conv_params_f16 *conv_params,
+                                   const cmsis_nn_dims *input_dims,
+                                   const float16_t *input_data,
+                                   const cmsis_nn_dims *filter_dims,
+                                   const float16_t *filter_data,
+                                   const float16_t *bias_data,
+                                   const cmsis_nn_dims *output_dims,
+                                   float16_t *output_data)
+{
+    return arm_convolve_1_x_n_nhwc_f16_body(ctx,
+                                            conv_params,
+                                            input_dims,
+                                            input_data,
+                                            filter_dims,
+                                            filter_data,
+                                            bias_data,
+                                            output_dims,
+                                            output_data,
+                                            ARM_NN_F16_ACC_BLOCK_NONE);
+}
+
+arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16(const cmsis_nn_context *ctx,
+                                                const cmsis_nn_conv_params_f16 *conv_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const float16_t *input_data,
+                                                const cmsis_nn_dims *filter_dims,
+                                                const float16_t *filter_data,
+                                                const cmsis_nn_dims *bias_dims,
+                                                const float16_t *bias_data,
+                                                const cmsis_nn_dims *output_dims,
+                                                float16_t *output_data)
+{
+    (void)bias_dims;
+    return arm_convolve_1_x_n_nhwc_f16_fold(
+        ctx, conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data);
+}
+
+arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16_acc16(const cmsis_nn_context *ctx,
+                                                      const cmsis_nn_conv_params_f16 *conv_params,
+                                                      const cmsis_nn_dims *input_dims,
+                                                      const float16_t *input_data,
+                                                      const cmsis_nn_dims *filter_dims,
+                                                      const float16_t *filter_data,
+                                                      const cmsis_nn_dims *bias_dims,
+                                                      const float16_t *bias_data,
+                                                      const cmsis_nn_dims *output_dims,
+                                                      float16_t *output_data)
+{
+    (void)bias_dims;
+    return arm_convolve_1_x_n_nhwc_f16_nofold(
+        ctx, conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data);
 }
 
 arm_cmsis_nn_status arm_convolve_1_x_n_f16(const cmsis_nn_context *ctx,
@@ -476,6 +647,35 @@ arm_cmsis_nn_status arm_convolve_1_x_n_f16(const cmsis_nn_context *ctx,
                                        bias_data,
                                        output_dims,
                                        output_data);
+}
+
+arm_cmsis_nn_status arm_convolve_1_x_n_f16_acc16(const cmsis_nn_context *ctx,
+                                                 const cmsis_nn_conv_params_f16 *conv_params,
+                                                 const cmsis_nn_dims *input_dims,
+                                                 const float16_t *input_data,
+                                                 const cmsis_nn_dims *filter_dims,
+                                                 const float16_t *filter_data,
+                                                 const cmsis_nn_dims *bias_dims,
+                                                 const float16_t *bias_data,
+                                                 const cmsis_nn_dims *output_dims,
+                                                 float16_t *output_data,
+                                                 arm_nn_tensor_layout layout)
+{
+    if (layout != ARM_NN_LAYOUT_NHWC)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    return arm_convolve_1_x_n_nhwc_f16_acc16(ctx,
+                                             conv_params,
+                                             input_dims,
+                                             input_data,
+                                             filter_dims,
+                                             filter_data,
+                                             bias_dims,
+                                             bias_data,
+                                             output_dims,
+                                             output_data);
 }
 
 /** @} end of NNConv group */

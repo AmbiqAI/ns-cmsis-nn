@@ -46,18 +46,23 @@
         #define ARM_NN_MAT_MULT_NT_N_PACKED_F16_BLOCK_ROWS (4)
     #endif
 
-/* Refer header file for details. */
-arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT lhs,
-                                                    const float16_t *__RESTRICT rhs_packed,
-                                                    const float16_t *__RESTRICT bias,
-                                                    float16_t *__RESTRICT dst,
-                                                    int32_t lhs_rows,
-                                                    int32_t rhs_rows,
-                                                    int32_t rhs_cols,
-                                                    int32_t row_address_offset,
-                                                    float16_t activation_min,
-                                                    float16_t activation_max)
+/* Shared body; `block` is ARM_NN_F16_ACC_BLOCK or ARM_NN_F16_ACC_BLOCK_NONE at every call site. Lanes are output
+ * columns and every k is one tap of every lane. The bias starts the first block; with more than `block` taps each
+ * block's float16 partial is widened into per-lane float32 accumulators and the lanes round to float16 once (#586). */
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16_body(const float16_t *__RESTRICT lhs,
+                                                                              const float16_t *__RESTRICT rhs_packed,
+                                                                              const float16_t *__RESTRICT bias,
+                                                                              float16_t *__RESTRICT dst,
+                                                                              int32_t lhs_rows,
+                                                                              int32_t rhs_rows,
+                                                                              int32_t rhs_cols,
+                                                                              int32_t row_address_offset,
+                                                                              float16_t activation_min,
+                                                                              float16_t activation_max,
+                                                                              const int32_t block)
 {
+    (void)block;
+
     if (!lhs || !rhs_packed || !dst || lhs_rows <= 0 || rhs_rows <= 0 || rhs_cols <= 0 || row_address_offset <= 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
@@ -95,21 +100,52 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT 
             float16x8_t vacc2 = bias ? vld1q_z(bias + c, p) : vdupq_n_f16((float16_t)0.0f);
             float16x8_t vacc3 = bias ? vld1q_z(bias + c, p) : vdupq_n_f16((float16_t)0.0f);
 
-            for (int32_t k = 0; k < rhs_cols; ++k)
+            float32x4_t vsum0[2] = {vdupq_n_f32(0.0f), vdupq_n_f32(0.0f)};
+            float32x4_t vsum1[2] = {vdupq_n_f32(0.0f), vdupq_n_f32(0.0f)};
+            float32x4_t vsum2[2] = {vdupq_n_f32(0.0f), vdupq_n_f32(0.0f)};
+            float32x4_t vsum3[2] = {vdupq_n_f32(0.0f), vdupq_n_f32(0.0f)};
+            int32_t k = 0;
+
+            for (;;)
             {
-                float16x8_t vrhs;
-                if (valid_cols == block_cols)
+                const int32_t end = (rhs_cols - k > block) ? k + block : rhs_cols;
+                for (; k < end; ++k)
                 {
-                    vrhs = vld1q(rhs_block + (size_t)k * block_cols);
+                    float16x8_t vrhs;
+                    if (valid_cols == block_cols)
+                    {
+                        vrhs = vld1q(rhs_block + (size_t)k * block_cols);
+                    }
+                    else
+                    {
+                        vrhs = vld1q_z(rhs_block + (size_t)k * block_cols, p);
+                    }
+                    vacc0 = vfmaq(vacc0, vrhs, lhs_row0[k]);
+                    vacc1 = vfmaq(vacc1, vrhs, lhs_row1[k]);
+                    vacc2 = vfmaq(vacc2, vrhs, lhs_row2[k]);
+                    vacc3 = vfmaq(vacc3, vrhs, lhs_row3[k]);
                 }
-                else
+                if (rhs_cols <= block)
                 {
-                    vrhs = vld1q_z(rhs_block + (size_t)k * block_cols, p);
+                    break;
                 }
-                vacc0 = vfmaq(vacc0, vrhs, lhs_row0[k]);
-                vacc1 = vfmaq(vacc1, vrhs, lhs_row1[k]);
-                vacc2 = vfmaq(vacc2, vrhs, lhs_row2[k]);
-                vacc3 = vfmaq(vacc3, vrhs, lhs_row3[k]);
+                const bool first = end == block;
+                arm_nn_f16_fold_lanes_f32(&vsum0[0], &vsum0[1], vacc0, first);
+                arm_nn_f16_fold_lanes_f32(&vsum1[0], &vsum1[1], vacc1, first);
+                arm_nn_f16_fold_lanes_f32(&vsum2[0], &vsum2[1], vacc2, first);
+                arm_nn_f16_fold_lanes_f32(&vsum3[0], &vsum3[1], vacc3, first);
+                if (k == rhs_cols)
+                {
+                    vacc0 = arm_nn_f16_narrow_lanes_f32(vsum0[0], vsum0[1]);
+                    vacc1 = arm_nn_f16_narrow_lanes_f32(vsum1[0], vsum1[1]);
+                    vacc2 = arm_nn_f16_narrow_lanes_f32(vsum2[0], vsum2[1]);
+                    vacc3 = arm_nn_f16_narrow_lanes_f32(vsum3[0], vsum3[1]);
+                    break;
+                }
+                vacc0 = vdupq_n_f16((float16_t)0.0f);
+                vacc1 = vdupq_n_f16((float16_t)0.0f);
+                vacc2 = vdupq_n_f16((float16_t)0.0f);
+                vacc3 = vdupq_n_f16((float16_t)0.0f);
             }
 
             vacc0 = arm_nn_clamp_mve_f16(vacc0, vmin, vmax);
@@ -151,11 +187,31 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT 
             const mve_pred16_t p = vctp16q((uint32_t)valid_cols);
             float16x8_t vacc = bias ? vld1q_z(bias + c, p) : vdupq_n_f16((float16_t)0.0f);
 
-            for (int32_t k = 0; k < rhs_cols; ++k)
+            float32x4_t vsum_even = vdupq_n_f32(0.0f);
+            float32x4_t vsum_odd = vdupq_n_f32(0.0f);
+            int32_t k = 0;
+
+            for (;;)
             {
-                const float16x8_t vrhs = (valid_cols == block_cols) ? vld1q(rhs_block + (size_t)k * block_cols)
-                                                                    : vld1q_z(rhs_block + (size_t)k * block_cols, p);
-                vacc = vfmaq(vacc, vrhs, lhs_row[k]);
+                const int32_t end = (rhs_cols - k > block) ? k + block : rhs_cols;
+                for (; k < end; ++k)
+                {
+                    const float16x8_t vrhs = (valid_cols == block_cols)
+                        ? vld1q(rhs_block + (size_t)k * block_cols)
+                        : vld1q_z(rhs_block + (size_t)k * block_cols, p);
+                    vacc = vfmaq(vacc, vrhs, lhs_row[k]);
+                }
+                if (rhs_cols <= block)
+                {
+                    break;
+                }
+                arm_nn_f16_fold_lanes_f32(&vsum_even, &vsum_odd, vacc, end == block);
+                if (k == rhs_cols)
+                {
+                    vacc = arm_nn_f16_narrow_lanes_f32(vsum_even, vsum_odd);
+                    break;
+                }
+                vacc = vdupq_n_f16((float16_t)0.0f);
             }
 
             vacc = arm_nn_clamp_mve_f16(vacc, vmin, vmax);
@@ -183,6 +239,64 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT 
     }
 
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+/* Refer header file for details. */
+arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16_acc16(const float16_t *__RESTRICT lhs,
+                                                          const float16_t *__RESTRICT rhs_packed,
+                                                          const float16_t *__RESTRICT bias,
+                                                          float16_t *__RESTRICT dst,
+                                                          int32_t lhs_rows,
+                                                          int32_t rhs_rows,
+                                                          int32_t rhs_cols,
+                                                          int32_t row_address_offset,
+                                                          float16_t activation_min,
+                                                          float16_t activation_max)
+{
+    return arm_nn_mat_mult_nt_n_packed_f16_body(lhs,
+                                                rhs_packed,
+                                                bias,
+                                                dst,
+                                                lhs_rows,
+                                                rhs_rows,
+                                                rhs_cols,
+                                                row_address_offset,
+                                                activation_min,
+                                                activation_max,
+                                                ARM_NN_F16_ACC_BLOCK_NONE);
+}
+
+/* Refer header file for details. */
+arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT lhs,
+                                                    const float16_t *__RESTRICT rhs_packed,
+                                                    const float16_t *__RESTRICT bias,
+                                                    float16_t *__RESTRICT dst,
+                                                    int32_t lhs_rows,
+                                                    int32_t rhs_rows,
+                                                    int32_t rhs_cols,
+                                                    int32_t row_address_offset,
+                                                    float16_t activation_min,
+                                                    float16_t activation_max)
+{
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    /* Up to ARM_NN_F16_ACC_BLOCK taps nothing folds, so both instantiations agree bit for bit there. */
+    if (rhs_cols > ARM_NN_F16_ACC_BLOCK)
+    {
+        return arm_nn_mat_mult_nt_n_packed_f16_body(lhs,
+                                                    rhs_packed,
+                                                    bias,
+                                                    dst,
+                                                    lhs_rows,
+                                                    rhs_rows,
+                                                    rhs_cols,
+                                                    row_address_offset,
+                                                    activation_min,
+                                                    activation_max,
+                                                    ARM_NN_F16_ACC_BLOCK);
+    }
+    #endif
+    return arm_nn_mat_mult_nt_n_packed_f16_acc16(
+        lhs, rhs_packed, bias, dst, lhs_rows, rhs_rows, rhs_cols, row_address_offset, activation_min, activation_max);
 }
 
 /**
