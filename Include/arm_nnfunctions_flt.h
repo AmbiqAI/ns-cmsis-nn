@@ -2402,7 +2402,8 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16_acc16(const cmsis_nn_context *ctx,
  * (0+1) + (2+3), the bias is added in float32 and the total rounds once. The k=3 / k=5 kernels close a block on a
  * whole input-channel step (30 taps per lane). An output's taps are the ones its kernel multiplies: the direct
  * fallback skips padded taps, so an edge output counts only its in-range taps, while patch-GEMM and the 1xN padded
- * regions multiply a zero-padded patch and count its padded taps too. The fold's order is fixed; the float16
+ * regions multiply a zero-padded patch and count its padded taps too. Patch-GEMM runs only when ctx provides its
+ * scratch, so an edge output's value can depend on whether ctx->buf is given. The fold's order is fixed; the float16
  * reduction of a dot of at most 32 taps is left to the compiler, which may reorder it under -ffast-math, as before
  * #586.
  */
