@@ -110,7 +110,7 @@ def main() -> int:
     for name, body in members:
         try:
             sections = elf_sections(body)
-        except (IndexError, ValueError, struct.error) as exc:
+        except (IndexError, OverflowError, ValueError, struct.error) as exc:
             print(f"check_staticlib_sections: cannot read member {name} of {args.archive}: {exc}", file=sys.stderr)
             return 2
         if sections is None:
