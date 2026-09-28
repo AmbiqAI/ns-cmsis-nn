@@ -83,5 +83,6 @@ void test_buffer_size_dsp_arm_convolve_s8(void) { buffer_size_dsp_arm_convolve_s
 void test_small_cin_arm_convolve_s8(void) { small_cin_arm_convolve_s8(); }
 void test_small_cin_out_ch_arm_convolve_s8(void) { small_cin_out_ch_arm_convolve_s8(); }
 void test_mlperf_first_layers_arm_convolve_s8(void) { mlperf_first_layers_arm_convolve_s8(); }
+void test_c16_3x3_arm_convolve_s8(void) { c16_3x3_arm_convolve_s8(); }
 void test_low_depth_neighbours_arm_convolve_s8(void) { low_depth_neighbours_arm_convolve_s8(); }
 void test_low_depth_null_buffers_arm_convolve_s8(void) { low_depth_null_buffers_arm_convolve_s8(); }

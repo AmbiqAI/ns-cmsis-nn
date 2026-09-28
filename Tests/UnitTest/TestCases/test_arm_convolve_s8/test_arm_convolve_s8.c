@@ -2240,7 +2240,7 @@ void buffer_size_dsp_arm_convolve_s8(void)
 }
 
 /*
- * Low-depth shapes (input depth 1 to 3) and their out-of-gate neighbours, checked
+ * Low-depth shapes (input depth 1 to 3, and 3x3 over a 16-deep input) and their out-of-gate neighbours, checked
  * against a scalar reference convolution. Inputs and weights span the full int8 range, the scratch buffer is exactly
  * arm_convolve_s8_get_buffer_size() bytes followed by guard bytes, and the output is surrounded by guard bytes.
  */
@@ -2462,6 +2462,19 @@ static const low_depth_case_t mlperf_first_layer_cases[] = {
     {1, 1, 512, 1, 1, 9, 16, 1, 2, 0, 3, 1, 1, 1, 256, -24, -128, 127},
 };
 
+static const low_depth_case_t c16_3x3_cases[] = {
+    /* IC L1/L2: 32x32x16, 3x3, stride 1, SAME, 16 output channels. */
+    {1, 32, 32, 16, 3, 3, 16, 1, 1, 1, 1, 1, 1, 32, 32, 128, -128, 127},
+    /* SAME with 35 output pixels (a tail of 3) and an odd channel count. */
+    {1, 5, 7, 16, 3, 3, 5, 1, 1, 1, 1, 1, 1, 5, 7, 128, -50, 100},
+    /* VALID, 99 input pixels, 63 output pixels. */
+    {1, 9, 11, 16, 3, 3, 12, 1, 1, 0, 0, 1, 1, 7, 9, -3, -128, 127},
+    /* Batch of 2, one output channel, 1x2 output (a tail in each batch). */
+    {2, 3, 4, 16, 3, 3, 1, 1, 1, 0, 0, 1, 1, 1, 2, 11, -128, 127},
+    /* Input smaller than the kernel: every patch crosses the border. */
+    {1, 2, 2, 16, 3, 3, 8, 1, 1, 1, 1, 1, 1, 2, 2, -127, -128, 127},
+};
+
 static const low_depth_case_t low_depth_neighbour_cases[] = {
     /* 3x3 over 16 channels with stride 2 (IC L4 style) and with odd sizes. */
     {1, 16, 16, 16, 3, 3, 32, 2, 2, 1, 1, 1, 1, 8, 8, 128, -128, 127},
@@ -2514,6 +2527,11 @@ void mlperf_first_layers_arm_convolve_s8(void)
 {
     low_depth_check_all(
         mlperf_first_layer_cases, sizeof(mlperf_first_layer_cases) / sizeof(mlperf_first_layer_cases[0]), 31u);
+}
+
+void c16_3x3_arm_convolve_s8(void)
+{
+    low_depth_check_all(c16_3x3_cases, sizeof(c16_3x3_cases) / sizeof(c16_3x3_cases[0]), 41u);
 }
 
 void low_depth_neighbours_arm_convolve_s8(void)
