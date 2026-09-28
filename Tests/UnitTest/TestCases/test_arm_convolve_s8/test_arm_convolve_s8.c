@@ -2449,6 +2449,10 @@ static const low_depth_case_t small_cin_cases[] = {
     {1, 3, 40, 1, 3, 16, 4, 1, 3, 1, 7, 1, 1, 3, 14, 0, -128, 127},
     /* 1x1 depth 1: output columns fewer than four in the last group (3 pixels). */
     {1, 1, 7, 1, 1, 1, 4, 1, 1, 0, 0, 1, 1, 1, 7, 5, -128, 127},
+    /* Kernel rows wholly left of the input (pad_x of 17 bytes) and wholly right of it. */
+    {1, 4, 5, 1, 3, 3, 4, 1, 1, 2, 17, 1, 1, 6, 40, 5, -128, 127},
+    /* Output larger than the input with no leading padding: kernels wholly below and right of the input. */
+    {3, 4, 4, 2, 2, 2, 4, 1, 1, 0, 0, 1, 1, 7, 6, 9, -128, 127},
 };
 
 static const low_depth_case_t mlperf_first_layer_cases[] = {

@@ -553,11 +553,12 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
  * @details
  *    1. Supported framework: TensorFlow Lite micro
  *    2. Additional memory is required for optimization. Refer to argument 'ctx' for details.
- *    3. On builds with the MVE extension, two shape families take dedicated paths that give the same output:
- *       input depth 1 to 3 with one group, unit dilation, a kernel row (filter_dims->w * input_dims->c) of at
- *       most 16 values, at most 48 filter values per output channel and a multiple of 4 output channels; and a
- *       3x3 kernel over 16 input channels with unit stride and dilation. Both may use the whole
- *       arm_convolve_s8_get_buffer_size() scratch buffer. Other shapes run the general path unchanged.
+ *    3. On builds with the MVE extension, two shape families take dedicated paths that give the same output,
+ *       both only without upscale_dims: input depth 1 to 3 with one group, unit dilation, a kernel row
+ *       (filter_dims->w * input_dims->c) of at most 16 values, at most 48 filter values per output channel and a
+ *       multiple of 4 output channels; and a 3x3 kernel over 16 input channels (filter_dims->c 16, one group) with
+ *       unit stride and dilation. Both may use the whole arm_convolve_s8_get_buffer_size() scratch buffer. Other
+ *       shapes run the general path unchanged.
  *
  */
 arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
