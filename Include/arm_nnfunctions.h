@@ -2210,9 +2210,9 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *        -# Number of input channel equals number of output channels or ch_mult equals 1
  *    - Reccomended when number of channels is 4 or greater.
  *    - On builds with ARM_MATH_DSP and ARM_MATH_MVEI, layers that arm_depthwise_conv_s8_opt_planar_supported()
- *      accepts run arm_depthwise_conv_s8_opt_planar(), unless ctx->size cannot hold its plane; every other layer
- *      runs arm_depthwise_conv_s8_opt_channelwise(). Callers that choose the path ahead of time can call either
- *      one directly.
+ *      accepts run the planar path, with the same result as arm_depthwise_conv_s8_opt_planar(), unless ctx->size
+ *      cannot hold its plane; every other layer runs the channel path of arm_depthwise_conv_s8_opt_channelwise().
+ *      Callers that choose the path ahead of time can call either one directly.
  *
  */
 arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
