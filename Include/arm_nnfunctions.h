@@ -2337,6 +2337,103 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
                                                           int8_t *output_data);
 
 /**
+ * @brief s8 3x3 depthwise convolution that reads the input in place, without the im2col copy of
+ *        arm_depthwise_conv_s8_opt(), for layers in its gate. It computes three output rows per weight load.
+ *
+ * @param[in, out] ctx             Function context with the arm_depthwise_conv_s8_opt_get_buffer_size() scratch
+ * @param[in]      weight_sum_ctx  Per-channel weight sums, as for arm_depthwise_conv_s8_opt()
+ * @param[in]      dw_conv_params  Depthwise convolution parameters, as for arm_depthwise_conv_s8_opt()
+ * @param[in]      quant_params    Per-channel quantization info
+ * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      input_data      Input (activation) data pointer. Data type: int8
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      filter_data     Filter data pointer. Data type: int8
+ * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
+ * @param[in]      bias_data       Bias data pointer. Data type: int32
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output_data     Output data pointer. Data type: int8
+ *
+ * @return     The function returns one of the following
+ *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - the layer or a buffer is outside the gate below, or the
+ *                                                          build lacks ARM_MATH_MVEI; nothing is written
+ *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ *
+ * @details
+ *    - The output is identical to arm_depthwise_conv_s8_opt() and arm_depthwise_conv_s8(). The bias is read through
+ *      the weight sums, which arm_depthwise_convolve_weight_sum() fills as for arm_depthwise_conv_s8_opt();
+ *      bias_dims and bias_data are unused.
+ *    - Gate: filter 3x3, dilation 1, N 1, C_IN equal to C_OUT with 16 <= C <= 2048 and C % 4 == 0, stride 1 or 2 and
+ *      padding 0 or 1 in each dimension, input W >= 3 and H >= 1, output H >= 3 and W x H >= 16, every dimension at
+ *      most 4096 and each tensor at most INT32_MAX elements, and the centre of the last output column's window inside
+ *      the input: (output W - 1) x stride.w - padding.w + 1 < input W. Input rows above or below the input count as
+ *      padding, as in arm_depthwise_conv_s8().
+ *    - Buffers: ctx and weight_sum_ctx and their buf are non-NULL, and ctx->size >= 3008 + input W x C + 16 bytes. On
+ *      ARM_MATH_MVEI builds the arm_depthwise_conv_s8_opt_get_buffer_size() scratch of a 3x3 filter meets that when
+ *      input W x C <= 1440.
+ *    - It is a direct entry: arm_depthwise_conv_s8_opt() does not call it. A caller that selects the kernel per layer
+ *      ahead of time calls arm_depthwise_conv_s8_opt_3x3_c64_s1() for C 64 with stride.h 1, this function for the
+ *      rest of the gate, and arm_depthwise_conv_s8_opt() for every other layer, or on
+ *      <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>. All three take the same arguments and buffers.
+ *
+ */
+arm_cmsis_nn_status arm_depthwise_conv_s8_opt_3x3(const cmsis_nn_context *ctx,
+                                                  const cmsis_nn_context *weight_sum_ctx,
+                                                  const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                  const cmsis_nn_per_channel_quant_params *quant_params,
+                                                  const cmsis_nn_dims *input_dims,
+                                                  const int8_t *input_data,
+                                                  const cmsis_nn_dims *filter_dims,
+                                                  const int8_t *filter_data,
+                                                  const cmsis_nn_dims *bias_dims,
+                                                  const int32_t *bias_data,
+                                                  const cmsis_nn_dims *output_dims,
+                                                  int8_t *output_data);
+
+/**
+ * @brief arm_depthwise_conv_s8_opt_3x3() specialized for 64 channels and a vertical stride of 1, with fixed channel
+ *        offsets and edge columns that skip their zero taps. It is the faster entry for those layers.
+ *
+ * @param[in, out] ctx             Function context with the arm_depthwise_conv_s8_opt_get_buffer_size() scratch
+ * @param[in]      weight_sum_ctx  Per-channel weight sums, as for arm_depthwise_conv_s8_opt()
+ * @param[in]      dw_conv_params  Depthwise convolution parameters, as for arm_depthwise_conv_s8_opt()
+ * @param[in]      quant_params    Per-channel quantization info
+ * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      input_data      Input (activation) data pointer. Data type: int8
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      filter_data     Filter data pointer. Data type: int8
+ * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
+ * @param[in]      bias_data       Bias data pointer. Data type: int32
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output_data     Output data pointer. Data type: int8
+ *
+ * @return     The function returns one of the following
+ *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - C_IN is not 64, dw_conv_params->stride.h is not 1, the
+ *                                                          layer or a buffer is outside the gate of
+ *                                                          arm_depthwise_conv_s8_opt_3x3(), or the build lacks
+ *                                                          ARM_MATH_MVEI; nothing is written
+ *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ *
+ * @details
+ *    - The output is identical to arm_depthwise_conv_s8_opt_3x3(), arm_depthwise_conv_s8_opt() and
+ *      arm_depthwise_conv_s8(). The bias is read through the weight sums; bias_dims and bias_data are unused.
+ *    - The two entries share only their gate and parameter packing, so a build with -ffunction-sections and section
+ *      garbage collection keeps only the code of the entries it calls.
+ *
+ */
+arm_cmsis_nn_status arm_depthwise_conv_s8_opt_3x3_c64_s1(const cmsis_nn_context *ctx,
+                                                         const cmsis_nn_context *weight_sum_ctx,
+                                                         const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                         const cmsis_nn_per_channel_quant_params *quant_params,
+                                                         const cmsis_nn_dims *input_dims,
+                                                         const int8_t *input_data,
+                                                         const cmsis_nn_dims *filter_dims,
+                                                         const int8_t *filter_data,
+                                                         const cmsis_nn_dims *bias_dims,
+                                                         const int32_t *bias_data,
+                                                         const cmsis_nn_dims *output_dims,
+                                                         int8_t *output_data);
+
+/**
  * @brief Optimized s4 depthwise convolution function with constraint that in_channel equals out_channel.
  *
  * @param[in, out] ctx             Function context that contains the additional buffer required by the function.
