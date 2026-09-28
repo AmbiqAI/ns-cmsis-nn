@@ -1067,7 +1067,8 @@ void arm_nn_depthwise_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
  *       steps; each block's lanes are folded into float32 pair accumulators (arm_nn_f16_fold_pairs_f32), which
  *       are summed once (arm_nn_f16_pairs_sum_f32), the bias is added in float32 and the total rounds to float16
  *       once. Up to 32 taps: float16 lanes, a float16 reduction and the bias added
- *       in float16, as before. The scalar leg accumulates in float32 (#449, #465).
+ *       in float16, as before, in the order the compiler gives them (it may reorder them under -ffast-math); only
+ *       the fold's order is fixed. The scalar leg accumulates in float32 (#449, #465).
  */
 void arm_nn_conv1d_k5_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                int32_t in_c,
@@ -1146,7 +1147,8 @@ void arm_nn_conv1d_k5_packed_f16_acc16(const float16_t *__RESTRICT x_nhwc,
  *       steps; each block's lanes are folded into float32 pair accumulators (arm_nn_f16_fold_pairs_f32), which
  *       are summed once (arm_nn_f16_pairs_sum_f32), the bias is added in float32 and the total rounds to float16
  *       once. Up to 32 taps: float16 lanes, a float16 reduction and the bias added
- *       in float16, as before. The scalar leg accumulates in float32 (#449, #465).
+ *       in float16, as before, in the order the compiler gives them (it may reorder them under -ffast-math); only
+ *       the fold's order is fixed. The scalar leg accumulates in float32 (#449, #465).
  */
 void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                int32_t in_c,
@@ -1255,16 +1257,15 @@ void arm_nn_maxpool1d_k2s2_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
 /**
  * @copydoc arm_nn_mat_mult_nt_t_f32
  *
- * @note Accumulation width per leg. MVE legs accumulate blockwise (AmbiqAI/ns-cmsis-nn#586, Adam's
- *       decision of 2026-09-28, superseding the float16-lane choice of #417 / #446 for the MVE legs).
- *       Up to rhs_cols 32 nothing changes: per-k float16 lanes on the gather path (rhs_cols below
- *       the contiguous-K threshold), lane-partial sums then one float16 reduction plus the bias in
- *       float16 at rhs_cols 32. Above 32, on the contiguous-K path and the remainder rows, each lane
- *       (element k goes to lane k % 8) sums at most 32 of its own taps (256 elements) in float16;
- *       each block's lanes are then widened and lanes 2j and 2j+1 added in float32 into pair
- *       accumulator j (set by the first block, added to by later ones); the four pair accumulators
- *       are summed once as (0+1) + (2+3), so a single block sums ((0+1) + (2+3)) + ((4+5) + (6+7)),
- *       the bias is added in float32 and the total rounds to float16 once before the clamp.
+ * @note Accumulation width per leg. MVE legs accumulate blockwise (AmbiqAI/ns-cmsis-nn#586, superseding the
+ * float16-lane choice of #417 / #446 for the MVE legs). Up to rhs_cols 32 nothing changes: per-k float16 lanes on the
+ * gather path (rhs_cols below the contiguous-K threshold), lane-partial sums then one float16 reduction plus the bias
+ * in float16 at rhs_cols 32. Above 32, on the contiguous-K path and the remainder rows, each lane (element k goes to
+ * lane k % 8) sums at most 32 of its own taps (256 elements) in float16; each block's lanes are then widened and lanes
+ * 2j and 2j+1 added in float32 into pair accumulator j (set by the first block, added to by later ones); the four pair
+ * accumulators are summed once as (0+1) + (2+3), so a single block sums ((0+1) + (2+3)) + ((4+5) + (6+7)), the bias is
+ * added in float32 and the total rounds to float16 once before the clamp. The float16 reduction up to rhs_cols 32 is
+ * ordered by the compiler, which may reorder it under -ffast-math; only the fold's order is fixed.
  * arm_nn_mat_mult_nt_t_f16_acc16 keeps the float16 lanes and float16 reduction throughout. The scalar leg (non-MVE
  * builds and ARM_MATH_AUTOVECTORIZE) accumulates bias and every product in float32 and rounds to float16 once before
  * the clamp (AmbiqAI/ns-cmsis-nn#449, #457).
