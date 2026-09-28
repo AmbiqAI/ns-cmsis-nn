@@ -139,6 +139,11 @@ generator="Unix Makefiles"
 command -v ninja >/dev/null && generator="Ninja"
 
 echo ">>> configuring (${TOOLCHAIN}, ${TARGET_CPU}, F32=${ENABLE_F32} F16=${ENABLE_F16} requantize-asm=${ENABLE_REQUANTIZE_INLINE_ASM})"
+# One section per function and per data object, so a link with --gc-sections
+# keeps only the kernels a model calls, as NSX source builds already do. CMake
+# combines CFLAGS with the toolchain file's CMAKE_C_FLAGS_INIT (the arch flags)
+# on this fresh build directory; -DCMAKE_C_FLAGS would replace them instead.
+CFLAGS="${CFLAGS:+${CFLAGS} }-ffunction-sections -fdata-sections" \
 cmake -S "${repo_root}" -B "${build_dir}" -G "${generator}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
