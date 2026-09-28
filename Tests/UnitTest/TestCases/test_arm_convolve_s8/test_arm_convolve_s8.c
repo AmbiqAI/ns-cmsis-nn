@@ -42,6 +42,7 @@
 #include "../TestData/fc_conv_int8_1x1_kernel/test_data.h"
 //#include "../TestData/fc_conv_int8_dilated/input_weights.h"
 
+#include "../Utils/mpu_guard.h"
 
 static arm_cmsis_nn_status conv_1x1_out_wrapper(cmsis_nn_context *ctx,
         cmsis_nn_conv_params *conv_params,
@@ -2254,6 +2255,10 @@ typedef struct
 #define LOW_DEPTH_GUARD_VALUE ((int8_t)0x5A)
 
 static uint32_t low_depth_seed;
+#if defined(MPU_GUARD_AVAILABLE)
+/* When set, arm_convolve_s8() reads the weights from a copy that ends at an unmapped MPU gap. */
+static int low_depth_weights_at_gap;
+#endif
 
 static int32_t low_depth_rand(void)
 {
@@ -2384,6 +2389,15 @@ static void low_depth_check(const low_depth_case_t *tc, uint32_t seed)
 #endif
 
     memset(output, LOW_DEPTH_GUARD_VALUE, output_size + 2 * LOW_DEPTH_GUARD);
+    const int8_t *kernel_weights = weights;
+#if defined(MPU_GUARD_AVAILABLE)
+    if (low_depth_weights_at_gap)
+    {
+        TEST_ASSERT_TRUE(weights_size <= GUARD_OFFSET);
+        kernel_weights = guard_place(weights, (size_t)weights_size);
+        guard_gap_enable();
+    }
+#endif
     const arm_cmsis_nn_status status = arm_convolve_s8(&ctx,
                                                        &weight_sum_ctx,
                                                        &conv_params,
@@ -2391,12 +2405,18 @@ static void low_depth_check(const low_depth_case_t *tc, uint32_t seed)
                                                        &input_dims,
                                                        input,
                                                        &filter_dims,
-                                                       weights,
+                                                       kernel_weights,
                                                        &bias_dims,
                                                        bias,
                                                        NULL,
                                                        &output_dims,
                                                        output + LOW_DEPTH_GUARD);
+#if defined(MPU_GUARD_AVAILABLE)
+    if (low_depth_weights_at_gap)
+    {
+        guard_gap_disable();
+    }
+#endif
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
 
     low_depth_reference(tc, input, weights, bias, multiplier, shift, output_offset, expected);
@@ -2531,6 +2551,43 @@ void mlperf_first_layers_arm_convolve_s8(void)
 {
     low_depth_check_all(
         mlperf_first_layer_cases, sizeof(mlperf_first_layer_cases) / sizeof(mlperf_first_layer_cases[0]), 31u);
+}
+
+#if defined(MPU_GUARD_AVAILABLE)
+/* Weights that end at an unmapped MPU gap, on the small input-depth path: 1 to 48 filter values per output channel,
+   across the 8 values where the GEMM starts loading its first three filters' last chunks whole, and every K-chunk
+   count. A load past the last filter faults. */
+static const low_depth_case_t small_cin_weights_at_gap_cases[] = {
+    {1, 3, 5, 1, 1, 1, 4, 1, 1, 0, 0, 1, 1, 3, 5, 3, -128, 127},
+    {1, 3, 5, 2, 1, 1, 4, 1, 1, 0, 0, 1, 1, 3, 5, -9, -128, 127},
+    {1, 3, 5, 3, 1, 1, 8, 1, 1, 0, 0, 1, 1, 3, 5, 128, -128, 127},
+    {1, 4, 5, 1, 2, 2, 4, 1, 1, 0, 0, 1, 1, 3, 4, 7, -128, 127},
+    {1, 3, 6, 3, 1, 2, 4, 1, 1, 0, 0, 1, 1, 3, 5, 128, -128, 127},
+    {1, 4, 5, 1, 1, 5, 4, 1, 1, 0, 2, 1, 1, 4, 5, 11, -128, 127},
+    {1, 3, 9, 1, 1, 7, 4, 1, 1, 0, 3, 1, 1, 3, 9, -5, -128, 127},
+    {1, 4, 10, 1, 1, 8, 4, 1, 1, 0, 0, 1, 1, 4, 3, 5, -128, 127},
+    {1, 6, 6, 1, 3, 3, 4, 1, 1, 1, 1, 1, 1, 6, 6, 17, -128, 127},
+    {1, 4, 8, 3, 1, 5, 8, 1, 1, 0, 2, 1, 1, 4, 8, 128, -128, 127},
+    {1, 6, 6, 1, 4, 4, 4, 1, 1, 1, 1, 1, 1, 5, 5, -3, -128, 127},
+    {1, 5, 6, 1, 17, 1, 4, 1, 1, 8, 0, 1, 1, 5, 6, 5, -128, 127},
+    {1, 5, 5, 2, 3, 3, 4, 1, 1, 1, 1, 1, 1, 5, 5, 9, -128, 127},
+    {1, 9, 9, 3, 3, 3, 8, 2, 2, 1, 1, 1, 1, 5, 5, 128, -128, 127},
+    {1, 6, 6, 2, 4, 4, 4, 1, 1, 1, 1, 1, 1, 5, 5, -7, -128, 127},
+    {1, 12, 4, 3, 11, 1, 4, 1, 1, 5, 0, 1, 1, 12, 4, 128, -128, 127},
+    {1, 20, 10, 1, 10, 4, 8, 2, 2, 4, 1, 1, 1, 10, 5, -83, -128, 127},
+    {1, 6, 6, 3, 4, 4, 4, 1, 1, 1, 1, 1, 1, 5, 5, 128, -128, 127},
+};
+#endif
+
+void small_cin_weights_at_gap_arm_convolve_s8(void)
+{
+#if defined(MPU_GUARD_AVAILABLE)
+    low_depth_weights_at_gap = 1;
+    low_depth_check_all(small_cin_weights_at_gap_cases,
+                        sizeof(small_cin_weights_at_gap_cases) / sizeof(small_cin_weights_at_gap_cases[0]),
+                        61u);
+    low_depth_weights_at_gap = 0;
+#endif
 }
 
 void c16_3x3_arm_convolve_s8(void)

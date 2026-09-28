@@ -67,7 +67,11 @@ __STATIC_FORCEINLINE int arm_convolve_s8_is_small_cin(const cmsis_nn_conv_params
         ((output_dims->c & 3) == 0);
 }
 
-/* lhs_rows im2col columns of col_len = 16 * nk bytes against output_ch filters, four output channels per step. */
+/* lhs_rows im2col columns of col_len = 16 * nk bytes against output_ch filters, four output channels per step. With
+   whole_head, the first three filters' last chunks are loaded whole: past rhs_cols they read the following filters,
+   which multiply the zeroed column tail, and they stay inside filter_data only while 16 * nk <= 2 * rhs_cols. That
+   holds for nk 2 and 3 (rhs_cols of at least 17 and 33) and for nk 1 from 8 values; below that every chunk load is
+   predicated. The fourth filter's last chunk is always predicated. */
 __STATIC_FORCEINLINE void arm_convolve_s8_small_cin_gemm_nk(const int8_t *lhs,
                                                             const int32_t lhs_rows,
                                                             const int8_t *filter_data,
@@ -80,7 +84,8 @@ __STATIC_FORCEINLINE void arm_convolve_s8_small_cin_gemm_nk(const int8_t *lhs,
                                                             const int32_t out_offset,
                                                             const int32_t act_min,
                                                             const int32_t act_max,
-                                                            const int32_t nk)
+                                                            const int32_t nk,
+                                                            const int32_t whole_head)
 {
     const int32_t col_len = nk * 16;
     const mve_pred16_t p_last = vctp8q((uint32_t)(rhs_cols - (nk - 1) * 16));
@@ -100,9 +105,9 @@ __STATIC_FORCEINLINE void arm_convolve_s8_small_cin_gemm_nk(const int8_t *lhs,
             if (nk == 1)
             {
                 const int8x16_t a0 = vldrbq_s8(a);
-                acc0 = vmladavq_s8(a0, vldrbq_s8(w0));
-                acc1 = vmladavq_s8(a0, vldrbq_s8(w1));
-                acc2 = vmladavq_s8(a0, vldrbq_s8(w2));
+                acc0 = vmladavq_s8(a0, whole_head ? vldrbq_s8(w0) : vldrbq_z_s8(w0, p_last));
+                acc1 = vmladavq_s8(a0, whole_head ? vldrbq_s8(w1) : vldrbq_z_s8(w1, p_last));
+                acc2 = vmladavq_s8(a0, whole_head ? vldrbq_s8(w2) : vldrbq_z_s8(w2, p_last));
                 acc3 = vmladavq_s8(a0, vldrbq_z_s8(w3, p_last));
             }
             else if (nk == 2)
@@ -166,7 +171,7 @@ arm_convolve_s8_small_cin_gemm(const int8_t *lhs,
     const int32_t out_offset = conv_params->output_offset;
     const int32_t act_min = conv_params->activation.min;
     const int32_t act_max = conv_params->activation.max;
-    if (rhs_cols <= 16)
+    if (rhs_cols < 8)
     {
         arm_convolve_s8_small_cin_gemm_nk(lhs,
                                           lhs_rows,
@@ -180,6 +185,24 @@ arm_convolve_s8_small_cin_gemm(const int8_t *lhs,
                                           out_offset,
                                           act_min,
                                           act_max,
+                                          1,
+                                          0);
+    }
+    else if (rhs_cols <= 16)
+    {
+        arm_convolve_s8_small_cin_gemm_nk(lhs,
+                                          lhs_rows,
+                                          filter_data,
+                                          weight_sum,
+                                          mult,
+                                          shift,
+                                          out,
+                                          output_ch,
+                                          rhs_cols,
+                                          out_offset,
+                                          act_min,
+                                          act_max,
+                                          1,
                                           1);
     }
     else if (rhs_cols <= 32)
@@ -196,7 +219,8 @@ arm_convolve_s8_small_cin_gemm(const int8_t *lhs,
                                           out_offset,
                                           act_min,
                                           act_max,
-                                          2);
+                                          2,
+                                          1);
     }
     else
     {
@@ -212,7 +236,8 @@ arm_convolve_s8_small_cin_gemm(const int8_t *lhs,
                                           out_offset,
                                           act_min,
                                           act_max,
-                                          3);
+                                          3,
+                                          1);
     }
 }
 
