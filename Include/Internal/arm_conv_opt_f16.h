@@ -63,8 +63,7 @@ typedef arm_cmsis_nn_status (*arm_conv_call_f16)(const cmsis_nn_context *ctx,
 typedef struct
 {
     arm_conv_match_f16 match;
-    arm_conv_call_f16 call;       /* blockwise float16 accumulation (#586) */
-    arm_conv_call_f16 call_acc16; /* float16 lanes throughout */
+    arm_conv_call_f16 call;
 } arm_conv_spec_f16;
 
 static bool arm_conv1d_spec_k5_nhwc_f16_match(const cmsis_nn_context *ctx,
@@ -307,9 +306,17 @@ static arm_cmsis_nn_status arm_conv1d_spec_k3_nhwc_f16_call_acc16(const cmsis_nn
                                                  true);
 }
 
+/* Blockwise float16 accumulation (#586), for arm_convolve_nhwc_f16. */
 static const arm_conv_spec_f16 arm_conv_spec_nhwc_f16[] = {
-    {arm_conv1d_spec_k5_nhwc_f16_match, arm_conv1d_spec_k5_nhwc_f16_call, arm_conv1d_spec_k5_nhwc_f16_call_acc16},
-    {arm_conv1d_spec_k3_nhwc_f16_match, arm_conv1d_spec_k3_nhwc_f16_call, arm_conv1d_spec_k3_nhwc_f16_call_acc16},
+    ARM_CONV_SPEC_ENTRY(arm_conv1d_spec_k5_nhwc_f16_match, arm_conv1d_spec_k5_nhwc_f16_call),
+    ARM_CONV_SPEC_ENTRY(arm_conv1d_spec_k3_nhwc_f16_match, arm_conv1d_spec_k3_nhwc_f16_call),
+};
+
+/* Float16 lanes throughout, for arm_convolve_nhwc_f16_acc16: a separate table, so that each entry links only its own
+ * kernels. */
+static const arm_conv_spec_f16 arm_conv_spec_nhwc_f16_acc16[] = {
+    ARM_CONV_SPEC_ENTRY(arm_conv1d_spec_k5_nhwc_f16_match, arm_conv1d_spec_k5_nhwc_f16_call_acc16),
+    ARM_CONV_SPEC_ENTRY(arm_conv1d_spec_k3_nhwc_f16_match, arm_conv1d_spec_k3_nhwc_f16_call_acc16),
 };
 
 __STATIC_INLINE bool arm_conv_spec_nhwc_f16_matches_any(const cmsis_nn_context *ctx,

@@ -526,6 +526,24 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_body(const flo
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+/* Float16 lanes throughout: all of arm_nn_mat_mult_nt_t_f16_acc16, and arm_nn_mat_mult_nt_t_f16 when rhs_cols is at
+ * most ARM_NN_F16_ACC_BLOCK, where nothing folds and both entries agree bit for bit. Out of line and shared, so neither
+ * entry references the other and each links only the code it runs. */
+static __attribute__((noinline)) arm_cmsis_nn_status mat_mult_nt_t_f16_lanes16(const float16_t *__RESTRICT lhs,
+                                                                               const float16_t *__RESTRICT rhs,
+                                                                               const float16_t *__RESTRICT bias,
+                                                                               float16_t *__RESTRICT dst,
+                                                                               int32_t lhs_rows,
+                                                                               int32_t rhs_rows,
+                                                                               int32_t rhs_cols,
+                                                                               int32_t row_address_offset,
+                                                                               float16_t activation_min,
+                                                                               float16_t activation_max)
+{
+    return arm_nn_mat_mult_nt_t_f16_body(
+        lhs, rhs, bias, dst, lhs_rows, rhs_rows, rhs_cols, row_address_offset, activation_min, activation_max, false);
+}
+
 /* Refer header file for details. */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_acc16(const float16_t *__RESTRICT lhs,
                                                    const float16_t *__RESTRICT rhs,
@@ -538,8 +556,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_acc16(const float16_t *__RESTRICT l
                                                    float16_t activation_min,
                                                    float16_t activation_max)
 {
-    return arm_nn_mat_mult_nt_t_f16_body(
-        lhs, rhs, bias, dst, lhs_rows, rhs_rows, rhs_cols, row_address_offset, activation_min, activation_max, false);
+    return mat_mult_nt_t_f16_lanes16(
+        lhs, rhs, bias, dst, lhs_rows, rhs_rows, rhs_cols, row_address_offset, activation_min, activation_max);
 }
 
 /* Refer header file for details. */
@@ -555,7 +573,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
                                              float16_t activation_max)
 {
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-    /* Up to ARM_NN_F16_ACC_BLOCK taps nothing folds, so both instantiations agree bit for bit there. */
     if (rhs_cols > ARM_NN_F16_ACC_BLOCK)
     {
         return arm_nn_mat_mult_nt_t_f16_body(lhs,
@@ -571,7 +588,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
                                              true);
     }
     #endif
-    return arm_nn_mat_mult_nt_t_f16_acc16(
+    return mat_mult_nt_t_f16_lanes16(
         lhs, rhs, bias, dst, lhs_rows, rhs_rows, rhs_cols, row_address_offset, activation_min, activation_max);
 }
 

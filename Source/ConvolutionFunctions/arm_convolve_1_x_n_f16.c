@@ -485,16 +485,16 @@ __STATIC_INLINE void arm_convolve_1_x_n_find_regions(const cmsis_nn_conv_params_
 /* Route one packed patch tile through the matmul that matches the filter storage format, exactly as the
  * patch-GEMM path in arm_convolve_f16.c does; the 1xN path previously always took the OHWI kernel and
  * silently misread NT_N_PACKED filters. */
-__STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mul_f16(const float16_t *lhs,
-                                                                   const float16_t *rhs,
-                                                                   const float16_t *bias,
-                                                                   float16_t *dst,
-                                                                   int32_t lhs_rows,
-                                                                   int32_t rhs_rows,
-                                                                   int32_t rhs_cols,
-                                                                   int32_t row_address_offset,
-                                                                   const cmsis_nn_conv_params_f16 *conv_params,
-                                                                   const bool acc16)
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mul_f16(const float16_t *lhs,
+                                                                        const float16_t *rhs,
+                                                                        const float16_t *bias,
+                                                                        float16_t *dst,
+                                                                        int32_t lhs_rows,
+                                                                        int32_t rhs_rows,
+                                                                        int32_t rhs_cols,
+                                                                        int32_t row_address_offset,
+                                                                        const cmsis_nn_conv_params_f16 *conv_params,
+                                                                        const bool acc16)
 {
     if (conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
     {
@@ -729,15 +729,15 @@ arm_convolve_1_x_n_nhwc_f16_fold(const cmsis_nn_context *ctx,
 }
 
 static __attribute__((noinline)) arm_cmsis_nn_status
-arm_convolve_1_x_n_nhwc_f16_nofold(const cmsis_nn_context *ctx,
-                                   const cmsis_nn_conv_params_f16 *conv_params,
-                                   const cmsis_nn_dims *input_dims,
-                                   const float16_t *input_data,
-                                   const cmsis_nn_dims *filter_dims,
-                                   const float16_t *filter_data,
-                                   const float16_t *bias_data,
-                                   const cmsis_nn_dims *output_dims,
-                                   float16_t *output_data)
+arm_convolve_1_x_n_nhwc_f16_acc16_impl(const cmsis_nn_context *ctx,
+                                       const cmsis_nn_conv_params_f16 *conv_params,
+                                       const cmsis_nn_dims *input_dims,
+                                       const float16_t *input_data,
+                                       const cmsis_nn_dims *filter_dims,
+                                       const float16_t *filter_data,
+                                       const float16_t *bias_data,
+                                       const cmsis_nn_dims *output_dims,
+                                       float16_t *output_data)
 {
     return arm_convolve_1_x_n_nhwc_f16_body(ctx,
                                             conv_params,
@@ -779,7 +779,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16_acc16(const cmsis_nn_context *ct
                                                       float16_t *output_data)
 {
     (void)bias_dims;
-    return arm_convolve_1_x_n_nhwc_f16_nofold(
+    return arm_convolve_1_x_n_nhwc_f16_acc16_impl(
         ctx, conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data);
 }
 

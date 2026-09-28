@@ -328,12 +328,12 @@ __STATIC_FORCEINLINE void arm_depthwise_direct_run_mve_f16_body(const float16_t 
 }
 
 static void __attribute__((noinline))
-arm_depthwise_direct_run_mve_f16(const float16_t *__RESTRICT in_tap,
-                                 const float16_t *__RESTRICT w_tap,
-                                 const float16_t *__RESTRICT bias,
-                                 float16_t *__RESTRICT out_px,
-                                 int32_t n_px,
-                                 const arm_depthwise_direct_run_f16 *__RESTRICT run)
+arm_depthwise_direct_run_mve_fold_f16(const float16_t *__RESTRICT in_tap,
+                                      const float16_t *__RESTRICT w_tap,
+                                      const float16_t *__RESTRICT bias,
+                                      float16_t *__RESTRICT out_px,
+                                      int32_t n_px,
+                                      const arm_depthwise_direct_run_f16 *__RESTRICT run)
 {
     arm_depthwise_direct_run_mve_f16_body(in_tap, w_tap, bias, out_px, n_px, run, ARM_NN_F16_ACC_BLOCK);
 }
@@ -404,31 +404,31 @@ __STATIC_FORCEINLINE int32_t arm_depthwise_direct_tap_end(int32_t base_idx,
     return ARM_NN_MIN(kernel_size, input_size - base_idx);
 }
 
-static void arm_depthwise_conv_nhwc_direct_chmult1_f16(const float16_t *input,
-                                                       int32_t input_batches,
-                                                       int32_t input_x,
-                                                       int32_t input_y,
-                                                       int32_t input_ch,
-                                                       const float16_t *kernel,
-                                                       int32_t kernel_x,
-                                                       int32_t kernel_y,
-                                                       int32_t pad_x,
-                                                       int32_t pad_y,
-                                                       int32_t stride_x,
-                                                       int32_t stride_y,
-                                                       int32_t dilation_x,
-                                                       int32_t dilation_y,
-                                                       const float16_t *bias,
-                                                       float16_t *output,
-                                                       int32_t output_x,
-                                                       int32_t output_y,
-                                                       float16_t output_activation_min,
-                                                       float16_t output_activation_max,
-                                                       const bool acc16)
+__STATIC_FORCEINLINE void arm_depthwise_conv_nhwc_direct_chmult1_f16(const float16_t *input,
+                                                                     int32_t input_batches,
+                                                                     int32_t input_x,
+                                                                     int32_t input_y,
+                                                                     int32_t input_ch,
+                                                                     const float16_t *kernel,
+                                                                     int32_t kernel_x,
+                                                                     int32_t kernel_y,
+                                                                     int32_t pad_x,
+                                                                     int32_t pad_y,
+                                                                     int32_t stride_x,
+                                                                     int32_t stride_y,
+                                                                     int32_t dilation_x,
+                                                                     int32_t dilation_y,
+                                                                     const float16_t *bias,
+                                                                     float16_t *output,
+                                                                     int32_t output_x,
+                                                                     int32_t output_y,
+                                                                     float16_t output_activation_min,
+                                                                     float16_t output_activation_max,
+                                                                     const bool acc16)
 {
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
         #define ARM_DW_DIRECT_RUN_F16                                                                                  \
-            (acc16 ? arm_depthwise_direct_run_mve_acc16_f16 : arm_depthwise_direct_run_mve_f16)
+            (acc16 ? arm_depthwise_direct_run_mve_acc16_f16 : arm_depthwise_direct_run_mve_fold_f16)
     #else
         #define ARM_DW_DIRECT_RUN_F16 arm_depthwise_direct_run_scalar_f16
     (void)acc16;
@@ -561,16 +561,17 @@ __STATIC_INLINE void arm_depthwise_pack_conv_kernel_nt_n_f16(const float16_t *ke
     }
 }
 
-static arm_cmsis_nn_status arm_depthwise_conv_nhwc_to_conv_packed_f16(const cmsis_nn_context *ctx,
-                                                                      const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
-                                                                      const cmsis_nn_dims *input_dims,
-                                                                      const float16_t *input,
-                                                                      const cmsis_nn_dims *filter_dims,
-                                                                      const float16_t *packed_kernel,
-                                                                      const float16_t *bias,
-                                                                      const cmsis_nn_dims *output_dims,
-                                                                      float16_t *output,
-                                                                      const bool acc16)
+__STATIC_FORCEINLINE arm_cmsis_nn_status
+arm_depthwise_conv_nhwc_to_conv_packed_f16(const cmsis_nn_context *ctx,
+                                           const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                           const cmsis_nn_dims *input_dims,
+                                           const float16_t *input,
+                                           const cmsis_nn_dims *filter_dims,
+                                           const float16_t *packed_kernel,
+                                           const float16_t *bias,
+                                           const cmsis_nn_dims *output_dims,
+                                           float16_t *output,
+                                           const bool acc16)
 {
     if (!ctx || !ctx->buf || ctx->size <= 0 || !dw_conv_params || !input_dims || !input || !packed_kernel ||
         !output_dims || !output)
@@ -669,18 +670,19 @@ static arm_cmsis_nn_status arm_depthwise_conv_nhwc_to_conv_packed_f16(const cmsi
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-static arm_cmsis_nn_status arm_depthwise_conv_nhwc_to_conv_f16(const cmsis_nn_context *ctx,
-                                                               const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
-                                                               const cmsis_nn_dims *input_dims,
-                                                               const float16_t *input,
-                                                               const cmsis_nn_dims *filter_dims,
-                                                               const float16_t *kernel,
-                                                               const cmsis_nn_dims *bias_dims,
-                                                               const float16_t *bias,
-                                                               const cmsis_nn_dims *output_dims,
-                                                               float16_t *output,
-                                                               arm_nn_dw_kernel_layout_f16 kernel_layout,
-                                                               const bool acc16)
+__STATIC_FORCEINLINE arm_cmsis_nn_status
+arm_depthwise_conv_nhwc_to_conv_f16(const cmsis_nn_context *ctx,
+                                    const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                    const cmsis_nn_dims *input_dims,
+                                    const float16_t *input,
+                                    const cmsis_nn_dims *filter_dims,
+                                    const float16_t *kernel,
+                                    const cmsis_nn_dims *bias_dims,
+                                    const float16_t *bias,
+                                    const cmsis_nn_dims *output_dims,
+                                    float16_t *output,
+                                    arm_nn_dw_kernel_layout_f16 kernel_layout,
+                                    const bool acc16)
 {
     if (!ctx || !ctx->buf || ctx->size <= 0)
     {
@@ -744,30 +746,30 @@ static arm_cmsis_nn_status arm_depthwise_conv_nhwc_to_conv_f16(const cmsis_nn_co
 }
     #endif
 
-static void arm_depthwise_conv_f16_generic(const float16_t *input,
-                                           const int32_t input_batches,
-                                           const int32_t input_x,
-                                           const int32_t input_y,
-                                           const int32_t input_ch,
-                                           const float16_t *kernel,
-                                           const int32_t ch_mult,
-                                           const int32_t kernel_x,
-                                           const int32_t kernel_y,
-                                           const int32_t pad_x,
-                                           const int32_t pad_y,
-                                           const int32_t stride_x,
-                                           const int32_t stride_y,
-                                           const float16_t *bias,
-                                           float16_t *output,
-                                           const int32_t output_x,
-                                           const int32_t output_y,
-                                           const float16_t output_activation_min,
-                                           const float16_t output_activation_max,
-                                           const int32_t dilation_x,
-                                           const int32_t dilation_y,
-                                           const cmsis_nn_dw_conv_params_f16 *params,
-                                           arm_nn_dw_kernel_layout_f16 kernel_layout,
-                                           const bool acc16)
+__STATIC_FORCEINLINE void arm_depthwise_conv_f16_generic(const float16_t *input,
+                                                         const int32_t input_batches,
+                                                         const int32_t input_x,
+                                                         const int32_t input_y,
+                                                         const int32_t input_ch,
+                                                         const float16_t *kernel,
+                                                         const int32_t ch_mult,
+                                                         const int32_t kernel_x,
+                                                         const int32_t kernel_y,
+                                                         const int32_t pad_x,
+                                                         const int32_t pad_y,
+                                                         const int32_t stride_x,
+                                                         const int32_t stride_y,
+                                                         const float16_t *bias,
+                                                         float16_t *output,
+                                                         const int32_t output_x,
+                                                         const int32_t output_y,
+                                                         const float16_t output_activation_min,
+                                                         const float16_t output_activation_max,
+                                                         const int32_t dilation_x,
+                                                         const int32_t dilation_y,
+                                                         const cmsis_nn_dw_conv_params_f16 *params,
+                                                         arm_nn_dw_kernel_layout_f16 kernel_layout,
+                                                         const bool acc16)
 {
     (void)params;
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
@@ -912,18 +914,19 @@ static arm_cmsis_nn_status arm_depthwise_conv_f16_validate(const cmsis_nn_dw_con
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-static arm_cmsis_nn_status arm_depthwise_conv_nhwc_dispatch_f16(const cmsis_nn_context *ctx,
-                                                                const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
-                                                                const cmsis_nn_dims *input_dims,
-                                                                const float16_t *input,
-                                                                const cmsis_nn_dims *filter_dims,
-                                                                const float16_t *kernel,
-                                                                const cmsis_nn_dims *bias_dims,
-                                                                const float16_t *bias,
-                                                                const cmsis_nn_dims *output_dims,
-                                                                float16_t *output,
-                                                                arm_nn_dw_kernel_layout_f16 kernel_layout,
-                                                                const bool acc16)
+__STATIC_FORCEINLINE arm_cmsis_nn_status
+arm_depthwise_conv_nhwc_dispatch_f16(const cmsis_nn_context *ctx,
+                                     const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                     const cmsis_nn_dims *input_dims,
+                                     const float16_t *input,
+                                     const cmsis_nn_dims *filter_dims,
+                                     const float16_t *kernel,
+                                     const cmsis_nn_dims *bias_dims,
+                                     const float16_t *bias,
+                                     const cmsis_nn_dims *output_dims,
+                                     float16_t *output,
+                                     arm_nn_dw_kernel_layout_f16 kernel_layout,
+                                     const bool acc16)
 {
     /* Read by the table and the to-conv route only; neither is compiled on every leg. */
     (void)ctx;
@@ -1025,17 +1028,19 @@ static arm_cmsis_nn_status arm_depthwise_conv_nhwc_dispatch_f16(const cmsis_nn_c
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-static arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16_body(const cmsis_nn_context *ctx,
-                                                            const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
-                                                            const cmsis_nn_dims *input_dims,
-                                                            const float16_t *input,
-                                                            const cmsis_nn_dims *filter_dims,
-                                                            const float16_t *kernel,
-                                                            const cmsis_nn_dims *bias_dims,
-                                                            const float16_t *bias,
-                                                            const cmsis_nn_dims *output_dims,
-                                                            float16_t *output,
-                                                            const bool acc16)
+/* Shared body; `acc16` is a constant at every call site (see the two instantiations below). */
+__STATIC_FORCEINLINE arm_cmsis_nn_status
+arm_depthwise_nhwc_conv_f16_body(const cmsis_nn_context *ctx,
+                                 const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                 const cmsis_nn_dims *input_dims,
+                                 const float16_t *input,
+                                 const cmsis_nn_dims *filter_dims,
+                                 const float16_t *kernel,
+                                 const cmsis_nn_dims *bias_dims,
+                                 const float16_t *bias,
+                                 const cmsis_nn_dims *output_dims,
+                                 float16_t *output,
+                                 const bool acc16)
 {
     arm_nn_dw_kernel_layout_f16 kernel_layout;
     arm_cmsis_nn_status status = arm_depthwise_conv_f16_validate(dw_conv_params,
@@ -1066,6 +1071,39 @@ static arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16_body(const cmsis_nn_conte
                                                 acc16);
 }
 
+/* One out-of-line instantiation per variant, each called by that variant's two public entries. */
+static __attribute__((noinline)) arm_cmsis_nn_status
+arm_depthwise_nhwc_conv_f16_fold(const cmsis_nn_context *ctx,
+                                 const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                 const cmsis_nn_dims *input_dims,
+                                 const float16_t *input,
+                                 const cmsis_nn_dims *filter_dims,
+                                 const float16_t *kernel,
+                                 const cmsis_nn_dims *bias_dims,
+                                 const float16_t *bias,
+                                 const cmsis_nn_dims *output_dims,
+                                 float16_t *output)
+{
+    return arm_depthwise_nhwc_conv_f16_body(
+        ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output, false);
+}
+
+static __attribute__((noinline)) arm_cmsis_nn_status
+arm_depthwise_nhwc_conv_f16_acc16_impl(const cmsis_nn_context *ctx,
+                                       const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                       const cmsis_nn_dims *input_dims,
+                                       const float16_t *input,
+                                       const cmsis_nn_dims *filter_dims,
+                                       const float16_t *kernel,
+                                       const cmsis_nn_dims *bias_dims,
+                                       const float16_t *bias,
+                                       const cmsis_nn_dims *output_dims,
+                                       float16_t *output)
+{
+    return arm_depthwise_nhwc_conv_f16_body(
+        ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output, true);
+}
+
 arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
                                                 const cmsis_nn_dims *input_dims,
@@ -1077,8 +1115,8 @@ arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_dims *output_dims,
                                                 float16_t *output)
 {
-    return arm_depthwise_nhwc_conv_f16_body(
-        ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output, false);
+    return arm_depthwise_nhwc_conv_f16_fold(
+        ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output);
 }
 
 arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16_acc16(const cmsis_nn_context *ctx,
@@ -1092,8 +1130,8 @@ arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16_acc16(const cmsis_nn_context *ct
                                                       const cmsis_nn_dims *output_dims,
                                                       float16_t *output)
 {
-    return arm_depthwise_nhwc_conv_f16_body(
-        ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output, true);
+    return arm_depthwise_nhwc_conv_f16_acc16_impl(
+        ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output);
 }
 
 arm_cmsis_nn_status arm_depthwise_conv_f16(const cmsis_nn_context *ctx,
@@ -1149,8 +1187,8 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16(const cmsis_nn_context *ctx,
                                                    const cmsis_nn_dims *output_dims,
                                                    float16_t *output)
 {
-    return arm_depthwise_nhwc_conv_f16_body(
-        ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output, false);
+    return arm_depthwise_nhwc_conv_f16_fold(
+        ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output);
 }
 
 arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16_acc16(const cmsis_nn_context *ctx,
@@ -1164,8 +1202,8 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16_acc16(const cmsis_nn_context 
                                                          const cmsis_nn_dims *output_dims,
                                                          float16_t *output)
 {
-    return arm_depthwise_nhwc_conv_f16_body(
-        ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output, true);
+    return arm_depthwise_nhwc_conv_f16_acc16_impl(
+        ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output);
 }
 
 /**

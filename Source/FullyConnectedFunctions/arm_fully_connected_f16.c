@@ -42,17 +42,17 @@
  * @{
  */
 
-static arm_cmsis_nn_status arm_fully_connected_core_f16(const cmsis_nn_context *ctx,
-                                                        const cmsis_nn_fc_params_f16 *fc_params,
-                                                        const cmsis_nn_dims *input_dims,
-                                                        const float16_t *input,
-                                                        const cmsis_nn_dims *filter_dims,
-                                                        const float16_t *kernel,
-                                                        const cmsis_nn_dims *bias_dims,
-                                                        const float16_t *bias,
-                                                        const cmsis_nn_dims *output_dims,
-                                                        float16_t *output,
-                                                        const bool acc16)
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_fully_connected_core_f16(const cmsis_nn_context *ctx,
+                                                                      const cmsis_nn_fc_params_f16 *fc_params,
+                                                                      const cmsis_nn_dims *input_dims,
+                                                                      const float16_t *input,
+                                                                      const cmsis_nn_dims *filter_dims,
+                                                                      const float16_t *kernel,
+                                                                      const cmsis_nn_dims *bias_dims,
+                                                                      const float16_t *bias,
+                                                                      const cmsis_nn_dims *output_dims,
+                                                                      float16_t *output,
+                                                                      const bool acc16)
 {
     (void)ctx;
     (void)bias_dims;
@@ -88,17 +88,18 @@ static arm_cmsis_nn_status arm_fully_connected_core_f16(const cmsis_nn_context *
                                                                                fc_params->activation.max);
 }
 
-__STATIC_INLINE arm_cmsis_nn_status arm_fully_connected_nhwc_f16_body(const cmsis_nn_context *ctx,
-                                                                      const cmsis_nn_fc_params_f16 *fc_params,
-                                                                      const cmsis_nn_dims *input_dims,
-                                                                      const float16_t *input,
-                                                                      const cmsis_nn_dims *filter_dims,
-                                                                      const float16_t *kernel,
-                                                                      const cmsis_nn_dims *bias_dims,
-                                                                      const float16_t *bias,
-                                                                      const cmsis_nn_dims *output_dims,
-                                                                      float16_t *output,
-                                                                      const bool acc16)
+/* Shared body; `acc16` is a constant at every call site, so each public entry links only its own matmul. */
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_fully_connected_nhwc_f16_body(const cmsis_nn_context *ctx,
+                                                                           const cmsis_nn_fc_params_f16 *fc_params,
+                                                                           const cmsis_nn_dims *input_dims,
+                                                                           const float16_t *input,
+                                                                           const cmsis_nn_dims *filter_dims,
+                                                                           const float16_t *kernel,
+                                                                           const cmsis_nn_dims *bias_dims,
+                                                                           const float16_t *bias,
+                                                                           const cmsis_nn_dims *output_dims,
+                                                                           float16_t *output,
+                                                                           const bool acc16)
 {
     const int32_t input_len = input_dims->h * input_dims->w * input_dims->c;
     if (filter_dims->n != input_len)

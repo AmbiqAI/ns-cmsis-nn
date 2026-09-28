@@ -76,16 +76,16 @@ __STATIC_INLINE bool arm_conv_nhwc_use_1x1_f16(const cmsis_nn_conv_params_f16 *c
         conv_params->padding.w == 0;
 }
 
-__STATIC_INLINE arm_cmsis_nn_status arm_convolve_patch_mat_mul_f16(const float16_t *lhs,
-                                                                   const float16_t *rhs,
-                                                                   const float16_t *bias,
-                                                                   float16_t *dst,
-                                                                   int32_t lhs_rows,
-                                                                   int32_t rhs_rows,
-                                                                   int32_t rhs_cols,
-                                                                   int32_t row_address_offset,
-                                                                   const cmsis_nn_conv_params_f16 *conv_params,
-                                                                   const bool acc16)
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_patch_mat_mul_f16(const float16_t *lhs,
+                                                                        const float16_t *rhs,
+                                                                        const float16_t *bias,
+                                                                        float16_t *dst,
+                                                                        int32_t lhs_rows,
+                                                                        int32_t rhs_rows,
+                                                                        int32_t rhs_cols,
+                                                                        int32_t row_address_offset,
+                                                                        const cmsis_nn_conv_params_f16 *conv_params,
+                                                                        const bool acc16)
 {
     if (conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
     {
@@ -557,16 +557,16 @@ static arm_cmsis_nn_status arm_conv_small_c_dispatch_f16(const cmsis_nn_conv_par
 }
     #endif /* defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE) */
 
-static arm_cmsis_nn_status arm_convolve_nhwc_patch_gemm_f16(const cmsis_nn_context *ctx,
-                                                            const cmsis_nn_conv_params_f16 *conv_params,
-                                                            const cmsis_nn_dims *input_dims,
-                                                            const float16_t *input_data,
-                                                            const cmsis_nn_dims *filter_dims,
-                                                            const float16_t *filter_data,
-                                                            const float16_t *bias_data,
-                                                            const cmsis_nn_dims *output_dims,
-                                                            float16_t *output_data,
-                                                            const bool acc16)
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_patch_gemm_f16(const cmsis_nn_context *ctx,
+                                                                          const cmsis_nn_conv_params_f16 *conv_params,
+                                                                          const cmsis_nn_dims *input_dims,
+                                                                          const float16_t *input_data,
+                                                                          const cmsis_nn_dims *filter_dims,
+                                                                          const float16_t *filter_data,
+                                                                          const float16_t *bias_data,
+                                                                          const cmsis_nn_dims *output_dims,
+                                                                          float16_t *output_data,
+                                                                          const bool acc16)
 {
     const int32_t batch = input_dims->n;
     const int32_t input_h = input_dims->h;
@@ -729,32 +729,20 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_f16_body(const cmsis_
      * remains the generic fallback for shapes that are not handled by a tuned
      * direct kernel.
      */
-    for (size_t i = 0; i < ARM_CONV_ARRAY_SIZE(arm_conv_spec_nhwc_f16); ++i)
-    {
-        const arm_conv_spec_f16 *spec = &arm_conv_spec_nhwc_f16[i];
-        if (spec->match(ctx,
-                        conv_params,
-                        input_dims,
-                        input_data,
-                        filter_dims,
-                        filter_data,
-                        bias_dims,
-                        bias_data,
-                        output_dims,
-                        output_data))
-        {
-            return (acc16 ? spec->call_acc16 : spec->call)(ctx,
-                                                           conv_params,
-                                                           input_dims,
-                                                           input_data,
-                                                           filter_dims,
-                                                           filter_data,
-                                                           bias_dims,
-                                                           bias_data,
-                                                           output_dims,
-                                                           output_data);
-        }
-    }
+    /* Each variant has its own table, so that the table a variant links names only that variant's kernels. */
+    const arm_conv_spec_f16 *const specs = acc16 ? arm_conv_spec_nhwc_f16_acc16 : arm_conv_spec_nhwc_f16;
+    ARM_CONV_DISPATCH(specs,
+                      ARM_CONV_ARRAY_SIZE(arm_conv_spec_nhwc_f16),
+                      ctx,
+                      conv_params,
+                      input_dims,
+                      input_data,
+                      filter_dims,
+                      filter_data,
+                      bias_dims,
+                      bias_data,
+                      output_dims,
+                      output_data);
     #endif
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
@@ -1024,16 +1012,16 @@ arm_convolve_nhwc_f16_fold(const cmsis_nn_context *ctx,
 }
 
 static __attribute__((noinline)) arm_cmsis_nn_status
-arm_convolve_nhwc_f16_nofold(const cmsis_nn_context *ctx,
-                             const cmsis_nn_conv_params_f16 *conv_params,
-                             const cmsis_nn_dims *input_dims,
-                             const float16_t *input_data,
-                             const cmsis_nn_dims *filter_dims,
-                             const float16_t *filter_data,
-                             const cmsis_nn_dims *bias_dims,
-                             const float16_t *bias_data,
-                             const cmsis_nn_dims *output_dims,
-                             float16_t *output_data)
+arm_convolve_nhwc_f16_acc16_impl(const cmsis_nn_context *ctx,
+                                 const cmsis_nn_conv_params_f16 *conv_params,
+                                 const cmsis_nn_dims *input_dims,
+                                 const float16_t *input_data,
+                                 const cmsis_nn_dims *filter_dims,
+                                 const float16_t *filter_data,
+                                 const cmsis_nn_dims *bias_dims,
+                                 const float16_t *bias_data,
+                                 const cmsis_nn_dims *output_dims,
+                                 float16_t *output_data)
 {
     return arm_convolve_nhwc_f16_body(ctx,
                                       conv_params,
@@ -1082,16 +1070,16 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16_acc16(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_dims *output_dims,
                                                 float16_t *output_data)
 {
-    return arm_convolve_nhwc_f16_nofold(ctx,
-                                        conv_params,
-                                        input_dims,
-                                        input_data,
-                                        filter_dims,
-                                        filter_data,
-                                        bias_dims,
-                                        bias_data,
-                                        output_dims,
-                                        output_data);
+    return arm_convolve_nhwc_f16_acc16_impl(ctx,
+                                            conv_params,
+                                            input_dims,
+                                            input_data,
+                                            filter_dims,
+                                            filter_data,
+                                            bias_dims,
+                                            bias_data,
+                                            output_dims,
+                                            output_data);
 }
 
 arm_cmsis_nn_status arm_convolve_f16(const cmsis_nn_context *ctx,
