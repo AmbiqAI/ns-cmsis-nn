@@ -27,8 +27,8 @@ npm run test:smoke
 
 The browser suite uses Playwright Chromium. CI installs it; local development
 uses the cached browser. `npm run build` regenerates the API, validates public
-coverage and content, renders the site, writes legacy redirects, and checks
-internal links and fragments. Build output is `dist/` and browser evidence is
+coverage and content, renders the site, writes legacy redirects, publishes model-derived API Markdown,
+and checks internal links and fragments. Build output is `dist/` and browser evidence is
 `test-results/`; neither is committed.
 
 ## Content and API
@@ -43,6 +43,10 @@ Do not put internal reviews or unfinished planning notes in the public collectio
 installed `helia-ui-doxyref` command. Generated API pages and models are ignored
 by Git and reproduced during the build. `scripts/check-coverage.mjs` compares
 exact public declaration names with the generated index.
+`scripts/publish-reference-markdown.mjs` restores signatures, parameter direction
+tables and return contracts from the model into every API Markdown page and
+rebuilds `llms-full.txt`. The browser suite checks every model signature against
+both artifacts, since component props are not preserved by the MDX rendition.
 
 Use `redirects.json` for known moved pages. The build emits physical `.html`
 redirect files for older links. Unknown URLs receive `404.html`, which explains
