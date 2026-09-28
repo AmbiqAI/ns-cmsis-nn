@@ -93,4 +93,5 @@ void test_planar_small_context_arm_depthwise_conv_s8_opt(void) { planar_small_co
 void test_padded_nt_t_bounds_arm_depthwise_conv_s8_opt(void) { padded_nt_t_bounds_arm_depthwise_conv_s8_opt(); }
 void test_dw3_shapes_arm_depthwise_conv_s8_opt(void) { dw3_shapes_arm_depthwise_conv_s8_opt(); }
 void test_dw3_declines_arm_depthwise_conv_s8_opt(void) { dw3_declines_arm_depthwise_conv_s8_opt(); }
+void test_dw3_buffer_size_arm_depthwise_conv_s8_opt(void) { dw3_buffer_size_arm_depthwise_conv_s8_opt(); }
 void test_dw3_bounds_arm_depthwise_conv_s8_opt(void) { dw3_bounds_arm_depthwise_conv_s8_opt(); }

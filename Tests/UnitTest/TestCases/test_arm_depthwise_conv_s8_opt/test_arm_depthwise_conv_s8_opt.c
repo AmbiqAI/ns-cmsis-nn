@@ -2699,7 +2699,8 @@ typedef arm_cmsis_nn_status (*dw3_entry_fn)(const cmsis_nn_context *,
                                             const cmsis_nn_dims *,
                                             int8_t *);
 
-/* About 61 KB in all, within the 64 KiB the Corstone-300 build reserves for the heap. */
+/* Static (.bss) buffers of about 61 KB in all, kept within a 64 KiB budget on the Corstone-300 build. The scratch is
+   16-byte aligned so that the misalignment of each case below is the offset it adds, whatever the linker placement. */
 #define DW3_MAX_IN (24 * 24 * 32)
 #define DW3_MAX_OUT (16 * 32 * 32)
 #define DW3_MAX_CH (192)
@@ -2707,11 +2708,15 @@ typedef arm_cmsis_nn_status (*dw3_entry_fn)(const cmsis_nn_context *,
 #define DW3_MAX_SCRATCH (6144)
 static int8_t dw3_in[DW3_MAX_IN], dw3_ker[9 * DW3_MAX_CH], dw3_ref[DW3_MAX_OUT];
 static int8_t dw3_out[DW3_GUARD + DW3_MAX_OUT + DW3_GUARD];
-static int8_t dw3_scratch[DW3_GUARD + DW3_MAX_SCRATCH + DW3_GUARD];
+static int8_t dw3_scratch[DW3_GUARD + DW3_MAX_SCRATCH + DW3_GUARD] __attribute__((aligned(16)));
 static int32_t dw3_bias[DW3_MAX_CH], dw3_mult[DW3_MAX_CH], dw3_shift[DW3_MAX_CH], dw3_wsum[DW3_MAX_CH];
 
-/* Scratch bytes the direct entries need, as documented in arm_nnfunctions.h. */
-static int32_t dw3_scratch_need(const cmsis_nn_dims *input_dims) { return 3008 + input_dims->w * input_dims->c + 16; }
+/* Scratch bytes the direct entries need, from the public sizer; dw3_buffer_size checks it against the documented
+   3008 + input W x C + 16. */
+static int32_t dw3_scratch_need(const cmsis_nn_dims *input_dims)
+{
+    return arm_depthwise_conv_s8_opt_3x3_get_buffer_size(input_dims);
+}
 
 typedef struct
 {
@@ -3005,11 +3010,43 @@ static void dw3_declines(const dw3_entry_fn entry, const int32_t ch)
         const cmsis_nn_context big = {dw3_scratch + DW3_GUARD, 3008 + 5 * 62 + 16};
         dw3_expect_decline(entry, &big, &wsum, &params, &in_c, &f_c, &out_c);
     }
-    /* Filter 5x5 and 1x3 */
+    /* Filter 5x5; 1x3, 3x1, 5x3 and 3x5 (H x W), each with the output of the 3x3 layer so that only the filter is
+       outside the gate */
     {
-        const cmsis_nn_dims f5 = {1, 5, 5, ch}, out5 = {1, 6, 6, ch}, f13 = {1, 1, 3, ch};
+        const cmsis_nn_dims f5 = {1, 5, 5, ch}, out5 = {1, 6, 6, ch};
         dw3_expect_decline(entry, &ctx, &wsum, &params, &input_dims, &f5, &out5);
-        dw3_expect_decline(entry, &ctx, &wsum, &params, &input_dims, &f13, &output_dims);
+        const cmsis_nn_dims f_hw[] = {{1, 1, 3, ch}, {1, 3, 1, ch}, {1, 5, 3, ch}, {1, 3, 5, ch}};
+        for (size_t i = 0; i < sizeof(f_hw) / sizeof(f_hw[0]); i++)
+        {
+            dw3_expect_decline(entry, &ctx, &wsum, &params, &input_dims, &f_hw[i], &output_dims);
+        }
+    }
+    /* Stride 0 in each dimension */
+    {
+        cmsis_nn_dw_conv_params p = params;
+        p.stride.w = 0;
+        dw3_expect_decline(entry, &ctx, &wsum, &p, &input_dims, &filter_dims, &output_dims);
+        p = params;
+        p.stride.h = 0;
+        dw3_expect_decline(entry, &ctx, &wsum, &p, &input_dims, &filter_dims, &output_dims);
+    }
+    /* Input H 0 and output W 0 */
+    {
+        const cmsis_nn_dims in_h0 = {1, 0, 8, ch}, out_w0 = {1, 8, 0, ch};
+        dw3_expect_decline(entry, &ctx, &wsum, &params, &in_h0, &filter_dims, &output_dims);
+        dw3_expect_decline(entry, &ctx, &wsum, &params, &input_dims, &filter_dims, &out_w0);
+    }
+    /* One dimension of 4097, the rest inside the gate. The dimensions and ctx->size overstate the buffers, which the
+       gate declines before touching. An output W over 4096 also puts the last window centre past an input W that is
+       inside the gate, so its input is 4097 wide too. */
+    {
+        const cmsis_nn_dims in[] = {{1, 1, 4097, ch}, {1, 4097, 3, ch}, {1, 3, 4097, ch}, {1, 1, 3, ch}};
+        const cmsis_nn_dims out[] = {{1, 3, 6, ch}, {1, 6, 3, ch}, {1, 3, 4097, ch}, {1, 4097, 1, ch}};
+        for (size_t i = 0; i < sizeof(in) / sizeof(in[0]); i++)
+        {
+            const cmsis_nn_context big = {dw3_scratch + DW3_GUARD, dw3_scratch_need(&in[i])};
+            dw3_expect_decline(entry, &big, &wsum, &params, &in[i], &filter_dims, &out[i]);
+        }
     }
     /* Dilation 2, stride 3, padding 2 and -1, each in one dimension */
     for (int32_t dim = 0; dim < 2; dim++)
@@ -3120,6 +3157,38 @@ void dw3_declines_arm_depthwise_conv_s8_opt(void)
     dw3_declines(arm_depthwise_conv_s8_opt_3x3, 64);
     dw3_declines(arm_depthwise_conv_s8_opt_3x3_c64_s1, 64);
 
+    /* 2052 channels, and an input or an output of 2^31 elements with every dimension inside the gate. The dimensions
+       and ctx->size overstate the buffers, which the gate declines before touching. With the MPU gap, the scratch is
+       placed so that the pad row of a kernel that ran these layers would start at the gap and fault on its first
+       byte, rather than run hundreds of KB past the static buffers. */
+    {
+        const cmsis_nn_dw_conv_params params = {.input_offset = 3,
+                                                .output_offset = -3,
+                                                .ch_mult = 1,
+                                                .stride = {1, 1},
+                                                .padding = {1, 1},
+                                                .dilation = {1, 1},
+                                                .activation = {-128, 127}};
+        const cmsis_nn_dims in[] = {{1, 1, 3, 2052}, {1, 4096, 256, 2048}, {1, 1, 256, 2048}};
+        const cmsis_nn_dims out[] = {{1, 6, 3, 2052}, {1, 3, 6, 2048}, {1, 4096, 256, 2048}};
+        for (size_t i = 0; i < sizeof(in) / sizeof(in[0]); i++)
+        {
+            const cmsis_nn_dims f = {1, 3, 3, in[i].c};
+            int8_t *buf = dw3_scratch + DW3_GUARD;
+#if defined(MPU_GUARD_AVAILABLE)
+            buf = guard_end(3008);
+            guard_gap_enable();
+#endif
+            const cmsis_nn_context big = {buf, dw3_scratch_need(&in[i])};
+            const cmsis_nn_context wsum = {dw3_wsum, in[i].c * (int32_t)sizeof(int32_t)};
+            dw3_expect_decline(arm_depthwise_conv_s8_opt_3x3, &big, &wsum, &params, &in[i], &f, &out[i]);
+            dw3_expect_decline(arm_depthwise_conv_s8_opt_3x3_c64_s1, &big, &wsum, &params, &in[i], &f, &out[i]);
+#if defined(MPU_GUARD_AVAILABLE)
+            guard_gap_disable();
+#endif
+        }
+    }
+
     /* The C = 64, stride_h 1 entry also declines other channel counts and a vertical stride of 2 that the generic
        entry takes. */
     const int32_t chans[] = {32, 68, 64};
@@ -3145,8 +3214,28 @@ void dw3_declines_arm_depthwise_conv_s8_opt(void)
     }
 }
 
+/* The sizer returns 3008 + input W x C + 16 on every build, reads only W and C, and returns -1 for a negative W or C
+   or a size past INT32_MAX. */
+void dw3_buffer_size_arm_depthwise_conv_s8_opt(void)
+{
+    const int32_t wc[][2] = {{3, 16}, {5, 64}, {24, 68}, {4096, 2048}, {0, 0}, {1, INT32_MAX - 3024}};
+    for (size_t i = 0; i < sizeof(wc) / sizeof(wc[0]); i++)
+    {
+        const cmsis_nn_dims in = {-7, -7, wc[i][0], wc[i][1]};
+        TEST_ASSERT_EQUAL_INT32((int32_t)(3008 + (int64_t)wc[i][0] * wc[i][1] + 16),
+                                arm_depthwise_conv_s8_opt_3x3_get_buffer_size(&in));
+    }
+    const int32_t bad[][2] = {{-1, 16}, {3, -4}, {1, INT32_MAX - 3023}, {INT32_MAX, 2}, {65536, 65536}};
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++)
+    {
+        const cmsis_nn_dims in = {1, 8, bad[i][0], bad[i][1]};
+        TEST_ASSERT_EQUAL_INT32(-1, arm_depthwise_conv_s8_opt_3x3_get_buffer_size(&in));
+    }
+}
+
 /* Every operand ends at an unmapped gap in turn: no entry reads or writes past the input, filter, weight sums,
-   multipliers, shifts, output or the documented minimum scratch. */
+   multipliers, shifts, output or the documented minimum scratch. op_layout also ends the kernel's own 16-byte aligned
+   scratch layout at the gap, so a write past the pad row faults even where the documented minimum leaves slack. */
 void dw3_bounds_arm_depthwise_conv_s8_opt(void)
 {
 #if defined(MPU_GUARD_AVAILABLE)
@@ -3160,6 +3249,7 @@ void dw3_bounds_arm_depthwise_conv_s8_opt(void)
         op_shift,
         op_out,
         op_scratch,
+        op_layout,
         op_end
     };
     const dw3_shape shapes[] = {
@@ -3224,7 +3314,17 @@ void dw3_bounds_arm_depthwise_conv_s8_opt(void)
                     op == op_mult ? guard_place(dw3_mult, ch_bytes) : dw3_mult,
                     op == op_shift ? guard_place(dw3_shift, ch_bytes) : dw3_shift};
                 int8_t *out = op == op_out ? guard_end((size_t)out_bytes) : dw3_out;
-                const cmsis_nn_context ctx = {op == op_scratch ? guard_end((size_t)need) : dw3_scratch, need};
+                int8_t *scratch = op == op_scratch ? guard_end((size_t)need) : dw3_scratch;
+                if (op == op_layout)
+                {
+                    /* The layout (parameters, then the pad row) is need - 16 bytes from a 16-byte aligned start.
+                       ctx->buf one byte past a 16-byte boundary spends 15 of the 16 slack bytes on alignment, so the
+                       layout ends at the gap when W x C is a multiple of 16 (every shape here but 11 x 36), and the
+                       last byte of ctx->size lies in the gap. */
+                    const uintptr_t layout_start = ((uintptr_t)guard_end(0) - (uintptr_t)(need - 16)) & ~(uintptr_t)15;
+                    scratch = (int8_t *)(layout_start - 15);
+                }
+                const cmsis_nn_context ctx = {scratch, need};
                 memset(out, 0x5A, (size_t)out_bytes);
 
                 guard_gap_enable();
