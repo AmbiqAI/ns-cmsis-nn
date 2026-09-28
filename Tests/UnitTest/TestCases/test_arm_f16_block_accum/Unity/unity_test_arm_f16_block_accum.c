@@ -37,6 +37,10 @@ void test_fc_block_order(void) { ba_fc_block_order(); }
 
 void test_fc_short_k(void) { ba_fc_short_k(); }
 
+void test_fc_clamp_edge(void) { ba_fc_clamp_edge(); }
+
+void test_batch_matmul_long_k(void) { ba_batch_matmul_long_k(); }
+
 void test_conv1x1_long_k(void) { ba_conv1x1_long_k(); }
 
 void test_conv_1xn_long_k(void) { ba_conv_1xn_long_k(); }
@@ -47,4 +51,8 @@ void test_conv1d_spec_long_k(void) { ba_conv1d_spec_long_k(); }
 
 void test_conv_direct_long_k(void) { ba_conv_direct_long_k(); }
 
+void test_conv_direct_edges(void) { ba_conv_direct_edges(); }
+
 void test_depthwise_long_k(void) { ba_depthwise_long_k(); }
+
+void test_depthwise_edges(void) { ba_depthwise_edges(); }

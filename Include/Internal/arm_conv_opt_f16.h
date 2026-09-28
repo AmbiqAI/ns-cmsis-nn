@@ -319,6 +319,10 @@ static const arm_conv_spec_f16 arm_conv_spec_nhwc_f16_acc16[] = {
     ARM_CONV_SPEC_ENTRY(arm_conv1d_spec_k3_nhwc_f16_match, arm_conv1d_spec_k3_nhwc_f16_call_acc16),
 };
 
+/* The two tables claim the same shapes; arm_conv_spec_nhwc_f16_matches_any reads the first for both. */
+ARM_NN_STATIC_ASSERT(ARM_CONV_ARRAY_SIZE(arm_conv_spec_nhwc_f16) == ARM_CONV_ARRAY_SIZE(arm_conv_spec_nhwc_f16_acc16),
+                     arm_conv_spec_nhwc_f16_tables_differ);
+
 __STATIC_INLINE bool arm_conv_spec_nhwc_f16_matches_any(const cmsis_nn_context *ctx,
                                                         const cmsis_nn_conv_params_f16 *params,
                                                         const cmsis_nn_dims *input_dims,

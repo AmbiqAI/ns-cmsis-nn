@@ -657,6 +657,20 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_patch_gemm_f16(const 
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+/* Taps k in [0, k_len) with base + k * dil in [0, in_len); all k_len of them for a dilation below 1. */
+__STATIC_FORCEINLINE int32_t arm_conv_f16_taps_in_range(int32_t base, int32_t dil, int32_t k_len, int32_t in_len)
+{
+    if (dil < 1)
+    {
+        return k_len;
+    }
+    const int32_t lo = (base < 0) ? (dil - 1 - base) / dil : 0;
+    const int32_t hi = (in_len > base) ? ARM_NN_MIN(k_len, (in_len - base + dil - 1) / dil) : 0;
+    return (hi > lo) ? hi - lo : 0;
+}
+    #endif
+
 /* Shared body; `block` is ARM_NN_F16_ACC_BLOCK or ARM_NN_F16_ACC_BLOCK_NONE at every call site. */
 __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_f16_body(const cmsis_nn_context *ctx,
                                                                     const cmsis_nn_conv_params_f16 *conv_params,
@@ -731,8 +745,10 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_f16_body(const cmsis_
      */
     /* Each variant has its own table, so that the table a variant links names only that variant's kernels. */
     const arm_conv_spec_f16 *const specs = acc16 ? arm_conv_spec_nhwc_f16_acc16 : arm_conv_spec_nhwc_f16;
+    const size_t n_specs =
+        acc16 ? ARM_CONV_ARRAY_SIZE(arm_conv_spec_nhwc_f16_acc16) : ARM_CONV_ARRAY_SIZE(arm_conv_spec_nhwc_f16);
     ARM_CONV_DISPATCH(specs,
-                      ARM_CONV_ARRAY_SIZE(arm_conv_spec_nhwc_f16),
+                      n_specs,
                       ctx,
                       conv_params,
                       input_dims,
@@ -868,6 +884,15 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_f16_body(const cmsis_
                 }
     #endif
 
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+                /* The reduction below skips padded taps, so its length is this output's in-range taps: an edge
+                 * output of at most `block` of them keeps the float16 reduction however long the patch (#586). */
+                const bool fold_px = fold &&
+                    arm_conv_f16_taps_in_range(in_y0, dil_h, kernel_h, input_h) *
+                            arm_conv_f16_taps_in_range(in_x0, dil_w, kernel_w, input_w) * input_c >
+                        block;
+    #endif
+
                 for (int32_t oc = 0; oc < output_c; ++oc)
                 {
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
@@ -960,7 +985,7 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_f16_body(const cmsis_
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
                     _Float16 acc;
-                    if (fold)
+                    if (fold_px)
                     {
                         arm_nn_f16_fold_pairs_f32(&acc_pairs, vacc, first_block);
                         acc = (_Float16)((bias_data ? (float32_t)bias_data[oc] : 0.0f) +
