@@ -136,6 +136,15 @@ __STATIC_FORCEINLINE void arm_depthwise_direct_taps_mve_f16(const float16_t *__R
      * row, column by column) before it is widened into per-lane float32 accumulators; one rounding at the end. */
     const bool fold = run->taps_y * taps_x > block;
     float32x4_t vsum[4][2];
+    if (fold)
+    {
+        /* Set by the first fold; zeroed only so that no compiler sees a read before it. */
+        for (int32_t i = 0; i < 4; ++i)
+        {
+            vsum[i][0] = vdupq_n_f32(0.0f);
+            vsum[i][1] = vdupq_n_f32(0.0f);
+        }
+    }
     bool first = true;
     int32_t n_taps = 0;
 

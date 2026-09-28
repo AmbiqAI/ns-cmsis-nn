@@ -130,7 +130,7 @@ __STATIC_FORCEINLINE _Float16 dot_nt_t_f16_mve_fold(const float16_t *__RESTRICT 
     const int32_t span = ARM_NN_F16_ACC_BLOCK * ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS;
     const float16_t *pl = lhs_row;
     const float16_t *pr = rhs_row;
-    float32x4_t acc;
+    float32x4_t acc = vdupq_n_f32(0.0f); /* set by the first fold */
 
     if (len <= span)
     {

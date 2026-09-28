@@ -90,7 +90,7 @@ __STATIC_FORCEINLINE _Float16
 arm_convolve_1_x_n_dot_fold_f16(const float16_t *lhs, const float16_t *rhs, const float16_t *bias, int32_t len)
 {
     const int32_t span = ARM_NN_F16_ACC_BLOCK * 8;
-    float32x4_t acc;
+    float32x4_t acc = vdupq_n_f32(0.0f); /* set by the first fold */
 
     if (len <= span)
     {
