@@ -1437,9 +1437,9 @@ __STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_small_cin(const cmsis_nn_conv
                                                              const cmsis_nn_dims *output_dims,
                                                              const cmsis_nn_dims *upscale_dims)
 {
-    const int32_t kernel_x = filter_dims->w;
-    const int32_t kernel_y = filter_dims->h;
-    const int32_t input_ch = input_dims->c;
+    const int64_t kernel_x = filter_dims->w;
+    const int64_t kernel_y = filter_dims->h;
+    const int64_t input_ch = input_dims->c;
     return (upscale_dims == NULL) && (filter_dims->c == input_ch) && (input_ch >= 1) && (input_ch <= 3) &&
         (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1) && (kernel_x >= 1) && (kernel_y >= 1) &&
         (kernel_x * input_ch <= 16) && (kernel_x * kernel_y * input_ch <= 48) && (output_dims->c > 0) &&

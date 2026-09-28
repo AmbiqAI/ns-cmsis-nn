@@ -2878,6 +2878,18 @@ void small_cin_gate_declines_arm_convolve_s8(void)
                                 0,
                                 ARM_CMSIS_NN_NO_IMPL_ERROR);
     }
+    /* Kernel dimensions whose width x depth or width x height x depth products leave int32_t are declined. */
+    {
+        const cmsis_nn_conv_params conv_params = {.dilation = {1, 1}};
+        const cmsis_nn_dims input_dims = {1, 6, 6, 3};
+        const cmsis_nn_dims output_dims = {1, 6, 6, 8};
+        const cmsis_nn_dims wide_filter = {8, 1, INT32_MAX, 3};
+        const cmsis_nn_dims tall_filter = {8, INT32_MAX, 5, 3};
+        TEST_ASSERT_EQUAL(0,
+                          arm_nn_is_convolve_s8_small_cin(&conv_params, &input_dims, &wide_filter, &output_dims, NULL));
+        TEST_ASSERT_EQUAL(0,
+                          arm_nn_is_convolve_s8_small_cin(&conv_params, &input_dims, &tall_filter, &output_dims, NULL));
+    }
     /* The in-gate layer itself is taken, where the entry exists. */
     low_depth_check(&in_gate, 71u, LOW_DEPTH_SMALL_CIN);
 }
