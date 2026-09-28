@@ -23,7 +23,7 @@ import struct
 import sys
 
 AR_MAGIC = b"!<arch>\n"
-DEFAULT_REFERENCE = "arm_convolve_get_buffer_sizes_s8.c"
+DEFAULT_REFERENCE = "arm_convolve_get_buffer_sizes_s8."
 
 
 def ar_members(data: bytes):
@@ -108,7 +108,11 @@ def main() -> int:
     function_sections = 0
     reference_count = None
     for name, body in members:
-        sections = elf_sections(body)
+        try:
+            sections = elf_sections(body)
+        except (IndexError, ValueError, struct.error) as exc:
+            print(f"check_staticlib_sections: cannot read member {name} of {args.archive}: {exc}", file=sys.stderr)
+            return 2
         if sections is None:
             continue
         objects += 1
