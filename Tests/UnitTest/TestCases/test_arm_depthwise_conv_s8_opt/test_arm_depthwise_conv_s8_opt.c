@@ -2157,10 +2157,29 @@ static void planar_case(int32_t ih,
         TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[oh * ow * ch + i]);
         TEST_ASSERT_EQUAL_INT8(0x3C, planar_scratch[size + i]);
     }
+#if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
+    /* The planar path uses only the first plane bytes of the scratch, while the channel path writes im2col rows past
+       them, so an untouched remainder shows which path arm_depthwise_conv_s8_opt() took. */
+    if (expect_planar)
+    {
+        const int32_t plane =
+            arm_nn_depthwise_conv_s8_planar_bytes(&params, &input_dims, &filter_dims, &output_dims);
+        TEST_ASSERT_TRUE(plane > 0 && plane <= size);
+        for (int32_t i = plane; i < size; i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(0x3C, planar_scratch[i]);
+        }
+    }
+#endif
 
     /* The predicate is plain C and gives the same answer on every build. */
     TEST_ASSERT_EQUAL(expect_planar,
                       arm_depthwise_conv_s8_opt_planar_supported(&params, &input_dims, &filter_dims, &output_dims));
+    /* arm_depthwise_conv_s8_opt() skips the planar kernel for layers outside these cheap conditions. */
+    if (expect_planar)
+    {
+        TEST_ASSERT_TRUE(arm_nn_depthwise_conv_s8_planar_candidate(&params, &input_dims));
+    }
 
     /* The direct entries: the channel-vectorized one computes every layer; the planar one computes the layers the
        predicate accepts and writes nothing otherwise. */
@@ -2295,6 +2314,10 @@ void planar_predicate_grid_arm_depthwise_conv_s8_opt(void)
                                                                                            &output_dims,
                                                                                            planar_out);
                         TEST_ASSERT_EQUAL(supported ? ARM_CMSIS_NN_SUCCESS : ARM_CMSIS_NN_NO_IMPL_ERROR, status);
+                        if (supported)
+                        {
+                            TEST_ASSERT_TRUE(arm_nn_depthwise_conv_s8_planar_candidate(&params, &input_dims));
+                        }
                         accepted += supported;
                         declined += !supported;
                         fit_declined += !supported &&
@@ -2345,8 +2368,9 @@ void direct_entries_arm_depthwise_conv_s8_opt(void)
     const dw_fn entries[] = {
         arm_depthwise_conv_s8_opt, arm_depthwise_conv_s8_opt_planar, arm_depthwise_conv_s8_opt_channelwise};
     const cmsis_nn_dims wrong_out = {1, ih, iw, ch + 1};
-    cmsis_nn_dw_conv_params dil_h = params;
+    cmsis_nn_dw_conv_params dil_h = params, dil_w = params;
     dil_h.dilation.h = 2;
+    dil_w.dilation.w = 0;
     const cmsis_nn_context no_buf = {NULL, size};
     for (size_t i = 0; i < sizeof(entries) / sizeof(entries[0]); i++)
     {
@@ -2367,6 +2391,19 @@ void direct_entries_arm_depthwise_conv_s8_opt(void)
                           entries[i](&ctx,
                                      &wsum,
                                      &dil_h,
+                                     &quant,
+                                     &input_dims,
+                                     planar_in,
+                                     &filter_dims,
+                                     planar_ker,
+                                     &bias_dims,
+                                     planar_bias,
+                                     &output_dims,
+                                     planar_out));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          entries[i](&ctx,
+                                     &wsum,
+                                     &dil_w,
                                      &quant,
                                      &input_dims,
                                      planar_in,

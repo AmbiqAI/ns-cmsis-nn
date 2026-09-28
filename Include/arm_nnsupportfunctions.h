@@ -1403,6 +1403,22 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
                                                   int8_t *out);
 
 /**
+ * @brief Necessary conditions of the planar rule that are cheap to test inline: at most 32 channels and stride 1.
+ *        A caller can skip arm_nn_depthwise_conv_s8_planar() for layers that fail them without changing which layers
+ *        it takes.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [1, H, W, C_IN]
+ *
+ * @return         1 when the layer may take the planar path, 0 when it cannot.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s8_planar_candidate(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                                       const cmsis_nn_dims *input_dims)
+{
+    return input_dims->c <= 32 && dw_conv_params->stride.w == 1 && dw_conv_params->stride.h == 1;
+}
+
+/**
  * @brief Plane size in bytes that arm_nn_depthwise_conv_s8_planar() needs for a layer, or -1 when the layer is not
  *        one it takes. The rule is plain C and evaluates the same on every build.
  *

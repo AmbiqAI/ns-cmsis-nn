@@ -567,8 +567,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
     /* Few channels and 1xk kernels run faster vectorized across output pixels than across channels. The planar kernel
        applies the arm_depthwise_conv_s8_opt_planar_supported() rule itself and also declines, writing nothing, when
        ctx->size cannot hold its plane or an argument is invalid; the channel path then computes the layer or reports
-       the argument error. */
-    if (arm_nn_depthwise_conv_s8_planar(ctx,
+       the argument error. Layers that fail its cheap conditions skip the call. */
+    if (arm_nn_depthwise_conv_s8_planar_candidate(dw_conv_params, input_dims) &&
+        arm_nn_depthwise_conv_s8_planar(ctx,
                                         weight_sum_ctx,
                                         dw_conv_params,
                                         quant_params,

@@ -2243,9 +2243,13 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
  * @details
  *    - The rule is plain C and evaluates the same on every build, so a code generator can apply it ahead of time.
  *      The planar path itself exists only on builds with ARM_MATH_DSP and ARM_MATH_MVEI.
- *    - It depends only on the shapes and dw_conv_params: stride 1, ch_mult 1, dilation.h 1, at most 32 channels,
- *      dilation.w at most 128 / C (integer division), the widths the path is faster for, and a plane that fits the
- *      scratch.
+ *    - It depends only on the shapes and dw_conv_params: batch 1, C_IN equal to C_OUT, positive dimensions, stride 1,
+ *      ch_mult 1, dilation.h 1, dilation.w at least 1 and at most 128 / C (integer division), at most 32 channels,
+ *      the widths the path is faster for, and a plane that fits the scratch. This function is the reference for
+ *      the rule; a mirror should be checked against it.
+ *    - The width thresholds follow measured speed and may be retuned in a later release. A caller that calls
+ *      arm_depthwise_conv_s8_opt_planar() directly must handle <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>, for
+ *      example by calling arm_depthwise_conv_s8_opt_channelwise().
  *
  */
 int32_t arm_depthwise_conv_s8_opt_planar_supported(const cmsis_nn_dw_conv_params *dw_conv_params,
