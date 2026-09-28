@@ -2241,9 +2241,10 @@ void buffer_size_dsp_arm_convolve_s8(void)
 }
 
 /*
- * Low-depth shapes (input depth 1 to 3, and 3x3 over a 16-deep input) and their out-of-gate neighbours, checked
- * against a scalar reference convolution. Inputs and weights span the full int8 range, the scratch buffer is exactly
- * arm_convolve_s8_get_buffer_size() bytes followed by guard bytes, and the output is surrounded by guard bytes.
+ * The direct entries arm_convolve_s8_small_cin() and arm_convolve_s8_3x3_c16_s1() on their shapes and on out-of-gate
+ * neighbours, checked against a scalar reference convolution together with arm_convolve_s8(). Inputs and weights span
+ * the full int8 range, the scratch buffer is exactly arm_convolve_s8_get_buffer_size() bytes followed by guard bytes,
+ * and the output is surrounded by guard bytes. An entry that declines a layer must write nothing.
  */
 typedef struct
 {
@@ -2256,7 +2257,7 @@ typedef struct
 
 static uint32_t low_depth_seed;
 #if defined(MPU_GUARD_AVAILABLE)
-/* When set, arm_convolve_s8() reads the weights from a copy that ends at an unmapped MPU gap. */
+/* When set, the direct entry that takes the layer reads the weights from a copy that ends at an unmapped MPU gap. */
 static int low_depth_weights_at_gap;
 #endif
 
@@ -2313,7 +2314,69 @@ static void low_depth_reference(const low_depth_case_t *tc,
     }
 }
 
-static void low_depth_check(const low_depth_case_t *tc, uint32_t seed)
+/* The entry expected to take a layer: LOW_DEPTH_GENERAL when neither direct entry does. */
+typedef enum
+{
+    LOW_DEPTH_GENERAL = 0,
+    LOW_DEPTH_SMALL_CIN = 1,
+    LOW_DEPTH_3X3_C16_S1 = 2
+} low_depth_entry_t;
+
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #define LOW_DEPTH_DIRECT_AVAILABLE 1
+#endif
+
+#define LOW_DEPTH_SCRATCH_FILL ((int8_t)0x33)
+
+typedef arm_cmsis_nn_status (*low_depth_fn_t)(const cmsis_nn_context *,
+                                              const cmsis_nn_context *,
+                                              const cmsis_nn_conv_params *,
+                                              const cmsis_nn_per_channel_quant_params *,
+                                              const cmsis_nn_dims *,
+                                              const int8_t *,
+                                              const cmsis_nn_dims *,
+                                              const int8_t *,
+                                              const cmsis_nn_dims *,
+                                              const int32_t *,
+                                              const cmsis_nn_dims *,
+                                              const cmsis_nn_dims *,
+                                              int8_t *);
+
+static low_depth_fn_t low_depth_fn(low_depth_entry_t entry)
+{
+    switch (entry)
+    {
+    case LOW_DEPTH_SMALL_CIN:
+        return arm_convolve_s8_small_cin;
+    case LOW_DEPTH_3X3_C16_S1:
+        return arm_convolve_s8_3x3_c16_s1;
+    default:
+        return arm_convolve_s8;
+    }
+}
+
+/* The output and its guard bytes, the whole scratch and its guard bytes all still hold their fill. */
+static void
+low_depth_expect_untouched(const int8_t *output, int32_t output_size, const int8_t *scratch, int32_t buf_size)
+{
+    for (int32_t i = 0; i < output_size + 2 * LOW_DEPTH_GUARD; i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(LOW_DEPTH_GUARD_VALUE, output[i]);
+    }
+    for (int32_t i = 0; i < buf_size; i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(LOW_DEPTH_SCRATCH_FILL, scratch[i]);
+    }
+    for (int32_t i = 0; i < LOW_DEPTH_GUARD; i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(LOW_DEPTH_GUARD_VALUE, scratch[buf_size + i]);
+    }
+}
+
+/* Runs both direct entries and arm_convolve_s8() on one layer. arm_convolve_s8() and the entry named by entry (on
+   builds that have it) must match the reference; the other entry must return ARM_CMSIS_NN_NO_IMPL_ERROR and write
+   nothing. */
+static void low_depth_check(const low_depth_case_t *tc, uint32_t seed, low_depth_entry_t entry)
 {
     const int32_t input_size = tc->n * tc->in_h * tc->in_w * tc->in_c;
     const int32_t rhs_cols = tc->k_h * tc->k_w * tc->in_c;
@@ -2376,56 +2439,74 @@ static void low_depth_check(const low_depth_case_t *tc, uint32_t seed)
     TEST_ASSERT_TRUE(buf_size >= 0);
     int8_t *scratch = malloc(buf_size + LOW_DEPTH_GUARD);
     TEST_ASSERT_NOT_NULL(scratch);
-    memset(scratch, 0x33, buf_size);
-    memset(scratch + buf_size, LOW_DEPTH_GUARD_VALUE, LOW_DEPTH_GUARD);
     const cmsis_nn_context ctx = {scratch, buf_size};
     const cmsis_nn_context weight_sum_ctx = {weight_sum, tc->out_c * (int32_t)sizeof(int32_t)};
-    const arm_cmsis_nn_status sum_status = arm_convolve_weight_sum(
-        weight_sum, weights, &input_dims, &filter_dims, &output_dims, tc->input_offset, bias);
+    const arm_cmsis_nn_status sum_status =
+        arm_convolve_weight_sum(weight_sum, weights, &input_dims, &filter_dims, &output_dims, tc->input_offset, bias);
 #if defined(ARM_MATH_MVEI)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, sum_status);
 #else
     (void)sum_status;
 #endif
 
-    memset(output, LOW_DEPTH_GUARD_VALUE, output_size + 2 * LOW_DEPTH_GUARD);
-    const int8_t *kernel_weights = weights;
-#if defined(MPU_GUARD_AVAILABLE)
-    if (low_depth_weights_at_gap)
-    {
-        TEST_ASSERT_TRUE(weights_size <= GUARD_OFFSET);
-        kernel_weights = guard_place(weights, (size_t)weights_size);
-        guard_gap_enable();
-    }
-#endif
-    const arm_cmsis_nn_status status = arm_convolve_s8(&ctx,
-                                                       &weight_sum_ctx,
-                                                       &conv_params,
-                                                       &quant_params,
-                                                       &input_dims,
-                                                       input,
-                                                       &filter_dims,
-                                                       kernel_weights,
-                                                       &bias_dims,
-                                                       bias,
-                                                       NULL,
-                                                       &output_dims,
-                                                       output + LOW_DEPTH_GUARD);
-#if defined(MPU_GUARD_AVAILABLE)
-    if (low_depth_weights_at_gap)
-    {
-        guard_gap_disable();
-    }
-#endif
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
-
     low_depth_reference(tc, input, weights, bias, multiplier, shift, output_offset, expected);
-    TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output + LOW_DEPTH_GUARD, output_size);
-    for (int32_t i = 0; i < LOW_DEPTH_GUARD; i++)
+
+    for (int32_t e = LOW_DEPTH_GENERAL; e <= LOW_DEPTH_3X3_C16_S1; e++)
     {
-        TEST_ASSERT_EQUAL_INT8(LOW_DEPTH_GUARD_VALUE, output[i]);
-        TEST_ASSERT_EQUAL_INT8(LOW_DEPTH_GUARD_VALUE, output[LOW_DEPTH_GUARD + output_size + i]);
-        TEST_ASSERT_EQUAL_INT8(LOW_DEPTH_GUARD_VALUE, scratch[buf_size + i]);
+#if defined(LOW_DEPTH_DIRECT_AVAILABLE)
+        const int takes = e == LOW_DEPTH_GENERAL || e == (int32_t)entry;
+#else
+        (void)entry;
+        const int takes = e == LOW_DEPTH_GENERAL;
+#endif
+        memset(scratch, LOW_DEPTH_SCRATCH_FILL, buf_size);
+        memset(scratch + buf_size, LOW_DEPTH_GUARD_VALUE, LOW_DEPTH_GUARD);
+        memset(output, LOW_DEPTH_GUARD_VALUE, output_size + 2 * LOW_DEPTH_GUARD);
+        const int8_t *kernel_weights = weights;
+#if defined(MPU_GUARD_AVAILABLE)
+        const int at_gap = low_depth_weights_at_gap && e != LOW_DEPTH_GENERAL && e == (int32_t)entry;
+        if (at_gap)
+        {
+            TEST_ASSERT_TRUE(weights_size <= GUARD_OFFSET);
+            kernel_weights = guard_place(weights, (size_t)weights_size);
+            guard_gap_enable();
+        }
+#endif
+        const arm_cmsis_nn_status status = low_depth_fn((low_depth_entry_t)e)(&ctx,
+                                                                              &weight_sum_ctx,
+                                                                              &conv_params,
+                                                                              &quant_params,
+                                                                              &input_dims,
+                                                                              input,
+                                                                              &filter_dims,
+                                                                              kernel_weights,
+                                                                              &bias_dims,
+                                                                              bias,
+                                                                              NULL,
+                                                                              &output_dims,
+                                                                              output + LOW_DEPTH_GUARD);
+#if defined(MPU_GUARD_AVAILABLE)
+        if (at_gap)
+        {
+            guard_gap_disable();
+        }
+#endif
+        if (takes)
+        {
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+            TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output + LOW_DEPTH_GUARD, output_size);
+            for (int32_t i = 0; i < LOW_DEPTH_GUARD; i++)
+            {
+                TEST_ASSERT_EQUAL_INT8(LOW_DEPTH_GUARD_VALUE, output[i]);
+                TEST_ASSERT_EQUAL_INT8(LOW_DEPTH_GUARD_VALUE, output[LOW_DEPTH_GUARD + output_size + i]);
+                TEST_ASSERT_EQUAL_INT8(LOW_DEPTH_GUARD_VALUE, scratch[buf_size + i]);
+            }
+        }
+        else
+        {
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, status);
+            low_depth_expect_untouched(output, output_size, scratch, buf_size);
+        }
     }
 
     free(scratch);
@@ -2439,7 +2520,8 @@ static void low_depth_check(const low_depth_case_t *tc, uint32_t seed)
     free(input);
 }
 
-/* n, in_h, in_w, in_c, k_h, k_w, out_c, stride_y, stride_x, pad_y, pad_x, dil_y, dil_x, out_h, out_w, in_off, min, max */
+/* n, in_h, in_w, in_c, k_h, k_w, out_c, stride_y, stride_x, pad_y, pad_x, dil_y, dil_x, out_h, out_w, in_off, min, max
+ */
 static const low_depth_case_t small_cin_cases[] = {
     /* Input depth 1, 2 and 3 with SAME padding. */
     {1, 9, 11, 1, 3, 3, 8, 1, 1, 1, 1, 1, 1, 9, 11, 3, -128, 127},
@@ -2521,17 +2603,18 @@ static const low_depth_case_t low_depth_neighbour_cases[] = {
     {1, 10, 10, 1, 7, 7, 8, 1, 1, 3, 3, 1, 1, 10, 10, 128, -128, 127},
 };
 
-static void low_depth_check_all(const low_depth_case_t *cases, int32_t count, uint32_t seed)
+static void low_depth_check_all(const low_depth_case_t *cases, int32_t count, uint32_t seed, low_depth_entry_t entry)
 {
     for (int32_t i = 0; i < count; i++)
     {
-        low_depth_check(&cases[i], seed + 97u * (uint32_t)i);
+        low_depth_check(&cases[i], seed + 97u * (uint32_t)i, entry);
     }
 }
 
 void small_cin_arm_convolve_s8(void)
 {
-    low_depth_check_all(small_cin_cases, sizeof(small_cin_cases) / sizeof(small_cin_cases[0]), 11u);
+    low_depth_check_all(
+        small_cin_cases, sizeof(small_cin_cases) / sizeof(small_cin_cases[0]), 11u, LOW_DEPTH_SMALL_CIN);
 }
 
 void small_cin_out_ch_arm_convolve_s8(void)
@@ -2542,21 +2625,23 @@ void small_cin_out_ch_arm_convolve_s8(void)
         for (int32_t out_c = 4; out_c <= 12; out_c += 4)
         {
             const low_depth_case_t tc = {1, 6, 5, in_c, 3, 3, out_c, 1, 1, 1, 1, 1, 1, 6, 5, 7 - in_c, -128, 127};
-            low_depth_check(&tc, 23u * (uint32_t)(in_c * 16 + out_c));
+            low_depth_check(&tc, 23u * (uint32_t)(in_c * 16 + out_c), LOW_DEPTH_SMALL_CIN);
         }
     }
 }
 
 void mlperf_first_layers_arm_convolve_s8(void)
 {
-    low_depth_check_all(
-        mlperf_first_layer_cases, sizeof(mlperf_first_layer_cases) / sizeof(mlperf_first_layer_cases[0]), 31u);
+    low_depth_check_all(mlperf_first_layer_cases,
+                        sizeof(mlperf_first_layer_cases) / sizeof(mlperf_first_layer_cases[0]),
+                        31u,
+                        LOW_DEPTH_SMALL_CIN);
 }
 
 #if defined(MPU_GUARD_AVAILABLE)
-/* Weights that end at an unmapped MPU gap, on the small input-depth path: 1 to 48 filter values per output channel,
+/* Weights that end at an unmapped MPU gap, on arm_convolve_s8_small_cin(): 1 to 48 filter values per output channel,
    across the 8 values where the GEMM starts loading its first three filters' last chunks whole, and every K-chunk
-   count. A load past the last filter faults. */
+   count. A load past the last filter faults. arm_convolve_s8() runs these layers with the weights in place. */
 static const low_depth_case_t small_cin_weights_at_gap_cases[] = {
     {1, 3, 5, 1, 1, 1, 4, 1, 1, 0, 0, 1, 1, 3, 5, 3, -128, 127},
     {1, 3, 5, 2, 1, 1, 4, 1, 1, 0, 0, 1, 1, 3, 5, -9, -128, 127},
@@ -2585,87 +2670,195 @@ void small_cin_weights_at_gap_arm_convolve_s8(void)
     low_depth_weights_at_gap = 1;
     low_depth_check_all(small_cin_weights_at_gap_cases,
                         sizeof(small_cin_weights_at_gap_cases) / sizeof(small_cin_weights_at_gap_cases[0]),
-                        61u);
+                        61u,
+                        LOW_DEPTH_SMALL_CIN);
     low_depth_weights_at_gap = 0;
 #endif
 }
 
 void c16_3x3_arm_convolve_s8(void)
 {
-    low_depth_check_all(c16_3x3_cases, sizeof(c16_3x3_cases) / sizeof(c16_3x3_cases[0]), 41u);
+    low_depth_check_all(c16_3x3_cases, sizeof(c16_3x3_cases) / sizeof(c16_3x3_cases[0]), 41u, LOW_DEPTH_3X3_C16_S1);
 }
 
 void low_depth_neighbours_arm_convolve_s8(void)
 {
-    low_depth_check_all(
-        low_depth_neighbour_cases, sizeof(low_depth_neighbour_cases) / sizeof(low_depth_neighbour_cases[0]), 53u);
+    low_depth_check_all(low_depth_neighbour_cases,
+                        sizeof(low_depth_neighbour_cases) / sizeof(low_depth_neighbour_cases[0]),
+                        53u,
+                        LOW_DEPTH_GENERAL);
 }
 
-void low_depth_null_buffers_arm_convolve_s8(void)
+/* One layer given to a direct entry with zeroed tensors: the status must be expect and nothing may be written.
+   filter_c is CK, upscale passes a 2x2 upscale_dims, and null_buf and null_sums pass a NULL ctx->buf or
+   weight_sum_ctx->buf. */
+static void low_depth_expect_status(low_depth_entry_t entry,
+                                    const low_depth_case_t *tc,
+                                    int32_t filter_c,
+                                    int upscale,
+                                    int null_buf,
+                                    int null_sums,
+                                    arm_cmsis_nn_status expect)
 {
-    /* A NULL scratch or weight-sum buffer is rejected on the low-depth paths as on the general path. */
-    const low_depth_case_t shapes[] = {
-        {1, 6, 6, 3, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127},
-        {1, 6, 6, 16, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127},
-    };
-    int8_t input[6 * 6 * 16] = {0};
-    int8_t weights[8 * 3 * 3 * 16] = {0};
-    int32_t bias[8] = {0};
-    int32_t multiplier[8] = {0};
-    int32_t shift[8] = {0};
-    int32_t weight_sum[8] = {0};
-    int8_t scratch[4 * 144];
-    int8_t output[6 * 6 * 8];
-    const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
-    for (size_t i = 0; i < sizeof(shapes) / sizeof(shapes[0]); i++)
+    static int8_t input[2048];
+    static int8_t weights[2048];
+    static int8_t output[1024 + 2 * LOW_DEPTH_GUARD];
+    static int8_t scratch[1536 + LOW_DEPTH_GUARD];
+    static int32_t zeros[64];
+    const cmsis_nn_dims input_dims = {tc->n, tc->in_h, tc->in_w, tc->in_c};
+    const cmsis_nn_dims filter_dims = {tc->out_c, tc->k_h, tc->k_w, filter_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, tc->out_c};
+    const cmsis_nn_dims output_dims = {tc->n, tc->out_h, tc->out_w, tc->out_c};
+    const cmsis_nn_dims upscale_dims = {1, 2, 2, 1};
+    const cmsis_nn_conv_params conv_params = {.input_offset = tc->input_offset,
+                                              .output_offset = 0,
+                                              .stride = {tc->stride_x, tc->stride_y},
+                                              .padding = {tc->pad_x, tc->pad_y},
+                                              .dilation = {tc->dil_x, tc->dil_y},
+                                              .activation = {tc->act_min, tc->act_max}};
+    const cmsis_nn_per_channel_quant_params quant_params = {zeros, zeros};
+    const int32_t output_size = tc->n * tc->out_h * tc->out_w * tc->out_c;
+    const int32_t buf_size = arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
+    TEST_ASSERT_TRUE(tc->n * tc->in_h * tc->in_w * tc->in_c <= (int32_t)sizeof(input));
+    TEST_ASSERT_TRUE(tc->out_c * tc->k_h * tc->k_w * filter_c <= (int32_t)sizeof(weights));
+    TEST_ASSERT_TRUE(output_size <= 1024);
+    TEST_ASSERT_TRUE(tc->out_c <= 64);
+    TEST_ASSERT_TRUE(buf_size >= 0 && buf_size <= 1536);
+
+    memset(scratch, LOW_DEPTH_SCRATCH_FILL, buf_size);
+    memset(scratch + buf_size, LOW_DEPTH_GUARD_VALUE, LOW_DEPTH_GUARD);
+    memset(output, LOW_DEPTH_GUARD_VALUE, output_size + 2 * LOW_DEPTH_GUARD);
+    const cmsis_nn_context ctx = {null_buf ? NULL : scratch, buf_size};
+    const cmsis_nn_context weight_sum_ctx = {null_sums ? NULL : zeros, (int32_t)sizeof(zeros)};
+    const arm_cmsis_nn_status status = low_depth_fn(entry)(&ctx,
+                                                           &weight_sum_ctx,
+                                                           &conv_params,
+                                                           &quant_params,
+                                                           &input_dims,
+                                                           input,
+                                                           &filter_dims,
+                                                           weights,
+                                                           &bias_dims,
+                                                           zeros,
+                                                           upscale ? &upscale_dims : NULL,
+                                                           &output_dims,
+                                                           output + LOW_DEPTH_GUARD);
+    TEST_ASSERT_EQUAL(expect, status);
+    low_depth_expect_untouched(output, output_size, scratch, buf_size);
+}
+
+void small_cin_gate_declines_arm_convolve_s8(void)
+{
+    /* One gate condition broken at a time, from an in-gate layer. */
+    const low_depth_case_t in_gate = {1, 6, 6, 3, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
+    const struct
     {
-        const low_depth_case_t *tc = &shapes[i];
-        const cmsis_nn_dims input_dims = {tc->n, tc->in_h, tc->in_w, tc->in_c};
-        const cmsis_nn_dims filter_dims = {tc->out_c, tc->k_h, tc->k_w, tc->in_c};
-        const cmsis_nn_dims bias_dims = {1, 1, 1, tc->out_c};
-        const cmsis_nn_dims output_dims = {tc->n, tc->out_h, tc->out_w, tc->out_c};
-        const cmsis_nn_conv_params conv_params = {.input_offset = tc->input_offset,
-                                                  .output_offset = 0,
-                                                  .stride = {1, 1},
-                                                  .padding = {1, 1},
-                                                  .dilation = {1, 1},
-                                                  .activation = {-128, 127}};
-        const cmsis_nn_context null_ctx = {NULL, 0};
-        const cmsis_nn_context ctx = {scratch, sizeof(scratch)};
-        const cmsis_nn_context weight_sum_ctx = {weight_sum, sizeof(weight_sum)};
-        const cmsis_nn_context null_weight_sum_ctx = {NULL, 0};
-        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
-                          arm_convolve_s8(&null_ctx,
-                                          &weight_sum_ctx,
-                                          &conv_params,
-                                          &quant_params,
-                                          &input_dims,
-                                          input,
-                                          &filter_dims,
-                                          weights,
-                                          &bias_dims,
-                                          bias,
-                                          NULL,
-                                          &output_dims,
-                                          output));
+        low_depth_case_t tc;
+        int32_t filter_c;
+        int upscale;
+    } declined[] = {
+        /* upscale_dims given */
+        {{1, 6, 6, 3, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 3, 1},
+        /* input depth 4 and 0 */
+        {{1, 6, 6, 4, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 4, 0},
+        {{1, 6, 6, 0, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 0, 0},
+        /* two groups: CK 1 against input depth 2 */
+        {{1, 6, 6, 2, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 1, 0},
+        /* dilation 2 in x, then in y */
+        {{1, 6, 6, 3, 3, 3, 8, 1, 1, 2, 2, 1, 2, 6, 6, 128, -128, 127}, 3, 0},
+        {{1, 6, 6, 3, 3, 3, 8, 1, 1, 2, 2, 2, 1, 6, 6, 128, -128, 127}, 3, 0},
+        /* kernel width 0, then height 0 */
+        {{1, 6, 6, 3, 3, 0, 8, 1, 1, 0, 0, 1, 1, 4, 6, 128, -128, 127}, 3, 0},
+        {{1, 6, 6, 3, 0, 3, 8, 1, 1, 0, 0, 1, 1, 6, 4, 128, -128, 127}, 3, 0},
+        /* a kernel row of 17 and 18 values with at most 48 in the filter */
+        {{1, 2, 20, 1, 1, 17, 4, 1, 1, 0, 0, 1, 1, 2, 4, 5, -128, 127}, 1, 0},
+        {{1, 2, 8, 3, 1, 6, 4, 1, 1, 0, 0, 1, 1, 2, 3, 5, -128, 127}, 3, 0},
+        /* 49 filter values with a row of 7 */
+        {{1, 8, 8, 1, 7, 7, 8, 1, 1, 3, 3, 1, 1, 8, 8, 5, -128, 127}, 1, 0},
+        /* 0, 2 and 6 output channels */
+        {{1, 6, 6, 3, 3, 3, 0, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 3, 0},
+        {{1, 6, 6, 3, 3, 3, 2, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 3, 0},
+        {{1, 6, 6, 3, 3, 3, 6, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 3, 0},
+    };
+    for (size_t i = 0; i < sizeof(declined) / sizeof(declined[0]); i++)
+    {
+        low_depth_expect_status(LOW_DEPTH_SMALL_CIN,
+                                &declined[i].tc,
+                                declined[i].filter_c,
+                                declined[i].upscale,
+                                0,
+                                0,
+                                ARM_CMSIS_NN_NO_IMPL_ERROR);
+    }
+    /* The in-gate layer itself is taken, where the entry exists. */
+    low_depth_check(&in_gate, 71u, LOW_DEPTH_SMALL_CIN);
+}
+
+void c16_3x3_gate_declines_arm_convolve_s8(void)
+{
+    const low_depth_case_t in_gate = {1, 5, 5, 16, 3, 3, 8, 1, 1, 1, 1, 1, 1, 5, 5, 128, -128, 127};
+    const struct
+    {
+        low_depth_case_t tc;
+        int32_t filter_c;
+        int upscale;
+    } declined[] = {
+        /* upscale_dims given */
+        {{1, 5, 5, 16, 3, 3, 8, 1, 1, 1, 1, 1, 1, 5, 5, 128, -128, 127}, 16, 1},
+        /* two groups: input depth 32 with CK 16, and input depth 16 with CK 8 */
+        {{1, 5, 5, 32, 3, 3, 8, 1, 1, 1, 1, 1, 1, 5, 5, 128, -128, 127}, 16, 0},
+        {{1, 5, 5, 16, 3, 3, 8, 1, 1, 1, 1, 1, 1, 5, 5, 128, -128, 127}, 8, 0},
+        /* depth 15 and 17 */
+        {{1, 5, 5, 15, 3, 3, 8, 1, 1, 1, 1, 1, 1, 5, 5, 128, -128, 127}, 15, 0},
+        {{1, 5, 5, 17, 3, 3, 8, 1, 1, 1, 1, 1, 1, 5, 5, 128, -128, 127}, 17, 0},
+        /* kernel width 2 and 4, height 2 and 4 */
+        {{1, 5, 5, 16, 3, 2, 8, 1, 1, 1, 0, 1, 1, 5, 4, 128, -128, 127}, 16, 0},
+        {{1, 5, 5, 16, 3, 4, 8, 1, 1, 1, 1, 1, 1, 5, 4, 128, -128, 127}, 16, 0},
+        {{1, 5, 5, 16, 2, 3, 8, 1, 1, 0, 1, 1, 1, 4, 5, 128, -128, 127}, 16, 0},
+        {{1, 5, 5, 16, 4, 3, 8, 1, 1, 1, 1, 1, 1, 4, 5, 128, -128, 127}, 16, 0},
+        /* stride 2 in x, then in y */
+        {{1, 5, 5, 16, 3, 3, 8, 1, 2, 1, 1, 1, 1, 5, 3, 128, -128, 127}, 16, 0},
+        {{1, 5, 5, 16, 3, 3, 8, 2, 1, 1, 1, 1, 1, 3, 5, 128, -128, 127}, 16, 0},
+        /* dilation 2 in x, then in y */
+        {{1, 5, 5, 16, 3, 3, 8, 1, 1, 1, 2, 1, 2, 5, 5, 128, -128, 127}, 16, 0},
+        {{1, 5, 5, 16, 3, 3, 8, 1, 1, 2, 1, 2, 1, 5, 5, 128, -128, 127}, 16, 0},
+    };
+    for (size_t i = 0; i < sizeof(declined) / sizeof(declined[0]); i++)
+    {
+        low_depth_expect_status(LOW_DEPTH_3X3_C16_S1,
+                                &declined[i].tc,
+                                declined[i].filter_c,
+                                declined[i].upscale,
+                                0,
+                                0,
+                                ARM_CMSIS_NN_NO_IMPL_ERROR);
+    }
+    low_depth_check(&in_gate, 73u, LOW_DEPTH_3X3_C16_S1);
+}
+
+void low_depth_arg_errors_arm_convolve_s8(void)
+{
+    /* The argument errors of arm_convolve_s8() come first, for layers in and out of the gate. */
+    const low_depth_case_t small = {1, 6, 6, 3, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
+    const low_depth_case_t c16 = {1, 6, 6, 16, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
+    const low_depth_case_t outside = {1, 6, 6, 4, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
+    /* groups = 5 / 2 = 2 does not divide input depth 5; groups = 4 / 2 = 2 does not divide 3 output channels */
+    const low_depth_case_t bad_in_groups = {1, 6, 6, 5, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
+    const low_depth_case_t bad_out_groups = {1, 6, 6, 4, 3, 3, 3, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
 #if defined(ARM_MATH_MVEI)
-        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
-                          arm_convolve_s8(&ctx,
-                                          &null_weight_sum_ctx,
-                                          &conv_params,
-                                          &quant_params,
-                                          &input_dims,
-                                          input,
-                                          &filter_dims,
-                                          weights,
-                                          &bias_dims,
-                                          bias,
-                                          NULL,
-                                          &output_dims,
-                                          output));
+    const arm_cmsis_nn_status null_sums_status = ARM_CMSIS_NN_ARG_ERROR;
 #else
-        (void)ctx;
-        (void)null_weight_sum_ctx;
+    const arm_cmsis_nn_status null_sums_status = ARM_CMSIS_NN_NO_IMPL_ERROR;
 #endif
+    for (int32_t e = LOW_DEPTH_SMALL_CIN; e <= LOW_DEPTH_3X3_C16_S1; e++)
+    {
+        const low_depth_entry_t entry = (low_depth_entry_t)e;
+        const low_depth_case_t *own = entry == LOW_DEPTH_SMALL_CIN ? &small : &c16;
+        low_depth_expect_status(entry, own, own->in_c, 0, 1, 0, ARM_CMSIS_NN_ARG_ERROR);
+        low_depth_expect_status(entry, &outside, 4, 0, 1, 0, ARM_CMSIS_NN_ARG_ERROR);
+        low_depth_expect_status(entry, own, own->in_c, 0, 0, 1, null_sums_status);
+        low_depth_expect_status(entry, &outside, 4, 0, 0, 1, null_sums_status);
+        low_depth_expect_status(entry, &bad_in_groups, 2, 0, 0, 0, ARM_CMSIS_NN_ARG_ERROR);
+        low_depth_expect_status(entry, &bad_out_groups, 2, 0, 0, 0, ARM_CMSIS_NN_ARG_ERROR);
     }
 }
