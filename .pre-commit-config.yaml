@@ -93,6 +93,15 @@ repos:
         files: ^Include/arm_nn[^/]*functions[^/]*\.h$
         pass_filenames: false
 
+      # The exported kernel contract must match the headers it was generated
+      # from; regenerate with `python3 scripts/check_kernel_contract.py export`.
+      - id: kernel-contract-fresh
+        name: Tests/KernelContracts/kernel_contracts.json matches the public headers
+        entry: scripts/check_kernel_contract.py
+        language: script
+        files: ^(Include/arm_nn[^/]*functions[^/]*\.h|Tests/KernelContracts/kernel_contracts\.json)$
+        pass_filenames: false
+
       - id: todo-needs-issue
         name: deferred-work markers reference an issue
         entry: scripts/check_todo_markers.sh

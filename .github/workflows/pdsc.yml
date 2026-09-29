@@ -228,6 +228,24 @@ jobs:
       - name: Run header @param documentation check
         run: python3 scripts/check_doxygen_params.py
 
+  kernel_contract:
+    # Tests/KernelContracts/kernel_contracts.json is the exported form of the
+    # public function signatures (types, order, #if guards, @param directions)
+    # that helia-core-tester consumes instead of parsing headers. It is
+    # generated from the same parser the job above gates and committed, so
+    # this step fails when a header changed and the export was not rerun
+    # (`python3 scripts/check_kernel_contract.py export`). Line-number moves
+    # alone are not drift. See #525, #386.
+    name: Kernel contract export is fresh
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check the committed kernel contract against the headers
+        run: python3 scripts/check_kernel_contract.py
+
   script_check_tests:
     # Mutation tests for the scripts/check_*.py merge gates.
     #
