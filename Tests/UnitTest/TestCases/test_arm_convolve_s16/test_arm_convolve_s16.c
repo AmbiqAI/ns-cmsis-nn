@@ -1977,13 +1977,14 @@ void resident_pixel_contract_arm_convolve_s16(void)
     const int32_t zero_channel_bias_value = 7;
     const cmsis_nn_bias_data zero_channel_bias = {&zero_channel_bias_value, true};
     output[0] = 0;
-    TEST_ASSERT_EQUAL(
-        ARM_CMSIS_NN_SUCCESS,
-        run_1x1_s16_contract_case(0, 1, NULL, NULL, &zero_channel_bias, multipliers, shifts, -32768, 32767, output));
+    const arm_cmsis_nn_status zero_channel_status =
+        run_1x1_s16_contract_case(0, 1, NULL, NULL, &zero_channel_bias, multipliers, shifts, -32768, 32767, output);
 #if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, zero_channel_status);
     TEST_ASSERT_EQUAL_INT16(7, output[0]);
 #else
-    /* The scalar matmul's zero-reduction contract leaves the destination unchanged. */
+    /* The scalar build has no s16 matmul implementation. */
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, zero_channel_status);
     TEST_ASSERT_EQUAL_INT16(0, output[0]);
 #endif
 
@@ -2000,24 +2001,24 @@ void resident_pixel_contract_arm_convolve_s16(void)
     const cmsis_nn_bias_data boundary_bias = {&boundary_bias_value, true};
 
     output[0] = 0;
-    TEST_ASSERT_EQUAL(
-        ARM_CMSIS_NN_SUCCESS,
-        run_1x1_s16_contract_case(
-            12, 1, boundary_input, boundary_weights, &boundary_bias, multipliers, shifts, -32768, 32767, output));
+    const arm_cmsis_nn_status partial_vector_status = run_1x1_s16_contract_case(
+        12, 1, boundary_input, boundary_weights, &boundary_bias, multipliers, shifts, -32768, 32767, output);
 #if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, partial_vector_status);
     TEST_ASSERT_EQUAL_INT16(12, output[0]);
 #else
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, partial_vector_status);
     TEST_ASSERT_EQUAL_INT16(0, output[0]);
 #endif
 
     output[0] = 0;
-    TEST_ASSERT_EQUAL(
-        ARM_CMSIS_NN_SUCCESS,
-        run_1x1_s16_contract_case(
-            40, 1, boundary_input, boundary_weights, &boundary_bias, multipliers, shifts, -32768, 32767, output));
+    const arm_cmsis_nn_status over_limit_status = run_1x1_s16_contract_case(
+        40, 1, boundary_input, boundary_weights, &boundary_bias, multipliers, shifts, -32768, 32767, output);
 #if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, over_limit_status);
     TEST_ASSERT_EQUAL_INT16(40, output[0]);
 #else
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, over_limit_status);
     TEST_ASSERT_EQUAL_INT16(0, output[0]);
 #endif
 }
