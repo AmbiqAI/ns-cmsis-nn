@@ -53,6 +53,45 @@ static void scale_q31_to_q7_and_clamp(const int32_t *buffer,
 }
 #endif
 
+static bool arm_avgpool_s8_windows_valid(const cmsis_nn_pool_params *pool_params,
+                                         const cmsis_nn_dims *input_dims,
+                                         const cmsis_nn_dims *filter_dims,
+                                         const cmsis_nn_dims *output_dims)
+{
+    const int32_t input_y = input_dims->h;
+    const int32_t input_x = input_dims->w;
+    const int32_t output_y = output_dims->h;
+    const int32_t output_x = output_dims->w;
+    const int32_t stride_y = pool_params->stride.h;
+    const int32_t stride_x = pool_params->stride.w;
+    const int32_t kernel_y = filter_dims->h;
+    const int32_t kernel_x = filter_dims->w;
+    const int32_t pad_y = pool_params->padding.h;
+    const int32_t pad_x = pool_params->padding.w;
+
+    for (int i_y = 0; i_y < output_y; i_y++)
+    {
+        const int64_t k_y_start = ARM_NN_MAX((int64_t)0, (int64_t)i_y * stride_y - pad_y);
+        const int64_t k_y_end = ARM_NN_MIN((int64_t)i_y * stride_y - pad_y + kernel_y, (int64_t)input_y);
+        if (k_y_start >= k_y_end)
+        {
+            return false;
+        }
+    }
+
+    for (int i_x = 0; i_x < output_x; i_x++)
+    {
+        const int64_t k_x_start = ARM_NN_MAX((int64_t)0, (int64_t)i_x * stride_x - pad_x);
+        const int64_t k_x_end = ARM_NN_MIN((int64_t)i_x * stride_x - pad_x + kernel_x, (int64_t)input_x);
+        if (k_x_start >= k_x_end)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /**
  *  @ingroup Public
  */
@@ -69,8 +108,6 @@ static void scale_q31_to_q7_and_clamp(const int32_t *buffer,
  *
  */
 
-#if defined(ARM_MATH_MVEI)
-
 arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
                                    const cmsis_nn_pool_params *pool_params,
                                    const cmsis_nn_dims *input_dims,
@@ -79,7 +116,6 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
                                    const cmsis_nn_dims *output_dims,
                                    int8_t *dst)
 {
-    (void)ctx;
     const int32_t input_y = input_dims->h;
     const int32_t input_x = input_dims->w;
     const int32_t output_y = output_dims->h;
@@ -93,8 +129,6 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
     const int32_t act_min = pool_params->activation.min;
     const int32_t act_max = pool_params->activation.max;
     const int32_t ch_src = input_dims->c;
-    const int32_t batch_input = input_x * input_y * ch_src;
-    const int32_t batch_output = output_x * output_y * ch_src;
     int32_t batch_cnt = input_dims->n;
 
     if (batch_cnt < 1)
@@ -102,25 +136,20 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    for (int i_y = 0; i_y < output_y; i_y++)
+    if (ctx->buf == NULL && arm_avgpool_s8_get_buffer_size(output_dims->w, input_dims->c))
     {
-        const int64_t k_y_start = ARM_NN_MAX((int64_t)0, (int64_t)i_y * stride_y - pad_y);
-        const int64_t k_y_end = ARM_NN_MIN((int64_t)i_y * stride_y - pad_y + kernel_y, (int64_t)input_y);
-        if (k_y_start >= k_y_end)
-        {
-            return ARM_CMSIS_NN_ARG_ERROR;
-        }
+        return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    for (int i_x = 0; i_x < output_x; i_x++)
+    if (!arm_avgpool_s8_windows_valid(pool_params, input_dims, filter_dims, output_dims))
     {
-        const int64_t k_x_start = ARM_NN_MAX((int64_t)0, (int64_t)i_x * stride_x - pad_x);
-        const int64_t k_x_end = ARM_NN_MIN((int64_t)i_x * stride_x - pad_x + kernel_x, (int64_t)input_x);
-        if (k_x_start >= k_x_end)
-        {
-            return ARM_CMSIS_NN_ARG_ERROR;
-        }
+        return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+#if defined(ARM_MATH_MVEI)
+    (void)ctx;
+    const int32_t batch_input = input_x * input_y * ch_src;
+    const int32_t batch_output = output_x * output_y * ch_src;
 
     while (batch_cnt)
     {
@@ -180,12 +209,6 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
 
                             count++;
                         }
-                    }
-
-                    // Prevent static code issue DIVIDE_BY_ZERO.
-                    if (count == 0)
-                    {
-                        return ARM_CMSIS_NN_ARG_ERROR;
                     }
 
                     // Perform the following operation
@@ -251,64 +274,7 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
         batch_cnt--;
     }
 
-    return ARM_CMSIS_NN_SUCCESS;
-}
-
-#else
-arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
-                                   const cmsis_nn_pool_params *pool_params,
-                                   const cmsis_nn_dims *input_dims,
-                                   const int8_t *src,
-                                   const cmsis_nn_dims *filter_dims,
-                                   const cmsis_nn_dims *output_dims,
-                                   int8_t *dst)
-{
-    const int32_t input_y = input_dims->h;
-    const int32_t input_x = input_dims->w;
-    const int32_t output_y = output_dims->h;
-    const int32_t output_x = output_dims->w;
-    const int32_t stride_y = pool_params->stride.h;
-    const int32_t stride_x = pool_params->stride.w;
-    const int32_t kernel_y = filter_dims->h;
-    const int32_t kernel_x = filter_dims->w;
-    const int32_t pad_y = pool_params->padding.h;
-    const int32_t pad_x = pool_params->padding.w;
-    const int32_t act_min = pool_params->activation.min;
-    const int32_t act_max = pool_params->activation.max;
-    const int32_t ch_src = input_dims->c;
-    int32_t batch_cnt = input_dims->n;
-
-    if (batch_cnt < 1)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
-    if (ctx->buf == NULL && arm_avgpool_s8_get_buffer_size(output_dims->w, input_dims->c))
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
-    for (int i_y = 0; i_y < output_y; i_y++)
-    {
-        const int64_t k_y_start = ARM_NN_MAX((int64_t)0, (int64_t)i_y * stride_y - pad_y);
-        const int64_t k_y_end = ARM_NN_MIN((int64_t)i_y * stride_y - pad_y + kernel_y, (int64_t)input_y);
-        if (k_y_start >= k_y_end)
-        {
-            return ARM_CMSIS_NN_ARG_ERROR;
-        }
-    }
-
-    for (int i_x = 0; i_x < output_x; i_x++)
-    {
-        const int64_t k_x_start = ARM_NN_MAX((int64_t)0, (int64_t)i_x * stride_x - pad_x);
-        const int64_t k_x_end = ARM_NN_MIN((int64_t)i_x * stride_x - pad_x + kernel_x, (int64_t)input_x);
-        if (k_x_start >= k_x_end)
-        {
-            return ARM_CMSIS_NN_ARG_ERROR;
-        }
-    }
-
-    #if defined(ARM_MATH_DSP)
+#elif defined(ARM_MATH_DSP)
     /* Run the following code for CPU's with DSP extension
      */
     const int32_t batch_size = input_x * input_y * ch_src;
@@ -354,12 +320,6 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
                     }
                 }
 
-                // Prevent static code issue DIVIDE_BY_ZERO.
-                if (count == 0)
-                {
-                    return ARM_CMSIS_NN_ARG_ERROR;
-                }
-
                 scale_q31_to_q7_and_clamp(buffer, dst, ch_src, count, act_min, act_max);
                 dst += ch_src;
             }
@@ -369,12 +329,13 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
         batch_cnt--;
     }
 
-    #else
+#else
 
     /* Reference C code adapted from CMSIS-NN arm_avepool_q7_HWC.
      */
     const int32_t batch_input = input_x * input_y * ch_src;
     const int32_t batch_output = output_x * output_y * ch_src;
+    (void)ctx;
 
     while (batch_cnt)
     {
@@ -403,12 +364,6 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
                         }
                     }
 
-                    // Prevent static code issue DIVIDE_BY_ZERO.
-                    if (count == 0)
-                    {
-                        return ARM_CMSIS_NN_ARG_ERROR;
-                    }
-
                     sum = sum > 0 ? (sum + count / 2) / count : (sum - count / 2) / count;
                     sum = ARM_NN_MAX(sum, act_min);
                     sum = ARM_NN_MIN(sum, act_max);
@@ -423,11 +378,9 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
         batch_cnt--;
     }
 
-    #endif
+#endif
     return ARM_CMSIS_NN_SUCCESS;
 }
-
-#endif /* ARM_MATH_MVEI */
 
 /**
  * @} end of Pooling group
