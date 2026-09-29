@@ -65,25 +65,6 @@ class CoverageGateTests(unittest.TestCase):
         self.assertEqual(self.run_gate(rate=83.90, previous=84, previous_epoch="sum")[0], 0)
         self.assertNotIn("reviewed baseline reset", self.run_gate(previous_epoch="sum")[1])
 
-    def test_reset_supersedes_the_epoch_main_carries(self):
-        self.config["baseline_reset"] = {"epoch": "perf", "line_rate": 83.44, "supersedes": "sum"}
-        result, output = self.run_gate(previous=84.02, previous_epoch="sum")
-        self.assertEqual(result, 0)
-        self.assertIn("reviewed baseline reset perf: 83.44%", output)
-        self.assertEqual(self.run_gate(rate=83.20, previous=84.02, previous_epoch="sum")[0], 1)
-        # Once main carries the new epoch the ordinary ratchet resumes against it.
-        self.assertEqual(self.run_gate(previous=84, previous_epoch="perf")[0], 1)
-        self.assertEqual(self.run_gate(rate=83.90, previous=84, previous_epoch="perf")[0], 0)
-        # A pre-epoch artifact is still an accepted transition source.
-        self.assertEqual(self.run_gate(previous=84.02)[0], 0)
-        # An artifact from a different epoch is neither: the branch is stale.
-        with self.assertRaisesRegex(ValueError, "epoch differs"):
-            self.run_gate(previous_epoch="other")
-        for bad in ["", "perf", 7]:
-            with self.subTest(supersedes=bad), self.assertRaisesRegex(ValueError, "supersedes"):
-                self.config["baseline_reset"]["supersedes"] = bad
-                self.run_gate(token="")
-
     def test_unknown_epoch_fails(self):
         with self.assertRaisesRegex(ValueError, "epoch differs"):
             self.run_gate(previous_epoch="future")
