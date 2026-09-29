@@ -136,7 +136,13 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    if (ctx->buf == NULL && arm_avgpool_s8_get_buffer_size(output_dims->w, input_dims->c))
+    const int32_t buffer_size = arm_avgpool_s8_get_buffer_size(output_dims->w, input_dims->c);
+
+#if defined(ARM_MATH_MVEI)
+    if (buffer_size < 0)
+#else
+    if (ctx == NULL || (ctx->buf == NULL && buffer_size))
+#endif
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -210,6 +216,12 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
 
                             count++;
                         }
+                    }
+
+                    // Prevent static code issue DIVIDE_BY_ZERO.
+                    if (count == 0)
+                    {
+                        return ARM_CMSIS_NN_ARG_ERROR;
                     }
 
                     // Perform the following operation
@@ -321,6 +333,12 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
                     }
                 }
 
+                // Prevent static code issue DIVIDE_BY_ZERO.
+                if (count == 0)
+                {
+                    return ARM_CMSIS_NN_ARG_ERROR;
+                }
+
                 scale_q31_to_q7_and_clamp(buffer, dst, ch_src, count, act_min, act_max);
                 dst += ch_src;
             }
@@ -363,6 +381,12 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
                             sum += src[i_ch_in + ch_src * (k_x + k_y * input_x)];
                             count++;
                         }
+                    }
+
+                    // Prevent static code issue DIVIDE_BY_ZERO.
+                    if (count == 0)
+                    {
+                        return ARM_CMSIS_NN_ARG_ERROR;
                     }
 
                     sum = sum > 0 ? (sum + count / 2) / count : (sum - count / 2) / count;
