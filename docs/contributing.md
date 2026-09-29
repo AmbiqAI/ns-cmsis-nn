@@ -47,8 +47,10 @@ own section (`-ffunction-sections -fdata-sections`), so a `--gc-sections` link
 keeps only the functions a program reaches. The rules below keep that true.
 
 - **Specialised paths are direct entries.** A path tuned for one shape family
-  is its own public function with the generic function's signature, scratch
-  size and weight-sum contract. Outside its gate it returns
+  is its own public function with the generic function's signature and
+  weight-sum contract. Its scratch comes from the generic sizer or, where
+  it needs a different amount, from its own `*_get_buffer_size()`; a
+  caller that may run both sizes for the larger. Outside its gate it returns
   `ARM_CMSIS_NN_NO_IMPL_ERROR` and writes nothing. The generic function never
   calls it, so a `--gc-sections` link drops it when nothing references it.
   Examples: `arm_depthwise_conv_s8_opt_3x3()` and `arm_convolve_s8_small_cin()`.
