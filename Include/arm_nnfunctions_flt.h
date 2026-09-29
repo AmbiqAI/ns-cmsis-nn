@@ -2216,10 +2216,10 @@ arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_depthwise_nhwc_conv_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs keep every accumulator lane in float16 with no
- *       blockwise fold, exactly as arm_depthwise_nhwc_conv_f16 did before #586, for callers that trade accuracy on long
- *       reductions for speed. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_depthwise_nhwc_conv_f16.
+ * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
+ *       arm_depthwise_nhwc_conv_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
+ *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
+ * scalar leg as arm_depthwise_nhwc_conv_f16.
  */
 arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16_acc16(const cmsis_nn_context *ctx,
                                                       const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -2265,10 +2265,10 @@ arm_cmsis_nn_status arm_depthwise_conv_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_depthwise_conv_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs keep every accumulator lane in float16 with no
- *       blockwise fold, exactly as arm_depthwise_conv_f16 did before #586, for callers that trade accuracy on long
- *       reductions for speed. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_depthwise_conv_f16.
+ * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
+ *       arm_depthwise_conv_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
+ *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
+ * scalar leg as arm_depthwise_conv_f16.
  */
 arm_cmsis_nn_status arm_depthwise_conv_f16_acc16(const cmsis_nn_context *ctx,
                                                  const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -2314,10 +2314,10 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_depthwise_conv_wrapper_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs keep every accumulator lane in float16 with no
- *       blockwise fold, exactly as arm_depthwise_conv_wrapper_f16 did before #586, for callers that trade accuracy on
- * long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_depthwise_conv_wrapper_f16.
+ * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
+ *       arm_depthwise_conv_wrapper_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
+ *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
+ * scalar leg as arm_depthwise_conv_wrapper_f16.
  */
 arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16_acc16(const cmsis_nn_context *ctx,
                                                          const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -2364,10 +2364,10 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_convolve_nhwc_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs keep every accumulator lane in float16 with no
- *       blockwise fold, exactly as arm_convolve_nhwc_f16 did before #586, for callers that trade accuracy on long
- *       reductions for speed. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_convolve_nhwc_f16.
+ * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
+ *       arm_convolve_nhwc_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
+ *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
+ * scalar leg as arm_convolve_nhwc_f16.
  */
 arm_cmsis_nn_status arm_convolve_nhwc_f16_acc16(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_conv_params_f16 *conv_params,
@@ -2422,10 +2422,10 @@ arm_cmsis_nn_status arm_convolve_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_convolve_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs keep every accumulator lane in float16 with no
- *       blockwise fold, exactly as arm_convolve_f16 did before #586, for callers that trade accuracy on long
- *       reductions for speed. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_convolve_f16.
+ * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
+ *       arm_convolve_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
+ *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
+ * scalar leg as arm_convolve_f16.
  */
 arm_cmsis_nn_status arm_convolve_f16_acc16(const cmsis_nn_context *ctx,
                                            const cmsis_nn_conv_params_f16 *conv_params,
@@ -2456,10 +2456,10 @@ arm_cmsis_nn_status arm_convolve_wrapper_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_convolve_wrapper_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs keep every accumulator lane in float16 with no
- *       blockwise fold, exactly as arm_convolve_wrapper_f16 did before #586, for callers that trade accuracy on long
- *       reductions for speed. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_convolve_wrapper_f16.
+ * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
+ *       arm_convolve_wrapper_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
+ *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
+ * scalar leg as arm_convolve_wrapper_f16.
  */
 arm_cmsis_nn_status arm_convolve_wrapper_f16_acc16(const cmsis_nn_context *ctx,
                                                    const cmsis_nn_conv_params_f16 *conv_params,
@@ -2489,10 +2489,10 @@ arm_cmsis_nn_status arm_convolve_1x1_nhwc_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_convolve_1x1_nhwc_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs keep every accumulator lane in float16 with no
- *       blockwise fold, exactly as arm_convolve_1x1_nhwc_f16 did before #586, for callers that trade accuracy on long
- *       reductions for speed. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_convolve_1x1_nhwc_f16.
+ * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
+ *       arm_convolve_1x1_nhwc_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
+ *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
+ * scalar leg as arm_convolve_1x1_nhwc_f16.
  */
 arm_cmsis_nn_status arm_convolve_1x1_nhwc_f16_acc16(const cmsis_nn_context *ctx,
                                                     const cmsis_nn_conv_params_f16 *conv_params,
@@ -2523,10 +2523,10 @@ arm_cmsis_nn_status arm_convolve_1x1_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_convolve_1x1_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs keep every accumulator lane in float16 with no
- *       blockwise fold, exactly as arm_convolve_1x1_f16 did before #586, for callers that trade accuracy on long
- *       reductions for speed. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_convolve_1x1_f16.
+ * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
+ *       arm_convolve_1x1_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
+ *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
+ * scalar leg as arm_convolve_1x1_f16.
  */
 arm_cmsis_nn_status arm_convolve_1x1_f16_acc16(const cmsis_nn_context *ctx,
                                                const cmsis_nn_conv_params_f16 *conv_params,
@@ -2557,10 +2557,10 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_convolve_1_x_n_nhwc_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs keep every accumulator lane in float16 with no
- *       blockwise fold, exactly as arm_convolve_1_x_n_nhwc_f16 did before #586, for callers that trade accuracy on long
- *       reductions for speed. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_convolve_1_x_n_nhwc_f16.
+ * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
+ *       arm_convolve_1_x_n_nhwc_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
+ *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
+ * scalar leg as arm_convolve_1_x_n_nhwc_f16.
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16_acc16(const cmsis_nn_context *ctx,
                                                       const cmsis_nn_conv_params_f16 *conv_params,
@@ -2601,10 +2601,10 @@ arm_cmsis_nn_status arm_convolve_1_x_n_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_convolve_1_x_n_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs keep every accumulator lane in float16 with no
- *       blockwise fold, exactly as arm_convolve_1_x_n_f16 did before #586, for callers that trade accuracy on long
- *       reductions for speed. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_convolve_1_x_n_f16.
+ * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
+ *       arm_convolve_1_x_n_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
+ *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
+ * scalar leg as arm_convolve_1_x_n_f16.
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_f16_acc16(const cmsis_nn_context *ctx,
                                                  const cmsis_nn_conv_params_f16 *conv_params,
@@ -3057,10 +3057,10 @@ arm_cmsis_nn_status arm_fully_connected_nhwc_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_fully_connected_nhwc_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs keep every accumulator lane in float16 with no
- *       blockwise fold, exactly as arm_fully_connected_nhwc_f16 did before #586, for callers that trade accuracy on
- * long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_fully_connected_nhwc_f16.
+ * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
+ *       arm_fully_connected_nhwc_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
+ *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
+ * scalar leg as arm_fully_connected_nhwc_f16.
  */
 arm_cmsis_nn_status arm_fully_connected_nhwc_f16_acc16(const cmsis_nn_context *ctx,
                                                        const cmsis_nn_fc_params_f16 *fc_params,
@@ -3101,10 +3101,10 @@ arm_cmsis_nn_status arm_fully_connected_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_fully_connected_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs keep every accumulator lane in float16 with no
- *       blockwise fold, exactly as arm_fully_connected_f16 did before #586, for callers that trade accuracy on long
- *       reductions for speed. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_fully_connected_f16.
+ * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
+ *       arm_fully_connected_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
+ *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
+ * scalar leg as arm_fully_connected_f16.
  */
 arm_cmsis_nn_status arm_fully_connected_f16_acc16(const cmsis_nn_context *ctx,
                                                   const cmsis_nn_fc_params_f16 *fc_params,

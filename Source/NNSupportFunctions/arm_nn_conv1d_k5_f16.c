@@ -100,8 +100,14 @@ __STATIC_FORCEINLINE void arm_nn_conv1d_k5_nhwc_f16_body(const float16_t *__REST
                     vacc = vfmaq(vacc, vx14, vld1q(w_base + 4 * in_c));
 
                     /* 80 taps, ten per lane: one block, summed in float32 when folding. */
-                    y[oc + of] = fold ? (float16_t)((float32_t)b[oc + of] + arm_nn_vec_reduce_add_f16_to_f32(vacc))
-                                      : (float16_t)((_Float16)b[oc + of] + (_Float16)arm_nn_vec_reduce_add_f16(vacc));
+                    if (fold)
+                    {
+                        y[oc + of] = (float16_t)((float32_t)b[oc + of] + arm_nn_vec_reduce_add_f16_to_f32(vacc));
+                    }
+                    else
+                    {
+                        y[oc + of] = (float16_t)((_Float16)b[oc + of] + (_Float16)arm_nn_vec_reduce_add_f16(vacc));
+                    }
                 }
             }
         }
@@ -171,23 +177,30 @@ __STATIC_FORCEINLINE void arm_nn_conv1d_k5_nhwc_f16_body(const float16_t *__REST
                 ic0 = ic_end;
             } while (ic0 < in_c);
 
-            const _Float16 acc0 = fold
-                ? (_Float16)((b ? (float32_t)b[oc + 0] : 0.0f) + arm_nn_f16_pairs_sum_f32(vacc0_pairs))
-                : (b ? (_Float16)b[oc + 0] : (_Float16)0.0f) + (_Float16)arm_nn_vec_reduce_add_f16(vacc0);
-            const _Float16 acc1 = fold
-                ? (_Float16)((b ? (float32_t)b[oc + 1] : 0.0f) + arm_nn_f16_pairs_sum_f32(vacc1_pairs))
-                : (b ? (_Float16)b[oc + 1] : (_Float16)0.0f) + (_Float16)arm_nn_vec_reduce_add_f16(vacc1);
-            const _Float16 acc2 = fold
-                ? (_Float16)((b ? (float32_t)b[oc + 2] : 0.0f) + arm_nn_f16_pairs_sum_f32(vacc2_pairs))
-                : (b ? (_Float16)b[oc + 2] : (_Float16)0.0f) + (_Float16)arm_nn_vec_reduce_add_f16(vacc2);
-            const _Float16 acc3 = fold
-                ? (_Float16)((b ? (float32_t)b[oc + 3] : 0.0f) + arm_nn_f16_pairs_sum_f32(vacc3_pairs))
-                : (b ? (_Float16)b[oc + 3] : (_Float16)0.0f) + (_Float16)arm_nn_vec_reduce_add_f16(vacc3);
-
-            y[oc + 0] = (float16_t)acc0;
-            y[oc + 1] = (float16_t)acc1;
-            y[oc + 2] = (float16_t)acc2;
-            y[oc + 3] = (float16_t)acc3;
+            if (fold)
+            {
+                y[oc + 0] =
+                    (float16_t)(_Float16)((b ? (float32_t)b[oc + 0] : 0.0f) + arm_nn_f16_pairs_sum_f32(vacc0_pairs));
+                y[oc + 1] =
+                    (float16_t)(_Float16)((b ? (float32_t)b[oc + 1] : 0.0f) + arm_nn_f16_pairs_sum_f32(vacc1_pairs));
+                y[oc + 2] =
+                    (float16_t)(_Float16)((b ? (float32_t)b[oc + 2] : 0.0f) + arm_nn_f16_pairs_sum_f32(vacc2_pairs));
+                y[oc + 3] =
+                    (float16_t)(_Float16)((b ? (float32_t)b[oc + 3] : 0.0f) + arm_nn_f16_pairs_sum_f32(vacc3_pairs));
+            }
+            else
+            {
+                /* Each lane sum is pinned before the bias add so -ffast-math keeps the float16-lane order. */
+                _Float16 sum0 = (_Float16)arm_nn_vec_reduce_add_f16(vacc0);
+                _Float16 sum1 = (_Float16)arm_nn_vec_reduce_add_f16(vacc1);
+                _Float16 sum2 = (_Float16)arm_nn_vec_reduce_add_f16(vacc2);
+                _Float16 sum3 = (_Float16)arm_nn_vec_reduce_add_f16(vacc3);
+                __asm__("" : "+t"(sum0), "+t"(sum1), "+t"(sum2), "+t"(sum3));
+                y[oc + 0] = (float16_t)((b ? (_Float16)b[oc + 0] : (_Float16)0.0f) + sum0);
+                y[oc + 1] = (float16_t)((b ? (_Float16)b[oc + 1] : (_Float16)0.0f) + sum1);
+                y[oc + 2] = (float16_t)((b ? (_Float16)b[oc + 2] : (_Float16)0.0f) + sum2);
+                y[oc + 3] = (float16_t)((b ? (_Float16)b[oc + 3] : (_Float16)0.0f) + sum3);
+            }
         }
 
         for (; oc < out_c; ++oc)
