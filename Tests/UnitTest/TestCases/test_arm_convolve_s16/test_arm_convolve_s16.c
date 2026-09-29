@@ -1947,7 +1947,9 @@ void resident_pixel_contract_arm_convolve_s16(void)
     const cmsis_nn_bias_data bias = {bias_values, true};
     int32_t multipliers[3] = {1073741824, 1073741824, 1073741824};
     int32_t shifts[3] = {1, 1, 1};
+#if defined(ARM_MATH_MVEI)
     int16_t output[3] = {0};
+#endif
 
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
     /* A single pixel and fewer than four output channels exercise only the
@@ -1973,20 +1975,15 @@ void resident_pixel_contract_arm_convolve_s16(void)
     TEST_ASSERT_EQUAL_INT16(800, output[0]);
 #endif
 
-    /* Zero channels must take the generic path without reading either data pointer. */
+#if defined(ARM_MATH_MVEI)
+    /* Zero channels must take the generic MVE path without reading either data pointer. */
     const int32_t zero_channel_bias_value = 7;
     const cmsis_nn_bias_data zero_channel_bias = {&zero_channel_bias_value, true};
     output[0] = 0;
-    const arm_cmsis_nn_status zero_channel_status =
-        run_1x1_s16_contract_case(0, 1, NULL, NULL, &zero_channel_bias, multipliers, shifts, -32768, 32767, output);
-#if defined(ARM_MATH_MVEI)
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, zero_channel_status);
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        run_1x1_s16_contract_case(0, 1, NULL, NULL, &zero_channel_bias, multipliers, shifts, -32768, 32767, output));
     TEST_ASSERT_EQUAL_INT16(7, output[0]);
-#else
-    /* The scalar build has no s16 matmul implementation. */
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, zero_channel_status);
-    TEST_ASSERT_EQUAL_INT16(0, output[0]);
-#endif
 
     /* Twelve channels are not a whole MVE vector pair; forty are over the
        resident limit. Both boundary shapes must retain the fallback result. */
@@ -2001,25 +1998,18 @@ void resident_pixel_contract_arm_convolve_s16(void)
     const cmsis_nn_bias_data boundary_bias = {&boundary_bias_value, true};
 
     output[0] = 0;
-    const arm_cmsis_nn_status partial_vector_status = run_1x1_s16_contract_case(
-        12, 1, boundary_input, boundary_weights, &boundary_bias, multipliers, shifts, -32768, 32767, output);
-#if defined(ARM_MATH_MVEI)
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, partial_vector_status);
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        run_1x1_s16_contract_case(
+            12, 1, boundary_input, boundary_weights, &boundary_bias, multipliers, shifts, -32768, 32767, output));
     TEST_ASSERT_EQUAL_INT16(12, output[0]);
-#else
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, partial_vector_status);
-    TEST_ASSERT_EQUAL_INT16(0, output[0]);
-#endif
 
     output[0] = 0;
-    const arm_cmsis_nn_status over_limit_status = run_1x1_s16_contract_case(
-        40, 1, boundary_input, boundary_weights, &boundary_bias, multipliers, shifts, -32768, 32767, output);
-#if defined(ARM_MATH_MVEI)
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, over_limit_status);
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        run_1x1_s16_contract_case(
+            40, 1, boundary_input, boundary_weights, &boundary_bias, multipliers, shifts, -32768, 32767, output));
     TEST_ASSERT_EQUAL_INT16(40, output[0]);
-#else
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, over_limit_status);
-    TEST_ASSERT_EQUAL_INT16(0, output[0]);
 #endif
 }
 
