@@ -53,9 +53,10 @@ keeps only the functions a program reaches. The rules below keep that true.
   is its own public function with the generic function's signature and
   weight-sum contract. Its scratch comes from the generic sizer or, where
   it needs a different amount, from its own `*_get_buffer_size()`; a
-  caller that may run both sizes for the larger. Outside its gate it returns
-  `ARM_CMSIS_NN_NO_IMPL_ERROR` and writes nothing. The generic function never
-  calls it, so a `--gc-sections` link drops it when nothing references it.
+  caller that may run either entry allocates the larger of the two sizes.
+  Outside its gate it returns `ARM_CMSIS_NN_NO_IMPL_ERROR` and writes
+  nothing. The generic function never calls it, so a `--gc-sections` link
+  drops it when nothing references it.
   Examples: `arm_depthwise_conv_s8_opt_3x3()` and `arm_convolve_s8_small_cin()`.
 - **Code generators call the entry directly.** Wrappers
   (`arm_*_wrapper_*()`) may route to an entry for other callers, but only
