@@ -312,6 +312,18 @@ def run_command(cmd: list[str], log_path: Path, timeout: int | None = None) -> s
     return completed
 
 
+UNITY_PASS_SUMMARY = re.compile(r"^\d+ Tests 0 Failures \d+ Ignored\s*$", re.MULTILINE)
+UNITY_OK_LINE = re.compile(r"^OK\s*$", re.MULTILINE)
+
+
+def unity_passed(output: str) -> bool:
+    """True when Unity's summary line reports zero failures and is followed by its OK line.
+
+    A substring test on "0 Failures" also matches "10 Failures", and a bare "OK" can appear anywhere.
+    """
+    return bool(UNITY_PASS_SUMMARY.search(output)) and bool(UNITY_OK_LINE.search(output))
+
+
 def summarize_unity_ticks(output: str) -> str:
     tick_matches = [int(match) for match in re.findall(r":PASS\s+\((\d+)\s+ticks\)", output)]
     if not tick_matches:
@@ -545,7 +557,7 @@ def main() -> int:
                         log_dir / "fvp",
                     )
                     output = completed.stdout
-                    passed = completed.returncode == 0 and "0 Failures" in output and "OK" in output
+                    passed = completed.returncode == 0 and unity_passed(output)
                     if passed:
                         results.append(
                             StepResult(
