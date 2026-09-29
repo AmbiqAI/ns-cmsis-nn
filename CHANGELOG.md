@@ -1,5 +1,25 @@
 # Changelog
 
+## [7.37.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.36.1...v7.37.0) (2026-09-29)
+
+
+### Features
+
+* **depthwise:** expose the planar and channel-vectorized s8 depthwise paths and their rule ([#580](https://github.com/AmbiqAI/ns-cmsis-nn/issues/580)) ([60898a4](https://github.com/AmbiqAI/ns-cmsis-nn/commit/60898a4cbb59ed2d2df13beb3cd17fcfc5ec9cda)), closes [#568](https://github.com/AmbiqAI/ns-cmsis-nn/issues/568)
+
+
+### Bug Fixes
+
+* **depthwise:** index generic s4 weights by nibble for odd channel counts ([#574](https://github.com/AmbiqAI/ns-cmsis-nn/issues/574)) ([050f339](https://github.com/AmbiqAI/ns-cmsis-nn/commit/050f3391ffcaef2357cffc1a4639ca1614450cb5)), closes [#570](https://github.com/AmbiqAI/ns-cmsis-nn/issues/570)
+* **depthwise:** keep the MVE s4 and padded s8 depthwise tails inside their operands ([#573](https://github.com/AmbiqAI/ns-cmsis-nn/issues/573)) ([7250afc](https://github.com/AmbiqAI/ns-cmsis-nn/commit/7250afccee68702404e3eb2bca1a5c7e8052b2da)), closes [#568](https://github.com/AmbiqAI/ns-cmsis-nn/issues/568)
+* **docs:** add the optional emnapi packages npm 11.19 requires to the site lockfile ([#585](https://github.com/AmbiqAI/ns-cmsis-nn/issues/585)) ([670af6f](https://github.com/AmbiqAI/ns-cmsis-nn/commit/670af6fbe79c2710c980a515098ee916ce3382f6)), closes [#584](https://github.com/AmbiqAI/ns-cmsis-nn/issues/584)
+
+
+### Performance
+
+* **conv:** add low input-depth direct entries and route them from arm_convolve_wrapper_s8 ([#595](https://github.com/AmbiqAI/ns-cmsis-nn/issues/595)) ([8e6535c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/8e6535c1b3ece20aa8c92672e3b950085aaeaded)), closes [#578](https://github.com/AmbiqAI/ns-cmsis-nn/issues/578)
+* **depthwise:** add direct 3x3 s8 depthwise entries that read the input in place ([#593](https://github.com/AmbiqAI/ns-cmsis-nn/issues/593)) ([2adc614](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2adc61482768b8df1ce4298ecac45567d2697fa7)), closes [#581](https://github.com/AmbiqAI/ns-cmsis-nn/issues/581)
+
 ## [7.36.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.36.0...v7.36.1) (2026-09-27)
 
 
