@@ -23,8 +23,8 @@
  * Description:  s8 convolution layer wrapper function with the main purpose to call the optimal kernel available in
  * cmsis-nn to perform the convolution.
  *
- * $Date:        27 Feb 2026
- * $Revision:    V.2.5.2
+ * $Date:        28 September 2026
+ * $Revision:    V.2.6.0
  *
  * Target :  Arm(R) M-Profile Architecture
  *
@@ -132,6 +132,49 @@ arm_cmsis_nn_status arm_convolve_wrapper_s8(const cmsis_nn_context *ctx,
 #endif
     else
     {
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+        /* Layers in the gate of a direct entry run it, with the same result and scratch as arm_convolve_s8(). The
+           input depth rejects most layers before the rest of either gate is read. */
+        const int32_t input_ch = input_dims->c;
+        if (input_ch <= 3)
+        {
+            if (arm_nn_is_convolve_s8_small_cin(conv_params, input_dims, filter_dims, output_dims, NULL))
+            {
+                return arm_convolve_s8_small_cin(ctx,
+                                                 weight_sum_ctx,
+                                                 conv_params,
+                                                 quant_params,
+                                                 input_dims,
+                                                 input_data,
+                                                 filter_dims,
+                                                 filter_data,
+                                                 bias_dims,
+                                                 bias_data,
+                                                 NULL,
+                                                 output_dims,
+                                                 output_data);
+            }
+        }
+        else if (input_ch == 16)
+        {
+            if (arm_nn_is_convolve_s8_3x3_c16_s1(conv_params, input_dims, filter_dims, NULL))
+            {
+                return arm_convolve_s8_3x3_c16_s1(ctx,
+                                                  weight_sum_ctx,
+                                                  conv_params,
+                                                  quant_params,
+                                                  input_dims,
+                                                  input_data,
+                                                  filter_dims,
+                                                  filter_data,
+                                                  bias_dims,
+                                                  bias_data,
+                                                  NULL,
+                                                  output_dims,
+                                                  output_data);
+            }
+        }
+#endif
         return arm_convolve_s8(ctx,
                                weight_sum_ctx,
                                conv_params,

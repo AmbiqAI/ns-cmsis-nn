@@ -27,7 +27,7 @@ manifest:
   projects:
     - name: ns-cmsis-nn
       remote: ambiqai
-      revision: v7.35.1 # x-release-please-version
+      revision: v7.37.0 # x-release-please-version
       path: modules/lib/ns-cmsis-nn
 ```
 
@@ -47,7 +47,7 @@ path automatically, and the kernels are linked into your image.
 
 :::tip[Minimal setup for First kernel]
 The activation option brings in its support group. This configuration leaves
-experimental floating-point kernels disabled. heliaCORE's Zephyr module requires
+floating-point kernels disabled. heliaCORE's Zephyr module requires
 Cortex-M and cannot be enabled alongside upstream `CONFIG_CMSIS_NN=y`. If another
 component selects that upstream option, resolve that dependency before continuing.
 :::
@@ -55,7 +55,7 @@ component selects that upstream option, resolve that dependency before continuin
 ### Add more kernels when needed
 
 Select individual `CONFIG_NS_CMSIS_NN_*` groups in menuconfig. To enable all
-groups, use `CONFIG_NS_CMSIS_NN_ALL=y`; this also implies experimental FP32 and
+groups, use `CONFIG_NS_CMSIS_NN_ALL=y`; this also implies FP32 and
 FP16 where the target supports it. For explicit floating-point selection, use
 `CONFIG_NS_CMSIS_NN_ENABLE_F32=y` or `CONFIG_NS_CMSIS_NN_ENABLE_F16=y` and check
 target dependencies in menuconfig.

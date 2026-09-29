@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: Copyright 2022-2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -74,6 +75,12 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
+    /* The optimized paths step the horizontal tap index by dilation.w and have no vertical dilation */
+    if (dw_conv_params->dilation.h != 1 || dw_conv_params->dilation.w < 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     if (ctx->buf == NULL && arm_depthwise_conv_fast_s16_get_buffer_size(input_dims, filter_dims) != 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
@@ -90,6 +97,7 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
     const int32_t pad_y = dw_conv_params->padding.h;
     const int32_t stride_x = dw_conv_params->stride.w;
     const int32_t stride_y = dw_conv_params->stride.h;
+    const int32_t dilation_x = dw_conv_params->dilation.w;
     const int32_t *output_shift = quant_params->shift;
     const int32_t *output_mult = quant_params->multiplier;
     const int32_t output_x = output_dims->w;
@@ -113,7 +121,7 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
             {
                 for (int i_ker_y = base_idx_y; i_ker_y < base_idx_y + kernel_y; i_ker_y++)
                 {
-                    for (int i_ker_x = base_idx_x; i_ker_x < base_idx_x + kernel_x; i_ker_x++)
+                    for (int i_ker_x = base_idx_x; i_ker_x < base_idx_x + kernel_x * dilation_x; i_ker_x += dilation_x)
                     {
                         if (i_ker_y < 0 || i_ker_y >= input_y || i_ker_x < 0 || i_ker_x >= input_x)
                         {
@@ -161,47 +169,41 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
         {
             const int8_t *row_0 = kernel + offset;
             const int16_t *col_0 = lhs_buffer + (kernel_size * input_ch * i_buf) + offset;
+            const mve_pred16_t p = vctp32q((uint32_t)num_ch_to_process);
+            const int32_t lanes = num_ch_to_process < 4 ? num_ch_to_process : 4;
 
             int32x4_t out_0 = vdupq_n_s32(0);
 
             for (int i_ker = 0; i_ker < kernel_size; i_ker++)
             {
-                const int32x4_t ker_0 = vldrbq_s32(row_0);
+                const int32x4_t ker_0 = vldrbq_z_s32(row_0, p);
 
-                int32x4_t ip_0 = vldrhq_s32(col_0);
+                int32x4_t ip_0 = vldrhq_z_s32(col_0, p);
                 out_0 += vmulq_s32(ip_0, ker_0);
 
                 col_0 += input_ch;
                 row_0 += input_ch;
             }
 
-            int64_t in_requantize_0 = (int64_t)out_0[0];
-            int64_t in_requantize_1 = (int64_t)out_0[1];
-            int64_t in_requantize_2 = (int64_t)out_0[2];
-            int64_t in_requantize_3 = (int64_t)out_0[3];
-
-            if (bias)
+            /* Only live lanes are requantized, so a partial last block stays inside bias and the quant params. */
+            for (int i_lane = 0; i_lane < 4; i_lane++)
             {
-                in_requantize_0 += bias[offset];
-                in_requantize_1 += bias[offset + 1];
-                in_requantize_2 += bias[offset + 2];
-                in_requantize_3 += bias[offset + 3];
+                if (i_lane >= lanes)
+                {
+                    break;
+                }
+                int64_t in_requantize = (int64_t)out_0[i_lane];
+                if (bias)
+                {
+                    in_requantize += bias[offset + i_lane];
+                }
+                out_0[i_lane] = arm_nn_requantize_s64(
+                    in_requantize, REDUCE_MULTIPLIER(output_mult[offset + i_lane]), output_shift[offset + i_lane]);
             }
-
-            int32_t reduced_multiplier_0 = REDUCE_MULTIPLIER(output_mult[offset]);
-            int32_t reduced_multiplier_1 = REDUCE_MULTIPLIER(output_mult[offset + 1]);
-            int32_t reduced_multiplier_2 = REDUCE_MULTIPLIER(output_mult[offset + 2]);
-            int32_t reduced_multiplier_3 = REDUCE_MULTIPLIER(output_mult[offset + 3]);
-
-            out_0[0] = arm_nn_requantize_s64(in_requantize_0, reduced_multiplier_0, output_shift[offset]);
-            out_0[1] = arm_nn_requantize_s64(in_requantize_1, reduced_multiplier_1, output_shift[offset + 1]);
-            out_0[2] = arm_nn_requantize_s64(in_requantize_2, reduced_multiplier_2, output_shift[offset + 2]);
-            out_0[3] = arm_nn_requantize_s64(in_requantize_3, reduced_multiplier_3, output_shift[offset + 3]);
 
             out_0 = vmaxq_s32(out_0, vdupq_n_s32(output_activation_min));
             out_0 = vminq_s32(out_0, vdupq_n_s32(output_activation_max));
 
-            mve_pred16_t p = vctp32q((uint32_t)num_ch_to_process);
             vstrhq_p_s32(out, out_0, p);
 
             out += 4;
@@ -254,7 +256,7 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
 
                     for (int i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
                     {
-                        const int32_t idx_x = base_idx_x + i_ker_x;
+                        const int32_t idx_x = base_idx_x + i_ker_x * dilation_x;
 
                         if (idx_x < 0 || idx_x >= input_x)
                         {

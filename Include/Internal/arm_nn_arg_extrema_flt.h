@@ -118,22 +118,14 @@ static inline arm_cmsis_nn_status arm_nn_arg_extrema(const void *input_data,
         inner *= (size_t)dims[d];
     }
     const size_t reduction = (size_t)dims[axis];
-    /* Half formats share a sign position; their exponent-31 meanings differ. */
     const uint32_t half_sign_mask = UINT32_C(0x8000);
     const uint32_t binary32_sign_mask = UINT32_C(0x80000000);
+    const uint32_t binary16_infinity_bits = UINT32_C(0x7c00);
     const uint32_t binary32_infinity_bits = UINT32_C(0x7f800000);
     const uint32_t sign = width == sizeof(uint16_t) ? half_sign_mask : binary32_sign_mask;
     const uint32_t magnitude_mask = sign - 1;
-    #if defined(__ARM_FP16_FORMAT_ALTERNATIVE) && !(defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2))
-    /* Scalar alternative-format half has only finite values, including exponent 31. */
-    const uint32_t alternative_half_max_finite_bits = UINT32_C(0x7fff);
-    const uint32_t half_nan_boundary = alternative_half_max_finite_bits;
-    #else
-    const uint32_t binary16_infinity_bits = UINT32_C(0x7c00);
-    const uint32_t half_nan_boundary = binary16_infinity_bits;
-    #endif
-    /* Only magnitudes strictly above this boundary are NaNs; none exist in alternative half. */
-    const uint32_t nan_boundary = width == sizeof(uint16_t) ? half_nan_boundary : binary32_infinity_bits;
+    /* Only magnitudes strictly above the infinity encoding are NaNs. */
+    const uint32_t nan_boundary = width == sizeof(uint16_t) ? binary16_infinity_bits : binary32_infinity_bits;
     const uint8_t *input = (const uint8_t *)input_data;
     for (size_t o = 0; o < outer; ++o)
     {
