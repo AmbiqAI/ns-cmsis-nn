@@ -21,7 +21,7 @@ See [Requirements](../requirements/) before choosing source or prebuilt kernels.
 ## 1. Install the pack
 
 ```bash
-VERSION=7.35.1 # x-release-please-version
+VERSION=7.38.0 # x-release-please-version
 curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/Ambiq.NS-CMSIS-NN.${VERSION}.pack
 
 # CMSIS-Toolbox
@@ -89,7 +89,7 @@ confirm the final link includes the selected `libns-cmsis-nn.a`.
 ### Optional floating-point kernels
 
 The pack includes floating-point sources and headers, but selecting the component
-does not enable their experimental APIs. Both float feature macros default to
+does not enable their APIs. Both float feature macros default to
 `0`. In **Source** mode, set numeric preprocessor definitions in your project's
 compiler settings for both the component sources and the application code that
 calls them. For FP32 only, use:

@@ -39,6 +39,39 @@ historically that has tripped up downstream artifact generators. Use the word
 (`and`) or HTML entity if needed.
 :::
 
+## Kernel structure and code size
+
+Optimised kernels must not grow the image of a model that does not use them.
+NSX source builds and the prebuilt archives compile every function into its
+own section (`-ffunction-sections -fdata-sections`), so a `--gc-sections` link
+keeps only the functions a program reaches. The rules below keep that true.
+
+- **Specialised paths are direct entries.** A path tuned for one shape family
+  is its own public function with the generic function's signature and
+  weight-sum contract. Its scratch comes from the generic sizer or, where
+  it needs a different amount, from its own `*_get_buffer_size()`; a
+  caller that may run both sizes for the larger. Outside its gate it returns
+  `ARM_CMSIS_NN_NO_IMPL_ERROR` and writes nothing. The generic function never
+  calls it, so a `--gc-sections` link drops it when nothing references it.
+  Examples: `arm_depthwise_conv_s8_opt_3x3()` and `arm_convolve_s8_small_cin()`.
+- **Code generators call the entry directly.** Wrappers
+  (`arm_*_wrapper_*()`) may route to an entry for other callers, but only
+  after a cheap inline pre-check, so layers outside the gate pay almost
+  nothing.
+- **Select variants at compile time.** When one body serves two variants,
+  such as the FP16 default and `_acc16` entries, instantiate it once per entry
+  with a compile-time constant. Neither variant may reference the other at run
+  time.
+- **Inline deliberately.** Keep small hot code inline within a kernel. Put
+  widely reused logic in shared out-of-line helpers that are linked once:
+  requantization, the FP16 fold, matmul cores, and im2col or packing.
+- **Every kernel PR reports two things:**
+  - A function map: public entries, shared helpers and inlined code, with
+    their sizes.
+  - The image delta from a `--gc-sections` link. It must be zero for a program
+    that calls only the generic function. Also report it for the wrapper and
+    for each new entry, and check that every intended symbol is in the image.
+
 ## Maintainer release notes
 
 Most contributors only need conventional commits. Maintainers should also know
@@ -264,6 +297,39 @@ The dev container builds and runs as `linux/amd64`
 (`--platform=linux/amd64` in `.devcontainer/devcontainer.json`): the pinned
 clang-format wheel and every tool in `ci/tools/manifest.json` are x86_64
 builds, so on an arm64 host the container runs emulated.
+
+## Header documentation
+
+Every function declared in the public headers (`Include/arm_nnfunctions.h`,
+`Include/arm_nnfunctions_flt.h`, `Include/arm_nnsupportfunctions.h`,
+`Include/arm_nnsupportfunctions_flt.h`) carries a `/** */` block directly above
+it with one `@param[in]`, `@param[out]` or `@param[in,out]` line per parameter,
+named exactly as in the signature. The direction follows the type: a scalar or
+a pointer whose every pointee level is `const` is `[in]`; any other pointer is
+`[out]` when the callee only writes it and `[in,out]` when it reads it first
+(state buffers, pointers the callee advances). A `const cmsis_nn_context *`
+may be `[in]` or `[in,out]`. A variant with the same parameter names as its
+base function may use a single `@copydetails base` (keeping its own `@brief`)
+or `@copydoc base` instead of repeating the tags, as long as the base is not a
+`static` inline function, which doxygen cannot resolve. A wrapper that adds a
+parameter its base lacks keeps the copy directive and adds a `@param` line for
+the new parameter only; doxygen merges the two, and a tag that repeats one of
+the copied parameters is an error.
+
+These tags are the machine-readable half of the kernel contract:
+`helia-core-tester` reads them to know which buffers a kernel writes. Two
+gates enforce them. `scripts/check_doxygen_params.py` parses the headers
+directly and fails on a missing block, a missing or extra tag, a tag without a
+direction, or a direction that contradicts the type; it runs in CI and as a
+pre-commit hook. The docs build sets `WARN_AS_ERROR = FAIL_ON_WARNINGS`, so
+anything doxygen itself flags fails the docs, pack and release builds. To run
+the check locally:
+
+```bash
+python3 scripts/check_doxygen_params.py
+```
+
+See AmbiqAI/ns-cmsis-nn#526 for the background.
 
 ## Reporting bugs
 

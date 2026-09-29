@@ -42,8 +42,9 @@
 extern "C" {
 #endif
 
-#define USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims)                                         \
-    (dw_conv_params->ch_mult == 1 && dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1 &&             \
+#define USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims, output_dims)                            \
+    (dw_conv_params->ch_mult == 1 &&                                                                                   \
+     arm_nn_dw_conv_opt_dilation_supported(dw_conv_params, input_dims, filter_dims, output_dims) &&                    \
      filter_dims->w * filter_dims->h < 512)
 
 #define LEFT_SHIFT(_shift) (_shift > 0 ? _shift : 0)
@@ -449,6 +450,35 @@ __STATIC_INLINE bool arm_nn_is_convolve_1_x_n(const cmsis_nn_conv_params *conv_p
     // sizers (issue #367). The remainder test is unchanged for any product that fits in an int32_t.
     return (input_dims->h == 1) && (conv_params->dilation.w == 1) && (filter_dims->h == 1) &&
         (((int64_t)conv_params->stride.w * (int64_t)input_dims->c) % 4 == 0) && (input_dims->c == filter_dims->c);
+}
+
+/**
+ * @brief Check if the dilation, stride and padding of a depthwise layer allow the arm_depthwise_conv_s8_opt() or
+ *        arm_depthwise_conv_fast_s16() route.
+ * @param[in]   dw_conv_params  Depthwise convolution parameters
+ * @param[in]   input_dims      Input dimensions
+ * @param[in]   filter_dims     Filter dimensions
+ * @param[in]   output_dims     Output dimensions
+ * @return      true for an undilated layer (dilation 1 in both dimensions), or for a 1D layer dilated along
+ *              the width only: filter, input and output height 1, stride 1 in both dimensions, no vertical
+ *              padding, dilation.h == 1 and dilation.w >= 1. false otherwise.
+ *
+ * @note Does not check ch_mult, the batch count or the kernel size: arm_depthwise_conv_wrapper_s8(),
+ *       arm_depthwise_conv_wrapper_s16() and their buffer-size functions apply their own conditions on those, and all
+ *       of them take this predicate so that routing and sizing agree.
+ */
+__STATIC_INLINE bool arm_nn_dw_conv_opt_dilation_supported(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                           const cmsis_nn_dims *input_dims,
+                                                           const cmsis_nn_dims *filter_dims,
+                                                           const cmsis_nn_dims *output_dims)
+{
+    if (dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1)
+    {
+        return true;
+    }
+    return (dw_conv_params->dilation.h == 1) && (dw_conv_params->dilation.w >= 1) && (filter_dims->h == 1) &&
+        (input_dims->h == 1) && (output_dims->h == 1) && (dw_conv_params->stride.w == 1) &&
+        (dw_conv_params->stride.h == 1) && (dw_conv_params->padding.h == 0);
 }
 
 /**
@@ -1315,12 +1345,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_svdf_s8(const int8_t *lhs,
  * @return         The function returns <code>ARM_CMSIS_NN_SUCCESS</code> if an implementation is available or
  *                 <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> otherwise
  *
- * @note           If number of channels is not a multiple of 4, upto 3 elements outside the boundary will be read
- * out for the following.
- *                  - Output shift
- *                  - Output multiplier
- *                  - Output bias
- *                  - rhs
+ * @note           Tail channel loads and stores are predicated, so channel-indexed arrays are not accessed beyond
+ *                @p active_ch.
  */
 arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_padded_s8(const int8_t *lhs,
                                                          const int8_t *rhs,
@@ -1377,6 +1403,136 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
                                                   int8_t *out);
 
 /**
+ * @brief Necessary conditions of the planar rule that are cheap to test inline: at most 32 channels and stride 1.
+ *        A caller can skip arm_nn_depthwise_conv_s8_planar() for layers that fail them without changing which layers
+ *        it takes.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [1, H, W, C_IN]
+ *
+ * @return         1 when the layer may take the planar path, 0 when it cannot.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s8_planar_candidate(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                                       const cmsis_nn_dims *input_dims)
+{
+    return input_dims->c <= 32 && dw_conv_params->stride.w == 1 && dw_conv_params->stride.h == 1;
+}
+
+/**
+ * @brief The gate of arm_convolve_s8_small_cin(): upscale_dims NULL, input depth 1 to 3 with filter depth equal to it,
+ *        dilation 1, a kernel of at least 1x1 with kernel width x depth at most 16 and at most 48 values, and a
+ *        positive multiple of 4 output channels. Plain C; it evaluates the same on every build.
+ *
+ * @param[in]   conv_params   Convolution parameters
+ * @param[in]   input_dims    Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]   filter_dims   Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
+ * @param[in]   output_dims   Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[in]   upscale_dims  Upscale tensor dimensions, or NULL
+ *
+ * @return      1 when the layer is in the gate, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_small_cin(const cmsis_nn_conv_params *conv_params,
+                                                             const cmsis_nn_dims *input_dims,
+                                                             const cmsis_nn_dims *filter_dims,
+                                                             const cmsis_nn_dims *output_dims,
+                                                             const cmsis_nn_dims *upscale_dims)
+{
+    const int64_t kernel_x = filter_dims->w;
+    const int64_t kernel_y = filter_dims->h;
+    const int64_t input_ch = input_dims->c;
+    return (upscale_dims == NULL) && (filter_dims->c == input_ch) && (input_ch >= 1) && (input_ch <= 3) &&
+        (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1) && (kernel_x >= 1) && (kernel_y >= 1) &&
+        (kernel_x * input_ch <= 16) && (kernel_x * kernel_y * input_ch <= 48) && (output_dims->c > 0) &&
+        ((output_dims->c & 3) == 0);
+}
+
+/**
+ * @brief The gate of arm_convolve_s8_3x3_c16_s1(): upscale_dims NULL, input and filter depth 16, a 3x3 kernel, and
+ *        stride and dilation 1. Plain C; it evaluates the same on every build.
+ *
+ * @param[in]   conv_params   Convolution parameters
+ * @param[in]   input_dims    Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]   filter_dims   Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
+ * @param[in]   upscale_dims  Upscale tensor dimensions, or NULL
+ *
+ * @return      1 when the layer is in the gate, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_3x3_c16_s1(const cmsis_nn_conv_params *conv_params,
+                                                              const cmsis_nn_dims *input_dims,
+                                                              const cmsis_nn_dims *filter_dims,
+                                                              const cmsis_nn_dims *upscale_dims)
+{
+    return (upscale_dims == NULL) && (input_dims->c == 16) && (filter_dims->c == 16) && (filter_dims->w == 3) &&
+        (filter_dims->h == 3) && (conv_params->stride.w == 1) && (conv_params->stride.h == 1) &&
+        (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1);
+}
+
+/**
+ * @brief The group check of arm_convolve_s8(), for its direct entries: with groups = C_IN / filter C, C_IN or C_OUT
+ *        is not a multiple of groups. A filter C of zero or above C_IN gives no group count and is not reported.
+ *
+ * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ *
+ * @return         1 when arm_convolve_s8() reports the group count as an argument error, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_convolve_s8_groups_invalid(const cmsis_nn_dims *input_dims,
+                                                               const cmsis_nn_dims *filter_dims,
+                                                               const cmsis_nn_dims *output_dims)
+{
+    const int32_t groups = filter_dims->c > 0 ? input_dims->c / filter_dims->c : 0;
+    return groups > 0 && (input_dims->c % groups != 0 || output_dims->c % groups != 0);
+}
+
+/**
+ * @brief Plane size in bytes that arm_nn_depthwise_conv_s8_planar() needs for a layer, or -1 when the layer is not
+ *        one it takes. The rule is plain C and evaluates the same on every build.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [1, H, W, C_IN]
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
+ *
+ * @return         The plane size in bytes, or -1.
+ */
+int32_t arm_nn_depthwise_conv_s8_planar_bytes(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *filter_dims,
+                                              const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief s8 depthwise convolution with channel multiplier 1 and stride 1, vectorized across the output pixels of
+ *        one channel plane instead of across channels. It serves the few-channel and 1xk layers of
+ *        arm_depthwise_conv_s8_opt(), with the same scratch buffer and weight sums.
+ *
+ * @param[in, out] ctx             Scratch buffer of arm_depthwise_conv_s8_opt_get_buffer_size() bytes
+ * @param[in]      weight_sum_ctx  Per-channel weight sums from arm_depthwise_convolve_weight_sum(), bias included
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      quant_params    Per-channel quantization parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [1, H, W, C_IN]
+ * @param[in]      input           Input data pointer
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      kernel          Filter data pointer
+ * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[out]     output          Output data pointer
+ *
+ * @return         <code>ARM_CMSIS_NN_SUCCESS</code> when the layer was computed, or
+ *                 <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> when it is not one this path takes or its plane does not
+ *                 fit in ctx->size (then nothing is written), or MVE is not available.
+ */
+arm_cmsis_nn_status arm_nn_depthwise_conv_s8_planar(const cmsis_nn_context *ctx,
+                                                    const cmsis_nn_context *weight_sum_ctx,
+                                                    const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                    const cmsis_nn_per_channel_quant_params *quant_params,
+                                                    const cmsis_nn_dims *input_dims,
+                                                    const int8_t *input,
+                                                    const cmsis_nn_dims *filter_dims,
+                                                    const int8_t *kernel,
+                                                    const cmsis_nn_dims *output_dims,
+                                                    int8_t *output);
+
+/**
  * @brief Depthwise convolution of transposed rhs matrix with 4 lhs matrices. To be used in non-padded cases. rhs
  * consists of packed int4 data. Dimensions are the same for lhs and rhs.
  *
@@ -1399,12 +1555,8 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
  *                  - Updated output pointer if an implementation is available
  *                  - NULL if no implementation is available.
  *
- * @note           If number of channels is not a multiple of 4, upto 3 elements outside the boundary will be read
- * out for the following.
- *                  - Output shift
- *                  - Output multiplier
- *                  - Output bias
- *                  - rhs
+ * @note           Tail channel loads and stores are predicated, so channel-indexed arrays are not accessed beyond
+ *                @p active_ch.
  */
 arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s4(const int8_t *lhs,
                                                   const int8_t *rhs,
@@ -1439,12 +1591,8 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s4(const int8_t *lhs,
  *                  - Updated output pointer if an implementation is available
  *                  - NULL if no implementation is available.
  *
- * @note           If number of channels is not a multiple of 4, upto 3 elements outside the boundary will be read
- * out for the following.
- *                  - Output shift
- *                  - Output multiplier
- *                  - Output bias
- *                  - rhs
+ * @note           Tail channel loads and stores are predicated, so channel-indexed arrays are not accessed beyond
+ *                @p num_ch.
  */
 int16_t *arm_nn_depthwise_conv_nt_t_s16(const int16_t *lhs,
                                         const int8_t *rhs,
@@ -2375,6 +2523,21 @@ __STATIC_FORCEINLINE int32x4_t arm_divide_by_power_of_two_mve(const int32x4_t di
 }
 
 /**
+ * @brief           Vector rounding divide by a non-zero power of two for int32x4_t.
+ * @param[in]       dividend - Dividend vector
+ * @param[in]       neg_exp  - Negated exponent in every lane: divisor = power(2, -neg_exp)
+ *                             Range: [-31, -1]
+ * @return          Rounded result of division. Midpoint is rounded away from zero. Equal to
+ *                  arm_divide_by_power_of_two_mve() for the same exponent, whose fixup reduces to the sign of the
+ *                  dividend when the exponent is non-zero.
+ *
+ */
+__STATIC_FORCEINLINE int32x4_t arm_divide_by_nonzero_power_of_two_mve(const int32x4_t dividend, const int32x4_t neg_exp)
+{
+    return vrshlq_s32(vqaddq_s32(dividend, vshrq_n_s32(dividend, 31)), neg_exp);
+}
+
+/**
  * @brief           Vector rounding divide by power of two for int16x8_t.
  * @param[in]       dividend - Dividend vector
  * @param[in]       exponent - Divisor = power(2, exponent)
@@ -3029,6 +3192,62 @@ __STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(con
         return (union_mask & 0x1) == 0x1 ? 3 : -1;
     }
     return -1;
+}
+
+/**
+ * @brief Reports whether the reduced axes of a 4-D tensor form one contiguous block followed by kept axes, as in a
+ *        NHWC mean over H and W, and gives the flattened sizes. Axes of size 1 are ignored.
+ *
+ * @param[in]  in_dims   4-element array {n, h, w, c}
+ * @param[in]  axis_arr  4-element mask {axis_n, axis_h, axis_w, axis_c}
+ * @param[out] outer     Product of the dims before the reduced block
+ * @param[out] reduce    Product of the reduced dims
+ * @param[out] inner     Product of the dims after the reduced block
+ * @return  1 if the input is [outer, reduce, inner] with the middle dim reduced and inner > 1, otherwise 0
+ */
+__STATIC_FORCEINLINE int32_t arm_reduce_get_middle_block_from_arrays(const int32_t in_dims[4],
+                                                                     const int32_t axis_arr[4],
+                                                                     int32_t *outer,
+                                                                     int32_t *reduce,
+                                                                     int32_t *inner)
+{
+    int32_t first = -1;
+    int32_t last = -1;
+    for (int32_t d = 0; d < 4; ++d)
+    {
+        if (axis_arr[d] && in_dims[d] > 1)
+        {
+            first = first < 0 ? d : first;
+            last = d;
+        }
+    }
+    if (first < 0)
+    {
+        return 0;
+    }
+    *outer = 1;
+    *reduce = 1;
+    *inner = 1;
+    for (int32_t d = 0; d < 4; ++d)
+    {
+        if (d < first)
+        {
+            *outer *= in_dims[d];
+        }
+        else if (d > last)
+        {
+            *inner *= in_dims[d];
+        }
+        else if (axis_arr[d])
+        {
+            *reduce *= in_dims[d];
+        }
+        else if (in_dims[d] > 1)
+        {
+            return 0;
+        }
+    }
+    return *inner > 1;
 }
 
 #ifdef __cplusplus

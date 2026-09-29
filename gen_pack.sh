@@ -115,7 +115,14 @@ PACKCHK_DEPS="
 function preprocess() {
   # add custom steps here to be executed
   # before populating the pack build folder
-  ./Documentation/Doxygen/gen_doc.sh
+  #
+  # gen-pack ignores this hook's return status, so a failing docs build has
+  # to stop the pack here; CI runs gen_doc.sh as its own step and passes
+  # --no-preprocess, this path is the direct ./gen_pack.sh invocation (#526).
+  if ! ./Documentation/Doxygen/gen_doc.sh; then
+    echo "gen_doc.sh failed; not building a pack from a failing docs build" >&2
+    exit 1
+  fi
   return 0
 }
 # custom post-processing steps

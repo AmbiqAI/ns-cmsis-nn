@@ -41,6 +41,95 @@
  * @{
  */
 
+#if defined(ARM_MATH_MVEI)
+/*
+ * The last 1 to 3 channels of one leftover output pixel. Every load is predicated and only the weight bytes of live
+ * channels are read, so it never reads past the im2col buffer, kernel, bias, output_mult or output_shift. It is kept
+ * out of line so the main loops keep their register allocation.
+ */
+static __attribute__((noinline)) void depthwise_conv_s4_opt_tail(const int8_t *col_0,
+                                                                 const int8_t *row_0,
+                                                                 const int32_t input_ch,
+                                                                 const int32_t kernel_size,
+                                                                 const int32_t input_offset,
+                                                                 const int32_t *bias,
+                                                                 const int32_t *output_mult,
+                                                                 const int32_t *output_shift,
+                                                                 const int32_t output_offset,
+                                                                 const int32_t output_activation_min,
+                                                                 const int32_t output_activation_max,
+                                                                 const uint32_t num_ch_to_process,
+                                                                 int8_t *out)
+{
+    const uint32x4_t gather_offset = {0, 0, 1, 1};
+    const mve_pred16_t lower_nibble_mask = 3855;       // 0000111100001111
+    const uint32x4_t odd_gather_offset = {0, 1, 1, 2}; // taps at odd weight indices start on a high nibble
+    const mve_pred16_t odd_lower_nibble_mask = 61680;  // 1111000011110000
+    const mve_pred16_t p = vctp32q(num_ch_to_process);
+    int32x4_t out_0 = vdupq_n_s32(0);
+    if (bias)
+    {
+        out_0 = vldrwq_z_s32(bias, p);
+    }
+
+    if (input_ch % 2)
+    {
+        int get_low_nibble = 1;
+        for (int i_ker = 0; i_ker < kernel_size; i_ker++)
+        {
+            int32x4_t ker_0;
+            if (get_low_nibble)
+            {
+                ker_0 = vldrbq_gather_offset_z_s32(row_0, gather_offset, p);
+                ker_0 = vrshlq_m_n_s32(ker_0, 28, lower_nibble_mask);
+                ker_0 = vshrq_m_n_s32(ker_0, ker_0, 24, lower_nibble_mask);
+            }
+            else
+            {
+                ker_0 = vldrbq_gather_offset_z_s32(row_0, odd_gather_offset, p);
+                ker_0 = vrshlq_m_n_s32(ker_0, 28, odd_lower_nibble_mask);
+                ker_0 = vshrq_m_n_s32(ker_0, ker_0, 24, odd_lower_nibble_mask);
+            }
+            ker_0 = vshrq_n_s32(ker_0, 4);
+
+            int32x4_t ip_0 = vldrbq_z_s32(col_0, p);
+            ip_0 = vaddq_n_s32(ip_0, input_offset);
+            out_0 += vmulq_s32(ip_0, ker_0);
+
+            get_low_nibble = !get_low_nibble;
+            col_0 += S4_CH_IN_BLOCK_MVE;
+            row_0 += (input_ch >> 1) + get_low_nibble;
+        }
+    }
+    else
+    {
+        for (int i_ker = 0; i_ker < kernel_size; i_ker++)
+        {
+            int32x4_t ker_0 = vldrbq_gather_offset_z_s32(row_0, gather_offset, p);
+            ker_0 = vrshlq_m_n_s32(ker_0, 28, lower_nibble_mask);
+            ker_0 = vshrq_m_n_s32(ker_0, ker_0, 24, lower_nibble_mask);
+            ker_0 = vshrq_n_s32(ker_0, 4);
+
+            int32x4_t ip_0 = vldrbq_z_s32(col_0, p);
+            ip_0 = vaddq_n_s32(ip_0, input_offset);
+            out_0 += vmulq_s32(ip_0, ker_0);
+
+            col_0 += S4_CH_IN_BLOCK_MVE;
+            row_0 += input_ch >> 1;
+        }
+    }
+
+    const int32x4_t mult = vldrwq_z_s32(output_mult, p);
+    const int32x4_t shift = vldrwq_z_s32(output_shift, p);
+
+    out_0 = arm_requantize_mve_32x4(out_0, mult, shift);
+    out_0 = vaddq_n_s32(out_0, output_offset);
+    out_0 = vmaxq_s32(out_0, vdupq_n_s32(output_activation_min));
+    out_0 = vminq_s32(out_0, vdupq_n_s32(output_activation_max));
+    vstrbq_p_s32(out, out_0, p);
+}
+#endif
+
 /*
  * Optimized s4 depthwise convolution function with constraint that in_channel equals out_channel
  *
@@ -149,7 +238,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                                                   output_activation_min,
                                                   output_activation_max,
                                                   kernel_size,
-                                                  bias + block_offset,
+                                                  bias == NULL ? NULL : bias + block_offset,
                                                   out);
 
                     out += (4 * input_ch);
@@ -162,10 +251,31 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
 
         int8_t *out_base = out;
         const uint32x4_t gather_offset = {0, 0, 1, 1};
-        const mve_pred16_t lower_nibble_mask = 3855; // 0000111100001111
+        const mve_pred16_t lower_nibble_mask = 3855;       // 0000111100001111
+        const uint32x4_t odd_gather_offset = {0, 1, 1, 2}; // taps at odd weight indices start on a high nibble
+        const mve_pred16_t odd_lower_nibble_mask = 61680;  // 1111000011110000
         for (int i_buf = 0; i_buf < buffer_count; i_buf++)
         {
-            int32_t loop_count = (active_ch + 3) / 4;
+            /* The last 1 to 3 channels, if any, before the full four-channel blocks. */
+            if (active_ch & 0x3)
+            {
+                const int32_t tail_ch = active_ch & ~0x3;
+                const int32_t tail_offset = i_ch * S4_CH_IN_BLOCK_MVE + tail_ch;
+                depthwise_conv_s4_opt_tail(lhs_buffer + (kernel_size * S4_CH_IN_BLOCK_MVE * i_buf) + tail_ch,
+                                           kernel + (tail_offset >> 1),
+                                           input_ch,
+                                           kernel_size,
+                                           input_offset,
+                                           bias ? &bias[tail_offset] : NULL,
+                                           &output_mult[tail_offset],
+                                           &output_shift[tail_offset],
+                                           output_offset,
+                                           output_activation_min,
+                                           output_activation_max,
+                                           (uint32_t)(active_ch & 0x3),
+                                           out_base + (i_buf * input_ch) + tail_ch);
+            }
+            int32_t loop_count = active_ch / 4;
             int32_t num_ch_to_process = active_ch;
             out = out_base + (i_buf * input_ch);
             for (int i_loop_cnt = 0, offset = i_ch * S4_CH_IN_BLOCK_MVE; i_loop_cnt < loop_count;
@@ -195,11 +305,10 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                         }
                         else
                         {
-                            int8_t temp[] = {row_0[0] >> 4,
-                                             (int8_t)(row_0[1] << 4) >> 4,
-                                             row_0[1] >> 4,
-                                             (int8_t)(row_0[2] << 4) >> 4};
-                            ker_0 = vldrbq_s32(temp);
+                            ker_0 = vldrbq_gather_offset_s32(row_0, odd_gather_offset);
+                            ker_0 = vrshlq_m_n_s32(ker_0, 28, odd_lower_nibble_mask);
+                            ker_0 = vshrq_m_n_s32(ker_0, ker_0, 24, odd_lower_nibble_mask);
+                            ker_0 = vshrq_n_s32(ker_0, 4);
                         }
 
                         int32x4_t ip_0 = vldrbq_s32(col_0);

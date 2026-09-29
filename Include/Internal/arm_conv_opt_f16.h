@@ -100,16 +100,17 @@ static bool arm_conv1d_spec_k5_nhwc_f16_match(const cmsis_nn_context *ctx,
             stride_w == 1 && pad_h == 0 && pad_w == 0 && dil_h == 1 && dil_w == 1);
 }
 
-static arm_cmsis_nn_status arm_conv1d_spec_k5_nhwc_f16_call(const cmsis_nn_context *ctx,
-                                                            const cmsis_nn_conv_params_f16 *params,
-                                                            const cmsis_nn_dims *input_dims,
-                                                            const float16_t *input_data,
-                                                            const cmsis_nn_dims *filter_dims,
-                                                            const float16_t *filter_data,
-                                                            const cmsis_nn_dims *bias_dims,
-                                                            const float16_t *bias_data,
-                                                            const cmsis_nn_dims *output_dims,
-                                                            float16_t *output_data)
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_conv1d_spec_k5_nhwc_f16_call_body(const cmsis_nn_context *ctx,
+                                                                               const cmsis_nn_conv_params_f16 *params,
+                                                                               const cmsis_nn_dims *input_dims,
+                                                                               const float16_t *input_data,
+                                                                               const cmsis_nn_dims *filter_dims,
+                                                                               const float16_t *filter_data,
+                                                                               const cmsis_nn_dims *bias_dims,
+                                                                               const float16_t *bias_data,
+                                                                               const cmsis_nn_dims *output_dims,
+                                                                               float16_t *output_data,
+                                                                               const bool acc16)
 {
     (void)ctx;
     (void)filter_dims;
@@ -122,12 +123,12 @@ static arm_cmsis_nn_status arm_conv1d_spec_k5_nhwc_f16_call(const cmsis_nn_conte
 
     if (params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
     {
-        arm_nn_conv1d_k5_packed_f16(
+        (acc16 ? arm_nn_conv1d_k5_packed_f16_acc16 : arm_nn_conv1d_k5_packed_f16)(
             input_data, input_c, input_w, filter_data, bias_data, output_data, output_c, output_w);
     }
     else
     {
-        arm_nn_conv1d_k5_nhwc_f16(
+        (acc16 ? arm_nn_conv1d_k5_nhwc_f16_acc16 : arm_nn_conv1d_k5_nhwc_f16)(
             input_data, input_c, input_w, filter_data, bias_data, output_data, output_c, output_w);
     }
 
@@ -135,6 +136,54 @@ static arm_cmsis_nn_status arm_conv1d_spec_k5_nhwc_f16_call(const cmsis_nn_conte
     arm_nn_vector_clamp_f16(output_data, out_count, params->activation.min, params->activation.max);
 
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+static arm_cmsis_nn_status arm_conv1d_spec_k5_nhwc_f16_call(const cmsis_nn_context *ctx,
+                                                            const cmsis_nn_conv_params_f16 *params,
+                                                            const cmsis_nn_dims *input_dims,
+                                                            const float16_t *input_data,
+                                                            const cmsis_nn_dims *filter_dims,
+                                                            const float16_t *filter_data,
+                                                            const cmsis_nn_dims *bias_dims,
+                                                            const float16_t *bias_data,
+                                                            const cmsis_nn_dims *output_dims,
+                                                            float16_t *output_data)
+{
+    return arm_conv1d_spec_k5_nhwc_f16_call_body(ctx,
+                                                 params,
+                                                 input_dims,
+                                                 input_data,
+                                                 filter_dims,
+                                                 filter_data,
+                                                 bias_dims,
+                                                 bias_data,
+                                                 output_dims,
+                                                 output_data,
+                                                 false);
+}
+
+static arm_cmsis_nn_status arm_conv1d_spec_k5_nhwc_f16_call_acc16(const cmsis_nn_context *ctx,
+                                                                  const cmsis_nn_conv_params_f16 *params,
+                                                                  const cmsis_nn_dims *input_dims,
+                                                                  const float16_t *input_data,
+                                                                  const cmsis_nn_dims *filter_dims,
+                                                                  const float16_t *filter_data,
+                                                                  const cmsis_nn_dims *bias_dims,
+                                                                  const float16_t *bias_data,
+                                                                  const cmsis_nn_dims *output_dims,
+                                                                  float16_t *output_data)
+{
+    return arm_conv1d_spec_k5_nhwc_f16_call_body(ctx,
+                                                 params,
+                                                 input_dims,
+                                                 input_data,
+                                                 filter_dims,
+                                                 filter_data,
+                                                 bias_dims,
+                                                 bias_data,
+                                                 output_dims,
+                                                 output_data,
+                                                 true);
 }
 
 static bool arm_conv1d_spec_k3_nhwc_f16_match(const cmsis_nn_context *ctx,
@@ -171,16 +220,17 @@ static bool arm_conv1d_spec_k3_nhwc_f16_match(const cmsis_nn_context *ctx,
             stride_w == 1 && pad_h == 0 && pad_w == 0 && dil_h == 1 && dil_w == 1);
 }
 
-static arm_cmsis_nn_status arm_conv1d_spec_k3_nhwc_f16_call(const cmsis_nn_context *ctx,
-                                                            const cmsis_nn_conv_params_f16 *params,
-                                                            const cmsis_nn_dims *input_dims,
-                                                            const float16_t *input_data,
-                                                            const cmsis_nn_dims *filter_dims,
-                                                            const float16_t *filter_data,
-                                                            const cmsis_nn_dims *bias_dims,
-                                                            const float16_t *bias_data,
-                                                            const cmsis_nn_dims *output_dims,
-                                                            float16_t *output_data)
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_conv1d_spec_k3_nhwc_f16_call_body(const cmsis_nn_context *ctx,
+                                                                               const cmsis_nn_conv_params_f16 *params,
+                                                                               const cmsis_nn_dims *input_dims,
+                                                                               const float16_t *input_data,
+                                                                               const cmsis_nn_dims *filter_dims,
+                                                                               const float16_t *filter_data,
+                                                                               const cmsis_nn_dims *bias_dims,
+                                                                               const float16_t *bias_data,
+                                                                               const cmsis_nn_dims *output_dims,
+                                                                               float16_t *output_data,
+                                                                               const bool acc16)
 {
     (void)ctx;
     (void)filter_dims;
@@ -193,12 +243,12 @@ static arm_cmsis_nn_status arm_conv1d_spec_k3_nhwc_f16_call(const cmsis_nn_conte
 
     if (params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
     {
-        arm_nn_conv1d_k3_packed_f16(
+        (acc16 ? arm_nn_conv1d_k3_packed_f16_acc16 : arm_nn_conv1d_k3_packed_f16)(
             input_data, input_c, input_w, filter_data, bias_data, output_data, output_c, output_w);
     }
     else
     {
-        arm_nn_conv1d_k3_nhwc_f16(
+        (acc16 ? arm_nn_conv1d_k3_nhwc_f16_acc16 : arm_nn_conv1d_k3_nhwc_f16)(
             input_data, input_c, input_w, filter_data, bias_data, output_data, output_c, output_w);
     }
 
@@ -208,10 +258,70 @@ static arm_cmsis_nn_status arm_conv1d_spec_k3_nhwc_f16_call(const cmsis_nn_conte
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+static arm_cmsis_nn_status arm_conv1d_spec_k3_nhwc_f16_call(const cmsis_nn_context *ctx,
+                                                            const cmsis_nn_conv_params_f16 *params,
+                                                            const cmsis_nn_dims *input_dims,
+                                                            const float16_t *input_data,
+                                                            const cmsis_nn_dims *filter_dims,
+                                                            const float16_t *filter_data,
+                                                            const cmsis_nn_dims *bias_dims,
+                                                            const float16_t *bias_data,
+                                                            const cmsis_nn_dims *output_dims,
+                                                            float16_t *output_data)
+{
+    return arm_conv1d_spec_k3_nhwc_f16_call_body(ctx,
+                                                 params,
+                                                 input_dims,
+                                                 input_data,
+                                                 filter_dims,
+                                                 filter_data,
+                                                 bias_dims,
+                                                 bias_data,
+                                                 output_dims,
+                                                 output_data,
+                                                 false);
+}
+
+static arm_cmsis_nn_status arm_conv1d_spec_k3_nhwc_f16_call_acc16(const cmsis_nn_context *ctx,
+                                                                  const cmsis_nn_conv_params_f16 *params,
+                                                                  const cmsis_nn_dims *input_dims,
+                                                                  const float16_t *input_data,
+                                                                  const cmsis_nn_dims *filter_dims,
+                                                                  const float16_t *filter_data,
+                                                                  const cmsis_nn_dims *bias_dims,
+                                                                  const float16_t *bias_data,
+                                                                  const cmsis_nn_dims *output_dims,
+                                                                  float16_t *output_data)
+{
+    return arm_conv1d_spec_k3_nhwc_f16_call_body(ctx,
+                                                 params,
+                                                 input_dims,
+                                                 input_data,
+                                                 filter_dims,
+                                                 filter_data,
+                                                 bias_dims,
+                                                 bias_data,
+                                                 output_dims,
+                                                 output_data,
+                                                 true);
+}
+
+/* Blockwise float16 accumulation (#586), for arm_convolve_nhwc_f16. */
 static const arm_conv_spec_f16 arm_conv_spec_nhwc_f16[] = {
     ARM_CONV_SPEC_ENTRY(arm_conv1d_spec_k5_nhwc_f16_match, arm_conv1d_spec_k5_nhwc_f16_call),
     ARM_CONV_SPEC_ENTRY(arm_conv1d_spec_k3_nhwc_f16_match, arm_conv1d_spec_k3_nhwc_f16_call),
 };
+
+/* Float16 lanes throughout, for arm_convolve_nhwc_f16_acc16: a separate table, so that each entry links only its own
+ * kernels. */
+static const arm_conv_spec_f16 arm_conv_spec_nhwc_f16_acc16[] = {
+    ARM_CONV_SPEC_ENTRY(arm_conv1d_spec_k5_nhwc_f16_match, arm_conv1d_spec_k5_nhwc_f16_call_acc16),
+    ARM_CONV_SPEC_ENTRY(arm_conv1d_spec_k3_nhwc_f16_match, arm_conv1d_spec_k3_nhwc_f16_call_acc16),
+};
+
+/* The two tables claim the same shapes; arm_conv_spec_nhwc_f16_matches_any reads the first for both. */
+ARM_NN_STATIC_ASSERT(ARM_CONV_ARRAY_SIZE(arm_conv_spec_nhwc_f16) == ARM_CONV_ARRAY_SIZE(arm_conv_spec_nhwc_f16_acc16),
+                     arm_conv_spec_nhwc_f16_tables_differ);
 
 __STATIC_INLINE bool arm_conv_spec_nhwc_f16_matches_any(const cmsis_nn_context *ctx,
                                                         const cmsis_nn_conv_params_f16 *params,
