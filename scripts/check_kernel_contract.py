@@ -102,6 +102,51 @@ def build_contract(include_dir):
 
 
 RECORD_KEYS = ('name', 'header', 'line', 'guards', 'returns', 'params')
+PARAM_KEYS = {'name', 'type', 'direction'}
+PARAM_DIRECTIONS = {'in', 'out', 'in,out'}
+
+
+def _nonempty_str(value):
+    return isinstance(value, str) and bool(value.strip())
+
+
+def validate_document(document, source, error=None):
+    """Reject a loaded contract whose shape or field types differ from what `render`
+    writes, so a corrupt file fails with a diagnostic instead of passing or crashing."""
+    error = error or ExportError
+    if not isinstance(document, dict):
+        raise error(f'{source}: malformed document (expected a JSON object)')
+    if document.get('schema') != SCHEMA:
+        raise error(f'{source}: schema {document.get("schema")!r}, expected {SCHEMA!r}')
+    functions = document.get('functions')
+    if not isinstance(functions, list):
+        raise error(f'{source}: malformed document (functions is not a list)')
+    seen = set()
+    for index, record in enumerate(functions):
+        where = f'{source}: functions[{index}]'
+        if not isinstance(record, dict) or set(record) != set(RECORD_KEYS):
+            raise error(f'{where}: malformed record (expected keys {list(RECORD_KEYS)})')
+        if not _nonempty_str(record['name']):
+            raise error(f'{where}: malformed record (name is not a nonempty string)')
+        where = f'{source}: {record["name"]}'
+        if record['name'] in seen:
+            raise error(f'{where}: malformed record (duplicate name)')
+        seen.add(record['name'])
+        line = record['line']
+        if not _nonempty_str(record['header']) or not _nonempty_str(record['returns']):
+            raise error(f'{where}: malformed record (header and returns must be nonempty strings)')
+        if isinstance(line, bool) or not isinstance(line, int) or line <= 0:
+            raise error(f'{where}: malformed record (line must be a positive integer)')
+        if not isinstance(record['guards'], list) or not all(_nonempty_str(g) for g in record['guards']):
+            raise error(f'{where}: malformed record (guards must be a list of nonempty strings)')
+        if not isinstance(record['params'], list):
+            raise error(f'{where}: malformed record (params is not a list)')
+        for param in record['params']:
+            keys = set(param) if isinstance(param, dict) else set()
+            if not (keys == PARAM_KEYS or keys == PARAM_KEYS | {'extent'}) \
+                    or not all(_nonempty_str(param[key]) for key in keys) \
+                    or param['direction'] not in PARAM_DIRECTIONS:
+                raise error(f'{where}: malformed parameter {param!r}')
 
 
 def render(document):
@@ -156,14 +201,8 @@ def check(include_dir, output):
         committed = json.loads(output.read_text(encoding='utf-8'))
     except (OSError, ValueError) as error:
         raise ExportError(f'{output}: cannot be read as JSON ({error})') from None
-    if not isinstance(committed, dict):
-        raise ExportError(f'{output}: malformed document (expected a JSON object)')
-    if committed.get('schema') != SCHEMA:
-        raise ExportError(f'{output}: schema {committed.get("schema")!r}, expected {SCHEMA!r}')
-    try:
-        canonical = render(committed)
-    except (KeyError, TypeError) as error:
-        raise ExportError(f'{output}: malformed record ({error!r})') from None
+    validate_document(committed, output)
+    canonical = render(committed)
     if output.read_text(encoding='utf-8') != canonical:
         raise ExportError(f'{output}: not in canonical form; run `{Path(sys.argv[0]).name} export`')
     if comparable(committed) != comparable(fresh):
