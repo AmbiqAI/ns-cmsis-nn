@@ -63,6 +63,7 @@ static float16_t ba_wp[BA_W_MAX];
 static float16_t ba_bias[BA_BIAS_MAX];
 static float16_t ba_out[BA_OUT_MAX];
 static float16_t ba_out16[BA_OUT_MAX];
+static float16_t ba_out_wrap[BA_OUT_MAX];
 static float16_t ba_scratch[BA_SCRATCH_MAX];
 
 /* ---------------------------------------------------------------------------------------------------------------- */
@@ -1298,6 +1299,19 @@ static void ba_direct_case(int32_t hw, int32_t pad, int32_t dil, int32_t in_c, i
                                              &output_dims,
                                              ba_out16,
                                              ARM_NN_LAYOUT_NHWC));
+    /* The float16-lane wrapper runs the same kernel as the entry. */
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_wrapper_f16_acc16(&ctx,
+                                                     &p,
+                                                     &input_dims,
+                                                     ba_in,
+                                                     &filter_dims,
+                                                     w,
+                                                     &bias_dims,
+                                                     ba_bias,
+                                                     &output_dims,
+                                                     ba_out_wrap));
+    TEST_ASSERT_EQUAL_MEMORY(ba_out16, ba_out_wrap, (size_t)(out_hw * out_hw * out_c) * sizeof(float16_t));
     ba_direct c;
     memset(&c, 0, sizeof(c));
     c.hw = hw;
@@ -1449,6 +1463,19 @@ static void ba_dw_case(int32_t hw, int32_t k, int32_t in_c, int32_t mult, bool w
                                                    &output_dims,
                                                    ba_out16,
                                                    ARM_NN_LAYOUT_NHWC));
+    /* The float16-lane wrapper runs the same kernel as the entry. */
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_wrapper_f16_acc16(&ctx,
+                                                           &p,
+                                                           &input_dims,
+                                                           ba_in,
+                                                           &filter_dims,
+                                                           ba_w,
+                                                           &bias_dims,
+                                                           ba_bias,
+                                                           &output_dims,
+                                                           ba_out_wrap));
+    TEST_ASSERT_EQUAL_MEMORY(ba_out16, ba_out_wrap, (size_t)(hw * hw * out_c) * sizeof(float16_t));
     ba_dw c;
     memset(&c, 0, sizeof(c));
     c.hw = hw;
