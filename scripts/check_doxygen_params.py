@@ -129,6 +129,15 @@ def guard_condition(keyword, condition):
     return condition
 
 
+def branch_guard(earlier, condition):
+    """The effective guard of an #elif/#else branch: every earlier branch of the chain
+    false, and (for #elif) this branch's own condition true."""
+    terms = [negate_condition(prior) for prior in earlier]
+    if condition is not None:
+        terms.append(condition)
+    return ' && '.join(terms)
+
+
 def negate_condition(condition):
     if condition.startswith('!defined('):
         return condition[1:]
@@ -280,7 +289,7 @@ def parse_header(path):
     # One entry per open file-scope conditional: the doc block a declaration in an earlier
     # branch consumed, so the same block can document its #else/#elif twin. `guards` runs
     # in step with it and holds the condition text of each open conditional.
-    conditionals, doc_depth, guards = [], 0, []
+    conditionals, doc_depth, guards, chains = [], 0, [], []
     lines = list(logical_lines(text))
     i = 0
     while i < len(lines):
@@ -306,14 +315,18 @@ def parse_header(path):
                 if keyword in ('if', 'ifdef', 'ifndef'):
                     conditionals.append(None)
                     guards.append(guard_condition(keyword, condition))
+                    chains.append([guards[-1]])
                 elif keyword in ('elif', 'else'):
                     if conditionals and conditionals[-1] is not None:
                         pending_doc, doc_depth = conditionals[-1], len(conditionals) - 1
                     if guards:
-                        guards[-1] = negate_condition(guards[-1]) if keyword == 'else' else condition
+                        guards[-1] = branch_guard(chains[-1], None if keyword == 'else' else condition)
+                        if keyword == 'elif':
+                            chains[-1].append(condition)
                 elif conditionals:
                     conditionals.pop()
                     guards.pop()
+                    chains.pop()
                 break
             if s.startswith(COMMENT_MARKER):
                 pending_doc = None

@@ -156,6 +156,8 @@ def check(include_dir, output):
         committed = json.loads(output.read_text(encoding='utf-8'))
     except (OSError, ValueError) as error:
         raise ExportError(f'{output}: cannot be read as JSON ({error})') from None
+    if not isinstance(committed, dict):
+        raise ExportError(f'{output}: malformed document (expected a JSON object)')
     if committed.get('schema') != SCHEMA:
         raise ExportError(f'{output}: schema {committed.get("schema")!r}, expected {SCHEMA!r}')
     try:
