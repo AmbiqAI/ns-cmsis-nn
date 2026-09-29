@@ -685,6 +685,32 @@ void operands_at_gap_arm_fully_connected_s8(void)
                            FULLY_CONNECTED_MVE_0_DST_SIZE);
     }
     {
+        /* A filter zero point takes the vector-matrix loops that also sum the input. */
+        const cmsis_nn_fc_params fc_params = {FULLY_CONNECTED_W_ZP_INPUT_OFFSET,
+                                              FULLY_CONNECTED_W_ZP_FILTER_OFFSET,
+                                              FULLY_CONNECTED_W_ZP_OUTPUT_OFFSET,
+                                              {FULLY_CONNECTED_W_ZP_OUT_ACTIVATION_MIN,
+                                               FULLY_CONNECTED_W_ZP_OUT_ACTIVATION_MAX}};
+        const int32_t mult_shift[2] = {FULLY_CONNECTED_W_ZP_OUTPUT_MULTIPLIER, FULLY_CONNECTED_W_ZP_OUTPUT_SHIFT};
+        const cmsis_nn_dims input_dims = {FULLY_CONNECTED_W_ZP_INPUT_BATCHES,
+                                          FULLY_CONNECTED_W_ZP_INPUT_H,
+                                          FULLY_CONNECTED_W_ZP_INPUT_W,
+                                          FULLY_CONNECTED_W_ZP_IN_CH};
+        const cmsis_nn_dims filter_dims = {FULLY_CONNECTED_W_ZP_ACCUMULATION_DEPTH, 0, 0, FULLY_CONNECTED_W_ZP_OUT_CH};
+        const cmsis_nn_dims output_dims = {FULLY_CONNECTED_W_ZP_INPUT_BATCHES, 0, 0, FULLY_CONNECTED_W_ZP_OUT_CH};
+        fc_operands_at_gap(&fc_params,
+                           mult_shift,
+                           NULL,
+                           &input_dims,
+                           fully_connected_w_zp_input,
+                           &filter_dims,
+                           fully_connected_w_zp_weights,
+                           fully_connected_w_zp_biases,
+                           &output_dims,
+                           fully_connected_w_zp_output_ref,
+                           FULLY_CONNECTED_W_ZP_DST_SIZE);
+    }
+    {
         const cmsis_nn_fc_params fc_params = {
             FC_PER_CH_INPUT_OFFSET, 0, FC_PER_CH_OUTPUT_OFFSET, {FC_PER_CH_OUT_ACTIVATION_MIN, FC_PER_CH_OUT_ACTIVATION_MAX}};
         const cmsis_nn_per_channel_quant_params per_channel = {(int32_t *)fc_per_ch_output_mult,
