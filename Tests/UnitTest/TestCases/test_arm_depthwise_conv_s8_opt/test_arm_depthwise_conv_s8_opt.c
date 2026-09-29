@@ -2157,6 +2157,76 @@ static void planar_case(int32_t ih,
         TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[oh * ow * ch + i]);
         TEST_ASSERT_EQUAL_INT8(0x3C, planar_scratch[size + i]);
     }
+#if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
+    /* The planar path uses only the first plane bytes of the scratch, while the channel path writes im2col rows past
+       them, so an untouched remainder shows which path arm_depthwise_conv_s8_opt() took. */
+    if (expect_planar)
+    {
+        const int32_t plane =
+            arm_nn_depthwise_conv_s8_planar_bytes(&params, &input_dims, &filter_dims, &output_dims);
+        TEST_ASSERT_TRUE(plane > 0 && plane <= size);
+        for (int32_t i = plane; i < size; i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(0x3C, planar_scratch[i]);
+        }
+    }
+#endif
+
+    /* The predicate is plain C and gives the same answer on every build. */
+    TEST_ASSERT_EQUAL(expect_planar,
+                      arm_depthwise_conv_s8_opt_planar_supported(&params, &input_dims, &filter_dims, &output_dims));
+    /* arm_depthwise_conv_s8_opt() skips the planar kernel for layers outside these cheap conditions. */
+    if (expect_planar)
+    {
+        TEST_ASSERT_TRUE(arm_nn_depthwise_conv_s8_planar_candidate(&params, &input_dims));
+    }
+
+    /* The direct entries: the channel-vectorized one computes every layer; the planar one computes the layers the
+       predicate accepts and writes nothing otherwise. */
+    memset(planar_out, 0x5A, sizeof(planar_out));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_s8_opt_channelwise(&ctx,
+                                                            &wsum,
+                                                            &params,
+                                                            &quant,
+                                                            &input_dims,
+                                                            planar_in,
+                                                            &filter_dims,
+                                                            planar_ker,
+                                                            &bias_dims,
+                                                            planar_bias,
+                                                            &output_dims,
+                                                            planar_out));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(planar_ref, planar_out, oh * ow * ch);
+    memset(planar_out, 0x5A, sizeof(planar_out));
+    const arm_cmsis_nn_status direct = arm_depthwise_conv_s8_opt_planar(&ctx,
+                                                                        &wsum,
+                                                                        &params,
+                                                                        &quant,
+                                                                        &input_dims,
+                                                                        planar_in,
+                                                                        &filter_dims,
+                                                                        planar_ker,
+                                                                        &bias_dims,
+                                                                        planar_bias,
+                                                                        &output_dims,
+                                                                        planar_out);
+#if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(expect_planar ? ARM_CMSIS_NN_SUCCESS : ARM_CMSIS_NN_NO_IMPL_ERROR, direct);
+#else
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, direct);
+#endif
+    if (direct == ARM_CMSIS_NN_SUCCESS)
+    {
+        TEST_ASSERT_EQUAL_INT8_ARRAY(planar_ref, planar_out, oh * ow * ch);
+    }
+    else
+    {
+        for (int32_t i = 0; i < oh * ow * ch; i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[i]);
+        }
+    }
 }
 
 void planar_shapes_arm_depthwise_conv_s8_opt(void)
@@ -2180,6 +2250,248 @@ void planar_shapes_arm_depthwise_conv_s8_opt(void)
         planar_case(s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], 128, -128, 127);
         planar_case(s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], -5, -60, 70);
     }
+}
+
+/* The public predicate is the planar kernel's own rule: over a grid of shapes on both sides of every limit, it
+   accepts exactly the layers the kernel computes with the arm_depthwise_conv_s8_opt() scratch. */
+void planar_predicate_grid_arm_depthwise_conv_s8_opt(void)
+{
+#if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
+    const int32_t channels[] = {1, 8, 9, 16, 17, 24, 32, 33};
+    const int32_t kernels[][2] = {{3, 3}, {5, 5}, {1, 3}, {1, 5}, {1, 9}, {1, 16}, {1, 17}};
+    const int32_t dilations[] = {1, 2, 4, 8};
+    const int32_t sizes[][2] = {{1, 8}, {1, 24}, {1, 64}, {8, 8}, {8, 16}, {12, 32}, {80, 80}};
+    const int32_t strides[] = {1, 2};
+    int32_t accepted = 0, declined = 0, fit_declined = 0;
+    for (size_t i_c = 0; i_c < sizeof(channels) / sizeof(channels[0]); i_c++)
+    {
+        for (size_t i_k = 0; i_k < sizeof(kernels) / sizeof(kernels[0]); i_k++)
+        {
+            for (size_t i_d = 0; i_d < sizeof(dilations) / sizeof(dilations[0]); i_d++)
+            {
+                for (size_t i_s = 0; i_s < sizeof(sizes) / sizeof(sizes[0]); i_s++)
+                {
+                    for (size_t i_st = 0; i_st < sizeof(strides) / sizeof(strides[0]); i_st++)
+                    {
+                        const int32_t ch = channels[i_c], kh = kernels[i_k][0], kw = kernels[i_k][1];
+                        const int32_t dil = dilations[i_d], ih = sizes[i_s][0], iw = sizes[i_s][1];
+                        const int32_t stride = strides[i_st];
+                        if (kh > ih)
+                        {
+                            continue;
+                        }
+                        const int32_t pad_w = ((kw - 1) * dil) / 2, pad_h = (kh - 1) / 2;
+                        const int32_t ow = (iw + 2 * pad_w - (kw - 1) * dil - 1) / stride + 1;
+                        const int32_t oh = (ih + 2 * pad_h - (kh - 1) - 1) / stride + 1;
+                        if (ow < 1 || oh < 1 || ih * iw * ch > PLANAR_MAX_IO || oh * ow * ch > PLANAR_MAX_IO)
+                        {
+                            continue;
+                        }
+                        const cmsis_nn_dw_conv_params params = {.input_offset = 3,
+                                                                .output_offset = -3,
+                                                                .ch_mult = 1,
+                                                                .stride = {stride, stride},
+                                                                .padding = {pad_w, pad_h},
+                                                                .dilation = {dil, 1},
+                                                                .activation = {-128, 127}};
+                        const cmsis_nn_per_channel_quant_params quant = {planar_mult, planar_shift};
+                        const cmsis_nn_dims input_dims = {1, ih, iw, ch}, filter_dims = {1, kh, kw, ch},
+                                            output_dims = {1, oh, ow, ch};
+                        const int32_t size = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
+                        TEST_ASSERT_TRUE(size >= 0 && size <= (int32_t)sizeof(planar_scratch));
+                        const cmsis_nn_context ctx = {planar_scratch, size};
+                        const cmsis_nn_context wsum = {planar_wsum, ch * (int32_t)sizeof(int32_t)};
+                        const int32_t supported = arm_depthwise_conv_s8_opt_planar_supported(
+                            &params, &input_dims, &filter_dims, &output_dims);
+                        const arm_cmsis_nn_status status = arm_nn_depthwise_conv_s8_planar(&ctx,
+                                                                                           &wsum,
+                                                                                           &params,
+                                                                                           &quant,
+                                                                                           &input_dims,
+                                                                                           planar_in,
+                                                                                           &filter_dims,
+                                                                                           planar_ker,
+                                                                                           &output_dims,
+                                                                                           planar_out);
+                        TEST_ASSERT_EQUAL(supported ? ARM_CMSIS_NN_SUCCESS : ARM_CMSIS_NN_NO_IMPL_ERROR, status);
+                        if (supported)
+                        {
+                            TEST_ASSERT_TRUE(arm_nn_depthwise_conv_s8_planar_candidate(&params, &input_dims));
+                        }
+                        accepted += supported;
+                        declined += !supported;
+                        fit_declined += !supported &&
+                            arm_nn_depthwise_conv_s8_planar_bytes(&params, &input_dims, &filter_dims, &output_dims) >=
+                                0;
+                    }
+                }
+            }
+        }
+    }
+    /* The grid reaches both outcomes, and a plane that only the scratch size declines. */
+    TEST_ASSERT_TRUE(accepted > 0 && declined > 0 && fit_declined > 0);
+#endif
+}
+
+/* The direct entries reject the same arguments as arm_depthwise_conv_s8_opt(). When ctx->size cannot hold the plane,
+   the planar entry declines without writing. */
+void direct_entries_arm_depthwise_conv_s8_opt(void)
+{
+    const int32_t ih = 7, iw = 9, ch = 5, kh = 3, kw = 3;
+    planar_case(ih, iw, ch, kh, kw, 1, 1, 1, 1, 3, -128, 127);
+    const cmsis_nn_dw_conv_params params = {.input_offset = 3,
+                                            .output_offset = -3,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {1, 1},
+                                            .dilation = {1, 1},
+                                            .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {planar_mult, planar_shift};
+    const cmsis_nn_dims input_dims = {1, ih, iw, ch}, filter_dims = {1, kh, kw, ch}, bias_dims = {1, 1, 1, ch},
+                        output_dims = {1, ih, iw, ch};
+    const int32_t size = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
+    const cmsis_nn_context ctx = {planar_scratch, size};
+    const cmsis_nn_context wsum = {planar_wsum, ch * (int32_t)sizeof(int32_t)};
+
+    typedef arm_cmsis_nn_status (*dw_fn)(const cmsis_nn_context *,
+                                         const cmsis_nn_context *,
+                                         const cmsis_nn_dw_conv_params *,
+                                         const cmsis_nn_per_channel_quant_params *,
+                                         const cmsis_nn_dims *,
+                                         const int8_t *,
+                                         const cmsis_nn_dims *,
+                                         const int8_t *,
+                                         const cmsis_nn_dims *,
+                                         const int32_t *,
+                                         const cmsis_nn_dims *,
+                                         int8_t *);
+    const dw_fn entries[] = {
+        arm_depthwise_conv_s8_opt, arm_depthwise_conv_s8_opt_planar, arm_depthwise_conv_s8_opt_channelwise};
+    const cmsis_nn_dims wrong_out = {1, ih, iw, ch + 1};
+    cmsis_nn_dw_conv_params dil_h = params, dil_w = params;
+    dil_h.dilation.h = 2;
+    dil_w.dilation.w = 0;
+    const cmsis_nn_context no_buf = {NULL, size};
+    for (size_t i = 0; i < sizeof(entries) / sizeof(entries[0]); i++)
+    {
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          entries[i](&ctx,
+                                     &wsum,
+                                     &params,
+                                     &quant,
+                                     &input_dims,
+                                     planar_in,
+                                     &filter_dims,
+                                     planar_ker,
+                                     &bias_dims,
+                                     planar_bias,
+                                     &wrong_out,
+                                     planar_out));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          entries[i](&ctx,
+                                     &wsum,
+                                     &dil_h,
+                                     &quant,
+                                     &input_dims,
+                                     planar_in,
+                                     &filter_dims,
+                                     planar_ker,
+                                     &bias_dims,
+                                     planar_bias,
+                                     &output_dims,
+                                     planar_out));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          entries[i](&ctx,
+                                     &wsum,
+                                     &dil_w,
+                                     &quant,
+                                     &input_dims,
+                                     planar_in,
+                                     &filter_dims,
+                                     planar_ker,
+                                     &bias_dims,
+                                     planar_bias,
+                                     &output_dims,
+                                     planar_out));
+        if (size > 0)
+        {
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                              entries[i](&no_buf,
+                                         &wsum,
+                                         &params,
+                                         &quant,
+                                         &input_dims,
+                                         planar_in,
+                                         &filter_dims,
+                                         planar_ker,
+                                         &bias_dims,
+                                         planar_bias,
+                                         &output_dims,
+                                         planar_out));
+        }
+    }
+
+#if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
+    /* Where the weight sums are read, a NULL buffer is an argument error on every entry, including the planar one for
+       a layer it takes. */
+    const cmsis_nn_context no_wsum = {NULL, 0};
+    for (size_t i = 0; i < sizeof(entries) / sizeof(entries[0]); i++)
+    {
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          entries[i](&ctx,
+                                     &no_wsum,
+                                     &params,
+                                     &quant,
+                                     &input_dims,
+                                     planar_in,
+                                     &filter_dims,
+                                     planar_ker,
+                                     &bias_dims,
+                                     planar_bias,
+                                     &output_dims,
+                                     planar_out));
+    }
+#endif
+
+    /* A context too small for the plane: the planar entry declines without writing. arm_depthwise_conv_s8_opt() is
+       not called here, because its channel path needs the full arm_depthwise_conv_s8_opt_get_buffer_size(); see
+       planar_no_fit_arm_depthwise_conv_s8_opt() for its fallback. */
+    const cmsis_nn_context small = {planar_scratch, 16};
+    memset(planar_out, 0x5A, sizeof(planar_out));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_depthwise_conv_s8_opt_planar(&small,
+                                                       &wsum,
+                                                       &params,
+                                                       &quant,
+                                                       &input_dims,
+                                                       planar_in,
+                                                       &filter_dims,
+                                                       planar_ker,
+                                                       &bias_dims,
+                                                       planar_bias,
+                                                       &output_dims,
+                                                       planar_out));
+    for (int32_t i = 0; i < ih * iw * ch; i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[i]);
+    }
+}
+
+/* A layer that meets every planar condition except the scratch: its plane exceeds the
+   arm_depthwise_conv_s8_opt_get_buffer_size() scratch, so the planar entry declines without writing and
+   arm_depthwise_conv_s8_opt() computes the layer on the channel path without writing past that scratch. */
+void planar_no_fit_arm_depthwise_conv_s8_opt(void)
+{
+    const int32_t ih = 64, iw = 80, ch = 2, kh = 3, kw = 3;
+#if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
+    const cmsis_nn_dw_conv_params params = {
+        .ch_mult = 1, .stride = {1, 1}, .padding = {1, 1}, .dilation = {1, 1}, .activation = {-128, 127}};
+    const cmsis_nn_dims input_dims = {1, ih, iw, ch}, filter_dims = {1, kh, kw, ch}, output_dims = {1, ih, iw, ch};
+    TEST_ASSERT_TRUE(arm_depthwise_conv_s8_opt_planar_supported(&params, &input_dims, &filter_dims, &output_dims) == 0);
+    TEST_ASSERT_TRUE(arm_nn_depthwise_conv_s8_planar_bytes(&params, &input_dims, &filter_dims, &output_dims) >
+                     arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims));
+#endif
+    planar_case(ih, iw, ch, kh, kw, 1, 1, 1, 0, 3, -128, 127);
 }
 
 /* A plane whose size does not fit in int32 (65536 x 65536 bytes) must be declined, not wrapped into a small size that
@@ -2366,6 +2678,672 @@ void padded_nt_t_bounds_arm_depthwise_conv_s8_opt(void)
                     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
                     TEST_ASSERT_EQUAL_INT8_ARRAY(expected, o, out_bytes);
                 }
+            }
+        }
+    }
+#endif
+}
+
+/* The direct 3x3 entries: bytewise equal to arm_depthwise_conv_s8() inside their gate, with guard bytes around the
+   output and the scratch, and NO_IMPL with nothing written outside it. */
+typedef arm_cmsis_nn_status (*dw3_entry_fn)(const cmsis_nn_context *,
+                                            const cmsis_nn_context *,
+                                            const cmsis_nn_dw_conv_params *,
+                                            const cmsis_nn_per_channel_quant_params *,
+                                            const cmsis_nn_dims *,
+                                            const int8_t *,
+                                            const cmsis_nn_dims *,
+                                            const int8_t *,
+                                            const cmsis_nn_dims *,
+                                            const int32_t *,
+                                            const cmsis_nn_dims *,
+                                            int8_t *);
+
+/* Static (.bss) buffers of about 61 KB in all, kept within a 64 KiB budget on the Corstone-300 build. The scratch is
+   16-byte aligned so that the misalignment of each case below is the offset it adds, whatever the linker placement. */
+#define DW3_MAX_IN (24 * 24 * 32)
+#define DW3_MAX_OUT (16 * 32 * 32)
+#define DW3_MAX_CH (192)
+#define DW3_GUARD (32)
+#define DW3_MAX_SCRATCH (6144)
+static int8_t dw3_in[DW3_MAX_IN], dw3_ker[9 * DW3_MAX_CH], dw3_ref[DW3_MAX_OUT];
+static int8_t dw3_out[DW3_GUARD + DW3_MAX_OUT + DW3_GUARD];
+static int8_t dw3_scratch[DW3_GUARD + DW3_MAX_SCRATCH + DW3_GUARD] __attribute__((aligned(16)));
+static int32_t dw3_bias[DW3_MAX_CH], dw3_mult[DW3_MAX_CH], dw3_shift[DW3_MAX_CH], dw3_wsum[DW3_MAX_CH];
+
+/* Scratch bytes the direct entries need, from the public sizer; dw3_buffer_size checks it against the documented
+   3008 + input W x C + 16. */
+static int32_t dw3_scratch_need(const cmsis_nn_dims *input_dims)
+{
+    return arm_depthwise_conv_s8_opt_3x3_get_buffer_size(input_dims);
+}
+
+typedef struct
+{
+    int32_t ih, iw, ch, sy, sx, pad_y, pad_x;
+    int32_t oh, ow; /* 0: (i + 2 * pad - 3) / s + 1 */
+    int32_t exact;  /* 1: ctx->size is exactly the documented minimum */
+} dw3_shape;
+
+/* Seeded data. Shifts cycle through positive and negative values; a positive-shift channel gets a small multiplier
+   so that its outputs are not all clamped. */
+static void dw3_fill(const dw3_shape *s, uint32_t seed)
+{
+    static const int32_t shifts[] = {-9, -8, 1, -10, -7, 0, -11, -6};
+    for (int32_t i = 0; i < s->ih * s->iw * s->ch; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        dw3_in[i] = (int8_t)(seed >> 24);
+    }
+    for (int32_t i = 0; i < 9 * s->ch; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        dw3_ker[i] = (int8_t)(seed >> 24);
+    }
+    for (int32_t i = 0; i < s->ch; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        dw3_bias[i] = (int32_t)(seed >> 16) - 32768;
+        dw3_shift[i] = shifts[i % 8];
+        dw3_mult[i] = dw3_shift[i] >= 0 ? 0x00100000 + i * 0x1000 : 0x40000000 + (int32_t)((seed >> 2) & 0x3FFFFFFF);
+    }
+}
+
+static void dw3_dims(const dw3_shape *s,
+                     cmsis_nn_dims *input_dims,
+                     cmsis_nn_dims *filter_dims,
+                     cmsis_nn_dims *bias_dims,
+                     cmsis_nn_dims *output_dims)
+{
+    const int32_t oh = s->oh ? s->oh : (s->ih + 2 * s->pad_y - 3) / s->sy + 1;
+    const int32_t ow = s->ow ? s->ow : (s->iw + 2 * s->pad_x - 3) / s->sx + 1;
+    *input_dims = (cmsis_nn_dims){1, s->ih, s->iw, s->ch};
+    *filter_dims = (cmsis_nn_dims){1, 3, 3, s->ch};
+    *bias_dims = (cmsis_nn_dims){1, 1, 1, s->ch};
+    *output_dims = (cmsis_nn_dims){1, oh, ow, s->ch};
+}
+
+static void dw3_check_untouched(const int8_t *buf, int32_t n, int8_t fill)
+{
+    for (int32_t i = 0; i < n; i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(fill, buf[i]);
+    }
+}
+
+static void dw3_case(const dw3_shape *s, int32_t input_offset, int32_t output_offset, int32_t act_min, int32_t act_max)
+{
+    cmsis_nn_dims input_dims, filter_dims, bias_dims, output_dims;
+    dw3_dims(s, &input_dims, &filter_dims, &bias_dims, &output_dims);
+    const int32_t out_bytes = output_dims.h * output_dims.w * s->ch;
+    TEST_ASSERT_TRUE(s->ih * s->iw * s->ch <= DW3_MAX_IN && out_bytes <= DW3_MAX_OUT && s->ch <= DW3_MAX_CH);
+    dw3_fill(s, (uint32_t)(s->ih * 977 + s->iw * 131 + s->ch * 7 + s->sy * 3 + s->sx + input_offset));
+
+    const cmsis_nn_dw_conv_params params = {.input_offset = input_offset,
+                                            .output_offset = output_offset,
+                                            .ch_mult = 1,
+                                            .stride = {s->sx, s->sy},
+                                            .padding = {s->pad_x, s->pad_y},
+                                            .dilation = {1, 1},
+                                            .activation = {act_min, act_max}};
+    const cmsis_nn_per_channel_quant_params quant = {dw3_mult, dw3_shift};
+    const cmsis_nn_context none = {NULL, 0};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_s8(&none,
+                                            &params,
+                                            &quant,
+                                            &input_dims,
+                                            dw3_in,
+                                            &filter_dims,
+                                            dw3_ker,
+                                            &bias_dims,
+                                            dw3_bias,
+                                            &output_dims,
+                                            dw3_ref));
+    (void)arm_depthwise_convolve_weight_sum(dw3_wsum,
+                                            dw3_scratch,
+                                            dw3_ker,
+                                            &params,
+                                            &input_dims,
+                                            &filter_dims,
+                                            &output_dims,
+                                            input_offset,
+                                            dw3_bias);
+    const cmsis_nn_context wsum = {dw3_wsum, s->ch * (int32_t)sizeof(int32_t)};
+
+    /* The documented scratch where it suffices, else the documented minimum; the buffer start is misaligned by a
+       shape-dependent amount so the kernel's own alignment stays inside ctx->size. */
+    const int32_t need = dw3_scratch_need(&input_dims);
+    const int32_t opt_size = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
+    const int32_t size = (s->exact || opt_size < need) ? need : opt_size;
+    TEST_ASSERT_TRUE(size <= DW3_MAX_SCRATCH);
+#if defined(ARM_MATH_MVEI)
+    /* The 3x3 scratch of arm_depthwise_conv_s8_opt() covers every input W x C <= 1440. */
+    TEST_ASSERT_TRUE(opt_size >= 3008 + 1440 + 16);
+    TEST_ASSERT_EQUAL(s->exact || s->iw * s->ch > 1440, size == need);
+#endif
+    const int32_t misalign = (s->ih + s->iw + s->ch + s->sx) % 16;
+    const cmsis_nn_context ctx = {dw3_scratch + DW3_GUARD + misalign, size};
+
+    const dw3_entry_fn entries[] = {arm_depthwise_conv_s8_opt_3x3, arm_depthwise_conv_s8_opt_3x3_c64_s1};
+    for (size_t e = 0; e < sizeof(entries) / sizeof(entries[0]); e++)
+    {
+        memset(dw3_out, 0x5A, sizeof(dw3_out));
+        memset(dw3_scratch, 0x3C, sizeof(dw3_scratch));
+        const arm_cmsis_nn_status status = entries[e](&ctx,
+                                                      &wsum,
+                                                      &params,
+                                                      &quant,
+                                                      &input_dims,
+                                                      dw3_in,
+                                                      &filter_dims,
+                                                      dw3_ker,
+                                                      &bias_dims,
+                                                      dw3_bias,
+                                                      &output_dims,
+                                                      dw3_out + DW3_GUARD);
+#if defined(ARM_MATH_MVEI)
+        const int32_t takes = e == 0 || (s->ch == 64 && s->sy == 1);
+#else
+        const int32_t takes = 0;
+#endif
+        if (status != (takes ? ARM_CMSIS_NN_SUCCESS : ARM_CMSIS_NN_NO_IMPL_ERROR) ||
+            (takes && memcmp(dw3_ref, dw3_out + DW3_GUARD, (size_t)out_bytes) != 0))
+        {
+            printf("dw3 entry %d: %dx%dx%d stride %d,%d pad %d,%d input_offset %d\n",
+                   (int)e,
+                   (int)s->ih,
+                   (int)s->iw,
+                   (int)s->ch,
+                   (int)s->sy,
+                   (int)s->sx,
+                   (int)s->pad_y,
+                   (int)s->pad_x,
+                   (int)input_offset);
+        }
+        TEST_ASSERT_EQUAL(takes ? ARM_CMSIS_NN_SUCCESS : ARM_CMSIS_NN_NO_IMPL_ERROR, status);
+        if (takes)
+        {
+            TEST_ASSERT_EQUAL_INT8_ARRAY(dw3_ref, dw3_out + DW3_GUARD, out_bytes);
+            dw3_check_untouched(dw3_out, DW3_GUARD, 0x5A);
+            dw3_check_untouched(dw3_out + DW3_GUARD + out_bytes, DW3_GUARD, 0x5A);
+            dw3_check_untouched(dw3_scratch, DW3_GUARD + misalign, 0x3C);
+            dw3_check_untouched(dw3_scratch + DW3_GUARD + misalign + size, DW3_GUARD, 0x3C);
+        }
+        else
+        {
+            dw3_check_untouched(dw3_out, (int32_t)sizeof(dw3_out), 0x5A);
+            dw3_check_untouched(dw3_scratch, (int32_t)sizeof(dw3_scratch), 0x3C);
+        }
+    }
+}
+
+void dw3_shapes_arm_depthwise_conv_s8_opt(void)
+{
+    /* ih, iw, ch, stride_y, stride_x, pad_y, pad_x, oh, ow, exact scratch */
+    const dw3_shape shapes[] = {
+        {25, 5, 64, 1, 1, 1, 1, 0, 0, 0},    /* KWS DS-CNN, output_y % 3 == 1 */
+        {12, 12, 64, 1, 1, 1, 1, 0, 0, 0},   /* VWW dw9, output_y % 3 == 0 */
+        {12, 12, 64, 2, 2, 0, 0, 6, 6, 0},   /* VWW dw11, SAME: bottom and right padding only */
+        {6, 6, 128, 1, 1, 1, 1, 0, 0, 0},    /* VWW dw13-21 */
+        {24, 24, 32, 2, 2, 0, 0, 12, 12, 0}, /* VWW dw7 */
+        {16, 32, 32, 1, 1, 1, 1, 0, 0, 0},   /* VWW dw5 24x24x32, reduced to 16 x 32 */
+        {32, 32, 16, 2, 2, 0, 0, 16, 16, 0}, /* VWW dw3, reduced */
+        {11, 7, 16, 1, 1, 1, 1, 0, 0, 0},    /* output_y % 3 == 2 */
+        {10, 9, 16, 2, 2, 1, 1, 0, 0, 0},
+        {4, 4, 16, 1, 1, 1, 1, 0, 0, 0}, /* 16 output pixels */
+        {10, 13, 32, 1, 2, 1, 0, 0, 0, 0},
+        {9, 6, 36, 2, 1, 0, 1, 0, 0, 0},
+        {7, 11, 64, 1, 2, 1, 1, 0, 0, 0},
+        {11, 5, 64, 2, 1, 1, 0, 0, 0, 0},
+        {8, 6, 64, 1, 1, 0, 1, 0, 0, 0},
+        {9, 4, 64, 1, 1, 1, 0, 0, 0, 0},
+        {5, 8, 64, 1, 1, 1, 1, 0, 0, 1},
+        {3, 6, 64, 1, 1, 1, 1, 0, 0, 0}, /* 3 output rows: one row block */
+        {8, 5, 68, 1, 1, 1, 1, 0, 0, 0}, /* channel passes 64 + 4 */
+        {9, 9, 68, 2, 2, 1, 1, 0, 0, 0},
+        {4, 6, 128, 1, 1, 1, 1, 0, 0, 0},
+        {9, 9, 128, 2, 2, 0, 0, 0, 0, 0},
+        {4, 4, 192, 1, 1, 1, 1, 0, 0, 0},   /* three channel passes */
+        {6, 24, 68, 1, 1, 1, 1, 0, 0, 0},   /* W x C > 1440: the documented minimum scratch */
+        {5, 48, 32, 2, 1, 1, 1, 0, 0, 1},   /* W x C > 1440 */
+        {8, 8, 16, 1, 1, 1, 1, 0, 0, 0},    /* last window centre on the last input column */
+        {7, 9, 36, 1, 2, 1, 1, 0, 0, 1},    /* stride 2: last centre on the last column */
+        {6, 3, 16, 1, 1, 1, 1, 0, 0, 0},    /* input W 3: both edges in one window */
+        {3, 13, 16, 1, 2, 1, 0, 0, 0, 0},
+    };
+    for (size_t i = 0; i < sizeof(shapes) / sizeof(shapes[0]); i++)
+    {
+        dw3_case(&shapes[i], 128, -3, -128, 127);
+        dw3_case(&shapes[i], -127, 5, -60, 70);
+        dw3_case(&shapes[i], 7, -128, -128, 0);
+    }
+}
+
+/* Each layer here is a valid depthwise layer just outside one gate condition. Every entry declines it with
+   NO_IMPL and writes neither the output nor the scratch. */
+static void dw3_expect_decline(const dw3_entry_fn entry,
+                               const cmsis_nn_context *ctx,
+                               const cmsis_nn_context *wsum,
+                               const cmsis_nn_dw_conv_params *params,
+                               const cmsis_nn_dims *input_dims,
+                               const cmsis_nn_dims *filter_dims,
+                               const cmsis_nn_dims *output_dims)
+{
+    const cmsis_nn_per_channel_quant_params quant = {dw3_mult, dw3_shift};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, output_dims->c};
+    memset(dw3_out, 0x5A, sizeof(dw3_out));
+    memset(dw3_scratch, 0x3C, sizeof(dw3_scratch));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      entry(ctx,
+                            wsum,
+                            params,
+                            &quant,
+                            input_dims,
+                            dw3_in,
+                            filter_dims,
+                            dw3_ker,
+                            &bias_dims,
+                            dw3_bias,
+                            output_dims,
+                            dw3_out + DW3_GUARD));
+    dw3_check_untouched(dw3_out, (int32_t)sizeof(dw3_out), 0x5A);
+    dw3_check_untouched(dw3_scratch, (int32_t)sizeof(dw3_scratch), 0x3C);
+}
+
+static void dw3_declines(const dw3_entry_fn entry, const int32_t ch)
+{
+    const dw3_shape base_shape = {8, 8, ch, 1, 1, 1, 1, 0, 0, 0};
+    cmsis_nn_dims input_dims, filter_dims, bias_dims, output_dims;
+    dw3_dims(&base_shape, &input_dims, &filter_dims, &bias_dims, &output_dims);
+    dw3_fill(&base_shape, 11u);
+    const cmsis_nn_dw_conv_params params = {.input_offset = 3,
+                                            .output_offset = -3,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {1, 1},
+                                            .dilation = {1, 1},
+                                            .activation = {-128, 127}};
+    const int32_t need = dw3_scratch_need(&input_dims);
+    const cmsis_nn_context ctx = {dw3_scratch + DW3_GUARD, need};
+    const cmsis_nn_context wsum = {dw3_wsum, ch * (int32_t)sizeof(int32_t)};
+
+    /* The unmodified layer is taken, so each decline below comes from its one change. */
+    const cmsis_nn_per_channel_quant_params quant = {dw3_mult, dw3_shift};
+    (void)arm_depthwise_convolve_weight_sum(dw3_wsum,
+                                            dw3_scratch,
+                                            dw3_ker,
+                                            &params,
+                                            &input_dims,
+                                            &filter_dims,
+                                            &output_dims,
+                                            params.input_offset,
+                                            dw3_bias);
+    const arm_cmsis_nn_status status = entry(&ctx,
+                                             &wsum,
+                                             &params,
+                                             &quant,
+                                             &input_dims,
+                                             dw3_in,
+                                             &filter_dims,
+                                             dw3_ker,
+                                             &bias_dims,
+                                             dw3_bias,
+                                             &output_dims,
+                                             dw3_out + DW3_GUARD);
+#if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+#else
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, status);
+#endif
+
+    /* Channel count: below 16, not a multiple of 4. */
+    const int32_t bad_ch[] = {12, 62, 18};
+    for (size_t i = 0; i < sizeof(bad_ch) / sizeof(bad_ch[0]); i++)
+    {
+        const cmsis_nn_dims in_c = {1, 8, 8, bad_ch[i]}, f_c = {1, 3, 3, bad_ch[i]}, out_c = {1, 8, 8, bad_ch[i]};
+        dw3_expect_decline(entry, &ctx, &wsum, &params, &in_c, &f_c, &out_c);
+    }
+    {
+        /* The KWS shape with 62 channels */
+        const cmsis_nn_dims in_c = {1, 25, 5, 62}, f_c = {1, 3, 3, 62}, out_c = {1, 25, 5, 62};
+        const cmsis_nn_context big = {dw3_scratch + DW3_GUARD, 3008 + 5 * 62 + 16};
+        dw3_expect_decline(entry, &big, &wsum, &params, &in_c, &f_c, &out_c);
+    }
+    /* Filter 5x5; 1x3, 3x1, 5x3 and 3x5 (H x W), each with the output of the 3x3 layer so that only the filter is
+       outside the gate */
+    {
+        const cmsis_nn_dims f5 = {1, 5, 5, ch}, out5 = {1, 6, 6, ch};
+        dw3_expect_decline(entry, &ctx, &wsum, &params, &input_dims, &f5, &out5);
+        const cmsis_nn_dims f_hw[] = {{1, 1, 3, ch}, {1, 3, 1, ch}, {1, 5, 3, ch}, {1, 3, 5, ch}};
+        for (size_t i = 0; i < sizeof(f_hw) / sizeof(f_hw[0]); i++)
+        {
+            dw3_expect_decline(entry, &ctx, &wsum, &params, &input_dims, &f_hw[i], &output_dims);
+        }
+    }
+    /* Stride 0 in each dimension */
+    {
+        cmsis_nn_dw_conv_params p = params;
+        p.stride.w = 0;
+        dw3_expect_decline(entry, &ctx, &wsum, &p, &input_dims, &filter_dims, &output_dims);
+        p = params;
+        p.stride.h = 0;
+        dw3_expect_decline(entry, &ctx, &wsum, &p, &input_dims, &filter_dims, &output_dims);
+    }
+    /* Input H 0 and output W 0 */
+    {
+        const cmsis_nn_dims in_h0 = {1, 0, 8, ch}, out_w0 = {1, 8, 0, ch};
+        dw3_expect_decline(entry, &ctx, &wsum, &params, &in_h0, &filter_dims, &output_dims);
+        dw3_expect_decline(entry, &ctx, &wsum, &params, &input_dims, &filter_dims, &out_w0);
+    }
+    /* One dimension of 4097, the rest inside the gate. The dimensions and ctx->size overstate the buffers, which the
+       gate declines before touching. An output W over 4096 also puts the last window centre past an input W that is
+       inside the gate, so its input is 4097 wide too. */
+    {
+        const cmsis_nn_dims in[] = {{1, 1, 4097, ch}, {1, 4097, 3, ch}, {1, 3, 4097, ch}, {1, 1, 3, ch}};
+        const cmsis_nn_dims out[] = {{1, 3, 6, ch}, {1, 6, 3, ch}, {1, 3, 4097, ch}, {1, 4097, 1, ch}};
+        for (size_t i = 0; i < sizeof(in) / sizeof(in[0]); i++)
+        {
+            const cmsis_nn_context big = {dw3_scratch + DW3_GUARD, dw3_scratch_need(&in[i])};
+            dw3_expect_decline(entry, &big, &wsum, &params, &in[i], &filter_dims, &out[i]);
+        }
+    }
+    /* Dilation 2, stride 3, padding 2 and -1, each in one dimension */
+    for (int32_t dim = 0; dim < 2; dim++)
+    {
+        cmsis_nn_dw_conv_params p = params;
+        cmsis_nn_dims out = output_dims;
+        if (dim == 0)
+        {
+            p.dilation.w = 2;
+            out.w = 6;
+        }
+        else
+        {
+            p.dilation.h = 2;
+            out.h = 6;
+        }
+        dw3_expect_decline(entry, &ctx, &wsum, &p, &input_dims, &filter_dims, &out);
+
+        p = params;
+        out = output_dims;
+        if (dim == 0)
+        {
+            p.stride.w = 3;
+            out.w = 3;
+        }
+        else
+        {
+            p.stride.h = 3;
+            out.h = 3;
+        }
+        dw3_expect_decline(entry, &ctx, &wsum, &p, &input_dims, &filter_dims, &out);
+
+        p = params;
+        out = output_dims;
+        if (dim == 0)
+        {
+            p.padding.w = 2;
+            out.w = 10;
+        }
+        else
+        {
+            p.padding.h = 2;
+            out.h = 10;
+        }
+        dw3_expect_decline(entry, &ctx, &wsum, &p, &input_dims, &filter_dims, &out);
+
+        p = params;
+        out = output_dims;
+        if (dim == 0)
+        {
+            p.padding.w = -1;
+            out.w = 4;
+        }
+        else
+        {
+            p.padding.h = -1;
+            out.h = 4;
+        }
+        dw3_expect_decline(entry, &ctx, &wsum, &p, &input_dims, &filter_dims, &out);
+    }
+    /* Batch 2 */
+    {
+        const cmsis_nn_dims in_n = {2, 4, 8, ch}, out_n = {2, 4, 8, ch};
+        dw3_expect_decline(entry, &ctx, &wsum, &params, &in_n, &filter_dims, &out_n);
+    }
+    /* Channel multiplier 2: C_OUT = 2 x C_IN */
+    {
+        cmsis_nn_dw_conv_params p = params;
+        p.ch_mult = 2;
+        const cmsis_nn_dims in_m = {1, 8, 8, 16}, f_m = {1, 3, 3, 32}, out_m = {1, 8, 8, 32};
+        dw3_expect_decline(entry, &ctx, &wsum, &p, &in_m, &f_m, &out_m);
+    }
+    /* Output of 2 rows; 15 output pixels (3 x 5); input width 2 */
+    {
+        const cmsis_nn_dims in_2 = {1, 2, 8, ch}, out_2 = {1, 2, 8, ch};
+        dw3_expect_decline(entry, &ctx, &wsum, &params, &in_2, &filter_dims, &out_2);
+        const cmsis_nn_dims in_15 = {1, 3, 5, ch}, out_15 = {1, 3, 5, ch};
+        dw3_expect_decline(entry, &ctx, &wsum, &params, &in_15, &filter_dims, &out_15);
+        const cmsis_nn_dims in_w2 = {1, 8, 2, ch}, out_w2 = {1, 8, 8, ch};
+        dw3_expect_decline(entry, &ctx, &wsum, &params, &in_w2, &filter_dims, &out_w2);
+    }
+    /* A last output column whose window centre is past the input: 9 columns from 8 with padding 1, and 5 at
+       stride 2. */
+    {
+        const cmsis_nn_dims out_w = {1, 8, 9, ch};
+        dw3_expect_decline(entry, &ctx, &wsum, &params, &input_dims, &filter_dims, &out_w);
+        cmsis_nn_dw_conv_params p = params;
+        p.stride.w = 2;
+        const cmsis_nn_dims out_s2 = {1, 8, 5, ch};
+        dw3_expect_decline(entry, &ctx, &wsum, &p, &input_dims, &filter_dims, &out_s2);
+    }
+    /* Scratch one byte short of the documented minimum, NULL scratch, NULL weight sums */
+    {
+        const cmsis_nn_context short_ctx = {dw3_scratch + DW3_GUARD, need - 1};
+        dw3_expect_decline(entry, &short_ctx, &wsum, &params, &input_dims, &filter_dims, &output_dims);
+        const cmsis_nn_context no_buf = {NULL, need};
+        dw3_expect_decline(entry, &no_buf, &wsum, &params, &input_dims, &filter_dims, &output_dims);
+        dw3_expect_decline(entry, NULL, &wsum, &params, &input_dims, &filter_dims, &output_dims);
+        const cmsis_nn_context no_wsum = {NULL, 0};
+        dw3_expect_decline(entry, &ctx, &no_wsum, &params, &input_dims, &filter_dims, &output_dims);
+        dw3_expect_decline(entry, &ctx, NULL, &params, &input_dims, &filter_dims, &output_dims);
+    }
+}
+
+void dw3_declines_arm_depthwise_conv_s8_opt(void)
+{
+    dw3_declines(arm_depthwise_conv_s8_opt_3x3, 16);
+    dw3_declines(arm_depthwise_conv_s8_opt_3x3, 64);
+    dw3_declines(arm_depthwise_conv_s8_opt_3x3_c64_s1, 64);
+
+    /* 2052 channels, and an input or an output of 2^31 elements with every dimension inside the gate. The dimensions
+       and ctx->size overstate the buffers, which the gate declines before touching. With the MPU gap, the scratch is
+       placed so that the pad row of a kernel that ran these layers would start at the gap and fault on its first
+       byte, rather than run hundreds of KB past the static buffers. */
+    {
+        const cmsis_nn_dw_conv_params params = {.input_offset = 3,
+                                                .output_offset = -3,
+                                                .ch_mult = 1,
+                                                .stride = {1, 1},
+                                                .padding = {1, 1},
+                                                .dilation = {1, 1},
+                                                .activation = {-128, 127}};
+        const cmsis_nn_dims in[] = {{1, 1, 3, 2052}, {1, 4096, 256, 2048}, {1, 1, 256, 2048}};
+        const cmsis_nn_dims out[] = {{1, 6, 3, 2052}, {1, 3, 6, 2048}, {1, 4096, 256, 2048}};
+        for (size_t i = 0; i < sizeof(in) / sizeof(in[0]); i++)
+        {
+            const cmsis_nn_dims f = {1, 3, 3, in[i].c};
+            int8_t *buf = dw3_scratch + DW3_GUARD;
+#if defined(MPU_GUARD_AVAILABLE)
+            buf = guard_end(3008);
+            guard_gap_enable();
+#endif
+            const cmsis_nn_context big = {buf, dw3_scratch_need(&in[i])};
+            const cmsis_nn_context wsum = {dw3_wsum, in[i].c * (int32_t)sizeof(int32_t)};
+            dw3_expect_decline(arm_depthwise_conv_s8_opt_3x3, &big, &wsum, &params, &in[i], &f, &out[i]);
+            dw3_expect_decline(arm_depthwise_conv_s8_opt_3x3_c64_s1, &big, &wsum, &params, &in[i], &f, &out[i]);
+#if defined(MPU_GUARD_AVAILABLE)
+            guard_gap_disable();
+#endif
+        }
+    }
+
+    /* The C = 64, stride_h 1 entry also declines other channel counts and a vertical stride of 2 that the generic
+       entry takes. */
+    const int32_t chans[] = {32, 68, 64};
+    for (size_t i = 0; i < sizeof(chans) / sizeof(chans[0]); i++)
+    {
+        const int32_t ch = chans[i];
+        const int32_t sy = ch == 64 ? 2 : 1;
+        const dw3_shape s = {8, 8, ch, sy, 1, 1, 1, 0, 0, 0};
+        cmsis_nn_dims input_dims, filter_dims, bias_dims, output_dims;
+        dw3_dims(&s, &input_dims, &filter_dims, &bias_dims, &output_dims);
+        dw3_fill(&s, 5u);
+        const cmsis_nn_dw_conv_params params = {.input_offset = 3,
+                                                .output_offset = -3,
+                                                .ch_mult = 1,
+                                                .stride = {1, sy},
+                                                .padding = {1, 1},
+                                                .dilation = {1, 1},
+                                                .activation = {-128, 127}};
+        const cmsis_nn_context ctx = {dw3_scratch + DW3_GUARD, dw3_scratch_need(&input_dims)};
+        const cmsis_nn_context wsum = {dw3_wsum, ch * (int32_t)sizeof(int32_t)};
+        dw3_expect_decline(
+            arm_depthwise_conv_s8_opt_3x3_c64_s1, &ctx, &wsum, &params, &input_dims, &filter_dims, &output_dims);
+    }
+}
+
+/* The sizer returns 3008 + input W x C + 16 on every build, reads only W and C, and returns -1 for a negative W or C
+   or a size past INT32_MAX. */
+void dw3_buffer_size_arm_depthwise_conv_s8_opt(void)
+{
+    const int32_t wc[][2] = {{3, 16}, {5, 64}, {24, 68}, {4096, 2048}, {0, 0}, {1, INT32_MAX - 3024}};
+    for (size_t i = 0; i < sizeof(wc) / sizeof(wc[0]); i++)
+    {
+        const cmsis_nn_dims in = {-7, -7, wc[i][0], wc[i][1]};
+        TEST_ASSERT_EQUAL_INT32((int32_t)(3008 + (int64_t)wc[i][0] * wc[i][1] + 16),
+                                arm_depthwise_conv_s8_opt_3x3_get_buffer_size(&in));
+    }
+    const int32_t bad[][2] = {{-1, 16}, {3, -4}, {1, INT32_MAX - 3023}, {INT32_MAX, 2}, {65536, 65536}};
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++)
+    {
+        const cmsis_nn_dims in = {1, 8, bad[i][0], bad[i][1]};
+        TEST_ASSERT_EQUAL_INT32(-1, arm_depthwise_conv_s8_opt_3x3_get_buffer_size(&in));
+    }
+}
+
+/* Every operand ends at an unmapped gap in turn: no entry reads or writes past the input, filter, weight sums,
+   multipliers, shifts, output or the documented minimum scratch. op_layout also ends the kernel's own 16-byte aligned
+   scratch layout at the gap, so a write past the pad row faults even where the documented minimum leaves slack. */
+void dw3_bounds_arm_depthwise_conv_s8_opt(void)
+{
+#if defined(MPU_GUARD_AVAILABLE)
+    enum
+    {
+        op_none,
+        op_in,
+        op_ker,
+        op_wsum,
+        op_mult,
+        op_shift,
+        op_out,
+        op_scratch,
+        op_layout,
+        op_end
+    };
+    const dw3_shape shapes[] = {
+        {6, 5, 16, 1, 1, 1, 1, 0, 0, 1},
+        {7, 6, 64, 1, 1, 1, 1, 0, 0, 1},
+        {5, 11, 36, 2, 2, 1, 1, 0, 0, 1},
+        {8, 8, 16, 2, 2, 0, 0, 4, 4, 1},
+        {4, 4, 68, 1, 1, 1, 1, 0, 0, 1},
+    };
+    for (size_t i = 0; i < sizeof(shapes) / sizeof(shapes[0]); i++)
+    {
+        const dw3_shape *s = &shapes[i];
+        cmsis_nn_dims input_dims, filter_dims, bias_dims, output_dims;
+        dw3_dims(s, &input_dims, &filter_dims, &bias_dims, &output_dims);
+        dw3_fill(s, (uint32_t)i + 1u);
+        const int32_t in_bytes = s->ih * s->iw * s->ch;
+        const int32_t out_bytes = output_dims.h * output_dims.w * s->ch;
+        const int32_t need = dw3_scratch_need(&input_dims);
+        TEST_ASSERT_TRUE(in_bytes <= GUARD_OFFSET && out_bytes <= GUARD_OFFSET && need <= GUARD_OFFSET);
+        const cmsis_nn_dw_conv_params params = {.input_offset = 128,
+                                                .output_offset = -3,
+                                                .ch_mult = 1,
+                                                .stride = {s->sx, s->sy},
+                                                .padding = {s->pad_x, s->pad_y},
+                                                .dilation = {1, 1},
+                                                .activation = {-128, 127}};
+        const cmsis_nn_context none = {NULL, 0};
+        const cmsis_nn_per_channel_quant_params quant_ref = {dw3_mult, dw3_shift};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_depthwise_conv_s8(&none,
+                                                &params,
+                                                &quant_ref,
+                                                &input_dims,
+                                                dw3_in,
+                                                &filter_dims,
+                                                dw3_ker,
+                                                &bias_dims,
+                                                dw3_bias,
+                                                &output_dims,
+                                                dw3_ref));
+        (void)arm_depthwise_convolve_weight_sum(dw3_wsum,
+                                                dw3_scratch,
+                                                dw3_ker,
+                                                &params,
+                                                &input_dims,
+                                                &filter_dims,
+                                                &output_dims,
+                                                params.input_offset,
+                                                dw3_bias);
+        const dw3_entry_fn entries[] = {arm_depthwise_conv_s8_opt_3x3, arm_depthwise_conv_s8_opt_3x3_c64_s1};
+        const size_t n_entries = (s->ch == 64 && s->sy == 1) ? 2 : 1;
+        for (size_t e = 0; e < n_entries; e++)
+        {
+            for (int op = op_none; op < op_end; op++)
+            {
+                const size_t ch_bytes = (size_t)s->ch * sizeof(int32_t);
+                const int8_t *in = op == op_in ? guard_place(dw3_in, (size_t)in_bytes) : dw3_in;
+                const int8_t *ker = op == op_ker ? guard_place(dw3_ker, (size_t)(9 * s->ch)) : dw3_ker;
+                const cmsis_nn_context wsum = {op == op_wsum ? guard_place(dw3_wsum, ch_bytes) : dw3_wsum,
+                                               (int32_t)ch_bytes};
+                const cmsis_nn_per_channel_quant_params quant = {
+                    op == op_mult ? guard_place(dw3_mult, ch_bytes) : dw3_mult,
+                    op == op_shift ? guard_place(dw3_shift, ch_bytes) : dw3_shift};
+                int8_t *out = op == op_out ? guard_end((size_t)out_bytes) : dw3_out;
+                int8_t *scratch = op == op_scratch ? guard_end((size_t)need) : dw3_scratch;
+                if (op == op_layout)
+                {
+                    /* The layout (parameters, then the pad row) is need - 16 bytes from a 16-byte aligned start.
+                       ctx->buf one byte past a 16-byte boundary spends 15 of the 16 slack bytes on alignment, so the
+                       layout ends at the gap when W x C is a multiple of 16 (every shape here but 11 x 36), and the
+                       last byte of ctx->size lies in the gap. */
+                    const uintptr_t layout_start = ((uintptr_t)guard_end(0) - (uintptr_t)(need - 16)) & ~(uintptr_t)15;
+                    scratch = (int8_t *)(layout_start - 15);
+                }
+                const cmsis_nn_context ctx = {scratch, need};
+                memset(out, 0x5A, (size_t)out_bytes);
+
+                guard_gap_enable();
+                const arm_cmsis_nn_status status = entries[e](&ctx,
+                                                              &wsum,
+                                                              &params,
+                                                              &quant,
+                                                              &input_dims,
+                                                              in,
+                                                              &filter_dims,
+                                                              ker,
+                                                              &bias_dims,
+                                                              dw3_bias,
+                                                              &output_dims,
+                                                              out);
+                guard_gap_disable();
+
+                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+                TEST_ASSERT_EQUAL_INT8_ARRAY(dw3_ref, out, out_bytes);
             }
         }
     }

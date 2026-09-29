@@ -1403,6 +1403,105 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
                                                   int8_t *out);
 
 /**
+ * @brief Necessary conditions of the planar rule that are cheap to test inline: at most 32 channels and stride 1.
+ *        A caller can skip arm_nn_depthwise_conv_s8_planar() for layers that fail them without changing which layers
+ *        it takes.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [1, H, W, C_IN]
+ *
+ * @return         1 when the layer may take the planar path, 0 when it cannot.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s8_planar_candidate(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                                       const cmsis_nn_dims *input_dims)
+{
+    return input_dims->c <= 32 && dw_conv_params->stride.w == 1 && dw_conv_params->stride.h == 1;
+}
+
+/**
+ * @brief The gate of arm_convolve_s8_small_cin(): upscale_dims NULL, input depth 1 to 3 with filter depth equal to it,
+ *        dilation 1, a kernel of at least 1x1 with kernel width x depth at most 16 and at most 48 values, and a
+ *        positive multiple of 4 output channels. Plain C; it evaluates the same on every build.
+ *
+ * @param[in]   conv_params   Convolution parameters
+ * @param[in]   input_dims    Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]   filter_dims   Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
+ * @param[in]   output_dims   Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[in]   upscale_dims  Upscale tensor dimensions, or NULL
+ *
+ * @return      1 when the layer is in the gate, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_small_cin(const cmsis_nn_conv_params *conv_params,
+                                                             const cmsis_nn_dims *input_dims,
+                                                             const cmsis_nn_dims *filter_dims,
+                                                             const cmsis_nn_dims *output_dims,
+                                                             const cmsis_nn_dims *upscale_dims)
+{
+    const int64_t kernel_x = filter_dims->w;
+    const int64_t kernel_y = filter_dims->h;
+    const int64_t input_ch = input_dims->c;
+    return (upscale_dims == NULL) && (filter_dims->c == input_ch) && (input_ch >= 1) && (input_ch <= 3) &&
+        (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1) && (kernel_x >= 1) && (kernel_y >= 1) &&
+        (kernel_x * input_ch <= 16) && (kernel_x * kernel_y * input_ch <= 48) && (output_dims->c > 0) &&
+        ((output_dims->c & 3) == 0);
+}
+
+/**
+ * @brief The gate of arm_convolve_s8_3x3_c16_s1(): upscale_dims NULL, input and filter depth 16, a 3x3 kernel, and
+ *        stride and dilation 1. Plain C; it evaluates the same on every build.
+ *
+ * @param[in]   conv_params   Convolution parameters
+ * @param[in]   input_dims    Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]   filter_dims   Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
+ * @param[in]   upscale_dims  Upscale tensor dimensions, or NULL
+ *
+ * @return      1 when the layer is in the gate, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_3x3_c16_s1(const cmsis_nn_conv_params *conv_params,
+                                                              const cmsis_nn_dims *input_dims,
+                                                              const cmsis_nn_dims *filter_dims,
+                                                              const cmsis_nn_dims *upscale_dims)
+{
+    return (upscale_dims == NULL) && (input_dims->c == 16) && (filter_dims->c == 16) && (filter_dims->w == 3) &&
+        (filter_dims->h == 3) && (conv_params->stride.w == 1) && (conv_params->stride.h == 1) &&
+        (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1);
+}
+
+/**
+ * @brief The group check of arm_convolve_s8(), for its direct entries: with groups = C_IN / filter C, C_IN or C_OUT
+ *        is not a multiple of groups. A filter C of zero or above C_IN gives no group count and is not reported.
+ *
+ * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ *
+ * @return         1 when arm_convolve_s8() reports the group count as an argument error, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_convolve_s8_groups_invalid(const cmsis_nn_dims *input_dims,
+                                                               const cmsis_nn_dims *filter_dims,
+                                                               const cmsis_nn_dims *output_dims)
+{
+    const int32_t groups = filter_dims->c > 0 ? input_dims->c / filter_dims->c : 0;
+    return groups > 0 && (input_dims->c % groups != 0 || output_dims->c % groups != 0);
+}
+
+/**
+ * @brief Plane size in bytes that arm_nn_depthwise_conv_s8_planar() needs for a layer, or -1 when the layer is not
+ *        one it takes. The rule is plain C and evaluates the same on every build.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [1, H, W, C_IN]
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
+ *
+ * @return         The plane size in bytes, or -1.
+ */
+int32_t arm_nn_depthwise_conv_s8_planar_bytes(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *filter_dims,
+                                              const cmsis_nn_dims *output_dims);
+
+/**
  * @brief s8 depthwise convolution with channel multiplier 1 and stride 1, vectorized across the output pixels of
  *        one channel plane instead of across channels. It serves the few-channel and 1xk layers of
  *        arm_depthwise_conv_s8_opt(), with the same scratch buffer and weight sums.
