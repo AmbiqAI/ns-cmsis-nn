@@ -299,6 +299,41 @@ class CheckTests(unittest.TestCase):
             self.assertIn('malformed document', result.stderr, text)
             self.assertNotIn('Traceback', result.stderr, text)
 
+    def test_type_malformed_records_fail_without_a_traceback(self):
+        def mutate(change):
+            document = json.loads(self.output.read_text())
+            change(document)
+            # Raw JSON, not render(): rendering would normalise away the corruption under test,
+            # and validation runs before the canonical-form check.
+            self.output.write_text(json.dumps(document))
+        cases = [
+            (lambda d: [r.__setitem__('line', []) for r in d['functions']], 'line must be a positive integer'),
+            (lambda d: d['functions'][0].__setitem__('line', 0), 'line must be a positive integer'),
+            (lambda d: d['functions'][0].__setitem__('line', True), 'line must be a positive integer'),
+            (lambda d: d['functions'][0].__setitem__('name', ['fx']), 'name is not a nonempty string'),
+            (lambda d: d['functions'][0].__setitem__('name', ''), 'name is not a nonempty string'),
+            (lambda d: d['functions'][1].__setitem__('name', d['functions'][0]['name']), 'duplicate name'),
+            (lambda d: d['functions'][0].__setitem__('returns', 7), 'header and returns must be nonempty strings'),
+            (lambda d: d['functions'][0].__setitem__('guards', 'FX'), 'guards must be a list'),
+            (lambda d: d['functions'][0].__setitem__('guards', [None]), 'guards must be a list'),
+            (lambda d: d['functions'][0].__setitem__('params', {}), 'params is not a list'),
+            (lambda d: d['functions'][0]['params'][0].__setitem__('direction', 'sideways'), 'malformed parameter'),
+            (lambda d: d['functions'][0]['params'][0].__setitem__('type', 3), 'malformed parameter'),
+            (lambda d: d['functions'][0]['params'][0].__setitem__('extent', ''), 'malformed parameter'),
+            (lambda d: d['functions'][0]['params'].append('x'), 'malformed parameter'),
+            (lambda d: d['functions'][0].__setitem__('extra', 1), 'malformed record (expected keys'),
+            (lambda d: d.__setitem__('functions', None), 'functions is not a list'),
+        ]
+        pristine = self.output.read_text()
+        for change, message in cases:
+            with self.subTest(message=message):
+                self.output.write_text(pristine)
+                mutate(change)
+                result = self.check()
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn(message, result.stderr)
+                self.assertNotIn('Traceback', result.stderr)
+
     def test_wrong_schema_fails(self):
         document = json.loads(self.output.read_text())
         document['schema'] = 'ns-cmsis-nn/kernel-contracts/0'
