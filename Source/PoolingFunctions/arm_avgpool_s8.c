@@ -173,8 +173,9 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
 
                 while (ch_count > 0)
                 {
-                    int8x16_t temp;
-                    int16x8_t temp_lo, temp_hi;
+                    int8x16_t temp = vdupq_n_s8(0);
+                    int16x8_t temp_lo = vdupq_n_s16(0);
+                    int16x8_t temp_hi = vdupq_n_s16(0);
                     int32x4_t temp_lo_lo, temp_lo_hi, temp_hi_lo, temp_hi_hi;
                     int32_t count = 0;
 
