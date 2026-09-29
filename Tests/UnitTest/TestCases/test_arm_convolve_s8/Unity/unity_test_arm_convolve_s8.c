@@ -91,3 +91,8 @@ void test_small_cin_gate_declines_arm_convolve_s8(void) { small_cin_gate_decline
 void test_c16_3x3_gate_declines_arm_convolve_s8(void) { c16_3x3_gate_declines_arm_convolve_s8(); }
 void test_low_depth_arg_errors_arm_convolve_s8(void) { low_depth_arg_errors_arm_convolve_s8(); }
 void test_wrapper_route_arm_convolve_s8(void) { wrapper_route_arm_convolve_s8(); }
+
+void test_conv_1x1_out_operands_at_gap_arm_convolve_1x1_out_s8(void)
+{
+    conv_1x1_out_operands_at_gap_arm_convolve_1x1_out_s8();
+}

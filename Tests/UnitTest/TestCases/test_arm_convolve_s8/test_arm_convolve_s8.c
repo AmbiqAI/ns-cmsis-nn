@@ -3000,3 +3000,104 @@ void wrapper_route_arm_convolve_s8(void)
         low_depth_check_at(&routed[i].tc, 83u + 97u * (uint32_t)i, routed[i].entry, LOW_DEPTH_DISTINCT_SCRATCH);
     }
 }
+
+/* arm_convolve_1x1_out_s8() with its input, then its weights, then its scratch (which holds the matrix kernel's left
+   operand) ending at an unmapped MPU gap: neither the im2col copy nor the MVE matrix kernel may load past them (#605).
+   The output must match arm_convolve_s8() on the same layer with everything in place. */
+void conv_1x1_out_operands_at_gap_arm_convolve_1x1_out_s8(void)
+{
+#if defined(MPU_GUARD_AVAILABLE)
+    enum
+    {
+        out_ch = 9,
+        in_ch = 16,
+        taps = 4,
+        input_size = in_ch * taps
+    };
+    int8_t input[input_size];
+    int8_t kernel[out_ch * input_size];
+    int32_t bias[out_ch];
+    int32_t multiplier[out_ch];
+    int32_t shift[out_ch];
+    int32_t weight_sum[out_ch + 4];
+    int8_t expected[out_ch];
+    int8_t output[out_ch];
+    for (int i = 0; i < input_size; i++)
+    {
+        input[i] = (int8_t)((i * 7) % 23 - 11);
+    }
+    for (int i = 0; i < out_ch; i++)
+    {
+        bias[i] = i * 37 - 100;
+        multiplier[i] = (i % 2 == 0) ? (1 << 30) : (3 << 28);
+        shift[i] = (i % 3) - 3;
+        for (int j = 0; j < input_size; j++)
+        {
+            kernel[i * input_size + j] = (int8_t)((i * 5 + j * 3) % 17 - 8);
+        }
+    }
+    cmsis_nn_dims input_dims = {1, 2, 2, in_ch};
+    cmsis_nn_dims filter_dims = {out_ch, 2, 2, in_ch};
+    cmsis_nn_dims bias_dims = {1, 1, 1, out_ch};
+    cmsis_nn_dims output_dims = {1, 1, 1, out_ch};
+    cmsis_nn_conv_params conv_params = {
+        .input_offset = 5,
+        .output_offset = -3,
+        .stride = {1, 1},
+        .padding = {0, 0},
+        .dilation = {1, 1},
+        .activation = {-128, 127},
+    };
+    cmsis_nn_per_channel_quant_params quant_params = {.multiplier = multiplier, .shift = shift};
+    const int32_t buffer_size =
+        arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims) +
+        arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
+    cmsis_nn_context ctx = {malloc(buffer_size), buffer_size};
+    cmsis_nn_context weight_sum_ctx = {weight_sum, (int32_t)sizeof(weight_sum)};
+    TEST_ASSERT_NOT_NULL(ctx.buf);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_weight_sum(
+                          weight_sum, kernel, &input_dims, &filter_dims, &output_dims, conv_params.input_offset, bias));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_s8(&ctx,
+                                      &weight_sum_ctx,
+                                      &conv_params,
+                                      &quant_params,
+                                      &input_dims,
+                                      input,
+                                      &filter_dims,
+                                      kernel,
+                                      &bias_dims,
+                                      bias,
+                                      NULL,
+                                      &output_dims,
+                                      expected));
+    const int32_t scratch_size = arm_convolve_1x1_out_s8_get_buffer_size(&filter_dims);
+    TEST_ASSERT_TRUE(scratch_size > 0 && scratch_size <= GUARD_OFFSET);
+    for (int at_gap = 0; at_gap < 3; at_gap++)
+    {
+        const int8_t *in = at_gap == 0 ? guard_place(input, sizeof(input)) : input;
+        const int8_t *w = at_gap == 1 ? guard_place(kernel, sizeof(kernel)) : kernel;
+        const cmsis_nn_context scratch_ctx = {guard_end((size_t)scratch_size), scratch_size};
+        memset(output, 0x55, sizeof(output));
+        guard_gap_enable();
+        const arm_cmsis_nn_status result = arm_convolve_1x1_out_s8(at_gap == 2 ? &scratch_ctx : &ctx,
+                                                                   &weight_sum_ctx,
+                                                                   &conv_params,
+                                                                   &quant_params,
+                                                                   &input_dims,
+                                                                   in,
+                                                                   &filter_dims,
+                                                                   w,
+                                                                   &bias_dims,
+                                                                   bias,
+                                                                   &output_dims,
+                                                                   output);
+        guard_gap_disable();
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+        TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output, out_ch);
+    }
+    memset(ctx.buf, 0, buffer_size);
+    free(ctx.buf);
+#endif
+}
