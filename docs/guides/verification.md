@@ -105,7 +105,7 @@ licence.
 
 ## Coverage reports
 
-Line coverage is merged across the int, float and MVE-float legs on every
+Line coverage is merged across the int, float, MVE-float and MVE-int legs on every
 `ci.yml` run, then classified into *covered*, *zero-hit but reachable*, and
 *expected-zero* (orphan or known-unreachable). Both outputs are attached to
 a workflow run rather than to a permanent URL:
