@@ -3421,9 +3421,19 @@ void undersized_context_arm_depthwise_conv_s8_opt(void)
         const cmsis_nn_context small = {scratch, need - 1};
         memset(scratch, 0x3C, (size_t)need);
         memset(output, 0x5A, sizeof(output));
-        TEST_ASSERT_EQUAL(
-            ARM_CMSIS_NN_ARG_ERROR,
-            fn(&small, &wsum_ctx, &params, &quant, &input_dims, input, &filter_dims, kernel, &bias_dims, bias, &output_dims, output));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          fn(&small,
+                             &wsum_ctx,
+                             &params,
+                             &quant,
+                             &input_dims,
+                             input,
+                             &filter_dims,
+                             kernel,
+                             &bias_dims,
+                             bias,
+                             &output_dims,
+                             output));
         for (size_t i = 0; i < sizeof(output); i++)
         {
             TEST_ASSERT_EQUAL_INT8(0x5A, output[i]);
@@ -3435,9 +3445,19 @@ void undersized_context_arm_depthwise_conv_s8_opt(void)
 
         const cmsis_nn_context exact = {scratch, need};
         const cmsis_nn_context undeclared = {scratch, 0};
-        TEST_ASSERT_EQUAL(
-            ARM_CMSIS_NN_SUCCESS,
-            fn(&exact, &wsum_ctx, &params, &quant, &input_dims, input, &filter_dims, kernel, &bias_dims, bias, &output_dims, output));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          fn(&exact,
+                             &wsum_ctx,
+                             &params,
+                             &quant,
+                             &input_dims,
+                             input,
+                             &filter_dims,
+                             kernel,
+                             &bias_dims,
+                             bias,
+                             &output_dims,
+                             output));
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
                           fn(&undeclared,
                              &wsum_ctx,

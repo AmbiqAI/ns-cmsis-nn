@@ -1709,8 +1709,9 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion, or
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> on the arm_depthwise_conv_s8_opt() route if ctx->buf is NULL
  *                when a scratch buffer is required, or if weight_sum_ctx->buf is NULL on builds where it is read
- *                (ARM_MATH_DSP and ARM_MATH_MVEI both defined), or on the MVE arm_convolve_wrapper_s8()
- *                diversion route if weight_sum_ctx->buf is NULL.
+ *                (ARM_MATH_DSP and ARM_MATH_MVEI both defined), or if ctx->size is non-zero and below
+ *                arm_depthwise_conv_s8_opt_get_buffer_size() for a layer its channel path runs, or on the MVE
+ *                arm_convolve_wrapper_s8() diversion route if weight_sum_ctx->buf is NULL.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2313,13 +2314,15 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *                                                      dw_conv_params->dilation.w < 1, or
  *                                                      ctx->buf is NULL when a scratch buffer is required, or
  *                                                      ctx->size is non-zero and below
- *                                                      arm_depthwise_conv_s8_opt_get_buffer_size(), or
+ *                                                      arm_depthwise_conv_s8_opt_get_buffer_size() for a layer
+ *                                                      the channel path runs, or
  *                                                      weight_sum_ctx->buf is NULL on builds where it is read
  *                                                      (ARM_MATH_DSP and ARM_MATH_MVEI both defined)
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
- * @note       ctx->size is optional: a caller that leaves it at zero opts out of the size check, as TFLM does. A
- *             non-zero ctx->size below arm_depthwise_conv_s8_opt_get_buffer_size() is rejected before any write.
+ * @note       ctx->size is optional: a caller that leaves it at zero opts out of the size check, as TFLM does. On
+ *             the channel path, a non-zero ctx->size below arm_depthwise_conv_s8_opt_get_buffer_size() is rejected
+ *             before any write. A layer the planar path takes needs only its plane, so it can succeed with less.
  * @note       MVE channel tail loads and stores are predicated, so channel-indexed arrays are not accessed beyond
  *             the number of channels.
  * @details
@@ -2393,7 +2396,9 @@ int32_t arm_depthwise_conv_s8_opt_planar_supported(const cmsis_nn_dw_conv_params
  * @param[out]     output_data     Output data pointer. Data type: int8
  *
  * @return     The function returns one of the following
- *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - as for arm_depthwise_conv_s8_opt()
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - as for arm_depthwise_conv_s8_opt(), except its channel-path
+ *                                                      ctx->size check: a ctx->size too small for the plane
+ *                                                      returns ARM_CMSIS_NN_NO_IMPL_ERROR instead
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - arm_depthwise_conv_s8_opt_planar_supported() rejects the
  *                                                          layer, ctx->size cannot hold its plane, or the build
  *                                                          lacks ARM_MATH_DSP or ARM_MATH_MVEI; nothing is written
