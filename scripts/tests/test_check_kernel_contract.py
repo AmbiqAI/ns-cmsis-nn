@@ -217,6 +217,26 @@ class ExportTests(unittest.TestCase):
             self.assertIn('ERROR:', result.stderr)
             self.assertEqual(list(locked.glob('*')), [])
 
+    def test_elif_chain_guards_carry_the_earlier_branches(self):
+        chain = (
+            '#if FX_A\n/** @brief a\n * @param[in] n  Count. */\nvoid fx_chain_a(int32_t n);\n'
+            '#elif defined(FX_B)\n/** @brief b\n * @param[in] n  Count. */\nvoid fx_chain_b(int32_t n);\n'
+            '#elif FX_C > 1\n/** @brief c\n * @param[in] n  Count. */\nvoid fx_chain_c(int32_t n);\n'
+            '#else\n/** @brief d\n * @param[in] n  Count. */\nvoid fx_chain_d(int32_t n);\n#endif\n'
+        )
+        with tempfile.TemporaryDirectory() as root:
+            include = write_tree(root, FIXTURE.replace('#ifdef FX_HAVE_CB', chain + '#ifdef FX_HAVE_CB'))
+            output = Path(root) / 'out' / 'kernel_contracts.json'
+            result = run(['export', '--include-dir', str(include), '--output', str(output)])
+            self.assertEqual(result.returncode, 0, result.stderr)
+            by_name = {r['name']: r for r in json.loads(output.read_text())['functions']}
+        self.assertEqual(by_name['fx_chain_a']['guards'], ['FX_A'])
+        self.assertEqual(by_name['fx_chain_b']['guards'], ['!FX_A && defined(FX_B)'])
+        self.assertEqual(by_name['fx_chain_c']['guards'], ['!FX_A && !defined(FX_B) && FX_C > 1'])
+        self.assertEqual(by_name['fx_chain_d']['guards'], ['!FX_A && !defined(FX_B) && !(FX_C > 1)'])
+        # The chain closed cleanly: the declaration after it carries only its own guard.
+        self.assertEqual(by_name['fx_cb']['guards'], ['defined(FX_HAVE_CB)'])
+
 
 class CheckTests(unittest.TestCase):
     def setUp(self):
@@ -270,6 +290,14 @@ class CheckTests(unittest.TestCase):
         result = self.check()
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn('cannot be read as JSON', result.stderr)
+
+    def test_non_object_document_is_malformed(self):
+        for text in ('[]', 'null', '"ns-cmsis-nn/kernel-contracts/1"'):
+            self.output.write_text(text)
+            result = self.check()
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn('malformed document', result.stderr, text)
+            self.assertNotIn('Traceback', result.stderr, text)
 
     def test_wrong_schema_fails(self):
         document = json.loads(self.output.read_text())
