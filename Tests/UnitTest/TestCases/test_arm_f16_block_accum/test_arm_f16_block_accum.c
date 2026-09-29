@@ -413,7 +413,7 @@ static void ba_expect_same(const char *what, int32_t n);
 // Scalar legs (non-MVE builds) accumulate in float32 on both entries, which must then agree everywhere.
 static void ba_expect_taps(const char *what, int32_t n, ba_ref_fn ref, const void *ctx, int32_t k_taps, ba_taps_fn taps)
 {
-    char label[64];
+    char label[80];
     if (!BA_MVE)
     {
         ba_expect_same(what, n);
@@ -528,7 +528,7 @@ static void ba_fc_case(int32_t batch, int32_t k, int32_t n, bool packed, bool bi
     const cmsis_nn_dims bias_dims = {1, 1, 1, n};
     const cmsis_nn_dims output_dims = {batch, 1, 1, n};
     cmsis_nn_fc_params_f16 fc_params;
-    char what[48];
+    char what[64];
 
     TEST_ASSERT_TRUE(batch * k <= BA_IN_MAX && n * k <= BA_W_MAX && (!packed || ((n + 7) / 8) * 8 * k <= BA_W_MAX));
     memset(&fc_params, 0, sizeof(fc_params));
@@ -680,7 +680,7 @@ static void ba_conv1x1_case(int32_t k, int32_t n, bool packed)
     const cmsis_nn_dims bias_dims = {1, 1, 1, n};
     const cmsis_nn_dims output_dims = {1, 1, 3, n};
     cmsis_nn_conv_params_f16 p;
-    char what[48];
+    char what[64];
 
     memset(&p, 0, sizeof(p));
     p.stride.h = 1;
@@ -756,7 +756,7 @@ static void ba_bmm_case(int32_t rows, int32_t k, int32_t n, bool packed)
                                        .activation = {(float16_t)-6.0e4f, (float16_t)6.0e4f},
                                        .rhs_format =
                                            packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD};
-    char what[48];
+    char what[64];
 
     TEST_ASSERT_TRUE(rows * k <= BA_IN_MAX && ((n + 7) / 8) * 8 * k <= BA_W_MAX && rows * n <= BA_OUT_MAX);
     ba_fill(ba_in, rows * k, (uint32_t)k + 71u);
@@ -867,7 +867,7 @@ static void ba_c1xn_case(int32_t in_w, int32_t in_c, int32_t kw, int32_t out_c, 
     const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
     const cmsis_nn_dims output_dims = {1, 1, in_w, out_c};
     cmsis_nn_conv_params_f16 p;
-    char what[48];
+    char what[64];
 
     memset(&p, 0, sizeof(p));
     p.stride.h = 1;
@@ -969,7 +969,7 @@ static void ba_dil_case(int32_t in_w, int32_t in_c, int32_t out_c, bool packed)
     const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
     const cmsis_nn_dims output_dims = {1, 1, in_w, out_c};
     cmsis_nn_conv_params_f16 p;
-    char what[48];
+    char what[64];
 
     memset(&p, 0, sizeof(p));
     p.stride.h = 1;
@@ -1087,7 +1087,7 @@ static void ba_spec_case(int32_t kw, int32_t in_w, int32_t in_c, int32_t out_c, 
     const int32_t out_w = in_w - kw + 1;
     const cmsis_nn_dims output_dims = {1, 1, out_w, out_c};
     cmsis_nn_conv_params_f16 p;
-    char what[48];
+    char what[64];
 
     memset(&p, 0, sizeof(p));
     p.stride.h = 1;
@@ -1251,7 +1251,7 @@ static void ba_direct_case(int32_t hw, int32_t pad, int32_t dil, int32_t in_c, i
     const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
     const cmsis_nn_dims output_dims = {1, out_hw, out_hw, out_c};
     cmsis_nn_conv_params_f16 p;
-    char what[48];
+    char what[64];
 
     memset(&p, 0, sizeof(p));
     p.stride.h = 1;
@@ -1408,7 +1408,7 @@ static void ba_dw_case(int32_t hw, int32_t k, int32_t in_c, int32_t mult, bool w
     const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
     const cmsis_nn_dims output_dims = {1, hw, hw, out_c};
     cmsis_nn_dw_conv_params_f16 p;
-    char what[48];
+    char what[64];
 
     memset(&p, 0, sizeof(p));
     p.ch_mult = mult;
