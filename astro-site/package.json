@@ -21,12 +21,12 @@
     "check": "astro check",
     "check:content": "node scripts/check-public-content.mjs",
     "check:links": "python3 scripts/check-site-links.py",
-    "postbuild": "node scripts/build-legacy-redirects.mjs && npm run check:links",
+    "postbuild": "node scripts/build-legacy-redirects.mjs && node scripts/publish-reference-markdown.mjs && npm run check:links",
     "test:coverage": "node --test scripts/check-coverage.test.mjs",
     "test:smoke": "playwright test"
   },
   "dependencies": {
-    "@ambiqai/helia-ui": "github:AmbiqAI/helia-ui#v0.1.0-alpha.13",
+    "@ambiqai/helia-ui": "github:AmbiqAI/helia-ui#v0.1.0-alpha.20",
     "@astrojs/markdown-satteri": "^0.3.8",
     "@astrojs/react": "^6.0.2",
     "@astrojs/starlight": "^0.41.5",

@@ -43,30 +43,36 @@
  */
 
 /*
- * Optimized s8 depthwise convolution function with constraint that in_channel equals out_channel
+ * Optimized s8 depthwise convolution vectorized across channels, with constraint that in_channel equals out_channel
  *
  *  Refer prototype header file for details.
  *
  */
 
-arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
-                                              const cmsis_nn_context *weight_sum_ctx,
-                                              const cmsis_nn_dw_conv_params *dw_conv_params,
-                                              const cmsis_nn_per_channel_quant_params *quant_params,
-                                              const cmsis_nn_dims *input_dims,
-                                              const int8_t *input,
-                                              const cmsis_nn_dims *filter_dims,
-                                              const int8_t *kernel,
-                                              const cmsis_nn_dims *bias_dims,
-                                              const int32_t *bias,
-                                              const cmsis_nn_dims *output_dims,
-                                              int8_t *output)
+arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context *ctx,
+                                                          const cmsis_nn_context *weight_sum_ctx,
+                                                          const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                          const cmsis_nn_per_channel_quant_params *quant_params,
+                                                          const cmsis_nn_dims *input_dims,
+                                                          const int8_t *input,
+                                                          const cmsis_nn_dims *filter_dims,
+                                                          const int8_t *kernel,
+                                                          const cmsis_nn_dims *bias_dims,
+                                                          const int32_t *bias,
+                                                          const cmsis_nn_dims *output_dims,
+                                                          int8_t *output)
 {
     const int32_t input_ch = input_dims->c;
     const int32_t output_ch = output_dims->c;
 
     /* Check depth multiplier is 1 */
     if (input_ch != output_ch)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    /* The optimized paths step the horizontal tap index by dilation.w and have no vertical dilation */
+    if (dw_conv_params->dilation.h != 1 || dw_conv_params->dilation.w < 1)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -95,6 +101,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
     const int32_t pad_y = dw_conv_params->padding.h;
     const int32_t stride_x = dw_conv_params->stride.w;
     const int32_t stride_y = dw_conv_params->stride.h;
+    const int32_t dilation_x = dw_conv_params->dilation.w;
     const int32_t *output_shift = quant_params->shift;
     const int32_t *output_mult = quant_params->multiplier;
     const int32_t output_x = output_dims->w;
@@ -129,7 +136,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
             {
                 for (int i_ker_y = base_idx_y; i_ker_y < base_idx_y + kernel_y; i_ker_y++)
                 {
-                    for (int i_ker_x = base_idx_x; i_ker_x < base_idx_x + kernel_x; i_ker_x++)
+                    for (int i_ker_x = base_idx_x; i_ker_x < base_idx_x + kernel_x * dilation_x; i_ker_x += dilation_x)
                     {
                         if (i_ker_y < 0 || i_ker_y >= input_y || i_ker_x < 0 || i_ker_x >= input_x)
                         {
@@ -287,10 +294,10 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
             for (int i_ker_y = ker_y_start; i_ker_y < ker_y_end; i_ker_y++)
             {
                 const int32_t idx_y = base_idx_y + i_ker_y;
+                int32_t idx_x = base_idx_x;
 
                 for (int i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
                 {
-                    const int32_t idx_x = base_idx_x + i_ker_x;
                     if (idx_x < 0 || idx_x >= input_x)
                     {
                         memset(&col_buffer[index], 0, input_ch * sizeof(int16_t));
@@ -303,6 +310,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
                                                   (int16_t)input_offset);
                     }
                     index += input_ch;
+                    idx_x += dilation_x;
                 }
             }
 
@@ -467,6 +475,126 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
 
     /* Return to application */
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+/*
+ * Whether the planar path takes a layer. Plain C, so it evaluates the same rule on every build.
+ *
+ *  Refer prototype header file for details.
+ *
+ */
+int32_t arm_depthwise_conv_s8_opt_planar_supported(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   const cmsis_nn_dims *filter_dims,
+                                                   const cmsis_nn_dims *output_dims)
+{
+    const int32_t plane_bytes =
+        arm_nn_depthwise_conv_s8_planar_bytes(dw_conv_params, input_dims, filter_dims, output_dims);
+    return plane_bytes >= 0 && plane_bytes <= arm_depthwise_conv_s8_opt_get_buffer_size_mve(input_dims, filter_dims);
+}
+
+/*
+ * Optimized s8 depthwise convolution vectorized across the output pixels of each channel plane
+ *
+ *  Refer prototype header file for details.
+ *
+ */
+arm_cmsis_nn_status arm_depthwise_conv_s8_opt_planar(const cmsis_nn_context *ctx,
+                                                     const cmsis_nn_context *weight_sum_ctx,
+                                                     const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                     const cmsis_nn_per_channel_quant_params *quant_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const int8_t *input,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const int8_t *kernel,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const int32_t *bias,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     int8_t *output)
+{
+    /* The same argument checks as arm_depthwise_conv_s8_opt_channelwise() */
+    if (input_dims->c != output_dims->c || dw_conv_params->dilation.h != 1 || dw_conv_params->dilation.w < 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    if (ctx->buf == NULL && arm_depthwise_conv_s8_opt_get_buffer_size(input_dims, filter_dims) != 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    (void)bias_dims;
+    (void)bias;
+#if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
+    if (weight_sum_ctx->buf == NULL)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    /* The bias is folded into the weight sums */
+    return arm_nn_depthwise_conv_s8_planar(
+        ctx, weight_sum_ctx, dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, output_dims, output);
+#else
+    (void)weight_sum_ctx;
+    (void)quant_params;
+    (void)input;
+    (void)kernel;
+    (void)output;
+    return ARM_CMSIS_NN_NO_IMPL_ERROR;
+#endif
+}
+
+/*
+ * Optimized s8 depthwise convolution function with constraint that in_channel equals out_channel
+ *
+ *  Refer prototype header file for details.
+ *
+ */
+arm_cmsis_nn_status arm_depthwise_conv_s8_opt(const cmsis_nn_context *ctx,
+                                              const cmsis_nn_context *weight_sum_ctx,
+                                              const cmsis_nn_dw_conv_params *dw_conv_params,
+                                              const cmsis_nn_per_channel_quant_params *quant_params,
+                                              const cmsis_nn_dims *input_dims,
+                                              const int8_t *input,
+                                              const cmsis_nn_dims *filter_dims,
+                                              const int8_t *kernel,
+                                              const cmsis_nn_dims *bias_dims,
+                                              const int32_t *bias,
+                                              const cmsis_nn_dims *output_dims,
+                                              int8_t *output)
+{
+#if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
+    /* Few channels and 1xk kernels run faster vectorized across output pixels than across channels. The planar kernel
+       applies the arm_depthwise_conv_s8_opt_planar_supported() rule itself and also declines, writing nothing, when
+       ctx->size cannot hold its plane or an argument is invalid; the channel path then computes the layer or reports
+       the argument error. Layers that fail its cheap conditions skip the call. */
+    if (arm_nn_depthwise_conv_s8_planar_candidate(dw_conv_params, input_dims) &&
+        arm_nn_depthwise_conv_s8_planar(ctx,
+                                        weight_sum_ctx,
+                                        dw_conv_params,
+                                        quant_params,
+                                        input_dims,
+                                        input,
+                                        filter_dims,
+                                        kernel,
+                                        output_dims,
+                                        output) == ARM_CMSIS_NN_SUCCESS)
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+#endif
+    return arm_depthwise_conv_s8_opt_channelwise(ctx,
+                                                 weight_sum_ctx,
+                                                 dw_conv_params,
+                                                 quant_params,
+                                                 input_dims,
+                                                 input,
+                                                 filter_dims,
+                                                 kernel,
+                                                 bias_dims,
+                                                 bias,
+                                                 output_dims,
+                                                 output);
 }
 
 /**

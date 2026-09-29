@@ -2173,6 +2173,12 @@ arm_cmsis_nn_status arm_gather_nd_f32(const float32_t *params_data,
 
 #if ARM_NN_ENABLE_F16
 
+/*
+ * float16_t is IEEE 754 binary16. The Arm alternative half-precision format is
+ * rejected at compile time (arm_nn_math_types_flt.h); GCC builds for cores
+ * without FP16 arithmetic need -mfp16-format=ieee.
+ */
+
 /**
  * @addtogroup NNConv
  * @{
@@ -2289,9 +2295,11 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
  *       direct OHWI / NT_N_PACKED fallback accumulates bias and every tap in float32 and rounds to
  *       float16 once at the store (AmbiqAI/ns-cmsis-nn#449, #457); the 1x1, 1xN and patch-GEMM
  *       paths go through arm_nn_mat_mult_nt_t_f16 / arm_nn_mat_mult_nt_n_packed_f16, whose scalar
- *       legs do the same. MVE leg: the direct small-C kernel accumulates in float32 (widened
- *       lanes); the direct OHWI / NT_N_PACKED fallback and every matmul-backed path (1x1, 1xN,
- *       patch-GEMM) accumulate in float16 lanes, as the two matmul helpers' notes state.
+ *       legs do the same, as do the 1xN no-padding OHWI region and the k=3 / k=5 conv1d
+ *       specializations (#465). MVE leg: the direct small-C kernel accumulates in float32 (widened
+ *       lanes); the direct OHWI / NT_N_PACKED fallback, every matmul-backed path (1x1, 1xN,
+ *       patch-GEMM), the 1xN no-padding region and the conv1d specializations accumulate in
+ *       float16 lanes.
  */
 arm_cmsis_nn_status arm_convolve_f16(const cmsis_nn_context *ctx,
                                      const cmsis_nn_conv_params_f16 *conv_params,
@@ -2364,6 +2372,9 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16(const cmsis_nn_context *ctx,
 
 /**
  * @copydoc arm_convolve_1_x_n_f32
+ *
+ * @note Accumulation width per leg. Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): bias and every product
+ *       accumulate in float32 and round to float16 once (AmbiqAI/ns-cmsis-nn#449, #465). MVE leg: float16 lanes.
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_f16(const cmsis_nn_context *ctx,
                                            const cmsis_nn_conv_params_f16 *conv_params,
@@ -2597,6 +2608,24 @@ arm_cmsis_nn_status arm_elementwise_sub_f16(const float16_t *input_1_vect,
                                             float16_t out_activation_min,
                                             float16_t out_activation_max,
                                             int32_t block_size);
+
+/**
+ * @brief Elementwise squared difference of two float16 vectors.
+ *
+ * Each output element is calculated as `(input_1_vect[i] - input_2_vect[i])^2`.
+ *
+ * @param[in]  input_1_vect         Pointer to the first input vector.
+ * @param[in]  input_2_vect         Pointer to the second input vector.
+ * @param[out] output               Pointer to the output vector.
+ * @param[in]  block_size           Number of elements to process.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` when an input/output pointer is NULL or
+ *         @p block_size is less than 1.
+ */
+arm_cmsis_nn_status arm_elementwise_squared_difference_f16(const float16_t *input_1_vect,
+                                                           const float16_t *input_2_vect,
+                                                           float16_t *output,
+                                                           int32_t block_size);
 
 /**
  * @copydoc arm_nn_abs_f32
@@ -3334,8 +3363,6 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
  * with no floating-point arithmetic or conversion; numerical FP controls and
  * cumulative exception flags are preserved. This deliberate CORE NaN policy may
  * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
- * IEEE binary16 uses the NaN/infinity rules above. Scalar Arm alternative-format
- * float16_t has no NaNs or infinities; every encoding is ordered as a finite value.
  *
  * Metadata is required; extents must be nonnegative and the reduced extent must
  * be positive, even when another extent is zero. Declared input and INT32 output
@@ -3369,8 +3396,6 @@ arm_argmin_f16(const float16_t *input_data, const cmsis_nn_dims *input_dims, int
  * with no floating-point arithmetic or conversion; numerical FP controls and
  * cumulative exception flags are preserved. This deliberate CORE NaN policy may
  * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
- * IEEE binary16 uses the NaN/infinity rules above. Scalar Arm alternative-format
- * float16_t has no NaNs or infinities; every encoding is ordered as a finite value.
  *
  * Metadata is required; extents must be nonnegative and the reduced extent must
  * be positive, even when another extent is zero. Declared input and INT32 output

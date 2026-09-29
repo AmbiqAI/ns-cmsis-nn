@@ -53,3 +53,5 @@ void test_buffer_size_out_of_range_mve_arm_depthwise_conv_s4_opt(void)
 {
     buffer_size_out_of_range_mve_arm_depthwise_conv_s4_opt();
 }
+
+void test_operand_bounds_arm_depthwise_conv_s4_opt(void) { operand_bounds_arm_depthwise_conv_s4_opt(); }

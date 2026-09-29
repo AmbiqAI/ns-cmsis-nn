@@ -44,14 +44,12 @@ arm_cmsis_nn_status arm_nn_sqrt_f16(const float16_t *input, float16_t *output, i
     // agree bit-for-bit. float32 evaluate, round once (#295).
     for (int32_t i = 0; i < block_size; ++i)
     {
-    #if !defined(__ARM_FP16_FORMAT_ALTERNATIVE)
         uint16_t special_bits;
         if (arm_nn_sqrt_special_f16(arm_nn_f16_to_bits(input[i]), false, &special_bits))
         {
             output[i] = arm_nn_f16_from_bits(special_bits);
             continue;
         }
-    #endif
         output[i] = (float16_t)__builtin_sqrtf((float32_t)input[i]);
     }
 
