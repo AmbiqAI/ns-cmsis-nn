@@ -139,6 +139,11 @@ generator="Unix Makefiles"
 command -v ninja >/dev/null && generator="Ninja"
 
 echo ">>> configuring (${TOOLCHAIN}, ${TARGET_CPU}, F32=${ENABLE_F32} F16=${ENABLE_F16} requantize-asm=${ENABLE_REQUANTIZE_INLINE_ASM})"
+# One section per function and per data object, so a link with --gc-sections
+# keeps only the kernels a model calls, as NSX source builds already do. CMake
+# combines CFLAGS with the toolchain file's CMAKE_C_FLAGS_INIT (the arch flags)
+# on this fresh build directory; -DCMAKE_C_FLAGS would replace them instead.
+CFLAGS="${CFLAGS:+${CFLAGS} }-ffunction-sections -fdata-sections" \
 cmake -S "${repo_root}" -B "${build_dir}" -G "${generator}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
@@ -167,6 +172,10 @@ if [[ -n "${strip_command}" && -x "${strip_command}" ]]; then
 else
   echo ">>> strip command unavailable for ${TOOLCHAIN}; leaving archive unstripped"
 fi
+
+# The archive must keep one section per function (see the CFLAGS above); fail rather than publish one that would
+# drag whole objects into a --gc-sections link.
+python3 "${repo_root}/scripts/check_staticlib_sections.py" "${final_path}"
 
 ( cd "${OUTDIR}" && sha256sum "${final_name}" > "${final_name}.sha256" )
 
