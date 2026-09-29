@@ -29,12 +29,13 @@
  * @{
  */
 
+/* Plane bytes past the last row that a block or a 16-lane tap load may read; those lanes are never stored. */
+#define DW_PLANAR_SLACK (32)
+
 #if defined(ARM_MATH_MVEI)
 
 /* Output pixels computed per block: four int32x4 accumulators. */
     #define DW_PLANAR_BLOCK (16)
-/* Plane bytes past the last row that a block or a 16-lane tap load may read; those lanes are never stored. */
-    #define DW_PLANAR_SLACK (32)
 
 /* Fills n plane bytes: [0, i_start) and [i_end, n) take -input_offset, [i_start, i_end) are gathered from src at
    an element stride of step bytes. A padded tap then contributes (-input_offset) * w, which the weight sum cancels
@@ -113,6 +114,8 @@ dw_planar_store(int8_t *out, const uint32x4_t offs, const int32x4_t v, const int
     }
 }
 
+#endif
+
 /* A 1xk kernel of 5..16 taps runs as one dot product per output pixel over a plane split into dilation phases, so the
    taps of every output are contiguous. */
 static bool dw_planar_use_dot(const cmsis_nn_dw_conv_params *dw_conv_params,
@@ -127,10 +130,10 @@ static bool dw_planar_use_dot(const cmsis_nn_dw_conv_params *dw_conv_params,
 /*
  * Returns the plane size in bytes the planar path needs, or -1 when the layer is not one it handles.
  */
-static int32_t dw_planar_plane_bytes(const cmsis_nn_dw_conv_params *dw_conv_params,
-                                     const cmsis_nn_dims *input_dims,
-                                     const cmsis_nn_dims *filter_dims,
-                                     const cmsis_nn_dims *output_dims)
+__STATIC_FORCEINLINE int32_t dw_planar_plane_bytes(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   const cmsis_nn_dims *filter_dims,
+                                                   const cmsis_nn_dims *output_dims)
 {
     if (input_dims->c != output_dims->c || input_dims->n != 1 || dw_conv_params->ch_mult != 1 ||
         dw_conv_params->stride.w != 1 || dw_conv_params->stride.h != 1 || dw_conv_params->dilation.h != 1 ||
@@ -183,6 +186,22 @@ static int32_t dw_planar_plane_bytes(const cmsis_nn_dw_conv_params *dw_conv_para
     return bytes > INT32_MAX ? -1 : (int32_t)bytes;
 }
 
+/*
+ * Plane size of the planar path. The rule is plain C so it evaluates the same on every build. The kernel below keeps
+ * its own inlined call to dw_planar_plane_bytes().
+ *
+ * Refer header file for details.
+ *
+ */
+int32_t arm_nn_depthwise_conv_s8_planar_bytes(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *filter_dims,
+                                              const cmsis_nn_dims *output_dims)
+{
+    return dw_planar_plane_bytes(dw_conv_params, input_dims, filter_dims, output_dims);
+}
+
+#if defined(ARM_MATH_MVEI)
 static void dw_planar_dot_1xk(const int8_t *input,
                               int8_t *output,
                               int8_t *plane,

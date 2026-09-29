@@ -133,9 +133,10 @@ jobs:
   # Shipped-flags execution legs (AmbiqAI/ns-cmsis-nn#358). The coverage
   # legs above compile the library at -O0 (the tester's --coverage appends
   # -O0 after CMSIS_OPTIMIZATION_LEVEL, and the last -O wins) and, outside
-  # the --coverage-mve-float legs, define ARM_MATH_AUTOVECTORIZE, which
-  # swaps the shipped MVE inline-asm integer paths for C fallbacks. So
-  # without this job no CI leg executes what ships: -Ofast (the tester
+  # the --coverage-mve-float and --coverage-mve-int legs, define
+  # ARM_MATH_AUTOVECTORIZE, which swaps the shipped MVE inline-asm integer
+  # paths for C fallbacks. The MVE legs still build at -O0. So without this
+  # job no CI leg executes what ships: -Ofast (the tester
   # default) with the real MVE paths. These legs still run the container's
   # single GCC, so cross-toolchain divergence at -Ofast (#340) needs a
   # second executing toolchain and stays open. Coverage legs keep
@@ -340,6 +341,95 @@ jobs:
           path: Tests/helia-core-tester/artifacts/reports
           if-no-files-found: error
 
+  # Integer MVE coverage: the int coverage legs above define
+  # ARM_MATH_AUTOVECTORIZE, which compiles out every integer path guarded by
+  # `ARM_MATH_MVEI && !ARM_MATH_AUTOVECTORIZE`, so the gate could not see
+  # them. --coverage-mve-int builds the integer sources without it (except
+  # arm_nn_mat_mul_core_4x_s8.c, whose inline asm cannot be register-allocated
+  # at -O0 with gcov) and writes the int-mve lane that coverage-merge adds with
+  # --include-mve-int.
+  codegen-tests-mve-int:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: resolve-container-image
+    container:
+      image: ${{ needs.resolve-container-image.outputs.container_image }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          submodules: recursive
+
+      - name: Log selected container image
+        shell: bash
+        run: |
+          {
+            echo "### Job container image"
+            echo "- selected image: \`${{ needs.resolve-container-image.outputs.container_image }}\`"
+            echo "- source: \`${{ needs.resolve-container-image.outputs.resolved_from }}\`"
+            if [[ -n "${{ needs.resolve-container-image.outputs.release_tag }}" ]]; then
+              echo "- latest release tag: \`${{ needs.resolve-container-image.outputs.release_tag }}\`"
+            else
+              echo "- latest release tag: _(unavailable)_"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Mark workspace as a safe git directory
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Verify pinned helia-core-tester release tag
+        id: helia-core-meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          submodule_path='Tests/helia-core-tester'
+          git -C "${submodule_path}" fetch --force --tags
+          helia_sha="$(git rev-parse HEAD:${submodule_path})"
+          helia_tag="$(git -C "${submodule_path}" describe --tags --abbrev=0 2>/dev/null || echo 'no-tag')"
+
+          echo "helia_sha=${helia_sha}" >> "$GITHUB_OUTPUT"
+          echo "helia_tag=${helia_tag}" >> "$GITHUB_OUTPUT"
+
+          printf 'Pinned helia-core-tester: %s (%s)\n' "${helia_tag}" "${helia_sha}"
+          {
+            echo "### helia-core-tester version"
+            echo "- tag: \`${helia_tag}\`"
+            echo "- sha: \`${helia_sha}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Cache helia-core-tester downloads
+        uses: actions/cache@v6
+        with:
+          path: Tests/helia-core-tester/artifacts/downloads
+          key: helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Tests/helia-core-tester/scripts/setup_ci.sh', 'Tests/helia-core-tester/helia_core_tester/scripts/setup_dependencies.py') }}
+          restore-keys: |
+            helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Setup helia-core-tester build dependencies
+        run: |
+          cd Tests/helia-core-tester
+          ./scripts/setup_ci.sh
+
+      - name: Run helia-core-tester int suite with MVE integer coverage
+        run: |
+          cd Tests/helia-core-tester
+          uv run helia_core_tester full --cpu cortex-m55 --suite int --coverage --coverage-mve-int --report-formats json --report-formats junit --run-jobs 0 --verbosity 1
+
+      - name: Upload cortex-m55 MVE integer full reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports-m55-int-mvei
+          path: Tests/helia-core-tester/artifacts/reports
+          if-no-files-found: error
+
   codegen-tests-float-fallback:
     runs-on: ubuntu-latest
     # The m0 leg has no FPU, so every f32 case runs through the soft-float
@@ -461,6 +551,7 @@ jobs:
       - resolve-container-image
       - codegen-tests
       - codegen-tests-mve-float
+      - codegen-tests-mve-int
       - codegen-tests-float-fallback
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}
@@ -569,7 +660,13 @@ jobs:
           name: reports-m55-f16-mvef
           path: Tests/helia-core-tester/artifacts/reports-mvef/m55-f16
 
-      - name: Stage combined float/float-mve coverage inputs for merge
+      - name: Download m55 MVE integer reports
+        uses: actions/download-artifact@v8
+        with:
+          name: reports-m55-int-mvei
+          path: Tests/helia-core-tester/artifacts/reports-mvei/m55-int
+
+      - name: Stage combined float/float-mve/int-mve coverage inputs for merge
         run: |
           cd Tests/helia-core-tester
           uv run python -m helia_core_tester.scripts.merge_lcov_inputs \
@@ -590,15 +687,19 @@ jobs:
             --input artifacts/reports-mvef/m55-f16/coverage/float-mve/cortex-m55/coverage.info \
             --output artifacts/reports/coverage/float-mve/cortex-m55/coverage.info
 
+          uv run python -m helia_core_tester.scripts.merge_lcov_inputs \
+            --input artifacts/reports-mvei/m55-int/coverage/int-mve/cortex-m55/coverage.info \
+            --output artifacts/reports/coverage/int-mve/cortex-m55/coverage.info
+
       - name: Run helia-core-tester coverage merge
         run: |
           cd Tests/helia-core-tester
-          uv run helia_core_tester coverage-merge --cpu cortex-m0,cortex-m4,cortex-m55 --suite both --include-mve-float
+          uv run helia_core_tester coverage-merge --cpu cortex-m0,cortex-m4,cortex-m55 --suite both --include-mve-float --include-mve-int
 
       - name: Publish CPU coverage and test summary table
         run: |
           cd Tests/helia-core-tester
-          uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --suite int --profile "m0-f32-fallback|cortex-m0|artifacts/reports-fallback/m0-f32|float|float" --profile "m4-f32-fallback|cortex-m4|artifacts/reports-fallback/m4-f32|float|float" --profile "m55-f32-fallback|cortex-m55|artifacts/reports-fallback/m55-f32|float|float" --profile "m55-f16-fallback|cortex-m55|artifacts/reports-fallback/m55-f16|float|float" --profile "m55-f32-mvef|cortex-m55|artifacts/reports-mvef/m55-f32|float-mve|float" --profile "m55-f16-mvef|cortex-m55|artifacts/reports-mvef/m55-f16|float-mve|float" --summary-file "$GITHUB_STEP_SUMMARY"
+          uv run python -m helia_core_tester.scripts.publish_cpu_coverage_summary --artifacts-root artifacts --cpus cortex-m0,cortex-m4,cortex-m55 --suite int --profile "m0-f32-fallback|cortex-m0|artifacts/reports-fallback/m0-f32|float|float" --profile "m4-f32-fallback|cortex-m4|artifacts/reports-fallback/m4-f32|float|float" --profile "m55-f32-fallback|cortex-m55|artifacts/reports-fallback/m55-f32|float|float" --profile "m55-f16-fallback|cortex-m55|artifacts/reports-fallback/m55-f16|float|float" --profile "m55-f32-mvef|cortex-m55|artifacts/reports-mvef/m55-f32|float-mve|float" --profile "m55-f16-mvef|cortex-m55|artifacts/reports-mvef/m55-f16|float-mve|float" --profile "m55-int-mvei|cortex-m55|artifacts/reports-mvei/m55-int|int-mve|int" --summary-file "$GITHUB_STEP_SUMMARY"
 
       - name: Stamp reviewed coverage baseline epoch
         run: |
@@ -671,6 +772,7 @@ jobs:
       - codegen-tests
       - shipped-flags-tests
       - codegen-tests-mve-float
+      - codegen-tests-mve-int
       - codegen-tests-float-fallback
     steps:
       # Only scripts/ci/ is needed; no submodules (the tester source is

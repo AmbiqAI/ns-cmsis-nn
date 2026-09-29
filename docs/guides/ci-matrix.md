@@ -26,6 +26,7 @@ status context is `CI Passed`.
 | `codegen-tests` | `helia-core-tester.yml` | cortex-m0, cortex-m4, cortex-m55 | integer suite (`--suite int`) | yes, Corstone-300 FVP | CI container's Arm GNU 14.3.1 |
 | `shipped-flags-tests` | `helia-core-tester.yml` | cortex-m4 (int), cortex-m55 (int, f32, f16) | integer, `float32`, `float16` | yes, Corstone-300 FVP | CI container's Arm GNU 14.3.1 |
 | `codegen-tests-mve-float` | `helia-core-tester.yml` | cortex-m55 | `float32`, `float16` | yes, Corstone-300 FVP | CI container's Arm GNU 14.3.1 |
+| `codegen-tests-mve-int` | `helia-core-tester.yml` | cortex-m55 | integer suite (`--suite int`), MVE paths without `ARM_MATH_AUTOVECTORIZE` | yes, Corstone-300 FVP | CI container's Arm GNU 14.3.1 |
 | `codegen-tests-float-fallback` | `helia-core-tester.yml` | cortex-m0 (f32), cortex-m4 (f32), cortex-m55 (f32, f16) | `float32`, `float16` | yes, Corstone-300 FVP | CI container's Arm GNU 14.3.1 |
 | `gcc` | `toolchain-matrix-strict-link.yml` | cortex-m4, cortex-m55 | `float32` on both, `float16` on m55 | no, build and strict link only | GCC 13.2.Rel1, 14.2.Rel1, 15.3.Rel1 |
 | `atfe` | `toolchain-matrix-strict-link.yml` | cortex-m4, cortex-m55 | `float32` on both, `float16` on m55 | no, build and strict link only | ATfE 19.1.5 |
@@ -48,8 +49,9 @@ The cortex-m0 f32 fallback cell is the only pull-request-gating execution
 evidence for the soft-float f32 path; `legacy-tester.yml` builds and runs
 cortex-m0 with `float32` nightly and at release. Its coverage is
 intentionally not merged into the coverage gate: the merge stages the three
-int legs, the m4 f32 and m55 f32 and f16 fallback legs, and the m55
-MVE-float legs, so adding it would move `ci/coverage-floor.json` and needs
+int legs, the m4 f32 and m55 f32 and f16 fallback legs, the m55
+MVE-float legs and the m55 MVE-int leg, so adding it would move
+`ci/coverage-floor.json` and needs
 its own change.
 
 Sources: `.github/workflows/ci.yml`'s `on:` block for the triggers and its
