@@ -1,0 +1,154 @@
+{
+  "name": "heliaCORE",
+  "base": "/ns-cmsis-nn/",
+  "site": "https://ambiqai.github.io",
+  "language": "c",
+  "doxyfileTemplate": "Documentation/Doxygen/nn.dxy.in",
+  "input": "Include",
+  "sourceUrlTemplate": "https://github.com/AmbiqAI/ns-cmsis-nn/blob/{commit}/{path}#L{line}",
+  "groups": [
+    {
+      "id": "convolution",
+      "label": "Convolution",
+      "heading": "Convolution Functions",
+      "eyebrow": "compute",
+      "blurb": "Conv2D, depthwise, transpose convolution, wrappers, and buffer helpers.",
+      "patterns": [
+        "^arm_convolve",
+        "^arm_depthwise_conv",
+        "^arm_depthwise_convolve",
+        "^arm_depthwise_nhwc_conv",
+        "^arm_transpose_conv"
+      ]
+    },
+    {
+      "id": "fully-connected",
+      "label": "Fully connected",
+      "heading": "Fully-Connected Layer Functions",
+      "eyebrow": "compute",
+      "blurb": "Dense layers, batch matmul paths, and scratch sizing helpers.",
+      "patterns": ["^arm_fully_connected", "^arm_batch_matmul"]
+    },
+    {
+      "id": "elementwise",
+      "label": "Elementwise",
+      "heading": "Elementwise Functions",
+      "eyebrow": "graph glue",
+      "blurb": "Add, sub, mul, square difference, min/max, batch norm, select, and arithmetic glue.",
+      "patterns": [
+        "^arm_abs",
+        "^arm_add",
+        "^arm_batch_norm",
+        "^arm_elementwise",
+        "^arm_maximum",
+        "^arm_minimum",
+        "^arm_mul",
+        "^arm_nn_abs",
+        "^arm_nn_sqrt",
+        "^arm_rsqrt",
+        "^arm_select_v2",
+        "^arm_sqrt",
+        "^arm_squared_difference",
+        "^arm_sub"
+      ]
+    },
+    {
+      "id": "reduction-comparison",
+      "label": "Reduction and comparison",
+      "heading": "Basic Math and Reduction",
+      "eyebrow": "selection",
+      "blurb": "Argmin/argmax, min/max reductions, comparisons, means, vector sums, and where.",
+      "patterns": [
+        "^arm_argmax",
+        "^arm_argmin",
+        "^arm_comparison",
+        "^arm_equal",
+        "^arm_greater",
+        "^arm_less",
+        "^arm_mean",
+        "^arm_nn_mean",
+        "^arm_not_equal",
+        "^arm_reduce",
+        "^arm_vector_sum",
+        "^arm_where"
+      ]
+    },
+    {
+      "id": "activation",
+      "label": "Activation",
+      "heading": "Activation Functions",
+      "eyebrow": "activation",
+      "blurb": "ReLU, LeakyReLU, PReLU, Hard-Swish, Logistic, Tanh, and clamp.",
+      "patterns": [
+        "^arm_clamp",
+        "^arm_hard_swish",
+        "^arm_leaky_relu",
+        "^arm_logistic",
+        "^arm_nn_activation",
+        "^arm_prelu",
+        "^arm_relu",
+        "^arm_tanh"
+      ]
+    },
+    {
+      "id": "data-movement",
+      "label": "Data movement",
+      "heading": "Data Movement",
+      "eyebrow": "layout",
+      "blurb": "Pad, reshape, transpose, concatenate, gather, resize, strided slice, tile, broadcast, scatter, mirror pad, and sequence/slice-update utilities.",
+      "patterns": [
+        "^arm_batch_to_space",
+        "^arm_broadcast_to",
+        "^arm_concatenation",
+        "^arm_depth_to_space",
+        "^arm_dynamic_update_slice",
+        "^arm_gather",
+        "^arm_mirror_pad",
+        "^arm_nn_fill",
+        "^arm_pack",
+        "^arm_pad",
+        "^arm_reshape",
+        "^arm_resize",
+        "^arm_reverse_sequence",
+        "^arm_scatter_nd",
+        "^arm_space_to",
+        "^arm_split",
+        "^arm_strided_slice",
+        "^arm_tile",
+        "^arm_transpose_f",
+        "^arm_transpose_s",
+        "^arm_unpack"
+      ]
+    },
+    {
+      "id": "classifier-tail",
+      "label": "Pooling, softmax, quantization",
+      "heading": "Classifier Tail",
+      "eyebrow": "tail",
+      "blurb": "Classifier tail APIs plus dtype conversion and requantization utilities.",
+      "patterns": [
+        "^arm_avg_?pool",
+        "^arm_dequantize",
+        "^arm_max_pool",
+        "^arm_q7_to_q15",
+        "^arm_quantize",
+        "^arm_requantize",
+        "^arm_softmax"
+      ]
+    },
+    {
+      "id": "sequence",
+      "label": "Sequence",
+      "heading": "Sequence Functions",
+      "eyebrow": "sequence",
+      "blurb": "LSTM, GRU, and SVDF functions for temporal workloads.",
+      "patterns": [
+        "^arm_lstm",
+        "^arm_nn_lstm",
+        "^arm_gru",
+        "^arm_nn_gru",
+        "^arm_svdf"
+      ]
+    }
+  ]
+}

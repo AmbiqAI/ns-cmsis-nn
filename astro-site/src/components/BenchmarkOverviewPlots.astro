@@ -1,0 +1,75 @@
+---
+// SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+import Card from '@ambiqai/helia-ui/astro/Card';
+import CardContent from '@ambiqai/helia-ui/astro/CardContent';
+import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
+import { ALL_KERNELS, CONVOLUTION_KERNELS, ELEMENTWISE_KERNELS, geometricSpeedup } from '../data/kernel-benchmarks';
+const bins = [
+  { label: '<2×', low: 0, high: 2 },
+  { label: '2–4×', low: 2, high: 4 },
+  { label: '4–6×', low: 4, high: 6 },
+  { label: '6–8×', low: 6, high: 8 },
+  { label: '≥8×', low: 8, high: Infinity },
+].map(bin => ({ ...bin, count: ALL_KERNELS.filter(row => {
+  const ratio = row.cycles.ref / row.cycles.mve;
+  return ratio >= bin.low && ratio < bin.high;
+}).length }));
+const maxCount = Math.max(...bins.map(bin => bin.count));
+const groups = [
+  { label: 'Compute layers', rows: CONVOLUTION_KERNELS },
+  { label: 'Tensor operations', rows: ELEMENTWISE_KERNELS },
+];
+const maxRatio = Math.ceil(Math.max(...groups.flatMap(group =>
+  ['ref', 'dsp'].map(baseline => geometricSpeedup(group.rows, baseline as 'ref' | 'dsp')))) / 2) * 2;
+---
+<CardGrid columns={2}>
+  <Card><CardContent><div class="plot-card">
+    <h3>Speedup distribution</h3>
+    <svg viewBox="0 0 360 205" role="img" aria-label={`MVE speedup versus REF: ${bins.map(bin => `${bin.label}: ${bin.count} workloads`).join('; ')}`}>
+      <text x="12" y="17" class="muted">Number of workloads</text>
+      <line x1="12" y1="166" x2="348" y2="166" class="axis" />
+      {bins.map((bin, i) => {
+        const x = 20 + i * 68;
+        const height = bin.count / maxCount * 112;
+        return <g><title>{bin.label}: {bin.count} workloads</title>
+          <rect x={x} y={166 - height} width="48" height={height} rx="3" class="mve" />
+          <text x={x + 24} y={156 - height} text-anchor="middle" class="value">{bin.count}</text>
+          <text x={x + 24} y="188" text-anchor="middle">{bin.label}</text>
+        </g>;
+      })}
+    </svg>
+    <p>All 28 workloads, grouped by MVE speedup versus REF. Bins include their lower bound.</p>
+  </div></CardContent></Card>
+  <Card><CardContent><div class="plot-card">
+    <h3>Speedup by workload</h3>
+    <svg viewBox="0 0 360 205" role="img" aria-label={groups.map(group => `${group.label}: MVE ${geometricSpeedup(group.rows, 'ref').toFixed(2)} times REF, ${geometricSpeedup(group.rows, 'dsp').toFixed(2)} times DSP`).join('; ')}>
+      {groups.map((group, i) => <g>
+        <text x="12" y={17 + i * 83}>{group.label}</text>
+        {(['ref', 'dsp'] as const).map((baseline, j) => {
+          const ratio = geometricSpeedup(group.rows, baseline);
+          const y = 29 + i * 83 + j * 24;
+          return <g><title>{group.label}: {ratio.toFixed(2)}× MVE speedup versus {baseline.toUpperCase()}</title>
+            <text x="12" y={y + 11} class="muted">vs {baseline.toUpperCase()}</text>
+            <rect x="70" y={y} width={ratio / maxRatio * 230} height="14" rx="3" class={baseline === 'ref' ? 'mve' : 'dsp'} />
+            <text x={78 + ratio / maxRatio * 230} y={y + 11} class="value">{Number(ratio.toPrecision(1))}×</text>
+          </g>;
+        })}
+      </g>)}
+      <line x1="70" y1="170" x2="300" y2="170" class="axis" />
+      {Array.from({length: maxRatio / 2 + 1}, (_, i) => i * 2).map(tick =>
+        <text x={70 + tick / maxRatio * 230} y="188" text-anchor="middle" class="muted">{tick}×</text>)}
+    </svg>
+    <p>Geometric means, 14 workloads per group. Compute includes convolution, matrix math, and pooling; tensor operations include arithmetic and comparisons.</p>
+  </div></CardContent></Card>
+</CardGrid>
+<style>
+.plot-card h3 { margin: 0 0 1rem; font-size: 1.2rem; line-height: 1.4; }
+.plot-card svg { width: 100%; height: auto; display: block; overflow: visible; }
+.plot-card text { fill: var(--sl-color-text); font: 12px var(--sl-font); }
+.plot-card .value { font-weight: 600; }
+.plot-card .muted { fill: var(--sl-color-gray-2); }
+.plot-card .axis { stroke: var(--sl-color-hairline); }
+.plot-card .mve { fill: var(--sl-color-text-accent); }
+.plot-card .dsp { fill: var(--sl-color-gray-3); }
+.plot-card p { margin: .75rem 0 0; color: var(--sl-color-gray-2); font-size: .85rem; }
+</style>

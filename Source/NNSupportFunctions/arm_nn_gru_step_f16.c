@@ -207,10 +207,10 @@ __STATIC_INLINE void arm_nn_gru_block_f16(const cmsis_nn_gru_params_f16 *params,
 
     const float16x8_t vz = vld1q(z_lane);
     const float16x8_t vcand_pre = vld1q(cand_pre_lane);
-    // The vector tanh maps a NaN lane to a finite value; the scalar leg propagates it (#251). Classify NaN in the
-    // integer domain (arm_nn_clamp_propagate_nan_mve_f16 style, immune to -ffinite-math-only) before the tanh and
-    // select any NaN afterwards: MVE arithmetic returns the default NaN whatever the source, and an all-ones splat
-    // is one immediate move with no live range across the tanh.
+    // Retain the GRU candidate NaN selection established in #251, although the float16 vector tanh now
+    // preserves NaN inputs itself. Integer classification also works with -ffinite-math-only. MVE arithmetic
+    // returns the default NaN whatever the source, and an all-ones splat is one immediate move with no
+    // live range across the tanh.
     const mve_pred16_t nan_p = vcmphiq_n_u16(vshlq_n_u16(vreinterpretq_u16_f16(vcand_pre), 1), 0xF800);
     const float16x8_t vcand =
         vpselq(vreinterpretq_f16_u16(vdupq_n_u16(0xFFFF)), arm_nn_vtanh_lut_direct_mve_f16(vcand_pre), nan_p);

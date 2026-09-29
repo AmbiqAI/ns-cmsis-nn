@@ -1,0 +1,102 @@
+---
+// SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+import type { ReferenceModel } from '@ambiqai/helia-ui/reference-model';
+import { buildRefIndex } from '@ambiqai/helia-ui/ref-index-model';
+import reference from '../../public/reference/api/reference.json';
+import { groups } from '../../reference.config.json';
+import type { KernelBenchmark } from '../data/kernel-benchmarks';
+
+interface Props { rows: readonly KernelBenchmark[]; caption: string }
+const { rows, caption } = Astro.props;
+const symbols = new Map(buildRefIndex(reference as ReferenceModel, {
+  base: import.meta.env.BASE_URL, groups,
+}).map(row => [row.name, row.href]));
+const columns = [
+  ['kernel', 'Kernel'], ['shape', 'Shape'], ['ref', 'REF cycles'],
+  ['dsp', 'DSP cycles'], ['mve', 'MVE cycles'],
+  ['dspSpeedup', 'REF / DSP'], ['mveSpeedup', 'REF / MVE'],
+];
+const number = new Intl.NumberFormat('en-US');
+---
+
+<kernel-benchmark-table>
+  <p class="table-help">Select a column heading to sort. Ratios above 1 indicate fewer cycles than REF.</p>
+  <div class="table-scroll" role="region" aria-label={caption} tabindex="0">
+    <table>
+      <caption>{caption}</caption>
+      <thead><tr>{columns.map(([key, label]) =>
+        <th scope="col"><button type="button" data-sort={key}>{label}<span aria-hidden="true"> ↕</span></button></th>
+      )}</tr></thead>
+      <tbody>{rows.map(row => {
+        const name = row.kernel.split(' (')[0];
+        const note = row.kernel.includes(' (') ? row.kernel.slice(name.length + 2, -1) : '';
+        const href = symbols.get(name);
+        return <tr data-kernel={name} data-shape={row.shape}
+          data-ref={row.cycles.ref} data-dsp={row.cycles.dsp} data-mve={row.cycles.mve}
+          data-dsp-speedup={row.cycles.ref / row.cycles.dsp}
+          data-mve-speedup={row.cycles.ref / row.cycles.mve}>
+          <th scope="row">{href ? <a href={href}><code>{name}</code></a> : <code>{name}</code>}{note && <small>{note}</small>}</th>
+          <td>{row.shape}</td>
+          <td>{number.format(row.cycles.ref)}</td>
+          <td>{number.format(row.cycles.dsp)}</td>
+          <td>{number.format(row.cycles.mve)}</td>
+          <td>{(row.cycles.ref / row.cycles.dsp).toFixed(2)}×</td>
+          <td>{(row.cycles.ref / row.cycles.mve).toFixed(2)}×</td>
+        </tr>;
+      })}</tbody>
+    </table>
+  </div>
+  <p class="sort-status" aria-live="polite" aria-atomic="true"></p>
+</kernel-benchmark-table>
+
+<script>
+  class KernelBenchmarkTable extends HTMLElement {
+    connectedCallback() {
+      if (this.dataset.ready) return;
+      this.dataset.ready = 'true';
+      this.querySelectorAll<HTMLButtonElement>('button[data-sort]').forEach(button => {
+        button.addEventListener('click', () => {
+          const key = button.dataset.sort!;
+          const header = button.closest('th')!;
+          const ascending = header.getAttribute('aria-sort') !== 'ascending';
+          this.querySelectorAll('thead th').forEach(th => th.removeAttribute('aria-sort'));
+          this.querySelectorAll('thead button span').forEach(span => { span.textContent = ' ↕'; });
+          header.setAttribute('aria-sort', ascending ? 'ascending' : 'descending');
+          button.querySelector('span')!.textContent = ascending ? ' ↑' : ' ↓';
+          const rows = [...this.querySelectorAll<HTMLTableRowElement>('tbody tr')];
+          rows.sort((a, b) => {
+            const first = a.dataset[key] ?? '';
+            const second = b.dataset[key] ?? '';
+            const order = key === 'kernel' || key === 'shape'
+              ? first.localeCompare(second, undefined, { numeric: true })
+              : Number(first) - Number(second);
+            return ascending ? order : -order;
+          });
+          this.querySelector('tbody')!.append(...rows);
+          this.querySelector('.sort-status')!.textContent = `Sorted by ${button.firstChild?.textContent}, ${ascending ? 'ascending' : 'descending'}.`;
+        });
+      });
+    }
+  }
+  if (!customElements.get('kernel-benchmark-table')) {
+    customElements.define('kernel-benchmark-table', KernelBenchmarkTable);
+  }
+</script>
+
+<style>
+  kernel-benchmark-table { display: block; min-width: 0; margin-block: var(--helia-space-5); }
+  .table-help { font-size: var(--helia-text-small); color: var(--sl-color-gray-2); }
+  .table-scroll { overflow-x: auto; border: 1px solid var(--sl-color-hairline); border-radius: var(--helia-radius); }
+  table { display: table; width: 100%; min-width: 52rem; margin: 0; border-collapse: collapse; font-size: var(--helia-text-small); }
+  caption { text-align: left; padding: var(--helia-space-3); font-weight: 600; }
+  th, td { padding: var(--helia-space-3); vertical-align: top; border-top: 1px solid var(--sl-color-hairline); }
+  thead { background: var(--sl-color-bg-sidebar); }
+  th { text-align: left; }
+  tbody th { min-width: 12rem; max-width: 18rem; }
+  tbody th code { overflow-wrap: anywhere; white-space: normal; }
+  td:nth-child(n+3) { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  small { display: block; margin-top: var(--helia-space-1); font-weight: 400; color: var(--sl-color-gray-2); }
+  button { background: transparent; color: inherit; border: 0; padding: 0; font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+  button:focus-visible, .table-scroll:focus-visible { outline: 2px solid var(--sl-color-text-accent); outline-offset: 2px; }
+  .sort-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+</style>

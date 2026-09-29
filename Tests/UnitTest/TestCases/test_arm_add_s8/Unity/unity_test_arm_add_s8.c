@@ -54,3 +54,5 @@ void test_add_broadcast_c_s8_arm_add_s8(void) { add_broadcast_c_s8_arm_add_s8();
 void test_add_broadcast_hc_s8_arm_add_s8(void) { add_broadcast_hc_s8_arm_add_s8(); }
 void test_add_broadcast_batch_scalar_s8_arm_add_s8(void) { add_broadcast_batch_scalar_s8_arm_add_s8(); }
 void test_add_dims_arg_error_s8_arm_add_s8(void) { add_dims_arg_error_s8_arm_add_s8(); }
+
+void test_add_row_broadcast_s8_arm_add_s8(void) { add_row_broadcast_s8_arm_add_s8(); }

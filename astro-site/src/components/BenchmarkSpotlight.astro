@@ -1,0 +1,45 @@
+---
+// SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+import Card from '@ambiqai/helia-ui/astro/Card';
+import CardContent from '@ambiqai/helia-ui/astro/CardContent';
+import type { KernelBenchmark } from '../data/kernel-benchmarks';
+interface Props { row: KernelBenchmark; title: string; description: string }
+const { row, title, description } = Astro.props;
+const max = Math.max(row.cycles.ref, row.cycles.dsp, row.cycles.mve);
+const paths = [{key: 'ref', label: 'REF'}, {key: 'dsp', label: 'DSP'}, {key: 'mve', label: 'MVE'}] as const;
+const saved = (1 - row.cycles.mve / row.cycles.ref) * 100;
+---
+<Card>
+  <CardContent>
+    <div class="spotlight">
+      <h3>{title}</h3>
+      <p class="saving"><strong>{Number(saved.toPrecision(1))}%</strong> fewer cycles with MVE than REF</p>
+      <div class="paths" aria-label={`Average cycles for ${row.kernel}`}>
+        {paths.map(({key, label}) => <div class="path">
+          <span>{label}</span>
+          <div class="track" aria-hidden="true"><div class:list={['bar', key]} style={`width:${row.cycles[key]/max*100}%`}></div></div>
+          <span class="cycles">{row.cycles[key].toLocaleString('en-US')}</span>
+        </div>)}
+      </div>
+      <p class="description">{description}</p>
+      <p class="workload"><code>{row.kernel.split(' (')[0]}</code><br />{row.shape} · average cycles per call</p>
+    </div>
+  </CardContent>
+</Card>
+<style>
+.spotlight h3 { margin: 0; font-size: 1.2rem; line-height: 1.4; }
+.spotlight p { margin-block: 0.8rem; }
+.description { font-size: .9rem; color: var(--sl-color-gray-2); }
+.saving { font-size: .9rem; }
+.saving strong { display: block; font-size: 2.4rem; line-height: 1.2; color: var(--sl-color-white); letter-spacing: -.04em; }
+.paths { display: grid; gap: .65rem; margin-block: 1.2rem; }
+.path { display: grid; grid-template-columns: 2.5rem minmax(2rem,1fr) 6rem; gap: .6rem; align-items: center; font-size: .8rem; }
+.cycles { text-align: right; font-variant-numeric: tabular-nums; }
+.track { background: var(--sl-color-bg-sidebar); border-radius: .25rem; overflow: hidden; }
+.bar { height: .65rem; border-radius: .25rem; }
+.ref { background: var(--sl-color-gray-3); }
+.dsp { background: var(--sl-color-gray-2); }
+.mve { background: var(--sl-color-text-accent); }
+.workload { font-size: .8rem; color: var(--sl-color-gray-2); }
+.workload code { overflow-wrap: anywhere; }
+</style>

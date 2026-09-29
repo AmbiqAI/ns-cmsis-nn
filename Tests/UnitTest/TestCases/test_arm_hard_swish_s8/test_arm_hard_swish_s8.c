@@ -161,14 +161,14 @@ static int16_t hs_ref_sqrdmulh16(int16_t a, int16_t b)
 static int8_t hs_ref_compat(int8_t in, int32_t zi, int32_t zo, int32_t ofp, int32_t oexp, int32_t rfp, int32_t rexp)
 {
     const int16_t x = (int16_t)((int32_t)in - zi);
-    const int16_t hires = hs_ref_sat16((int32_t)x << 7);
+    const int16_t hires = hs_ref_sat16((int32_t)x * 128);
     const int16_t y_pre = hs_ref_sqrdmulh16(hires, (int16_t)ofp);
     int16_t rel = hires;
     if (rexp > 0)
     {
-        rel = (rexp - 1 > 0) ? hs_ref_sat16((int32_t)rel << (rexp - 1)) : rel;
+        rel = (rexp - 1 > 0) ? hs_ref_sat16((int32_t)rel * (1 << (rexp - 1))) : rel;
         rel = hs_ref_sqrdmulh16(rel, (int16_t)rfp);
-        rel = hs_ref_sat16((int32_t)rel << 1);
+        rel = hs_ref_sat16((int32_t)rel * 2);
     }
     else if (rexp < 0)
     {
@@ -296,4 +296,11 @@ void hard_swish_compat_ramp256_arm_hard_swish_s8(void)
     {
         hs289_run_compat(&hs289_compat_sets[set], 256, 1);
     }
+}
+
+// Independent LiteRT outputs exercise both MVE dispatch paths and scalar builds.
+#include "../hard_swish_compat_probe/kernel_check.h"
+void hard_swish_compat_litert_arm_hard_swish_s8(void)
+{
+    TEST_ASSERT_EQUAL_INT(0, hs_check_litert());
 }

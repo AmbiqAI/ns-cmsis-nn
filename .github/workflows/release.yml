@@ -824,25 +824,13 @@ jobs:
           gh release upload "$TAG" ./release-assets/* --clobber --repo "${{ github.repository }}"
 
   publish-pack:
-    # Build the CMSIS-Pack and publish the Sphinx docs site to Pages. Runs after
-    # publish-staticlibs because the pack's Cvariant="Prebuilt" component
-    # vendors the per-arch libns-cmsis-nn.a archives — packchk fails if a
-    # declared <file> is missing, so we cannot run gen-pack until those
-    # artefacts exist. Pages publishing rides along with this job because
-    # gen-pack-action's Doxygen step also produces ./Documentation/xml for
-    # the Sphinx/Breathe/Exhale API reference.
-    #
+    # Prebuilt pack components require the GCC archives before gen-pack runs.
     # REQUIRED asset. Only downloads gcc staticlib artefacts (see the
     # download-artifact "pattern" below), so it is unaffected by an
     # optional armclang license gap (AmbiqAI/ns-cmsis-nn#228).
     if: ${{ needs.release-please.outputs.assets_enabled == 'true' }}
     needs: [release-please, publish-staticlibs]
     runs-on: ubuntu-24.04
-    # Generous job bound only. The precise bound lives on the gen-pack step below,
-    # because this job ALSO runs the full Sphinx/Breathe/Exhale docs build, whose
-    # healthy duration is 13-15 min and has been observed as high as 30.6 min. A
-    # tight job-level bound would kill healthy releases (2 of 60 August doc builds
-    # exceeded 20 min) and would fire long AFTER the pack was already uploaded.
     timeout-minutes: 60
     steps:
       # Immutable historical source checkout, pinned to the exact commit
@@ -1002,47 +990,17 @@ jobs:
             "./output/Ambiq.NS-CMSIS-NN.${VERSION}.pack" \
             --clobber --repo "${{ github.repository }}"
 
-      - name: Setup Python for docs
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: docs/requirements.txt
-
-      - name: Install Sphinx documentation dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r docs/requirements.txt
-
-      - name: Build Sphinx site from generated Doxygen XML
-        run: bash scripts/docs/build_sphinx_docs.sh --skip-doxygen
-
-      # Publish docs to GitHub Pages (from ./site).
-      #
-      # Gated out of existing-tag recovery. These three steps carried no `if:`,
-      # so `-f recover_tag=vX.Y.Z` -- which checks out that tag's HISTORICAL
-      # commit -- would rebuild that tag's OLD documentation and deploy it over
-      # the live site. Recovering v7.28.0 would have silently reverted the
-      # published docs by three releases, undoing e.g. the quickstart version
-      # pinning from #270. Recovery restores customer RELEASE ASSETS only; the
-      # docs site is not one, and the same reasoning already excludes
-      # publish-ci-image and both test suites (AmbiqAI/ns-cmsis-nn#228).
-      # The pack build above is unaffected: it is still produced and uploaded
-      # from the historical tree, which is the whole point of recovery.
-      - name: Setup Pages
-        if: ${{ needs.release-please.outputs.recovery_mode != 'true' }}
-        uses: actions/configure-pages@v6
-
-      - name: Upload Pages artifact
-        if: ${{ needs.release-please.outputs.recovery_mode != 'true' }}
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: ./site
-
-      - name: Deploy to GitHub Pages
-        if: ${{ needs.release-please.outputs.recovery_mode != 'true' }}
-        id: deploy
-        uses: actions/deploy-pages@v5
+  publish-docs:
+    if: ${{ needs.release-please.outputs.assets_enabled == 'true' && needs.release-please.outputs.recovery_mode != 'true' }}
+    needs: release-please
+    uses: ./.github/workflows/docs.yml
+    with:
+      source_ref: ${{ needs.release-please.outputs.commit_sha }}
+      release_publish: true
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
 
   publish-ci-image:
     # Historical recovery restores customer release assets only. The CI image

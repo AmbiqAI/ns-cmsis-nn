@@ -42,8 +42,9 @@
 extern "C" {
 #endif
 
-#define USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims)                                         \
-    (dw_conv_params->ch_mult == 1 && dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1 &&             \
+#define USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims, output_dims)                            \
+    (dw_conv_params->ch_mult == 1 &&                                                                                   \
+     arm_nn_dw_conv_opt_dilation_supported(dw_conv_params, input_dims, filter_dims, output_dims) &&                    \
      filter_dims->w * filter_dims->h < 512)
 
 #define LEFT_SHIFT(_shift) (_shift > 0 ? _shift : 0)
@@ -82,8 +83,18 @@ extern "C" {
 #endif
 
 #if ARM_NN_ENABLE_F16
-/* IEEE 754 minNum/maxNum: NaN operands are suppressed (the non-NaN operand
- * wins), matching both VMINNM.F16/VMAXNM.F16 and the MIN/MAX fallback. */
+/**
+ * @brief Minimum of two scalar f16 values.
+ *
+ * With ARM_NN_F16_CMOV_WORKAROUND this is IEEE 754 minNum via VMINNM.F16: a NaN operand is suppressed and the
+ * non-NaN operand wins. The scalar fallback is ARM_NN_MIN, an ordered compare, so its NaN handling depends on
+ * operand order: a NaN <code>b</code> is returned, a NaN <code>a</code> is not. Do not rely on NaN suppression
+ * on non-MVE builds.
+ *
+ * @param[in]      a               First operand
+ * @param[in]      b               Second operand
+ * @return         The smaller of <code>a</code> and <code>b</code>
+ */
 __STATIC_FORCEINLINE _Float16 arm_nn_min_f16h(_Float16 a, _Float16 b)
 {
     #if defined(ARM_NN_F16_CMOV_WORKAROUND)
@@ -95,6 +106,18 @@ __STATIC_FORCEINLINE _Float16 arm_nn_min_f16h(_Float16 a, _Float16 b)
     #endif
 }
 
+/**
+ * @brief Maximum of two scalar f16 values.
+ *
+ * With ARM_NN_F16_CMOV_WORKAROUND this is IEEE 754 maxNum via VMAXNM.F16: a NaN operand is suppressed and the
+ * non-NaN operand wins. The scalar fallback is ARM_NN_MAX, an ordered compare, so its NaN handling depends on
+ * operand order: a NaN <code>b</code> is returned, a NaN <code>a</code> is not. Do not rely on NaN suppression
+ * on non-MVE builds.
+ *
+ * @param[in]      a               First operand
+ * @param[in]      b               Second operand
+ * @return         The larger of <code>a</code> and <code>b</code>
+ */
 __STATIC_FORCEINLINE _Float16 arm_nn_max_f16h(_Float16 a, _Float16 b)
 {
     #if defined(ARM_NN_F16_CMOV_WORKAROUND)
@@ -106,8 +129,10 @@ __STATIC_FORCEINLINE _Float16 arm_nn_max_f16h(_Float16 a, _Float16 b)
     #endif
 }
 
-/*
- * Returns x when x is NaN, otherwise y. Both the NaN test and the select are
+/**
+ * @brief Returns <code>x</code> when <code>x</code> is NaN, otherwise <code>y</code>.
+ *
+ * Both the NaN test and the select are
  * performed on the bit patterns: the test is (bits & 0x7FFF) > 0x7C00 (all-ones
  * exponent, non-zero mantissa), which is integer arithmetic that
  * -ffinite-math-only (implied by the shipped -Ofast) has no license to fold,
@@ -134,6 +159,10 @@ __STATIC_FORCEINLINE _Float16 arm_nn_max_f16h(_Float16 a, _Float16 b)
  * restore NaN lanes with arm_nn_max_propagate_nan_mve_f16 /
  * arm_nn_clamp_propagate_nan_mve_f16 (#382). The same idiom (bit-classified
  * select) appears in arm_prelu_f16, which does not call this helper.
+ *
+ * @param[in]      x               Value whose NaN-ness selects the result. Returned unchanged when it is NaN.
+ * @param[in]      y               Value returned when <code>x</code> is not NaN
+ * @return         <code>x</code> if <code>x</code> is NaN, otherwise <code>y</code>
  */
 __STATIC_FORCEINLINE _Float16 arm_nn_propagate_nan_f16h(_Float16 x, _Float16 y)
 {
@@ -149,24 +178,36 @@ __STATIC_FORCEINLINE _Float16 arm_nn_propagate_nan_f16h(_Float16 x, _Float16 y)
     return r;
 }
 
-/*
- * Drop-in equivalent of ARM_NN_CLAMP(x, h, l) for scalar _Float16 operands,
- * including its NaN behaviour: ARM_NN_MIN(NaN, h) is h, so a NaN input resolves to
+/**
+ * @brief Drop-in equivalent of ARM_NN_CLAMP(x, h, l) for scalar _Float16 operands.
+ *
+ * Includes the macro's NaN behaviour: ARM_NN_MIN(NaN, h) is h, so a NaN input resolves to
  * the high bound, exactly as the macro does. Use
  * arm_nn_clamp_propagate_nan_f16h() where TFLite NaN propagation is required.
+ *
+ * @param[in]      x               Value to clamp
+ * @param[in]      h               Upper bound
+ * @param[in]      l               Lower bound
+ * @return         <code>x</code> clamped to [<code>l</code>, <code>h</code>]
  */
 __STATIC_FORCEINLINE _Float16 arm_nn_clamp_f16h(_Float16 x, _Float16 h, _Float16 l)
 {
     return arm_nn_max_f16h(arm_nn_min_f16h(x, h), l);
 }
 
-/*
- * Clamp with TFLite NaN semantics: NaN passes through unchanged. Mirrors the
- * MVE idiom in arm_nn_clamp_propagate_nan_mve_f16() (lower bound first, then
+/**
+ * @brief Scalar f16 clamp with TFLite NaN semantics: NaN passes through unchanged.
+ *
+ * Mirrors the MVE idiom in arm_nn_clamp_propagate_nan_mve_f16() (lower bound first, then
  * upper bound, then restore NaN lanes). The NaN restore in
  * arm_nn_propagate_nan_f16h() tests the integer bit pattern, so it holds at every
  * optimization level including the shipped -Ofast; see #333 / #334. Bounds are
  * assumed ordered (l <= h); inverted bounds are unspecified.
+ *
+ * @param[in]      x               Value to clamp
+ * @param[in]      l               Lower bound
+ * @param[in]      h               Upper bound
+ * @return         <code>x</code> clamped to [<code>l</code>, <code>h</code>], or <code>x</code> itself when it is NaN
  */
 __STATIC_FORCEINLINE _Float16 arm_nn_clamp_propagate_nan_f16h(_Float16 x, _Float16 l, _Float16 h)
 {
@@ -174,6 +215,12 @@ __STATIC_FORCEINLINE _Float16 arm_nn_clamp_propagate_nan_f16h(_Float16 x, _Float
     return arm_nn_propagate_nan_f16h(x, y);
 }
 
+/**
+ * @brief Absolute value of a scalar f16 value.
+ *
+ * @param[in]      x               Input value
+ * @return         |<code>x</code>|
+ */
 __STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)
 {
     #if defined(ARM_NN_F16_CMOV_WORKAROUND)
@@ -406,6 +453,35 @@ __STATIC_INLINE bool arm_nn_is_convolve_1_x_n(const cmsis_nn_conv_params *conv_p
 }
 
 /**
+ * @brief Check if the dilation, stride and padding of a depthwise layer allow the arm_depthwise_conv_s8_opt() or
+ *        arm_depthwise_conv_fast_s16() route.
+ * @param[in]   dw_conv_params  Depthwise convolution parameters
+ * @param[in]   input_dims      Input dimensions
+ * @param[in]   filter_dims     Filter dimensions
+ * @param[in]   output_dims     Output dimensions
+ * @return      true for an undilated layer (dilation 1 in both dimensions), or for a 1D layer dilated along
+ *              the width only: filter, input and output height 1, stride 1 in both dimensions, no vertical
+ *              padding, dilation.h == 1 and dilation.w >= 1. false otherwise.
+ *
+ * @note Does not check ch_mult, the batch count or the kernel size: arm_depthwise_conv_wrapper_s8(),
+ *       arm_depthwise_conv_wrapper_s16() and their buffer-size functions apply their own conditions on those, and all
+ *       of them take this predicate so that routing and sizing agree.
+ */
+__STATIC_INLINE bool arm_nn_dw_conv_opt_dilation_supported(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                           const cmsis_nn_dims *input_dims,
+                                                           const cmsis_nn_dims *filter_dims,
+                                                           const cmsis_nn_dims *output_dims)
+{
+    if (dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1)
+    {
+        return true;
+    }
+    return (dw_conv_params->dilation.h == 1) && (dw_conv_params->dilation.w >= 1) && (filter_dims->h == 1) &&
+        (input_dims->h == 1) && (output_dims->h == 1) && (dw_conv_params->stride.w == 1) &&
+        (dw_conv_params->stride.h == 1) && (dw_conv_params->padding.h == 0);
+}
+
+/**
  * @defgroup genPrivTypes Structure Types
  * @ingroup groupSupport
  * @brief Data structure types used by private functions.
@@ -501,7 +577,8 @@ void arm_s8_to_s16_unordered_with_offset(const int8_t *src, int16_t *dst, int32_
  * @brief Get the required buffer size for optimized s8 depthwise convolution
  *        function with constraint that in_channel equals out_channel.
  *        This is for processors with MVE extension.
- *        Refer to arm_depthwise_conv_s8_opt_get_buffer_size() for function argument details.
+ *
+ * @copydetails arm_depthwise_conv_s8_opt_get_buffer_size
  *
  * @note  Intended for compilation on Host. If compiling for an Arm target, use
  *        arm_depthwise_conv_s8_opt_get_buffer_size(). Note also this is a support function,
@@ -520,7 +597,8 @@ int32_t arm_depthwise_conv_s8_opt_get_buffer_size_mve(const cmsis_nn_dims *input
  * @brief Get the required buffer size for optimized s8 depthwise convolution
  *        function with constraint that in_channel equals out_channel.
  *        This is for processors with DSP extension.
- *        Refer to arm_depthwise_conv_s8_opt_get_buffer_size() for function argument details.
+ *
+ * @copydetails arm_depthwise_conv_s8_opt_get_buffer_size
  *
  * @note  Intended for compilation on Host. If compiling for an Arm target, use
  *        arm_depthwise_conv_s8_opt_get_buffer_size(). Note also this is a support function,
@@ -640,7 +718,7 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
  *                                        row_elements + skipped_row_elements = (kernel_x * kernel_y) * input_ch
  * @param[in]       row_base_ref          pointer to row operand
  * @param[in]       col_base_ref          pointer to col operand
- * @param[out]      out_ch                Number of output channels
+ * @param[in]       out_ch                Number of output channels
  * @param[in]       conv_params           Pointer to convolution parameters like offsets and activation values
  * @param[in]       quant_params          Pointer to per-channel quantization parameters
  * @param[in]       bias                  Pointer to optional per-channel bias
@@ -678,7 +756,7 @@ arm_cmsis_nn_status arm_nn_mat_mul_core_1x_s8(int32_t row_elements,
  *                                        row_elements + skipped_row_elements = (kernel_x * kernel_y) * input_ch
  * @param[in]       row_base_ref          pointer to row operand
  * @param[in]       col_base_ref          pointer to col operand as packed int4
- * @param[out]      out_ch                Number of output channels
+ * @param[in]       out_ch                Number of output channels
  * @param[in]       conv_params           Pointer to convolution parameters like offsets and activation values
  * @param[in]       quant_params          Pointer to per-channel quantization parameters
  * @param[in]       bias                  Pointer to optional per-channel bias
@@ -985,7 +1063,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                                              const int32_t activation_max,
                                              const int32_t row_address_offset);
 
-/*
+/**
  * @brief General Matrix-multiplication function with int8 input and int32 output.
  *        This function assumes:
  *        - LHS input matrix NOT transposed (nt)
@@ -995,7 +1073,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
  *
  * @param[in]  lhs                Pointer to the LHS input matrix
  * @param[in]  rhs                Pointer to the RHS input matrix
- * @param[out] dst                Pointer to the output matrix with "m" rows and "n" columns
+ * @param[in, out] dst            Pointer to the output matrix with "m" rows and "n" columns. Accumulated into,
+ *                                so it must be zeroed by the caller before the call
  * @param[in]  lhs_rows           Number of LHS input rows
  * @param[in]  rhs_rows           Number of LHS input columns/RHS input rows
  * @param[in]  rhs_cols           Number of RHS input columns
@@ -1014,7 +1093,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_s32(const int8_t *lhs,
                                                 const int32_t lhs_offset,
                                                 const int32_t dst_idx_offset);
 
-/*
+/**
  * @brief s4 Vector by Matrix (transposed) multiplication
  *
  * @param[in]      lhs             Input left-hand side vector
@@ -1157,15 +1236,15 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s16(const int16_t *lhs,
                                               const int32_t activation_min,
                                               const int32_t activation_max);
 
-/*
- * s16 vector(lhs) by s8 matrix (transposed) multiplication and per channel quant output
+/**
+ * @brief s16 vector(lhs) by s8 matrix (transposed) multiplication and per channel quant output
  *
  * @param[in]      lhs             Input left-hand side vector
  * @param[in]      rhs             Input right-hand side matrix (transposed)
  * @param[in]      bias            Input bias
  * @param[out]     dst             Output vector
- * @param[in]      dst_multiplier  Output multiplier
- * @param[in]      dst_shift       Output shift
+ * @param[in]      dst_multiplier  Per channel output multiplier. Length of vector is equal to rhs_rows
+ * @param[in]      dst_shift       Per channel output shift. Length of vector is equal to rhs_rows
  * @param[in]      rhs_cols        Number of columns in the right-hand side input matrix
  * @param[in]      rhs_rows        Number of rows in the right-hand side input matrix
  * @param[in]      activation_min  Minimum value to clamp the output to. Range: int16
@@ -1261,17 +1340,13 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_svdf_s8(const int8_t *lhs,
  * @param[in]      activation_max  Maximum value to clamp the output to. Range: int8
  * @param[in]       row_x_col       (row_dimension * col_dimension) of LHS/RHS matrix
  * @param[in]      output_bias     Per channel output bias. Length of vector is equal to number of channels
- * @param[in]      out             Output pointer
+ * @param[out]     out             Output pointer
  *
  * @return         The function returns <code>ARM_CMSIS_NN_SUCCESS</code> if an implementation is available or
  *                 <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> otherwise
  *
- * @note           If number of channels is not a multiple of 4, upto 3 elements outside the boundary will be read
- * out for the following.
- *                  - Output shift
- *                  - Output multiplier
- *                  - Output bias
- *                  - rhs
+ * @note           Tail channel loads and stores are predicated, so channel-indexed arrays are not accessed beyond
+ *                @p active_ch.
  */
 arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_padded_s8(const int8_t *lhs,
                                                          const int8_t *rhs,
@@ -1304,7 +1379,7 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_padded_s8(const int8_t *lhs,
  * @param[in]      activation_max  Maximum value to clamp the output to. Range: int8
  * @param[in]       row_x_col       (row_dimension * col_dimension) of LHS/RHS matrix
  * @param[in]      output_bias     Per channel output bias. Length of vector is equal to number of channels.
- * @param[in]      out             Output pointer
+ * @param[out]     out             Output pointer
  *
  * @return         The function returns <code>ARM_CMSIS_NN_SUCCESS</code> if an implementation is available or
  *                 <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> otherwise
@@ -1328,6 +1403,136 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
                                                   int8_t *out);
 
 /**
+ * @brief Necessary conditions of the planar rule that are cheap to test inline: at most 32 channels and stride 1.
+ *        A caller can skip arm_nn_depthwise_conv_s8_planar() for layers that fail them without changing which layers
+ *        it takes.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [1, H, W, C_IN]
+ *
+ * @return         1 when the layer may take the planar path, 0 when it cannot.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s8_planar_candidate(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                                       const cmsis_nn_dims *input_dims)
+{
+    return input_dims->c <= 32 && dw_conv_params->stride.w == 1 && dw_conv_params->stride.h == 1;
+}
+
+/**
+ * @brief The gate of arm_convolve_s8_small_cin(): upscale_dims NULL, input depth 1 to 3 with filter depth equal to it,
+ *        dilation 1, a kernel of at least 1x1 with kernel width x depth at most 16 and at most 48 values, and a
+ *        positive multiple of 4 output channels. Plain C; it evaluates the same on every build.
+ *
+ * @param[in]   conv_params   Convolution parameters
+ * @param[in]   input_dims    Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]   filter_dims   Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
+ * @param[in]   output_dims   Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[in]   upscale_dims  Upscale tensor dimensions, or NULL
+ *
+ * @return      1 when the layer is in the gate, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_small_cin(const cmsis_nn_conv_params *conv_params,
+                                                             const cmsis_nn_dims *input_dims,
+                                                             const cmsis_nn_dims *filter_dims,
+                                                             const cmsis_nn_dims *output_dims,
+                                                             const cmsis_nn_dims *upscale_dims)
+{
+    const int64_t kernel_x = filter_dims->w;
+    const int64_t kernel_y = filter_dims->h;
+    const int64_t input_ch = input_dims->c;
+    return (upscale_dims == NULL) && (filter_dims->c == input_ch) && (input_ch >= 1) && (input_ch <= 3) &&
+        (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1) && (kernel_x >= 1) && (kernel_y >= 1) &&
+        (kernel_x * input_ch <= 16) && (kernel_x * kernel_y * input_ch <= 48) && (output_dims->c > 0) &&
+        ((output_dims->c & 3) == 0);
+}
+
+/**
+ * @brief The gate of arm_convolve_s8_3x3_c16_s1(): upscale_dims NULL, input and filter depth 16, a 3x3 kernel, and
+ *        stride and dilation 1. Plain C; it evaluates the same on every build.
+ *
+ * @param[in]   conv_params   Convolution parameters
+ * @param[in]   input_dims    Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]   filter_dims   Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
+ * @param[in]   upscale_dims  Upscale tensor dimensions, or NULL
+ *
+ * @return      1 when the layer is in the gate, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_3x3_c16_s1(const cmsis_nn_conv_params *conv_params,
+                                                              const cmsis_nn_dims *input_dims,
+                                                              const cmsis_nn_dims *filter_dims,
+                                                              const cmsis_nn_dims *upscale_dims)
+{
+    return (upscale_dims == NULL) && (input_dims->c == 16) && (filter_dims->c == 16) && (filter_dims->w == 3) &&
+        (filter_dims->h == 3) && (conv_params->stride.w == 1) && (conv_params->stride.h == 1) &&
+        (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1);
+}
+
+/**
+ * @brief The group check of arm_convolve_s8(), for its direct entries: with groups = C_IN / filter C, C_IN or C_OUT
+ *        is not a multiple of groups. A filter C of zero or above C_IN gives no group count and is not reported.
+ *
+ * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ *
+ * @return         1 when arm_convolve_s8() reports the group count as an argument error, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_convolve_s8_groups_invalid(const cmsis_nn_dims *input_dims,
+                                                               const cmsis_nn_dims *filter_dims,
+                                                               const cmsis_nn_dims *output_dims)
+{
+    const int32_t groups = filter_dims->c > 0 ? input_dims->c / filter_dims->c : 0;
+    return groups > 0 && (input_dims->c % groups != 0 || output_dims->c % groups != 0);
+}
+
+/**
+ * @brief Plane size in bytes that arm_nn_depthwise_conv_s8_planar() needs for a layer, or -1 when the layer is not
+ *        one it takes. The rule is plain C and evaluates the same on every build.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [1, H, W, C_IN]
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
+ *
+ * @return         The plane size in bytes, or -1.
+ */
+int32_t arm_nn_depthwise_conv_s8_planar_bytes(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *filter_dims,
+                                              const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief s8 depthwise convolution with channel multiplier 1 and stride 1, vectorized across the output pixels of
+ *        one channel plane instead of across channels. It serves the few-channel and 1xk layers of
+ *        arm_depthwise_conv_s8_opt(), with the same scratch buffer and weight sums.
+ *
+ * @param[in, out] ctx             Scratch buffer of arm_depthwise_conv_s8_opt_get_buffer_size() bytes
+ * @param[in]      weight_sum_ctx  Per-channel weight sums from arm_depthwise_convolve_weight_sum(), bias included
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      quant_params    Per-channel quantization parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [1, H, W, C_IN]
+ * @param[in]      input           Input data pointer
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      kernel          Filter data pointer
+ * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[out]     output          Output data pointer
+ *
+ * @return         <code>ARM_CMSIS_NN_SUCCESS</code> when the layer was computed, or
+ *                 <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> when it is not one this path takes or its plane does not
+ *                 fit in ctx->size (then nothing is written), or MVE is not available.
+ */
+arm_cmsis_nn_status arm_nn_depthwise_conv_s8_planar(const cmsis_nn_context *ctx,
+                                                    const cmsis_nn_context *weight_sum_ctx,
+                                                    const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                    const cmsis_nn_per_channel_quant_params *quant_params,
+                                                    const cmsis_nn_dims *input_dims,
+                                                    const int8_t *input,
+                                                    const cmsis_nn_dims *filter_dims,
+                                                    const int8_t *kernel,
+                                                    const cmsis_nn_dims *output_dims,
+                                                    int8_t *output);
+
+/**
  * @brief Depthwise convolution of transposed rhs matrix with 4 lhs matrices. To be used in non-padded cases. rhs
  * consists of packed int4 data. Dimensions are the same for lhs and rhs.
  *
@@ -1344,18 +1549,14 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
  * @param[in]      activation_max  Maximum value to clamp the output to. Range: int8
  * @param[in]       row_x_col       (row_dimension * col_dimension) of LHS/RHS matrix
  * @param[in]      output_bias     Per channel output bias. Length of vector is equal to number of channels.
- * @param[in]      out             Output pointer
+ * @param[out]     out             Output pointer
  *
  * @return         The function returns one of the two
  *                  - Updated output pointer if an implementation is available
  *                  - NULL if no implementation is available.
  *
- * @note           If number of channels is not a multiple of 4, upto 3 elements outside the boundary will be read
- * out for the following.
- *                  - Output shift
- *                  - Output multiplier
- *                  - Output bias
- *                  - rhs
+ * @note           Tail channel loads and stores are predicated, so channel-indexed arrays are not accessed beyond
+ *                @p active_ch.
  */
 arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s4(const int8_t *lhs,
                                                   const int8_t *rhs,
@@ -1384,18 +1585,14 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s4(const int8_t *lhs,
  * @param[in]      activation_max  Maximum value to clamp the output to. Range: int8
  * @param[in]       row_x_col       (row_dimension * col_dimension) of LHS/RHS matrix
  * @param[in]      output_bias     Per channel output bias. Length of vector is equal to number of channels.
- * @param[in]      out             Output pointer
+ * @param[out]     out             Output pointer
  *
  * @return         The function returns one of the two
  *                  - Updated output pointer if an implementation is available
  *                  - NULL if no implementation is available.
  *
- * @note           If number of channels is not a multiple of 4, upto 3 elements outside the boundary will be read
- * out for the following.
- *                  - Output shift
- *                  - Output multiplier
- *                  - Output bias
- *                  - rhs
+ * @note           Tail channel loads and stores are predicated, so channel-indexed arrays are not accessed beyond
+ *                @p num_ch.
  */
 int16_t *arm_nn_depthwise_conv_nt_t_s16(const int16_t *lhs,
                                         const int8_t *rhs,
@@ -1451,7 +1648,7 @@ arm_cmsis_nn_status arm_nn_transpose_conv_row_s8_s32(const int8_t *lhs,
 
 /**
   @brief         Read 2 s16 elements and post increment pointer.
-  @param[in]     in_q15   Pointer to pointer that holds address of input.
+  @param[in, out] in_q15  Pointer to pointer that holds address of input. Advanced past the elements read.
   @return        q31 value
  */
 __STATIC_FORCEINLINE int32_t arm_nn_read_q15x2_ia(const int16_t **in_q15)
@@ -1466,7 +1663,7 @@ __STATIC_FORCEINLINE int32_t arm_nn_read_q15x2_ia(const int16_t **in_q15)
 
 /**
   @brief         Read 4 s8 from s8 pointer and post increment pointer.
-  @param[in]     in_s8       Pointer to pointer that holds address of input.
+  @param[in, out] in_s8      Pointer to pointer that holds address of input. Advanced past the elements read.
   @return        q31 value
  */
 __STATIC_FORCEINLINE int32_t arm_nn_read_s8x4_ia(const int8_t **in_s8)
@@ -1480,7 +1677,7 @@ __STATIC_FORCEINLINE int32_t arm_nn_read_s8x4_ia(const int8_t **in_s8)
 
 /**
   @brief         Read 2 s8 from s8 pointer and post increment pointer.
-  @param[in]     in_s8    Pointer to pointer that holds address of input.
+  @param[in, out] in_s8   Pointer to pointer that holds address of input. Advanced past the elements read.
   @return        q31      value
  */
 __STATIC_FORCEINLINE int32_t arm_nn_read_s8x2_ia(const int8_t **in_s8)
@@ -1532,7 +1729,7 @@ __STATIC_FORCEINLINE int32_t arm_nn_read_s8x2(const int8_t *in_s8)
 
 /**
   @brief         Write four s8 to s8 pointer and increment pointer afterwards.
-  @param[in]     in       Double pointer to input value
+  @param[in, out] in      Double pointer to destination. Advanced past the bytes written.
   @param[in]     value    Four bytes to copy
  */
 __STATIC_FORCEINLINE void arm_nn_write_s8x4_ia(int8_t **in, int32_t value)
@@ -1599,6 +1796,9 @@ __STATIC_FORCEINLINE void arm_memset_s16(int16_t *dst, const int16_t val, uint32
 
 /**
  * @brief read and expand one s4 word into two s8 words.
+ * @param[in]      source          Pointer to two bytes holding four packed s4 values
+ * @param[out]     out1            First pair of expanded values, packed as two int16 lanes
+ * @param[out]     out2            Second pair of expanded values, packed as two int16 lanes
  */
 __STATIC_FORCEINLINE void read_and_pad_s4(const int8_t *source, int32_t *out1, int32_t *out2)
 {
@@ -1620,6 +1820,9 @@ __STATIC_FORCEINLINE void read_and_pad_s4(const int8_t *source, int32_t *out1, i
  *            1,          s4_2
  *            2,          s4_3
  *            2,          s4_x
+ * @param[in]      source          Pointer to three bytes holding the four unaligned packed s4 values
+ * @param[out]     out1            First pair of expanded values, packed as two int16 lanes
+ * @param[out]     out2            Second pair of expanded values, packed as two int16 lanes
  */
 __STATIC_FORCEINLINE void read_and_pad_s4_uneven(const int8_t *source, int32_t *out1, int32_t *out2)
 {
@@ -1632,6 +1835,9 @@ __STATIC_FORCEINLINE void read_and_pad_s4_uneven(const int8_t *source, int32_t *
 
 /**
  * @brief read and expand one s4 word into two s16 words with ordering.
+ * @param[in]      source          Pointer to two bytes holding four packed s4 values
+ * @param[out]     out1            First pair of expanded values, packed as two int16 lanes
+ * @param[out]     out2            Second pair of expanded values, packed as two int16 lanes
  */
 __STATIC_FORCEINLINE void read_and_pad_s4_ordered(const int8_t *source, int32_t *out1, int32_t *out2)
 {
@@ -1650,6 +1856,10 @@ __STATIC_FORCEINLINE void read_and_pad_s4_ordered(const int8_t *source, int32_t 
 
 /**
  * @brief read and expand one s8 word into two s16 words with ordering.
+ * @param[in]      source          Pointer to four s8 values
+ * @param[out]     out1            First pair of expanded values, packed as two int16 lanes
+ * @param[out]     out2            Second pair of expanded values, packed as two int16 lanes
+ * @return         <code>source</code> advanced by four bytes
  */
 __STATIC_FORCEINLINE const int8_t *read_and_pad(const int8_t *source, int32_t *out1, int32_t *out2)
 {
@@ -1670,6 +1880,10 @@ __STATIC_FORCEINLINE const int8_t *read_and_pad(const int8_t *source, int32_t *o
 
 /**
  * @brief read and expand one s8 word into two s16 words with ordering and addition.
+ * @param[in]      source          Pointer to four s8 values
+ * @param[out]     out1            First pair of expanded values plus <code>add</code>, packed as two int16 lanes
+ * @param[out]     out2            Second pair of expanded values plus <code>add</code>, packed as two int16 lanes
+ * @param[in]      add             Two packed int16 lanes added to each expanded pair
  */
 __STATIC_FORCEINLINE void read_pad_and_add_s8(const int8_t *source, int32_t *out1, int32_t *out2, const uint32_t add)
 {
@@ -1688,6 +1902,8 @@ __STATIC_FORCEINLINE void read_pad_and_add_s8(const int8_t *source, int32_t *out
 
 /**
  * @brief read and expand two bytes into one word with ordering.
+ * @param[in]      source          Pointer to two s8 values
+ * @param[out]     out             Expanded values, packed as two int16 lanes
  */
 __STATIC_FORCEINLINE void read_and_pad_s8x2(const int8_t *source, int32_t *out)
 {
@@ -1698,6 +1914,9 @@ __STATIC_FORCEINLINE void read_and_pad_s8x2(const int8_t *source, int32_t *out)
 
 /**
  * @brief read and expand two bytes into one word with ordering and addition.
+ * @param[in]      source          Pointer to two s8 values
+ * @param[out]     out             Expanded values plus <code>add</code>, packed as two int16 lanes
+ * @param[in]      add             Two packed int16 lanes added to the expanded pair
  */
 __STATIC_FORCEINLINE void read_pad_and_add_s8x2(const int8_t *source, int32_t *out, const uint32_t add)
 {
@@ -1708,6 +1927,9 @@ __STATIC_FORCEINLINE void read_pad_and_add_s8x2(const int8_t *source, int32_t *o
 
 /**
  * @brief read and expand one s8 word into two s16 words with no additional ordering.
+ * @param[in]      source          s8 value broadcast to all four lanes before expansion
+ * @param[out]     out1            First pair of expanded values, packed as two int16 lanes
+ * @param[out]     out2            Second pair of expanded values, packed as two int16 lanes
  */
 __STATIC_FORCEINLINE void read_and_pad_reordered_scalar(const int8_t source, int32_t *out1, int32_t *out2)
 {
@@ -1724,6 +1946,10 @@ __STATIC_FORCEINLINE void read_and_pad_reordered_scalar(const int8_t source, int
 
 /**
  * @brief read and expand one s8 word into two s16 words with no additional ordering.
+ * @param[in]      source          Pointer to four s8 values
+ * @param[out]     out1            First pair of expanded values, packed as two int16 lanes
+ * @param[out]     out2            Second pair of expanded values, packed as two int16 lanes
+ * @return         <code>source</code> advanced by four bytes
  */
 __STATIC_FORCEINLINE const int8_t *read_and_pad_reordered(const int8_t *source, int32_t *out1, int32_t *out2)
 {
@@ -2135,16 +2361,19 @@ __STATIC_FORCEINLINE int32_t arm_nn_requantize_s64(const int64_t val,
 }
 
 /**
- * @brief       Saturing left shift for int16_t
+ * @brief       Saturating left shift for int16_t
  * @param[in]   x       value to be shifted
- * @param[in]   shift   number of bits to shift
+ * @param[in]   shift   Nonpositive values return x; positive values multiply by 2^shift with s16 saturation.
  * @return      shifted value
  */
 __STATIC_FORCEINLINE int16_t arm_nn_sat_lshift_s16(int16_t x, int shift)
 {
     if (shift <= 0)
-        return x; // only used for positive shifts here
-    int32_t v = ((int32_t)x) << shift;
+        return x;
+    if (shift >= 15)
+        return x == 0 ? 0 : (x > 0 ? INT16_MAX : INT16_MIN);
+    // shift is 1..14, so the product fits int32_t even for INT16_MIN.
+    int32_t v = (int32_t)x * (1 << shift);
     v = ARM_NN_CLAMP(v, INT16_MAX, INT16_MIN);
     return (int16_t)v;
 }
@@ -2162,8 +2391,9 @@ __STATIC_FORCEINLINE int16_t arm_nn_sqrdmulh_s16(int16_t a, int16_t b)
     if ((a == INT16_MIN) && (b == INT16_MIN))
         return INT16_MAX;
     int32_t ab = (int32_t)a * (int32_t)b; /* Q0.15 * Q0.15 -> Q0.30 */
-    int32_t r = (ab << 1) + (1 << 15);    /* doubling + rounding */
-    r >>= 16;                             /* back to Q0.15 */
+    // Excluding INT16_MIN * INT16_MIN, doubling and rounding both fit int32_t.
+    int32_t r = ab * 2 + (1 << 15); /* doubling + rounding */
+    r >>= 16;                       /* back to Q0.15 */
     r = ARM_NN_CLAMP(r, INT16_MAX, INT16_MIN);
     return (int16_t)r;
 }
@@ -2293,6 +2523,21 @@ __STATIC_FORCEINLINE int32x4_t arm_divide_by_power_of_two_mve(const int32x4_t di
 }
 
 /**
+ * @brief           Vector rounding divide by a non-zero power of two for int32x4_t.
+ * @param[in]       dividend - Dividend vector
+ * @param[in]       neg_exp  - Negated exponent in every lane: divisor = power(2, -neg_exp)
+ *                             Range: [-31, -1]
+ * @return          Rounded result of division. Midpoint is rounded away from zero. Equal to
+ *                  arm_divide_by_power_of_two_mve() for the same exponent, whose fixup reduces to the sign of the
+ *                  dividend when the exponent is non-zero.
+ *
+ */
+__STATIC_FORCEINLINE int32x4_t arm_divide_by_nonzero_power_of_two_mve(const int32x4_t dividend, const int32x4_t neg_exp)
+{
+    return vrshlq_s32(vqaddq_s32(dividend, vshrq_n_s32(dividend, 31)), neg_exp);
+}
+
+/**
  * @brief           Vector rounding divide by power of two for int16x8_t.
  * @param[in]       dividend - Dividend vector
  * @param[in]       exponent - Divisor = power(2, exponent)
@@ -2412,11 +2657,26 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve_pred(const int32x4_t val,
     #endif
 }
 
+/**
+ * @brief           Vector saturating doubling high multiply returning high half, with a per-lane multiplier.
+ * @param[in]       m1        Multiplicand
+ * @param[in]       m2        Multiplier vector
+ * @return          Result of multiplication.
+ *
+ */
 __STATIC_FORCEINLINE int32x4_t arm_doubling_high_mult_mve_32x4(const int32x4_t m1, const int32x4_t m2)
 {
     return vqrdmulhq_s32(m1, m2);
 }
 
+/**
+ * @brief           Vector rounding divide by power of two, with a per-lane exponent.
+ * @param[in]       dividend - Dividend vector
+ * @param[in]       exponent - Vector of exponents. Divisor per lane = power(2, exponent)
+ *                             Range: [0, 31]
+ * @return          Rounded result of division. Midpoint is rounded away from zero.
+ *
+ */
 __STATIC_FORCEINLINE int32x4_t arm_divide_by_power_of_two_mve_32x4(const int32x4_t dividend, const int32x4_t exponent)
 {
     const int32x4_t shift = -exponent;
@@ -2425,6 +2685,15 @@ __STATIC_FORCEINLINE int32x4_t arm_divide_by_power_of_two_mve_32x4(const int32x4
     return vrshlq_s32(fixed_up_dividend, shift);
 }
 
+/**
+ * @brief           Requantize a given vector with per-lane multiplier and shift.
+ * @param[in]       val         Vector to be requantized
+ * @param[in]       multiplier  Vector of multipliers
+ * @param[in]       shift       Vector of shifts
+ *
+ * @return          Returns (val * multiplier)/(2 ^ shift) per lane. See arm_nn_requantize for details.
+ *
+ */
 __STATIC_FORCEINLINE int32x4_t arm_requantize_mve_32x4(const int32x4_t val,
                                                        const int32x4_t multiplier,
                                                        const int32x4_t shift)
@@ -2485,6 +2754,12 @@ __STATIC_FORCEINLINE int8x16_t arm_narrow_mve_from_int32x4x4_to_int8x16(int32x4_
 
 // @note The following functions are used only for softmax layer, scaled bits = 5 assumed
 
+/**
+ * @brief           Fixed-point exp() of a non-positive value.
+ * @param[in]       val         Input in Q5.26 fixed point. Must be less than or equal to 0
+ * @return          exp(val) in Q0.31 fixed point. Returns NN_Q31_MAX when <code>val</code> is 0.
+ *
+ */
 __STATIC_FORCEINLINE int32_t arm_nn_exp_on_negative_values(int32_t val)
 {
     int32_t mask = 0;
@@ -2518,6 +2793,13 @@ __STATIC_FORCEINLINE int32_t arm_nn_exp_on_negative_values(int32_t val)
     return SELECT_USING_MASK(mask, NN_Q31_MAX, result);
 }
 
+/**
+ * @brief           Saturating multiply by a power of two.
+ * @param[in]       val         Value to be multiplied
+ * @param[in]       exp         Exponent. Multiplier = power(2, exp)
+ * @return          val * 2^exp saturated to the int32 range
+ *
+ */
 __STATIC_FORCEINLINE int32_t arm_nn_mult_by_power_of_two(const int32_t val, const int32_t exp)
 {
     const int32_t thresh = ((1 << (31 - exp)) - 1);
@@ -2527,6 +2809,12 @@ __STATIC_FORCEINLINE int32_t arm_nn_mult_by_power_of_two(const int32_t val, cons
     return result;
 }
 
+/**
+ * @brief           Fixed-point 1 / (1 + x) for x in [0, 1), computed with Newton-Raphson iterations.
+ * @param[in]       val         x in Q0.31 fixed point. Range: [0, NN_Q31_MAX]
+ * @return          1 / (1 + x) in Q0.31 fixed point
+ *
+ */
 __STATIC_FORCEINLINE int32_t arm_nn_one_over_one_plus_x_for_x_in_0_1(int32_t val)
 {
     const int64_t sum = (int64_t)val + (int64_t)NN_Q31_MAX;
@@ -2545,7 +2833,8 @@ __STATIC_FORCEINLINE int32_t arm_nn_one_over_one_plus_x_for_x_in_0_1(int32_t val
 
 /**
   @brief         Write 2 s16 elements and post increment pointer.
-  @param[in]     dest_q15  Pointer to pointer that holds address of destination.
+  @param[in, out] dest_q15 Pointer to pointer that holds address of destination. Advanced past the elements
+                          written.
   @param[in]     src_q31   Input value to be written.
  */
 __STATIC_FORCEINLINE void arm_nn_write_q15x2_ia(int16_t **dest_q15, int32_t src_q31)
@@ -2558,7 +2847,7 @@ __STATIC_FORCEINLINE void arm_nn_write_q15x2_ia(int16_t **dest_q15, int32_t src_
 
 /**
   @brief         Write 2 s8 elements and post increment pointer.
-  @param[in]     dst  Pointer to pointer that holds address of destination.
+  @param[in, out] dst Pointer to pointer that holds address of destination. Advanced past the elements written.
   @param[in]     src  Input value to be written.
  */
 __STATIC_FORCEINLINE void arm_nn_write_s8x2_ia(int8_t **dst, int16_t src)
@@ -2619,7 +2908,7 @@ __STATIC_FORCEINLINE size_t arm_cmsis_nn_shape_product(const int32_t *shape, int
  * @param[out]  hidden_out                      Hidden state/ recurrent output pointer
  * @param[in]   params                          Struct containg all information about the lstm operator, see
  * arm_nn_types.
- * @param[in]   buffers                         Struct containg pointers to all temporary scratch buffers needed for the
+ * @param[in, out] buffers                      Struct containg pointers to all temporary scratch buffers needed for the
  * lstm operator, see arm_nn_types.
  * @param[in]   batch_offset                    Number of timesteps between consecutive batches.
  * E.g for params->timing_major = true, all batches for t=0 are stored sequentially, so batch offset = 1.
@@ -2643,7 +2932,7 @@ arm_cmsis_nn_status arm_nn_lstm_step_s8(const int8_t *data_in,
  * @param[out]  hidden_out                      Hidden state/ recurrent output pointer
  * @param[in]   params                          Struct containg all information about the lstm operator, see
  * arm_nn_types.
- * @param[in]   buffers                         Struct containg pointers to all temporary scratch buffers needed for the
+ * @param[in, out] buffers                      Struct containg pointers to all temporary scratch buffers needed for the
  * lstm operator, see arm_nn_types.
  * @param[in]   batch_offset                    Number of timesteps between consecutive batches.
  * E.g for params->timing_major = true, all batches for t=0 are stored sequentially, so batch offset = 1.
@@ -2903,6 +3192,62 @@ __STATIC_FORCEINLINE int32_t arm_reduce_get_flatten_suffix_start_from_arrays(con
         return (union_mask & 0x1) == 0x1 ? 3 : -1;
     }
     return -1;
+}
+
+/**
+ * @brief Reports whether the reduced axes of a 4-D tensor form one contiguous block followed by kept axes, as in a
+ *        NHWC mean over H and W, and gives the flattened sizes. Axes of size 1 are ignored.
+ *
+ * @param[in]  in_dims   4-element array {n, h, w, c}
+ * @param[in]  axis_arr  4-element mask {axis_n, axis_h, axis_w, axis_c}
+ * @param[out] outer     Product of the dims before the reduced block
+ * @param[out] reduce    Product of the reduced dims
+ * @param[out] inner     Product of the dims after the reduced block
+ * @return  1 if the input is [outer, reduce, inner] with the middle dim reduced and inner > 1, otherwise 0
+ */
+__STATIC_FORCEINLINE int32_t arm_reduce_get_middle_block_from_arrays(const int32_t in_dims[4],
+                                                                     const int32_t axis_arr[4],
+                                                                     int32_t *outer,
+                                                                     int32_t *reduce,
+                                                                     int32_t *inner)
+{
+    int32_t first = -1;
+    int32_t last = -1;
+    for (int32_t d = 0; d < 4; ++d)
+    {
+        if (axis_arr[d] && in_dims[d] > 1)
+        {
+            first = first < 0 ? d : first;
+            last = d;
+        }
+    }
+    if (first < 0)
+    {
+        return 0;
+    }
+    *outer = 1;
+    *reduce = 1;
+    *inner = 1;
+    for (int32_t d = 0; d < 4; ++d)
+    {
+        if (d < first)
+        {
+            *outer *= in_dims[d];
+        }
+        else if (d > last)
+        {
+            *inner *= in_dims[d];
+        }
+        else if (axis_arr[d])
+        {
+            *reduce *= in_dims[d];
+        }
+        else if (in_dims[d] > 1)
+        {
+            return 0;
+        }
+    }
+    return *inner > 1;
 }
 
 #ifdef __cplusplus

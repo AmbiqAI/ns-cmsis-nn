@@ -38,7 +38,7 @@ DEPRECATED_ALIASES = [
 ]
 
 # Renamed/final group knobs. Must match the right-hand side of the
-# translation table in zephyr/CMakeLists.txt (verified by the wiring test).
+# option mapping used by zephyr/CMakeLists.txt (verified by the wiring test).
 RENAMED_KNOBS = [
     "ACTIVATION",
     "BASICMATHSNN",

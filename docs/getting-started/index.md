@@ -25,7 +25,7 @@ build setting, and verification step for that workflow.
 <a class="path-choice" href="cmake.html">
 <span class="path-choice-label">You own a CMake firmware build</span>
 <strong>Use the CMake package</strong>
-<span>Download the per-CPU tarball, add it to your prefix path, and link the exported <code>nsx::cmsis_nn</code> target.</span>
+<span>Download the per-CPU tarball, add it to your prefix path, and link the exported <code>ns::cmsis-nn</code> target.</span>
 <em>Open CMake guide</em>
 </a>
 

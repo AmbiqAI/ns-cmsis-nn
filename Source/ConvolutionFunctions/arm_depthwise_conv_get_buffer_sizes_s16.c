@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: Copyright 2023 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -42,7 +43,7 @@
 __STATIC_INLINE int32_t arm_depthwise_conv_fast_s16_get_buffer_size_mve(const cmsis_nn_dims *input_dims,
                                                                         const cmsis_nn_dims *filter_dims)
 {
-    /* The + 8 accounts for a worst case out of bounds read of the lhs buffers in the *_nt_t_* function.  */
+    /* The kernel reads only the im2col rows; the + 8 is kept so the size reported to callers does not change.  */
     // Folded one factor at a time so the accumulator stays bounded: a chained (int64_t) product of four int32_t
     // dims can itself wrap back to a small non-negative value.
     int64_t required_bytes = arm_nn_size_mul(4, input_dims->c);
@@ -92,11 +93,9 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size(const cmsis_nn_dw_conv_pa
                                                        const cmsis_nn_dims *filter_dims,
                                                        const cmsis_nn_dims *output_dims)
 {
-    (void)output_dims;
-
     int32_t size = 0;
 
-    if (USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims))
+    if (USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims, output_dims))
     {
         size = arm_depthwise_conv_fast_s16_get_buffer_size(input_dims, filter_dims);
     }
@@ -109,11 +108,9 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
                                                            const cmsis_nn_dims *filter_dims,
                                                            const cmsis_nn_dims *output_dims)
 {
-    (void)output_dims;
-
     int32_t size = 0;
 
-    if (USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims))
+    if (USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims, output_dims))
     {
         size = arm_depthwise_conv_fast_s16_get_buffer_size_mve(input_dims, filter_dims);
     }
@@ -126,11 +123,9 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_dsp(const cmsis_nn_dw_con
                                                            const cmsis_nn_dims *filter_dims,
                                                            const cmsis_nn_dims *output_dims)
 {
-    (void)output_dims;
-
     int32_t size = 0;
 
-    if (USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims))
+    if (USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims, output_dims))
     {
         size = arm_depthwise_conv_fast_s16_get_buffer_size_dsp(input_dims, filter_dims);
     }

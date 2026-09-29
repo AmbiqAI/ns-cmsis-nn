@@ -21,6 +21,26 @@ toolchain versions that differ from the release.
 | Released prebuilt tarballs | Match your project compiler: `atfe`, `armclang`, or `gcc` | The CMake package validates compiler ID and CPU flags against the selected archive. |
 | Existing GCC-based firmware | GNU Arm Embedded | Keep using GCC when that is the qualified project compiler, but treat ATfE as the performance-forward migration path. |
 
+## `float16` format
+
+`float16_t` is IEEE 754 binary16 on every toolchain. ATfE and armclang only
+offer IEEE, and GCC refuses the alternative format when a Cortex-M55 or
+Cortex-M85 floating-point unit is enabled. Other GCC builds (cores without FP16
+arithmetic, or Cortex-M55/M85 with `-mfloat-abi=soft` or `+nofp`) choose the
+format with a compiler option: pass `-mfp16-format=ieee` when enabling
+`float16`. The Arm alternative format (`-mfp16-format=alternative`) has no NaN
+or infinity encodings and is rejected at compile time by
+`arm_nn_math_types_flt.h`.
+
+`float16` is qualified with MVE. No Ambiq product ships Cortex-M55 without
+MVE, and `float16` without MVE is not an expected configuration. As a safeguard,
+a GCC `float16` build for Armv8.1-M without MVE (for example `cortex-m55+nomve`)
+is rejected on GCC before 15.3: Arm GNU Toolchain 13.2 through 15.2 compile
+scalar half-precision loads and stores there to Advanced SIMD encodings that
+are undefined on M-profile. MVE builds and `+nomve.fp` builds are unaffected,
+and a no-MVE build with GCC 15.3 or a Clang-based compiler is not
+runtime-qualified.
+
 ## `float16` and the MVE half/single conversions
 
 Three `float16` kernels convert between half and single precision:
@@ -196,7 +216,7 @@ this section summarizes.
 
 Each tarball contains a `manifest.json` recording the identity of the archive.
 Its `"version"` field is the heliaCORE release the archive was built from:
-tarballs for this release carry `"version": "7.33.1"`. <!-- x-release-please-version -->
+tarballs for this release carry `"version": "7.37.0"`. <!-- x-release-please-version -->
 
 The example below is trimmed. The `"version"` field is left out on purpose, so
 the block stays valid JSON that no release has to edit; the `"features"`,

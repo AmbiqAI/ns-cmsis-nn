@@ -309,7 +309,7 @@ jobs:
           gh-pages-branch: ""
           gh-pages-deploy: ""
 
-      - name: Verify pack artefact name
+      - name: Verify pack artefact name and license files
         shell: bash
         run: |
           set -euo pipefail
@@ -343,6 +343,7 @@ jobs:
             exit 1
           fi
           echo "OK: ${name} matches the pack row of ci/release-assets.json"
+          python3 scripts/check_pack_license_paths.py "${packs[0]}"
 
       - name: Upload pack artefact
         uses: actions/upload-artifact@v7

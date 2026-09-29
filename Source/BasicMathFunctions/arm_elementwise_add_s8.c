@@ -50,6 +50,73 @@
 
 /* Note: __SHIFT is expected to be <=0 */
 
+#if defined(ARM_MATH_MVEI) && !defined(CMSIS_NN_USE_SINGLE_ROUNDING)
+/* MVE add for input shifts in [-31, 0], left_shift in [0, 31] and out_shift in [-31, -1]: each
+ * requantization is arm_requantize_mve with its zero left shift and, for a zero input shift, its
+ * identity divide removed. in_1_div/in_2_div are compile-time constants at every call site. */
+__STATIC_FORCEINLINE void arm_elementwise_add_s8_mve(const int8_t *input_1_vect,
+                                                     const int8_t *input_2_vect,
+                                                     const int32_t input_1_offset,
+                                                     const int32_t input_1_mult,
+                                                     const int32_t input_1_shift,
+                                                     const int32_t input_2_offset,
+                                                     const int32_t input_2_mult,
+                                                     const int32_t input_2_shift,
+                                                     const int32_t left_shift,
+                                                     int8_t *output,
+                                                     const int32_t out_offset,
+                                                     const int32_t out_mult,
+                                                     const int32_t out_shift,
+                                                     const int32_t out_activation_min,
+                                                     const int32_t out_activation_max,
+                                                     int32_t count,
+                                                     const int in_1_div,
+                                                     const int in_2_div)
+{
+    const int32x4_t neg_exp_1 = vdupq_n_s32(input_1_shift);
+    const int32x4_t neg_exp_2 = vdupq_n_s32(input_2_shift);
+    const int32x4_t neg_exp_out = vdupq_n_s32(out_shift);
+    const int32x4_t act_min = vdupq_n_s32(out_activation_min);
+    const int32x4_t act_max = vdupq_n_s32(out_activation_max);
+
+    while (count > 0)
+    {
+        const mve_pred16_t p = vctp32q((uint32_t)count);
+
+        int32x4_t vect_1 = vldrbq_z_s32(input_1_vect, p);
+        int32x4_t vect_2 = vldrbq_z_s32(input_2_vect, p);
+
+        vect_1 = vshlq_r_s32(vaddq_n_s32(vect_1, input_1_offset), left_shift);
+        vect_2 = vshlq_r_s32(vaddq_n_s32(vect_2, input_2_offset), left_shift);
+
+        vect_1 = vqrdmulhq_n_s32(vect_1, input_1_mult);
+        vect_2 = vqrdmulhq_n_s32(vect_2, input_2_mult);
+        if (in_1_div)
+        {
+            vect_1 = arm_divide_by_nonzero_power_of_two_mve(vect_1, neg_exp_1);
+        }
+        if (in_2_div)
+        {
+            vect_2 = arm_divide_by_nonzero_power_of_two_mve(vect_2, neg_exp_2);
+        }
+
+        vect_1 = vaddq_s32(vect_1, vect_2);
+        vect_1 = arm_divide_by_nonzero_power_of_two_mve(vqrdmulhq_n_s32(vect_1, out_mult), neg_exp_out);
+        vect_1 = vaddq_n_s32(vect_1, out_offset);
+
+        vect_1 = vmaxq_s32(vect_1, act_min);
+        vect_1 = vminq_s32(vect_1, act_max);
+
+        vstrbq_p_s32(output, vect_1, p);
+
+        input_1_vect += 4;
+        input_2_vect += 4;
+        output += 4;
+        count -= 4;
+    }
+}
+#endif
+
 arm_cmsis_nn_status arm_elementwise_add_s8(const int8_t *input_1_vect,
                                            const int8_t *input_2_vect,
                                            const int32_t input_1_offset,
@@ -68,6 +135,49 @@ arm_cmsis_nn_status arm_elementwise_add_s8(const int8_t *input_1_vect,
                                            const int32_t block_size)
 {
 #if defined(ARM_MATH_MVEI)
+    #if !defined(CMSIS_NN_USE_SINGLE_ROUNDING)
+    if (input_1_shift <= 0 && input_1_shift >= -31 && input_2_shift <= 0 && input_2_shift >= -31 && left_shift >= 0 &&
+        left_shift <= 31 && out_shift < 0 && out_shift >= -31)
+    {
+        #define ARM_ADD_S8_MVE_CALL(div_1, div_2)                                                                      \
+            arm_elementwise_add_s8_mve(input_1_vect,                                                                   \
+                                       input_2_vect,                                                                   \
+                                       input_1_offset,                                                                 \
+                                       input_1_mult,                                                                   \
+                                       input_1_shift,                                                                  \
+                                       input_2_offset,                                                                 \
+                                       input_2_mult,                                                                   \
+                                       input_2_shift,                                                                  \
+                                       left_shift,                                                                     \
+                                       output,                                                                         \
+                                       out_offset,                                                                     \
+                                       out_mult,                                                                       \
+                                       out_shift,                                                                      \
+                                       out_activation_min,                                                             \
+                                       out_activation_max,                                                             \
+                                       block_size,                                                                     \
+                                       (div_1),                                                                        \
+                                       (div_2))
+        if (input_1_shift == 0 && input_2_shift == 0)
+        {
+            ARM_ADD_S8_MVE_CALL(0, 0);
+        }
+        else if (input_2_shift == 0)
+        {
+            ARM_ADD_S8_MVE_CALL(1, 0);
+        }
+        else if (input_1_shift == 0)
+        {
+            ARM_ADD_S8_MVE_CALL(0, 1);
+        }
+        else
+        {
+            ARM_ADD_S8_MVE_CALL(1, 1);
+        }
+        #undef ARM_ADD_S8_MVE_CALL
+        return (ARM_CMSIS_NN_SUCCESS);
+    }
+    #endif
     int32_t count = block_size;
 
     while (count > 0)

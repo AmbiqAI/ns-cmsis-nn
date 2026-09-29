@@ -1,0 +1,23 @@
+---
+// SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+import type { ReferenceModel } from '@ambiqai/helia-ui/reference-model';
+import { buildRefIndex } from '@ambiqai/helia-ui/ref-index-model';
+import reference from '../../public/reference/api/reference.json';
+import { groups } from '../../reference.config.json';
+import ReferenceBrowser from '@ambiqai/helia-ui/astro/ReferenceBrowser';
+
+const rows = buildRefIndex(reference as ReferenceModel, { base: '/ns-cmsis-nn/', groups })
+  .filter((row) => row.facets.headers?.some((header) => /^arm_nnfunctions.*\.h$/.test(header)));
+---
+
+<ReferenceBrowser
+  rows={rows}
+  label="Find a kernel"
+  nameLabel="Function"
+  itemsLabel="functions"
+  placeholder="Function, group or data type…"
+  filters={[
+    { id: 'group', label: 'Operator group', values: [...new Set(rows.map(row => row.group))].sort() },
+    { id: 'dtypes', label: 'Data type', values: [...new Set(rows.flatMap(row => row.facets.dtypes ?? []))].sort() },
+  ]}
+/>

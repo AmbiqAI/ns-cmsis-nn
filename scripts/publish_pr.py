@@ -31,7 +31,7 @@ def publish(number, repo, remote, expect_head, dry_run=False):
     if len(urls) != 1:
         raise ValueError("Expected exactly one push URL; multiple destinations are unsupported.")
     url = urls[0]
-    match = re.fullmatch(r"(?:git@github\.com:|https://github\.com/)(.+?)(?:\.git)?", url)
+    match = re.fullmatch(r"(?:git@github\.com:|https://github\.com/|ssh://git@github\.com/)(.+?)(?:\.git)?", url)
     if not match or match.group(1).lower() != repo.lower():
         raise ValueError("Push remote does not match the PR repository.")
     branch = info["headRefName"]

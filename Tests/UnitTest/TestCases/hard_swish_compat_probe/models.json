@@ -1,0 +1,176 @@
+{
+  "litert": "2.1.6",
+  "numpy": "2.5.1",
+  "resolver": "BUILTIN_REF",
+  "input": "int8 ramp -128..127, shape [1,256]",
+  "cases": [
+    {
+      "model": "case0.tflite",
+      "sha256": "f0d62a554f016093902545d5ae5e14b088cb475dc5adcdfa7ce0fad78204c5df",
+      "input_quant": [
+        0.125,
+        0
+      ],
+      "output_quant": [
+        0.125,
+        0
+      ],
+      "params": [
+        0,
+        0,
+        16384,
+        -6,
+        21845,
+        4
+      ],
+      "output_sha256": "e564dd7f2765303b02bda605e8d7649010c7dbdd4c3e1c70d7bb59f3da3b3777"
+    },
+    {
+      "model": "case1.tflite",
+      "sha256": "b26a8bf8cb0747c50065162b6289dc5006fe7a8f722ed0f4d558a675f7f6b4e4",
+      "input_quant": [
+        0.0625,
+        -11
+      ],
+      "output_quant": [
+        0.03125,
+        7
+      ],
+      "params": [
+        -11,
+        7,
+        16384,
+        -5,
+        21845,
+        3
+      ],
+      "output_sha256": "c9b8c6faec76da2728a0055a0254404c72d76f8c48216163b14003a84c2a6c19"
+    },
+    {
+      "model": "case2.tflite",
+      "sha256": "e197464f41054a22e67db32fcc7dc218562ad3ac8b9c6bb7590c84ca59b43ebe",
+      "input_quant": [
+        0.03125,
+        27
+      ],
+      "output_quant": [
+        0.015625,
+        -17
+      ],
+      "params": [
+        27,
+        -17,
+        16384,
+        -5,
+        21845,
+        2
+      ],
+      "output_sha256": "b01cb058278d0c1ba870bc1e8d472c2e330dc7f1c3617d45afd4657564315a6c"
+    },
+    {
+      "model": "case3.tflite",
+      "sha256": "8e80c9d9d46b22b918b4811631c1b3fdc3f8c5f7ada1578b52be7e444b97059e",
+      "input_quant": [
+        0.019999999552965164,
+        0
+      ],
+      "output_quant": [
+        0.009999999776482582,
+        0
+      ],
+      "params": [
+        0,
+        0,
+        16384,
+        -5,
+        27962,
+        1
+      ],
+      "output_sha256": "3fa01148a3aa9e95ef4936c3ac5292182f7809a4bc4e83b328670f736de3a7b0"
+    },
+    {
+      "model": "case4.tflite",
+      "sha256": "96087d9ebeb1cb381ecaac6a3a8cf5b75ff23d5ffb3e7651bb47fea0958c268c",
+      "input_quant": [
+        0.125,
+        -128
+      ],
+      "output_quant": [
+        0.125,
+        -128
+      ],
+      "params": [
+        -128,
+        -128,
+        16384,
+        -6,
+        21845,
+        4
+      ],
+      "output_sha256": "d88a5250c3295841a70eca1488f2160de94fb94416c3cebc36dc8776ca16b99e"
+    },
+    {
+      "model": "case5.tflite",
+      "sha256": "a936d382939bdfbc1a986e4c711a9f4926ed420fa0d31de1122909f5e57c2b4c",
+      "input_quant": [
+        0.125,
+        127
+      ],
+      "output_quant": [
+        0.125,
+        127
+      ],
+      "params": [
+        127,
+        127,
+        16384,
+        -6,
+        21845,
+        4
+      ],
+      "output_sha256": "3143502835524e940eb6609bb211d70db1374aa431a6db9ca497594b5d289f9c"
+    },
+    {
+      "model": "case6.tflite",
+      "sha256": "b45409a4db45dc1bd3855e0f4a07fb306b94c2aae221bc761e835a5314cfda6f",
+      "input_quant": [
+        0.0078125,
+        0
+      ],
+      "output_quant": [
+        0.0078125,
+        0
+      ],
+      "params": [
+        0,
+        0,
+        16384,
+        -6,
+        21845,
+        0
+      ],
+      "output_sha256": "3d45dfd411c80cf1f9b4a894dacd3979797a38ebc152ad454f8c9c5060a3651c"
+    },
+    {
+      "model": "case7.tflite",
+      "sha256": "3188b02dfa8f04502354cd9f2321248b1d778ec182ab62758cd06800ab607925",
+      "input_quant": [
+        0.00390625,
+        0
+      ],
+      "output_quant": [
+        0.00390625,
+        0
+      ],
+      "params": [
+        0,
+        0,
+        16384,
+        -6,
+        21845,
+        -1
+      ],
+      "output_sha256": "afc0d95994b8471e4a3f7d6b9caf915029b1b9e4a48c7cf63c27ae4f1ceaf6de"
+    }
+  ]
+}

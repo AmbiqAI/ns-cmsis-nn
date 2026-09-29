@@ -1,0 +1,123 @@
+---
+title: Kernel benchmarks
+description: See where Helium reduces kernel execution time, how we validate results, and what PMU counters reveal.
+---
+
+import BigNumber from '@ambiqai/helia-ui/astro/BigNumber';
+import CardGrid from '@ambiqai/helia-ui/astro/CardGrid';
+import LinkCard from '@ambiqai/helia-ui/astro/LinkCard';
+import BenchmarkTable from '../../../../components/BenchmarkTable.astro';
+import BenchmarkSpotlight from '../../../../components/BenchmarkSpotlight.astro';
+import BenchmarkOverviewPlots from '../../../../components/BenchmarkOverviewPlots.astro';
+import { CONVOLUTION_KERNELS, ELEMENTWISE_KERNELS, BENCHMARK_SUMMARY as summary } from '../../../../data/kernel-benchmarks';
+
+heliaCORE puts Arm Helium to work across compute-heavy layers and the smaller
+operations between them. These measurements compare its MVE, DSP, and portable C
+(REF) implementations on the same Ambiq Apollo510 EVB.
+
+## Faster across the measured workloads
+
+<CardGrid columns={3}>
+  <BigNumber label="MVE versus REF" caption="Geometric-mean speedup across the 28 workloads">{Number(summary.refToMve.toPrecision(1))}×</BigNumber>
+  <BigNumber label="MVE versus DSP" caption="Geometric-mean speedup across the same workloads">{Number(summary.dspToMve.toPrecision(1))}×</BigNumber>
+  <BigNumber label="MVE uses fewer cycles" caption="Than both REF and DSP in this measured set">{summary.mveWins}/{summary.count}</BigNumber>
+</CardGrid>
+
+Equal-weight geometric means across 28 integer workloads. Kernel results, not
+whole-model speedups. [Measurement conditions](../methodology/#conditions-of-the-published-measurements).
+
+**Apollo510 EVB · Cortex-M55 · 96 MHz LP · GCC 14.3.0.** Average cycles over 100 calls;
+REF is compiled portable C and may contain compiler-generated target instructions.
+
+<BenchmarkOverviewPlots />
+
+## Accelerate more of the inference graph
+
+Two examples from the measured set. Shorter bars mean fewer cycles.
+
+<CardGrid columns={2}>
+  <BenchmarkSpotlight row={CONVOLUTION_KERNELS[0]} title="Convolution" description="Full s8 convolution, including im2col. The largest speedup in this set." />
+  <BenchmarkSpotlight row={ELEMENTWISE_KERNELS[12]} title="Tensor comparisons" description="Comparing 4,096 tensor values, beyond the large compute layers." />
+</CardGrid>
+
+Explore [operator coverage](../../coverage/operator-coverage/) for indexing,
+broadcast, reduction, and recurrent APIs beyond this measurement set.
+
+## Helium for DSP, ML, and AI workloads
+
+MVE brings vector arithmetic to Cortex-M: a single instruction can operate on
+multiple values, while predication controls which lanes participate. These
+features serve signal processing and machine learning as well as the neural
+network kernels measured here.
+
+| Work in an application | Useful MVE capability | Practical benefit |
+|---|---|---|
+| Filtering, transforms, and feature preparation | Vector arithmetic and multiply-accumulate | Processes groups of samples together in implementations designed for MVE. |
+| Quantized and floating-point neural layers | Integer and floating-point vector operations | Accelerates supported arithmetic without changing the model's chosen numeric format. |
+| Tensor operations and irregular lengths | Predicated loads, stores, and arithmetic | Handles partial vectors while keeping useful work in the vector path. |
+
+These are architectural capabilities, not additional heliaCORE benchmark claims.
+See [Arm's Helium introduction](https://www.arm.com/technologies/helium) and
+[tail-predication explanation](https://developer.arm.com/community/arm-research/b/articles/posts/making-helium-bringing-amdahl-s-law-to-heel).
+Use [Acceleration](../../architecture/acceleration-paths/) to select and verify
+an implementation. Fewer cycles can free processing time for other work; energy
+and power benefits require separate measurements.
+
+## Correctness before performance
+
+[helia-core-tester](https://github.com/AmbiqAI/helia-core-tester) supplies generated
+integer and floating-point test cases, reference-output comparisons, FVP execution,
+and real-board correctness and performance capture. This lets us examine numeric
+behavior and execution cost together, rather than treating a successful build as
+a validated kernel.
+
+<CardGrid columns={3}>
+  <LinkCard title="Check the result" href="../validation/#reference-output-checks">Compare integer and float outputs with reference data, including defined tolerances and edge cases.</LinkCard>
+  <LinkCard title="Challenge the tests" href="../validation/#mutation-testing">Inject deliberate kernel faults and check that the tests detect them.</LinkCard>
+  <LinkCard title="Measure on the target" href="../validation/#hardware-evidence">Pair correctness results with hardware cycles, PMU samples, and capture metadata.</LinkCard>
+</CardGrid>
+
+The [validation guide](../validation/) describes these methods and how to read
+run evidence. Available test infrastructure does not imply every function, shape,
+or compiler configuration has passed a hardware run.
+
+## See what MVE is doing
+
+Timing answers “how long?” PMU counters help explain what happened during the call.
+helia-core-tester supports selecting named MVE events for hardware capture:
+
+| Question | Counter | What it tells you |
+|---|---|---|
+| Did the timed code execute vector instructions? | `MVE_INST_RETIRED` | Architecturally executed MVE instructions. |
+| Is vector work waiting on memory resources? | `MVE_STALL_RESOURCE_MEM` | Cycles stalled by MVE memory resource conflicts. |
+| Is predication active? | `MVE_PRED` | Cycles with one or more predicated beats executing. |
+
+These counters explain a workload; they are not utilization percentages. A high
+instruction count is not inherently better, and predication events do not report
+the percentage of active lanes. The cycle dataset above has no accompanying PMU
+samples. [Capture and interpret MVE counters](../methodology/#capture-mve-counters)
+with the tester when investigating your own kernels.
+
+## Explore the individual results
+
+Open a group to inspect and sort the measurements. The same data drives the
+summary cards, comparisons, and downloadable file.
+
+<a href="/ns-cmsis-nn/downloads/kernel-benchmarks.csv" download>Download all 28 measurements as CSV</a>
+
+<details>
+<summary>Convolution, matrix multiplication, and pooling · 14 workloads</summary>
+<BenchmarkTable rows={CONVOLUTION_KERNELS} caption="Convolution, matrix multiplication, and pooling results" />
+</details>
+
+<details>
+<summary>Elementwise arithmetic and comparisons · 14 workloads</summary>
+<BenchmarkTable rows={ELEMENTWISE_KERNELS} caption="Elementwise and comparison results" />
+</details>
+
+DSP is not faster than REF in every row. Keep the raw cycles, preparation costs,
+and shape alongside any ratio, especially when choosing a specialized kernel.
+Follow [Measurement](../methodology/) to evaluate your own workload. The
+[repository benchmark record](https://github.com/AmbiqAI/ns-cmsis-nn/blob/af724c78778b545cc5a86bd74c7c830ea6df3899/docs/guides/kernel-benchmarks.md)
+is the source of the recorded values; its missing capture details are described
+in the measurement conditions.
