@@ -84,6 +84,14 @@ void test_dilated_scope_gate_arm_depthwise_conv_s8_opt(void) { dilated_scope_gat
 void test_dilated_1d_route_arm_depthwise_conv_s8_opt(void) { dilated_1d_route_arm_depthwise_conv_s8_opt(); }
 void test_dilation_arg_check_arm_depthwise_conv_s8_opt(void) { dilation_arg_check_arm_depthwise_conv_s8_opt(); }
 void test_planar_shapes_arm_depthwise_conv_s8_opt(void) { planar_shapes_arm_depthwise_conv_s8_opt(); }
+
+void test_planar_predicate_grid_arm_depthwise_conv_s8_opt(void) { planar_predicate_grid_arm_depthwise_conv_s8_opt(); }
+void test_direct_entries_arm_depthwise_conv_s8_opt(void) { direct_entries_arm_depthwise_conv_s8_opt(); }
+void test_planar_no_fit_arm_depthwise_conv_s8_opt(void) { planar_no_fit_arm_depthwise_conv_s8_opt(); }
 void test_planar_size_overflow_arm_depthwise_conv_s8_opt(void) { planar_size_overflow_arm_depthwise_conv_s8_opt(); }
 void test_planar_small_context_arm_depthwise_conv_s8_opt(void) { planar_small_context_arm_depthwise_conv_s8_opt(); }
 void test_padded_nt_t_bounds_arm_depthwise_conv_s8_opt(void) { padded_nt_t_bounds_arm_depthwise_conv_s8_opt(); }
+void test_dw3_shapes_arm_depthwise_conv_s8_opt(void) { dw3_shapes_arm_depthwise_conv_s8_opt(); }
+void test_dw3_declines_arm_depthwise_conv_s8_opt(void) { dw3_declines_arm_depthwise_conv_s8_opt(); }
+void test_dw3_buffer_size_arm_depthwise_conv_s8_opt(void) { dw3_buffer_size_arm_depthwise_conv_s8_opt(); }
+void test_dw3_bounds_arm_depthwise_conv_s8_opt(void) { dw3_bounds_arm_depthwise_conv_s8_opt(); }
