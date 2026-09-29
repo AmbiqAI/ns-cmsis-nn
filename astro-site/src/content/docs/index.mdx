@@ -8,6 +8,8 @@ helia:
   pageTitle: false
 ---
 
+import releaseInfo from '../../../../.release-please-manifest.json';
+
 import Hero from '@ambiqai/helia-ui/astro/Hero';
 import Band from '@ambiqai/helia-ui/astro/Band';
 import Button from '@ambiqai/helia-ui/astro/Button';
@@ -21,36 +23,40 @@ import HomeLayout from '../../components/HomeLayout.astro';
 
 <HomeLayout>
 
-<Hero variant="contrast" eyebrow="heliaCORE · Ambiq's neural network kernel library">
+<Hero variant="contrast" eyebrow="heliaCORE">
 <Fragment>Neural network kernels for <em>Ambiq silicon.</em></Fragment>
 <Fragment slot="summary">
-heliaCORE is Ambiq’s neural network kernel library for Apollo devices. Built on
-Arm CMSIS-NN, it combines expanded operator coverage, quantized and floating-point
-computation, and optimized Cortex-M DSP and Helium paths to power inference on
-Ambiq silicon.
+heliaCORE is a neural network kernel library optimized for Ambiq silicon.
+It extends Arm CMSIS-NN with broader operator coverage, quantized and floating-point
+kernels, and Cortex-M DSP and Helium implementations. Use it through heliaAOT or
+heliaRT, or integrate kernels directly into your firmware.
 </Fragment>
 <Button slot="actions" href="#inference">Choose your inference path</Button>
 <Button slot="actions" href="/ns-cmsis-nn/reference/kernel-index/" variant="secondary">Explore the kernels</Button>
-<div slot="aside" class="highlights">
-<div>
-<strong>Expanded operator coverage</strong>
-<p>Tensor indexing, reductions, broadcast math, and recurrent layers.</p>
+<div slot="actions" class="hero-release-row"><a href="https://github.com/AmbiqAI/ns-cmsis-nn/releases" aria-label={`heliaCORE v${releaseInfo['.']} releases`}>v{releaseInfo['.']}</a></div>
+<div slot="media" class="core-kernel-panel">
+<div class="core-capability">
+<span class="core-capability-index" aria-hidden="true">01</span>
+<div><strong>Beyond convolution</strong><p>Tensor indexing, reductions, broadcast math and recurrent layers.</p></div>
 </div>
-<div>
-<strong>DSP + Helium</strong>
-<p>Optimized for Cortex-M acceleration.</p>
+<div class="core-capability">
+<span class="core-capability-index" aria-hidden="true">02</span>
+<div><strong>DSP + Helium</strong><p>Optimized Cortex-M compute paths.</p><div class="core-formats"><span>A8W8</span><span>A16W8</span><span>FP16 / FP32</span></div></div>
 </div>
-<div>
-<strong>Quantized + floating-point</strong>
-<p>A8W8 and A16W8: 8- or 16-bit activations with 8-bit weights. FP16 and FP32: opt-in, experimental floating-point APIs.</p>
+<div class="core-capability">
+<span class="core-capability-index" aria-hidden="true">03</span>
+<div><strong>One build foundation</strong><p>CMake · CMSIS-Pack · Zephyr · neuralSPOT-X</p></div>
 </div>
-<div>
-<strong>One build foundation</strong>
-<p>CMake, CMSIS-Pack, Zephyr, and neuralSPOT-X.</p>
-</div>
-<p class="panel-note">Support varies by operator and target. <a class="inline-link" href="/ns-cmsis-nn/guide/coverage/data-types-by-family/">Check data-type coverage →</a></p>
+<a class="core-coverage-link" href="/ns-cmsis-nn/guide/coverage/data-types-by-family/">Check coverage by operator and target <span aria-hidden="true">↗</span></a>
 </div>
 </Hero>
+
+<nav class="core-hero-chips" aria-label="Explore heliaCORE">
+<a href="/ns-cmsis-nn/reference/kernel-index/">Kernel catalog <span aria-hidden="true">↗</span></a>
+<a href="/ns-cmsis-nn/guide/architecture/acceleration-paths/">DSP + Helium <span aria-hidden="true">↗</span></a>
+<a href="/ns-cmsis-nn/guide/coverage/data-types-by-family/">Data-type coverage <span aria-hidden="true">↗</span></a>
+<a href="/ns-cmsis-nn/getting-started/">Build integration <span aria-hidden="true">↗</span></a>
+</nav>
 
 <Band density="compact">
 <div class="section-heading">
@@ -99,7 +105,7 @@ also determines which model operations it can map to these kernels.</p>
 </div>
 <div class="section-actions">
 <Button href="/ns-cmsis-nn/guide/coverage/operator-coverage/" variant="secondary">Explore operator coverage</Button>
-<a class="text-link" href="/ns-cmsis-nn/guide/coverage/compared-with-cmsis-nn/">Explore the CMSIS-NN foundation and extensions →</a>
+<Button href="/ns-cmsis-nn/guide/coverage/compared-with-cmsis-nn/" variant="secondary">Explore the CMSIS-NN foundation and extensions</Button>
 </div>
 </Band>
 
@@ -135,9 +141,9 @@ and supply the memory from your application's allocation strategy.</p>
 </div>
 <div class="section-actions">
 <Button href="/ns-cmsis-nn/guide/architecture/acceleration-paths/" variant="secondary">Explore acceleration paths</Button>
-<a class="text-link" href="/ns-cmsis-nn/guide/performance/kernel-benchmarks/">View kernel benchmarks →</a>
-<a class="text-link" href="/ns-cmsis-nn/guide/architecture/cortex-m-targets/">Supported targets →</a>
-<a class="text-link" href="/ns-cmsis-nn/guide/architecture/toolchains/">Toolchain requirements →</a>
+<Button href="/ns-cmsis-nn/guide/performance/kernel-benchmarks/" variant="secondary">View kernel benchmarks</Button>
+<Button href="/ns-cmsis-nn/guide/architecture/cortex-m-targets/" variant="secondary">Supported targets</Button>
+<Button href="/ns-cmsis-nn/guide/architecture/toolchains/" variant="secondary">Toolchain requirements</Button>
 </div>
 </Band>
 
@@ -213,8 +219,8 @@ SDK's CMake build, including applications that use heliaRT.
 </LinkCard>
 </Mosaic>
 <div class="section-actions">
-<Button href="/ns-cmsis-nn/getting-started/">Choose your integration</Button>
-<a class="text-link" href="/ns-cmsis-nn/guide/architecture/build-path-selection/">Configure kernels and data types →</a>
+<Button href="/ns-cmsis-nn/getting-started/" variant="secondary">Choose your integration</Button>
+<Button href="/ns-cmsis-nn/guide/architecture/build-path-selection/" variant="secondary">Configure kernels and data types</Button>
 </div>
 </Band>
 
@@ -242,7 +248,7 @@ Ambiq-targeted optimizations.
 </CardGrid>
 <div class="section-actions">
 <p>Building a custom runtime or integrating kernels directly?</p>
-<a class="text-link" href="/ns-cmsis-nn/getting-started/">Get started with direct integration →</a>
+<Button href="/ns-cmsis-nn/getting-started/" variant="secondary">Get started with direct integration</Button>
 </div>
 </Band>
 

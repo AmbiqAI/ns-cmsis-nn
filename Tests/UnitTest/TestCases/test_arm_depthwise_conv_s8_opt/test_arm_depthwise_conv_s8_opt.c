@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: Copyright 2010-2023 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -28,6 +29,9 @@
 #include "../TestData/depthwise_out_activation/test_data.h"
 #include "../TestData/depthwise_sub_block/test_data.h"
 #include "../TestData/depthwise_x_stride/test_data.h"
+/* The largest operand placed against the gap is the 4 x 9 x CH_IN_BLOCK_MVE padded lhs. */
+#define GUARD_OFFSET 4608
+#include "../Utils/mpu_guard.h"
 #include "../Utils/utils.h"
 #include "../Utils/validate.h"
 
@@ -1230,12 +1234,12 @@ void depthwise_boundary_matrix_arm_depthwise_conv_s8_opt(void)
             }
 
             /* Fill weight_sum_ctx on every route, wrapper included: even though the sole use_wrapper test case
-             * currently has dilation != 1 and so does not reach arm_depthwise_conv_s8_opt(), a future wrapper
-             * case must not silently rely on an unfilled buffer. Note that dilation == 1 alone does not guarantee
-             * the wrapper reaches arm_depthwise_conv_s8_opt() either: on MVE, input_dims->c == 1 with an output
-             * channel count above CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD (8 on armclang, 1
-             * otherwise) diverts to the conv-conversion route (arm_depthwise_conv_to_conv_s8()) instead, which
-             * wants conv-style sums from arm_convolve_weight_sum() rather than these depthwise sums. */
+             * currently is dilated in both dimensions and so does not reach arm_depthwise_conv_s8_opt(), a future
+             * wrapper case must not silently rely on an unfilled buffer. Note that dilation == 1 alone does not
+             * guarantee the wrapper reaches arm_depthwise_conv_s8_opt() either: on MVE, input_dims->c == 1 with an
+             * output channel count above CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD (8 on
+             * armclang, 1 otherwise) diverts to the conv-conversion route (arm_depthwise_conv_to_conv_s8()) instead,
+             * which wants conv-style sums from arm_convolve_weight_sum() rather than these depthwise sums. */
             weight_sum_ctx.size = channels * (int32_t)sizeof(int32_t);
             weight_sum_ctx.buf = malloc((size_t)weight_sum_ctx.size);
             TEST_ASSERT_NOT_NULL(weight_sum_ctx.buf);
@@ -1520,4 +1524,850 @@ void buffer_size_out_of_range_mve_arm_depthwise_conv_s8_opt(void)
     filter_dims.w = 3;
     TEST_ASSERT_EQUAL(4 * CH_IN_BLOCK_MVE * 3 * 3,
                       arm_depthwise_conv_s8_opt_get_buffer_size_mve(&input_dims, &filter_dims));
+}
+
+static void
+test_dilated_1d_s8_case(int32_t input_len, int32_t filter_len, int32_t channels, int32_t dilation, int32_t pad)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    const int32_t output_len = (input_len + 2 * pad - (filter_len - 1) * dilation - 1) + 1;
+    TEST_ASSERT_TRUE(output_len > 0);
+
+    const int32_t input_size = input_len * channels;
+    const int32_t filter_size = filter_len * channels;
+    const int32_t output_size = output_len * channels;
+
+    int8_t *input_data = (int8_t *)malloc((size_t)input_size * sizeof(int8_t));
+    int8_t *filter_data = (int8_t *)malloc((size_t)filter_size * sizeof(int8_t));
+    int32_t *bias_data = (int32_t *)malloc((size_t)channels * sizeof(int32_t));
+    int32_t *output_mult = (int32_t *)malloc((size_t)channels * sizeof(int32_t));
+    int32_t *output_shift = (int32_t *)malloc((size_t)channels * sizeof(int32_t));
+    int8_t *output_ref = (int8_t *)malloc((size_t)output_size * sizeof(int8_t));
+    int8_t *output_opt = (int8_t *)malloc((size_t)output_size * sizeof(int8_t));
+
+    TEST_ASSERT_NOT_NULL(input_data);
+    TEST_ASSERT_NOT_NULL(filter_data);
+    TEST_ASSERT_NOT_NULL(bias_data);
+    TEST_ASSERT_NOT_NULL(output_mult);
+    TEST_ASSERT_NOT_NULL(output_shift);
+    TEST_ASSERT_NOT_NULL(output_ref);
+    TEST_ASSERT_NOT_NULL(output_opt);
+
+    memset(output_ref, 0, (size_t)output_size * sizeof(int8_t));
+    memset(output_opt, 0, (size_t)output_size * sizeof(int8_t));
+
+    for (int32_t i = 0; i < input_size; i++)
+    {
+        input_data[i] = (int8_t)(((i * 17 + 5) % 251) - 128);
+    }
+    for (int32_t i = 0; i < filter_size; i++)
+    {
+        filter_data[i] = (int8_t)(((i * 31 + 13) % 251) - 128);
+    }
+    for (int32_t i = 0; i < channels; i++)
+    {
+        bias_data[i] = (int32_t)((i * 101 - 50) * 16);
+        output_mult[i] = (int32_t)(0x40000000 + ((i % 64) * 0x1000000)); /* stays positive for any channel count */
+        output_shift[i] = -7;
+    }
+
+    cmsis_nn_context ctx = {NULL, 0};
+    cmsis_nn_dw_conv_params dw_conv_params;
+    cmsis_nn_per_channel_quant_params quant_params;
+    cmsis_nn_dims input_dims = {1, 1, input_len, channels};
+    cmsis_nn_dims filter_dims = {1, 1, filter_len, channels};
+    cmsis_nn_dims bias_dims = {1, 1, 1, channels};
+    cmsis_nn_dims output_dims = {1, 1, output_len, channels};
+
+    dw_conv_params.padding.w = pad;
+    dw_conv_params.padding.h = 0;
+    dw_conv_params.stride.w = 1;
+    dw_conv_params.stride.h = 1;
+    dw_conv_params.dilation.w = dilation;
+    dw_conv_params.dilation.h = 1;
+    dw_conv_params.ch_mult = 1;
+    dw_conv_params.input_offset = 128;
+    dw_conv_params.output_offset = -10;
+    dw_conv_params.activation.min = -128;
+    dw_conv_params.activation.max = 127;
+    quant_params.multiplier = output_mult;
+    quant_params.shift = output_shift;
+
+    arm_cmsis_nn_status ref_status = arm_depthwise_conv_s8(&ctx,
+                                                           &dw_conv_params,
+                                                           &quant_params,
+                                                           &input_dims,
+                                                           input_data,
+                                                           &filter_dims,
+                                                           filter_data,
+                                                           &bias_dims,
+                                                           bias_data,
+                                                           &output_dims,
+                                                           output_ref);
+    TEST_ASSERT_EQUAL(expected, ref_status);
+
+    const int32_t buf_size =
+        arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims);
+    TEST_ASSERT_EQUAL(arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims), buf_size);
+    ctx.size = buf_size;
+    if (buf_size > 0)
+    {
+        ctx.buf = malloc((size_t)buf_size);
+        TEST_ASSERT_NOT_NULL(ctx.buf);
+    }
+
+    cmsis_nn_context weights_sum_ctx = {NULL, 0};
+    int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    /* The size is 0 on builds that do not read the sums; allocate at least one entry so the buffer is valid. */
+    weights_sum_ctx.buf = malloc((size_t)(weights_sum_buf_size > 0 ? weights_sum_buf_size : (int32_t)sizeof(int32_t)));
+    weights_sum_ctx.size = weights_sum_buf_size;
+    TEST_ASSERT_NOT_NULL(weights_sum_ctx.buf);
+
+    arm_depthwise_convolve_weight_sum((int32_t *)weights_sum_ctx.buf,
+                                      ctx.buf,
+                                      filter_data,
+                                      &dw_conv_params,
+                                      &input_dims,
+                                      &filter_dims,
+                                      &output_dims,
+                                      dw_conv_params.input_offset,
+                                      bias_data);
+
+    arm_cmsis_nn_status opt_status = arm_depthwise_conv_wrapper_s8(&ctx,
+                                                                   &weights_sum_ctx,
+                                                                   &dw_conv_params,
+                                                                   &quant_params,
+                                                                   &input_dims,
+                                                                   input_data,
+                                                                   &filter_dims,
+                                                                   filter_data,
+                                                                   &bias_dims,
+                                                                   bias_data,
+                                                                   &output_dims,
+                                                                   output_opt);
+    TEST_ASSERT_EQUAL(expected, opt_status);
+    TEST_ASSERT_EQUAL_INT8_ARRAY(output_ref, output_opt, output_size);
+
+    if (weights_sum_ctx.buf)
+    {
+        free(weights_sum_ctx.buf);
+    }
+    if (ctx.buf)
+    {
+        free(ctx.buf);
+    }
+    free(output_opt);
+    free(output_ref);
+    free(output_shift);
+    free(output_mult);
+    free(bias_data);
+    free(filter_data);
+    free(input_data);
+}
+
+void dilated_1d_arm_depthwise_conv_s8_opt(void)
+{
+    const int32_t dilations[] = {2, 4, 8};
+    const int32_t filters[] = {7, 9};
+    const int32_t channels[] = {16, 24, 32};
+    const int32_t input_len = 256;
+
+    for (size_t d = 0; d < sizeof(dilations) / sizeof(dilations[0]); d++)
+    {
+        for (size_t f = 0; f < sizeof(filters) / sizeof(filters[0]); f++)
+        {
+            for (size_t c = 0; c < sizeof(channels) / sizeof(channels[0]); c++)
+            {
+                const int32_t dilation = dilations[d];
+                const int32_t filter_len = filters[f];
+                const int32_t ch = channels[c];
+                const int32_t pad = ((filter_len - 1) * dilation) / 2;
+
+                // SAME padding (boundary + interior)
+                test_dilated_1d_s8_case(input_len, filter_len, ch, dilation, pad);
+
+                // VALID padding (pad = 0)
+                test_dilated_1d_s8_case(input_len, filter_len, ch, dilation, 0);
+            }
+        }
+    }
+
+    /* Dilated 1D layers from sleepkit TCN models (width 240, kernel 5 and 7, dilation up to 16, up to 64
+       channels), then channel-tail, multi-block, even-kernel and short-input shapes. SAME padding. */
+    const int32_t extra[][4] = {
+        /* input_len, filter_len, channels, dilation */
+        {240, 5, 24, 2},
+        {240, 5, 32, 4},
+        {240, 5, 48, 8},
+        {240, 7, 48, 16},
+        {240, 7, 64, 16},
+        {37, 3, 5, 3},
+        {64, 2, 125, 16},
+        {9, 7, 3, 2},
+        {1, 3, 17, 4},
+    };
+    for (size_t i = 0; i < sizeof(extra) / sizeof(extra[0]); i++)
+    {
+        const int32_t pad = ((extra[i][1] - 1) * extra[i][3]) / 2;
+        test_dilated_1d_s8_case(extra[i][0], extra[i][1], extra[i][2], extra[i][3], pad);
+    }
+}
+
+void dilated_scope_gate_arm_depthwise_conv_s8_opt(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_SUCCESS;
+    const int32_t channels = 16;
+    const int32_t input_w = 32;
+    const int32_t input_h = 4;
+    const int32_t filter_w = 7;
+    const int32_t filter_h = 1;
+    const int32_t dilation_x = 2;
+    const int32_t pad_x = 6;
+    const int32_t output_w = (input_w + 2 * pad_x - (filter_w - 1) * dilation_x - 1) + 1;
+    const int32_t output_h = 4;
+
+    const int32_t input_size = input_w * input_h * channels;
+    const int32_t filter_size = filter_w * filter_h * channels;
+    const int32_t output_size = output_w * output_h * channels;
+
+    int8_t *input_data = (int8_t *)malloc((size_t)input_size * sizeof(int8_t));
+    int8_t *filter_data = (int8_t *)malloc((size_t)filter_size * sizeof(int8_t));
+    int32_t *bias_data = (int32_t *)malloc((size_t)channels * sizeof(int32_t));
+    int32_t *output_mult = (int32_t *)malloc((size_t)channels * sizeof(int32_t));
+    int32_t *output_shift = (int32_t *)malloc((size_t)channels * sizeof(int32_t));
+    int8_t *output_ref = (int8_t *)malloc((size_t)output_size * sizeof(int8_t));
+    int8_t *output_wrapper = (int8_t *)malloc((size_t)output_size * sizeof(int8_t));
+
+    TEST_ASSERT_NOT_NULL(input_data);
+    TEST_ASSERT_NOT_NULL(filter_data);
+    TEST_ASSERT_NOT_NULL(bias_data);
+    TEST_ASSERT_NOT_NULL(output_mult);
+    TEST_ASSERT_NOT_NULL(output_shift);
+    TEST_ASSERT_NOT_NULL(output_ref);
+    TEST_ASSERT_NOT_NULL(output_wrapper);
+
+    memset(output_ref, 0, (size_t)output_size * sizeof(int8_t));
+    memset(output_wrapper, 0, (size_t)output_size * sizeof(int8_t));
+
+    for (int32_t i = 0; i < input_size; i++)
+    {
+        input_data[i] = (int8_t)(((i * 13 + 7) % 251) - 128);
+    }
+    for (int32_t i = 0; i < filter_size; i++)
+    {
+        filter_data[i] = (int8_t)(((i * 29 + 11) % 251) - 128);
+    }
+    for (int32_t i = 0; i < channels; i++)
+    {
+        bias_data[i] = (int32_t)((i * 50 - 25) * 16);
+        output_mult[i] = (int32_t)(0x40000000 + ((i % 64) * 0x1000000)); /* stays positive for any channel count */
+        output_shift[i] = -7;
+    }
+
+    cmsis_nn_context ctx = {NULL, 0};
+    cmsis_nn_dw_conv_params dw_conv_params;
+    cmsis_nn_per_channel_quant_params quant_params;
+    cmsis_nn_dims input_dims = {1, input_h, input_w, channels};
+    cmsis_nn_dims filter_dims = {1, filter_h, filter_w, channels};
+    cmsis_nn_dims bias_dims = {1, 1, 1, channels};
+    cmsis_nn_dims output_dims = {1, output_h, output_w, channels};
+
+    dw_conv_params.padding.w = pad_x;
+    dw_conv_params.padding.h = 0;
+    dw_conv_params.stride.w = 1;
+    dw_conv_params.stride.h = 1;
+    dw_conv_params.dilation.w = dilation_x;
+    dw_conv_params.dilation.h = 1;
+    dw_conv_params.ch_mult = 1;
+    dw_conv_params.input_offset = 128;
+    dw_conv_params.output_offset = -10;
+    dw_conv_params.activation.min = -128;
+    dw_conv_params.activation.max = 127;
+    quant_params.multiplier = output_mult;
+    quant_params.shift = output_shift;
+
+    // Multi-row input (input_h > 1) with dilation.w > 1 must NOT enter the optimized path;
+    // all wrapper sizers must return 0 (indicating generic reference fallback).
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+
+    // Reference computation
+    arm_cmsis_nn_status ref_status = arm_depthwise_conv_s8(&ctx,
+                                                           &dw_conv_params,
+                                                           &quant_params,
+                                                           &input_dims,
+                                                           input_data,
+                                                           &filter_dims,
+                                                           filter_data,
+                                                           &bias_dims,
+                                                           bias_data,
+                                                           &output_dims,
+                                                           output_ref);
+    TEST_ASSERT_EQUAL(expected, ref_status);
+
+    // Wrapper computation (routes to generic reference)
+    int32_t scope_weight_sums[16] = {0};
+    const cmsis_nn_context scope_weight_sum_ctx = {scope_weight_sums, (int32_t)sizeof(scope_weight_sums)};
+    arm_cmsis_nn_status wrapper_status = arm_depthwise_conv_wrapper_s8(&ctx,
+                                                                       &scope_weight_sum_ctx,
+                                                                       &dw_conv_params,
+                                                                       &quant_params,
+                                                                       &input_dims,
+                                                                       input_data,
+                                                                       &filter_dims,
+                                                                       filter_data,
+                                                                       &bias_dims,
+                                                                       bias_data,
+                                                                       &output_dims,
+                                                                       output_wrapper);
+    TEST_ASSERT_EQUAL(expected, wrapper_status);
+    TEST_ASSERT_EQUAL_INT8_ARRAY(output_ref, output_wrapper, output_size);
+
+    // Multi-row case with non-zero vertical padding must also remain outside the optimized path
+    dw_conv_params.padding.h = 1;
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+
+    // 1D case (input_h = 1, output_h = 1, padding.h = 0) with dilation.w > 1 DOES enter optimized path
+    input_dims.h = 1;
+    output_dims.h = 1;
+    dw_conv_params.padding.h = 0;
+    const int32_t expected_opt_buf_size = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
+    TEST_ASSERT_EQUAL(
+        expected_opt_buf_size,
+        arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        arm_depthwise_conv_s8_opt_get_buffer_size_dsp(&input_dims, &filter_dims),
+        arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        arm_depthwise_conv_s8_opt_get_buffer_size_mve(&input_dims, &filter_dims),
+        arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+
+    // 1D case with non-zero vertical padding must NOT enter optimized path
+    dw_conv_params.padding.h = 1;
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s8_get_buffer_size(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s8_get_buffer_size_dsp(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(&dw_conv_params, &input_dims, &filter_dims, &output_dims));
+
+    free(output_wrapper);
+    free(output_ref);
+    free(output_shift);
+    free(output_mult);
+    free(bias_data);
+    free(filter_data);
+    free(input_data);
+}
+
+/* The dilated 1D route runs arm_depthwise_conv_s8_opt(): with no scratch buffer it is rejected on builds that need
+   one (DSP and MVE), whereas the reference route that a 2D-dilated layer takes needs none and succeeds. */
+void dilated_1d_route_arm_depthwise_conv_s8_opt(void)
+{
+    enum
+    {
+        CH = 16,
+        LEN = 64,
+        K = 5,
+        DIL = 4
+    };
+    static int8_t input[2 * LEN * CH];
+    static int8_t filter[K * K * CH];
+    static int8_t output[2 * LEN * CH];
+    int32_t bias[CH], mult[CH], shift[CH], weight_sums[CH];
+    for (int32_t i = 0; i < (int32_t)sizeof(input); i++)
+    {
+        input[i] = (int8_t)((i * 7 + 3) % 200 - 100);
+    }
+    for (int32_t i = 0; i < (int32_t)sizeof(filter); i++)
+    {
+        filter[i] = (int8_t)((i * 5 + 1) % 120 - 60);
+    }
+    for (int32_t i = 0; i < CH; i++)
+    {
+        bias[i] = i * 10;
+        mult[i] = 0x40000000;
+        shift[i] = -7;
+    }
+    const int32_t pad = ((K - 1) * DIL) / 2;
+    cmsis_nn_dw_conv_params params = {.input_offset = 5,
+                                      .output_offset = -2,
+                                      .ch_mult = 1,
+                                      .stride = {1, 1},
+                                      .padding = {pad, 0},
+                                      .dilation = {DIL, 1},
+                                      .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, 1, LEN, CH}, filter_dims = {1, 1, K, CH}, bias_dims = {1, 1, 1, CH},
+                        output_dims = {1, 1, LEN, CH};
+    (void)arm_depthwise_convolve_weight_sum(
+        weight_sums, NULL, filter, &params, &input_dims, &filter_dims, &output_dims, params.input_offset, bias);
+    const cmsis_nn_context weight_sum_ctx = {weight_sums, (int32_t)sizeof(weight_sums)};
+    const cmsis_nn_context no_scratch = {NULL, 0};
+
+    const arm_cmsis_nn_status status = arm_depthwise_conv_wrapper_s8(&no_scratch,
+                                                                     &weight_sum_ctx,
+                                                                     &params,
+                                                                     &quant,
+                                                                     &input_dims,
+                                                                     input,
+                                                                     &filter_dims,
+                                                                     filter,
+                                                                     &bias_dims,
+                                                                     bias,
+                                                                     &output_dims,
+                                                                     output);
+#if defined(ARM_MATH_DSP)
+    TEST_ASSERT_TRUE(arm_depthwise_conv_wrapper_s8_get_buffer_size(&params, &input_dims, &filter_dims, &output_dims) >
+                     0);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, status);
+#else
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+#endif
+
+    /* Control: the same layer made 2D and dilated in both dimensions stays on the reference route. */
+    params.padding.h = 0;
+    params.dilation.h = 2;
+    const cmsis_nn_dims input_2d = {1, 2, LEN, CH}, filter_2d = {1, 1, K, CH}, output_2d = {1, 2, LEN, CH};
+    TEST_ASSERT_EQUAL(0, arm_depthwise_conv_wrapper_s8_get_buffer_size(&params, &input_2d, &filter_2d, &output_2d));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_wrapper_s8(&no_scratch,
+                                                    &weight_sum_ctx,
+                                                    &params,
+                                                    &quant,
+                                                    &input_2d,
+                                                    input,
+                                                    &filter_2d,
+                                                    filter,
+                                                    &bias_dims,
+                                                    bias,
+                                                    &output_2d,
+                                                    output));
+
+    /* A 1D layer with vertical dilation is outside the route too: no scratch needed, reference result. */
+    static int8_t reference[LEN * CH];
+    const cmsis_nn_context none = {NULL, 0};
+    params.dilation.h = 2;
+    TEST_ASSERT_EQUAL(0,
+                      arm_depthwise_conv_wrapper_s8_get_buffer_size(&params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_s8(&none,
+                                            &params,
+                                            &quant,
+                                            &input_dims,
+                                            input,
+                                            &filter_dims,
+                                            filter,
+                                            &bias_dims,
+                                            bias,
+                                            &output_dims,
+                                            reference));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_wrapper_s8(&no_scratch,
+                                                    &weight_sum_ctx,
+                                                    &params,
+                                                    &quant,
+                                                    &input_dims,
+                                                    input,
+                                                    &filter_dims,
+                                                    filter,
+                                                    &bias_dims,
+                                                    bias,
+                                                    &output_dims,
+                                                    output));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(reference, output, LEN * CH);
+}
+
+/* arm_depthwise_conv_s8_opt() steps only the horizontal tap index by dilation, so it rejects vertical dilation and a
+   non-positive horizontal dilation instead of computing a wrong result. */
+void dilation_arg_check_arm_depthwise_conv_s8_opt(void)
+{
+    enum
+    {
+        CH = 4,
+        H = 4,
+        W = 8,
+        K = 3
+    };
+    static int8_t input[H * W * CH];
+    static int8_t filter[K * K * CH];
+    static int8_t output[H * W * CH];
+    static int8_t scratch[4 * 124 * K * K];
+    int32_t bias[CH] = {0}, mult[CH], shift[CH], weight_sums[CH] = {0};
+    for (int32_t i = 0; i < CH; i++)
+    {
+        mult[i] = 0x40000000;
+        shift[i] = -7;
+    }
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, H, W, CH}, filter_dims = {1, K, K, CH}, bias_dims = {1, 1, 1, CH},
+                        output_dims = {1, H, W, CH};
+    const cmsis_nn_context ctx = {scratch, (int32_t)sizeof(scratch)};
+    const cmsis_nn_context weight_sum_ctx = {weight_sums, (int32_t)sizeof(weight_sums)};
+    const cmsis_nn_tile bad_dilations[] = {{2, 2}, {1, 2}, {0, 1}, {-1, 1}};
+    for (size_t i = 0; i < sizeof(bad_dilations) / sizeof(bad_dilations[0]); i++)
+    {
+        const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                                .output_offset = 0,
+                                                .ch_mult = 1,
+                                                .stride = {1, 1},
+                                                .padding = {1, 1},
+                                                .dilation = bad_dilations[i],
+                                                .activation = {-128, 127}};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_depthwise_conv_s8_opt(&ctx,
+                                                    &weight_sum_ctx,
+                                                    &params,
+                                                    &quant,
+                                                    &input_dims,
+                                                    input,
+                                                    &filter_dims,
+                                                    filter,
+                                                    &bias_dims,
+                                                    bias,
+                                                    &output_dims,
+                                                    output));
+    }
+}
+
+/* Few-channel and 1xk layers, including the model shapes that take the pixel-vectorized path and neighbours on
+   either side of its gate, must match arm_depthwise_conv_s8() byte for byte and stay inside the reported scratch. */
+#define PLANAR_MAX_IO (48 * 48 * 8)
+#define PLANAR_GUARD (32)
+static int8_t planar_in[PLANAR_MAX_IO], planar_ker[16 * 16 * 40], planar_out[PLANAR_MAX_IO + PLANAR_GUARD],
+    planar_ref[PLANAR_MAX_IO];
+static int32_t planar_bias[40], planar_mult[40], planar_shift[40], planar_wsum[40];
+static int8_t planar_scratch[16 * 1024 + PLANAR_GUARD];
+
+static void planar_case(int32_t ih,
+                        int32_t iw,
+                        int32_t ch,
+                        int32_t kh,
+                        int32_t kw,
+                        int32_t dil,
+                        int32_t pad_h,
+                        int32_t pad_w,
+                        int32_t expect_planar,
+                        int32_t input_offset,
+                        int32_t act_min,
+                        int32_t act_max)
+{
+    const int32_t oh = ih + 2 * pad_h - (kh - 1);
+    const int32_t ow = iw + 2 * pad_w - (kw - 1) * dil;
+    TEST_ASSERT_TRUE(ih * iw * ch <= PLANAR_MAX_IO && oh * ow * ch <= PLANAR_MAX_IO && kh * kw <= 256 && ch <= 40);
+    uint32_t seed = (uint32_t)(ih * 977 + iw * 131 + ch * 7 + kw * 3 + dil);
+    for (int32_t i = 0; i < ih * iw * ch; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        planar_in[i] = (int8_t)(seed >> 24);
+    }
+    for (int32_t i = 0; i < kh * kw * ch; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        planar_ker[i] = (int8_t)(seed >> 24);
+    }
+    for (int32_t i = 0; i < ch; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        planar_bias[i] = (int32_t)(seed >> 20) - 2048;
+        planar_mult[i] = 0x40000000 + (i % 7) * 0x4000000;
+        planar_shift[i] = -7 - (i % 3);
+    }
+    const cmsis_nn_dw_conv_params params = {.input_offset = input_offset,
+                                            .output_offset = -3,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {pad_w, pad_h},
+                                            .dilation = {dil, 1},
+                                            .activation = {act_min, act_max}};
+    const cmsis_nn_per_channel_quant_params quant = {planar_mult, planar_shift};
+    const cmsis_nn_dims input_dims = {1, ih, iw, ch}, filter_dims = {1, kh, kw, ch}, bias_dims = {1, 1, 1, ch},
+                        output_dims = {1, oh, ow, ch};
+    const cmsis_nn_context none = {NULL, 0};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_s8(&none,
+                                            &params,
+                                            &quant,
+                                            &input_dims,
+                                            planar_in,
+                                            &filter_dims,
+                                            planar_ker,
+                                            &bias_dims,
+                                            planar_bias,
+                                            &output_dims,
+                                            planar_ref));
+
+    const int32_t size = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
+    TEST_ASSERT_TRUE(size >= 0 && size + PLANAR_GUARD <= (int32_t)sizeof(planar_scratch));
+    const cmsis_nn_context ctx = {planar_scratch, size};
+    /* Weight sums exist only on MVE; the other legs of arm_depthwise_conv_s8_opt() do not read them. */
+    (void)arm_depthwise_convolve_weight_sum(planar_wsum,
+                                            planar_scratch,
+                                            planar_ker,
+                                            &params,
+                                            &input_dims,
+                                            &filter_dims,
+                                            &output_dims,
+                                            input_offset,
+                                            planar_bias);
+    const cmsis_nn_context wsum = {planar_wsum, ch * (int32_t)sizeof(int32_t)};
+    memset(planar_scratch, 0x3C, sizeof(planar_scratch));
+    memset(planar_out, 0x5A, sizeof(planar_out));
+#if defined(ARM_MATH_MVEI)
+    /* The model shapes take the pixel-vectorized path; the gate's neighbours are declined without writing output. */
+    const arm_cmsis_nn_status planar_status = arm_nn_depthwise_conv_s8_planar(
+        &ctx, &wsum, &params, &quant, &input_dims, planar_in, &filter_dims, planar_ker, &output_dims, planar_out);
+    TEST_ASSERT_EQUAL(expect_planar ? ARM_CMSIS_NN_SUCCESS : ARM_CMSIS_NN_NO_IMPL_ERROR, planar_status);
+    if (!expect_planar)
+    {
+        for (int32_t i = 0; i < oh * ow * ch + PLANAR_GUARD; i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[i]);
+        }
+    }
+    memset(planar_out, 0x5A, sizeof(planar_out));
+#else
+    (void)expect_planar;
+#endif
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_s8_opt(&ctx,
+                                                &wsum,
+                                                &params,
+                                                &quant,
+                                                &input_dims,
+                                                planar_in,
+                                                &filter_dims,
+                                                planar_ker,
+                                                &bias_dims,
+                                                planar_bias,
+                                                &output_dims,
+                                                planar_out));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(planar_ref, planar_out, oh * ow * ch);
+    for (int32_t i = 0; i < PLANAR_GUARD; i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[oh * ow * ch + i]);
+        TEST_ASSERT_EQUAL_INT8(0x3C, planar_scratch[size + i]);
+    }
+}
+
+void planar_shapes_arm_depthwise_conv_s8_opt(void)
+{
+    /* ih, iw, ch, kh, kw, dilation, pad_h, pad_w, takes the pixel-vectorized path */
+    const int32_t shapes[][9] = {
+        {48, 48, 8, 3, 3, 1, 1, 1, 1},  /* VWW DW1 */
+        {1, 240, 14, 1, 3, 1, 0, 1, 1}, /* tcn32 */
+        {1, 240, 8, 1, 3, 2, 0, 2, 1},   {1, 240, 8, 1, 3, 4, 0, 4, 1},  {1, 240, 8, 1, 3, 8, 0, 8, 1},
+        {1, 256, 16, 1, 9, 1, 0, 4, 1}, /* heart-arr */
+        {1, 128, 24, 1, 9, 1, 0, 4, 1},  {1, 64, 32, 1, 9, 1, 0, 4, 1},  {1, 32, 40, 1, 9, 1, 0, 4, 0},
+        {1, 256, 1, 1, 7, 1, 0, 3, 1}, /* heart-seg */
+        {1, 256, 16, 1, 7, 2, 0, 6, 1},  {1, 256, 24, 1, 7, 4, 0, 12, 1}, {1, 256, 32, 1, 7, 8, 0, 24, 0},
+        {7, 9, 5, 3, 3, 1, 1, 1, 1},     {9, 17, 16, 5, 5, 1, 2, 2, 1},  {6, 23, 3, 3, 3, 2, 1, 2, 1},
+        {1, 11, 6, 1, 5, 1, 0, 0, 0},    {1, 100, 3, 1, 16, 5, 0, 37, 1}, {1, 9, 1, 1, 7, 1, 0, 3, 1},
+        {1, 64, 33, 1, 7, 1, 0, 3, 0},   {1, 40, 17, 1, 5, 1, 0, 2, 1},  {3, 31, 2, 3, 3, 1, 0, 1, 1},
+    };
+    for (size_t i = 0; i < sizeof(shapes) / sizeof(shapes[0]); i++)
+    {
+        const int32_t *s = shapes[i];
+        planar_case(s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], 128, -128, 127);
+        planar_case(s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], -5, -60, 70);
+    }
+}
+
+/* A plane whose size does not fit in int32 (65536 x 65536 bytes) must be declined, not wrapped into a small size that
+   passes the scratch check. The data buffers are never touched. */
+void planar_size_overflow_arm_depthwise_conv_s8_opt(void)
+{
+#if defined(ARM_MATH_MVEI)
+    const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                            .output_offset = 0,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {0, 0},
+                                            .dilation = {1, 1},
+                                            .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {planar_mult, planar_shift};
+    const cmsis_nn_dims input_dims = {1, 65534, 8, 1}, filter_dims = {1, 3, 65529, 1}, output_dims = {1, 65534, 8, 1};
+    const cmsis_nn_context ctx = {planar_scratch, (int32_t)sizeof(planar_scratch)};
+    const cmsis_nn_context wsum = {planar_wsum, (int32_t)sizeof(planar_wsum)};
+    memset(planar_scratch, 0x3C, sizeof(planar_scratch));
+    memset(planar_out, 0x5A, sizeof(planar_out));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_nn_depthwise_conv_s8_planar(
+                          &ctx, &wsum, &params, &quant, &input_dims, planar_in, &filter_dims, planar_ker, &output_dims, planar_out));
+    for (size_t i = 0; i < sizeof(planar_out); i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[i]);
+    }
+    for (size_t i = 0; i < sizeof(planar_scratch); i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x3C, planar_scratch[i]);
+    }
+
+    /* Extents near INT32_MAX on both sides must be declined before the 64-bit plane product can overflow. */
+    const cmsis_nn_dw_conv_params wide_params = {.input_offset = 0,
+                                                 .output_offset = 0,
+                                                 .ch_mult = 1,
+                                                 .stride = {1, 1},
+                                                 .padding = {0, 0},
+                                                 .dilation = {128, 1},
+                                                 .activation = {-128, 127}};
+    const cmsis_nn_dims wide_in = {1, INT32_MAX, INT32_MAX, 1}, wide_filter = {1, INT32_MAX, INT32_MAX, 1};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_nn_depthwise_conv_s8_planar(
+                          &ctx, &wsum, &wide_params, &quant, &wide_in, planar_in, &wide_filter, planar_ker, &wide_in, planar_out));
+    for (size_t i = 0; i < sizeof(planar_out); i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[i]);
+    }
+#endif
+}
+
+/* A layer the pixel-vectorized path takes is declined, writing nothing, when the context is smaller than its plane;
+   arm_depthwise_conv_s8_opt() then computes it as before. */
+void planar_small_context_arm_depthwise_conv_s8_opt(void)
+{
+#if defined(ARM_MATH_MVEI)
+    const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                            .output_offset = 0,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {1, 1},
+                                            .dilation = {1, 1},
+                                            .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {planar_mult, planar_shift};
+    const cmsis_nn_dims input_dims = {1, 7, 9, 5}, filter_dims = {1, 3, 3, 5}, output_dims = {1, 7, 9, 5};
+    /* The plane is (9 + 2) * (7 + 2) + 32 = 131 bytes. */
+    const cmsis_nn_context ctx = {planar_scratch, 130};
+    const cmsis_nn_context wsum = {planar_wsum, (int32_t)sizeof(planar_wsum)};
+    memset(planar_scratch, 0x3C, sizeof(planar_scratch));
+    memset(planar_out, 0x5A, sizeof(planar_out));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_nn_depthwise_conv_s8_planar(
+                          &ctx, &wsum, &params, &quant, &input_dims, planar_in, &filter_dims, planar_ker, &output_dims, planar_out));
+    for (size_t i = 0; i < sizeof(planar_out); i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x5A, planar_out[i]);
+    }
+    for (size_t i = 0; i < sizeof(planar_scratch); i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x3C, planar_scratch[i]);
+    }
+    const cmsis_nn_context fits = {planar_scratch, 131};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_nn_depthwise_conv_s8_planar(
+                          &fits, &wsum, &params, &quant, &input_dims, planar_in, &filter_dims, planar_ker, &output_dims, planar_out));
+#endif
+}
+
+/* arm_nn_depthwise_conv_nt_t_padded_s8() with a channel count that is not a multiple of 4 must stay inside every
+   operand. Each operand in turn is placed against an MPU gap and the result is compared with a scalar reference. The
+   active channels are also run as the first part of a wider tensor, and without a bias. */
+void padded_nt_t_bounds_arm_depthwise_conv_s8_opt(void)
+{
+#if defined(MPU_GUARD_AVAILABLE)
+    enum
+    {
+        op_none,
+        op_lhs,
+        op_lhs_rows,
+        op_rhs,
+        op_bias,
+        op_mult,
+        op_shift,
+        op_out,
+        op_end
+    };
+    enum
+    {
+        max_ch = 20
+    };
+    static int8_t lhs[4 * 9 * CH_IN_BLOCK_MVE], rhs[9 * max_ch], out[4 * max_ch], expected[4 * max_ch];
+    static int32_t bias[max_ch], mult[max_ch], shift[max_ch];
+    const int32_t channels[] = {1, 2, 3, 5, 7, 17};
+    const int32_t taps[] = {1, 3, 9};
+    const int32_t input_offset = 5, out_offset = -3;
+    for (int32_t variant = 0; variant < 3; variant++)
+    {
+        const int32_t no_bias = variant == 2;
+        for (size_t i_ch = 0; i_ch < sizeof(channels) / sizeof(channels[0]); i_ch++)
+        {
+            for (size_t i_tap = 0; i_tap < sizeof(taps) / sizeof(taps[0]); i_tap++)
+            {
+                const int32_t ch = channels[i_ch], k = taps[i_tap];
+                const int32_t total = variant == 1 ? ch + 3 : ch;
+                const int32_t lhs_bytes = 4 * k * CH_IN_BLOCK_MVE;
+                /* The rows in use end with the last active channel of the last row. */
+                const int32_t lhs_rows = (4 * k - 1) * CH_IN_BLOCK_MVE + ch;
+                const int32_t rhs_bytes = (k - 1) * total + ch;
+                const int32_t out_bytes = 3 * total + ch;
+                uint32_t seed = (uint32_t)(k * 131 + ch * 7 + variant);
+                for (int32_t i = 0; i < lhs_bytes; i++)
+                {
+                    seed = seed * 1664525u + 1013904223u;
+                    lhs[i] = (int8_t)(seed >> 24);
+                }
+                for (int32_t i = 0; i < k * total; i++)
+                {
+                    seed = seed * 1664525u + 1013904223u;
+                    rhs[i] = (int8_t)(seed >> 24);
+                }
+                for (int32_t i = 0; i < ch; i++)
+                {
+                    seed = seed * 1664525u + 1013904223u;
+                    bias[i] = no_bias ? 0 : (int32_t)(seed >> 20) - 2048;
+                    mult[i] = 0x40000000 + (i % 7) * 0x4000000;
+                    shift[i] = -7 - (i % 3);
+                }
+                memset(expected, 0x5A, sizeof(expected));
+                for (int32_t r = 0; r < 4; r++)
+                {
+                    for (int32_t c = 0; c < ch; c++)
+                    {
+                        int32_t acc = bias[c];
+                        for (int32_t t = 0; t < k; t++)
+                        {
+                            acc += (lhs[(r * k + t) * CH_IN_BLOCK_MVE + c] + input_offset) * rhs[t * total + c];
+                        }
+                        int32_t v = arm_nn_requantize(acc, mult[c], shift[c]) + out_offset;
+                        v = v < -128 ? -128 : (v > 127 ? 127 : v);
+                        expected[r * total + c] = (int8_t)v;
+                    }
+                }
+                for (int op = op_none; op < op_end; op++)
+                {
+                    if (op == op_bias && no_bias)
+                    {
+                        continue;
+                    }
+                    const int8_t *l = op == op_lhs ? guard_place(lhs, lhs_bytes)
+                                                   : (op == op_lhs_rows ? guard_place(lhs, lhs_rows) : lhs);
+                    const int8_t *w = op == op_rhs ? guard_place(rhs, rhs_bytes) : rhs;
+                    const int32_t *b =
+                        no_bias ? NULL : (op == op_bias ? guard_place(bias, ch * sizeof(int32_t)) : bias);
+                    const int32_t *m = op == op_mult ? guard_place(mult, ch * sizeof(int32_t)) : mult;
+                    const int32_t *sh = op == op_shift ? guard_place(shift, ch * sizeof(int32_t)) : shift;
+                    int8_t *o = op == op_out ? guard_end(out_bytes) : out;
+                    memset(o, 0x5A, out_bytes);
+
+                    guard_gap_enable();
+                    const arm_cmsis_nn_status status = arm_nn_depthwise_conv_nt_t_padded_s8(
+                        l, w, input_offset, ch, total, sh, m, out_offset, -128, 127, (uint16_t)k, b, o);
+                    guard_gap_disable();
+
+                    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+                    TEST_ASSERT_EQUAL_INT8_ARRAY(expected, o, out_bytes);
+                }
+            }
+        }
+    }
+#endif
 }

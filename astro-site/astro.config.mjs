@@ -91,7 +91,7 @@ export default defineConfig({
              sidebar are one definition. */
           header: {
             title: 'heliaCORE',
-            hub: { label: 'HELIA', href: 'https://ambiqai.github.io/helia-developer-hub/' },
+            hub: { label: 'HELIA HUB', href: 'https://ambiqai.github.io/helia-developer-hub/' },
           },
           sections: [
             { label: 'Home', href: basePath, sidebar: false },
@@ -155,7 +155,7 @@ export default defineConfig({
             ],
             /* The copyright line from the Sphinx conf.py, carried verbatim so
                the Arm attribution stays on every page. */
-            tagline: 'Ambiq Micro, Inc. Built on Arm CMSIS-NN.',
+            tagline: 'Part of the Ambiq HELIA AI platform',
             logo: 'ambiq',
           },
         }),
