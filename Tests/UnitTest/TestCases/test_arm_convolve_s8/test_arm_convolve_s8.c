@@ -2372,6 +2372,7 @@ low_depth_expect_untouched(const int8_t *output, int32_t output_size, const int8
 /* Flags of low_depth_check_at(). */
 #define LOW_DEPTH_AT_GAP 1
 #define LOW_DEPTH_DISTINCT_SCRATCH 2
+#define LOW_DEPTH_GENERAL_AT_GAP 4
 
 /* Whether arm_convolve_wrapper_s8() takes its arm_convolve_s8() branch for a layer, where it may run a direct entry. */
 static int low_depth_wrapper_calls_conv(const cmsis_nn_conv_params *conv_params,
@@ -2403,7 +2404,7 @@ static int low_depth_wrapper_calls_conv(const cmsis_nn_conv_params *conv_params,
    or as arm_convolve_s8() does for a layer outside both gates. With LOW_DEPTH_DISTINCT_SCRATCH, the scratch the entry
    leaves must also differ from what arm_convolve_s8() leaves, so that this identifies the route. With
    LOW_DEPTH_AT_GAP, where the MPU guard is available, the entry that takes the layer reads the weights from a copy
-   that ends at an unmapped MPU gap. */
+   that ends at an unmapped MPU gap; with LOW_DEPTH_GENERAL_AT_GAP, arm_convolve_s8() does. */
 static void low_depth_check_at(const low_depth_case_t *tc, uint32_t seed, low_depth_entry_t entry, int flags)
 {
     const int32_t input_size = tc->n * tc->in_h * tc->in_w * tc->in_c;
@@ -2494,7 +2495,8 @@ static void low_depth_check_at(const low_depth_case_t *tc, uint32_t seed, low_de
         memset(output, LOW_DEPTH_GUARD_VALUE, output_size + 2 * LOW_DEPTH_GUARD);
         const int8_t *kernel_weights = weights;
 #if defined(MPU_GUARD_AVAILABLE)
-        const int at_gap = (flags & LOW_DEPTH_AT_GAP) && e != LOW_DEPTH_GENERAL && e == (int32_t)entry;
+        const int at_gap = ((flags & LOW_DEPTH_AT_GAP) && e != LOW_DEPTH_GENERAL && e == (int32_t)entry) ||
+            ((flags & LOW_DEPTH_GENERAL_AT_GAP) && e == LOW_DEPTH_GENERAL);
         if (at_gap)
         {
             TEST_ASSERT_TRUE(weights_size <= GUARD_OFFSET);
@@ -2730,7 +2732,8 @@ void mlperf_first_layers_arm_convolve_s8(void)
 #if defined(MPU_GUARD_AVAILABLE)
 /* Weights that end at an unmapped MPU gap, on arm_convolve_s8_small_cin(): 1 to 48 filter values per output channel,
    across the 8 values where the GEMM starts loading its first three filters' last chunks whole, and every K-chunk
-   count. A load past the last filter faults. arm_convolve_s8() runs these layers with the weights in place. */
+   count. A load past the last filter faults. general_weights_at_gap_arm_convolve_s8() runs the same layers through
+   arm_convolve_s8() with its weights at the gap. */
 static const low_depth_case_t small_cin_weights_at_gap_cases[] = {
     {1, 3, 5, 1, 1, 1, 4, 1, 1, 0, 0, 1, 1, 3, 5, 3, -128, 127},
     {1, 3, 5, 2, 1, 1, 4, 1, 1, 0, 0, 1, 1, 3, 5, -9, -128, 127},
@@ -2760,6 +2763,19 @@ void small_cin_weights_at_gap_arm_convolve_s8(void)
     {
         low_depth_check_at(
             &small_cin_weights_at_gap_cases[i], 61u + 97u * (uint32_t)i, LOW_DEPTH_SMALL_CIN, LOW_DEPTH_AT_GAP);
+    }
+#endif
+}
+
+/* The same layers through arm_convolve_s8() with the weights ending at the gap: its GEMM must not read past the last
+   filter either (#587). */
+void general_weights_at_gap_arm_convolve_s8(void)
+{
+#if defined(MPU_GUARD_AVAILABLE)
+    for (size_t i = 0; i < sizeof(small_cin_weights_at_gap_cases) / sizeof(small_cin_weights_at_gap_cases[0]); i++)
+    {
+        low_depth_check_at(
+            &small_cin_weights_at_gap_cases[i], 61u + 97u * (uint32_t)i, LOW_DEPTH_SMALL_CIN, LOW_DEPTH_GENERAL_AT_GAP);
     }
 #endif
 }
