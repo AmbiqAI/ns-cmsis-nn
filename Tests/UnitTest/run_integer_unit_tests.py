@@ -578,11 +578,7 @@ def main() -> int:
                 except subprocess.TimeoutExpired:
                     timeout_log = (log_dir / "fvp" / f"{test_name}.log")
                     output = timeout_log.read_text(encoding="utf-8") if timeout_log.exists() else ""
-                    timed_out_after_success = (
-                        "0 Failures" in output
-                        and "\nOK" in output
-                        and "FAIL" not in output
-                    )
+                    timed_out_after_success = unity_passed(output) and "FAIL" not in output
                     if timed_out_after_success:
                         tick_summary = summarize_unity_ticks(output)
                         timeout_detail = f"timeout {args.fvp_timeout}s after PASS output"

@@ -349,11 +349,7 @@ def try_fvp_command(args: list[str], cwd: Path, timeout_seconds: int) -> tuple[b
         if stderr_text:
             print(stderr_text, end="", file=sys.stderr, flush=True)
 
-        timed_out_after_success = (
-            "0 Failures" in stdout_text
-            and "\nOK" in stdout_text
-            and "FAIL" not in stdout_text
-        )
+        timed_out_after_success = unity_passed(stdout_text) and "FAIL" not in stdout_text
         if timed_out_after_success:
             tick_summary = summarize_unity_ticks(stdout_text)
             detail = f"timeout {timeout_seconds}s after PASS output"
