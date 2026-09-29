@@ -1150,6 +1150,7 @@ void ba_conv1d_spec_long_k(void)
     ba_spec_case(5, 7, 16, 17, false); /* the in_c == 16 kernel, K = 80 */
     ba_spec_case(5, 7, 56, 5, false);  /* K = 280 */
     ba_spec_case(5, 7, 20, 9, true);
+    ba_spec_case(5, 7, 20, 5, false); /* in_c 20 = 16 + a 4-channel tail (#588) */
     ba_spec_case(5, 7, 6, 5, false); /* K = 30 */
     ba_end();
 }
