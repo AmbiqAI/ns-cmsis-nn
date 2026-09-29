@@ -28,6 +28,7 @@
 #include "../TestData/fully_connected_out_activation/test_data.h"
 #include "../TestData/fully_connected_w_zp/test_data.h"
 #include "../Utils/validate.h"
+#include "../Utils/mpu_guard.h"
 
 void fully_connected_arm_fully_connected_s8(void)
 {
@@ -575,4 +576,159 @@ void buffer_size_out_of_range_dsp_arm_fully_connected_s8(void)
     // An in-range shape is undisturbed: the DSP leg needs no kernel-sum buffer.
     const cmsis_nn_dims valid_c = {1, 1, 1, FULLY_CONNECTED_IN_CH};
     TEST_ASSERT_EQUAL(0, arm_fully_connected_s8_get_buffer_size_dsp(&valid_c));
+}
+
+#if defined(MPU_GUARD_AVAILABLE)
+/* Runs one layer with its input, then its weights, copied to end at an unmapped MPU gap. The MVE vector-matrix kernels
+   must not load past either operand (#605); a load into the gap faults. */
+static void fc_operands_at_gap(const cmsis_nn_fc_params *fc_params,
+                               const int32_t *per_tensor_mult_shift,
+                               const cmsis_nn_per_channel_quant_params *per_channel,
+                               const cmsis_nn_dims *input_dims,
+                               const int8_t *input_data,
+                               const cmsis_nn_dims *filter_dims,
+                               const int8_t *kernel_data,
+                               const int32_t *bias_data,
+                               const cmsis_nn_dims *output_dims,
+                               const int8_t *output_ref,
+                               int32_t output_ref_size)
+{
+    const int32_t input_size = input_dims->n * filter_dims->n;
+    const int32_t weights_size = filter_dims->n * output_dims->c;
+    cmsis_nn_dims bias_dims = {0};
+    int8_t output[64];
+    TEST_ASSERT_TRUE(output_ref_size <= (int32_t)sizeof(output));
+    TEST_ASSERT_TRUE(input_size <= GUARD_OFFSET && weights_size <= GUARD_OFFSET);
+
+    const int32_t buf_size = arm_fully_connected_s8_get_buffer_size(filter_dims);
+    cmsis_nn_context ctx = {malloc(buf_size), buf_size};
+    #if defined(ARM_MATH_MVEI)
+    arm_vector_sum_s8(ctx.buf,
+                      filter_dims->n,
+                      output_dims->c,
+                      kernel_data,
+                      fc_params->input_offset,
+                      fc_params->filter_offset,
+                      bias_data);
+    #endif
+    for (int at_gap = 0; at_gap < 2; at_gap++)
+    {
+        const int8_t *input = at_gap == 0 ? guard_place(input_data, (size_t)input_size) : input_data;
+        const int8_t *kernel = at_gap == 1 ? guard_place(kernel_data, (size_t)weights_size) : kernel_data;
+        arm_cmsis_nn_status result;
+        memset(output, 0, sizeof(output));
+        guard_gap_enable();
+        if (per_channel)
+        {
+            result = arm_fully_connected_per_channel_s8(&ctx,
+                                                        fc_params,
+                                                        per_channel,
+                                                        input_dims,
+                                                        input,
+                                                        filter_dims,
+                                                        kernel,
+                                                        &bias_dims,
+                                                        bias_data,
+                                                        output_dims,
+                                                        output);
+        }
+        else
+        {
+            const cmsis_nn_per_tensor_quant_params quant = {per_tensor_mult_shift[0], per_tensor_mult_shift[1]};
+            result = arm_fully_connected_s8(&ctx,
+                                            fc_params,
+                                            &quant,
+                                            input_dims,
+                                            input,
+                                            filter_dims,
+                                            kernel,
+                                            &bias_dims,
+                                            bias_data,
+                                            output_dims,
+                                            output);
+        }
+        guard_gap_disable();
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+        TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
+    }
+    memset(ctx.buf, 0, buf_size);
+    free(ctx.buf);
+}
+#endif
+
+void operands_at_gap_arm_fully_connected_s8(void)
+{
+#if defined(MPU_GUARD_AVAILABLE)
+    {
+        const cmsis_nn_fc_params fc_params = {FULLY_CONNECTED_MVE_0_INPUT_OFFSET,
+                                              0,
+                                              FULLY_CONNECTED_MVE_0_OUTPUT_OFFSET,
+                                              {FULLY_CONNECTED_MVE_0_OUT_ACTIVATION_MIN,
+                                               FULLY_CONNECTED_MVE_0_OUT_ACTIVATION_MAX}};
+        const int32_t mult_shift[2] = {FULLY_CONNECTED_MVE_0_OUTPUT_MULTIPLIER, FULLY_CONNECTED_MVE_0_OUTPUT_SHIFT};
+        const cmsis_nn_dims input_dims = {FULLY_CONNECTED_MVE_0_INPUT_BATCHES,
+                                          FULLY_CONNECTED_MVE_0_INPUT_H,
+                                          FULLY_CONNECTED_MVE_0_INPUT_W,
+                                          FULLY_CONNECTED_MVE_0_IN_CH};
+        const cmsis_nn_dims filter_dims = {FULLY_CONNECTED_MVE_0_ACCUMULATION_DEPTH, 0, 0, FULLY_CONNECTED_MVE_0_OUT_CH};
+        const cmsis_nn_dims output_dims = {FULLY_CONNECTED_MVE_0_INPUT_BATCHES, 0, 0, FULLY_CONNECTED_MVE_0_OUT_CH};
+        fc_operands_at_gap(&fc_params,
+                           mult_shift,
+                           NULL,
+                           &input_dims,
+                           fully_connected_mve_0_input,
+                           &filter_dims,
+                           fully_connected_mve_0_weights,
+                           fully_connected_mve_0_biases,
+                           &output_dims,
+                           fully_connected_mve_0_output_ref,
+                           FULLY_CONNECTED_MVE_0_DST_SIZE);
+    }
+    {
+        /* A filter zero point takes the vector-matrix loops that also sum the input. */
+        const cmsis_nn_fc_params fc_params = {FULLY_CONNECTED_W_ZP_INPUT_OFFSET,
+                                              FULLY_CONNECTED_W_ZP_FILTER_OFFSET,
+                                              FULLY_CONNECTED_W_ZP_OUTPUT_OFFSET,
+                                              {FULLY_CONNECTED_W_ZP_OUT_ACTIVATION_MIN,
+                                               FULLY_CONNECTED_W_ZP_OUT_ACTIVATION_MAX}};
+        const int32_t mult_shift[2] = {FULLY_CONNECTED_W_ZP_OUTPUT_MULTIPLIER, FULLY_CONNECTED_W_ZP_OUTPUT_SHIFT};
+        const cmsis_nn_dims input_dims = {FULLY_CONNECTED_W_ZP_INPUT_BATCHES,
+                                          FULLY_CONNECTED_W_ZP_INPUT_H,
+                                          FULLY_CONNECTED_W_ZP_INPUT_W,
+                                          FULLY_CONNECTED_W_ZP_IN_CH};
+        const cmsis_nn_dims filter_dims = {FULLY_CONNECTED_W_ZP_ACCUMULATION_DEPTH, 0, 0, FULLY_CONNECTED_W_ZP_OUT_CH};
+        const cmsis_nn_dims output_dims = {FULLY_CONNECTED_W_ZP_INPUT_BATCHES, 0, 0, FULLY_CONNECTED_W_ZP_OUT_CH};
+        fc_operands_at_gap(&fc_params,
+                           mult_shift,
+                           NULL,
+                           &input_dims,
+                           fully_connected_w_zp_input,
+                           &filter_dims,
+                           fully_connected_w_zp_weights,
+                           fully_connected_w_zp_biases,
+                           &output_dims,
+                           fully_connected_w_zp_output_ref,
+                           FULLY_CONNECTED_W_ZP_DST_SIZE);
+    }
+    {
+        const cmsis_nn_fc_params fc_params = {
+            FC_PER_CH_INPUT_OFFSET, 0, FC_PER_CH_OUTPUT_OFFSET, {FC_PER_CH_OUT_ACTIVATION_MIN, FC_PER_CH_OUT_ACTIVATION_MAX}};
+        const cmsis_nn_per_channel_quant_params per_channel = {(int32_t *)fc_per_ch_output_mult,
+                                                               (int32_t *)fc_per_ch_output_shift};
+        const cmsis_nn_dims input_dims = {FC_PER_CH_INPUT_BATCHES, FC_PER_CH_INPUT_H, FC_PER_CH_INPUT_W, FC_PER_CH_IN_CH};
+        const cmsis_nn_dims filter_dims = {FC_PER_CH_ACCUMULATION_DEPTH, 0, 0, FC_PER_CH_OUT_CH};
+        const cmsis_nn_dims output_dims = {FC_PER_CH_INPUT_BATCHES, 0, 0, FC_PER_CH_OUT_CH};
+        fc_operands_at_gap(&fc_params,
+                           NULL,
+                           &per_channel,
+                           &input_dims,
+                           fc_per_ch_input,
+                           &filter_dims,
+                           fc_per_ch_weights,
+                           fc_per_ch_biases,
+                           &output_dims,
+                           fc_per_ch_output_ref,
+                           FC_PER_CH_DST_SIZE);
+    }
+#endif
 }
