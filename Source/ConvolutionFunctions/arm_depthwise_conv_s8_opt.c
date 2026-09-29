@@ -77,7 +77,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    if (ctx->buf == NULL && arm_depthwise_conv_s8_opt_get_buffer_size(input_dims, filter_dims) != 0)
+    /* The channel path writes im2col rows across the whole arm_depthwise_conv_s8_opt_get_buffer_size() scratch.
+       ctx->size is optional: callers that leave it at zero (TFLM and derivatives do) opt out of the check, so only an
+       explicitly declared, too-small buffer is rejected (#582). */
+    const int32_t buf_size = arm_depthwise_conv_s8_opt_get_buffer_size(input_dims, filter_dims);
+    if ((ctx->buf == NULL && buf_size != 0) || (ctx->size != 0 && ctx->size < buf_size))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

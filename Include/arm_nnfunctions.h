@@ -2312,10 +2312,14 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *                                                      dw_conv_params->dilation.h != 1 or
  *                                                      dw_conv_params->dilation.w < 1, or
  *                                                      ctx->buf is NULL when a scratch buffer is required, or
+ *                                                      ctx->size is non-zero and below
+ *                                                      arm_depthwise_conv_s8_opt_get_buffer_size(), or
  *                                                      weight_sum_ctx->buf is NULL on builds where it is read
  *                                                      (ARM_MATH_DSP and ARM_MATH_MVEI both defined)
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
+ * @note       ctx->size is optional: a caller that leaves it at zero opts out of the size check, as TFLM does. A
+ *             non-zero ctx->size below arm_depthwise_conv_s8_opt_get_buffer_size() is rejected before any write.
  * @note       MVE channel tail loads and stores are predicated, so channel-indexed arrays are not accessed beyond
  *             the number of channels.
  * @details
