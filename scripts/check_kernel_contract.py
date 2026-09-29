@@ -253,8 +253,9 @@ def doxyfile_defines(path):
         raise XmlError(f'{path}: no PREDEFINED line')
     defines = {}
     for token in match.group(1).replace('\\\n', ' ').split():
-        name, _, value = token.partition('=')
-        defines[re.sub(r'\(.*$', '', name)] = value
+        name, assigned, value = token.partition('=')
+        # A bare token is `=1` to Doxygen; only an explicit `NAME=` is empty.
+        defines[re.sub(r'\(.*$', '', name)] = value if assigned else '1'
     return defines
 
 
@@ -349,8 +350,7 @@ def verify_xml(xml_dir, output, doxyfile):
         committed = json.loads(Path(output).read_text(encoding='utf-8'))
     except (OSError, ValueError) as error:
         raise XmlError(f'{output}: cannot be read ({error})') from None
-    if committed.get('schema') != SCHEMA:
-        raise XmlError(f'{output}: schema {committed.get("schema")!r}, expected {SCHEMA!r}')
+    validate_document(committed, output, XmlError)
     defines = doxyfile_defines(doxyfile)
     exported = {record['name']: record for record in committed['functions']}
     visible = {name for name, record in exported.items() if doxygen_sees(record, defines)}

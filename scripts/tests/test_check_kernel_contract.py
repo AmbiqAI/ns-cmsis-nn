@@ -569,6 +569,38 @@ class VerifyXmlTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout)
         self.assertIn('no PREDEFINED line', result.stderr)
 
+    def test_bare_predefined_token_counts_as_defined_to_one(self):
+        # Bare FX_ENABLE_F16 is `=1` to doxygen: fx_add_f16 visible, fx_scalar_path not.
+        self.doxyfile.write_text('PREDEFINED = FX_ENABLE_F16 FX_HAVE_CB\n')
+        result = self.verify()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # An explicit empty value is still false for `#if`, but defined for `defined()`.
+        self.doxyfile.write_text('PREDEFINED = FX_ENABLE_F16= FX_HAVE_CB\n')
+        result = self.verify()
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("fx_add_f16: in the Doxygen XML although its guards ['FX_ENABLE_F16']", result.stderr)
+
+    def test_structurally_malformed_export_exits_2(self):
+        pristine = json.loads(self.output.read_text())
+        for change, message in [
+            (lambda d: d.__setitem__('functions', None), 'functions is not a list'),
+            (lambda d: d['functions'][0].pop('name'), 'malformed record'),
+            (lambda d: d['functions'][0].__setitem__('params', [{'name': 'a'}]), 'malformed parameter'),
+            (lambda d: d.clear() or d.update({'schema': 'ns-cmsis-nn/kernel-contracts/1'}), 'functions is not a list'),
+        ]:
+            with self.subTest(message=message):
+                document = json.loads(json.dumps(pristine))
+                change(document)
+                self.output.write_text(json.dumps(document))
+                result = self.verify()
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertIn(message, result.stderr)
+                self.assertNotIn('Traceback', result.stderr)
+        self.output.write_text('[]')
+        result = self.verify()
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn('malformed document', result.stderr)
+
     def test_missing_export_exits_2(self):
         self.output.unlink()
         result = self.verify()
