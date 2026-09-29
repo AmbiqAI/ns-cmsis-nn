@@ -7,7 +7,7 @@
 
 heliaCORE provides quantized neural-network kernels for Ambiq Apollo-class
 Cortex-M DSP/MVE targets. It preserves CMSIS-NN-compatible APIs where that
-surface applies, adds experimental inherited CMSIS-NN `float32` and `float16`
+surface applies, adds inherited CMSIS-NN `float32` and `float16`
 APIs, and adds Ambiq-tuned operators, kernel variants, and integration paths
 for HELIA AI workflows.
 
@@ -20,7 +20,7 @@ for HELIA AI workflows.
 - int8 / int16 / int4-weight quantized kernels for Conv, Depthwise Conv,
   Transpose Conv, Fully Connected, LSTM, SVDF, Pooling, Softmax, elementwise
   math and more.
-- Experimental `float32` and `float16` CMSIS-NN APIs are available for selected
+- `float32` and `float16` CMSIS-NN APIs are available for selected
   operators when explicitly enabled.
 - Three backend paths selected automatically at build time from your toolchain
   CPU flags: **pure C**, **DSP**, and **MVE / Helium**. MVE is a primary
@@ -193,9 +193,9 @@ compiler reports.
 | **DSP** | Cortex-M4, M7, M33 (with DSP extension) — uses SIMD intrinsics |
 | **MVE** | Cortex-M55, M85 — uses Arm Helium / M-Profile Vector Extension |
 
-### Experimental floating-point support
+### Floating-point support
 
-heliaCORE NN includes the experimental CMSIS-NN `float32` and `float16` APIs
+heliaCORE NN includes the CMSIS-NN `float32` and `float16` APIs
 inherited from upstream. They are disabled by default so integer-only builds do
 not pay for extra code size or public API surface. Enable them only for
 applications that strictly need floating-point kernels.
@@ -295,7 +295,7 @@ inference libraries such as Arm Compute Library or XNNPACK.
 > support per kernel, see the function prototypes in
 > [`Include/arm_nnfunctions.h`](Include/arm_nnfunctions.h).
 
-### Experimental float operator coverage
+### Floating-point operator coverage
 
 The table below summarizes public `float16` / `float32` operator coverage. The
 MVE column means the implementation contains explicit Helium-specialized paths
@@ -540,8 +540,8 @@ Compile-time options that affect headers (set the same flag in TFLM):
 
 | Option | Effect |
 |---|---|
-| `ARM_NN_ENABLE_F32` | Enables experimental `float32` operator support. Leave disabled unless the application needs float32 kernels. |
-| `ARM_NN_ENABLE_F16` | Enables experimental `float16` operator support. Leave disabled unless the application needs float16 kernels and the toolchain/target support them. |
+| `ARM_NN_ENABLE_F32` | Enables `float32` operator support. Leave disabled unless the application needs float32 kernels. |
+| `ARM_NN_ENABLE_F16` | Enables `float16` operator support. Leave disabled unless the application needs float16 kernels and the toolchain/target support them. |
 | `CMSIS_NN_USE_SINGLE_ROUNDING` | Use single instead of double rounding in requantization. May change outputs. |
 | `CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY` | Inline assembly for `arm_nn_requantize`. Faster on Cortex-M4, slower elsewhere. |
 | `OPTIONAL_RESTRICT_KEYWORD=__restrict` | Enables `restrict` on int4/int8 conv outputs. Recommended on Cortex-M7. |
@@ -693,7 +693,7 @@ Apollo-tuned kernels or Ambiq-specific operator coverage.
 Inherited symbols and signatures are kept compatible where supported so TFLM
 and other consumers can continue to link through familiar `arm_*` entry points.
 
-**How do I enable the experimental float APIs?**
+**How do I enable the float APIs?**
 Enable `ARM_NN_ENABLE_F32` and/or `ARM_NN_ENABLE_F16` in the build. They are
 off by default to keep integer-only builds small. If the enabled float headers
 are consumed by TFLM or another downstream build, use matching definitions in
