@@ -70,8 +70,10 @@ __STATIC_INLINE float32_t dot_nt_t_f16_scalar(const float16_t *__RESTRICT lhs_ro
     #endif
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-__STATIC_INLINE
-float16_t dot_nt_t_f16_mve(const float16_t *__RESTRICT lhs_row, const float16_t *__RESTRICT rhs_row, int32_t len)
+/* One row dot product in float16 lanes (element k goes to lane k % 8), reduced once in float16. */
+__STATIC_FORCEINLINE float16_t dot_nt_t_f16_mve(const float16_t *__RESTRICT lhs_row,
+                                                const float16_t *__RESTRICT rhs_row,
+                                                int32_t len)
 {
     /* Full blocks unpredicated, one predicated tail: no vctp inside a loop. */
     float16x8_t vacc = vdupq_n_f16((float16_t)0.0f);
@@ -88,6 +90,65 @@ float16_t dot_nt_t_f16_mve(const float16_t *__RESTRICT lhs_row, const float16_t 
     }
 
     return arm_nn_vec_reduce_add_f16(vacc);
+}
+
+/* `n` elements of a row dot product into fresh float16 lanes; advances both row pointers past them. */
+__STATIC_FORCEINLINE float16x8_t dot_nt_t_f16_mve_block(const float16_t **lhs, const float16_t **rhs, int32_t n)
+{
+    const float16_t *pl = *lhs;
+    const float16_t *pr = *rhs;
+    float16x8_t vacc = vdupq_n_f16((float16_t)0.0f);
+
+    for (int32_t i = n >> 3; i > 0; --i)
+    {
+        vacc = vfmaq(vacc, vld1q(pl), vld1q(pr));
+        pl += ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS;
+        pr += ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS;
+    }
+    n &= ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS - 1;
+    if (n > 0)
+    {
+        const mve_pred16_t p = vctp16q((uint32_t)n);
+        vacc = vfmaq_m(vacc, vld1q_z(pl, p), vld1q_z(pr, p), p);
+        pl += n;
+        pr += n;
+    }
+    *lhs = pl;
+    *rhs = pr;
+    return vacc;
+}
+
+/* Bias plus one row dot product, blockwise (#586): each lane sums at most ARM_NN_F16_ACC_BLOCK taps (8 * that many
+ * elements of the row) in float16; each block's lanes are widened and summed in adjacent pairs into four float32
+ * pair accumulators (arm_nn_f16_fold_pairs_f32), which are summed once (arm_nn_f16_pairs_sum_f32); the bias is added
+ * in float32 and the total rounds to float16 once. */
+__STATIC_FORCEINLINE _Float16 dot_nt_t_f16_mve_fold(const float16_t *__RESTRICT lhs_row,
+                                                    const float16_t *__RESTRICT rhs_row,
+                                                    const float16_t *bias,
+                                                    int32_t len)
+{
+    const int32_t span = ARM_NN_F16_ACC_BLOCK * ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS;
+    const float16_t *pl = lhs_row;
+    const float16_t *pr = rhs_row;
+    float32x4_t acc = vdupq_n_f32(0.0f); /* set by the first fold */
+
+    if (len <= span)
+    {
+        arm_nn_f16_fold_pairs_f32(&acc, dot_nt_t_f16_mve_block(&pl, &pr, len), true);
+    }
+    else
+    {
+        bool first = true;
+        for (int32_t rem = len; rem > 0;)
+        {
+            const int32_t n = (rem > span) ? span : rem;
+            rem -= n;
+            arm_nn_f16_fold_pairs_f32(&acc, dot_nt_t_f16_mve_block(&pl, &pr, n), first);
+            first = false;
+        }
+    }
+
+    return (_Float16)((bias ? (float32_t)*bias : 0.0f) + arm_nn_f16_pairs_sum_f32(acc));
 }
 
 /* CONTIG_ROWS rhs rows against one lhs row: one contiguous lhs load feeds four accumulators, each reduced once.
@@ -144,20 +205,194 @@ __attribute__((noinline)) static void mat_mult_nt_t_f16_contig_rows(const float1
     dst[2] = (float16_t)arm_nn_clamp_f16h(acc2, (_Float16)activation_max, (_Float16)activation_min);
     dst[3] = (float16_t)arm_nn_clamp_f16h(acc3, (_Float16)activation_max, (_Float16)activation_min);
 }
+
+/* One block of four row dot products: `full` unpredicated vector steps, then `tail` (0..7) predicated elements, into
+ * fresh float16 lanes with one contiguous lhs load per step; advances the five row pointers. */
+typedef struct
+{
+    const float16_t *lhs;
+    const float16_t *rhs0;
+    const float16_t *rhs1;
+    const float16_t *rhs2;
+    const float16_t *rhs3;
+} mat_mult_nt_t_f16_contig_ptrs;
+
+__STATIC_FORCEINLINE void mat_mult_nt_t_f16_contig_block(mat_mult_nt_t_f16_contig_ptrs *ptr,
+                                                         int32_t full,
+                                                         int32_t tail,
+                                                         float16x8_t *vacc0_out,
+                                                         float16x8_t *vacc1_out,
+                                                         float16x8_t *vacc2_out,
+                                                         float16x8_t *vacc3_out)
+{
+    const float16_t *pl = ptr->lhs;
+    const float16_t *p0 = ptr->rhs0;
+    const float16_t *p1 = ptr->rhs1;
+    const float16_t *p2 = ptr->rhs2;
+    const float16_t *p3 = ptr->rhs3;
+    float16x8_t vacc0 = vdupq_n_f16((float16_t)0.0f);
+    float16x8_t vacc1 = vdupq_n_f16((float16_t)0.0f);
+    float16x8_t vacc2 = vdupq_n_f16((float16_t)0.0f);
+    float16x8_t vacc3 = vdupq_n_f16((float16_t)0.0f);
+
+        #if defined(__clang__)
+            #pragma clang loop unroll(disable)
+        #endif
+    for (int32_t i = full; i > 0; --i)
+    {
+        const float16x8_t vlhs = vld1q(pl);
+        vacc0 = vfmaq(vacc0, vlhs, vld1q(p0));
+        vacc1 = vfmaq(vacc1, vlhs, vld1q(p1));
+        vacc2 = vfmaq(vacc2, vlhs, vld1q(p2));
+        vacc3 = vfmaq(vacc3, vlhs, vld1q(p3));
+        pl += ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS;
+        p0 += ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS;
+        p1 += ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS;
+        p2 += ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS;
+        p3 += ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS;
+    }
+    if (tail > 0)
+    {
+        const mve_pred16_t p = vctp16q((uint32_t)tail);
+        const float16x8_t vlhs = vld1q_z(pl, p);
+        vacc0 = vfmaq_m(vacc0, vlhs, vld1q_z(p0, p), p);
+        vacc1 = vfmaq_m(vacc1, vlhs, vld1q_z(p1, p), p);
+        vacc2 = vfmaq_m(vacc2, vlhs, vld1q_z(p2, p), p);
+        vacc3 = vfmaq_m(vacc3, vlhs, vld1q_z(p3, p), p);
+    }
+    ptr->lhs = pl;
+    ptr->rhs0 = p0;
+    ptr->rhs1 = p1;
+    ptr->rhs2 = p2;
+    ptr->rhs3 = p3;
+    *vacc0_out = vacc0;
+    *vacc1_out = vacc1;
+    *vacc2_out = vacc2;
+    *vacc3_out = vacc3;
+}
+
+/* Four row totals from their float32 pair accumulators (arm_nn_f16_pairs_sum4_f32), plus the bias in float32, one
+ * rounding to float16, then the clamp and the store of four outputs. */
+__STATIC_FORCEINLINE void mat_mult_nt_t_f16_contig_store_fold(float32x4_t acc0,
+                                                              float32x4_t acc1,
+                                                              float32x4_t acc2,
+                                                              float32x4_t acc3,
+                                                              const float16_t *bias,
+                                                              float16_t *dst,
+                                                              float16_t activation_min,
+                                                              float16_t activation_max)
+{
+    float32x4_t total = arm_nn_f16_pairs_sum4_f32(acc0, acc1, acc2, acc3);
+    if (bias)
+    {
+        /* The bias widens exactly from the low half of each 32-bit lane. */
+        const float16x8_t vbias = vreinterpretq_f16_u32(vldrhq_u32((const uint16_t *)bias));
+        total = vaddq(arm_nn_vcvtbq_f32_f16(vbias), total);
+    }
+    float16x8_t out = arm_nn_vcvtbq_f16_f32(vdupq_n_f16((float16_t)0.0f), total);
+    out = vminnmq(out, vdupq_n_f16(activation_max));
+    out = vmaxnmq(out, vdupq_n_f16(activation_min));
+    vstrhq_u32((uint16_t *)dst, vreinterpretq_u32_f16(out));
+}
+
+/* mat_mult_nt_t_f16_contig_rows for rows of more than ARM_NN_F16_ACC_BLOCK and at most 8 * ARM_NN_F16_ACC_BLOCK
+ * elements (#586): one block, so each lane holds at most ARM_NN_F16_ACC_BLOCK taps; per row the lanes are summed in
+ * float32 as in dot_nt_t_f16_mve_fold, the bias is added in float32 and the total rounds to float16 once. */
+__attribute__((noinline)) static void mat_mult_nt_t_f16_contig_rows_fold(const float16_t *__RESTRICT lhs_row,
+                                                                         const float16_t *__RESTRICT rhs_block,
+                                                                         const float16_t *__RESTRICT bias,
+                                                                         float16_t *__RESTRICT dst,
+                                                                         int32_t len,
+                                                                         float16_t activation_min,
+                                                                         float16_t activation_max)
+{
+    mat_mult_nt_t_f16_contig_ptrs ptr = {lhs_row, rhs_block, rhs_block + len, rhs_block + 2 * len, rhs_block + 3 * len};
+    float16x8_t vacc0;
+    float16x8_t vacc1;
+    float16x8_t vacc2;
+    float16x8_t vacc3;
+    float32x4_t acc0;
+    float32x4_t acc1;
+    float32x4_t acc2;
+    float32x4_t acc3;
+
+    mat_mult_nt_t_f16_contig_block(
+        &ptr, len >> 3, len & (ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS - 1), &vacc0, &vacc1, &vacc2, &vacc3);
+    arm_nn_f16_fold_pairs_f32(&acc0, vacc0, true);
+    arm_nn_f16_fold_pairs_f32(&acc1, vacc1, true);
+    arm_nn_f16_fold_pairs_f32(&acc2, vacc2, true);
+    arm_nn_f16_fold_pairs_f32(&acc3, vacc3, true);
+    mat_mult_nt_t_f16_contig_store_fold(acc0, acc1, acc2, acc3, bias, dst, activation_min, activation_max);
+}
+
+/* mat_mult_nt_t_f16_contig_rows_fold for rows of more than 8 * ARM_NN_F16_ACC_BLOCK elements (#586): each lane sums at
+ * most ARM_NN_F16_ACC_BLOCK taps in float16 before it is folded into its row's float32 pair accumulators; per row the
+ * pair accumulators are summed once as in dot_nt_t_f16_mve_fold, the bias is added in float32 and the total rounds to
+ * float16 once before the clamp. */
+__attribute__((noinline)) static void mat_mult_nt_t_f16_contig_rows_fold_long(const float16_t *__RESTRICT lhs_row,
+                                                                              const float16_t *__RESTRICT rhs_block,
+                                                                              const float16_t *__RESTRICT bias,
+                                                                              float16_t *__RESTRICT dst,
+                                                                              int32_t len,
+                                                                              float16_t activation_min,
+                                                                              float16_t activation_max)
+{
+    /* Vector steps: `full` unpredicated ones, then one predicated step for a tail of `tail` elements. Blocks of
+     * ARM_NN_F16_ACC_BLOCK steps: the first and `mid` more are all unpredicated; the last holds what is left, the
+     * tail step included. */
+    const int32_t full = len >> 3;
+    const int32_t tail = len & (ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS - 1);
+    const int32_t steps = full + (tail > 0 ? 1 : 0);
+    const int32_t mid = (steps - 1) / ARM_NN_F16_ACC_BLOCK - 1;
+    mat_mult_nt_t_f16_contig_ptrs ptr = {lhs_row, rhs_block, rhs_block + len, rhs_block + 2 * len, rhs_block + 3 * len};
+    float16x8_t vacc0;
+    float16x8_t vacc1;
+    float16x8_t vacc2;
+    float16x8_t vacc3;
+    float32x4_t acc0;
+    float32x4_t acc1;
+    float32x4_t acc2;
+    float32x4_t acc3;
+
+    mat_mult_nt_t_f16_contig_block(&ptr, ARM_NN_F16_ACC_BLOCK, 0, &vacc0, &vacc1, &vacc2, &vacc3);
+    arm_nn_f16_fold_pairs_f32(&acc0, vacc0, true);
+    arm_nn_f16_fold_pairs_f32(&acc1, vacc1, true);
+    arm_nn_f16_fold_pairs_f32(&acc2, vacc2, true);
+    arm_nn_f16_fold_pairs_f32(&acc3, vacc3, true);
+    for (int32_t b = 0; b < mid; ++b)
+    {
+        mat_mult_nt_t_f16_contig_block(&ptr, ARM_NN_F16_ACC_BLOCK, 0, &vacc0, &vacc1, &vacc2, &vacc3);
+        arm_nn_f16_fold_pairs_f32(&acc0, vacc0, false);
+        arm_nn_f16_fold_pairs_f32(&acc1, vacc1, false);
+        arm_nn_f16_fold_pairs_f32(&acc2, vacc2, false);
+        arm_nn_f16_fold_pairs_f32(&acc3, vacc3, false);
+    }
+    mat_mult_nt_t_f16_contig_block(&ptr, full - (mid + 1) * ARM_NN_F16_ACC_BLOCK, tail, &vacc0, &vacc1, &vacc2, &vacc3);
+    arm_nn_f16_fold_pairs_f32(&acc0, vacc0, false);
+    arm_nn_f16_fold_pairs_f32(&acc1, vacc1, false);
+    arm_nn_f16_fold_pairs_f32(&acc2, vacc2, false);
+    arm_nn_f16_fold_pairs_f32(&acc3, vacc3, false);
+
+    mat_mult_nt_t_f16_contig_store_fold(acc0, acc1, acc2, acc3, bias, dst, activation_min, activation_max);
+}
     #endif
 
-/* Refer header file for details. */
-arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
-                                             const float16_t *__RESTRICT rhs,
-                                             const float16_t *__RESTRICT bias,
-                                             float16_t *__RESTRICT dst,
-                                             int32_t lhs_rows,
-                                             int32_t rhs_rows,
-                                             int32_t rhs_cols,
-                                             int32_t row_address_offset,
-                                             float16_t activation_min,
-                                             float16_t activation_max)
+/* Shared body; `fold` is a constant at every call site: true (blockwise, rhs_cols > ARM_NN_F16_ACC_BLOCK only) or
+ * false (float16 lanes throughout). */
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_body(const float16_t *__RESTRICT lhs,
+                                                                       const float16_t *__RESTRICT rhs,
+                                                                       const float16_t *__RESTRICT bias,
+                                                                       float16_t *__RESTRICT dst,
+                                                                       int32_t lhs_rows,
+                                                                       int32_t rhs_rows,
+                                                                       int32_t rhs_cols,
+                                                                       int32_t row_address_offset,
+                                                                       float16_t activation_min,
+                                                                       float16_t activation_max,
+                                                                       const bool fold)
 {
+    (void)fold;
+
     if (!lhs || !rhs || !dst || lhs_rows <= 0 || rhs_rows <= 0 || rhs_cols <= 0 || row_address_offset <= 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
@@ -174,13 +409,16 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
         {
             for (; c + ARM_NN_MAT_MULT_NT_T_F16_CONTIG_ROWS <= rhs_rows; c += ARM_NN_MAT_MULT_NT_T_F16_CONTIG_ROWS)
             {
-                mat_mult_nt_t_f16_contig_rows(lhs_row,
-                                              rhs + (size_t)c * rhs_cols,
-                                              bias ? bias + c : NULL,
-                                              dst_row + c,
-                                              rhs_cols,
-                                              activation_min,
-                                              activation_max);
+                (!fold ? mat_mult_nt_t_f16_contig_rows
+                       : (rhs_cols > ARM_NN_F16_ACC_BLOCK * ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS
+                              ? mat_mult_nt_t_f16_contig_rows_fold_long
+                              : mat_mult_nt_t_f16_contig_rows_fold))(lhs_row,
+                                                                     rhs + (size_t)c * rhs_cols,
+                                                                     bias ? bias + c : NULL,
+                                                                     dst_row + c,
+                                                                     rhs_cols,
+                                                                     activation_min,
+                                                                     activation_max);
             }
         }
         else if (rhs_cols <= ARM_NN_MAT_MULT_NT_T_F16_MVE_MAX_RHS_COLS)
@@ -265,8 +503,16 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
             const float16_t *rhs_row = rhs + (size_t)c * rhs_cols;
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-            _Float16 acc = bias ? (_Float16)bias[c] : (_Float16)0.0f;
-            acc += (_Float16)dot_nt_t_f16_mve(lhs_row, rhs_row, rhs_cols);
+            _Float16 acc;
+            if (fold)
+            {
+                acc = dot_nt_t_f16_mve_fold(lhs_row, rhs_row, bias ? bias + c : NULL, rhs_cols);
+            }
+            else
+            {
+                acc = bias ? (_Float16)bias[c] : (_Float16)0.0f;
+                acc += (_Float16)dot_nt_t_f16_mve(lhs_row, rhs_row, rhs_cols);
+            }
     #else
             const float32_t acc32 =
                 (bias ? (float32_t)bias[c] : 0.0f) + dot_nt_t_f16_scalar(lhs_row, rhs_row, rhs_cols);
@@ -278,6 +524,72 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
     }
 
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+/* Float16 lanes throughout: all of arm_nn_mat_mult_nt_t_f16_acc16, and arm_nn_mat_mult_nt_t_f16 when rhs_cols is at
+ * most ARM_NN_F16_ACC_BLOCK, where nothing folds and both entries agree bit for bit. Out of line and shared, so neither
+ * entry references the other and each links only the code it runs. */
+static __attribute__((noinline)) arm_cmsis_nn_status mat_mult_nt_t_f16_lanes16(const float16_t *__RESTRICT lhs,
+                                                                               const float16_t *__RESTRICT rhs,
+                                                                               const float16_t *__RESTRICT bias,
+                                                                               float16_t *__RESTRICT dst,
+                                                                               int32_t lhs_rows,
+                                                                               int32_t rhs_rows,
+                                                                               int32_t rhs_cols,
+                                                                               int32_t row_address_offset,
+                                                                               float16_t activation_min,
+                                                                               float16_t activation_max)
+{
+    return arm_nn_mat_mult_nt_t_f16_body(
+        lhs, rhs, bias, dst, lhs_rows, rhs_rows, rhs_cols, row_address_offset, activation_min, activation_max, false);
+}
+
+/* Refer header file for details. */
+arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_acc16(const float16_t *__RESTRICT lhs,
+                                                   const float16_t *__RESTRICT rhs,
+                                                   const float16_t *__RESTRICT bias,
+                                                   float16_t *__RESTRICT dst,
+                                                   int32_t lhs_rows,
+                                                   int32_t rhs_rows,
+                                                   int32_t rhs_cols,
+                                                   int32_t row_address_offset,
+                                                   float16_t activation_min,
+                                                   float16_t activation_max)
+{
+    return mat_mult_nt_t_f16_lanes16(
+        lhs, rhs, bias, dst, lhs_rows, rhs_rows, rhs_cols, row_address_offset, activation_min, activation_max);
+}
+
+/* Refer header file for details. */
+arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
+                                             const float16_t *__RESTRICT rhs,
+                                             const float16_t *__RESTRICT bias,
+                                             float16_t *__RESTRICT dst,
+                                             int32_t lhs_rows,
+                                             int32_t rhs_rows,
+                                             int32_t rhs_cols,
+                                             int32_t row_address_offset,
+                                             float16_t activation_min,
+                                             float16_t activation_max)
+{
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    if (rhs_cols > ARM_NN_F16_ACC_BLOCK)
+    {
+        return arm_nn_mat_mult_nt_t_f16_body(lhs,
+                                             rhs,
+                                             bias,
+                                             dst,
+                                             lhs_rows,
+                                             rhs_rows,
+                                             rhs_cols,
+                                             row_address_offset,
+                                             activation_min,
+                                             activation_max,
+                                             true);
+    }
+    #endif
+    return mat_mult_nt_t_f16_lanes16(
+        lhs, rhs, bias, dst, lhs_rows, rhs_rows, rhs_cols, row_address_offset, activation_min, activation_max);
 }
 
 /**
