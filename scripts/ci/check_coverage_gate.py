@@ -164,14 +164,20 @@ def baseline_reset(config: dict) -> dict | None:
     rate = float(reset["line_rate"])
     if not math.isfinite(rate) or not float(config["line_floor_pct"]) <= rate <= 100:
         raise ValueError("baseline_reset rate must be finite and between the floor and 100")
+    supersedes = reset.get("supersedes")
+    if supersedes is not None and (not isinstance(supersedes, str) or not supersedes.strip() or supersedes == reset["epoch"]):
+        raise ValueError("baseline_reset supersedes must name a different, nonempty earlier epoch")
     return reset
 
 
 def select_baseline(baseline: dict, reset: dict | None) -> tuple[dict, str]:
-    """Retire the reset when a successful main artifact carries its epoch."""
+    """Retire the reset when a successful main artifact carries its epoch. A reset may
+    replace a pre-epoch artifact, or the one epoch it names in `supersedes`; any other
+    epoch on the artifact means this branch predates a newer reviewed reset."""
     if reset is None or baseline.get("baseline_epoch") == reset["epoch"]:
         return baseline, ""
-    if baseline.get("baseline_epoch") is not None:
+    previous = baseline.get("baseline_epoch")
+    if previous is not None and previous != reset.get("supersedes"):
         raise ValueError("baseline epoch differs from the reviewed reset; refresh this branch")
     return {"overall_line_rate": reset["line_rate"]}, (
         f"reviewed baseline reset {reset['epoch']}: {float(reset['line_rate']):.2f}% "
