@@ -165,7 +165,24 @@ arm_cmsis_nn_status arm_mean_flatten_reduce_last_dims_s16(const int16_t *input_d
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+
+__STATIC_FORCEINLINE int16x8_t arm_mean_requantize_narrow_s16(int32x4_t acc0,
+                                                              int32x4_t acc1,
+                                                              const int32_t out_offset,
+                                                              const int32_t out_mult,
+                                                              const int32_t out_shift)
+{
+    acc0 = arm_requantize_mve(acc0, out_mult, out_shift);
+    acc1 = arm_requantize_mve(acc1, out_mult, out_shift);
+
+    acc0 = vaddq_n_s32(acc0, out_offset);
+    acc1 = vaddq_n_s32(acc1, out_offset);
+
+    int16x8_t out = vdupq_n_s16(0);
+    out = vqmovnbq_s32(out, acc0);
+    return vqmovntq_s32(out, acc1);
+}
 
 arm_cmsis_nn_status arm_mean_reduce_spatial_mve_s16(const int16_t *input_data,
                                                     const cmsis_nn_dims *input_dims,
@@ -246,15 +263,15 @@ arm_cmsis_nn_status arm_mean_reduce_spatial_mve_s16(const int16_t *input_data,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-arm_cmsis_nn_status arm_mean_reduce_axis_mve_s16(const int16_t *input_data,
-                                                 int32_t input_offset,
-                                                 int16_t *output_data,
-                                                 int32_t out_offset,
-                                                 int32_t out_mult,
-                                                 int32_t out_shift,
-                                                 int32_t outer_size,
-                                                 int32_t reduce_size,
-                                                 int32_t inner_size)
+static arm_cmsis_nn_status arm_mean_reduce_axis_mve_s16(const int16_t *input_data,
+                                                        int32_t input_offset,
+                                                        int16_t *output_data,
+                                                        int32_t out_offset,
+                                                        int32_t out_mult,
+                                                        int32_t out_shift,
+                                                        int32_t outer_size,
+                                                        int32_t reduce_size,
+                                                        int32_t inner_size)
 {
     const int32_t zp = input_offset * reduce_size;
 
@@ -284,20 +301,8 @@ arm_cmsis_nn_status arm_mean_reduce_axis_mve_s16(const int16_t *input_data,
                 p += inner_size;
             }
 
-            // Requantize (assumes 1/reduce_size already folded into out_mult/out_shift)
-            acc0 = arm_requantize_mve(acc0, out_mult, out_shift);
-            acc1 = arm_requantize_mve(acc1, out_mult, out_shift);
-
-            // Add output zero-point
-            acc0 = vaddq_n_s32(acc0, out_offset);
-            acc1 = vaddq_n_s32(acc1, out_offset);
-
-            // Narrow 32->16 (with saturation)
-            int16x8_t outv = vdupq_n_s16(0);
-            outv = vqmovnbq_s32(outv, acc0);
-            outv = vqmovntq_s32(outv, acc1);
-
-            vst1q_s16(out_ptr + i, outv);
+            // Requantize, add the output zero-point, and narrow with saturation.
+            vst1q_s16(out_ptr + i, arm_mean_requantize_narrow_s16(acc0, acc1, out_offset, out_mult, out_shift));
         }
 
         // Predicated remainder, still vectorized
@@ -319,24 +324,15 @@ arm_cmsis_nn_status arm_mean_reduce_axis_mve_s16(const int16_t *input_data,
                 p += inner_size;
             }
 
-            acc0 = arm_requantize_mve(acc0, out_mult, out_shift);
-            acc1 = arm_requantize_mve(acc1, out_mult, out_shift);
-
-            acc0 = vaddq_n_s32(acc0, out_offset);
-            acc1 = vaddq_n_s32(acc1, out_offset);
-
-            int16x8_t outv = vdupq_n_s16(0);
-            outv = vqmovnbq_s32(outv, acc0);
-            outv = vqmovntq_s32(outv, acc1);
-
-            vstrhq_p_s16(out_ptr + i, outv, pred);
+            vstrhq_p_s16(
+                out_ptr + i, arm_mean_requantize_narrow_s16(acc0, acc1, out_offset, out_mult, out_shift), pred);
         }
     }
 
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-#endif // ARM_MATH_MVEI
+#endif // ARM_MATH_MVEI && !ARM_MATH_AUTOVECTORIZE
 
 /*
  * s16 mean over the specified axis
@@ -381,7 +377,7 @@ arm_cmsis_nn_status arm_mean_s16(const int16_t *input_data,
             input_data, input_offset, output_data, out_offset, out_mult, out_shift, outer_size, inner_size);
     }
 
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
 
     // Check for spatial reduction axis=[H,W]
     if (!axis_dims->n && axis_dims->h && axis_dims->w && !axis_dims->c)
@@ -418,7 +414,7 @@ arm_cmsis_nn_status arm_mean_s16(const int16_t *input_data,
                                             inner_size);
     }
 
-#endif // ARM_MATH_MVEI
+#endif // ARM_MATH_MVEI && !ARM_MATH_AUTOVECTORIZE
 
     // Fallback to general-purpose scalar implementation
     return arm_mean_reduce_generic_s16(
