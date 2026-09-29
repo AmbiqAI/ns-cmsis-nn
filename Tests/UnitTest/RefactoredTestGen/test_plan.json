@@ -16,6 +16,7 @@
     "tests": [
       {
         "name": "fc_conv_int8_dilated",
+        "input_batches": 1,
         "in_ch": 96,
         "out_ch": 96,
         "input_w": 1,
@@ -30,6 +31,7 @@
       },
       {
         "name": "fc_conv_int8_diff_channels",
+        "input_batches": 1,
         "in_ch": 96,
         "out_ch": 16,
         "input_w": 1,
@@ -44,6 +46,7 @@
       },
       {
         "name": "fc_conv_int8_non_4_multiple",
+        "input_batches": 1,
         "in_ch": 77,
         "out_ch": 33,
         "input_w": 1,
@@ -58,6 +61,7 @@
       },
       {
         "name": "fc_conv_int8_1x1_kernel",
+        "input_batches": 1,
         "in_ch": 20,
         "out_ch": 20,
         "input_w": 1,
@@ -72,6 +76,7 @@
       },
       {
         "name": "depthwise_single_in_many_out_ch",
+        "input_batches": 1,
         "in_ch": 1,
         "out_ch": 12,
         "input_w": 49,

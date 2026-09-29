@@ -46,7 +46,8 @@
  * Four channels are accumulated before the epilogue so arm_requantize_mve_32x4
  * requantises them in one pass with per-lane multipliers and shifts.
  *
- * int32 accumulator cannot overflow: |32767 * 127| * 32 < 2^31.
+ * The product sum fits in int32: (32768 * 128) * 32 = 2^27. As in the
+ * generic matmul path, adding an arbitrary int32 bias can still overflow.
  */
     #define CONV_1X1_S16_RESIDENT(NVEC)                                                                                \
         for (int32_t p = 0; p < pixels; p++)                                                                           \
@@ -64,7 +65,7 @@
                 for (int32_t k = 0; k < 4; k++)                                                                        \
                 {                                                                                                      \
                     const int8_t *w = weights + (c + k) * in_ch;                                                       \
-                    int32_t a = bias[c + k];                                                                           \
+                    int32_t a = bias ? bias[c + k] : 0;                                                                \
                     a = vmladavaq_s16(a, vldrbq_s16(w), x0);                                                           \
                     if (NVEC > 1)                                                                                      \
                         a = vmladavaq_s16(a, vldrbq_s16(w + 8), x1);                                                   \
@@ -82,7 +83,7 @@
             for (; c < out_ch; c++)                                                                                    \
             {                                                                                                          \
                 const int8_t *w = weights + c * in_ch;                                                                 \
-                int32_t a = bias[c];                                                                                   \
+                int32_t a = bias ? bias[c] : 0;                                                                        \
                 a = vmladavaq_s16(a, vldrbq_s16(w), x0);                                                               \
                 if (NVEC > 1)                                                                                          \
                     a = vmladavaq_s16(a, vldrbq_s16(w + 8), x1);                                                       \
@@ -183,8 +184,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
-        if (bias_data != NULL && bias_data->data != NULL && bias_data->is_int32_bias &&
-            rhs_cols <= CONV_1X1_S16_RESIDENT_MAX_CH && (rhs_cols & 0x7) == 0)
+        if (bias_data != NULL && bias_data->is_int32_bias && rhs_cols > 0 && rhs_cols <= CONV_1X1_S16_RESIDENT_MAX_CH &&
+            (rhs_cols & 0x7) == 0)
         {
             conv_1x1_s16_resident_pixel(input_data,
                                         filter_data,

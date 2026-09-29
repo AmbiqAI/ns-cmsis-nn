@@ -22,19 +22,19 @@
 #include <arm_nnfunctions.h>
 #include <unity.h>
 
-#include "../TestData/int16xint8/test_data.h"
+#include "../TestData/int16xint8_kernel_less_than_9/test_data.h"
 #include "../TestData/int16xint8_1x1_ns_np_nd/test_data.h"
-#include "../TestData/int16xint8_dilation_1/test_data.h"
-#include "../TestData/int16xint8_dilation_2/test_data.h"
-#include "../TestData/int16xint8_dilation_3/test_data.h"
-#include "../TestData/int16xint8_group2/test_data.h"
 #include "../TestData/int16xint8_group_batch2_dilated/test_data.h"
 #include "../TestData/int16xint8_group_depthwise/test_data.h"
 #include "../TestData/int16xint8_group_depthwise_3x3/test_data.h"
 #include "../TestData/int16xint8_group_depthwise_3x3_pad/test_data.h"
 #include "../TestData/int16xint8_group_depthwise_3x3_stride_dilation/test_data.h"
+#include "../TestData/int16xint8_group2/test_data.h"
 #include "../TestData/int16xint8_group_same/test_data.h"
-#include "../TestData/int16xint8_kernel_less_than_9/test_data.h"
+#include "../TestData/int16xint8/test_data.h"
+#include "../TestData/int16xint8_dilation_1/test_data.h"
+#include "../TestData/int16xint8_dilation_2/test_data.h"
+#include "../TestData/int16xint8_dilation_3/test_data.h"
 #include "../TestData/int16xint8_spill/test_data.h"
 #include "../TestData/int16xint8_spill2/test_data.h"
 #include "../TestData/int16xint8xint32_1/test_data.h"
@@ -1898,6 +1898,125 @@ void int16xint8xint32_3_arm_convolve_s16(void)
     }
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
     TEST_ASSERT_TRUE(validate_s16(output, output_ref, output_ref_size));
+}
+
+static arm_cmsis_nn_status run_1x1_s16_contract_case(const int32_t in_ch,
+                                                     const int32_t out_ch,
+                                                     const int16_t *input,
+                                                     const int8_t *weights,
+                                                     const cmsis_nn_bias_data *bias,
+                                                     int32_t *multipliers,
+                                                     int32_t *shifts,
+                                                     const int32_t activation_min,
+                                                     const int32_t activation_max,
+                                                     int16_t *output)
+{
+    const cmsis_nn_context ctx = {0};
+    cmsis_nn_conv_params conv_params = {0};
+    cmsis_nn_per_channel_quant_params quant_params = {multipliers, shifts};
+    const cmsis_nn_dims input_dims = {1, 1, 1, in_ch};
+    const cmsis_nn_dims filter_dims = {out_ch, 1, 1, in_ch};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_ch};
+    const cmsis_nn_dims output_dims = {1, 1, 1, out_ch};
+
+    conv_params.stride.w = 1;
+    conv_params.stride.h = 1;
+    conv_params.dilation.w = 1;
+    conv_params.dilation.h = 1;
+    conv_params.activation.min = activation_min;
+    conv_params.activation.max = activation_max;
+
+    return arm_convolve_1x1_s16_ns_np_nd(&ctx,
+                                         &conv_params,
+                                         &quant_params,
+                                         &input_dims,
+                                         input,
+                                         &filter_dims,
+                                         weights,
+                                         &bias_dims,
+                                         bias,
+                                         &output_dims,
+                                         output);
+}
+
+void resident_pixel_contract_arm_convolve_s16(void)
+{
+    const int16_t input[8] = {100, 100, 100, 100, 100, 100, 100, 100};
+    const int8_t weights[24] = {1,  1,  1,  1,  1,  1,  1,  1, -1, -1, -1, -1,
+                                -1, -1, -1, -1, 0,  0,  0,  0,  0,  0,  0,  0};
+    const int32_t bias_values[3] = {0, 0, 5};
+    const cmsis_nn_bias_data bias = {bias_values, true};
+    const cmsis_nn_bias_data no_bias = {NULL, true};
+    int32_t multipliers[3] = {1073741824, 1073741824, 1073741824};
+    int32_t shifts[3] = {1, 1, 1};
+    int16_t output[3] = {0};
+
+    /* A single pixel and fewer than four output channels exercise only the
+       scalar epilogue. Both activation limits must clamp. */
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      run_1x1_s16_contract_case(8, 3, input, weights, &bias, multipliers, shifts, -10, 10, output));
+    TEST_ASSERT_EQUAL_INT16(10, output[0]);
+    TEST_ASSERT_EQUAL_INT16(-10, output[1]);
+    TEST_ASSERT_EQUAL_INT16(5, output[2]);
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      run_1x1_s16_contract_case(8, 3, input, weights, &bias, multipliers, shifts, -10, 10, NULL));
+
+    /* A NULL int32 bias is zero and remains eligible for the resident path. */
+    output[0] = 0;
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        run_1x1_s16_contract_case(8, 1, input, weights, &no_bias, multipliers, shifts, -32768, 32767, output));
+    TEST_ASSERT_EQUAL_INT16(800, output[0]);
+
+    /* Zero channels must take the generic path without reading either data pointer. */
+    const int32_t zero_channel_bias_value = 7;
+    const cmsis_nn_bias_data zero_channel_bias = {&zero_channel_bias_value, true};
+    output[0] = 0;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      run_1x1_s16_contract_case(
+                          0, 1, NULL, NULL, &zero_channel_bias, multipliers, shifts, -32768, 32767, output));
+    TEST_ASSERT_EQUAL_INT16(7, output[0]);
+
+    /* Twelve channels are not a whole MVE vector pair; forty are over the
+       resident limit. Both boundary shapes must retain the fallback result. */
+    int16_t boundary_input[40];
+    int8_t boundary_weights[40];
+    for (int32_t i = 0; i < 40; ++i)
+    {
+        boundary_input[i] = 1;
+        boundary_weights[i] = 1;
+    }
+    const int32_t boundary_bias_value = 0;
+    const cmsis_nn_bias_data boundary_bias = {&boundary_bias_value, true};
+
+    output[0] = 0;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      run_1x1_s16_contract_case(12,
+                                                1,
+                                                boundary_input,
+                                                boundary_weights,
+                                                &boundary_bias,
+                                                multipliers,
+                                                shifts,
+                                                -32768,
+                                                32767,
+                                                output));
+    TEST_ASSERT_EQUAL_INT16(12, output[0]);
+
+    output[0] = 0;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      run_1x1_s16_contract_case(40,
+                                                1,
+                                                boundary_input,
+                                                boundary_weights,
+                                                &boundary_bias,
+                                                multipliers,
+                                                shifts,
+                                                -32768,
+                                                32767,
+                                                output));
+    TEST_ASSERT_EQUAL_INT16(40, output[0]);
 }
 
 void int16xint8xint32_1x1_ch8_arm_convolve_s16(void)

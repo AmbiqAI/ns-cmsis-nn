@@ -56,6 +56,7 @@ void test_int16xint8_spill2_arm_convolve_s16(void) { int16xint8_spill2_arm_convo
 void test_int16xint8xint32_1_arm_convolve_s16(void) { int16xint8xint32_1_arm_convolve_s16(); }
 void test_int16xint8xint32_2_arm_convolve_s16(void) { int16xint8xint32_2_arm_convolve_s16(); }
 void test_int16xint8xint32_3_arm_convolve_s16(void) { int16xint8xint32_3_arm_convolve_s16(); }
+void test_resident_pixel_contract_arm_convolve_s16(void) { resident_pixel_contract_arm_convolve_s16(); }
 void test_int16xint8xint32_1x1_ch8_arm_convolve_s16(void) { int16xint8xint32_1x1_ch8_arm_convolve_s16(); }
 void test_int16xint8xint32_1x1_ch16_arm_convolve_s16(void) { int16xint8xint32_1x1_ch16_arm_convolve_s16(); }
 void test_int16xint8xint32_1x1_ch24_arm_convolve_s16(void) { int16xint8xint32_1x1_ch24_arm_convolve_s16(); }
