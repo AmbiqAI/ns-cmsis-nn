@@ -54,6 +54,37 @@ static void scale_q31_to_q15_and_clamp(const int32_t *buffer,
 }
 #endif
 
+/* Whether every pooling window of the layer overlaps the input. Rows and columns are checked separately: a window is
+   empty exactly when its row range or its column range is. The bounds are 64-bit because i * stride - pad + kernel can
+   overflow an int32_t. An output with no rows or no columns has no window. */
+static bool arm_avgpool_s16_windows_valid(const cmsis_nn_pool_params *pool_params,
+                                          const cmsis_nn_dims *input_dims,
+                                          const cmsis_nn_dims *filter_dims,
+                                          const cmsis_nn_dims *output_dims)
+{
+    if ((output_dims->h <= 0) || (output_dims->w <= 0))
+    {
+        return true;
+    }
+    for (int32_t i_y = 0; i_y < output_dims->h; i_y++)
+    {
+        const int64_t base = (int64_t)i_y * pool_params->stride.h - pool_params->padding.h;
+        if (ARM_NN_MAX(base, (int64_t)0) >= ARM_NN_MIN(base + filter_dims->h, (int64_t)input_dims->h))
+        {
+            return false;
+        }
+    }
+    for (int32_t i_x = 0; i_x < output_dims->w; i_x++)
+    {
+        const int64_t base = (int64_t)i_x * pool_params->stride.w - pool_params->padding.w;
+        if (ARM_NN_MAX(base, (int64_t)0) >= ARM_NN_MIN(base + filter_dims->w, (int64_t)input_dims->w))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 /**
  *  @ingroup Public
 
@@ -99,6 +130,12 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
+    /* Rejected here, before any output is written, rather than at the first empty window. */
+    if (!arm_avgpool_s16_windows_valid(pool_params, input_dims, filter_dims, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
 #if defined(ARM_MATH_MVEI)
     (void)ctx;
 
@@ -110,11 +147,14 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
         {
             for (int i_x = 0; i_x < output_x; i_x++)
             {
-                const int32_t k_y_start = ARM_NN_MAX(0, i_y * stride_y - pad_y);
-                const int32_t k_y_end = ARM_NN_MIN(i_y * stride_y - pad_y + kernel_y, input_y);
+                /* Clamped to the input in 64 bits, so the casts are exact. */
+                const int64_t base_y = (int64_t)i_y * stride_y - pad_y;
+                const int64_t base_x = (int64_t)i_x * stride_x - pad_x;
+                const int32_t k_y_start = (int32_t)ARM_NN_MAX(base_y, (int64_t)0);
+                const int32_t k_y_end = (int32_t)ARM_NN_MIN(base_y + kernel_y, (int64_t)input_y);
 
-                const int32_t k_x_start = ARM_NN_MAX(0, i_x * stride_x - pad_x);
-                const int32_t k_x_end = ARM_NN_MIN(i_x * stride_x - pad_x + kernel_x, input_x);
+                const int32_t k_x_start = (int32_t)ARM_NN_MAX(base_x, (int64_t)0);
+                const int32_t k_x_end = (int32_t)ARM_NN_MIN(base_x + kernel_x, (int64_t)input_x);
 
                 const int16_t *src_base = src;
                 int16_t *out = &dst[ch_src * (i_x + i_y * output_x)];
@@ -200,29 +240,31 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
 #elif defined(ARM_MATH_DSP)
     /* Run the following code for CPU's with DSP extension
      */
-    int32_t *buffer = (int32_t *)ctx->buf;
-
-    if (buffer == NULL)
+    if ((ctx == NULL) || (ctx->buf == NULL))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    int32_t *buffer = (int32_t *)ctx->buf;
 
     while (batch_cnt)
     {
 
-        for (int i_y = 0, idx_y = -pad_y; i_y < output_y; idx_y += stride_y, i_y++)
+        for (int i_y = 0; i_y < output_y; i_y++)
         {
-            for (int i_x = 0, idx_x = -pad_x; i_x < output_x; idx_x += stride_x, i_x++)
+            const int64_t idx_y = (int64_t)i_y * stride_y - pad_y;
+            for (int i_x = 0; i_x < output_x; i_x++)
             {
+                const int64_t idx_x = (int64_t)i_x * stride_x - pad_x;
                 /* Condition for kernel start dimension:
                    (base_idx_<x,y> + kernel_<x,y>_start) >= 0 */
-                const int32_t kernel_y_start = ARM_NN_MAX(0, -idx_y);
-                const int32_t kernel_x_start = ARM_NN_MAX(0, -idx_x);
+                const int32_t kernel_y_start = (int32_t)ARM_NN_MAX((int64_t)0, -idx_y);
+                const int32_t kernel_x_start = (int32_t)ARM_NN_MAX((int64_t)0, -idx_x);
 
                 /* Condition for kernel end dimension:
-                   (base_idx_<x,y> + kernel_<x,y>_end) < dim_src_<width,height> */
-                const int32_t kernel_y_end = ARM_NN_MIN(kernel_y, input_y - idx_y);
-                const int32_t kernel_x_end = ARM_NN_MIN(kernel_x, input_x - idx_x);
+                   (base_idx_<x,y> + kernel_<x,y>_end) < dim_src_<width,height>. Every window overlaps the input, so
+                   both ends lie within [0, kernel] and the casts are exact. */
+                const int32_t kernel_y_end = (int32_t)ARM_NN_MIN((int64_t)kernel_y, (int64_t)input_y - idx_y);
+                const int32_t kernel_x_end = (int32_t)ARM_NN_MIN((int64_t)kernel_x, (int64_t)input_x - idx_x);
 
                 int count = 0;
 
@@ -230,7 +272,8 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
                 {
                     for (int k_x = kernel_x_start; k_x < kernel_x_end; k_x++)
                     {
-                        const int16_t *start = src + ch_src * (k_x + idx_x + (k_y + idx_y) * input_x);
+                        const int16_t *start =
+                            src + ch_src * ((int32_t)(k_x + idx_x) + (int32_t)(k_y + idx_y) * input_x);
 
                         if (count == 0)
                         {
@@ -273,17 +316,20 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
 
     while (batch_cnt)
     {
-        for (int i_y = 0, base_idx_y = -pad_y; i_y < output_y; base_idx_y += stride_y, i_y++)
+        for (int i_y = 0; i_y < output_y; i_y++)
         {
-            for (int i_x = 0, base_idx_x = -pad_x; i_x < output_x; base_idx_x += stride_x, i_x++)
+            const int64_t base_idx_y = (int64_t)i_y * stride_y - pad_y;
+            for (int i_x = 0; i_x < output_x; i_x++)
             {
+                const int64_t base_idx_x = (int64_t)i_x * stride_x - pad_x;
                 /* Condition for kernel start dimension: (base_idx_<x,y> + kernel_<x,y>_start) >= 0 */
-                const int32_t ker_y_start = ARM_NN_MAX(0, -base_idx_y);
-                const int32_t ker_x_start = ARM_NN_MAX(0, -base_idx_x);
+                const int32_t ker_y_start = (int32_t)ARM_NN_MAX((int64_t)0, -base_idx_y);
+                const int32_t ker_x_start = (int32_t)ARM_NN_MAX((int64_t)0, -base_idx_x);
 
-                /* Condition for kernel end dimension: (base_idx_<x,y> + kernel_<x,y>_end) < dim_src_<width,height> */
-                const int32_t kernel_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
-                const int32_t kernel_x_end = ARM_NN_MIN(kernel_x, input_x - base_idx_x);
+                /* Condition for kernel end dimension: (base_idx_<x,y> + kernel_<x,y>_end) < dim_src_<width,height>.
+                   Every window overlaps the input, so both ends lie within [0, kernel] and the casts are exact. */
+                const int32_t kernel_y_end = (int32_t)ARM_NN_MIN((int64_t)kernel_y, (int64_t)input_y - base_idx_y);
+                const int32_t kernel_x_end = (int32_t)ARM_NN_MIN((int64_t)kernel_x, (int64_t)input_x - base_idx_x);
 
                 for (int i_ch_in = 0; i_ch_in < ch_src; i_ch_in++)
                 {
@@ -294,7 +340,8 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
                     {
                         for (int k_x = ker_x_start; k_x < kernel_x_end; k_x++)
                         {
-                            sum += src[i_ch_in + ch_src * (k_x + base_idx_x + (k_y + base_idx_y) * input_x)];
+                            sum += src[i_ch_in +
+                                       ch_src * ((int32_t)(k_x + base_idx_x) + (int32_t)(k_y + base_idx_y) * input_x)];
                             count++;
                         }
                     }
