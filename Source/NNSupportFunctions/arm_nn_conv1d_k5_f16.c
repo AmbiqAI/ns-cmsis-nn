@@ -25,6 +25,31 @@
         #define ARM_NN_CONV1D_K5_NHWC_F16_OC16_BLOCK (16)
     #endif
 
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+/* One 8-channel step of four output channels: five taps each, the loads predicated by p. */
+__STATIC_FORCEINLINE void arm_nn_conv1d_k5_oc4_step_f16(const float16_t *const x[5],
+                                                        const float16_t *const w[4],
+                                                        const int32_t in_c,
+                                                        const int32_t ic,
+                                                        const mve_pred16_t p,
+                                                        float16x8_t acc[4])
+{
+    const float16x8_t vx0 = vld1q_z(x[0] + ic, p);
+    const float16x8_t vx1 = vld1q_z(x[1] + ic, p);
+    const float16x8_t vx2 = vld1q_z(x[2] + ic, p);
+    const float16x8_t vx3 = vld1q_z(x[3] + ic, p);
+    const float16x8_t vx4 = vld1q_z(x[4] + ic, p);
+    for (int32_t j = 0; j < 4; ++j)
+    {
+        acc[j] = vfmaq(acc[j], vx0, vld1q_z(w[j] + 0 * in_c + ic, p));
+        acc[j] = vfmaq(acc[j], vx1, vld1q_z(w[j] + 1 * in_c + ic, p));
+        acc[j] = vfmaq(acc[j], vx2, vld1q_z(w[j] + 2 * in_c + ic, p));
+        acc[j] = vfmaq(acc[j], vx3, vld1q_z(w[j] + 3 * in_c + ic, p));
+        acc[j] = vfmaq(acc[j], vx4, vld1q_z(w[j] + 4 * in_c + ic, p));
+    }
+}
+    #endif
+
 __STATIC_FORCEINLINE void arm_nn_conv1d_k5_nhwc_f16_body(const float16_t *__RESTRICT x_nhwc,
                                                          int32_t in_c,
                                                          int32_t in_w,
@@ -130,39 +155,25 @@ __STATIC_FORCEINLINE void arm_nn_conv1d_k5_nhwc_f16_body(const float16_t *__REST
             do
             {
                 const int32_t ic_end = (in_c - ic0 > span) ? ic0 + span : in_c;
-                for (int32_t ic = ic0; ic < ic_end; ic += 8)
+                /* Whole 8-channel steps, then one predicated tail step outside the loop: GCC 14.3 at -Ofast turned
+                   a tail-predicated loop here into dlstp with full-register accumulator moves in its body, which
+                   under tail predication dropped the inactive lanes of an accumulator on the last step (#588). */
+                const float16_t *const xs[5] = {x0, x1, x2, x3, x4};
+                const float16_t *const ws[4] = {w_base0, w_base1, w_base2, w_base3};
+                float16x8_t acc[4] = {vacc0, vacc1, vacc2, vacc3};
+                int32_t ic = ic0;
+                for (; ic + 8 <= ic_end; ic += 8)
                 {
-                    const mve_pred16_t p = vctp16q((uint32_t)(ic_end - ic));
-                    const float16x8_t vx0 = vld1q_z(x0 + ic, p);
-                    const float16x8_t vx1 = vld1q_z(x1 + ic, p);
-                    const float16x8_t vx2 = vld1q_z(x2 + ic, p);
-                    const float16x8_t vx3 = vld1q_z(x3 + ic, p);
-                    const float16x8_t vx4 = vld1q_z(x4 + ic, p);
-
-                    vacc0 = vfmaq(vacc0, vx0, vld1q_z(w_base0 + 0 * in_c + ic, p));
-                    vacc0 = vfmaq(vacc0, vx1, vld1q_z(w_base0 + 1 * in_c + ic, p));
-                    vacc0 = vfmaq(vacc0, vx2, vld1q_z(w_base0 + 2 * in_c + ic, p));
-                    vacc0 = vfmaq(vacc0, vx3, vld1q_z(w_base0 + 3 * in_c + ic, p));
-                    vacc0 = vfmaq(vacc0, vx4, vld1q_z(w_base0 + 4 * in_c + ic, p));
-
-                    vacc1 = vfmaq(vacc1, vx0, vld1q_z(w_base1 + 0 * in_c + ic, p));
-                    vacc1 = vfmaq(vacc1, vx1, vld1q_z(w_base1 + 1 * in_c + ic, p));
-                    vacc1 = vfmaq(vacc1, vx2, vld1q_z(w_base1 + 2 * in_c + ic, p));
-                    vacc1 = vfmaq(vacc1, vx3, vld1q_z(w_base1 + 3 * in_c + ic, p));
-                    vacc1 = vfmaq(vacc1, vx4, vld1q_z(w_base1 + 4 * in_c + ic, p));
-
-                    vacc2 = vfmaq(vacc2, vx0, vld1q_z(w_base2 + 0 * in_c + ic, p));
-                    vacc2 = vfmaq(vacc2, vx1, vld1q_z(w_base2 + 1 * in_c + ic, p));
-                    vacc2 = vfmaq(vacc2, vx2, vld1q_z(w_base2 + 2 * in_c + ic, p));
-                    vacc2 = vfmaq(vacc2, vx3, vld1q_z(w_base2 + 3 * in_c + ic, p));
-                    vacc2 = vfmaq(vacc2, vx4, vld1q_z(w_base2 + 4 * in_c + ic, p));
-
-                    vacc3 = vfmaq(vacc3, vx0, vld1q_z(w_base3 + 0 * in_c + ic, p));
-                    vacc3 = vfmaq(vacc3, vx1, vld1q_z(w_base3 + 1 * in_c + ic, p));
-                    vacc3 = vfmaq(vacc3, vx2, vld1q_z(w_base3 + 2 * in_c + ic, p));
-                    vacc3 = vfmaq(vacc3, vx3, vld1q_z(w_base3 + 3 * in_c + ic, p));
-                    vacc3 = vfmaq(vacc3, vx4, vld1q_z(w_base3 + 4 * in_c + ic, p));
+                    arm_nn_conv1d_k5_oc4_step_f16(xs, ws, in_c, ic, (mve_pred16_t)0xFFFF, acc);
                 }
+                if (ic < ic_end)
+                {
+                    arm_nn_conv1d_k5_oc4_step_f16(xs, ws, in_c, ic, vctp16q((uint32_t)(ic_end - ic)), acc);
+                }
+                vacc0 = acc[0];
+                vacc1 = acc[1];
+                vacc2 = acc[2];
+                vacc3 = acc[3];
                 if (fold)
                 {
                     arm_nn_f16_fold_pairs_f32(&vacc0_pairs, vacc0, ic0 == 0);
