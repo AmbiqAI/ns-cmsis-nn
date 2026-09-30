@@ -1346,7 +1346,7 @@ arm_cmsis_nn_status arm_convolve_1x1_s8(const cmsis_nn_context *ctx,
  *      -# input_dims->h, filter_dims->h and output_dims->h equal 1, and conv_params->padding.h is 0
  *      -# conv_params->dilation.w is 1 and conv_params->stride.w is positive
  *      -# conv_params->stride.w * input_dims->c is a multiple of 4
- *      -# conv_params->padding.w is not negative and filter_dims->w is at least 1
+ *      -# conv_params->padding.w, input_dims->w and output_dims->w are not negative, and filter_dims->w is at least 1
  *   - Any horizontal padding and output width are handled, including an odd total padding, a filter wider than the
  *     input and a VALID layer whose stride leaves trailing input unused. On MVE builds the output columns whose
  *     window starts before or ends past the input read a padded copy of the input columns they span, staged in ctx;
