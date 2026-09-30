@@ -111,7 +111,9 @@ __STATIC_INLINE int32_t arm_convolve_1_x_n_s8_get_buffer_size_mve(const cmsis_nn
     const int64_t left_pad_num = pad_x != 0 ? ARM_NN_MAX(1, ((int64_t)pad_x + stride_x - 1) / stride_x) : 0;
     const int64_t no_pad_num = ARM_NN_MAX(output_x - (right_pad_num + left_pad_num), 0);
 
-    if (right_pad_num + no_pad_num + left_pad_num != output_x)
+    // arm_convolve_1_x_n_s8() computes these layouts with arm_convolve_s8().
+    if ((right_pad_num + no_pad_num + left_pad_num != output_x) ||
+        !arm_nn_convolve_1_x_n_s8_staging_supported(conv_params, input_dims, filter_dims, output_dims))
     {
         return arm_convolve_s8_get_buffer_size_mve(input_dims, filter_dims);
     }
@@ -277,7 +279,8 @@ int32_t arm_convolve_wrapper_s8_get_buffer_size(const cmsis_nn_conv_params *conv
         }
     }
     else if (arm_nn_is_convolve_1_x_n(conv_params, input_dims, filter_dims) &&
-             arm_nn_convolve_1_x_n_padding_supported(conv_params, input_dims, filter_dims, output_dims))
+             arm_nn_convolve_1_x_n_padding_supported(conv_params, input_dims, filter_dims, output_dims) &&
+             arm_nn_convolve_1_x_n_s8_staging_supported(conv_params, input_dims, filter_dims, output_dims))
     {
         return arm_convolve_1_x_n_s8_get_buffer_size(conv_params, input_dims, filter_dims, output_dims);
     }
@@ -305,7 +308,8 @@ int32_t arm_convolve_wrapper_s8_get_buffer_size_mve(const cmsis_nn_conv_params *
         }
     }
     else if (arm_nn_is_convolve_1_x_n(conv_params, input_dims, filter_dims) &&
-             arm_nn_convolve_1_x_n_padding_supported(conv_params, input_dims, filter_dims, output_dims))
+             arm_nn_convolve_1_x_n_padding_supported(conv_params, input_dims, filter_dims, output_dims) &&
+             arm_nn_convolve_1_x_n_s8_staging_supported(conv_params, input_dims, filter_dims, output_dims))
     {
         return arm_convolve_1_x_n_s8_get_buffer_size_mve(conv_params, input_dims, filter_dims, output_dims);
     }
@@ -332,7 +336,8 @@ int32_t arm_convolve_wrapper_s8_get_buffer_size_dsp(const cmsis_nn_conv_params *
         }
     }
     else if (arm_nn_is_convolve_1_x_n(conv_params, input_dims, filter_dims) &&
-             arm_nn_convolve_1_x_n_padding_supported(conv_params, input_dims, filter_dims, output_dims))
+             arm_nn_convolve_1_x_n_padding_supported(conv_params, input_dims, filter_dims, output_dims) &&
+             arm_nn_convolve_1_x_n_s8_staging_supported(conv_params, input_dims, filter_dims, output_dims))
     {
         return arm_convolve_1_x_n_s8_get_buffer_size(conv_params, input_dims, filter_dims, output_dims);
     }

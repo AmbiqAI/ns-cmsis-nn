@@ -74,3 +74,8 @@ void test_wrapper_unsupported_padding_1_x_n_arm_convolve_s4(void)
 {
     wrapper_unsupported_padding_1_x_n_arm_convolve_s4();
 }
+
+void test_wrapper_vertical_padding_1_x_n_arm_convolve_s4(void)
+{
+    wrapper_vertical_padding_1_x_n_arm_convolve_s4();
+}
