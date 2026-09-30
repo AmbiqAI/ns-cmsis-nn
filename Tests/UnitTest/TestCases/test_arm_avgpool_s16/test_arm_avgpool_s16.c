@@ -521,5 +521,6 @@ void degenerate_arguments_arm_avgpool_s16(void)
     TEST_ASSERT_EQUAL(0, arm_avgpool_s16_get_buffer_size(1, 0));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
                       arm_avgpool_s16(&null_buf, &pool_params, &no_channels, input, &dims, &no_channels, output));
+    TEST_ASSERT_EACH_EQUAL_INT16(0x5555, output, 2);
 #endif
 }
