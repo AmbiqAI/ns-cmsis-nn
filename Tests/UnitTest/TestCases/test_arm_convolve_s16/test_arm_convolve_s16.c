@@ -22,6 +22,7 @@
 #include <arm_nnfunctions.h>
 #include <unity.h>
 
+#include "../Utils/mpu_guard.h"
 #include "../TestData/int16xint8/test_data.h"
 #include "../TestData/int16xint8_1x1_ns_np_nd/test_data.h"
 #include "../TestData/int16xint8_dilation_1/test_data.h"
@@ -2739,4 +2740,86 @@ void int16xint8xint32_6_arm_convolve_s16(void)
     }
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
     TEST_ASSERT_TRUE(validate_s16(output, output_ref, output_ref_size));
+}
+
+/* arm_convolve_s16() with its weights ending at an unmapped MPU gap: the MVE matrix kernel must not load past the
+   last filter (#605). Sixteen output pixels run its four-row block; the output must match the run with the weights in
+   place. */
+void weights_at_gap_arm_convolve_s16(void)
+{
+#if defined(MPU_GUARD_AVAILABLE)
+    enum
+    {
+        hw = 4,
+        in_ch = 8,
+        out_ch = 8,
+        k = 3,
+        input_size = hw * hw * in_ch,
+        weights_size = out_ch * k * k * in_ch,
+        output_size = hw * hw * out_ch
+    };
+    int16_t input[input_size];
+    int8_t kernel[weights_size];
+    int64_t bias[out_ch];
+    int32_t multiplier[out_ch];
+    int32_t shift[out_ch];
+    int16_t expected[output_size];
+    int16_t output[output_size];
+    for (int i = 0; i < input_size; i++)
+    {
+        input[i] = (int16_t)((i * 193) % 4001 - 2000);
+    }
+    for (int i = 0; i < weights_size; i++)
+    {
+        kernel[i] = (int8_t)((i * 5) % 31 - 15);
+    }
+    for (int i = 0; i < out_ch; i++)
+    {
+        bias[i] = (int64_t)i * 1000 - 3000;
+        multiplier[i] = 1 << 30;
+        shift[i] = -4 - (i % 3);
+    }
+    const cmsis_nn_dims input_dims = {1, hw, hw, in_ch};
+    const cmsis_nn_dims filter_dims = {out_ch, k, k, in_ch};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_ch};
+    const cmsis_nn_dims output_dims = {1, hw, hw, out_ch};
+    const cmsis_nn_conv_params conv_params = {
+        .input_offset = 0,
+        .output_offset = 0,
+        .stride = {1, 1},
+        .padding = {1, 1},
+        .dilation = {1, 1},
+        .activation = {-32768, 32767},
+    };
+    const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
+    const cmsis_nn_bias_data bias_data = {bias, false};
+    const int32_t buffer_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
+    cmsis_nn_context ctx = {malloc(buffer_size), buffer_size};
+    TEST_ASSERT_TRUE(buffer_size == 0 || ctx.buf != NULL);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_s16(&ctx,
+                                       &conv_params,
+                                       &quant_params,
+                                       &input_dims,
+                                       input,
+                                       &filter_dims,
+                                       kernel,
+                                       &bias_dims,
+                                       &bias_data,
+                                       &output_dims,
+                                       expected));
+    const int8_t *w = guard_place(kernel, sizeof(kernel));
+    memset(output, 0x55, sizeof(output));
+    guard_gap_enable();
+    const arm_cmsis_nn_status result = arm_convolve_s16(
+        &ctx, &conv_params, &quant_params, &input_dims, input, &filter_dims, w, &bias_dims, &bias_data, &output_dims, output);
+    guard_gap_disable();
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+    TEST_ASSERT_EQUAL_INT16_ARRAY(expected, output, output_size);
+    if (ctx.buf)
+    {
+        memset(ctx.buf, 0, buffer_size);
+        free(ctx.buf);
+    }
+#endif
 }

@@ -95,3 +95,5 @@ void test_dw3_shapes_arm_depthwise_conv_s8_opt(void) { dw3_shapes_arm_depthwise_
 void test_dw3_declines_arm_depthwise_conv_s8_opt(void) { dw3_declines_arm_depthwise_conv_s8_opt(); }
 void test_dw3_buffer_size_arm_depthwise_conv_s8_opt(void) { dw3_buffer_size_arm_depthwise_conv_s8_opt(); }
 void test_dw3_bounds_arm_depthwise_conv_s8_opt(void) { dw3_bounds_arm_depthwise_conv_s8_opt(); }
+
+void test_undersized_context_arm_depthwise_conv_s8_opt(void) { undersized_context_arm_depthwise_conv_s8_opt(); }

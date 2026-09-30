@@ -2543,8 +2543,8 @@ void planar_size_overflow_arm_depthwise_conv_s8_opt(void)
 #endif
 }
 
-/* A layer the pixel-vectorized path takes is declined, writing nothing, when the context is smaller than its plane;
-   arm_depthwise_conv_s8_opt() then computes it as before. */
+/* arm_nn_depthwise_conv_s8_planar() declines a layer it would take, writing nothing, when the context is smaller than
+   its plane, and takes it once the plane fits. This test calls the planar kernel only. */
 void planar_small_context_arm_depthwise_conv_s8_opt(void)
 {
 #if defined(ARM_MATH_MVEI)
@@ -3348,4 +3348,152 @@ void dw3_bounds_arm_depthwise_conv_s8_opt(void)
         }
     }
 #endif
+}
+
+/* The channel path of arm_depthwise_conv_s8_opt() and _channelwise() writes across the whole
+   arm_depthwise_conv_s8_opt_get_buffer_size() scratch, so a non-zero ctx->size below it is rejected before any write
+   (#582). A ctx->size of 0 opts out of the check. The stride-2 layer is outside the planar path. */
+void undersized_context_arm_depthwise_conv_s8_opt(void)
+{
+    enum
+    {
+        ch = 16,
+        in_hw = 5,
+        out_hw = 3
+    };
+    static int8_t input[in_hw * in_hw * ch];
+    static int8_t kernel[3 * 3 * ch];
+    static int32_t bias[ch];
+    static int32_t mult[ch];
+    static int32_t shift[ch];
+    static int32_t wsum[ch + 4];
+    static int8_t output[out_hw * out_hw * ch];
+    for (int i = 0; i < (int)sizeof(input); i++)
+    {
+        input[i] = (int8_t)((i * 7) % 19 - 9);
+    }
+    for (int i = 0; i < (int)sizeof(kernel); i++)
+    {
+        kernel[i] = (int8_t)((i * 5) % 13 - 6);
+    }
+    for (int i = 0; i < ch; i++)
+    {
+        mult[i] = 1 << 30;
+        shift[i] = -3;
+    }
+    const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                            .output_offset = 0,
+                                            .ch_mult = 1,
+                                            .stride = {2, 2},
+                                            .padding = {1, 1},
+                                            .dilation = {1, 1},
+                                            .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, in_hw, in_hw, ch}, filter_dims = {1, 3, 3, ch},
+                        bias_dims = {1, 1, 1, ch}, output_dims = {1, out_hw, out_hw, ch};
+    const cmsis_nn_context wsum_ctx = {wsum, (int32_t)sizeof(wsum)};
+    const int32_t need = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
+    TEST_ASSERT_TRUE(need >= 0);
+    if (need == 0)
+    {
+        return; /* no scratch on this build, so nothing to undersize */
+    }
+    int8_t *scratch = malloc((size_t)need);
+    TEST_ASSERT_NOT_NULL(scratch);
+    memset(wsum, 0, sizeof(wsum));
+
+    for (int entry = 0; entry < 2; entry++)
+    {
+        arm_cmsis_nn_status (*const fn)(const cmsis_nn_context *,
+                                        const cmsis_nn_context *,
+                                        const cmsis_nn_dw_conv_params *,
+                                        const cmsis_nn_per_channel_quant_params *,
+                                        const cmsis_nn_dims *,
+                                        const int8_t *,
+                                        const cmsis_nn_dims *,
+                                        const int8_t *,
+                                        const cmsis_nn_dims *,
+                                        const int32_t *,
+                                        const cmsis_nn_dims *,
+                                        int8_t *) =
+            entry == 0 ? arm_depthwise_conv_s8_opt : arm_depthwise_conv_s8_opt_channelwise;
+
+        const cmsis_nn_context small = {scratch, need - 1};
+        memset(scratch, 0x3C, (size_t)need);
+        memset(output, 0x5A, sizeof(output));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          fn(&small,
+                             &wsum_ctx,
+                             &params,
+                             &quant,
+                             &input_dims,
+                             input,
+                             &filter_dims,
+                             kernel,
+                             &bias_dims,
+                             bias,
+                             &output_dims,
+                             output));
+        for (size_t i = 0; i < sizeof(output); i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(0x5A, output[i]);
+        }
+        for (int32_t i = 0; i < need; i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(0x3C, scratch[i]);
+        }
+
+        const cmsis_nn_context exact = {scratch, need};
+        const cmsis_nn_context undeclared = {scratch, 0};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          fn(&exact,
+                             &wsum_ctx,
+                             &params,
+                             &quant,
+                             &input_dims,
+                             input,
+                             &filter_dims,
+                             kernel,
+                             &bias_dims,
+                             bias,
+                             &output_dims,
+                             output));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          fn(&undeclared,
+                             &wsum_ctx,
+                             &params,
+                             &quant,
+                             &input_dims,
+                             input,
+                             &filter_dims,
+                             kernel,
+                             &bias_dims,
+                             bias,
+                             &output_dims,
+                             output));
+    }
+
+    /* Dimensions the sizer cannot size (-1) are rejected too, whatever ctx->size says. */
+    const cmsis_nn_dims bad_filter_dims = {1, -3, 3, ch};
+    const cmsis_nn_context declared = {scratch, need};
+    memset(output, 0x5A, sizeof(output));
+    TEST_ASSERT_EQUAL(-1, arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &bad_filter_dims));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_depthwise_conv_s8_opt_channelwise(&declared,
+                                                            &wsum_ctx,
+                                                            &params,
+                                                            &quant,
+                                                            &input_dims,
+                                                            input,
+                                                            &bad_filter_dims,
+                                                            kernel,
+                                                            &bias_dims,
+                                                            bias,
+                                                            &output_dims,
+                                                            output));
+    for (size_t i = 0; i < sizeof(output); i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x5A, output[i]);
+    }
+    free(scratch);
 }

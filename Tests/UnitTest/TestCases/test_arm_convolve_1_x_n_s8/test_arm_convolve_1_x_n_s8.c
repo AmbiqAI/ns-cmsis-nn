@@ -17,8 +17,10 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <unity.h>
 
 #include "../TestData/conv_1_x_n_1/test_data.h"
@@ -1152,7 +1154,8 @@ void conv_1_x_n_8_arm_convolve_s8(void)
 void buffer_size_predicate_overflow_arm_convolve_1_x_n_s8(void)
 {
     cmsis_nn_conv_params conv_params;
-    cmsis_nn_dims input_dims = {1, 1, 4, 65536};
+    // Input W = (output W - 1) * stride.w + filter W: no padding needed, so only the stride.w * c check decides.
+    cmsis_nn_dims input_dims = {1, 1, 65538, 65536};
     cmsis_nn_dims filter_dims = {1, 1, 2, 65536};
     cmsis_nn_dims output_dims = {1, 1, 2, 1};
 
@@ -1178,10 +1181,132 @@ void buffer_size_predicate_overflow_arm_convolve_1_x_n_s8(void)
 
     // stride.w * c = 65538 * 65535: the product is 2 mod 4, so this routes to the generic sizer instead.
     conv_params.stride.w = 65538;
+    input_dims.w = 65540;
     input_dims.c = 65535;
     filter_dims.c = 65535;
     const int32_t routed_generic =
         arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     TEST_ASSERT_TRUE(routed_generic >= 0);
     TEST_ASSERT_EQUAL(routed_generic, arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims));
+}
+
+/* Runs a 1xN layer (16 output channels, input offset 3) through arm_convolve_wrapper_s8() and arm_convolve_s8() and
+   expects the same status and output, with the scratch each one's sizer gives. The layer's padding is one the 1xN
+   kernels do not handle, so the wrapper must route it elsewhere. */
+static void wrapper_matches_convolve_s8(const int32_t in_w,
+                                        const int32_t in_c,
+                                        const int32_t k_w,
+                                        const int32_t stride,
+                                        const int32_t pad,
+                                        const int32_t out_w)
+{
+    enum
+    {
+        max_in_w = 40,
+        max_in_c = 27,
+        out_c = 16,
+        max_k_w = 5,
+        max_out_w = 18
+    };
+    static int8_t input[max_in_w * max_in_c];
+    static int8_t kernel[out_c * max_k_w * max_in_c];
+    static int32_t bias[out_c];
+    static int32_t mult[out_c];
+    static int32_t shift[out_c];
+    static int32_t wsum[out_c + 4];
+    static int8_t expected[max_out_w * out_c];
+    static int8_t output[max_out_w * out_c];
+    TEST_ASSERT_TRUE(in_w <= max_in_w && in_c <= max_in_c && k_w <= max_k_w && out_w <= max_out_w);
+    for (int i = 0; i < (int)sizeof(input); i++)
+    {
+        input[i] = (int8_t)((i * 37) % 251 - 125);
+    }
+    for (int i = 0; i < (int)sizeof(kernel); i++)
+    {
+        kernel[i] = (int8_t)((i * 11) % 29 - 14);
+    }
+    for (int i = 0; i < out_c; i++)
+    {
+        bias[i] = i * 97 - 700;
+        mult[i] = 1300000000 + i * 1000;
+        shift[i] = -7;
+    }
+    memset(expected, 0, sizeof(expected));
+    memset(output, 0x55, sizeof(output));
+    const cmsis_nn_conv_params conv_params = {.input_offset = 3,
+                                              .output_offset = -2,
+                                              .stride = {stride, 1},
+                                              .padding = {pad, 0},
+                                              .dilation = {1, 1},
+                                              .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, 1, in_w, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 1, k_w, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, 1, out_w, out_c};
+    TEST_ASSERT_TRUE(arm_nn_is_convolve_1_x_n(&conv_params, &input_dims, &filter_dims));
+    TEST_ASSERT_FALSE(arm_nn_convolve_1_x_n_padding_supported(&conv_params, &input_dims, &filter_dims, &output_dims));
+    // The weight sums are an MVE-only input; other builds report that and ignore the buffer.
+    const arm_cmsis_nn_status wsum_status =
+        arm_convolve_weight_sum(wsum, kernel, &input_dims, &filter_dims, &output_dims, conv_params.input_offset, bias);
+#if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, wsum_status);
+#else
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, wsum_status);
+#endif
+    const cmsis_nn_context wsum_ctx = {wsum, (int32_t)sizeof(wsum)};
+
+    const int32_t ref_size = arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
+    cmsis_nn_context ref_ctx = {ref_size > 0 ? malloc(ref_size) : NULL, ref_size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_s8(&ref_ctx,
+                                      &wsum_ctx,
+                                      &conv_params,
+                                      &quant,
+                                      &input_dims,
+                                      input,
+                                      &filter_dims,
+                                      kernel,
+                                      &bias_dims,
+                                      bias,
+                                      NULL,
+                                      &output_dims,
+                                      expected));
+
+    const int32_t size = arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    TEST_ASSERT_TRUE(size >= 0);
+    cmsis_nn_context ctx = {size > 0 ? malloc(size) : NULL, size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_wrapper_s8(&ctx,
+                                              &wsum_ctx,
+                                              &conv_params,
+                                              &quant,
+                                              &input_dims,
+                                              input,
+                                              &filter_dims,
+                                              kernel,
+                                              &bias_dims,
+                                              bias,
+                                              &output_dims,
+                                              output));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output, out_w * out_c);
+    free(ctx.buf);
+    free(ref_ctx.buf);
+}
+
+/* 1xN layers whose horizontal padding arm_convolve_1_x_n_s8() does not handle, where total pad is
+   (output W - 1) * stride + filter W - input W. The wrapper must match arm_convolve_s8(). */
+void wrapper_unsupported_padding_arm_convolve_1_x_n_s8(void)
+{
+    // VALID, stride leaves trailing input unused: total pad -3 (the kernel fails), and -5 with one output column.
+    wrapper_matches_convolve_s8(40, 27, 5, 4, 0, 9);
+    wrapper_matches_convolve_s8(10, 27, 5, 4, 0, 1);
+    // VALID, total pad -1: the kernel accepts it and replaces the last tap of the final window with padding.
+    wrapper_matches_convolve_s8(10, 4, 3, 2, 0, 4);
+    // SAME with more padded output columns than output columns.
+    wrapper_matches_convolve_s8(3, 4, 5, 1, 2, 3);
+    // Explicit padding wider than the filter: the outer windows read no input column.
+    wrapper_matches_convolve_s8(10, 4, 3, 1, 5, 18);
+    // A filter wider than the input.
+    wrapper_matches_convolve_s8(4, 4, 5, 1, 1, 2);
 }

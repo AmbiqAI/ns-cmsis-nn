@@ -79,13 +79,12 @@ arm_cmsis_nn_status arm_nn_mat_mul_core_1x_s8(int32_t row_elements,
         }
     #else
         __ASM volatile(" .p2align 2                             \n"
-                       "  vldrb.8         q0, [%[col]], #16     \n"
                        "  wlstp.8         lr, %[cnt], 1f       \n"
                        "2:                                      \n"
+                       "  vldrb.8         q0, [%[col]], #16    \n"
                        "  vaddva.s8      %[sum], q0            \n"
                        "  vldrb.8         q1, [%[row0]], #16   \n"
                        "  vmladava.s8    %[out0], q0, q1       \n"
-                       "  vldrb.8         q0, [%[col]], #16    \n"
                        "  letp            lr, 2b               \n"
                        "1:                                      \n"
                        : [col] "+r"(col_base), [sum] "+Te"(sum_tmp), [row0] "+r"(row_base), [out0] "+Te"(acc_n0)

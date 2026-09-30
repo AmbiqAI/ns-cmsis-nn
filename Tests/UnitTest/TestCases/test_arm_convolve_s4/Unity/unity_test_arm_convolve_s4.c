@@ -70,3 +70,7 @@ void test_conv_1_x_n_2_arm_convolve_s4(void) { conv_1_x_n_2_arm_convolve_s4(); }
 void test_conv_1_x_n_3_arm_convolve_s4(void) { conv_1_x_n_3_arm_convolve_s4(); }
 void test_conv_1_x_n_4_arm_convolve_s4(void) { conv_1_x_n_4_arm_convolve_s4(); }
 void test_conv_1_x_n_5_arm_convolve_s4(void) { conv_1_x_n_5_arm_convolve_s4(); }
+void test_wrapper_unsupported_padding_1_x_n_arm_convolve_s4(void)
+{
+    wrapper_unsupported_padding_1_x_n_arm_convolve_s4();
+}
