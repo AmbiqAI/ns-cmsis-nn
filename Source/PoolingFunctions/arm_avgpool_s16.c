@@ -57,7 +57,8 @@ static void scale_q31_to_q15_and_clamp(const int32_t *buffer,
 /* Whether every pooling window along one axis overlaps the input, and every bound the pooling loops form along it fits
    in an int32_t. Window i covers [b, b + k) with b = i * s - p, clipped to [0, w); it is empty exactly when k <= 0,
    w <= 0, b >= w or b + k <= 0. b is linear in i, so each condition holds for some i exactly when it holds at i = 0 or
-   i = n - 1, and the same two ends bound b, b + k, -b, w - b and the loops' last b + s. */
+   i = n - 1, and the same two ends bound b, b + k, -b and w - b. The DSP and C loops also step one stride past the last
+   window, to b = n * s - p. */
 static bool
 arm_avgpool_s16_axis_valid(const int32_t n, const int32_t s, const int32_t p, const int32_t k, const int32_t w)
 {
@@ -77,9 +78,9 @@ arm_avgpool_s16_axis_valid(const int32_t n, const int32_t s, const int32_t p, co
     {
         return false;
     }
-    const int64_t step = ARM_NN_MAX((int64_t)s, (int64_t)0);
-    return (lo >= -(int64_t)INT32_MAX) && (lo - step >= -(int64_t)INT32_MAX) && (hi + k <= INT32_MAX) &&
-        (hi + step <= INT32_MAX) && ((int64_t)w - lo <= INT32_MAX);
+    const int64_t b_past = b_last + s;
+    return (lo >= -(int64_t)INT32_MAX) && (hi + k <= INT32_MAX) && ((int64_t)w - lo <= INT32_MAX) &&
+        (b_past >= -(int64_t)INT32_MAX) && (b_past <= INT32_MAX);
 }
 
 /**

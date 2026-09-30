@@ -370,7 +370,8 @@ void empty_window_arm_avgpool_s16(void)
 /* Window bounds near the int32_t limit, along x and along y, over a 2-element input with padding 1. A filter extent of
    INT32_MAX - 1 keeps every bound in range: three output positions overlap the input and are computed, and a fourth
    has an empty window and is rejected with the output untouched. A filter extent of INT32_MAX takes the last bound past
-   INT32_MAX and is rejected before any output is written. */
+   INT32_MAX and is rejected before any output is written. A negative stride whose last step past the final window
+   leaves the int32_t range is rejected too. */
 void window_bound_limits_arm_avgpool_s16(void)
 {
     const int16_t input[2] = {10, 20};
@@ -414,6 +415,15 @@ void window_bound_limits_arm_avgpool_s16(void)
             }
         }
     }
+    // One window at -2000000000 with stride -1000000000: the window overlaps the input, but the loops' next step is
+    // -3000000000.
+    for (int i = 0; i < 4; i++)
+    {
+        output[i] = 0x5555;
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      avgpool_s16_run(1, 1, 1, input, 1, 2100000000, 1, -1000000000, 0, 2000000000, 1, 1, output));
+    TEST_ASSERT_EACH_EQUAL_INT16(0x5555, output, 4);
 }
 
 /* Different stride, padding and filter size along y and x (input 4x5, filter 3x2, stride 2x1, padding 1x0, output 2x4,
