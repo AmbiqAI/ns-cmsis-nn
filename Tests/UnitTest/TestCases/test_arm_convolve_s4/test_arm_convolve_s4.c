@@ -2273,7 +2273,7 @@ static void wrapper_matches_convolve_s4(const int32_t in_w,
         max_in_c = 27,
         out_c = 16,
         max_k_w = 5,
-        max_out_w = 9
+        max_out_w = 18
     };
     static int8_t input[max_in_w * max_in_c];
     static int8_t kernel[(out_c * max_k_w * max_in_c + 1) / 2];
@@ -2357,5 +2357,9 @@ void wrapper_unsupported_padding_1_x_n_arm_convolve_s4(void)
     wrapper_matches_convolve_s4(10, 4, 3, 2, 0, 4);
     // SAME with more padded output columns than output columns (the kernel fails).
     wrapper_matches_convolve_s4(3, 4, 5, 1, 2, 3);
+    // Explicit padding wider than the filter: the outer windows read no input column.
+    wrapper_matches_convolve_s4(10, 4, 3, 1, 5, 18);
+    // A filter wider than the input.
+    wrapper_matches_convolve_s4(4, 4, 5, 1, 1, 2);
     wrapper_matches_convolve_s4(1, 4, 3, 1, 1, 1);
 }

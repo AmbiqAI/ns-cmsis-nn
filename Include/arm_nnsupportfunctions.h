@@ -458,8 +458,12 @@ __STATIC_INLINE bool arm_nn_is_convolve_1_x_n(const cmsis_nn_conv_params *conv_p
  *
  * Those kernels place pad.w columns on the left and pad.w + (total_pad % 2) on the right, where total_pad =
  * (output W - 1) * stride.w + filter W - input W, and need the output columns that read padding to fit in output W.
- * On MVE builds they return ARM_CMSIS_NN_FAILURE for other layouts, except that arm_convolve_1_x_n_s8() accepts a
- * total_pad of -1 without padding and then replaces the last tap of the final window with padding. A VALID layer
+ * Their padded-column code also assumes that each such column reads at least one input column and that the filter is
+ * no wider than the input; otherwise it forms input and filter addresses outside the tensors, and the s8 kernel copies
+ * filter W input columns.
+ * On MVE builds another pad placement returns ARM_CMSIS_NN_FAILURE, except that arm_convolve_1_x_n_s8() accepts a
+ * total_pad of -1 without padding and then replaces the last tap of the final window with padding; too many padded
+ * columns makes arm_convolve_1_x_n_s4() fail and arm_convolve_1_x_n_s8() fall back to arm_convolve_s8(). A VALID layer
  * whose stride leaves trailing input unused (negative total_pad) is therefore rejected, and the wrappers route it to
  * another convolution. A non-positive stride.w is left to the argument checks of the 1xN kernels.
  *
@@ -486,12 +490,14 @@ __STATIC_INLINE bool arm_nn_convolve_1_x_n_padding_supported(const cmsis_nn_conv
     {
         return false;
     }
-    // The pad-region column counts the kernels derive; they must not exceed the output width.
+    // The pad-region column counts the kernels derive must fit in the output, and each padded window must overlap
+    // the input on one side only.
     const int64_t asym_pad = total_pad % 2;
     const int64_t right_pad_num =
         pad_x + asym_pad != 0 ? ARM_NN_MAX(1, (pad_x + asym_pad + stride_x - 1) / stride_x) : 0;
     const int64_t left_pad_num = pad_x != 0 ? ARM_NN_MAX(1, (pad_x + stride_x - 1) / stride_x) : 0;
-    return left_pad_num + right_pad_num <= (int64_t)output_dims->w;
+    return (left_pad_num + right_pad_num <= (int64_t)output_dims->w) && (pad_x + asym_pad < filter_dims->w) &&
+        (filter_dims->w <= input_dims->w);
 }
 
 /**
