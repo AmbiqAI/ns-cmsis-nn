@@ -58,14 +58,10 @@ static void scale_q31_to_q15_and_clamp(const int32_t *buffer,
    in an int32_t. Window i covers [b, b + k) with b = i * s - p, clipped to [0, w); it is empty exactly when k <= 0,
    w <= 0, b >= w or b + k <= 0. b is linear in i, so each condition holds for some i exactly when it holds at i = 0 or
    i = n - 1, and the same two ends bound b, b + k, -b and w - b. The DSP and C loops also step one stride past the last
-   window, to b = n * s - p. */
+   window, to b = n * s - p. Expects n >= 1. */
 static bool
 arm_avgpool_s16_axis_valid(const int32_t n, const int32_t s, const int32_t p, const int32_t k, const int32_t w)
 {
-    if (n <= 0)
-    {
-        return true;
-    }
     if ((k <= 0) || (w <= 0))
     {
         return false;
@@ -128,11 +124,16 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    /* Rejected here, before any output is written, rather than at the first empty window. An output with no rows or no
-       columns has no window. */
-    if ((output_y > 0) && (output_x > 0) &&
-        (!arm_avgpool_s16_axis_valid(output_y, stride_y, pad_y, kernel_y, input_y) ||
-         !arm_avgpool_s16_axis_valid(output_x, stride_x, pad_x, kernel_x, input_x)))
+    /* An output with no rows or no columns has no window and nothing to write; returning here also keeps the loops
+       from stepping through the other extent. */
+    if ((output_y <= 0) || (output_x <= 0))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+
+    /* Rejected here, before any output is written, rather than at the first empty window. */
+    if (!arm_avgpool_s16_axis_valid(output_y, stride_y, pad_y, kernel_y, input_y) ||
+        !arm_avgpool_s16_axis_valid(output_x, stride_x, pad_x, kernel_x, input_x))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

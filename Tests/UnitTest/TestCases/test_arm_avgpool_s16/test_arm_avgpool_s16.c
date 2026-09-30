@@ -493,6 +493,9 @@ void degenerate_arguments_arm_avgpool_s16(void)
     int16_t output[2] = {0x5555, 0x5555};
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, avgpool_s16_run(1, 1, 1, input, 1, 1, 1, 1, 0, 0, 2, 0, output));
     TEST_ASSERT_EACH_EQUAL_INT16(0x5555, output, 2);
+    // Three rows at a stride of 2000000000 and no columns: nothing is computed, so no row position is formed either.
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, avgpool_s16_run(1, 1, 1, input, 1, 1, 2000000000, 1, 0, 0, 3, 0, output));
+    TEST_ASSERT_EACH_EQUAL_INT16(0x5555, output, 2);
 #if defined(ARM_MATH_DSP) && !defined(ARM_MATH_MVEI)
     const cmsis_nn_dims dims = {1, 1, 1, 1};
     const cmsis_nn_pool_params pool_params = {.stride = {1, 1}, .padding = {0, 0}, .activation = {-32768, 32767}};
