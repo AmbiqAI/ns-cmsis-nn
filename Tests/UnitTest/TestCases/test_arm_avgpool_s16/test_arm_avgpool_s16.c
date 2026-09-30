@@ -367,31 +367,41 @@ void empty_window_arm_avgpool_s16(void)
     }
 }
 
-/* A filter extent of INT32_MAX overflows i * stride - pad + filter in 32 bits. With padding 1 over a 2-element input,
-   three output positions all overlap the input and must be computed; a fourth has an empty window and must be
-   rejected with the output untouched. Checked along x and along y. */
-void window_bound_overflow_arm_avgpool_s16(void)
+/* Window bounds near the int32_t limit, along x and along y, over a 2-element input with padding 1. A filter extent of
+   INT32_MAX - 1 keeps every bound in range: three output positions overlap the input and are computed, and a fourth
+   has an empty window and is rejected with the output untouched. A filter extent of INT32_MAX takes the last bound past
+   INT32_MAX and is rejected before any output is written. */
+void window_bound_limits_arm_avgpool_s16(void)
 {
     const int16_t input[2] = {10, 20};
     const int16_t expected[3] = {15, 15, 20};
     int16_t output[4];
     for (int axis = 0; axis < 2; axis++)
     {
-        const int32_t in_h = axis == 0 ? 1 : 2;
-        const int32_t in_w = axis == 0 ? 2 : 1;
-        const int32_t k_h = axis == 0 ? 1 : INT32_MAX;
-        const int32_t k_w = axis == 0 ? INT32_MAX : 1;
-        const int32_t pad_h = axis == 0 ? 0 : 1;
-        const int32_t pad_w = axis == 0 ? 1 : 0;
-        for (int32_t n = 3; n <= 4; n++)
+        for (int c = 0; c < 3; c++)
         {
+            const int32_t extent = c == 2 ? INT32_MAX : INT32_MAX - 1;
+            const int32_t n = c == 1 ? 4 : 3;
+            const int32_t in_h = axis == 0 ? 1 : 2;
+            const int32_t in_w = axis == 0 ? 2 : 1;
             for (int i = 0; i < 4; i++)
             {
                 output[i] = 0x5555;
             }
-            const arm_cmsis_nn_status status = avgpool_s16_run(
-                in_h, in_w, 1, input, k_h, k_w, 1, 1, pad_h, pad_w, axis == 0 ? 1 : n, axis == 0 ? n : 1, output);
-            if (n == 3)
+            const arm_cmsis_nn_status status = avgpool_s16_run(in_h,
+                                                               in_w,
+                                                               1,
+                                                               input,
+                                                               axis == 0 ? 1 : extent,
+                                                               axis == 0 ? extent : 1,
+                                                               1,
+                                                               1,
+                                                               axis == 0 ? 0 : 1,
+                                                               axis == 0 ? 1 : 0,
+                                                               axis == 0 ? 1 : n,
+                                                               axis == 0 ? n : 1,
+                                                               output);
+            if (c == 0)
             {
                 TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
                 TEST_ASSERT_EQUAL_INT16_ARRAY(expected, output, 3);

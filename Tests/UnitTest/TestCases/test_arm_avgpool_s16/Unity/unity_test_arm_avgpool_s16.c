@@ -59,7 +59,7 @@ void test_buffer_size_out_of_range_mve_arm_avgpool_s16(void) { buffer_size_out_o
 
 void test_empty_window_arm_avgpool_s16(void) { empty_window_arm_avgpool_s16(); }
 
-void test_window_bound_overflow_arm_avgpool_s16(void) { window_bound_overflow_arm_avgpool_s16(); }
+void test_window_bound_limits_arm_avgpool_s16(void) { window_bound_limits_arm_avgpool_s16(); }
 
 void test_asymmetric_axes_arm_avgpool_s16(void) { asymmetric_axes_arm_avgpool_s16(); }
 
