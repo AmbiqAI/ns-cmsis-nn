@@ -74,9 +74,9 @@ jobs:
       # kernel's MVE leg is pure half precision and reaches no conversion at
       # all. It stays here as a plain float16 execution suite on the oldest
       # gated compiler, which is worth having on its own. The ARG, sqrt and
-      # rsqrt f16 suites are listed on the same footing, so their float16
-      # builds execute on every pull request and not only nightly and at
-      # release (AmbiqAI/ns-cmsis-nn#511, #400).
+      # rsqrt f16 suites are listed on the same footing: pull requests ran
+      # them only on the host (host-sanitizer.yml), and on an Arm target only
+      # nightly and at release (AmbiqAI/ns-cmsis-nn#511, #400).
       #
       # The step below re-derives the mapping from the tree and fails if
       # this list is short of it, so the comment is a reader's aid and the
