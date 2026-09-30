@@ -1240,9 +1240,14 @@ static void wrapper_matches_convolve_s8(const int32_t in_w, const int32_t out_w)
     const cmsis_nn_dims output_dims = {1, 1, out_w, out_c};
     TEST_ASSERT_TRUE(arm_nn_is_convolve_1_x_n(&conv_params, &input_dims, &filter_dims));
     TEST_ASSERT_FALSE(arm_nn_convolve_1_x_n_padding_supported(&conv_params, &input_dims, &filter_dims, &output_dims));
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                      arm_convolve_weight_sum(
-                          wsum, kernel, &input_dims, &filter_dims, &output_dims, conv_params.input_offset, bias));
+    // The weight sums are an MVE-only input; other builds report that and ignore the buffer.
+    const arm_cmsis_nn_status wsum_status =
+        arm_convolve_weight_sum(wsum, kernel, &input_dims, &filter_dims, &output_dims, conv_params.input_offset, bias);
+#if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, wsum_status);
+#else
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, wsum_status);
+#endif
     const cmsis_nn_context wsum_ctx = {wsum, (int32_t)sizeof(wsum)};
 
     const int32_t ref_size = arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
