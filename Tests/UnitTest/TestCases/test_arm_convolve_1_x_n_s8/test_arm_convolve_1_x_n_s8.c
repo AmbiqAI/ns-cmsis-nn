@@ -1557,3 +1557,151 @@ void wrapper_valid_input_bounds_arm_convolve_1_x_n_s8(void)
 #endif
 }
 
+static cmsis_nn_conv_params conv_1_x_n_params(const int32_t stride, const int32_t pad_w, const int32_t pad_h)
+{
+    const cmsis_nn_conv_params conv_params = {.input_offset = 3,
+                                              .output_offset = -2,
+                                              .stride = {stride, 1},
+                                              .padding = {pad_w, pad_h},
+                                              .dilation = {1, 1},
+                                              .activation = {-128, 127}};
+    return conv_params;
+}
+
+/* The routing decisions for the s8 1xN kernel, checked on every build (the kernel's MVE path is only exercised on MVE
+   targets). Input width 7, filter width 4, stride 2, SAME (pad 1, total pad 3, right padding 2) is a layout whose
+   right-padded windows the kernel cannot stage; input width 8, filter width 4, stride 2, SAME (pad 1, right padding 1)
+   is one it can. */
+void routing_predicates_arm_convolve_1_x_n_s8(void)
+{
+    const cmsis_nn_dims filter_dims = {16, 1, 4, 4};
+
+    const cmsis_nn_conv_params unsafe = conv_1_x_n_params(2, 1, 0);
+    const cmsis_nn_dims unsafe_in = {1, 1, 7, 4};
+    const cmsis_nn_dims unsafe_out = {1, 1, 4, 16};
+    TEST_ASSERT_TRUE(arm_nn_convolve_1_x_n_padding_supported(&unsafe, &unsafe_in, &filter_dims, &unsafe_out));
+    TEST_ASSERT_FALSE(arm_nn_convolve_1_x_n_s8_staging_supported(&unsafe, &unsafe_in, &filter_dims, &unsafe_out));
+    TEST_ASSERT_EQUAL(arm_convolve_s8_get_buffer_size_mve(&unsafe_in, &filter_dims),
+                      arm_convolve_wrapper_s8_get_buffer_size_mve(&unsafe, &unsafe_in, &filter_dims, &unsafe_out));
+
+    const cmsis_nn_conv_params safe = conv_1_x_n_params(2, 1, 0);
+    const cmsis_nn_dims safe_in = {1, 1, 8, 4};
+    const cmsis_nn_dims safe_out = {1, 1, 4, 16};
+    TEST_ASSERT_TRUE(arm_nn_convolve_1_x_n_padding_supported(&safe, &safe_in, &filter_dims, &safe_out));
+    TEST_ASSERT_TRUE(arm_nn_convolve_1_x_n_s8_staging_supported(&safe, &safe_in, &filter_dims, &safe_out));
+    // The 1xN staging scratch: max((pad + filter W) * C, (filter W - 1) * C + pad * C) = max(20, 16).
+    TEST_ASSERT_EQUAL(20, arm_convolve_wrapper_s8_get_buffer_size_mve(&safe, &safe_in, &filter_dims, &safe_out));
+
+    // Vertical padding or an output height other than 1 is not a single-row 1xN convolution.
+    const cmsis_nn_conv_params vertical = conv_1_x_n_params(1, 1, 1);
+    const cmsis_nn_dims vertical_in = {1, 1, 6, 4};
+    const cmsis_nn_dims vertical_filter = {16, 1, 3, 4};
+    const cmsis_nn_dims vertical_out = {1, 3, 6, 16};
+    TEST_ASSERT_FALSE(
+        arm_nn_convolve_1_x_n_padding_supported(&vertical, &vertical_in, &vertical_filter, &vertical_out));
+}
+
+/* A direct call of arm_convolve_1_x_n_s8() on a layout it cannot stage (input width 7, filter width 4, stride 2, pad 1)
+   must still match arm_convolve_s8(), with the scratch arm_convolve_1_x_n_s8_get_buffer_size() gives. */
+void direct_unsupported_staging_arm_convolve_1_x_n_s8(void)
+{
+    enum
+    {
+        in_w = 7,
+        in_c = 4,
+        out_c = 16,
+        k_w = 4,
+        out_w = 4
+    };
+    int8_t input[in_w * in_c];
+    int8_t kernel[out_c * k_w * in_c];
+    int32_t bias[out_c];
+    int32_t mult[out_c];
+    int32_t shift[out_c];
+    int32_t wsum[out_c];
+    int8_t expected[out_w * out_c];
+    int8_t output[out_w * out_c];
+    for (int i = 0; i < (int)sizeof(input); i++)
+    {
+        input[i] = (int8_t)((i * 37) % 251 - 125);
+    }
+    for (int i = 0; i < (int)sizeof(kernel); i++)
+    {
+        kernel[i] = (int8_t)((i * 11) % 29 - 14);
+    }
+    for (int i = 0; i < out_c; i++)
+    {
+        bias[i] = i * 97 - 700;
+        mult[i] = 1300000000 + i * 1000;
+        shift[i] = -7;
+    }
+    memset(output, 0x55, sizeof(output));
+    const cmsis_nn_conv_params conv_params = conv_1_x_n_params(2, 1, 0);
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, 1, in_w, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 1, k_w, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, 1, out_w, out_c};
+    // The weight sums are an MVE-only input; other builds ignore the buffer.
+    (void)arm_convolve_weight_sum(
+        wsum, kernel, &input_dims, &filter_dims, &output_dims, conv_params.input_offset, bias);
+    const cmsis_nn_context wsum_ctx = {wsum, (int32_t)sizeof(wsum)};
+
+    const int32_t ref_size = arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
+    cmsis_nn_context ref_ctx = {ref_size > 0 ? malloc(ref_size) : NULL, ref_size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_s8(&ref_ctx,
+                                      &wsum_ctx,
+                                      &conv_params,
+                                      &quant,
+                                      &input_dims,
+                                      input,
+                                      &filter_dims,
+                                      kernel,
+                                      &bias_dims,
+                                      bias,
+                                      NULL,
+                                      &output_dims,
+                                      expected));
+    free(ref_ctx.buf);
+
+    const int32_t size = arm_convolve_1_x_n_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    TEST_ASSERT_TRUE(size >= 0);
+    cmsis_nn_context ctx = {size > 0 ? malloc(size) : NULL, size};
+    const arm_cmsis_nn_status status = arm_convolve_1_x_n_s8(&ctx,
+                                                             &wsum_ctx,
+                                                             &conv_params,
+                                                             &quant,
+                                                             &input_dims,
+                                                             input,
+                                                             &filter_dims,
+                                                             kernel,
+                                                             &bias_dims,
+                                                             bias,
+                                                             &output_dims,
+                                                             output);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+    TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output, out_w * out_c);
+
+#if defined(ARM_MATH_MVEI)
+    // A buffer sized for the 1xN staging, max((pad + filter W) * C, (filter W - 1) * C + C) = 20 bytes, is too small
+    // for arm_convolve_s8() and must be rejected, not overrun.
+    const cmsis_nn_context staging_ctx = {ctx.buf, 20};
+    TEST_ASSERT_TRUE(size > 20);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_1_x_n_s8(&staging_ctx,
+                                            &wsum_ctx,
+                                            &conv_params,
+                                            &quant,
+                                            &input_dims,
+                                            input,
+                                            &filter_dims,
+                                            kernel,
+                                            &bias_dims,
+                                            bias,
+                                            &output_dims,
+                                            output));
+#endif
+    free(ctx.buf);
+}
+

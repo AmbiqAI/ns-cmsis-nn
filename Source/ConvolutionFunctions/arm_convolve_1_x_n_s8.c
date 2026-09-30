@@ -106,8 +106,16 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
     const int32_t rhs_rows = output_dims->c;
     const int32_t lhs_offset = input_ch * stride_x;
 
-    if (right_pad_num + no_pad_num + left_pad_num != output_x)
+    // Layouts whose right-padded windows the staging below cannot build are computed by arm_convolve_s8().
+    if ((right_pad_num + no_pad_num + left_pad_num != output_x) ||
+        !arm_nn_convolve_1_x_n_s8_staging_supported(conv_params, input_dims, filter_dims, output_dims))
     {
+        /* arm_convolve_s8() needs more scratch than the 1xN staging and does not check ctx->size itself; reject a
+           buffer sized for the 1xN staging rather than overrun it. A size of 0 means the caller does not report it. */
+        if ((ctx->size != 0) && (ctx->size < arm_convolve_s8_get_buffer_size(input_dims, filter_dims)))
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
         return arm_convolve_s8(ctx,
                                weight_sum_ctx,
                                conv_params,

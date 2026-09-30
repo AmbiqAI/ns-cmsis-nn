@@ -511,9 +511,8 @@ __STATIC_INLINE bool arm_nn_convolve_1_x_n_padding_supported(const cmsis_nn_conv
  * On MVE builds the kernel stages the right-padded windows once: filter W - 1 input columns from the start of the
  * first right-padded window, then the right padding, and reads every right-padded window from that buffer. That
  * matches the layer only when stride.w is 1, when there is no right padding, or when the right padding
- * P = pad.w + total_pad % 2 satisfies P % stride.w == 1 and, for an odd total_pad, P == 1; otherwise the kernel
- * returns wrong output and reads past the input. Call it only for layers that
- * arm_nn_convolve_1_x_n_padding_supported() accepts.
+ * P = pad.w + total_pad % 2 satisfies P % stride.w == 1 and, for an odd total_pad, P == 1. For other layers the
+ * kernel computes the layer with arm_convolve_s8() instead, and the wrapper routes them there directly.
  *
  * @param[in]   conv_params   Convolution parameters
  * @param[in]   input_dims    Input dimensions
