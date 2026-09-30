@@ -31,10 +31,14 @@ set(NS_CMSIS_NN_HAS_REQUANTIZE_INLINE_ASM @NS_CMSIS_NN_HAS_REQUANTIZE_INLINE_ASM
 
 get_filename_component(_ns_cmsis_nn_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(NS_CMSIS_NN_INCLUDE_DIR "${_ns_cmsis_nn_root}/include")
+set(NS_CMSIS_NN_LIBRARY     "${_ns_cmsis_nn_root}/lib/libns-cmsis-nn.a")
 # Forwarding headers that let "Include/<header>" (the source-tree spelling
 # TFLM's CMSIS-NN kernels use) resolve to the same files as "<header>".
-set(NS_CMSIS_NN_COMPAT_INCLUDE_DIR "${_ns_cmsis_nn_root}/compat")
-set(NS_CMSIS_NN_LIBRARY     "${_ns_cmsis_nn_root}/lib/libns-cmsis-nn.a")
+# Packages assembled without compat/ export include/ alone.
+set(NS_CMSIS_NN_INCLUDE_DIRS "${NS_CMSIS_NN_INCLUDE_DIR}")
+if(IS_DIRECTORY "${_ns_cmsis_nn_root}/compat/Include")
+  list(APPEND NS_CMSIS_NN_INCLUDE_DIRS "${_ns_cmsis_nn_root}/compat")
+endif()
 
 if(NOT EXISTS "${NS_CMSIS_NN_LIBRARY}")
   set(${CMAKE_FIND_PACKAGE_NAME}_FOUND FALSE)
@@ -46,12 +50,6 @@ if(NOT IS_DIRECTORY "${NS_CMSIS_NN_INCLUDE_DIR}")
   set(${CMAKE_FIND_PACKAGE_NAME}_FOUND FALSE)
   set(${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE
     "ns-cmsis-nn package at ${_ns_cmsis_nn_root} is missing include/")
-  return()
-endif()
-if(NOT IS_DIRECTORY "${NS_CMSIS_NN_COMPAT_INCLUDE_DIR}/Include")
-  set(${CMAKE_FIND_PACKAGE_NAME}_FOUND FALSE)
-  set(${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE
-    "ns-cmsis-nn package at ${_ns_cmsis_nn_root} is missing compat/Include/")
   return()
 endif()
 
@@ -85,7 +83,7 @@ if(NOT TARGET cmsis-nn)
   add_library(cmsis-nn STATIC IMPORTED GLOBAL)
   set_target_properties(cmsis-nn PROPERTIES
     IMPORTED_LOCATION             "${NS_CMSIS_NN_LIBRARY}"
-    INTERFACE_INCLUDE_DIRECTORIES "${NS_CMSIS_NN_INCLUDE_DIR};${NS_CMSIS_NN_COMPAT_INCLUDE_DIR}")
+    INTERFACE_INCLUDE_DIRECTORIES "${NS_CMSIS_NN_INCLUDE_DIRS}")
   add_library(ns-cmsis-nn  ALIAS cmsis-nn)
   add_library(ns::cmsis-nn ALIAS cmsis-nn)
 

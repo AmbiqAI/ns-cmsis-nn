@@ -94,6 +94,11 @@ find_package(ns-cmsis-nn REQUIRED CONFIG)
 target_link_libraries(my_firmware PRIVATE ns::cmsis-nn)
 ```
 
+Include the headers as `#include "arm_nnfunctions.h"`. The package also
+resolves the source-tree spelling `#include "Include/arm_nnfunctions.h"`,
+which TFLM's CMSIS-NN kernels use, through one-line forwarding headers in
+`compat/Include/`. Both spellings reach the same file.
+
 Configure using the extracted package directory. In the same shell used for the
 download above:
 
@@ -132,7 +137,8 @@ cmake --build build --verbose
 
 In the configure or verbose build output, look for:
 
-- The extracted package's `include/` directory in the compiler include paths.
+- The extracted package's `include/` and `compat/` directories in the
+  compiler include paths.
 - The package's `lib/libns-cmsis-nn.a` in the final link command.
 
 If CMake reports a CPU mismatch, switch to the matching release artifact. If it
@@ -141,7 +147,8 @@ heliaCORE from source with your project's toolchain.
 
 :::tip[Expected result]
 The final link uses the selected SDK's `lib/libns-cmsis-nn.a`, and compilation
-uses its `include/` directory. Run First kernel next to verify execution.
+uses its `include/` and `compat/` directories. Run First kernel next to verify
+execution.
 :::
 
 ## Troubleshooting
