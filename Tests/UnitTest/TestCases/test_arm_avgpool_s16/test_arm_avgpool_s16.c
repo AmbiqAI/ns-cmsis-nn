@@ -498,6 +498,21 @@ void degenerate_arguments_arm_avgpool_s16(void)
     TEST_ASSERT_EACH_EQUAL_INT16(0x5555, output, 2);
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, avgpool_s16_run(1, 1, 1, input, 1, 1, 1, 1, 0, 0, 0, 3, output));
     TEST_ASSERT_EACH_EQUAL_INT16(0x5555, output, 2);
+    // No rows over an input whose element count does not fit in an int32_t: nothing is sized or written.
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, avgpool_s16_run(2, INT32_MAX, 2, input, 1, 1, 1, 1, 0, 0, 0, 1, output));
+    TEST_ASSERT_EACH_EQUAL_INT16(0x5555, output, 2);
+    // A negative channel count is rejected on every build, whatever the buffer.
+    {
+        const cmsis_nn_dims neg_in = {1, 1, 1, -1};
+        const cmsis_nn_dims neg_filter = {1, 1, 1, 1};
+        const cmsis_nn_dims neg_out = {1, 1, 1, -1};
+        const cmsis_nn_pool_params neg_pool = {.stride = {1, 1}, .padding = {0, 0}, .activation = {-32768, 32767}};
+        int32_t scratch[4];
+        const cmsis_nn_context neg_ctx = {scratch, (int32_t)sizeof(scratch)};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_avgpool_s16(&neg_ctx, &neg_pool, &neg_in, input, &neg_filter, &neg_out, output));
+        TEST_ASSERT_EACH_EQUAL_INT16(0x5555, output, 2);
+    }
 #if defined(ARM_MATH_DSP) && !defined(ARM_MATH_MVEI)
     const cmsis_nn_dims dims = {1, 1, 1, 1};
     const cmsis_nn_pool_params pool_params = {.stride = {1, 1}, .padding = {0, 0}, .activation = {-32768, 32767}};

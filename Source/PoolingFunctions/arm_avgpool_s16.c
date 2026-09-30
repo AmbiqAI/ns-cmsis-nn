@@ -116,10 +116,9 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
     const int32_t act_min = pool_params->activation.min;
     const int32_t act_max = pool_params->activation.max;
     const int32_t ch_src = input_dims->c;
-    const int32_t batch_input = input_x * input_y * ch_src;
     int32_t batch_cnt = input_dims->n;
 
-    if (batch_cnt < 1)
+    if ((batch_cnt < 1) || (ch_src < 0))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -137,6 +136,8 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+    const int32_t batch_input = input_x * input_y * ch_src;
 
 #if defined(ARM_MATH_MVEI)
     (void)ctx;
