@@ -75,7 +75,11 @@
 # and every leg is already covered by staticlib-dryrun.yml. Adding it
 # would be more jobs for a strictly narrower cell.
 #
-# This is a BUILD-and-LINK gate only. The numerics suite stays on the
+# This is a BUILD-and-LINK gate, plus one compile-and-disassemble check
+# on each GCC cortex-m55 cell: the float16 format contract, whose
+# expectation depends on the GCC version (AmbiqAI/ns-cmsis-nn#487). That
+# check runs one small scalar program under QEMU and is not a numerics
+# suite. The numerics suite stays on the
 # container's single 14.3.1 toolchain and is deliberately NOT multiplied
 # across toolchains or GCC versions -- running it once per toolchain
 # would cost ~8 min of PR latency per added leg to re-test compilers
@@ -188,6 +192,48 @@ jobs:
             --toolchain  gcc \
             --library    "./output/gcc/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
             --outdir     "./output/gcc/${TARGET_CPU}/smoke"
+
+      - name: Install QEMU for the float16 format contract check
+        # The same floor unity-f16-exec-gcc-floor.yml asserts: an older QEMU
+        # would fail to start in a way that reads like a check failure.
+        if: matrix.target_cpu == 'cortex-m55'
+        env:
+          QEMU_MIN: '6.0.0'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-arm
+          banner="$(qemu-system-arm --version | head -1)"
+          echo "${banner}"
+          got="$(sed -n 's/.*version \([0-9][0-9.]*\).*/\1/p' <<<"${banner}")"
+          if [[ -z "${got}" ]]; then
+            echo "::error title=Cannot read the QEMU version::Unparsable banner: ${banner}" >&2
+            exit 1
+          fi
+          if [[ "$(printf '%s\n%s\n' "${QEMU_MIN}" "${got}" | sort -V | head -1)" != "${QEMU_MIN}" ]]; then
+            echo "::error title=QEMU is too old::The contract check needs QEMU ${QEMU_MIN} or newer; this runner has ${got}." >&2
+            exit 1
+          fi
+
+      - name: Check the float16 format contract on this release
+        # float16 on Armv8.1-M without MVE is rejected on GCC before 15.3 and
+        # accepted from 15.3 (AmbiqAI/ns-cmsis-nn#487). The floor cell in
+        # unity-f16-exec-gcc-floor.yml checks the rejection on 13.2 only;
+        # running the check on every gated release gates both sides of the
+        # bound, and on 15.3 that the build has no Advanced SIMD loads or
+        # stores. The check derives the expectation from the compiler's own
+        # version, so the release must report the version it is named for.
+        if: matrix.target_cpu == 'cortex-m55'
+        run: |
+          set -euo pipefail
+          reported="$(arm-none-eabi-gcc -dumpfullversion)"
+          if [[ "${reported%.*}" != "${GCC_RELEASE%.Rel*}" ]]; then
+            echo "::error title=Unexpected GCC version::${GCC_RELEASE} reports GCC ${reported}" >&2
+            exit 1
+          fi
+          python3 Tests/UnitTest/TestCases/Utils/check_f16_format_contract.py \
+            --cc arm-none-eabi-gcc \
+            --output "${RUNNER_TEMP}/f16-format-contract"
 
   gcc-f16-probe:
     # On the floor's assembler the float16 build only works because the

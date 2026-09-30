@@ -48,6 +48,20 @@ __STATIC_FORCEINLINE void arm_nn_conv1d_k5_oc4_step_f16(const float16_t *const x
         acc[j] = vfmaq(acc[j], vx4, vld1q_z(w[j] + 4 * in_c + ic, p));
     }
 }
+
+/* One 8-channel step of one output channel: five taps, the loads predicated by p. */
+__STATIC_FORCEINLINE void arm_nn_conv1d_k5_oc1_step_f16(const float16_t *const x[5],
+                                                        const float16_t *const w[5],
+                                                        const int32_t ic,
+                                                        const mve_pred16_t p,
+                                                        float16x8_t *acc)
+{
+    *acc = vfmaq(*acc, vld1q_z(x[0] + ic, p), vld1q_z(w[0] + ic, p));
+    *acc = vfmaq(*acc, vld1q_z(x[1] + ic, p), vld1q_z(w[1] + ic, p));
+    *acc = vfmaq(*acc, vld1q_z(x[2] + ic, p), vld1q_z(w[2] + ic, p));
+    *acc = vfmaq(*acc, vld1q_z(x[3] + ic, p), vld1q_z(w[3] + ic, p));
+    *acc = vfmaq(*acc, vld1q_z(x[4] + ic, p), vld1q_z(w[4] + ic, p));
+}
     #endif
 
 __STATIC_FORCEINLINE void arm_nn_conv1d_k5_nhwc_f16_body(const float16_t *__RESTRICT x_nhwc,
@@ -221,6 +235,8 @@ __STATIC_FORCEINLINE void arm_nn_conv1d_k5_nhwc_f16_body(const float16_t *__REST
             const float16_t *w2 = w1 + in_c;
             const float16_t *w3 = w2 + in_c;
             const float16_t *w4 = w3 + in_c;
+            const float16_t *const xs[5] = {x0, x1, x2, x3, x4};
+            const float16_t *const ws[5] = {w0, w1, w2, w3, w4};
             _Float16 acc = b ? (_Float16)b[oc] : (_Float16)0.0f;
             float16x8_t vacc = vdupq_n_f16((float16_t)0.0f);
             float32x4_t vacc_pairs = vdupq_n_f32(0.0f);
@@ -228,14 +244,16 @@ __STATIC_FORCEINLINE void arm_nn_conv1d_k5_nhwc_f16_body(const float16_t *__REST
             do
             {
                 const int32_t ic_end = (in_c - ic0 > span) ? ic0 + span : in_c;
-                for (int32_t ic = ic0; ic < ic_end; ic += 8)
+                /* Whole 8-channel steps, then one predicated tail step outside the loop, as in the four-channel
+                   block above (#588). */
+                int32_t ic = ic0;
+                for (; ic + 8 <= ic_end; ic += 8)
                 {
-                    const mve_pred16_t p = vctp16q((uint32_t)(ic_end - ic));
-                    vacc = vfmaq(vacc, vld1q_z(x0 + ic, p), vld1q_z(w0 + ic, p));
-                    vacc = vfmaq(vacc, vld1q_z(x1 + ic, p), vld1q_z(w1 + ic, p));
-                    vacc = vfmaq(vacc, vld1q_z(x2 + ic, p), vld1q_z(w2 + ic, p));
-                    vacc = vfmaq(vacc, vld1q_z(x3 + ic, p), vld1q_z(w3 + ic, p));
-                    vacc = vfmaq(vacc, vld1q_z(x4 + ic, p), vld1q_z(w4 + ic, p));
+                    arm_nn_conv1d_k5_oc1_step_f16(xs, ws, ic, (mve_pred16_t)0xFFFF, &vacc);
+                }
+                if (ic < ic_end)
+                {
+                    arm_nn_conv1d_k5_oc1_step_f16(xs, ws, ic, vctp16q((uint32_t)(ic_end - ic)), &vacc);
                 }
                 if (fold)
                 {
