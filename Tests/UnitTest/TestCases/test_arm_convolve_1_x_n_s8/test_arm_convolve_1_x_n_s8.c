@@ -1605,7 +1605,7 @@ void routing_predicates_arm_convolve_1_x_n_s8(void)
 
 /* A direct call of arm_convolve_1_x_n_s8() (input width 7, filter width 4, stride 2, pad 1) must match
    arm_convolve_s8() with the scratch arm_convolve_1_x_n_s8_get_buffer_size() gives, and on MVE reject a ctx->size
-   smaller than that rather than overrun it. */
+   smaller than that, or a NULL buffer, rather than overrun it. */
 void direct_short_scratch_arm_convolve_1_x_n_s8(void)
 {
     enum
@@ -1690,19 +1690,24 @@ void direct_short_scratch_arm_convolve_1_x_n_s8(void)
     // One left-padded and one right-padded column, each staged as filter W input columns: 16 bytes.
     TEST_ASSERT_EQUAL(16, size);
     const cmsis_nn_context short_ctx = {ctx.buf, size - 1};
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
-                      arm_convolve_1_x_n_s8(&short_ctx,
-                                            &wsum_ctx,
-                                            &conv_params,
-                                            &quant,
-                                            &input_dims,
-                                            input,
-                                            &filter_dims,
-                                            kernel,
-                                            &bias_dims,
-                                            bias,
-                                            &output_dims,
-                                            output));
+    const cmsis_nn_context null_ctx = {NULL, size};
+    const cmsis_nn_context *rejected[2] = {&short_ctx, &null_ctx};
+    for (int i = 0; i < 2; i++)
+    {
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_convolve_1_x_n_s8(rejected[i],
+                                                &wsum_ctx,
+                                                &conv_params,
+                                                &quant,
+                                                &input_dims,
+                                                input,
+                                                &filter_dims,
+                                                kernel,
+                                                &bias_dims,
+                                                bias,
+                                                &output_dims,
+                                                output));
+    }
 #endif
     free(ctx.buf);
 }
@@ -1948,8 +1953,9 @@ void direct_padding_sweep_arm_convolve_1_x_n_s8(void)
     TEST_ASSERT_EQUAL_MESSAGE(0, mismatches, first);
 }
 
-/* Arguments arm_convolve_1_x_n_s8() rejects on every build, before touching any buffer: a negative pad.w or an empty
-   filter (either would size a staging copy negative), and anything but a single output row. */
+/* Arguments arm_convolve_1_x_n_s8() rejects on every build, before touching any buffer: a negative pad.w, an empty
+   filter or a negative width (each would size a staging copy or a section negative), and anything but a single output
+   row. */
 void direct_argument_checks_arm_convolve_1_x_n_s8(void)
 {
     int8_t input[8 * 4] = {0};
@@ -2013,6 +2019,36 @@ void direct_argument_checks_arm_convolve_1_x_n_s8(void)
                                             &bias_dims,
                                             bias,
                                             &two_rows_out,
+                                            output));
+
+    const cmsis_nn_dims negative_width_out = {1, 1, -1, 16};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_1_x_n_s8(&ctx,
+                                            &wsum_ctx,
+                                            &same,
+                                            &quant,
+                                            &input_dims,
+                                            input,
+                                            &filter_dims,
+                                            kernel,
+                                            &bias_dims,
+                                            bias,
+                                            &negative_width_out,
+                                            output));
+
+    const cmsis_nn_dims negative_width_in = {1, 1, -1, 4};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_1_x_n_s8(&ctx,
+                                            &wsum_ctx,
+                                            &same,
+                                            &quant,
+                                            &negative_width_in,
+                                            input,
+                                            &filter_dims,
+                                            kernel,
+                                            &bias_dims,
+                                            bias,
+                                            &output_dims,
                                             output));
 
     const cmsis_nn_conv_params vertical_pad = conv_1_x_n_params(1, 1, 1);

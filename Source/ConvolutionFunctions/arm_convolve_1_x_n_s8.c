@@ -87,8 +87,8 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
     arm_cmsis_nn_status status = ARM_CMSIS_NN_SUCCESS;
 
     /* The wrapper API is the ultimate reference for argument check */
-    if ((input_dims->h != 1) || conv_params->dilation.w != 1 || conv_params->stride.w <= 0 ||
-        (((int64_t)conv_params->stride.w * input_dims->c) % 4 != 0) ||
+    if ((input_dims->h != 1) || (input_dims->w < 0) || (output_dims->w < 0) || conv_params->dilation.w != 1 ||
+        conv_params->stride.w <= 0 || (((int64_t)conv_params->stride.w * input_dims->c) % 4 != 0) ||
         !arm_nn_convolve_1_x_n_s8_padding_supported(conv_params, filter_dims, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;

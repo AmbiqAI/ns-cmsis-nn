@@ -1612,8 +1612,9 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
  * @param[in]       output_dims           Output tensor dimensions. Format: [N, H, W, C_OUT]
  *
  * @return          The function returns required buffer size in bytes, or -1 if any dimension it reads is negative or
- *                  conv_params->stride.w is not positive. On builds that need this scratch buffer it also returns -1
- *                  if the required size would not fit in an int32_t; other builds need no buffer and return 0.
+ *                  conv_params->stride.w is not positive. On builds with the MVE extension (ARM_MATH_MVEI) that is
+ *                  the staging size of arm_convolve_1_x_n_s8(), 0 when no output column reads padding, or -1 if it
+ *                  would not fit in an int32_t; other builds return arm_convolve_s8_get_buffer_size().
  *
  */
 int32_t arm_convolve_1_x_n_s8_get_buffer_size(const cmsis_nn_conv_params *conv_params,
