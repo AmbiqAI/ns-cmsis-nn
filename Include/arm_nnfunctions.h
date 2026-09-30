@@ -5672,7 +5672,8 @@ int32_t arm_avgpool_s8_get_buffer_size_mve(const int dim_dst_width, const int ch
  * @param[out]     output_data  Output data pointer. Data type: int16
  *
  * @return                        The function returns
- *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation, including an output with
+ *                                    no rows or no columns, which writes nothing and does not use ctx
  *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> - In case of invalid arguments, including a
  *                                    pooling window that does not overlap the input, window bounds (output index
  *                                    * stride - padding, plus the filter extent) that do not fit in an int32_t, or,
