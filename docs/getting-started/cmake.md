@@ -35,6 +35,11 @@ target_link_libraries(my_firmware PRIVATE ns::cmsis-nn)
 That's it. `ns::cmsis-nn` is an `IMPORTED STATIC` target that already
 carries the right `INTERFACE_INCLUDE_DIRECTORIES`.
 
+Include the headers as `#include "arm_nnfunctions.h"`. The package also
+resolves the source-tree spelling `#include "Include/arm_nnfunctions.h"`,
+which TFLM's CMSIS-NN kernels use, through one-line forwarding headers in
+`compat/Include/`. Both spellings reach the same file.
+
 ## 3. Configure-time guardrails
 
 The package checks two aspects of the consumer configuration:
@@ -67,7 +72,8 @@ cmake --build build --verbose
 
 In the configure or verbose build output, look for:
 
-- The extracted package's `include/` directory in the compiler include paths.
+- The extracted package's `include/` and `compat/` directories in the
+  compiler include paths.
 - The package's `lib/libns-cmsis-nn.a` in the final link command.
 
 If CMake reports a CPU mismatch, switch to the matching release artifact. If it
