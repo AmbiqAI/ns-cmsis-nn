@@ -32,12 +32,16 @@ def ar_members(data: bytes):
         raise ValueError("not an ar archive")
     pos = len(AR_MAGIC)
     long_names = b""
-    while pos + 60 <= len(data):
+    while pos < len(data):
+        if pos + 60 > len(data):
+            raise ValueError(f"truncated member header at offset {pos}")
         header = data[pos : pos + 60]
         if header[58:60] != b"`\n":
             raise ValueError(f"bad member header at offset {pos}")
         raw_name = header[0:16].rstrip(b" ")
         size = int(header[48:58].strip() or b"0")
+        if pos + 60 + size > len(data):
+            raise ValueError(f"member at offset {pos} runs past the end of the archive")
         body = data[pos + 60 : pos + 60 + size]
         pos += 60 + size + (size & 1)
         if raw_name == b"//":
