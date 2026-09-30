@@ -54,9 +54,52 @@ static void scale_q31_to_q15_and_clamp(const int32_t *buffer,
 }
 #endif
 
+static bool arm_avgpool_s16_windows_valid(const cmsis_nn_pool_params *pool_params,
+                                          const cmsis_nn_dims *input_dims,
+                                          const cmsis_nn_dims *filter_dims,
+                                          const cmsis_nn_dims *output_dims)
+{
+    const int32_t input_y = input_dims->h;
+    const int32_t input_x = input_dims->w;
+    const int32_t output_y = output_dims->h;
+    const int32_t output_x = output_dims->w;
+    const int32_t stride_y = pool_params->stride.h;
+    const int32_t stride_x = pool_params->stride.w;
+    const int32_t kernel_y = filter_dims->h;
+    const int32_t kernel_x = filter_dims->w;
+    const int32_t pad_y = pool_params->padding.h;
+    const int32_t pad_x = pool_params->padding.w;
+
+    if (output_x == 0 || output_y == 0)
+    {
+        return true;
+    }
+
+    for (int i_y = 0; i_y < output_y; i_y++)
+    {
+        const int64_t k_y_start = ARM_NN_MAX((int64_t)0, (int64_t)i_y * stride_y - pad_y);
+        const int64_t k_y_end = ARM_NN_MIN((int64_t)i_y * stride_y - pad_y + kernel_y, (int64_t)input_y);
+        if (k_y_start >= k_y_end)
+        {
+            return false;
+        }
+    }
+
+    for (int i_x = 0; i_x < output_x; i_x++)
+    {
+        const int64_t k_x_start = ARM_NN_MAX((int64_t)0, (int64_t)i_x * stride_x - pad_x);
+        const int64_t k_x_end = ARM_NN_MIN((int64_t)i_x * stride_x - pad_x + kernel_x, (int64_t)input_x);
+        if (k_x_start >= k_x_end)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /**
  *  @ingroup Public
-
  */
 
 /**
@@ -91,7 +134,6 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
     const int32_t act_min = pool_params->activation.min;
     const int32_t act_max = pool_params->activation.max;
     const int32_t ch_src = input_dims->c;
-    const int32_t batch_input = input_x * input_y * ch_src;
     int32_t batch_cnt = input_dims->n;
 
     if (batch_cnt < 1)
@@ -99,9 +141,25 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
+    const int32_t buffer_size = arm_avgpool_s16_get_buffer_size(output_dims->w, input_dims->c);
+
+#if defined(ARM_MATH_MVEI)
+    if (buffer_size < 0)
+#else
+    if (buffer_size < 0 || ctx == NULL || (ctx->buf == NULL && buffer_size))
+#endif
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    if (!arm_avgpool_s16_windows_valid(pool_params, input_dims, filter_dims, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
 #if defined(ARM_MATH_MVEI)
     (void)ctx;
-
+    const int32_t batch_input = input_x * input_y * ch_src;
     const int32_t batch_output = output_x * output_y * ch_src;
 
     while (batch_cnt)
@@ -110,11 +168,13 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
         {
             for (int i_x = 0; i_x < output_x; i_x++)
             {
-                const int32_t k_y_start = ARM_NN_MAX(0, i_y * stride_y - pad_y);
-                const int32_t k_y_end = ARM_NN_MIN(i_y * stride_y - pad_y + kernel_y, input_y);
+                const int32_t k_y_start = (int32_t)ARM_NN_MAX((int64_t)0, (int64_t)i_y * stride_y - pad_y);
+                const int32_t k_y_end =
+                    (int32_t)ARM_NN_MIN((int64_t)i_y * stride_y - pad_y + kernel_y, (int64_t)input_y);
 
-                const int32_t k_x_start = ARM_NN_MAX(0, i_x * stride_x - pad_x);
-                const int32_t k_x_end = ARM_NN_MIN(i_x * stride_x - pad_x + kernel_x, input_x);
+                const int32_t k_x_start = (int32_t)ARM_NN_MAX((int64_t)0, (int64_t)i_x * stride_x - pad_x);
+                const int32_t k_x_end =
+                    (int32_t)ARM_NN_MIN((int64_t)i_x * stride_x - pad_x + kernel_x, (int64_t)input_x);
 
                 const int16_t *src_base = src;
                 int16_t *out = &dst[ch_src * (i_x + i_y * output_x)];
@@ -200,37 +260,30 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
 #elif defined(ARM_MATH_DSP)
     /* Run the following code for CPU's with DSP extension
      */
+    const int32_t batch_input = input_x * input_y * ch_src;
     int32_t *buffer = (int32_t *)ctx->buf;
-
-    if (buffer == NULL)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
 
     while (batch_cnt)
     {
-
-        for (int i_y = 0, idx_y = -pad_y; i_y < output_y; idx_y += stride_y, i_y++)
+        for (int i_y = 0; i_y < output_y; i_y++)
         {
-            for (int i_x = 0, idx_x = -pad_x; i_x < output_x; idx_x += stride_x, i_x++)
+            for (int i_x = 0; i_x < output_x; i_x++)
             {
-                /* Condition for kernel start dimension:
-                   (base_idx_<x,y> + kernel_<x,y>_start) >= 0 */
-                const int32_t kernel_y_start = ARM_NN_MAX(0, -idx_y);
-                const int32_t kernel_x_start = ARM_NN_MAX(0, -idx_x);
+                const int32_t k_y_start = (int32_t)ARM_NN_MAX((int64_t)0, (int64_t)i_y * stride_y - pad_y);
+                const int32_t k_y_end =
+                    (int32_t)ARM_NN_MIN((int64_t)i_y * stride_y - pad_y + kernel_y, (int64_t)input_y);
 
-                /* Condition for kernel end dimension:
-                   (base_idx_<x,y> + kernel_<x,y>_end) < dim_src_<width,height> */
-                const int32_t kernel_y_end = ARM_NN_MIN(kernel_y, input_y - idx_y);
-                const int32_t kernel_x_end = ARM_NN_MIN(kernel_x, input_x - idx_x);
+                const int32_t k_x_start = (int32_t)ARM_NN_MAX((int64_t)0, (int64_t)i_x * stride_x - pad_x);
+                const int32_t k_x_end =
+                    (int32_t)ARM_NN_MIN((int64_t)i_x * stride_x - pad_x + kernel_x, (int64_t)input_x);
 
                 int count = 0;
 
-                for (int k_y = kernel_y_start; k_y < kernel_y_end; k_y++)
+                for (int k_y = k_y_start; k_y < k_y_end; k_y++)
                 {
-                    for (int k_x = kernel_x_start; k_x < kernel_x_end; k_x++)
+                    for (int k_x = k_x_start; k_x < k_x_end; k_x++)
                     {
-                        const int16_t *start = src + ch_src * (k_x + idx_x + (k_y + idx_y) * input_x);
+                        const int16_t *start = src + ch_src * (k_x + k_y * input_x);
 
                         if (count == 0)
                         {
@@ -268,33 +321,34 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
 #else
     /* Reference C code adapted from CMSIS-NN arm_avgpool_s8.c.
      */
+    const int32_t batch_input = input_x * input_y * ch_src;
     const int32_t batch_output = output_x * output_y * ch_src;
     (void)ctx;
 
     while (batch_cnt)
     {
-        for (int i_y = 0, base_idx_y = -pad_y; i_y < output_y; base_idx_y += stride_y, i_y++)
+        for (int i_y = 0; i_y < output_y; i_y++)
         {
-            for (int i_x = 0, base_idx_x = -pad_x; i_x < output_x; base_idx_x += stride_x, i_x++)
+            for (int i_x = 0; i_x < output_x; i_x++)
             {
-                /* Condition for kernel start dimension: (base_idx_<x,y> + kernel_<x,y>_start) >= 0 */
-                const int32_t ker_y_start = ARM_NN_MAX(0, -base_idx_y);
-                const int32_t ker_x_start = ARM_NN_MAX(0, -base_idx_x);
+                const int32_t k_y_start = (int32_t)ARM_NN_MAX((int64_t)0, (int64_t)i_y * stride_y - pad_y);
+                const int32_t k_y_end =
+                    (int32_t)ARM_NN_MIN((int64_t)i_y * stride_y - pad_y + kernel_y, (int64_t)input_y);
 
-                /* Condition for kernel end dimension: (base_idx_<x,y> + kernel_<x,y>_end) < dim_src_<width,height> */
-                const int32_t kernel_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
-                const int32_t kernel_x_end = ARM_NN_MIN(kernel_x, input_x - base_idx_x);
+                const int32_t k_x_start = (int32_t)ARM_NN_MAX((int64_t)0, (int64_t)i_x * stride_x - pad_x);
+                const int32_t k_x_end =
+                    (int32_t)ARM_NN_MIN((int64_t)i_x * stride_x - pad_x + kernel_x, (int64_t)input_x);
 
                 for (int i_ch_in = 0; i_ch_in < ch_src; i_ch_in++)
                 {
                     int sum = 0;
                     int count = 0;
 
-                    for (int k_y = ker_y_start; k_y < kernel_y_end; k_y++)
+                    for (int k_y = k_y_start; k_y < k_y_end; k_y++)
                     {
-                        for (int k_x = ker_x_start; k_x < kernel_x_end; k_x++)
+                        for (int k_x = k_x_start; k_x < k_x_end; k_x++)
                         {
-                            sum += src[i_ch_in + ch_src * (k_x + base_idx_x + (k_y + base_idx_y) * input_x)];
+                            sum += src[i_ch_in + ch_src * (k_x + k_y * input_x)];
                             count++;
                         }
                     }

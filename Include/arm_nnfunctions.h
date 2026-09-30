@@ -4884,6 +4884,9 @@ int32_t arm_avgpool_s8_get_buffer_size_mve(const int dim_dst_width, const int ch
  * @return                        The function returns
  *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> - In case of invalid arguments
+ *                                ARM_CMSIS_NN_ARG_ERROR is returned for argument errors including an empty pooling
+ *                                window, a negative buffer-size result, or a missing required buffer, and in these
+ *                                cases output_data is not modified.
  *
  * @details
  *    - Supported Framework: TensorFlow Lite
