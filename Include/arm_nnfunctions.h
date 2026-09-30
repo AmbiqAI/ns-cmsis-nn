@@ -4809,6 +4809,9 @@ arm_cmsis_nn_status arm_prelu_scalar_s16(const int16_t *scalar_vect,
  * @return     The function returns either
  *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
  *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *             ARM_CMSIS_NN_ARG_ERROR is returned for argument errors including an empty pooling window, a
+ *             negative buffer-size result, or a missing required buffer, and in these cases output_data is not
+ *             modified.
  *
  * @details
  *    - Supported Framework: TensorFlow Lite
