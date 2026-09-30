@@ -2058,6 +2058,7 @@ void direct_argument_checks_arm_convolve_1_x_n_s8(void)
     const cmsis_nn_conv_params valid = conv_1_x_n_params(1, 0, 0);
     const cmsis_nn_dims valid_out = {1, 1, 6, 16};
     const cmsis_nn_context null_ctx = {NULL, 0};
+    memset(output, 0x55, sizeof(output));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_convolve_1_x_n_s8(&null_ctx,
                                             &wsum_ctx,
@@ -2071,6 +2072,7 @@ void direct_argument_checks_arm_convolve_1_x_n_s8(void)
                                             bias,
                                             &valid_out,
                                             output));
+    TEST_ASSERT_EACH_EQUAL_INT8(0x55, output, sizeof(output));
 
     const cmsis_nn_conv_params vertical_pad = conv_1_x_n_params(1, 1, 1);
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,

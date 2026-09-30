@@ -124,6 +124,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
     const int64_t no_pad_num = output_x - left_num - right_num;
     const int64_t left_cols = left_num > 0 ? (left_num - 1) * stride_x + kernel_x : 0;
     const int64_t right_cols = right_num > 0 ? (right_num - 1) * stride_x + kernel_x : 0;
+    // arm_convolve_1_x_n_s8_get_buffer_size() reports this span, raised to at least one window.
     const int64_t staging_cols = ARM_NN_MAX(left_cols, right_cols);
     // Bounded before the multiply: a span above INT32_MAX times input_ch can wrap an int64_t.
     if (staging_cols > INT32_MAX)
