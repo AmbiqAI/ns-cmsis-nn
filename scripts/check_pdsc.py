@@ -70,6 +70,13 @@
 #      looked like coverage for years while being uncompilable — which is
 #      how a real transpose-conv output-shift bug survived to a release
 #      (#253, #256).
+#  11. Component header closure — every heliaCORE component declares every
+#      in-repo header its declared files reach through #include "...",
+#      resolved from the including file's directory and then Include/. A
+#      consumer that takes only a component's declared files (a CMSIS tool
+#      copying the component) otherwise cannot compile (#514). A quoted
+#      include that resolves in neither place fails too, so a header that
+#      only some consumers' include paths would find cannot slip past.
 #
 
 from __future__ import annotations
@@ -313,6 +320,8 @@ def collect_file_entries(comp: ET.Element | None) -> list[tuple[str, str]]:
 
 
 _QUOTED_INCLUDE = re.compile(r'^\s*#\s*include\s*"([^"]+)"', re.MULTILINE)
+# Quoted includes of files that are not in the repo on purpose: MSVC's intrinsics header, in arm_nn_compiler.h.
+_EXTERNAL_QUOTED_INCLUDES = {"intrin.h"}
 
 
 def check_header_closure(pkg: ET.Element) -> None:
@@ -348,6 +357,11 @@ def check_header_closure(pkg: ET.Element) -> None:
                         target = candidate.relative_to(REPO).as_posix()
                         break
                 if target is None:
+                    if inc not in _EXTERNAL_QUOTED_INCLUDES:
+                        fail(
+                            f"component Cvariant='{variant}': #include \"{inc}\" in {rel} resolves neither next to it "
+                            "nor under Include/; write it relative to one of them"
+                        )
                     continue
                 if target not in declared and target not in missing:
                     missing[target] = rel

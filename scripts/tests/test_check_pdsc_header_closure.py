@@ -22,7 +22,7 @@ SCRIPT_PATH = Path(__file__).resolve().parents[1] / "check_pdsc.py"
 COMPONENT = 'Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvendor="Ambiq"'
 
 TREE = {
-    "Include/a.h": '#include "Internal/b.h"\n#include <stdint.h>\n#include "not_in_repo.h"\n',
+    "Include/a.h": '#include "Internal/b.h"\n#include <stdint.h>\n#include "intrin.h"\n',
     "Include/Internal/b.h": '#include "c.h"\n',
     "Include/Internal/c.h": '#include "b.h"\n',
     "Source/Group/x.c": '#include "a.h"\n#include "local.h"\n',
@@ -101,6 +101,43 @@ class CheckHeaderClosure(unittest.TestCase):
         self.assertEqual(1, len(failures))
         self.assertIn("Cvariant='Prebuilt'", failures[0])
         self.assertIn("Include/Internal/c.h", failures[0])
+
+    def test_includer_directory_takes_precedence_over_include_dir(self) -> None:
+        # Source/Group/shadow.h and Include/shadow.h share a name; x2.c's include resolves beside it, as the compiler's.
+        (self.root / "Source/Group/shadow.h").write_text("")
+        (self.root / "Include/shadow.h").write_text("")
+        (self.root / "Source/Group/x2.c").write_text('#include "shadow.h"\n')
+        failures = self._run(_pdsc(_component("Source", ["Include/shadow.h"], ["Source/Group/x2.c"])))
+        self.assertEqual(1, len(failures))
+        self.assertIn("Source/Group/shadow.h", failures[0])
+
+    def test_indented_include_under_a_condition_is_followed(self) -> None:
+        (self.root / "Include/cond.h").write_text('#if defined(X)\n  #include "Internal/c.h"\n#endif\n')
+        failures = self._run(_pdsc(_component("Prebuilt", ["Include/cond.h"], [])))
+        self.assertEqual(2, len(failures))
+        self.assertIn("Include/Internal/c.h", failures[1])
+
+    def test_angle_include_of_an_in_repo_file_is_not_followed(self) -> None:
+        (self.root / "Include/angle.h").write_text("#include <Internal/c.h>\n")
+        self.assertEqual([], self._run(_pdsc(_component("Prebuilt", ["Include/angle.h"], []))))
+
+    def test_include_that_leaves_the_repo_is_not_a_declared_header(self) -> None:
+        outside = self.root.parent / (self.root.name + "-outside.h")
+        outside.write_text("")
+        self.addCleanup(outside.unlink)
+        (self.root / "Include/escape.h").write_text(f'#include "../../{outside.name}"\n')
+        failures = self._run(_pdsc(_component("Prebuilt", ["Include/escape.h"], [])))
+        self.assertEqual(1, len(failures))
+        self.assertIn("resolves neither", failures[0])
+
+    def test_unresolved_quoted_include_fails(self) -> None:
+        (self.root / "Source/Group/y.c").write_text('#include "arm_nn_missing.h"\n')
+        failures = self._run(_pdsc(_component("Source", [], ["Source/Group/y.c"])))
+        self.assertEqual(1, len(failures))
+        self.assertIn('#include "arm_nn_missing.h"', failures[0])
+
+    def test_main_runs_the_check(self) -> None:
+        self.assertIn("check_header_closure", self.mod.main.__code__.co_names)
 
     def test_other_components_are_ignored(self) -> None:
         other = 'Cclass="Machine Learning" Cgroup="NN Lib" Csub="Other" Cvendor="Ambiq"'
