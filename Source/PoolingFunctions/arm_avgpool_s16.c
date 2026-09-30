@@ -240,8 +240,8 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
 #elif defined(ARM_MATH_DSP)
     /* Run the following code for CPU's with DSP extension
      */
-    /* The sizer asks for a buffer only when there are channels to sum. */
-    if ((ctx == NULL) || ((ctx->buf == NULL) && (ch_src > 0)))
+    /* The sizer asks for no buffer only when there are no channels. */
+    if ((ctx == NULL) || ((ctx->buf == NULL) && (ch_src != 0)))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

@@ -482,6 +482,10 @@ void degenerate_arguments_arm_avgpool_s16(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_avgpool_s16(&null_buf, &pool_params, &dims, input, &dims, &dims, output));
     TEST_ASSERT_EACH_EQUAL_INT16(0x5555, output, 2);
+    const cmsis_nn_dims negative_channels = {1, 1, 1, -1};
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_ARG_ERROR,
+        arm_avgpool_s16(&null_buf, &pool_params, &negative_channels, input, &dims, &negative_channels, output));
     // With no channels the sizer returns 0, so a NULL buffer is accepted.
     const cmsis_nn_dims no_channels = {1, 1, 1, 0};
     TEST_ASSERT_EQUAL(0, arm_avgpool_s16_get_buffer_size(1, 0));
