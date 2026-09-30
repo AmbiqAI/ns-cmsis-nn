@@ -582,8 +582,10 @@ arm_cmsis_nn_status arm_avg_pool_f32(const cmsis_nn_context *ctx,
  * @note The RELU, RELU6 and LEAKY_RELU legs classify NaN on the integer bit pattern (#380 / #382), so a
  *       NaN input comes back as NaN at every optimization level on the gated toolchains, including the
  *       shipped -Ofast. This holds on both the scalar and the MVE (cortex-m55) build paths; the MVE
- *       RELU/RELU6 legs restore the NaN lanes that vmaxnmq/vminnmq suppress. SIGMOID, TANH and HARDSWISH
- *       are outside this contract; see the per-helper notes in Include/Internal/arm_nn_activation_flt.h.
+ *       RELU/RELU6 legs restore the NaN lanes that vmaxnmq/vminnmq suppress. The MVE TANH leg returns a
+ *       NaN input unchanged and keeps the sign of zero, also decided on the bit pattern (#635); the scalar TANH
+ *       leg propagates NaN only in builds without -ffinite-math-only. SIGMOID and HARDSWISH are outside
+ *       this contract; see the per-helper notes in Include/Internal/arm_nn_activation_flt.h.
  *
  * @note The HARDSWISH leg's scalar helper (arm_nn_hardswish_scalar_f32, serving every build that does
  *       not take the MVE float path -- no MVE float support, or MVE present but not used, e.g. under
@@ -1761,6 +1763,9 @@ int32_t arm_svdf_f32_output_ctx_get_buffer_size(const cmsis_nn_svdf_params_f32 *
  *                        implementation never dereferences them and both may be NULL.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ *
+ * @note   On the MVE float path a NaN cell state yields a NaN hidden state, as tanh returns NaN unchanged
+ *         there (#635). With cell clipping enabled the clip removes a NaN cell state first.
  */
 arm_cmsis_nn_status arm_lstm_unidirectional_f32(const float32_t *input,
                                                 float32_t *output,
