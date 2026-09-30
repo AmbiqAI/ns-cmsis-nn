@@ -40,7 +40,8 @@ def ar_members(data: bytes):
             raise ValueError(f"bad member header at offset {pos}")
         raw_name = header[0:16].rstrip(b" ")
         size = int(header[48:58].strip() or b"0")
-        if pos + 60 + size > len(data):
+        # An odd-sized member is followed by one pad byte, the last member included.
+        if pos + 60 + size + (size & 1) > len(data):
             raise ValueError(f"member at offset {pos} runs past the end of the archive")
         body = data[pos + 60 : pos + 60 + size]
         pos += 60 + size + (size & 1)
