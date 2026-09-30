@@ -1707,6 +1707,7 @@ void direct_short_scratch_arm_convolve_1_x_n_s8(void)
     free(ctx.buf);
 }
 
+#if defined(ARM_MATH_MVEI)
 /* Scratch bytes arm_convolve_1_x_n_s8() needs on MVE, derived window by window: output column j reads input columns
    j * stride - pad to j * stride - pad + filter W - 1. The leading windows that start before the input and the trailing
    windows that end past it are each staged as one padded copy of the columns they span. */
@@ -1731,6 +1732,7 @@ static int32_t staging_bytes(const int32_t in_w,
     const int32_t right_cols = right > 0 ? (right - 1) * stride + k_w : 0;
     return ARM_NN_MAX(left_cols, right_cols) * in_c;
 }
+#endif
 
 enum
 {
