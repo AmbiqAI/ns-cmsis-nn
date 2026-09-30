@@ -141,7 +141,7 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
 #if defined(ARM_MATH_MVEI)
     if (buffer_size < 0)
 #else
-    if (ctx == NULL || (ctx->buf == NULL && buffer_size))
+    if (buffer_size < 0 || ctx == NULL || (ctx->buf == NULL && buffer_size))
 #endif
     {
         return ARM_CMSIS_NN_ARG_ERROR;

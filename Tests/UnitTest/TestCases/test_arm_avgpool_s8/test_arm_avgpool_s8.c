@@ -597,3 +597,43 @@ void avgpooling_empty_window_arm_avgpool_s8(void)
         }
     }
 }
+
+void buffer_size_negative_arm_avgpool_s8(void)
+{
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_ARG_ERROR;
+    int8_t output[1] = {0};
+
+    cmsis_nn_context ctx;
+    cmsis_nn_pool_params pool_params;
+    cmsis_nn_dims input_dims;
+    cmsis_nn_dims filter_dims;
+    cmsis_nn_dims output_dims;
+
+    const int8_t input_data[1] = {0};
+
+    input_dims.n = 1;
+    input_dims.w = 1;
+    input_dims.h = 1;
+    input_dims.c = -1;
+    filter_dims.w = 1;
+    filter_dims.h = 1;
+    output_dims.w = 1;
+    output_dims.h = 1;
+    output_dims.c = 1;
+
+    pool_params.padding.w = 0;
+    pool_params.padding.h = 0;
+    pool_params.stride.w = 1;
+    pool_params.stride.h = 1;
+
+    pool_params.activation.min = -128;
+    pool_params.activation.max = 127;
+
+    ctx.size = -1;
+    ctx.buf = (void *)1;
+
+    arm_cmsis_nn_status result =
+        arm_avgpool_s8(&ctx, &pool_params, &input_dims, input_data, &filter_dims, &output_dims, output);
+
+    TEST_ASSERT_EQUAL(expected, result);
+}
