@@ -3472,5 +3472,28 @@ void undersized_context_arm_depthwise_conv_s8_opt(void)
                              &output_dims,
                              output));
     }
+
+    /* Dimensions the sizer cannot size (-1) are rejected too, whatever ctx->size says. */
+    const cmsis_nn_dims bad_filter_dims = {1, -3, 3, ch};
+    const cmsis_nn_context declared = {scratch, need};
+    memset(output, 0x5A, sizeof(output));
+    TEST_ASSERT_EQUAL(-1, arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &bad_filter_dims));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_depthwise_conv_s8_opt_channelwise(&declared,
+                                                            &wsum_ctx,
+                                                            &params,
+                                                            &quant,
+                                                            &input_dims,
+                                                            input,
+                                                            &bad_filter_dims,
+                                                            kernel,
+                                                            &bias_dims,
+                                                            bias,
+                                                            &output_dims,
+                                                            output));
+    for (size_t i = 0; i < sizeof(output); i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x5A, output[i]);
+    }
     free(scratch);
 }
