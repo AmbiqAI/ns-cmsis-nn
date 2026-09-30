@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.38.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.37.0...v7.38.0) (2026-09-29)
+
+
+### Performance
+
+* **f16:** fold MVE float16 accumulation into float32 every 32 taps ([#600](https://github.com/AmbiqAI/ns-cmsis-nn/issues/600)) ([1f6ec4e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1f6ec4eef63ae7b1acfa485bdf8c3605f5dc16d5)), closes [#586](https://github.com/AmbiqAI/ns-cmsis-nn/issues/586)
+
+
+### Docs
+
+* **contributing:** describe how kernels are structured to keep images small ([#604](https://github.com/AmbiqAI/ns-cmsis-nn/issues/604)) ([f34eea8](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f34eea85a8ec27a0ee0f37a9b732d15c913b89ea)), closes [#594](https://github.com/AmbiqAI/ns-cmsis-nn/issues/594)
+
 ## [7.37.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.36.1...v7.37.0) (2026-09-29)
 
 

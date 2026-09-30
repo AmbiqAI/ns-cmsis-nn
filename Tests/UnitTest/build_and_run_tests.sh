@@ -499,8 +499,10 @@ Run_Tests() {
     do
         echo "Test: ${test}"
         output=$(FVP_Corstone_SSE-300_Ethos-U55 -C mps3_board.uart0.shutdown_on_eot=1 -C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.telnetterminal0.start_telnet=0 -C mps3_board.uart0.out_file="-" -C mps3_board.uart0.unbuffered_output=1 ${test})
-        echo "$output" | grep "0 Failures" -vqz
-        if [[ $? -eq 0 ]]; then
+        # Pass only on Unity's own summary line with zero failures followed by OK; a substring test on
+        # "0 Failures" also matches "10 Failures".
+        if ! echo "$output" | grep -Eq '^[0-9]+ Tests 0 Failures [0-9]+ Ignored[[:space:]]*$' ||
+            ! echo "$output" | grep -Eq '^OK[[:space:]]*$'; then
             echo "${output}"
             echo "${test} failed. Script exiting."
             exit 1
