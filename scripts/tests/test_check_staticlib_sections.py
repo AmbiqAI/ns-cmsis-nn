@@ -123,10 +123,13 @@ class CheckStaticlibSectionsTest(unittest.TestCase):
 
     def test_odd_final_member_without_pad_byte_is_unreadable(self):
         odd = GOOD_OTHER + (b"\0" if len(GOOD_OTHER) % 2 == 0 else b"")
+        self.assertEqual(1, len(odd) % 2)
         data = archive((REFERENCE, GOOD_REFERENCE), ("relu.c.o", odd))
         self.assertEqual(0, self.run_checker(data))
         # The archive ends where the final member's pad byte should be.
-        self.assertEqual(2, self.run_checker(data[:-1]))
+        result = self.run_full(data[:-1])
+        self.assertEqual(2, result.returncode)
+        self.assertIn("runs past the end of the archive", result.stderr)
 
     def test_not_an_archive_is_unreadable(self):
         self.assertEqual(2, self.run_checker(b"not an archive"))
