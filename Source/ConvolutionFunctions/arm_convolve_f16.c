@@ -659,15 +659,16 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_patch_gemm_f16(const 
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
 /* Taps k in [0, k_len) with base + k * dil in [0, in_len); all k_len of them for a dilation below 1. */
-__STATIC_FORCEINLINE int32_t arm_conv_f16_taps_in_range(int32_t base, int32_t dil, int32_t k_len, int32_t in_len)
+__STATIC_FORCEINLINE int32_t arm_conv_f16_taps_in_range(int64_t base, int32_t dil, int32_t k_len, int32_t in_len)
 {
     if (dil < 1)
     {
         return k_len;
     }
-    const int32_t lo = (base < 0) ? (dil - 1 - base) / dil : 0;
-    const int32_t hi = (in_len > base) ? ARM_NN_MIN(k_len, (in_len - base + dil - 1) / dil) : 0;
-    return (hi > lo) ? hi - lo : 0;
+    const int64_t lo = (base < 0) ? ((int64_t)dil - 1 - base) / dil : 0;
+    const int64_t hi_unbounded = (in_len > base) ? ((int64_t)in_len - base + dil - 1) / dil : 0;
+    const int64_t hi = (hi_unbounded < k_len) ? hi_unbounded : k_len;
+    return (hi > lo) ? (int32_t)(hi - lo) : 0;
 }
     #endif
 
