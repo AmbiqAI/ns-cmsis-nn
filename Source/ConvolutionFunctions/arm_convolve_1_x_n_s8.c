@@ -40,6 +40,31 @@
  * @{
  */
 
+#if defined(ARM_MATH_MVEI)
+/* Copies input columns first_col to first_col + num_cols - 1 of one batch to dst, with pad_value in the columns that
+   fall outside the input. */
+static void arm_convolve_1_x_n_s8_stage(int8_t *dst,
+                                        const int8_t *input,
+                                        const int32_t input_x,
+                                        const int32_t input_ch,
+                                        const int64_t first_col,
+                                        const int32_t num_cols,
+                                        const int8_t pad_value)
+{
+    const int32_t lead = (int32_t)ARM_NN_MIN((int64_t)num_cols, ARM_NN_MAX(-first_col, 0));
+    const int64_t real_start = ARM_NN_MAX(first_col, 0);
+    const int32_t real =
+        (int32_t)ARM_NN_MAX(ARM_NN_MIN(first_col + num_cols, (int64_t)input_x) - real_start, (int64_t)0);
+    const int32_t trail = num_cols - lead - real;
+
+    arm_memset_s8(dst, pad_value, (uint32_t)(lead * input_ch));
+    dst += lead * input_ch;
+    arm_memcpy_s8(dst, input + real_start * input_ch, (uint32_t)(real * input_ch));
+    dst += real * input_ch;
+    arm_memset_s8(dst, pad_value, (uint32_t)(trail * input_ch));
+}
+#endif
+
 /*
  * 1xN s8 convolution function.
  *
@@ -62,8 +87,9 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
     arm_cmsis_nn_status status = ARM_CMSIS_NN_SUCCESS;
 
     /* The wrapper API is the ultimate reference for argument check */
-    if ((input_dims->h != 1) || conv_params->dilation.w != 1 || ctx->buf == NULL || conv_params->stride.w == 0 ||
-        (((int64_t)conv_params->stride.w * input_dims->c) % 4 != 0))
+    if ((input_dims->h != 1) || conv_params->dilation.w != 1 || conv_params->stride.w <= 0 ||
+        (((int64_t)conv_params->stride.w * input_dims->c) % 4 != 0) ||
+        !arm_nn_convolve_1_x_n_s8_padding_supported(conv_params, filter_dims, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -84,144 +110,67 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
     const int32_t input_ch = input_dims->c;
     const int32_t pad_x = conv_params->padding.w;
     const int32_t stride_x = conv_params->stride.w;
+    const int8_t pad_value = (int8_t)-conv_params->input_offset;
 
-    // Total pad for dilation of 1
-    const int32_t total_pad = ((output_x - 1) * stride_x + kernel_x - input_x);
-    const int32_t asym_pad = total_pad % 2;
+    /* The left-padded windows come first and the right-padded ones last. Each group is staged once, as a padded copy
+       of the input columns it spans, and read from there at the layer's stride; the windows in between read the
+       input in place. */
+    int64_t left_num;
+    int64_t right_num;
+    arm_nn_convolve_1_x_n_padded_columns(conv_params, input_dims, filter_dims, output_dims, &left_num, &right_num);
+    const int64_t no_pad_num = output_x - left_num - right_num;
+    const int64_t left_cols = left_num > 0 ? (left_num - 1) * stride_x + kernel_x : 0;
+    const int64_t right_cols = right_num > 0 ? (right_num - 1) * stride_x + kernel_x : 0;
+    const int64_t staging_size = ARM_NN_MAX(left_cols, right_cols) * input_ch;
 
-    if (pad_x * 2 + asym_pad != total_pad)
+    if (staging_size > 0)
     {
-        return ARM_CMSIS_NN_FAILURE;
+        /* A size of 0 means the caller does not report it. */
+        if ((ctx->buf == NULL) || (staging_size > INT32_MAX) || ((ctx->size != 0) && (ctx->size < staging_size)))
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
     }
-
-    const int32_t right_pad_num =
-        pad_x + asym_pad != 0 ? ARM_NN_MAX(1, (pad_x + asym_pad + stride_x - 1) / stride_x) : 0;
-    const int32_t left_pad_num = pad_x != 0 ? ARM_NN_MAX(1, (pad_x + stride_x - 1) / stride_x) : 0;
-    const int32_t no_pad_num = ARM_NN_MAX(output_x - (right_pad_num + left_pad_num), 0);
-
-    const int32_t pad_size_left = pad_x * input_ch;
-    const int32_t pad_size_right = asym_pad ? right_pad_num * input_ch : pad_size_left;
 
     const int32_t rhs_cols = kernel_x * input_ch;
     const int32_t rhs_rows = output_dims->c;
     const int32_t lhs_offset = input_ch * stride_x;
-
-    // Layouts whose right-padded windows the staging below cannot build are computed by arm_convolve_s8().
-    if ((right_pad_num + no_pad_num + left_pad_num != output_x) ||
-        !arm_nn_convolve_1_x_n_s8_staging_supported(conv_params, input_dims, filter_dims, output_dims))
-    {
-        /* arm_convolve_s8() needs more scratch than the 1xN staging and does not check ctx->size itself; reject a
-           buffer sized for the 1xN staging rather than overrun it. A size of 0 means the caller does not report it. */
-        if ((ctx->size != 0) && (ctx->size < arm_convolve_s8_get_buffer_size(input_dims, filter_dims)))
-        {
-            return ARM_CMSIS_NN_ARG_ERROR;
-        }
-        return arm_convolve_s8(ctx,
-                               weight_sum_ctx,
-                               conv_params,
-                               quant_params,
-                               input_dims,
-                               input_data,
-                               filter_dims,
-                               filter_data,
-                               bias_dims,
-                               bias_data,
-                               NULL,
-                               output_dims,
-                               output_data);
-    }
-
-    const uint32_t num_elem_left = kernel_x * input_ch;
-    const uint32_t num_elem_right = num_elem_left - input_ch;
+    const int64_t right_first_col = (left_num + no_pad_num) * stride_x - pad_x;
+    const int32_t lhs_rows[3] = {(int32_t)left_num, (int32_t)no_pad_num, (int32_t)right_num};
 
     for (int i_batch = 0; i_batch < input_dims->n; i_batch++)
     {
-        /* Handle left padded sections */
-        int32_t lhs_rows = left_pad_num;
-        int8_t *im2col = ctx->buf;
-
-        arm_memset_s8(im2col, (int8_t)-conv_params->input_offset, sizeof(int8_t) * (uint32_t)pad_size_left);
-        im2col += pad_size_left;
-        arm_memcpy_s8(im2col, input_data, sizeof(int8_t) * num_elem_left);
-
-        arm_nn_mat_mult_nt_t_s8(weight_sum_ctx->buf,
-                                (int8_t *)ctx->buf,
-                                filter_data,
-                                bias_data,
-                                output_data,
-                                quant_params->multiplier,
-                                quant_params->shift,
-                                lhs_rows,
-                                rhs_rows,
-                                rhs_cols,
-                                conv_params->input_offset,
-                                conv_params->output_offset,
-                                conv_params->activation.min,
-                                conv_params->activation.max,
-                                rhs_rows,
-                                lhs_offset);
-
-        output_data += lhs_rows * rhs_rows;
-
-        /* Non padded elements */
-        int32_t out_idx = lhs_rows;
-        int32_t input_start = stride_x * lhs_rows - pad_x;
-
-        if (input_start < 0)
+        for (int32_t section = 0; section < 3; section++)
         {
-            return ARM_CMSIS_NN_FAILURE;
-        }
+            if (lhs_rows[section] == 0)
+            {
+                continue;
+            }
 
-        input_start *= input_ch;
-        lhs_rows = no_pad_num;
-
-        arm_nn_mat_mult_nt_t_s8(weight_sum_ctx->buf,
-                                input_data + input_start,
-                                filter_data,
-                                bias_data,
-                                output_data,
-                                quant_params->multiplier,
-                                quant_params->shift,
-                                lhs_rows,
-                                rhs_rows,
-                                rhs_cols,
-                                conv_params->input_offset,
-                                conv_params->output_offset,
-                                conv_params->activation.min,
-                                conv_params->activation.max,
-                                rhs_rows,
-                                lhs_offset);
-
-        output_data += lhs_rows * rhs_rows;
-        out_idx += lhs_rows;
-
-        /* Right padded elements */
-        lhs_rows = output_x - out_idx;
-
-        if (lhs_rows < 0)
-        {
-            return ARM_CMSIS_NN_FAILURE;
-        }
-
-        /* Without right-padded windows there is nothing to stage; the staging copy would start past the last
-           window and read beyond the input. */
-        if (lhs_rows > 0)
-        {
-            im2col = ctx->buf;
-            input_start = (stride_x * (left_pad_num + no_pad_num) - pad_x) * input_ch;
-
-            arm_memcpy_s8(im2col, input_data + input_start, sizeof(int8_t) * num_elem_right);
-            im2col += num_elem_right;
-            arm_memset_s8(im2col, (int8_t)-conv_params->input_offset, sizeof(int8_t) * (uint32_t)pad_size_right);
+            const int8_t *lhs = (const int8_t *)ctx->buf;
+            if (section == 0)
+            {
+                arm_convolve_1_x_n_s8_stage(
+                    ctx->buf, input_data, input_x, input_ch, -(int64_t)pad_x, (int32_t)left_cols, pad_value);
+            }
+            else if (section == 1)
+            {
+                lhs = input_data + (left_num * stride_x - pad_x) * input_ch;
+            }
+            else
+            {
+                arm_convolve_1_x_n_s8_stage(
+                    ctx->buf, input_data, input_x, input_ch, right_first_col, (int32_t)right_cols, pad_value);
+            }
 
             arm_nn_mat_mult_nt_t_s8(weight_sum_ctx->buf,
-                                    (int8_t *)ctx->buf,
+                                    lhs,
                                     filter_data,
                                     bias_data,
                                     output_data,
                                     quant_params->multiplier,
                                     quant_params->shift,
-                                    lhs_rows,
+                                    lhs_rows[section],
                                     rhs_rows,
                                     rhs_cols,
                                     conv_params->input_offset,
@@ -231,13 +180,17 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
                                     rhs_rows,
                                     lhs_offset);
 
-            output_data += lhs_rows * rhs_rows;
+            output_data += lhs_rows[section] * rhs_rows;
         }
 
         /* Advance to the next batch */
         input_data += (input_x * input_ch);
     }
 #else
+    if (ctx->buf == NULL)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     status = arm_convolve_s8(ctx,
                              weight_sum_ctx,
                              conv_params,
