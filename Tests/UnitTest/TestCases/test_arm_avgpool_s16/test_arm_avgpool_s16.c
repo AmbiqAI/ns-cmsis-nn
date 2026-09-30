@@ -465,7 +465,8 @@ void asymmetric_axes_arm_avgpool_s16(void)
 }
 
 /* An output with no columns has no window: nothing is written and the call succeeds, whatever the other extent. On
-   builds that use the scratch buffer, a NULL ctx is rejected before any output is written. */
+   builds that use the scratch buffer, a NULL ctx, or a NULL buffer the sizer asked for, is rejected before any output
+   is written; with no channels the sizer asks for none. */
 void degenerate_arguments_arm_avgpool_s16(void)
 {
     const int16_t input[1] = {7};
@@ -477,5 +478,14 @@ void degenerate_arguments_arm_avgpool_s16(void)
     const cmsis_nn_pool_params pool_params = {.stride = {1, 1}, .padding = {0, 0}, .activation = {-32768, 32767}};
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_avgpool_s16(NULL, &pool_params, &dims, input, &dims, &dims, output));
     TEST_ASSERT_EACH_EQUAL_INT16(0x5555, output, 2);
+    const cmsis_nn_context null_buf = {NULL, 0};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_avgpool_s16(&null_buf, &pool_params, &dims, input, &dims, &dims, output));
+    TEST_ASSERT_EACH_EQUAL_INT16(0x5555, output, 2);
+    // With no channels the sizer returns 0, so a NULL buffer is accepted.
+    const cmsis_nn_dims no_channels = {1, 1, 1, 0};
+    TEST_ASSERT_EQUAL(0, arm_avgpool_s16_get_buffer_size(1, 0));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_avgpool_s16(&null_buf, &pool_params, &no_channels, input, &dims, &no_channels, output));
 #endif
 }

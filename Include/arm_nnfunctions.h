@@ -5675,7 +5675,8 @@ int32_t arm_avgpool_s8_get_buffer_size_mve(const int dim_dst_width, const int ch
  *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> - In case of invalid arguments, including a
  *                                    pooling window that does not overlap the input, or, on builds that use the
- *                                    buffer, a NULL ctx or ctx->buf. Nothing is written to output_data then.
+ *                                    buffer, a NULL ctx, or a NULL ctx->buf where the sizer asks for a buffer.
+ *                                    Nothing is written to output_data then.
  *
  * @details
  *    - Supported Framework: TensorFlow Lite
