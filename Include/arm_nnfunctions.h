@@ -1710,7 +1710,8 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> on the arm_depthwise_conv_s8_opt() route if ctx->buf is NULL
  *                when a scratch buffer is required, or if weight_sum_ctx->buf is NULL on builds where it is read
  *                (ARM_MATH_DSP and ARM_MATH_MVEI both defined), or if ctx->size is non-zero and below
- *                arm_depthwise_conv_s8_opt_get_buffer_size() for a layer its channel path runs, or on the MVE
+ *                arm_depthwise_conv_s8_opt_get_buffer_size() for a layer its channel path runs, or if that sizer
+ *                returns -1 (a negative dimension or a byte count it cannot represent), or on the MVE
  *                arm_convolve_wrapper_s8() diversion route if weight_sum_ctx->buf is NULL.
  *
  * @details
@@ -2316,6 +2317,8 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *                                                      ctx->size is non-zero and below
  *                                                      arm_depthwise_conv_s8_opt_get_buffer_size() for a layer
  *                                                      the channel path runs, or
+ *                                                      that sizer returns -1 (a negative dimension or a byte
+ *                                                      count it cannot represent) on the channel path, or
  *                                                      weight_sum_ctx->buf is NULL on builds where it is read
  *                                                      (ARM_MATH_DSP and ARM_MATH_MVEI both defined)
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
