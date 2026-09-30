@@ -20,4 +20,12 @@ __STATIC_FORCEINLINE int8_t arm_nn_s4_low_nibble(int8_t packed)
     return (int8_t)((low ^ 8) - 8);
 }
 
+/* The high nibble of a packed int4 byte as a signed 4-bit value. It decodes through uint8_t and sign-extends
+   explicitly, so no right shift of a negative value is involved (implementation-defined in C). */
+__STATIC_FORCEINLINE int8_t arm_nn_s4_high_nibble(int8_t packed)
+{
+    const int32_t high = ((uint8_t)packed >> 4) & 0x0f;
+    return (int8_t)((high ^ 8) - 8);
+}
+
 #endif /* ARM_NN_S4_DECODE_H */
