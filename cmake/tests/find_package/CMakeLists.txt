@@ -207,6 +207,30 @@ int include_spellings(const cmsis_nn_dims *dims) { return dims->n; }
   if(NOT _spellings_ok)
     _fail("consumer including both header spellings did not compile:\n${_spellings_out}")
   endif()
+
+  # A package assembled without compat/ still resolves and exports include/
+  # alone, never a directory that does not exist.
+  set(_nocompat "${CMAKE_BINARY_DIR}/_nocompat")
+  file(REMOVE_RECURSE "${_nocompat}")
+  file(COPY "${_pkg_dir}/" DESTINATION "${_nocompat}/pkg")
+  file(REMOVE_RECURSE "${_nocompat}/pkg/compat")
+  file(WRITE "${_nocompat}/CMakeLists.txt"
+"cmake_minimum_required(VERSION 3.15)
+project(probe C)
+find_package(ns-cmsis-nn REQUIRED PATHS \"${_nocompat}/pkg/cmake\" NO_DEFAULT_PATH)
+get_target_property(_incs cmsis-nn INTERFACE_INCLUDE_DIRECTORIES)
+if(NOT _incs STREQUAL \"${_nocompat}/pkg/include\")
+  message(FATAL_ERROR \"INTERFACE_INCLUDE_DIRECTORIES='\${_incs}'\")
+endif()
+")
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -S "${_nocompat}" -B "${_nocompat}/_b"
+    RESULT_VARIABLE _rc
+    OUTPUT_VARIABLE _out
+    ERROR_VARIABLE  _err)
+  if(NOT _rc EQUAL 0)
+    _fail("package without compat/ did not resolve to include/ alone:\n${_err}")
+  endif()
   if(NOT NS_CMSIS_NN_VERSION STREQUAL _fake_version)
     _fail("NS_CMSIS_NN_VERSION='${NS_CMSIS_NN_VERSION}' (expected ${_fake_version})")
   endif()
