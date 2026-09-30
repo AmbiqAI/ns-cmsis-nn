@@ -2256,3 +2256,86 @@ void conv_1_x_n_5_arm_convolve_s4(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
     TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
 }
+
+/* A VALID 1xN layer whose stride leaves trailing input unused (input 1x40x27, filter 16x1x5, stride 4, output width 9,
+   total pad (9 - 1) * 4 + 5 - 40 = -3) is not a layout arm_convolve_1_x_n_s4() accepts, so arm_convolve_wrapper_s4()
+   must route it to a general convolution and match arm_convolve_s4(), with the scratch its own sizer gives. */
+void wrapper_valid_negative_total_pad_1_x_n_arm_convolve_s4(void)
+{
+    enum
+    {
+        in_w = 40,
+        in_c = 27,
+        out_c = 16,
+        k_w = 5,
+        out_w = 9
+    };
+    static int8_t input[in_w * in_c];
+    static int8_t kernel[(out_c * k_w * in_c + 1) / 2];
+    static int32_t bias[out_c];
+    static int32_t mult[out_c];
+    static int32_t shift[out_c];
+    static int8_t expected[out_w * out_c];
+    static int8_t output[out_w * out_c];
+    for (int i = 0; i < (int)sizeof(input); i++)
+    {
+        input[i] = (int8_t)((i * 37) % 251 - 125);
+    }
+    for (int i = 0; i < (int)sizeof(kernel); i++)
+    {
+        kernel[i] = (int8_t)((i * 73) % 256 - 128);
+    }
+    for (int i = 0; i < out_c; i++)
+    {
+        bias[i] = i * 97 - 700;
+        mult[i] = 1300000000 + i * 1000;
+        shift[i] = -5;
+    }
+    const cmsis_nn_conv_params conv_params = {.input_offset = 3,
+                                              .output_offset = -2,
+                                              .stride = {4, 1},
+                                              .padding = {0, 0},
+                                              .dilation = {1, 1},
+                                              .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, 1, in_w, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 1, k_w, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, 1, out_w, out_c};
+    TEST_ASSERT_TRUE(arm_nn_is_convolve_1_x_n(&conv_params, &input_dims, &filter_dims));
+    TEST_ASSERT_FALSE(arm_nn_convolve_1_x_n_padding_supported(&conv_params, &input_dims, &filter_dims, &output_dims));
+
+    const int32_t ref_size = arm_convolve_s4_get_buffer_size(&input_dims, &filter_dims);
+    cmsis_nn_context ref_ctx = {ref_size > 0 ? malloc(ref_size) : NULL, ref_size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_s4(&ref_ctx,
+                                      &conv_params,
+                                      &quant,
+                                      &input_dims,
+                                      input,
+                                      &filter_dims,
+                                      kernel,
+                                      &bias_dims,
+                                      bias,
+                                      &output_dims,
+                                      expected));
+
+    const int32_t size = arm_convolve_wrapper_s4_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    TEST_ASSERT_TRUE(size >= 0);
+    cmsis_nn_context ctx = {size > 0 ? malloc(size) : NULL, size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_wrapper_s4(&ctx,
+                                              &conv_params,
+                                              &quant,
+                                              &input_dims,
+                                              input,
+                                              &filter_dims,
+                                              kernel,
+                                              &bias_dims,
+                                              bias,
+                                              &output_dims,
+                                              output));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output, out_w * out_c);
+    free(ctx.buf);
+    free(ref_ctx.buf);
+}

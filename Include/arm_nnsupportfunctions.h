@@ -453,6 +453,31 @@ __STATIC_INLINE bool arm_nn_is_convolve_1_x_n(const cmsis_nn_conv_params *conv_p
 }
 
 /**
+ * @brief Check that the horizontal padding of a 1xN convolution is one arm_convolve_1_x_n_s8() and
+ *        arm_convolve_1_x_n_s4() accept.
+ *
+ * Those kernels place pad.w columns on the left and pad.w + (total_pad % 2) on the right, where total_pad =
+ * (output W - 1) * stride.w + filter W - input W, and return ARM_CMSIS_NN_FAILURE on MVE builds for any other layout.
+ * A VALID layer whose stride leaves trailing input unused has a negative total_pad and is not accepted; the wrappers
+ * route it to the general convolution instead.
+ *
+ * @param[in]   conv_params   Convolution parameters
+ * @param[in]   input_dims    Input dimensions
+ * @param[in]   filter_dims   Filter dimensions
+ * @param[in]   output_dims   Output dimensions
+ * @return      true when the 1xN kernels accept the padding, false otherwise.
+ */
+__STATIC_INLINE bool arm_nn_convolve_1_x_n_padding_supported(const cmsis_nn_conv_params *conv_params,
+                                                             const cmsis_nn_dims *input_dims,
+                                                             const cmsis_nn_dims *filter_dims,
+                                                             const cmsis_nn_dims *output_dims)
+{
+    const int64_t total_pad = ((int64_t)output_dims->w - 1) * (int64_t)conv_params->stride.w + (int64_t)filter_dims->w -
+        (int64_t)input_dims->w;
+    return (total_pad >= 0) && ((int64_t)conv_params->padding.w * 2 + (total_pad % 2) == total_pad);
+}
+
+/**
  * @brief Check if the dilation, stride and padding of a depthwise layer allow the arm_depthwise_conv_s8_opt() or
  *        arm_depthwise_conv_fast_s16() route.
  * @param[in]   dw_conv_params  Depthwise convolution parameters

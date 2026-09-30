@@ -17,8 +17,10 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <unity.h>
 
 #include "../TestData/conv_1_x_n_1/test_data.h"
@@ -1152,7 +1154,8 @@ void conv_1_x_n_8_arm_convolve_s8(void)
 void buffer_size_predicate_overflow_arm_convolve_1_x_n_s8(void)
 {
     cmsis_nn_conv_params conv_params;
-    cmsis_nn_dims input_dims = {1, 1, 4, 65536};
+    // Input W = (output W - 1) * stride.w + filter W: no padding needed, so only the stride.w * c check decides.
+    cmsis_nn_dims input_dims = {1, 1, 65538, 65536};
     cmsis_nn_dims filter_dims = {1, 1, 2, 65536};
     cmsis_nn_dims output_dims = {1, 1, 2, 1};
 
@@ -1178,10 +1181,113 @@ void buffer_size_predicate_overflow_arm_convolve_1_x_n_s8(void)
 
     // stride.w * c = 65538 * 65535: the product is 2 mod 4, so this routes to the generic sizer instead.
     conv_params.stride.w = 65538;
+    input_dims.w = 65540;
     input_dims.c = 65535;
     filter_dims.c = 65535;
     const int32_t routed_generic =
         arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
     TEST_ASSERT_TRUE(routed_generic >= 0);
     TEST_ASSERT_EQUAL(routed_generic, arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims));
+}
+
+/* Runs a VALID 1x5 layer (27 input channels, 16 output channels, stride 4) through arm_convolve_wrapper_s8() and
+   arm_convolve_s8() and expects the same output, with the scratch each one's sizer gives. */
+static void wrapper_matches_convolve_s8(const int32_t in_w, const int32_t out_w)
+{
+    enum
+    {
+        max_in_w = 40,
+        in_c = 27,
+        out_c = 16,
+        k_w = 5,
+        max_out_w = 9
+    };
+    static int8_t input[max_in_w * in_c];
+    static int8_t kernel[out_c * k_w * in_c];
+    static int32_t bias[out_c];
+    static int32_t mult[out_c];
+    static int32_t shift[out_c];
+    static int32_t wsum[out_c + 4];
+    static int8_t expected[max_out_w * out_c];
+    static int8_t output[max_out_w * out_c];
+    TEST_ASSERT_TRUE(in_w <= max_in_w && out_w <= max_out_w);
+    for (int i = 0; i < (int)sizeof(input); i++)
+    {
+        input[i] = (int8_t)((i * 37) % 251 - 125);
+    }
+    for (int i = 0; i < (int)sizeof(kernel); i++)
+    {
+        kernel[i] = (int8_t)((i * 11) % 29 - 14);
+    }
+    for (int i = 0; i < out_c; i++)
+    {
+        bias[i] = i * 97 - 700;
+        mult[i] = 1300000000 + i * 1000;
+        shift[i] = -7;
+    }
+    memset(expected, 0, sizeof(expected));
+    memset(output, 0x55, sizeof(output));
+    const cmsis_nn_conv_params conv_params = {.input_offset = 3,
+                                              .output_offset = -2,
+                                              .stride = {4, 1},
+                                              .padding = {0, 0},
+                                              .dilation = {1, 1},
+                                              .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, 1, in_w, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 1, k_w, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, 1, out_w, out_c};
+    TEST_ASSERT_TRUE(arm_nn_is_convolve_1_x_n(&conv_params, &input_dims, &filter_dims));
+    TEST_ASSERT_FALSE(arm_nn_convolve_1_x_n_padding_supported(&conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_weight_sum(
+                          wsum, kernel, &input_dims, &filter_dims, &output_dims, conv_params.input_offset, bias));
+    const cmsis_nn_context wsum_ctx = {wsum, (int32_t)sizeof(wsum)};
+
+    const int32_t ref_size = arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
+    cmsis_nn_context ref_ctx = {ref_size > 0 ? malloc(ref_size) : NULL, ref_size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_s8(&ref_ctx,
+                                      &wsum_ctx,
+                                      &conv_params,
+                                      &quant,
+                                      &input_dims,
+                                      input,
+                                      &filter_dims,
+                                      kernel,
+                                      &bias_dims,
+                                      bias,
+                                      NULL,
+                                      &output_dims,
+                                      expected));
+
+    const int32_t size = arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    TEST_ASSERT_TRUE(size >= 0);
+    cmsis_nn_context ctx = {size > 0 ? malloc(size) : NULL, size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_wrapper_s8(&ctx,
+                                              &wsum_ctx,
+                                              &conv_params,
+                                              &quant,
+                                              &input_dims,
+                                              input,
+                                              &filter_dims,
+                                              kernel,
+                                              &bias_dims,
+                                              bias,
+                                              &output_dims,
+                                              output));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output, out_w * out_c);
+    free(ctx.buf);
+    free(ref_ctx.buf);
+}
+
+/* A VALID 1xN layer whose stride leaves trailing input unused has a negative total pad, a layout
+   arm_convolve_1_x_n_s8() does not accept, so arm_convolve_wrapper_s8() must route it elsewhere: width 40 to 9
+   (total pad (9 - 1) * 4 + 5 - 40 = -3) and width 10 to 1 (total pad -5, a single output column). */
+void wrapper_valid_negative_total_pad_arm_convolve_1_x_n_s8(void)
+{
+    wrapper_matches_convolve_s8(40, 9);
+    wrapper_matches_convolve_s8(10, 1);
 }

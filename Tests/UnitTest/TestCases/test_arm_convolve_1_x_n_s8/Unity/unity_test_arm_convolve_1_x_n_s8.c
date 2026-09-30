@@ -70,3 +70,8 @@ void test_buffer_size_predicate_overflow_arm_convolve_1_x_n_s8(void)
 {
     buffer_size_predicate_overflow_arm_convolve_1_x_n_s8();
 }
+
+void test_wrapper_valid_negative_total_pad_arm_convolve_1_x_n_s8(void)
+{
+    wrapper_valid_negative_total_pad_arm_convolve_1_x_n_s8();
+}
