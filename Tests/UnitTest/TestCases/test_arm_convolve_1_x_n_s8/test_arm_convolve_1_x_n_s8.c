@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -1310,3 +1311,153 @@ void wrapper_unsupported_padding_arm_convolve_1_x_n_s8(void)
     // A filter wider than the input.
     wrapper_matches_convolve_s8(4, 4, 5, 1, 1, 2);
 }
+
+/* Runs a 1xN layer (input offset 3, 16 output channels) through arm_convolve_wrapper_s8() and arm_convolve_s8() and
+   returns whether the status and output match. */
+static bool wrapper_agrees_with_convolve_s8(const int32_t in_w,
+                                            const int32_t in_c,
+                                            const int32_t k_w,
+                                            const int32_t stride,
+                                            const int32_t pad_w,
+                                            const int32_t pad_h,
+                                            const int32_t out_w,
+                                            const int32_t out_h)
+{
+    enum
+    {
+        max_in_w = 24,
+        max_in_c = 12,
+        out_c = 16,
+        max_k_w = 6,
+        max_out = 24 * 3
+    };
+    static int8_t input[max_in_w * max_in_c];
+    static int8_t kernel[out_c * max_k_w * max_in_c];
+    static int32_t bias[out_c];
+    static int32_t mult[out_c];
+    static int32_t shift[out_c];
+    static int32_t wsum[out_c + 4];
+    static int8_t expected[max_out * out_c];
+    static int8_t output[max_out * out_c];
+    TEST_ASSERT_TRUE(in_w <= max_in_w && in_c <= max_in_c && k_w <= max_k_w && out_w * out_h <= max_out);
+    for (int i = 0; i < (int)sizeof(input); i++)
+    {
+        input[i] = (int8_t)((i * 37) % 251 - 125);
+    }
+    for (int i = 0; i < (int)sizeof(kernel); i++)
+    {
+        kernel[i] = (int8_t)((i * 11) % 29 - 14);
+    }
+    for (int i = 0; i < out_c; i++)
+    {
+        bias[i] = i * 97 - 700;
+        mult[i] = 1300000000 + i * 1000;
+        shift[i] = -7;
+    }
+    memset(expected, 0, sizeof(expected));
+    memset(output, 0x55, sizeof(output));
+    const cmsis_nn_conv_params conv_params = {.input_offset = 3,
+                                              .output_offset = -2,
+                                              .stride = {stride, 1},
+                                              .padding = {pad_w, pad_h},
+                                              .dilation = {1, 1},
+                                              .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, 1, in_w, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 1, k_w, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, out_h, out_w, out_c};
+    // The weight sums are an MVE-only input; other builds ignore the buffer.
+    (void)arm_convolve_weight_sum(
+        wsum, kernel, &input_dims, &filter_dims, &output_dims, conv_params.input_offset, bias);
+    const cmsis_nn_context wsum_ctx = {wsum, (int32_t)sizeof(wsum)};
+
+    const int32_t ref_size = arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
+    cmsis_nn_context ref_ctx = {ref_size > 0 ? malloc(ref_size) : NULL, ref_size};
+    const arm_cmsis_nn_status ref_status = arm_convolve_s8(&ref_ctx,
+                                                           &wsum_ctx,
+                                                           &conv_params,
+                                                           &quant,
+                                                           &input_dims,
+                                                           input,
+                                                           &filter_dims,
+                                                           kernel,
+                                                           &bias_dims,
+                                                           bias,
+                                                           NULL,
+                                                           &output_dims,
+                                                           expected);
+    const int32_t size = arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    cmsis_nn_context ctx = {size > 0 ? malloc(size) : NULL, size};
+    const arm_cmsis_nn_status status = arm_convolve_wrapper_s8(&ctx,
+                                                               &wsum_ctx,
+                                                               &conv_params,
+                                                               &quant,
+                                                               &input_dims,
+                                                               input,
+                                                               &filter_dims,
+                                                               kernel,
+                                                               &bias_dims,
+                                                               bias,
+                                                               &output_dims,
+                                                               output);
+    free(ctx.buf);
+    free(ref_ctx.buf);
+    return (size >= 0) && (ref_status == ARM_CMSIS_NN_SUCCESS) && (status == ARM_CMSIS_NN_SUCCESS) &&
+        (memcmp(expected, output, (size_t)(out_w * out_h * out_c)) == 0);
+}
+
+/* Every TFLite SAME and VALID 1xN layer with input width 1..24, filter width 1..6 and stride 1..4 (channel counts
+   chosen so stride * channels is a multiple of 4, as the 1xN route requires) must match arm_convolve_s8(). This
+   covers right padding that arm_convolve_1_x_n_s8() stages incorrectly for stride > 1, e.g. SAME with input
+   width 6, filter width 5, stride 2. */
+void wrapper_same_valid_sweep_arm_convolve_1_x_n_s8(void)
+{
+    const int32_t channels_stride[][2] = {{4, 1}, {4, 2}, {4, 3}, {4, 4}, {12, 1}, {12, 2}, {12, 3}, {3, 4}, {12, 4}};
+    int32_t mismatches = 0;
+    char first[96] = "none";
+    for (size_t i = 0; i < sizeof(channels_stride) / sizeof(channels_stride[0]); i++)
+    {
+        const int32_t in_c = channels_stride[i][0];
+        const int32_t stride = channels_stride[i][1];
+        for (int32_t in_w = 1; in_w <= 24; in_w++)
+        {
+            for (int32_t k_w = 1; k_w <= 6 && k_w <= in_w; k_w++)
+            {
+                // SAME: output width ceil(in_w / stride), the smaller half of the total padding on the left.
+                const int32_t same_w = (in_w + stride - 1) / stride;
+                const int32_t same_total = ARM_NN_MAX((same_w - 1) * stride + k_w - in_w, 0);
+                // VALID: no padding.
+                const int32_t valid_w = (in_w - k_w) / stride + 1;
+                const int32_t layers[2][2] = {{same_total / 2, same_w}, {0, valid_w}};
+                for (int32_t l = 0; l < 2; l++)
+                {
+                    if (!wrapper_agrees_with_convolve_s8(in_w, in_c, k_w, stride, layers[l][0], 0, layers[l][1], 1))
+                    {
+                        if (mismatches++ == 0)
+                        {
+                            snprintf(first,
+                                     sizeof(first),
+                                     "in_w %d c %d k_w %d stride %d pad %d out_w %d",
+                                     (int)in_w,
+                                     (int)in_c,
+                                     (int)k_w,
+                                     (int)stride,
+                                     (int)layers[l][0],
+                                     (int)layers[l][1]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    TEST_ASSERT_EQUAL_MESSAGE(0, mismatches, first);
+}
+
+/* A 1xN input and filter with vertical padding (output height 3) is not a single-row 1xN convolution; the wrapper must
+   match arm_convolve_s8(). */
+void wrapper_vertical_padding_arm_convolve_1_x_n_s8(void)
+{
+    TEST_ASSERT_TRUE(wrapper_agrees_with_convolve_s8(6, 4, 3, 1, 1, 1, 6, 3));
+}
+

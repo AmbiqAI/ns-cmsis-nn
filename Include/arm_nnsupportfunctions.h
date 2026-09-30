@@ -465,7 +465,8 @@ __STATIC_INLINE bool arm_nn_is_convolve_1_x_n(const cmsis_nn_conv_params *conv_p
  * total_pad of -1 without padding and then replaces the last tap of the final window with padding; too many padded
  * columns makes arm_convolve_1_x_n_s4() fail and arm_convolve_1_x_n_s8() fall back to arm_convolve_s8(). A VALID layer
  * whose stride leaves trailing input unused (negative total_pad) is therefore rejected, and the wrappers route it to
- * another convolution. A non-positive stride.w is left to the argument checks of the 1xN kernels.
+ * another convolution. The kernels also compute a single output row, so vertical padding or an output height other
+ * than 1 is rejected. A non-positive stride.w is left to the argument checks of the 1xN kernels.
  *
  * @param[in]   conv_params   Convolution parameters
  * @param[in]   input_dims    Input dimensions
@@ -478,6 +479,10 @@ __STATIC_INLINE bool arm_nn_convolve_1_x_n_padding_supported(const cmsis_nn_conv
                                                              const cmsis_nn_dims *filter_dims,
                                                              const cmsis_nn_dims *output_dims)
 {
+    if ((output_dims->h != 1) || (conv_params->padding.h != 0))
+    {
+        return false;
+    }
     const int64_t stride_x = conv_params->stride.w;
     if (stride_x <= 0)
     {
@@ -498,6 +503,39 @@ __STATIC_INLINE bool arm_nn_convolve_1_x_n_padding_supported(const cmsis_nn_conv
     const int64_t left_pad_num = pad_x != 0 ? ARM_NN_MAX(1, (pad_x + stride_x - 1) / stride_x) : 0;
     return (left_pad_num + right_pad_num <= (int64_t)output_dims->w) && (pad_x + asym_pad < filter_dims->w) &&
         (filter_dims->w <= input_dims->w);
+}
+
+/**
+ * @brief Check that arm_convolve_1_x_n_s8() computes the right-padded output columns of a 1xN convolution correctly.
+ *
+ * On MVE builds the kernel stages the right-padded windows once: filter W - 1 input columns from the start of the
+ * first right-padded window, then the right padding, and reads every right-padded window from that buffer. That
+ * matches the layer only when stride.w is 1, when there is no right padding, or when the right padding
+ * P = pad.w + total_pad % 2 satisfies P % stride.w == 1 and, for an odd total_pad, P == 1; otherwise the kernel
+ * returns wrong output and reads past the input. Call it only for layers that
+ * arm_nn_convolve_1_x_n_padding_supported() accepts.
+ *
+ * @param[in]   conv_params   Convolution parameters
+ * @param[in]   input_dims    Input dimensions
+ * @param[in]   filter_dims   Filter dimensions
+ * @param[in]   output_dims   Output dimensions
+ * @return      true when arm_convolve_1_x_n_s8() stages the right padding correctly, false otherwise.
+ */
+__STATIC_INLINE bool arm_nn_convolve_1_x_n_s8_staging_supported(const cmsis_nn_conv_params *conv_params,
+                                                                const cmsis_nn_dims *input_dims,
+                                                                const cmsis_nn_dims *filter_dims,
+                                                                const cmsis_nn_dims *output_dims)
+{
+    const int64_t stride_x = conv_params->stride.w;
+    if (stride_x <= 1)
+    {
+        return true;
+    }
+    const int64_t total_pad =
+        ((int64_t)output_dims->w - 1) * stride_x + (int64_t)filter_dims->w - (int64_t)input_dims->w;
+    const int64_t asym_pad = total_pad % 2;
+    const int64_t right_pad = (int64_t)conv_params->padding.w + asym_pad;
+    return (right_pad == 0) || ((right_pad % stride_x == 1) && ((asym_pad == 0) || (right_pad == 1)));
 }
 
 /**

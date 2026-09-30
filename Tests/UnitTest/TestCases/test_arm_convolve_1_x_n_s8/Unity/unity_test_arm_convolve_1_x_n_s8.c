@@ -75,3 +75,13 @@ void test_wrapper_unsupported_padding_arm_convolve_1_x_n_s8(void)
 {
     wrapper_unsupported_padding_arm_convolve_1_x_n_s8();
 }
+
+void test_wrapper_same_valid_sweep_arm_convolve_1_x_n_s8(void)
+{
+    wrapper_same_valid_sweep_arm_convolve_1_x_n_s8();
+}
+
+void test_wrapper_vertical_padding_arm_convolve_1_x_n_s8(void)
+{
+    wrapper_vertical_padding_arm_convolve_1_x_n_s8();
+}

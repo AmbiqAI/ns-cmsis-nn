@@ -96,7 +96,8 @@ arm_cmsis_nn_status arm_convolve_wrapper_s8(const cmsis_nn_context *ctx,
         }
     }
     else if (arm_nn_is_convolve_1_x_n(conv_params, input_dims, filter_dims) &&
-             arm_nn_convolve_1_x_n_padding_supported(conv_params, input_dims, filter_dims, output_dims))
+             arm_nn_convolve_1_x_n_padding_supported(conv_params, input_dims, filter_dims, output_dims) &&
+             arm_nn_convolve_1_x_n_s8_staging_supported(conv_params, input_dims, filter_dims, output_dims))
     {
         return arm_convolve_1_x_n_s8(ctx,
                                      weight_sum_ctx,
