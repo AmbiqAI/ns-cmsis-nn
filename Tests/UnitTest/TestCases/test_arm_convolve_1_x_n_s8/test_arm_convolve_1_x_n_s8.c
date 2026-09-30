@@ -1190,27 +1190,33 @@ void buffer_size_predicate_overflow_arm_convolve_1_x_n_s8(void)
     TEST_ASSERT_EQUAL(routed_generic, arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims));
 }
 
-/* Runs a VALID 1x5 layer (27 input channels, 16 output channels, stride 4) through arm_convolve_wrapper_s8() and
-   arm_convolve_s8() and expects the same output, with the scratch each one's sizer gives. */
-static void wrapper_matches_convolve_s8(const int32_t in_w, const int32_t out_w)
+/* Runs a 1xN layer (16 output channels, input offset 3) through arm_convolve_wrapper_s8() and arm_convolve_s8() and
+   expects the same status and output, with the scratch each one's sizer gives. The layer's padding is one the 1xN
+   kernels do not handle, so the wrapper must route it elsewhere. */
+static void wrapper_matches_convolve_s8(const int32_t in_w,
+                                        const int32_t in_c,
+                                        const int32_t k_w,
+                                        const int32_t stride,
+                                        const int32_t pad,
+                                        const int32_t out_w)
 {
     enum
     {
         max_in_w = 40,
-        in_c = 27,
+        max_in_c = 27,
         out_c = 16,
-        k_w = 5,
+        max_k_w = 5,
         max_out_w = 9
     };
-    static int8_t input[max_in_w * in_c];
-    static int8_t kernel[out_c * k_w * in_c];
+    static int8_t input[max_in_w * max_in_c];
+    static int8_t kernel[out_c * max_k_w * max_in_c];
     static int32_t bias[out_c];
     static int32_t mult[out_c];
     static int32_t shift[out_c];
     static int32_t wsum[out_c + 4];
     static int8_t expected[max_out_w * out_c];
     static int8_t output[max_out_w * out_c];
-    TEST_ASSERT_TRUE(in_w <= max_in_w && out_w <= max_out_w);
+    TEST_ASSERT_TRUE(in_w <= max_in_w && in_c <= max_in_c && k_w <= max_k_w && out_w <= max_out_w);
     for (int i = 0; i < (int)sizeof(input); i++)
     {
         input[i] = (int8_t)((i * 37) % 251 - 125);
@@ -1229,8 +1235,8 @@ static void wrapper_matches_convolve_s8(const int32_t in_w, const int32_t out_w)
     memset(output, 0x55, sizeof(output));
     const cmsis_nn_conv_params conv_params = {.input_offset = 3,
                                               .output_offset = -2,
-                                              .stride = {4, 1},
-                                              .padding = {0, 0},
+                                              .stride = {stride, 1},
+                                              .padding = {pad, 0},
                                               .dilation = {1, 1},
                                               .activation = {-128, 127}};
     const cmsis_nn_per_channel_quant_params quant = {mult, shift};
@@ -1288,11 +1294,15 @@ static void wrapper_matches_convolve_s8(const int32_t in_w, const int32_t out_w)
     free(ref_ctx.buf);
 }
 
-/* A VALID 1xN layer whose stride leaves trailing input unused has a negative total pad, a layout
-   arm_convolve_1_x_n_s8() does not accept, so arm_convolve_wrapper_s8() must route it elsewhere: width 40 to 9
-   (total pad (9 - 1) * 4 + 5 - 40 = -3) and width 10 to 1 (total pad -5, a single output column). */
-void wrapper_valid_negative_total_pad_arm_convolve_1_x_n_s8(void)
+/* 1xN layers whose horizontal padding arm_convolve_1_x_n_s8() does not handle, where total pad is
+   (output W - 1) * stride + filter W - input W. The wrapper must match arm_convolve_s8(). */
+void wrapper_unsupported_padding_arm_convolve_1_x_n_s8(void)
 {
-    wrapper_matches_convolve_s8(40, 9);
-    wrapper_matches_convolve_s8(10, 1);
+    // VALID, stride leaves trailing input unused: total pad -3 (the kernel fails), and -5 with one output column.
+    wrapper_matches_convolve_s8(40, 27, 5, 4, 0, 9);
+    wrapper_matches_convolve_s8(10, 27, 5, 4, 0, 1);
+    // VALID, total pad -1: the kernel accepts it and replaces the last tap of the final window with padding.
+    wrapper_matches_convolve_s8(10, 4, 3, 2, 0, 4);
+    // SAME with more padded output columns than output columns.
+    wrapper_matches_convolve_s8(3, 4, 5, 1, 2, 3);
 }

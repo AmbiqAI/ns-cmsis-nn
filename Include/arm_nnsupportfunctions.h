@@ -453,28 +453,45 @@ __STATIC_INLINE bool arm_nn_is_convolve_1_x_n(const cmsis_nn_conv_params *conv_p
 }
 
 /**
- * @brief Check that the horizontal padding of a 1xN convolution is one arm_convolve_1_x_n_s8() and
- *        arm_convolve_1_x_n_s4() accept.
+ * @brief Check that arm_convolve_1_x_n_s8() and arm_convolve_1_x_n_s4() handle the horizontal padding of a 1xN
+ *        convolution.
  *
  * Those kernels place pad.w columns on the left and pad.w + (total_pad % 2) on the right, where total_pad =
- * (output W - 1) * stride.w + filter W - input W, and return ARM_CMSIS_NN_FAILURE on MVE builds for any other layout.
- * A VALID layer whose stride leaves trailing input unused has a negative total_pad and is not accepted; the wrappers
- * route it to the general convolution instead.
+ * (output W - 1) * stride.w + filter W - input W, and need the output columns that read padding to fit in output W.
+ * On MVE builds they return ARM_CMSIS_NN_FAILURE for other layouts, except that arm_convolve_1_x_n_s8() accepts a
+ * total_pad of -1 without padding and then replaces the last tap of the final window with padding. A VALID layer
+ * whose stride leaves trailing input unused (negative total_pad) is therefore rejected, and the wrappers route it to
+ * another convolution. A non-positive stride.w is left to the argument checks of the 1xN kernels.
  *
  * @param[in]   conv_params   Convolution parameters
  * @param[in]   input_dims    Input dimensions
  * @param[in]   filter_dims   Filter dimensions
  * @param[in]   output_dims   Output dimensions
- * @return      true when the 1xN kernels accept the padding, false otherwise.
+ * @return      true when the 1xN kernels handle the padding, false otherwise.
  */
 __STATIC_INLINE bool arm_nn_convolve_1_x_n_padding_supported(const cmsis_nn_conv_params *conv_params,
                                                              const cmsis_nn_dims *input_dims,
                                                              const cmsis_nn_dims *filter_dims,
                                                              const cmsis_nn_dims *output_dims)
 {
-    const int64_t total_pad = ((int64_t)output_dims->w - 1) * (int64_t)conv_params->stride.w + (int64_t)filter_dims->w -
-        (int64_t)input_dims->w;
-    return (total_pad >= 0) && ((int64_t)conv_params->padding.w * 2 + (total_pad % 2) == total_pad);
+    const int64_t stride_x = conv_params->stride.w;
+    if (stride_x <= 0)
+    {
+        return true;
+    }
+    const int64_t pad_x = conv_params->padding.w;
+    const int64_t total_pad =
+        ((int64_t)output_dims->w - 1) * stride_x + (int64_t)filter_dims->w - (int64_t)input_dims->w;
+    if ((total_pad < 0) || (pad_x * 2 + (total_pad % 2) != total_pad))
+    {
+        return false;
+    }
+    // The pad-region column counts the kernels derive; they must not exceed the output width.
+    const int64_t asym_pad = total_pad % 2;
+    const int64_t right_pad_num =
+        pad_x + asym_pad != 0 ? ARM_NN_MAX(1, (pad_x + asym_pad + stride_x - 1) / stride_x) : 0;
+    const int64_t left_pad_num = pad_x != 0 ? ARM_NN_MAX(1, (pad_x + stride_x - 1) / stride_x) : 0;
+    return left_pad_num + right_pad_num <= (int64_t)output_dims->w;
 }
 
 /**

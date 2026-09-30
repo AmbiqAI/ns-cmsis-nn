@@ -2257,26 +2257,32 @@ void conv_1_x_n_5_arm_convolve_s4(void)
     TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
 }
 
-/* A VALID 1xN layer whose stride leaves trailing input unused (input 1x40x27, filter 16x1x5, stride 4, output width 9,
-   total pad (9 - 1) * 4 + 5 - 40 = -3) is not a layout arm_convolve_1_x_n_s4() accepts, so arm_convolve_wrapper_s4()
-   must route it to a general convolution and match arm_convolve_s4(), with the scratch its own sizer gives. */
-void wrapper_valid_negative_total_pad_1_x_n_arm_convolve_s4(void)
+/* Runs a 1xN layer (16 output channels, input offset 3) through arm_convolve_wrapper_s4() and arm_convolve_s4() and
+   expects the same status and output, with the scratch each one's sizer gives. The layer's padding is one the 1xN
+   kernels do not handle, so the wrapper must route it elsewhere. */
+static void wrapper_matches_convolve_s4(const int32_t in_w,
+                                        const int32_t in_c,
+                                        const int32_t k_w,
+                                        const int32_t stride,
+                                        const int32_t pad,
+                                        const int32_t out_w)
 {
     enum
     {
-        in_w = 40,
-        in_c = 27,
+        max_in_w = 40,
+        max_in_c = 27,
         out_c = 16,
-        k_w = 5,
-        out_w = 9
+        max_k_w = 5,
+        max_out_w = 9
     };
-    static int8_t input[in_w * in_c];
-    static int8_t kernel[(out_c * k_w * in_c + 1) / 2];
+    static int8_t input[max_in_w * max_in_c];
+    static int8_t kernel[(out_c * max_k_w * max_in_c + 1) / 2];
     static int32_t bias[out_c];
     static int32_t mult[out_c];
     static int32_t shift[out_c];
-    static int8_t expected[out_w * out_c];
-    static int8_t output[out_w * out_c];
+    static int8_t expected[max_out_w * out_c];
+    static int8_t output[max_out_w * out_c];
+    TEST_ASSERT_TRUE(in_w <= max_in_w && in_c <= max_in_c && k_w <= max_k_w && out_w <= max_out_w);
     for (int i = 0; i < (int)sizeof(input); i++)
     {
         input[i] = (int8_t)((i * 37) % 251 - 125);
@@ -2291,10 +2297,12 @@ void wrapper_valid_negative_total_pad_1_x_n_arm_convolve_s4(void)
         mult[i] = 1300000000 + i * 1000;
         shift[i] = -5;
     }
+    memset(expected, 0, sizeof(expected));
+    memset(output, 0x55, sizeof(output));
     const cmsis_nn_conv_params conv_params = {.input_offset = 3,
                                               .output_offset = -2,
-                                              .stride = {4, 1},
-                                              .padding = {0, 0},
+                                              .stride = {stride, 1},
+                                              .padding = {pad, 0},
                                               .dilation = {1, 1},
                                               .activation = {-128, 127}};
     const cmsis_nn_per_channel_quant_params quant = {mult, shift};
@@ -2338,4 +2346,16 @@ void wrapper_valid_negative_total_pad_1_x_n_arm_convolve_s4(void)
     TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output, out_w * out_c);
     free(ctx.buf);
     free(ref_ctx.buf);
+}
+
+/* 1xN layers whose horizontal padding arm_convolve_1_x_n_s4() does not handle, where total pad is
+   (output W - 1) * stride + filter W - input W. The wrapper must match arm_convolve_s4(). */
+void wrapper_unsupported_padding_1_x_n_arm_convolve_s4(void)
+{
+    // VALID, stride leaves trailing input unused: total pad -3 (the kernel fails) and -1.
+    wrapper_matches_convolve_s4(40, 27, 5, 4, 0, 9);
+    wrapper_matches_convolve_s4(10, 4, 3, 2, 0, 4);
+    // SAME with more padded output columns than output columns (the kernel fails).
+    wrapper_matches_convolve_s4(3, 4, 5, 1, 2, 3);
+    wrapper_matches_convolve_s4(1, 4, 3, 1, 1, 1);
 }
