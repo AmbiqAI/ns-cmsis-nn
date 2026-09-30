@@ -71,9 +71,9 @@ void test_buffer_size_predicate_overflow_arm_convolve_1_x_n_s8(void)
     buffer_size_predicate_overflow_arm_convolve_1_x_n_s8();
 }
 
-void test_wrapper_unsupported_padding_arm_convolve_1_x_n_s8(void)
+void test_wrapper_irregular_padding_arm_convolve_1_x_n_s8(void)
 {
-    wrapper_unsupported_padding_arm_convolve_1_x_n_s8();
+    wrapper_irregular_padding_arm_convolve_1_x_n_s8();
 }
 
 void test_wrapper_same_valid_sweep_arm_convolve_1_x_n_s8(void)
@@ -96,7 +96,13 @@ void test_routing_predicates_arm_convolve_1_x_n_s8(void)
     routing_predicates_arm_convolve_1_x_n_s8();
 }
 
-void test_direct_unsupported_staging_arm_convolve_1_x_n_s8(void)
+void test_direct_short_scratch_arm_convolve_1_x_n_s8(void)
 {
-    direct_unsupported_staging_arm_convolve_1_x_n_s8();
+    direct_short_scratch_arm_convolve_1_x_n_s8();
 }
+
+void test_direct_padding_sweep_arm_convolve_1_x_n_s8(void) { direct_padding_sweep_arm_convolve_1_x_n_s8(); }
+
+void test_direct_argument_checks_arm_convolve_1_x_n_s8(void) { direct_argument_checks_arm_convolve_1_x_n_s8(); }
+
+void test_staging_size_overflow_arm_convolve_1_x_n_s8(void) { staging_size_overflow_arm_convolve_1_x_n_s8(); }

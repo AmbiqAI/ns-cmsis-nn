@@ -1299,7 +1299,10 @@ arm_cmsis_nn_status arm_convolve_1x1_s8(const cmsis_nn_context *ctx,
  * @brief 1xn convolution
  *
  * @param[in, out] ctx           Function context that contains the additional buffer if required by the function.
- *                               arm_convolve_1_x_n_s8_get_buffer_size will return the buffer_size if required
+ *                               arm_convolve_1_x_n_s8_get_buffer_size will return the buffer_size if required.
+ *                               buf must not be NULL. On builds with the MVE extension (ARM_MATH_MVEI) a non-zero
+ *                               ctx->size smaller than the staging the layer needs is rejected with
+ *                               ARM_CMSIS_NN_ARG_ERROR.
  *                               The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      weight_sum_ctx Per-output-channel weight sums, supplied by the caller. This function only reads
  *                                the buffer and never writes it, so it is filled once and may then be reused for
@@ -1340,14 +1343,15 @@ arm_cmsis_nn_status arm_convolve_1x1_s8(const cmsis_nn_context *ctx,
  *
  * @details
  *   - Supported framework : TensorFlow Lite Micro
- *   - The following constrains on the arguments apply
- *      -# input_dims->n equals 1
- *      -# ouput_dims->w is a multiple of 4
- *      -# Explicit constraints(since it is for 1xN convolution)
- *      -## input_dims->h equals 1
- *      -## output_dims->h equals 1
- *      -## filter_dims->h equals 1
- *@todo  Remove constraint on output_dims->w to make the function generic.
+ *   - The following constraints on the arguments apply
+ *      -# input_dims->h, filter_dims->h and output_dims->h equal 1, and conv_params->padding.h is 0
+ *      -# conv_params->dilation.w is 1 and conv_params->stride.w is positive
+ *      -# conv_params->stride.w * input_dims->c is a multiple of 4
+ *      -# conv_params->padding.w, input_dims->w and output_dims->w are not negative, and filter_dims->w is at least 1
+ *   - Any horizontal padding and output width are handled, including an odd total padding, a filter wider than the
+ *     input and a VALID layer whose stride leaves trailing input unused. On MVE builds the output columns whose
+ *     window starts before or ends past the input read a padded copy of the input columns they span, staged in ctx;
+ *     the other columns read the input in place.
  *
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
@@ -1609,8 +1613,9 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
  * @param[in]       output_dims           Output tensor dimensions. Format: [N, H, W, C_OUT]
  *
  * @return          The function returns required buffer size in bytes, or -1 if any dimension it reads is negative or
- *                  conv_params->stride.w is not positive. On builds that need this scratch buffer it also returns -1
- *                  if the required size would not fit in an int32_t; other builds need no buffer and return 0.
+ *                  conv_params->stride.w is not positive. On builds with the MVE extension (ARM_MATH_MVEI) that is
+ *                  the staging size of arm_convolve_1_x_n_s8(), at least filter W * C_IN bytes, or -1 if it would not
+ *                  fit in an int32_t; other builds return arm_convolve_s8_get_buffer_size().
  *
  */
 int32_t arm_convolve_1_x_n_s8_get_buffer_size(const cmsis_nn_conv_params *conv_params,

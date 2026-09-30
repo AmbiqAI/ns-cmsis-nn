@@ -453,26 +453,22 @@ __STATIC_INLINE bool arm_nn_is_convolve_1_x_n(const cmsis_nn_conv_params *conv_p
 }
 
 /**
- * @brief Check that arm_convolve_1_x_n_s8() and arm_convolve_1_x_n_s4() handle the horizontal padding of a 1xN
- *        convolution.
+ * @brief Check that arm_convolve_1_x_n_s4() handles the horizontal padding of a 1xN convolution.
  *
- * Those kernels place pad.w columns on the left and pad.w + (total_pad % 2) on the right, where total_pad =
- * (output W - 1) * stride.w + filter W - input W, and need the output columns that read padding to fit in output W.
- * Their padded-column code also assumes that each such column reads at least one input column and that the filter is
- * no wider than the input; otherwise it forms input and filter addresses outside the tensors, and the s8 kernel copies
- * filter W input columns.
- * On MVE builds another pad placement returns ARM_CMSIS_NN_FAILURE, except that arm_convolve_1_x_n_s8() accepts a
- * total_pad of -1 without padding and then replaces the last tap of the final window with padding; too many padded
- * columns makes arm_convolve_1_x_n_s4() fail and arm_convolve_1_x_n_s8() fall back to arm_convolve_s8(). A VALID layer
- * whose stride leaves trailing input unused (negative total_pad) is therefore rejected, and the wrappers route it to
- * another convolution. The kernels also compute a single output row, so vertical padding or an output height other
- * than 1 is rejected. A non-positive stride.w is left to the argument checks of the 1xN kernels.
+ * The kernel places pad.w columns on the left and pad.w + (total_pad % 2) on the right, where total_pad =
+ * (output W - 1) * stride.w + filter W - input W, and needs the output columns that read padding to fit in output W.
+ * Its padded-column code also assumes that each such column reads at least one input column and that the filter is
+ * no wider than the input; otherwise it forms input and filter addresses outside the tensors.
+ * On MVE builds another pad placement, or too many padded columns, returns ARM_CMSIS_NN_FAILURE. A VALID layer whose
+ * stride leaves trailing input unused (negative total_pad) is therefore rejected, and the wrapper routes it to another
+ * convolution. The kernel also computes a single output row, so vertical padding or an output height other than 1 is
+ * rejected. A non-positive stride.w is left to the kernel's argument checks.
  *
  * @param[in]   conv_params   Convolution parameters
  * @param[in]   input_dims    Input dimensions
  * @param[in]   filter_dims   Filter dimensions
  * @param[in]   output_dims   Output dimensions
- * @return      true when the 1xN kernels handle the padding, false otherwise.
+ * @return      true when arm_convolve_1_x_n_s4() handles the padding, false otherwise.
  */
 __STATIC_INLINE bool arm_nn_convolve_1_x_n_padding_supported(const cmsis_nn_conv_params *conv_params,
                                                              const cmsis_nn_dims *input_dims,
@@ -506,35 +502,56 @@ __STATIC_INLINE bool arm_nn_convolve_1_x_n_padding_supported(const cmsis_nn_conv
 }
 
 /**
- * @brief Check that arm_convolve_1_x_n_s8() computes the right-padded output columns of a 1xN convolution correctly.
+ * @brief Check that arm_convolve_1_x_n_s8() accepts the padding and output shape of a 1xN convolution.
  *
- * On MVE builds the kernel stages the right-padded windows once: filter W - 1 input columns from the start of the
- * first right-padded window, then the right padding, and reads every right-padded window from that buffer. That
- * matches the layer only when stride.w is 1, when there is no right padding, or when the right padding
- * P = pad.w + total_pad % 2 satisfies P % stride.w == 1 and, for an odd total_pad, P == 1. For other layers the
- * kernel computes the layer with arm_convolve_s8() instead, and the wrapper routes them there directly.
+ * The kernel computes a single output row for any pad.w >= 0 and any output width, including an odd total padding, a
+ * filter wider than the input and a VALID layer whose stride leaves trailing input unused. It rejects vertical
+ * padding, an output height other than 1, a negative pad.w and an empty filter; the wrapper routes those layers to
+ * another convolution. A non-positive stride.w is left to the kernel's argument checks.
  *
  * @param[in]   conv_params   Convolution parameters
- * @param[in]   input_dims    Input dimensions
  * @param[in]   filter_dims   Filter dimensions
  * @param[in]   output_dims   Output dimensions
- * @return      true when arm_convolve_1_x_n_s8() stages the right padding correctly, false otherwise.
+ * @return      true when arm_convolve_1_x_n_s8() computes the layer, false otherwise.
  */
-__STATIC_INLINE bool arm_nn_convolve_1_x_n_s8_staging_supported(const cmsis_nn_conv_params *conv_params,
-                                                                const cmsis_nn_dims *input_dims,
+__STATIC_INLINE bool arm_nn_convolve_1_x_n_s8_padding_supported(const cmsis_nn_conv_params *conv_params,
                                                                 const cmsis_nn_dims *filter_dims,
                                                                 const cmsis_nn_dims *output_dims)
 {
+    return (output_dims->h == 1) && (conv_params->padding.h == 0) && (conv_params->padding.w >= 0) &&
+        (filter_dims->w >= 1);
+}
+
+/**
+ * @brief Count the output columns of a 1xN convolution whose window reads padding.
+ *
+ * Output column j reads input columns j * stride.w - pad.w to j * stride.w - pad.w + filter W - 1. The leading
+ * columns whose window starts before the input are left-padded; of the others, the trailing columns whose window ends
+ * past the input are right-padded. A window can do both only when it is left-padded.
+ *
+ * @param[in]   conv_params   Convolution parameters. stride.w >= 1 and pad.w >= 0.
+ * @param[in]   input_dims    Input dimensions. w >= 0.
+ * @param[in]   filter_dims   Filter dimensions. w >= 1.
+ * @param[in]   output_dims   Output dimensions. w >= 0.
+ * @param[out]  left_num      Number of left-padded output columns, output W at most.
+ * @param[out]  right_num     Number of right-padded output columns, output W - left_num at most.
+ */
+__STATIC_INLINE void arm_nn_convolve_1_x_n_padded_columns(const cmsis_nn_conv_params *conv_params,
+                                                          const cmsis_nn_dims *input_dims,
+                                                          const cmsis_nn_dims *filter_dims,
+                                                          const cmsis_nn_dims *output_dims,
+                                                          int64_t *left_num,
+                                                          int64_t *right_num)
+{
     const int64_t stride_x = conv_params->stride.w;
-    if (stride_x <= 1)
-    {
-        return true;
-    }
-    const int64_t total_pad =
-        ((int64_t)output_dims->w - 1) * stride_x + (int64_t)filter_dims->w - (int64_t)input_dims->w;
-    const int64_t asym_pad = total_pad % 2;
-    const int64_t right_pad = (int64_t)conv_params->padding.w + asym_pad;
-    return (right_pad == 0) || ((right_pad % stride_x == 1) && ((asym_pad == 0) || (right_pad == 1)));
+    const int64_t pad_x = conv_params->padding.w;
+    const int64_t output_x = output_dims->w;
+    const int64_t left = ARM_NN_MIN(output_x, (pad_x + stride_x - 1) / stride_x);
+    // Column j's window ends past the input when j * stride_x >= input W + pad_x - filter W + 1.
+    const int64_t reach = (int64_t)input_dims->w + pad_x - (int64_t)filter_dims->w + 1;
+    const int64_t first_right = reach <= 0 ? 0 : ARM_NN_MIN(output_x, (reach + stride_x - 1) / stride_x);
+    *left_num = left;
+    *right_num = output_x - ARM_NN_MAX(left, first_right);
 }
 
 /**
