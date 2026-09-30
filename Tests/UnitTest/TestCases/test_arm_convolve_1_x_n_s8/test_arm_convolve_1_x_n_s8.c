@@ -1585,10 +1585,10 @@ void routing_predicates_arm_convolve_1_x_n_s8(void)
     TEST_ASSERT_TRUE(left_num == 1 && right_num == 1);
     TEST_ASSERT_EQUAL(16, arm_convolve_wrapper_s8_get_buffer_size_mve(&same, &same_in, &filter_dims, &same_out));
 
-    // VALID with no window past the input needs no scratch.
+    // VALID with no window past the input stages nothing, but the kernel still requires a buffer: one window, 16 bytes.
     const cmsis_nn_conv_params valid = conv_1_x_n_params(2, 0, 0);
     const cmsis_nn_dims valid_out = {1, 1, 2, 16};
-    TEST_ASSERT_EQUAL(0, arm_convolve_wrapper_s8_get_buffer_size_mve(&valid, &same_in, &filter_dims, &valid_out));
+    TEST_ASSERT_EQUAL(16, arm_convolve_wrapper_s8_get_buffer_size_mve(&valid, &same_in, &filter_dims, &valid_out));
 
     // Vertical padding or an output height other than 1 is not a single-row 1xN convolution.
     const cmsis_nn_conv_params vertical = conv_1_x_n_params(1, 1, 1);
@@ -1714,7 +1714,8 @@ void direct_short_scratch_arm_convolve_1_x_n_s8(void)
 #if defined(ARM_MATH_MVEI)
 /* Scratch bytes arm_convolve_1_x_n_s8() needs on MVE, derived window by window: output column j reads input columns
    j * stride - pad to j * stride - pad + filter W - 1. The leading windows that start before the input and the trailing
-   windows that end past it are each staged as one padded copy of the columns they span. */
+   windows that end past it are each staged as one padded copy of the columns they span. The size is at least one
+   window, since the kernel requires a buffer on every layer. */
 static int32_t staging_bytes(const int32_t in_w,
                              const int32_t in_c,
                              const int32_t k_w,
@@ -1734,7 +1735,7 @@ static int32_t staging_bytes(const int32_t in_w,
     }
     const int32_t left_cols = left > 0 ? (left - 1) * stride + k_w : 0;
     const int32_t right_cols = right > 0 ? (right - 1) * stride + k_w : 0;
-    return ARM_NN_MAX(left_cols, right_cols) * in_c;
+    return ARM_NN_MAX(ARM_NN_MAX(left_cols, right_cols), k_w) * in_c;
 }
 #endif
 
@@ -1750,7 +1751,8 @@ enum
 
 /* Runs a 1xN layer (direct_out_c output channels, input offset 3) through arm_convolve_1_x_n_s8() directly and through
    arm_convolve_s8(), and returns whether the status and output match. The 1xN kernel gets the scratch its sizer gives,
-   which on MVE must be exactly staging_bytes(), and the wrapper sizer must route the layer to it. Where the MPU guard
+   which on MVE must be exactly staging_bytes(), and the wrapper sizer must route the layer to it unless it is a 1x1
+   convolution. Where the MPU guard
    is available the layer runs twice more, once with the input and once with the scratch ending at an unmapped gap, so
    a read past either faults. */
 static bool direct_agrees_with_convolve_s8(const int32_t n,
@@ -1827,8 +1829,10 @@ static bool direct_agrees_with_convolve_s8(const int32_t n,
 
     const int32_t size = arm_convolve_1_x_n_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
 #if defined(ARM_MATH_MVEI)
+    // The wrapper routes 1x1 layers (filter width 1, no padding) to the 1x1 kernels instead.
     if ((size != staging_bytes(in_w, in_c, k_w, stride, pad, out_w)) ||
-        (arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims) != size))
+        (!arm_nn_is_convolve_1x1(&conv_params, &input_dims, &filter_dims) &&
+         (arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims) != size)))
     {
         return false;
     }
@@ -1953,8 +1957,8 @@ void direct_padding_sweep_arm_convolve_1_x_n_s8(void)
 }
 
 /* Arguments arm_convolve_1_x_n_s8() rejects on every build, before touching any buffer: a negative pad.w, an empty
-   filter or a negative width (each would size a staging copy or a section negative), and anything but a single output
-   row. */
+   filter or a negative width (each would size a staging copy or a section negative), a NULL buffer, and anything but a
+   single output row. */
 void direct_argument_checks_arm_convolve_1_x_n_s8(void)
 {
     int8_t input[8 * 4] = {0};
@@ -2048,6 +2052,24 @@ void direct_argument_checks_arm_convolve_1_x_n_s8(void)
                                             &bias_dims,
                                             bias,
                                             &output_dims,
+                                            output));
+
+    // A NULL buffer, even for an unpadded layer (VALID, filter width 3) that stages nothing.
+    const cmsis_nn_conv_params valid = conv_1_x_n_params(1, 0, 0);
+    const cmsis_nn_dims valid_out = {1, 1, 6, 16};
+    const cmsis_nn_context null_ctx = {NULL, 0};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_1_x_n_s8(&null_ctx,
+                                            &wsum_ctx,
+                                            &valid,
+                                            &quant,
+                                            &input_dims,
+                                            input,
+                                            &filter_dims,
+                                            kernel,
+                                            &bias_dims,
+                                            bias,
+                                            &valid_out,
                                             output));
 
     const cmsis_nn_conv_params vertical_pad = conv_1_x_n_params(1, 1, 1);

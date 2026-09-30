@@ -91,7 +91,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
 
     /* The wrapper API is the ultimate reference for argument check */
     if ((input_dims->h != 1) || (input_dims->w < 0) || (output_dims->w < 0) || conv_params->dilation.w != 1 ||
-        conv_params->stride.w <= 0 || (((int64_t)conv_params->stride.w * input_dims->c) % 4 != 0) ||
+        ctx->buf == NULL || conv_params->stride.w <= 0 || (((int64_t)conv_params->stride.w * input_dims->c) % 4 != 0) ||
         !arm_nn_convolve_1_x_n_s8_padding_supported(conv_params, filter_dims, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
@@ -132,13 +132,10 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
     }
     const int64_t staging_size = staging_cols * input_ch;
 
-    if (staging_size > 0)
+    /* A size of 0 means the caller does not report it. */
+    if ((staging_size > INT32_MAX) || ((ctx->size != 0) && (ctx->size < staging_size)))
     {
-        /* A size of 0 means the caller does not report it. */
-        if ((ctx->buf == NULL) || (staging_size > INT32_MAX) || ((ctx->size != 0) && (ctx->size < staging_size)))
-        {
-            return ARM_CMSIS_NN_ARG_ERROR;
-        }
+        return ARM_CMSIS_NN_ARG_ERROR;
     }
 
     const int32_t rhs_cols = kernel_x * input_ch;
@@ -196,10 +193,6 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
         input_data += (input_x * input_ch);
     }
 #else
-    if (ctx->buf == NULL)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
     status = arm_convolve_s8(ctx,
                              weight_sum_ctx,
                              conv_params,

@@ -1300,8 +1300,9 @@ arm_cmsis_nn_status arm_convolve_1x1_s8(const cmsis_nn_context *ctx,
  *
  * @param[in, out] ctx           Function context that contains the additional buffer if required by the function.
  *                               arm_convolve_1_x_n_s8_get_buffer_size will return the buffer_size if required.
- *                               On builds with the MVE extension (ARM_MATH_MVEI) buf may be NULL when that size is 0,
- *                               and a non-zero ctx->size smaller than it is rejected with ARM_CMSIS_NN_ARG_ERROR.
+ *                               buf must not be NULL. On builds with the MVE extension (ARM_MATH_MVEI) a non-zero
+ *                               ctx->size smaller than the staging the layer needs is rejected with
+ *                               ARM_CMSIS_NN_ARG_ERROR.
  *                               The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      weight_sum_ctx Per-output-channel weight sums, supplied by the caller. This function only reads
  *                                the buffer and never writes it, so it is filled once and may then be reused for
@@ -1613,8 +1614,8 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
  *
  * @return          The function returns required buffer size in bytes, or -1 if any dimension it reads is negative or
  *                  conv_params->stride.w is not positive. On builds with the MVE extension (ARM_MATH_MVEI) that is
- *                  the staging size of arm_convolve_1_x_n_s8(), 0 when no output column reads padding, or -1 if it
- *                  would not fit in an int32_t; other builds return arm_convolve_s8_get_buffer_size().
+ *                  the staging size of arm_convolve_1_x_n_s8(), at least filter W * C_IN bytes, or -1 if it would not
+ *                  fit in an int32_t; other builds return arm_convolve_s8_get_buffer_size().
  *
  */
 int32_t arm_convolve_1_x_n_s8_get_buffer_size(const cmsis_nn_conv_params *conv_params,
