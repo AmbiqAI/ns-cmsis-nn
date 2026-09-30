@@ -108,7 +108,13 @@ __STATIC_INLINE int32_t arm_convolve_1_x_n_s8_get_buffer_size_mve(const cmsis_nn
     arm_nn_convolve_1_x_n_padded_columns(conv_params, input_dims, filter_dims, output_dims, &left_num, &right_num);
     const int64_t left_cols = left_num > 0 ? (left_num - 1) * stride_x + kernel_x : 0;
     const int64_t right_cols = right_num > 0 ? (right_num - 1) * stride_x + kernel_x : 0;
-    const int64_t size_1_x_n = ARM_NN_MAX(left_cols, right_cols) * (int64_t)input_dims->c;
+    const int64_t staging_cols = ARM_NN_MAX(left_cols, right_cols);
+    // Bounded before the multiply: a span above INT32_MAX times input_dims->c can wrap an int64_t.
+    if (staging_cols > INT32_MAX)
+    {
+        return -1;
+    }
+    const int64_t size_1_x_n = staging_cols * (int64_t)input_dims->c;
 
     if (size_1_x_n > INT32_MAX)
     {

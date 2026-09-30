@@ -1411,8 +1411,7 @@ static bool wrapper_agrees_with_convolve_s8(const int32_t in_w,
 
 /* Every TFLite SAME and VALID 1xN layer with input width 1..24, filter width 1..6 and stride 1..4 (channel counts
    chosen so stride * channels is a multiple of 4, as the 1xN route requires) must match arm_convolve_s8(). This
-   covers right padding that arm_convolve_1_x_n_s8() stages incorrectly for stride > 1, e.g. SAME with input
-   width 6, filter width 5, stride 2. */
+   covers right padding at stride > 1, e.g. SAME with input width 6, filter width 5, stride 2. */
 void wrapper_same_valid_sweep_arm_convolve_1_x_n_s8(void)
 {
     const int32_t channels_stride[][2] = {{4, 1}, {4, 2}, {4, 3}, {4, 4}, {12, 1}, {12, 2}, {12, 3}, {3, 4}, {12, 4}};
@@ -2065,4 +2064,42 @@ void direct_argument_checks_arm_convolve_1_x_n_s8(void)
                                             bias,
                                             &output_dims,
                                             output));
+}
+
+/* A staging span wider than INT32_MAX columns (stride 2^30 over 2^20 output columns, each window past a one-column
+   input) times 2^20 channels exceeds an int64_t. The MVE sizer must report -1 and the kernel must reject the layer
+   before touching a buffer, not wrap the size. */
+void staging_size_overflow_arm_convolve_1_x_n_s8(void)
+{
+#if defined(ARM_MATH_MVEI)
+    int8_t data[4] = {0};
+    int32_t wsum[1] = {0};
+    int32_t mult[1] = {0};
+    int32_t shift[1] = {0};
+    const cmsis_nn_conv_params conv_params = conv_1_x_n_params(1 << 30, 0, 0);
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, 1, 1, 1 << 20};
+    const cmsis_nn_dims filter_dims = {1, 1, 2, 1 << 20};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, 1};
+    const cmsis_nn_dims output_dims = {1, 1, 1 << 20, 1};
+    TEST_ASSERT_EQUAL(-1, arm_convolve_1_x_n_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(-1,
+                      arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims));
+
+    const cmsis_nn_context ctx = {data, 0};
+    const cmsis_nn_context wsum_ctx = {wsum, (int32_t)sizeof(wsum)};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_1_x_n_s8(&ctx,
+                                            &wsum_ctx,
+                                            &conv_params,
+                                            &quant,
+                                            &input_dims,
+                                            data,
+                                            &filter_dims,
+                                            data,
+                                            &bias_dims,
+                                            NULL,
+                                            &output_dims,
+                                            data));
+#endif
 }

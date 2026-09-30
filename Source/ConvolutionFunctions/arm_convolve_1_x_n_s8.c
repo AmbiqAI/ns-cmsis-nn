@@ -59,8 +59,11 @@ static void arm_convolve_1_x_n_s8_stage(int8_t *dst,
 
     arm_memset_s8(dst, pad_value, (uint32_t)(lead * input_ch));
     dst += lead * input_ch;
-    arm_memcpy_s8(dst, input + real_start * input_ch, (uint32_t)(real * input_ch));
-    dst += real * input_ch;
+    if (real > 0)
+    {
+        arm_memcpy_s8(dst, input + real_start * input_ch, (uint32_t)(real * input_ch));
+        dst += real * input_ch;
+    }
     arm_memset_s8(dst, pad_value, (uint32_t)(trail * input_ch));
 }
 #endif
@@ -121,7 +124,13 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
     const int64_t no_pad_num = output_x - left_num - right_num;
     const int64_t left_cols = left_num > 0 ? (left_num - 1) * stride_x + kernel_x : 0;
     const int64_t right_cols = right_num > 0 ? (right_num - 1) * stride_x + kernel_x : 0;
-    const int64_t staging_size = ARM_NN_MAX(left_cols, right_cols) * input_ch;
+    const int64_t staging_cols = ARM_NN_MAX(left_cols, right_cols);
+    // Bounded before the multiply: a span above INT32_MAX times input_ch can wrap an int64_t.
+    if (staging_cols > INT32_MAX)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    const int64_t staging_size = staging_cols * input_ch;
 
     if (staging_size > 0)
     {
