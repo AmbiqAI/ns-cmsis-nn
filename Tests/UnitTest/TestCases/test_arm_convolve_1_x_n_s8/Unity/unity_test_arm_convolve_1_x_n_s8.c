@@ -85,3 +85,8 @@ void test_wrapper_vertical_padding_arm_convolve_1_x_n_s8(void)
 {
     wrapper_vertical_padding_arm_convolve_1_x_n_s8();
 }
+
+void test_wrapper_valid_input_bounds_arm_convolve_1_x_n_s8(void)
+{
+    wrapper_valid_input_bounds_arm_convolve_1_x_n_s8();
+}

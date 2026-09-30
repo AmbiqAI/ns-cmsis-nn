@@ -195,31 +195,36 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
             return ARM_CMSIS_NN_FAILURE;
         }
 
-        im2col = ctx->buf;
-        input_start = (stride_x * (left_pad_num + no_pad_num) - pad_x) * input_ch;
+        /* Without right-padded windows there is nothing to stage; the staging copy would start past the last
+           window and read beyond the input. */
+        if (lhs_rows > 0)
+        {
+            im2col = ctx->buf;
+            input_start = (stride_x * (left_pad_num + no_pad_num) - pad_x) * input_ch;
 
-        arm_memcpy_s8(im2col, input_data + input_start, sizeof(int8_t) * num_elem_right);
-        im2col += num_elem_right;
-        arm_memset_s8(im2col, (int8_t)-conv_params->input_offset, sizeof(int8_t) * (uint32_t)pad_size_right);
+            arm_memcpy_s8(im2col, input_data + input_start, sizeof(int8_t) * num_elem_right);
+            im2col += num_elem_right;
+            arm_memset_s8(im2col, (int8_t)-conv_params->input_offset, sizeof(int8_t) * (uint32_t)pad_size_right);
 
-        arm_nn_mat_mult_nt_t_s8(weight_sum_ctx->buf,
-                                (int8_t *)ctx->buf,
-                                filter_data,
-                                bias_data,
-                                output_data,
-                                quant_params->multiplier,
-                                quant_params->shift,
-                                lhs_rows,
-                                rhs_rows,
-                                rhs_cols,
-                                conv_params->input_offset,
-                                conv_params->output_offset,
-                                conv_params->activation.min,
-                                conv_params->activation.max,
-                                rhs_rows,
-                                lhs_offset);
+            arm_nn_mat_mult_nt_t_s8(weight_sum_ctx->buf,
+                                    (int8_t *)ctx->buf,
+                                    filter_data,
+                                    bias_data,
+                                    output_data,
+                                    quant_params->multiplier,
+                                    quant_params->shift,
+                                    lhs_rows,
+                                    rhs_rows,
+                                    rhs_cols,
+                                    conv_params->input_offset,
+                                    conv_params->output_offset,
+                                    conv_params->activation.min,
+                                    conv_params->activation.max,
+                                    rhs_rows,
+                                    lhs_offset);
 
-        output_data += lhs_rows * rhs_rows;
+            output_data += lhs_rows * rhs_rows;
+        }
 
         /* Advance to the next batch */
         input_data += (input_x * input_ch);

@@ -32,6 +32,7 @@
 #include "../TestData/conv_1_x_n_6_generic/test_data.h"
 #include "../TestData/conv_1_x_n_7/test_data.h"
 #include "../TestData/conv_1_x_n_8/test_data.h"
+#include "../Utils/mpu_guard.h"
 
 #include "../Utils/validate.h"
 
@@ -1459,5 +1460,100 @@ void wrapper_same_valid_sweep_arm_convolve_1_x_n_s8(void)
 void wrapper_vertical_padding_arm_convolve_1_x_n_s8(void)
 {
     TEST_ASSERT_TRUE(wrapper_agrees_with_convolve_s8(6, 4, 3, 1, 1, 1, 6, 3));
+}
+
+/* A VALID 1xN layer whose last window ends on the last input column has no right-padded windows (input width 6,
+   filter width 2, stride 2). arm_convolve_wrapper_s8() must not read past its input, which ends at an unmapped gap. */
+void wrapper_valid_input_bounds_arm_convolve_1_x_n_s8(void)
+{
+#if defined(MPU_GUARD_AVAILABLE)
+    enum
+    {
+        in_w = 6,
+        in_c = 4,
+        out_c = 16,
+        k_w = 2,
+        out_w = 3
+    };
+    int8_t input[in_w * in_c];
+    int8_t kernel[out_c * k_w * in_c];
+    int32_t bias[out_c];
+    int32_t mult[out_c];
+    int32_t shift[out_c];
+    int32_t wsum[out_c];
+    int8_t expected[out_w * out_c];
+    int8_t output[out_w * out_c];
+    for (int i = 0; i < (int)sizeof(input); i++)
+    {
+        input[i] = (int8_t)((i * 37) % 251 - 125);
+    }
+    for (int i = 0; i < (int)sizeof(kernel); i++)
+    {
+        kernel[i] = (int8_t)((i * 11) % 29 - 14);
+    }
+    for (int i = 0; i < out_c; i++)
+    {
+        bias[i] = i * 97 - 700;
+        mult[i] = 1300000000 + i * 1000;
+        shift[i] = -7;
+    }
+    const cmsis_nn_conv_params conv_params = {.input_offset = 3,
+                                              .output_offset = -2,
+                                              .stride = {2, 1},
+                                              .padding = {0, 0},
+                                              .dilation = {1, 1},
+                                              .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, 1, in_w, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 1, k_w, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, 1, out_w, out_c};
+    TEST_ASSERT_TRUE(arm_nn_is_convolve_1_x_n(&conv_params, &input_dims, &filter_dims) &&
+                     arm_nn_convolve_1_x_n_padding_supported(&conv_params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_weight_sum(
+                          wsum, kernel, &input_dims, &filter_dims, &output_dims, conv_params.input_offset, bias));
+    const cmsis_nn_context wsum_ctx = {wsum, (int32_t)sizeof(wsum)};
+
+    const int32_t ref_size = arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
+    cmsis_nn_context ref_ctx = {ref_size > 0 ? malloc(ref_size) : NULL, ref_size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_s8(&ref_ctx,
+                                      &wsum_ctx,
+                                      &conv_params,
+                                      &quant,
+                                      &input_dims,
+                                      input,
+                                      &filter_dims,
+                                      kernel,
+                                      &bias_dims,
+                                      bias,
+                                      NULL,
+                                      &output_dims,
+                                      expected));
+    free(ref_ctx.buf);
+
+    const int32_t size = arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    TEST_ASSERT_TRUE(size >= 0);
+    cmsis_nn_context ctx = {size > 0 ? malloc(size) : NULL, size};
+    const int8_t *guarded_input = guard_place(input, sizeof(input));
+    guard_gap_enable();
+    const arm_cmsis_nn_status status = arm_convolve_wrapper_s8(&ctx,
+                                                               &wsum_ctx,
+                                                               &conv_params,
+                                                               &quant,
+                                                               &input_dims,
+                                                               guarded_input,
+                                                               &filter_dims,
+                                                               kernel,
+                                                               &bias_dims,
+                                                               bias,
+                                                               &output_dims,
+                                                               output);
+    guard_gap_disable();
+    free(ctx.buf);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+    TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output, out_w * out_c);
+#endif
 }
 
