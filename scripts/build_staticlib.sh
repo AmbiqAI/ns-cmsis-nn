@@ -175,7 +175,12 @@ fi
 
 # The archive must keep one section per function (see the CFLAGS above); fail rather than publish one that would
 # drag whole objects into a --gc-sections link.
-python3 "${repo_root}/scripts/check_staticlib_sections.py" "${final_path}"
+# A rejected archive is removed so that OUTDIR never holds an unchecked archive without its checksum and sidecar.
+if ! python3 "${repo_root}/scripts/check_staticlib_sections.py" "${final_path}"; then
+  rm -f -- "${final_path}"
+  echo ">>> removed ${final_path}: it failed the section check" >&2
+  exit 1
+fi
 
 ( cd "${OUTDIR}" && sha256sum "${final_name}" > "${final_name}.sha256" )
 
