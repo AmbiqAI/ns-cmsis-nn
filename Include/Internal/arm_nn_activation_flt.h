@@ -82,23 +82,11 @@ __STATIC_INLINE float32_t arm_nn_hardswish_scalar_f32(float32_t x)
  *     behavior. A quiet NaN passes through with its payload and sign intact;
  *     a signalling NaN is quieted on return, so its invalid-operation
  *     exception is raised here rather than being handed to the caller.
- *   - MVE (arm_nn_vtanh_lut_direct_mve_f32) does not. vminnmq is IEEE minNum,
- *     which returns the numeric operand when the other is a quiet NaN, so a
- *     qNaN lane is replaced by xmax and interpolates to tanh(xmax) ~=
- *     0.9999877 -- and always with a NEGATIVE sign, giving -0.9999877
- *     (0xbf7fff32). That sign is not a typo and not what C `x < 0.0f`
- *     semantics would suggest: Armv8.1-M defines VCMP `lt` as the logical
- *     inverse of `ge`, so it is TRUE for unordered operands, and the
- *     vnegq_m negation predicate therefore fires on every NaN lane. A
- *     signalling NaN is quieted and returned by minNum, and is then negated
- *     the same way, so an sNaN lane yields a negated default qNaN
- *     (0xffc00000). Restoring NaN in general would cost an extra compare and
- *     select in the vector loop body, which this helper's callers (LSTM/GRU
- *     step kernels) run per element. NaN is not a supported input to these
- *     kernels, so the divergence is accepted here rather than paid for. The
- *     GRU step restores NaN on its candidate lanes after this helper with an
- *     integer-domain test that fast-math cannot elide; that is the mechanism
- *     behind the NaN contract on arm_gru_unidirectional_f32/f16 (#251).
+ *   - MVE (arm_nn_vtanh_lut_direct_mve_f32) propagates NaN unconditionally.
+ *     It classifies NaN on the integer bit pattern, which -ffinite-math-only
+ *     cannot fold, and returns the input on those lanes unchanged, signalling
+ *     NaNs included (#635). The GRU step also restores NaN on its candidate
+ *     lanes after this helper with its own integer-domain test (#251).
  *     Finite inputs, including |x| == xmax, agree exactly across legs.
  */
 __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
@@ -176,7 +164,9 @@ __STATIC_INLINE float32_t arm_nn_tanh_scalar_ref_f32(float32_t x)
     const float32_t y0 = arm_nn_tanh_lut_f32[idx];
     const float32_t y1 = arm_nn_tanh_lut_f32[idx + 1];
     const float32_t y = y0 + (y1 - y0) * frac;
-    return (x < 0.0f) ? -y : y;
+    /* tanh is odd and y >= 0: copying x's sign bit negates exactly and keeps
+     * -0, as the MVE leg does; a `x < 0.0f` test would turn -0 into +0. */
+    return __builtin_copysignf(y, x);
 }
 
 /*
@@ -320,16 +310,21 @@ __STATIC_INLINE float32x4_t arm_nn_max_propagate_nan_mve_f32(float32x4_t x, floa
  * |x| == xmax: the predicate below is >=, matching the scalar helper's
  * !(ax < xmax), so both legs saturate at the boundary rather than one
  * interpolating to lut[SEGMENTS] there. Subnormal inputs flush to zero here
- * (MVE runs with FZ set) and interpolate on the scalar leg. NaN is the other
- * place these float32 legs differ: a qNaN lane comes
- * out as -tanh(xmax) and an sNaN lane as a negated default qNaN, both NEGATIVE
- * because the vnegq_m predicate below uses VCMP `lt`, which Armv8.1-M defines
- * as !ge and is therefore true for unordered operands. See the scalar helper's
- * comment for the full split and why the divergence is accepted.
+ * (MVE runs with FZ set) and interpolate on the scalar leg, keeping the input's
+ * sign here. NaN lanes return the input unchanged at every optimization level
+ * and on every toolchain, so a NaN propagates with its payload, sign and
+ * signalling state, and -0 gives -0.
  */
 __STATIC_INLINE float32x4_t arm_nn_vtanh_lut_direct_mve_f32(float32x4_t x)
 {
-    float32x4_t ax = vabsq(x);
+    /* Sign and NaN come from the bit pattern, never from a float compare: whether
+     * vcmpltq(NaN, 0) is true depends on how the compiler lowers it (the MVE
+     * VCMP `lt` is true for unordered operands, a scalarised ordered compare is
+     * false), and -ffinite-math-only licenses either (#635). With the sign bit
+     * shifted out, a lane is NaN exactly when it compares above 0xFF000000. */
+    const uint32x4_t x_bits = vreinterpretq_u32_f32(x);
+    const mve_pred16_t nan_p = vcmphiq_n_u32(vshlq_n_u32(x_bits, 1), 0xFF000000u);
+    const float32x4_t ax = vabsq(x);
     /* Splat once and compare vector-to-vector. The scalar-operand form of
      * vcmpgeq() would force xmax into a GP register on every iteration,
      * because 0x40c00000 (6.0f) is not a Thumb-2 modified immediate and so
@@ -338,7 +333,10 @@ __STATIC_INLINE float32x4_t arm_nn_vtanh_lut_direct_mve_f32(float32x4_t x)
      * hoisted above the `dls`, leaving the loop body free of it. */
     const float32x4_t vmax = vdupq_n_f32(ARM_NN_TANH_F32_XMAX);
     const mve_pred16_t sat_p = vcmpgeq(ax, vmax);
-    ax = vminnmq(ax, vmax);
+    /* No clamp of ax to xmax: lanes at or past it are replaced by the saturation
+     * select and NaN lanes by the NaN select, and the index is clamped below, so
+     * whatever those lanes interpolate is discarded and every gather stays in
+     * the table (vcvtm saturates, and NaN converts to 0). */
     const float32x4_t t = vmulq(ax, (float32_t)ARM_NN_TANH_F32_LUT_SEGMENTS / ARM_NN_TANH_F32_XMAX);
     uint32x4_t idx = vcvtmq_u32_f32(t);
     idx = vminq(idx, vdupq_n_u32((uint32_t)ARM_NN_TANH_F32_LUT_MAX_IDX));
@@ -348,7 +346,10 @@ __STATIC_INLINE float32x4_t arm_nn_vtanh_lut_direct_mve_f32(float32x4_t x)
         vldrwq_gather_shifted_offset((const float32_t *)arm_nn_tanh_lut_f32, vaddq(idx, (uint32_t)1U));
     float32x4_t y = vfmaq(y0, vsubq(y1, y0), frac);
     y = vpselq(vdupq_n_f32(1.0f), y, sat_p);
-    return vnegq_m(y, y, vcmpltq(x, 0.0f));
+    /* y is +0 or positive here, so OR-ing in the sign bit of x negates it
+     * exactly, and -0 in gives -0 out, without a predicate. */
+    const uint32x4_t signed_y = vorrq(vreinterpretq_u32_f32(y), vandq(x_bits, vdupq_n_u32(0x80000000u)));
+    return vpselq(x, vreinterpretq_f32_u32(signed_y), nan_p);
 }
 
 __STATIC_INLINE float32x4_t arm_nn_vhardswish_mve_f32(float32x4_t x)
