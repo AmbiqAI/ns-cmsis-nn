@@ -31,7 +31,7 @@
  * fits in an int32_t. n is the output extent, s the stride, p the padding, k the filter extent and w the input
  * extent. Window i covers [b, b + k) with b = i * s - p, clipped to [0, w); it is empty exactly when k <= 0,
  * w <= 0, b >= w or b + k <= 0. b is linear in i, so each condition holds for some i exactly when it holds at
- * i = 0 or i = n - 1, and the same two ends bound b, -b, w - b and, more strictly than the loops need, b + k.
+ * i = 0 or i = n - 1, and the same two ends bound b, -b, w - b and b + k, which some loops form directly.
  * The loops that step b by s also step one stride past the last window, to b = n * s - p, which is bounded too.
  * Window positions are negated, so their lower bound is -INT32_MAX; the step past the last window is only ever an
  * increment result and is never negated, so INT32_MIN is in range for it. Expects n >= 1.
