@@ -8,8 +8,8 @@
  */
 
 /*
- * Shared pooling-window geometry cases (#630) for arm_max_pool_{s8,s16,f16,f32} and arm_avg_pool_{f16,f32}. The
- * including suite defines:
+ * Shared pooling-window geometry cases (#630, #652) for arm_max_pool_{s8,s16,f16,f32}, arm_avg_pool_{f16,f32} and
+ * arm_avgpool_s8. The including suite defines:
  *   PW_PREFIX    name prefix of the generated case functions
  *   PW_KERNEL    kernel under test
  *   PW_T         element type
@@ -18,6 +18,7 @@
  *   PW_AVG       1 for average pooling, 0 for max pooling
  *   PW_TOL       absolute tolerance against the float reference
  *   PW_CH        channel count of the multi-channel cases (one vector block plus a tail on MVE builds)
+ *   PW_SCRATCH   optional: pass the kernel a zeroed int32_t scratch buffer of PW_BUF_MAX elements in ctx
  *
  * Every case fills the whole output buffer with a byte pattern first. A rejected call, and a call with an empty
  * output, must leave every byte of it in place; a computed call must leave the bytes past its output in place.
@@ -98,7 +99,13 @@ static arm_cmsis_nn_status pw_run(const pw_geom *g, const int32_t batch)
     pool_params.padding.h = g->pad_h;
     pool_params.activation.min = PW_ACT_MIN;
     pool_params.activation.max = PW_ACT_MAX;
+#ifdef PW_SCRATCH
+    static int32_t pw_scratch[PW_BUF_MAX];
+    memset(pw_scratch, 0, sizeof(pw_scratch));
+    const cmsis_nn_context ctx = {pw_scratch, (int32_t)sizeof(pw_scratch)};
+#else
     const cmsis_nn_context ctx = {NULL, 0};
+#endif
     return PW_KERNEL(&ctx, &pool_params, &input_dims, pw_input, &filter_dims, &output_dims, pw_output);
 }
 

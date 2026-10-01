@@ -414,3 +414,19 @@ void buffer_size_out_of_range_mve_arm_avgpool_s8(void)
     TEST_ASSERT_EQUAL(0, arm_avgpool_s8_get_buffer_size_mve(AVGPOOLING_5_OUTPUT_W, AVGPOOLING_5_INPUT_C));
     TEST_ASSERT_EQUAL(0, arm_avgpool_s8_get_buffer_size_mve(0, 0));
 }
+
+/* Pooling-window geometry cases (#630, #652), shared with the max pooling and float pooling suites. Averages round
+   half away from zero, so they lie within 0.5 of the exact mean. */
+
+#define PW_PREFIX avgpool_s8
+#define PW_KERNEL arm_avgpool_s8
+#define PW_T int8_t
+#define PW_PARAMS_T cmsis_nn_pool_params
+#define PW_ACT_MIN (-128)
+#define PW_ACT_MAX 127
+#define PW_AVG 1
+#define PW_TOL 0.5f
+#define PW_CH 17
+#define PW_SCRATCH
+
+#include "../Utils/pool_window_cases.h"

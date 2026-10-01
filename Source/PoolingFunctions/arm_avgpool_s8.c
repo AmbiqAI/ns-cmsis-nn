@@ -28,6 +28,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_pool_window_common.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -93,14 +94,29 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
     const int32_t act_min = pool_params->activation.min;
     const int32_t act_max = pool_params->activation.max;
     const int32_t ch_src = input_dims->c;
-    const int32_t batch_input = input_x * input_y * ch_src;
-    const int32_t batch_output = output_x * output_y * ch_src;
     int32_t batch_cnt = input_dims->n;
 
-    if (batch_cnt < 1)
+    if ((batch_cnt < 1) || (ch_src < 0))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+    /* An output with no rows or no columns has no window and nothing to write; returning here also keeps the loops
+       from stepping through the other extent. */
+    if ((output_y <= 0) || (output_x <= 0))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+
+    /* Rejected here, before any output is written, rather than at the first empty window. */
+    if (!arm_nn_pool_axis_valid(output_y, stride_y, pad_y, kernel_y, input_y) ||
+        !arm_nn_pool_axis_valid(output_x, stride_x, pad_x, kernel_x, input_x))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    const int32_t batch_input = input_x * input_y * ch_src;
+    const int32_t batch_output = output_x * output_y * ch_src;
 
     while (batch_cnt)
     {
@@ -256,12 +272,26 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
     const int32_t ch_src = input_dims->c;
     int32_t batch_cnt = input_dims->n;
 
-    if (batch_cnt < 1)
+    if ((batch_cnt < 1) || (ch_src < 0))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    if (ctx->buf == NULL && arm_avgpool_s8_get_buffer_size(output_dims->w, input_dims->c))
+    /* An output with no rows or no columns has no window and nothing to write; returning here also keeps the loops
+       from stepping through the other extent. */
+    if ((output_y <= 0) || (output_x <= 0))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+
+    /* Rejected here, before any output is written, rather than at the first empty window. */
+    if (!arm_nn_pool_axis_valid(output_y, stride_y, pad_y, kernel_y, input_y) ||
+        !arm_nn_pool_axis_valid(output_x, stride_x, pad_x, kernel_x, input_x))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    if ((ctx == NULL) || ((ctx->buf == NULL) && arm_avgpool_s8_get_buffer_size(output_dims->w, input_dims->c)))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
