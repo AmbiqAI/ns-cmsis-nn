@@ -531,7 +531,11 @@ int32_t arm_convolve_1_x_n_f32_get_buffer_size(const cmsis_nn_conv_params_f32 *c
  * @param[in]     output_dims Output tensor dimensions.
  * @param[out]    dst         Pointer to the output tensor data.
  *
- * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, including an output with no rows or no columns, which writes
+ *         nothing; `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments: a NULL pointer argument other than ctx, a batch
+ *         count below 1, a pooling window that does not overlap the input, or window positions (output index *
+ *         stride - padding, including one stride past the last window, plus the filter extent, and input size
+ *         minus position) that do not fit in an int32_t. Nothing is written to dst then.
  */
 arm_cmsis_nn_status arm_max_pool_f32(const cmsis_nn_context *ctx,
                                      const cmsis_nn_pool_params_f32 *pool_params,
@@ -552,7 +556,11 @@ arm_cmsis_nn_status arm_max_pool_f32(const cmsis_nn_context *ctx,
  * @param[in]     output_dims Output tensor dimensions.
  * @param[out]    dst         Pointer to the output tensor data.
  *
- * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, including an output with no rows or no columns, which writes
+ *         nothing; `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments: a NULL pointer argument other than ctx, a batch
+ *         count below 1, a pooling window that does not overlap the input, or window positions (output index *
+ *         stride - padding, including one stride past the last window, plus the filter extent, and input size
+ *         minus position) that do not fit in an int32_t. Nothing is written to dst then.
  */
 arm_cmsis_nn_status arm_avg_pool_f32(const cmsis_nn_context *ctx,
                                      const cmsis_nn_pool_params_f32 *pool_params,
