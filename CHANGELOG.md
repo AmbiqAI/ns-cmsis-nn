@@ -1,5 +1,15 @@
 # Changelog
 
+## [7.39.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.39.0...v7.39.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **arg:** float ARG_MAX/ARG_MIN skip NaN as LiteRT does ([#650](https://github.com/AmbiqAI/ns-cmsis-nn/issues/650)) ([1be3538](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1be35389f8a61fb885998ef3cec13d7158e0a8a6))
+* **dw:** stop the float depthwise sizers reserving to-conv scratch for ch_mult 1 ([#646](https://github.com/AmbiqAI/ns-cmsis-nn/issues/646)) ([b0be438](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b0be43888e8a1be260e336b2db7b14b3cb507166)), closes [#625](https://github.com/AmbiqAI/ns-cmsis-nn/issues/625)
+* **f16:** accumulate the generic depthwise scalar leg in float32 ([#647](https://github.com/AmbiqAI/ns-cmsis-nn/issues/647)) ([03fba7a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/03fba7abc95f634b348dfe6b4d3a6326778e7325)), closes [#645](https://github.com/AmbiqAI/ns-cmsis-nn/issues/645) [#386](https://github.com/AmbiqAI/ns-cmsis-nn/issues/386)
+* **pool:** reject empty and out-of-range pooling windows before any write ([#651](https://github.com/AmbiqAI/ns-cmsis-nn/issues/651)) ([5576282](https://github.com/AmbiqAI/ns-cmsis-nn/commit/55762829be17b728759f8a48cf7980427366284c)), closes [#630](https://github.com/AmbiqAI/ns-cmsis-nn/issues/630)
+
 ## [7.39.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.38.1...v7.39.0) (2026-10-01)
 
 
