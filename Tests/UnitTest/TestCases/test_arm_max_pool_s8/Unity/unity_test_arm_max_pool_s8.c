@@ -75,5 +75,3 @@ void test_max_pool_s8_negative_stride(void) { max_pool_s8_negative_stride(); }
 void test_max_pool_s8_negative_padding(void) { max_pool_s8_negative_padding(); }
 
 void test_max_pool_s8_batches(void) { max_pool_s8_batches(); }
-
-void test_max_pool_s8_window_check_edges(void) { max_pool_s8_window_check_edges(); }

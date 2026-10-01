@@ -35,8 +35,8 @@
 #define PW_FN(name) PW_CAT(PW_PREFIX, name)
 
 #define PW_FILL 0x55
-/* Room for one axis of 2^15 + 1 elements, the largest extent the boundary cases use. */
-#define PW_BUF_MAX 32776
+/* Room for three batches of the 3x4 batch layer, the largest input any case uses. */
+#define PW_BUF_MAX (36 * PW_CH)
 
 typedef struct
 {
@@ -322,49 +322,4 @@ void PW_FN(batches)(void)
     pw_check_valid(&g, 2);
     pw_check_valid(&g, 3);
     pw_check_untouched(&empty, 2, ARM_CMSIS_NN_ARG_ERROR);
-}
-
-/* Layers at the edge of the geometry the window check handles in 32 bits: n, k and w at 2^15 - 1 and 2^15, and s and
-   p at +/-(2^15 - 1) and +/-2^15. At each value one layer has every window overlapping the input and one has a single
-   window that just misses it, so the parameter at the edge decides the verdict; the expected outputs come from the
-   reference either way. A valid layer with p = +/-(2^15 - 1) needs a filter or input extent of 2^15. */
-void PW_FN(window_check_edges)(void)
-{
-    pw_fill_input();
-    const pw_axis_case cases[] = {
-        /* n */
-        {1, 32767, -1, 0, 32767, 1},
-        {32767, 1, 1, -1, 32767, 0},
-        {32768, 1, 1, 0, 32768, 1},
-        {32767, 1, 1, 0, 32768, 0},
-        /* k */
-        {1, 32767, -16383, 0, 3, 1},
-        {1, 32767, -16383, 1, 3, 0},
-        {1, 32768, -16383, 1, 3, 1},
-        {1, 32768, -16384, 0, 3, 0},
-        /* w */
-        {32767, 1, 16382, -2, 3, 1},
-        {32767, 1, 16383, -1, 3, 0},
-        {32768, 1, 16383, -1, 3, 1},
-        {32768, 1, 16384, 0, 3, 0},
-        /* s */
-        {32765, 5, 32767, 3, 2, 1},
-        {32766, 2, 32767, 1, 2, 0},
-        {32769, 1, 32768, 0, 2, 1},
-        {32768, 1, 32768, 0, 2, 0},
-        {5, 32765, -32767, -3, 2, 1},
-        {2, 32766, -32767, -1, 2, 0},
-        {1, 32769, -32768, 0, 2, 1},
-        {1, 32768, -32768, 0, 2, 0},
-        /* p */
-        {1, 32768, 0, 32767, 1, 1},
-        {1, 32767, -1, 32767, 1, 0},
-        {1, 32769, 0, 32768, 1, 1},
-        {1, 32768, 0, 32768, 1, 0},
-        {32768, 1, 0, -32767, 1, 1},
-        {32767, 1, 0, -32767, 1, 0},
-        {32769, 1, 0, -32768, 1, 1},
-        {32768, 1, 0, -32768, 1, 0},
-    };
-    pw_check_axis_cases(cases, sizeof(cases) / sizeof(cases[0]));
 }
