@@ -5619,9 +5619,17 @@ arm_cmsis_nn_status arm_prelu_scalar_s16(const int16_t *scalar_vect,
  *                              C_OUT equals C_IN.
  * @param[out]     output_data Output data pointer. Data type: int8
  *
- * @return     The function returns either
- *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
- *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ * @return                        The function returns
+ *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation, including an output with
+ *                                    no rows or no columns (an extent of 0 or less), which writes nothing and does
+ *                                    not use ctx
+ *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> - In case of invalid arguments, including a
+ *                                    negative channel count, a pooling window that does not overlap the input,
+ *                                    window positions (output index times stride minus padding, including one
+ *                                    stride past the last window, plus the filter extent, and input size minus
+ *                                    position) that do not fit in an int32_t, or,
+ *                                    on builds without MVE, a NULL ctx, or a NULL ctx->buf where the sizer asks for
+ *                                    a buffer. Nothing is written to output_data then.
  *
  * @details
  *    - Supported Framework: TensorFlow Lite
@@ -5696,12 +5704,13 @@ int32_t arm_avgpool_s8_get_buffer_size_mve(const int dim_dst_width, const int ch
  *
  * @return                        The function returns
  *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation, including an output with
- *                                    no rows or no columns, which writes nothing and does not use ctx
+ *                                    no rows or no columns (an extent of 0 or less), which writes nothing and does
+ *                                    not use ctx
  *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> - In case of invalid arguments, including a
  *                                    negative channel count, a pooling window that does not overlap the input,
- *                                    window positions (output index
- *                                    * stride - padding, including one stride past the last window, plus the filter
- *                                    extent, and input size minus position) that do not fit in an int32_t, or,
+ *                                    window positions (output index times stride minus padding, including one
+ *                                    stride past the last window, plus the filter extent, and input size minus
+ *                                    position) that do not fit in an int32_t, or,
  *                                    on builds that use the buffer, a NULL ctx, or a NULL ctx->buf where the sizer
  *                                    asks for a buffer. Nothing is written to output_data then.
  *

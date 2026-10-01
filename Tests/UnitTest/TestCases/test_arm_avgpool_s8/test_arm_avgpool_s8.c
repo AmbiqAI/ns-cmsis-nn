@@ -414,3 +414,70 @@ void buffer_size_out_of_range_mve_arm_avgpool_s8(void)
     TEST_ASSERT_EQUAL(0, arm_avgpool_s8_get_buffer_size_mve(AVGPOOLING_5_OUTPUT_W, AVGPOOLING_5_INPUT_C));
     TEST_ASSERT_EQUAL(0, arm_avgpool_s8_get_buffer_size_mve(0, 0));
 }
+
+/* Pooling-window geometry cases (#630, #652), shared with the max pooling and float pooling suites. Averages round
+   half away from zero, so they lie within 0.5 of the exact mean. */
+
+#define PW_PREFIX avgpool_s8
+#define PW_KERNEL arm_avgpool_s8
+#define PW_T int8_t
+#define PW_PARAMS_T cmsis_nn_pool_params
+#define PW_ACT_MIN (-128)
+#define PW_ACT_MAX 127
+#define PW_AVG 1
+#define PW_TOL 0.5f
+#define PW_CH 17
+#define PW_SCRATCH
+
+#include "../Utils/pool_window_cases.h"
+
+/* Degenerate arguments: an empty output succeeds without writing or using ctx; a batch count below 1 or a negative
+   channel count is rejected on every build. Builds without MVE reject a NULL ctx, and the DSP build a NULL buffer the
+   sizer asked for, before any output is written; with no channels the sizer asks for none. */
+void degenerate_arguments_arm_avgpool_s8(void)
+{
+    const int8_t input[1] = {7};
+    int8_t output[2] = {0x55, 0x55};
+    const cmsis_nn_pool_params pool_params = {.stride = {1, 1}, .padding = {0, 0}, .activation = {-128, 127}};
+    const cmsis_nn_dims dims = {1, 1, 1, 1};
+    int32_t scratch[4];
+    const cmsis_nn_context ctx = {scratch, (int32_t)sizeof(scratch)};
+    const cmsis_nn_context null_buf = {NULL, 0};
+
+    const cmsis_nn_dims no_rows = {1, 0, 1, 1};
+    const cmsis_nn_dims no_cols = {1, 1, -1, 1};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_avgpool_s8(NULL, &pool_params, &dims, input, &dims, &no_rows, output));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_avgpool_s8(NULL, &pool_params, &dims, input, &dims, &no_cols, output));
+    TEST_ASSERT_EACH_EQUAL_INT8(0x55, output, 2);
+
+    const cmsis_nn_dims no_batch = {0, 1, 1, 1};
+    const cmsis_nn_dims negative_channels = {1, 1, 1, -1};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_avgpool_s8(&ctx, &pool_params, &no_batch, input, &dims, &dims, output));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_avgpool_s8(&ctx, &pool_params, &negative_channels, input, &dims, &negative_channels, output));
+    TEST_ASSERT_EACH_EQUAL_INT8(0x55, output, 2);
+
+    const cmsis_nn_dims no_channels = {1, 1, 1, 0};
+    TEST_ASSERT_EQUAL(0, arm_avgpool_s8_get_buffer_size(1, 0));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_avgpool_s8(&null_buf, &pool_params, &no_channels, input, &dims, &no_channels, output));
+    TEST_ASSERT_EACH_EQUAL_INT8(0x55, output, 2);
+
+#if defined(ARM_MATH_MVEI)
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_avgpool_s8(NULL, &pool_params, &dims, input, &dims, &dims, output));
+    TEST_ASSERT_EQUAL_INT8(7, output[0]);
+#else
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_avgpool_s8(NULL, &pool_params, &dims, input, &dims, &dims, output));
+    TEST_ASSERT_EACH_EQUAL_INT8(0x55, output, 2);
+    #if defined(ARM_MATH_DSP)
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_avgpool_s8(&null_buf, &pool_params, &dims, input, &dims, &dims, output));
+    TEST_ASSERT_EACH_EQUAL_INT8(0x55, output, 2);
+    #else
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_avgpool_s8(&null_buf, &pool_params, &dims, input, &dims, &dims, output));
+    TEST_ASSERT_EQUAL_INT8(7, output[0]);
+    #endif
+#endif
+}
