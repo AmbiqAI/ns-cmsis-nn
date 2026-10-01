@@ -101,10 +101,12 @@ static void ae_reference(const int32_t d[4], int axis)
                             dest = dest * d[k] + coords[k];
                     const uint32_t next = ae_bits[source];
                     const uint32_t previous = ae_winners[dest];
+                    /* LiteRT order: the first element seeds the line, a NaN
+                     * never replaces, and a non-NaN value replaces a NaN seed. */
                     int replace = ae_expected[dest] < 0;
-                    if (!replace && !ae_is_nan(previous))
+                    if (!replace && !ae_is_nan(next))
                     {
-                        if (ae_is_nan(next))
+                        if (ae_is_nan(previous))
                             replace = 1;
 #if AE_MAX
                         else if (ae_value(next) > ae_value(previous))
@@ -218,11 +220,55 @@ static void ae_special(void)
     {
         for (int i = 0; i < 9; ++i)
             ae_bits[i] = (AE_BITS)AE_ONE_BITS;
-        /* A NaN wins. */
+        /* A NaN never wins; after a leading NaN the next value does. */
         ae_bits[position] = (AE_BITS)(AE_EXPONENT_MASK | 1);
         ae_check(line, 3);
-        TEST_ASSERT_EQUAL_INT32(position, ae_output[AE_GUARD]);
+        TEST_ASSERT_EQUAL_INT32(position == 0 ? 1 : 0, ae_output[AE_GUARD]);
     }
+    /* Even the weakest non-NaN value, -Inf for max and +Inf for min, replaces
+     * a run of leading NaNs. */
+#if AE_MAX
+    const uint32_t weakest = AE_SIGN_MASK | AE_EXPONENT_MASK;
+#else
+    const uint32_t weakest = AE_EXPONENT_MASK;
+#endif
+    for (int i = 0; i < 9; ++i)
+        ae_bits[i] = (AE_BITS)(i < 8 ? (AE_EXPONENT_MASK | 1 | (AE_SIGN_MASK * (i & 1))) : weakest);
+    ae_check(line, 3);
+    TEST_ASSERT_EQUAL_INT32(8, ae_output[AE_GUARD]);
+    /* {1, NaN, -1}: the NaN sits between the maximum and the minimum. */
+    const int32_t three[4] = {1, 1, 1, 3};
+    ae_bits[0] = (AE_BITS)AE_ONE_BITS;
+    ae_bits[1] = (AE_BITS)(AE_EXPONENT_MASK | 1);
+    ae_bits[2] = (AE_BITS)(AE_SIGN_MASK | AE_ONE_BITS);
+    ae_check(three, 3);
+#if AE_MAX
+    TEST_ASSERT_EQUAL_INT32(0, ae_output[AE_GUARD]);
+#else
+    TEST_ASSERT_EQUAL_INT32(2, ae_output[AE_GUARD]);
+#endif
+    /* An all-NaN line returns index 0, whatever the payloads and signs:
+     * quiet and signaling, smallest and largest payloads, both signs. */
+    const uint32_t quiet = (AE_FRACTION_MASK >> 1) + 1;
+    const uint32_t nans[9] = {AE_EXPONENT_MASK | quiet,
+                              AE_SIGN_MASK | AE_EXPONENT_MASK | quiet,
+                              AE_EXPONENT_MASK | 1,
+                              AE_SIGN_MASK | AE_EXPONENT_MASK | 1,
+                              AE_MAGNITUDE_MASK,
+                              AE_SIGN_MASK | AE_MAGNITUDE_MASK,
+                              AE_EXPONENT_MASK | quiet | 1,
+                              AE_SIGN_MASK | AE_EXPONENT_MASK | (quiet - 1),
+                              AE_EXPONENT_MASK | 2};
+    for (int i = 0; i < 9; ++i)
+        ae_bits[i] = (AE_BITS)nans[i];
+    ae_check(line, 3);
+    TEST_ASSERT_EQUAL_INT32(0, ae_output[AE_GUARD]);
+    /* A positive NaN seed, then a negative NaN: still index 0. */
+    const int32_t pair[4] = {1, 1, 1, 2};
+    ae_bits[0] = (AE_BITS)nans[0];
+    ae_bits[1] = (AE_BITS)nans[1];
+    ae_check(pair, 3);
+    TEST_ASSERT_EQUAL_INT32(0, ae_output[AE_GUARD]);
     /* First zero tie crosses a prospective vector boundary. */
     for (int i = 0; i < 9; ++i)
         ae_bits[i] = (AE_BITS)(AE_SIGN_MASK * (i & 1));
@@ -231,7 +277,7 @@ static void ae_special(void)
     ae_bits[7] = (AE_BITS)(AE_EXPONENT_MASK | 1);
     ae_bits[8] = (AE_BITS)(AE_EXPONENT_MASK | 2);
     ae_check(line, 3);
-    TEST_ASSERT_EQUAL_INT32(7, ae_output[AE_GUARD]);
+    TEST_ASSERT_EQUAL_INT32(0, ae_output[AE_GUARD]);
 }
 
 static void ae_patterns(void)
@@ -324,9 +370,9 @@ static void ae_fp_controls(void)
                                 {1, AE_SIGN_MASK | 1, AE_ONE_BITS, AE_EXPONENT_MASK | 1, AE_EXPONENT_MASK | 2},
                                 {AE_SIGN_MASK, 0, AE_SIGN_MASK, 0, 0}};
     #if AE_MAX
-    const int32_t expected[] = {0, 1, 2, 3, 0};
+    const int32_t expected[] = {3, 1, 2, 2, 0};
     #else
-    const int32_t expected[] = {0, 2, 3, 3, 0};
+    const int32_t expected[] = {2, 2, 3, 1, 0};
     #endif
     for (unsigned sample = 0; sample < sizeof(cases) / sizeof(cases[0]); ++sample)
     {
