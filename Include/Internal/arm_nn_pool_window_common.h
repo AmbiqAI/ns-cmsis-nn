@@ -33,7 +33,8 @@
  * w <= 0, b >= w or b + k <= 0. b is linear in i, so each condition holds for some i exactly when it holds at
  * i = 0 or i = n - 1, and the same two ends bound b, -b, w - b and, more strictly than the loops need, b + k.
  * The loops that step b by s also step one stride past the last window, to b = n * s - p, which is bounded too.
- * Expects n >= 1.
+ * Window positions are negated, so their lower bound is -INT32_MAX; the step past the last window is only ever an
+ * increment result and is never negated, so INT32_MIN is in range for it. Expects n >= 1.
  */
 __STATIC_FORCEINLINE bool
 arm_nn_pool_axis_valid(const int32_t n, const int32_t s, const int32_t p, const int32_t k, const int32_t w)

@@ -235,10 +235,14 @@ void PW_FN(window_bound_limits)(void)
         {3, INT32_MAX - 2, INT32_MAX - 1, INT32_MAX - 3, 2, 0},
         {1, 2100000000, -1000000000, 2000000000, 1, 0},
         {2, INT32_MAX, 1, INT32_MAX - 1, 1, 0},
-        /* Two windows at 0 and -2^30: the step past the last one is exactly INT32_MIN, which fits; one more
-           negative and it does not. */
+        /* Two windows at 0 and -2^30: the step past the last one is exactly INT32_MIN, which fits. With padding 1
+           it is INT32_MIN - 1, and with a stride one larger INT32_MIN - 2; neither fits. */
         {1, 1073741825, -1073741824, 0, 2, 1},
+        {1, 1073741826, -1073741824, 1, 2, 0},
         {1, 1073741826, -1073741825, 0, 2, 0},
+        /* One window and a stride of INT32_MIN: the step past it is INT32_MIN, or INT32_MIN - 1 with padding 1. */
+        {1, 1, INT32_MIN, 0, 1, 1},
+        {1, 2, INT32_MIN, 1, 1, 0},
     };
     pw_input[0] = (PW_T)20.0f;
     pw_input[1] = (PW_T)10.0f;
