@@ -1,5 +1,21 @@
 # Changelog
 
+## [7.39.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.38.1...v7.39.0) (2026-10-01)
+
+
+### Features
+
+* **sqrt:** add a table-free int16 square root ([#642](https://github.com/AmbiqAI/ns-cmsis-nn/issues/642)) ([e6d6819](https://github.com/AmbiqAI/ns-cmsis-nn/commit/e6d68190e347374e8866eefc427df9b5c34e9289))
+
+
+### Bug Fixes
+
+* **avgpool:** reject empty s16 pooling windows before any output write ([#627](https://github.com/AmbiqAI/ns-cmsis-nn/issues/627)) ([a0a65a4](https://github.com/AmbiqAI/ns-cmsis-nn/commit/a0a65a4e7dd0ed258589cb09e08fe41f40762548)), closes [#623](https://github.com/AmbiqAI/ns-cmsis-nn/issues/623)
+* **f16:** define ARM_NN_F16_FINITE_LOWEST without promoting __fp16 ([#641](https://github.com/AmbiqAI/ns-cmsis-nn/issues/641)) ([ce093cd](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ce093cdb7de0ca7a0f8e291b8062662ce42d52bd)), closes [#637](https://github.com/AmbiqAI/ns-cmsis-nn/issues/637)
+* **f32:** make the MVE tanh NaN and signed-zero results toolchain-independent ([#640](https://github.com/AmbiqAI/ns-cmsis-nn/issues/640)) ([2c01e87](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2c01e8753e7734f8d55a8494f1e22a568688ad62)), closes [#635](https://github.com/AmbiqAI/ns-cmsis-nn/issues/635)
+* **pack:** declare every header each heliaCORE component includes ([#631](https://github.com/AmbiqAI/ns-cmsis-nn/issues/631)) ([8741755](https://github.com/AmbiqAI/ns-cmsis-nn/commit/8741755d2c1878798ea37cfeec9aaa6721353364)), closes [#514](https://github.com/AmbiqAI/ns-cmsis-nn/issues/514)
+* **sdk:** resolve Include/-prefixed header spellings from the SDK tarball ([#632](https://github.com/AmbiqAI/ns-cmsis-nn/issues/632)) ([9f2d5aa](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9f2d5aaef50ca474a14c3711017a6fad7af3cd28)), closes [#512](https://github.com/AmbiqAI/ns-cmsis-nn/issues/512)
+
 ## [7.38.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.38.0...v7.38.1) (2026-09-30)
 
 
