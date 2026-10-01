@@ -171,8 +171,9 @@ void nn_activation_helpers_f32_tanh_nan_index_bounded(void)
  * tail is a NaN with a payload. On the
  * MVE float path each NaN comes back as the same NaN on every toolchain and flag set: the helper classifies on
  * the bit pattern rather than with a float compare, whose result for NaN depends on the compiler's lowering
- * (#635). The scalar path's NaN result is not guaranteed under -ffinite-math-only, so NaN lanes are checked on
- * the MVE path only; -0 keeps its sign on both. */
+ * (#635). Without hardware floating point (__ARM_FP undefined) the scalar path classifies NaN on the bit pattern
+ * too and returns a NaN (a signalling one quieted); with it, the scalar path's NaN result is not guaranteed under
+ * -ffinite-math-only, so NaN lanes are not checked there. -0 keeps its sign on every path. */
 void nn_activation_helpers_f32_tanh_mux_nan_and_signed_zero(void)
 {
     const uint32_t in_bits[13] = {
@@ -200,6 +201,12 @@ void nn_activation_helpers_f32_tanh_mux_nan_and_signed_zero(void)
     for (int32_t i = 0; i < 5; i++)
     {
         TEST_ASSERT_EQUAL_HEX32(in_bits[nan_lanes[i]], f32_bits(out[nan_lanes[i]]));
+    }
+#elif !defined(__ARM_FP)
+    const int32_t nan_lanes[5] = {0, 1, 2, 3, 12};
+    for (int32_t i = 0; i < 5; i++)
+    {
+        TEST_ASSERT_TRUE((f32_bits(out[nan_lanes[i]]) & 0x7fffffffU) > 0x7f800000U);
     }
 #endif
     TEST_ASSERT_EQUAL_HEX32(0x80000000U, f32_bits(out[4]));

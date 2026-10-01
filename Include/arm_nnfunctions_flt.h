@@ -583,9 +583,11 @@ arm_cmsis_nn_status arm_avg_pool_f32(const cmsis_nn_context *ctx,
  *       NaN input comes back as NaN at every optimization level on the gated toolchains, including the
  *       shipped -Ofast. This holds on both the scalar and the MVE (cortex-m55) build paths; the MVE
  *       RELU/RELU6 legs restore the NaN lanes that vmaxnmq/vminnmq suppress. The MVE TANH leg returns a
- *       NaN input unchanged and keeps the sign of zero, also decided on the bit pattern (#635); the scalar TANH
- *       leg propagates NaN only in builds without -ffinite-math-only. SIGMOID and HARDSWISH are outside
- *       this contract; see the per-helper notes in Include/Internal/arm_nn_activation_flt.h.
+ *       NaN input unchanged and keeps the sign of zero, also decided on the bit pattern (#635). The scalar
+ *       TANH leg returns NaN where there is no hardware floating point (__ARM_FP undefined, e.g. Cortex-M0),
+ *       where it too classifies NaN on the bit pattern (quieting a signalling NaN), and elsewhere only in builds
+ *       without -ffinite-math-only. SIGMOID and HARDSWISH are outside this contract; see the per-helper notes
+ *       in Include/Internal/arm_nn_activation_flt.h.
  *
  * @note The HARDSWISH leg's scalar helper (arm_nn_hardswish_scalar_f32, serving every build that does
  *       not take the MVE float path -- no MVE float support, or MVE present but not used, e.g. under
