@@ -204,6 +204,7 @@
         <file category="source" name="Source/BasicMathFunctions/arm_rsqrt_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_rsqrt_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_sqrt_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_sqrt_s16_tablefree.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_sqrt_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_squared_difference_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_squared_difference_s8.c"/>

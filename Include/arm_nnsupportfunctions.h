@@ -3352,6 +3352,60 @@ __STATIC_FORCEINLINE int32_t arm_reduce_get_middle_block_from_arrays(const int32
     return *inner > 1;
 }
 
+/*
+ * Constants of arm_sqrt_s16_tablefree(). The magic constant seeds a float32
+ * reciprocal square root from the bit pattern of the input, K0 and K1 are the
+ * additive constants of the two Newton steps that follow. The chain returns
+ * 2^7 * sqrt(z), and the input conversion pre-scales by 2^-14 (the SHIFT
+ * immediate of the int-to-float conversion) to cancel that exactly. The three
+ * constants were tuned jointly over the whole float32 mantissa range;
+ * changing any one of them requires retuning the others.
+ */
+#define ARM_NN_SQRT_S16_TABLEFREE_SHIFT 14
+#define ARM_NN_SQRT_S16_TABLEFREE_MAGIC UINT32_C(0x5F5FB6C4)
+#define ARM_NN_SQRT_S16_TABLEFREE_K0 (-4.76426697f)
+#define ARM_NN_SQRT_S16_TABLEFREE_K1 (-48.0000114f)
+
+/**
+ * @brief One element of arm_sqrt_s16_tablefree(): the float32 chain the MVE
+ *        path evaluates per lane, so the two agree bit for bit on any IEEE-754
+ *        float32 implementation with round-to-nearest-even and a fused
+ *        multiply-add (fmaf). Every product after the pre-scale either has two
+ *        uses or feeds an fmaf or a conversion, never another lone multiply, so a compiler
+ *        allowed to reassociate (-ffast-math) still has no chain to reorder,
+ *        and no product feeds a bare add, so there is nothing to contract.
+ * @param[in]  value  input code; values <= 0 give 0
+ * @param[in]  scale  input_scale / (output_scale * output_scale) as float32
+ * @return     trunc(sqrt(value * scale)) saturated to 32767
+ */
+__STATIC_FORCEINLINE int16_t arm_nn_sqrt_s16_tablefree_element(const int32_t value, const float scale)
+{
+    const int32_t x = value > 0 ? value : 0;
+    /* The first product is exact (x < 2^15 times a power of two), so the
+     * pre-scale and the layer scale round once in total whichever way a
+     * compiler groups them; the MVE path applies the pre-scale inside VCVT. */
+    const float z = ((float)x * (1.0f / (float)(1 << ARM_NN_SQRT_S16_TABLEFREE_SHIFT))) * scale;
+    uint32_t bits;
+    float r0;
+
+    memcpy(&bits, &z, sizeof(bits));
+    bits = ARM_NN_SQRT_S16_TABLEFREE_MAGIC - (bits >> 1);
+    memcpy(&r0, &bits, sizeof(r0));
+
+    const float u0 = z * r0;
+    const float t0 = fmaf(u0, r0, ARM_NN_SQRT_S16_TABLEFREE_K0);
+    const float r1 = r0 * t0;
+    const float u1 = z * r1;
+    const float t1 = fmaf(r1, u1, ARM_NN_SQRT_S16_TABLEFREE_K1);
+    const float y = u1 * t1;
+
+    if (y >= 32767.0f)
+    {
+        return 32767;
+    }
+    return (int16_t)y;
+}
+
 #ifdef __cplusplus
 }
 #endif
