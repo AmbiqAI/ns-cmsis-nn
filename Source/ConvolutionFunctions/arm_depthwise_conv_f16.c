@@ -786,9 +786,9 @@ __STATIC_FORCEINLINE void arm_depthwise_conv_f16_generic(const float16_t *input,
      * taps before it is widened into a float32 accumulator; one rounding at the end. */
     const int32_t block = acc16 ? ARM_NN_F16_ACC_BLOCK_NONE : ARM_NN_F16_ACC_BLOCK;
     #else
-    /* Scalar legs keep their float16 accumulator. */
+    /* Scalar legs accumulate the whole window, bias included, in float32 and round to float16 once at the store,
+     * as arm_depthwise_direct_run_scalar_f16 does (#449). Both entries agree there. */
     (void)acc16;
-    const int32_t block = ARM_NN_F16_ACC_BLOCK_NONE;
     #endif
     const int32_t output_ch = input_ch * ch_mult;
     const int32_t in_batch_stride = input_x * input_y * input_ch;
@@ -845,6 +845,7 @@ __STATIC_FORCEINLINE void arm_depthwise_conv_f16_generic(const float16_t *input,
                             ker_y_end = (kernel_y < end_min_y) ? kernel_y : end_min_y;
                         }
 
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
                         if (bias)
                         {
                             acc_0 = (_Float16)bias[idx_out_ch];
@@ -854,11 +855,15 @@ __STATIC_FORCEINLINE void arm_depthwise_conv_f16_generic(const float16_t *input,
                         float32_t acc32 = 0.0f;
                         bool first = true;
                         int32_t n_taps = 0;
+    #else
+                        float32_t acc32 = bias ? (float32_t)bias[idx_out_ch] : 0.0f;
+    #endif
                         for (int32_t i_ker_y = ker_y_start; i_ker_y < ker_y_end; i_ker_y++)
                         {
                             const int32_t idx_y = base_idx_y + dilation_y * i_ker_y;
                             for (int32_t i_ker_x = ker_x_start; i_ker_x < ker_x_end; i_ker_x++)
                             {
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
                                 if (fold)
                                 {
                                     if (n_taps == block)
@@ -870,6 +875,7 @@ __STATIC_FORCEINLINE void arm_depthwise_conv_f16_generic(const float16_t *input,
                                     }
                                     ++n_taps;
                                 }
+    #endif
                                 const int32_t idx_x = base_idx_x + dilation_x * i_ker_x;
                                 const int32_t idx_0 =
                                     arm_depthwise_conv_input_index_nhwc(idx_x, idx_y, i_input_ch, input_x, input_ch);
@@ -883,14 +889,22 @@ __STATIC_FORCEINLINE void arm_depthwise_conv_f16_generic(const float16_t *input,
                                     ker_idx_0 = (i_ker_y * kernel_x + i_ker_x) * (output_ch) + idx_out_ch;
                                 }
 
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
                                 acc_0 += (_Float16)input_b[idx_0] * (_Float16)kernel[ker_idx_0];
+    #else
+                                acc32 += (float32_t)input_b[idx_0] * (float32_t)kernel[ker_idx_0];
+    #endif
                             }
                         }
 
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
                         if (fold && !first)
                         {
                             acc_0 = (_Float16)(acc32 + (float32_t)acc_0);
                         }
+    #else
+                        acc_0 = (_Float16)acc32;
+    #endif
                         acc_0 =
                             arm_nn_clamp_f16h(acc_0, (_Float16)output_activation_max, (_Float16)output_activation_min);
                         const int32_t out_idx =
