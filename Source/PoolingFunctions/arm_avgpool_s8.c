@@ -372,19 +372,22 @@ arm_cmsis_nn_status arm_avgpool_s8(const cmsis_nn_context *ctx,
         {
             for (int i_x = 0; i_x < output_x; i_x++)
             {
+                /* Only the part of the window inside the input is visited. */
+                const int32_t k_y_start = ARM_NN_MAX(0, i_y * stride_y - pad_y);
+                const int32_t k_y_end = ARM_NN_MIN(i_y * stride_y - pad_y + kernel_y, input_y);
+                const int32_t k_x_start = ARM_NN_MAX(0, i_x * stride_x - pad_x);
+                const int32_t k_x_end = ARM_NN_MIN(i_x * stride_x - pad_x + kernel_x, input_x);
+
                 for (int i_ch_in = 0; i_ch_in < ch_src; i_ch_in++)
                 {
                     int sum = 0;
                     int count = 0;
-                    for (int k_y = i_y * stride_y - pad_y; k_y < i_y * stride_y - pad_y + kernel_y; k_y++)
+                    for (int k_y = k_y_start; k_y < k_y_end; k_y++)
                     {
-                        for (int k_x = i_x * stride_x - pad_x; k_x < i_x * stride_x - pad_x + kernel_x; k_x++)
+                        for (int k_x = k_x_start; k_x < k_x_end; k_x++)
                         {
-                            if (k_y >= 0 && k_x >= 0 && k_y < input_y && k_x < input_x)
-                            {
-                                sum += src[i_ch_in + ch_src * (k_x + k_y * input_x)];
-                                count++;
-                            }
+                            sum += src[i_ch_in + ch_src * (k_x + k_y * input_x)];
+                            count++;
                         }
                     }
 

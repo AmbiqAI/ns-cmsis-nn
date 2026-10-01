@@ -64,6 +64,8 @@ void test_avgpooling_param_fail_arm_avgpool_s8(void) { avgpooling_param_fail_arm
 
 void test_buffer_size_out_of_range_mve_arm_avgpool_s8(void) { buffer_size_out_of_range_mve_arm_avgpool_s8(); }
 
+void test_degenerate_arguments_arm_avgpool_s8(void) { degenerate_arguments_arm_avgpool_s8(); }
+
 void test_avgpool_s8_empty_window(void) { avgpool_s8_empty_window(); }
 
 void test_avgpool_s8_window_bound_limits(void) { avgpool_s8_window_bound_limits(); }
