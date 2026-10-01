@@ -1905,12 +1905,13 @@ arm_cmsis_nn_status arm_reduce_sum_f32(const float32_t *input_data,
  * with the reduced axis removed. Logical ranks, negative-axis normalization and
  * squeezed output metadata are the caller's responsibility. No scratch is needed.
  *
- * Any NaN selects the first NaN's index, regardless of payload, sign or signaling
- * bit. Otherwise equal numeric extrema retain the first index, including +0/-0
- * ties. Infinities and subnormals follow numeric order. Selection uses raw bits,
- * with no floating-point arithmetic or conversion; numerical FP controls and
- * cumulative exception flags are preserved. This deliberate CORE NaN policy may
- * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
+ * A NaN never wins, regardless of payload, sign or signaling bit, as in LiteRT's
+ * reference ARG_MAX/ARG_MIN: the first non-NaN extremum is selected and an
+ * all-NaN line returns index 0. Equal numeric extrema retain the first index, including +0/-0 ties.
+ * Infinities and subnormals follow numeric order. Selection uses raw bits, with
+ * no floating-point arithmetic or conversion; numerical FP controls and
+ * cumulative exception flags are preserved. Native LiteRT FP16 evaluation is not
+ * implied.
  *
  * Metadata is required; extents must be nonnegative and the reduced extent must
  * be positive, even when another extent is zero. Declared input and INT32 output
@@ -1938,12 +1939,13 @@ arm_argmin_f32(const float32_t *input_data, const cmsis_nn_dims *input_dims, int
  * with the reduced axis removed. Logical ranks, negative-axis normalization and
  * squeezed output metadata are the caller's responsibility. No scratch is needed.
  *
- * Any NaN selects the first NaN's index, regardless of payload, sign or signaling
- * bit. Otherwise equal numeric extrema retain the first index, including +0/-0
- * ties. Infinities and subnormals follow numeric order. Selection uses raw bits,
- * with no floating-point arithmetic or conversion; numerical FP controls and
- * cumulative exception flags are preserved. This deliberate CORE NaN policy may
- * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
+ * A NaN never wins, regardless of payload, sign or signaling bit, as in LiteRT's
+ * reference ARG_MAX/ARG_MIN: the first non-NaN extremum is selected and an
+ * all-NaN line returns index 0. Equal numeric extrema retain the first index, including +0/-0 ties.
+ * Infinities and subnormals follow numeric order. Selection uses raw bits, with
+ * no floating-point arithmetic or conversion; numerical FP controls and
+ * cumulative exception flags are preserved. Native LiteRT FP16 evaluation is not
+ * implied.
  *
  * Metadata is required; extents must be nonnegative and the reduced extent must
  * be positive, even when another extent is zero. Declared input and INT32 output
@@ -3644,12 +3646,13 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
  * with the reduced axis removed. Logical ranks, negative-axis normalization and
  * squeezed output metadata are the caller's responsibility. No scratch is needed.
  *
- * Any NaN selects the first NaN's index, regardless of payload, sign or signaling
- * bit. Otherwise equal numeric extrema retain the first index, including +0/-0
- * ties. Infinities and subnormals follow numeric order. Selection uses raw bits,
- * with no floating-point arithmetic or conversion; numerical FP controls and
- * cumulative exception flags are preserved. This deliberate CORE NaN policy may
- * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
+ * A NaN never wins, regardless of payload, sign or signaling bit, as in LiteRT's
+ * reference ARG_MAX/ARG_MIN: the first non-NaN extremum is selected and an
+ * all-NaN line returns index 0. Equal numeric extrema retain the first index, including +0/-0 ties.
+ * Infinities and subnormals follow numeric order. Selection uses raw bits, with
+ * no floating-point arithmetic or conversion; numerical FP controls and
+ * cumulative exception flags are preserved. Native LiteRT FP16 evaluation is not
+ * implied.
  *
  * Metadata is required; extents must be nonnegative and the reduced extent must
  * be positive, even when another extent is zero. Declared input and INT32 output
@@ -3677,12 +3680,13 @@ arm_argmin_f16(const float16_t *input_data, const cmsis_nn_dims *input_dims, int
  * with the reduced axis removed. Logical ranks, negative-axis normalization and
  * squeezed output metadata are the caller's responsibility. No scratch is needed.
  *
- * Any NaN selects the first NaN's index, regardless of payload, sign or signaling
- * bit. Otherwise equal numeric extrema retain the first index, including +0/-0
- * ties. Infinities and subnormals follow numeric order. Selection uses raw bits,
- * with no floating-point arithmetic or conversion; numerical FP controls and
- * cumulative exception flags are preserved. This deliberate CORE NaN policy may
- * differ from LiteRT; native LiteRT FP16 evaluation is not implied.
+ * A NaN never wins, regardless of payload, sign or signaling bit, as in LiteRT's
+ * reference ARG_MAX/ARG_MIN: the first non-NaN extremum is selected and an
+ * all-NaN line returns index 0. Equal numeric extrema retain the first index, including +0/-0 ties.
+ * Infinities and subnormals follow numeric order. Selection uses raw bits, with
+ * no floating-point arithmetic or conversion; numerical FP controls and
+ * cumulative exception flags are preserved. Native LiteRT FP16 evaluation is not
+ * implied.
  *
  * Metadata is required; extents must be nonnegative and the reduced extent must
  * be positive, even when another extent is zero. Declared input and INT32 output
