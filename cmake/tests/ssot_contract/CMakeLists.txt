@@ -74,7 +74,7 @@ set(EXPECTED_GROUPS
 # EXPECTED_TOTAL below.
 # ----------------------------------------------------------------------------
 set(EXPECTED_COUNT_activation     21)
-set(EXPECTED_COUNT_basicmath      46)
+set(EXPECTED_COUNT_basicmath      47)
 set(EXPECTED_COUNT_comparison      2)
 set(EXPECTED_COUNT_concatenation   9)
 set(EXPECTED_COUNT_convolution    47)
@@ -97,7 +97,7 @@ set(EXPECTED_COUNT_reversesequence 2)
 set(EXPECTED_COUNT_dynamicupdateslice 2)
 set(EXPECTED_COUNT_nnsupport      31)
 
-set(EXPECTED_TOTAL 230)
+set(EXPECTED_TOTAL 231)
 
 # ----------------------------------------------------------------------------
 # Test harness: collect failures, report them all at once.

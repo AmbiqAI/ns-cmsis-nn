@@ -29,6 +29,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_s4_decode.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -488,10 +489,10 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
 
                         ker00 = row_pos[0];
                         ker11 = row_pos[1];
-                        ker0 = (int8_t)(ker00 << 4) >> 4;
-                        ker1 = ker00 >> 4;
-                        ker2 = (int8_t)(ker11 << 4) >> 4;
-                        ker3 = ker11 >> 4;
+                        ker0 = arm_nn_s4_low_nibble(ker00);
+                        ker1 = arm_nn_s4_high_nibble(ker00);
+                        ker2 = arm_nn_s4_low_nibble(ker11);
+                        ker3 = arm_nn_s4_high_nibble(ker11);
 
                         sum += ker0 * col_pos[0];
                         sum_2 += ker1 * col_pos[1];
@@ -499,10 +500,10 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                         sum_4 += ker3 * col_pos[3];
 
                         ker11 = row_pos[1 + (input_ch >> 1)];
-                        ker0 = row_pos[0 + (input_ch >> 1)] >> 4;
-                        ker1 = (int8_t)(ker11 << 4) >> 4;
-                        ker2 = ker11 >> 4;
-                        ker3 = (int8_t)(row_pos[2 + (input_ch >> 1)] << 4) >> 4;
+                        ker0 = arm_nn_s4_high_nibble(row_pos[0 + (input_ch >> 1)]);
+                        ker1 = arm_nn_s4_low_nibble(ker11);
+                        ker2 = arm_nn_s4_high_nibble(ker11);
+                        ker3 = arm_nn_s4_low_nibble(row_pos[2 + (input_ch >> 1)]);
 
                         sum += ker0 * col_pos[0 + input_ch];
                         sum_2 += ker1 * col_pos[1 + input_ch];
@@ -525,11 +526,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                         ker00 = row_pos[0];
                         ker11 = row_pos[1];
 
-                        ker0 = (int8_t)(ker00 << 4) >> 4;
-                        ker1 = ker00 >> 4;
+                        ker0 = arm_nn_s4_low_nibble(ker00);
+                        ker1 = arm_nn_s4_high_nibble(ker00);
 
-                        ker2 = (int8_t)(ker11 << 4) >> 4;
-                        ker3 = ker11 >> 4;
+                        ker2 = arm_nn_s4_low_nibble(ker11);
+                        ker3 = arm_nn_s4_high_nibble(ker11);
 
                         sum += ker0 * col_pos[0];
                         sum_2 += ker1 * col_pos[1];
@@ -592,12 +593,12 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
 
                         if (get_low_nibble)
                         {
-                            rhs0 = (int8_t)(rhs << 4) >> 4;
+                            rhs0 = arm_nn_s4_low_nibble(rhs);
                             get_low_nibble = 0;
                         }
                         else
                         {
-                            rhs0 = rhs >> 4;
+                            rhs0 = arm_nn_s4_high_nibble(rhs);
                             get_low_nibble = 1;
                             col_index++;
                         }
@@ -700,11 +701,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                         ker00 = row_pos[0];
                         ker11 = row_pos[1];
 
-                        ker0 = (int8_t)(ker00 << 4) >> 4;
-                        ker1 = ker00 >> 4;
+                        ker0 = arm_nn_s4_low_nibble(ker00);
+                        ker1 = arm_nn_s4_high_nibble(ker00);
 
-                        ker2 = (int8_t)(ker11 << 4) >> 4;
-                        ker3 = ker11 >> 4;
+                        ker2 = arm_nn_s4_low_nibble(ker11);
+                        ker3 = arm_nn_s4_high_nibble(ker11);
 
                         sum += ker0 * col_pos[0];
                         sum_2 += ker1 * col_pos[1];
@@ -761,8 +762,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
                     {
                         int8_t rhs = row_pos[i * (input_ch >> 1)];
 
-                        int8_t rhs_low = (int8_t)(rhs << 4) >> 4;
-                        int8_t rhs_high = rhs >> 4;
+                        int8_t rhs_low = arm_nn_s4_low_nibble(rhs);
+                        int8_t rhs_high = arm_nn_s4_high_nibble(rhs);
 
                         int16_t lhs0 = col_pos[i * input_ch];
                         int16_t lhs1 = col_pos_2[i * input_ch];

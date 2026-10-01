@@ -70,6 +70,13 @@
 #      looked like coverage for years while being uncompilable — which is
 #      how a real transpose-conv output-shift bug survived to a release
 #      (#253, #256).
+#  11. Component header closure — every heliaCORE component declares every
+#      in-repo header its declared files reach through #include "...",
+#      resolved from the including file's directory and then Include/. A
+#      consumer that takes only a component's declared files (a CMSIS tool
+#      copying the component) otherwise cannot compile (#514). A quoted
+#      include that resolves in neither place fails too, so a header that
+#      only some consumers' include paths would find cannot slip past.
 #
 
 from __future__ import annotations
@@ -310,6 +317,60 @@ def collect_file_entries(comp: ET.Element | None) -> list[tuple[str, str]]:
             cat = f.attrib.get("category") or ""
             out.append((cat, name))
     return out
+
+
+_QUOTED_INCLUDE = re.compile(r'^\s*#\s*include\s*"([^"]+)"', re.MULTILINE)
+# Quoted includes of files that are not in the repo on purpose: MSVC's intrinsics header, in arm_nn_compiler.h.
+_EXTERNAL_QUOTED_INCLUDES = {"intrin.h"}
+
+
+def check_header_closure(pkg: ET.Element) -> None:
+    """Every heliaCORE component must declare every in-repo header its declared files reach through #include "...".
+
+    A consumer that takes only a component's declared files (a CMSIS tool copying the component into a project) gets
+    exactly that list, so a header reached but not declared is a compile failure for it even though the whole-archive
+    and source builds pass (#514). Includes resolve as the compiler resolves them here: the including file's
+    directory, then Include/. Angle-bracket includes are system or CMSIS-Core headers and are not followed."""
+    comps = pkg.find("components")
+    if comps is None:
+        return
+    for comp in comps.findall("component"):
+        if not all(comp.attrib.get(k) == v for k, v in EXPECTED_COMPONENT.items()):
+            continue
+        variant = comp.attrib.get("Cvariant", "?")
+        entries = collect_file_entries(comp)
+        declared = {name for cat, name in entries if cat == "header"}
+        pending = [name for cat, name in entries if cat in ("header", "source") and (REPO / name).is_file()]
+        seen: set[str] = set()
+        missing: dict[str, str] = {}
+        while pending:
+            rel = pending.pop()
+            if rel in seen:
+                continue
+            seen.add(rel)
+            text = (REPO / rel).read_text(errors="replace")
+            for inc in _QUOTED_INCLUDE.findall(text):
+                target = None
+                for base in ((REPO / rel).parent, REPO / "Include"):
+                    candidate = (base / inc).resolve()
+                    if candidate.is_file() and REPO in candidate.parents:
+                        target = candidate.relative_to(REPO).as_posix()
+                        break
+                if target is None:
+                    if inc not in _EXTERNAL_QUOTED_INCLUDES:
+                        fail(
+                            f"component Cvariant='{variant}': #include \"{inc}\" in {rel} resolves neither next to it "
+                            "nor under Include/; write it relative to one of them"
+                        )
+                    continue
+                if target not in declared and target not in missing:
+                    missing[target] = rel
+                pending.append(target)
+        for header in sorted(missing):
+            fail(
+                f"component Cvariant='{variant}' reaches {header} (included from {missing[header]}) but does not "
+                "declare it: add <file category=\"header\" name=\"" + header + "\"/> to that component"
+            )
 
 
 def check_file_existence(entries: list[tuple[str, str]]) -> None:
@@ -1319,6 +1380,7 @@ def main() -> int:
     check_licenses(pkg)
     entries = collect_file_entries(comp)
     check_file_existence(entries)
+    check_header_closure(pkg)
     check_source_coverage(entries)
     check_float_source_gating(entries)
     check_ssot_pdsc_agreement(entries)
@@ -1338,6 +1400,7 @@ def report() -> None:
         print(
             "PDSC contract OK: pack/component identity, versions in sync, "
             "NSX module version synced, licenses declared, all <file> paths exist, "
+            "each component declares every header its files include, "
             "Source/ coverage complete, float sources dtype-gated, "
             "pdsc and cmake/ns_cmsis_nn.cmake source lists agree with "
             "dtype gates correctly placed, "

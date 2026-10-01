@@ -368,6 +368,88 @@ void depthwise_conv_ch_mult2_f16(void)
     dw_f16_layer(1, 16, 16, 8, 3, 3, &dp, 1, 81);
 }
 
+// One input channel: ch_mult == 1 takes the direct kernel, which needs no scratch, so the sizers report 0 (#625).
+// ch_mult 8 (eight output channels, at or above CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD on
+// every toolchain) takes the to-convolution route on MVE builds and keeps its scratch; other builds report 0.
+void depthwise_conv_sizer_one_input_channel_f16(void)
+{
+    cmsis_nn_dw_conv_params_f16 dp;
+    const cmsis_nn_dims in = {1, 16, 16, 1};
+    const cmsis_nn_dims flt1 = {1, 16, 16, 1};
+    const cmsis_nn_dims out1 = {1, 1, 1, 1};
+    dw_f16_params(&dp, 1, 1, 1, 0, 0, 1, 1);
+    TEST_ASSERT_EQUAL_INT32(0, arm_depthwise_conv_f16_get_buffer_size(&dp, &in, &flt1, &out1, ARM_NN_LAYOUT_NHWC));
+    TEST_ASSERT_EQUAL_INT32(0, arm_depthwise_conv_wrapper_f16_get_buffer_size(&dp, &in, &flt1, &out1));
+
+    const cmsis_nn_dims flt8 = {1, 16, 16, 8};
+    const cmsis_nn_dims out8 = {1, 1, 1, 8};
+    dw_f16_params(&dp, 8, 1, 1, 0, 0, 1, 1);
+    const int32_t size8 = arm_depthwise_conv_f16_get_buffer_size(&dp, &in, &flt8, &out8, ARM_NN_LAYOUT_NHWC);
+    TEST_ASSERT_EQUAL_INT32(size8, arm_depthwise_conv_wrapper_f16_get_buffer_size(&dp, &in, &flt8, &out8));
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    TEST_ASSERT_TRUE(size8 > 0);
+#else
+    TEST_ASSERT_EQUAL_INT32(0, size8);
+#endif
+}
+
+// ch_mult 2 over a 7x7 window (49 taps, valid and padded). The data sits on a 1/32 grid, so every product and every
+// float32 partial sum is exact and the float64 reference is the exact sum. The scalar legs accumulate in float32 and
+// round once (#449, #645), so each output is that sum rounded to float16, bit for bit; a float16 accumulator would
+// round partial sums that need more than 11 significant bits. MVE builds keep the #586 blockwise float16 lanes and
+// are checked against the reference within the usual tolerance.
+void depthwise_conv_ch_mult2_long_window_f16(void)
+{
+    cmsis_nn_dw_conv_params_f16 dp;
+    for (int32_t pad = 0; pad <= 3; pad += 3)
+    {
+        dw_f16_params(&dp, 2, 1, 1, pad, pad, 1, 1);
+        const cmsis_nn_dims in = {1, 9, 9, 3};
+        const cmsis_nn_dims flt = {1, 7, 7, 6};
+        const cmsis_nn_dims out = {1, dw_out_size(9, 7, 1, 2 * pad, 1), dw_out_size(9, 7, 1, 2 * pad, 1), 6};
+        const cmsis_nn_dims bias_dims = {1, 1, 1, 6};
+        const int32_t out_size = out.h * out.w * out.c;
+        float16_t x[9 * 9 * 3];
+        float16_t w[7 * 7 * 6];
+        float16_t bias[6];
+        float16_t y[9 * 9 * 6];
+        double ref[9 * 9 * 6];
+        cmsis_nn_context ctx = {NULL, 0};
+
+        for (int32_t i = 0; i < 9 * 9 * 3; i++)
+        {
+            x[i] = dw_f16_value(i, 90);
+        }
+        for (int32_t i = 0; i < 7 * 7 * 6; i++)
+        {
+            w[i] = dw_f16_value(i, 91);
+        }
+        for (int32_t i = 0; i < 6; i++)
+        {
+            bias[i] = dw_f16_value(i, 92);
+        }
+        // Both entries, with and without a bias.
+        for (int32_t run = 0; run < 4; run++)
+        {
+            const float16_t *b = (run & 1) ? NULL : bias;
+            dw_f16_reference(&dp, &in, x, &flt, w, b, &out, ref);
+            TEST_ASSERT_EQUAL(
+                ARM_CMSIS_NN_SUCCESS,
+                (run & 2) ? arm_depthwise_conv_wrapper_f16_acc16(&ctx, &dp, &in, x, &flt, w, &bias_dims, b, &out, y)
+                          : arm_depthwise_conv_wrapper_f16(&ctx, &dp, &in, x, &flt, w, &bias_dims, b, &out, y));
+            for (int32_t i = 0; i < out_size; i++)
+            {
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+                TEST_ASSERT_FLOAT_WITHIN(0.05f, (float32_t)ref[i], (float32_t)y[i]);
+#else
+                const float16_t want = (float16_t)(float32_t)ref[i];
+                TEST_ASSERT_EQUAL_MEMORY(&want, &y[i], sizeof(float16_t));
+#endif
+            }
+        }
+    }
+}
+
 // Bit-pattern classification, immune to -ffinite-math-only folding.
 static int32_t dw_f16_is_nan(float16_t v)
 {

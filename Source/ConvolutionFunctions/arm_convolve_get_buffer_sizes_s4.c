@@ -209,7 +209,6 @@ int32_t arm_convolve_wrapper_s4_get_buffer_size_mve(const cmsis_nn_conv_params *
                                                     const cmsis_nn_dims *output_dims)
 
 {
-    (void)output_dims;
     if (arm_nn_is_convolve_1x1(conv_params, input_dims, filter_dims))
     {
         if (arm_nn_is_convolve_1x1_fast(conv_params))
@@ -221,7 +220,8 @@ int32_t arm_convolve_wrapper_s4_get_buffer_size_mve(const cmsis_nn_conv_params *
             return 0;
         }
     }
-    else if (arm_nn_is_convolve_1_x_n(conv_params, input_dims, filter_dims))
+    else if (arm_nn_is_convolve_1_x_n(conv_params, input_dims, filter_dims) &&
+             arm_nn_convolve_1_x_n_padding_supported(conv_params, input_dims, filter_dims, output_dims))
     {
         return arm_convolve_1_x_n_s4_get_buffer_size_mve(conv_params, input_dims, filter_dims, output_dims);
     }

@@ -17,7 +17,7 @@
   <repository type="git">https://github.com/AmbiqAI/ns-cmsis-nn</repository>
 
   <releases>
-    <release version="7.37.0"> <!-- x-release-please-version -->
+    <release version="7.39.0"> <!-- x-release-please-version -->
       Active development
     </release>
   </releases>
@@ -59,7 +59,7 @@
 
   <components>
     <!-- heliaCORE NN — Source variant: build the 200+ kernel sources in-tree. -->
-    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.37.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.39.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
       <description>heliaCORE NN — Ambiq's optimized superset of Arm CMSIS-NN, tuned for Apollo SoCs.</description>
       <files>
         <file category="doc" name="Documentation/html/index.html"/>
@@ -87,6 +87,19 @@
         <file category="header" name="Include/Internal/arm_minmax_f16_common.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f32_common.h"/>
         <file category="header" name="Include/Internal/arm_resize_nearest_neighbor_common.h"/>
+        <file category="header" name="Include/Internal/arm_concatenation_common.h"/>
+        <file category="header" name="Include/Internal/arm_conv1x1_opt_common.h"/>
+        <file category="header" name="Include/Internal/arm_conv_opt_common.h"/>
+        <file category="header" name="Include/Internal/arm_depthwise_conv_opt_common.h"/>
+        <file category="header" name="Include/Internal/arm_nn_axis_copy_common.h"/>
+        <file category="header" name="Include/Internal/arm_nn_compiler.h"/>
+        <file category="header" name="Include/Internal/arm_nn_config.h"/>
+        <file category="header" name="Include/Internal/arm_nn_gather_common.h"/>
+        <file category="header" name="Include/Internal/arm_nn_pool_window_common.h"/>
+        <file category="header" name="Include/Internal/arm_nn_vcvt_f16.h"/>
+        <file category="header" name="Include/Internal/arm_strided_slice_common.h"/>
+        <file category="header" name="Include/Internal/arm_transpose_common.h"/>
+        <file category="header" name="Source/NNSupportFunctions/arm_get_buffer_size_common.h"/>
 
         <file category="source" name="Source/ActivationFunctions/arm_clamp_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_clamp_s8.c"/>
@@ -192,6 +205,7 @@
         <file category="source" name="Source/BasicMathFunctions/arm_rsqrt_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_rsqrt_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_sqrt_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_sqrt_s16_tablefree.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_sqrt_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_squared_difference_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_squared_difference_s8.c"/>
@@ -451,7 +465,7 @@
          libns-cmsis-nn.a instead of compiling sources. One <file> entry per
          supported core; CMSIS-Pack pickers (Keil/CMSIS-Toolbox) resolve the
          right archive via the Dcore + Tcompiler conditions above. -->
-    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.37.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.39.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
       <description>heliaCORE NN — Ambiq's prebuilt GCC archive for Cortex-M0/M0+/M4/M55.</description>
       <files>
         <file category="doc"    name="Documentation/html/index.html"/>
@@ -464,6 +478,9 @@
         <file category="header" name="Include/arm_nnsupportfunctions_flt.h"/>
         <file category="header" name="Include/arm_nn_types_flt.h"/>
         <file category="header" name="Include/arm_nn_math_types_flt.h"/>
+        <file category="header" name="Include/Internal/arm_nn_compiler.h"/>
+        <file category="header" name="Include/Internal/arm_nn_config.h"/>
+        <file category="header" name="Include/Internal/arm_nn_vcvt_f16.h"/>
 
         <file category="library" condition="ARMv6-M GCC"        name="lib/cortex-m0/libns-cmsis-nn.a"/>
         <file category="library" condition="ARMv6-M+ GCC"       name="lib/cortex-m0/libns-cmsis-nn.a"/>

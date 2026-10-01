@@ -46,5 +46,8 @@ void test_depthwise_conv_dilation_f16(void) { depthwise_conv_dilation_f16(); }
 void test_depthwise_conv_batch2_f16(void) { depthwise_conv_batch2_f16(); }
 
 void test_depthwise_conv_ch_mult2_f16(void) { depthwise_conv_ch_mult2_f16(); }
+void test_depthwise_conv_sizer_one_input_channel_f16(void) { depthwise_conv_sizer_one_input_channel_f16(); }
+
+void test_depthwise_conv_ch_mult2_long_window_f16(void) { depthwise_conv_ch_mult2_long_window_f16(); }
 
 void test_depthwise_conv_nonfinite_inputs_f16(void) { depthwise_conv_nonfinite_inputs_f16(); }

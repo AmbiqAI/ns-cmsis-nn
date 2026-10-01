@@ -68,3 +68,5 @@ void test_buffer_size_out_of_range_dsp_arm_fully_connected_s8(void)
 {
     buffer_size_out_of_range_dsp_arm_fully_connected_s8();
 }
+
+void test_operands_at_gap_arm_fully_connected_s8(void) { operands_at_gap_arm_fully_connected_s8(); }

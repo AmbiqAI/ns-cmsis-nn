@@ -44,3 +44,12 @@ void test_sqrt_multi_batch_s16_arm_sqrt_s16(void) { sqrt_multi_batch_s16_arm_sqr
 void test_sqrt_tail_odd_s16_arm_sqrt_s16(void) { sqrt_tail_odd_s16_arm_sqrt_s16(); }
 void test_sqrt_tail_mod7_s16_arm_sqrt_s16(void) { sqrt_tail_mod7_s16_arm_sqrt_s16(); }
 void test_sqrt_tail_mod5_s16_arm_sqrt_s16(void) { sqrt_tail_mod5_s16_arm_sqrt_s16(); }
+void test_sqrt_tablefree_s16_every_code_arm_sqrt_s16_tablefree(void)
+{
+    sqrt_tablefree_s16_every_code_arm_sqrt_s16_tablefree();
+}
+void test_sqrt_tablefree_s16_lengths_arm_sqrt_s16_tablefree(void)
+{
+    sqrt_tablefree_s16_lengths_arm_sqrt_s16_tablefree();
+}
+void test_sqrt_tablefree_s16_litert_arm_sqrt_s16_tablefree(void) { sqrt_tablefree_s16_litert_arm_sqrt_s16_tablefree(); }

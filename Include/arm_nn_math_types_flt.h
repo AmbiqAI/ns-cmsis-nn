@@ -118,8 +118,15 @@ typedef _Float16 float16_t;
 
     /**
      * @brief Lowest finite float16 value representable by the toolchain.
+     *
+     * Negated before the cast: negating a float16_t that is __fp16 promotes it
+     * to float, which -Wdouble-promotion reports at every use.
      */
-    #define ARM_NN_F16_FINITE_LOWEST ((float16_t) - ARM_NN_F16_FINITE_MAX)
+    #if defined(__FLT16_MAX__)
+        #define ARM_NN_F16_FINITE_LOWEST ((float16_t)(-__FLT16_MAX__))
+    #else
+        #define ARM_NN_F16_FINITE_LOWEST ((float16_t)(-65504.0f))
+    #endif
 
 #endif
 
