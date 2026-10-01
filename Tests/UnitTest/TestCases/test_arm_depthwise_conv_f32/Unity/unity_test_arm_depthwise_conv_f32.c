@@ -46,5 +46,6 @@ void test_depthwise_conv_dilation_f32(void) { depthwise_conv_dilation_f32(); }
 void test_depthwise_conv_batch2_f32(void) { depthwise_conv_batch2_f32(); }
 
 void test_depthwise_conv_ch_mult2_f32(void) { depthwise_conv_ch_mult2_f32(); }
+void test_depthwise_conv_sizer_one_input_channel_f32(void) { depthwise_conv_sizer_one_input_channel_f32(); }
 
 void test_depthwise_conv_nonfinite_inputs_f32(void) { depthwise_conv_nonfinite_inputs_f32(); }

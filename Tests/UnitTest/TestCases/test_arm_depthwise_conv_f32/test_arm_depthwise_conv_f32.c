@@ -363,6 +363,31 @@ void depthwise_conv_ch_mult2_f32(void)
     dw_f32_layer(1, 16, 16, 8, 3, 3, &dp, 1, 81);
 }
 
+// One input channel: ch_mult == 1 takes the direct kernel, which needs no scratch, so the sizers report 0 (#625).
+// ch_mult 8 (eight output channels, at or above CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD on
+// every toolchain) takes the to-convolution route on MVE builds and keeps its scratch; other builds report 0.
+void depthwise_conv_sizer_one_input_channel_f32(void)
+{
+    cmsis_nn_dw_conv_params_f32 dp;
+    const cmsis_nn_dims in = {1, 16, 16, 1};
+    const cmsis_nn_dims flt1 = {1, 16, 16, 1};
+    const cmsis_nn_dims out1 = {1, 1, 1, 1};
+    dw_f32_params(&dp, 1, 1, 1, 0, 0, 1, 1);
+    TEST_ASSERT_EQUAL_INT32(0, arm_depthwise_conv_f32_get_buffer_size(&dp, &in, &flt1, &out1, ARM_NN_LAYOUT_NHWC));
+    TEST_ASSERT_EQUAL_INT32(0, arm_depthwise_conv_wrapper_f32_get_buffer_size(&dp, &in, &flt1, &out1));
+
+    const cmsis_nn_dims flt8 = {1, 16, 16, 8};
+    const cmsis_nn_dims out8 = {1, 1, 1, 8};
+    dw_f32_params(&dp, 8, 1, 1, 0, 0, 1, 1);
+    const int32_t size8 = arm_depthwise_conv_f32_get_buffer_size(&dp, &in, &flt8, &out8, ARM_NN_LAYOUT_NHWC);
+    TEST_ASSERT_EQUAL_INT32(size8, arm_depthwise_conv_wrapper_f32_get_buffer_size(&dp, &in, &flt8, &out8));
+#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    TEST_ASSERT_TRUE(size8 > 0);
+#else
+    TEST_ASSERT_EQUAL_INT32(0, size8);
+#endif
+}
+
 // Bit-pattern classification, immune to -ffinite-math-only folding.
 static int32_t dw_f32_is_nan(float32_t v)
 {
