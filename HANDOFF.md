@@ -7,3 +7,7 @@ Issue: https://github.com/AmbiqAI/ns-cmsis-nn/issues/636 (creation approved). Br
 Dependency and npm-regenerated lock pin alpha.22 commit a62e8d45505dd3bbcdf1c4a03dfd1ec863322ecf. Clean installation, build and type checks passed. Preserve product content, URLs, branding, runtime and package release workflows. Check mobile sidebar scope, keyboard switching, desktop rendering and terminal copy controls.
 
 Local documentation output checks and 16 browser cases passed. Rendered mobile menus inspected at 390px; light/dark and desktop checks passed. Existing test expectations updated where they assumed all sections in the sidebar. Next: publish focused PR and verify CI. No merge or deployment authorized.
+
+Published PR: https://github.com/AmbiqAI/ns-cmsis-nn/pull/639. Local checks passed; remote CI pending. No merge/deployment.
+
+CORE CI exposed npm 11.6 versus declared 11.19 optional-dependency lock differences. Regenerated with npm 11.19.0; clean npm ci and 16 browser tests pass. Publish correction and verify CI.
