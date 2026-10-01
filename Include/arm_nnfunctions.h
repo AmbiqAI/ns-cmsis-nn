@@ -3431,6 +3431,29 @@ arm_cmsis_nn_status
 arm_sqrt_s16(const int16_t *input, const cmsis_nn_dims *input_dims, int16_t *output, const int16_t *sqrt_lut);
 
 /**
+ * @brief s16 elementwise square root without a lookup table
+ *
+ * Approximates output[i] = trunc(sqrt(input[i] * scale)) saturated to 32767, which
+ * is LiteRT's int16 SQRT (dequantize in float32, sqrtf, divide by the output scale,
+ * truncate, clamp) for zero points 0, to within 1 LSB of LiteRT at every
+ * non-negative input for input scales 1e-7 to 1e-1 and output scales from 0.01x to
+ * 10x the full-range scale, saturating ones included. Inputs at or below 0 produce
+ * 0. Needs no table; the int16 API does not depend on ARM_NN_ENABLE_F32/F16, and on
+ * targets without a floating-point unit the plain C path uses fmaf from the C
+ * library.
+ *
+ * @param[in]       input               pointer to input vector
+ * @param[in]       input_dims          pointer to input tensor dimensions
+ * @param[out]      output              pointer to output vector
+ * @param[in]       scale               input_scale / (output_scale * output_scale) as float32: take
+ *                                      the float32-rounded tensor scales, evaluate in float64 and
+ *                                      round once to float32. Must be finite and greater than 0.
+ * @return          The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status
+arm_sqrt_s16_tablefree(const int16_t *input, const cmsis_nn_dims *input_dims, int16_t *output, const float scale);
+
+/**
  * @brief s16 elementwise absolute value
  * @param[in]       input               pointer to input vector
  * @param[in]       input_offset        input offset
