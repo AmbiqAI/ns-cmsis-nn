@@ -36,3 +36,11 @@ void test_avg_pool_f32_window_bound_limits(void) { avg_pool_f32_window_bound_lim
 void test_avg_pool_f32_empty_output(void) { avg_pool_f32_empty_output(); }
 
 void test_avg_pool_f32_asymmetric_axes(void) { avg_pool_f32_asymmetric_axes(); }
+
+void test_avg_pool_f32_negative_stride(void) { avg_pool_f32_negative_stride(); }
+
+void test_avg_pool_f32_negative_padding(void) { avg_pool_f32_negative_padding(); }
+
+void test_avg_pool_f32_batches(void) { avg_pool_f32_batches(); }
+
+void test_avg_pool_f32_window_check_edges(void) { avg_pool_f32_window_check_edges(); }

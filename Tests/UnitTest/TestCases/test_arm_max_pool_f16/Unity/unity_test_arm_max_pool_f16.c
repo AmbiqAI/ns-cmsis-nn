@@ -36,3 +36,11 @@ void test_max_pool_f16_window_bound_limits(void) { max_pool_f16_window_bound_lim
 void test_max_pool_f16_empty_output(void) { max_pool_f16_empty_output(); }
 
 void test_max_pool_f16_asymmetric_axes(void) { max_pool_f16_asymmetric_axes(); }
+
+void test_max_pool_f16_negative_stride(void) { max_pool_f16_negative_stride(); }
+
+void test_max_pool_f16_negative_padding(void) { max_pool_f16_negative_padding(); }
+
+void test_max_pool_f16_batches(void) { max_pool_f16_batches(); }
+
+void test_max_pool_f16_window_check_edges(void) { max_pool_f16_window_check_edges(); }

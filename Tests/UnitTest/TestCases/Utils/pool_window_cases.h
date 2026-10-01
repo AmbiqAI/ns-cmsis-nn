@@ -35,8 +35,8 @@
 #define PW_FN(name) PW_CAT(PW_PREFIX, name)
 
 #define PW_FILL 0x55
-#define PW_IN_MAX (4 * 5 * PW_CH)
-#define PW_OUT_MAX (4 * 4 * PW_CH)
+/* Room for one axis of 2^15 + 1 elements, the largest extent the boundary cases use. */
+#define PW_BUF_MAX 32776
 
 typedef struct
 {
@@ -53,14 +53,25 @@ typedef struct
     int32_t out_w;
 } pw_geom;
 
-static PW_T pw_input[PW_IN_MAX];
-static PW_T pw_output[PW_OUT_MAX];
-static float pw_expected[PW_OUT_MAX];
+/* One axis of a single-channel layer: input extent w, filter extent k, stride s, padding p, output extent n, and
+   whether every window overlaps the input. The other axis is 1 throughout. */
+typedef struct
+{
+    int32_t w;
+    int32_t k;
+    int32_t s;
+    int32_t p;
+    int32_t n;
+    int valid;
+} pw_axis_case;
+
+static PW_T pw_input[PW_BUF_MAX];
+static PW_T pw_output[PW_BUF_MAX];
 
 /* Fills the input with small integers, which every element type holds exactly. */
 static void pw_fill_input(void)
 {
-    for (int32_t i = 0; i < PW_IN_MAX; i++)
+    for (int32_t i = 0; i < PW_BUF_MAX; i++)
     {
         pw_input[i] = (PW_T)(float)((i * 7) % 17 - 8);
     }
@@ -72,14 +83,14 @@ static void pw_fill_output(void) { memset(pw_output, PW_FILL, sizeof(pw_output))
 static void pw_assert_untouched_from(const int32_t first)
 {
     const uint8_t *bytes = (const uint8_t *)&pw_output[first];
-    TEST_ASSERT_EACH_EQUAL_HEX8(PW_FILL, bytes, (PW_OUT_MAX - first) * (int32_t)sizeof(PW_T));
+    TEST_ASSERT_EACH_EQUAL_HEX8(PW_FILL, bytes, (PW_BUF_MAX - first) * (int32_t)sizeof(PW_T));
 }
 
-static arm_cmsis_nn_status pw_run(const pw_geom *g)
+static arm_cmsis_nn_status pw_run(const pw_geom *g, const int32_t batch)
 {
-    const cmsis_nn_dims input_dims = {1, g->in_h, g->in_w, g->ch};
+    const cmsis_nn_dims input_dims = {batch, g->in_h, g->in_w, g->ch};
     const cmsis_nn_dims filter_dims = {1, g->k_h, g->k_w, 1};
-    const cmsis_nn_dims output_dims = {1, g->out_h, g->out_w, g->ch};
+    const cmsis_nn_dims output_dims = {batch, g->out_h, g->out_w, g->ch};
     PW_PARAMS_T pool_params;
     pool_params.stride.w = g->stride_w;
     pool_params.stride.h = g->stride_h;
@@ -91,72 +102,98 @@ static arm_cmsis_nn_status pw_run(const pw_geom *g)
     return PW_KERNEL(&ctx, &pool_params, &input_dims, pw_input, &filter_dims, &output_dims, pw_output);
 }
 
-/* The expected output from the definition: each output element reduces the input elements whose position lies in its
-   window [i * stride - padding, i * stride - padding + filter) on both axes, with the window formed in int64_t.
-   Expects every window to overlap the input. */
-static void pw_reference(const pw_geom *g)
+/* The in-input part [*lo, *hi) of the window [b, b + k) on an axis of extent w, formed in int64_t. */
+static void pw_clip(const int64_t b, const int32_t k, const int32_t w, int64_t *lo, int64_t *hi)
 {
-    for (int32_t oy = 0; oy < g->out_h; oy++)
+    *lo = b > 0 ? b : 0;
+    *hi = b + k < w ? b + k : w;
+}
+
+/* Runs a layer that must succeed and checks every output element against the definition: the reduction of the input
+   elements whose position lies in its window [i * stride - padding, i * stride - padding + filter) on both axes, with
+   the window formed in int64_t. Also checks the bytes past the output. */
+static void pw_check_valid(const pw_geom *g, const int32_t batch)
+{
+    const int32_t in_size = g->in_h * g->in_w * g->ch;
+    const int32_t out_size = g->out_h * g->out_w * g->ch;
+    TEST_ASSERT_TRUE(in_size * batch <= PW_BUF_MAX);
+    TEST_ASSERT_TRUE(out_size * batch <= PW_BUF_MAX);
+    pw_fill_output();
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, pw_run(g, batch));
+    for (int32_t nb = 0; nb < batch; nb++)
     {
-        const int64_t by = (int64_t)oy * g->stride_h - g->pad_h;
-        for (int32_t ox = 0; ox < g->out_w; ox++)
+        const PW_T *in = &pw_input[nb * in_size];
+        const PW_T *out = &pw_output[nb * out_size];
+        for (int32_t oy = 0; oy < g->out_h; oy++)
         {
-            const int64_t bx = (int64_t)ox * g->stride_w - g->pad_w;
-            for (int32_t c = 0; c < g->ch; c++)
+            int64_t y_lo;
+            int64_t y_hi;
+            pw_clip((int64_t)oy * g->stride_h - g->pad_h, g->k_h, g->in_h, &y_lo, &y_hi);
+            for (int32_t ox = 0; ox < g->out_w; ox++)
             {
-                float acc = 0.0f;
-                int32_t count = 0;
-                for (int32_t y = 0; y < g->in_h; y++)
+                int64_t x_lo;
+                int64_t x_hi;
+                pw_clip((int64_t)ox * g->stride_w - g->pad_w, g->k_w, g->in_w, &x_lo, &x_hi);
+                TEST_ASSERT_TRUE((y_lo < y_hi) && (x_lo < x_hi));
+                for (int32_t c = 0; c < g->ch; c++)
                 {
-                    for (int32_t x = 0; x < g->in_w; x++)
+                    float acc = 0.0f;
+                    int32_t count = 0;
+                    for (int64_t y = y_lo; y < y_hi; y++)
                     {
-                        if ((y < by) || (y >= by + g->k_h) || (x < bx) || (x >= bx + g->k_w))
+                        for (int64_t x = x_lo; x < x_hi; x++)
                         {
-                            continue;
-                        }
-                        const float v = (float)pw_input[(y * g->in_w + x) * g->ch + c];
+                            const float v = (float)in[(y * g->in_w + x) * g->ch + c];
 #if PW_AVG
-                        acc += v;
+                            acc += v;
 #else
-                        if ((count == 0) || (v > acc))
-                        {
-                            acc = v;
+                            if ((count == 0) || (v > acc))
+                            {
+                                acc = v;
+                            }
+#endif
+                            count++;
                         }
-#endif
-                        count++;
                     }
-                }
-                TEST_ASSERT_TRUE(count > 0);
 #if PW_AVG
-                acc /= (float)count;
+                    acc /= (float)count;
 #endif
-                pw_expected[(oy * g->out_w + ox) * g->ch + c] = acc;
+                    TEST_ASSERT_FLOAT_WITHIN(PW_TOL, acc, (float)out[(oy * g->out_w + ox) * g->ch + c]);
+                }
             }
         }
     }
-}
-
-/* Runs a layer that must succeed and checks it against the reference and the bytes past its output. */
-static void pw_check_valid(const pw_geom *g)
-{
-    const int32_t n = g->out_h * g->out_w * g->ch;
-    TEST_ASSERT_TRUE(n <= PW_OUT_MAX);
-    pw_reference(g);
-    pw_fill_output();
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, pw_run(g));
-    for (int32_t i = 0; i < n; i++)
-    {
-        TEST_ASSERT_FLOAT_WITHIN(PW_TOL, pw_expected[i], (float)pw_output[i]);
-    }
-    pw_assert_untouched_from(n);
+    pw_assert_untouched_from(out_size * batch);
 }
 
 /* Runs a layer that must return status and leave the whole output buffer untouched. */
-static void pw_check_untouched(const pw_geom *g, const arm_cmsis_nn_status status)
+static void pw_check_untouched(const pw_geom *g, const int32_t batch, const arm_cmsis_nn_status status)
 {
     pw_fill_output();
-    TEST_ASSERT_EQUAL(status, pw_run(g));
+    TEST_ASSERT_EQUAL(status, pw_run(g, batch));
     pw_assert_untouched_from(0);
+}
+
+/* Runs each single-channel axis case along x and along y on the current input. */
+static void pw_check_axis_cases(const pw_axis_case *cases, const size_t count)
+{
+    for (int axis = 0; axis < 2; axis++)
+    {
+        for (size_t i = 0; i < count; i++)
+        {
+            const pw_axis_case *a = &cases[i];
+            const pw_geom g = axis == 0 ? (pw_geom){1, a->w, 1, 1, a->k, 1, a->s, 0, a->p, 1, a->n}
+                                        : (pw_geom){a->w, 1, 1, a->k, 1, a->s, 1, a->p, 0, a->n, 1};
+            if (a->valid)
+            {
+                pw_check_valid(&g, 1);
+            }
+            else
+            {
+                pw_check_untouched(&g, 1, ARM_CMSIS_NN_ARG_ERROR);
+            }
+        }
+    }
 }
 
 /* A layer in which some output window lies entirely outside the input, past its end or in the padding (padding at
@@ -178,7 +215,7 @@ void PW_FN(empty_window)(void)
     };
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
     {
-        pw_check_untouched(&cases[i], ARM_CMSIS_NN_ARG_ERROR);
+        pw_check_untouched(&cases[i], 1, ARM_CMSIS_NN_ARG_ERROR);
     }
 }
 
@@ -189,16 +226,7 @@ void PW_FN(empty_window)(void)
    that leaves it. */
 void PW_FN(window_bound_limits)(void)
 {
-    typedef struct
-    {
-        int32_t w;
-        int32_t k;
-        int32_t s;
-        int32_t p;
-        int32_t n;
-        int valid;
-    } axis_case;
-    const axis_case cases[] = {
+    const pw_axis_case cases[] = {
         {2, INT32_MAX - 1, 1, 1, 3, 1},
         {3, INT32_MAX - 2, INT32_MAX - 2, INT32_MAX - 3, 2, 1},
         {2, INT32_MAX, 1, 1, 3, 0},
@@ -208,43 +236,29 @@ void PW_FN(window_bound_limits)(void)
         {1, 2100000000, -1000000000, 2000000000, 1, 0},
         {2, INT32_MAX, 1, INT32_MAX - 1, 1, 0},
     };
-    for (int axis = 0; axis < 2; axis++)
-    {
-        for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
-        {
-            const axis_case *a = &cases[i];
-            const pw_geom g = axis == 0 ? (pw_geom){1, a->w, 1, 1, a->k, 1, a->s, 0, a->p, 1, a->n}
-                                        : (pw_geom){a->w, 1, 1, a->k, 1, a->s, 1, a->p, 0, a->n, 1};
-            pw_input[0] = (PW_T)20.0f;
-            pw_input[1] = (PW_T)10.0f;
-            pw_input[2] = (PW_T)30.0f;
-            if (a->valid)
-            {
-                pw_check_valid(&g);
-            }
-            else
-            {
-                pw_check_untouched(&g, ARM_CMSIS_NN_ARG_ERROR);
-            }
-        }
-    }
+    pw_input[0] = (PW_T)20.0f;
+    pw_input[1] = (PW_T)10.0f;
+    pw_input[2] = (PW_T)30.0f;
+    pw_check_axis_cases(cases, sizeof(cases) / sizeof(cases[0]));
 }
 
-/* An output with no rows or no columns has no window: the call succeeds and writes nothing, whatever the other
-   extent, the stride, or an input whose element count does not fit in an int32_t. */
+/* An output with no rows or no columns, or a negative extent, has no window: the call succeeds and writes nothing,
+   whatever the other extent, the stride, or an input whose element count does not fit in an int32_t. */
 void PW_FN(empty_output)(void)
 {
     pw_fill_input();
     const pw_geom cases[] = {
         {1, 1, PW_CH, 1, 1, 1, 1, 0, 0, 2, 0},
         {1, 1, PW_CH, 1, 1, 1, 1, 0, 0, 0, 3},
+        {1, 1, PW_CH, 1, 1, 1, 1, 0, 0, 2, -1},
+        {1, 1, PW_CH, 1, 1, 1, 1, 0, 0, -1, 2},
         {1, 1, PW_CH, 1, 1, 2000000000, 1, 0, 0, 3, 0},
         {1, 1, PW_CH, 1, 1, 1, 2000000000, 0, 0, 0, 3},
         {2, INT32_MAX, PW_CH, 1, 1, 1, 1, 0, 0, 0, 1},
     };
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
     {
-        pw_check_untouched(&cases[i], ARM_CMSIS_NN_SUCCESS);
+        pw_check_untouched(&cases[i], 1, ARM_CMSIS_NN_SUCCESS);
     }
 }
 
@@ -254,5 +268,103 @@ void PW_FN(asymmetric_axes)(void)
 {
     pw_fill_input();
     const pw_geom g = {4, 5, PW_CH, 3, 2, 2, 1, 1, 0, 2, 4};
-    pw_check_valid(&g);
+    pw_check_valid(&g, 1);
+}
+
+/* Negative strides, whose windows run from the end of the input back to its start, along x and along y: computed
+   against the reference when every window overlaps the input, and rejected when the last window has moved wholly
+   before the input or the first window starts past it. The first window is then the highest one, so these catch
+   the check taking the first window for the lowest. */
+void PW_FN(negative_stride)(void)
+{
+    pw_fill_input();
+    /* in_h, in_w, ch, k_h, k_w, stride_h, stride_w, pad_h, pad_w, out_h, out_w */
+    const pw_geom valid[] = {
+        {3, 4, PW_CH, 2, 2, -1, -1, -1, -2, 2, 3},
+        {4, 3, PW_CH, 2, 2, -1, -1, -2, -1, 3, 2},
+    };
+    const pw_geom empty[] = {
+        {3, 4, PW_CH, 2, 2, -1, -1, -1, -2, 2, 5},
+        {4, 3, PW_CH, 2, 2, -1, -1, -2, -1, 5, 2},
+        {3, 4, PW_CH, 2, 2, -1, -1, -1, -4, 2, 3},
+        {4, 3, PW_CH, 2, 2, -1, -1, -4, -1, 3, 2},
+    };
+    for (size_t i = 0; i < sizeof(valid) / sizeof(valid[0]); i++)
+    {
+        pw_check_valid(&valid[i], 1);
+    }
+    for (size_t i = 0; i < sizeof(empty) / sizeof(empty[0]); i++)
+    {
+        pw_check_untouched(&empty[i], 1, ARM_CMSIS_NN_ARG_ERROR);
+    }
+}
+
+/* Negative padding, which offsets the first window into the input: computed against the reference, and rejected
+   once a later window starts past the input. */
+void PW_FN(negative_padding)(void)
+{
+    pw_fill_input();
+    const pw_geom valid = {3, 4, PW_CH, 2, 2, 1, 1, -1, -1, 2, 2};
+    const pw_geom empty_x = {3, 4, PW_CH, 2, 2, 1, 1, -1, -1, 2, 4};
+    const pw_geom empty_y = {3, 4, PW_CH, 2, 2, 1, 1, -1, -1, 3, 2};
+    pw_check_valid(&valid, 1);
+    pw_check_untouched(&empty_x, 1, ARM_CMSIS_NN_ARG_ERROR);
+    pw_check_untouched(&empty_y, 1, ARM_CMSIS_NN_ARG_ERROR);
+}
+
+/* Two and three batches, each pooled from its own input into its own output, and an empty window rejected for every
+   batch before the first is written. */
+void PW_FN(batches)(void)
+{
+    pw_fill_input();
+    const pw_geom g = {3, 4, PW_CH, 2, 2, 1, 2, 0, 1, 2, 3};
+    const pw_geom empty = {3, 4, PW_CH, 2, 2, 1, 2, 0, 1, 2, 4};
+    pw_check_valid(&g, 2);
+    pw_check_valid(&g, 3);
+    pw_check_untouched(&empty, 2, ARM_CMSIS_NN_ARG_ERROR);
+}
+
+/* Layers at the edge of the geometry the window check handles in 32 bits: n, k and w at 2^15 - 1 and 2^15, and s and
+   p at +/-(2^15 - 1) and +/-2^15. At each value one layer has every window overlapping the input and one has a single
+   window that just misses it, so the parameter at the edge decides the verdict; the expected outputs come from the
+   reference either way. A valid layer with p = +/-(2^15 - 1) needs a filter or input extent of 2^15. */
+void PW_FN(window_check_edges)(void)
+{
+    pw_fill_input();
+    const pw_axis_case cases[] = {
+        /* n */
+        {1, 32767, -1, 0, 32767, 1},
+        {32767, 1, 1, -1, 32767, 0},
+        {32768, 1, 1, 0, 32768, 1},
+        {32767, 1, 1, 0, 32768, 0},
+        /* k */
+        {1, 32767, -16383, 0, 3, 1},
+        {1, 32767, -16383, 1, 3, 0},
+        {1, 32768, -16383, 1, 3, 1},
+        {1, 32768, -16384, 0, 3, 0},
+        /* w */
+        {32767, 1, 16382, -2, 3, 1},
+        {32767, 1, 16383, -1, 3, 0},
+        {32768, 1, 16383, -1, 3, 1},
+        {32768, 1, 16384, 0, 3, 0},
+        /* s */
+        {32765, 5, 32767, 3, 2, 1},
+        {32766, 2, 32767, 1, 2, 0},
+        {32769, 1, 32768, 0, 2, 1},
+        {32768, 1, 32768, 0, 2, 0},
+        {5, 32765, -32767, -3, 2, 1},
+        {2, 32766, -32767, -1, 2, 0},
+        {1, 32769, -32768, 0, 2, 1},
+        {1, 32768, -32768, 0, 2, 0},
+        /* p */
+        {1, 32768, 0, 32767, 1, 1},
+        {1, 32767, -1, 32767, 1, 0},
+        {1, 32769, 0, 32768, 1, 1},
+        {1, 32768, 0, 32768, 1, 0},
+        {32768, 1, 0, -32767, 1, 1},
+        {32767, 1, 0, -32767, 1, 0},
+        {32769, 1, 0, -32768, 1, 1},
+        {32768, 1, 0, -32768, 1, 0},
+    };
+    pw_check_axis_cases(cases, sizeof(cases) / sizeof(cases[0]));
 }
