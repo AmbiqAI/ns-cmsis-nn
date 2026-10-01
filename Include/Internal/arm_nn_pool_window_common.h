@@ -52,7 +52,7 @@ arm_nn_pool_axis_valid(const int32_t n, const int32_t s, const int32_t p, const 
     }
     const int64_t b_past = b_last + s;
     return (lo >= -(int64_t)INT32_MAX) && (hi + k <= INT32_MAX) && ((int64_t)w - lo <= INT32_MAX) &&
-        (b_past >= -(int64_t)INT32_MAX) && (b_past <= INT32_MAX);
+        (b_past >= INT32_MIN) && (b_past <= INT32_MAX);
 }
 
 #endif /* ARM_NN_POOL_WINDOW_COMMON_H */

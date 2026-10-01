@@ -223,7 +223,7 @@ void PW_FN(empty_window)(void)
    are rejected before any output is written: a filter extent that takes the last window end past INT32_MAX, a last
    window past the input, a stride that puts the second window past the input, a step one stride past the last
    window that leaves the int32_t range (positive and negative stride), and an input extent minus window position
-   that leaves it. */
+   that leaves it. A step past the last window that lands exactly on INT32_MIN is in range. */
 void PW_FN(window_bound_limits)(void)
 {
     const pw_axis_case cases[] = {
@@ -235,6 +235,10 @@ void PW_FN(window_bound_limits)(void)
         {3, INT32_MAX - 2, INT32_MAX - 1, INT32_MAX - 3, 2, 0},
         {1, 2100000000, -1000000000, 2000000000, 1, 0},
         {2, INT32_MAX, 1, INT32_MAX - 1, 1, 0},
+        /* Two windows at 0 and -2^30: the step past the last one is exactly INT32_MIN, which fits; one more
+           negative and it does not. */
+        {1, 1073741825, -1073741824, 0, 2, 1},
+        {1, 1073741826, -1073741825, 0, 2, 0},
     };
     pw_input[0] = (PW_T)20.0f;
     pw_input[1] = (PW_T)10.0f;

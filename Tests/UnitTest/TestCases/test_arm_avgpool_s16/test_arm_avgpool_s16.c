@@ -424,6 +424,29 @@ void window_bound_limits_arm_avgpool_s16(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       avgpool_s16_run(1, 1, 1, input, 1, 2100000000, 1, -1000000000, 0, 2000000000, 1, 1, output));
     TEST_ASSERT_EACH_EQUAL_INT16(0x5555, output, 4);
+    // Two windows at 0 and -2^30, along x and along y: the step past the last one is exactly INT32_MIN, which fits,
+    // so both windows are computed (each covers input[0]); one more negative and the call is rejected.
+    const int16_t first[2] = {10, 10};
+    for (int axis = 0; axis < 2; axis++)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            output[i] = 0x5555;
+        }
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          axis == 0 ? avgpool_s16_run(1, 1, 1, input, 1, 1073741825, 1, -1073741824, 0, 0, 1, 2, output)
+                                    : avgpool_s16_run(1, 1, 1, input, 1073741825, 1, -1073741824, 1, 0, 0, 2, 1, output));
+        TEST_ASSERT_EQUAL_INT16_ARRAY(first, output, 2);
+        TEST_ASSERT_EQUAL_INT16(0x5555, output[2]);
+        for (int i = 0; i < 4; i++)
+        {
+            output[i] = 0x5555;
+        }
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          axis == 0 ? avgpool_s16_run(1, 1, 1, input, 1, 1073741826, 1, -1073741825, 0, 0, 1, 2, output)
+                                    : avgpool_s16_run(1, 1, 1, input, 1073741826, 1, -1073741825, 1, 0, 0, 2, 1, output));
+        TEST_ASSERT_EACH_EQUAL_INT16(0x5555, output, 4);
+    }
 }
 
 /* Different stride, padding and filter size along y and x (input 4x5, filter 3x2, stride 2x1, padding 1x0, output 2x4,
