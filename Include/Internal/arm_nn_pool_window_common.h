@@ -37,17 +37,6 @@
 __STATIC_FORCEINLINE bool
 arm_nn_pool_axis_valid(const int32_t n, const int32_t s, const int32_t p, const int32_t k, const int32_t w)
 {
-    /* Every real layer: n, k and w in [1, 2^15) and s, p in (-2^15, 2^15). Then (n - 1) * s, each window start, and
-     * the step past the last window stay well inside int32, so only emptiness needs checking, in 32 bits. */
-    if ((((uint32_t)(n - 1) | (uint32_t)(k - 1) | (uint32_t)(w - 1)) < 0x7FFFu) &&
-        (((uint32_t)(s + 0x7FFF) | (uint32_t)(p + 0x7FFF)) < 0xFFFFu))
-    {
-        const int32_t b_first = -p;
-        const int32_t b_last = (n - 1) * s - p;
-        const int32_t lo = ARM_NN_MIN(b_first, b_last);
-        const int32_t hi = ARM_NN_MAX(b_first, b_last);
-        return (hi < w) && (lo + k > 0);
-    }
     if ((k <= 0) || (w <= 0))
     {
         return false;
