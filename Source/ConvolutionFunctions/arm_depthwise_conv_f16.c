@@ -958,7 +958,7 @@ arm_depthwise_conv_nhwc_dispatch_f16(const cmsis_nn_context *ctx,
     #endif
 
     /* ch_mult == 1: the direct channel-vectorized kernel, any stride/dilation/padding/batch, no scratch (#448).
-     * The ctx the sizer still asks for is not read here. */
+     * The sizer asks for none here either (#625). */
     if (dw_conv_params->ch_mult == 1)
     {
         arm_depthwise_conv_nhwc_direct_chmult1_f16(input,

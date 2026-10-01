@@ -175,13 +175,14 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_f32(const cmsis_nn_context *ctx,
  * @param[in] output_dims    Output tensor dimensions.
  * @param[in] layout         Tensor layout selector.
  *
- * @note Only one route reads scratch: on MVE builds, an NHWC depthwise with a single input channel and at least
- *       CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD output channels runs as a regular
- *       convolution, and needs the repacked filter, `ROUND_UP(output_dims->c, 4) * filter_dims->h *
+ * @note Only one route reads scratch: on MVE builds, an NHWC depthwise with ch_mult != 1, a single input channel and
+ *       at least CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD output channels can run as a regular
+ *       convolution, which needs the repacked filter, `ROUND_UP(output_dims->c, 4) * filter_dims->h *
  *       filter_dims->w * sizeof(float32_t)` bytes (`ROUND_UP(output_dims->c, 8)` and `sizeof(float16_t)` for
- *       `_f16`), plus `arm_convolve_wrapper_f32_get_buffer_size` (`_f16`) for that convolution. Every other
- *       route -- the exact-shape specializations, the `ch_mult == 1` direct kernel and the generic kernel -- runs
- *       without scratch and the query returns 0 (AmbiqAI/ns-cmsis-nn#448).
+ *       `_f16`), plus `arm_convolve_wrapper_f32_get_buffer_size` (`_f16`) for that convolution. The query reserves
+ *       that for every such layer; one an exact-shape specialization takes first runs without it, so the size is an
+ *       upper bound there. Every other layer -- the `ch_mult == 1` direct kernel and the generic kernel -- runs
+ *       without scratch and the query returns 0 (AmbiqAI/ns-cmsis-nn#448, #625).
  *
  * @return Required buffer size in bytes, or 0 when no scratch buffer is needed.
  */

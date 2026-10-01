@@ -56,7 +56,8 @@ int32_t arm_depthwise_conv_f16_get_buffer_size(const cmsis_nn_dw_conv_params_f16
     }
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-    if (layout == ARM_NN_LAYOUT_NHWC && input_dims->c == 1 &&
+    /* The kernel takes the to-convolution route only for ch_mult != 1: ch_mult == 1 runs the direct kernel first. */
+    if (layout == ARM_NN_LAYOUT_NHWC && dw_conv_params->ch_mult != 1 && input_dims->c == 1 &&
         output_dims->c >= CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD)
     {
         const cmsis_nn_conv_params_f16 conv_params = {.stride = dw_conv_params->stride,
