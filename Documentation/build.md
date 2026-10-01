@@ -602,8 +602,9 @@ A no-MVE `float16` build with GCC 15.3 or a Clang-based compiler compiles but is
 not runtime-qualified.
 
 `Tests/UnitTest/TestCases/Utils/check_f16_format_contract.py` checks these
-outcomes. CI runs it with the floor GCC (13.2); the GCC 15.3 side was verified
-locally. See AmbiqAI/ns-cmsis-nn#511 and #487.
+outcomes. CI runs it on every pull request with each gated GCC release (13.2,
+14.2 and 15.3), so both the rejection before 15.3 and the build on 15.3 are
+gated. See AmbiqAI/ns-cmsis-nn#511 and #487.
 
 ## Float (F32/F16) capability manifest
 

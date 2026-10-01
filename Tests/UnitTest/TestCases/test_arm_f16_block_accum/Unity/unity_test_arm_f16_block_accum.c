@@ -49,6 +49,8 @@ void test_conv1d_dilated_long_k(void) { ba_conv1d_dilated_long_k(); }
 
 void test_conv1d_spec_long_k(void) { ba_conv1d_spec_long_k(); }
 
+void test_conv1d_spec_k5_tail(void) { ba_conv1d_spec_k5_tail(); }
+
 void test_conv_direct_long_k(void) { ba_conv_direct_long_k(); }
 
 void test_conv_direct_edges(void) { ba_conv_direct_edges(); }

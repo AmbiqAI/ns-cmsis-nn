@@ -1155,6 +1155,42 @@ void ba_conv1d_spec_long_k(void)
     ba_end();
 }
 
+static uint32_t ba_out_fnv(const float16_t *out, int32_t n)
+{
+    uint32_t h = 2166136261u;
+    for (int32_t i = 0; i < n; ++i)
+    {
+        h = (h ^ ba_bits(out[i])) * 16777619u;
+    }
+    return h;
+}
+
+/* k5 output channels past the last whole group of four, alone (out_c < 4) and after one (out_c 7), at depths with
+ * only a partial 8-channel step, only whole steps, both, several fold spans, and depths ending exactly on a fold span
+ * (48, 96), where no partial step runs. Each case prints a hash of both entries' outputs so two builds can be
+ * compared bit for bit. */
+void ba_conv1d_spec_k5_tail(void)
+{
+    static const int32_t in_cs[] = {1, 7, 8, 9, 15, 17, 23, 41, 48, 57, 96, 100};
+    static const int32_t out_cs[] = {1, 3, 7};
+    const int32_t in_w = 6;
+    ba_begin();
+    for (size_t i = 0; i < sizeof(in_cs) / sizeof(in_cs[0]); ++i)
+    {
+        for (size_t j = 0; j < sizeof(out_cs) / sizeof(out_cs[0]); ++j)
+        {
+            ba_spec_case(5, in_w, in_cs[i], out_cs[j], false);
+            const int32_t n = (in_w - 4) * out_cs[j];
+            printf("K5TAIL c%ld oc%ld out=%08lx out16=%08lx\n",
+                   (long)in_cs[i],
+                   (long)out_cs[j],
+                   (unsigned long)ba_out_fnv(ba_out, n),
+                   (unsigned long)ba_out_fnv(ba_out16, n));
+        }
+    }
+    ba_end();
+}
+
 /* ---------------------------------------------------------------------------------------------------------------- */
 /* Direct OHWI / NT_N_PACKED fallback (no scratch)                                                                   */
 /* ---------------------------------------------------------------------------------------------------------------- */
