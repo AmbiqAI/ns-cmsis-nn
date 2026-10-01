@@ -1521,12 +1521,6 @@ static void ba_dw_case(int32_t hw, int32_t k, int32_t in_c, int32_t mult, bool w
     c.mult = mult;
     c.zero_taps = BA_MVE && with_ctx && in_c == 1 && out_c >= 8;
     snprintf(what, sizeof(what), "dw k%ld c%ld x%ld", (long)k, (long)in_c, (long)mult);
-    if (!BA_MVE && mult > 1)
-    {
-        /* The generic kernel's scalar legs keep their float16 accumulator. */
-        ba_expect_same(what, hw * hw * out_c);
-        return;
-    }
     ba_expect_taps(what, hw * hw * out_c, ba_dw_ref, &c, k * k, ba_dw_taps);
 }
 
