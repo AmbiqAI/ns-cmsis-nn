@@ -1,5 +1,48 @@
 # Changelog
 
+## [7.39.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.38.1...v7.39.0) (2026-10-01)
+
+
+### Features
+
+* **sqrt:** add a table-free int16 square root ([#642](https://github.com/AmbiqAI/ns-cmsis-nn/issues/642)) ([e6d6819](https://github.com/AmbiqAI/ns-cmsis-nn/commit/e6d68190e347374e8866eefc427df9b5c34e9289))
+
+
+### Bug Fixes
+
+* **avgpool:** reject empty s16 pooling windows before any output write ([#627](https://github.com/AmbiqAI/ns-cmsis-nn/issues/627)) ([a0a65a4](https://github.com/AmbiqAI/ns-cmsis-nn/commit/a0a65a4e7dd0ed258589cb09e08fe41f40762548)), closes [#623](https://github.com/AmbiqAI/ns-cmsis-nn/issues/623)
+* **f16:** define ARM_NN_F16_FINITE_LOWEST without promoting __fp16 ([#641](https://github.com/AmbiqAI/ns-cmsis-nn/issues/641)) ([ce093cd](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ce093cdb7de0ca7a0f8e291b8062662ce42d52bd)), closes [#637](https://github.com/AmbiqAI/ns-cmsis-nn/issues/637)
+* **f32:** make the MVE tanh NaN and signed-zero results toolchain-independent ([#640](https://github.com/AmbiqAI/ns-cmsis-nn/issues/640)) ([2c01e87](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2c01e8753e7734f8d55a8494f1e22a568688ad62)), closes [#635](https://github.com/AmbiqAI/ns-cmsis-nn/issues/635)
+* **pack:** declare every header each heliaCORE component includes ([#631](https://github.com/AmbiqAI/ns-cmsis-nn/issues/631)) ([8741755](https://github.com/AmbiqAI/ns-cmsis-nn/commit/8741755d2c1878798ea37cfeec9aaa6721353364)), closes [#514](https://github.com/AmbiqAI/ns-cmsis-nn/issues/514)
+* **sdk:** resolve Include/-prefixed header spellings from the SDK tarball ([#632](https://github.com/AmbiqAI/ns-cmsis-nn/issues/632)) ([9f2d5aa](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9f2d5aaef50ca474a14c3711017a6fad7af3cd28)), closes [#512](https://github.com/AmbiqAI/ns-cmsis-nn/issues/512)
+
+## [7.38.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.38.0...v7.38.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **conv:** keep strided 1xN layers the s8 1xN kernel mis-stages off the 1xN route ([#618](https://github.com/AmbiqAI/ns-cmsis-nn/issues/618)) ([bac628b](https://github.com/AmbiqAI/ns-cmsis-nn/commit/bac628bf7b45b94e5e42928e55010e066ecb2d8e)), closes [#616](https://github.com/AmbiqAI/ns-cmsis-nn/issues/616)
+* **conv:** keep the MVE s8 GEMM's filter loads inside each filter row ([#606](https://github.com/AmbiqAI/ns-cmsis-nn/issues/606)) ([b641089](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b641089f075378b244c743e675f443f4e64b14ad))
+* **conv:** route 1xN layers whose padding the 1xN kernels mishandle to other convolutions ([#615](https://github.com/AmbiqAI/ns-cmsis-nn/issues/615)) ([1e90466](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1e9046686560fa66189953e125f2909702304320)), closes [#614](https://github.com/AmbiqAI/ns-cmsis-nn/issues/614)
+* **conv:** stage every padded window of the s8 1xN kernel from its geometry ([#620](https://github.com/AmbiqAI/ns-cmsis-nn/issues/620)) ([93fcf7d](https://github.com/AmbiqAI/ns-cmsis-nn/commit/93fcf7d3f7792c50895bd780adc53a146580ec9b)), closes [#619](https://github.com/AmbiqAI/ns-cmsis-nn/issues/619) [#616](https://github.com/AmbiqAI/ns-cmsis-nn/issues/616)
+* **depthwise:** reject a declared ctx-&gt;size below the s8_opt channel path's scratch ([#611](https://github.com/AmbiqAI/ns-cmsis-nn/issues/611)) ([377f258](https://github.com/AmbiqAI/ns-cmsis-nn/commit/377f258f43099cee026746e82213307f415959ae)), closes [#582](https://github.com/AmbiqAI/ns-cmsis-nn/issues/582)
+* **f16:** run conv1d k5 whole channel steps outside a tail-predicated loop ([#610](https://github.com/AmbiqAI/ns-cmsis-nn/issues/610)) ([ae21330](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ae21330b86477f0c80cc2d41cb00312eb100f99e))
+* **nn:** load each MVE GEMM and vec-mat chunk inside its own iteration ([#608](https://github.com/AmbiqAI/ns-cmsis-nn/issues/608)) ([f1d2bc6](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f1d2bc671238c2927ca1ce1b0e652a10826ede45)), closes [#605](https://github.com/AmbiqAI/ns-cmsis-nn/issues/605)
+* **s4:** decode int4 nibbles without shifting negative values ([#612](https://github.com/AmbiqAI/ns-cmsis-nn/issues/612)) ([47d8693](https://github.com/AmbiqAI/ns-cmsis-nn/commit/47d8693fe154ae1b60b51c96e0d134f95fbfa915))
+* **test:** pass a Unity suite only on its zero-failure summary line ([#607](https://github.com/AmbiqAI/ns-cmsis-nn/issues/607)) ([8f62e0c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/8f62e0c7e3af9757d6d1bd52e72685a05bcb2fe7)), closes [#559](https://github.com/AmbiqAI/ns-cmsis-nn/issues/559)
+
+## [7.38.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.37.0...v7.38.0) (2026-09-29)
+
+
+### Performance
+
+* **f16:** fold MVE float16 accumulation into float32 every 32 taps ([#600](https://github.com/AmbiqAI/ns-cmsis-nn/issues/600)) ([1f6ec4e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1f6ec4eef63ae7b1acfa485bdf8c3605f5dc16d5)), closes [#586](https://github.com/AmbiqAI/ns-cmsis-nn/issues/586)
+
+
+### Docs
+
+* **contributing:** describe how kernels are structured to keep images small ([#604](https://github.com/AmbiqAI/ns-cmsis-nn/issues/604)) ([f34eea8](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f34eea85a8ec27a0ee0f37a9b732d15c913b89ea)), closes [#594](https://github.com/AmbiqAI/ns-cmsis-nn/issues/594)
+
 ## [7.37.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.36.1...v7.37.0) (2026-09-29)
 
 

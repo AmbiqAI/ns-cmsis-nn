@@ -1299,7 +1299,10 @@ arm_cmsis_nn_status arm_convolve_1x1_s8(const cmsis_nn_context *ctx,
  * @brief 1xn convolution
  *
  * @param[in, out] ctx           Function context that contains the additional buffer if required by the function.
- *                               arm_convolve_1_x_n_s8_get_buffer_size will return the buffer_size if required
+ *                               arm_convolve_1_x_n_s8_get_buffer_size will return the buffer_size if required.
+ *                               buf must not be NULL. On builds with the MVE extension (ARM_MATH_MVEI) a non-zero
+ *                               ctx->size smaller than the staging the layer needs is rejected with
+ *                               ARM_CMSIS_NN_ARG_ERROR.
  *                               The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      weight_sum_ctx Per-output-channel weight sums, supplied by the caller. This function only reads
  *                                the buffer and never writes it, so it is filled once and may then be reused for
@@ -1340,14 +1343,15 @@ arm_cmsis_nn_status arm_convolve_1x1_s8(const cmsis_nn_context *ctx,
  *
  * @details
  *   - Supported framework : TensorFlow Lite Micro
- *   - The following constrains on the arguments apply
- *      -# input_dims->n equals 1
- *      -# ouput_dims->w is a multiple of 4
- *      -# Explicit constraints(since it is for 1xN convolution)
- *      -## input_dims->h equals 1
- *      -## output_dims->h equals 1
- *      -## filter_dims->h equals 1
- *@todo  Remove constraint on output_dims->w to make the function generic.
+ *   - The following constraints on the arguments apply
+ *      -# input_dims->h, filter_dims->h and output_dims->h equal 1, and conv_params->padding.h is 0
+ *      -# conv_params->dilation.w is 1 and conv_params->stride.w is positive
+ *      -# conv_params->stride.w * input_dims->c is a multiple of 4
+ *      -# conv_params->padding.w, input_dims->w and output_dims->w are not negative, and filter_dims->w is at least 1
+ *   - Any horizontal padding and output width are handled, including an odd total padding, a filter wider than the
+ *     input and a VALID layer whose stride leaves trailing input unused. On MVE builds the output columns whose
+ *     window starts before or ends past the input read a padded copy of the input columns they span, staged in ctx;
+ *     the other columns read the input in place.
  *
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
@@ -1609,8 +1613,9 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s4(const cmsis_nn_context *ctx,
  * @param[in]       output_dims           Output tensor dimensions. Format: [N, H, W, C_OUT]
  *
  * @return          The function returns required buffer size in bytes, or -1 if any dimension it reads is negative or
- *                  conv_params->stride.w is not positive. On builds that need this scratch buffer it also returns -1
- *                  if the required size would not fit in an int32_t; other builds need no buffer and return 0.
+ *                  conv_params->stride.w is not positive. On builds with the MVE extension (ARM_MATH_MVEI) that is
+ *                  the staging size of arm_convolve_1_x_n_s8(), at least filter W * C_IN bytes, or -1 if it would not
+ *                  fit in an int32_t; other builds return arm_convolve_s8_get_buffer_size().
  *
  */
 int32_t arm_convolve_1_x_n_s8_get_buffer_size(const cmsis_nn_conv_params *conv_params,
@@ -1709,8 +1714,10 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion, or
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> on the arm_depthwise_conv_s8_opt() route if ctx->buf is NULL
  *                when a scratch buffer is required, or if weight_sum_ctx->buf is NULL on builds where it is read
- *                (ARM_MATH_DSP and ARM_MATH_MVEI both defined), or on the MVE arm_convolve_wrapper_s8()
- *                diversion route if weight_sum_ctx->buf is NULL.
+ *                (ARM_MATH_DSP and ARM_MATH_MVEI both defined), or if ctx->size is non-zero and below
+ *                arm_depthwise_conv_s8_opt_get_buffer_size() for a layer its channel path runs, or if that sizer
+ *                returns -1 (a negative dimension or a byte count it cannot represent), or on the MVE
+ *                arm_convolve_wrapper_s8() diversion route if weight_sum_ctx->buf is NULL.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2312,10 +2319,18 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *                                                      dw_conv_params->dilation.h != 1 or
  *                                                      dw_conv_params->dilation.w < 1, or
  *                                                      ctx->buf is NULL when a scratch buffer is required, or
+ *                                                      ctx->size is non-zero and below
+ *                                                      arm_depthwise_conv_s8_opt_get_buffer_size() for a layer
+ *                                                      the channel path runs, or
+ *                                                      that sizer returns -1 (a negative dimension or a byte
+ *                                                      count it cannot represent) on the channel path, or
  *                                                      weight_sum_ctx->buf is NULL on builds where it is read
  *                                                      (ARM_MATH_DSP and ARM_MATH_MVEI both defined)
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
+ * @note       ctx->size is optional: a caller that leaves it at zero opts out of the size check, as TFLM does. On
+ *             the channel path, a non-zero ctx->size below arm_depthwise_conv_s8_opt_get_buffer_size() is rejected
+ *             before any write. A layer the planar path takes needs only its plane, so it can succeed with less.
  * @note       MVE channel tail loads and stores are predicated, so channel-indexed arrays are not accessed beyond
  *             the number of channels.
  * @details
@@ -2389,7 +2404,9 @@ int32_t arm_depthwise_conv_s8_opt_planar_supported(const cmsis_nn_dw_conv_params
  * @param[out]     output_data     Output data pointer. Data type: int8
  *
  * @return     The function returns one of the following
- *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - as for arm_depthwise_conv_s8_opt()
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - as for arm_depthwise_conv_s8_opt(), except its channel-path
+ *                                                      ctx->size check: a ctx->size too small for the plane
+ *                                                      returns ARM_CMSIS_NN_NO_IMPL_ERROR instead
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - arm_depthwise_conv_s8_opt_planar_supported() rejects the
  *                                                          layer, ctx->size cannot hold its plane, or the build
  *                                                          lacks ARM_MATH_DSP or ARM_MATH_MVEI; nothing is written
@@ -3412,6 +3429,29 @@ arm_sqrt_s8(const int8_t *input, const cmsis_nn_dims *input_dims, int8_t *output
  */
 arm_cmsis_nn_status
 arm_sqrt_s16(const int16_t *input, const cmsis_nn_dims *input_dims, int16_t *output, const int16_t *sqrt_lut);
+
+/**
+ * @brief s16 elementwise square root without a lookup table
+ *
+ * Approximates output[i] = trunc(sqrt(input[i] * scale)) saturated to 32767, which
+ * is LiteRT's int16 SQRT (dequantize in float32, sqrtf, divide by the output scale,
+ * truncate, clamp) for zero points 0, to within 1 LSB of LiteRT at every
+ * non-negative input for input scales 1e-7 to 1e-1 and output scales from 0.01x to
+ * 10x the full-range scale, saturating ones included. Inputs at or below 0 produce
+ * 0. Needs no table; the int16 API does not depend on ARM_NN_ENABLE_F32/F16, and on
+ * targets without a floating-point unit the plain C path uses fmaf from the C
+ * library.
+ *
+ * @param[in]       input               pointer to input vector
+ * @param[in]       input_dims          pointer to input tensor dimensions
+ * @param[out]      output              pointer to output vector
+ * @param[in]       scale               input_scale / (output_scale * output_scale) as float32: take
+ *                                      the float32-rounded tensor scales, evaluate in float64 and
+ *                                      round once to float32. Must be finite and greater than 0.
+ * @return          The function returns    ARM_CMSIS_NN_SUCCESS
+ */
+arm_cmsis_nn_status
+arm_sqrt_s16_tablefree(const int16_t *input, const cmsis_nn_dims *input_dims, int16_t *output, const float scale);
 
 /**
  * @brief s16 elementwise absolute value
@@ -5655,8 +5695,15 @@ int32_t arm_avgpool_s8_get_buffer_size_mve(const int dim_dst_width, const int ch
  * @param[out]     output_data  Output data pointer. Data type: int16
  *
  * @return                        The function returns
- *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
- *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> - In case of invalid arguments
+ *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation, including an output with
+ *                                    no rows or no columns, which writes nothing and does not use ctx
+ *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> - In case of invalid arguments, including a
+ *                                    negative channel count, a pooling window that does not overlap the input,
+ *                                    window positions (output index
+ *                                    * stride - padding, including one stride past the last window, plus the filter
+ *                                    extent, and input size minus position) that do not fit in an int32_t, or,
+ *                                    on builds that use the buffer, a NULL ctx, or a NULL ctx->buf where the sizer
+ *                                    asks for a buffer. Nothing is written to output_data then.
  *
  * @details
  *    - Supported Framework: TensorFlow Lite
@@ -5727,9 +5774,13 @@ int32_t arm_avgpool_s16_get_buffer_size_mve(const int dim_dst_width, const int c
  *                              C_OUT equals C_IN.
  * @param[out]     output_data    Output data pointer. Data type: int8
  *
- * @return     The function returns either
- *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
- *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ * @return     The function returns
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation, including an output with no rows or no
+ *                  columns, which writes nothing
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> - In case of invalid arguments: a batch count below 1, a
+ *                  pooling window that does not overlap the input, or window positions (output index * stride -
+ *                  padding, including one stride past the last window, plus the filter extent, and input size minus
+ *                  position) that do not fit in an int32_t. Nothing is written to output_data then.
  *
  * @details
  *    - Supported Framework: TensorFlow Lite
@@ -5761,9 +5812,13 @@ arm_cmsis_nn_status arm_max_pool_s8(const cmsis_nn_context *ctx,
  *                              C_OUT equals C_IN.
  * @param[in, out] dst          Output data pointer. Data type: int16
  *
- * @return     The function returns either
- *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
- *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ * @return     The function returns
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation, including an output with no rows or no
+ *                  columns, which writes nothing
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> - In case of invalid arguments: a batch count below 1, a
+ *                  pooling window that does not overlap the input, or window positions (output index * stride -
+ *                  padding, including one stride past the last window, plus the filter extent, and input size minus
+ *                  position) that do not fit in an int32_t. Nothing is written to dst then.
  *
  * @details
  *    - Supported Framework: TensorFlow Lite

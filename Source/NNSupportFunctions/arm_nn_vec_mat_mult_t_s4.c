@@ -28,6 +28,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_s4_decode.h"
 #include "arm_nnsupportfunctions.h"
 /**
  */
@@ -179,8 +180,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
 
         if (rhs_cols & 1)
         {
-            const int32_t rhs_high0 = rhs_ptr[0] >> 4;
-            const int32_t rhs_high1 = rhs_ptr[rhs_offset] >> 4;
+            const int32_t rhs_high0 = arm_nn_s4_high_nibble(rhs_ptr[0]);
+            const int32_t rhs_high1 = arm_nn_s4_high_nibble(rhs_ptr[rhs_offset]);
 
             lhs_ptr = &lhs[0];
             const int32_t lhs_high = (int8_t)lhs_ptr[0] + lhs_offset;
@@ -335,12 +336,12 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
         if (((rhs_cols % 4) == 2) || ((rhs_cols % 4) == 3))
         {
             const int32_t rhs_value0 = rhs_ptr[0];
-            const int32_t lower0 = (int8_t)(rhs_value0 << 4) >> 4;
-            const int32_t higher0 = rhs_value0 >> 4;
+            const int32_t lower0 = arm_nn_s4_low_nibble(rhs_value0);
+            const int32_t higher0 = arm_nn_s4_high_nibble(rhs_value0);
 
             const int32_t rhs_value1 = rhs_ptr[rhs_offset];
-            const int32_t lower1 = (int8_t)(rhs_value1 << 4) >> 4;
-            const int32_t higher1 = rhs_value1 >> 4;
+            const int32_t lower1 = arm_nn_s4_low_nibble(rhs_value1);
+            const int32_t higher1 = arm_nn_s4_high_nibble(rhs_value1);
 
             const int32_t lhs_value_0 = lhs_ptr[0] + lhs_offset;
             const int32_t lhs_value_1 = lhs_ptr[1] + lhs_offset;
@@ -356,10 +357,10 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
 
         if (rhs_cols % 2 == 1)
         {
-            const int32_t rhs_low0 = (int8_t)(rhs_ptr[0] << 4) >> 4;
-            const int32_t rhs_high0 = rhs_ptr[0] >> 4;
-            const int32_t rhs_low1 = (int8_t)(rhs_ptr[rhs_offset] << 4) >> 4;
-            const int32_t rhs_high1 = rhs_ptr[rhs_offset] >> 4;
+            const int32_t rhs_low0 = arm_nn_s4_low_nibble(rhs_ptr[0]);
+            const int32_t rhs_high0 = arm_nn_s4_high_nibble(rhs_ptr[0]);
+            const int32_t rhs_low1 = arm_nn_s4_low_nibble(rhs_ptr[rhs_offset]);
+            const int32_t rhs_high1 = arm_nn_s4_high_nibble(rhs_ptr[rhs_offset]);
 
             const int32_t lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
             lhs_ptr = &lhs[0];
@@ -429,12 +430,12 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
         if (((rhs_cols % 4) == 2) || ((rhs_cols % 4) == 3))
         {
             const int32_t rhs_value0 = rhs_ptr[0];
-            const int32_t lower0 = (int8_t)(rhs_value0 << 4) >> 4;
-            const int32_t higher0 = rhs_value0 >> 4;
+            const int32_t lower0 = arm_nn_s4_low_nibble(rhs_value0);
+            const int32_t higher0 = arm_nn_s4_high_nibble(rhs_value0);
 
             const int32_t rhs_value1 = rhs_ptr[rhs_offset];
-            const int32_t lower1 = (int8_t)(rhs_value1 << 4) >> 4;
-            const int32_t higher1 = rhs_value1 >> 4;
+            const int32_t lower1 = arm_nn_s4_low_nibble(rhs_value1);
+            const int32_t higher1 = arm_nn_s4_high_nibble(rhs_value1);
 
             const int32_t lhs_value_0 = lhs_ptr[0] + lhs_offset;
             const int32_t lhs_value_1 = lhs_ptr[1] + lhs_offset;
@@ -486,10 +487,10 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
 
         for (int32_t rhs_cols_idx = 0; rhs_cols_idx < rhs_cols / 2; ++rhs_cols_idx)
         {
-            const int32_t rhs_low0 = (int8_t)(rhs_ptr[0] << 4) >> 4;
-            const int32_t rhs_high0 = rhs_ptr[0] >> 4;
-            const int32_t rhs_low1 = (int8_t)(rhs_ptr[rhs_offset] << 4) >> 4;
-            const int32_t rhs_high1 = rhs_ptr[rhs_offset] >> 4;
+            const int32_t rhs_low0 = arm_nn_s4_low_nibble(rhs_ptr[0]);
+            const int32_t rhs_high0 = arm_nn_s4_high_nibble(rhs_ptr[0]);
+            const int32_t rhs_low1 = arm_nn_s4_low_nibble(rhs_ptr[rhs_offset]);
+            const int32_t rhs_high1 = arm_nn_s4_high_nibble(rhs_ptr[rhs_offset]);
 
             const int32_t lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
             const int32_t lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;
@@ -505,10 +506,10 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
 
         if (rhs_cols % 2 == 1)
         {
-            const int32_t rhs_low0 = (int8_t)(rhs_ptr[0] << 4) >> 4;
-            const int32_t rhs_high0 = rhs_ptr[0] >> 4;
-            const int32_t rhs_low1 = (int8_t)(rhs_ptr[rhs_offset] << 4) >> 4;
-            const int32_t rhs_high1 = rhs_ptr[rhs_offset] >> 4;
+            const int32_t rhs_low0 = arm_nn_s4_low_nibble(rhs_ptr[0]);
+            const int32_t rhs_high0 = arm_nn_s4_high_nibble(rhs_ptr[0]);
+            const int32_t rhs_low1 = arm_nn_s4_low_nibble(rhs_ptr[rhs_offset]);
+            const int32_t rhs_high1 = arm_nn_s4_high_nibble(rhs_ptr[rhs_offset]);
 
             const int32_t lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
             lhs_ptr = &lhs[0];
@@ -559,10 +560,10 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
 
         for (int32_t rhs_cols_idx = 0; rhs_cols_idx < rhs_cols / 2; ++rhs_cols_idx)
         {
-            const int32_t rhs_low0 = (int8_t)(rhs_ptr[0] << 4) >> 4;
-            const int32_t rhs_high0 = rhs_ptr[0] >> 4;
-            const int32_t rhs_low1 = (int8_t)(rhs_ptr[rhs_offset] << 4) >> 4;
-            const int32_t rhs_high1 = rhs_ptr[rhs_offset] >> 4;
+            const int32_t rhs_low0 = arm_nn_s4_low_nibble(rhs_ptr[0]);
+            const int32_t rhs_high0 = arm_nn_s4_high_nibble(rhs_ptr[0]);
+            const int32_t rhs_low1 = arm_nn_s4_low_nibble(rhs_ptr[rhs_offset]);
+            const int32_t rhs_high1 = arm_nn_s4_high_nibble(rhs_ptr[rhs_offset]);
 
             const int32_t lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
             const int32_t lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;
@@ -667,8 +668,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
         if ((rhs_cols % 4) == 2 || (rhs_cols % 4 == 3))
         {
             const int32_t rhs_value0 = rhs_ptr[rhs_offset];
-            const int32_t lower0 = (int8_t)(rhs_value0 << 4) >> 4;
-            const int32_t higher0 = rhs_value0 >> 4;
+            const int32_t lower0 = arm_nn_s4_low_nibble(rhs_value0);
+            const int32_t higher0 = arm_nn_s4_high_nibble(rhs_value0);
 
             const int32_t lhs_value_0 = lhs_ptr[0] + lhs_offset;
             const int32_t lhs_value_1 = lhs_ptr[1] + lhs_offset;
@@ -682,8 +683,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
 #else
         for (int32_t rhs_cols_idx = 0; rhs_cols_idx < rhs_cols_offset / 2; ++rhs_cols_idx)
         {
-            const int32_t rhs_low0 = (int8_t)(rhs_ptr[rhs_offset] << 4) >> 4;
-            const int32_t rhs_high0 = rhs_ptr[rhs_offset] >> 4;
+            const int32_t rhs_low0 = arm_nn_s4_low_nibble(rhs_ptr[rhs_offset]);
+            const int32_t rhs_high0 = arm_nn_s4_high_nibble(rhs_ptr[rhs_offset]);
 
             const int32_t lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
             const int32_t lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;
@@ -698,8 +699,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_s4(const int8_t *lhs,
 
         if ((rhs_cols % 2 == 1) && (i_row_loop_cnt % 2 == 0))
         {
-            const int32_t rhs_low0 = (int8_t)(rhs_ptr[rhs_offset] << 4) >> 4;
-            const int32_t rhs_high0 = rhs_ptr[rhs_offset] >> 4;
+            const int32_t rhs_low0 = arm_nn_s4_low_nibble(rhs_ptr[rhs_offset]);
+            const int32_t rhs_high0 = arm_nn_s4_high_nibble(rhs_ptr[rhs_offset]);
 
             const int32_t lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
             lhs_ptr = &lhs[0];

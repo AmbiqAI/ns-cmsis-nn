@@ -2256,3 +2256,191 @@ void conv_1_x_n_5_arm_convolve_s4(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
     TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
 }
+
+/* Runs a 1xN layer (16 output channels, input offset 3) through arm_convolve_wrapper_s4() and arm_convolve_s4() and
+   expects the same status and output, with the scratch each one's sizer gives. The layer's padding is one the 1xN
+   kernels do not handle, so the wrapper must route it elsewhere. */
+static void wrapper_matches_convolve_s4(const int32_t in_w,
+                                        const int32_t in_c,
+                                        const int32_t k_w,
+                                        const int32_t stride,
+                                        const int32_t pad,
+                                        const int32_t out_w)
+{
+    enum
+    {
+        max_in_w = 40,
+        max_in_c = 27,
+        out_c = 16,
+        max_k_w = 5,
+        max_out_w = 18
+    };
+    static int8_t input[max_in_w * max_in_c];
+    static int8_t kernel[(out_c * max_k_w * max_in_c + 1) / 2];
+    static int32_t bias[out_c];
+    static int32_t mult[out_c];
+    static int32_t shift[out_c];
+    static int8_t expected[max_out_w * out_c];
+    static int8_t output[max_out_w * out_c];
+    TEST_ASSERT_TRUE(in_w <= max_in_w && in_c <= max_in_c && k_w <= max_k_w && out_w <= max_out_w);
+    for (int i = 0; i < (int)sizeof(input); i++)
+    {
+        input[i] = (int8_t)((i * 37) % 251 - 125);
+    }
+    for (int i = 0; i < (int)sizeof(kernel); i++)
+    {
+        kernel[i] = (int8_t)((i * 73) % 256 - 128);
+    }
+    for (int i = 0; i < out_c; i++)
+    {
+        bias[i] = i * 97 - 700;
+        mult[i] = 1300000000 + i * 1000;
+        shift[i] = -5;
+    }
+    memset(expected, 0, sizeof(expected));
+    memset(output, 0x55, sizeof(output));
+    const cmsis_nn_conv_params conv_params = {.input_offset = 3,
+                                              .output_offset = -2,
+                                              .stride = {stride, 1},
+                                              .padding = {pad, 0},
+                                              .dilation = {1, 1},
+                                              .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, 1, in_w, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 1, k_w, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, 1, out_w, out_c};
+    TEST_ASSERT_TRUE(arm_nn_is_convolve_1_x_n(&conv_params, &input_dims, &filter_dims));
+    TEST_ASSERT_FALSE(arm_nn_convolve_1_x_n_padding_supported(&conv_params, &input_dims, &filter_dims, &output_dims));
+
+    const int32_t ref_size = arm_convolve_s4_get_buffer_size(&input_dims, &filter_dims);
+    cmsis_nn_context ref_ctx = {ref_size > 0 ? malloc(ref_size) : NULL, ref_size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_s4(&ref_ctx,
+                                      &conv_params,
+                                      &quant,
+                                      &input_dims,
+                                      input,
+                                      &filter_dims,
+                                      kernel,
+                                      &bias_dims,
+                                      bias,
+                                      &output_dims,
+                                      expected));
+
+    const int32_t size = arm_convolve_wrapper_s4_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    TEST_ASSERT_TRUE(size >= 0);
+    cmsis_nn_context ctx = {size > 0 ? malloc(size) : NULL, size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_wrapper_s4(&ctx,
+                                              &conv_params,
+                                              &quant,
+                                              &input_dims,
+                                              input,
+                                              &filter_dims,
+                                              kernel,
+                                              &bias_dims,
+                                              bias,
+                                              &output_dims,
+                                              output));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output, out_w * out_c);
+    free(ctx.buf);
+    free(ref_ctx.buf);
+}
+
+/* 1xN layers whose horizontal padding arm_convolve_1_x_n_s4() does not handle, where total pad is
+   (output W - 1) * stride + filter W - input W. The wrapper must match arm_convolve_s4(). */
+void wrapper_unsupported_padding_1_x_n_arm_convolve_s4(void)
+{
+    // VALID, stride leaves trailing input unused: total pad -3 (the kernel fails) and -1.
+    wrapper_matches_convolve_s4(40, 27, 5, 4, 0, 9);
+    wrapper_matches_convolve_s4(10, 4, 3, 2, 0, 4);
+    // SAME with more padded output columns than output columns (the kernel fails).
+    wrapper_matches_convolve_s4(3, 4, 5, 1, 2, 3);
+    // Explicit padding wider than the filter: the outer windows read no input column.
+    wrapper_matches_convolve_s4(10, 4, 3, 1, 5, 18);
+    // A filter wider than the input.
+    wrapper_matches_convolve_s4(4, 4, 5, 1, 1, 2);
+    wrapper_matches_convolve_s4(1, 4, 3, 1, 1, 1);
+}
+
+/* A 1xN input and filter with vertical padding (output height 3) is not a single-row 1xN convolution;
+   arm_convolve_wrapper_s4() must match arm_convolve_s4(). */
+void wrapper_vertical_padding_1_x_n_arm_convolve_s4(void)
+{
+    enum
+    {
+        in_w = 6,
+        in_c = 4,
+        out_c = 16,
+        k_w = 3,
+        out_w = 6,
+        out_h = 3
+    };
+    static int8_t input[in_w * in_c];
+    static int8_t kernel[(out_c * k_w * in_c + 1) / 2];
+    static int32_t bias[out_c];
+    static int32_t mult[out_c];
+    static int32_t shift[out_c];
+    static int8_t expected[out_h * out_w * out_c];
+    static int8_t output[out_h * out_w * out_c];
+    for (int i = 0; i < (int)sizeof(input); i++)
+    {
+        input[i] = (int8_t)((i * 37) % 251 - 125);
+    }
+    for (int i = 0; i < (int)sizeof(kernel); i++)
+    {
+        kernel[i] = (int8_t)((i * 73) % 256 - 128);
+    }
+    for (int i = 0; i < out_c; i++)
+    {
+        bias[i] = i * 97 - 700;
+        mult[i] = 1300000000 + i * 1000;
+        shift[i] = -5;
+    }
+    memset(output, 0x55, sizeof(output));
+    const cmsis_nn_conv_params conv_params = {.input_offset = 3,
+                                              .output_offset = -2,
+                                              .stride = {1, 1},
+                                              .padding = {1, 1},
+                                              .dilation = {1, 1},
+                                              .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, 1, in_w, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 1, k_w, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, out_h, out_w, out_c};
+    const int32_t ref_size = arm_convolve_s4_get_buffer_size(&input_dims, &filter_dims);
+    cmsis_nn_context ref_ctx = {ref_size > 0 ? malloc(ref_size) : NULL, ref_size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_s4(&ref_ctx,
+                                      &conv_params,
+                                      &quant,
+                                      &input_dims,
+                                      input,
+                                      &filter_dims,
+                                      kernel,
+                                      &bias_dims,
+                                      bias,
+                                      &output_dims,
+                                      expected));
+    const int32_t size = arm_convolve_wrapper_s4_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    TEST_ASSERT_TRUE(size >= 0);
+    cmsis_nn_context ctx = {size > 0 ? malloc(size) : NULL, size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_wrapper_s4(&ctx,
+                                              &conv_params,
+                                              &quant,
+                                              &input_dims,
+                                              input,
+                                              &filter_dims,
+                                              kernel,
+                                              &bias_dims,
+                                              bias,
+                                              &output_dims,
+                                              output));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output, out_h * out_w * out_c);
+    free(ctx.buf);
+    free(ref_ctx.buf);
+}
+

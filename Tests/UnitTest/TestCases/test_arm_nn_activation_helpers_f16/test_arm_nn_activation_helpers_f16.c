@@ -277,3 +277,13 @@ void nn_activation_helpers_f16_tanh_fp_controls(void)
     TEST_ASSERT_EQUAL_UINT32(0, errors);
 #endif
 }
+
+/* The float16 finite-limit macros are exact: largest finite 0x7BFF, lowest finite 0xFBFF (#637). */
+void nn_activation_helpers_f16_finite_limit_macros(void)
+{
+    const float16_t max_v = ARM_NN_F16_FINITE_MAX;
+    const float16_t lowest_v = ARM_NN_F16_FINITE_LOWEST;
+
+    TEST_ASSERT_EQUAL_UINT16(0x7BFFu, f16_bits(max_v));
+    TEST_ASSERT_EQUAL_UINT16(0xFBFFu, f16_bits(lowest_v));
+}

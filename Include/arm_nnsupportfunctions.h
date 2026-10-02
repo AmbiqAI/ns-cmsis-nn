@@ -453,6 +453,108 @@ __STATIC_INLINE bool arm_nn_is_convolve_1_x_n(const cmsis_nn_conv_params *conv_p
 }
 
 /**
+ * @brief Check that arm_convolve_1_x_n_s4() handles the horizontal padding of a 1xN convolution.
+ *
+ * The kernel places pad.w columns on the left and pad.w + (total_pad % 2) on the right, where total_pad =
+ * (output W - 1) * stride.w + filter W - input W, and needs the output columns that read padding to fit in output W.
+ * Its padded-column code also assumes that each such column reads at least one input column and that the filter is
+ * no wider than the input; otherwise it forms input and filter addresses outside the tensors.
+ * On MVE builds another pad placement, or too many padded columns, returns ARM_CMSIS_NN_FAILURE. A VALID layer whose
+ * stride leaves trailing input unused (negative total_pad) is therefore rejected, and the wrapper routes it to another
+ * convolution. The kernel also computes a single output row, so vertical padding or an output height other than 1 is
+ * rejected. A non-positive stride.w is left to the kernel's argument checks.
+ *
+ * @param[in]   conv_params   Convolution parameters
+ * @param[in]   input_dims    Input dimensions
+ * @param[in]   filter_dims   Filter dimensions
+ * @param[in]   output_dims   Output dimensions
+ * @return      true when arm_convolve_1_x_n_s4() handles the padding, false otherwise.
+ */
+__STATIC_INLINE bool arm_nn_convolve_1_x_n_padding_supported(const cmsis_nn_conv_params *conv_params,
+                                                             const cmsis_nn_dims *input_dims,
+                                                             const cmsis_nn_dims *filter_dims,
+                                                             const cmsis_nn_dims *output_dims)
+{
+    if ((output_dims->h != 1) || (conv_params->padding.h != 0))
+    {
+        return false;
+    }
+    const int64_t stride_x = conv_params->stride.w;
+    if (stride_x <= 0)
+    {
+        return true;
+    }
+    const int64_t pad_x = conv_params->padding.w;
+    const int64_t total_pad =
+        ((int64_t)output_dims->w - 1) * stride_x + (int64_t)filter_dims->w - (int64_t)input_dims->w;
+    if ((total_pad < 0) || (pad_x * 2 + (total_pad % 2) != total_pad))
+    {
+        return false;
+    }
+    // The pad-region column counts the kernels derive must fit in the output, and each padded window must overlap
+    // the input on one side only.
+    const int64_t asym_pad = total_pad % 2;
+    const int64_t right_pad_num =
+        pad_x + asym_pad != 0 ? ARM_NN_MAX(1, (pad_x + asym_pad + stride_x - 1) / stride_x) : 0;
+    const int64_t left_pad_num = pad_x != 0 ? ARM_NN_MAX(1, (pad_x + stride_x - 1) / stride_x) : 0;
+    return (left_pad_num + right_pad_num <= (int64_t)output_dims->w) && (pad_x + asym_pad < filter_dims->w) &&
+        (filter_dims->w <= input_dims->w);
+}
+
+/**
+ * @brief Check that arm_convolve_1_x_n_s8() accepts the padding and output shape of a 1xN convolution.
+ *
+ * The kernel computes a single output row for any pad.w >= 0 and any output width, including an odd total padding, a
+ * filter wider than the input and a VALID layer whose stride leaves trailing input unused. It rejects vertical
+ * padding, an output height other than 1, a negative pad.w and an empty filter; the wrapper routes those layers to
+ * another convolution. A non-positive stride.w is left to the kernel's argument checks.
+ *
+ * @param[in]   conv_params   Convolution parameters
+ * @param[in]   filter_dims   Filter dimensions
+ * @param[in]   output_dims   Output dimensions
+ * @return      true when arm_convolve_1_x_n_s8() computes the layer, false otherwise.
+ */
+__STATIC_INLINE bool arm_nn_convolve_1_x_n_s8_padding_supported(const cmsis_nn_conv_params *conv_params,
+                                                                const cmsis_nn_dims *filter_dims,
+                                                                const cmsis_nn_dims *output_dims)
+{
+    return (output_dims->h == 1) && (conv_params->padding.h == 0) && (conv_params->padding.w >= 0) &&
+        (filter_dims->w >= 1);
+}
+
+/**
+ * @brief Count the output columns of a 1xN convolution whose window reads padding.
+ *
+ * Output column j reads input columns j * stride.w - pad.w to j * stride.w - pad.w + filter W - 1. The leading
+ * columns whose window starts before the input are left-padded; of the others, the trailing columns whose window ends
+ * past the input are right-padded. A window can do both only when it is left-padded.
+ *
+ * @param[in]   conv_params   Convolution parameters. stride.w >= 1 and pad.w >= 0.
+ * @param[in]   input_dims    Input dimensions. w >= 0.
+ * @param[in]   filter_dims   Filter dimensions. w >= 1.
+ * @param[in]   output_dims   Output dimensions. w >= 0.
+ * @param[out]  left_num      Number of left-padded output columns, output W at most.
+ * @param[out]  right_num     Number of right-padded output columns, output W - left_num at most.
+ */
+__STATIC_INLINE void arm_nn_convolve_1_x_n_padded_columns(const cmsis_nn_conv_params *conv_params,
+                                                          const cmsis_nn_dims *input_dims,
+                                                          const cmsis_nn_dims *filter_dims,
+                                                          const cmsis_nn_dims *output_dims,
+                                                          int64_t *left_num,
+                                                          int64_t *right_num)
+{
+    const int64_t stride_x = conv_params->stride.w;
+    const int64_t pad_x = conv_params->padding.w;
+    const int64_t output_x = output_dims->w;
+    const int64_t left = ARM_NN_MIN(output_x, (pad_x + stride_x - 1) / stride_x);
+    // Column j's window ends past the input when j * stride_x >= input W + pad_x - filter W + 1.
+    const int64_t reach = (int64_t)input_dims->w + pad_x - (int64_t)filter_dims->w + 1;
+    const int64_t first_right = reach <= 0 ? 0 : ARM_NN_MIN(output_x, (reach + stride_x - 1) / stride_x);
+    *left_num = left;
+    *right_num = output_x - ARM_NN_MAX(left, first_right);
+}
+
+/**
  * @brief Check if the dilation, stride and padding of a depthwise layer allow the arm_depthwise_conv_s8_opt() or
  *        arm_depthwise_conv_fast_s16() route.
  * @param[in]   dw_conv_params  Depthwise convolution parameters
@@ -3248,6 +3350,60 @@ __STATIC_FORCEINLINE int32_t arm_reduce_get_middle_block_from_arrays(const int32
         }
     }
     return *inner > 1;
+}
+
+/*
+ * Constants of arm_sqrt_s16_tablefree(). The magic constant seeds a float32
+ * reciprocal square root from the bit pattern of the input, K0 and K1 are the
+ * additive constants of the two Newton steps that follow. The chain returns
+ * 2^7 * sqrt(z), and the input conversion pre-scales by 2^-14 (the SHIFT
+ * immediate of the int-to-float conversion) to cancel that exactly. The three
+ * constants were tuned jointly over the whole float32 mantissa range;
+ * changing any one of them requires retuning the others.
+ */
+#define ARM_NN_SQRT_S16_TABLEFREE_SHIFT 14
+#define ARM_NN_SQRT_S16_TABLEFREE_MAGIC UINT32_C(0x5F5FB6C4)
+#define ARM_NN_SQRT_S16_TABLEFREE_K0 (-4.76426697f)
+#define ARM_NN_SQRT_S16_TABLEFREE_K1 (-48.0000114f)
+
+/**
+ * @brief One element of arm_sqrt_s16_tablefree(): the float32 chain the MVE
+ *        path evaluates per lane, so the two agree bit for bit on any IEEE-754
+ *        float32 implementation with round-to-nearest-even and a fused
+ *        multiply-add (fmaf). Every product after the pre-scale either has two
+ *        uses or feeds an fmaf or a conversion, never another lone multiply, so a compiler
+ *        allowed to reassociate (-ffast-math) still has no chain to reorder,
+ *        and no product feeds a bare add, so there is nothing to contract.
+ * @param[in]  value  input code; values <= 0 give 0
+ * @param[in]  scale  input_scale / (output_scale * output_scale) as float32
+ * @return     trunc(sqrt(value * scale)) saturated to 32767
+ */
+__STATIC_FORCEINLINE int16_t arm_nn_sqrt_s16_tablefree_element(const int32_t value, const float scale)
+{
+    const int32_t x = value > 0 ? value : 0;
+    /* The first product is exact (x < 2^15 times a power of two), so the
+     * pre-scale and the layer scale round once in total whichever way a
+     * compiler groups them; the MVE path applies the pre-scale inside VCVT. */
+    const float z = ((float)x * (1.0f / (float)(1 << ARM_NN_SQRT_S16_TABLEFREE_SHIFT))) * scale;
+    uint32_t bits;
+    float r0;
+
+    memcpy(&bits, &z, sizeof(bits));
+    bits = ARM_NN_SQRT_S16_TABLEFREE_MAGIC - (bits >> 1);
+    memcpy(&r0, &bits, sizeof(r0));
+
+    const float u0 = z * r0;
+    const float t0 = fmaf(u0, r0, ARM_NN_SQRT_S16_TABLEFREE_K0);
+    const float r1 = r0 * t0;
+    const float u1 = z * r1;
+    const float t1 = fmaf(r1, u1, ARM_NN_SQRT_S16_TABLEFREE_K1);
+    const float y = u1 * t1;
+
+    if (y >= 32767.0f)
+    {
+        return 32767;
+    }
+    return (int16_t)y;
 }
 
 #ifdef __cplusplus

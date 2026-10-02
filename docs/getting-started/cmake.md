@@ -11,7 +11,7 @@ not cache settings for changing the prebuilt archive.
 Pick the tarball matching your target CPU:
 
 ```bash
-VERSION=7.37.0 # x-release-please-version
+VERSION=7.39.0 # x-release-please-version
 CPU=cortex-m4   # or cortex-m0, cortex-m55
 TOOLCHAIN=atfe # or gcc, armclang
 curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz
@@ -24,9 +24,9 @@ tar -xzf ns-cmsis-nn-${CPU}-${TOOLCHAIN}-${VERSION}.tar.gz -C third_party/
 ## 2. Wire it into your CMake project
 
 ```cmake
-list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/third_party/ns-cmsis-nn-cortex-m4-atfe-7.37.0") # x-release-please-version
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/third_party/ns-cmsis-nn-cortex-m4-atfe-7.39.0") # x-release-please-version
 
-find_package(ns-cmsis-nn 7.37.0 REQUIRED CONFIG) # x-release-please-version
+find_package(ns-cmsis-nn 7.39.0 REQUIRED CONFIG) # x-release-please-version
 
 add_executable(my_firmware main.c)
 target_link_libraries(my_firmware PRIVATE ns::cmsis-nn)
@@ -34,6 +34,11 @@ target_link_libraries(my_firmware PRIVATE ns::cmsis-nn)
 
 That's it. `ns::cmsis-nn` is an `IMPORTED STATIC` target that already
 carries the right `INTERFACE_INCLUDE_DIRECTORIES`.
+
+Include the headers as `#include "arm_nnfunctions.h"`. The package also
+resolves the source-tree spelling `#include "Include/arm_nnfunctions.h"`,
+which TFLM's CMSIS-NN kernels use, through one-line forwarding headers in
+`compat/Include/`. Both spellings reach the same file.
 
 ## 3. Configure-time guardrails
 
@@ -61,13 +66,14 @@ the expected archive:
 
 ```bash
 cmake -S . -B build \
-  -DCMAKE_PREFIX_PATH="$PWD/third_party/ns-cmsis-nn-cortex-m4-atfe-7.37.0" # x-release-please-version
+  -DCMAKE_PREFIX_PATH="$PWD/third_party/ns-cmsis-nn-cortex-m4-atfe-7.39.0" # x-release-please-version
 cmake --build build --verbose
 ```
 
 In the configure or verbose build output, look for:
 
-- The extracted package's `include/` directory in the compiler include paths.
+- The extracted package's `include/` and `compat/` directories in the
+  compiler include paths.
 - The package's `lib/libns-cmsis-nn.a` in the final link command.
 
 If CMake reports a CPU mismatch, switch to the matching release artifact. If it

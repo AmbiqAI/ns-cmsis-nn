@@ -42,3 +42,4 @@ void test_nn_activation_helpers_f16_tanh_scalar_vs_mve_agreement(void)
 void test_nn_activation_helpers_f16_tanh_public_exhaustive(void) { nn_activation_helpers_f16_tanh_public_exhaustive(); }
 void test_nn_activation_helpers_f16_tanh_public_tails(void) { nn_activation_helpers_f16_tanh_public_tails(); }
 void test_nn_activation_helpers_f16_tanh_fp_controls(void) { nn_activation_helpers_f16_tanh_fp_controls(); }
+void test_nn_activation_helpers_f16_finite_limit_macros(void) { nn_activation_helpers_f16_finite_limit_macros(); }

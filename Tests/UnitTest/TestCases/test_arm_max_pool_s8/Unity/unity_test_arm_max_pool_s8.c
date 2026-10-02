@@ -61,3 +61,17 @@ void test_maxpooling_6_arm_max_pool_s8(void) { maxpooling_6_arm_max_pool_s8(); }
 void test_maxpooling_7_arm_max_pool_s8(void) { maxpooling_7_arm_max_pool_s8(); }
 
 void test_maxpooling_param_fail_arm_max_pool_s8(void) { maxpooling_param_fail_arm_max_pool_s8(); }
+
+void test_max_pool_s8_empty_window(void) { max_pool_s8_empty_window(); }
+
+void test_max_pool_s8_window_bound_limits(void) { max_pool_s8_window_bound_limits(); }
+
+void test_max_pool_s8_empty_output(void) { max_pool_s8_empty_output(); }
+
+void test_max_pool_s8_asymmetric_axes(void) { max_pool_s8_asymmetric_axes(); }
+
+void test_max_pool_s8_negative_stride(void) { max_pool_s8_negative_stride(); }
+
+void test_max_pool_s8_negative_padding(void) { max_pool_s8_negative_padding(); }
+
+void test_max_pool_s8_batches(void) { max_pool_s8_batches(); }
