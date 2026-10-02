@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.39.2](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.39.1...v7.39.2) (2026-10-02)
+
+
+### Bug Fixes
+
+* **pack:** export the pack root as an include path ([#658](https://github.com/AmbiqAI/ns-cmsis-nn/issues/658)) ([b07f524](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b07f52405542a6d5de9308d81018284aff46299d)), closes [#657](https://github.com/AmbiqAI/ns-cmsis-nn/issues/657) [#512](https://github.com/AmbiqAI/ns-cmsis-nn/issues/512)
+* **pool:** share one window check across the pooling kernels and admit an INT32_MIN final step ([#655](https://github.com/AmbiqAI/ns-cmsis-nn/issues/655)) ([e9b868b](https://github.com/AmbiqAI/ns-cmsis-nn/commit/e9b868b142fd5e85c0f3b106b7ed32cb1fe75994)), closes [#652](https://github.com/AmbiqAI/ns-cmsis-nn/issues/652) [#555](https://github.com/AmbiqAI/ns-cmsis-nn/issues/555)
+
 ## [7.39.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.39.0...v7.39.1) (2026-10-01)
 
 
