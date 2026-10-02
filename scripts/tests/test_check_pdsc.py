@@ -424,17 +424,69 @@ class CheckFileExistence(unittest.TestCase):
         self.assertEqual(self.run_check([("include", "./"), ("include", "Include/")]), [])
 
     def test_include_entry_naming_a_file_is_rejected(self):
-        failures = self.run_check([("include", "Include/arm_nnfunctions.h")])
+        failures = self.run_check([("include", "Include/arm_nnfunctions.h/")])
         self.assertEqual(len(failures), 1)
         self.assertIn("is not a directory", failures[0])
 
     def test_include_entry_naming_a_missing_directory_is_rejected(self):
-        self.assertEqual(len(self.run_check([("include", "compat/")])), 1)
+        failures = self.run_check([("include", "compat/")])
+        self.assertEqual(len(failures), 1)
+        self.assertIn("is not a directory", failures[0])
+
+    def test_include_entry_without_trailing_slash_or_inside_repo_is_rejected(self):
+        for name in (".", "Include", "../", "Include/../", "/tmp/"):
+            with self.subTest(name=name):
+                self.module.failures = []
+                failures = self.run_check([("include", name)])
+                self.assertEqual(len(failures), 1, failures)
+                self.assertIn("must be a relative path ending in '/'", failures[0])
 
     def test_header_entry_naming_a_directory_is_rejected(self):
         failures = self.run_check([("header", "Include/")])
         self.assertEqual(len(failures), 1)
         self.assertIn("not found on disk", failures[0])
+
+
+
+class CheckRootInclude(unittest.TestCase):
+    """check_root_include(): every heliaCORE component, Source and Prebuilt, declares the pack root
+    as an include path."""
+
+    COMPONENT = (
+        '<component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="{variant}" '
+        'Cvendor="Ambiq"><files>{files}</files></component>'
+    )
+    ROOT = '<file category="include" name="./"/>'
+    HEADER = '<file category="header" name="Include/arm_nnfunctions.h"/>'
+
+    def setUp(self):
+        self.module = _load_module()
+        self.module.failures = []
+
+    def run_check(self, source_files: str, prebuilt_files: str) -> list[str]:
+        import xml.etree.ElementTree as ET
+
+        pkg = ET.fromstring(
+            "<package><components>"
+            + self.COMPONENT.format(variant="Source", files=source_files)
+            + self.COMPONENT.format(variant="Prebuilt", files=prebuilt_files)
+            + "</components></package>"
+        )
+        self.module.check_root_include(pkg)
+        return list(self.module.failures)
+
+    def test_both_variants_declaring_the_root_are_accepted(self):
+        self.assertEqual(self.run_check(self.ROOT + self.HEADER, self.ROOT + self.HEADER), [])
+
+    def test_a_variant_missing_the_root_is_rejected_by_name(self):
+        for missing in ("Source", "Prebuilt"):
+            with self.subTest(missing=missing):
+                self.module.failures = []
+                source = self.HEADER if missing == "Source" else self.ROOT + self.HEADER
+                prebuilt = self.HEADER if missing == "Prebuilt" else self.ROOT + self.HEADER
+                failures = self.run_check(source, prebuilt)
+                self.assertEqual(len(failures), 1, failures)
+                self.assertIn(f"Cvariant='{missing}'", failures[0])
 
 
 if __name__ == "__main__":
