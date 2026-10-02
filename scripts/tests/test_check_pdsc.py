@@ -441,6 +441,29 @@ class CheckFileExistence(unittest.TestCase):
                 self.assertEqual(len(failures), 1, failures)
                 self.assertIn("must be a relative path ending in '/'", failures[0])
 
+    def test_include_entry_under_the_generated_docs_prefix_is_still_validated(self):
+        for name, message in (
+            ("Documentation/html/../../../", "must be a relative path ending in '/'"),
+            ("Documentation/html/missing/", "is not a directory"),
+        ):
+            with self.subTest(name=name):
+                self.module.failures = []
+                failures = self.run_check([("include", name)])
+                self.assertEqual(len(failures), 1, failures)
+                self.assertIn(message, failures[0])
+
+    def test_include_entry_symlinked_outside_the_repo_is_rejected(self):
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        (self.root / "escaped").symlink_to(outside.name, target_is_directory=True)
+        failures = self.run_check([("include", "escaped/")])
+        self.assertEqual(len(failures), 1, failures)
+        self.assertIn("resolves outside the repository", failures[0])
+
+    def test_include_entry_symlinked_inside_the_repo_is_accepted(self):
+        (self.root / "alias").symlink_to(self.root / "Include", target_is_directory=True)
+        self.assertEqual(self.run_check([("include", "alias/")]), [])
+
     def test_header_entry_naming_a_directory_is_rejected(self):
         failures = self.run_check([("header", "Include/")])
         self.assertEqual(len(failures), 1)

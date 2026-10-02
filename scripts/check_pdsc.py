@@ -387,14 +387,19 @@ def check_file_existence(entries: list[tuple[str, str]]) -> None:
         if not name:
             fail(f"<file category='{cat}'/> is missing the 'name' attribute")
             continue
-        if any(name.startswith(p) for p in GENERATED_PREFIXES):
-            continue
-        # An include entry names a directory that is added to the include path.
+        # An include entry names a directory that is added to the include path. It is checked before the
+        # generated-artefact exemption, so no include path skips validation.
         if cat == "include":
+            target = (REPO / name).resolve()
+            root = REPO.resolve()
             if not name.endswith("/") or ".." in Path(name).parts or Path(name).is_absolute():
                 fail(f"<file category='include' name='{name}'/> must be a relative path ending in '/' without '..'")
-            elif not (REPO / name).is_dir():
+            elif target != root and root not in target.parents:
+                fail(f"<file category='include' name='{name}'/> resolves outside the repository")
+            elif not target.is_dir():
                 fail(f"<file category='include' name='{name}'/> is not a directory")
+            continue
+        if any(name.startswith(p) for p in GENERATED_PREFIXES):
             continue
         if not (REPO / name).is_file():
             fail(f"<file name='{name}'/> not found on disk")
