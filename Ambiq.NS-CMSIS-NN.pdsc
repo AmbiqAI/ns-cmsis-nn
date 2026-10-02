@@ -63,6 +63,9 @@
       <description>heliaCORE NN — Ambiq's optimized superset of Arm CMSIS-NN, tuned for Apollo SoCs.</description>
       <files>
         <file category="doc" name="Documentation/html/index.html"/>
+        <!-- The pack root, for the Include/-prefixed spelling that TFLM-based runtimes use
+             (#include "Include/arm_nnfunctions.h"). -->
+        <file category="include" name="./"/>
         <file category="header" name="Include/arm_nn_types.h"/>
         <file category="header" name="Include/arm_nnfunctions.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>
@@ -469,6 +472,8 @@
       <description>heliaCORE NN — Ambiq's prebuilt GCC archive for Cortex-M0/M0+/M4/M55.</description>
       <files>
         <file category="doc"    name="Documentation/html/index.html"/>
+        <!-- The pack root, for the Include/-prefixed spelling (see the Source variant). -->
+        <file category="include" name="./"/>
         <file category="header" name="Include/arm_nn_types.h"/>
         <file category="header" name="Include/arm_nnfunctions.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>

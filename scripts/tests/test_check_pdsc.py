@@ -402,5 +402,40 @@ class CheckExtraFilesAnnotations(unittest.TestCase):
         self.assertTrue(any("could not read" in f for f in failures), failures)
 
 
+class CheckFileExistence(unittest.TestCase):
+    """check_file_existence(): files must exist as files, and an `include`
+    entry, which names a directory added to the include path, as a directory."""
+
+    def setUp(self):
+        self.module = _load_module()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.module.REPO = self.root
+        self.module.failures = []
+        (self.root / "Include").mkdir()
+        (self.root / "Include" / "arm_nnfunctions.h").write_text("")
+
+    def run_check(self, entries: list[tuple[str, str]]) -> list[str]:
+        self.module.check_file_existence(entries)
+        return list(self.module.failures)
+
+    def test_include_directory_entries_are_accepted(self):
+        self.assertEqual(self.run_check([("include", "./"), ("include", "Include/")]), [])
+
+    def test_include_entry_naming_a_file_is_rejected(self):
+        failures = self.run_check([("include", "Include/arm_nnfunctions.h")])
+        self.assertEqual(len(failures), 1)
+        self.assertIn("is not a directory", failures[0])
+
+    def test_include_entry_naming_a_missing_directory_is_rejected(self):
+        self.assertEqual(len(self.run_check([("include", "compat/")])), 1)
+
+    def test_header_entry_naming_a_directory_is_rejected(self):
+        failures = self.run_check([("header", "Include/")])
+        self.assertEqual(len(failures), 1)
+        self.assertIn("not found on disk", failures[0])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

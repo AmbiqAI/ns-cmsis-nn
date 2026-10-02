@@ -52,6 +52,13 @@ convention match, but the `Source` Cvariant is recommended when you want your
 project toolchain to optimize and qualify the kernels directly.
 :::
 
+## Headers
+
+Include the headers as `#include "arm_nnfunctions.h"`. Both components also put
+the pack root on the include path, so the source-tree spelling
+`#include "Include/arm_nnfunctions.h"`, which TFLM-based runtimes such as heliaRT
+use, resolves without an extra `add-path`. Both spellings reach the same file.
+
 ## Verify the selection
 
 Before building firmware, confirm your project has exactly one heliaCORE NN Lib

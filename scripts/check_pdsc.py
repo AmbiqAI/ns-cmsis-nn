@@ -385,6 +385,11 @@ def check_file_existence(entries: list[tuple[str, str]]) -> None:
             continue
         if any(name.startswith(p) for p in GENERATED_PREFIXES):
             continue
+        # An include entry names a directory that is added to the include path.
+        if cat == "include":
+            if not (REPO / name).is_dir():
+                fail(f"<file category='include' name='{name}'/> is not a directory")
+            continue
         if not (REPO / name).is_file():
             fail(f"<file name='{name}'/> not found on disk")
 

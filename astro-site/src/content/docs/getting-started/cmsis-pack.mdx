@@ -62,6 +62,13 @@ selection view, choose **Ambiq → Machine Learning → NN Lib → heliaCORE** a
 select exactly one variant, **Source** or **Prebuilt**. Rebuild the board project
 so the generated include paths and selected sources or library are applied.
 
+## Headers
+
+Include the headers as `#include "arm_nnfunctions.h"`. Both components also put
+the pack root on the include path, so the source-tree spelling
+`#include "Include/arm_nnfunctions.h"`, which TFLM-based runtimes such as heliaRT
+use, resolves without an extra `add-path`. Both spellings reach the same file.
+
 ## Prebuilt — supported architectures
 
 The `Prebuilt` Cvariant is gated by per-arch conditions. The pack ships
