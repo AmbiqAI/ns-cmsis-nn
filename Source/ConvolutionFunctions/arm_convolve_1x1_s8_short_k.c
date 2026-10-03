@@ -177,6 +177,12 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_short_k(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
+    /* The pixel and output element counts are int32 indices in the kernel */
+    const int64_t rows = (int64_t)input_dims->n * input_dims->h;
+    if (rows > INT32_MAX || rows * input_dims->w > INT32_MAX || rows * input_dims->w * output_dims->c > INT32_MAX)
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
     /* The bias is folded into the weight sums */
     arm_convolve_1x1_s8_short_k_kernel(weight_sum_ctx->buf,
                                        input_data,
@@ -184,7 +190,7 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_short_k(const cmsis_nn_context *ctx,
                                        output_data,
                                        quant_params->multiplier,
                                        quant_params->shift,
-                                       input_dims->n * input_dims->h * input_dims->w,
+                                       (int32_t)(rows * input_dims->w),
                                        output_dims->c,
                                        input_dims->c,
                                        conv_params->output_offset,

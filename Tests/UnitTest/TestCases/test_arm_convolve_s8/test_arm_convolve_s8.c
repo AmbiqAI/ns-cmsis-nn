@@ -2328,32 +2328,66 @@ void conv_1x1_short_k_declines_arm_convolve_1x1_s8_short_k(void)
     const cmsis_nn_context ctx = {0};
     const cmsis_nn_context weight_sum_ctx = {weight_sum, (int32_t)sizeof(weight_sum)};
     const cmsis_nn_dims bias_dims = {1, 1, 1, 4};
-    for (int32_t k = 0; k < 7; k++)
+    for (int32_t k = 0; k < 15; k++)
     {
         cmsis_nn_conv_params conv_params = {.stride = {1, 1}, .dilation = {1, 1}, .activation = {-128, 127}};
         cmsis_nn_dims input_dims = {1, 4, 4, 8}, filter_dims = {4, 1, 1, 8}, output_dims = {1, 4, 4, 4};
-        if (k >= 4)
+        switch (k)
         {
-            /* A negative batch, height or width has no pixels */
-            int32_t *dim = k == 4 ? &input_dims.n : k == 5 ? &input_dims.h : &input_dims.w;
-            *dim = -1;
-        }
-        else if (k == 0)
-        {
+        case 0:
             conv_params.stride.w = 2;
             output_dims.w = 2;
-        }
-        else if (k == 1)
-        {
+            break;
+        case 1:
+            conv_params.stride.h = 2;
+            output_dims.h = 2;
+            break;
+        case 2:
             conv_params.padding.h = 1;
-        }
-        else if (k == 2)
-        {
-            filter_dims.c = 4;
-        }
-        else
-        {
+            break;
+        case 3:
+            conv_params.padding.w = 1;
+            break;
+        case 4:
             conv_params.dilation.h = 2;
+            break;
+        case 5:
+            conv_params.dilation.w = 2;
+            break;
+        case 6:
+            filter_dims.c = 4;
+            break;
+        case 7:
+            filter_dims.h = 3;
+            filter_dims.w = 3;
+            break;
+        case 8:
+            input_dims.c = 0;
+            filter_dims.c = 0;
+            break;
+        /* No pixels: a zero or negative batch, height or width */
+        case 9:
+            input_dims.n = 0;
+            break;
+        case 10:
+            input_dims.n = -1;
+            break;
+        case 11:
+            input_dims.h = -1;
+            break;
+        case 12:
+            input_dims.w = -1;
+            break;
+        /* Pixel or output element counts past INT32_MAX; no tensor is touched */
+        case 13:
+            input_dims.n = 3;
+            input_dims.h = 1431655765;
+            input_dims.w = 1;
+            break;
+        default:
+            input_dims.h = 1 << 20;
+            input_dims.w = 1 << 10;
+            break;
         }
         memset(output, 0x5A, sizeof(output));
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
@@ -2375,8 +2409,9 @@ void conv_1x1_short_k_declines_arm_convolve_1x1_s8_short_k(void)
         }
     }
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
-    const cmsis_nn_conv_params conv_params = {.stride = {1, 1}, .dilation = {1, 1}, .activation = {-128, 127}};
-    const cmsis_nn_dims input_dims = {1, 4, 4, 8}, filter_dims = {4, 1, 1, 8}, output_dims = {1, 4, 4, 4};
+    /* Outside the gate (stride 2): the weight-sum check comes first */
+    const cmsis_nn_conv_params conv_params = {.stride = {2, 2}, .dilation = {1, 1}, .activation = {-128, 127}};
+    const cmsis_nn_dims input_dims = {1, 4, 4, 8}, filter_dims = {4, 1, 1, 8}, output_dims = {1, 2, 2, 4};
     const cmsis_nn_context no_sums = {NULL, 0};
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_convolve_1x1_s8_short_k(&ctx,
