@@ -56,6 +56,12 @@
 #define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC (8)
 #define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS (8)
 
+/* arm_nn_conv_flt_is_patch_gemm serves both types */
+#if ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC != ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_OC ||                                \
+    ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS != ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_POS
+    #error "The float16 and float32 packed-patch GEMM thresholds differ"
+#endif
+
 #define ARM_CONV_DISPATCH(TABLE, COUNT, ...)                                                                           \
     do                                                                                                                 \
     {                                                                                                                  \
