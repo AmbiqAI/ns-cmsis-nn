@@ -68,17 +68,18 @@ __STATIC_INLINE float32_t arm_convolve_1_x_n_dot_f32(const float32_t *lhs, const
     #endif
 }
 
-__STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mult_nt_t_strided_f32(const float32_t *__RESTRICT lhs,
-                                                                                 const float32_t *__RESTRICT rhs,
-                                                                                 const float32_t *__RESTRICT bias,
-                                                                                 float32_t *__RESTRICT dst,
-                                                                                 int32_t lhs_rows,
-                                                                                 int32_t rhs_rows,
-                                                                                 int32_t rhs_cols,
-                                                                                 int32_t lhs_cols_offset,
-                                                                                 int32_t row_address_offset,
-                                                                                 float32_t activation_min,
-                                                                                 float32_t activation_max)
+static __attribute__((noinline)) arm_cmsis_nn_status
+arm_convolve_1_x_n_mat_mult_nt_t_strided_f32(const float32_t *__RESTRICT lhs,
+                                             const float32_t *__RESTRICT rhs,
+                                             const float32_t *__RESTRICT bias,
+                                             float32_t *__RESTRICT dst,
+                                             int32_t lhs_rows,
+                                             int32_t rhs_rows,
+                                             int32_t rhs_cols,
+                                             int32_t lhs_cols_offset,
+                                             int32_t row_address_offset,
+                                             float32_t activation_min,
+                                             float32_t activation_max)
 {
     if (!lhs || !rhs || !dst || lhs_rows <= 0 || rhs_rows <= 0 || rhs_cols <= 0 || lhs_cols_offset <= 0 ||
         row_address_offset <= 0)
@@ -190,17 +191,18 @@ __STATIC_INLINE void arm_convolve_1_x_n_find_regions(const cmsis_nn_conv_params_
 /* Route one packed patch tile through the matmul that matches the filter storage format, exactly as the
  * patch-GEMM path in arm_convolve_f32.c does; the 1xN path previously always took the OHWI kernel and
  * silently misread NT_N_PACKED filters. */
-__STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mul_f32(const float32_t *lhs,
-                                                                   const float32_t *rhs,
-                                                                   const float32_t *bias,
-                                                                   float32_t *dst,
-                                                                   int32_t lhs_rows,
-                                                                   int32_t rhs_rows,
-                                                                   int32_t rhs_cols,
-                                                                   int32_t row_address_offset,
-                                                                   const cmsis_nn_conv_params_f32 *conv_params)
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mul_f32(const float32_t *lhs,
+                                                                        const float32_t *rhs,
+                                                                        const float32_t *bias,
+                                                                        float32_t *dst,
+                                                                        int32_t lhs_rows,
+                                                                        int32_t rhs_rows,
+                                                                        int32_t rhs_cols,
+                                                                        int32_t row_address_offset,
+                                                                        const cmsis_nn_conv_params_f32 *conv_params,
+                                                                        const int32_t packed)
 {
-    if (conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
+    if (ARM_CONV_FORMAT_PACKED(packed, conv_params))
     {
         return arm_nn_mat_mult_nt_n_packed_f32(lhs,
                                                rhs,
@@ -226,13 +228,13 @@ __STATIC_INLINE arm_cmsis_nn_status arm_convolve_1_x_n_mat_mul_f32(const float32
                                     conv_params->activation.max);
 }
 
-__STATIC_INLINE void arm_convolve_1_x_n_pack_rows_f32(float32_t *scratch,
-                                                      const float32_t *input_b,
-                                                      const cmsis_nn_conv_params_f32 *conv_params,
-                                                      const cmsis_nn_dims *input_dims,
-                                                      const cmsis_nn_dims *filter_dims,
-                                                      int32_t start_out_x,
-                                                      int32_t rows)
+static __attribute__((noinline)) void arm_convolve_1_x_n_pack_rows_f32(float32_t *scratch,
+                                                                       const float32_t *input_b,
+                                                                       const cmsis_nn_conv_params_f32 *conv_params,
+                                                                       const cmsis_nn_dims *input_dims,
+                                                                       const cmsis_nn_dims *filter_dims,
+                                                                       int32_t start_out_x,
+                                                                       int32_t rows)
 {
     const int32_t input_w = input_dims->w;
     const int32_t input_c = input_dims->c;
@@ -285,16 +287,17 @@ __STATIC_FORCEINLINE bool arm_convolve_1_x_n_rows_in_place_f32(const int32_t out
     #endif
 }
 
-arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
-                                                const cmsis_nn_conv_params_f32 *conv_params,
-                                                const cmsis_nn_dims *input_dims,
-                                                const float32_t *input_data,
-                                                const cmsis_nn_dims *filter_dims,
-                                                const float32_t *filter_data,
-                                                const cmsis_nn_dims *bias_dims,
-                                                const float32_t *bias_data,
-                                                const cmsis_nn_dims *output_dims,
-                                                float32_t *output_data)
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32_body(const cmsis_nn_context *ctx,
+                                                                          const cmsis_nn_conv_params_f32 *conv_params,
+                                                                          const cmsis_nn_dims *input_dims,
+                                                                          const float32_t *input_data,
+                                                                          const cmsis_nn_dims *filter_dims,
+                                                                          const float32_t *filter_data,
+                                                                          const cmsis_nn_dims *bias_dims,
+                                                                          const float32_t *bias_data,
+                                                                          const cmsis_nn_dims *output_dims,
+                                                                          float32_t *output_data,
+                                                                          const int32_t packed)
 {
     (void)bias_dims;
 
@@ -304,11 +307,20 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    if (input_dims->h != 1 || output_dims->h != 1 || filter_dims->h != 1 || filter_dims->w <= 1 ||
-        conv_params->stride.h != 1 || conv_params->stride.w <= 0 || conv_params->padding.h != 0 ||
-        conv_params->dilation.h != 1 || conv_params->dilation.w != 1 || input_dims->c != filter_dims->c)
+    if (!arm_nn_conv_flt_is_1xn(&conv_params->stride,
+                                &conv_params->padding,
+                                &conv_params->dilation,
+                                input_dims,
+                                filter_dims,
+                                output_dims) ||
+        input_dims->c != filter_dims->c)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (packed != ARM_CONV_FORMAT_FROM_PARAMS &&
+        (conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED) != (packed != 0))
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
 
     const int32_t buf_size =
@@ -351,7 +363,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
             arm_convolve_1_x_n_pack_rows_f32(scratch, input_b, conv_params, input_dims, filter_dims, row, rows);
 
             arm_cmsis_nn_status st = arm_convolve_1_x_n_mat_mul_f32(
-                scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params);
+                scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params, packed);
             if (st != ARM_CMSIS_NN_SUCCESS)
             {
                 return st;
@@ -359,7 +371,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
             output_b += (size_t)rows * output_c;
         }
 
-        if (no_pad_num > 0 && conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
+        if (no_pad_num > 0 && ARM_CONV_FORMAT_PACKED(packed, conv_params))
         {
             /* The no-padding paths below read OHWI filters straight from the input; packed filters take the
              * same pack-rows tile loop as the padded regions so the format-aware matmul can consume them. */
@@ -370,7 +382,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
                     scratch, input_b, conv_params, input_dims, filter_dims, left_pad_num + row, rows);
 
                 arm_cmsis_nn_status st = arm_convolve_1_x_n_mat_mul_f32(
-                    scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params);
+                    scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params, packed);
                 if (st != ARM_CMSIS_NN_SUCCESS)
                 {
                     return st;
@@ -384,7 +396,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
             for (int32_t row = 0; row < no_pad_num; ++row)
             {
                 arm_cmsis_nn_status st = arm_convolve_1_x_n_mat_mul_f32(
-                    lhs, filter_data, bias_data, output_b, 1, output_c, rhs_cols, output_c, conv_params);
+                    lhs, filter_data, bias_data, output_b, 1, output_c, rhs_cols, output_c, conv_params, packed);
                 if (st != ARM_CMSIS_NN_SUCCESS)
                 {
                     return st;
@@ -421,7 +433,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
             arm_convolve_1_x_n_pack_rows_f32(scratch, input_b, conv_params, input_dims, filter_dims, start_out_x, rows);
 
             arm_cmsis_nn_status st = arm_convolve_1_x_n_mat_mul_f32(
-                scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params);
+                scratch, filter_data, bias_data, output_b, rows, output_c, rhs_cols, output_c, conv_params, packed);
             if (st != ARM_CMSIS_NN_SUCCESS)
             {
                 return st;
@@ -431,6 +443,78 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
     }
 
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
+                                                const cmsis_nn_conv_params_f32 *conv_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const float32_t *input_data,
+                                                const cmsis_nn_dims *filter_dims,
+                                                const float32_t *filter_data,
+                                                const cmsis_nn_dims *bias_dims,
+                                                const float32_t *bias_data,
+                                                const cmsis_nn_dims *output_dims,
+                                                float32_t *output_data)
+{
+    return arm_convolve_1_x_n_nhwc_f32_body(ctx,
+                                            conv_params,
+                                            input_dims,
+                                            input_data,
+                                            filter_dims,
+                                            filter_data,
+                                            bias_dims,
+                                            bias_data,
+                                            output_dims,
+                                            output_data,
+                                            ARM_CONV_FORMAT_FROM_PARAMS);
+}
+
+arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_ohwi_f32(const cmsis_nn_context *ctx,
+                                                     const cmsis_nn_conv_params_f32 *conv_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const float32_t *input_data,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const float32_t *filter_data,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const float32_t *bias_data,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     float32_t *output_data)
+{
+    return arm_convolve_1_x_n_nhwc_f32_body(ctx,
+                                            conv_params,
+                                            input_dims,
+                                            input_data,
+                                            filter_dims,
+                                            filter_data,
+                                            bias_dims,
+                                            bias_data,
+                                            output_dims,
+                                            output_data,
+                                            0);
+}
+
+arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_packed_f32(const cmsis_nn_context *ctx,
+                                                       const cmsis_nn_conv_params_f32 *conv_params,
+                                                       const cmsis_nn_dims *input_dims,
+                                                       const float32_t *input_data,
+                                                       const cmsis_nn_dims *filter_dims,
+                                                       const float32_t *filter_data,
+                                                       const cmsis_nn_dims *bias_dims,
+                                                       const float32_t *bias_data,
+                                                       const cmsis_nn_dims *output_dims,
+                                                       float32_t *output_data)
+{
+    return arm_convolve_1_x_n_nhwc_f32_body(ctx,
+                                            conv_params,
+                                            input_dims,
+                                            input_data,
+                                            filter_dims,
+                                            filter_data,
+                                            bias_dims,
+                                            bias_data,
+                                            output_dims,
+                                            output_data,
+                                            1);
 }
 
 arm_cmsis_nn_status arm_convolve_1_x_n_f32(const cmsis_nn_context *ctx,

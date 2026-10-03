@@ -35,6 +35,14 @@
 
 #define ARM_CONV_ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+/* Filter-format argument of the shared float route bodies: 0 standard, 1 NT_N_PACKED (the per-format direct entries),
+ * or read from conv_params at each use (the format-agnostic entries and the routers, so that they keep one copy of
+ * each loop) */
+#define ARM_CONV_FORMAT_FROM_PARAMS (-1)
+#define ARM_CONV_FORMAT_PACKED(packed, conv_params)                                                                    \
+    ((packed) == ARM_CONV_FORMAT_FROM_PARAMS ? (conv_params)->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED        \
+                                             : (packed) != 0)
+
 /*
  * Heuristics for selecting the NHWC packed-patch-matrix + GEMM float32 path.
  * Below MIN_OC / MIN_POS the packing/setup overhead tends to outweigh the GEMM win.

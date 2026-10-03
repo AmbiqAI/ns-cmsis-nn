@@ -330,6 +330,40 @@ arm_cmsis_nn_status arm_convolve_1x1_nhwc_f32(const cmsis_nn_context *ctx,
                                               float32_t *output_data);
 
 /**
+ * @copydoc arm_convolve_1x1_nhwc_f32
+ *
+ * @note For ARM_NN_WEIGHT_FORMAT_STANDARD filters only, so that an image links only that format's kernels; returns
+ *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters.
+ */
+arm_cmsis_nn_status arm_convolve_1x1_nhwc_ohwi_f32(const cmsis_nn_context *ctx,
+                                                   const cmsis_nn_conv_params_f32 *conv_params,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   const float32_t *input_data,
+                                                   const cmsis_nn_dims *filter_dims,
+                                                   const float32_t *filter_data,
+                                                   const cmsis_nn_dims *bias_dims,
+                                                   const float32_t *bias_data,
+                                                   const cmsis_nn_dims *output_dims,
+                                                   float32_t *output_data);
+
+/**
+ * @copydoc arm_convolve_1x1_nhwc_f32
+ *
+ * @note For ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters only, so that an image links only that format's kernels; returns
+ *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_STANDARD filters.
+ */
+arm_cmsis_nn_status arm_convolve_1x1_nhwc_packed_f32(const cmsis_nn_context *ctx,
+                                                     const cmsis_nn_conv_params_f32 *conv_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const float32_t *input_data,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const float32_t *filter_data,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const float32_t *bias_data,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     float32_t *output_data);
+
+/**
  * @brief 1x1 convolution, dispatch by layout.
  *
  * @param[in,out] ctx         Function context that may hold a temporary scratch buffer.
@@ -405,6 +439,40 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
                                                 const float32_t *bias_data,
                                                 const cmsis_nn_dims *output_dims,
                                                 float32_t *output_data);
+
+/**
+ * @copydoc arm_convolve_1_x_n_nhwc_f32
+ *
+ * @note For ARM_NN_WEIGHT_FORMAT_STANDARD filters only, so that an image links only that format's kernels; returns
+ *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters.
+ */
+arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_ohwi_f32(const cmsis_nn_context *ctx,
+                                                     const cmsis_nn_conv_params_f32 *conv_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const float32_t *input_data,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const float32_t *filter_data,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const float32_t *bias_data,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     float32_t *output_data);
+
+/**
+ * @copydoc arm_convolve_1_x_n_nhwc_f32
+ *
+ * @note For ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters only, so that an image links only that format's kernels; returns
+ *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_STANDARD filters.
+ */
+arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_packed_f32(const cmsis_nn_context *ctx,
+                                                       const cmsis_nn_conv_params_f32 *conv_params,
+                                                       const cmsis_nn_dims *input_dims,
+                                                       const float32_t *input_data,
+                                                       const cmsis_nn_dims *filter_dims,
+                                                       const float32_t *filter_data,
+                                                       const cmsis_nn_dims *bias_dims,
+                                                       const float32_t *bias_data,
+                                                       const cmsis_nn_dims *output_dims,
+                                                       float32_t *output_data);
 
 /**
  * @brief 1xN convolution, dispatch by layout.
@@ -2971,6 +3039,40 @@ arm_cmsis_nn_status arm_convolve_1x1_nhwc_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_convolve_1x1_nhwc_f16
  *
+ * @note For ARM_NN_WEIGHT_FORMAT_STANDARD filters only, so that an image links only that format's kernels; returns
+ *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters.
+ */
+arm_cmsis_nn_status arm_convolve_1x1_nhwc_ohwi_f16(const cmsis_nn_context *ctx,
+                                                   const cmsis_nn_conv_params_f16 *conv_params,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   const float16_t *input_data,
+                                                   const cmsis_nn_dims *filter_dims,
+                                                   const float16_t *filter_data,
+                                                   const cmsis_nn_dims *bias_dims,
+                                                   const float16_t *bias_data,
+                                                   const cmsis_nn_dims *output_dims,
+                                                   float16_t *output_data);
+
+/**
+ * @copydoc arm_convolve_1x1_nhwc_f16
+ *
+ * @note For ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters only, so that an image links only that format's kernels; returns
+ *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_STANDARD filters.
+ */
+arm_cmsis_nn_status arm_convolve_1x1_nhwc_packed_f16(const cmsis_nn_context *ctx,
+                                                     const cmsis_nn_conv_params_f16 *conv_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const float16_t *input_data,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const float16_t *filter_data,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const float16_t *bias_data,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     float16_t *output_data);
+
+/**
+ * @copydoc arm_convolve_1x1_nhwc_f16
+ *
  * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
  *       arm_convolve_1x1_nhwc_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
  *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
@@ -2986,6 +3088,40 @@ arm_cmsis_nn_status arm_convolve_1x1_nhwc_f16_acc16(const cmsis_nn_context *ctx,
                                                     const float16_t *bias_data,
                                                     const cmsis_nn_dims *output_dims,
                                                     float16_t *output_data);
+
+/**
+ * @copydoc arm_convolve_1x1_nhwc_f16_acc16
+ *
+ * @note For ARM_NN_WEIGHT_FORMAT_STANDARD filters only, so that an image links only that format's kernels; returns
+ *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters.
+ */
+arm_cmsis_nn_status arm_convolve_1x1_nhwc_ohwi_f16_acc16(const cmsis_nn_context *ctx,
+                                                         const cmsis_nn_conv_params_f16 *conv_params,
+                                                         const cmsis_nn_dims *input_dims,
+                                                         const float16_t *input_data,
+                                                         const cmsis_nn_dims *filter_dims,
+                                                         const float16_t *filter_data,
+                                                         const cmsis_nn_dims *bias_dims,
+                                                         const float16_t *bias_data,
+                                                         const cmsis_nn_dims *output_dims,
+                                                         float16_t *output_data);
+
+/**
+ * @copydoc arm_convolve_1x1_nhwc_f16_acc16
+ *
+ * @note For ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters only, so that an image links only that format's kernels; returns
+ *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_STANDARD filters.
+ */
+arm_cmsis_nn_status arm_convolve_1x1_nhwc_packed_f16_acc16(const cmsis_nn_context *ctx,
+                                                           const cmsis_nn_conv_params_f16 *conv_params,
+                                                           const cmsis_nn_dims *input_dims,
+                                                           const float16_t *input_data,
+                                                           const cmsis_nn_dims *filter_dims,
+                                                           const float16_t *filter_data,
+                                                           const cmsis_nn_dims *bias_dims,
+                                                           const float16_t *bias_data,
+                                                           const cmsis_nn_dims *output_dims,
+                                                           float16_t *output_data);
 
 /**
  * @copydoc arm_convolve_1x1_f32
@@ -3039,6 +3175,40 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_convolve_1_x_n_nhwc_f16
  *
+ * @note For ARM_NN_WEIGHT_FORMAT_STANDARD filters only, so that an image links only that format's kernels; returns
+ *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters.
+ */
+arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_ohwi_f16(const cmsis_nn_context *ctx,
+                                                     const cmsis_nn_conv_params_f16 *conv_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const float16_t *input_data,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const float16_t *filter_data,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const float16_t *bias_data,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     float16_t *output_data);
+
+/**
+ * @copydoc arm_convolve_1_x_n_nhwc_f16
+ *
+ * @note For ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters only, so that an image links only that format's kernels; returns
+ *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_STANDARD filters.
+ */
+arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_packed_f16(const cmsis_nn_context *ctx,
+                                                       const cmsis_nn_conv_params_f16 *conv_params,
+                                                       const cmsis_nn_dims *input_dims,
+                                                       const float16_t *input_data,
+                                                       const cmsis_nn_dims *filter_dims,
+                                                       const float16_t *filter_data,
+                                                       const cmsis_nn_dims *bias_dims,
+                                                       const float16_t *bias_data,
+                                                       const cmsis_nn_dims *output_dims,
+                                                       float16_t *output_data);
+
+/**
+ * @copydoc arm_convolve_1_x_n_nhwc_f16
+ *
  * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
  *       arm_convolve_1_x_n_nhwc_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
  *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
@@ -3054,6 +3224,40 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16_acc16(const cmsis_nn_context *ct
                                                       const float16_t *bias_data,
                                                       const cmsis_nn_dims *output_dims,
                                                       float16_t *output_data);
+
+/**
+ * @copydoc arm_convolve_1_x_n_nhwc_f16_acc16
+ *
+ * @note For ARM_NN_WEIGHT_FORMAT_STANDARD filters only, so that an image links only that format's kernels; returns
+ *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters.
+ */
+arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_ohwi_f16_acc16(const cmsis_nn_context *ctx,
+                                                           const cmsis_nn_conv_params_f16 *conv_params,
+                                                           const cmsis_nn_dims *input_dims,
+                                                           const float16_t *input_data,
+                                                           const cmsis_nn_dims *filter_dims,
+                                                           const float16_t *filter_data,
+                                                           const cmsis_nn_dims *bias_dims,
+                                                           const float16_t *bias_data,
+                                                           const cmsis_nn_dims *output_dims,
+                                                           float16_t *output_data);
+
+/**
+ * @copydoc arm_convolve_1_x_n_nhwc_f16_acc16
+ *
+ * @note For ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters only, so that an image links only that format's kernels; returns
+ *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_STANDARD filters.
+ */
+arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_packed_f16_acc16(const cmsis_nn_context *ctx,
+                                                             const cmsis_nn_conv_params_f16 *conv_params,
+                                                             const cmsis_nn_dims *input_dims,
+                                                             const float16_t *input_data,
+                                                             const cmsis_nn_dims *filter_dims,
+                                                             const float16_t *filter_data,
+                                                             const cmsis_nn_dims *bias_dims,
+                                                             const float16_t *bias_data,
+                                                             const cmsis_nn_dims *output_dims,
+                                                             float16_t *output_data);
 
 /**
  * @copydoc arm_convolve_1_x_n_f32

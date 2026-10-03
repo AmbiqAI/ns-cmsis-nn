@@ -49,10 +49,6 @@
  * @{
  */
 
-/* Filter-format argument of the shared route bodies: 0 standard, 1 NT_N_PACKED (direct entries), or read from
- * conv_params at each use (the router, so that it keeps one copy of each loop) */
-    #define ARM_CONV_FORMAT_FROM_PARAMS (-1)
-
 /* The argument check of the router and of every direct entry */
 __STATIC_INLINE bool arm_convolve_nhwc_f32_args_ok(const cmsis_nn_conv_params_f32 *conv_params,
                                                    const cmsis_nn_dims *input_dims,
@@ -100,8 +96,7 @@ __STATIC_INLINE arm_cmsis_nn_status arm_convolve_patch_mat_mul_f32(const float32
                                                                    const cmsis_nn_conv_params_f32 *conv_params,
                                                                    const int32_t packed)
 {
-    if (packed == ARM_CONV_FORMAT_FROM_PARAMS ? conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED
-                                              : packed != 0)
+    if (ARM_CONV_FORMAT_PACKED(packed, conv_params))
     {
         return arm_nn_mat_mult_nt_n_packed_f32(lhs,
                                                rhs,
