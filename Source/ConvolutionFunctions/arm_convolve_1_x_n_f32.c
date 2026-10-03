@@ -271,6 +271,20 @@ __STATIC_INLINE void arm_convolve_1_x_n_pack_rows_f32(float32_t *scratch,
     }
 }
 
+/* Whether the no-padding rows are cheaper one at a time, read in place, through the contiguous-K matmul than through
+ * the strided kernel, which puts output channels on the 4 float32 lanes. That holds for long reductions. MVE builds
+ * only. */
+__STATIC_FORCEINLINE bool arm_convolve_1_x_n_rows_in_place_f32(const int32_t output_c, const int32_t rhs_cols)
+{
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    return output_c >= 4 && rhs_cols >= 224;
+    #else
+    (void)output_c;
+    (void)rhs_cols;
+    return false;
+    #endif
+}
+
 arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_conv_params_f32 *conv_params,
                                                 const cmsis_nn_dims *input_dims,
@@ -347,7 +361,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
 
         if (no_pad_num > 0 && conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
         {
-            /* The strided kernel below reads OHWI filters straight from the input; packed filters take the
+            /* The no-padding paths below read OHWI filters straight from the input; packed filters take the
              * same pack-rows tile loop as the padded regions so the format-aware matmul can consume them. */
             for (int32_t row = 0; row < no_pad_num; row += tile_rows)
             {
@@ -362,6 +376,21 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
                     return st;
                 }
                 output_b += (size_t)rows * output_c;
+            }
+        }
+        else if (no_pad_num > 0 && arm_convolve_1_x_n_rows_in_place_f32(output_c, rhs_cols))
+        {
+            const float32_t *lhs = input_b + (conv_params->stride.w * left_pad_num - conv_params->padding.w) * input_c;
+            for (int32_t row = 0; row < no_pad_num; ++row)
+            {
+                arm_cmsis_nn_status st = arm_convolve_1_x_n_mat_mul_f32(
+                    lhs, filter_data, bias_data, output_b, 1, output_c, rhs_cols, output_c, conv_params);
+                if (st != ARM_CMSIS_NN_SUCCESS)
+                {
+                    return st;
+                }
+                lhs += lhs_cols_offset;
+                output_b += output_c;
             }
         }
         else if (no_pad_num > 0)

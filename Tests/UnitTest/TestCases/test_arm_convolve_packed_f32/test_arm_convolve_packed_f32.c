@@ -474,6 +474,224 @@ static float32_t conv_f32_dyadic_weight(int32_t i, int32_t seed)
     return (float32_t)((float32_t)(((i * 53 + seed * 7) % 8) - 4) / 8.0f);
 }
 
+// 1xN, batch 2, 4 output channels, on both sides of the reduction length (kernel_w * in_c = 224) from which MVE
+// builds read the no-padding rows in place through the contiguous-K matmul instead of the strided kernel. Dyadic
+// values keep every sum exact, so both routes must match the reference.
+static void conv_f32_1xn_long_k_case(int32_t in_c)
+{
+    const cmsis_nn_dims in = {2, 1, 12, in_c};
+    const cmsis_nn_dims flt = {4, 1, 7, in_c};
+    const cmsis_nn_dims out = {2, 1, 12, 4};
+    const int32_t x_size = 2 * 12 * in_c;
+    const int32_t w_size = 4 * 7 * in_c;
+    float32_t *x = (float32_t *)malloc((size_t)x_size * sizeof(float32_t));
+    float32_t *w = (float32_t *)malloc((size_t)w_size * sizeof(float32_t));
+    float32_t bias[4];
+    cmsis_nn_conv_params_f32 cp;
+    TEST_ASSERT_NOT_NULL(x);
+    TEST_ASSERT_NOT_NULL(w);
+
+    for (int32_t i = 0; i < x_size; i++)
+    {
+        x[i] = conv_f32_dyadic_input(i, 31);
+    }
+    for (int32_t i = 0; i < w_size; i++)
+    {
+        w[i] = conv_f32_dyadic_weight(i, 32);
+    }
+    for (int32_t i = 0; i < 4; i++)
+    {
+        bias[i] = conv_f32_dyadic_input(i, 33);
+    }
+
+    conv_f32_params(&cp, 0, 3, 0);
+    conv_f32_check(&cp, &in, x, &flt, w, w, bias, &out, 1);
+
+    free(w);
+    free(x);
+}
+
+void convolve_1xn_long_k_f32(void)
+{
+    conv_f32_1xn_long_k_case(32); /* K = 224: in place on MVE */
+    conv_f32_1xn_long_k_case(31); /* K = 217: strided kernel */
+}
+
+// 1xN with stride 2, batch 2, against the same layer at stride 1: output x of the strided layer reads the same patch
+// as output 2x of the unit-stride one and takes the same route, so the two must match bit for bit. Covers the
+// no-padding rows read in place through the contiguous-K matmul, which step through the input by stride * in_c.
+static void conv_1xn_stride2_case_f32(int32_t in_c, int32_t kw, int32_t out_c)
+{
+    const int32_t in_w = 14;
+    const int32_t pad = kw / 2;
+    const int32_t out_w1 = in_w + 2 * pad - kw + 1;
+    const int32_t out_w2 = (in_w + 2 * pad - kw) / 2 + 1;
+    const cmsis_nn_dims in = {2, 1, in_w, in_c};
+    const cmsis_nn_dims flt = {out_c, 1, kw, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims out1 = {2, 1, out_w1, out_c};
+    const cmsis_nn_dims out2 = {2, 1, out_w2, out_c};
+    float32_t *x = (float32_t *)malloc((size_t)2 * in_w * in_c * sizeof(float32_t));
+    float32_t *w = (float32_t *)malloc((size_t)out_c * kw * in_c * sizeof(float32_t));
+    float32_t *bias = (float32_t *)malloc((size_t)out_c * sizeof(float32_t));
+    float32_t *y1 = (float32_t *)malloc((size_t)2 * out_w1 * out_c * sizeof(float32_t));
+    float32_t *y2 = (float32_t *)malloc((size_t)2 * out_w2 * out_c * sizeof(float32_t));
+    cmsis_nn_conv_params_f32 p;
+    TEST_ASSERT_NOT_NULL(x);
+    TEST_ASSERT_NOT_NULL(w);
+    TEST_ASSERT_NOT_NULL(bias);
+    TEST_ASSERT_NOT_NULL(y1);
+    TEST_ASSERT_NOT_NULL(y2);
+
+    for (int32_t i = 0; i < 2 * in_w * in_c; i++)
+    {
+        x[i] = (float32_t)((float)(((i * 37 + 5) % 61) - 30) / 17.0f);
+    }
+    for (int32_t i = 0; i < out_c * kw * in_c; i++)
+    {
+        w[i] = (float32_t)((float)(((i * 53 + 7) % 59) - 29) / 113.0f);
+    }
+    for (int32_t i = 0; i < out_c; i++)
+    {
+        bias[i] = (float32_t)((float)(i % 7 - 3) / 5.0f);
+    }
+    memset(&p, 0, sizeof(p));
+    p.stride.h = 1;
+    p.stride.w = 1;
+    p.padding.w = pad;
+    p.dilation.h = 1;
+    p.dilation.w = 1;
+    p.activation.min = -6.0e4f;
+    p.activation.max = 6.0e4f;
+    p.weight_format = ARM_NN_WEIGHT_FORMAT_STANDARD;
+    int32_t size = arm_convolve_1_x_n_f32_get_buffer_size(&p, &in, &flt, &out1, ARM_NN_LAYOUT_NHWC);
+    cmsis_nn_context ctx1 = {malloc((size_t)size), size};
+    TEST_ASSERT_NOT_NULL(ctx1.buf);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_1_x_n_f32(&ctx1, &p, &in, x, &flt, w,
+                                             &bias_dims, bias, &out1, y1, ARM_NN_LAYOUT_NHWC));
+    p.stride.w = 2;
+    size = arm_convolve_1_x_n_f32_get_buffer_size(&p, &in, &flt, &out2, ARM_NN_LAYOUT_NHWC);
+    cmsis_nn_context ctx2 = {malloc((size_t)size), size};
+    TEST_ASSERT_NOT_NULL(ctx2.buf);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_1_x_n_f32(&ctx2, &p, &in, x, &flt, w,
+                                             &bias_dims, bias, &out2, y2, ARM_NN_LAYOUT_NHWC));
+    for (int32_t b = 0; b < 2; b++)
+    {
+        for (int32_t ox = 0; ox < out_w2; ox++)
+        {
+            for (int32_t oc = 0; oc < out_c; oc++)
+            {
+                uint32_t got;
+                uint32_t want;
+                memcpy(&got, &y2[(b * out_w2 + ox) * out_c + oc], sizeof(got));
+                memcpy(&want, &y1[(b * out_w1 + 2 * ox) * out_c + oc], sizeof(want));
+                TEST_ASSERT_EQUAL_HEX32((uint32_t)want, (uint32_t)got);
+            }
+        }
+    }
+    free(ctx1.buf);
+    free(ctx2.buf);
+    free(y2);
+    free(y1);
+    free(bias);
+    free(w);
+    free(x);
+}
+
+void convolve_1xn_stride2_f32(void)
+{
+    conv_1xn_stride2_case_f32(32, 7, 5);  /* K = 224: in place */
+    conv_1xn_stride2_case_f32(40, 7, 9);  /* K = 280: in place */
+    conv_1xn_stride2_case_f32(16, 7, 8);  /* K = 112: strided kernel */
+}
+
+// 1xN, batch 2: each batch must match a batch-1 call on that batch's own input, bit for bit. Non-periodic data, so a
+// row that reads the wrong batch changes the output.
+static void conv_1xn_batch2_case_f32(int32_t in_c, int32_t kw, int32_t out_c)
+{
+    const int32_t in_w = 14;
+    const int32_t pad = kw / 2;
+    const cmsis_nn_dims in2 = {2, 1, in_w, in_c};
+    const cmsis_nn_dims in1 = {1, 1, in_w, in_c};
+    const cmsis_nn_dims flt = {out_c, 1, kw, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims out2 = {2, 1, in_w, out_c};
+    const cmsis_nn_dims out1 = {1, 1, in_w, out_c};
+    const int32_t in_size = in_w * in_c;
+    const int32_t out_size = in_w * out_c;
+    float32_t *x = (float32_t *)malloc((size_t)2 * in_size * sizeof(float32_t));
+    float32_t *w = (float32_t *)malloc((size_t)out_c * kw * in_c * sizeof(float32_t));
+    float32_t *bias = (float32_t *)malloc((size_t)out_c * sizeof(float32_t));
+    float32_t *y2 = (float32_t *)malloc((size_t)2 * out_size * sizeof(float32_t));
+    float32_t *y1 = (float32_t *)malloc((size_t)out_size * sizeof(float32_t));
+    cmsis_nn_conv_params_f32 p;
+    uint32_t seed = 61u;
+    TEST_ASSERT_NOT_NULL(x);
+    TEST_ASSERT_NOT_NULL(w);
+    TEST_ASSERT_NOT_NULL(bias);
+    TEST_ASSERT_NOT_NULL(y2);
+    TEST_ASSERT_NOT_NULL(y1);
+
+    for (int32_t i = 0; i < 2 * in_size; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        x[i] = (float32_t)((float)((int32_t)(seed >> 9) % 2001 - 1000) / 1000.0f);
+    }
+    for (int32_t i = 0; i < out_c * kw * in_c; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        w[i] = (float32_t)((float)((int32_t)(seed >> 9) % 2001 - 1000) / 4000.0f);
+    }
+    for (int32_t i = 0; i < out_c; i++)
+    {
+        bias[i] = (float32_t)((float)(i % 7 - 3) / 5.0f);
+    }
+    memset(&p, 0, sizeof(p));
+    p.stride.h = 1;
+    p.stride.w = 1;
+    p.padding.w = pad;
+    p.dilation.h = 1;
+    p.dilation.w = 1;
+    p.activation.min = -6.0e4f;
+    p.activation.max = 6.0e4f;
+    p.weight_format = ARM_NN_WEIGHT_FORMAT_STANDARD;
+    const int32_t size = arm_convolve_1_x_n_f32_get_buffer_size(&p, &in2, &flt, &out2, ARM_NN_LAYOUT_NHWC);
+    cmsis_nn_context ctx = {malloc((size_t)size), size};
+    TEST_ASSERT_NOT_NULL(ctx.buf);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_1_x_n_f32(&ctx, &p, &in2, x, &flt, w,
+                                             &bias_dims, bias, &out2, y2, ARM_NN_LAYOUT_NHWC));
+    for (int32_t b = 0; b < 2; b++)
+    {
+        TEST_ASSERT_EQUAL(
+            ARM_CMSIS_NN_SUCCESS,
+            arm_convolve_1_x_n_f32(&ctx, &p, &in1, x + b * in_size, &flt, w,
+                                   &bias_dims, bias, &out1, y1, ARM_NN_LAYOUT_NHWC));
+        for (int32_t i = 0; i < out_size; i++)
+        {
+            uint32_t got;
+            uint32_t want;
+            memcpy(&got, &y2[b * out_size + i], sizeof(got));
+            memcpy(&want, &y1[i], sizeof(want));
+            TEST_ASSERT_EQUAL_HEX32((uint32_t)want, (uint32_t)got);
+        }
+    }
+    free(ctx.buf);
+    free(y1);
+    free(y2);
+    free(bias);
+    free(w);
+    free(x);
+}
+
+void convolve_1xn_batch2_f32(void)
+{
+    conv_1xn_batch2_case_f32(32, 7, 4);  /* K = 224: in place */
+    conv_1xn_batch2_case_f32(16, 7, 8);  /* K = 112: strided kernel */
+}
+
 void convolve_full_c_partial_block_f32(void)
 {
     const cmsis_nn_dims in = {1, 6, 6, 5};

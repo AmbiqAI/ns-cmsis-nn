@@ -789,7 +789,7 @@ void ba_batch_matmul_long_k(void)
 }
 
 /* ---------------------------------------------------------------------------------------------------------------- */
-/* 1xN convolution: padded regions through the matmul, the no-padding region through the strided kernel            */
+/* 1xN convolution: padded and long-K no-padding rows through the matmul, other no-padding rows strided            */
 /* ---------------------------------------------------------------------------------------------------------------- */
 
 typedef struct
@@ -837,6 +837,13 @@ static void ba_c1d_lane_tap(const void *vctx, int32_t t, float16_t *x, float16_t
     *w = ba_w[(size_t)c->oc * c->kw * c->in_c + t];
 }
 
+/* Mirrors arm_convolve_1_x_n_rows_in_place_f16(): whether the no-padding rows run, read in place, through the
+ * contiguous-K matmul instead of the strided kernel. */
+static bool ba_c1xn_in_place(int32_t out_c, int32_t k)
+{
+    return BA_MVE && out_c >= 4 && ((out_c % 8 >= 4 && k >= 80) || k >= 224);
+}
+
 static float16_t ba_c1xn_ref(const void *vctx, int32_t idx, int32_t block)
 {
     ba_c1d c = *(const ba_c1d *)vctx;
@@ -851,8 +858,9 @@ static float16_t ba_c1xn_ref(const void *vctx, int32_t idx, int32_t block)
         return ba_emu_lane(&c, ba_c1d_lane_tap, k, bias, block);
     }
     /* Strided kernel (no-padding region): gather lanes for whole blocks of 8, then 4, of output channels, then the
-     * remainder dot. Padded regions: the matmul's contiguous-K groups of four and its remainder dot. */
-    const int32_t lane_oc = (c.out_c / 8) * 8 + ((c.out_c % 8) / 4) * 4;
+     * remainder dot. Padded regions, and no-padding rows read in place: the matmul's contiguous-K groups of four and
+     * its remainder dot. */
+    const int32_t lane_oc = ba_c1xn_in_place(c.out_c, k) ? 0 : (c.out_c / 8) * 8 + ((c.out_c % 8) / 4) * 4;
     if (interior && c.oc < lane_oc)
     {
         return ba_emu_lane(&c, ba_c1d_lane_tap, k, bias, block);
@@ -931,12 +939,22 @@ static void ba_c1xn_case(int32_t in_w, int32_t in_c, int32_t kw, int32_t out_c, 
 void ba_conv_1xn_long_k(void)
 {
     ba_begin();
-    ba_c1xn_case(16, 14, 7, 13, false); /* K = 98 */
-    ba_c1xn_case(12, 40, 7, 13, false); /* K = 280 */
+    ba_c1xn_case(16, 14, 7, 13, false); /* K = 98, no-padding rows read in place */
+    ba_c1xn_case(12, 40, 7, 13, false); /* K = 280, no-padding rows read in place */
     ba_c1xn_case(12, 40, 7, 5, true);
     ba_c1xn_case(10, 5, 7, 13, false);  /* K = 35 */
     ba_c1xn_case(10, 4, 7, 13, false);  /* K = 28 */
-    ba_c1xn_case(12, 14, 7, 21, false); /* 16- and 4-lane gather groups, then the remainder dot */
+    ba_c1xn_case(12, 10, 7, 21, false); /* K = 70: 16- and 4-lane gather groups, then the remainder dot */
+    /* Both sides of each in-place bound: 4 to 7 channels left in the last lane block from K = 80, any count of 4 or
+     * more from K = 224. */
+    ba_c1xn_case(12, 16, 5, 4, false); /* K = 80, in place */
+    ba_c1xn_case(12, 8, 9, 4, false);  /* K = 72, strided */
+    ba_c1xn_case(12, 32, 7, 8, false); /* K = 224, in place */
+    ba_c1xn_case(12, 24, 9, 8, false); /* K = 216, strided */
+    ba_c1xn_case(12, 32, 7, 3, false); /* K = 224, 3 channels: dot products, never in place */
+    ba_c1xn_case(12, 13, 6, 4, false); /* K = 78, strided */
+    ba_c1xn_case(12, 16, 6, 11, false); /* K = 96, 3 channels left in the last lane block: strided */
+    ba_c1xn_case(12, 37, 6, 8, false); /* K = 222, strided */
     /* K = 56. The padded outputs multiply a zero-padded patch row, so they count all 56 taps, 32 of them in range at
      * the ends. */
     ba_c1xn_case(10, 8, 7, 13, false);
