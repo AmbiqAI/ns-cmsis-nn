@@ -55,7 +55,7 @@ __STATIC_FORCEINLINE void arm_convolve_1x1_s8_short_k_channel(const int8_t *ip,
                                                               const int8_t *w_row,
                                                               int8_t *dst,
                                                               const int32_t out_first,
-                                                              const int32_t row_step,
+                                                              const uint32_t row_step,
                                                               const int32_t body_rows,
                                                               const int32_t tail,
                                                               const int32_t rhs_cols,
@@ -93,7 +93,7 @@ __STATIC_FORCEINLINE void arm_convolve_1x1_s8_short_k_channel(const int8_t *ip,
             const int32x4_t res = arm_convolve_1x1_short_k_quant(
                 vldrwq_s32(acc), sum, mult, shift, rshift_only, dst_offset, v_min, v_max);
             vstrbq_scatter_offset_s32(out, offs, res);
-            offs = vaddq_n_u32(offs, (uint32_t)row_step);
+            offs = vaddq_n_u32(offs, row_step);
         }
         if (tail)
         {
@@ -125,7 +125,7 @@ __STATIC_FORCEINLINE void arm_convolve_1x1_s8_short_k_channel(const int8_t *ip,
             const int32x4_t res = arm_convolve_1x1_short_k_quant(
                 vldrwq_s32(acc), sum, mult, shift, rshift_only, dst_offset, v_min, v_max);
             vstrbq_scatter_offset_s32(out, offs, res);
-            offs = vaddq_n_u32(offs, (uint32_t)row_step);
+            offs = vaddq_n_u32(offs, row_step);
         }
         if (tail)
         {
@@ -160,7 +160,7 @@ static void arm_convolve_1x1_s8_short_k_kernel(const int32_t *weight_sum,
     const uint32x4_t scatter = vmulq_n_u32(vidupq_n_u32(0, 1), (uint32_t)rhs_rows);
     const int32x4_t v_min = vdupq_n_s32(activation_min);
     const int32x4_t v_max = vdupq_n_s32(activation_max);
-    const int32_t row_step = 4 * rhs_rows;
+    const uint32_t row_step = 4U * (uint32_t)rhs_rows;
     const int32_t tail = lhs_rows & 3;
     const int32_t body_rows = lhs_rows - tail;
 
@@ -243,9 +243,12 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_short_k(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
-    /* The pixel and output element counts are int32 indices in the kernel */
+    /* One output channel per filter row; the pixel, output and filter element counts are int32 indices in the
+     * kernel */
     const int64_t rows = (int64_t)input_dims->n * input_dims->h;
-    if (rows > INT32_MAX || rows * input_dims->w > INT32_MAX || rows * input_dims->w * output_dims->c > INT32_MAX)
+    if (output_dims->c <= 0 || output_dims->c != filter_dims->n || rows > INT32_MAX ||
+        rows * input_dims->w > INT32_MAX || rows * input_dims->w * output_dims->c > INT32_MAX ||
+        (int64_t)output_dims->c * input_dims->c > INT32_MAX)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
