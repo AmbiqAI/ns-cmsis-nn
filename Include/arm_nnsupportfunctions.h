@@ -1522,7 +1522,8 @@ __STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s8_planar_candidate(const cms
 
 /**
  * @brief The gate of arm_convolve_1x1_s8_short_k(): a 1x1 kernel with no padding, unit stride and dilation, filter
- *        depth equal to the input depth, and an input depth of 1 to 16. Plain C; it evaluates the same on every build.
+ *        depth equal to the input depth, an input depth of 1 to 16, and N, H and W positive. Plain C; it evaluates the
+ *        same on every build. The entry also declines N x H x W x C_OUT above INT32_MAX.
  *
  * @param[in]   conv_params   Convolution parameters
  * @param[in]   input_dims    Input tensor dimensions. Format: [N, H, W, C_IN]

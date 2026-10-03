@@ -46,10 +46,103 @@ __STATIC_FORCEINLINE int32x4_t arm_convolve_1x1_short_k_quant(int32x4_t res,
 }
 
 /*
+ * One output channel over all pixels: four pixels are reduced, requantized and stored per step. For an input depth of
+ * 8 two neighbouring pixels share one load: the filter row sits in the low or the high half of an otherwise zero
+ * vector, which selects the pixel. rshift_only is a constant at both call sites, so each requantization form gets
+ * its own loop.
+ */
+__STATIC_FORCEINLINE void arm_convolve_1x1_s8_short_k_channel(const int8_t *ip,
+                                                              const int8_t *w_row,
+                                                              int8_t *dst,
+                                                              const int32_t out_first,
+                                                              const int32_t row_step,
+                                                              const int32_t body_rows,
+                                                              const int32_t tail,
+                                                              const int32_t rhs_cols,
+                                                              const uint32x4_t scatter,
+                                                              const int32_t sum,
+                                                              const int32_t mult,
+                                                              const int32_t shift,
+                                                              const bool rshift_only,
+                                                              const int32_t dst_offset,
+                                                              const int32x4_t v_min,
+                                                              const int32x4_t v_max)
+{
+    /* The store base stays at the channel's first output and the lane offsets advance instead, so that stepping past
+     * the last block forms no pointer */
+    int8_t *const out = dst + out_first;
+    uint32x4_t offs = scatter;
+    int32_t acc[4];
+
+    if (rhs_cols == 8)
+    {
+        int8_t w_buf[24] = {0};
+        arm_memcpy_s8(&w_buf[8], w_row, 8);
+        const int8x16_t w_hi = vldrbq_s8(&w_buf[0]);
+        const int8x16_t w_lo = vldrbq_s8(&w_buf[8]);
+
+        for (int32_t i_row = 0; i_row < body_rows; i_row += 4)
+        {
+            const int8x16_t x01 = vldrbq_s8(ip);
+            const int8x16_t x23 = vldrbq_s8(ip + 16);
+            ip += 32;
+            acc[0] = vmladavq_s8(x01, w_lo);
+            acc[1] = vmladavq_s8(x01, w_hi);
+            acc[2] = vmladavq_s8(x23, w_lo);
+            acc[3] = vmladavq_s8(x23, w_hi);
+            const int32x4_t res = arm_convolve_1x1_short_k_quant(
+                vldrwq_s32(acc), sum, mult, shift, rshift_only, dst_offset, v_min, v_max);
+            vstrbq_scatter_offset_s32(out, offs, res);
+            offs = vaddq_n_u32(offs, (uint32_t)row_step);
+        }
+        if (tail)
+        {
+            const int8x16_t x01 = vldrbq_z_s8(ip, vctp8q((uint32_t)tail * 8));
+            /* With fewer than three rows left the second load is fully predicated off; its base stays inside the
+             * input so that no pointer is formed past its end. */
+            const int8x16_t x23 = vldrbq_z_s8(tail > 2 ? ip + 16 : ip, vctp8q(tail > 2 ? 8 : 0));
+            acc[0] = vmladavq_s8(x01, w_lo);
+            acc[1] = vmladavq_s8(x01, w_hi);
+            acc[2] = vmladavq_s8(x23, w_lo);
+            acc[3] = vmladavq_s8(x23, w_hi);
+            const int32x4_t res = arm_convolve_1x1_short_k_quant(
+                vldrwq_s32(acc), sum, mult, shift, rshift_only, dst_offset, v_min, v_max);
+            vstrbq_scatter_offset_p_s32(out, offs, res, vctp32q((uint32_t)tail));
+        }
+    }
+    else
+    {
+        const mve_pred16_t p_k = vctp8q((uint32_t)rhs_cols);
+        const int8x16_t w = vldrbq_z_s8(w_row, p_k);
+
+        for (int32_t i_row = 0; i_row < body_rows; i_row += 4)
+        {
+            acc[0] = vmladavq_s8(vldrbq_z_s8(ip, p_k), w);
+            acc[1] = vmladavq_s8(vldrbq_z_s8(ip + rhs_cols, p_k), w);
+            acc[2] = vmladavq_s8(vldrbq_z_s8(ip + 2 * rhs_cols, p_k), w);
+            acc[3] = vmladavq_s8(vldrbq_z_s8(ip + 3 * rhs_cols, p_k), w);
+            ip += 4 * rhs_cols;
+            const int32x4_t res = arm_convolve_1x1_short_k_quant(
+                vldrwq_s32(acc), sum, mult, shift, rshift_only, dst_offset, v_min, v_max);
+            vstrbq_scatter_offset_s32(out, offs, res);
+            offs = vaddq_n_u32(offs, (uint32_t)row_step);
+        }
+        if (tail)
+        {
+            for (int32_t i = 0; i < 4; i++)
+            {
+                acc[i] = i < tail ? vmladavq_s8(vldrbq_z_s8(ip + i * rhs_cols, p_k), w) : 0;
+            }
+            const int32x4_t res = arm_convolve_1x1_short_k_quant(
+                vldrwq_s32(acc), sum, mult, shift, rshift_only, dst_offset, v_min, v_max);
+            vstrbq_scatter_offset_p_s32(out, offs, res, vctp32q((uint32_t)tail));
+        }
+    }
+}
+
+/*
  * Pointwise path for an input depth of at most 16, where one int8 vector holds a whole dot product. Output
- * channels are the outer loop so the filter row stays in a register across all pixels, and four pixels are
- * reduced, requantized and stored per step. For an input depth of 8 two neighbouring pixels share one load: the
- * filter row sits in the low or the high half of an otherwise zero vector, which selects the pixel.
+ * channels are the outer loop so the filter row stays in a register across all pixels.
  */
 static void arm_convolve_1x1_s8_short_k_kernel(const int32_t *weight_sum,
                                                const int8_t *lhs,
@@ -67,79 +160,52 @@ static void arm_convolve_1x1_s8_short_k_kernel(const int32_t *weight_sum,
     const uint32x4_t scatter = vmulq_n_u32(vidupq_n_u32(0, 1), (uint32_t)rhs_rows);
     const int32x4_t v_min = vdupq_n_s32(activation_min);
     const int32x4_t v_max = vdupq_n_s32(activation_max);
+    const int32_t row_step = 4 * rhs_rows;
     const int32_t tail = lhs_rows & 3;
     const int32_t body_rows = lhs_rows - tail;
 
     for (int32_t i_ch = 0; i_ch < rhs_rows; i_ch++)
     {
-        const int32_t sum = weight_sum[i_ch];
-        const int32_t mult = dst_multipliers[i_ch];
-        const int32_t shift = dst_shifts[i_ch];
-        const bool rshift_only = arm_nn_requantize_rshift_only(&mult, &shift, 1);
-        const int8_t *ip = lhs;
-        int32_t acc[4];
-
-        if (rhs_cols == 8)
+        int32_t mult = dst_multipliers[i_ch];
+        int32_t shift = dst_shifts[i_ch];
+        const int8_t *w_row = rhs + i_ch * rhs_cols;
+        if (arm_nn_requantize_rshift_only(&mult, &shift, 1))
         {
-            int8_t w_buf[24] = {0};
-            arm_memcpy_s8(&w_buf[8], rhs + i_ch * 8, 8);
-            const int8x16_t w_hi = vldrbq_s8(&w_buf[0]);
-            const int8x16_t w_lo = vldrbq_s8(&w_buf[8]);
-
-            for (int32_t i_row = 0; i_row < body_rows; i_row += 4)
-            {
-                const int8x16_t x01 = vldrbq_s8(ip);
-                const int8x16_t x23 = vldrbq_s8(ip + 16);
-                ip += 32;
-                acc[0] = vmladavq_s8(x01, w_lo);
-                acc[1] = vmladavq_s8(x01, w_hi);
-                acc[2] = vmladavq_s8(x23, w_lo);
-                acc[3] = vmladavq_s8(x23, w_hi);
-                const int32x4_t res = arm_convolve_1x1_short_k_quant(
-                    vldrwq_s32(acc), sum, mult, shift, rshift_only, dst_offset, v_min, v_max);
-                vstrbq_scatter_offset_s32(dst + i_ch + i_row * rhs_rows, scatter, res);
-            }
-            if (tail)
-            {
-                const int8x16_t x01 = vldrbq_z_s8(ip, vctp8q((uint32_t)tail * 8));
-                /* With fewer than three rows left the second load is fully predicated off; its base stays inside the
-                 * input so that no pointer is formed past its end. */
-                const int8x16_t x23 = vldrbq_z_s8(tail > 2 ? ip + 16 : ip, vctp8q(tail > 2 ? 8 : 0));
-                acc[0] = vmladavq_s8(x01, w_lo);
-                acc[1] = vmladavq_s8(x01, w_hi);
-                acc[2] = vmladavq_s8(x23, w_lo);
-                acc[3] = vmladavq_s8(x23, w_hi);
-                const int32x4_t res = arm_convolve_1x1_short_k_quant(
-                    vldrwq_s32(acc), sum, mult, shift, rshift_only, dst_offset, v_min, v_max);
-                vstrbq_scatter_offset_p_s32(dst + i_ch + body_rows * rhs_rows, scatter, res, vctp32q((uint32_t)tail));
-            }
+            arm_convolve_1x1_s8_short_k_channel(lhs,
+                                                w_row,
+                                                dst,
+                                                i_ch,
+                                                row_step,
+                                                body_rows,
+                                                tail,
+                                                rhs_cols,
+                                                scatter,
+                                                weight_sum[i_ch],
+                                                mult,
+                                                shift,
+                                                true,
+                                                dst_offset,
+                                                v_min,
+                                                v_max);
         }
         else
         {
-            const mve_pred16_t p_k = vctp8q((uint32_t)rhs_cols);
-            const int8x16_t w = vldrbq_z_s8(rhs + i_ch * rhs_cols, p_k);
-
-            for (int32_t i_row = 0; i_row < body_rows; i_row += 4)
-            {
-                acc[0] = vmladavq_s8(vldrbq_z_s8(ip, p_k), w);
-                acc[1] = vmladavq_s8(vldrbq_z_s8(ip + rhs_cols, p_k), w);
-                acc[2] = vmladavq_s8(vldrbq_z_s8(ip + 2 * rhs_cols, p_k), w);
-                acc[3] = vmladavq_s8(vldrbq_z_s8(ip + 3 * rhs_cols, p_k), w);
-                ip += 4 * rhs_cols;
-                const int32x4_t res = arm_convolve_1x1_short_k_quant(
-                    vldrwq_s32(acc), sum, mult, shift, rshift_only, dst_offset, v_min, v_max);
-                vstrbq_scatter_offset_s32(dst + i_ch + i_row * rhs_rows, scatter, res);
-            }
-            if (tail)
-            {
-                for (int32_t i = 0; i < 4; i++)
-                {
-                    acc[i] = i < tail ? vmladavq_s8(vldrbq_z_s8(ip + i * rhs_cols, p_k), w) : 0;
-                }
-                const int32x4_t res = arm_convolve_1x1_short_k_quant(
-                    vldrwq_s32(acc), sum, mult, shift, rshift_only, dst_offset, v_min, v_max);
-                vstrbq_scatter_offset_p_s32(dst + i_ch + body_rows * rhs_rows, scatter, res, vctp32q((uint32_t)tail));
-            }
+            arm_convolve_1x1_s8_short_k_channel(lhs,
+                                                w_row,
+                                                dst,
+                                                i_ch,
+                                                row_step,
+                                                body_rows,
+                                                tail,
+                                                rhs_cols,
+                                                scatter,
+                                                weight_sum[i_ch],
+                                                mult,
+                                                shift,
+                                                false,
+                                                dst_offset,
+                                                v_min,
+                                                v_max);
         }
     }
 }

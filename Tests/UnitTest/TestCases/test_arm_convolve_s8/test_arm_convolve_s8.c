@@ -2315,8 +2315,9 @@ void conv_1x1_short_k_arm_convolve_1x1_s8_short_k(void)
 }
 
 /* arm_convolve_1x1_s8_short_k() declines layers outside its gate (a stride, padding, a filter depth unlike the input
- * depth, a dilation) with ARM_CMSIS_NN_NO_IMPL_ERROR and writes nothing; with NULL weight sums it reports
- * ARM_CMSIS_NN_ARG_ERROR on builds that have the kernel. */
+ * depth or outside 1 to 16, a dilation, a filter other than 1x1, no pixels, counts past INT32_MAX) with
+ * ARM_CMSIS_NN_NO_IMPL_ERROR and writes nothing; with NULL weight sums it reports ARM_CMSIS_NN_ARG_ERROR, ahead of
+ * the gate, on builds that have the kernel. */
 void conv_1x1_short_k_declines_arm_convolve_1x1_s8_short_k(void)
 {
     int8_t input[8 * 8 * 8] = {0};
@@ -2328,7 +2329,7 @@ void conv_1x1_short_k_declines_arm_convolve_1x1_s8_short_k(void)
     const cmsis_nn_context ctx = {0};
     const cmsis_nn_context weight_sum_ctx = {weight_sum, (int32_t)sizeof(weight_sum)};
     const cmsis_nn_dims bias_dims = {1, 1, 1, 4};
-    for (int32_t k = 0; k < 15; k++)
+    for (int32_t k = 0; k < 16; k++)
     {
         cmsis_nn_conv_params conv_params = {.stride = {1, 1}, .dilation = {1, 1}, .activation = {-128, 127}};
         cmsis_nn_dims input_dims = {1, 4, 4, 8}, filter_dims = {4, 1, 1, 8}, output_dims = {1, 4, 4, 4};
@@ -2378,8 +2379,14 @@ void conv_1x1_short_k_declines_arm_convolve_1x1_s8_short_k(void)
         case 12:
             input_dims.w = -1;
             break;
-        /* Pixel or output element counts past INT32_MAX; no tensor is touched */
         case 13:
+            /* -3 pixels: without the gate the kernel takes a three-pixel tail and writes inside output */
+            input_dims.n = -1;
+            input_dims.h = 1;
+            input_dims.w = 3;
+            break;
+        /* Pixel or output element counts past INT32_MAX; no tensor is touched */
+        case 14:
             input_dims.n = 3;
             input_dims.h = 1431655765;
             input_dims.w = 1;
