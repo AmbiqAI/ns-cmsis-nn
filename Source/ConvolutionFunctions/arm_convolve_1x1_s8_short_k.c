@@ -67,7 +67,6 @@ static void arm_convolve_1x1_s8_short_k_kernel(const int32_t *weight_sum,
     const uint32x4_t scatter = vmulq_n_u32(vidupq_n_u32(0, 1), (uint32_t)rhs_rows);
     const int32x4_t v_min = vdupq_n_s32(activation_min);
     const int32x4_t v_max = vdupq_n_s32(activation_max);
-    const int32_t row_step = 4 * rhs_rows;
     const int32_t tail = lhs_rows & 3;
     const int32_t body_rows = lhs_rows - tail;
 
@@ -78,7 +77,6 @@ static void arm_convolve_1x1_s8_short_k_kernel(const int32_t *weight_sum,
         const int32_t shift = dst_shifts[i_ch];
         const bool rshift_only = arm_nn_requantize_rshift_only(&mult, &shift, 1);
         const int8_t *ip = lhs;
-        int8_t *out = dst + i_ch;
         int32_t acc[4];
 
         if (rhs_cols == 8)
@@ -99,8 +97,7 @@ static void arm_convolve_1x1_s8_short_k_kernel(const int32_t *weight_sum,
                 acc[3] = vmladavq_s8(x23, w_hi);
                 const int32x4_t res = arm_convolve_1x1_short_k_quant(
                     vldrwq_s32(acc), sum, mult, shift, rshift_only, dst_offset, v_min, v_max);
-                vstrbq_scatter_offset_s32(out, scatter, res);
-                out += row_step;
+                vstrbq_scatter_offset_s32(dst + i_ch + i_row * rhs_rows, scatter, res);
             }
             if (tail)
             {
@@ -114,7 +111,7 @@ static void arm_convolve_1x1_s8_short_k_kernel(const int32_t *weight_sum,
                 acc[3] = vmladavq_s8(x23, w_hi);
                 const int32x4_t res = arm_convolve_1x1_short_k_quant(
                     vldrwq_s32(acc), sum, mult, shift, rshift_only, dst_offset, v_min, v_max);
-                vstrbq_scatter_offset_p_s32(out, scatter, res, vctp32q((uint32_t)tail));
+                vstrbq_scatter_offset_p_s32(dst + i_ch + body_rows * rhs_rows, scatter, res, vctp32q((uint32_t)tail));
             }
         }
         else
@@ -131,8 +128,7 @@ static void arm_convolve_1x1_s8_short_k_kernel(const int32_t *weight_sum,
                 ip += 4 * rhs_cols;
                 const int32x4_t res = arm_convolve_1x1_short_k_quant(
                     vldrwq_s32(acc), sum, mult, shift, rshift_only, dst_offset, v_min, v_max);
-                vstrbq_scatter_offset_s32(out, scatter, res);
-                out += row_step;
+                vstrbq_scatter_offset_s32(dst + i_ch + i_row * rhs_rows, scatter, res);
             }
             if (tail)
             {
@@ -142,7 +138,7 @@ static void arm_convolve_1x1_s8_short_k_kernel(const int32_t *weight_sum,
                 }
                 const int32x4_t res = arm_convolve_1x1_short_k_quant(
                     vldrwq_s32(acc), sum, mult, shift, rshift_only, dst_offset, v_min, v_max);
-                vstrbq_scatter_offset_p_s32(out, scatter, res, vctp32q((uint32_t)tail));
+                vstrbq_scatter_offset_p_s32(dst + i_ch + body_rows * rhs_rows, scatter, res, vctp32q((uint32_t)tail));
             }
         }
     }

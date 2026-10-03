@@ -2328,11 +2328,17 @@ void conv_1x1_short_k_declines_arm_convolve_1x1_s8_short_k(void)
     const cmsis_nn_context ctx = {0};
     const cmsis_nn_context weight_sum_ctx = {weight_sum, (int32_t)sizeof(weight_sum)};
     const cmsis_nn_dims bias_dims = {1, 1, 1, 4};
-    for (int32_t k = 0; k < 4; k++)
+    for (int32_t k = 0; k < 7; k++)
     {
         cmsis_nn_conv_params conv_params = {.stride = {1, 1}, .dilation = {1, 1}, .activation = {-128, 127}};
         cmsis_nn_dims input_dims = {1, 4, 4, 8}, filter_dims = {4, 1, 1, 8}, output_dims = {1, 4, 4, 4};
-        if (k == 0)
+        if (k >= 4)
+        {
+            /* A negative batch, height or width has no pixels */
+            int32_t *dim = k == 4 ? &input_dims.n : k == 5 ? &input_dims.h : &input_dims.w;
+            *dim = -1;
+        }
+        else if (k == 0)
         {
             conv_params.stride.w = 2;
             output_dims.w = 2;

@@ -1535,7 +1535,8 @@ __STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_1x1_short_k(const cmsis_nn_co
                                                                const cmsis_nn_dims *filter_dims)
 {
     return arm_nn_is_convolve_1x1(conv_params, input_dims, filter_dims) && arm_nn_is_convolve_1x1_fast(conv_params) &&
-        (input_dims->c >= 1) && (input_dims->c <= 16);
+        (input_dims->c >= 1) && (input_dims->c <= 16) && (input_dims->n > 0) && (input_dims->h > 0) &&
+        (input_dims->w > 0);
 }
 
 /**
