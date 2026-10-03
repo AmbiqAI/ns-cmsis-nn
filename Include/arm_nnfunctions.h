@@ -2927,6 +2927,86 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_s8(const cmsis_nn_context *c
                                                        int8_t *output_data);
 
 /**
+ * @brief Size in bytes of the packed weight stream of arm_fully_connected_per_channel_packed_s8().
+ *
+ * @param[in]      filter_dims   Filter dimensions. Format: [N, C]; N is the accumulation depth, C the output depth
+ *
+ * @return         ceil(C / 4) x (4 x KP + 48), with KP the accumulation depth rounded up to a multiple of 16; 0 for
+ *                 a NULL argument, a non-positive depth, or a size above INT32_MAX
+ *
+ * @details
+ *    - Stream layout, per block of four output channels in order:
+ *      - for each 16-byte group of the accumulation depth: 16 bytes of each of the block's four filter rows (zero
+ *        beyond the depth);
+ *      - four kernel sums, four multipliers and four shifts, each int32 in native byte order.
+ *    - A last block with fewer than four channels is padded with zero rows and zero parameters.
+ */
+int32_t arm_fully_connected_per_channel_packed_s8_get_packed_size(const cmsis_nn_dims *filter_dims);
+
+/**
+ * @brief Pack a per-channel s8 fully connected layer into the stream arm_fully_connected_per_channel_packed_s8()
+ *        reads. This function defines the layout; a code generator that packs ahead of time must produce the same
+ *        bytes.
+ *
+ * @param[in]      filter_dims   Filter dimensions. Format: [N, C]; N is the accumulation depth, C the output depth
+ * @param[in]      filter_data   Filter data, C rows of N. Data type: int8
+ * @param[in]      kernel_sum    Per output channel: the sum of the row times the input offset, plus the bias, as
+ *                               arm_vector_sum_s8() gives it. Data type: int32
+ * @param[in]      quant_params  Per-channel multipliers and shifts; every channel right-shift-only
+ * @param[out]     packed_data   Stream of arm_fully_connected_per_channel_packed_s8_get_packed_size() bytes
+ *
+ * @return     The function returns one of the following
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - a NULL argument, a non-positive depth, or a channel with a
+ *                                                      shift of 0 or more and a non-zero multiplier
+ *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ */
+arm_cmsis_nn_status
+arm_fully_connected_per_channel_packed_s8_pack(const cmsis_nn_dims *filter_dims,
+                                               const int8_t *filter_data,
+                                               const int32_t *kernel_sum,
+                                               const cmsis_nn_per_channel_quant_params *quant_params,
+                                               int8_t *packed_data);
+
+/**
+ * @brief Basic s8 per-channel fully connected layer on a weight stream packed ahead of time, for weights read from
+ *        slow memory such as MRAM.
+ *
+ * @param[in]      fc_params     Fully connected parameters: output_offset and activation are used; filter_offset must
+ *                               be 0; input_offset is already in the stream's kernel sums
+ * @param[in]      input_dims    Input dimensions. Format: [N, H, W, C_IN]; N batches of H x W x C_IN = the
+ *                               accumulation depth
+ * @param[in]      input_data    Input data pointer. Data type: int8
+ * @param[in]      filter_dims   Filter dimensions. Format: [N, C]; N is the accumulation depth, C the output depth
+ * @param[in]      packed_data   Stream from arm_fully_connected_per_channel_packed_s8_pack(), 4-byte aligned
+ * @param[in]      output_dims   Output dimensions. Format: [N, C_OUT]
+ * @param[out]     output_data   Output data pointer. Data type: int8
+ *
+ * @return     The function returns one of the following
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - a NULL argument, a non-positive depth or batch count, C_OUT
+ *                                                      unlike the filter's output depth, or packed_data not 4-byte
+ *                                                      aligned
+ *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - a non-zero filter offset, or a build without
+ *                                                          ARM_MATH_MVEI, with ARM_MATH_AUTOVECTORIZE or with
+ *                                                          CMSIS_NN_USE_SINGLE_ROUNDING; nothing is written
+ *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ *
+ * @details
+ *    - The output is identical to arm_fully_connected_per_channel_s8() for the same layer.
+ *    - Gate, as arm_nn_fc_packed_s8_supported computes it: filter offset 0 and every output channel
+ *      right-shift-only. A caller selecting the kernel per layer ahead of time packs layers in the gate and calls
+ *      arm_fully_connected_per_channel_s8() for the others. No wrapper calls this entry.
+ *    - The stream is read once per batch, front to back, by one advancing pointer: every byte exactly once, in address
+ *      order. No scratch is used.
+ */
+arm_cmsis_nn_status arm_fully_connected_per_channel_packed_s8(const cmsis_nn_fc_params *fc_params,
+                                                              const cmsis_nn_dims *input_dims,
+                                                              const int8_t *input_data,
+                                                              const cmsis_nn_dims *filter_dims,
+                                                              const int8_t *packed_data,
+                                                              const cmsis_nn_dims *output_dims,
+                                                              int8_t *output_data);
+
+/**
  * @brief s8 Fully Connected layer wrapper function
  *
  * @param[in]      ctx           Per-output-channel kernel sums, supplied by the caller - not scratch memory that

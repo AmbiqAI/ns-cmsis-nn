@@ -407,6 +407,48 @@ __STATIC_FORCEINLINE int32_t GetNearestNeighbor(const int input_value,
 }
 
 /**
+ * @brief Whether every output channel of a per-channel requantization is right-shift-only: a shift below 0, or a
+ *        multiplier of 0. Plain C; it evaluates the same on every build.
+ *
+ * @param[in]   quant_params   Per-channel multipliers and shifts
+ * @param[in]   num_ch         Number of output channels
+ *
+ * @return      1 when every channel is right-shift-only, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_fc_packed_s8_rshift_only(const cmsis_nn_per_channel_quant_params *quant_params,
+                                                             const int32_t num_ch)
+{
+    for (int32_t i = 0; i < num_ch; i++)
+    {
+        if (quant_params->shift[i] >= 0 && quant_params->multiplier[i] != 0)
+        {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/**
+ * @brief The gate of arm_fully_connected_per_channel_packed_s8(), which a caller selecting the kernel per layer ahead
+ *        of time evaluates: filter offset 0, a positive accumulation and output depth, and every output channel
+ *        right-shift-only. Plain C; it evaluates the same on every build. The entry also needs MVE
+ *        (ARM_MATH_MVEI without ARM_MATH_AUTOVECTORIZE) and the default rounding.
+ *
+ * @param[in]   fc_params      Fully connected parameters
+ * @param[in]   quant_params   Per-channel multipliers and shifts
+ * @param[in]   filter_dims    Filter dimensions. Format: [N, C]; N is the accumulation depth, C the output depth
+ *
+ * @return      1 when the layer is in the gate, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_fc_packed_s8_supported(const cmsis_nn_fc_params *fc_params,
+                                                           const cmsis_nn_per_channel_quant_params *quant_params,
+                                                           const cmsis_nn_dims *filter_dims)
+{
+    return fc_params->filter_offset == 0 && filter_dims->n > 0 && filter_dims->c > 0 &&
+        arm_nn_fc_packed_s8_rshift_only(quant_params, filter_dims->c);
+}
+
+/**
  * @brief Check if convolution parameters correspond to a 1x1 convolution.
  * @param[in]   conv_params   Convolution parameters
  * @param[in]   input_dims    Input dimensions
