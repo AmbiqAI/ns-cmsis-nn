@@ -2557,6 +2557,162 @@ arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16_acc16(const cmsis_nn_context *ct
                                                       float16_t *output);
 
 /**
+ * @brief Basic float16 depthwise convolution, NHWC, on the generic route of arm_depthwise_conv_f16(), as a direct
+ *        entry: any layer, no scratch.
+ *
+ * @param[in]      ctx            Unused
+ * @param[in]      dw_conv_params Depthwise parameters: stride, padding, dilation, channel multiplier and activation
+ * @param[in]      input_dims     Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      input          Input data pointer. Data type: float16
+ * @param[in]      filter_dims    Filter tensor dimensions. Format: [1, HK, WK, C_OUT]
+ * @param[in]      kernel         Filter data pointer, KC layout. Data type: float16
+ * @param[in]      bias_dims      Bias tensor dimensions. Format: [C_OUT]. Unused
+ * @param[in]      bias           Bias data pointer, or NULL for no bias. Data type: float16
+ * @param[in]      output_dims    Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output         Output data pointer. Data type: float16
+ *
+ * @return     The function returns one of the following
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - dw_conv_params, a dimension or a data pointer other than bias
+ *                                                      is NULL
+ *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ *
+ * @details
+ *    - The output is identical to arm_depthwise_conv_f16() for a layer on this route. The _acc16 entries accumulate as
+ *      arm_depthwise_conv_f16_acc16() does.
+ *    - The other direct entries take the same arguments and return <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>, writing
+ *      nothing, for a layer outside their gate (named in each entry's note).
+ */
+arm_cmsis_nn_status arm_depthwise_conv_generic_nhwc_f16(const cmsis_nn_context *ctx,
+                                                        const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                                        const cmsis_nn_dims *input_dims,
+                                                        const float16_t *input,
+                                                        const cmsis_nn_dims *filter_dims,
+                                                        const float16_t *kernel,
+                                                        const cmsis_nn_dims *bias_dims,
+                                                        const float16_t *bias,
+                                                        const cmsis_nn_dims *output_dims,
+                                                        float16_t *output);
+
+/**
+ * @copydoc arm_depthwise_conv_generic_nhwc_f16
+ *
+ * @note Accumulates as arm_depthwise_conv_f16_acc16() does.
+ */
+arm_cmsis_nn_status arm_depthwise_conv_generic_nhwc_f16_acc16(const cmsis_nn_context *ctx,
+                                                              const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                                              const cmsis_nn_dims *input_dims,
+                                                              const float16_t *input,
+                                                              const cmsis_nn_dims *filter_dims,
+                                                              const float16_t *kernel,
+                                                              const cmsis_nn_dims *bias_dims,
+                                                              const float16_t *bias,
+                                                              const cmsis_nn_dims *output_dims,
+                                                              float16_t *output);
+
+/**
+ * @copydoc arm_depthwise_conv_generic_nhwc_f16
+ *
+ * @note The conv1d k3 route. Gate: arm_nn_dw_f16_is_1d_k3. The kernel accumulates the same way for both
+ *       accumulation variants of the router.
+ */
+arm_cmsis_nn_status arm_depthwise_conv_1d_k3_nhwc_f16(const cmsis_nn_context *ctx,
+                                                      const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                                      const cmsis_nn_dims *input_dims,
+                                                      const float16_t *input,
+                                                      const cmsis_nn_dims *filter_dims,
+                                                      const float16_t *kernel,
+                                                      const cmsis_nn_dims *bias_dims,
+                                                      const float16_t *bias,
+                                                      const cmsis_nn_dims *output_dims,
+                                                      float16_t *output);
+
+/**
+ * @copydoc arm_depthwise_conv_generic_nhwc_f16
+ *
+ * @note The 2x5 route. Gate: arm_nn_dw_f16_is_2x5. The kernel accumulates the same way for both accumulation
+ *       variants of the router.
+ */
+arm_cmsis_nn_status arm_depthwise_conv_2x5_nhwc_f16(const cmsis_nn_context *ctx,
+                                                    const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                                    const cmsis_nn_dims *input_dims,
+                                                    const float16_t *input,
+                                                    const cmsis_nn_dims *filter_dims,
+                                                    const float16_t *kernel,
+                                                    const cmsis_nn_dims *bias_dims,
+                                                    const float16_t *bias,
+                                                    const cmsis_nn_dims *output_dims,
+                                                    float16_t *output);
+
+/**
+ * @copydoc arm_depthwise_conv_generic_nhwc_f16
+ *
+ * @note The channel-multiplier-1 route. Gate: channel multiplier 1; any stride, dilation, padding and batch.
+ */
+arm_cmsis_nn_status arm_depthwise_conv_direct_nhwc_f16(const cmsis_nn_context *ctx,
+                                                       const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                                       const cmsis_nn_dims *input_dims,
+                                                       const float16_t *input,
+                                                       const cmsis_nn_dims *filter_dims,
+                                                       const float16_t *kernel,
+                                                       const cmsis_nn_dims *bias_dims,
+                                                       const float16_t *bias,
+                                                       const cmsis_nn_dims *output_dims,
+                                                       float16_t *output);
+
+/**
+ * @copydoc arm_depthwise_conv_generic_nhwc_f16
+ *
+ * @note The channel-multiplier-1 route, accumulating as arm_depthwise_conv_f16_acc16() does.
+ */
+arm_cmsis_nn_status arm_depthwise_conv_direct_nhwc_f16_acc16(const cmsis_nn_context *ctx,
+                                                             const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                                             const cmsis_nn_dims *input_dims,
+                                                             const float16_t *input,
+                                                             const cmsis_nn_dims *filter_dims,
+                                                             const float16_t *kernel,
+                                                             const cmsis_nn_dims *bias_dims,
+                                                             const float16_t *bias,
+                                                             const cmsis_nn_dims *output_dims,
+                                                             float16_t *output);
+
+/**
+ * @copydoc arm_depthwise_conv_generic_nhwc_f16
+ *
+ * @note The one-input-channel route, on MVE float builds (ARM_MATH_MVE_FLOAT16 without ARM_MATH_AUTOVECTORIZE;
+ *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> elsewhere). Gate: arm_nn_dw_f16_is_cin1. ctx must hold the size
+ *       arm_depthwise_conv_f16_get_buffer_size() gives for a channel multiplier above 1 (the router takes the
+ *       channel-multiplier-1 route first, and the query asks for no scratch there), 2-byte aligned;
+ * <code>ARM_CMSIS_NN_ARG_ERROR</code> otherwise (the router falls back to the generic route instead).
+ */
+arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16(const cmsis_nn_context *ctx,
+                                                     const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const float16_t *input,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const float16_t *kernel,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const float16_t *bias,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     float16_t *output);
+
+/**
+ * @copydoc arm_depthwise_conv_generic_nhwc_f16
+ *
+ * @note The one-input-channel route, accumulating as arm_depthwise_conv_f16_acc16() does; same build, gate and
+ *       ctx conditions as arm_depthwise_conv_cin1_nhwc_f16.
+ */
+arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16_acc16(const cmsis_nn_context *ctx,
+                                                           const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                                           const cmsis_nn_dims *input_dims,
+                                                           const float16_t *input,
+                                                           const cmsis_nn_dims *filter_dims,
+                                                           const float16_t *kernel,
+                                                           const cmsis_nn_dims *bias_dims,
+                                                           const float16_t *bias,
+                                                           const cmsis_nn_dims *output_dims,
+                                                           float16_t *output);
+
+/**
  * @copydoc arm_depthwise_conv_f32
  *
  * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448). MVE leg: the `ch_mult == 1` direct kernel

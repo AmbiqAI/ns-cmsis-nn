@@ -1624,6 +1624,61 @@ __STATIC_INLINE bool arm_nn_conv_flt_is_patch_gemm(const cmsis_nn_dims *output_d
         (int64_t)output_dims->h * output_dims->w >= ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS;
 }
 
+#if ARM_NN_ENABLE_F16
+/**
+ * @brief The depthwise conv1d k3 route of arm_depthwise_conv_f16(): batch 1, channel multiplier 1, a 1x3 filter, input
+ *        and output height 1, unit stride and dilation, no padding.
+ * @param[in] dw_conv_params Depthwise parameters
+ * @param[in] input_dims     Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims    Filter dimensions [1, HK, WK, C_OUT]
+ * @param[in] output_dims    Output dimensions [N, H, W, C_OUT]
+ * @return true if the router takes the conv1d k3 route (unless NN_DISABLE_SPECIALIZATION is defined)
+ */
+__STATIC_INLINE bool arm_nn_dw_f16_is_1d_k3(const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                            const cmsis_nn_dims *input_dims,
+                                            const cmsis_nn_dims *filter_dims,
+                                            const cmsis_nn_dims *output_dims)
+{
+    return input_dims->n == 1 && output_dims->n == 1 && dw_conv_params->ch_mult == 1 && filter_dims->w == 3 &&
+        filter_dims->h == 1 && input_dims->h == 1 && output_dims->h == 1 && dw_conv_params->dilation.h == 1 &&
+        dw_conv_params->dilation.w == 1 && dw_conv_params->stride.h == 1 && dw_conv_params->stride.w == 1 &&
+        dw_conv_params->padding.h == 0 && dw_conv_params->padding.w == 0;
+}
+
+/**
+ * @brief The depthwise 2x5 route of arm_depthwise_conv_f16(): a 2x5 filter, input height 2, output height 1, unit
+ *        stride and dilation, no padding; any batch and channel multiplier.
+ * @param[in] dw_conv_params Depthwise parameters
+ * @param[in] input_dims     Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims    Filter dimensions [1, HK, WK, C_OUT]
+ * @param[in] output_dims    Output dimensions [N, H, W, C_OUT]
+ * @return true if the router takes the 2x5 route (unless NN_DISABLE_SPECIALIZATION is defined)
+ */
+__STATIC_INLINE bool arm_nn_dw_f16_is_2x5(const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                          const cmsis_nn_dims *input_dims,
+                                          const cmsis_nn_dims *filter_dims,
+                                          const cmsis_nn_dims *output_dims)
+{
+    return filter_dims->w == 5 && filter_dims->h == 2 && input_dims->h == 2 && output_dims->h == 1 &&
+        dw_conv_params->dilation.h == 1 && dw_conv_params->dilation.w == 1 && dw_conv_params->stride.h == 1 &&
+        dw_conv_params->stride.w == 1 && dw_conv_params->padding.h == 0 && dw_conv_params->padding.w == 0;
+}
+
+/**
+ * @brief The depthwise one-input-channel route of arm_depthwise_conv_f16() on MVE float builds: one input channel and
+ *        at least CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD output channels (the threshold
+ *        depends on the compiler). The router takes it after the channel-multiplier-1 route, and when ctx holds the
+ *        packed filter and one patch row.
+ * @param[in] input_dims     Input dimensions [N, H, W, C_IN]
+ * @param[in] output_dims    Output dimensions [N, H, W, C_OUT]
+ * @return true if the shape takes the one-input-channel route when ctx is large enough
+ */
+__STATIC_INLINE bool arm_nn_dw_f16_is_cin1(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *output_dims)
+{
+    return input_dims->c == 1 && output_dims->c >= CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD;
+}
+#endif /* ARM_NN_ENABLE_F16 */
+
 /**
  * @} end of floatConvRoutes group
  */
