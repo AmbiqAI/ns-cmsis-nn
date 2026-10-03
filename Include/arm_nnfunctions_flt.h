@@ -381,10 +381,17 @@ arm_cmsis_nn_status arm_convolve_1x1_f32(const cmsis_nn_context *ctx,
  *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, @p filter_data is interpreted as
  *       an already prepacked `NTxN` RHS buffer instead of the standard public
  *       filter layout. Every output position, including the no-pad middle
- *       region that OHWI filters read in place from the input, is then
+ *       region that OHWI filters take straight from the input, is then
  *       packed into scratch and multiplied by the format-aware matmul, so a
  *       packed 1xN layer with little or no padding runs slower than its OHWI
  *       equivalent.
+ *
+ * @note On MVE builds, with OHWI filters, the no-padding positions run row by
+ *       row, read in place, through the contiguous-K matmul when the layer has
+ *       at least 4 output channels and 224 taps (filter width times input
+ *       channels), and through a strided kernel otherwise. The float16 entries
+ *       also do so from 80 taps when 4 to 7 output channels remain in the last
+ *       8-channel block.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -418,7 +425,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
  *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, @p filter_data is interpreted as
  *       an already prepacked `NTxN` RHS buffer instead of the standard public
  *       filter layout. Every output position, including the no-pad middle
- *       region that OHWI filters read in place from the input, is then
+ *       region that OHWI filters take straight from the input, is then
  *       packed into scratch and multiplied by the format-aware matmul, so a
  *       packed 1xN layer with little or no padding runs slower than its OHWI
  *       equivalent.
