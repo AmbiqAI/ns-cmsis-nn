@@ -595,8 +595,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - weight_sum_ctx->buf is NULL on builds with ARM_MATH_MVEI
  *                                                      (checked before the gate)
- *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - the layer is outside the gate of
- *                                                          arm_nn_is_convolve_s8_1x1_short_k(), or the build lacks
+ *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - the layer is outside the gate, or the build lacks
  *                                                          ARM_MATH_MVEI or defines ARM_MATH_AUTOVECTORIZE; nothing is
  *                                                          written
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
@@ -604,6 +603,8 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
  * @details
  *    - The output is identical to arm_convolve_1x1_s8_fast(). The bias is read through the weight sums, which
  *      arm_convolve_weight_sum() fills as for arm_convolve_1x1_s8_fast(); bias_dims and bias_data are unused.
+ *    - Gate, as arm_nn_is_convolve_s8_1x1_short_k computes it: a 1x1 kernel with no padding, unit stride and
+ *      dilation, CK equal to C_IN, and C_IN from 1 to 16. No scratch is used.
  *    - It is a direct entry for callers that select the kernel per layer ahead of time: neither
  *      arm_convolve_1x1_s8_fast() nor arm_convolve_wrapper_s8() calls it. Such a caller calls it for layers in the
  *      gate and arm_convolve_1x1_s8_fast() otherwise, or on <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>. It is faster
