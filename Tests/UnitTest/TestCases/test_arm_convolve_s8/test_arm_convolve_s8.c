@@ -1917,6 +1917,234 @@ void conv_1x1_out_tail_arm_convolve_s8(void)
 #endif
 }
 
+/* Quantization classes for the right-shift-only requantization: 0 every shift in [-30, -1]; 1 as 0 with dead
+ * channels (multiplier 0, shift 0); 2 as 0 with one shift of +1; 3 as 0 with one shift of 0 and a non-zero multiplier;
+ * 4 shifts in [0, 2]. Classes 0 and 1 take the right-shift path, the others the general one. Shifts stop at -30:
+ * the scalar arm_divide_by_power_of_two() overflows forming its remainder mask for an exponent of 31. */
+static void conv_1x1_quant_class(int32_t cls, int32_t channels, int32_t *multiplier, int32_t *shift, uint32_t *seed)
+{
+    for (int32_t i = 0; i < channels; i++)
+    {
+        *seed = *seed * 1664525u + 1013904223u;
+        multiplier[i] = (int32_t)(0x40000000u + ((*seed >> 2) & 0x3FFFFFFFu));
+        *seed = *seed * 1664525u + 1013904223u;
+        shift[i] = cls == 4 ? (int32_t)((*seed >> 8) % 3u) : -1 - (int32_t)((*seed >> 8) % 30u);
+        if (cls == 1 && i % 3 == 1)
+        {
+            multiplier[i] = 0;
+            shift[i] = 0;
+        }
+    }
+    if (cls == 2)
+    {
+        shift[channels - 1] = 1;
+    }
+    if (cls == 3)
+    {
+        shift[channels / 2] = 0;
+    }
+    /* Keep the channels the general path requantizes inside the int8 range, so that taking the wrong path changes
+     * outputs instead of saturating them. */
+    for (int32_t i = 0; i < channels; i++)
+    {
+        if (shift[i] >= 0 && multiplier[i] != 0)
+        {
+            multiplier[i] = (0x30000 + i * 0x1235) >> shift[i];
+        }
+    }
+}
+
+/* Every quantization class through the 1x1 path against arm_nn_requantize(). 30 pixels, 20 input and 7 output channels
+ * reach arm_nn_mat_mult_nt_t_s8()'s four-row loop and its one-row loop (2 remaining pixels), the channel blocks of four
+ * and the channel tail. */
+void conv_1x1_requant_classes_arm_convolve_s8(void)
+{
+    enum
+    {
+        in_h = 6,
+        in_w = 5,
+        in_c = 20,
+        out_c = 7,
+        pixels = in_h * in_w
+    };
+    const int32_t input_offset = 128;
+    const int32_t output_offset = -3;
+    const int32_t activation_min = -128;
+    const int32_t activation_max = 127;
+    int8_t input[pixels * in_c];
+    int8_t kernel[out_c * in_c];
+    int32_t bias[out_c];
+    int32_t multiplier[out_c];
+    int32_t shift[out_c];
+    int32_t weight_sum[out_c];
+    int8_t output[pixels * out_c + 4];
+    uint32_t seed = 41u;
+
+    for (int32_t i = 0; i < pixels * in_c; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        input[i] = (int8_t)(seed >> 24);
+    }
+    for (int32_t i = 0; i < out_c * in_c; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        kernel[i] = (int8_t)(seed >> 24);
+    }
+    for (int32_t i = 0; i < out_c; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        bias[i] = (int32_t)(seed >> 14) - (1 << 17);
+    }
+
+    const cmsis_nn_dims input_dims = {1, in_h, in_w, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 1, 1, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, in_h, in_w, out_c};
+    const cmsis_nn_conv_params conv_params = {
+        .input_offset = input_offset,
+        .output_offset = output_offset,
+        .stride = {1, 1},
+        .padding = {0, 0},
+        .dilation = {1, 1},
+        .activation = {activation_min, activation_max},
+    };
+    const cmsis_nn_per_channel_quant_params quant_params = {
+        .multiplier = multiplier,
+        .shift = shift,
+    };
+    cmsis_nn_context ctx = {0};
+    const cmsis_nn_context weight_sum_ctx = {weight_sum, (int32_t)sizeof(weight_sum)};
+    ctx.size = arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    if (ctx.size > 0)
+    {
+        ctx.buf = malloc((size_t)ctx.size);
+        TEST_ASSERT_NOT_NULL(ctx.buf);
+    }
+#if defined(ARM_MATH_MVEI)
+    /* Only the MVE path reads the weight sums. */
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_convolve_weight_sum(weight_sum, kernel, &input_dims, &filter_dims, &output_dims, input_offset, bias));
+#endif
+
+    static const char *const cls_name[5] = {"rshift", "rshift+dead", "shift+1", "shift0", "lshift"};
+    for (int32_t cls = 0; cls < 5; cls++)
+    {
+        conv_1x1_quant_class(cls, out_c, multiplier, shift, &seed);
+        memset(output, 0x5A, sizeof(output));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_wrapper_s8(&ctx,
+                                                  &weight_sum_ctx,
+                                                  &conv_params,
+                                                  &quant_params,
+                                                  &input_dims,
+                                                  input,
+                                                  &filter_dims,
+                                                  kernel,
+                                                  &bias_dims,
+                                                  bias,
+                                                  &output_dims,
+                                                  output + 2));
+        TEST_ASSERT_EQUAL_INT8(0x5A, output[0]);
+        TEST_ASSERT_EQUAL_INT8(0x5A, output[1]);
+        TEST_ASSERT_EQUAL_INT8(0x5A, output[pixels * out_c + 2]);
+        TEST_ASSERT_EQUAL_INT8(0x5A, output[pixels * out_c + 3]);
+        for (int32_t px = 0; px < pixels; px++)
+        {
+            for (int32_t oc = 0; oc < out_c; oc++)
+            {
+                int32_t acc = bias[oc];
+                for (int32_t ic = 0; ic < in_c; ic++)
+                {
+                    acc += (input[px * in_c + ic] + input_offset) * kernel[oc * in_c + ic];
+                }
+                int32_t expected = arm_nn_requantize(acc, multiplier[oc], shift[oc]) + output_offset;
+                expected = ARM_NN_MAX(expected, activation_min);
+                expected = ARM_NN_MIN(expected, activation_max);
+                TEST_ASSERT_EQUAL_INT8_MESSAGE((int8_t)expected, output[2 + px * out_c + oc], cls_name[cls]);
+            }
+        }
+    }
+    free(ctx.buf);
+}
+
+/* arm_requantize_mve_rshift() and arm_requantize_mve_32x4_rshift() against arm_requantize_mve() and
+ * arm_requantize_mve_32x4() on every input arm_nn_requantize_rshift_only() admits: shifts in [-40, -1], including
+ * those below -31 that the scalar reference does not define, extreme values and multipliers, and multiplier 0. */
+void requantize_rshift_helpers_arm_convolve_s8(void)
+{
+#if defined(ARM_MATH_MVEI) && !defined(CMSIS_NN_USE_SINGLE_ROUNDING)
+    const int32_t edges[] = {INT32_MIN, INT32_MIN + 1, -65537, -2, -1, 0, 1, 2, 65535, INT32_MAX - 1, INT32_MAX};
+    uint32_t seed = 47u;
+    for (int32_t shift = -40; shift <= 0; shift++)
+    {
+        for (int32_t round = 0; round < 64; round++)
+        {
+            int32_t vals[4];
+            int32_t mults[4];
+            int32_t shifts[4];
+            for (int32_t l = 0; l < 4; l++)
+            {
+                seed = seed * 1664525u + 1013904223u;
+                vals[l] = round < 3 ? edges[(round * 4 + l) % 11] : (int32_t)seed;
+                seed = seed * 1664525u + 1013904223u;
+                mults[l] = shift == 0 ? 0 : (round == 0 ? INT32_MAX : (int32_t)(0x40000000u + (seed >> 2)));
+                if (round == 1 && shift != 0)
+                {
+                    /* A negative multiplier, which the check also admits. */
+                    mults[l] = -mults[l];
+                }
+                seed = seed * 1664525u + 1013904223u;
+                shifts[l] = shift == 0 ? 0 : -1 - (int32_t)((seed >> 8) % 40u);
+            }
+            TEST_ASSERT_TRUE(arm_nn_requantize_rshift_only(mults, shifts, 4));
+            const int32x4_t v = vldrwq_s32(vals);
+            int32_t want[4];
+            int32_t got[4];
+            vstrwq_s32(want, arm_requantize_mve(v, mults[0], shift));
+            vstrwq_s32(got, arm_requantize_mve_rshift(v, mults[0], shift));
+            TEST_ASSERT_EQUAL_INT32_ARRAY(want, got, 4);
+            vstrwq_s32(want, arm_requantize_mve_32x4(v, vldrwq_s32(mults), vldrwq_s32(shifts)));
+            vstrwq_s32(got, arm_requantize_mve_32x4_rshift(v, vldrwq_s32(mults), vldrwq_s32(shifts)));
+            TEST_ASSERT_EQUAL_INT32_ARRAY(want, got, 4);
+        }
+    }
+    const int32_t mult_lshift[2] = {1 << 30, 1 << 30};
+    const int32_t shift_lshift[2] = {-3, 0};
+    TEST_ASSERT_FALSE(arm_nn_requantize_rshift_only(mult_lshift, shift_lshift, 2));
+    const int32_t mult_dead[2] = {1 << 30, 0};
+    const int32_t shift_dead[2] = {-3, 5};
+    TEST_ASSERT_TRUE(arm_nn_requantize_rshift_only(mult_dead, shift_dead, 2));
+    /* Channel counts that end in a partial vector, with the one channel that fails the check last. */
+    for (int32_t num_ch = 5; num_ch <= 7; num_ch++)
+    {
+        int32_t mult_tail[8];
+        int32_t shift_tail[8];
+        for (int32_t i = 0; i < 8; i++)
+        {
+            mult_tail[i] = 1 << 30;
+            shift_tail[i] = -4;
+        }
+        TEST_ASSERT_TRUE(arm_nn_requantize_rshift_only(mult_tail, shift_tail, num_ch));
+        shift_tail[num_ch - 1] = 0;
+        TEST_ASSERT_FALSE(arm_nn_requantize_rshift_only(mult_tail, shift_tail, num_ch));
+        shift_tail[num_ch - 1] = -4;
+        shift_tail[num_ch] = 0; /* past the last channel: must not count */
+        TEST_ASSERT_TRUE(arm_nn_requantize_rshift_only(mult_tail, shift_tail, num_ch));
+    }
+    /* A zero multiplier with a positive shift, which the check also admits. */
+    for (int32_t i = 0; i < 11; i += 4)
+    {
+        const int32x4_t v = vldrwq_s32(&edges[i < 8 ? i : 7]);
+        int32_t want[4];
+        int32_t got[4];
+        vstrwq_s32(want, arm_requantize_mve(v, 0, 5));
+        vstrwq_s32(got, arm_requantize_mve_rshift(v, 0, 5));
+        TEST_ASSERT_EQUAL_INT32_ARRAY(want, got, 4);
+    }
+#endif
+}
+
 void conv_1x1_out_null_weight_sum_arm_convolve_1x1_out_s8(void)
 {
     /* arm_convolve_1x1_out_s8() is only compiled on builds with the MVE extension, and always reads
