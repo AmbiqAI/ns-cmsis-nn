@@ -407,20 +407,22 @@ __STATIC_FORCEINLINE int32_t GetNearestNeighbor(const int input_value,
 }
 
 /**
- * @brief Whether every output channel of a per-channel requantization is right-shift-only: a shift below 0, or a
- *        multiplier of 0. Plain C; it evaluates the same on every build.
+ * @brief Whether every channel requantizes with a right shift only: each has a shift below 0, or a multiplier of 0.
+ *        Plain C; it evaluates the same on every build. arm_nn_requantize_rshift_only() adds the build condition.
  *
- * @param[in]   quant_params   Per-channel multipliers and shifts
- * @param[in]   num_ch         Number of output channels
+ * @param[in]   multiplier   Per-channel multipliers
+ * @param[in]   shift        Per-channel shifts
+ * @param[in]   num_ch       Number of channels
  *
- * @return      1 when every channel is right-shift-only, 0 otherwise.
+ * @return      1 when every channel qualifies, 0 otherwise.
  */
-__STATIC_FORCEINLINE int32_t arm_nn_fc_packed_s8_rshift_only(const cmsis_nn_per_channel_quant_params *quant_params,
-                                                             const int32_t num_ch)
+__STATIC_FORCEINLINE int32_t arm_nn_requantize_channels_rshift_only(const int32_t *multiplier,
+                                                                    const int32_t *shift,
+                                                                    const int32_t num_ch)
 {
     for (int32_t i = 0; i < num_ch; i++)
     {
-        if (quant_params->shift[i] >= 0 && quant_params->multiplier[i] != 0)
+        if (shift[i] >= 0 && multiplier[i] != 0)
         {
             return 0;
         }
@@ -429,10 +431,24 @@ __STATIC_FORCEINLINE int32_t arm_nn_fc_packed_s8_rshift_only(const cmsis_nn_per_
 }
 
 /**
+ * @brief Bytes of the stream arm_fully_connected_per_channel_packed_s8() reads for an accumulation depth k and an
+ *        output depth n: ceil(n / 4) blocks of four rows of k rounded up to 16, plus 48 bytes of parameters.
+ *
+ * @param[in]   k   Accumulation depth, positive
+ * @param[in]   n   Output depth, positive
+ *
+ * @return      The size, in 64 bits so that the caller can bound it.
+ */
+__STATIC_FORCEINLINE int64_t arm_nn_fc_packed_s8_size(const int32_t k, const int32_t n)
+{
+    return (((int64_t)n + 3) / 4) * (4 * (((int64_t)k + 15) / 16 * 16) + 48);
+}
+
+/**
  * @brief The gate of arm_fully_connected_per_channel_packed_s8(), which a caller selecting the kernel per layer ahead
- *        of time evaluates: filter offset 0, a positive accumulation and output depth, and every output channel
- *        right-shift-only. Plain C; it evaluates the same on every build. The entry also needs MVE
- *        (ARM_MATH_MVEI without ARM_MATH_AUTOVECTORIZE) and the default rounding.
+ *        of time evaluates: filter offset 0, a positive accumulation and output depth, a stream of at most INT32_MAX
+ *        bytes, and every output channel right-shift-only. Plain C; it evaluates the same on every build. The entry
+ * also needs MVE (ARM_MATH_MVEI without ARM_MATH_AUTOVECTORIZE) and the default rounding.
  *
  * @param[in]   fc_params      Fully connected parameters
  * @param[in]   quant_params   Per-channel multipliers and shifts
@@ -445,7 +461,8 @@ __STATIC_FORCEINLINE int32_t arm_nn_fc_packed_s8_supported(const cmsis_nn_fc_par
                                                            const cmsis_nn_dims *filter_dims)
 {
     return fc_params->filter_offset == 0 && filter_dims->n > 0 && filter_dims->c > 0 &&
-        arm_nn_fc_packed_s8_rshift_only(quant_params, filter_dims->c);
+        arm_nn_fc_packed_s8_size(filter_dims->n, filter_dims->c) <= INT32_MAX &&
+        arm_nn_requantize_channels_rshift_only(quant_params->multiplier, quant_params->shift, filter_dims->c);
 }
 
 /**
@@ -2767,17 +2784,7 @@ arm_nn_requantize_rshift_only(const int32_t *multiplier, const int32_t *shift, c
     (void)num_ch;
     return false;
     #else
-    for (int32_t i = 0; i < num_ch; i += 4)
-    {
-        const mve_pred16_t p = vctp32q((uint32_t)(num_ch - i));
-        const int32x4_t s = vldrwq_z_s32(shift + i, p);
-        const int32x4_t m = vldrwq_z_s32(multiplier + i, p);
-        if (vcmpgeq_m_n_s32(s, 0, vcmpneq_m_n_s32(m, 0, p)) != 0)
-        {
-            return false;
-        }
-    }
-    return true;
+    return arm_nn_requantize_channels_rshift_only(multiplier, shift, num_ch) != 0;
     #endif
 }
 

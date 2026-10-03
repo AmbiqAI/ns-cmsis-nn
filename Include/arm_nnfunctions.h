@@ -2956,8 +2956,9 @@ int32_t arm_fully_connected_per_channel_packed_s8_get_packed_size(const cmsis_nn
  * @param[out]     packed_data   Stream of arm_fully_connected_per_channel_packed_s8_get_packed_size() bytes
  *
  * @return     The function returns one of the following
- *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - a NULL argument, a non-positive depth, or a channel with a
- *                                                      shift of 0 or more and a non-zero multiplier
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - a NULL argument, a non-positive depth, a stream above
+ *                                                      INT32_MAX bytes, or a channel with a shift of 0 or more and a
+ *                                                      non-zero multiplier
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  */
 arm_cmsis_nn_status
@@ -2982,9 +2983,9 @@ arm_fully_connected_per_channel_packed_s8_pack(const cmsis_nn_dims *filter_dims,
  * @param[out]     output_data   Output data pointer. Data type: int8
  *
  * @return     The function returns one of the following
- *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - a NULL argument, a non-positive depth or batch count, C_OUT
- *                                                      unlike the filter's output depth, or packed_data not 4-byte
- *                                                      aligned
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - a NULL argument, a non-positive depth or batch count, a stream
+ *                                                      above INT32_MAX bytes, C_OUT unlike the filter's output depth,
+ *                                                      or packed_data not 4-byte aligned
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - a non-zero filter offset, or a build without
  *                                                          ARM_MATH_MVEI, with ARM_MATH_AUTOVECTORIZE or with
  *                                                          CMSIS_NN_USE_SINGLE_ROUNDING; nothing is written
@@ -2995,8 +2996,9 @@ arm_fully_connected_per_channel_packed_s8_pack(const cmsis_nn_dims *filter_dims,
  *    - Gate, as arm_nn_fc_packed_s8_supported computes it: filter offset 0 and every output channel
  *      right-shift-only. A caller selecting the kernel per layer ahead of time packs layers in the gate and calls
  *      arm_fully_connected_per_channel_s8() for the others. No wrapper calls this entry.
- *    - The stream is read once per batch, front to back, by one advancing pointer: every byte exactly once, in address
- *      order. No scratch is used.
+ *    - The stream is read once per batch, front to back, by one advancing pointer: each weight and parameter byte
+ *      once, in address order. Lanes past the accumulation depth in its last 16-byte group are predicated off and
+ *      not read. No scratch is used.
  */
 arm_cmsis_nn_status arm_fully_connected_per_channel_packed_s8(const cmsis_nn_fc_params *fc_params,
                                                               const cmsis_nn_dims *input_dims,

@@ -749,7 +749,7 @@ void operands_at_gap_arm_fully_connected_s8(void)
 static int8_t fc_packed_in[FC_PACKED_MAX_B * FC_PACKED_MAX_K];
 static int8_t fc_packed_w[FC_PACKED_MAX_N * FC_PACKED_MAX_K];
 static int8_t fc_packed_stream[(FC_PACKED_MAX_N / 4) * (4 * FC_PACKED_MAX_K + 48)] __attribute__((aligned(16)));
-static int8_t fc_packed_out[FC_PACKED_MAX_B * FC_PACKED_MAX_N + FC_PACKED_CANARY];
+static int8_t fc_packed_out[2 * FC_PACKED_MAX_B * FC_PACKED_MAX_N + FC_PACKED_CANARY];
 static int8_t fc_packed_ref[FC_PACKED_MAX_B * FC_PACKED_MAX_N];
 static int32_t fc_packed_bias[FC_PACKED_MAX_N];
 static int32_t fc_packed_ksum[FC_PACKED_MAX_N];
@@ -783,8 +783,10 @@ static void fc_packed_case(int32_t k, int32_t n, int32_t batches, int at_gap)
         }
         fc_packed_bias[c] = fc_packed_rand(-20000, 20000);
         fc_packed_ksum[c] = sum * in_off + fc_packed_bias[c];
-        fc_packed_mult[c] = (c % 7 == 3) ? 0 : fc_packed_rand(1 << 30, INT32_MAX);
-        fc_packed_shift[c] = (c % 5 == 1) ? -1 : fc_packed_rand(-15, -1);
+        /* Multipliers over the whole positive range, and zero (also with a shift of 0 or more, which a zero
+         * multiplier makes right-shift-only); shifts over the whole right-shift range */
+        fc_packed_mult[c] = (c % 7 == 3) ? 0 : (c % 3 == 0) ? fc_packed_rand(1, INT32_MAX) : fc_packed_rand(1 << 30, INT32_MAX);
+        fc_packed_shift[c] = (c % 7 == 3) ? fc_packed_rand(0, 20) : (c % 5 == 1) ? -1 : fc_packed_rand(-31, -1);
     }
     for (int32_t b = 0; b < batches; b++)
     {
@@ -845,6 +847,23 @@ static void fc_packed_case(int32_t k, int32_t n, int32_t batches, int at_gap)
     {
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
         TEST_ASSERT_EQUAL_INT8_ARRAY(fc_packed_ref, fc_packed_out, batches * n);
+        /* The same layer through arm_fully_connected_per_channel_s8(), its kernel sums in ctx */
+        int8_t *const out_per_ch = fc_packed_out + batches * n + FC_PACKED_CANARY;
+        const cmsis_nn_context ctx = {fc_packed_ksum, n * (int32_t)sizeof(int32_t)};
+        const cmsis_nn_dims bias_dims = {1, 1, 1, n};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_fully_connected_per_channel_s8(&ctx,
+                                                             &fc_params,
+                                                             &quant_params,
+                                                             &input_dims,
+                                                             fc_packed_in,
+                                                             &filter_dims,
+                                                             fc_packed_w,
+                                                             &bias_dims,
+                                                             fc_packed_bias,
+                                                             &output_dims,
+                                                             out_per_ch));
+        TEST_ASSERT_EQUAL_INT8_ARRAY(out_per_ch, fc_packed_out, batches * n);
     }
     else
     {
@@ -938,6 +957,15 @@ void fc_packed_contract_arm_fully_connected_per_channel_packed_s8(void)
     const cmsis_nn_dims no_depth = {0, 1, 1, 5};
     TEST_ASSERT_EQUAL(0, arm_fully_connected_per_channel_packed_s8_get_packed_size(&no_depth));
     TEST_ASSERT_EQUAL(0, arm_fully_connected_per_channel_packed_s8_get_packed_size(NULL));
+    /* The largest stream fits INT32_MAX; one more 16-byte group does not, and the gate agrees with the size */
+    const cmsis_nn_dims largest = {536870896, 1, 1, 4};
+    const cmsis_nn_dims too_large = {536870897, 1, 1, 4};
+    const int32_t four_mult[4] = {0, 0, 0, 0}, four_shift[4] = {-1, -1, -1, -1};
+    const cmsis_nn_per_channel_quant_params four_q = {(int32_t *)four_mult, (int32_t *)four_shift};
+    TEST_ASSERT_EQUAL(2147483632, arm_fully_connected_per_channel_packed_s8_get_packed_size(&largest));
+    TEST_ASSERT_EQUAL(0, arm_fully_connected_per_channel_packed_s8_get_packed_size(&too_large));
+    TEST_ASSERT_EQUAL(1, arm_nn_fc_packed_s8_supported(&fc_params, &four_q, &largest));
+    TEST_ASSERT_EQUAL(0, arm_nn_fc_packed_s8_supported(&fc_params, &four_q, &too_large));
 
     const int8_t input[2 * 3] = {1, 2, 3, 4, 5, 6};
     const cmsis_nn_dims input_dims = {2, 1, 1, 3};
@@ -961,4 +989,8 @@ void fc_packed_contract_arm_fully_connected_per_channel_packed_s8(void)
     TEST_ASSERT_EQUAL(
         ARM_CMSIS_NN_ARG_ERROR,
         arm_fully_connected_per_channel_packed_s8(&fc_params, &input_dims, NULL, &filter_dims, stream, &output_dims, out));
+    const cmsis_nn_dims no_batch = {0, 1, 1, 3};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_fully_connected_per_channel_packed_s8(
+                          &fc_params, &no_batch, input, &filter_dims, stream, &output_dims, out));
 }

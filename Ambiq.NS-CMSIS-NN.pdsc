@@ -305,8 +305,8 @@
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_get_buffer_sizes_s16.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_get_buffer_sizes_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_per_channel_s16.c"/>
-        <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_per_channel_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_per_channel_packed_s8.c"/>
+        <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_per_channel_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_s16.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_s4.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_s8.c"/>

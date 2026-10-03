@@ -37,13 +37,11 @@ static int32_t arm_fc_packed_depth(const int32_t k) { return (k + 15) & ~15; }
 
 int32_t arm_fully_connected_per_channel_packed_s8_get_packed_size(const cmsis_nn_dims *filter_dims)
 {
-    if (filter_dims == NULL || filter_dims->n <= 0 || filter_dims->c <= 0 || filter_dims->n > INT32_MAX - 15)
+    if (filter_dims == NULL || filter_dims->n <= 0 || filter_dims->c <= 0)
     {
         return 0;
     }
-    const int64_t blocks = ((int64_t)filter_dims->c + FC_PACKED_ROWS - 1) / FC_PACKED_ROWS;
-    const int64_t size =
-        blocks * ((int64_t)FC_PACKED_ROWS * arm_fc_packed_depth(filter_dims->n) + FC_PACKED_PARAM_BYTES);
+    const int64_t size = arm_nn_fc_packed_s8_size(filter_dims->n, filter_dims->c);
     return size > INT32_MAX ? 0 : (int32_t)size;
 }
 
@@ -62,7 +60,7 @@ arm_fully_connected_per_channel_packed_s8_pack(const cmsis_nn_dims *filter_dims,
     }
     const int32_t k = filter_dims->n;
     const int32_t n = filter_dims->c;
-    if (!arm_nn_fc_packed_s8_rshift_only(quant_params, n))
+    if (!arm_nn_requantize_channels_rshift_only(quant_params->multiplier, quant_params->shift, n))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
