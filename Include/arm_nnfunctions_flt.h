@@ -381,10 +381,17 @@ arm_cmsis_nn_status arm_convolve_1x1_f32(const cmsis_nn_context *ctx,
  *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, @p filter_data is interpreted as
  *       an already prepacked `NTxN` RHS buffer instead of the standard public
  *       filter layout. Every output position, including the no-pad middle
- *       region that OHWI filters feed to the strided direct kernel, is then
+ *       region that OHWI filters take straight from the input, is then
  *       packed into scratch and multiplied by the format-aware matmul, so a
  *       packed 1xN layer with little or no padding runs slower than its OHWI
  *       equivalent.
+ *
+ * @note On MVE builds, with OHWI filters, the no-padding positions run row by
+ *       row, read in place, through the contiguous-K matmul when the layer has
+ *       at least 4 output channels and 224 taps (filter width times input
+ *       channels), and through a strided kernel otherwise. The float16 entries
+ *       also do so from 80 taps when 4 to 7 output channels remain in the last
+ *       8-channel block.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -418,10 +425,17 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
  *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, @p filter_data is interpreted as
  *       an already prepacked `NTxN` RHS buffer instead of the standard public
  *       filter layout. Every output position, including the no-pad middle
- *       region that OHWI filters feed to the strided direct kernel, is then
+ *       region that OHWI filters take straight from the input, is then
  *       packed into scratch and multiplied by the format-aware matmul, so a
  *       packed 1xN layer with little or no padding runs slower than its OHWI
  *       equivalent.
+ *
+ * @note On MVE builds, with OHWI filters, the no-padding positions run row by
+ *       row, read in place, through the contiguous-K matmul when the layer has
+ *       at least 4 output channels and 224 taps (filter width times input
+ *       channels), and through a strided kernel otherwise. The float16 entries
+ *       also do so from 80 taps when 4 to 7 output channels remain in the last
+ *       8-channel block.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -2599,13 +2613,14 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16_acc16(const cmsis_nn_context *ct
  *
  * @note Accumulation width per leg. Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): bias and every product
  *       accumulate in float32 and round to float16 once (AmbiqAI/ns-cmsis-nn#449, #465). MVE leg: the padded regions go
- *       through the matmul helpers and the no-padding region through a strided kernel, all with
- *       blockwise float16 accumulation (AmbiqAI/ns-cmsis-nn#586, superseding #446's float16-lane choice for the MVE
- * legs): in the kernel's own tap order an accumulator lane sums at most 32 taps in float16 (the bias, where the kernel
- * starts from it, opens the first block), then the partial is widened exactly and added into a float32 accumulator; the
- * float32 sum rounds to float16 once, before the clamp. An accumulator of at most 32 taps gives exactly the
- * float16-lane result. The `_acc16` entry keeps float16 lanes throughout. The padded regions multiply a zero-padded
- * patch row, so their outputs count the padded taps as well.
+ *       through the matmul helpers; the no-padding region goes through a strided kernel, or row by row, read in
+ *       place, through the same matmul helpers (see the routing note above); all with blockwise float16 accumulation
+ * (AmbiqAI/ns-cmsis-nn#586, superseding #446's float16-lane choice for the MVE legs): in the kernel's own tap order an
+ * accumulator lane sums at most 32 taps in float16 (the bias, where the kernel starts from it, opens the first block),
+ * then the partial is widened exactly and added into a float32 accumulator; the float32 sum rounds to float16 once,
+ * before the clamp. An accumulator of at most 32 taps gives exactly the float16-lane result. The `_acc16` entry keeps
+ * float16 lanes throughout. The padded regions multiply a zero-padded patch row, so their outputs count the padded taps
+ * as well.
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_f16(const cmsis_nn_context *ctx,
                                            const cmsis_nn_conv_params_f16 *conv_params,
