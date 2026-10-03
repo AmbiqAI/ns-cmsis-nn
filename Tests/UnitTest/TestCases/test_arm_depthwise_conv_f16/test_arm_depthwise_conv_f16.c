@@ -698,6 +698,14 @@ static void dw_direct_entries_case_f16(int32_t n,
 #if !(defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE))
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
                       arm_depthwise_conv_cin1_nhwc_f16(&ctx, &dp, &in, x, &flt, wt, &bias_dims, bias, &out, got));
+#else
+    if (route == DW_ROUTE_CIN1_F16)
+    {
+        /* Without scratch the entry reports it; the router falls back to the generic route instead */
+        const cmsis_nn_context none = {NULL, 0};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_depthwise_conv_cin1_nhwc_f16(&none, &dp, &in, x, &flt, wt, &bias_dims, bias, &out, got));
+    }
 #endif
     free(buf);
     free(x);

@@ -45,15 +45,14 @@
 
 /*
  * Heuristics for selecting the NHWC packed-patch-matrix + GEMM float32 path.
- * Below MIN_OC / MIN_POS the packing/setup overhead tends to outweigh the GEMM win.
+ * MIN_OC / MIN_POS (Include/arm_nnsupportfunctions_flt.h, with the route predicates): below them the packing/setup
+ * overhead tends to outweigh the GEMM win.
  * MAX_TILE_ROWS bounds scratch usage and keeps the packed panel cache-friendly.
  * MIN_K gates only the 1x1 route (arm_convolve_1x1_f32.c); the generic conv
  * takes patch-GEMM at any patch length (#417).
  */
 #define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MAX_TILE_ROWS (8)
 #define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_K (16)
-#define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_OC (8)
-#define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_POS (8)
 
 /*
  * Heuristics for selecting the NHWC packed-patch-matrix + GEMM float16 path.
@@ -61,14 +60,6 @@
  */
 #define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MAX_TILE_ROWS (8)
 #define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_K (16)
-#define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC (8)
-#define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS (8)
-
-/* arm_nn_conv_flt_is_patch_gemm serves both types */
-#if ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC != ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_OC ||                                \
-    ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS != ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_POS
-    #error "The float16 and float32 packed-patch GEMM thresholds differ"
-#endif
 
 #define ARM_CONV_DISPATCH(TABLE, COUNT, ...)                                                                           \
     do                                                                                                                 \

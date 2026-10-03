@@ -30,7 +30,6 @@
 #ifndef ARM_NNSUPPORTFUNCTIONS_FLT_H
 #define ARM_NNSUPPORTFUNCTIONS_FLT_H
 
-#include "Internal/arm_conv_opt_common.h"
 #include "Internal/arm_nn_compiler.h"
 #include "Internal/arm_nn_vcvt_f16.h"
 #include "arm_nn_types_flt.h"
@@ -1501,6 +1500,19 @@ arm_cmsis_nn_status arm_nn_gru_step_f32(const float32_t *data_in,
  * that a caller selecting the entry per layer ahead of time takes the route the router takes.
  * @{
  */
+
+/** The packed-patch GEMM route needs at least this many output channels (float32 and float16 alike). */
+#define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_OC (8)
+/** The packed-patch GEMM route needs at least this many output positions per batch (float32). */
+#define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_POS (8)
+/** The packed-patch GEMM route needs at least this many output channels (float16). */
+#define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC (8)
+/** The packed-patch GEMM route needs at least this many output positions per batch (float16). */
+#define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS (8)
+#if ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC != ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_OC ||                                \
+    ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS != ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_POS
+    #error "arm_nn_conv_flt_is_patch_gemm serves both types; the float16 and float32 thresholds must agree"
+#endif
 
 /** Lanes of the float16 small-C kernel: the route takes fewer input channels than this. */
 #define ARM_NN_CONV_SMALL_C_F16_LANES (8)
