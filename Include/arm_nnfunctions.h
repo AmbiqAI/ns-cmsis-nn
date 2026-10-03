@@ -604,9 +604,9 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
- *    - With the default rounding the output is identical to arm_convolve_1x1_s8_fast(). Input and output must not
- *      overlap. The bias is read through the weight sums, which arm_convolve_weight_sum() fills as for
- *      arm_convolve_1x1_s8_fast(); bias_dims and bias_data are unused.
+ *    - Without CMSIS_NN_USE_SINGLE_ROUNDING the output is identical to arm_convolve_1x1_s8_fast(). Input and
+ *      output must not overlap. The bias is read through the weight sums, which arm_convolve_weight_sum() fills as
+ *      for arm_convolve_1x1_s8_fast(); bias_dims and bias_data are unused.
  *    - Gate, as arm_nn_is_convolve_s8_1x1_short_k computes it: a 1x1 kernel with no padding, unit stride and
  *      dilation, CK equal to C_IN, C_IN from 1 to 16, and N, H and W positive. No scratch is used.
  *    - It is a direct entry for callers that select the kernel per layer ahead of time: neither
