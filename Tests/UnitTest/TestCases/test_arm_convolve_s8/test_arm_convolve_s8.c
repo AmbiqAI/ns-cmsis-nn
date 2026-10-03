@@ -2146,10 +2146,10 @@ void requantize_rshift_helpers_arm_convolve_s8(void)
 }
 
 /* The short-K pointwise block (input depth at most 16, at least 8 pixels) against arm_nn_requantize(), on both sides
- * of its bounds (16 and 17 channels, 7 and 8 pixels), with every pixel tail, the paired-pixel depth of 8, one and two
- * batches, the full and a narrower activation range, and every quantization class, including the two that mix
- * right-shift-only and general channels in one layer. Where the MPU guard is available, input, filter and output each
- * end at the guard gap in turn. */
+ * of its bounds (16 and 17 channels, 7 and 8 pixels), at every input depth from 1 to 16, with every pixel tail, the
+ * paired-pixel depth of 8, one and two batches, the full and a narrower activation range, and every quantization class,
+ * including the two that mix right-shift-only and general channels in one layer. Where the MPU guard is available,
+ * input, filter and output each end at the guard gap in turn. */
 void conv_1x1_short_k_arm_convolve_s8(void)
 {
     enum
@@ -2158,7 +2158,7 @@ void conv_1x1_short_k_arm_convolve_s8(void)
         max_cin = 17,
         max_cout = 8
     };
-    const int32_t cins[] = {1, 3, 8, 12, 16, 17};
+    const int32_t cins[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
     const int32_t pixel_counts[] = {7, 8, 9, 10, 11, 13};
     const int32_t couts[] = {1, 5, 8};
     const int32_t classes[] = {0, 1, 2, 3, 4};

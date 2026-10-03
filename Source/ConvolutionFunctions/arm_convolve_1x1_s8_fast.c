@@ -109,7 +109,9 @@ static __attribute__((noinline)) void arm_convolve_1x1_s8_fast_short_k(const int
             if (tail)
             {
                 const int8x16_t x01 = vldrbq_z_s8(ip, vctp8q((uint32_t)tail * 8));
-                const int8x16_t x23 = vldrbq_z_s8(ip + 16, vctp8q(tail > 2 ? 8 : 0));
+                /* With fewer than three rows left the second load is fully predicated off; its base stays inside the
+                 * input so that no pointer is formed past its end. */
+                const int8x16_t x23 = vldrbq_z_s8(tail > 2 ? ip + 16 : ip, vctp8q(tail > 2 ? 8 : 0));
                 acc[0] = vmladavq_s8(x01, w_lo);
                 acc[1] = vmladavq_s8(x01, w_hi);
                 acc[2] = vmladavq_s8(x23, w_lo);
