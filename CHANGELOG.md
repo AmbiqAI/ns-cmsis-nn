@@ -1,5 +1,18 @@
 # Changelog
 
+## [7.39.3](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.39.2...v7.39.3) (2026-10-03)
+
+
+### Bug Fixes
+
+* **concat:** accept any input count in arm_concatenation_s32 ([#668](https://github.com/AmbiqAI/ns-cmsis-nn/issues/668)) ([4d7d48e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4d7d48e35b515d65abefdfadb9a685adc3e3eba3)), closes [#667](https://github.com/AmbiqAI/ns-cmsis-nn/issues/667)
+
+
+### Performance
+
+* **conv:** run long-K 1xN no-padding rows through the contiguous-K matmul ([#663](https://github.com/AmbiqAI/ns-cmsis-nn/issues/663)) ([ce01c57](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ce01c57ce2549f86e07dd55c8dc32ef4c046a5d1)), closes [#659](https://github.com/AmbiqAI/ns-cmsis-nn/issues/659)
+* **s8:** requantize right-shift-only layers without the left-shift step ([#664](https://github.com/AmbiqAI/ns-cmsis-nn/issues/664)) ([16af1d0](https://github.com/AmbiqAI/ns-cmsis-nn/commit/16af1d0ad7d2370f74262085ab2d6dbffcc599be)), closes [#660](https://github.com/AmbiqAI/ns-cmsis-nn/issues/660)
+
 ## [7.39.2](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.39.1...v7.39.2) (2026-10-02)
 
 
