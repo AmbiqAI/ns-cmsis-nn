@@ -1521,6 +1521,24 @@ __STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s8_planar_candidate(const cms
 }
 
 /**
+ * @brief The gate of arm_convolve_1x1_s8_short_k(): a 1x1 kernel with no padding, unit stride and dilation, filter
+ *        depth equal to the input depth, and an input depth of 1 to 16. Plain C; it evaluates the same on every build.
+ *
+ * @param[in]   conv_params   Convolution parameters
+ * @param[in]   input_dims    Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]   filter_dims   Filter tensor dimensions. Format: [C_OUT, 1, 1, C_IN]
+ *
+ * @return      1 when the layer is in the gate, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_1x1_short_k(const cmsis_nn_conv_params *conv_params,
+                                                               const cmsis_nn_dims *input_dims,
+                                                               const cmsis_nn_dims *filter_dims)
+{
+    return arm_nn_is_convolve_1x1(conv_params, input_dims, filter_dims) && arm_nn_is_convolve_1x1_fast(conv_params) &&
+        (input_dims->c >= 1) && (input_dims->c <= 16);
+}
+
+/**
  * @brief The gate of arm_convolve_s8_small_cin(): upscale_dims NULL, input depth 1 to 3 with filter depth equal to it,
  *        dilation 1, a kernel of at least 1x1 with kernel width x depth at most 16 and at most 48 values, and a
  *        positive multiple of 4 output channels. Plain C; it evaluates the same on every build.

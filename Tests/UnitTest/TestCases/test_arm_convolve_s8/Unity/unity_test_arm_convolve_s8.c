@@ -60,6 +60,13 @@ void test_conv_1x1_requant_classes_arm_convolve_s8(void) { conv_1x1_requant_clas
 
 void test_requantize_rshift_helpers_arm_convolve_s8(void) { requantize_rshift_helpers_arm_convolve_s8(); }
 
+void test_conv_1x1_short_k_arm_convolve_1x1_s8_short_k(void) { conv_1x1_short_k_arm_convolve_1x1_s8_short_k(); }
+
+void test_conv_1x1_short_k_declines_arm_convolve_1x1_s8_short_k(void)
+{
+    conv_1x1_short_k_declines_arm_convolve_1x1_s8_short_k();
+}
+
 void test_conv_1x1_out_null_weight_sum_arm_convolve_1x1_out_s8(void)
 {
     conv_1x1_out_null_weight_sum_arm_convolve_1x1_out_s8();
