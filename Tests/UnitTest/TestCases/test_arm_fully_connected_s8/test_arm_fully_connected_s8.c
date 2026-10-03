@@ -784,9 +784,10 @@ static void fc_packed_case(int32_t k, int32_t n, int32_t batches, int at_gap)
         fc_packed_bias[c] = fc_packed_rand(-20000, 20000);
         fc_packed_ksum[c] = sum * in_off + fc_packed_bias[c];
         /* Multipliers over the whole positive range, and zero (also with a shift of 0 or more, which a zero
-         * multiplier makes right-shift-only); shifts over the whole right-shift range */
+         * multiplier makes right-shift-only); right shifts of 1 to 30 (31 overflows the scalar reference's remainder
+         * mask, #662) */
         fc_packed_mult[c] = (c % 7 == 3) ? 0 : (c % 3 == 0) ? fc_packed_rand(1, INT32_MAX) : fc_packed_rand(1 << 30, INT32_MAX);
-        fc_packed_shift[c] = (c % 7 == 3) ? fc_packed_rand(0, 20) : (c % 5 == 1) ? -1 : fc_packed_rand(-31, -1);
+        fc_packed_shift[c] = (c % 7 == 3) ? fc_packed_rand(0, 20) : (c % 5 == 1) ? -1 : fc_packed_rand(-30, -1);
     }
     for (int32_t b = 0; b < batches; b++)
     {
