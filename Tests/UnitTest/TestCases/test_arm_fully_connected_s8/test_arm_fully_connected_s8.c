@@ -778,7 +778,7 @@ static void fc_packed_case(int32_t k, int32_t n, int32_t batches, int at_gap)
         int32_t sum = 0;
         for (int32_t i = 0; i < k; i++)
         {
-            fc_packed_w[c * k + i] = (int8_t)fc_packed_rand(-127, 127);
+            fc_packed_w[c * k + i] = (int8_t)fc_packed_rand(-128, 127);
             sum += fc_packed_w[c * k + i];
         }
         fc_packed_bias[c] = fc_packed_rand(-20000, 20000);
@@ -890,6 +890,9 @@ void fc_packed_arm_fully_connected_per_channel_packed_s8(void)
         fc_packed_case(40, n, 2, 0);
         fc_packed_case(40, n, 1, 1);
         fc_packed_case(40, n, 3, 2);
+        /* Depths of whole 16-byte groups: no predicated tail */
+        fc_packed_case(32, n, 1, 1);
+        fc_packed_case(48, n, 2, 2);
     }
     fc_packed_case(8, 128, 1, 0);
     fc_packed_case(128, 8, 1, 0);
@@ -955,7 +958,12 @@ void fc_packed_contract_arm_fully_connected_per_channel_packed_s8(void)
     const cmsis_nn_fc_params with_filter_offset = {0, 1, 0, {-128, 127}};
     TEST_ASSERT_EQUAL(0, arm_nn_fc_packed_s8_supported(&with_filter_offset, &quant_params, &filter_dims));
     const cmsis_nn_dims no_depth = {0, 1, 1, 5};
+    const cmsis_nn_dims no_out = {3, 1, 1, 0};
+    const cmsis_nn_dims neg_depth = {-3, 1, 1, 5};
     TEST_ASSERT_EQUAL(0, arm_fully_connected_per_channel_packed_s8_get_packed_size(&no_depth));
+    TEST_ASSERT_EQUAL(0, arm_nn_fc_packed_s8_supported(&fc_params, &quant_params, &no_depth));
+    TEST_ASSERT_EQUAL(0, arm_nn_fc_packed_s8_supported(&fc_params, &quant_params, &no_out));
+    TEST_ASSERT_EQUAL(0, arm_nn_fc_packed_s8_supported(&fc_params, &quant_params, &neg_depth));
     TEST_ASSERT_EQUAL(0, arm_fully_connected_per_channel_packed_s8_get_packed_size(NULL));
     /* The largest stream fits INT32_MAX; one more 16-byte group does not, and the gate agrees with the size */
     const cmsis_nn_dims largest = {536870896, 1, 1, 4};
@@ -989,6 +997,14 @@ void fc_packed_contract_arm_fully_connected_per_channel_packed_s8(void)
     TEST_ASSERT_EQUAL(
         ARM_CMSIS_NN_ARG_ERROR,
         arm_fully_connected_per_channel_packed_s8(&fc_params, &input_dims, NULL, &filter_dims, stream, &output_dims, out));
+    const cmsis_nn_dims wrong_depth = {2, 1, 1, 2};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_fully_connected_per_channel_packed_s8(
+                          &fc_params, &wrong_depth, input, &filter_dims, stream, &output_dims, out));
+    const cmsis_nn_dims wrong_batch = {1, 1, 1, 5};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_fully_connected_per_channel_packed_s8(
+                          &fc_params, &input_dims, input, &filter_dims, stream, &wrong_batch, out));
     const cmsis_nn_dims no_batch = {0, 1, 1, 3};
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_fully_connected_per_channel_packed_s8(

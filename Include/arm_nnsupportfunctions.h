@@ -420,14 +420,13 @@ __STATIC_FORCEINLINE int32_t arm_nn_requantize_channels_rshift_only(const int32_
                                                                     const int32_t *shift,
                                                                     const int32_t num_ch)
 {
+    /* No early exit, so that the compilers can vectorize the loop */
+    int32_t needs_left_shift = 0;
     for (int32_t i = 0; i < num_ch; i++)
     {
-        if (shift[i] >= 0 && multiplier[i] != 0)
-        {
-            return 0;
-        }
+        needs_left_shift |= (shift[i] >= 0) & (multiplier[i] != 0);
     }
-    return 1;
+    return needs_left_shift == 0;
 }
 
 /**
@@ -447,8 +446,8 @@ __STATIC_FORCEINLINE int64_t arm_nn_fc_packed_s8_size(const int32_t k, const int
 /**
  * @brief The gate of arm_fully_connected_per_channel_packed_s8(), which a caller selecting the kernel per layer ahead
  *        of time evaluates: filter offset 0, a positive accumulation and output depth, a stream of at most INT32_MAX
- *        bytes, and every output channel right-shift-only. Plain C; it evaluates the same on every build. The entry
- * also needs MVE (ARM_MATH_MVEI without ARM_MATH_AUTOVECTORIZE) and the default rounding.
+ *        bytes, and every output channel right-shift-only. Plain C; it evaluates the same on every build. The
+ *        entry also needs MVE (ARM_MATH_MVEI without ARM_MATH_AUTOVECTORIZE) and the default rounding.
  *
  * @param[in]   fc_params      Fully connected parameters
  * @param[in]   quant_params   Per-channel multipliers and shifts

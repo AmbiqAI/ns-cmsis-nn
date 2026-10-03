@@ -2984,8 +2984,9 @@ arm_fully_connected_per_channel_packed_s8_pack(const cmsis_nn_dims *filter_dims,
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - a NULL argument, a non-positive depth or batch count, a stream
- *                                                      above INT32_MAX bytes, C_OUT unlike the filter's output depth,
- *                                                      or packed_data not 4-byte aligned
+ *                                                      above INT32_MAX bytes, H x W x C_IN unlike the accumulation
+ *                                                      depth, C_OUT unlike the filter's output depth, an output batch
+ *                                                      count unlike the input's, or packed_data not 4-byte aligned
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - a non-zero filter offset, or a build without
  *                                                          ARM_MATH_MVEI, with ARM_MATH_AUTOVECTORIZE or with
  *                                                          CMSIS_NN_USE_SINGLE_ROUNDING; nothing is written

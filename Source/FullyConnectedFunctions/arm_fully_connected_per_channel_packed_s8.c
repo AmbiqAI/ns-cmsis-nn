@@ -170,7 +170,8 @@ arm_cmsis_nn_status arm_fully_connected_per_channel_packed_s8(const cmsis_nn_fc_
 {
     if (fc_params == NULL || input_dims == NULL || input_data == NULL || packed_data == NULL || output_dims == NULL ||
         output_data == NULL || arm_fully_connected_per_channel_packed_s8_get_packed_size(filter_dims) == 0 ||
-        output_dims->c != filter_dims->c || input_dims->n <= 0 || ((uintptr_t)packed_data & 3U) != 0U)
+        output_dims->c != filter_dims->c || input_dims->n <= 0 || output_dims->n != input_dims->n ||
+        (int64_t)input_dims->h * input_dims->w * input_dims->c != filter_dims->n || ((uintptr_t)packed_data & 3U) != 0U)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
