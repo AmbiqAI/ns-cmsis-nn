@@ -2684,6 +2684,77 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve(const int32x4_t val, const int
 }
 
 /**
+ * @brief           Whether every channel requantizes with a right shift only: each has a shift below 0, or a
+ *                  multiplier of 0. arm_requantize_mve_rshift() and arm_requantize_mve_32x4_rshift() then give the
+ *                  same results as arm_requantize_mve() and arm_requantize_mve_32x4().
+ * @param[in]       multiplier  Per-channel multipliers
+ * @param[in]       shift       Per-channel shifts
+ * @param[in]       num_ch      Number of channels
+ *
+ * @return          true when every channel qualifies. Always false with CMSIS_NN_USE_SINGLE_ROUNDING, whose
+ *                  requantization the right-shift variants do not reproduce.
+ *
+ */
+__STATIC_FORCEINLINE bool
+arm_nn_requantize_rshift_only(const int32_t *multiplier, const int32_t *shift, const int32_t num_ch)
+{
+    #ifdef CMSIS_NN_USE_SINGLE_ROUNDING
+    (void)multiplier;
+    (void)shift;
+    (void)num_ch;
+    return false;
+    #else
+    for (int32_t i = 0; i < num_ch; i += 4)
+    {
+        const mve_pred16_t p = vctp32q((uint32_t)(num_ch - i));
+        const int32x4_t s = vldrwq_z_s32(shift + i, p);
+        const int32x4_t m = vldrwq_z_s32(multiplier + i, p);
+        if (vcmpgeq_m_n_s32(s, 0, vcmpneq_m_n_s32(m, 0, p)) != 0)
+        {
+            return false;
+        }
+    }
+    return true;
+    #endif
+}
+
+/**
+ * @brief           Requantize a vector whose shift is below 0, or whose multiplier is 0.
+ * @param[in]       val         Vector to be requantized
+ * @param[in]       multiplier  multiplier
+ * @param[in]       shift       shift, below 0 unless multiplier is 0
+ *
+ * @return          The result of arm_requantize_mve() for such a requantization, which needs no left shift and whose
+ *                  rounding fixup reduces to the sign of the product. Use only where arm_nn_requantize_rshift_only()
+ *                  holds.
+ *
+ */
+__STATIC_FORCEINLINE int32x4_t arm_requantize_mve_rshift(const int32x4_t val,
+                                                         const int32_t multiplier,
+                                                         const int32_t shift)
+{
+    return arm_divide_by_nonzero_power_of_two_mve(vqrdmulhq_n_s32(val, multiplier), vdupq_n_s32(shift));
+}
+
+/**
+ * @brief           Requantize a vector with per-lane multipliers and shifts, each shift below 0 unless its multiplier
+ *                  is 0.
+ * @param[in]       val         Vector to be requantized
+ * @param[in]       multiplier  Vector of multipliers
+ * @param[in]       shift       Vector of shifts
+ *
+ * @return          The result of arm_requantize_mve_32x4() for such lanes. Use only where
+ *                  arm_nn_requantize_rshift_only() holds.
+ *
+ */
+__STATIC_FORCEINLINE int32x4_t arm_requantize_mve_32x4_rshift(const int32x4_t val,
+                                                              const int32x4_t multiplier,
+                                                              const int32x4_t shift)
+{
+    return arm_divide_by_nonzero_power_of_two_mve(vqrdmulhq_s32(val, multiplier), shift);
+}
+
+/**
  * @brief           Vector saturating doubling high multiply with predication returning high half.
  * @param[in]       m1        Multiplicand
  * @param[in]       m2        Multiplier
