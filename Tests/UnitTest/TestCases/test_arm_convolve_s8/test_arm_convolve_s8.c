@@ -2329,7 +2329,7 @@ void conv_1x1_short_k_declines_arm_convolve_1x1_s8_short_k(void)
     const cmsis_nn_context ctx = {0};
     const cmsis_nn_context weight_sum_ctx = {weight_sum, (int32_t)sizeof(weight_sum)};
     const cmsis_nn_dims bias_dims = {1, 1, 1, 4};
-    for (int32_t k = 0; k < 19; k++)
+    for (int32_t k = 0; k < 20; k++)
     {
         cmsis_nn_conv_params conv_params = {.stride = {1, 1}, .dilation = {1, 1}, .activation = {-128, 127}};
         cmsis_nn_dims input_dims = {1, 4, 4, 8}, filter_dims = {4, 1, 1, 8}, output_dims = {1, 4, 4, 4};
@@ -2401,6 +2401,12 @@ void conv_1x1_short_k_declines_arm_convolve_1x1_s8_short_k(void)
             break;
         case 17:
             output_dims.c = 3;
+            break;
+        case 18:
+            /* Weight sums past INT32_MAX bytes: one pixel, 2^29 filter rows of 1 */
+            input_dims = (cmsis_nn_dims){1, 1, 1, 1};
+            filter_dims = (cmsis_nn_dims){1 << 29, 1, 1, 1};
+            output_dims = (cmsis_nn_dims){1, 1, 1, 1 << 29};
             break;
         default:
             /* C_OUT x C_IN past INT32_MAX: one pixel, 2^28 filter rows of 16 */

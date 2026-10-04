@@ -248,7 +248,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_short_k(const cmsis_nn_context *ctx,
     const int64_t rows = (int64_t)input_dims->n * input_dims->h;
     if (output_dims->c <= 0 || output_dims->c != filter_dims->n || rows > INT32_MAX ||
         rows * input_dims->w > INT32_MAX || rows * input_dims->w * output_dims->c > INT32_MAX ||
-        (int64_t)output_dims->c * input_dims->c > INT32_MAX)
+        (int64_t)output_dims->c * input_dims->c > INT32_MAX ||
+        (int64_t)output_dims->c * (int64_t)sizeof(int32_t) > INT32_MAX)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }

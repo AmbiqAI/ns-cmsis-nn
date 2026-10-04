@@ -598,7 +598,8 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
  *                                                      gate)
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - the layer is outside the gate, C_OUT is not positive
  *                                                          or differs from the filter's output depth, N x H x W x
- *                                                          C_OUT or C_OUT x C_IN exceeds INT32_MAX, or the build lacks
+ *                                                          C_OUT, C_OUT x C_IN or the weight sums' C_OUT x 4 bytes
+ *                                                          exceed INT32_MAX, or the build lacks
  *                                                          ARM_MATH_MVEI or defines ARM_MATH_AUTOVECTORIZE; nothing is
  *                                                          written
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
