@@ -211,7 +211,7 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1x1_nhwc_f16_body(const cm
         return ARM_CMSIS_NN_ARG_ERROR;
     }
     if (packed != ARM_CONV_FORMAT_FROM_PARAMS &&
-        (conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED) != (packed != 0))
+        conv_params->weight_format != (packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD))
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }

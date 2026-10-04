@@ -650,6 +650,7 @@ static void dw_direct_entries_case_f16(int32_t n,
 
     /* The router's choice, in its dispatch order */
     int32_t route = DW_ROUTE_GENERIC_F16;
+#ifndef NN_DISABLE_SPECIALIZATION
     if (arm_nn_dw_f16_is_1d_k3(&dp, &in, &flt, &out))
     {
         route = DW_ROUTE_K3_F16;
@@ -658,12 +659,14 @@ static void dw_direct_entries_case_f16(int32_t n,
     {
         route = DW_ROUTE_2X5_F16;
     }
-    else if (dp.ch_mult == 1)
+    else
+#endif
+        if (dp.ch_mult == 1)
     {
         route = DW_ROUTE_DIRECT_F16;
     }
 #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-    else if (arm_nn_dw_f16_is_cin1(&in, &out))
+    else if (arm_nn_dw_f16_is_cin1(&in, &out) && buf_size >= arm_nn_dw_f16_cin1_min_ctx_size(&flt, &out))
     {
         route = DW_ROUTE_CIN1_F16;
     }
@@ -717,11 +720,17 @@ static void dw_direct_entries_case_f16(int32_t n,
 
 void depthwise_conv_direct_entries_f16(void)
 {
+#ifndef NN_DISABLE_SPECIALIZATION
     dw_direct_entries_case_f16(1, 1, 20, 6, 1, 1, 3, 0, DW_ROUTE_K3_F16);
     dw_direct_entries_case_f16(1, 2, 16, 4, 2, 2, 5, 0, DW_ROUTE_2X5_F16);
+#endif
     dw_direct_entries_case_f16(2, 6, 6, 10, 1, 3, 3, 1, DW_ROUTE_DIRECT_F16);
+    /* 49 taps per output: float16 folding differs from float16 lanes */
+    dw_direct_entries_case_f16(1, 9, 9, 10, 1, 7, 7, 3, DW_ROUTE_DIRECT_F16);
 #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     dw_direct_entries_case_f16(1, 6, 6, 1, 12, 3, 3, 1, DW_ROUTE_CIN1_F16);
+    /* A 1x1 filter: the size query leaves no patch row, so the router keeps the generic route */
+    dw_direct_entries_case_f16(1, 6, 6, 1, 12, 1, 1, 0, DW_ROUTE_GENERIC_F16);
 #else
     dw_direct_entries_case_f16(1, 6, 6, 1, 12, 3, 3, 1, DW_ROUTE_GENERIC_F16);
 #endif

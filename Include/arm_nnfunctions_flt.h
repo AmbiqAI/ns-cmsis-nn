@@ -2747,9 +2747,8 @@ arm_cmsis_nn_status arm_depthwise_conv_direct_nhwc_f16_acc16(const cmsis_nn_cont
  * @copydoc arm_depthwise_conv_generic_nhwc_f16
  *
  * @note The one-input-channel route, on MVE float builds (ARM_MATH_MVE_FLOAT16 without ARM_MATH_AUTOVECTORIZE;
- *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> elsewhere). Gate: arm_nn_dw_f16_is_cin1. ctx must hold the size
- *       arm_depthwise_conv_f16_get_buffer_size() gives for a channel multiplier above 1 (the router takes the
- *       channel-multiplier-1 route first, and the query asks for no scratch there), 2-byte aligned;
+ *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> elsewhere). Gate: arm_nn_dw_f16_is_cin1. ctx must hold at least
+ *       arm_nn_dw_f16_cin1_min_ctx_size bytes (the packed filter and one patch row), 2-byte aligned;
  * <code>ARM_CMSIS_NN_ARG_ERROR</code> otherwise (the router falls back to the generic route instead).
  */
 arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16(const cmsis_nn_context *ctx,

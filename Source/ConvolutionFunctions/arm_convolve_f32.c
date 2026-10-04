@@ -85,16 +85,16 @@ __STATIC_INLINE bool arm_conv_nhwc_use_1x1_f32(const cmsis_nn_conv_params_f32 *c
     return conv_params && filter_dims && arm_nn_conv_flt_is_1x1(&conv_params->padding, filter_dims);
 }
 
-__STATIC_INLINE arm_cmsis_nn_status arm_convolve_patch_mat_mul_f32(const float32_t *lhs,
-                                                                   const float32_t *rhs,
-                                                                   const float32_t *bias,
-                                                                   float32_t *dst,
-                                                                   int32_t lhs_rows,
-                                                                   int32_t rhs_rows,
-                                                                   int32_t rhs_cols,
-                                                                   int32_t row_address_offset,
-                                                                   const cmsis_nn_conv_params_f32 *conv_params,
-                                                                   const int32_t packed)
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_patch_mat_mul_f32(const float32_t *lhs,
+                                                                        const float32_t *rhs,
+                                                                        const float32_t *bias,
+                                                                        float32_t *dst,
+                                                                        int32_t lhs_rows,
+                                                                        int32_t rhs_rows,
+                                                                        int32_t rhs_cols,
+                                                                        int32_t row_address_offset,
+                                                                        const cmsis_nn_conv_params_f32 *conv_params,
+                                                                        const int32_t packed)
 {
     if (ARM_CONV_FORMAT_PACKED(packed, conv_params))
     {
@@ -1164,7 +1164,7 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_ohwi_f32(const cmsis_nn_context
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
-    if (!ctx || !ctx->buf)
+    if (!ctx || !ctx->buf || ctx->size <= 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -1193,7 +1193,7 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_packed_f32(const cmsis_nn_conte
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
-    if (!ctx || !ctx->buf)
+    if (!ctx || !ctx->buf || ctx->size <= 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

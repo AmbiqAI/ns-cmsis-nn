@@ -1677,10 +1677,11 @@ __STATIC_INLINE bool arm_nn_dw_f16_is_2x5(const cmsis_nn_dw_conv_params_f16 *dw_
 }
 
 /**
- * @brief The depthwise one-input-channel route of arm_depthwise_conv_f16() on MVE float builds: one input channel and
- *        at least CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD output channels (the threshold
- *        depends on the compiler). The router takes it after the channel-multiplier-1 route, and when ctx holds the
- *        packed filter and one patch row.
+ * @brief The shape part of the depthwise one-input-channel route of arm_depthwise_conv_f16() on MVE float builds: one
+ *        input channel and at least CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD output channels
+ *        (the threshold depends on the compiler). The router takes the route after the channel-multiplier-1 route,
+ *        and only when ctx->size is at least arm_nn_dw_f16_cin1_min_ctx_size; otherwise it takes the generic
+ *        route.
  * @param[in] input_dims     Input dimensions [N, H, W, C_IN]
  * @param[in] output_dims    Output dimensions [N, H, W, C_OUT]
  * @return true if the shape takes the one-input-channel route when ctx is large enough
@@ -1688,6 +1689,20 @@ __STATIC_INLINE bool arm_nn_dw_f16_is_2x5(const cmsis_nn_dw_conv_params_f16 *dw_
 __STATIC_INLINE bool arm_nn_dw_f16_is_cin1(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *output_dims)
 {
     return input_dims->c == 1 && output_dims->c >= CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD;
+}
+
+/**
+ * @brief The least ctx->size, in bytes, of the depthwise one-input-channel route: the filter packed in blocks of 8
+ *        output channels, then one patch row of KH x KW elements. More scratch packs more patch rows per step.
+ * @param[in] filter_dims    Filter dimensions [1, HK, WK, C_OUT]
+ * @param[in] output_dims    Output dimensions [N, H, W, C_OUT]
+ * @return the size in bytes (64 bits, so that the caller can bound it)
+ */
+__STATIC_INLINE int64_t arm_nn_dw_f16_cin1_min_ctx_size(const cmsis_nn_dims *filter_dims,
+                                                        const cmsis_nn_dims *output_dims)
+{
+    const int64_t taps = (int64_t)filter_dims->h * filter_dims->w;
+    return ((int64_t)output_dims->c + 7) / 8 * 8 * taps * 2 + taps * 2;
 }
 #endif /* ARM_NN_ENABLE_F16 */
 

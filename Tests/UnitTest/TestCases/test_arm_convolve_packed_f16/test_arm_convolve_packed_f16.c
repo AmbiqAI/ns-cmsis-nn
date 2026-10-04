@@ -986,8 +986,13 @@ static int32_t conv_route_f16(const cmsis_nn_context *ctx,
     {
         return ROUTE_1X1_F16;
     }
+#ifndef NN_DISABLE_SPECIALIZATION
     const bool k5 = arm_nn_conv_flt_is_1d_k(&cp->stride, &cp->padding, &cp->dilation, in, flt, out, 5);
     const bool k3 = arm_nn_conv_flt_is_1d_k(&cp->stride, &cp->padding, &cp->dilation, in, flt, out, 3);
+#else
+    const bool k5 = false;
+    const bool k3 = false;
+#endif
     if (arm_nn_conv_flt_is_1xn(&cp->stride, &cp->padding, &cp->dilation, in, flt, out) && !k5 && !k3 && ctx->buf &&
         ctx->size >= arm_convolve_1_x_n_f16_get_buffer_size(cp, in, flt, out, ARM_NN_LAYOUT_NHWC))
     {
@@ -1096,19 +1101,33 @@ static void conv_direct_entries_case_f16(int32_t n,
                     TEST_ASSERT_EQUAL_HEX8(0x55, ((const uint8_t *)got)[i]);
                 }
             }
-            /* The conv1d entries decline every other shape */
-            if (route != ROUTE_K5_F16)
+            /* The conv1d entries decline every shape outside their gate */
+            if (!arm_nn_conv_flt_is_1d_k(&cp.stride, &cp.padding, &cp.dilation, &in, &flt, &out, 5))
             {
                 TEST_ASSERT_EQUAL(
                     ARM_CMSIS_NN_NO_IMPL_ERROR,
                     conv_entries_f16[ROUTE_K5_F16][acc][packed](&ctx, &cp, &in, x, &flt, wt, &bias_dims, bias, &out, got));
             }
-            if (route != ROUTE_K3_F16)
+            if (!arm_nn_conv_flt_is_1d_k(&cp.stride, &cp.padding, &cp.dilation, &in, &flt, &out, 3))
             {
                 TEST_ASSERT_EQUAL(
                     ARM_CMSIS_NN_NO_IMPL_ERROR,
                     conv_entries_f16[ROUTE_K3_F16][acc][packed](&ctx, &cp, &in, x, &flt, wt, &bias_dims, bias, &out, got));
             }
+            /* An out-of-range filter format is neither entry's */
+            if (route != ROUTE_SMALL_C_F16 && packed == 0)
+            {
+                cmsis_nn_conv_params_f16 odd = cp;
+                odd.weight_format = (arm_nn_weight_format_flt)2;
+                TEST_ASSERT_EQUAL(
+                    ARM_CMSIS_NN_NO_IMPL_ERROR,
+                    conv_entries_f16[route][acc][0](&ctx, &odd, &in, x, &flt, wt, &bias_dims, bias, &out, got));
+            }
+            /* A negative scratch size is an argument error */
+            const cmsis_nn_context negative = {buf != NULL ? buf : got, -1};
+            TEST_ASSERT_EQUAL(
+                ARM_CMSIS_NN_ARG_ERROR,
+                conv_entries_f16[ROUTE_PATCH_F16][acc][packed](&negative, &cp, &in, x, &flt, wt, &bias_dims, bias, &out, got));
             /* Packed-patch GEMM without scratch is an argument error, not a silent fallback */
             TEST_ASSERT_EQUAL(
                 ARM_CMSIS_NN_ARG_ERROR,
@@ -1140,8 +1159,15 @@ void convolve_direct_entries_f16(void)
 {
     conv_direct_entries_case_f16(1, 4, 4, 8, 1, 1, 8, 0, ROUTE_1X1_F16);
     conv_direct_entries_case_f16(1, 1, 16, 4, 1, 4, 8, 0, ROUTE_1XN_F16);
+#ifndef NN_DISABLE_SPECIALIZATION
     conv_direct_entries_case_f16(1, 1, 20, 4, 1, 5, 6, 0, ROUTE_K5_F16);
     conv_direct_entries_case_f16(1, 1, 20, 4, 1, 3, 9, 0, ROUTE_K3_F16);
+    /* 48 taps per output: float16 folding differs from float16 lanes */
+    conv_direct_entries_case_f16(1, 1, 20, 16, 1, 3, 9, 0, ROUTE_K3_F16);
+#else
+    conv_direct_entries_case_f16(1, 1, 20, 4, 1, 5, 6, 0, ROUTE_1XN_F16);
+    conv_direct_entries_case_f16(1, 1, 20, 4, 1, 3, 9, 0, ROUTE_1XN_F16);
+#endif
 #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     conv_direct_entries_case_f16(1, 6, 6, 7, 3, 3, 8, 1, ROUTE_SMALL_C_F16);
 #else

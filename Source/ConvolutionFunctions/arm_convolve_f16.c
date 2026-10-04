@@ -1562,7 +1562,7 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_ohwi_f16(const cmsis_nn_context
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
-    if (!ctx || !ctx->buf)
+    if (!ctx || !ctx->buf || ctx->size <= 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -1600,7 +1600,7 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_ohwi_f16_acc16(const cmsis_nn_c
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
-    if (!ctx || !ctx->buf)
+    if (!ctx || !ctx->buf || ctx->size <= 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -1638,7 +1638,7 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_packed_f16(const cmsis_nn_conte
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
-    if (!ctx || !ctx->buf)
+    if (!ctx || !ctx->buf || ctx->size <= 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -1676,7 +1676,7 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_packed_f16_acc16(const cmsis_nn
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
-    if (!ctx || !ctx->buf)
+    if (!ctx || !ctx->buf || ctx->size <= 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
