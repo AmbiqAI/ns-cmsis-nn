@@ -652,8 +652,9 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_short_k(const cmsis_nn_context *ctx,
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - an argument error that arm_convolve_s8() reports: ctx->buf is
- *                                                      NULL, C_IN or CK is not positive, C_IN is not a multiple
- *                                                      of CK or C_OUT of the group count C_IN / CK, or
+ *                                                      NULL, C_IN or CK is not positive, C_OUT is negative, a
+ *                                                      depth exceeds 65,535, C_IN is not a multiple of CK or
+ *                                                      C_OUT of the group count C_IN / CK, or
  *                                                      weight_sum_ctx->buf is NULL on builds with
  *                                                      ARM_MATH_MVEI. These are checked before the gate.
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - the layer is outside the gate below, or the build lacks

@@ -1668,8 +1668,9 @@ __STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_3x3_c16_s1(const cmsis_nn_con
 }
 
 /**
- * @brief The group check of arm_convolve_s8() and its direct entries: C_IN and the filter C are positive, C_IN is a
- *        whole number of filter depths, and C_OUT a whole number of groups (groups = C_IN / filter C).
+ * @brief The group check of arm_convolve_s8() and its direct entries: C_IN and the filter C are positive, C_OUT is
+ *        not negative, all three fit 16 bits (arm_convolve_s8() keeps them as uint16_t), C_IN is a whole number of
+ *        filter depths, and C_OUT a whole number of groups (groups = C_IN / filter C).
  *
  * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
@@ -1681,7 +1682,8 @@ __STATIC_FORCEINLINE int32_t arm_nn_convolve_s8_groups_invalid(const cmsis_nn_di
                                                                const cmsis_nn_dims *filter_dims,
                                                                const cmsis_nn_dims *output_dims)
 {
-    return input_dims->c <= 0 || filter_dims->c <= 0 || input_dims->c % filter_dims->c != 0 ||
+    return input_dims->c <= 0 || input_dims->c > UINT16_MAX || filter_dims->c <= 0 || filter_dims->c > UINT16_MAX ||
+        output_dims->c < 0 || output_dims->c > UINT16_MAX || input_dims->c % filter_dims->c != 0 ||
         output_dims->c % (input_dims->c / filter_dims->c) != 0;
 }
 

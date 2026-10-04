@@ -529,6 +529,9 @@ void grouped_conv_arg_errors_arm_grouped_convolve_s8(void)
         {7, 4, 4, NULL, ARM_CMSIS_NN_ARG_ERROR},
         {4, 0, 4, NULL, ARM_CMSIS_NN_ARG_ERROR},
         {0, 2, 4, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        /* depths kept as uint16_t: 65,536 would read as 0, a negative output depth as 65,532 */
+        {65536, 65536, 1, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        {4, 2, -4, NULL, ARM_CMSIS_NN_ARG_ERROR},
         {4, 2, 3, NULL, ARM_CMSIS_NN_ARG_ERROR},
         {4, 2, 4, &up_none, ARM_CMSIS_NN_SUCCESS},
         {4, 2, 4, NULL, ARM_CMSIS_NN_SUCCESS},

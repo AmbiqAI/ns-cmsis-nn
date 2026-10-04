@@ -3669,7 +3669,8 @@ void low_depth_arg_errors_arm_convolve_s8(void)
     const low_depth_case_t small = {1, 6, 6, 3, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
     const low_depth_case_t c16 = {1, 6, 6, 16, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
     const low_depth_case_t outside = {1, 6, 6, 4, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
-    /* groups = 5 / 2 = 2 does not divide input depth 5; groups = 4 / 2 = 2 does not divide 3 output channels */
+    /* Input depth 5 is not a whole number of filter depths 2; 3 output channels are not a whole number of the
+       groups = 4 / 2 = 2 */
     const low_depth_case_t bad_in_groups = {1, 6, 6, 5, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
     const low_depth_case_t bad_out_groups = {1, 6, 6, 4, 3, 3, 3, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
 #if defined(ARM_MATH_MVEI)
