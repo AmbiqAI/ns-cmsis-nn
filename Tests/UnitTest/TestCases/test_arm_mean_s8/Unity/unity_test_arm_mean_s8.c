@@ -43,3 +43,5 @@ void test_mean_axis_hw_arm_mean_s8(void) { mean_axis_hw_arm_mean_s8(); }
 void test_mean_axis_nhwc_arm_mean_s8(void) { mean_axis_nhwc_arm_mean_s8(); }
 void test_mean_axis_hwc_arm_mean_s8(void) { mean_axis_hwc_arm_mean_s8(); }
 void test_mean_axis_wc_arm_mean_s8(void) { mean_axis_wc_arm_mean_s8(); }
+
+void test_mean_axis_hw_sweep_arm_mean_s8(void) { mean_axis_hw_sweep_arm_mean_s8(); }

@@ -7307,7 +7307,9 @@ arm_cmsis_nn_status arm_pad_s16(const int16_t *input,
  * @param[in]   input_offset        Input offset
  * @param[in]   axis_dims           Axis dimensions to compute mean over
  * @param[out]  output_data         Pointer to output tensor
- * @param[in]   output_dims         Output tensor dimensions
+ * @param[in]   output_dims         Output tensor dimensions: @p input_dims with each reduced axis set to 1, also
+ *                                  when the model drops the reduced axes ([N, H, W, C] reduced over H and W is
+ *                                  [N, 1, 1, C])
  * @param[in]   out_offset          Output offset
  * @param[in]   out_mult            Output quantization multiplier
  * @param[in]   out_shift           Output quantization shift
