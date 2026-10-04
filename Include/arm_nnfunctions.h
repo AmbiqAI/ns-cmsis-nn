@@ -3447,6 +3447,34 @@ arm_cmsis_nn_status arm_add_s8(const int8_t *input1_data,
                                const int32_t out_activation_max);
 
 /**
+ * @copydoc arm_add_s8
+ *
+ * @note The row-broadcast route of arm_add_s8() as a direct entry: one input broadcast along W with the same depth C
+ *       > 1, as in [N, H, W, C] and [N | 1, H | 1, 1, C], with an output W above 1 (the gate arm_nn_is_row_broadcast
+ *       computes). Returns <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing outside the gate. The output is
+ *       identical to arm_add_s8() on every build; the entry references neither the generic broadcast walk nor the
+ *       scalar kernels, only its row block and arm_elementwise_add_s8().
+ */
+arm_cmsis_nn_status arm_add_row_broadcast_s8(const int8_t *input1_data,
+                                             const cmsis_nn_dims *input1_dims,
+                                             const int8_t *input2_data,
+                                             const cmsis_nn_dims *input2_dims,
+                                             const int32_t input1_offset,
+                                             const int32_t input1_mult,
+                                             const int32_t input1_shift,
+                                             const int32_t input2_offset,
+                                             const int32_t input2_mult,
+                                             const int32_t input2_shift,
+                                             const int32_t left_shift,
+                                             int8_t *output_data,
+                                             const cmsis_nn_dims *output_dims,
+                                             const int32_t out_offset,
+                                             const int32_t out_mult,
+                                             const int32_t out_shift,
+                                             const int32_t out_activation_min,
+                                             const int32_t out_activation_max);
+
+/**
  * @brief s8 elementwise add of scalar and vector
  * @param[in]       input_1_vect        pointer to input scalar
  * @param[in]       input_2_vect        pointer to input vector
@@ -4379,6 +4407,29 @@ arm_cmsis_nn_status arm_mul_s8(const int8_t *input1_data,
                                const int32_t out_shift,
                                const int32_t out_activation_min,
                                const int32_t out_activation_max);
+
+/**
+ * @copydoc arm_mul_s8
+ *
+ * @note The row-broadcast route of arm_mul_s8() as a direct entry: one input broadcast along W with the same depth C
+ *       > 1, as in [N, H, W, C] and [N | 1, H | 1, 1, C], with an output W above 1 (the gate arm_nn_is_row_broadcast
+ *       computes). Returns <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing outside the gate. The output is
+ *       identical to arm_mul_s8() on every build; the entry references neither the generic broadcast walk nor the
+ *       scalar kernels, only its row block and arm_elementwise_mul_s8().
+ */
+arm_cmsis_nn_status arm_mul_row_broadcast_s8(const int8_t *input1_data,
+                                             const cmsis_nn_dims *input1_dims,
+                                             const int8_t *input2_data,
+                                             const cmsis_nn_dims *input2_dims,
+                                             const int32_t input1_offset,
+                                             const int32_t input2_offset,
+                                             int8_t *output_data,
+                                             const cmsis_nn_dims *output_dims,
+                                             const int32_t out_offset,
+                                             const int32_t out_mult,
+                                             const int32_t out_shift,
+                                             const int32_t out_activation_min,
+                                             const int32_t out_activation_max);
 
 /**
  * @brief s8 elementwise multiplication of scalar and vector
