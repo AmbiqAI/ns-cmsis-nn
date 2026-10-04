@@ -1266,6 +1266,10 @@ void convolve_route_predicates_f16(void)
     const conv_shape_flt wrap64 = {
         {500000000, 1}, {794967295, 0}, {INT32_MAX, 1}, {1, 1, INT32_MAX, 4}, {4, 1, INT32_MAX, 4}, {1, 1, 6, 8}};
     TEST_ASSERT_FALSE(arm_nn_conv_f16_is_small_c(CONV_SHAPE(wrap64)));
+    /* C = 7, which does not divide 65,535: a reach of 9,362 columns fits (65,534), 9,363 does not (65,541) */
+    const conv_shape_flt c7 = {{1, 1}, {0, 0}, {1, 1}, {1, 1, 9355, 7}, {8, 1, 1, 7}, {1, 1, 9355, 8}};
+    TEST_ASSERT_TRUE(arm_nn_conv_f16_is_small_c(CONV_SHAPE(c7)));
+    EXPECT_TERM(c7, in.w, 9356, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
     /* Gather reach W + pad + 7 * stride + (KW - 1) * dilation = 65,535 columns of one channel, then one more */
     const conv_shape_flt edge = {{1, 1}, {0, 0}, {1, 1}, {1, 1, 65528, 1}, {8, 1, 1, 1}, {1, 1, 65528, 8}};
     TEST_ASSERT_TRUE(arm_nn_conv_f16_is_small_c(CONV_SHAPE(edge)));
