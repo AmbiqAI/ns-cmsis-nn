@@ -45,19 +45,19 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
     (void)bias_data;
     return ARM_CMSIS_NN_NO_IMPL_ERROR;
 #else // defined(ARM_MATH_MVEI)
-    if (vector_sum_buf == NULL)
+    if ((vector_sum_buf == NULL) || (filter_dims->w < 0) || (filter_dims->h < 0) ||
+        ((int64_t)filter_dims->w * filter_dims->h > INT32_MAX) ||
+        (arm_convolve_s8_get_weights_sum_size(output_dims) < 0))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    const uint16_t kernel_x = filter_dims->w;
-    const uint16_t kernel_y = filter_dims->h;
-    const uint16_t output_channels = output_dims->c;
+    const int32_t output_channels = output_dims->c;
     (void)input_dims;
     (void)scratch_buf;
     (void)dw_conv_params;
     int32_t total_ch = output_channels;
-    int32_t row_x_col = kernel_x * kernel_y;
+    int32_t row_x_col = filter_dims->w * filter_dims->h;
     int32_t ch_left = total_ch;
     const int8_t *rhs_base = rhs;
     const int8_t *rhs_runner = rhs_base;
