@@ -1,5 +1,20 @@
 # Changelog
 
+## [7.39.3](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.39.2...v7.39.3) (2026-10-04)
+
+
+### Bug Fixes
+
+* **concat:** accept any input count in arm_concatenation_s32 ([#668](https://github.com/AmbiqAI/ns-cmsis-nn/issues/668)) ([4d7d48e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4d7d48e35b515d65abefdfadb9a685adc3e3eba3)), closes [#667](https://github.com/AmbiqAI/ns-cmsis-nn/issues/667)
+
+
+### Performance
+
+* **conv:** add a short-K direct entry for pointwise layers with up to 16 input channels ([#677](https://github.com/AmbiqAI/ns-cmsis-nn/issues/677)) ([f3261a3](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f3261a34b73cc70f92e1cdfd343091afb5b52056)), closes [#672](https://github.com/AmbiqAI/ns-cmsis-nn/issues/672)
+* **conv:** run long-K 1xN no-padding rows through the contiguous-K matmul ([#663](https://github.com/AmbiqAI/ns-cmsis-nn/issues/663)) ([ce01c57](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ce01c57ce2549f86e07dd55c8dc32ef4c046a5d1)), closes [#659](https://github.com/AmbiqAI/ns-cmsis-nn/issues/659)
+* **fc:** add a per-channel s8 fully connected entry on a weight stream packed ahead of time ([#686](https://github.com/AmbiqAI/ns-cmsis-nn/issues/686)) ([a08d4f6](https://github.com/AmbiqAI/ns-cmsis-nn/commit/a08d4f6beee230c9932bdec7d2d2f8930ada6f33)), closes [#675](https://github.com/AmbiqAI/ns-cmsis-nn/issues/675)
+* **s8:** requantize right-shift-only layers without the left-shift step ([#664](https://github.com/AmbiqAI/ns-cmsis-nn/issues/664)) ([16af1d0](https://github.com/AmbiqAI/ns-cmsis-nn/commit/16af1d0ad7d2370f74262085ab2d6dbffcc599be)), closes [#660](https://github.com/AmbiqAI/ns-cmsis-nn/issues/660)
+
 ## [7.39.2](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.39.1...v7.39.2) (2026-10-02)
 
 
