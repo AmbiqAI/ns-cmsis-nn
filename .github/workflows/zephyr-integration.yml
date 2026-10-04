@@ -20,6 +20,9 @@ on:
   workflow_call:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   wiring:
     name: Zephyr wiring (CMake mock)
