@@ -1449,6 +1449,11 @@ arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16(const cmsis_nn_context *ctx
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    /* Bounded in 64 bits here, so that an absurd filter cannot wrap the conversion's own size check */
+    if (!ctx || (int64_t)ctx->size < arm_nn_dw_f16_cin1_min_ctx_size(filter_dims, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     const arm_cmsis_nn_status status = arm_depthwise_conv_nhwc_to_conv_f16(ctx,
                                                                            dw_conv_params,
                                                                            input_dims,
@@ -1501,6 +1506,11 @@ arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16_acc16(const cmsis_nn_contex
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    /* Bounded in 64 bits here, so that an absurd filter cannot wrap the conversion's own size check */
+    if (!ctx || (int64_t)ctx->size < arm_nn_dw_f16_cin1_min_ctx_size(filter_dims, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     const arm_cmsis_nn_status status = arm_depthwise_conv_nhwc_to_conv_f16(ctx,
                                                                            dw_conv_params,
                                                                            input_dims,

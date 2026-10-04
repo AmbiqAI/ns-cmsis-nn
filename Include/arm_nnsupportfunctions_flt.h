@@ -1605,7 +1605,7 @@ __STATIC_INLINE bool arm_nn_conv_f16_is_small_c(const cmsis_nn_tile *stride,
      * reachable column (including the padded ones, which wrap) must stay inside the offset type. */
     const size_t reach = (size_t)input_dims->w + (size_t)padding->w +
         (size_t)(ARM_NN_CONV_SMALL_C_F16_LANES - 1) * (size_t)stride->w +
-        (size_t)(filter_dims->w - 1) * (size_t)dilation->w;
+        ((size_t)filter_dims->w - 1U) * (size_t)dilation->w;
     return reach * (size_t)input_dims->c <= (size_t)UINT16_MAX &&
         (size_t)ARM_NN_CONV_SMALL_C_F16_LANES * (size_t)output_dims->c <= (size_t)UINT16_MAX;
 }
@@ -1696,11 +1696,17 @@ __STATIC_INLINE bool arm_nn_dw_f16_is_cin1(const cmsis_nn_dims *input_dims, cons
  *        output channels, then one patch row of KH x KW elements. More scratch packs more patch rows per step.
  * @param[in] filter_dims    Filter dimensions [1, HK, WK, C_OUT]
  * @param[in] output_dims    Output dimensions [N, H, W, C_OUT]
- * @return the size in bytes (64 bits, so that the caller can bound it)
+ * @return the size in bytes (64 bits, so that the caller can bound it), or INT64_MAX for a negative dimension or
+ *         more than INT32_MAX taps, which no ctx can hold
  */
 __STATIC_INLINE int64_t arm_nn_dw_f16_cin1_min_ctx_size(const cmsis_nn_dims *filter_dims,
                                                         const cmsis_nn_dims *output_dims)
 {
+    if (filter_dims->h < 0 || filter_dims->w < 0 || output_dims->c < 0 ||
+        (int64_t)filter_dims->h * filter_dims->w > INT32_MAX)
+    {
+        return INT64_MAX;
+    }
     const int64_t taps = (int64_t)filter_dims->h * filter_dims->w;
     return ((int64_t)output_dims->c + 7) / 8 * 8 * taps * 2 + taps * 2;
 }

@@ -60,3 +60,4 @@ void test_convolve_small_c_inf_weight_in_padding_f16(void) { convolve_small_c_in
 void test_convolve_scalar_f32_accumulation_f16(void) { convolve_scalar_f32_accumulation_f16(); }
 
 void test_convolve_direct_entries_f16(void) { convolve_direct_entries_f16(); }
+void test_convolve_route_predicates_f16(void) { convolve_route_predicates_f16(); }

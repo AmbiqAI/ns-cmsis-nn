@@ -729,10 +729,97 @@ void depthwise_conv_direct_entries_f16(void)
     dw_direct_entries_case_f16(1, 9, 9, 10, 1, 7, 7, 3, DW_ROUTE_DIRECT_F16);
 #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     dw_direct_entries_case_f16(1, 6, 6, 1, 12, 3, 3, 1, DW_ROUTE_CIN1_F16);
+    /* 49 taps per output */
+    dw_direct_entries_case_f16(1, 9, 9, 1, 12, 7, 7, 3, DW_ROUTE_CIN1_F16);
     /* A 1x1 filter: the size query leaves no patch row, so the router keeps the generic route */
     dw_direct_entries_case_f16(1, 6, 6, 1, 12, 1, 1, 0, DW_ROUTE_GENERIC_F16);
 #else
     dw_direct_entries_case_f16(1, 6, 6, 1, 12, 3, 3, 1, DW_ROUTE_GENERIC_F16);
+    dw_direct_entries_case_f16(1, 9, 9, 1, 12, 7, 7, 3, DW_ROUTE_GENERIC_F16);
 #endif
     dw_direct_entries_case_f16(1, 5, 5, 3, 2, 3, 3, 1, DW_ROUTE_GENERIC_F16);
+    /* 49 taps per output */
+    dw_direct_entries_case_f16(1, 9, 9, 3, 2, 7, 7, 3, DW_ROUTE_GENERIC_F16);
+}
+
+/* Each term of the depthwise route predicates against a fixed answer: one layer inside each gate, then that layer
+ * with one term changed. */
+typedef struct
+{
+    cmsis_nn_dw_conv_params_f16 dp;
+    cmsis_nn_dims in, flt, out;
+} dw_shape_f16;
+
+#define DW_SHAPE(s) &(s).dp, &(s).in, &(s).flt, &(s).out
+#define EXPECT_DW_TERM(base, field, value, expected, call)                                                             \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        dw_shape_f16 s_ = (base);                                                                                      \
+        s_.field = (value);                                                                                            \
+        TEST_ASSERT_EQUAL_MESSAGE((expected), (call), #call ": " #field " = " #value);                                 \
+    } while (0)
+
+void depthwise_conv_route_predicates_f16(void)
+{
+    dw_shape_f16 k3 = {.in = {1, 1, 20, 6}, .flt = {1, 1, 3, 6}, .out = {1, 1, 18, 6}};
+    k3.dp.ch_mult = 1;
+    k3.dp.stride = (cmsis_nn_tile){1, 1};
+    k3.dp.dilation = (cmsis_nn_tile){1, 1};
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_is_1d_k3(DW_SHAPE(k3)));
+    EXPECT_DW_TERM(k3, in.n, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, out.n, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, dp.ch_mult, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, flt.w, 4, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, flt.h, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, in.h, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, out.h, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, dp.dilation.h, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, dp.dilation.w, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, dp.stride.h, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, dp.stride.w, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, dp.padding.h, 1, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, dp.padding.w, 1, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+
+    dw_shape_f16 k25 = {.in = {1, 2, 16, 4}, .flt = {1, 2, 5, 4}, .out = {1, 1, 12, 4}};
+    k25.dp.ch_mult = 1;
+    k25.dp.stride = (cmsis_nn_tile){1, 1};
+    k25.dp.dilation = (cmsis_nn_tile){1, 1};
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_is_2x5(DW_SHAPE(k25)));
+    EXPECT_DW_TERM(k25, dp.ch_mult, 2, true, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, in.n, 2, true, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, flt.w, 4, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, flt.h, 1, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, in.h, 3, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, out.h, 2, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, dp.dilation.h, 2, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, dp.dilation.w, 2, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, dp.stride.h, 2, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, dp.stride.w, 2, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, dp.padding.h, 1, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, dp.padding.w, 1, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+
+    /* One input channel and at least CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD outputs */
+    const int32_t min_oc = CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD;
+    const cmsis_nn_dims one = {1, 6, 6, 1};
+    const cmsis_nn_dims two = {1, 6, 6, 2};
+    const cmsis_nn_dims at_min = {1, 6, 6, min_oc};
+    const cmsis_nn_dims below_min = {1, 6, 6, min_oc - 1};
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_is_cin1(&one, &at_min));
+    TEST_ASSERT_FALSE(arm_nn_dw_f16_is_cin1(&two, &at_min));
+    TEST_ASSERT_FALSE(arm_nn_dw_f16_is_cin1(&one, &below_min));
+
+    /* The packed filter (C_OUT rounded up to 8, then KH x KW halves) and one patch row of KH x KW halves */
+    const cmsis_nn_dims f3x3 = {1, 3, 3, 12};
+    const cmsis_nn_dims o12 = {1, 4, 4, 12};
+    const cmsis_nn_dims o16 = {1, 4, 4, 16};
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_cin1_min_ctx_size(&f3x3, &o12) == 16 * 9 * 2 + 9 * 2);
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_cin1_min_ctx_size(&f3x3, &o16) == 16 * 9 * 2 + 9 * 2);
+    /* No dimension makes it overflow: INT64_MAX past INT32_MAX taps or for a negative one, exact up to there */
+    const cmsis_nn_dims negative = {1, -1, 3, 12};
+    const cmsis_nn_dims too_many_taps = {1, 46341, 46341, 1};
+    const cmsis_nn_dims most_taps = {1, 46340, 46340, 1};
+    const cmsis_nn_dims widest = {1, 1, 1, INT32_MAX};
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_cin1_min_ctx_size(&negative, &o12) == INT64_MAX);
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_cin1_min_ctx_size(&too_many_taps, &o12) == INT64_MAX);
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_cin1_min_ctx_size(&most_taps, &widest) == INT64_C(9222993877869088800));
 }

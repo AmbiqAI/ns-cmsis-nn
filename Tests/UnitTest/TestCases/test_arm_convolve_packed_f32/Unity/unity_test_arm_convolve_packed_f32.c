@@ -58,3 +58,4 @@ void test_convolve_small_c_no_overread_f32(void) { convolve_small_c_no_overread_
 void test_convolve_small_c_inf_weight_in_padding_f32(void) { convolve_small_c_inf_weight_in_padding_f32(); }
 
 void test_convolve_direct_entries_f32(void) { convolve_direct_entries_f32(); }
+void test_convolve_route_predicates_f32(void) { convolve_route_predicates_f32(); }

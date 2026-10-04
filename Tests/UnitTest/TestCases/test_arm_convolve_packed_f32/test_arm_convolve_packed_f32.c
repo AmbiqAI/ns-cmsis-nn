@@ -1057,3 +1057,19 @@ void convolve_direct_entries_f32(void)
     conv_direct_entries_case_f32(2, 6, 6, 4, 3, 3, 9, 1, ROUTE_PATCH_F32);
     conv_direct_entries_case_f32(1, 5, 5, 4, 3, 3, 4, 1, ROUTE_DIRECT_F32);
 }
+
+/* The float32 small-C predicate against a fixed answer: 1 to 3 input channels and a non-empty output */
+void convolve_route_predicates_f32(void)
+{
+    const cmsis_nn_dims in = {1, 6, 6, 3};
+    const cmsis_nn_dims out = {1, 6, 6, 8};
+    TEST_ASSERT_TRUE(arm_nn_conv_f32_is_small_c(&in, &out));
+    const cmsis_nn_dims in4 = {1, 6, 6, 4};
+    const cmsis_nn_dims in0 = {1, 6, 6, 0};
+    const cmsis_nn_dims out_c0 = {1, 6, 6, 0};
+    const cmsis_nn_dims out_w0 = {1, 6, 0, 8};
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c(&in4, &out));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c(&in0, &out));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c(&in, &out_c0));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c(&in, &out_w0));
+}
