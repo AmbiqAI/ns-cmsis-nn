@@ -297,6 +297,70 @@ arm_cmsis_nn_status arm_mean_reduce_spatial_mve_s8(const int8_t *input_data,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+#else
+
+/* Requantize, add the output offset and clamp one spatial sum */
+__STATIC_FORCEINLINE int8_t arm_mean_s8_out(int32_t acc, int32_t out_mult, int32_t out_shift, int32_t out_offset)
+{
+    acc = arm_nn_requantize(acc, out_mult, out_shift) + out_offset;
+    return (int8_t)ARM_NN_CLAMP(acc, 127, -128);
+}
+
+/*
+ * axis = [H, W] without MVE, in the shape of arm_mean_reduce_spatial_mve_s8: four channels per pass in registers and
+ * one strided pointer over the spatial positions, so that no compiler has to unswitch the generic path's axis selects.
+ * Same results as arm_mean_reduce_generic_s8.
+ */
+static arm_cmsis_nn_status arm_mean_reduce_spatial_s8(const int8_t *input_data,
+                                                      const cmsis_nn_dims *input_dims,
+                                                      int32_t input_offset,
+                                                      int8_t *output_data,
+                                                      int32_t out_offset,
+                                                      int32_t out_mult,
+                                                      int32_t out_shift)
+{
+    const int32_t C = input_dims->c;
+    const int32_t spatial = input_dims->h * input_dims->w;
+    const int32_t zp = input_offset * spatial;
+
+    for (int32_t n = 0; n < input_dims->n; ++n)
+    {
+        const int8_t *in_ptr = input_data + n * spatial * C;
+        int8_t *out_ptr = output_data + n * C;
+        int32_t c = 0;
+        for (; c + 4 <= C; c += 4)
+        {
+            int32_t acc0 = zp;
+            int32_t acc1 = zp;
+            int32_t acc2 = zp;
+            int32_t acc3 = zp;
+            const int8_t *p = in_ptr + c;
+            for (int32_t i = 0; i < spatial; ++i)
+            {
+                acc0 += p[0];
+                acc1 += p[1];
+                acc2 += p[2];
+                acc3 += p[3];
+                p += C;
+            }
+            out_ptr[c] = arm_mean_s8_out(acc0, out_mult, out_shift, out_offset);
+            out_ptr[c + 1] = arm_mean_s8_out(acc1, out_mult, out_shift, out_offset);
+            out_ptr[c + 2] = arm_mean_s8_out(acc2, out_mult, out_shift, out_offset);
+            out_ptr[c + 3] = arm_mean_s8_out(acc3, out_mult, out_shift, out_offset);
+        }
+        for (; c < C; ++c)
+        {
+            int32_t acc = zp;
+            for (int32_t i = 0; i < spatial; ++i)
+            {
+                acc += in_ptr[i * C + c];
+            }
+            out_ptr[c] = arm_mean_s8_out(acc, out_mult, out_shift, out_offset);
+        }
+    }
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
 #endif // ARM_MATH_MVEI
 
 /*
@@ -342,16 +406,17 @@ arm_cmsis_nn_status arm_mean_s8(const int8_t *input_data,
             input_data, input_offset, output_data, out_offset, out_mult, out_shift, outer_size, inner_size);
     }
 
-#if defined(ARM_MATH_MVEI)
-
     // Check for spatial reduction axis=[H,W]
     if (!axis_dims->n && axis_dims->h && axis_dims->w && !axis_dims->c)
     {
+#if defined(ARM_MATH_MVEI)
         return arm_mean_reduce_spatial_mve_s8(
             input_data, input_dims, input_offset, output_data, out_offset, out_mult, out_shift);
+#else
+        return arm_mean_reduce_spatial_s8(
+            input_data, input_dims, input_offset, output_data, out_offset, out_mult, out_shift);
+#endif
     }
-
-#endif // ARM_MATH_MVEI
 
     // Fallback to general-purpose scalar implementation
     return arm_mean_reduce_generic_s8(
