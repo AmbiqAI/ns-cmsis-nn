@@ -71,10 +71,11 @@ on:
         default: ''
         type: string
 
-# No workflow-level `permissions:` block on purpose: this workflow calls
-# resolve-ci-image.yml, which needs `packages: read` to query the release-
-# tagged CI image, and a caller-level `contents: read` would cap it below
-# that. legacy-tester.yml (the leg this stands in for) is shaped the same way.
+# packages: read is for the resolve-ci-image.yml call, which queries the
+# release-tagged CI image; a narrower grant here would cap it below that.
+permissions:
+  contents: read
+  packages: read
 
 jobs:
   resolve-container-image:

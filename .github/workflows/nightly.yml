@@ -39,13 +39,11 @@ concurrency:
 # caller grants fails the run at STARTUP (zero jobs): resolve-ci-image.yml
 # declares contents:read + packages:read; helia-core-tester.yml's
 # coverage-merge-summary job declares contents:read + actions:read (the
-# coverage-gate baseline fetch, #370). ci.yml never hits this because it
-# declares no workflow-level permissions block (repo-default token; that
-# immunity holds only while the repository's default workflow permissions
-# stay permissive). Adding a permission to any callee means adding it
-# HERE and to release.yml's block -- the first scheduled nightly
-# startup-failed on exactly this after #369 and #370 merged
-# independently green.
+# coverage-gate baseline fetch, #370). ci.yml is subject to the same rule
+# and declares the same union. Adding a permission to any callee means
+# adding it HERE, to ci.yml and to release.yml's block -- the first
+# scheduled nightly startup-failed on exactly this after #369 and #370
+# merged independently green.
 permissions:
   contents: read
   packages: read
