@@ -19,6 +19,7 @@
 #include <stdlib.h>
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <unity.h>
 
 #include "../TestData/grouped_conv_1/test_data.h"
@@ -529,8 +530,11 @@ void grouped_conv_arg_errors_arm_grouped_convolve_s8(void)
         {7, 4, 4, NULL, ARM_CMSIS_NN_ARG_ERROR},
         {4, 0, 4, NULL, ARM_CMSIS_NN_ARG_ERROR},
         {0, 2, 4, NULL, ARM_CMSIS_NN_ARG_ERROR},
-        /* depths kept as uint16_t: 65,536 would read as 0, a negative output depth as 65,532 */
+        /* depths kept as uint16_t: 65,536 would read as 0, a negative output depth as 65,532; each bound alone */
         {65536, 65536, 1, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        {65536, 1, 1, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        {1, 1, 65536, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        {2, 1, 70000, NULL, ARM_CMSIS_NN_ARG_ERROR},
         {4, 2, -4, NULL, ARM_CMSIS_NN_ARG_ERROR},
         {4, 2, 3, NULL, ARM_CMSIS_NN_ARG_ERROR},
         {4, 2, 4, &up_none, ARM_CMSIS_NN_SUCCESS},
@@ -552,4 +556,17 @@ void grouped_conv_arg_errors_arm_grouped_convolve_s8(void)
             }
         }
     }
+}
+
+/* arm_nn_convolve_s8_groups_invalid() at the 16-bit edge of each depth, with one group: 65,535 is valid, 65,536 is
+ * not. */
+void grouped_conv_depth_bounds_arm_grouped_convolve_s8(void)
+{
+    const cmsis_nn_dims one = {1, 1, 1, 1};
+    const cmsis_nn_dims max = {1, 1, 1, UINT16_MAX};
+    const cmsis_nn_dims over = {1, 1, 1, UINT16_MAX + 1};
+    TEST_ASSERT_FALSE(arm_nn_convolve_s8_groups_invalid(&max, &max, &one));
+    TEST_ASSERT_TRUE(arm_nn_convolve_s8_groups_invalid(&over, &over, &one));
+    TEST_ASSERT_FALSE(arm_nn_convolve_s8_groups_invalid(&one, &one, &max));
+    TEST_ASSERT_TRUE(arm_nn_convolve_s8_groups_invalid(&one, &one, &over));
 }

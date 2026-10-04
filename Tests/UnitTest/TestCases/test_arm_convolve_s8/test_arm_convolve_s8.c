@@ -3864,5 +3864,30 @@ void conv_1x1_out_grouped_arm_convolve_1x1_out_s8(void)
             TEST_ASSERT_EQUAL_INT8(0x5A, output[i]);
         }
     }
+    /* An output depth that is negative or beyond 16 bits, with equal input and filter depths */
+    const int32_t bad_out[] = {-4, 65540};
+    for (size_t d = 0; d < sizeof(bad_out) / sizeof(bad_out[0]); d++)
+    {
+        const cmsis_nn_dims input_dims = {1, 1, 1, 4};
+        const cmsis_nn_dims filter_dims = {bad_out[d], 1, 1, 4};
+        const cmsis_nn_dims wide_out = {1, 1, 1, bad_out[d]};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_convolve_1x1_out_s8(&ctx,
+                                                  &weight_sum_ctx,
+                                                  &conv_params,
+                                                  &quant_params,
+                                                  &input_dims,
+                                                  input,
+                                                  &filter_dims,
+                                                  kernel,
+                                                  &bias_dims,
+                                                  NULL,
+                                                  &wide_out,
+                                                  output));
+        for (int i = 0; i < 4; i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(0x5A, output[i]);
+        }
+    }
 #endif
 }

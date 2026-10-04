@@ -554,7 +554,10 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
  * @param[out]     output_data    Output data pointer. Data type: int8
  *
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> if successful or
- *                                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if incorrect arguments or
+ *                                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if incorrect arguments (among them a C_IN or
+ *                                  CK that is not positive, a negative C_OUT, a C_IN or C_OUT above 65,535, a C_IN
+ *                                  that is not a multiple of CK, a C_OUT that is not a multiple of the group count,
+ *                                  or a grouped layer with an upscale factor of 2) or
  *                                  <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>
  *
  * @details
@@ -652,8 +655,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_short_k(const cmsis_nn_context *ctx,
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - an argument error that arm_convolve_s8() reports: ctx->buf is
- *                                                      NULL, C_IN or CK is not positive, C_OUT is negative, a
- *                                                      depth exceeds 65,535, C_IN is not a multiple of CK or
+ *                                                      NULL, C_IN or CK is not positive, C_OUT is negative, C_IN
+ *                                                      or C_OUT exceeds 65,535, C_IN is not a multiple of CK or
  *                                                      C_OUT of the group count C_IN / CK, or
  *                                                      weight_sum_ctx->buf is NULL on builds with
  *                                                      ARM_MATH_MVEI. These are checked before the gate.
@@ -1583,7 +1586,8 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
  *   - Constraints:
  *      -# @p output_dims->h and @p output_dims->w must equal 1
  *      -# @p output_dims->c is expected to be a multiple of 4 for best performance
- *      -# One group: @p input_dims->c must equal @p filter_dims->c, else <code>ARM_CMSIS_NN_ARG_ERROR</code>;
+ *      -# The depth rule of arm_convolve_s8() and one group: @p input_dims->c must equal @p filter_dims->c, else
+ *         <code>ARM_CMSIS_NN_ARG_ERROR</code>;
  *         arm_convolve_s8() takes grouped layers
  */
 arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
