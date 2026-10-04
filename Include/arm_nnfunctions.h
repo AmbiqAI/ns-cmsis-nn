@@ -1458,7 +1458,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_s8(const cmsis_nn_context *ctx,
  *     inference. Recompute whenever the weights, the bias or the input offset change (for example on
  *     requantization or a weight reload). The buffer is sized by one layer's <code>output_dims->c</code> and is
  *     specific to that layer's weights, so it cannot be shared between layers; give each layer its own.
- *   - Returns <code>ARM_CMSIS_NN_ARG_ERROR</code>, writing nothing, when a filter dimension is negative, when the
+ *   - Returns <code>ARM_CMSIS_NN_ARG_ERROR</code>, writing nothing, when KH, KW or C_IN is negative, when the
  *     patch <code>KH * KW * C_IN</code> exceeds INT32_MAX, or when arm_convolve_s8_get_weights_sum_size() returns -1
  *     for @p output_dims.
  *   - Returns <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> on builds without the MVE extension, where the sums are
