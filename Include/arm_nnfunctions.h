@@ -575,6 +575,61 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                                     int8_t *output_data);
 
 /**
+ * @brief s8 1x1 convolution for input depths of 1 to 16, where one vector holds a whole dot product. Output channels
+ *        are the outer loop, so each filter row stays in a register across all pixels, and four pixels are reduced,
+ *        requantized and stored per step; an input depth of 8 loads two pixels per vector.
+ *
+ * @param[in]      ctx            Function context; unused, the entry needs no scratch
+ * @param[in]      weight_sum_ctx Per-output-channel weight sums, as for arm_convolve_1x1_s8_fast()
+ * @param[in]      conv_params    Convolution parameters, as for arm_convolve_1x1_s8_fast()
+ * @param[in]      quant_params   Per-channel quantization info
+ * @param[in]      input_dims     Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      input_data     Input (activation) data pointer. Data type: int8
+ * @param[in]      filter_dims    Filter tensor dimensions. Format: [C_OUT, 1, 1, C_IN]
+ * @param[in]      filter_data    Filter data pointer. Data type: int8
+ * @param[in]      bias_dims      Bias tensor dimensions. Format: [C_OUT]
+ * @param[in]      bias_data      Bias data pointer. Data type: int32
+ * @param[in]      output_dims    Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output_data    Output data pointer. Data type: int8
+ *
+ * @return     The function returns one of the following
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - weight_sum_ctx->buf is NULL on builds with ARM_MATH_MVEI
+ *                                                      and without ARM_MATH_AUTOVECTORIZE (checked before the
+ *                                                      gate)
+ *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - the layer is outside the gate, C_OUT is not positive
+ *                                                          or differs from the filter's output depth, N x H x W x
+ *                                                          C_OUT, C_OUT x C_IN or the weight sums' C_OUT x 4 bytes
+ *                                                          exceed INT32_MAX, or the build lacks
+ *                                                          ARM_MATH_MVEI or defines ARM_MATH_AUTOVECTORIZE; nothing is
+ *                                                          written
+ *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ *
+ * @details
+ *    - Without CMSIS_NN_USE_SINGLE_ROUNDING the output is identical to arm_convolve_1x1_s8_fast(). Input and
+ *      output must not overlap. The bias is read through the weight sums, which arm_convolve_weight_sum() fills as
+ *      for arm_convolve_1x1_s8_fast(); bias_dims and bias_data are unused.
+ *    - Gate, as arm_nn_is_convolve_s8_1x1_short_k computes it: a 1x1 kernel with no padding, unit stride and
+ *      dilation, CK equal to C_IN, C_IN from 1 to 16, and N, H and W positive. No scratch is used.
+ *    - It is a direct entry for callers that select the kernel per layer ahead of time: neither
+ *      arm_convolve_1x1_s8_fast() nor arm_convolve_wrapper_s8() calls it. Such a caller calls it for layers in the
+ *      gate and arm_convolve_1x1_s8_fast() otherwise, or on <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>. It is faster
+ *      than arm_convolve_1x1_s8_fast() from about 8 pixels per call; both take the same arguments and weight sums.
+ *
+ */
+arm_cmsis_nn_status arm_convolve_1x1_s8_short_k(const cmsis_nn_context *ctx,
+                                                const cmsis_nn_context *weight_sum_ctx,
+                                                const cmsis_nn_conv_params *conv_params,
+                                                const cmsis_nn_per_channel_quant_params *quant_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const int8_t *input_data,
+                                                const cmsis_nn_dims *filter_dims,
+                                                const int8_t *filter_data,
+                                                const cmsis_nn_dims *bias_dims,
+                                                const int32_t *bias_data,
+                                                const cmsis_nn_dims *output_dims,
+                                                int8_t *output_data);
+
+/**
  * @brief s8 convolution for input depths of 1 to 3, such as the first layer of an image or audio model. It copies
  *        each kernel row with one predicated vector load and multiplies four output channels per step.
  *
