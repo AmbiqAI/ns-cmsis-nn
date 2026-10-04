@@ -416,22 +416,22 @@ static void grouped_conv_1_run(const int32_t *bias_data, int8_t *output)
                             &output_dims,
                             conv_params.input_offset,
                             bias_data);
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                      arm_convolve_s8(&ctx,
-                                      &weights_sum_ctx,
-                                      &conv_params,
-                                      &quant_params,
-                                      &input_dims,
-                                      grouped_conv_1_input,
-                                      &filter_dims,
-                                      grouped_conv_1_weights,
-                                      &bias_dims,
-                                      bias_data,
-                                      NULL,
-                                      &output_dims,
-                                      output));
+    const arm_cmsis_nn_status status = arm_convolve_s8(&ctx,
+                                                       &weights_sum_ctx,
+                                                       &conv_params,
+                                                       &quant_params,
+                                                       &input_dims,
+                                                       grouped_conv_1_input,
+                                                       &filter_dims,
+                                                       grouped_conv_1_weights,
+                                                       &bias_dims,
+                                                       bias_data,
+                                                       NULL,
+                                                       &output_dims,
+                                                       output);
     free(weights_sum_ctx.buf);
     free(ctx.buf);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
 }
 
 void grouped_conv_null_bias_arm_grouped_convolve_s8(void)
