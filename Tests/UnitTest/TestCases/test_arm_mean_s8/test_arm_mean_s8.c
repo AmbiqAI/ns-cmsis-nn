@@ -266,8 +266,8 @@ void mean_axis_wc_arm_mean_s8(void)
     TEST_ASSERT_TRUE(validate(output_data, output_ref, output_ref_size));
 }
 
-/* axis = [H, W] against a plain reference over H 1, 3, .. 9 and W 1..9, C 1..37 (both sides of the four-channel groups) and
- * batches 1..2, with output offsets and shifts that reach both clamp ends (#678). */
+/* axis = [H, W] against a plain reference over H 1, 3, .. 9 and W 1..9, C 1..37 (both sides of the four-channel
+ * groups) and batches 1..2, with output offsets and shifts that reach both clamp ends (#678). */
 void mean_axis_hw_sweep_arm_mean_s8(void)
 {
     static int8_t in[2 * 9 * 9 * 37];
@@ -346,6 +346,36 @@ void mean_axis_hw_sweep_arm_mean_s8(void)
                 acc = arm_nn_requantize(acc, out_mult, out_shift) - 3;
                 acc = acc < -128 ? -128 : (acc > 127 ? 127 : acc);
                 TEST_ASSERT_EQUAL_INT8((int8_t)acc, out[ch]);
+            }
+        }
+    }
+    {
+        /* Shapes outside the spatial paths take the generic path: negative H and W give empty sums, and output dims of
+         * [N, H, W, C] get the channel means at every position */
+        static int8_t small[2 * 2 * 3];
+        for (int32_t i = 0; i < (int32_t)sizeof(small); i++)
+        {
+            small[i] = (int8_t)(7 * i - 40);
+        }
+        const int32_t mult = 1073741824;
+        const cmsis_nn_dims neg_dims = {1, -1, -2, 6};
+        const cmsis_nn_dims neg_out = {1, 1, 1, 6};
+        memset(out, 0x5A, sizeof(out));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_mean_s8(small, &neg_dims, 5, &axis, out, &neg_out, 1, mult, 0));
+        for (int32_t ch = 0; ch < 6; ch++)
+        {
+            TEST_ASSERT_EQUAL_INT8((int8_t)(arm_nn_requantize(5 * 2, mult, 0) + 1), out[ch]);
+        }
+        const cmsis_nn_dims in_dims = {1, 2, 2, 3};
+        const cmsis_nn_dims full_out = {1, 2, 2, 3};
+        memset(out, 0x5A, sizeof(out));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_mean_s8(small, &in_dims, 5, &axis, out, &full_out, 1, mult, 0));
+        for (int32_t pos = 0; pos < 4; pos++)
+        {
+            for (int32_t ch = 0; ch < 3; ch++)
+            {
+                const int32_t sum = 5 * 4 + small[ch] + small[3 + ch] + small[6 + ch] + small[9 + ch];
+                TEST_ASSERT_EQUAL_INT8((int8_t)(arm_nn_requantize(sum, mult, 0) + 1), out[pos * 3 + ch]);
             }
         }
     }
