@@ -334,6 +334,8 @@ arm_cmsis_nn_status arm_convolve_1x1_nhwc_f32(const cmsis_nn_context *ctx,
  *
  * @note For ARM_NN_WEIGHT_FORMAT_STANDARD filters only, so that an image links only that format's kernels; returns
  *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters.
+ *       A filter other than 1x1, or any padding, returns <code>ARM_CMSIS_NN_ARG_ERROR</code>, as the format-agnostic
+ *       function does; the filter format is checked first.
  */
 arm_cmsis_nn_status arm_convolve_1x1_nhwc_ohwi_f32(const cmsis_nn_context *ctx,
                                                    const cmsis_nn_conv_params_f32 *conv_params,
@@ -351,6 +353,8 @@ arm_cmsis_nn_status arm_convolve_1x1_nhwc_ohwi_f32(const cmsis_nn_context *ctx,
  *
  * @note For ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters only, so that an image links only that format's kernels; returns
  *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_STANDARD filters.
+ *       A filter other than 1x1, or any padding, returns <code>ARM_CMSIS_NN_ARG_ERROR</code>, as the format-agnostic
+ *       function does; the filter format is checked first.
  */
 arm_cmsis_nn_status arm_convolve_1x1_nhwc_packed_f32(const cmsis_nn_context *ctx,
                                                      const cmsis_nn_conv_params_f32 *conv_params,
@@ -445,6 +449,9 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32(const cmsis_nn_context *ctx,
  *
  * @note For ARM_NN_WEIGHT_FORMAT_STANDARD filters only, so that an image links only that format's kernels; returns
  *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters.
+ *       A missing ctx, a layer that is not 1xN or an input depth that differs from the filter's returns
+ *       <code>ARM_CMSIS_NN_ARG_ERROR</code> before the filter format is checked, and a ctx smaller than the size query
+ *       returns it after; as the format-agnostic function does.
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_ohwi_f32(const cmsis_nn_context *ctx,
                                                      const cmsis_nn_conv_params_f32 *conv_params,
@@ -462,6 +469,9 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_ohwi_f32(const cmsis_nn_context *ctx
  *
  * @note For ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters only, so that an image links only that format's kernels; returns
  *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_STANDARD filters.
+ *       A missing ctx, a layer that is not 1xN or an input depth that differs from the filter's returns
+ *       <code>ARM_CMSIS_NN_ARG_ERROR</code> before the filter format is checked, and a ctx smaller than the size query
+ *       returns it after; as the format-agnostic function does.
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_packed_f32(const cmsis_nn_context *ctx,
                                                        const cmsis_nn_conv_params_f32 *conv_params,
@@ -3040,6 +3050,8 @@ arm_cmsis_nn_status arm_convolve_1x1_nhwc_f16(const cmsis_nn_context *ctx,
  *
  * @note For ARM_NN_WEIGHT_FORMAT_STANDARD filters only, so that an image links only that format's kernels; returns
  *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters.
+ *       A filter other than 1x1, or any padding, returns <code>ARM_CMSIS_NN_ARG_ERROR</code>, as the format-agnostic
+ *       function does; the filter format is checked first.
  */
 arm_cmsis_nn_status arm_convolve_1x1_nhwc_ohwi_f16(const cmsis_nn_context *ctx,
                                                    const cmsis_nn_conv_params_f16 *conv_params,
@@ -3057,6 +3069,8 @@ arm_cmsis_nn_status arm_convolve_1x1_nhwc_ohwi_f16(const cmsis_nn_context *ctx,
  *
  * @note For ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters only, so that an image links only that format's kernels; returns
  *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_STANDARD filters.
+ *       A filter other than 1x1, or any padding, returns <code>ARM_CMSIS_NN_ARG_ERROR</code>, as the format-agnostic
+ *       function does; the filter format is checked first.
  */
 arm_cmsis_nn_status arm_convolve_1x1_nhwc_packed_f16(const cmsis_nn_context *ctx,
                                                      const cmsis_nn_conv_params_f16 *conv_params,
@@ -3093,6 +3107,8 @@ arm_cmsis_nn_status arm_convolve_1x1_nhwc_f16_acc16(const cmsis_nn_context *ctx,
  *
  * @note For ARM_NN_WEIGHT_FORMAT_STANDARD filters only, so that an image links only that format's kernels; returns
  *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters.
+ *       A filter other than 1x1, or any padding, returns <code>ARM_CMSIS_NN_ARG_ERROR</code>, as the format-agnostic
+ *       function does; the filter format is checked first.
  */
 arm_cmsis_nn_status arm_convolve_1x1_nhwc_ohwi_f16_acc16(const cmsis_nn_context *ctx,
                                                          const cmsis_nn_conv_params_f16 *conv_params,
@@ -3110,6 +3126,8 @@ arm_cmsis_nn_status arm_convolve_1x1_nhwc_ohwi_f16_acc16(const cmsis_nn_context 
  *
  * @note For ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters only, so that an image links only that format's kernels; returns
  *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_STANDARD filters.
+ *       A filter other than 1x1, or any padding, returns <code>ARM_CMSIS_NN_ARG_ERROR</code>, as the format-agnostic
+ *       function does; the filter format is checked first.
  */
 arm_cmsis_nn_status arm_convolve_1x1_nhwc_packed_f16_acc16(const cmsis_nn_context *ctx,
                                                            const cmsis_nn_conv_params_f16 *conv_params,
@@ -3176,6 +3194,9 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16(const cmsis_nn_context *ctx,
  *
  * @note For ARM_NN_WEIGHT_FORMAT_STANDARD filters only, so that an image links only that format's kernels; returns
  *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters.
+ *       A missing ctx, a layer that is not 1xN or an input depth that differs from the filter's returns
+ *       <code>ARM_CMSIS_NN_ARG_ERROR</code> before the filter format is checked, and a ctx smaller than the size query
+ *       returns it after; as the format-agnostic function does.
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_ohwi_f16(const cmsis_nn_context *ctx,
                                                      const cmsis_nn_conv_params_f16 *conv_params,
@@ -3193,6 +3214,9 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_ohwi_f16(const cmsis_nn_context *ctx
  *
  * @note For ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters only, so that an image links only that format's kernels; returns
  *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_STANDARD filters.
+ *       A missing ctx, a layer that is not 1xN or an input depth that differs from the filter's returns
+ *       <code>ARM_CMSIS_NN_ARG_ERROR</code> before the filter format is checked, and a ctx smaller than the size query
+ *       returns it after; as the format-agnostic function does.
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_packed_f16(const cmsis_nn_context *ctx,
                                                        const cmsis_nn_conv_params_f16 *conv_params,
@@ -3229,6 +3253,9 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f16_acc16(const cmsis_nn_context *ct
  *
  * @note For ARM_NN_WEIGHT_FORMAT_STANDARD filters only, so that an image links only that format's kernels; returns
  *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters.
+ *       A missing ctx, a layer that is not 1xN or an input depth that differs from the filter's returns
+ *       <code>ARM_CMSIS_NN_ARG_ERROR</code> before the filter format is checked, and a ctx smaller than the size query
+ *       returns it after; as the format-agnostic function does.
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_ohwi_f16_acc16(const cmsis_nn_context *ctx,
                                                            const cmsis_nn_conv_params_f16 *conv_params,
@@ -3246,6 +3273,9 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_ohwi_f16_acc16(const cmsis_nn_contex
  *
  * @note For ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters only, so that an image links only that format's kernels; returns
  *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing for ARM_NN_WEIGHT_FORMAT_STANDARD filters.
+ *       A missing ctx, a layer that is not 1xN or an input depth that differs from the filter's returns
+ *       <code>ARM_CMSIS_NN_ARG_ERROR</code> before the filter format is checked, and a ctx smaller than the size query
+ *       returns it after; as the format-agnostic function does.
  */
 arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_packed_f16_acc16(const cmsis_nn_context *ctx,
                                                              const cmsis_nn_conv_params_f16 *conv_params,
