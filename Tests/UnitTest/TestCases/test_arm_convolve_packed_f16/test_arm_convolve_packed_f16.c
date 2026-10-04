@@ -1254,6 +1254,14 @@ void convolve_route_predicates_f16(void)
     EXPECT_TERM(sc, out.c, 0, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
     EXPECT_TERM(sc, out.w, 0, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
     EXPECT_TERM(sc, flt.w, INT32_MIN, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
+    EXPECT_TERM(sc, flt.w, 0, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
+    EXPECT_TERM(sc, in.w, -1, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
+    EXPECT_TERM(sc, padding.w, -1, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
+    EXPECT_TERM(sc, stride.w, 0, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
+    EXPECT_TERM(sc, dilation.w, 0, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
+    /* A reach that wraps 32 bits (8 + 1,431,655,763 + 7 + 3 x 954,437,176 = 2^32 + 10) is still out of range */
+    const conv_shape_flt wrap = {{1, 1}, {1431655763, 0}, {954437176, 1}, {1, 1, 8, 1}, {8, 1, 4, 1}, {1, 1, 6, 8}};
+    TEST_ASSERT_FALSE(arm_nn_conv_f16_is_small_c(CONV_SHAPE(wrap)));
     /* Gather reach W + pad + 7 * stride + (KW - 1) * dilation = 65,535 columns of one channel, then one more */
     const conv_shape_flt edge = {{1, 1}, {0, 0}, {1, 1}, {1, 1, 65528, 1}, {8, 1, 1, 1}, {1, 1, 65528, 8}};
     TEST_ASSERT_TRUE(arm_nn_conv_f16_is_small_c(CONV_SHAPE(edge)));
@@ -1262,6 +1270,12 @@ void convolve_route_predicates_f16(void)
     EXPECT_TERM(edge, stride.w, 2, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
     EXPECT_TERM(edge, flt.w, 2, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
     EXPECT_TERM(edge, in.c, 2, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
+    /* The same edge with KW = 2: one column of dilation reach, then two */
+    conv_shape_flt edge_kw2 = edge;
+    edge_kw2.flt.w = 2;
+    edge_kw2.in.w = 65527;
+    TEST_ASSERT_TRUE(arm_nn_conv_f16_is_small_c(CONV_SHAPE(edge_kw2)));
+    EXPECT_TERM(edge_kw2, dilation.w, 2, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
     /* Scatter: 8 positions of C_OUT channels; 8 x 8,191 = 65,528 fits, 8 x 8,192 does not */
     EXPECT_TERM(edge, out.c, 8191, true, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
     EXPECT_TERM(edge, out.c, 8192, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));

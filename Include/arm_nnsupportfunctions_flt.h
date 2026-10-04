@@ -1580,7 +1580,8 @@ __STATIC_INLINE bool arm_nn_conv_flt_is_1xn(const cmsis_nn_tile *stride,
 
 /**
  * @brief The float16 small-C route: fewer input channels than ARM_NN_CONV_SMALL_C_F16_LANES, a positive output
- *        depth and width, and every gather and scatter offset within 16 bits.
+ *        depth and width, a positive filter width, stride and dilation, a non-negative padding and input width, and
+ *        every gather and scatter offset within 16 bits.
  * @param[in] stride      Spatial stride
  * @param[in] padding     Spatial zero-padding
  * @param[in] dilation    Spatial dilation
@@ -1597,17 +1598,17 @@ __STATIC_INLINE bool arm_nn_conv_f16_is_small_c(const cmsis_nn_tile *stride,
                                                 const cmsis_nn_dims *output_dims)
 {
     if (input_dims->c <= 0 || input_dims->c >= ARM_NN_CONV_SMALL_C_F16_LANES || output_dims->c <= 0 ||
-        output_dims->w <= 0)
+        output_dims->w <= 0 || input_dims->w < 0 || padding->w < 0 || stride->w <= 0 || dilation->w <= 0 ||
+        filter_dims->w <= 0)
     {
         return false;
     }
     /* u16 gather/scatter offsets are relative to one input row / one output position group, and every
-     * reachable column (including the padded ones, which wrap) must stay inside the offset type. */
-    const size_t reach = (size_t)input_dims->w + (size_t)padding->w +
-        (size_t)(ARM_NN_CONV_SMALL_C_F16_LANES - 1) * (size_t)stride->w +
-        ((size_t)filter_dims->w - 1U) * (size_t)dilation->w;
-    return reach * (size_t)input_dims->c <= (size_t)UINT16_MAX &&
-        (size_t)ARM_NN_CONV_SMALL_C_F16_LANES * (size_t)output_dims->c <= (size_t)UINT16_MAX;
+     * reachable column (including the padded ones, which wrap) must stay inside the offset type. In 64 bits, which
+     * no int32_t operands can overflow. */
+    const int64_t reach = (int64_t)input_dims->w + padding->w +
+        (int64_t)(ARM_NN_CONV_SMALL_C_F16_LANES - 1) * stride->w + ((int64_t)filter_dims->w - 1) * dilation->w;
+    return reach * input_dims->c <= UINT16_MAX && (int64_t)ARM_NN_CONV_SMALL_C_F16_LANES * output_dims->c <= UINT16_MAX;
 }
 
 /**

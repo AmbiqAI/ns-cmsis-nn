@@ -822,4 +822,49 @@ void depthwise_conv_route_predicates_f16(void)
     TEST_ASSERT_TRUE(arm_nn_dw_f16_cin1_min_ctx_size(&negative, &o12) == INT64_MAX);
     TEST_ASSERT_TRUE(arm_nn_dw_f16_cin1_min_ctx_size(&too_many_taps, &o12) == INT64_MAX);
     TEST_ASSERT_TRUE(arm_nn_dw_f16_cin1_min_ctx_size(&most_taps, &widest) == INT64_C(9222993877869088800));
+
+    /* A filter whose packed size, 32,768 x 65,536 halves, wraps a 32-bit size_t to 0 is refused before anything is
+       packed into a 64-byte ctx */
+    dw_shape_f16 wrapping = {.in = {1, 1, 65536, 1}, .flt = {1, 1, 65536, 32768}, .out = {1, 1, 1, 32768}};
+    wrapping.dp.ch_mult = 32768;
+    wrapping.dp.stride = (cmsis_nn_tile){1, 1};
+    wrapping.dp.dilation = (cmsis_nn_tile){1, 1};
+    wrapping.dp.activation.min = (float16_t)-2.0f;
+    wrapping.dp.activation.max = (float16_t)2.0f;
+    static float16_t small[32];
+    memset(small, 0x55, sizeof(small));
+    const cmsis_nn_context tiny = {small, (int32_t)sizeof(small)};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, 32768};
+    float16_t data[4] = {0};
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_ARG_ERROR;
+#else
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_NO_IMPL_ERROR;
+#endif
+    TEST_ASSERT_EQUAL(expected,
+                      arm_depthwise_conv_cin1_nhwc_f16(&tiny,
+                                                       &wrapping.dp,
+                                                       &wrapping.in,
+                                                       data,
+                                                       &wrapping.flt,
+                                                       data,
+                                                       &bias_dims,
+                                                       NULL,
+                                                       &wrapping.out,
+                                                       data));
+    TEST_ASSERT_EQUAL(expected,
+                      arm_depthwise_conv_cin1_nhwc_f16_acc16(&tiny,
+                                                             &wrapping.dp,
+                                                             &wrapping.in,
+                                                             data,
+                                                             &wrapping.flt,
+                                                             data,
+                                                             &bias_dims,
+                                                             NULL,
+                                                             &wrapping.out,
+                                                             data));
+    for (size_t i = 0; i < sizeof(small); i++)
+    {
+        TEST_ASSERT_EQUAL_HEX8(0x55, ((const uint8_t *)small)[i]);
+    }
 }
