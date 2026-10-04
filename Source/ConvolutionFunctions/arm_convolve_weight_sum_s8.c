@@ -41,10 +41,13 @@ arm_cmsis_nn_status arm_convolve_weight_sum(int32_t *vector_sum_buf,
     return ARM_CMSIS_NN_NO_IMPL_ERROR;
 #else // defined(ARM_MATH_MVEI)
     (void)input_dims;
-    if ((filter_dims->w < 0) || (filter_dims->h < 0) || (filter_dims->c < 0) ||
+    // arm_vector_sum_s8() walks the filter in 16-weight blocks with int32_t counts and offsets, so the whole filter
+    // must stay within INT32_MAX - 15 weights.
+    if ((vector_sum_buf == NULL) || (filter_dims->w < 0) || (filter_dims->h < 0) || (filter_dims->c < 0) ||
         ((int64_t)filter_dims->w * filter_dims->h > INT32_MAX) ||
         ((int64_t)filter_dims->w * filter_dims->h * filter_dims->c > INT32_MAX) ||
-        (arm_convolve_s8_get_weights_sum_size(output_dims) < 0))
+        (arm_convolve_s8_get_weights_sum_size(output_dims) < 0) ||
+        ((int64_t)filter_dims->w * filter_dims->h * filter_dims->c * output_dims->c > INT32_MAX - 15))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
