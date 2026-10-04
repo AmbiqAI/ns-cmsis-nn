@@ -465,6 +465,25 @@ __STATIC_FORCEINLINE int32_t arm_nn_fc_packed_s8_supported(const cmsis_nn_fc_par
 }
 
 /**
+ * @brief The row-broadcast route of arm_mul_s8() and arm_add_s8(): both inputs have the same depth C > 1, exactly one
+ *        has W = 1, and the output W is above 1, as in [N, H, W, C] x [N | 1, H | 1, 1, C] (a squeeze-and-excite
+ *        scale). Plain C; it evaluates the same on every build.
+ *
+ * @param[in]   input1_dims   First input dimensions [N, H, W, C]
+ * @param[in]   input2_dims   Second input dimensions [N, H, W, C]
+ * @param[in]   output_dims   Output dimensions [N, H, W, C]
+ *
+ * @return      1 for the row-broadcast shape, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_is_row_broadcast(const cmsis_nn_dims *input1_dims,
+                                                     const cmsis_nn_dims *input2_dims,
+                                                     const cmsis_nn_dims *output_dims)
+{
+    return input1_dims->c == input2_dims->c && input1_dims->c > 1 && (input1_dims->w == 1) != (input2_dims->w == 1) &&
+        output_dims->w > 1;
+}
+
+/**
  * @brief Check if convolution parameters correspond to a 1x1 convolution.
  * @param[in]   conv_params   Convolution parameters
  * @param[in]   input_dims    Input dimensions
