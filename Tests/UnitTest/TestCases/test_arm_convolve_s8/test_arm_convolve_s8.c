@@ -2779,6 +2779,168 @@ void buffer_size_dsp_arm_convolve_s8(void)
 }
 
 /*
+ * arm_convolve_weight_sum() and arm_depthwise_convolve_weight_sum() on sizes past 16 bits: 65,536 output channels, and
+ * a patch of 65,536 weights both as one dimension and as a product of smaller ones. Every sum is checked against a
+ * scalar reference. The 256 KB of sums and 64 KB of weights live in SRAM on Corstone-300, whose DTCM holds .bss, heap
+ * and stack in 512 KB.
+ */
+#define WIDE_SUM_COUNT 65536
+
+#if defined(ARM_MATH_MVEI)
+    #if defined(USING_FVP_CORSTONE_300)
+        #define WIDE_SUM_SECTION __attribute__((section(".bss.NoInit")))
+    #else
+        #define WIDE_SUM_SECTION
+    #endif
+static int32_t wide_sums[WIDE_SUM_COUNT] WIDE_SUM_SECTION;
+static int8_t wide_weights[WIDE_SUM_COUNT] WIDE_SUM_SECTION;
+
+/* Checks sums[j] == bias[j] + lhs_offset * (sum of weights[j * stride + k * k_step] over k < patch). */
+static void wide_sums_check(int32_t channels,
+                            int32_t patch,
+                            int32_t stride,
+                            int32_t k_step,
+                            int32_t lhs_offset,
+                            const int32_t *bias)
+{
+    for (int32_t j = 0; j < channels; j++)
+    {
+        int32_t sum = 0;
+        for (int32_t k = 0; k < patch; k++)
+        {
+            sum += wide_weights[j * stride + k * k_step];
+        }
+        const int32_t expected = (bias ? bias[j] : 0) + lhs_offset * sum;
+        if (wide_sums[j] != expected)
+        {
+            char msg[64];
+            snprintf(msg, sizeof(msg), "channel %ld of %ld", (long)j, (long)channels);
+            TEST_ASSERT_EQUAL_INT32_MESSAGE(expected, wide_sums[j], msg);
+        }
+    }
+}
+#endif
+
+void weight_sum_wide_dims_arm_convolve_s8(void)
+{
+#if defined(ARM_MATH_MVEI)
+    const int32_t lhs_offset = 128;
+    const int32_t bias[1] = {-7};
+    const cmsis_nn_dims input_dims = {1, 1, 1, 1};
+    for (int32_t i = 0; i < WIDE_SUM_COUNT; i++)
+    {
+        wide_weights[i] = (int8_t)((int32_t)((i * 7 + 3) & 0xFF) - 128);
+    }
+
+    /* Conv, [C_OUT, KH, KW, C_IN] = [65536, 1, 1, 1]: channel j sums weights[j]. */
+    cmsis_nn_dims filter_dims = {WIDE_SUM_COUNT, 1, 1, 1};
+    cmsis_nn_dims output_dims = {1, 1, 1, WIDE_SUM_COUNT};
+    memset(wide_sums, 0x55, sizeof(wide_sums));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_convolve_weight_sum(wide_sums, wide_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, NULL));
+    wide_sums_check(WIDE_SUM_COUNT, 1, 1, 1, lhs_offset, NULL);
+
+    /* Conv, one output channel over a 65,536-weight patch: as C_IN alone, then as 16 x 16 x 256. */
+    const cmsis_nn_dims patches[2] = {{1, 1, 1, WIDE_SUM_COUNT}, {1, 16, 16, 256}};
+    output_dims.c = 1;
+    for (int p = 0; p < 2; p++)
+    {
+        memset(wide_sums, 0x55, sizeof(wide_sums[0]));
+        TEST_ASSERT_EQUAL(
+            ARM_CMSIS_NN_SUCCESS,
+            arm_convolve_weight_sum(wide_sums, wide_weights, &input_dims, &patches[p], &output_dims, lhs_offset, bias));
+        wide_sums_check(1, WIDE_SUM_COUNT, 0, 1, lhs_offset, bias);
+    }
+
+    /* Depthwise, [1, KH, KW, C_OUT] = [1, 1, 1, 65536]: channel j sums weights[j]. */
+    const cmsis_nn_dw_conv_params dw_conv_params = {0};
+    filter_dims = (cmsis_nn_dims){1, 1, 1, WIDE_SUM_COUNT};
+    output_dims.c = WIDE_SUM_COUNT;
+    memset(wide_sums, 0x55, sizeof(wide_sums));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_convolve_weight_sum(wide_sums,
+                                                        NULL,
+                                                        wide_weights,
+                                                        &dw_conv_params,
+                                                        &input_dims,
+                                                        &filter_dims,
+                                                        &output_dims,
+                                                        lhs_offset,
+                                                        NULL));
+    wide_sums_check(WIDE_SUM_COUNT, 1, 1, 1, lhs_offset, NULL);
+
+    /* Depthwise, one channel over a 65,536-tap kernel row: tap k of channel 0 is weights[k]. */
+    filter_dims = (cmsis_nn_dims){1, 1, WIDE_SUM_COUNT, 1};
+    output_dims.c = 1;
+    memset(wide_sums, 0x55, sizeof(wide_sums[0]));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_convolve_weight_sum(wide_sums,
+                                                        NULL,
+                                                        wide_weights,
+                                                        &dw_conv_params,
+                                                        &input_dims,
+                                                        &filter_dims,
+                                                        &output_dims,
+                                                        lhs_offset,
+                                                        bias));
+    wide_sums_check(1, WIDE_SUM_COUNT, 0, 1, lhs_offset, bias);
+#endif
+}
+
+/*
+ * Sizes the weight-sum helpers cannot represent are rejected before anything is written: a negative filter dimension,
+ * a patch past INT32_MAX, and an output depth arm_convolve_s8_get_weights_sum_size() rejects. Builds without MVE do
+ * not use the sums and return ARM_CMSIS_NN_NO_IMPL_ERROR for every call.
+ */
+void weight_sum_arg_errors_arm_convolve_s8(void)
+{
+#if defined(ARM_MATH_MVEI)
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_ARG_ERROR;
+#else
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_NO_IMPL_ERROR;
+#endif
+    const int8_t weights[4] = {1, 2, 3, 4};
+    const cmsis_nn_dims input_dims = {1, 1, 1, 1};
+    const cmsis_nn_dw_conv_params dw_conv_params = {0};
+    const cmsis_nn_dims good_filter = {1, 1, 1, 1};
+    const cmsis_nn_dims good_output = {1, 1, 1, 1};
+
+    /* Conv filters [C_OUT, KH, KW, C_IN]; the last two exceed INT32_MAX as KH * KW and as KH * KW * C_IN. */
+    const cmsis_nn_dims conv_filters[] = {
+        {1, -1, 1, 1}, {1, 1, -1, 1}, {1, 1, 1, -1}, {1, 65536, 32768, 1}, {1, 2048, 2048, 512}};
+    /* Depthwise filters [1, KH, KW, C_OUT]; the last one exceeds INT32_MAX as KH * KW. */
+    const cmsis_nn_dims dw_filters[] = {{1, -1, 1, 1}, {1, 1, -1, 1}, {1, 65536, 32768, 1}};
+    /* Output depths: negative, and the first whose sums do not fit an int32_t byte count. */
+    const cmsis_nn_dims outputs[] = {{1, 1, 1, -1}, {1, 1, 1, INT32_MAX / (int32_t)sizeof(int32_t) + 1}};
+
+    int32_t sums[2] = {0x55555555, 0x55555555};
+    for (size_t i = 0; i < sizeof(conv_filters) / sizeof(conv_filters[0]); i++)
+    {
+        TEST_ASSERT_EQUAL(expected,
+                          arm_convolve_weight_sum(sums, weights, &input_dims, &conv_filters[i], &good_output, 1, NULL));
+    }
+    for (size_t i = 0; i < sizeof(dw_filters) / sizeof(dw_filters[0]); i++)
+    {
+        TEST_ASSERT_EQUAL(
+            expected,
+            arm_depthwise_convolve_weight_sum(
+                sums, NULL, weights, &dw_conv_params, &input_dims, &dw_filters[i], &good_output, 1, NULL));
+    }
+    for (size_t i = 0; i < sizeof(outputs) / sizeof(outputs[0]); i++)
+    {
+        TEST_ASSERT_EQUAL(expected,
+                          arm_convolve_weight_sum(sums, weights, &input_dims, &good_filter, &outputs[i], 1, NULL));
+        TEST_ASSERT_EQUAL(
+            expected,
+            arm_depthwise_convolve_weight_sum(
+                sums, NULL, weights, &dw_conv_params, &input_dims, &good_filter, &outputs[i], 1, NULL));
+    }
+    TEST_ASSERT_EQUAL_INT32(0x55555555, sums[0]);
+    TEST_ASSERT_EQUAL_INT32(0x55555555, sums[1]);
+}
+
+/*
  * The direct entries arm_convolve_s8_small_cin() and arm_convolve_s8_3x3_c16_s1() on their shapes and on out-of-gate
  * neighbours, checked against a scalar reference convolution together with arm_convolve_s8(). Inputs and weights span
  * the full int8 range, the scratch buffer is exactly arm_convolve_s8_get_buffer_size() bytes followed by guard bytes,
