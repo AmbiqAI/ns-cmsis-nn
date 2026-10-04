@@ -319,4 +319,34 @@ void mean_axis_hw_sweep_arm_mean_s8(void)
             }
         }
     }
+    {
+        /* A long reduction of extreme values (a 16-bit accumulator would wrap) and a positive shift */
+        static int8_t big[24 * 25 * 6];
+        for (int32_t i = 0; i < (int32_t)sizeof(big); i++)
+        {
+            big[i] = (i % 3) ? 127 : -128;
+        }
+        const cmsis_nn_dims in_dims = {1, 24, 25, 6};
+        const cmsis_nn_dims out_dims = {1, 1, 1, 6};
+        for (int32_t k = 0; k < 2; k++)
+        {
+            const int32_t in_off = k ? 128 : -127;
+            const int32_t out_mult = k ? 263000 : 1717986918;
+            const int32_t out_shift = k ? 2 : -9;
+            memset(out, 0x5A, sizeof(out));
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_mean_s8(big, &in_dims, in_off, &axis, out, &out_dims, -3, out_mult, out_shift));
+            for (int32_t ch = 0; ch < 6; ch++)
+            {
+                int32_t acc = in_off * 24 * 25;
+                for (int32_t i = 0; i < 24 * 25; i++)
+                {
+                    acc += big[i * 6 + ch];
+                }
+                acc = arm_nn_requantize(acc, out_mult, out_shift) - 3;
+                acc = acc < -128 ? -128 : (acc > 127 ? 127 : acc);
+                TEST_ASSERT_EQUAL_INT8((int8_t)acc, out[ch]);
+            }
+        }
+    }
 }

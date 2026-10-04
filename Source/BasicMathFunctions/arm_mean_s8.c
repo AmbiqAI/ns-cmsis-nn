@@ -300,7 +300,7 @@ arm_cmsis_nn_status arm_mean_reduce_spatial_mve_s8(const int8_t *input_data,
 #else
 
 /* Requantize, add the output offset and clamp one spatial sum */
-__STATIC_FORCEINLINE int8_t arm_mean_s8_out(int32_t acc, int32_t out_mult, int32_t out_shift, int32_t out_offset)
+static int8_t arm_mean_s8_out(int32_t acc, int32_t out_mult, int32_t out_shift, int32_t out_offset)
 {
     acc = arm_nn_requantize(acc, out_mult, out_shift) + out_offset;
     return (int8_t)ARM_NN_CLAMP(acc, 127, -128);
@@ -405,8 +405,11 @@ arm_cmsis_nn_status arm_mean_s8(const int8_t *input_data,
             input_data, input_offset, output_data, out_offset, out_mult, out_shift, outer_size, inner_size);
     }
 
-    // Check for spatial reduction axis=[H,W]
-    if (!axis_dims->n && axis_dims->h && axis_dims->w && !axis_dims->c)
+    // Check for spatial reduction axis=[H,W]; the spatial paths write N x C outputs, so they need positive input dims
+    // and output dims of [N, 1, 1, C]
+    if (!axis_dims->n && axis_dims->h && axis_dims->w && !axis_dims->c && input_dims->n > 0 && input_dims->h > 0 &&
+        input_dims->w > 0 && input_dims->c > 0 && output_dims->n == input_dims->n && output_dims->h == 1 &&
+        output_dims->w == 1 && output_dims->c == input_dims->c)
     {
 #if defined(ARM_MATH_MVEI)
         return arm_mean_reduce_spatial_mve_s8(
