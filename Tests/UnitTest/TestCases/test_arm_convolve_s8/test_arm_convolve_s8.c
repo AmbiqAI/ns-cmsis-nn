@@ -3570,9 +3570,8 @@ void small_cin_gate_declines_arm_convolve_s8(void)
     } declined[] = {
         /* upscale_dims given */
         {{1, 6, 6, 3, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 3, 1},
-        /* input depth 4 and 0 */
+        /* input depth 4 */
         {{1, 6, 6, 4, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 4, 0},
-        {{1, 6, 6, 0, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 0, 0},
         /* two groups: CK 1 against input depth 2 */
         {{1, 6, 6, 2, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 1, 0},
         /* dilation 2 in x, then in y */
@@ -3600,6 +3599,11 @@ void small_cin_gate_declines_arm_convolve_s8(void)
                                 0,
                                 0,
                                 ARM_CMSIS_NN_NO_IMPL_ERROR);
+    }
+    /* An input depth of 0 breaks arm_convolve_s8()'s group rule: an argument error, as there. */
+    {
+        const low_depth_case_t no_depth = {1, 6, 6, 0, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
+        low_depth_expect_status(LOW_DEPTH_SMALL_CIN, &no_depth, 0, 0, 0, 0, ARM_CMSIS_NN_ARG_ERROR);
     }
     /* Kernel dimensions whose width x depth or width x height x depth products leave int32_t are declined. */
     {
@@ -3806,5 +3810,58 @@ void conv_1x1_out_operands_at_gap_arm_convolve_1x1_out_s8(void)
     }
     memset(ctx.buf, 0, buffer_size);
     free(ctx.buf);
+#endif
+}
+
+/* arm_convolve_1x1_out_s8() has one group only (#699): a grouped layer used group 0's weight sums for every group and
+ * returned ARM_CMSIS_NN_SUCCESS, and an input deeper than the filter read only the first channels. Any input depth
+ * other than the filter's, and a filter depth of 0, are rejected. The function exists only on MVE builds. */
+void conv_1x1_out_grouped_arm_convolve_1x1_out_s8(void)
+{
+#if defined(ARM_MATH_MVEI)
+    int8_t input[8] = {1, -2, 3, -4, 5, -6, 7, -8};
+    int8_t kernel[4 * 8] = {0};
+    int32_t multiplier[4] = {1 << 30, 1 << 30, 1 << 30, 1 << 30};
+    int32_t shift[4] = {0, 0, 0, 0};
+    int32_t weight_sum[4] = {0};
+    int8_t output[4] = {0x5A, 0x5A, 0x5A, 0x5A};
+    int16_t scratch[64];
+    /* {input depth, filter depth}: two groups, a depth not a multiple of the filter's, a filter depth of 0 */
+    const int32_t depths[][2] = {{4, 2}, {6, 4}, {7, 4}, {4, 0}};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, 4};
+    const cmsis_nn_dims output_dims = {1, 1, 1, 4};
+    const cmsis_nn_conv_params conv_params = {
+        .input_offset = 0,
+        .output_offset = 0,
+        .stride = {1, 1},
+        .padding = {0, 0},
+        .dilation = {1, 1},
+        .activation = {-128, 127},
+    };
+    const cmsis_nn_per_channel_quant_params quant_params = {.multiplier = multiplier, .shift = shift};
+    const cmsis_nn_context ctx = {scratch, (int32_t)sizeof(scratch)};
+    const cmsis_nn_context weight_sum_ctx = {weight_sum, (int32_t)sizeof(weight_sum)};
+    for (size_t d = 0; d < sizeof(depths) / sizeof(depths[0]); d++)
+    {
+        const cmsis_nn_dims input_dims = {1, 1, 1, depths[d][0]};
+        const cmsis_nn_dims filter_dims = {4, 1, 1, depths[d][1]};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_convolve_1x1_out_s8(&ctx,
+                                                  &weight_sum_ctx,
+                                                  &conv_params,
+                                                  &quant_params,
+                                                  &input_dims,
+                                                  input,
+                                                  &filter_dims,
+                                                  kernel,
+                                                  &bias_dims,
+                                                  NULL,
+                                                  &output_dims,
+                                                  output));
+        for (int i = 0; i < 4; i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(0x5A, output[i]);
+        }
+    }
 #endif
 }

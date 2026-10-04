@@ -1668,21 +1668,21 @@ __STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_3x3_c16_s1(const cmsis_nn_con
 }
 
 /**
- * @brief The group check of arm_convolve_s8(), for its direct entries: with groups = C_IN / filter C, C_IN or C_OUT
- *        is not a multiple of groups. A filter C of zero or above C_IN gives no group count and is not reported.
+ * @brief The group check of arm_convolve_s8() and its direct entries: C_IN and the filter C are positive, C_IN is a
+ *        whole number of filter depths, and C_OUT a whole number of groups (groups = C_IN / filter C).
  *
  * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  *
- * @return         1 when arm_convolve_s8() reports the group count as an argument error, 0 otherwise.
+ * @return         1 when arm_convolve_s8() reports the dims as an argument error, 0 otherwise.
  */
 __STATIC_FORCEINLINE int32_t arm_nn_convolve_s8_groups_invalid(const cmsis_nn_dims *input_dims,
                                                                const cmsis_nn_dims *filter_dims,
                                                                const cmsis_nn_dims *output_dims)
 {
-    const int32_t groups = filter_dims->c > 0 ? input_dims->c / filter_dims->c : 0;
-    return groups > 0 && (input_dims->c % groups != 0 || output_dims->c % groups != 0);
+    return input_dims->c <= 0 || filter_dims->c <= 0 || input_dims->c % filter_dims->c != 0 ||
+        output_dims->c % (input_dims->c / filter_dims->c) != 0;
 }
 
 /**

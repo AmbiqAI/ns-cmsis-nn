@@ -547,7 +547,9 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
  * @param[in]      filter_data    Filter data pointer. Data type: int8
  * @param[in]      bias_dims      Bias tensor dimensions. Format: [C_OUT]
  * @param[in]      bias_data      Optional bias data pointer. Data type: int32
- * @param[in]      upscale_dims   Upscale tensor dimensions for transpose. Format: [H_UP, W_UP]
+ * @param[in]      upscale_dims   Upscale tensor dimensions for transpose. Format: [H_UP, W_UP]. An upscale factor
+ *                                of 2 in H or W upscales that axis (any other value is read as 1); a grouped
+ *                                layer with a factor of 2 returns ARM_CMSIS_NN_ARG_ERROR.
  * @param[in]      output_dims    Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output_data    Output data pointer. Data type: int8
  *
@@ -650,8 +652,9 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_short_k(const cmsis_nn_context *ctx,
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - an argument error that arm_convolve_s8() reports: ctx->buf is
- *                                                      NULL, C_IN or C_OUT is not a multiple of the group count
- *                                                      C_IN / CK, or weight_sum_ctx->buf is NULL on builds with
+ *                                                      NULL, C_IN or CK is not positive, C_IN is not a multiple
+ *                                                      of CK or C_OUT of the group count C_IN / CK, or
+ *                                                      weight_sum_ctx->buf is NULL on builds with
  *                                                      ARM_MATH_MVEI. These are checked before the gate.
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - the layer is outside the gate below, or the build lacks
  *                                                          ARM_MATH_MVEI or defines ARM_MATH_AUTOVECTORIZE; nothing
@@ -1534,11 +1537,9 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
  *                                A NULL buf is diagnosed with ARM_CMSIS_NN_ARG_ERROR. The buffer must hold one
  *                                4-byte-aligned GEMM row, that is
  *                                round_up_4(filter_dims->h * filter_dims->w * filter_dims->c) bytes, as returned
- *                                by arm_convolve_1x1_out_s8_get_buffer_size(). The requirement does not scale
- *                                with the group count: the kernel rewinds its im2col cursor to the start of the
- *                                buffer after each group. Setting ctx->size lets this function reject an
- *                                undersized buffer with ARM_CMSIS_NN_ARG_ERROR; leaving it at zero opts out of
- *                                that check, which is what TFLite Micro and derivatives do today.
+ *                                by arm_convolve_1x1_out_s8_get_buffer_size(). Setting ctx->size lets this
+ *                                function reject an undersized buffer with ARM_CMSIS_NN_ARG_ERROR; leaving it at
+ *                                zero opts out of that check, which is what TFLite Micro and derivatives do today.
  *                                The caller is expected to clear the buffer, if applicable, for security reasons.
  *
  * @param[in]     weight_sum_ctx  Per-output-channel weight sums, supplied by the caller. This function only reads
@@ -1581,6 +1582,8 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
  *   - Constraints:
  *      -# @p output_dims->h and @p output_dims->w must equal 1
  *      -# @p output_dims->c is expected to be a multiple of 4 for best performance
+ *      -# One group: @p input_dims->c must equal @p filter_dims->c, else <code>ARM_CMSIS_NN_ARG_ERROR</code>;
+ *         arm_convolve_s8() takes grouped layers
  */
 arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
                                             const cmsis_nn_context *weight_sum_ctx,
@@ -1607,8 +1610,6 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
  *              product exceeds INT32_MAX. The validation runs on every build target, not just the MVE leg, so
  *              the contract does not vary by target.
  *
- * @note        The figure is independent of the group count. arm_convolve_1x1_out_s8() rewinds its im2col cursor
- *              to the start of the buffer after each group's matmul, so groups do not accumulate.
  * @note        Callers reaching the kernel through arm_convolve_wrapper_s8() must size the buffer with
  *              arm_convolve_wrapper_s8_get_buffer_size() instead, which covers every kernel the wrapper may
  *              dispatch to. This function is for callers that invoke arm_convolve_1x1_out_s8() directly.

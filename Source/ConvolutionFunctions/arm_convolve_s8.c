@@ -92,17 +92,17 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
     const int32_t out_activation_max = conv_params->activation.max;
     const int32_t input_offset = conv_params->input_offset;
 
+    /* Checked before any division by the filter depth or the group count */
+    if (arm_nn_convolve_s8_groups_invalid(input_dims, filter_dims, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     const int32_t groups = input_ch / kernel_ch;
     const int32_t rhs_cols = kernel_x * kernel_y * kernel_ch;
     const int32_t output_ch_per_group = output_ch / groups;
 
     const int32_t *output_mult = quant_params->multiplier;
     const int32_t *output_shift = quant_params->shift;
-
-    if (input_ch % groups != 0 || output_ch % groups != 0)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
 
     // For upscale_dims == 2, the actual index of the input data is the index of the upscaled input divided by two. In
     // the ordinary case, there is no difference. The division is implemented as a rshift for optimization purposes.
@@ -113,6 +113,12 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
     {
         y_rshift = upscale_dims->h == 2 ? 1 : 0;
         x_rshift = upscale_dims->w == 2 ? 1 : 0;
+    }
+
+    /* The upscaled im2col reads the input from its first channel, so it serves one group only */
+    if (groups != 1 && (x_rshift != 0 || y_rshift != 0))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
     }
 
     const int32_t input_x_rshifted = input_x >> x_rshift;

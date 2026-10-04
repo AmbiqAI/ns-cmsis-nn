@@ -94,6 +94,11 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
     const int32_t out_activation_max = conv_params->activation.max;
     const int32_t input_offset = conv_params->input_offset;
 
+    /* One group only: the weight sums are read from their start, not per group. Checked before any division. */
+    if (kernel_ch == 0 || input_ch != kernel_ch)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     const int32_t groups = input_ch / kernel_ch;
     const int32_t rhs_cols = kernel_x * kernel_y * kernel_ch;
     const int32_t output_ch_per_group = output_ch / groups;
@@ -122,9 +127,8 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    /* The im2col scratch holds exactly one padded GEMM row: aligned_rhs_cols bytes. Each group
-       rewinds im2col_buf to the start of ctx->buf after its matmul, so the requirement does not
-       scale with the group count. arm_convolve_1x1_out_s8_get_buffer_size() publishes this same
+    /* The im2col scratch holds exactly one padded GEMM row: aligned_rhs_cols bytes.
+       arm_convolve_1x1_out_s8_get_buffer_size() publishes this same
        figure. ctx->size is optional: callers that leave it at zero (TFLM and derivatives do) opt
        out of the check, so only an explicitly declared, too-small buffer is rejected. */
     if ((ctx->size != 0) && (ctx->size < aligned_rhs_cols))
