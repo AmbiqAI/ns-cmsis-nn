@@ -154,6 +154,7 @@ __STATIC_FORCEINLINE void arm_add_s8_row_broadcast(const int8_t *vec,
 }
 #endif
 
+#if defined(ARM_MATH_MVEI) && !defined(CMSIS_NN_USE_SINGLE_ROUNDING)
 /* The parameter ranges arm_add_s8_row_broadcast() assumes */
 __STATIC_FORCEINLINE bool arm_add_s8_row_broadcast_fits(const int32_t input1_shift,
                                                         const int32_t input2_shift,
@@ -164,7 +165,6 @@ __STATIC_FORCEINLINE bool arm_add_s8_row_broadcast_fits(const int32_t input1_shi
         left_shift <= 31 && out_shift < 0 && out_shift >= -31;
 }
 
-#if defined(ARM_MATH_MVEI) && !defined(CMSIS_NN_USE_SINGLE_ROUNDING)
 /* The row-broadcast route in one pass over the rows (MVE, default rounding) */
 __STATIC_FORCEINLINE void arm_add_s8_row_broadcast_rows(const int8_t *input1_data,
                                                         const cmsis_nn_dims *input1_dims,
