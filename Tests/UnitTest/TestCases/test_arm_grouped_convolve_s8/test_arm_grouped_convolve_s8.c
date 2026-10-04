@@ -378,3 +378,71 @@ void grouped_conv_arm_grouped_convolve_4_s8(void)
     TEST_ASSERT_TRUE(validate(output, output_ref, output_ref_size));
     memset(output, 0, sizeof(output));
 }
+
+/* A NULL bias must act as an all-zero bias in every group (#697): the per-group bias pointer is formed and advanced
+ * only for a real bias. */
+static void grouped_conv_1_run(const int32_t *bias_data, int8_t *output)
+{
+    cmsis_nn_conv_params conv_params;
+    cmsis_nn_per_channel_quant_params quant_params;
+    const cmsis_nn_dims input_dims = {
+        GROUPED_CONV_1_INPUT_BATCHES, GROUPED_CONV_1_INPUT_H, GROUPED_CONV_1_INPUT_W, GROUPED_CONV_1_IN_CH};
+    const cmsis_nn_dims filter_dims = {
+        GROUPED_CONV_1_OUT_CH, GROUPED_CONV_1_FILTER_Y, GROUPED_CONV_1_FILTER_X, GROUPED_CONV_1_FILTER_CH};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, GROUPED_CONV_1_OUT_CH};
+    const cmsis_nn_dims output_dims = {
+        GROUPED_CONV_1_INPUT_BATCHES, GROUPED_CONV_1_OUTPUT_H, GROUPED_CONV_1_OUTPUT_W, GROUPED_CONV_1_OUT_CH};
+    conv_params.padding.w = GROUPED_CONV_1_PAD_X;
+    conv_params.padding.h = GROUPED_CONV_1_PAD_Y;
+    conv_params.stride.w = GROUPED_CONV_1_STRIDE_X;
+    conv_params.stride.h = GROUPED_CONV_1_STRIDE_Y;
+    conv_params.dilation.w = GROUPED_CONV_1_DILATION_X;
+    conv_params.dilation.h = GROUPED_CONV_1_DILATION_Y;
+    conv_params.input_offset = GROUPED_CONV_1_INPUT_OFFSET;
+    conv_params.output_offset = GROUPED_CONV_1_OUTPUT_OFFSET;
+    conv_params.activation.min = GROUPED_CONV_1_OUT_ACTIVATION_MIN;
+    conv_params.activation.max = GROUPED_CONV_1_OUT_ACTIVATION_MAX;
+    quant_params.multiplier = (int32_t *)grouped_conv_1_output_mult;
+    quant_params.shift = (int32_t *)grouped_conv_1_output_shift;
+
+    const int32_t buf_size = arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
+    cmsis_nn_context ctx = {buf_size > 0 ? malloc(buf_size) : NULL, buf_size};
+    const int32_t weights_sum_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
+    cmsis_nn_context weights_sum_ctx = {weights_sum_size > 0 ? malloc(weights_sum_size) : NULL, weights_sum_size};
+    arm_convolve_weight_sum(weights_sum_ctx.buf,
+                            grouped_conv_1_weights,
+                            &input_dims,
+                            &filter_dims,
+                            &output_dims,
+                            conv_params.input_offset,
+                            bias_data);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_s8(&ctx,
+                                      &weights_sum_ctx,
+                                      &conv_params,
+                                      &quant_params,
+                                      &input_dims,
+                                      grouped_conv_1_input,
+                                      &filter_dims,
+                                      grouped_conv_1_weights,
+                                      &bias_dims,
+                                      bias_data,
+                                      NULL,
+                                      &output_dims,
+                                      output));
+    free(weights_sum_ctx.buf);
+    free(ctx.buf);
+}
+
+void grouped_conv_null_bias_arm_grouped_convolve_s8(void)
+{
+    TEST_ASSERT_TRUE(GROUPED_CONV_1_IN_CH / GROUPED_CONV_1_FILTER_CH > 1);
+    static const int32_t zero_bias[GROUPED_CONV_1_OUT_CH] = {0};
+    static int8_t with_zero[GROUPED_CONV_1_DST_SIZE];
+    static int8_t with_null[GROUPED_CONV_1_DST_SIZE];
+    memset(with_zero, 0x55, sizeof(with_zero));
+    memset(with_null, 0x5A, sizeof(with_null));
+    grouped_conv_1_run(zero_bias, with_zero);
+    grouped_conv_1_run(NULL, with_null);
+    TEST_ASSERT_EQUAL_INT8_ARRAY(with_zero, with_null, GROUPED_CONV_1_DST_SIZE);
+}
