@@ -420,7 +420,7 @@ __STATIC_FORCEINLINE int32_t arm_nn_requantize_channels_rshift_only(const int32_
                                                                     const int32_t *shift,
                                                                     const int32_t num_ch)
 {
-    /* No early exit, so that the compilers can vectorize the loop */
+    /* No early exit, so that the loop can be vectorized (ATfE does; GCC 14.3 keeps a scalar hardware loop) */
     int32_t needs_left_shift = 0;
     for (int32_t i = 0; i < num_ch; i++)
     {

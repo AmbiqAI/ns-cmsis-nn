@@ -757,10 +757,14 @@ static int32_t fc_packed_mult[FC_PACKED_MAX_N];
 static int32_t fc_packed_shift[FC_PACKED_MAX_N];
 static uint32_t fc_packed_seed = 0x2468aceU;
 
+/* Uniform over [lo, hi] for any span up to 2^31: two LCG steps give 32 random bits */
 static int32_t fc_packed_rand(int32_t lo, int32_t hi)
 {
     fc_packed_seed = fc_packed_seed * 1664525U + 1013904223U;
-    return lo + (int32_t)((fc_packed_seed >> 8) % (uint32_t)(hi - lo + 1));
+    const uint32_t high = fc_packed_seed >> 16;
+    fc_packed_seed = fc_packed_seed * 1664525U + 1013904223U;
+    const uint32_t bits = (high << 16) | (fc_packed_seed >> 16);
+    return (int32_t)((int64_t)lo + (int64_t)(bits % ((uint32_t)((int64_t)hi - lo) + 1U)));
 }
 
 static void fc_packed_case(int32_t k, int32_t n, int32_t batches, int at_gap)
