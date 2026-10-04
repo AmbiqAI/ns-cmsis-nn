@@ -334,14 +334,13 @@ static arm_cmsis_nn_status arm_mean_reduce_spatial_s8(const int8_t *input_data,
             int32_t acc1 = zp;
             int32_t acc2 = zp;
             int32_t acc3 = zp;
-            const int8_t *p = in_ptr + c;
             for (int32_t i = 0; i < spatial; ++i)
             {
+                const int8_t *p = in_ptr + i * C + c;
                 acc0 += p[0];
                 acc1 += p[1];
                 acc2 += p[2];
                 acc3 += p[3];
-                p += C;
             }
             out_ptr[c] = arm_mean_s8_out(acc0, out_mult, out_shift, out_offset);
             out_ptr[c + 1] = arm_mean_s8_out(acc1, out_mult, out_shift, out_offset);

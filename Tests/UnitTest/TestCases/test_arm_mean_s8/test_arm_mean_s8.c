@@ -266,7 +266,7 @@ void mean_axis_wc_arm_mean_s8(void)
     TEST_ASSERT_TRUE(validate(output_data, output_ref, output_ref_size));
 }
 
-/* axis = [H, W] against a plain reference over H and W 1..9, C 1..37 (both sides of the four-channel groups) and
+/* axis = [H, W] against a plain reference over H 1, 3, .. 9 and W 1..9, C 1..37 (both sides of the four-channel groups) and
  * batches 1..2, with output offsets and shifts that reach both clamp ends (#678). */
 void mean_axis_hw_sweep_arm_mean_s8(void)
 {
