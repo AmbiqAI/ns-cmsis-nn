@@ -1262,6 +1262,10 @@ void convolve_route_predicates_f16(void)
     /* A reach that wraps 32 bits (8 + 1,431,655,763 + 7 + 3 x 954,437,176 = 2^32 + 10) is still out of range */
     const conv_shape_flt wrap = {{1, 1}, {1431655763, 0}, {954437176, 1}, {1, 1, 8, 1}, {8, 1, 4, 1}, {1, 1, 6, 8}};
     TEST_ASSERT_FALSE(arm_nn_conv_f16_is_small_c(CONV_SHAPE(wrap)));
+    /* A reach of exactly 2^62, whose product with C = 4 would wrap 64 bits to 0 */
+    const conv_shape_flt wrap64 = {
+        {500000000, 1}, {794967295, 0}, {INT32_MAX, 1}, {1, 1, INT32_MAX, 4}, {4, 1, INT32_MAX, 4}, {1, 1, 6, 8}};
+    TEST_ASSERT_FALSE(arm_nn_conv_f16_is_small_c(CONV_SHAPE(wrap64)));
     /* Gather reach W + pad + 7 * stride + (KW - 1) * dilation = 65,535 columns of one channel, then one more */
     const conv_shape_flt edge = {{1, 1}, {0, 0}, {1, 1}, {1, 1, 65528, 1}, {8, 1, 1, 1}, {1, 1, 65528, 8}};
     TEST_ASSERT_TRUE(arm_nn_conv_f16_is_small_c(CONV_SHAPE(edge)));

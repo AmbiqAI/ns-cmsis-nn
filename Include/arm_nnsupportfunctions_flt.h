@@ -1604,11 +1604,11 @@ __STATIC_INLINE bool arm_nn_conv_f16_is_small_c(const cmsis_nn_tile *stride,
         return false;
     }
     /* u16 gather/scatter offsets are relative to one input row / one output position group, and every
-     * reachable column (including the padded ones, which wrap) must stay inside the offset type. In 64 bits, which
-     * no int32_t operands can overflow. */
+     * reachable column (including the padded ones, which wrap) must stay inside the offset type. The reach of
+     * non-negative int32_t terms stays below 2^63; it is compared with UINT16_MAX / C rather than multiplied by C. */
     const int64_t reach = (int64_t)input_dims->w + padding->w +
         (int64_t)(ARM_NN_CONV_SMALL_C_F16_LANES - 1) * stride->w + ((int64_t)filter_dims->w - 1) * dilation->w;
-    return reach * input_dims->c <= UINT16_MAX && (int64_t)ARM_NN_CONV_SMALL_C_F16_LANES * output_dims->c <= UINT16_MAX;
+    return reach <= UINT16_MAX / input_dims->c && output_dims->c <= UINT16_MAX / ARM_NN_CONV_SMALL_C_F16_LANES;
 }
 
 /**
