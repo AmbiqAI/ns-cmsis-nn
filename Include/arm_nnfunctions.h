@@ -3449,11 +3449,11 @@ arm_cmsis_nn_status arm_add_s8(const int8_t *input1_data,
 /**
  * @copydoc arm_add_s8
  *
- * @note The row-broadcast route of arm_add_s8() as a direct entry: one input broadcast along W with the same depth C
- *       > 1, as in [N | 1, H | 1, W, C] and [N | 1, H | 1, 1, C], with an output W above 1 (the gate
- * arm_nn_is_row_broadcast computes). Returns <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing outside the
- * gate. The output is identical to arm_add_s8() on every build; the entry references neither the generic broadcast walk
- * nor the scalar kernels, only its row block and arm_elementwise_add_s8().
+ * @note The row-broadcast route of arm_add_s8() as a direct entry: one input broadcast along W with the same depth
+ *       C of 2 or more, as in [N | 1, H | 1, W, C] and [N | 1, H | 1, 1, C], with an output W above 1 (the gate
+ *       arm_nn_is_row_broadcast computes). Returns <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing outside
+ * the gate. The output is identical to arm_add_s8() on every build; the entry references neither the generic broadcast
+ * walk nor the scalar kernels, only its row block and arm_elementwise_add_s8().
  */
 arm_cmsis_nn_status arm_add_row_broadcast_s8(const int8_t *input1_data,
                                              const cmsis_nn_dims *input1_dims,
@@ -4411,11 +4411,11 @@ arm_cmsis_nn_status arm_mul_s8(const int8_t *input1_data,
 /**
  * @copydoc arm_mul_s8
  *
- * @note The row-broadcast route of arm_mul_s8() as a direct entry: one input broadcast along W with the same depth C
- *       > 1, as in [N | 1, H | 1, W, C] and [N | 1, H | 1, 1, C], with an output W above 1 (the gate
- * arm_nn_is_row_broadcast computes). Returns <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing outside the
- * gate. The output is identical to arm_mul_s8() on every build; the entry references neither the generic broadcast walk
- * nor the scalar kernels, only its row block and arm_elementwise_mul_s8().
+ * @note The row-broadcast route of arm_mul_s8() as a direct entry: one input broadcast along W with the same depth
+ *       C of 2 or more, as in [N | 1, H | 1, W, C] and [N | 1, H | 1, 1, C], with an output W above 1 (the gate
+ *       arm_nn_is_row_broadcast computes). Returns <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> and writes nothing outside
+ * the gate. The output is identical to arm_mul_s8() on every build; the entry references neither the generic broadcast
+ * walk nor the scalar kernels, only its row block and arm_elementwise_mul_s8().
  */
 arm_cmsis_nn_status arm_mul_row_broadcast_s8(const int8_t *input1_data,
                                              const cmsis_nn_dims *input1_dims,
