@@ -35,7 +35,8 @@
 
 #if ARM_NN_ENABLE_F16 && defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     #define ARM_NN_DEQUANTIZE_MVE
-#elif defined(__ARM_FP) && (__ARM_FP & 4) && defined(__ARM_ARCH_PROFILE) && (__ARM_ARCH_PROFILE == 'M')
+#elif defined(__ARM_FP) && (__ARM_FP & 4) && defined(__ARM_ARCH_PROFILE) && (__ARM_ARCH_PROFILE == 'M') &&             \
+    !defined(__ARM_BIG_ENDIAN)
     /* Every M-profile FPU converts half to single (VCVTB), whatever __ARM_FP says about half precision */
     #define ARM_NN_DEQUANTIZE_FPU
 #endif
@@ -70,6 +71,29 @@ static inline uint32_t arm_nn_f16_bits_to_f32_bits(const uint32_t h)
         shift++;
     }
     return sign | ((113u - shift) << 23) | ((mant & 0x3FFu) << 13);
+}
+#endif
+
+#if defined(ARM_NN_DEQUANTIZE_FPU)
+/*
+ * One half: the FPU converts every non-NaN half exactly. A NaN is rebuilt from its bits, because the conversion
+ * would quiet a signaling NaN and, with FPSCR.DN set, drop the payload.
+ */
+static inline float arm_nn_dequantize_one_f32(const uint32_t h)
+{
+    float out;
+    if ((h & 0x7FFFu) <= 0x7C00u)
+    {
+        float in;
+        memcpy(&in, &h, sizeof(in));
+        __asm("vcvtb.f32.f16 %0, %1" : "=t"(out) : "t"(in));
+    }
+    else
+    {
+        const uint32_t nan = ((h & 0x8000u) << 16) | 0x7F800000u | ((h & 0x3FFu) << 13);
+        memcpy(&out, &nan, sizeof(out));
+    }
+    return out;
 }
 #endif
 
@@ -136,27 +160,43 @@ arm_cmsis_nn_status arm_dequantize_f16_bits_f32(const uint16_t *input, float *ou
         }
         vst1q_p(output + i, f, p);
     }
+#elif defined(ARM_NN_DEQUANTIZE_FPU)
+    int32_t i = 0;
+    for (; i + 2 <= block_size; i += 2)
+    {
+        /* Two halves per word, read through memcpy: arm_dequantize_f16_f32() passes float16_t storage */
+        uint32_t pair;
+        memcpy(&pair, &input[i], sizeof(pair));
+        /* A half is a NaN when its magnitude exceeds 0x7C00; adding 0x3FF carries such a lane into its top bit */
+        if ((((pair & 0x7FFF7FFFu) + 0x03FF03FFu) & 0x80008000u) == 0u)
+        {
+            float in;
+            memcpy(&in, &pair, sizeof(in));
+            __asm("vcvtb.f32.f16 %0, %2\n\t"
+                  "vcvtt.f32.f16 %1, %2"
+                  : "=&t"(output[i]), "=&t"(output[i + 1])
+                  : "t"(in));
+        }
+        else
+        {
+            output[i] = arm_nn_dequantize_one_f32((uint16_t)pair);
+            output[i + 1] = arm_nn_dequantize_one_f32((uint16_t)(pair >> 16));
+        }
+    }
+    if (i < block_size)
+    {
+        uint16_t h;
+        memcpy(&h, &input[i], sizeof(h));
+        output[i] = arm_nn_dequantize_one_f32(h);
+    }
 #else
     for (int32_t i = 0; i < block_size; i++)
     {
         /* Read through memcpy: arm_dequantize_f16_f32() passes float16_t storage */
-        uint16_t bits;
-        memcpy(&bits, &input[i], sizeof(bits));
-        const uint32_t h = bits;
-    #if defined(ARM_NN_DEQUANTIZE_FPU)
-        if ((h & 0x7FFFu) <= 0x7C00u)
-        {
-            float in;
-            memcpy(&in, &h, sizeof(in));
-            __asm("vcvtb.f32.f16 %0, %1" : "=t"(output[i]) : "t"(in));
-            continue;
-        }
-        /* A NaN is rebuilt from its bits: the conversion would quiet a signaling NaN and, with FPSCR.DN set,
-           drop the payload */
-        const uint32_t f = ((h & 0x8000u) << 16) | 0x7F800000u | ((h & 0x3FFu) << 13);
-    #else
-        const uint32_t f = arm_nn_f16_bits_to_f32_bits(h);
-    #endif
+        uint16_t h;
+        uint32_t f;
+        memcpy(&h, &input[i], sizeof(h));
+        f = arm_nn_f16_bits_to_f32_bits(h);
         memcpy(&output[i], &f, sizeof(f));
     }
 #endif
