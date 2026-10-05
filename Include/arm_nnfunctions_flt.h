@@ -3844,8 +3844,9 @@ arm_cmsis_nn_status arm_nn_fill_f16(float16_t value, float16_t *output, int32_t 
  *
  * Bit-exact widening of every input class: finite values, subnormals (normal in float32), +/-0 and
  * +/-Inf convert exactly. No accumulation, no rounding. NaN behavior: on every leg a NaN stays a NaN with
- * its sign, quiet bit and payload preserved bit-exactly (a signaling NaN stays signaling). The scalar leg
- * widens on integer lanes and raises no floating-point exception flag. The MVE leg converts each 8-element
+ * its sign, quiet bit and payload preserved bit-exactly (a signaling NaN stays signaling). Implemented by
+ * arm_dequantize_f16_bits_f32(). The scalar leg raises no floating-point exception flag: an M-profile FPU
+ * converts the non-NaN elements in hardware and NaNs widen on integer lanes. The MVE leg converts each 8-element
  * block with the vector VCVT first and then rebuilds the NaN lanes from the half's bits (per 4-lane
  * vector, 8 elements per main-loop block), so a signaling-NaN input may leave FPSCR.IOC (invalid
  * operation, cumulative) set on that leg; no trap, and the result is the same bits. Input and output

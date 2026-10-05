@@ -7651,6 +7651,26 @@ arm_cmsis_nn_status
 arm_dequantize_s16_f32(const int16_t *input, float *output, int32_t size, int32_t zero_point, float scale);
 
 /**
+ * @brief Widen float16 values, given as their raw IEEE 754 binary16 bits, to float32.
+ *
+ * Bit-exact for every input: finite values, subnormals (normal in float32), +/-0 and +/-Inf convert
+ * exactly, and a NaN keeps its sign, quiet bit and payload (a signaling NaN stays signaling). Needs no
+ * float16 support from the toolchain or the build (ARM_NN_ENABLE_F16 may be off), so float32 code can
+ * widen stored float16 weights. On an M-profile FPU the non-NaN elements use the hardware half-to-single
+ * conversion; with MVE float16 and ARM_NN_ENABLE_F16 the vector path of arm_dequantize_f16_f32() is
+ * used, which may leave FPSCR.IOC set for a signaling-NaN input (same result bits). Input and output must
+ * not overlap.
+ *
+ * @param[in]   input       Pointer to the binary16 bit patterns.
+ * @param[out]  output      Pointer to the float32 output array.
+ * @param[in]   block_size  Number of elements (0 is a no-op).
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` when @p block_size is negative or a
+ *         pointer is NULL with a non-zero @p block_size.
+ */
+arm_cmsis_nn_status arm_dequantize_f16_bits_f32(const uint16_t *input, float *output, int32_t block_size);
+
+/**
  * @defgroup StridedSlice Slicing Functions:
  *
  */
