@@ -7654,12 +7654,13 @@ arm_dequantize_s16_f32(const int16_t *input, float *output, int32_t size, int32_
  * @brief Widen float16 values, given as their raw IEEE 754 binary16 bits, to float32.
  *
  * Bit-exact for every input: finite values, subnormals (normal in float32), +/-0 and +/-Inf convert
- * exactly, and a NaN keeps its sign, quiet bit and payload (a signaling NaN stays signaling). Needs no
- * float16 support from the toolchain or the build (ARM_NN_ENABLE_F16 may be off), so float32 code can
- * widen stored float16 weights. On an M-profile FPU the non-NaN elements use the hardware half-to-single
- * conversion; with MVE float16 and ARM_NN_ENABLE_F16 the vector path of arm_dequantize_f16_f32() is
- * used, which may leave FPSCR.IOC set for a signaling-NaN input (same result bits). Input and output must
- * not overlap.
+ * exactly, and a NaN keeps its sign, quiet bit and payload (a signaling NaN stays signaling). The result
+ * does not depend on FPSCR (DN, AHP, FZ, rounding mode). Needs no float16 support from the toolchain or the
+ * build (ARM_NN_ENABLE_F16 may be off), so float32 code can widen stored float16 weights. Paths: with MVE
+ * float16 and ARM_NN_ENABLE_F16, a vector conversion, which may leave FPSCR.IOC set for a signaling-NaN
+ * input (same result bits); on another little-endian M-profile core with an FPU, the scalar half-to-single
+ * conversion, two elements per word; otherwise integer widening. Inf and NaN elements are always rebuilt
+ * from their bits. arm_dequantize_f16_f32() calls this function. Input and output must not overlap.
  *
  * @param[in]   input       Pointer to the binary16 bit patterns.
  * @param[out]  output      Pointer to the float32 output array.

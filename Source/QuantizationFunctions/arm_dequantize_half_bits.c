@@ -76,13 +76,14 @@ static inline uint32_t arm_nn_f16_bits_to_f32_bits(const uint32_t h)
 
 #if defined(ARM_NN_DEQUANTIZE_FPU)
 /*
- * One half: the FPU converts every non-NaN half exactly. A NaN is rebuilt from its bits, because the conversion
- * would quiet a signaling NaN and, with FPSCR.DN set, drop the payload.
+ * One half: the FPU converts every finite half exactly. An Inf or NaN (exponent 31) is rebuilt from its bits,
+ * because the conversion would quiet a signaling NaN, would drop the payload with FPSCR.DN set, and would read
+ * exponent 31 as a number with FPSCR.AHP set.
  */
 static inline float arm_nn_dequantize_one_f32(const uint32_t h)
 {
     float out;
-    if ((h & 0x7FFFu) <= 0x7C00u)
+    if ((h & 0x7FFFu) < 0x7C00u)
     {
         float in;
         memcpy(&in, &h, sizeof(in));
@@ -90,8 +91,8 @@ static inline float arm_nn_dequantize_one_f32(const uint32_t h)
     }
     else
     {
-        const uint32_t nan = ((h & 0x8000u) << 16) | 0x7F800000u | ((h & 0x3FFu) << 13);
-        memcpy(&out, &nan, sizeof(out));
+        const uint32_t special = ((h & 0x8000u) << 16) | 0x7F800000u | ((h & 0x3FFu) << 13);
+        memcpy(&out, &special, sizeof(out));
     }
     return out;
 }
@@ -100,7 +101,8 @@ static inline float arm_nn_dequantize_one_f32(const uint32_t h)
 #if defined(ARM_NN_DEQUANTIZE_MVE)
 /*
  * Vector VCVT always returns the default NaN (Armv8.1-M StandardFPSCRValue,
- * DN=1). Rebuild NaN lanes from the half's bits so the payload survives:
+ * DN=1), and reads exponent 31 as a number with FPSCR.AHP set. Rebuild the
+ * Inf and NaN lanes from the half's bits so the result never depends on FPSCR:
  * `bits` holds the halves `conv` was converted from, one per 32-bit lane.
  * Out of line: keeps its constants out of the hot loop's registers.
  */
@@ -110,14 +112,14 @@ static __attribute__((noinline)) float32x4_t arm_nn_dequantize_nan_lanes_f32(con
     const uint32x4_t sign = vshlq_n_u32(vandq(bits, vdupq_n_u32(0x8000u)), 16);
     const uint32x4_t mant = vshlq_n_u32(vandq(bits, vdupq_n_u32(0x3FFu)), 13);
     const uint32x4_t nan = vorrq(vorrq(sign, mant), vdupq_n_u32(0x7F800000u));
-    const mve_pred16_t nan_p = vcmphiq_n_u32(vandq(bits, vdupq_n_u32(0x7FFFu)), 0x7C00u);
+    const mve_pred16_t nan_p = vcmphiq_n_u32(vandq(bits, vdupq_n_u32(0x7FFFu)), 0x7BFFu);
     return vpselq(vreinterpretq_f32_u32(nan), conv, nan_p);
 }
 
-/* NaN test on the raw halves (|h| > 0x7C00), one predicate bit per 32-bit lane. */
+/* Inf or NaN test on the raw halves (|h| >= 0x7C00), one predicate bit per 32-bit lane. */
 static inline mve_pred16_t arm_nn_dequantize_nan_p(const uint32x4_t bits)
 {
-    return vcmphiq_n_u32(vandq(bits, vdupq_n_u32(0x7FFFu)), 0x7C00u);
+    return vcmphiq_n_u32(vandq(bits, vdupq_n_u32(0x7FFFu)), 0x7BFFu);
 }
 #endif
 
@@ -167,8 +169,9 @@ arm_cmsis_nn_status arm_dequantize_f16_bits_f32(const uint16_t *input, float *ou
         /* Two halves per word, read through memcpy: arm_dequantize_f16_f32() passes float16_t storage */
         uint32_t pair;
         memcpy(&pair, &input[i], sizeof(pair));
-        /* A half is a NaN when its magnitude exceeds 0x7C00; adding 0x3FF carries such a lane into its top bit */
-        if ((((pair & 0x7FFF7FFFu) + 0x03FF03FFu) & 0x80008000u) == 0u)
+        /* A half is an Inf or NaN when its magnitude is at least 0x7C00; adding 0x400 carries such a lane into its
+           top bit */
+        if ((((pair & 0x7FFF7FFFu) + 0x04000400u) & 0x80008000u) == 0u)
         {
             float in;
             memcpy(&in, &pair, sizeof(in));

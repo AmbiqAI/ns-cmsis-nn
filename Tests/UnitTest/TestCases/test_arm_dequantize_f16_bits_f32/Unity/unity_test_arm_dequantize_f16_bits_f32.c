@@ -32,3 +32,7 @@ void tearDown(void) {}
 void test_all_halves_arm_dequantize_f16_bits_f32(void) { all_halves_arm_dequantize_f16_bits_f32(); }
 
 void test_arguments_arm_dequantize_f16_bits_f32(void) { arguments_arm_dequantize_f16_bits_f32(); }
+
+void test_special_pairs_arm_dequantize_f16_bits_f32(void) { special_pairs_arm_dequantize_f16_bits_f32(); }
+
+void test_alternative_half_arm_dequantize_f16_bits_f32(void) { alternative_half_arm_dequantize_f16_bits_f32(); }
