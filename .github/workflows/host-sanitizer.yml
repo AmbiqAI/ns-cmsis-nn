@@ -13,13 +13,10 @@ name: Host sanitizer unit tests
 # diagnostics, not one: "left shift of negative value", and "left shift of X by
 # N places cannot be represented in type 'int'", i.e. signed left-shift
 # overflow of a positive value. Both are well defined on every Arm target but
-# UB in C. The surviving reporting sites are the Arm-inherited s4 paths
-# (arm_nn_mat_mult_nt_t_s4.c, arm_nn_vec_mat_mult_t_s4.c,
-# arm_depthwise_conv_s4{,_opt}.c, arm_convolve_s4.c, arm_nn_mat_mult_kernel_s4_s16.c),
-# each a shift of a negative value. The softmax code (arm_nn_softmax_common_s8.c
-# and the header helpers arm_nn_exp_on_negative_values and
-# arm_nn_mult_by_power_of_two) is shift-base clean; the standalone
-# test_softmax_shift_probe builds it with shift-base enabled.
+# UB in C. No suite reports under shift-base any more (gcc-12, F32 and F16 on):
+# the int4 decode paths (#612) and the softmax code (#704) now shift unsigned
+# values, and test_softmax_shift_probe rebuilds the softmax objects with
+# shift-base enabled.
 # Earlier inventories also listed arm_elementwise_{add,sub,mul}*_s16.c and
 # arm_{add,sub,mul}_scalar_s16.c -- those reported only through the shared
 # pack macros, which now use the defined unsigned-shift idiom (#357) and can
@@ -28,8 +25,7 @@ name: Host sanitizer unit tests
 # entries all along. Zero reports is not zero sites: those TUs still inline
 # shift-base-instrumentable code from arm_nn_requantize and
 # arm_nn_divide_by_power_of_two, silent only because no test reaches the
-# offending shift counts. Narrowing the mask per-file so the clean files
-# regain protection is the open half of #357.
+# offending shift counts. Removing the mask is the open half of #357.
 #
 # shift-exponent stays on, so a shift count at or past the operand width is
 # still reported. LeakSanitizer is on (it is part of ASan by default), so a test

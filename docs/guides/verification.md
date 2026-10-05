@@ -93,8 +93,8 @@ licence.
   the x86 host, which selects the scalar implementations. Guard-byte
   checking on target is tracked in
   [helia-core-tester#68](https://github.com/AmbiqAI/helia-core-tester/issues/68).
-- **UBSan's `shift-base` check is masked** repo-wide (removing it fails 20
-  of the 144 suites; the sites are documented in the workflow). Related
+- **UBSan's `shift-base` check is masked** repo-wide, although no host suite
+  reports under it any more (see the workflow comment). Related
   residual shift-base UB on the M4 DSP path — invisible to the x86
   sanitizer, which cannot compile those sites — is tracked in
   [#357](https://github.com/AmbiqAI/ns-cmsis-nn/issues/357).
