@@ -206,7 +206,8 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                         }
                     }
 #if ARM_NN_DEPTH1_STORE
-                    else if (kernel_ch == 1)
+                    /* From 4 taps up one call per pixel beats a call per tap */
+                    else if (kernel_ch == 1 && kernel_x * kernel_y >= 4)
                     {
                         im2col_buf = arm_nn_im2col_depth1_s8(im2col_buf,
                                                              input_data + i_group,

@@ -62,8 +62,8 @@ static arm_cmsis_nn_status arm_depthwise_conv_fast_s16_im2col(const cmsis_nn_con
                                                               const cmsis_nn_dims *output_dims,
                                                               int16_t *output);
 
-/* One channel leaves the im2col nothing to amortize, so arm_depthwise_conv_s16() takes the layer. The im2col kernel
-   below stays a function of its own, so its code is the same as without this choice. */
+/* One channel leaves the im2col nothing to amortize, so from 3 taps up arm_depthwise_conv_s16() takes the layer. The
+   im2col kernel below stays a function of its own, so its code is the same as without this choice. */
 arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_dw_conv_params *dw_conv_params,
                                                 const cmsis_nn_per_channel_quant_params *quant_params,
@@ -79,8 +79,8 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
     /* Only a layer the im2col kernel would accept, so that every other input still gets its status, and only one whose
        sizes fit the 16 bits arm_depthwise_conv_s16() keeps them in */
     if (input_dims->c == 1 && output_dims->c == 1 && dw_conv_params->ch_mult == 1 &&
-        filter_dims->w * filter_dims->h < MAX_COL_COUNT && dw_conv_params->dilation.h == 1 &&
-        dw_conv_params->dilation.w >= 1 &&
+        filter_dims->w * filter_dims->h >= 3 && filter_dims->w * filter_dims->h < MAX_COL_COUNT &&
+        dw_conv_params->dilation.h == 1 && dw_conv_params->dilation.w >= 1 &&
         (ctx->buf != NULL || arm_depthwise_conv_fast_s16_get_buffer_size(input_dims, filter_dims) == 0) &&
         (uint32_t)input_dims->n <= UINT16_MAX && (uint32_t)input_dims->w <= UINT16_MAX &&
         (uint32_t)input_dims->h <= UINT16_MAX && (uint32_t)output_dims->w <= UINT16_MAX &&
