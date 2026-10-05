@@ -1941,8 +1941,145 @@ __STATIC_FORCEINLINE void arm_nn_write_s8x4_ia(int8_t **in, int32_t value)
     *in += 4;
 }
 
+#if !defined(ARM_NN_WORD_COPY) && defined(__clang__) && !defined(__ARMCC_VERSION) &&                                   \
+    defined(__ARM_FEATURE_UNALIGNED) &&                                                                                \
+    (defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__))
+    /* ATfE 22.1 ships only size-optimised C libraries for these architectures, whose memcpy and memset move one byte
+     * at a time, so the copy and fill helpers below use arm_nn_copy_words_s8() and arm_nn_fill_words_s8() instead.
+     * Other toolchains and architectures keep their C library. A build or test may also define the macro itself. */
+    #define ARM_NN_WORD_COPY
+#endif
+
+#if defined(ARM_NN_WORD_COPY)
+
 /**
- * @brief           memset optimized for MVE
+ * @brief           Copy bytes a word at a time.
+ * @param[out]      dst         Destination pointer. Any alignment.
+ * @param[in]       src         Source pointer. Any alignment; must not overlap dst.
+ * @param[in]       block_size  Number of bytes to copy.
+ *
+ * @details         Kept out of line, so that clang does not unroll and version it into every caller's loops, and
+ *                  unrolled to four words with a loop-free tail, so that clang does not turn it back into a memcpy
+ *                  call.
+ */
+__attribute__((noinline, unused)) static void arm_nn_copy_words_s8(int8_t *dst, const int8_t *src, uint32_t block_size)
+{
+    /* Copies of a few bytes (im2col with an input depth of 1 to 3) skip the word loop */
+    if (block_size < 4)
+    {
+        if (block_size & 2)
+        {
+            dst[0] = src[0];
+            dst[1] = src[1];
+            dst += 2;
+            src += 2;
+        }
+        if (block_size & 1)
+        {
+            dst[0] = src[0];
+        }
+        return;
+    }
+    while (block_size >= 16)
+    {
+        const int32_t a = arm_nn_read_s8x4_ia(&src);
+        const int32_t b = arm_nn_read_s8x4_ia(&src);
+        const int32_t c = arm_nn_read_s8x4_ia(&src);
+        const int32_t d = arm_nn_read_s8x4_ia(&src);
+        arm_nn_write_s8x4_ia(&dst, a);
+        arm_nn_write_s8x4_ia(&dst, b);
+        arm_nn_write_s8x4_ia(&dst, c);
+        arm_nn_write_s8x4_ia(&dst, d);
+        block_size -= 16;
+    }
+    if (block_size & 8)
+    {
+        const int32_t a = arm_nn_read_s8x4_ia(&src);
+        const int32_t b = arm_nn_read_s8x4_ia(&src);
+        arm_nn_write_s8x4_ia(&dst, a);
+        arm_nn_write_s8x4_ia(&dst, b);
+    }
+    if (block_size & 4)
+    {
+        arm_nn_write_s8x4_ia(&dst, arm_nn_read_s8x4_ia(&src));
+    }
+    if (block_size & 2)
+    {
+        dst[0] = src[0];
+        dst[1] = src[1];
+        dst += 2;
+        src += 2;
+    }
+    if (block_size & 1)
+    {
+        dst[0] = src[0];
+    }
+}
+
+/**
+ * @brief           Fill bytes with a repeating four-byte pattern, a word at a time.
+ * @param[out]      dst         Destination pointer. Any alignment.
+ * @param[in]       pattern     Four bytes, stored in memory order and repeated from dst onwards.
+ * @param[in]       block_size  Number of bytes to fill.
+ *
+ * @details         Out of line and unrolled for the same reasons as arm_nn_copy_words_s8().
+ */
+__attribute__((noinline, unused)) static void
+arm_nn_fill_words_s8(int8_t *dst, const int32_t pattern, uint32_t block_size)
+{
+    /* Hide the pattern's value: with a constant fill (zero padding, say) clang would turn the stores below back
+       into a memset call */
+    int32_t word = pattern;
+    __asm("" : "+r"(word));
+    int8_t bytes[4];
+    memcpy(bytes, &word, 4);
+    /* Fills of a few bytes skip the word loop */
+    if (block_size < 4)
+    {
+        if (block_size & 2)
+        {
+            dst[0] = bytes[0];
+            dst[1] = bytes[1];
+            dst += 2;
+        }
+        if (block_size & 1)
+        {
+            dst[0] = bytes[block_size & 2];
+        }
+        return;
+    }
+    while (block_size >= 16)
+    {
+        arm_nn_write_s8x4_ia(&dst, word);
+        arm_nn_write_s8x4_ia(&dst, word);
+        arm_nn_write_s8x4_ia(&dst, word);
+        arm_nn_write_s8x4_ia(&dst, word);
+        block_size -= 16;
+    }
+    if (block_size & 8)
+    {
+        arm_nn_write_s8x4_ia(&dst, word);
+        arm_nn_write_s8x4_ia(&dst, word);
+    }
+    if (block_size & 4)
+    {
+        arm_nn_write_s8x4_ia(&dst, word);
+    }
+    if (block_size & 2)
+    {
+        dst[0] = bytes[0];
+        dst[1] = bytes[1];
+        dst += 2;
+    }
+    if (block_size & 1)
+    {
+        dst[0] = bytes[block_size & 2];
+    }
+}
+#endif
+
+/**
+ * @brief           memset, a vector loop on MVE and a word loop where ARM_NN_WORD_COPY is defined
  * @param[in, out]  dst         Destination pointer
  * @param[in]       val         Value to set
  * @param[in]       block_size  Number of bytes to copy.
@@ -1960,13 +2097,15 @@ __STATIC_FORCEINLINE void arm_memset_s8(int8_t *dst, const int8_t val, uint32_t 
                    : [in] "+r"(dst)
                    : [cnt] "r"(block_size), [set_val] "r"(val)
                    : "q0", "memory", "r14");
+#elif defined(ARM_NN_WORD_COPY)
+    arm_nn_fill_words_s8(dst, (int32_t)((uint8_t)val * 0x01010101U), block_size);
 #else
     memset(dst, val, block_size);
 #endif
 }
 
 /**
- * @brief           memset optimized for MVE for 16-bit data.
+ * @brief           memset for 16-bit data, a vector loop on MVE and a word loop where ARM_NN_WORD_COPY is defined
  * @param[in, out]  dst         Destination pointer.
  * @param[in]       val         16-bit value to set.
  * @param[in]       block_size  Number of int16_t values to set.
@@ -1987,6 +2126,8 @@ __STATIC_FORCEINLINE void arm_memset_s16(int16_t *dst, const int16_t val, uint32
         : [in] "+r"(dst)
         : [cnt] "r"(block_size), [set_val] "r"(val)
         : "q0", "memory", "r14");
+#elif defined(ARM_NN_WORD_COPY)
+    arm_nn_fill_words_s8((int8_t *)dst, (int32_t)((uint16_t)val * 0x00010001U), block_size * sizeof(int16_t));
 #else
     for (uint32_t i = 0; i < block_size; i++)
     {
@@ -2638,7 +2779,7 @@ __STATIC_FORCEINLINE int16_t arm_nn_divide_by_power_of_two_s16(int16_t x, int ex
 }
 
 /**
- * @brief           memcpy optimized for MVE
+ * @brief           memcpy, a vector loop on MVE and a word loop where ARM_NN_WORD_COPY is defined
  * @param[in, out]  dst         Destination pointer
  * @param[in]       src         Source pointer.
  * @param[in]       block_size  Number of bytes to copy.
@@ -2656,13 +2797,15 @@ __STATIC_FORCEINLINE void arm_memcpy_s8(int8_t *__RESTRICT dst, const int8_t *__
                    : [in] "+r"(src), [out] "+r"(dst)
                    : [cnt] "r"(block_size)
                    : "q0", "memory", "r14");
+#elif defined(ARM_NN_WORD_COPY)
+    arm_nn_copy_words_s8(dst, src, block_size);
 #else
     memcpy(dst, src, block_size);
 #endif
 }
 
 /**
- * @brief           memcpy optimized for MVE
+ * @brief           memcpy of int16_t values through arm_memcpy_s8()
  * @param[in, out]  dst         Destination pointer
  * @param[in]       src         Source pointer.
  * @param[in]       block_size  Number of values to copy.
@@ -2674,7 +2817,7 @@ __STATIC_FORCEINLINE void arm_memcpy_s16(int16_t *__RESTRICT dst, const int16_t 
 }
 
 /**
- * @brief           memcpy optimized for MVE
+ * @brief           memcpy of int32_t values through arm_memcpy_s8()
  * @param[in, out]  dst         Destination pointer
  * @param[in]       src         Source pointer.
  * @param[in]       block_size  Number of values to copy.
@@ -2686,7 +2829,7 @@ __STATIC_FORCEINLINE void arm_memcpy_s32(int32_t *__RESTRICT dst, const int32_t 
 }
 
 /**
- * @brief           memcpy wrapper for int16
+ * @brief           memcpy wrapper for int16, a word loop where ARM_NN_WORD_COPY is defined
  * @param[in, out]  dst         Destination pointer
  * @param[in]       src         Source pointer.
  * @param[in]       block_size  Number of bytes to copy.
@@ -2694,7 +2837,11 @@ __STATIC_FORCEINLINE void arm_memcpy_s32(int32_t *__RESTRICT dst, const int32_t 
  */
 __STATIC_FORCEINLINE void arm_memcpy_q15(int16_t *__RESTRICT dst, const int16_t *__RESTRICT src, uint32_t block_size)
 {
+#if defined(ARM_NN_WORD_COPY)
+    arm_nn_copy_words_s8((int8_t *)dst, (const int8_t *)src, block_size);
+#else
     memcpy(dst, src, block_size);
+#endif
 }
 
 #if defined(ARM_MATH_MVEI)
