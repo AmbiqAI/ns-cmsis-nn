@@ -1941,6 +1941,30 @@ __STATIC_FORCEINLINE void arm_nn_write_s8x4_ia(int8_t **in, int32_t value)
     *in += 4;
 }
 
+#if !defined(ARM_MATH_MVEI) && defined(__clang__) && !defined(__ARMCC_VERSION) && defined(__ARM_FEATURE_UNALIGNED)
+    /* ATfE ships only size-optimised armv7-m C libraries, whose memcpy and memset move one byte at a time, so clang
+     * builds without MVE copy and fill with arm_nn_copy_words_s8() and arm_nn_fill_words_s8(). GCC keeps newlib's
+     * word-unrolled memcpy and memset. */
+    #define ARM_NN_WORD_COPY
+#endif
+
+/**
+ * @brief           Copy bytes a word at a time.
+ * @param[out]      dst         Destination pointer. Any alignment on a core with unaligned word access.
+ * @param[in]       src         Source pointer. Any alignment on a core with unaligned word access; must not overlap
+ *                              dst.
+ * @param[in]       block_size  Number of bytes to copy.
+ */
+void arm_nn_copy_words_s8(int8_t *dst, const int8_t *src, uint32_t block_size);
+
+/**
+ * @brief           Fill bytes with a repeating four-byte pattern, a word at a time.
+ * @param[out]      dst         Destination pointer. Any alignment on a core with unaligned word access.
+ * @param[in]       pattern     Four bytes, stored in memory order and repeated.
+ * @param[in]       block_size  Number of bytes to fill.
+ */
+void arm_nn_fill_words_s8(int8_t *dst, const int32_t pattern, uint32_t block_size);
+
 /**
  * @brief           memset optimized for MVE
  * @param[in, out]  dst         Destination pointer
@@ -1960,6 +1984,8 @@ __STATIC_FORCEINLINE void arm_memset_s8(int8_t *dst, const int8_t val, uint32_t 
                    : [in] "+r"(dst)
                    : [cnt] "r"(block_size), [set_val] "r"(val)
                    : "q0", "memory", "r14");
+#elif defined(ARM_NN_WORD_COPY)
+    arm_nn_fill_words_s8(dst, (int32_t)((uint8_t)val * 0x01010101U), block_size);
 #else
     memset(dst, val, block_size);
 #endif
@@ -1987,6 +2013,8 @@ __STATIC_FORCEINLINE void arm_memset_s16(int16_t *dst, const int16_t val, uint32
         : [in] "+r"(dst)
         : [cnt] "r"(block_size), [set_val] "r"(val)
         : "q0", "memory", "r14");
+#elif defined(ARM_NN_WORD_COPY)
+    arm_nn_fill_words_s8((int8_t *)dst, (int32_t)((uint16_t)val * 0x00010001U), block_size * sizeof(int16_t));
 #else
     for (uint32_t i = 0; i < block_size; i++)
     {
@@ -2655,6 +2683,8 @@ __STATIC_FORCEINLINE void arm_memcpy_s8(int8_t *__RESTRICT dst, const int8_t *__
                    : [in] "+r"(src), [out] "+r"(dst)
                    : [cnt] "r"(block_size)
                    : "q0", "memory", "r14");
+#elif defined(ARM_NN_WORD_COPY)
+    arm_nn_copy_words_s8(dst, src, block_size);
 #else
     memcpy(dst, src, block_size);
 #endif
@@ -2693,7 +2723,11 @@ __STATIC_FORCEINLINE void arm_memcpy_s32(int32_t *__RESTRICT dst, const int32_t 
  */
 __STATIC_FORCEINLINE void arm_memcpy_q15(int16_t *__RESTRICT dst, const int16_t *__RESTRICT src, uint32_t block_size)
 {
+#if defined(ARM_NN_WORD_COPY)
+    arm_nn_copy_words_s8((int8_t *)dst, (const int8_t *)src, block_size);
+#else
     memcpy(dst, src, block_size);
+#endif
 }
 
 #if defined(ARM_MATH_MVEI)
