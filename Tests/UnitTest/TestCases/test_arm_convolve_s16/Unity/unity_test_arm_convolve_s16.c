@@ -76,3 +76,5 @@ void test_int16xint8_kernel_less_than_9_arm_convolve_s16(void) { int16xint8_kern
 void test_int16xint8_1x1_ns_np_nd_arm_convolve_s16(void) { int16xint8_1x1_ns_np_nd_arm_convolve_s16(); }
 
 void test_weights_at_gap_arm_convolve_s16(void) { weights_at_gap_arm_convolve_s16(); }
+
+void test_group_arg_errors_arm_convolve_s16(void) { group_arg_errors_arm_convolve_s16(); }
