@@ -3842,14 +3842,11 @@ arm_cmsis_nn_status arm_nn_fill_f16(float16_t value, float16_t *output, int32_t 
  * @ingroup Quantization
  * @brief Widen a float16 vector to float32.
  *
- * Bit-exact widening of every input class: finite values, subnormals (normal in float32), +/-0 and
- * +/-Inf convert exactly. No accumulation, no rounding. NaN behavior: on every leg a NaN stays a NaN with
- * its sign, quiet bit and payload preserved bit-exactly (a signaling NaN stays signaling). The scalar leg
- * widens on integer lanes and raises no floating-point exception flag. The MVE leg converts each 8-element
- * block with the vector VCVT first and then rebuilds the NaN lanes from the half's bits (per 4-lane
- * vector, 8 elements per main-loop block), so a signaling-NaN input may leave FPSCR.IOC (invalid
- * operation, cumulative) set on that leg; no trap, and the result is the same bits. Input and output
- * must not overlap. Serves the f16-weights DEQUANTIZE op (`kws_float_fp16_weights`).
+ * Gives what the hardware half-to-single conversion gives for each element: with FPSCR.AHP clear, finite
+ * values, subnormals (normal in float32), +/-0 and +/-Inf convert exactly. No accumulation, no rounding.
+ * Implemented by arm_dequantize_f16_bits_f32(), whose documentation gives the NaN and FPSCR behavior of each path
+ * (on the MVE vector path every NaN becomes the default NaN). Input and output must not overlap. Serves the
+ * f16-weights DEQUANTIZE op (`kws_float_fp16_weights`).
  *
  * @param[in]  input       Pointer to the float16 input vector.
  * @param[out] output      Pointer to the float32 output vector.

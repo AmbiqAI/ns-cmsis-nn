@@ -7651,6 +7651,35 @@ arm_cmsis_nn_status
 arm_dequantize_s16_f32(const int16_t *input, float *output, int32_t size, int32_t zero_point, float scale);
 
 /**
+ * @brief Widen float16 values, given as their raw IEEE 754 binary16 bits, to float32.
+ *
+ * Each element gives what the path's hardware half-to-single conversion instruction gives. With FPSCR.AHP clear,
+ * finite values, subnormals (normal in float32), +/-0 and +/-Inf convert exactly, whatever FPSCR.FZ and FZ16
+ * hold. Needs no float16 support from the toolchain or the build (ARM_NN_ENABLE_F16 may be off), so float32 code
+ * can widen stored float16 weights. The inline arm_nn_dequantize_f16_bits_f32 in arm_nnsupportfunctions.h is the
+ * same conversion without the argument checks, provided its caller compiles with the library's VCVT form: the
+ * ARM_NN_GAS_* verdict reaches users of an INTERFACE (module) build of the library; users of a static-library
+ * build must pass it themselves, or NaN payloads can differ on the MVE path. Paths:
+ *  - MVE float16, ARM_NN_ENABLE_F16 and no ARM_MATH_AUTOVECTORIZE: the vector VCVTB. Every NaN becomes the
+ *    default NaN (0x7FC00000), except where the assembler needs the scalar form instead (#427, see
+ *    Internal/arm_nn_vcvt_f16.h), which treats a NaN as the next path does.
+ *  - Otherwise, a little-endian M-profile core with an FPU: the scalar VCVTB/VCVTT, two elements per word. A NaN
+ *    keeps its sign and payload and comes back quiet; FPSCR.DN set gives the default NaN instead.
+ *  - Otherwise: integer widening with the scalar VCVTB's result at reset FPSCR.
+ *
+ * On the two hardware paths FPSCR.AHP set reads exponent 31 as a number, and a signaling NaN sets FPSCR.IOC.
+ * arm_dequantize_f16_f32() calls this function. Input and output must not overlap.
+ *
+ * @param[in]   input       Pointer to the binary16 bit patterns.
+ * @param[out]  output      Pointer to the float32 output array, 4-byte aligned like any float storage.
+ * @param[in]   block_size  Number of elements (0 is a no-op).
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS`, or `ARM_CMSIS_NN_ARG_ERROR` when @p block_size is negative or a
+ *         pointer is NULL with a non-zero @p block_size.
+ */
+arm_cmsis_nn_status arm_dequantize_f16_bits_f32(const uint16_t *input, float *output, int32_t block_size);
+
+/**
  * @defgroup StridedSlice Slicing Functions:
  *
  */
