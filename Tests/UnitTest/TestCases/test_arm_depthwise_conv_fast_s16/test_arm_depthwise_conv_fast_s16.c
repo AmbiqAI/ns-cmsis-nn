@@ -1375,9 +1375,10 @@ void operand_bounds_arm_depthwise_conv_fast_s16(void)
 #endif
 }
 
-/* An input depth of 1 goes to arm_depthwise_conv_s16() where ARM_NN_DEPTH1_STORE is set (ATfE builds for armv7-m,
-   armv7e-m and armv8-m.main); other builds run the im2col path here. At depths 1 and 2 the result must match
-   arm_depthwise_conv_s16() on the same layer, with and without padding, stride and dilation. */
+/* An input depth of 1 with 3 or more taps goes to arm_depthwise_conv_s16() where ARM_NN_DEPTH1_STORE is set (ATfE
+   builds for armv7-m, armv7e-m and armv8-m.main); fewer taps, and other builds, run the im2col path here. At depths 1
+   and 2 the result must match arm_depthwise_conv_s16() on the same layer, with and without padding, stride and
+   dilation, on both sides of the tap threshold. */
 void depth_one_arm_depthwise_conv_fast_s16(void)
 {
     typedef struct
@@ -1389,6 +1390,9 @@ void depth_one_arm_depthwise_conv_fast_s16(void)
         {9, 9, 3, 3, 1, 1, 1, 1},
         {10, 12, 3, 3, 2, 1, 1, 1},
         {5, 16, 1, 3, 1, 0, 2, 2},
+        {1, 40, 1, 1, 1, 0, 0, 1}, /* 1 tap */
+        {1, 40, 1, 2, 1, 0, 0, 1}, /* 2 taps */
+        {6, 9, 2, 1, 1, 0, 0, 1},  /* 2 taps in a column */
     };
     static int16_t input[320];
     static int16_t out_fast[320];
