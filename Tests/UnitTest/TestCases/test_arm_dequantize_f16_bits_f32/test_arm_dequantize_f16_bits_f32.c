@@ -29,15 +29,16 @@ static uint32_t dq_reference(const uint32_t h)
     return sign | bits;
 }
 
-/* Every half bit pattern, in blocks of varying size so that vector tails of every length run. The second pass
-   starts one element into the buffer, so each half is also converted at an odd index, next to other partners in
-   the two-halves-per-word path. */
-static void dq_sweep(const int32_t offset)
+/* Every half bit pattern, in blocks of varying size so that vector tails of every length run. The first pass starts
+   each block at the start of the input array; the second ends it at the end of the array, so the start moves
+   between even and odd indexes (other partners in the two-halves-per-word path) and a read past the input is a
+   sanitizer error on the host. The output has a guard word on both sides. */
+static void dq_sweep(const int at_end)
 {
-    static uint16_t buffer[1024 + 1];
-    static float out[1024 + 1];
-    uint16_t *in = buffer + offset;
+    static uint16_t buffer[1024];
+    static float out[1 + 1024 + 1];
     const int32_t blocks[] = {1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 33, 64, 127, 1024};
+    const uint32_t guard = 0xDEADBEEFu;
     uint32_t h = 0;
     size_t b = 0;
     while (h < 0x10000u)
@@ -47,21 +48,24 @@ static void dq_sweep(const int32_t offset)
         {
             n = (int32_t)(0x10000u - h);
         }
+        uint16_t *in = at_end ? buffer + (1024 - n) : buffer;
         for (int32_t i = 0; i < n; i++)
         {
             in[i] = (uint16_t)(h + (uint32_t)i);
         }
-        const uint32_t guard = 0xDEADBEEFu;
-        memcpy(&out[n], &guard, sizeof(guard));
-        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_dequantize_f16_bits_f32(in, out, n));
+        memcpy(&out[0], &guard, sizeof(guard));
+        memcpy(&out[1 + n], &guard, sizeof(guard));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_dequantize_f16_bits_f32(in, out + 1, n));
         for (int32_t i = 0; i < n; i++)
         {
             uint32_t got;
-            memcpy(&got, &out[i], sizeof(got));
+            memcpy(&got, &out[1 + i], sizeof(got));
             TEST_ASSERT_EQUAL_HEX32(dq_reference(in[i]), got);
         }
-        uint32_t after;
-        memcpy(&after, &out[n], sizeof(after));
+        uint32_t before, after;
+        memcpy(&before, &out[0], sizeof(before));
+        memcpy(&after, &out[1 + n], sizeof(after));
+        TEST_ASSERT_EQUAL_HEX32(guard, before);
         TEST_ASSERT_EQUAL_HEX32(guard, after);
         h += (uint32_t)n;
     }
