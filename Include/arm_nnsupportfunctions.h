@@ -1968,9 +1968,9 @@ __STATIC_FORCEINLINE void arm_nn_write_s8x4_ia(int8_t **in, int32_t value)
 #endif
 
 /* Where ARM_NN_WORD_COPY makes the copy and fill helpers calls (it does not on MVE, whose helpers stay inline loops),
- * a depth-1 input avoids a call per im2col tap: arm_convolve_s8 and arm_convolve_s16 fill each output pixel's taps
- * with arm_nn_im2col_depth1_s8/_s16, and arm_depthwise_conv_fast_s16 hands the layer to arm_depthwise_conv_s16.
- * Deeper inputs run the original loops. */
+ * a filter depth of 1 avoids a call per im2col tap: arm_convolve_s8 fills each output pixel's taps with
+ * arm_nn_im2col_depth1_s8, and arm_depthwise_conv_fast_s16 hands a one-channel layer to arm_depthwise_conv_s16.
+ * Other layers run the original code. */
 #if defined(ARM_NN_WORD_COPY) && !defined(ARM_MATH_MVEI)
     #define ARM_NN_DEPTH1_STORE (1)
 #else
@@ -2010,50 +2010,6 @@ __attribute__((noinline, unused)) static int8_t *arm_nn_im2col_depth1_s8(int8_t 
                                                                          const int32_t dilation_x,
                                                                          const int32_t dilation_y,
                                                                          const int8_t pad)
-{
-    for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
-    {
-        const int32_t k_y = base_y + dilation_y * i_ker_y;
-        for (int32_t i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
-        {
-            const int32_t k_x = base_x + dilation_x * i_ker_x;
-            *dst++ =
-                (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x) ? pad : src[(k_y * input_x + k_x) * stride];
-        }
-    }
-    return dst;
-}
-
-/**
- * @brief           arm_nn_im2col_depth1_s8() for int16 elements.
- *
- * @param[out]      dst         First tap to write; kernel_x * kernel_y taps are written
- * @param[in]       src         Element (0, 0) of the channel to gather
- * @param[in]       stride      Elements between horizontally adjacent input pixels
- * @param[in]       input_x     Input width
- * @param[in]       input_y     Input height
- * @param[in]       base_x      Input x of the first tap (may be negative)
- * @param[in]       base_y      Input y of the first tap (may be negative)
- * @param[in]       kernel_x    Taps per row
- * @param[in]       kernel_y    Rows of taps
- * @param[in]       dilation_x  Input step between taps in a row
- * @param[in]       dilation_y  Input step between rows of taps
- * @param[in]       pad         Value of a padded tap
- *
- * @return          The tap after the last one written.
- */
-__attribute__((noinline, unused)) static int16_t *arm_nn_im2col_depth1_s16(int16_t *dst,
-                                                                           const int16_t *src,
-                                                                           const int32_t stride,
-                                                                           const int32_t input_x,
-                                                                           const int32_t input_y,
-                                                                           const int32_t base_x,
-                                                                           const int32_t base_y,
-                                                                           const int32_t kernel_x,
-                                                                           const int32_t kernel_y,
-                                                                           const int32_t dilation_x,
-                                                                           const int32_t dilation_y,
-                                                                           const int16_t pad)
 {
     for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
     {

@@ -1510,5 +1510,31 @@ void depth_one_arm_depthwise_conv_fast_s16(void)
                                                       bias,
                                                       &plain_output_dims,
                                                       out_fast));
+
+        /* A channel multiplier other than 1 is outside the kernel's contract; it must not make the kernel write past
+           the output_dims elements */
+        const cmsis_nn_dw_conv_params mult2 = {.input_offset = 0,
+                                               .output_offset = 0,
+                                               .ch_mult = 2,
+                                               .stride = {1, 1},
+                                               .padding = {0, 0},
+                                               .dilation = {1, 1},
+                                               .activation = {-32768, 32767}};
+        memset(out_fast, 0x55, sizeof(out_fast));
+        (void)arm_depthwise_conv_fast_s16(&ctx,
+                                          &mult2,
+                                          &quant_params,
+                                          &input_dims,
+                                          input,
+                                          &filter_dims,
+                                          kernel,
+                                          &bias_dims,
+                                          bias,
+                                          &plain_output_dims,
+                                          out_fast);
+        for (int32_t i = 7 * 7; i < (int32_t)(sizeof(out_fast) / sizeof(out_fast[0])); i++)
+        {
+            TEST_ASSERT_EQUAL_HEX16(0x5555, (uint16_t)out_fast[i]);
+        }
     }
 }
