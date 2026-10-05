@@ -1964,7 +1964,7 @@ __STATIC_FORCEINLINE void arm_nn_write_s8x4_ia(int8_t **in, int32_t value)
  */
 __attribute__((noinline, unused)) static void arm_nn_copy_words_s8(int8_t *dst, const int8_t *src, uint32_t block_size)
 {
-    /* Copies of a few bytes (im2col with an input depth of 1 or 2) skip the word loop */
+    /* Copies of a few bytes (im2col with an input depth of 1 to 3) skip the word loop */
     if (block_size < 4)
     {
         if (block_size & 2)
