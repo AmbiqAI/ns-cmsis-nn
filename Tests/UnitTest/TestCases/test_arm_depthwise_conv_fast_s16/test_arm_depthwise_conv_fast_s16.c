@@ -1511,8 +1511,10 @@ void depth_one_arm_depthwise_conv_fast_s16(void)
                                                       &plain_output_dims,
                                                       out_fast));
 
-        /* A channel multiplier other than 1 is outside the kernel's contract; it must not make the kernel write past
-           the output_dims elements */
+#if defined(ARM_MATH_DSP)
+        /* A channel multiplier other than 1 is outside the kernel's contract; the im2col kernel ignores it, so it must
+           not make the kernel write past the output_dims elements. (Without DSP the kernel is the generic one, which
+           honors the multiplier.) */
         const cmsis_nn_dw_conv_params mult2 = {.input_offset = 0,
                                                .output_offset = 0,
                                                .ch_mult = 2,
@@ -1536,5 +1538,6 @@ void depth_one_arm_depthwise_conv_fast_s16(void)
         {
             TEST_ASSERT_EQUAL_HEX16(0x5555, (uint16_t)out_fast[i]);
         }
+#endif
     }
 }
