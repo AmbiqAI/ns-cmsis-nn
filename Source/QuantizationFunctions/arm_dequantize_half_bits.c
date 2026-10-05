@@ -9,7 +9,7 @@
 
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
- * Title:        arm_dequantize_f16_bits_f32.c
+ * Title:        arm_dequantize_half_bits.c
  * Description:  Widen float16, given as raw IEEE bits, to float32, bit-exact
  *
  * $Date:        5 October 2026
