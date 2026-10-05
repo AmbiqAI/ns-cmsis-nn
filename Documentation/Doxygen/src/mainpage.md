@@ -120,6 +120,10 @@ For a CMSIS-NN file compiled as `armclang -mcpu=cortex-m4 --target=arm-arm-none-
  - `ARM_NN_ENABLE_F16`
    - Enables the experimental `float16` API and implementation set.
 
+ - `ARM_NN_WORD_COPY`
+   - Makes the non-MVE `arm_memcpy_s8`/`_s16`/`_s32`/`_q15`, `arm_memset_s8` and `arm_memset_s16` copy and fill a word at a time instead of calling the C library.
+   - Defined by default for clang (not armclang) with unaligned access on armv7-m, armv7e-m and armv8-m.main, where ATfE 22.1's C library moves one byte at a time. Requires unaligned word access.
+
  - `NN_DISABLE_SPECIALIZATION`
    - Disables optional shape/layout-specific fast paths and forces the corresponding generic implementation path.
    - Useful when validating specialized kernels against the generic reference-style path.

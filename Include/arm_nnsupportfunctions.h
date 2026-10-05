@@ -1944,9 +1944,9 @@ __STATIC_FORCEINLINE void arm_nn_write_s8x4_ia(int8_t **in, int32_t value)
 #if !defined(ARM_NN_WORD_COPY) && defined(__clang__) && !defined(__ARMCC_VERSION) &&                                   \
     defined(__ARM_FEATURE_UNALIGNED) &&                                                                                \
     (defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__))
-    /* ATfE ships only size-optimised C libraries for these architectures, whose memcpy and memset move one byte at a
-     * time, so the copy and fill helpers below use arm_nn_copy_words_s8() and arm_nn_fill_words_s8() instead. Other
-     * toolchains and architectures keep their C library. A build or test may also define ARM_NN_WORD_COPY itself. */
+    /* ATfE 22.1 ships only size-optimised C libraries for these architectures, whose memcpy and memset move one byte
+     * at a time, so the copy and fill helpers below use arm_nn_copy_words_s8() and arm_nn_fill_words_s8() instead.
+     * Other toolchains and architectures keep their C library. A build or test may also define the macro itself. */
     #define ARM_NN_WORD_COPY
 #endif
 
@@ -2044,7 +2044,7 @@ arm_nn_fill_words_s8(int8_t *dst, const int32_t pattern, uint32_t block_size)
 #endif
 
 /**
- * @brief           memset optimized for MVE
+ * @brief           memset, a vector loop on MVE and a word loop where ARM_NN_WORD_COPY is defined
  * @param[in, out]  dst         Destination pointer
  * @param[in]       val         Value to set
  * @param[in]       block_size  Number of bytes to copy.
@@ -2070,7 +2070,7 @@ __STATIC_FORCEINLINE void arm_memset_s8(int8_t *dst, const int8_t val, uint32_t 
 }
 
 /**
- * @brief           memset optimized for MVE for 16-bit data.
+ * @brief           memset for 16-bit data, a vector loop on MVE and a word loop where ARM_NN_WORD_COPY is defined
  * @param[in, out]  dst         Destination pointer.
  * @param[in]       val         16-bit value to set.
  * @param[in]       block_size  Number of int16_t values to set.
@@ -2743,7 +2743,7 @@ __STATIC_FORCEINLINE int16_t arm_nn_divide_by_power_of_two_s16(int16_t x, int ex
 }
 
 /**
- * @brief           memcpy optimized for MVE
+ * @brief           memcpy, a vector loop on MVE and a word loop where ARM_NN_WORD_COPY is defined
  * @param[in, out]  dst         Destination pointer
  * @param[in]       src         Source pointer.
  * @param[in]       block_size  Number of bytes to copy.
@@ -2793,7 +2793,7 @@ __STATIC_FORCEINLINE void arm_memcpy_s32(int32_t *__RESTRICT dst, const int32_t 
 }
 
 /**
- * @brief           memcpy wrapper for int16
+ * @brief           memcpy wrapper for int16, a word loop where ARM_NN_WORD_COPY is defined
  * @param[in, out]  dst         Destination pointer
  * @param[in]       src         Source pointer.
  * @param[in]       block_size  Number of bytes to copy.

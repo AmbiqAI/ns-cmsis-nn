@@ -16,9 +16,9 @@
    word-at-a-time path on every toolchain, not only on the clang builds that select it by default. MVE builds keep
    their own path. */
 
-/* Every size residue modulo 16 and a long size, at every source and destination offset within a word. The source
-   ends at the end of its array, so a read past the source is a sanitizer error on the host, and the destination
-   has guard bytes on both sides. */
+/* Every size residue modulo 16 and a long size, at every source and destination offset within a word. At source
+   offset 0 the source ends at the end of its array, so a read past it is a sanitizer error on the host; the
+   destination has guard bytes on both sides. */
 #define CF_MAX (1027)
 #define CF_GUARD (8)
 #define CF_FILL (0x6B)
