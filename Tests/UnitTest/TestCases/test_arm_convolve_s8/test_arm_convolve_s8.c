@@ -3336,6 +3336,8 @@ static const low_depth_case_t small_cin_cases[] = {
     {2, 11, 9, 3, 3, 3, 12, 2, 2, 1, 1, 1, 1, 6, 5, 128, -128, 127},
     /* 3x3 input depth 3 stride 2, SAME with the extra padding on the right and bottom edge. */
     {1, 10, 10, 3, 3, 3, 8, 2, 2, 0, 0, 1, 1, 5, 5, 128, -128, 127},
+    /* 1x3 input depth 1, padded: below the depth-1 fill's tap threshold where ARM_NN_DEPTH1_STORE is set. */
+    {1, 1, 40, 1, 1, 3, 8, 1, 1, 0, 1, 1, 1, 1, 40, 5, -128, 127},
     /* 1x9 input depth 1 stride 2 pad 3 (right edge padded by 4). */
     {1, 1, 40, 1, 1, 9, 16, 1, 2, 0, 3, 1, 1, 1, 20, -24, -128, 127},
     /* Non-3-row kernels in the interior; activation clamps inside the int8 range. */

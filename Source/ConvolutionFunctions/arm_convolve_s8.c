@@ -205,6 +205,24 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                             }
                         }
                     }
+#if ARM_NN_DEPTH1_STORE
+                    /* From 4 taps up one call per pixel beats a call per tap */
+                    else if (kernel_ch == 1 && kernel_x * kernel_y >= 4)
+                    {
+                        im2col_buf = arm_nn_im2col_depth1_s8(im2col_buf,
+                                                             input_data + i_group,
+                                                             input_ch,
+                                                             input_x,
+                                                             input_y,
+                                                             base_idx_x,
+                                                             base_idx_y,
+                                                             kernel_x,
+                                                             kernel_y,
+                                                             dilation_x,
+                                                             dilation_y,
+                                                             (int8_t)-input_offset);
+                    }
+#endif
                     else
                     {
                         for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
