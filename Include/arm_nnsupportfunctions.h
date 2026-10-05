@@ -1941,29 +1941,107 @@ __STATIC_FORCEINLINE void arm_nn_write_s8x4_ia(int8_t **in, int32_t value)
     *in += 4;
 }
 
-#if !defined(ARM_MATH_MVEI) && defined(__clang__) && !defined(__ARMCC_VERSION) && defined(__ARM_FEATURE_UNALIGNED)
-    /* ATfE ships only size-optimised armv7-m C libraries, whose memcpy and memset move one byte at a time, so clang
-     * builds without MVE copy and fill with arm_nn_copy_words_s8() and arm_nn_fill_words_s8(). GCC keeps newlib's
-     * word-unrolled memcpy and memset. */
+#if !defined(ARM_NN_WORD_COPY) && defined(__clang__) && !defined(__ARMCC_VERSION) &&                                   \
+    defined(__ARM_FEATURE_UNALIGNED) &&                                                                                \
+    (defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__))
+    /* ATfE ships only size-optimised C libraries for these architectures, whose memcpy and memset move one byte at a
+     * time, so the copy and fill helpers below use arm_nn_copy_words_s8() and arm_nn_fill_words_s8() instead. Other
+     * toolchains and architectures keep their C library. A build or test may also define ARM_NN_WORD_COPY itself. */
     #define ARM_NN_WORD_COPY
 #endif
 
+#if defined(ARM_NN_WORD_COPY)
+
 /**
  * @brief           Copy bytes a word at a time.
- * @param[out]      dst         Destination pointer. Any alignment on a core with unaligned word access.
- * @param[in]       src         Source pointer. Any alignment on a core with unaligned word access; must not overlap
- *                              dst.
+ * @param[out]      dst         Destination pointer. Any alignment.
+ * @param[in]       src         Source pointer. Any alignment; must not overlap dst.
  * @param[in]       block_size  Number of bytes to copy.
+ *
+ * @details         Kept out of line, so that clang does not unroll and version it into every caller's loops, and
+ *                  unrolled to four words with a loop-free tail, so that clang does not turn it back into a memcpy
+ *                  call.
  */
-void arm_nn_copy_words_s8(int8_t *dst, const int8_t *src, uint32_t block_size);
+__attribute__((noinline, unused)) static void arm_nn_copy_words_s8(int8_t *dst, const int8_t *src, uint32_t block_size)
+{
+    while (block_size >= 16)
+    {
+        const int32_t a = arm_nn_read_s8x4_ia(&src);
+        const int32_t b = arm_nn_read_s8x4_ia(&src);
+        const int32_t c = arm_nn_read_s8x4_ia(&src);
+        const int32_t d = arm_nn_read_s8x4_ia(&src);
+        arm_nn_write_s8x4_ia(&dst, a);
+        arm_nn_write_s8x4_ia(&dst, b);
+        arm_nn_write_s8x4_ia(&dst, c);
+        arm_nn_write_s8x4_ia(&dst, d);
+        block_size -= 16;
+    }
+    if (block_size & 8)
+    {
+        const int32_t a = arm_nn_read_s8x4_ia(&src);
+        const int32_t b = arm_nn_read_s8x4_ia(&src);
+        arm_nn_write_s8x4_ia(&dst, a);
+        arm_nn_write_s8x4_ia(&dst, b);
+    }
+    if (block_size & 4)
+    {
+        arm_nn_write_s8x4_ia(&dst, arm_nn_read_s8x4_ia(&src));
+    }
+    if (block_size & 2)
+    {
+        dst[0] = src[0];
+        dst[1] = src[1];
+        dst += 2;
+        src += 2;
+    }
+    if (block_size & 1)
+    {
+        dst[0] = src[0];
+    }
+}
 
 /**
  * @brief           Fill bytes with a repeating four-byte pattern, a word at a time.
- * @param[out]      dst         Destination pointer. Any alignment on a core with unaligned word access.
- * @param[in]       pattern     Four bytes, stored in memory order and repeated.
+ * @param[out]      dst         Destination pointer. Any alignment.
+ * @param[in]       pattern     Four bytes, stored in memory order and repeated from dst onwards.
  * @param[in]       block_size  Number of bytes to fill.
+ *
+ * @details         Out of line and unrolled for the same reasons as arm_nn_copy_words_s8().
  */
-void arm_nn_fill_words_s8(int8_t *dst, const int32_t pattern, uint32_t block_size);
+__attribute__((noinline, unused)) static void
+arm_nn_fill_words_s8(int8_t *dst, const int32_t pattern, uint32_t block_size)
+{
+    int8_t bytes[4];
+    memcpy(bytes, &pattern, 4);
+    while (block_size >= 16)
+    {
+        arm_nn_write_s8x4_ia(&dst, pattern);
+        arm_nn_write_s8x4_ia(&dst, pattern);
+        arm_nn_write_s8x4_ia(&dst, pattern);
+        arm_nn_write_s8x4_ia(&dst, pattern);
+        block_size -= 16;
+    }
+    if (block_size & 8)
+    {
+        arm_nn_write_s8x4_ia(&dst, pattern);
+        arm_nn_write_s8x4_ia(&dst, pattern);
+    }
+    if (block_size & 4)
+    {
+        arm_nn_write_s8x4_ia(&dst, pattern);
+    }
+    if (block_size & 2)
+    {
+        dst[0] = bytes[0];
+        dst[1] = bytes[1];
+        dst += 2;
+    }
+    if (block_size & 1)
+    {
+        dst[0] = bytes[block_size & 2];
+    }
+}
+#endif
 
 /**
  * @brief           memset optimized for MVE

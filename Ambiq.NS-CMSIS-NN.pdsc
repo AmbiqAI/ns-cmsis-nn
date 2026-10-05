@@ -332,7 +332,6 @@
         <file category="source" name="Source/NNSupportFunctions/arm_batch_norm_f32.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_get_buffer_size_f16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_get_buffer_size_f32.c"/>
-        <file category="source" name="Source/NNSupportFunctions/arm_nn_copy_fill_words_s8.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_conv1d_k3_f16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_conv1d_k3_f32.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_conv1d_k3_packed_f16.c"/>
