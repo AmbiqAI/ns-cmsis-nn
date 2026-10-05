@@ -76,7 +76,10 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_dims *output_dims,
                                                 int16_t *output)
 {
-    if (input_dims->c == 1 && output_dims->c == 1)
+    /* Only a layer the im2col kernel would accept, so that every other input still gets its status */
+    if (input_dims->c == 1 && output_dims->c == 1 && filter_dims->w * filter_dims->h < MAX_COL_COUNT &&
+        dw_conv_params->dilation.h == 1 && dw_conv_params->dilation.w >= 1 &&
+        (ctx->buf != NULL || arm_depthwise_conv_fast_s16_get_buffer_size(input_dims, filter_dims) == 0))
     {
         return arm_depthwise_conv_s16(ctx,
                                       dw_conv_params,
