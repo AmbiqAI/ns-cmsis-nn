@@ -101,8 +101,8 @@ exactly on every path, whatever `FPSCR.FZ` and `FZ16`; only NaNs differ:
 | Path | A NaN input gives |
 |---|---|
 | MVE `float16` with `ARM_NN_ENABLE_F16` and no `ARM_MATH_AUTOVECTORIZE` (vector `VCVTB`) | The default NaN, `0x7FC00000`. Where the wrappers above select the scalar form, as on the scalar path. |
-| Other M-profile FPUs (scalar `VCVTB`/`VCVTT`) | Its sign and payload, quieted. With `FPSCR.DN` set, the default NaN. |
-| No FPU (integer widening) | The scalar instruction's result at reset `FPSCR`: sign and payload, quieted. |
+| Other little-endian M-profile FPU paths (scalar `VCVTB`/`VCVTT`) | Its sign and payload, quieted. With `FPSCR.DN` set, the default NaN. |
+| Other configurations, including no FPU or big-endian builds (integer widening) | The scalar instruction's result at reset `FPSCR`: sign and payload, quieted, independently of `FPSCR`. |
 
 On both hardware paths a signaling NaN sets `FPSCR.IOC`, and with `FPSCR.AHP`
 set exponent 31 reads as a number rather than as Inf or NaN. The output must be

@@ -139,9 +139,12 @@ form. Both produce NaNs for NaN inputs; applications that depend on payload bits
 must validate their chosen configuration.
 
 The FP16 dequantize functions, `arm_dequantize_f16_f32()` and
-`arm_dequantize_f16_bits_f32()`, follow the same rule. The MVE path returns the
-default NaN `0x7FC00000`; scalar FPUs and builds without an FPU keep the sign
+`arm_dequantize_f16_bits_f32()`, follow the same rule. Vector conversion returns
+the default NaN `0x7FC00000`; when the MVE wrappers select scalar instructions,
+the scalar rule applies instead. Little-endian scalar FPU paths keep the sign
 and payload of a NaN and return it quiet (`FPSCR.DN` set gives the default NaN).
+Other configurations, including no FPU and big-endian builds, use integer
+widening: sign and payload are kept and quieted, independently of `FPSCR`.
 Other values convert exactly on every path while `FPSCR.AHP` is clear.
 
 See the [conversion header](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/Include/Internal/arm_nn_vcvt_f16.h)
