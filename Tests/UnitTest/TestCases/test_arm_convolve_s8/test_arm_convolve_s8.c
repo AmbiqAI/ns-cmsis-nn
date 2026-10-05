@@ -3891,9 +3891,9 @@ void conv_1x1_out_grouped_arm_convolve_1x1_out_s8(void)
 #endif
 }
 
-/* The 2x2 upscaled im2col can store a tap of depth 1 directly (ARM_NN_DEPTH1_STORE). At depths 1 and 2 it must match
-   the same convolution without upscale over an explicitly upscaled input, whose inserted positions hold -input_offset.
- */
+/* The 2x2 upscaled im2col can store a tap of depth 1 directly (ARM_NN_DEPTH1_STORE, set on ATfE builds for armv7-m
+   and armv8-m.main; other builds run the copy path here). At depths 1 and 2 it must match the same convolution
+   without upscale over an explicitly upscaled input, whose inserted positions hold -input_offset. */
 void upscale_depth_one_arm_convolve_s8(void)
 {
     enum
@@ -3958,8 +3958,15 @@ void upscale_depth_one_arm_convolve_s8(void)
         TEST_ASSERT_TRUE(arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims) <= (int32_t)sizeof(buf));
         const cmsis_nn_context ctx = {buf, sizeof(buf)};
         const cmsis_nn_context sums_ctx = {sums, sizeof(sums)};
-        /* Only the MVE path reads the sums; elsewhere this returns ARM_CMSIS_NN_NO_IMPL_ERROR */
-        arm_convolve_weight_sum(sums, weights, &input_dims, &filter_dims, &output_dims, input_offset, bias);
+#if defined(ARM_MATH_MVEI)
+        const arm_cmsis_nn_status sums_status = ARM_CMSIS_NN_SUCCESS;
+#else
+        /* Only the MVE path reads the sums */
+        const arm_cmsis_nn_status sums_status = ARM_CMSIS_NN_NO_IMPL_ERROR;
+#endif
+        TEST_ASSERT_EQUAL(
+            sums_status,
+            arm_convolve_weight_sum(sums, weights, &input_dims, &filter_dims, &output_dims, input_offset, bias));
 
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
                           arm_convolve_s8(&ctx,
