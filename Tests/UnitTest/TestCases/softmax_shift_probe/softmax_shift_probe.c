@@ -8,13 +8,14 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
 /* Built with shift-base checks (see CMakeLists.txt): the s8, s8_s16 and u8 softmax requantization must not
- * left-shift a negative or overflowing signed value (#704), and must keep the outputs pinned below. Rows stay at
- * 200 or fewer; longer rows reach separate shift defects (#710). */
+ * left-shift a negative or overflowing signed value (#704), and must keep the outputs pinned below. Long rows of
+ * equal values must round 1/n correctly (#705, #710). */
 
 static uint32_t lcg = 9u;
 static int32_t rnd(int32_t lo, int32_t hi)
@@ -72,6 +73,40 @@ int main(void)
         }
     }
 
+    /* Rows of n equal values: from 256 the final divide reaches 2^31, from 512 the quotient rounds to 0, and from
+       4096 the row sum passes int32_t */
+    static int8_t long_in[4096];
+    static uint8_t long_in_u8[4096];
+    static int8_t long_out[4096];
+    static int16_t long_out16[4096];
+    static uint8_t long_out_u8[4096];
+    const int32_t sizes[] = {256, 601, 4096};
+    const int8_t want[] = {-127, -128, -128};
+    const int16_t want16[] = {-32512, -32659, -32752};
+    const uint8_t want_u8[] = {1, 0, 0};
+    memset(long_in, 5, sizeof(long_in));
+    memset(long_in_u8, 133, sizeof(long_in_u8));
+    for (size_t k = 0; k < sizeof(sizes) / sizeof(sizes[0]); k++)
+    {
+        arm_softmax_s8(long_in, 1, sizes[k], 1077952576, 23, -248, long_out);
+        arm_softmax_s8_s16(long_in, 1, sizes[k], 1077952576, 23, -248, long_out16);
+        arm_softmax_u8(long_in_u8, 1, sizes[k], 1077952576, 23, -248, long_out_u8);
+        for (int32_t i = 0; i < sizes[k]; i++)
+        {
+            if (long_out[i] != want[k] || long_out16[i] != want16[k] || long_out_u8[i] != want_u8[k])
+            {
+                printf("row of %ld: output %ld is %d, %d, %u\n",
+                       (long)sizes[k],
+                       (long)i,
+                       long_out[i],
+                       long_out16[i],
+                       long_out_u8[i]);
+                failures++;
+                break;
+            }
+        }
+    }
+
     /* The helpers themselves, at negative and saturating inputs: a power-of-two multiply against a 64-bit
        saturating reference, and the exponential across its input range. */
     const int32_t vals[] = {INT32_MIN, -1073741825, -65536, -1, 0, 1, 65535, 1073741824, INT32_MAX};
@@ -84,7 +119,10 @@ int main(void)
             const int32_t got = arm_nn_mult_by_power_of_two(vals[v], exp);
             if ((int64_t)got != ref)
             {
-                printf("mult_by_power_of_two(%ld, %ld) = %ld, expected %lld\n", (long)vals[v], (long)exp, (long)got,
+                printf("mult_by_power_of_two(%ld, %ld) = %ld, expected %lld\n",
+                       (long)vals[v],
+                       (long)exp,
+                       (long)got,
                        (long long)ref);
                 failures++;
             }
