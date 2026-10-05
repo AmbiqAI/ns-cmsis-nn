@@ -78,7 +78,7 @@ void arm_nn_softmax_common_s8(const int8_t *input,
         }
 
         int32_t diff = 0;
-        int32_t sum = 0;
+        int64_t sum = 0;
 
         for (col = 0; col < row_size; ++col)
         {
@@ -89,15 +89,13 @@ void arm_nn_softmax_common_s8(const int8_t *input,
             }
         }
 
-        const int32_t headroom = CLZ(sum);
-        const int32_t shifted_scale = ONE_OVER1(sum > 0 ? (int32_t)((uint32_t)sum << headroom) - INT32_MIN : INT32_MIN);
         int32_t bits_over_unit;
+        const int32_t shifted_scale =
+            arm_nn_softmax_row_scale(sum, ACCUM_BITS + (int16_output ? 15 : 23), &bits_over_unit);
 
         if (int16_output)
         {
             int16_t *output_s16 = (int16_t *)output + row_idx * row_size;
-
-            bits_over_unit = ACCUM_BITS - headroom + 15;
 
             for (col = 0; col < row_size; ++col)
             {
@@ -119,8 +117,6 @@ void arm_nn_softmax_common_s8(const int8_t *input,
         else
         {
             int8_t *output_s8 = (int8_t *)output + row_idx * row_size;
-
-            bits_over_unit = ACCUM_BITS - headroom + 23;
 
             for (col = 0; col < row_size; ++col)
             {

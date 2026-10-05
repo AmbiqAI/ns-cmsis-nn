@@ -115,7 +115,7 @@ void arm_softmax_s8(const int8_t *input,
 
         vec_count = row_size / 4;
         int32_t idx = 0;
-        int32_t sum = 0;
+        int64_t sum = 0;
 
         while (vec_count)
         {
@@ -131,7 +131,7 @@ void arm_softmax_s8(const int8_t *input,
                 res = arm_exp_on_negative_values_mve_32x4(res);
                 res = DIV_POW2_MVE(res, ACCUM_BITS);
                 res = vpselq_s32(res, vdupq_n_s32(0), p);
-                sum += vaddvq_s32(res);
+                sum = vaddlvaq_s32(sum, res);
             }
 
             vec_count--;
@@ -148,9 +148,8 @@ void arm_softmax_s8(const int8_t *input,
             }
         }
 
-        const int32_t headroom = CLZ((uint32_t)sum);
-        const int32_t bits_over_unit = ACCUM_BITS - headroom + 23;
-        const int32_t shifted_scale = ONE_OVER1(sum > 0 ? (int32_t)((uint32_t)sum << headroom) - INT32_MIN : INT32_MIN);
+        int32_t bits_over_unit;
+        const int32_t shifted_scale = arm_nn_softmax_row_scale(sum, ACCUM_BITS + 23, &bits_over_unit);
 
         vec_count = row_size / 4;
         idx = 0;

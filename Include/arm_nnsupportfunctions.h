@@ -2447,7 +2447,8 @@ __STATIC_FORCEINLINE int32_t arm_nn_divide_by_power_of_two(const int32_t dividen
     return result;
 #else
     int32_t result = 0;
-    const int32_t remainder_mask = (1 << exponent) - 1;
+    /* Unsigned, so that exponent 31 gives INT32_MAX rather than overflowing */
+    const int32_t remainder_mask = (int32_t)((1U << exponent) - 1U);
     int32_t remainder = remainder_mask & dividend;
 
     // Basic division
@@ -3095,6 +3096,38 @@ __STATIC_FORCEINLINE int32_t arm_nn_one_over_one_plus_x_for_x_in_0_1(int32_t val
     x = (int32_t)((uint32_t)x + (uint32_t)MUL_POW2(MUL_SAT(x, shift - MUL_SAT(half_denominator, x)), 2));
 
     return MUL_POW2(x, 1);
+}
+
+/**
+ * @brief           Reciprocal scale of a softmax row, from the sum of its exponentials.
+ * @param[in]       sum             Sum of the row's exponentials, each with the softmax kernels' 12 accumulation
+ *                                  integer bits. Range: >= 0
+ * @param[in]       unit_bits       The accumulation integer bits plus 31 less the output width: 12 + 23 for an
+ *                                  8-bit output, 12 + 15 for a 16-bit output
+ * @param[out]      bits_over_unit  Exponent for the final DIV_POW2 of MUL_SAT(scale, exponential). At most 31
+ * @return          The scale, 1 / sum in Q0.31 normalised by bits_over_unit
+ *
+ * @details         A sum past 32 bits normalises from its top 32 bits. An exponent past 31 would round every
+ *                  non-negative quotient to 0, so it returns scale 0 with exponent 31 instead, as it does for an
+ *                  empty row (sum 0).
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_softmax_row_scale(const int64_t sum,
+                                                      const int32_t unit_bits,
+                                                      int32_t *bits_over_unit)
+{
+    const uint64_t u = (uint64_t)sum;
+    const uint32_t high = (uint32_t)(u >> 32);
+    /* Leading zeros of sum as a 32-bit value; negative once sum needs more than 32 bits */
+    const int32_t headroom = high ? (int32_t)CLZ(high) - 32 : (int32_t)CLZ((uint32_t)u);
+
+    *bits_over_unit = unit_bits - headroom;
+    if (sum <= 0 || *bits_over_unit > 31)
+    {
+        *bits_over_unit = 31;
+        return 0;
+    }
+    const uint32_t top = headroom >= 0 ? (uint32_t)u << headroom : (uint32_t)(u >> -headroom);
+    return ONE_OVER1((int32_t)top - INT32_MIN);
 }
 
 /**
