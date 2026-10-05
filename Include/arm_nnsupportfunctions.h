@@ -1968,9 +1968,8 @@ __STATIC_FORCEINLINE void arm_nn_write_s8x4_ia(int8_t **in, int32_t value)
 #endif
 
 /* Where ARM_NN_WORD_COPY makes the copy and fill helpers calls (it does not on MVE, whose helpers stay inline loops),
- * a filter depth of 1 avoids a call per im2col tap: from 4 taps up arm_convolve_s8 fills each output pixel's taps with
- * arm_nn_im2col_depth1_s8, and from 3 taps up arm_depthwise_conv_fast_s16 hands a one-channel layer to
- * arm_depthwise_conv_s16. Other layers run the original code. */
+ * arm_convolve_s8 fills each output pixel's im2col taps for a filter depth of 1 and 4 or more taps with
+ * arm_nn_im2col_depth1_s8, one call per pixel instead of one per tap. Other layers run the original code. */
 #if defined(ARM_NN_WORD_COPY) && !defined(ARM_MATH_MVEI)
     #define ARM_NN_DEPTH1_STORE (1)
 #else
