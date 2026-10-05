@@ -31,8 +31,8 @@ static uint32_t dq_reference(const uint32_t h)
 
 /* Every half bit pattern, in blocks of varying size so that vector tails of every length run. The first pass starts
    each block at the start of the input array; the second ends it at the end of the array, so the start moves
-   between even and odd indexes (other partners in the two-halves-per-word path) and a read past the input is a
-   sanitizer error on the host. The output has a guard word on both sides. */
+   between even and odd indexes (other partners in the two-halves-per-word path), and a read past the input is a
+   sanitizer error on the host, which runs the integer path. The output has a guard word on both sides. */
 static void dq_sweep(const int at_end)
 {
     static uint16_t buffer[1024];
