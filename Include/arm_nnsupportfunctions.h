@@ -2769,7 +2769,7 @@ __STATIC_FORCEINLINE void arm_memcpy_s8(int8_t *__RESTRICT dst, const int8_t *__
 }
 
 /**
- * @brief           memcpy of int16_t or int32_t values through arm_memcpy_s8()
+ * @brief           memcpy of int16_t values through arm_memcpy_s8()
  * @param[in, out]  dst         Destination pointer
  * @param[in]       src         Source pointer.
  * @param[in]       block_size  Number of values to copy.
@@ -2781,7 +2781,7 @@ __STATIC_FORCEINLINE void arm_memcpy_s16(int16_t *__RESTRICT dst, const int16_t 
 }
 
 /**
- * @brief           memcpy of int16_t or int32_t values through arm_memcpy_s8()
+ * @brief           memcpy of int32_t values through arm_memcpy_s8()
  * @param[in, out]  dst         Destination pointer
  * @param[in]       src         Source pointer.
  * @param[in]       block_size  Number of values to copy.
