@@ -1964,6 +1964,22 @@ __STATIC_FORCEINLINE void arm_nn_write_s8x4_ia(int8_t **in, int32_t value)
  */
 __attribute__((noinline, unused)) static void arm_nn_copy_words_s8(int8_t *dst, const int8_t *src, uint32_t block_size)
 {
+    /* Copies of a few bytes (im2col with an input depth of 1 or 2) skip the word loop */
+    if (block_size < 4)
+    {
+        if (block_size & 2)
+        {
+            dst[0] = src[0];
+            dst[1] = src[1];
+            dst += 2;
+            src += 2;
+        }
+        if (block_size & 1)
+        {
+            dst[0] = src[0];
+        }
+        return;
+    }
     while (block_size >= 16)
     {
         const int32_t a = arm_nn_read_s8x4_ia(&src);
@@ -2011,24 +2027,43 @@ __attribute__((noinline, unused)) static void arm_nn_copy_words_s8(int8_t *dst, 
 __attribute__((noinline, unused)) static void
 arm_nn_fill_words_s8(int8_t *dst, const int32_t pattern, uint32_t block_size)
 {
+    /* Hide the pattern's value: with a constant fill (zero padding, say) clang would turn the stores below back
+       into a memset call */
+    int32_t word = pattern;
+    __asm("" : "+r"(word));
     int8_t bytes[4];
-    memcpy(bytes, &pattern, 4);
+    memcpy(bytes, &word, 4);
+    /* Fills of a few bytes skip the word loop */
+    if (block_size < 4)
+    {
+        if (block_size & 2)
+        {
+            dst[0] = bytes[0];
+            dst[1] = bytes[1];
+            dst += 2;
+        }
+        if (block_size & 1)
+        {
+            dst[0] = bytes[block_size & 2];
+        }
+        return;
+    }
     while (block_size >= 16)
     {
-        arm_nn_write_s8x4_ia(&dst, pattern);
-        arm_nn_write_s8x4_ia(&dst, pattern);
-        arm_nn_write_s8x4_ia(&dst, pattern);
-        arm_nn_write_s8x4_ia(&dst, pattern);
+        arm_nn_write_s8x4_ia(&dst, word);
+        arm_nn_write_s8x4_ia(&dst, word);
+        arm_nn_write_s8x4_ia(&dst, word);
+        arm_nn_write_s8x4_ia(&dst, word);
         block_size -= 16;
     }
     if (block_size & 8)
     {
-        arm_nn_write_s8x4_ia(&dst, pattern);
-        arm_nn_write_s8x4_ia(&dst, pattern);
+        arm_nn_write_s8x4_ia(&dst, word);
+        arm_nn_write_s8x4_ia(&dst, word);
     }
     if (block_size & 4)
     {
-        arm_nn_write_s8x4_ia(&dst, pattern);
+        arm_nn_write_s8x4_ia(&dst, word);
     }
     if (block_size & 2)
     {
