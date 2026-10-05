@@ -3100,9 +3100,10 @@ __STATIC_FORCEINLINE int32_t arm_nn_one_over_one_plus_x_for_x_in_0_1(int32_t val
 
 /**
  * @brief           Reciprocal scale of a softmax row, from the sum of its exponentials.
- * @param[in]       sum             Sum of the row's exponentials, each with ACCUM_BITS integer bits. Range: >= 0
- * @param[in]       unit_bits       ACCUM_BITS plus 31 less the output width: ACCUM_BITS + 23 for an 8-bit
- *                                  output, ACCUM_BITS + 15 for a 16-bit output
+ * @param[in]       sum             Sum of the row's exponentials, each with the softmax kernels' 12 accumulation
+ *                                  integer bits. Range: >= 0
+ * @param[in]       unit_bits       The accumulation integer bits plus 31 less the output width: 12 + 23 for an
+ *                                  8-bit output, 12 + 15 for a 16-bit output
  * @param[out]      bits_over_unit  Exponent for the final DIV_POW2 of MUL_SAT(scale, exponential). At most 31
  * @return          The scale, 1 / sum in Q0.31 normalised by bits_over_unit
  *
