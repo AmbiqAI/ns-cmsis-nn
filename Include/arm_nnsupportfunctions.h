@@ -3819,8 +3819,9 @@ __STATIC_FORCEINLINE uint32_t arm_nn_f16_bits_to_f32_bits(const uint32_t h)
  *        gives; arm_dequantize_f16_bits_f32() documents the paths.
  *
  * @param[in]   input       Pointer to the binary16 bit patterns, not NULL unless block_size is 0.
- * @param[out]  output      Pointer to the float32 output array, not overlapping input.
- * @param[in]   block_size  Number of elements, not negative.
+ * @param[out]  output      Pointer to the float32 output array, 4-byte aligned and not overlapping input.
+ * @param[in]   block_size  Number of elements, not negative (unchecked: the vector path would store
+ *                          block_size & 3 elements for a negative size).
  */
 __STATIC_FORCEINLINE void arm_nn_dequantize_f16_bits_f32(const uint16_t *input, float *output, const int32_t block_size)
 {

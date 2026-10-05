@@ -197,7 +197,9 @@ void alternative_half_arm_dequantize_f16_bits_f32(void)
 #endif
 }
 
-/* Inputs of 1 to 9 halves that end where unmapped memory begins: a load past the last half faults */
+/* Inputs of 1 to 9 halves that end where unmapped memory begins: on the vector path a load past the last half
+   faults. QEMU does not fault a scalar load that straddles into the gap, so the FPU path's tail needs FVP or
+   hardware to be checked this way. */
 void input_at_gap_arm_dequantize_f16_bits_f32(void)
 {
 #if defined(MPU_GUARD_AVAILABLE)
