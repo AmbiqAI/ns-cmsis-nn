@@ -195,10 +195,17 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                                     if ((k_x >= 0 && k_x < input_x) && ((k_x % 2 == 0) || x_rshift == 0))
                                     {
                                         const int32_t k_x_rshifted = k_x >> x_rshift;
-                                        arm_memcpy_s8(im2col_buf,
-                                                      input_data +
-                                                          (k_y_rshifted * input_x_rshifted + k_x_rshifted) * input_ch,
-                                                      sizeof(int8_t) * kernel_ch);
+                                        const int8_t *src =
+                                            input_data + (k_y_rshifted * input_x_rshifted + k_x_rshifted) * input_ch;
+                                        /* A depth of one is one element: a store is cheaper than a library call */
+                                        if (kernel_ch == 1)
+                                        {
+                                            im2col_buf[0] = src[0];
+                                        }
+                                        else
+                                        {
+                                            arm_memcpy_s8(im2col_buf, src, sizeof(int8_t) * kernel_ch);
+                                        }
                                     }
                                     im2col_buf += kernel_ch;
                                 }
@@ -214,9 +221,21 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                                 const int32_t k_y = base_idx_y + dilation_y * i_ker_y;
                                 const int32_t k_x = base_idx_x + dilation_x * i_ker_x;
 
+                                /* A depth of one is one element: a store is cheaper than a library call */
                                 if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
                                 {
-                                    arm_memset_s8(im2col_buf, (int8_t)-input_offset, sizeof(int8_t) * kernel_ch);
+                                    if (kernel_ch == 1)
+                                    {
+                                        im2col_buf[0] = (int8_t)-input_offset;
+                                    }
+                                    else
+                                    {
+                                        arm_memset_s8(im2col_buf, (int8_t)-input_offset, sizeof(int8_t) * kernel_ch);
+                                    }
+                                }
+                                else if (kernel_ch == 1)
+                                {
+                                    im2col_buf[0] = input_data[(k_y * input_x + k_x) * input_ch + i_group];
                                 }
                                 else
                                 {

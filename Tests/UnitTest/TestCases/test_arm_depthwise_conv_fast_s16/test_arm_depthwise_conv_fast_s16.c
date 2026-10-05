@@ -1374,3 +1374,86 @@ void operand_bounds_arm_depthwise_conv_fast_s16(void)
     }
 #endif
 }
+
+/* An input depth of 1 takes a one-element store in the im2col loops instead of a copy or fill call. The result must
+   match arm_depthwise_conv_s16() on the same layer, with and without padding, stride and dilation. */
+void depth_one_arm_depthwise_conv_fast_s16(void)
+{
+    struct
+    {
+        int32_t h, w, k_h, k_w, stride, pad_h, pad_w, dil_w;
+    } const cases[] = {
+        {1, 40, 1, 7, 1, 0, 3, 1}, /* a 1D row, padded */
+        {9, 9, 3, 3, 1, 1, 1, 1},
+        {10, 12, 3, 3, 2, 1, 1, 1},
+        {5, 16, 1, 3, 1, 0, 2, 2},
+    };
+    static int16_t input[160];
+    static int16_t out_fast[160];
+    static int16_t out_ref[160];
+    static int8_t kernel[9];
+    static int16_t buf[1024];
+    int64_t bias = 1234;
+    int32_t mult = 1518500250;
+    int32_t shift = -5;
+    const cmsis_nn_per_channel_quant_params quant_params = {&mult, &shift};
+    uint32_t seed = 3u;
+
+    for (size_t k = 0; k < sizeof(cases) / sizeof(cases[0]); k++)
+    {
+        const int32_t out_h = (cases[k].h + 2 * cases[k].pad_h - cases[k].k_h) / cases[k].stride + 1;
+        const int32_t out_w =
+            (cases[k].w + 2 * cases[k].pad_w - (cases[k].dil_w * (cases[k].k_w - 1) + 1)) / cases[k].stride + 1;
+        const cmsis_nn_dims input_dims = {1, cases[k].h, cases[k].w, 1};
+        const cmsis_nn_dims filter_dims = {1, cases[k].k_h, cases[k].k_w, 1};
+        const cmsis_nn_dims bias_dims = {1, 1, 1, 1};
+        const cmsis_nn_dims output_dims = {1, out_h, out_w, 1};
+        const cmsis_nn_dw_conv_params dw_conv_params = {.input_offset = 0,
+                                                        .output_offset = 0,
+                                                        .ch_mult = 1,
+                                                        .stride = {cases[k].stride, cases[k].stride},
+                                                        .padding = {cases[k].pad_w, cases[k].pad_h},
+                                                        .dilation = {cases[k].dil_w, 1},
+                                                        .activation = {-32768, 32767}};
+        for (int32_t i = 0; i < cases[k].h * cases[k].w; i++)
+        {
+            seed = seed * 1664525u + 1013904223u;
+            input[i] = (int16_t)(seed >> 16);
+        }
+        for (int32_t i = 0; i < cases[k].k_h * cases[k].k_w; i++)
+        {
+            seed = seed * 1664525u + 1013904223u;
+            kernel[i] = (int8_t)(seed >> 24);
+        }
+        const cmsis_nn_context ctx = {buf, sizeof(buf)};
+        TEST_ASSERT_TRUE(arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims) <=
+                         (int32_t)sizeof(buf));
+        memset(out_fast, 0x55, sizeof(out_fast));
+        memset(out_ref, 0x55, sizeof(out_ref));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_depthwise_conv_fast_s16(&ctx,
+                                                      &dw_conv_params,
+                                                      &quant_params,
+                                                      &input_dims,
+                                                      input,
+                                                      &filter_dims,
+                                                      kernel,
+                                                      &bias_dims,
+                                                      &bias,
+                                                      &output_dims,
+                                                      out_fast));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_depthwise_conv_s16(&ctx,
+                                                 &dw_conv_params,
+                                                 &quant_params,
+                                                 &input_dims,
+                                                 input,
+                                                 &filter_dims,
+                                                 kernel,
+                                                 &bias_dims,
+                                                 &bias,
+                                                 &output_dims,
+                                                 out_ref));
+        TEST_ASSERT_EQUAL_INT16_ARRAY(out_ref, out_fast, sizeof(out_ref) / sizeof(out_ref[0]));
+    }
+}
