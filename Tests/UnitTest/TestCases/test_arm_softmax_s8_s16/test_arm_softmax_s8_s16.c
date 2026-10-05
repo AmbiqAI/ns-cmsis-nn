@@ -66,7 +66,7 @@ void softmax_s8_s16_invalid_diff_min_arm_softmax_s8_s16(void)
 }
 
 /* Rows of n equal values: every output is 65536 / n - 32768, rounded. From 4096 elements the row sum passes
-   int32_t (#705). */
+   int32_t (#705), and at 8192 a wrapped int32_t sum gives a wrong output. */
 void softmax_s8_s16_long_equal_rows_arm_softmax_s8_s16(void)
 {
     static int8_t input[8192];

@@ -65,13 +65,14 @@ void softmax_invalid_diff_min_arm_softmax_s8(void)
     free(softmax_expect_invalid_output);
 }
 
-/* Rows of n equal values: every output is 1/n, rounded. From 256 elements the row-sum normalisation reaches a
-   divide by 2^31, from 512 a quotient that rounds to 0, and from 4096 a row sum past int32_t (#705, #710). */
+/* Rows of n equal values: every output is 1/n, rounded (the sizes avoid the exact tie at 512). From 256 elements
+   the normalisation reaches a divide by 2^31, and from 512 a quotient that rounds to 0 (#710). From 4096 the row
+   sum passes int32_t (#705); 8193 is a size where a wrapped int32_t sum stays positive and gives a wrong output. */
 void softmax_long_equal_rows_arm_softmax_s8(void)
 {
-    static int8_t input[4096];
-    static int8_t output[4096];
-    const int32_t sizes[] = {256, 601, 4096};
+    static int8_t input[8193];
+    static int8_t output[8193];
+    const int32_t sizes[] = {256, 601, 8193};
     const int8_t expected[] = {-127, -128, -128};
 
     memset(input, 5, sizeof(input));

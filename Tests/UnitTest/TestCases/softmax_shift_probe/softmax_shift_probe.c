@@ -74,15 +74,15 @@ int main(void)
     }
 
     /* Rows of n equal values: from 256 the final divide reaches 2^31, from 512 the quotient rounds to 0, and from
-       4096 the row sum passes int32_t */
-    static int8_t long_in[4096];
-    static uint8_t long_in_u8[4096];
-    static int8_t long_out[4096];
-    static int16_t long_out16[4096];
-    static uint8_t long_out_u8[4096];
-    const int32_t sizes[] = {256, 601, 4096};
+       4096 the row sum passes int32_t; at 8193 a wrapped int32_t sum stays positive and gives a wrong output */
+    static int8_t long_in[8193];
+    static uint8_t long_in_u8[8193];
+    static int8_t long_out[8193];
+    static int16_t long_out16[8193];
+    static uint8_t long_out_u8[8193];
+    const int32_t sizes[] = {256, 601, 8193};
     const int8_t want[] = {-127, -128, -128};
-    const int16_t want16[] = {-32512, -32659, -32752};
+    const int16_t want16[] = {-32512, -32659, -32760};
     const uint8_t want_u8[] = {1, 0, 0};
     memset(long_in, 5, sizeof(long_in));
     memset(long_in_u8, 133, sizeof(long_in_u8));
@@ -95,11 +95,7 @@ int main(void)
         {
             if (long_out[i] != want[k] || long_out16[i] != want16[k] || long_out_u8[i] != want_u8[k])
             {
-                printf("row of %ld: output %ld is %d, %d, %u\n",
-                       (long)sizes[k],
-                       (long)i,
-                       long_out[i],
-                       long_out16[i],
+                printf("row of %ld: output %ld is %d, %d, %u\n", (long)sizes[k], (long)i, long_out[i], long_out16[i],
                        long_out_u8[i]);
                 failures++;
                 break;
@@ -119,10 +115,7 @@ int main(void)
             const int32_t got = arm_nn_mult_by_power_of_two(vals[v], exp);
             if ((int64_t)got != ref)
             {
-                printf("mult_by_power_of_two(%ld, %ld) = %ld, expected %lld\n",
-                       (long)vals[v],
-                       (long)exp,
-                       (long)got,
+                printf("mult_by_power_of_two(%ld, %ld) = %ld, expected %lld\n", (long)vals[v], (long)exp, (long)got,
                        (long long)ref);
                 failures++;
             }
