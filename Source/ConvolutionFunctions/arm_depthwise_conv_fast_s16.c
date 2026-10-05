@@ -125,21 +125,8 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
                     {
                         if (i_ker_y < 0 || i_ker_y >= input_y || i_ker_x < 0 || i_ker_x >= input_x)
                         {
-        #if ARM_NN_DEPTH1_STORE
-                            if (input_ch == 1)
-                            {
-                                lhs_buffer[0] = 0;
-                            }
-                            else
-        #endif
-                                memset(lhs_buffer, (int16_t)0, (uint32_t)(input_ch * sizeof(int16_t)));
+                            memset(lhs_buffer, (int16_t)0, (uint32_t)(input_ch * sizeof(int16_t)));
                         }
-        #if ARM_NN_DEPTH1_STORE
-                        else if (input_ch == 1)
-                        {
-                            lhs_buffer[0] = input[i_ker_y * input_x + i_ker_x];
-                        }
-        #endif
                         else
                         {
                             arm_memcpy_q15(lhs_buffer,

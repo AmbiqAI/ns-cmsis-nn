@@ -224,21 +224,8 @@ static arm_cmsis_nn_status arm_convolve_s16_mve(const cmsis_nn_context *ctx,
                             if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
                             {
                                 /* Filling 0 for out-of-bound paddings */
-    #if ARM_NN_DEPTH1_STORE
-                                if (kernel_ch == 1)
-                                {
-                                    im2col[0] = 0;
-                                }
-                                else
-    #endif
-                                    arm_memset_s8((int8_t *)im2col, 0, sizeof(int16_t) * (uint32_t)kernel_ch);
+                                arm_memset_s8((int8_t *)im2col, 0, sizeof(int16_t) * (uint32_t)kernel_ch);
                             }
-    #if ARM_NN_DEPTH1_STORE
-                            else if (kernel_ch == 1)
-                            {
-                                im2col[0] = input_data[(k_y * input_x + k_x) * input_ch + i_group];
-                            }
-    #endif
                             else
                             {
                                 arm_memcpy_s8((int8_t *)im2col,
