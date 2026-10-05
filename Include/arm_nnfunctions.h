@@ -7605,6 +7605,50 @@ arm_cmsis_nn_status arm_requantize_s8_s8(const int8_t *input,
                                          int32_t output_zeropoint);
 
 /**
+ * @brief Requantize an int8_t array to a uint8_t range with a different scale.
+ * @param[in]   input                   Pointer to the input int8_t array.
+ * @param[out]  output                  Pointer to the output uint8_t array.
+ * @param[in]   size                    Number of elements in the arrays.
+ * @param[in]   effective_scale_multiplier   Multiplier used for the scaling operation.
+ * @param[in]   effective_scale_shift   Right or left shift (depending on sign) applied after the multiplier.
+ * @param[in]   input_zeropoint         Zero point of the input data.
+ * @param[in]   output_zeropoint        Zero point of the output data.
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</CODE>
+ *
+ * @details    Computes the same value as arm_requantize_s8_s8() before saturating it to [0, 255].
+ */
+arm_cmsis_nn_status arm_requantize_s8_u8(const int8_t *input,
+                                         uint8_t *output,
+                                         int32_t size,
+                                         int32_t effective_scale_multiplier,
+                                         int32_t effective_scale_shift,
+                                         int32_t input_zeropoint,
+                                         int32_t output_zeropoint);
+
+/**
+ * @brief Requantize a uint8_t array to an int8_t range with a different scale.
+ * @param[in]   input                   Pointer to the input uint8_t array.
+ * @param[out]  output                  Pointer to the output int8_t array.
+ * @param[in]   size                    Number of elements in the arrays.
+ * @param[in]   effective_scale_multiplier   Multiplier used for the scaling operation.
+ * @param[in]   effective_scale_shift   Right or left shift (depending on sign) applied after the multiplier.
+ * @param[in]   input_zeropoint         Zero point of the input data.
+ * @param[in]   output_zeropoint        Zero point of the output data.
+ *
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</CODE>
+ *
+ * @details    Computes the same value as arm_requantize_s8_s8(), with each input element read as uint8_t.
+ */
+arm_cmsis_nn_status arm_requantize_u8_s8(const uint8_t *input,
+                                         int8_t *output,
+                                         int32_t size,
+                                         int32_t effective_scale_multiplier,
+                                         int32_t effective_scale_shift,
+                                         int32_t input_zeropoint,
+                                         int32_t output_zeropoint);
+
+/**
  * @brief Requantize an int16_t array to another int16_t range with a different scale.
  * @param[in]   input                   Pointer to the input int16_t array.
  * @param[out]  output                  Pointer to the output int16_t array.
