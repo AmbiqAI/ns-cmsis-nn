@@ -90,7 +90,7 @@ void arm_nn_softmax_common_s8(const int8_t *input,
         }
 
         const int32_t headroom = CLZ(sum);
-        const int32_t shifted_scale = ONE_OVER1((sum > 0 ? sum << headroom : 0) - (1 << 31));
+        const int32_t shifted_scale = ONE_OVER1(sum > 0 ? (int32_t)((uint32_t)sum << headroom) - INT32_MIN : INT32_MIN);
         int32_t bits_over_unit;
 
         if (int16_output)

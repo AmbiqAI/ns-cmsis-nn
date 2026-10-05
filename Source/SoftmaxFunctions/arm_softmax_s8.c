@@ -43,7 +43,8 @@ static int32x4_t arm_exp_on_negative_values_mve_32x4(int32x4_t val)
     const int32x4_t val_mod_minus_quarter =
         vandq_s32(val, vdupq_n_s32((1 << SHIFT_START) - 1)) - vdupq_n_s32(1 << SHIFT_START);
     const int32x4_t remainder = vsubq_s32(val_mod_minus_quarter, val);
-    const int32x4_t x = vaddq_n_s32(val_mod_minus_quarter << 5, 1 << 28);
+    /* vshlq_n_s32, not <<: the lanes are negative, and a left shift of a negative int32_t is undefined */
+    const int32x4_t x = vaddq_n_s32(vshlq_n_s32(val_mod_minus_quarter, 5), 1 << 28);
     const int32x4_t x2 = MUL_SAT_MVE(x, x);
     const int32x4_t op_1 = DIV_POW2_MVE(MUL_SAT_MVE(x2, x2), 2) + MUL_SAT_MVE(x2, x);
     const int32x4_t op_2 = x + DIV_POW2_MVE(MUL_SAT_MVE(op_1, vdupq_n_s32(715827883)) + x2, 1);
@@ -149,7 +150,7 @@ void arm_softmax_s8(const int8_t *input,
 
         const int32_t headroom = CLZ((uint32_t)sum);
         const int32_t bits_over_unit = ACCUM_BITS - headroom + 23;
-        const int32_t shifted_scale = ONE_OVER1((sum > 0 ? sum << headroom : 0) - (1 << 31));
+        const int32_t shifted_scale = ONE_OVER1(sum > 0 ? (int32_t)((uint32_t)sum << headroom) - INT32_MIN : INT32_MIN);
 
         vec_count = row_size / 4;
         idx = 0;
