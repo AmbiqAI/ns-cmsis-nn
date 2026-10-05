@@ -1969,7 +1969,8 @@ __STATIC_FORCEINLINE void arm_nn_write_s8x4_ia(int8_t **in, int32_t value)
 
 /* Where ARM_NN_WORD_COPY makes the copy and fill helpers calls (it does not on MVE, whose helpers stay inline loops),
  * the im2col loops of arm_convolve_s8, arm_convolve_s16 and arm_depthwise_conv_fast_s16 store a tap of depth 1
- * directly instead. Elsewhere the extra branch costs more than it saves. */
+ * directly instead. Every deeper tap pays for the extra branch, so the store is kept to builds where it replaces a
+ * call. */
 #if defined(ARM_NN_WORD_COPY) && !defined(ARM_MATH_MVEI)
     #define ARM_NN_DEPTH1_STORE (1)
 #else

@@ -1376,7 +1376,7 @@ void operand_bounds_arm_depthwise_conv_fast_s16(void)
 }
 
 /* An input depth of 1 can take a one-element store in the im2col loops (ARM_NN_DEPTH1_STORE, set on ATfE builds for
-   armv7-m and armv8-m.main; other builds run the copy path here). At depths 1 and 2 the result must match
+   armv7-m, armv7e-m and armv8-m.main; other builds run the copy path here). At depths 1 and 2 the result must match
    arm_depthwise_conv_s16() on the same layer, with and without padding, stride and dilation. */
 void depth_one_arm_depthwise_conv_fast_s16(void)
 {

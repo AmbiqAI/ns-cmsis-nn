@@ -3892,9 +3892,9 @@ void conv_1x1_out_grouped_arm_convolve_1x1_out_s8(void)
 #endif
 }
 
-/* The 2x2 upscaled im2col can store a tap of depth 1 directly (ARM_NN_DEPTH1_STORE, set on ATfE builds for armv7-m
-   and armv8-m.main; other builds run the copy path here). At depths 1 and 2 it must match the same convolution
-   without upscale over an explicitly upscaled input, whose inserted positions hold -input_offset. */
+/* The 2x2 upscaled im2col can store a tap of depth 1 directly (ARM_NN_DEPTH1_STORE, set on ATfE builds for armv7-m,
+   armv7e-m and armv8-m.main; other builds run the copy path here). At depths 1 and 2 it must match the same
+   convolution without upscale over an explicitly upscaled input, whose inserted positions hold -input_offset. */
 void upscale_depth_one_arm_convolve_s8(void)
 {
     enum
