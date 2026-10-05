@@ -105,8 +105,8 @@ void special_pairs_arm_dequantize_f16_bits_f32(void)
     }
 }
 
-/* With FPSCR.AHP (exponent 31 read as a number), DN (default NaN) and FZ (flush to zero) set, the result must not
-   change */
+/* With FPSCR.AHP (exponent 31 read as a number), DN (default NaN), FZ (flush to zero) and FZ16 (flush half
+   subnormals) set, the result must not change */
 void alternative_half_arm_dequantize_f16_bits_f32(void)
 {
 #if defined(__ARM_FP) && defined(__ARM_ARCH_PROFILE) && (__ARM_ARCH_PROFILE == 'M')
@@ -115,7 +115,7 @@ void alternative_half_arm_dequantize_f16_bits_f32(void)
     float out[sizeof(in) / sizeof(in[0])];
     uint32_t fpscr;
     __asm volatile("vmrs %0, fpscr" : "=r"(fpscr));
-    __asm volatile("vmsr fpscr, %0" : : "r"(fpscr | (1u << 26) | (1u << 25) | (1u << 24)) : "memory");
+    __asm volatile("vmsr fpscr, %0" : : "r"(fpscr | (1u << 26) | (1u << 25) | (1u << 24) | (1u << 19)) : "memory");
     const arm_cmsis_nn_status status = arm_dequantize_f16_bits_f32(in, out, n);
     __asm volatile("vmsr fpscr, %0" : : "r"(fpscr) : "memory");
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
