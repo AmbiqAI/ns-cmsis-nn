@@ -78,7 +78,7 @@ void arm_softmax_u8(const uint8_t *input,
 
         const int32_t headroom = CLZ((uint32_t)sum);
         const int32_t bits_over_unit = ACCUM_BITS - headroom + 23;
-        const int32_t shifted_scale = ONE_OVER1((int32_t)((uint32_t)sum << headroom) - INT32_MIN);
+        const int32_t shifted_scale = ONE_OVER1(sum > 0 ? (int32_t)((uint32_t)sum << headroom) - INT32_MIN : INT32_MIN);
 
         for (col = 0; col < row_size; ++col)
         {

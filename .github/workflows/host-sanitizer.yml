@@ -13,16 +13,13 @@ name: Host sanitizer unit tests
 # diagnostics, not one: "left shift of negative value", and "left shift of X by
 # N places cannot be represented in type 'int'", i.e. signed left-shift
 # overflow of a positive value. Both are well defined on every Arm target but
-# UB in C. The surviving reporting sites fall into two groups, so fixing either
-# alone would not make the mask droppable:
-#   - The Arm-inherited s4 paths (arm_nn_mat_mult_nt_t_s4.c,
-#     arm_nn_vec_mat_mult_t_s4.c, arm_depthwise_conv_s4{,_opt}.c, arm_convolve_s4.c,
-#     arm_nn_mat_mult_kernel_s4_s16.c), plus
-#     Source/SoftmaxFunctions/arm_nn_softmax_common_s8.c:93, the only site of the
-#     overflow kind — every other site is a shift of a negative value.
-#   - Two __STATIC_FORCEINLINE helpers in the public Include/arm_nnsupportfunctions.h,
-#     arm_nn_exp_on_negative_values and arm_nn_mult_by_power_of_two, so the mask also
-#     covers header code that downstream callers compile.
+# UB in C. The surviving reporting sites are the Arm-inherited s4 paths
+# (arm_nn_mat_mult_nt_t_s4.c, arm_nn_vec_mat_mult_t_s4.c,
+# arm_depthwise_conv_s4{,_opt}.c, arm_convolve_s4.c, arm_nn_mat_mult_kernel_s4_s16.c),
+# each a shift of a negative value. The softmax code (arm_nn_softmax_common_s8.c
+# and the header helpers arm_nn_exp_on_negative_values and
+# arm_nn_mult_by_power_of_two) is shift-base clean; the standalone
+# test_softmax_shift_probe builds it with shift-base enabled.
 # Earlier inventories also listed arm_elementwise_{add,sub,mul}*_s16.c and
 # arm_{add,sub,mul}_scalar_s16.c -- those reported only through the shared
 # pack macros, which now use the defined unsigned-shift idiom (#357) and can
