@@ -214,6 +214,18 @@ static void requant_check(const requant_kind_t kind)
     {
         TEST_ASSERT_EQUAL_HEX8(0x5A, out[i]);
     }
+
+    /* These objects end at the predicated tail, without the matrix's spare backing storage. */
+    const uint8_t one_input = 255;
+    uint8_t one_output = 0;
+    const uint8_t last = in_unsigned ? 127 : (out_unsigned ? 0 : 255);
+    requant_run(kind, &one_input, &one_output, 1, requant_scales[0], 0, 0);
+    TEST_ASSERT_EQUAL_HEX8(last, one_output);
+    const uint8_t three_input[3] = {0, 127, 255};
+    uint8_t three_output[3] = {0};
+    const uint8_t three_expected[3] = {0, 127, last};
+    requant_run(kind, three_input, three_output, 3, requant_scales[0], 0, 0);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(three_expected, three_output, 3);
 }
 
 void test_arm_requantize_s8_s8_all_inputs(void) { requant_check(REQUANT_S8_S8); }
