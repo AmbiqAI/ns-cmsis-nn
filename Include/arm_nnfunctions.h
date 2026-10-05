@@ -7657,8 +7657,9 @@ arm_dequantize_s16_f32(const int16_t *input, float *output, int32_t size, int32_
  * finite values, subnormals (normal in float32), +/-0 and +/-Inf convert exactly, whatever FPSCR.FZ and FZ16
  * hold. Needs no float16 support from the toolchain or the build (ARM_NN_ENABLE_F16 may be off), so float32 code
  * can widen stored float16 weights. The inline arm_nn_dequantize_f16_bits_f32 in arm_nnsupportfunctions.h is the
- * same conversion without the argument checks, provided its caller compiles with the library's VCVT form (the
- * ARM_NN_GAS_* verdict, which a build of the library as a module passes to its users). Paths:
+ * same conversion without the argument checks, provided its caller compiles with the library's VCVT form: the
+ * ARM_NN_GAS_* verdict reaches users of an INTERFACE (module) build of the library; users of a static-library
+ * build must pass it themselves, or NaN payloads can differ on the MVE path. Paths:
  *  - MVE float16, ARM_NN_ENABLE_F16 and no ARM_MATH_AUTOVECTORIZE: the vector VCVTB. Every NaN becomes the
  *    default NaN (0x7FC00000), except where the assembler needs the scalar form instead (#427, see
  *    Internal/arm_nn_vcvt_f16.h), which treats a NaN as the next path does.
