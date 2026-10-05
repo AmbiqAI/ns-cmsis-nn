@@ -75,11 +75,15 @@ static int64_t requant_floor_div_pow2(const int64_t x, const int32_t e)
     return x >= 0 ? x / d : -((-x + d - 1) / d);
 }
 
-static int32_t requant_ref(const int32_t x, const int32_t mult, const int32_t shift)
+static int64_t requant_ref(const int32_t x, const int32_t mult, const int32_t shift)
 {
+    if (shift > 0)
+    {
+        return requant_floor_div_pow2((int64_t)x * mult + ((int64_t)1 << (30 - shift)), 31 - shift);
+    }
 #if defined(CMSIS_NN_USE_SINGLE_ROUNDING)
     const int32_t total_shift = 31 - shift;
-    return (int32_t)requant_floor_div_pow2((int64_t)x * mult + ((int64_t)1 << (total_shift - 1)), total_shift);
+    return requant_floor_div_pow2((int64_t)x * mult + ((int64_t)1 << (total_shift - 1)), total_shift);
 #else
     const int32_t left = shift > 0 ? shift : 0;
     const int32_t right = shift > 0 ? 0 : -shift;
@@ -106,9 +110,11 @@ typedef struct
     int32_t shift;
 } requant_scale_t;
 
-/* 1.0 (int8 <-> uint8 at the same scale), 0.5, 0.75, 3.3, 0.0123 and 2^-21 */
+/* Ordinary scales, the vector/wide boundary, and legal extreme shifts with saturating and unsaturated results. */
 static const requant_scale_t requant_scales[] = {
-    {1 << 30, 1}, {1 << 30, 0}, {1610612736, 0}, {1771674010, 2}, {1690522173, -6}, {1 << 30, -20}};
+    {1 << 30, 1}, {1 << 30, 0}, {1610612736, 0}, {1771674010, 2}, {1690522173, -6}, {1 << 30, -20},
+    {INT32_MAX, 22}, {1 << 30, 23}, {1 << 30, 24}, {INT32_MAX, 30}, {1073741823, 30},
+    {1, 23}, {1, 30}, {0, 30}, {INT32_MAX, -31}};
 
 #define REQUANT_CANARY 16
 
@@ -168,7 +174,7 @@ static void requant_check(const requant_kind_t kind)
                 for (int32_t i = 0; i < 256; i++)
                 {
                     const int32_t x = in_unsigned ? (int32_t)in[i] : (int32_t)(int8_t)in[i];
-                    int32_t y = requant_ref(x - in_zps[zi], requant_scales[si].mult, requant_scales[si].shift);
+                    int64_t y = requant_ref(x - in_zps[zi], requant_scales[si].mult, requant_scales[si].shift);
                     y += out_zps[zo];
                     y = y < out_min ? out_min : (y > out_max ? out_max : y);
                     expected[i] = (int8_t)(uint8_t)y;
@@ -203,6 +209,7 @@ static void requant_check(const requant_kind_t kind)
     memset(out, 0x5A, sizeof(out));
     requant_run(kind, in, out, 0, requant_scales[0], 0, 0);
     requant_run(kind, in, out, -1, requant_scales[0], 0, 0);
+    requant_run(kind, in, out, INT32_MIN, requant_scales[0], 0, 0);
     for (int32_t i = 0; i < REQUANT_CANARY; i++)
     {
         TEST_ASSERT_EQUAL_HEX8(0x5A, out[i]);

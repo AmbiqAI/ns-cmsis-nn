@@ -48,24 +48,46 @@ __STATIC_FORCEINLINE void arm_nn_requantize_8bit(const int8_t *input,
                                                  const int32_t output_min,
                                                  const int32_t output_max)
 {
-#if defined(ARM_MATH_MVEI)
-    int32_t count = (size + 3) / 4;
+    /* Single-rounding MVE needs one extra left shift. Above 22, a centered byte may no longer fit in int32_t.
+     * Positive shifts use the same rounding in both modes; multiply before dividing to keep the product in int64_t. */
+    if (effective_scale_shift > 22)
+    {
+        const int32_t right_shift = 31 - effective_scale_shift;
+        for (int32_t i = 0; i < size; i++)
+        {
+            const int32_t centered = (input_unsigned ? ((const uint8_t *)input)[i] : input[i]) - input_zeropoint;
+            int64_t val = (int64_t)centered * effective_scale_multiplier;
+            val = (val + ((int64_t)1 << (right_shift - 1))) >> right_shift;
+            val += output_zeropoint;
+            val = ARM_NN_CLAMP(val, output_max, output_min);
+            if (output_min < 0)
+            {
+                output[i] = (int8_t)val;
+            }
+            else
+            {
+                ((uint8_t *)output)[i] = (uint8_t)val;
+            }
+        }
+        return;
+    }
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const int32_t count = size / 4 + (size % 4 > 0);
     int32x4_t max = vdupq_n_s32(output_max);
     int32x4_t min = vdupq_n_s32(output_min);
     for (int i = 0; i < count; i++)
     {
+        const int32_t offset = i * 4;
         mve_pred16_t pred = vctp32q(size);
         size -= 4;
-        int32x4_t vals = input_unsigned ? vreinterpretq_s32_u32(vldrbq_z_u32((const uint8_t *)input, pred))
-                                        : vldrbq_z_s32(input, pred);
+        int32x4_t vals = input_unsigned ? vreinterpretq_s32_u32(vldrbq_z_u32((const uint8_t *)input + offset, pred))
+                                        : vldrbq_z_s32(input + offset, pred);
         vals = vaddq_n_s32(vals, -input_zeropoint);
         vals = arm_requantize_mve(vals, effective_scale_multiplier, effective_scale_shift);
         int32x4_t shifted = vaddq_n_s32(vals, output_zeropoint);
         int32x4_t clamped = vminq_s32(vmaxq_s32(shifted, min), max);
         /* The low byte of a value in [output_min, output_max] is the int8_t or uint8_t result */
-        vstrbq_p_s32(output, clamped, pred);
-        input += 4;
-        output += 4;
+        vstrbq_p_s32(output + offset, clamped, pred);
     }
 #else
     for (int i = 0; i < size; i++)
