@@ -33,10 +33,40 @@
  * @{
  */
 
-/*
- * Requantize 8-bit values. The input's signedness and the output range are compile-time constants at every call, so
- * each entry point gets its own loop. A uint8_t array is passed as int8_t and read back as uint8_t.
- */
+/* Positive shifts round identically in both modes. Multiply before dividing so that centered byte * Q31 fits in
+ * int64_t, even when the final result exceeds int32_t. Keep this rare path out of the ordinary loop's register
+ * allocation. */
+static __attribute__((noinline)) void arm_nn_requantize_8bit_wide(const int8_t *input,
+                                                                  const bool input_unsigned,
+                                                                  int8_t *output,
+                                                                  int32_t size,
+                                                                  const int32_t effective_scale_multiplier,
+                                                                  const int32_t effective_scale_shift,
+                                                                  const int32_t input_zeropoint,
+                                                                  const int32_t output_zeropoint,
+                                                                  const int32_t output_min,
+                                                                  const int32_t output_max)
+{
+    const int32_t right_shift = 31 - effective_scale_shift;
+    for (int32_t i = 0; i < size; i++)
+    {
+        const int32_t centered = (input_unsigned ? ((const uint8_t *)input)[i] : input[i]) - input_zeropoint;
+        int64_t val = (int64_t)centered * effective_scale_multiplier;
+        val = (val + ((int64_t)1 << (right_shift - 1))) >> right_shift;
+        val += output_zeropoint;
+        val = ARM_NN_CLAMP(val, output_max, output_min);
+        if (output_min < 0)
+        {
+            output[i] = (int8_t)val;
+        }
+        else
+        {
+            ((uint8_t *)output)[i] = (uint8_t)val;
+        }
+    }
+}
+
+/* Signedness and output range are compile-time constants in the ordinary loops. */
 __STATIC_FORCEINLINE void arm_nn_requantize_8bit(const int8_t *input,
                                                  const bool input_unsigned,
                                                  int8_t *output,
@@ -48,27 +78,19 @@ __STATIC_FORCEINLINE void arm_nn_requantize_8bit(const int8_t *input,
                                                  const int32_t output_min,
                                                  const int32_t output_max)
 {
-    /* Single-rounding MVE needs one extra left shift. Above 22, a centered byte may no longer fit in int32_t.
-     * Positive shifts use the same rounding in both modes; multiply before dividing to keep the product in int64_t. */
+    /* Single-rounding MVE shifts once more than the scale exponent; centered bytes fit through exponent 22. */
     if (effective_scale_shift > 22)
     {
-        const int32_t right_shift = 31 - effective_scale_shift;
-        for (int32_t i = 0; i < size; i++)
-        {
-            const int32_t centered = (input_unsigned ? ((const uint8_t *)input)[i] : input[i]) - input_zeropoint;
-            int64_t val = (int64_t)centered * effective_scale_multiplier;
-            val = (val + ((int64_t)1 << (right_shift - 1))) >> right_shift;
-            val += output_zeropoint;
-            val = ARM_NN_CLAMP(val, output_max, output_min);
-            if (output_min < 0)
-            {
-                output[i] = (int8_t)val;
-            }
-            else
-            {
-                ((uint8_t *)output)[i] = (uint8_t)val;
-            }
-        }
+        arm_nn_requantize_8bit_wide(input,
+                                    input_unsigned,
+                                    output,
+                                    size,
+                                    effective_scale_multiplier,
+                                    effective_scale_shift,
+                                    input_zeropoint,
+                                    output_zeropoint,
+                                    output_min,
+                                    output_max);
         return;
     }
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
